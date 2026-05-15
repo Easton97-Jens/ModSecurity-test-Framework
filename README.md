@@ -98,6 +98,7 @@ results are written under `BUILD_ROOT`.
 ## Documentation
 
 - `docs/pr-evidence-summary.md`: PR #3564 and PR #377 evidence summary.
+- `docs/raw-args-pr3564.md`: RAW argument collection status and promotion rule.
 - `docs/real-world-connector-validation.md`: connector-path proof model.
 - `docs/response-body-blocking-investigation.md`: RESPONSE_BODY xfail probe.
 - `docs/test-import-plan.md`: source-derived test import rules and inventory.

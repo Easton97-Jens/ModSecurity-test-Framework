@@ -71,6 +71,8 @@ Current local evidence:
 - Therefore RAW collections are classified as `mapped-only` /
   `unsupported-local-source` in this repository.
 
+Detailed RAW status is maintained in `docs/raw-args-pr3564.md`.
+
 Promotion rule:
 
 1. A configured `MODSECURITY_V3_SOURCE_DIR` must contain RAW collection support.
