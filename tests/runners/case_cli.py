@@ -156,7 +156,7 @@ def read_jsonl(path: Path) -> list[dict[str, object]]:
 
 
 def result_counts(entries: list[dict[str, object]]) -> dict[str, int]:
-    counts = {status: 0 for status in RESULT_STATUSES}
+    counts = dict.fromkeys(RESULT_STATUSES, 0)
     for entry in entries:
         status = str(entry.get("status", "fail"))
         counts.setdefault(status, 0)
