@@ -55,6 +55,9 @@ remediation pass and are fixed in source without suppressions:
 | screenshot L12 | regex cleanup | minor | `tests/normalizers/response_normalizer.py` | real | Remove the redundant lowercase range from an `IGNORECASE` character class | fixed |
 | screenshot L159 | Python code smell | minor | `tests/runners/case_cli.py` | real | Use `dict.fromkeys()` for stable duplicate removal in verified variables | fixed |
 
+Split status: `tests/runners/case_cli.py` in this repository already contains
+the `dict.fromkeys()` duplicate-removal fix. No suppression is used.
+
 No issue is intentionally suppressed. If SonarCloud reports follow-up issues or
 keeps any of these keys open after the next analysis, update this table with the
 new evidence and fix strategy instead of hiding the warning.
