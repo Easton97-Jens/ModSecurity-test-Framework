@@ -1,0 +1,38 @@
+# Origin:
+# - Apache: /root/conecter/ModSecurity-apache/tests/regression/action/10-logging.t
+#   covers `auditlog` on deny actions with `SecAuditEngine RelevantOnly`.
+# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity-config-auditlog.t
+#   covers serial audit log directives and audit-log content assertions.
+# Portable because it uses serial audit logging, a phase:1 query-argument
+# intervention, and substring checks for stable rule/request fields only.
+name: audit_log_phase1_block
+
+capabilities:
+  query_args: true
+  phase1: true
+  intervention: true
+  audit_log: true
+
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule ARGS:audit "@streq trigger" \
+    "id:1401,phase:1,deny,status:403,auditlog,msg:'shared audit log smoke'"
+
+request:
+  method: GET
+  path: "/?audit=trigger"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1401
+  audit_log:
+    required: true
+    rule_id: 1401
+    uri: "/?audit=trigger"
+    message: shared audit log smoke

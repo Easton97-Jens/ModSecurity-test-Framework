@@ -1,0 +1,40 @@
+# Source-derived portable JSON body smoke.
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/rule/15-json.t
+    reason: Derives from JSON request-body coverage, but matches raw REQUEST_BODY instead of parsed JSON collections.
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity-request-body.t
+    reason: Derives from request-body phase blocking with a raw body match.
+category: body-processors
+portable: true
+status: imported
+known_limitations:
+  - Does not prove JSON parser collection extraction such as ARGS:foo.
+  - Does not cover malformed JSON or request-body limits.
+name: json_request_body_block
+
+capabilities:
+  request_body: true
+  json: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule REQUEST_BODY "@contains attack" \
+    "id:2501,phase:2,deny,status:403,msg:'shared imported JSON raw body block'"
+
+request:
+  method: POST
+  path: /
+  headers:
+    Content-Type: application/json
+  body: |
+    {"payload":"attack","other":"clean"}
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 2501

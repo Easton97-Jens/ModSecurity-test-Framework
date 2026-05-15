@@ -1,0 +1,48 @@
+# Source-derived V3 multipart FILES collection smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-FILES.json
+    reason: Derives from the FILES:filedata1 multipart upload case that expects HTTP 403.
+category: multipart
+portable: true
+status: imported
+known_limitations:
+  - Covers a small deterministic file upload only.
+  - Does not cover upload temporary paths, duplicate field aggregation, or malformed multipart bodies.
+name: multipart_files_value_block
+
+capabilities:
+  request_body: true
+  multipart: true
+  files: true
+  collections: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule FILES:filedata1 "@contains myfile.txt" \
+    "id:3301,phase:2,deny,status:403,msg:'v3 imported FILES value block'"
+
+request:
+  method: POST
+  path: /
+  multipart:
+    boundary: modsec-smoke-v3-files
+    parts:
+      - name: name
+        body: test
+      - name: filedata1
+        filename: myfile.txt
+        content_type: text/plain
+        body: This is a very small test file.
+      - name: filedata2
+        filename: nextfile.txt
+        content_type: text/plain
+        body: This is another very small test file.
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3301

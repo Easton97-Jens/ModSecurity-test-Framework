@@ -1,0 +1,44 @@
+# Source-derived V3 multipart FILES_NAMES collection smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-FILES_NAMES.json
+    reason: Derives from the V3 FILES_NAMES regression case for multipart file field names.
+category: multipart
+portable: true
+status: imported
+known_limitations:
+  - Converted from a debug-log assertion to an HTTP intervention assertion.
+  - Does not cover duplicate-name ordering or debug log text.
+name: multipart_files_names_block
+
+capabilities:
+  request_body: true
+  multipart: true
+  files: true
+  collections: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule FILES_NAMES "@contains filedata" \
+    "id:3302,phase:2,deny,status:403,msg:'v3 imported FILES_NAMES block'"
+
+request:
+  method: POST
+  path: /
+  multipart:
+    boundary: modsec-smoke-v3-files-names
+    parts:
+      - name: name
+        body: test
+      - name: filedata
+        filename: small_text_file.txt
+        content_type: text/plain
+        body: This is a very small test file.
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3302

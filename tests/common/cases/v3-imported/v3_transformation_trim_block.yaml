@@ -1,0 +1,32 @@
+# Source-derived V3 transformation smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/transformations.json
+    reason: Derives from V3 transformation coverage around trimmed request parameters.
+category: transformations
+portable: true
+status: imported
+known_limitations:
+  - Uses a minimal query argument instead of the full upstream cookie/header fixture.
+  - Does not assert debug log transformation traces.
+name: v3_transformation_trim_block
+
+capabilities:
+  transformations: true
+  query_args: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:param1 "@streq attack" \
+    "id:3311,phase:2,t:trim,deny,status:403,msg:'v3 imported trim transformation block'"
+
+request:
+  method: GET
+  path: "/?param1=%20%20attack%20%20"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3311

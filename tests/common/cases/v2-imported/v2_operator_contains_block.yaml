@@ -1,0 +1,32 @@
+# Source-derived V2 operator semantics smoke.
+origin:
+  - repo: ModSecurity_V2
+    path: tests/op/contains.t
+    reason: Derives from V2 @contains cases where abc/def/ghi match inside abcdefghi.
+category: operators
+portable: true
+status: imported
+known_limitations:
+  - Converted from the V2 operator harness to an HTTP phase:2 intervention check.
+  - Does not cover empty-pattern edge cases from the source test.
+name: v2_operator_contains_block
+
+capabilities:
+  operators: true
+  query_args: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:test "@contains def" \
+    "id:3202,phase:2,deny,status:403,msg:'v2 imported contains operator block'"
+
+request:
+  method: GET
+  path: "/?test=abcdefghi"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3202

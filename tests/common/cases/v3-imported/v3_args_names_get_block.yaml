@@ -1,0 +1,33 @@
+# Source-derived V3 ARGS_NAMES collection smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-ARGS_NAMES.json
+    reason: Derives from the V3 GET ARGS_NAMES fixture with query parameter names `key1` and `key2`.
+category: collections
+portable: true
+status: imported
+known_limitations:
+  - Converts debug-log collection assertions to an HTTP intervention assertion.
+  - Duplicate argument-name edge cases remain mapped only.
+name: v3_args_names_get_block
+
+capabilities:
+  collections: true
+  args_names: true
+  query_args: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS_NAMES "@contains key1" \
+    "id:3324,phase:2,deny,status:403,msg:'v3 imported args names get block'"
+
+request:
+  method: GET
+  path: "/?key1=value&key2=other_value"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3324

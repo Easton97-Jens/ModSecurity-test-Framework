@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""Generate docs/case-matrix.md from YAML cases and optional smoke results."""
+
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+RUNNERS = REPO_ROOT / "tests" / "runners"
+sys.path.insert(0, str(RUNNERS))
+
+from runner_core import case_info, load_case  # noqa: E402
+
+
+def result_status(results: dict[str, object], connector: str, name: str) -> str:
+    summary = results.get(connector, {})
+    if not isinstance(summary, dict):
+        return "unknown"
+    cases = summary.get("cases", {})
+    if not isinstance(cases, dict):
+        return "unknown"
+    case = cases.get(name, {})
+    if isinstance(case, dict):
+        return str(case.get("status", "unknown"))
+    return "unknown"
+
+
+def case_source(info: dict[str, object], path: Path) -> str:
+    origins = info.get("origin", [])
+    if not isinstance(origins, list):
+        return str(path.relative_to(REPO_ROOT))
+    parts = []
+    for origin in origins:
+        if isinstance(origin, dict):
+            parts.append(f"{origin.get('repo', '')}:{origin.get('path', '')}")
+    if parts:
+        return "; ".join(parts)
+    return str(path.relative_to(REPO_ROOT))
+
+
+def case_kind(info: dict[str, object]) -> str:
+    scope = str(info.get("scope", ""))
+    if scope.startswith(("apache/", "nginx/")):
+        return "connector-specific"
+    if "xfail" in scope or str(info.get("case_status")) == "xfail":
+        return "xfail"
+    return "common"
+
+
+def all_case_paths() -> list[Path]:
+    roots = [
+        REPO_ROOT / "tests" / "common" / "cases",
+        REPO_ROOT / "tests" / "apache" / "cases",
+        REPO_ROOT / "tests" / "nginx" / "cases",
+    ]
+    return sorted(path for root in roots if root.exists() for path in root.rglob("*.yaml"))
+
+
+def load_results(path: Path) -> dict[str, object]:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def row(path: Path, results: dict[str, object]) -> str:
+    case = load_case(path)
+    info = case_info(case, path)
+    name = str(info["name"])
+    capabilities = ", ".join(info.get("capabilities", []))
+    category = str(info.get("category", "") or info.get("group", ""))
+    notes = "; ".join(info.get("known_limitations", []))
+    values = [
+        name,
+        case_source(info, path),
+        category,
+        capabilities,
+        result_status(results, "apache", name),
+        result_status(results, "nginx", name),
+        case_kind(info),
+        notes,
+    ]
+    return "| " + " | ".join(value.replace("|", "\\|") for value in values) + " |"
+
+
+def main(argv: list[str]) -> int:
+    results_path = Path(argv[1]) if len(argv) > 1 else Path("/src/ModSecurity-test-Framework-build/results/connector-summary.json")
+    output_path = Path(argv[2]) if len(argv) > 2 else REPO_ROOT / "docs" / "case-matrix.md"
+    results = load_results(results_path)
+    lines = [
+        "# Case Matrix",
+        "",
+        "Generated from repository YAML cases and, when present, connector summary results.",
+        "",
+        "| case_name | source | category | capabilities | apache_status | nginx_status | common_or_connector_specific | notes |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    lines.extend(row(path, results) for path in all_case_paths())
+    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

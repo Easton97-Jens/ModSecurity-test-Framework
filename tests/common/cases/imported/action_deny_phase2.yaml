@@ -1,0 +1,27 @@
+name: action_deny_phase2
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/action/00-disruptive-actions.t
+    reason: Derived from the phase:2 deny SecAction regression case.
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity.t
+    reason: Cross-checked against NGINX phase:2 disruptive action coverage.
+category: actions
+capabilities:
+  - phase2
+  - intervention
+portable: true
+status: imported
+
+rules: |
+  SecRuleEngine On
+  SecAction "phase:2,deny,status:403,id:2102,msg:'imported phase2 deny smoke'"
+
+request:
+  method: GET
+  path: /
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 2102

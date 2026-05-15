@@ -1,0 +1,30 @@
+# Origin:
+# - Apache: /root/conecter/ModSecurity-apache/tests/regression/rule/00-basics.t
+#   covers a phase:2 ARGS rule that blocks only on a matching argument.
+# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity.t includes
+#   "nothing to detect" requests that pass when the block pattern is absent.
+# Portable because it uses the same query-argument collection as the blocking
+# case but expects normal origin content when the rule does not match.
+name: phase2_args_pass
+
+capabilities:
+  query_args: true
+  phase2: true
+  pass_through: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:test "@streq attack" \
+    "id:1002,phase:2,deny,status:403"
+
+request:
+  method: GET
+  path: "/?test=clean"
+
+expect:
+  status: 200
+  intervention: none
+  rule_id: none
+  response_contains: TEST-OK-IF-YOU-SEE-THIS
+  audit_log:
+    required: false

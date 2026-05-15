@@ -1,0 +1,26 @@
+name: action_allow_phase1_pass
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/action/00-disruptive-actions.t
+    reason: Derived from the phase:1 allow-before-deny regression case.
+category: actions
+capabilities:
+  - phase1
+  - pass_through
+portable: true
+status: imported
+
+rules: |
+  SecRuleEngine On
+  SecAction "phase:1,allow,id:2103,msg:'imported phase1 allow smoke'"
+  SecAction "phase:1,deny,status:403,id:2104,msg:'deny should be bypassed by allow'"
+
+request:
+  method: GET
+  path: /
+
+expect:
+  status: 200
+  intervention: pass
+  rule_id: 2103
+  response_contains: TEST-OK-IF-YOU-SEE-THIS

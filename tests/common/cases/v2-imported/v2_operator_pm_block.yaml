@@ -1,0 +1,32 @@
+# Source-derived V2 operator semantics smoke.
+origin:
+  - repo: ModSecurity_V2
+    path: tests/op/pm.t
+    reason: Derives from the V2 @pm case with param `abc`, input `abcdefghi`, ret 1.
+category: operators
+portable: true
+status: imported
+known_limitations:
+  - Converted from the V2 operator harness to an HTTP phase:2 intervention check.
+  - Long phrase-list and no-match branches remain mapped only.
+name: v2_operator_pm_block
+
+capabilities:
+  operators: true
+  query_args: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:probe "@pm abc" \
+    "id:3222,phase:2,deny,status:403,msg:'v2 imported pm operator block'"
+
+request:
+  method: GET
+  path: "/?probe=abcdefghi"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3222

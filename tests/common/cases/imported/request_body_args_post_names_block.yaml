@@ -1,0 +1,35 @@
+name: request_body_args_post_names_block
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/target/00-targets.t
+    reason: Derived from the ARGS_POST_NAMES POST regression case.
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity-request-body.t
+    reason: Cross-checked against NGINX request-body and ARGS_POST coverage.
+category: request-body
+capabilities:
+  - request_body
+  - form_urlencoded
+  - collections
+  - phase2
+  - intervention
+portable: true
+status: imported
+
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule ARGS_POST_NAMES "@streq arg1" \
+    "id:2204,phase:2,deny,status:403,msg:'imported ARGS_POST_NAMES smoke'"
+
+request:
+  method: POST
+  path: /
+  headers:
+    Content-Type: application/x-www-form-urlencoded
+  body: arg1=val1&arg2=val2
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 2204

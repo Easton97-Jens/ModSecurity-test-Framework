@@ -1,0 +1,32 @@
+# Source-derived V3 operator smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/operator-rx.json
+    reason: Derives from the V3 @rx operator regression matching value1 in request arguments.
+category: operators
+portable: true
+status: imported
+known_limitations:
+  - Converted from debug-log/pass assertions to an HTTP intervention assertion.
+  - Does not cover regex compile-error branches.
+name: v3_operator_rx_block
+
+capabilities:
+  operators: true
+  query_args: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:param1 "@rx ^value1$" \
+    "id:3310,phase:2,t:trim,deny,status:403,msg:'v3 imported rx operator block'"
+
+request:
+  method: GET
+  path: "/?param1=value1&param2=value2"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3310

@@ -1,0 +1,42 @@
+# Source-derived V3 negative audit-log smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/issue-2196.json
+    reason: Derives from the V3 nolog/pass case where `ARGS:foo @rx ^bar$` must not write an audit log.
+category: actions
+portable: true
+status: xfail
+known_limitations:
+  - Checks audit log absence for a pass-through rule; it does not prove every nolog disruptive-action variant.
+  - Uses serial audit placeholders rather than copying the upstream `/tmp/test` paths.
+  - Uses `/` instead of upstream `index.php` so the minimal connector smoke fixture returns HTTP 200.
+  - Local Apache and NGINX runs observed empty audit logs, but GitHub Actions observed a non-empty audit log; this remains outside active common discovery until stable in both environments.
+name: v3_action_nolog_pass_no_audit
+
+capabilities:
+  actions: true
+  audit_log_absent: true
+  query_args: true
+  phase1: true
+  pass_through: true
+
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule ARGS:foo "@rx ^bar$" \
+    "id:3326,phase:1,nolog,pass,msg:'v3 imported nolog pass no audit'"
+
+request:
+  method: GET
+  path: "/?foo=bar&a=xxx"
+
+expect:
+  status: 200
+  intervention: none
+  rule_id: none
+  audit_log:
+    absent: true
