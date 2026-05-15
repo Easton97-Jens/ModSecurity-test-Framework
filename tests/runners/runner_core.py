@@ -1,0 +1,871 @@
+"""Minimal shared runner core for connector tests."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+import shlex
+import time
+from typing import Any, Iterable, Mapping
+
+from adapter_interface import ConnectorAdapter
+
+DEFAULT_RESPONSE_BODY = "TEST-OK-IF-YOU-SEE-THIS\n"
+READY_BODY = "ready\n"
+
+CAPABILITY_ALIASES = {
+    "api_smoke": "api-smoke",
+    "audit_log": "audit-log",
+    "body_processor": "body-processors",
+    "body_processors": "body-processors",
+    "form_urlencoded": "form-urlencoded",
+    "pass_through": "pass-through",
+    "query_args": "query-args",
+    "args_names": "args-names",
+    "audit_log_absent": "audit-log-absent",
+    "request_body": "request-body",
+    "request_cookies": "request-cookies",
+    "request_headers": "request-headers",
+    "request_uri": "request-uri",
+    "response_body": "response-body",
+    "response_filters": "response-filters",
+    "response_headers": "response-headers",
+    "rule_parser": "rule-parser",
+    "transaction_lifecycle": "transaction-lifecycle",
+    "tx": "tx-collection",
+}
+
+KNOWN_CAPABILITIES = {
+    "actions",
+    "api-smoke",
+    "args-names",
+    "audit-log",
+    "audit-log-absent",
+    "body-processors",
+    "collections",
+    "engine-core",
+    "files",
+    "form-urlencoded",
+    "intervention",
+    "json",
+    "logging",
+    "multipart",
+    "operators",
+    "pass-through",
+    "phase1",
+    "phase2",
+    "phase3",
+    "phase4",
+    "query-args",
+    "request-cookies",
+    "redirect",
+    "request-body",
+    "request-headers",
+    "request-uri",
+    "response-body",
+    "response-filters",
+    "response-headers",
+    "rule-parser",
+    "transaction-lifecycle",
+    "transformations",
+    "tx-collection",
+    "xml",
+}
+
+CASE_STATUSES = {
+    "active",
+    "blocked",
+    "connector-specific",
+    "fail",
+    "fully-imported-common",
+    "imported",
+    "mapped",
+    "mapped-only",
+    "minimal",
+    "pass",
+    "skipped",
+    "todo",
+    "xfail",
+}
+
+RESULT_STATUSES = {"pass", "fail", "blocked", "skipped", "xfail"}
+
+CONNECTORS = {"apache", "nginx", "common"}
+INTERVENTIONS = {"deny", "pass", "none", "redirect", "block"}
+REQUEST_METHODS = {"GET", "POST"}
+
+
+@dataclass
+class RunnerResult:
+    response: Any
+    artifacts: Mapping[str, Any]
+    passed: bool
+    errors: list[str]
+
+
+def _parse_scalar(value: str) -> Any:
+    value = value.strip()
+    if not value:
+        return ""
+    lowered = value.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    if lowered in {"null", "none"}:
+        return None
+    if (value.startswith('"') and value.endswith('"')) or (
+        value.startswith("'") and value.endswith("'")
+    ):
+        return value[1:-1]
+    if value.isdigit():
+        return int(value)
+    return value
+
+
+def _dedent_block(lines: Iterable[str]) -> str:
+    collected = list(lines)
+    indents = [
+        len(line) - len(line.lstrip(" "))
+        for line in collected
+        if line.strip()
+    ]
+    if not indents:
+        return ""
+    margin = min(indents)
+    return "\n".join(line[margin:] for line in collected).rstrip() + "\n"
+
+
+def _load_yaml_with_pyyaml(path: Path) -> Mapping[str, Any] | None:
+    try:
+        import yaml  # type: ignore[import-not-found]
+    except ImportError:
+        return None
+    loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(loaded, Mapping):
+        raise ValueError(f"case file must contain a mapping: {path}")
+    return loaded
+
+
+def _indent_of(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+class MinimalYamlParser:
+    """Parse the documented minimal case schema without external dependencies."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.lines = path.read_text(encoding="utf-8").splitlines()
+
+    def next_significant(self, index: int) -> str | None:
+        while index < len(self.lines):
+            candidate = self.lines[index]
+            if candidate.strip() and not candidate.lstrip().startswith("#"):
+                return candidate
+            index += 1
+        return None
+
+    def parse_node(self, index: int, indent: int) -> tuple[Any, int]:
+        candidate = self.next_significant(index)
+        if candidate is not None and _indent_of(candidate) == indent and candidate.strip().startswith("- "):
+            return self.parse_sequence(index, indent)
+        return self.parse_mapping(index, indent)
+
+    def parse_sequence(self, index: int, indent: int) -> tuple[list[Any], int]:
+        parsed: list[Any] = []
+        while index < len(self.lines):
+            if not self.lines[index].strip() or self.lines[index].lstrip().startswith("#"):
+                index += 1
+                continue
+            item = self._sequence_item(index, indent)
+            if item is None:
+                break
+            value, index = item
+            parsed.append(value)
+        return parsed, index
+
+    def _sequence_item(self, index: int, indent: int) -> tuple[Any, int] | None:
+        line = self.lines[index]
+        if _indent_of(line) < indent or not line.strip().startswith("- "):
+            return None
+        if _indent_of(line) > indent:
+            raise ValueError(f"unexpected indentation in {self.path}: {line}")
+        raw_value = line.strip()[2:].strip()
+        index += 1
+        if not raw_value:
+            return self.parse_node(index, indent + 2)
+        if ":" not in raw_value or raw_value.startswith(("'", '"')):
+            return _parse_scalar(raw_value), index
+        key, value = raw_value.split(":", 1)
+        item: dict[str, Any] = {key.strip(): _parse_scalar(value.strip())}
+        candidate = self.next_significant(index)
+        if candidate is not None and _indent_of(candidate) == indent + 2:
+            nested, index = self.parse_mapping(index, indent + 2)
+            item.update(nested)
+        return item, index
+
+    def parse_mapping(self, index: int, indent: int) -> tuple[dict[str, Any], int]:
+        parsed: dict[str, Any] = {}
+        while index < len(self.lines):
+            line = self.lines[index]
+            if not line.strip() or line.lstrip().startswith("#"):
+                index += 1
+                continue
+            current_indent = _indent_of(line)
+            if current_indent < indent:
+                break
+            if current_indent > indent:
+                raise ValueError(f"unexpected indentation in {self.path}: {line}")
+            stripped = line.strip()
+            if ":" not in stripped:
+                raise ValueError(f"expected key/value line in {self.path}: {line}")
+            key, raw_value = stripped.split(":", 1)
+            key = key.strip()
+            raw_value = raw_value.strip()
+            index += 1
+            if raw_value == "|":
+                parsed[key], index = self.parse_block(index, current_indent)
+                continue
+            if raw_value:
+                parsed[key] = _parse_scalar(raw_value)
+                continue
+            nested, index = self.parse_node(index, current_indent + 2)
+            parsed[key] = nested
+        return parsed, index
+
+    def parse_block(self, index: int, parent_indent: int) -> tuple[str, int]:
+        block_lines: list[str] = []
+        while index < len(self.lines):
+            line = self.lines[index]
+            if line.strip() and _indent_of(line) <= parent_indent:
+                break
+            block_lines.append(line)
+            index += 1
+        return _dedent_block(block_lines), index
+
+    def parse(self) -> Mapping[str, Any]:
+        case, final_index = self.parse_mapping(0, 0)
+        self._check_trailing(final_index)
+        return case
+
+    def _check_trailing(self, index: int) -> None:
+        while index < len(self.lines):
+            trailing = self.lines[index]
+            if trailing.strip() and not trailing.lstrip().startswith("#"):
+                raise ValueError(f"unexpected trailing content in {self.path}: {trailing}")
+            index += 1
+
+
+def _load_minimal_yaml(path: Path) -> Mapping[str, Any]:
+    case = MinimalYamlParser(path).parse()
+    return case
+
+
+def load_case(path: str | Path) -> Mapping[str, Any]:
+    case_path = Path(path)
+    loaded = _load_yaml_with_pyyaml(case_path)
+    case = dict(loaded if loaded is not None else _load_minimal_yaml(case_path))
+    validate_case(case, case_path)
+    return case
+
+
+def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
+    where = f" in {path}" if path is not None else ""
+    _validate_case_metadata(case, where)
+    _validate_request(case, where)
+    _validate_response(case, where)
+    _validate_expect(case, where)
+
+
+def _validate_case_metadata(case: Mapping[str, Any], where: str) -> None:
+    if not str(case.get("name", "")).strip():
+        raise ValueError(f"case requires name{where}")
+    if not str(case.get("rules", "")).strip():
+        raise ValueError(f"case requires rules{where}")
+    _validate_capabilities(case, where)
+    _validate_origin(case, where)
+    _validate_known_limitations(case, where)
+    portable = case.get("portable")
+    if portable is not None and not isinstance(portable, bool):
+        raise ValueError(f"case portable must be a boolean{where}")
+    connector = case.get("connector")
+    if connector is not None and str(connector) not in CONNECTORS:
+        raise ValueError(f"case connector must be apache, nginx, or common{where}")
+    status = case.get("status")
+    if status is not None and str(status) not in CASE_STATUSES:
+        raise ValueError(f"case status is unsupported{where}")
+
+
+def _validate_capabilities(case: Mapping[str, Any], where: str) -> None:
+    capabilities = case.get("capabilities", {})
+    if capabilities is not None and not isinstance(capabilities, (Mapping, list)):
+        raise ValueError(f"case capabilities must be a mapping or list{where}")
+    if isinstance(capabilities, list) and not all(isinstance(item, str) for item in capabilities):
+        raise ValueError(f"case capabilities list must contain strings{where}")
+    unknown_capabilities = [
+        capability
+        for capability in _capability_names(case)
+        if capability not in KNOWN_CAPABILITIES
+    ]
+    if unknown_capabilities:
+        joined = ", ".join(sorted(unknown_capabilities))
+        raise ValueError(f"case capabilities contain unsupported values: {joined}{where}")
+
+
+def _validate_origin(case: Mapping[str, Any], where: str) -> None:
+    origin = case.get("origin")
+    if origin is None:
+        return
+    if not isinstance(origin, list) or not all(isinstance(item, Mapping) for item in origin):
+        raise ValueError(f"case origin must be a list of mappings{where}")
+    for item in origin:
+        missing = [key for key in ("repo", "path", "reason") if not str(item.get(key, "")).strip()]
+        if missing:
+            raise ValueError(f"case origin entries require {missing[0]}{where}")
+
+
+def _validate_known_limitations(case: Mapping[str, Any], where: str) -> None:
+    known_limitations = case.get("known_limitations")
+    if known_limitations is not None and not isinstance(known_limitations, (str, list)):
+        raise ValueError(f"case known_limitations must be a string or list{where}")
+    if isinstance(known_limitations, list) and not all(isinstance(item, str) for item in known_limitations):
+        raise ValueError(f"case known_limitations list must contain strings{where}")
+
+
+def _validate_request(case: Mapping[str, Any], where: str) -> None:
+    request = case.get("request")
+    if not isinstance(request, Mapping):
+        raise ValueError(f"case requires request mapping{where}")
+    if not str(request.get("method", "")).strip():
+        raise ValueError(f"case requires request.method{where}")
+    if str(request.get("method", "")).upper() not in REQUEST_METHODS:
+        raise ValueError(f"case supports only GET or POST request.method{where}")
+    if not str(request.get("path", "")).strip():
+        raise ValueError(f"case requires request.path{where}")
+    headers = request.get("headers", {})
+    if headers is not None and not isinstance(headers, Mapping):
+        raise ValueError(f"case request.headers must be a mapping{where}")
+    header_map = headers if isinstance(headers, Mapping) else {}
+    has_body = "body" in request and request.get("body") is not None
+    has_multipart = "multipart" in request and request.get("multipart") is not None
+    if has_body and has_multipart:
+        raise ValueError(f"case request.body and request.multipart are mutually exclusive{where}")
+    if has_multipart:
+        _validate_multipart_request(request, header_map, where)
+
+
+def _validate_multipart_request(request: Mapping[str, Any], headers: Mapping[str, Any], where: str) -> None:
+    multipart = request.get("multipart")
+    if not isinstance(multipart, Mapping):
+        raise ValueError(f"case request.multipart must be a mapping{where}")
+    if str(request.get("method", "")).upper() != "POST":
+        raise ValueError(f"case request.multipart requires POST{where}")
+    if not str(multipart.get("boundary") or "").strip():
+        raise ValueError(f"case request.multipart requires boundary{where}")
+    parts = multipart.get("parts")
+    if not isinstance(parts, list) or not parts:
+        raise ValueError(f"case request.multipart.parts must be a non-empty list{where}")
+    for part in parts:
+        if not isinstance(part, Mapping):
+            raise ValueError(f"case multipart parts must be mappings{where}")
+        if not str(part.get("name", "")).strip():
+            raise ValueError(f"case multipart parts require name{where}")
+    if any(str(name).lower() == "content-type" for name in headers):
+        raise ValueError(f"case request.headers must not set Content-Type with request.multipart{where}")
+
+
+def _validate_response(case: Mapping[str, Any], where: str) -> None:
+    response = case.get("response")
+    if response is None:
+        return
+    if not isinstance(response, Mapping):
+        raise ValueError(f"case response must be a mapping{where}")
+    if "body" in response and response.get("body") is not None and not isinstance(response.get("body"), str):
+        raise ValueError(f"case response.body must be a string{where}")
+
+
+def _validate_expect(case: Mapping[str, Any], where: str) -> None:
+    expect = case.get("expect")
+    if not isinstance(expect, Mapping):
+        raise ValueError(f"case requires expect mapping{where}")
+    status = expect.get("status")
+    if not isinstance(status, int):
+        raise ValueError(f"case requires integer expect.status{where}")
+    intervention = expect.get("intervention")
+    if intervention is not None and str(intervention) not in INTERVENTIONS:
+        raise ValueError(f"case expect.intervention is unsupported{where}")
+    audit_log = expect.get("audit_log", {})
+    if audit_log is not None and not isinstance(audit_log, Mapping):
+        raise ValueError(f"case expect.audit_log must be a mapping{where}")
+    if isinstance(audit_log, Mapping):
+        absent = audit_log.get("absent")
+        if absent is not None and not isinstance(absent, bool):
+            raise ValueError(f"case expect.audit_log.absent must be a boolean{where}")
+
+
+def write_rules_file(
+    case: Mapping[str, Any],
+    path: str | Path,
+    audit_log_file: str | Path | None = None,
+    audit_log_dir: str | Path | None = None,
+) -> None:
+    rules = str(case["rules"])
+    if audit_log_file is not None:
+        rules = rules.replace("@@AUDIT_LOG@@", str(audit_log_file))
+    if audit_log_dir is not None:
+        rules = rules.replace("@@AUDIT_LOG_DIR@@", str(audit_log_dir))
+    if "@@AUDIT_LOG@@" in rules or "@@AUDIT_LOG_DIR@@" in rules:
+        raise ValueError("audit log placeholders require audit log paths")
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(rules if rules.endswith("\n") else f"{rules}\n", encoding="utf-8")
+
+
+def request_headers(case: Mapping[str, Any]) -> Mapping[str, Any]:
+    request = case["request"]
+    headers = request.get("headers", {})
+    if headers is None:
+        return {}
+    if not isinstance(headers, Mapping):
+        raise ValueError("request.headers must be a mapping")
+    materialized = {str(name): value for name, value in headers.items()}
+    request = case["request"]
+    if request.get("multipart") is not None:
+        materialized["Content-Type"] = f"multipart/form-data; boundary={multipart_boundary(case)}"
+    return materialized
+
+
+def request_body(case: Mapping[str, Any]) -> str:
+    request = case["request"]
+    if "body" not in request or request.get("body") is None:
+        return ""
+    return str(request["body"])
+
+
+def multipart_boundary(case: Mapping[str, Any]) -> str:
+    request = case["request"]
+    multipart = request.get("multipart")
+    if not isinstance(multipart, Mapping):
+        raise ValueError("request.multipart must be a mapping")
+    return str(multipart["boundary"])
+
+
+def multipart_parts(case: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    request = case["request"]
+    multipart = request.get("multipart")
+    if not isinstance(multipart, Mapping):
+        return []
+    parts = multipart.get("parts", [])
+    if not isinstance(parts, list):
+        raise ValueError("request.multipart.parts must be a list")
+    return parts
+
+
+def request_body_bytes(case: Mapping[str, Any]) -> bytes:
+    request = case["request"]
+    if request.get("multipart") is not None:
+        boundary = multipart_boundary(case)
+        body = bytearray()
+        for part in multipart_parts(case):
+            name = str(part["name"])
+            filename = part.get("filename")
+            content_type = part.get("content_type")
+            value = part.get("body", part.get("value", ""))
+            body.extend(f"--{boundary}\r\n".encode("utf-8"))
+            disposition = f'Content-Disposition: form-data; name="{name}"'
+            if filename not in (None, ""):
+                disposition += f'; filename="{filename}"'
+            body.extend(f"{disposition}\r\n".encode("utf-8"))
+            if content_type not in (None, ""):
+                body.extend(f"Content-Type: {content_type}\r\n".encode("utf-8"))
+            body.extend(b"\r\n")
+            body.extend(str(value).encode("utf-8"))
+            body.extend(b"\r\n")
+        body.extend(f"--{boundary}--\r\n".encode("utf-8"))
+        return bytes(body)
+    return request_body(case).encode("utf-8")
+
+
+def response_body(case: Mapping[str, Any]) -> str:
+    response = case.get("response", {})
+    if response is None:
+        return DEFAULT_RESPONSE_BODY
+    if not isinstance(response, Mapping):
+        raise ValueError("response must be a mapping")
+    body = response.get("body", DEFAULT_RESPONSE_BODY)
+    return str(body)
+
+
+def _bool_value(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def expected_audit_log(case: Mapping[str, Any]) -> Mapping[str, Any]:
+    expect = case["expect"]
+    audit_log = expect.get("audit_log", {})
+    if audit_log is None:
+        return {}
+    if not isinstance(audit_log, Mapping):
+        raise ValueError("expect.audit_log must be a mapping")
+    return audit_log
+
+
+def write_headers_file(case: Mapping[str, Any], path: str | Path) -> None:
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for name, value in request_headers(case).items():
+        lines.append(f"{name}: {value}\n")
+    output.write_text("".join(lines), encoding="utf-8")
+
+
+def write_body_file(case: Mapping[str, Any], path: str | Path) -> None:
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(request_body_bytes(case))
+
+
+def write_response_fixture(case: Mapping[str, Any], docroot: str | Path) -> None:
+    root = Path(docroot)
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "index.html").write_text(response_body(case), encoding="utf-8")
+    (root / "__modsec_smoke_ready").write_text(READY_BODY, encoding="utf-8")
+
+
+def write_shell_env(
+    case: Mapping[str, Any],
+    path: str | Path,
+    headers_file: str | Path | None = None,
+    body_file: str | Path | None = None,
+    audit_log_file: str | Path | None = None,
+    audit_log_dir: str | Path | None = None,
+) -> None:
+    request = case["request"]
+    expect = case["expect"]
+    body = request_body_bytes(case)
+    audit_log = expected_audit_log(case)
+    values = {
+        "CASE_NAME": case["name"],
+        "REQUEST_METHOD": str(request["method"]).upper(),
+        "REQUEST_PATH": request["path"],
+        "REQUEST_HAS_BODY": 1 if body else 0,
+        "REQUEST_HEADERS_FILE": headers_file or "",
+        "REQUEST_BODY_FILE": body_file or "",
+        "AUDIT_LOG_FILE": audit_log_file or "",
+        "AUDIT_LOG_DIR": audit_log_dir or "",
+        "EXPECT_STATUS": expect["status"],
+        "EXPECT_INTERVENTION": expect.get("intervention", ""),
+        "EXPECT_RULE_ID": expect.get("rule_id", ""),
+        "EXPECT_RESPONSE_CONTAINS": expect.get("response_contains", ""),
+        "EXPECT_AUDIT_LOG_REQUIRED": 1 if _bool_value(audit_log.get("required")) else 0,
+    }
+    lines = ["# Generated from common test case. Do not edit.\n"]
+    for key, value in values.items():
+        lines.append(f"{key}={shlex.quote(str(value))}\n")
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text("".join(lines), encoding="utf-8")
+
+
+def _capability_names(case: Mapping[str, Any]) -> list[str]:
+    capabilities = case.get("capabilities", {})
+    if capabilities is None:
+        return []
+    if isinstance(capabilities, Mapping):
+        raw_names = [str(key) for key, value in capabilities.items() if _bool_value(value)]
+    elif isinstance(capabilities, list):
+        raw_names = [str(item) for item in capabilities]
+    else:
+        return []
+    normalized = {
+        CAPABILITY_ALIASES.get(name.strip(), name.strip().replace("_", "-"))
+        for name in raw_names
+        if name.strip()
+    }
+    return sorted(normalized)
+
+
+def case_scope(path: str | Path) -> str:
+    parts = Path(path).parts
+    if "tests" in parts:
+        index = parts.index("tests")
+        tail = parts[index:]
+        if len(tail) >= 4 and tail[1] == "common" and tail[2] == "cases":
+            return f"common/{tail[3]}"
+        if len(tail) >= 4 and tail[1] in {"apache", "nginx"} and tail[2] == "cases":
+            return f"{tail[1]}/{tail[3]}"
+    return "unknown"
+
+
+def case_group(path: str | Path) -> str:
+    scope = case_scope(path)
+    if "/" in scope:
+        return scope.split("/", 1)[1]
+    return scope
+
+
+def case_info(
+    case: Mapping[str, Any],
+    path: str | Path,
+    connector: str | None = None,
+    status: str | None = None,
+    actual_status: int | None = None,
+) -> dict[str, Any]:
+    expect = case["expect"]
+    info: dict[str, Any] = {
+        "name": str(case["name"]),
+        "path": str(path),
+        "scope": case_scope(path),
+        "group": case_group(path),
+        "category": str(case.get("category", "")),
+        "portable": case.get("portable"),
+        "connector": str(case.get("connector", "")),
+        "case_status": str(case.get("status", "")),
+        "capabilities": _capability_names(case),
+        "origin": case.get("origin", []),
+        "known_limitations": case.get("known_limitations", []),
+        "expected_status": expect["status"],
+        "expected_intervention": str(expect.get("intervention", "")),
+        "actual_status": actual_status,
+    }
+    if connector is not None:
+        info["executed_connector"] = connector
+    if status is not None:
+        info["status"] = status
+    return info
+
+
+def _case_dirs(repo_root: Path, connector: str, scope: str) -> list[Path]:
+    common_dirs = [
+        repo_root / "tests" / "common" / "cases" / "minimal",
+        repo_root / "tests" / "common" / "cases" / "imported",
+        repo_root / "tests" / "common" / "cases" / "v2-imported",
+        repo_root / "tests" / "common" / "cases" / "v3-imported",
+    ]
+    connector_dirs = [repo_root / "tests" / connector / "cases" / "imported"]
+    if scope == "common":
+        return common_dirs
+    if scope == "connector":
+        return connector_dirs
+    if scope == "all":
+        return common_dirs + connector_dirs
+    raise ValueError(f"unsupported case scope: {scope}")
+
+
+def _case_path_in_scope(path: str | Path, connector: str, scope: str) -> bool:
+    path_scope = case_scope(path)
+    if path_scope.startswith("common/"):
+        return scope in {"common", "all"}
+    if path_scope.startswith(f"{connector}/"):
+        return scope in {"connector", "all"}
+    return False
+
+
+def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str, scope: str) -> bool:
+    path_scope = case_scope(path)
+    declared_connector = case.get("connector")
+    portable = case.get("portable")
+    if path_scope.startswith("common/"):
+        if declared_connector not in (None, "", "common"):
+            return False
+        if portable is False:
+            return False
+        return scope in {"common", "all"}
+    if path_scope.startswith(f"{connector}/"):
+        return scope in {"connector", "all"} and declared_connector in (None, "", connector)
+    return False
+
+
+def _resolve_named_case(item: str, selected_dirs: list[Path]) -> Path:
+    name = item if item.endswith(".yaml") else f"{item}.yaml"
+    matches = [directory / name for directory in selected_dirs if (directory / name).is_file()]
+    if not matches:
+        raise FileNotFoundError(f"missing smoke case in selected scope: {item}")
+    if len(matches) > 1:
+        raise ValueError(f"ambiguous smoke case name {item}; use a path")
+    return matches[0].resolve()
+
+
+def _resolve_case_item(item: str, root: Path, connector: str, scope: str, selected_dirs: list[Path]) -> Path:
+    candidate = Path(item)
+    if not candidate.is_absolute() and "/" not in item:
+        return _resolve_named_case(item, selected_dirs)
+    path = candidate if candidate.is_absolute() else root / candidate
+    if not path.is_file():
+        raise FileNotFoundError(f"missing smoke case: {item}")
+    resolved = path.resolve()
+    if not _case_path_in_scope(resolved, connector, scope):
+        raise ValueError(f"smoke case is outside selected scope: {item}")
+    return resolved
+
+
+def _selected_case_candidates(
+    root: Path,
+    connector: str,
+    scope: str,
+    selected_dirs: list[Path],
+    smoke_cases: str,
+    test_case: str,
+) -> list[Path]:
+    if test_case:
+        return [_resolve_case_item(test_case, root, connector, scope, selected_dirs)]
+    if smoke_cases.strip():
+        return [
+            _resolve_case_item(item, root, connector, scope, selected_dirs)
+            for item in smoke_cases.split()
+        ]
+    return [
+        path
+        for directory in selected_dirs
+        if directory.is_dir()
+        for path in sorted(directory.glob("*.yaml"))
+    ]
+
+
+def discover_case_files(
+    repo_root: str | Path,
+    connector: str,
+    scope: str = "all",
+    smoke_cases: str = "",
+    test_case: str = "",
+) -> list[Path]:
+    root = Path(repo_root).resolve()
+    selected_dirs = _case_dirs(root, connector, scope)
+    candidates = _selected_case_candidates(root, connector, scope, selected_dirs, smoke_cases, test_case)
+    return [
+        path
+        for path in candidates
+        if is_case_applicable(load_case(path), path, connector, scope)
+    ]
+
+
+def response_status(response: Any) -> int | None:
+    if isinstance(response, int):
+        return response
+    if isinstance(response, Mapping):
+        status = response.get("status")
+        return status if isinstance(status, int) else None
+    status = getattr(response, "status", None)
+    return status if isinstance(status, int) else None
+
+
+def assert_case_response(case: Mapping[str, Any], response: Any) -> list[str]:
+    expect = case["expect"]
+    expected_status = expect["status"]
+    actual_status = response_status(response)
+    errors: list[str] = []
+    if actual_status != expected_status:
+        errors.append(f"expected HTTP {expected_status}, observed {actual_status}")
+    if str(expect.get("intervention", "")) == "none" and actual_status != 200:
+        errors.append(f"expected pass-through HTTP 200, observed {actual_status}")
+    return errors
+
+
+def assert_response_body(case: Mapping[str, Any], body_file: str | Path | None) -> list[str]:
+    expected = case["expect"].get("response_contains")
+    if expected in (None, ""):
+        return []
+    if body_file is None:
+        return ["response body expectation requires a response body file"]
+    path = Path(body_file)
+    if not path.exists():
+        return [f"response body file missing: {path}"]
+    body = path.read_text(encoding="utf-8", errors="replace")
+    if str(expected) not in body:
+        return [f"expected response body to contain {expected!r}"]
+    return []
+
+
+def _wait_for_file_content(path: Path, timeout_seconds: float) -> str:
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        if path.exists():
+            content = path.read_text(encoding="utf-8", errors="replace")
+            if content:
+                return content
+        if time.monotonic() >= deadline:
+            return ""
+        time.sleep(0.1)
+
+
+def _assert_audit_log_absent(path: Path, timeout_seconds: float) -> list[str]:
+    if _wait_for_file_content(path, timeout_seconds):
+        return [f"expected audit log to be absent or empty: {path}"]
+    return []
+
+
+def _assert_audit_log_fields(audit_log: Mapping[str, Any], content: str) -> list[str]:
+    errors: list[str] = []
+    for key, value in audit_log.items():
+        if key == "required" or value in (None, ""):
+            continue
+        expected = str(value)
+        if expected not in content:
+            errors.append(f"expected audit log field {key} to contain {expected!r}")
+    return errors
+
+
+def assert_audit_log(
+    case: Mapping[str, Any],
+    audit_log_file: str | Path | None,
+    timeout_seconds: float = 2.0,
+) -> list[str]:
+    audit_log = expected_audit_log(case)
+    if _bool_value(audit_log.get("absent")):
+        if audit_log_file is None:
+            return []
+        return _assert_audit_log_absent(Path(audit_log_file), timeout_seconds)
+    if not _bool_value(audit_log.get("required")):
+        return []
+    if audit_log_file is None:
+        return ["audit log expectation requires an audit log file"]
+    path = Path(audit_log_file)
+    content = _wait_for_file_content(path, timeout_seconds)
+    if not content:
+        return [f"audit log file missing or empty: {path}"]
+    return _assert_audit_log_fields(audit_log, content)
+
+
+def assert_case_artifacts(
+    case: Mapping[str, Any],
+    response: Any,
+    response_body_file: str | Path | None = None,
+    audit_log_file: str | Path | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    errors.extend(assert_case_response(case, response))
+    errors.extend(assert_response_body(case, response_body_file))
+    errors.extend(assert_audit_log(case, audit_log_file))
+    return errors
+
+
+class RunnerCore:
+    """Minimal orchestration around a connector adapter."""
+
+    def __init__(self, adapter: ConnectorAdapter) -> None:
+        self.adapter = adapter
+
+    def run_case(self, case: Mapping[str, Any]) -> RunnerResult:
+        validate_case(case)
+        self.adapter.prepare()
+        try:
+            self.adapter.apply_config(case.get("config", {}))
+            self.adapter.apply_rules(str(case.get("rules", "")))
+            self.adapter.start()
+            response = self.adapter.send_request(case.get("request", {}))
+            artifacts = self.adapter.collect_artifacts()
+            errors = assert_case_artifacts(case, response)
+            return RunnerResult(
+                response=response,
+                artifacts=artifacts,
+                passed=not errors,
+                errors=errors,
+            )
+        finally:
+            self.adapter.stop()
+            self.adapter.cleanup()

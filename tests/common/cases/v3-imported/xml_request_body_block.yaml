@@ -1,0 +1,42 @@
+# Source-derived V3 XML body processor smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-XML.json
+    reason: Derives from V3 XML request-body processing and XML collection matching.
+category: body-processors
+portable: true
+status: imported
+known_limitations:
+  - Covers only a tiny well-formed XML body.
+  - Does not cover schema validation, DTD validation, parser errors, or external entity handling.
+name: xml_request_body_block
+
+capabilities:
+  request_body: true
+  body_processors: true
+  xml: true
+  collections: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule REQUEST_HEADERS:Content-Type "^text/xml$" \
+    "id:3305,phase:1,t:none,t:lowercase,nolog,pass,ctl:requestBodyProcessor=XML"
+  SecRule XML:/* "@contains attack" \
+    "id:3306,phase:2,t:none,deny,status:403,msg:'v3 imported XML body block'"
+
+request:
+  method: POST
+  path: /
+  headers:
+    Content-Type: text/xml
+  body: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <root><item>attack</item></root>
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3306

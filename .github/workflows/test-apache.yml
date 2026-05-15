@@ -1,0 +1,80 @@
+name: test-apache
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  apache-structure:
+    runs-on: ubuntu-latest
+    env:
+      MODSECURITY_V3_GIT_URL: https://github.com/owasp-modsecurity/ModSecurity.git
+      MODSECURITY_V3_GIT_REF: v3/master
+      MODSECURITY_APACHE_GIT_URL: https://github.com/owasp-modsecurity/ModSecurity-apache.git
+      MODSECURITY_APACHE_GIT_REF: master
+      BUILD_HTTPD_FROM_SOURCE: "1"
+      BUILD_PCRE2_FROM_SOURCE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize runner temp paths
+        id: paths
+        run: |
+          set -eu
+          build_root="$RUNNER_TEMP/ModSecurity-test-Framework-build"
+          {
+            echo "SOURCE_ROOT=$RUNNER_TEMP/sources"
+            echo "MODSECURITY_V3_SOURCE_DIR=$RUNNER_TEMP/sources/ModSecurity_V3"
+            echo "MODSECURITY_APACHE_SOURCE_DIR=$RUNNER_TEMP/sources/ModSecurity-apache"
+            echo "BUILD_ROOT=$build_root"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
+          echo "build_root=$build_root" >> "$GITHUB_OUTPUT"
+      - name: Check Apache scaffold
+        run: |
+          set -eu
+          test -f connectors/apache/harness/README.md
+          test -f connectors/apache/harness/apache_smoke.conf
+          test -f connectors/apache/harness/run_apache_smoke.sh
+          test -f ci/prepare-apache-build.sh
+          test -f ci/fetch-smoke-sources.sh
+          test -f ci/run-apache-smoke.sh
+          test -f tests/apache/apache-regression-map.md
+          test -f tests/apache/cases/imported/README.md
+          test -f docs/test-import-plan.md
+          test -f tests/common/cases/minimal/phase2_args_block.yaml
+          test -f tests/common/cases/imported/action_deny_phase1.yaml
+          test -f tests/common/cases/imported/multipart_basic_block.yaml
+          test -f tests/import-status.json
+          test -f docs/real-world-connector-validation.md
+          test -f docs/pr-evidence-summary.md
+      - name: Shell syntax
+        run: |
+          set -eu
+          sh -n ci/prepare-apache-build.sh
+          sh -n ci/fetch-smoke-sources.sh
+          sh -n ci/run-apache-smoke.sh
+          sh -n connectors/apache/harness/run_apache_smoke.sh
+      - name: Fetch Apache real-world smoke sources
+        run: |
+          sh ci/fetch-smoke-sources.sh apache
+      - name: Apache real-world connector smoke or blocked
+        run: |
+          set +e
+          REFRESH=1 make smoke-apache
+          rc=$?
+          set -e
+          if [ "$rc" -eq 77 ]; then
+            echo "::notice::Apache real-world connector smoke blocked; sources or build prerequisites are absent."
+            exit 0
+          fi
+          exit "$rc"
+      - name: Upload Apache smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apache-smoke-artifacts
+          if-no-files-found: ignore
+          path: |
+            ${{ steps.paths.outputs.build_root }}/logs
+            ${{ steps.paths.outputs.build_root }}/results
+            ${{ steps.paths.outputs.build_root }}/apache-runtime/*/conf

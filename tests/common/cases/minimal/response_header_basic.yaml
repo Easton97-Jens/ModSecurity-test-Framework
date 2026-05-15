@@ -1,0 +1,28 @@
+# Origin:
+# - Apache: /root/conecter/ModSecurity-apache/tests/regression/misc/00-phases.t
+#   covers RESPONSE_HEADERS in phase:3.
+# - NGINX: /root/conecter/ModSecurity-nginx/src/ngx_http_modsecurity_header_filter.c
+#   implements response header processing through the header filter.
+# Portable intent: validate a basic response-header intervention against a
+# standard Last-Modified header emitted for static content. If a connector does
+# not emit or expose that header, this case must fail or be marked blocked.
+name: response_header_basic
+
+capabilities:
+  response_headers: true
+  phase3: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule RESPONSE_HEADERS:Last-Modified "." \
+    "id:1301,phase:3,deny,status:403"
+
+request:
+  method: GET
+  path: /
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1301

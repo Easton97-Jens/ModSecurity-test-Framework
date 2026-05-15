@@ -1,0 +1,27 @@
+# Origin:
+# - Apache: /root/conecter/ModSecurity-apache/tests/regression/rule/00-basics.t
+#   covers phase:2 ARGS blocking with HTTP 403.
+# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity.t covers
+#   phase:2 ARGS-based block403 behavior.
+# Portable because it uses only libmodsecurity rule semantics, query args,
+# a GET request, and an HTTP status intervention.
+name: phase2_args_block
+
+capabilities:
+  query_args: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:test "@streq attack" \
+    "id:1001,phase:2,deny,status:403"
+
+request:
+  method: GET
+  path: "/?test=attack"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1001

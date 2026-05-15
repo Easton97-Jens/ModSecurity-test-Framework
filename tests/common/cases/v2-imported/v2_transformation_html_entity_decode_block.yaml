@@ -1,0 +1,34 @@
+# Source-derived V2 transformation semantics smoke.
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/htmlEntityDecode.t
+    reason: Derives from the V2 t:htmlEntityDecode valid fragment where `&lt;&gt;` decodes to `<>`.
+category: transformations
+portable: true
+status: imported
+known_limitations:
+  - Uses a request header to avoid query parser transformations before t:htmlEntityDecode.
+  - NUL, nbsp, non-ASCII, and invalid entity branches remain mapped only.
+name: v2_transformation_html_entity_decode_block
+
+capabilities:
+  transformations: true
+  request_headers: true
+  phase1: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_HEADERS:X-Entity-Probe "@contains <>" \
+    "id:3225,phase:1,t:htmlEntityDecode,deny,status:403,msg:'v2 imported htmlEntityDecode transformation block'"
+
+request:
+  method: GET
+  path: /
+  headers:
+    X-Entity-Probe: "&lt;&gt;"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3225

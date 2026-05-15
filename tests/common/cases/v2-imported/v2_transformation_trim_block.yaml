@@ -1,0 +1,32 @@
+# Source-derived V2 transformation semantics smoke.
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/trim.t
+    reason: Derives from V2 trim transformation cases that remove leading and trailing whitespace.
+category: transformations
+portable: true
+status: imported
+known_limitations:
+  - Converted from the V2 transformation harness to an HTTP phase:2 intervention check.
+  - Does not cover carriage return, tab, or embedded NUL edge cases.
+name: v2_transformation_trim_block
+
+capabilities:
+  transformations: true
+  query_args: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:test "@streq TestCase" \
+    "id:3204,phase:2,t:trim,deny,status:403,msg:'v2 imported trim transformation block'"
+
+request:
+  method: GET
+  path: "/?test=%20%20TestCase%20%20"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3204

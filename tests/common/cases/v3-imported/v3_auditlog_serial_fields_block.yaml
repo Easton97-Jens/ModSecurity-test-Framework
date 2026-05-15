@@ -1,0 +1,45 @@
+# Source-derived V3 audit-log smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/auditlog.json
+    reason: Derives from V3 serial audit-log cases using ARGS `test`, deny, and auditlog.
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/issue-2000.json
+    reason: Also covers stable audit-log output when deny occurs.
+category: audit-log
+portable: true
+status: imported
+known_limitations:
+  - "Checks only stable serial audit substrings: rule id, request URI, and message."
+  - Does not compare volatile timestamps, transaction IDs, or complete audit sections.
+name: v3_auditlog_serial_fields_block
+
+capabilities:
+  audit_log: true
+  query_args: true
+  phase1: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule ARGS:param1 "@contains test" \
+    "id:3325,phase:1,deny,status:403,auditlog,msg:'v3 imported serial audit block'"
+
+request:
+  method: GET
+  path: "/test.pl?param1=test&param2=test2"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3325
+  audit_log:
+    required: true
+    rule_id: 3325
+    uri: "/test.pl?param1=test&param2=test2"
+    message: v3 imported serial audit block

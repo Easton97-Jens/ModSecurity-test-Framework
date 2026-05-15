@@ -1,0 +1,33 @@
+# Origin:
+# - Apache: /root/conecter/ModSecurity-apache/tests/regression/target/00-targets.t
+#   covers ARGS_POST parsing for application/x-www-form-urlencoded bodies.
+# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity-request-body.t
+#   covers request-body access and ARGS_POST behavior.
+# Portable because it uses a normal POST form body, SecRequestBodyAccess, and
+# ARGS_POST matching against the shared harness document root without
+# connector-specific buffering or proxy behavior.
+name: request_body_urlencoded_block
+
+capabilities:
+  request_body: true
+  form_urlencoded: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule ARGS_POST:test "@streq attack" \
+    "id:1200,phase:2,deny,status:403"
+
+request:
+  method: POST
+  path: /
+  headers:
+    Content-Type: application/x-www-form-urlencoded
+  body: test=attack
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1200

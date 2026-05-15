@@ -1,0 +1,31 @@
+# Origin:
+# - Apache: /root/conecter/ModSecurity-apache/tests/regression/rule/15-json.t
+#   demonstrates a phase:1 REQUEST_HEADERS:Content-Type rule used to select
+#   request-body processing; this case adapts the header target to User-Agent
+#   to avoid JSON parser assumptions.
+# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity.t demonstrates
+#   phase:1 deny/status intervention behavior.
+# Portable because it depends only on a request header, phase:1, deny, and
+# HTTP status 403; connector-specific config directives are not used.
+name: phase1_header_block
+
+capabilities:
+  request_headers: true
+  phase1: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_HEADERS:User-Agent "@contains attack" \
+    "id:1101,phase:1,deny,status:403"
+
+request:
+  method: GET
+  path: /
+  headers:
+    User-Agent: attack-client
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1101

@@ -1,0 +1,58 @@
+# Source-derived response-body blocking probe.
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/config/10-response-directives.t
+    reason: Apache source contains a SecResponseBodyAccess On + RESPONSE_BODY deny case expecting HTTP 403.
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity-response-body.t
+    reason: NGINX source contains the analogous response-body block test but marks it TODO/not yet.
+  - repo: ModSecurity_V2
+    path: tests/regression/config/10-response-directives.t
+    reason: V2 regression source contains historical response-body directive coverage and HTTP 403 expectations.
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-RESPONSE_BODY.json
+    reason: V3 regression source expects RESPONSE_BODY denial to produce HTTP 403 through the engine harness.
+category: response-body
+portable: true
+status: xfail
+known_limitations:
+  - Not executed by smoke-common or smoke-all; use make probe-response-body.
+  - NGINX upstream marks the response-body blocking connector test TODO/not yet.
+  - RESPONSE_BODY must not be added to verified_variables unless Apache and NGINX both pass this probe stably.
+name: response_body_basic_block
+
+capabilities:
+  response_body: true
+  phase4: true
+  intervention: true
+  audit_log: true
+
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain
+  SecResponseBodyLimit 1048576
+  SecRule RESPONSE_BODY "@contains response-attack" \
+    "id:1801,phase:4,deny,status:403,auditlog,msg:'xfail response body block probe'"
+
+request:
+  method: GET
+  path: /
+
+response:
+  body: |
+    safe response-attack body
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1801
+  audit_log:
+    required: true
+    rule_id: 1801
+    message: xfail response body block probe

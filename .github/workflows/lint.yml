@@ -1,0 +1,22 @@
+name: lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scaffold-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize runner temp paths
+        run: |
+          set -eu
+          {
+            echo "BUILD_ROOT=$RUNNER_TEMP/ModSecurity-test-Framework-build"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
+      - name: Run framework lint
+        run: |
+          set -eu
+          make lint

@@ -1,0 +1,41 @@
+# Source-derived V3 multipart filename variable smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-MULTIPART_FILENAME.json
+    reason: Derives from the V3 MULTIPART_FILENAME regression case for uploaded filenames.
+category: multipart
+portable: true
+status: imported
+known_limitations:
+  - Converted from a debug-log assertion to an HTTP intervention assertion.
+  - Does not cover multipart parser flags or filename encoding edge cases.
+name: multipart_filename_block
+
+capabilities:
+  request_body: true
+  multipart: true
+  files: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule MULTIPART_FILENAME "@contains small_text_file.txt" \
+    "id:3304,phase:2,deny,status:403,msg:'v3 imported MULTIPART_FILENAME block'"
+
+request:
+  method: POST
+  path: /
+  multipart:
+    boundary: modsec-smoke-v3-multipart-filename
+    parts:
+      - name: filedata
+        filename: small_text_file.txt
+        content_type: text/plain
+        body: This is a very small test file.
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3304

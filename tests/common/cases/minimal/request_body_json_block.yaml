@@ -1,0 +1,33 @@
+# Origin:
+# - Apache: /root/conecter/ModSecurity-apache/tests/regression/rule/15-json.t
+#   covers JSON request body handling and Content-Type gating.
+# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity-request-body.t
+#   covers REQUEST_BODY phase request blocking.
+# Portable because this case matches raw REQUEST_BODY content against the
+# shared harness document root and does not require parsed JSON collections,
+# CRS, multipart handling, or streaming.
+name: request_body_json_block
+
+capabilities:
+  request_body: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule REQUEST_BODY "@contains attack" \
+    "id:1201,phase:2,deny,status:403"
+
+request:
+  method: POST
+  path: /
+  headers:
+    Content-Type: application/json
+  body: |
+    {"payload":"attack"}
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1201

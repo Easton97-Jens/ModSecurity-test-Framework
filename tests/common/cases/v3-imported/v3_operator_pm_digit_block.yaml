@@ -1,0 +1,32 @@
+# Source-derived V3 operator smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/operator-pm.json
+    reason: Derives from the V3 @pm case with rule `@pm 1 2 3`, request `param1=123`, expected HTTP 403.
+category: operators
+portable: true
+status: imported
+known_limitations:
+  - Converts the V3 regression status check to the shared connector YAML schema.
+  - The no-match `param1=abc` branch remains mapped only.
+name: v3_operator_pm_digit_block
+
+capabilities:
+  operators: true
+  query_args: true
+  phase1: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:param1 "@pm 1 2 3" \
+    "id:3320,phase:1,deny,status:403,msg:'v3 imported pm digit operator block'"
+
+request:
+  method: GET
+  path: "/test.pl?param1=123"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3320

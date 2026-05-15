@@ -1,0 +1,27 @@
+name: collection_args_combined_size_block
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/target/00-targets.t
+    reason: Derived from the ARGS_COMBINED_SIZE GET regression case.
+category: collections
+capabilities:
+  - query_args
+  - collections
+  - phase2
+  - intervention
+portable: true
+status: imported
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS_COMBINED_SIZE "@eq 16" \
+    "id:2203,phase:2,deny,status:403,msg:'imported ARGS_COMBINED_SIZE smoke'"
+
+request:
+  method: GET
+  path: "/?arg1=val1&arg2=val2"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 2203

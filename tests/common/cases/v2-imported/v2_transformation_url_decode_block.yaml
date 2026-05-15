@@ -1,0 +1,32 @@
+# Source-derived V2 transformation semantics smoke.
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/urlDecode.t
+    reason: Derives from the V2 t:urlDecode case with input `Test+Case`, output `Test Case`, ret 1.
+category: transformations
+portable: true
+status: imported
+known_limitations:
+  - Uses REQUEST_URI so the plus sign reaches ModSecurity before t:urlDecode; ARGS would be pre-decoded by HTTP argument parsing.
+  - NUL, full-byte-range, and invalid-encoding branches remain mapped only.
+name: v2_transformation_url_decode_block
+
+capabilities:
+  transformations: true
+  request_uri: true
+  phase1: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_URI "@contains Test Case" \
+    "id:3224,phase:1,t:urlDecode,deny,status:403,msg:'v2 imported urlDecode transformation block'"
+
+request:
+  method: GET
+  path: "/decode/Test+Case"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3224

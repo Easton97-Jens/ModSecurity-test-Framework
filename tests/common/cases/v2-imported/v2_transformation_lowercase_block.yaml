@@ -1,0 +1,32 @@
+# Source-derived V2 transformation semantics smoke.
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/lowercase.t
+    reason: Derives from the V2 lowercase transformation case mapping TestCase to testcase.
+category: transformations
+portable: true
+status: imported
+known_limitations:
+  - Converted from the V2 transformation harness to an HTTP phase:2 intervention check.
+  - Does not cover embedded NUL transformation cases.
+name: v2_transformation_lowercase_block
+
+capabilities:
+  transformations: true
+  query_args: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:test "@streq testcase" \
+    "id:3203,phase:2,t:lowercase,deny,status:403,msg:'v2 imported lowercase transformation block'"
+
+request:
+  method: GET
+  path: "/?test=TestCase"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3203

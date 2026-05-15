@@ -1,0 +1,31 @@
+name: nginx_tx_scoring_absolute_block
+origin:
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity-scoring.t
+    reason: Derived from the absolute tx.score assignment blocking case.
+category: actions
+capabilities:
+  - query_args
+  - collections
+  - tx
+  - phase2
+  - intervention
+portable: false
+connector: nginx
+status: imported
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS "@streq badarg1" "id:3101,phase:2,setvar:tx.score=1"
+  SecRule ARGS "@streq badarg2" "id:3102,phase:2,setvar:tx.score=2"
+  SecRule TX:SCORE "@ge 2" \
+    "id:3199,phase:2,deny,log,status:403,msg:'nginx imported absolute scoring smoke'"
+
+request:
+  method: GET
+  path: "/?what=badarg2"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3199

@@ -1,0 +1,44 @@
+# Source-derived portable multipart form smoke.
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/misc/00-multipart-parser.t
+    reason: Derives from normal multipart form parsing with named form fields.
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity-request-body.t
+    reason: Derives from request-body processing and phase request blocking.
+category: multipart
+portable: true
+status: imported
+known_limitations:
+  - Covers only a simple multipart text field.
+  - Does not cover parser-error branches, file temporary storage, streaming, or part header folding.
+name: multipart_basic_block
+
+capabilities:
+  request_body: true
+  multipart: true
+  collections: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule ARGS:name "@streq attack" \
+    "id:2601,phase:2,deny,status:403,msg:'shared imported multipart field block'"
+
+request:
+  method: POST
+  path: /
+  multipart:
+    boundary: modsec-smoke-boundary
+    parts:
+      - name: name
+        body: attack
+      - name: clean
+        body: value
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 2601

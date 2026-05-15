@@ -1,0 +1,30 @@
+# Source-derived V3 rule-engine action smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/secruleengine.json
+    reason: Derives from the V3 SecAction disruptive action case returning HTTP 403.
+category: actions
+portable: true
+status: imported
+known_limitations:
+  - Covers only a minimal disruptive SecAction.
+  - Does not cover DetectionOnly or rule-engine disabled branches.
+name: v3_secaction_block
+
+capabilities:
+  actions: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecAction "id:3312,phase:2,deny,status:403,nolog,msg:'v3 imported SecAction block'"
+
+request:
+  method: GET
+  path: /
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3312

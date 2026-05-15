@@ -1,0 +1,36 @@
+# Source-derived connector action/status smoke.
+origin:
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity.t
+    reason: Derives from the phase:1 block401 case using `SecRule ARGS "@streq block401" "status:401,block"`.
+  - repo: ModSecurity-apache
+    path: tests/regression/action/00-disruptive-actions.t
+    reason: Apache action coverage is the compatibility source for disruptive status actions.
+category: actions
+portable: true
+status: imported
+known_limitations:
+  - Uses the shared minimal HTTP harness rather than NGINX Test::Nginx or Apache::Test configuration.
+  - Makes the disruptive deny explicit because the upstream NGINX test supplies deny through SecDefaultAction.
+  - Redirect and phase 3/4 action branches remain mapped or connector-specific.
+name: action_status_401_phase1_block
+
+capabilities:
+  actions: true
+  query_args: true
+  phase1: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS "@streq block401" \
+    "id:2320,phase:1,deny,status:401,block,msg:'shared imported status 401 block'"
+
+request:
+  method: GET
+  path: "/?what=block401"
+
+expect:
+  status: 401
+  intervention: block
+  rule_id: 2320

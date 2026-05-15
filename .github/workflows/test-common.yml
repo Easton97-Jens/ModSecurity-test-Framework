@@ -1,0 +1,173 @@
+name: test-common
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  common-structure:
+    runs-on: ubuntu-latest
+    env:
+      MODSECURITY_V3_SOURCE_DIR: ${{ github.workspace }}/ModSecurity_V3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize runner temp paths
+        id: paths
+        run: |
+          set -eu
+          build_root="$RUNNER_TEMP/ModSecurity-test-Framework-build"
+          {
+            echo "MODSECURITY_V3_DIR=$RUNNER_TEMP/ModSecurity_V3_build"
+            echo "BUILD_ROOT=$build_root"
+            echo "LOG_DIR=$build_root/logs"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
+          } >> "$GITHUB_ENV"
+          echo "build_root=$build_root" >> "$GITHUB_OUTPUT"
+      - name: Check common scaffold
+        run: |
+          set -eu
+          test -f tests/common/modsecurity-v2-regression-map.md
+          test -f tests/common/modsecurity-v3-regression-map.md
+          test -f tests/common/v2-regression-map.md
+          test -f tests/common/v3-regression-map.md
+          test -f docs/pr-evidence-summary.md
+          test -f docs/v2-vs-v3-test-compatibility.md
+          test -f docs/real-world-connector-validation.md
+          test -f docs/capability-model.md
+          test -f docs/status-model.md
+          test -f docs/connector-adapter-interface.md
+          test -f docs/future-connectors.md
+          test -f docs/sonarcloud-remediation-plan.md
+      - name: Compile Python skeletons
+        run: |
+          mkdir -p "$PYTHONPYCACHEPREFIX"
+          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py
+      - name: Check shared case runner
+        run: |
+          set -eu
+          mkdir -p "$BUILD_ROOT/case-runner"
+          for case_file in \
+            tests/common/cases/minimal/*.yaml \
+            tests/common/cases/imported/*.yaml \
+            tests/common/cases/v2-imported/*.yaml \
+            tests/common/cases/v3-imported/*.yaml; do
+            name=$(basename "$case_file" .yaml)
+            out="$BUILD_ROOT/case-runner/$name"
+            mkdir -p "$out"
+            python3 tests/runners/case_cli.py materialize \
+              --case "$case_file" \
+              --rules-file "$out/rules.conf" \
+              --env-file "$out/case.env" \
+              --headers-file "$out/request-headers.txt" \
+              --body-file "$out/request-body.bin" \
+              --docroot "$out/htdocs" \
+              --audit-log-file "$out/audit.log" \
+              --audit-log-dir "$out/audit"
+            grep -q 'SecRuleEngine On' "$out/rules.conf"
+            grep -q '^REQUEST_METHOD=' "$out/case.env"
+            test -f "$out/htdocs/index.html"
+            . "$out/case.env"
+            if [ -n "${EXPECT_RESPONSE_CONTAINS:-}" ]; then
+              printf '%s\n' "$EXPECT_RESPONSE_CONTAINS" > "$out/response-body.txt"
+            else
+              : > "$out/response-body.txt"
+            fi
+            python3 ci/write-expected-audit-log.py "$case_file" "$out/audit.log"
+            python3 tests/runners/case_cli.py assert-status \
+              --case "$case_file" \
+              --actual-status "$EXPECT_STATUS" \
+              --response-body-file "$out/response-body.txt" \
+              --audit-log-file "$out/audit.log" \
+              --status-file "$out/status.txt"
+          done
+          python3 tests/runners/case_cli.py list-cases \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --connector apache \
+            --scope common > "$BUILD_ROOT/case-runner/apache-common-cases.txt"
+          python3 tests/runners/case_cli.py list-cases \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --connector nginx \
+            --scope all > "$BUILD_ROOT/case-runner/nginx-all-cases.txt"
+          python3 -m json.tool tests/import-status.json > "$BUILD_ROOT/case-runner/import-status.pretty.json"
+          xfail_out="$BUILD_ROOT/case-runner/xfail-v3-nolog"
+          mkdir -p "$xfail_out"
+          python3 tests/runners/case_cli.py materialize \
+            --case tests/common/cases/xfail/v3_action_nolog_pass_no_audit.yaml \
+            --rules-file "$xfail_out/rules.conf" \
+            --env-file "$xfail_out/case.env" \
+            --headers-file "$xfail_out/request-headers.txt" \
+            --body-file "$xfail_out/request-body.bin" \
+            --docroot "$xfail_out/htdocs" \
+            --audit-log-file "$xfail_out/audit.log" \
+            --audit-log-dir "$xfail_out/audit"
+          python3 ci/write-case-matrix.py "$BUILD_ROOT/results/connector-summary.json" "$BUILD_ROOT/case-runner/case-matrix.md"
+      - name: Check real-world summary schema
+        run: |
+          set -eu
+          mkdir -p "$BUILD_ROOT/schema-check"
+          : > "$BUILD_ROOT/schema-check/empty-results.jsonl"
+          python3 tests/runners/case_cli.py summarize-results \
+            --connector apache \
+            --input-jsonl "$BUILD_ROOT/schema-check/empty-results.jsonl" \
+            --summary-json "$BUILD_ROOT/schema-check/apache-summary.json" \
+            --summary-text "$BUILD_ROOT/schema-check/apache-summary.txt" \
+            --connector-path real-world \
+            --validation-mode real-world-connector-path \
+            --server apache \
+            --server-binary "$BUILD_ROOT/apache-runtime/httpd/bin/httpd" \
+            --module "$BUILD_ROOT/apache-build/output/apache/mod_security3.so" \
+            --libmodsecurity "$BUILD_ROOT/apache-build/output/modsecurity/lib/libmodsecurity.so"
+          python3 ci/check-real-world-summary-schema.py "$BUILD_ROOT/schema-check/apache-summary.json"
+      - name: Check make smoke targets and boundaries
+        run: |
+          set -eu
+          make -n smoke-common
+          make -n smoke-apache
+          make -n smoke-nginx
+          make -n smoke-all
+          make -n lint
+          make -n summary
+          make -n case-matrix
+      - name: Check v3 API smoke prerequisites
+        run: |
+          set +e
+          sh ci/check-v3-api-smoke-prereqs.sh
+          rc=$?
+          set -e
+          if [ "$rc" -eq 77 ]; then
+            echo "v3 API smoke prerequisites blocked in this workflow"
+            exit 0
+          fi
+          exit "$rc"
+      - name: Run v3 API smoke when available
+        run: |
+          set +e
+          sh ci/run-v3-api-smoke.sh
+          rc=$?
+          set -e
+          if [ "$rc" -eq 77 ]; then
+            echo "v3 API smoke run blocked in this workflow"
+            exit 0
+          fi
+          exit "$rc"
+      - name: Check RAW argument support evidence
+        run: |
+          set +e
+          sh ci/check-raw-args-support.sh
+          rc=$?
+          set -e
+          if [ "$rc" -eq 77 ]; then
+            echo "RAW argument support check blocked in this workflow"
+            exit 0
+          fi
+          exit "$rc"
+      - name: Upload common smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: common-smoke-artifacts
+          if-no-files-found: ignore
+          path: |
+            ${{ steps.paths.outputs.build_root }}/case-runner
+            ${{ steps.paths.outputs.build_root }}/logs
+            ${{ steps.paths.outputs.build_root }}/results

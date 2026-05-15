@@ -1,0 +1,42 @@
+# Source-derived V3 multipart FILES_COMBINED_SIZE collection smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-FILES_COMBINED_SIZE.json
+    reason: Derives from the V3 FILES_COMBINED_SIZE regression case for uploaded file size aggregation.
+category: multipart
+portable: true
+status: imported
+known_limitations:
+  - Uses a lower threshold than the source debug-log case to keep the minimal body small and deterministic.
+  - Does not assert exact byte accounting or debug log target text.
+name: multipart_files_combined_size
+
+capabilities:
+  request_body: true
+  multipart: true
+  files: true
+  collections: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule FILES_COMBINED_SIZE "@gt 20" \
+    "id:3303,phase:2,deny,status:403,msg:'v3 imported FILES_COMBINED_SIZE block'"
+
+request:
+  method: POST
+  path: /
+  multipart:
+    boundary: modsec-smoke-v3-files-size
+    parts:
+      - name: filedata
+        filename: small_text_file.txt
+        content_type: text/plain
+        body: This is a very small test file.
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3303

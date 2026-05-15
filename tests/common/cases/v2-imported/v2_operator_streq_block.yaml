@@ -1,0 +1,32 @@
+# Source-derived V2 operator semantics smoke.
+origin:
+  - repo: ModSecurity_V2
+    path: tests/op/streq.t
+    reason: Derives from the V2 @streq operator case where param and input are identical.
+category: operators
+portable: true
+status: imported
+known_limitations:
+  - Converted from the V2 operator harness to an HTTP phase:2 intervention check.
+  - Does not copy or execute the original Perl test harness.
+name: v2_operator_streq_block
+
+capabilities:
+  operators: true
+  query_args: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:test "@streq abcdefghi" \
+    "id:3201,phase:2,deny,status:403,msg:'v2 imported streq operator block'"
+
+request:
+  method: GET
+  path: "/?test=abcdefghi"
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 3201
