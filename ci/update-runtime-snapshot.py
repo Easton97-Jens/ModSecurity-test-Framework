@@ -81,7 +81,7 @@ def case_metadata(path: str) -> dict[str, str]:
             case = raw if isinstance(raw, dict) else {}
         except Exception:
             case = {}
-    status = str(case.get("status", "") or "")
+    status = str(case.get("status", "active") or "active").strip().lower()
     text = " ".join(
         [
             relative,
@@ -91,7 +91,7 @@ def case_metadata(path: str) -> dict[str, str]:
             str(case.get("source", "") or ""),
         ]
     ).lower()
-    group = case_group(case_path)
+    group = case_group(case_path, case)
     if "connector_gap" in text or "connector-gap" in text:
         classification = "connector_gap"
     elif "runtime_difference" in text or "runtime-difference" in text or "runtime_diff" in text:
@@ -105,7 +105,7 @@ def case_metadata(path: str) -> dict[str, str]:
     else:
         classification = "active"
     return {
-        "yaml_status": status or "unknown",
+        "yaml_status": status,
         "case_group": group,
         "classification": classification,
     }

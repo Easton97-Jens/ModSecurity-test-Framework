@@ -68,7 +68,7 @@ Observed local source:
 The NGINX PoC reuses the same portable cases as Apache:
 
 ```text
-tests/common/cases/minimal/*.yaml
+tests/cases/*.yaml
 ```
 
 Pass criteria remain the same: a real local HTTP response matching each YAML

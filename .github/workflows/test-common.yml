@@ -18,10 +18,10 @@ jobs:
           out="$RUNNER_TEMP/case-runner"
           mkdir -p "$out"
           for case_file in \
-            tests/common/cases/minimal/*.yaml \
-            tests/common/cases/imported/*.yaml \
-            tests/common/cases/v2-imported/*.yaml \
-            tests/common/cases/v3-imported/*.yaml; do
+            tests/cases/*.yaml \
+            tests/cases/*.yaml \
+            tests/cases/*.yaml \
+            tests/cases/*.yaml; do
             name=$(basename "$case_file" .yaml)
             case_out="$out/$name"
             mkdir -p "$case_out"

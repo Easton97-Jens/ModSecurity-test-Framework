@@ -23,10 +23,10 @@ Generated file — do not edit manually.
 | `REQUEST_URI` | 7 |
 | `ARGS:test` | 6 |
 | `REQUEST_HEADERS_NAMES` | 5 |
-| `ARGS:param1` | 4 |
 | `ARGS:a` | 4 |
 | `REQUEST_COOKIES_NAMES` | 4 |
 | `XML` | 4 |
+| `ARGS:param1` | 4 |
 | `ARGS` | 4 |
 | `RESPONSE_HEADERS:Set-Cookie` | 4 |
 | `ARGS:probe` | 4 |
@@ -48,8 +48,8 @@ Generated file — do not edit manually.
 ## Coverage By Status
 | Status | Count |
 |---|---:|
+| active | 7 |
 | imported | 47 |
-| unknown | 7 |
 | xfail | 79 |
 
 ## Coverage By Scope

@@ -10,7 +10,7 @@ Status: scaffolded
   `apxs` and `httpd` are not required.
 - `connectors/apache/harness/run_apache_smoke.sh` prepares a local Apache
   runtime under `BUILD_ROOT` and checks for a real HTTP `403`.
-- The shared minimal YAML cases under `tests/common/cases/minimal/` define the
+- The shared minimal YAML cases under `tests/cases/` define the
   rule/request/expectation model used by Apache and NGINX.
 - `tests/runners/case_cli.py` reads each YAML file and materializes the Apache
   rules, request method/path, headers, body, multipart body, response fixture,
@@ -133,9 +133,9 @@ $BUILD_ROOT/apache-runtime/phase2_args_block/conf/httpd.conf
 Rules, request details, and expected statuses are read from:
 
 ```text
-tests/common/cases/minimal/*.yaml
-tests/common/cases/imported/*.yaml
-connectors/apache/tests/cases/imported/*.yaml
+tests/cases/*.yaml
+tests/cases/*.yaml
+tests/cases/connector-specific/apache/*.yaml
 ```
 
 The default run executes:

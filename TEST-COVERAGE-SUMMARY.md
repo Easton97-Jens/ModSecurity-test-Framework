@@ -37,8 +37,8 @@ Generated file — do not edit manually.
 ## Status Classes
 | Status | Count |
 |---|---:|
+| active | 7 |
 | imported | 47 |
-| unknown | 7 |
 | xfail | 79 |
 
 ## Scope

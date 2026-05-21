@@ -75,7 +75,17 @@ MATRIX_STATUS_ORDER = [
     "NOT EXECUTED",
 ]
 
-STATUS_GROUPS = {"minimal", "imported", "v2-imported", "v3-imported", "xfail"}
+ACTIVE_RUNTIME_STATUSES = {
+    "active",
+    "fully-imported-common",
+    "imported",
+    "minimal",
+    "pass",
+    "v2-imported",
+    "v3-imported",
+}
+
+NON_EXECUTABLE_STATUSES = {"blocked", "mapped-only", "skipped", "todo"}
 
 
 def warn(message: str) -> None:
@@ -170,7 +180,7 @@ def extract_rule_metadata(rules: str) -> tuple[set[str], set[int], set[str], set
 
 
 def extract_status_metadata(data: dict) -> tuple[str, str, str, str, dict]:
-    status = str(data.get("status", "unknown") or "unknown").strip().lower()
+    status = str(data.get("status", "active") or "active").strip().lower()
     category = str(data.get("category", "unknown") or "unknown")
     notes = str(data.get("notes", data.get("note", "")) or "") or "-"
     source = str(data.get("source") or data.get("source_ref") or data.get("provenance") or "unknown")
@@ -388,11 +398,7 @@ def render_status_table(title: str, rows: list[dict], columns: list[tuple[str, s
 
 
 def case_group(case: dict) -> str:
-    parts = Path(case["path"]).parts
-    for part in reversed(parts):
-        if part in STATUS_GROUPS:
-            return part
-    return "unknown"
+    return str(case.get("status") or "active").strip().lower()
 
 
 def case_category(case: dict) -> str:
@@ -402,10 +408,7 @@ def case_category(case: dict) -> str:
     except ValueError:
         return "unknown"
     category_parts: list[str] = []
-    for part in parts[index + 1 : -1]:
-        if part in STATUS_GROUPS:
-            break
-        category_parts.append(part)
+    category_parts.extend(parts[index + 1 : -1])
     return "/".join(category_parts) or "unknown"
 
 
@@ -448,11 +451,11 @@ def is_force_all_snapshot(snapshot: dict) -> bool:
 def runtime_executable(case: dict, connector: str) -> bool:
     if not connector_applies(case, connector):
         return False
-    return case_group(case) in {"minimal", "imported", "v2-imported", "v3-imported"}
+    return case_group(case) in ACTIVE_RUNTIME_STATUSES
 
 
 def is_xfail_case(case: dict) -> bool:
-    return case["status"] == "xfail" or case_group(case) == "xfail"
+    return case["status"] == "xfail"
 
 
 def runtime_classification(case: dict) -> str:
@@ -509,10 +512,9 @@ def semantic_matrix_status(raw_status: str, classification: str) -> str:
 def runtime_executable_for_snapshot(case: dict, connector: str, snapshot: dict) -> bool:
     if not connector_applies(case, connector):
         return False
-    executable_groups = {"minimal", "imported", "v2-imported", "v3-imported"}
     if is_force_all_snapshot(snapshot):
-        executable_groups.add("xfail")
-    return case_group(case) in executable_groups
+        return case_group(case) not in NON_EXECUTABLE_STATUSES
+    return runtime_executable(case, connector)
 
 
 def runtime_cell(case: dict, connector: str, snapshot: dict) -> dict[str, str]:
@@ -522,16 +524,16 @@ def runtime_cell(case: dict, connector: str, snapshot: dict) -> dict[str, str]:
             "reason": f"{case['scope']}-specific case is not applicable to {connector}",
             "evidence": "-",
         }
-    if is_xfail_case(case) and not is_force_all_snapshot(snapshot):
+    if not is_force_all_snapshot(snapshot) and not runtime_executable(case, connector):
         return {
             "status": "NOT EXECUTED",
-            "reason": "YAML case is xfail/pending/future inventory and is not part of the default runtime smoke discovery",
+            "reason": f"YAML status `{case_group(case)}` is metadata inventory and is not part of default runtime smoke discovery",
             "evidence": "metadata only; no PASS promotion",
         }
     if not runtime_executable_for_snapshot(case, connector, snapshot):
         return {
             "status": "NOT_EXECUTABLE",
-            "reason": f"case group `{case_group(case)}` is outside active runtime smoke discovery",
+            "reason": f"YAML status `{case_group(case)}` is outside active runtime smoke discovery",
             "evidence": "-",
         }
 
@@ -651,7 +653,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         f"- Apache attempted YAML cases in latest snapshot: **{runtime_attempted_count(snapshot, 'apache')}**",
         f"- NGINX attempted YAML cases in latest snapshot: **{runtime_attempted_count(snapshot, 'nginx')}**",
         f"- mapped-only import inventory entries: **{len(mapped_only)}**",
-        "- `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that case group for that connector.",
+        "- `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that YAML status for that connector.",
         "- `NOT EXECUTED` means no runtime case evidence is recorded in a non-force/default snapshot.",
         "- `MAPPED_ONLY` entries are import inventory items, not runnable YAML case files.",
         "",
@@ -659,7 +661,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         *render_runtime_status_count_table(apache_counts, nginx_counts, len(mapped_only)),
         "",
         "## YAML Runtime Matrix",
-        "| case_id | path | scope | category | group | YAML status | default executable | force-all executable | Apache | Apache reason | Apache evidence | NGINX | NGINX reason | NGINX evidence |",
+        "| case_id | path | scope | category | metadata class | YAML status | default executable | force-all executable | Apache | Apache reason | Apache evidence | NGINX | NGINX reason | NGINX evidence |",
         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:

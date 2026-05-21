@@ -21,7 +21,7 @@ The direct libmodsecurity API smoke is not counted here.
 | `ModSecurity_V3/test/test-cases/regression/variable-RESPONSE_BODY.json` | V3 regression expects `SecRule RESPONSE_BODY "@contains denystring" ... deny` to return HTTP 403. | Engine/reference evidence |
 
 No upstream test file was copied. The local YAML is a minimal derived probe at
-`tests/common/cases/xfail/response_body_basic_block.yaml`.
+`tests/cases/response/body/response_body_basic_block.yaml`.
 
 ## Probe
 
@@ -67,9 +67,9 @@ Relevant logs:
 
 It is not promoted to:
 
-- `tests/common/cases/imported/`
-- `connectors/apache/tests/cases/imported/`
-- `connectors/nginx/tests/cases/imported/`
+- `tests/cases/`
+- `tests/cases/connector-specific/apache/`
+- `tests/cases/connector-specific/nginx/`
 
 `RESPONSE_BODY` remains excluded from `verified_variables`. Active
 `response_body_pass.yaml` continues to prove only pass-through behavior with

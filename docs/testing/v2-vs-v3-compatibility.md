@@ -72,4 +72,4 @@ APIs.
 | Request body parsing | Partial | Common only if body delivery is engine-only; otherwise connector-specific |
 | Response body inspection | Partial | Capability-dependent |
 | Audit/error log exact text | Partial/no | Normalized and capability-marked, often connector-specific |
-| Apache harness behavior | No | `connectors/apache/tests/` or historical docs only |
+| Apache harness behavior | No | `tests/cases/connector-specific/apache/` or historical docs only |

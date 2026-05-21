@@ -92,7 +92,7 @@ HTTP result.
 
 Current local evidence:
 
-- `tests/common/cases/xfail/response_body_basic_block.yaml` is the explicit
+- `tests/cases/response/body/response_body_basic_block.yaml` is the explicit
   derived xfail probe.
 - `make probe-response-body` runs the xfail case through Apache and NGINX.
 - The last documented probe kept the case xfail/mapped-only:

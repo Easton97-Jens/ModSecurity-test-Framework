@@ -29,7 +29,7 @@ Phase 10 changes that build-copy composition again: the NGINX module source and
 Phase 13 simplifies the repository layout without changing the materialized
 build layout: Apache build files move to `connectors/apache/`, Apache C files
 are flattened under `connectors/apache/src/`, Apache templates move under
-`connectors/apache/tests/`, and NGINX `config` moves to `connectors/nginx/config`.
+`tests/cases/connector-specific/apache/`, and NGINX `config` moves to `connectors/nginx/config`.
 
 ## Evidence Used
 
@@ -87,12 +87,12 @@ Source: former `connectors/apache/upstream/`; current adapter-owned source root:
 | `src/msc_filters.h` | required | Apache filter declarations | Moved to `connectors/apache/src/msc_filters.h` |
 | `src/msc_utils.c` | required | Apache connector utility implementation | Moved to `connectors/apache/src/msc_utils.c` |
 | `src/msc_utils.h` | required | Apache connector utility declarations | Moved to `connectors/apache/src/msc_utils.h` |
-| `t/conf/extra.conf.in` | build-only | Keeps upstream `t/conf` test-template layout; references generated `modules.conf` | Moved to `connectors/apache/tests/t/conf/extra.conf.in` |
-| `tests/run-regression-tests.pl.in` | build-only | Listed in `configure.ac` `AC_CONFIG_FILES` | Moved to `connectors/apache/tests/run-regression-tests.pl.in` |
-| `tests/regression/misc/40-secRemoteRules.t.in` | build-only | Listed in `configure.ac` `AC_CONFIG_FILES` | Moved to `connectors/apache/tests/regression/misc/40-secRemoteRules.t.in` |
-| `tests/regression/misc/50-ipmatchfromfile-external.t.in` | build-only | Listed in `configure.ac` `AC_CONFIG_FILES` | Moved to `connectors/apache/tests/regression/misc/50-ipmatchfromfile-external.t.in` |
-| `tests/regression/misc/60-pmfromfile-external.t.in` | build-only | Listed in `configure.ac` `AC_CONFIG_FILES` | Moved to `connectors/apache/tests/regression/misc/60-pmfromfile-external.t.in` |
-| `tests/regression/server_root/conf/httpd.conf.in` | build-only | Listed in `configure.ac` `AC_CONFIG_FILES` | Moved to `connectors/apache/tests/regression/server_root/conf/httpd.conf.in` |
+| `t/conf/extra.conf.in` | build-only | Keeps upstream `t/conf` test-template layout; references generated `modules.conf` | Moved to `tests/cases/connector-specific/apache/t/conf/extra.conf.in` |
+| `tests/run-regression-tests.pl.in` | build-only | Listed in `configure.ac` `AC_CONFIG_FILES` | Moved to `tests/cases/connector-specific/apache/run-regression-tests.pl.in` |
+| `tests/regression/misc/40-secRemoteRules.t.in` | build-only | Listed in `configure.ac` `AC_CONFIG_FILES` | Moved to `tests/cases/connector-specific/apache/regression/misc/40-secRemoteRules.t.in` |
+| `tests/regression/misc/50-ipmatchfromfile-external.t.in` | build-only | Listed in `configure.ac` `AC_CONFIG_FILES` | Moved to `tests/cases/connector-specific/apache/regression/misc/50-ipmatchfromfile-external.t.in` |
+| `tests/regression/misc/60-pmfromfile-external.t.in` | build-only | Listed in `configure.ac` `AC_CONFIG_FILES` | Moved to `tests/cases/connector-specific/apache/regression/misc/60-pmfromfile-external.t.in` |
+| `tests/regression/server_root/conf/httpd.conf.in` | build-only | Listed in `configure.ac` `AC_CONFIG_FILES` | Moved to `tests/cases/connector-specific/apache/regression/server_root/conf/httpd.conf.in` |
 
 ## NGINX File Classification
 

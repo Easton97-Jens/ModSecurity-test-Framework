@@ -51,9 +51,10 @@ The shell harnesses call `tests/runners/case_cli.py`, which uses
 `tests/runners/runner_core.py` to load YAML cases, materialize rules and
 fixtures, and assert runtime responses. Normalizers live in `tests/normalizers/`.
 
-Default discovery uses active/imported/minimal cases. Force-all discovery also
-includes XFAIL, pending, future, and gap cases where they are applicable to the
-current connector.
+Default discovery uses active/imported/minimal metadata classes. Force-all
+discovery also includes XFAIL, pending, future, and gap cases where they are
+applicable to the current connector. These classes are read from YAML metadata
+and connector inventory, not from status directories.
 
 ## Coverage Reports
 

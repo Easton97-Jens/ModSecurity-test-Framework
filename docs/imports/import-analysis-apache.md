@@ -69,7 +69,7 @@ These are `connector-specific` and belong only under `connectors/apache/`.
 | --- | --- | --- | --- | --- |
 | v3 C API phase sequence | v3 via connector | engine-specific | compatible | Document and adapt |
 | Apache hook registration | connector | connector-specific | compatible only for Apache | Tracked in `docs/roadmap/todo-inventory.md` |
-| Apache::Test files | connector | connector-specific | partial | Map to `connectors/apache/tests/` |
+| Apache::Test files | connector | connector-specific | partial | Map to `tests/cases/connector-specific/apache/` |
 | Source code files | connector | connector-specific | compatible only for Apache | Adapter-owned under `connectors/apache/src/` |
 
 ## Import Decision

@@ -4,10 +4,12 @@ Status: scaffolded
 
 ## Boundaries
 
-`tests/common/` contains only portable engine, rule, and behavior tests that can
-run through libmodsecurity v3 public APIs without a server/proxy runtime.
+`tests/cases/` contains the YAML runtime case corpus. Cases are organized by
+topic, and connector-specific variants live below
+`tests/cases/connector-specific/<connector>/`.
 
-`tests/<connector>/` contains connector-specific behavior tests.
+`tests/common/` contains reference maps and historical import metadata for
+portable engine, rule, and behavior tests.
 
 If a test depends on hook order, buffering, streaming, reload, local ports,
 server config, module loading, or server/proxy log format, it is not portable
@@ -26,8 +28,12 @@ until proven otherwise.
 ## Status
 
 A minimal shared YAML case materializer and HTTP status assertion runner exists
-under `tests/runners/`. The Apache and NGINX PoCs use it for every current
-case under `tests/common/cases/minimal/`, including blocking, pass-through,
+under `tests/runners/`. The Apache and NGINX PoCs use it for current
+topic-organized cases under `tests/cases/`, including blocking, pass-through,
 request-body, response-header, and audit-log cases.
+
+XFAIL, pending, future, connector-gap, and runtime-difference are YAML metadata
+classes, not directory names. Missing YAML `status` is treated as active for
+discovery/reporting without rewriting case content.
 
 No full connector regression suite exists yet.

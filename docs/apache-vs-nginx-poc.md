@@ -7,10 +7,10 @@ Status: scaffolded
 Both connector PoCs use the same portable cases:
 
 ```text
-tests/common/cases/minimal/*.yaml
-tests/common/cases/imported/*.yaml
-tests/common/cases/v2-imported/*.yaml
-tests/common/cases/v3-imported/*.yaml
+tests/cases/*.yaml
+tests/cases/*.yaml
+tests/cases/*.yaml
+tests/cases/*.yaml
 ```
 
 Shared pieces:
@@ -57,7 +57,7 @@ NGINX:
   the materialized rules file.
 - A local source-built NGINX smoke has observed the YAML-expected HTTP status
   for all current shared minimal cases.
-- NGINX-specific imported cases under `connectors/nginx/tests/cases/imported/` currently
+- NGINX-specific imported cases under `tests/cases/connector-specific/nginx/` currently
   cover redirect and TX scoring behavior from the local NGINX suite. They stay
   NGINX-only until Apache equivalence is explicitly tested.
 

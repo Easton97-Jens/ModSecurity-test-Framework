@@ -60,7 +60,7 @@ These are `connector-specific` and belong only under `connectors/nginx/`.
 | --- | --- | --- | --- | --- |
 | v3 C API phase sequence | v3 via connector | engine-specific | compatible | Document and adapt |
 | NGINX phase/filter registration | connector | connector-specific | compatible only for NGINX | Tracked in `docs/roadmap/todo-inventory.md` |
-| nginx-tests cases | connector | connector-specific | partial | Map to `connectors/nginx/tests/` |
+| nginx-tests cases | connector | connector-specific | partial | Map to `tests/cases/connector-specific/nginx/` |
 | Source code files | connector | connector-specific | compatible only for NGINX | Migrated to adapter-owned `connectors/nginx/src/` |
 
 ## Import Decision

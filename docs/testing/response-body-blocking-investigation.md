@@ -44,7 +44,7 @@ and preserves active smoke behavior. `RESPONSE_BODY` still requires a separate
 real-world Apache+NGINX blocking proof before promotion.
 
 No upstream test file was copied. The local YAML is a minimal derived probe at
-`tests/common/cases/xfail/response_body_basic_block.yaml`.
+`tests/cases/response/body/response_body_basic_block.yaml`.
 
 Phase 10 inventories the PR #377 tests in `pr377-test-import-map.md`. Three
 NGINX-only mode/log probes were imported after 3/3 stable NGINX PASS results,
@@ -97,9 +97,9 @@ Relevant logs, under the configured `BUILD_ROOT`:
 
 It is not promoted to:
 
-- `tests/common/cases/imported/`
-- `connectors/apache/tests/cases/imported/`
-- `connectors/nginx/tests/cases/imported/`
+- `tests/cases/`
+- `tests/cases/connector-specific/apache/`
+- `tests/cases/connector-specific/nginx/`
 
 `RESPONSE_BODY` remains excluded from `verified_variables`. Active
 `response_body_pass.yaml` is only a pass-through probe with response-body access

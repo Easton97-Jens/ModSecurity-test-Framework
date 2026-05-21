@@ -200,7 +200,7 @@ repository layout:
 
 - Apache Autotools/APXS files are under `connectors/apache/`.
 - Apache productive C files are directly under `connectors/apache/src/`.
-- Apache retained Autotools templates are under `connectors/apache/tests/` and
+- Apache retained Autotools templates are under `tests/cases/connector-specific/apache/` and
   materialize back to `t/` and `tests/`.
 - Apache metadata and provenance are under `connectors/apache/metadata.*` and
   `connectors/apache/SOURCE_MAP.json`, not in `src/`.

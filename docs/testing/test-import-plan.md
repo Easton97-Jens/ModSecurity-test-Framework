@@ -36,8 +36,8 @@ ModSecurity-nginx PR #377 tests are inventoried separately in
 
 - Common cases are allowed only when the rule, request, and expectation are
   connector-neutral and can run through both Apache and NGINX PoC harnesses.
-- Apache-only cases belong under `connectors/apache/tests/cases/imported/`.
-- NGINX-only cases belong under `connectors/nginx/tests/cases/imported/`.
+- Apache-only cases belong under `tests/cases/connector-specific/apache/`.
+- NGINX-only cases belong under `tests/cases/connector-specific/nginx/`.
 - Cases that need HTTP/2, proxy topology, multipart parsing, streaming,
   response-body filters, config inheritance, debug log text, remote rules, or
   external data files remain mapped until the harness has explicit support.
@@ -58,7 +58,7 @@ ModSecurity-nginx PR #377 tests are inventoried separately in
 ## Imported Common Cases
 
 The following source-derived common cases were added under
-`tests/common/cases/imported/`:
+`tests/cases/`:
 
 | Case | Source basis | Category | Expected behavior |
 | --- | --- | --- | --- |
@@ -112,7 +112,7 @@ cases uses invented example values.
 `v3_action_nolog_pass_no_audit.yaml` was moved out of active common discovery
 after GitHub Actions reported `expected audit log to be absent or empty`.
 Local Apache and NGINX runs observed HTTP 200 with empty audit logs, so the case
-remains probeable under `tests/common/cases/xfail/` but is not counted as stable
+remains probeable under `tests/cases/` but is not counted as stable
 common PASS.
 
 ## Body And Filter Import Notes
@@ -123,7 +123,7 @@ as TODO. ModSecurity-nginx PR #377
 (https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377) source
 changes are now applied to adapter-owned NGINX source, but that source intake is
 not a response-body promotion. The dedicated local probe in
-`tests/common/cases/xfail/response_body_basic_block.yaml` ran three repeats:
+`tests/cases/response/body/response_body_basic_block.yaml` ran three repeats:
 Apache and NGINX both returned HTTP 200 instead of stable HTTP 403. The source
 rows remain `xfail`/`mapped-only`, while `response_body_pass.yaml` remains a
 pass-through smoke only. In the latest 2026-05-21 NGINX run that pass-through
@@ -143,7 +143,7 @@ current shared smoke path does not prove `ARGS:foo` parity.
 ## Imported Connector-Specific Cases
 
 The following NGINX-specific cases were added under
-`connectors/nginx/tests/cases/imported/`:
+`tests/cases/connector-specific/nginx/`:
 
 | Case | Source basis | Category | Expected behavior | Why connector-specific now |
 | --- | --- | --- | --- | --- |
@@ -205,11 +205,11 @@ writes detailed result summaries under `$BUILD_ROOT/results/`.
 
 Added source-derived portable negative/pass-through cases without changing connector runtime semantics:
 
-- `tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_COOKIES_NAMES.json`)
-- `tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-ARGS_NAMES.json`)
-- `tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml` (source: `ModSecurity_V2` `tests/tfn/urlDecode.t`)
-- `tests/common/cases/imported/v3_request_cookies_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_COOKIES.json`)
-- `tests/common/cases/imported/v3_request_headers_names_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_HEADERS_NAMES.json`)
+- `tests/cases/negative-pass-through/v3_request_cookies_names_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_COOKIES_NAMES.json`)
+- `tests/cases/negative-pass-through/v3_args_names_get_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-ARGS_NAMES.json`)
+- `tests/cases/negative-pass-through/v2_transformation_url_decode_pass_no_match.yaml` (source: `ModSecurity_V2` `tests/tfn/urlDecode.t`)
+- `tests/cases/negative-pass-through/v3_request_cookies_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_COOKIES.json`)
+- `tests/cases/negative-pass-through/v3_request_headers_names_pass_no_match.yaml` (source: `ModSecurity_V3` `variable-REQUEST_HEADERS_NAMES.json`)
 
 These cases are intentionally pass-through (`expect.status: 200`) and serve as
 negative-branch evidence for REQUEST_COOKIES/REQUEST_COOKIES_NAMES,
@@ -220,7 +220,7 @@ automatic promotion for broader xfail/future edge cases.
 
 ## Compatibility Expansion Wave (2026-05-19, pending/xfail)
 
-Added 10 source-derived YAML compatibility candidates under `tests/common/cases/xfail/` for known gaps and future targets:
+Added 10 source-derived YAML compatibility candidates under `tests/cases/` for known gaps and future targets:
 
 - header/cookie/ARGS name runtime-difference or connector-gap probes
 - transformation edge probes (`trim` tab branch, `urlDecode` invalid sequence, `removeNulls`)
@@ -291,6 +291,6 @@ make generate-test-matrix
 make check-test-matrix
 ```
 
-Data sources include test case YAML files under `tests/common/cases/`, `connectors/apache/tests/cases/`, `connectors/nginx/tests/cases/`, plus `config/testing/import-status.json`.
+Data sources include test case YAML files under `tests/common/cases/`, `tests/cases/connector-specific/apache/`, `tests/cases/connector-specific/nginx/`, plus `config/testing/import-status.json`.
 
 Important: generated reports are **not** runtime PASS proof. Authoritative runtime verification remains `make smoke-all`.

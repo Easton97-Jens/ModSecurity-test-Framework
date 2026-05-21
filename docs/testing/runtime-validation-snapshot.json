@@ -399,7 +399,7 @@
       "cases": [
         {
           "case": "action_allow_phase1_pass",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/action_allow_phase1_pass.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_allow_phase1_pass.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -419,7 +419,7 @@
         },
         {
           "case": "action_deny_phase1",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/action_deny_phase1.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_deny_phase1.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -439,7 +439,7 @@
         },
         {
           "case": "action_deny_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/action_deny_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_deny_phase2.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -459,7 +459,7 @@
         },
         {
           "case": "action_status_401_phase1_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/action_status_401_phase1_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_status_401_phase1_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -481,7 +481,7 @@
         },
         {
           "case": "audit_log_empty_sections_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/audit_log_empty_sections_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_empty_sections_future_target.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -500,7 +500,7 @@
         },
         {
           "case": "audit_log_matched_var_encoded_value",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/audit_log_matched_var_encoded_value.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_matched_var_encoded_value.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -519,7 +519,7 @@
         },
         {
           "case": "audit_log_message_presence_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/audit_log_message_presence_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_message_presence_connector_gap.yaml",
           "status": "pass",
           "matrix_status": "CONNECTOR_GAP_PASS",
           "runtime_attempted": true,
@@ -538,7 +538,7 @@
         },
         {
           "case": "audit_log_multiline_message_normalization",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/audit_log_multiline_message_normalization.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_multiline_message_normalization.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -557,7 +557,7 @@
         },
         {
           "case": "audit_log_phase1_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/audit_log_phase1_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_phase1_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -579,7 +579,7 @@
         },
         {
           "case": "audit_log_rule_id_presence_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/audit_log_rule_id_presence_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_rule_id_presence_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -598,7 +598,7 @@
         },
         {
           "case": "collection_args_combined_size_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/collection_args_combined_size_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_combined_size_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -620,7 +620,7 @@
         },
         {
           "case": "collection_args_get_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/collection_args_get_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_get_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -642,7 +642,7 @@
         },
         {
           "case": "collection_args_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/collection_args_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -664,7 +664,7 @@
         },
         {
           "case": "duplicate_args_encoded_separator_edge",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/duplicate_args_encoded_separator_edge.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -683,7 +683,7 @@
         },
         {
           "case": "duplicate_cookie_name_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/duplicate_cookie_name_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/duplicate_cookie_name_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -702,7 +702,7 @@
         },
         {
           "case": "duplicate_header_case_normalization_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/duplicate_header_case_normalization_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -721,7 +721,7 @@
         },
         {
           "case": "edge_missing_header_pass_through",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/edge_missing_header_pass_through.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/edge_missing_header_pass_through.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -741,7 +741,7 @@
         },
         {
           "case": "edge_plus_vs_space_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/edge_plus_vs_space_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/edge_plus_vs_space_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -761,7 +761,7 @@
         },
         {
           "case": "edge_semicolon_query_args_names",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/edge_semicolon_query_args_names.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/edge_semicolon_query_args_names.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -781,7 +781,7 @@
         },
         {
           "case": "files_empty_part_future_compatibility",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/files_empty_part_future_compatibility.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/files_empty_part_future_compatibility.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -802,7 +802,7 @@
         },
         {
           "case": "files_names_mixed_case_filename_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/files_names_mixed_case_filename_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -823,7 +823,7 @@
         },
         {
           "case": "json_duplicate_keys_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/json_duplicate_keys_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/json_duplicate_keys_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -842,7 +842,7 @@
         },
         {
           "case": "json_empty_body_future_compatibility",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/json_empty_body_future_compatibility.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/json_empty_body_future_compatibility.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -862,7 +862,7 @@
         },
         {
           "case": "json_nested_object_future_compatibility",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/json_nested_object_future_compatibility.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/json_nested_object_future_compatibility.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -881,7 +881,7 @@
         },
         {
           "case": "json_request_body_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/json_request_body_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/json_request_body_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -903,7 +903,7 @@
         },
         {
           "case": "multipart_basic_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/multipart_basic_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_basic_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -926,7 +926,7 @@
         },
         {
           "case": "multipart_duplicate_field_names_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/multipart_duplicate_field_names_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -947,7 +947,7 @@
         },
         {
           "case": "multipart_empty_filename_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/multipart_empty_filename_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_empty_filename_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -968,7 +968,7 @@
         },
         {
           "case": "multipart_encoded_filename_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/multipart_encoded_filename_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_encoded_filename_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -989,7 +989,7 @@
         },
         {
           "case": "multipart_filename_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/multipart_filename_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_filename_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1012,7 +1012,7 @@
         },
         {
           "case": "multipart_files_combined_size",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/multipart_files_combined_size.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_files_combined_size.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1036,7 +1036,7 @@
         },
         {
           "case": "multipart_files_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/multipart_files_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_files_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1060,7 +1060,7 @@
         },
         {
           "case": "multipart_files_value_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/multipart_files_value_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_files_value_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1084,7 +1084,7 @@
         },
         {
           "case": "multipart_invalid_boundary_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/multipart_invalid_boundary_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_invalid_boundary_future_target.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -1105,7 +1105,7 @@
         },
         {
           "case": "operator_beginswith_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/operator_beginswith_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/operator_beginswith_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -1125,7 +1125,7 @@
         },
         {
           "case": "operator_contains_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/operator_contains_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/operator_contains_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -1145,7 +1145,7 @@
         },
         {
           "case": "operator_endswith_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/operator_endswith_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/operator_endswith_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -1165,7 +1165,7 @@
         },
         {
           "case": "operator_rx_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/operator_rx_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/operator_rx_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -1185,7 +1185,7 @@
         },
         {
           "case": "operator_streq_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/operator_streq_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/operator_streq_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -1205,7 +1205,7 @@
         },
         {
           "case": "parser_json_partial_body_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/parser_json_partial_body_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/parser_json_partial_body_connector_gap.yaml",
           "status": "pass",
           "matrix_status": "CONNECTOR_GAP_PASS",
           "runtime_attempted": true,
@@ -1224,7 +1224,7 @@
         },
         {
           "case": "parser_xml_partial_body_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/parser_xml_partial_body_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -1243,7 +1243,7 @@
         },
         {
           "case": "phase1_header_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/phase1_header_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/headers/phase1_header_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1264,7 +1264,7 @@
         },
         {
           "case": "phase1_vs_phase2_request_body_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase1_vs_phase2_request_body_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1_vs_phase2_request_body_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1285,7 +1285,7 @@
         },
         {
           "case": "phase2_args_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/phase2_args_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2_args_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1306,7 +1306,7 @@
         },
         {
           "case": "phase2_args_pass",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/phase2_args_pass.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2_args_pass.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1327,7 +1327,7 @@
         },
         {
           "case": "phase2_header_only_pass_through",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase2_header_only_pass_through.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/phase2_header_only_pass_through.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -1347,7 +1347,7 @@
         },
         {
           "case": "phase3_response_headers_content_type_charset_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_content_type_charset_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_content_type_charset_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1367,7 +1367,7 @@
         },
         {
           "case": "phase3_response_headers_duplicate_value_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_duplicate_value_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_duplicate_value_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -1387,7 +1387,7 @@
         },
         {
           "case": "phase3_response_headers_encoded_value_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_encoded_value_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_encoded_value_future_target.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -1407,7 +1407,7 @@
         },
         {
           "case": "phase3_response_headers_location_encoded_runtime_diff",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_location_encoded_runtime_diff.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_location_encoded_runtime_diff.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -1427,7 +1427,7 @@
         },
         {
           "case": "phase3_response_headers_missing_pass_through",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_missing_pass_through.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_missing_pass_through.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -1447,7 +1447,7 @@
         },
         {
           "case": "phase3_response_headers_mixed_case_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_mixed_case_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_mixed_case_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -1467,7 +1467,7 @@
         },
         {
           "case": "phase3_response_headers_multi_value_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_multi_value_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_multi_value_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -1487,7 +1487,7 @@
         },
         {
           "case": "phase3_response_headers_server_presence_pending",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_server_presence_pending.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_server_presence_pending.yaml",
           "status": "fail",
           "matrix_status": "PENDING_FAIL",
           "runtime_attempted": true,
@@ -1507,7 +1507,7 @@
         },
         {
           "case": "phase3_response_headers_set_cookie_multi_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_set_cookie_multi_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_set_cookie_multi_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1527,7 +1527,7 @@
         },
         {
           "case": "phase4_auditlog_outbound_escaped_value_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_auditlog_outbound_escaped_value_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_escaped_value_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1547,7 +1547,7 @@
         },
         {
           "case": "phase4_auditlog_outbound_matched_var_future",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_auditlog_outbound_matched_var_future.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_matched_var_future.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -1567,7 +1567,7 @@
         },
         {
           "case": "phase4_auditlog_outbound_message_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_auditlog_outbound_message_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_message_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -1587,7 +1587,7 @@
         },
         {
           "case": "phase4_auditlog_outbound_multiline_section_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_auditlog_outbound_multiline_section_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_multiline_section_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1607,7 +1607,7 @@
         },
         {
           "case": "phase4_auditlog_outbound_rule_id_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_auditlog_outbound_rule_id_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_rule_id_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -1627,7 +1627,7 @@
         },
         {
           "case": "phase4_response_body_buffering_order_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_buffering_order_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_buffering_order_future_target.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -1647,7 +1647,7 @@
         },
         {
           "case": "phase4_response_body_chunk_assumption_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_chunk_assumption_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_chunk_assumption_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -1667,7 +1667,7 @@
         },
         {
           "case": "phase4_response_body_compressed_assumption_experimental",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_compressed_assumption_experimental.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_compressed_assumption_experimental.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -1687,7 +1687,7 @@
         },
         {
           "case": "phase4_response_body_empty_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_empty_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_empty_future_target.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -1707,7 +1707,7 @@
         },
         {
           "case": "phase4_response_body_html_entity_decode_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_html_entity_decode_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_html_entity_decode_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1727,7 +1727,7 @@
         },
         {
           "case": "phase4_response_body_html_text_normalization_probe",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_html_text_normalization_probe.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_html_text_normalization_probe.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1747,7 +1747,7 @@
         },
         {
           "case": "phase4_response_body_pass_no_match_experimental",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_pass_no_match_experimental.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_pass_no_match_experimental.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -1767,7 +1767,7 @@
         },
         {
           "case": "phase4_response_body_unicode_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_unicode_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_unicode_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -1787,7 +1787,7 @@
         },
         {
           "case": "request_body_args_post_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/request_body_args_post_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_args_post_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1810,7 +1810,7 @@
         },
         {
           "case": "request_body_json_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/request_body_json_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/request_body_json_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1831,7 +1831,7 @@
         },
         {
           "case": "request_body_json_invalid_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/request_body_json_invalid_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/request_body_json_invalid_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -1853,7 +1853,7 @@
         },
         {
           "case": "request_body_raw_text_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/request_body_raw_text_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_raw_text_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1874,7 +1874,7 @@
         },
         {
           "case": "request_body_urlencoded_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/request_body_urlencoded_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_urlencoded_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1896,7 +1896,7 @@
         },
         {
           "case": "response_body_basic_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/response_body_basic_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/response_body_basic_block.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1918,7 +1918,7 @@
         },
         {
           "case": "response_body_pass",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/response_body_pass.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/response_body_pass.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1939,7 +1939,7 @@
         },
         {
           "case": "response_header_basic",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/response_header_basic.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/response_header_basic.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1960,7 +1960,7 @@
         },
         {
           "case": "response_headers_multi_value_runtime_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/response_headers_multi_value_runtime_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/response_headers_multi_value_runtime_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1981,7 +1981,7 @@
         },
         {
           "case": "sqli_like_keyword_spacing_probe",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/sqli_like_keyword_spacing_probe.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -2000,7 +2000,7 @@
         },
         {
           "case": "sqli_like_quote_encoding_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/sqli_like_quote_encoding_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -2019,7 +2019,7 @@
         },
         {
           "case": "tfn_chain_lowercase_trim_pass_through",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_chain_lowercase_trim_pass_through.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/tfn_chain_lowercase_trim_pass_through.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -2038,7 +2038,7 @@
         },
         {
           "case": "tfn_chain_urldecode_compress_whitespace_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_chain_urldecode_compress_whitespace_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/tfn_chain_urldecode_compress_whitespace_gap.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -2057,7 +2057,7 @@
         },
         {
           "case": "tfn_compress_whitespace_runtime_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_compress_whitespace_runtime_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/tfn_compress_whitespace_runtime_gap.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -2077,7 +2077,7 @@
         },
         {
           "case": "tfn_lowercase_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_lowercase_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/tfn_lowercase_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -2097,7 +2097,7 @@
         },
         {
           "case": "tfn_none_exact_block_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_none_exact_block_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/tfn_none_exact_block_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -2117,7 +2117,7 @@
         },
         {
           "case": "tfn_trim_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_trim_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/tfn_trim_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -2137,7 +2137,7 @@
         },
         {
           "case": "tfn_urldecodeuni_future_target_phase1",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_urldecodeuni_future_target_phase1.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/tfn_urldecodeuni_future_target_phase1.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -2157,7 +2157,7 @@
         },
         {
           "case": "unicode_double_encoded_uri_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/unicode_double_encoded_uri_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -2176,7 +2176,7 @@
         },
         {
           "case": "unicode_whitespace_normalization_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/unicode_whitespace_normalization_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -2195,7 +2195,7 @@
         },
         {
           "case": "v2_operator_begins_with_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_begins_with_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_begins_with_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2217,7 +2217,7 @@
         },
         {
           "case": "v2_operator_contains_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_contains_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_contains_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2239,7 +2239,7 @@
         },
         {
           "case": "v2_operator_contains_word_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_contains_word_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_contains_word_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2261,7 +2261,7 @@
         },
         {
           "case": "v2_operator_ends_with_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_ends_with_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_ends_with_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2283,7 +2283,7 @@
         },
         {
           "case": "v2_operator_pm_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_pm_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_pm_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2305,7 +2305,7 @@
         },
         {
           "case": "v2_operator_streq_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_streq_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_streq_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2327,7 +2327,7 @@
         },
         {
           "case": "v2_transformation_html_entity_decode_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_transformation_html_entity_decode_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/headers/v2_transformation_html_entity_decode_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2349,7 +2349,7 @@
         },
         {
           "case": "v2_transformation_lowercase_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_transformation_lowercase_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_transformation_lowercase_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2371,7 +2371,7 @@
         },
         {
           "case": "v2_transformation_remove_nulls_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v2_transformation_remove_nulls_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_remove_nulls_future_target.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -2393,7 +2393,7 @@
         },
         {
           "case": "v2_transformation_trim_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_transformation_trim_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_transformation_trim_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2415,7 +2415,7 @@
         },
         {
           "case": "v2_transformation_trim_tab_future_compatibility",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v2_transformation_trim_tab_future_compatibility.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_transformation_trim_tab_future_compatibility.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -2437,7 +2437,7 @@
         },
         {
           "case": "v2_transformation_url_decode_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_transformation_url_decode_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_url_decode_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2459,7 +2459,7 @@
         },
         {
           "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -2481,7 +2481,7 @@
         },
         {
           "case": "v2_transformation_url_decode_pass_no_match",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/v2_transformation_url_decode_pass_no_match.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2503,7 +2503,7 @@
         },
         {
           "case": "v3_action_nolog_pass_no_audit",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v3_action_nolog_pass_no_audit.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/v3_action_nolog_pass_no_audit.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -2526,7 +2526,7 @@
         },
         {
           "case": "v3_args_names_duplicate_query_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v3_args_names_duplicate_query_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/future-gap/v3_args_names_duplicate_query_connector_gap.yaml",
           "status": "pass",
           "matrix_status": "CONNECTOR_GAP_PASS",
           "runtime_attempted": true,
@@ -2549,7 +2549,7 @@
         },
         {
           "case": "v3_args_names_get_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_args_names_get_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/v3_args_names_get_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2572,7 +2572,7 @@
         },
         {
           "case": "v3_args_names_get_pass_no_match",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/v3_args_names_get_pass_no_match.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2595,7 +2595,7 @@
         },
         {
           "case": "v3_auditlog_serial_fields_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/v3_auditlog_serial_fields_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2617,7 +2617,7 @@
         },
         {
           "case": "v3_operator_pm_digit_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_operator_pm_digit_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v3_operator_pm_digit_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2639,7 +2639,7 @@
         },
         {
           "case": "v3_operator_rx_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_operator_rx_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v3_operator_rx_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2661,7 +2661,7 @@
         },
         {
           "case": "v3_request_cookies_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_request_cookies_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/cookies/v3_request_cookies_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2683,7 +2683,7 @@
         },
         {
           "case": "v3_request_cookies_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_request_cookies_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/cookies/v3_request_cookies_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2705,7 +2705,7 @@
         },
         {
           "case": "v3_request_cookies_names_case_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v3_request_cookies_names_case_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -2727,7 +2727,7 @@
         },
         {
           "case": "v3_request_cookies_names_pass_no_match",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/v3_request_cookies_names_pass_no_match.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2749,7 +2749,7 @@
         },
         {
           "case": "v3_request_cookies_pass_no_match",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/v3_request_cookies_pass_no_match.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/v3_request_cookies_pass_no_match.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2771,7 +2771,7 @@
         },
         {
           "case": "v3_request_headers_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_request_headers_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/headers/v3_request_headers_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2793,7 +2793,7 @@
         },
         {
           "case": "v3_request_headers_names_duplicate_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v3_request_headers_names_duplicate_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/headers/v3_request_headers_names_duplicate_connector_gap.yaml",
           "status": "pass",
           "matrix_status": "CONNECTOR_GAP_PASS",
           "runtime_attempted": true,
@@ -2815,7 +2815,7 @@
         },
         {
           "case": "v3_request_headers_names_lowercase_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v3_request_headers_names_lowercase_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -2837,7 +2837,7 @@
         },
         {
           "case": "v3_request_headers_names_pass_no_match",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/v3_request_headers_names_pass_no_match.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/v3_request_headers_names_pass_no_match.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2859,7 +2859,7 @@
         },
         {
           "case": "v3_secaction_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_secaction_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/v3_secaction_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2880,7 +2880,7 @@
         },
         {
           "case": "v3_transformation_trim_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_transformation_trim_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v3_transformation_trim_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2902,7 +2902,7 @@
         },
         {
           "case": "xml_deep_nesting_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/xml_deep_nesting_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -2921,7 +2921,7 @@
         },
         {
           "case": "xml_namespace_edge_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/xml_namespace_edge_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -2940,7 +2940,7 @@
         },
         {
           "case": "xml_request_body_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/xml_request_body_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2964,7 +2964,7 @@
         },
         {
           "case": "xml_request_body_malformed_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/xml_request_body_malformed_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -2986,7 +2986,7 @@
         },
         {
           "case": "xss_like_encoded_angles_normalization_probe",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/xss_like_encoded_angles_normalization_probe.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -3005,7 +3005,7 @@
         },
         {
           "case": "xss_like_mixed_case_script_token_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/xss_like_mixed_case_script_token_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -3326,7 +3326,7 @@
       "cases": [
         {
           "case": "action_allow_phase1_pass",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/action_allow_phase1_pass.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_allow_phase1_pass.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3346,7 +3346,7 @@
         },
         {
           "case": "action_deny_phase1",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/action_deny_phase1.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_deny_phase1.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3366,7 +3366,7 @@
         },
         {
           "case": "action_deny_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/action_deny_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_deny_phase2.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3386,7 +3386,7 @@
         },
         {
           "case": "action_status_401_phase1_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/action_status_401_phase1_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_status_401_phase1_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3408,7 +3408,7 @@
         },
         {
           "case": "audit_log_empty_sections_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/audit_log_empty_sections_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_empty_sections_future_target.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -3427,7 +3427,7 @@
         },
         {
           "case": "audit_log_matched_var_encoded_value",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/audit_log_matched_var_encoded_value.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_matched_var_encoded_value.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -3446,7 +3446,7 @@
         },
         {
           "case": "audit_log_message_presence_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/audit_log_message_presence_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_message_presence_connector_gap.yaml",
           "status": "pass",
           "matrix_status": "CONNECTOR_GAP_PASS",
           "runtime_attempted": true,
@@ -3465,7 +3465,7 @@
         },
         {
           "case": "audit_log_multiline_message_normalization",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/audit_log_multiline_message_normalization.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_multiline_message_normalization.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -3484,7 +3484,7 @@
         },
         {
           "case": "audit_log_phase1_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/audit_log_phase1_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_phase1_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3506,7 +3506,7 @@
         },
         {
           "case": "audit_log_rule_id_presence_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/audit_log_rule_id_presence_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/audit_log_rule_id_presence_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -3525,7 +3525,7 @@
         },
         {
           "case": "collection_args_combined_size_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/collection_args_combined_size_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_combined_size_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3547,7 +3547,7 @@
         },
         {
           "case": "collection_args_get_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/collection_args_get_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_get_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3569,7 +3569,7 @@
         },
         {
           "case": "collection_args_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/collection_args_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3591,7 +3591,7 @@
         },
         {
           "case": "duplicate_args_encoded_separator_edge",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/duplicate_args_encoded_separator_edge.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/duplicate_args_encoded_separator_edge.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -3610,7 +3610,7 @@
         },
         {
           "case": "duplicate_cookie_name_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/duplicate_cookie_name_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/duplicate_cookie_name_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -3629,7 +3629,7 @@
         },
         {
           "case": "duplicate_header_case_normalization_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/duplicate_header_case_normalization_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -3648,7 +3648,7 @@
         },
         {
           "case": "edge_missing_header_pass_through",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/edge_missing_header_pass_through.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/edge_missing_header_pass_through.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -3668,7 +3668,7 @@
         },
         {
           "case": "edge_plus_vs_space_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/edge_plus_vs_space_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/edge_plus_vs_space_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -3688,7 +3688,7 @@
         },
         {
           "case": "edge_semicolon_query_args_names",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/edge_semicolon_query_args_names.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/edge_semicolon_query_args_names.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -3708,7 +3708,7 @@
         },
         {
           "case": "files_empty_part_future_compatibility",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/files_empty_part_future_compatibility.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/files_empty_part_future_compatibility.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -3729,7 +3729,7 @@
         },
         {
           "case": "files_names_mixed_case_filename_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/files_names_mixed_case_filename_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -3750,7 +3750,7 @@
         },
         {
           "case": "json_duplicate_keys_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/json_duplicate_keys_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/json_duplicate_keys_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -3769,7 +3769,7 @@
         },
         {
           "case": "json_empty_body_future_compatibility",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/json_empty_body_future_compatibility.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/json_empty_body_future_compatibility.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -3789,7 +3789,7 @@
         },
         {
           "case": "json_nested_object_future_compatibility",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/json_nested_object_future_compatibility.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/json_nested_object_future_compatibility.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -3808,7 +3808,7 @@
         },
         {
           "case": "json_request_body_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/json_request_body_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/json_request_body_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3830,7 +3830,7 @@
         },
         {
           "case": "multipart_basic_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/multipart_basic_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_basic_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3853,7 +3853,7 @@
         },
         {
           "case": "multipart_duplicate_field_names_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/multipart_duplicate_field_names_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -3874,7 +3874,7 @@
         },
         {
           "case": "multipart_empty_filename_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/multipart_empty_filename_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_empty_filename_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -3895,7 +3895,7 @@
         },
         {
           "case": "multipart_encoded_filename_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/multipart_encoded_filename_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_encoded_filename_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -3916,7 +3916,7 @@
         },
         {
           "case": "multipart_filename_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/multipart_filename_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_filename_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3939,7 +3939,7 @@
         },
         {
           "case": "multipart_files_combined_size",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/multipart_files_combined_size.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_files_combined_size.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3963,7 +3963,7 @@
         },
         {
           "case": "multipart_files_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/multipart_files_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_files_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3987,7 +3987,7 @@
         },
         {
           "case": "multipart_files_value_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/multipart_files_value_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_files_value_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4011,7 +4011,7 @@
         },
         {
           "case": "multipart_invalid_boundary_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/multipart_invalid_boundary_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/multipart/multipart_invalid_boundary_future_target.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -4032,7 +4032,7 @@
         },
         {
           "case": "nginx_phase4_content_type_out_of_scope",
-          "path": "connectors/nginx/tests/cases/imported/nginx_phase4_content_type_out_of_scope.yaml",
+          "path": "tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4054,7 +4054,7 @@
         },
         {
           "case": "nginx_phase4_minimal_log_only",
-          "path": "connectors/nginx/tests/cases/imported/nginx_phase4_minimal_log_only.yaml",
+          "path": "tests/cases/connector-specific/nginx/nginx_phase4_minimal_log_only.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4076,7 +4076,7 @@
         },
         {
           "case": "nginx_phase4_safe_log_only",
-          "path": "connectors/nginx/tests/cases/imported/nginx_phase4_safe_log_only.yaml",
+          "path": "tests/cases/connector-specific/nginx/nginx_phase4_safe_log_only.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4098,7 +4098,7 @@
         },
         {
           "case": "nginx_phase4_strict_connection_abort",
-          "path": "connectors/nginx/tests/cases/xfail/nginx_phase4_strict_connection_abort.yaml",
+          "path": "tests/cases/connector-specific/nginx/nginx_phase4_strict_connection_abort.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -4120,7 +4120,7 @@
         },
         {
           "case": "nginx_redirect_phase1_302",
-          "path": "connectors/nginx/tests/cases/imported/nginx_redirect_phase1_302.yaml",
+          "path": "tests/cases/connector-specific/nginx/nginx_redirect_phase1_302.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4141,7 +4141,7 @@
         },
         {
           "case": "nginx_tx_scoring_absolute_block",
-          "path": "connectors/nginx/tests/cases/imported/nginx_tx_scoring_absolute_block.yaml",
+          "path": "tests/cases/connector-specific/nginx/nginx_tx_scoring_absolute_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4164,7 +4164,7 @@
         },
         {
           "case": "nginx_tx_scoring_iterative_block",
-          "path": "connectors/nginx/tests/cases/imported/nginx_tx_scoring_iterative_block.yaml",
+          "path": "tests/cases/connector-specific/nginx/nginx_tx_scoring_iterative_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4187,7 +4187,7 @@
         },
         {
           "case": "operator_beginswith_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/operator_beginswith_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/operator_beginswith_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -4207,7 +4207,7 @@
         },
         {
           "case": "operator_contains_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/operator_contains_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/operator_contains_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -4227,7 +4227,7 @@
         },
         {
           "case": "operator_endswith_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/operator_endswith_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/operator_endswith_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -4247,7 +4247,7 @@
         },
         {
           "case": "operator_rx_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/operator_rx_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/operator_rx_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -4267,7 +4267,7 @@
         },
         {
           "case": "operator_streq_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/operator_streq_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/operator_streq_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -4287,7 +4287,7 @@
         },
         {
           "case": "parser_json_partial_body_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/parser_json_partial_body_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/parser_json_partial_body_connector_gap.yaml",
           "status": "pass",
           "matrix_status": "CONNECTOR_GAP_PASS",
           "runtime_attempted": true,
@@ -4306,7 +4306,7 @@
         },
         {
           "case": "parser_xml_partial_body_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/parser_xml_partial_body_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/parser_xml_partial_body_future_target.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -4325,7 +4325,7 @@
         },
         {
           "case": "phase1_header_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/phase1_header_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/headers/phase1_header_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4346,7 +4346,7 @@
         },
         {
           "case": "phase1_vs_phase2_request_body_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase1_vs_phase2_request_body_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1_vs_phase2_request_body_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -4367,7 +4367,7 @@
         },
         {
           "case": "phase2_args_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/phase2_args_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2_args_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4388,7 +4388,7 @@
         },
         {
           "case": "phase2_args_pass",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/phase2_args_pass.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2_args_pass.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4409,7 +4409,7 @@
         },
         {
           "case": "phase2_header_only_pass_through",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase2_header_only_pass_through.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/phase2_header_only_pass_through.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -4429,7 +4429,7 @@
         },
         {
           "case": "phase3_response_headers_content_type_charset_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_content_type_charset_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_content_type_charset_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -4449,7 +4449,7 @@
         },
         {
           "case": "phase3_response_headers_duplicate_value_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_duplicate_value_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_duplicate_value_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -4469,7 +4469,7 @@
         },
         {
           "case": "phase3_response_headers_encoded_value_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_encoded_value_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_encoded_value_future_target.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -4489,7 +4489,7 @@
         },
         {
           "case": "phase3_response_headers_location_encoded_runtime_diff",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_location_encoded_runtime_diff.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_location_encoded_runtime_diff.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -4509,7 +4509,7 @@
         },
         {
           "case": "phase3_response_headers_missing_pass_through",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_missing_pass_through.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_missing_pass_through.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -4529,7 +4529,7 @@
         },
         {
           "case": "phase3_response_headers_mixed_case_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_mixed_case_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_mixed_case_connector_gap.yaml",
           "status": "pass",
           "matrix_status": "CONNECTOR_GAP_PASS",
           "runtime_attempted": true,
@@ -4549,7 +4549,7 @@
         },
         {
           "case": "phase3_response_headers_multi_value_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_multi_value_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_multi_value_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -4569,7 +4569,7 @@
         },
         {
           "case": "phase3_response_headers_server_presence_pending",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_server_presence_pending.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_server_presence_pending.yaml",
           "status": "fail",
           "matrix_status": "PENDING_FAIL",
           "runtime_attempted": true,
@@ -4589,7 +4589,7 @@
         },
         {
           "case": "phase3_response_headers_set_cookie_multi_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase3_response_headers_set_cookie_multi_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/phase3_response_headers_set_cookie_multi_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -4609,7 +4609,7 @@
         },
         {
           "case": "phase4_auditlog_outbound_escaped_value_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_auditlog_outbound_escaped_value_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_escaped_value_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -4629,7 +4629,7 @@
         },
         {
           "case": "phase4_auditlog_outbound_matched_var_future",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_auditlog_outbound_matched_var_future.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_matched_var_future.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -4649,7 +4649,7 @@
         },
         {
           "case": "phase4_auditlog_outbound_message_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_auditlog_outbound_message_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_message_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -4669,7 +4669,7 @@
         },
         {
           "case": "phase4_auditlog_outbound_multiline_section_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_auditlog_outbound_multiline_section_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_multiline_section_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -4689,7 +4689,7 @@
         },
         {
           "case": "phase4_auditlog_outbound_rule_id_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_auditlog_outbound_rule_id_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_auditlog_outbound_rule_id_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -4709,7 +4709,7 @@
         },
         {
           "case": "phase4_response_body_buffering_order_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_buffering_order_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_buffering_order_future_target.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -4729,7 +4729,7 @@
         },
         {
           "case": "phase4_response_body_chunk_assumption_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_chunk_assumption_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_chunk_assumption_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -4749,7 +4749,7 @@
         },
         {
           "case": "phase4_response_body_compressed_assumption_experimental",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_compressed_assumption_experimental.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_compressed_assumption_experimental.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -4769,7 +4769,7 @@
         },
         {
           "case": "phase4_response_body_empty_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_empty_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_empty_future_target.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -4789,7 +4789,7 @@
         },
         {
           "case": "phase4_response_body_html_entity_decode_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_html_entity_decode_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_html_entity_decode_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -4809,7 +4809,7 @@
         },
         {
           "case": "phase4_response_body_html_text_normalization_probe",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_html_text_normalization_probe.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_html_text_normalization_probe.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -4829,7 +4829,7 @@
         },
         {
           "case": "phase4_response_body_pass_no_match_experimental",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_pass_no_match_experimental.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_pass_no_match_experimental.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -4849,7 +4849,7 @@
         },
         {
           "case": "phase4_response_body_unicode_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/phase4_response_body_unicode_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/phase4_response_body_unicode_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -4869,7 +4869,7 @@
         },
         {
           "case": "request_body_args_post_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/request_body_args_post_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_args_post_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4892,7 +4892,7 @@
         },
         {
           "case": "request_body_json_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/request_body_json_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/request_body_json_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4913,7 +4913,7 @@
         },
         {
           "case": "request_body_json_invalid_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/request_body_json_invalid_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/json/request_body_json_invalid_runtime_difference.yaml",
           "status": "pass",
           "matrix_status": "RUNTIME_DIFFERENCE_PASS",
           "runtime_attempted": true,
@@ -4935,7 +4935,7 @@
         },
         {
           "case": "request_body_raw_text_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/request_body_raw_text_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_raw_text_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4956,7 +4956,7 @@
         },
         {
           "case": "request_body_urlencoded_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/request_body_urlencoded_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_urlencoded_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4978,7 +4978,7 @@
         },
         {
           "case": "response_body_basic_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/response_body_basic_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/response_body_basic_block.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -5000,7 +5000,7 @@
         },
         {
           "case": "response_body_pass",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/response_body_pass.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/body/response_body_pass.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5021,7 +5021,7 @@
         },
         {
           "case": "response_header_basic",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/minimal/response_header_basic.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/response_header_basic.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5042,7 +5042,7 @@
         },
         {
           "case": "response_headers_multi_value_runtime_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/response_headers_multi_value_runtime_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/response/headers/response_headers_multi_value_runtime_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -5063,7 +5063,7 @@
         },
         {
           "case": "sqli_like_keyword_spacing_probe",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/sqli_like_keyword_spacing_probe.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -5082,7 +5082,7 @@
         },
         {
           "case": "sqli_like_quote_encoding_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/sqli_like_quote_encoding_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -5101,7 +5101,7 @@
         },
         {
           "case": "tfn_chain_lowercase_trim_pass_through",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_chain_lowercase_trim_pass_through.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/tfn_chain_lowercase_trim_pass_through.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -5120,7 +5120,7 @@
         },
         {
           "case": "tfn_chain_urldecode_compress_whitespace_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_chain_urldecode_compress_whitespace_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/tfn_chain_urldecode_compress_whitespace_gap.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -5139,7 +5139,7 @@
         },
         {
           "case": "tfn_compress_whitespace_runtime_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_compress_whitespace_runtime_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/tfn_compress_whitespace_runtime_gap.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -5159,7 +5159,7 @@
         },
         {
           "case": "tfn_lowercase_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_lowercase_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/tfn_lowercase_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -5179,7 +5179,7 @@
         },
         {
           "case": "tfn_none_exact_block_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_none_exact_block_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/tfn_none_exact_block_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -5199,7 +5199,7 @@
         },
         {
           "case": "tfn_trim_pass_no_match_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_trim_pass_no_match_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/tfn_trim_pass_no_match_phase2.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -5219,7 +5219,7 @@
         },
         {
           "case": "tfn_urldecodeuni_future_target_phase1",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/tfn_urldecodeuni_future_target_phase1.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/tfn_urldecodeuni_future_target_phase1.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -5239,7 +5239,7 @@
         },
         {
           "case": "unicode_double_encoded_uri_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/unicode_double_encoded_uri_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -5258,7 +5258,7 @@
         },
         {
           "case": "unicode_whitespace_normalization_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/unicode_whitespace_normalization_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/unicode_whitespace_normalization_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -5277,7 +5277,7 @@
         },
         {
           "case": "v2_operator_begins_with_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_begins_with_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_begins_with_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5299,7 +5299,7 @@
         },
         {
           "case": "v2_operator_contains_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_contains_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_contains_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5321,7 +5321,7 @@
         },
         {
           "case": "v2_operator_contains_word_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_contains_word_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_contains_word_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5343,7 +5343,7 @@
         },
         {
           "case": "v2_operator_ends_with_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_ends_with_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_ends_with_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5365,7 +5365,7 @@
         },
         {
           "case": "v2_operator_pm_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_pm_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_pm_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5387,7 +5387,7 @@
         },
         {
           "case": "v2_operator_streq_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_operator_streq_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_operator_streq_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5409,7 +5409,7 @@
         },
         {
           "case": "v2_transformation_html_entity_decode_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_transformation_html_entity_decode_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/headers/v2_transformation_html_entity_decode_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5431,7 +5431,7 @@
         },
         {
           "case": "v2_transformation_lowercase_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_transformation_lowercase_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_transformation_lowercase_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5453,7 +5453,7 @@
         },
         {
           "case": "v2_transformation_remove_nulls_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v2_transformation_remove_nulls_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_remove_nulls_future_target.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -5475,7 +5475,7 @@
         },
         {
           "case": "v2_transformation_trim_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_transformation_trim_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_transformation_trim_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5497,7 +5497,7 @@
         },
         {
           "case": "v2_transformation_trim_tab_future_compatibility",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v2_transformation_trim_tab_future_compatibility.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v2_transformation_trim_tab_future_compatibility.yaml",
           "status": "pass",
           "matrix_status": "FUTURE_PASS",
           "runtime_attempted": true,
@@ -5519,7 +5519,7 @@
         },
         {
           "case": "v2_transformation_url_decode_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v2-imported/v2_transformation_url_decode_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_url_decode_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5541,7 +5541,7 @@
         },
         {
           "case": "v2_transformation_url_decode_invalid_sequence_mapped_candidate",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -5563,7 +5563,7 @@
         },
         {
           "case": "v2_transformation_url_decode_pass_no_match",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/v2_transformation_url_decode_pass_no_match.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/v2_transformation_url_decode_pass_no_match.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5585,7 +5585,7 @@
         },
         {
           "case": "v3_action_nolog_pass_no_audit",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v3_action_nolog_pass_no_audit.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/v3_action_nolog_pass_no_audit.yaml",
           "status": "pass",
           "matrix_status": "XFAIL_PASS",
           "runtime_attempted": true,
@@ -5608,7 +5608,7 @@
         },
         {
           "case": "v3_args_names_duplicate_query_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v3_args_names_duplicate_query_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/future-gap/v3_args_names_duplicate_query_connector_gap.yaml",
           "status": "pass",
           "matrix_status": "CONNECTOR_GAP_PASS",
           "runtime_attempted": true,
@@ -5631,7 +5631,7 @@
         },
         {
           "case": "v3_args_names_get_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_args_names_get_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/v3_args_names_get_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5654,7 +5654,7 @@
         },
         {
           "case": "v3_args_names_get_pass_no_match",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/v3_args_names_get_pass_no_match.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/v3_args_names_get_pass_no_match.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5677,7 +5677,7 @@
         },
         {
           "case": "v3_auditlog_serial_fields_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/audit-log/v3_auditlog_serial_fields_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5699,7 +5699,7 @@
         },
         {
           "case": "v3_operator_pm_digit_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_operator_pm_digit_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v3_operator_pm_digit_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5721,7 +5721,7 @@
         },
         {
           "case": "v3_operator_rx_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_operator_rx_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v3_operator_rx_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5743,7 +5743,7 @@
         },
         {
           "case": "v3_request_cookies_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_request_cookies_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/cookies/v3_request_cookies_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5765,7 +5765,7 @@
         },
         {
           "case": "v3_request_cookies_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_request_cookies_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/cookies/v3_request_cookies_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5787,7 +5787,7 @@
         },
         {
           "case": "v3_request_cookies_names_case_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v3_request_cookies_names_case_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -5809,7 +5809,7 @@
         },
         {
           "case": "v3_request_cookies_names_pass_no_match",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/v3_request_cookies_names_pass_no_match.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/v3_request_cookies_names_pass_no_match.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5831,7 +5831,7 @@
         },
         {
           "case": "v3_request_cookies_pass_no_match",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/v3_request_cookies_pass_no_match.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/v3_request_cookies_pass_no_match.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5853,7 +5853,7 @@
         },
         {
           "case": "v3_request_headers_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_request_headers_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/headers/v3_request_headers_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5875,7 +5875,7 @@
         },
         {
           "case": "v3_request_headers_names_duplicate_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v3_request_headers_names_duplicate_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/headers/v3_request_headers_names_duplicate_connector_gap.yaml",
           "status": "pass",
           "matrix_status": "CONNECTOR_GAP_PASS",
           "runtime_attempted": true,
@@ -5897,7 +5897,7 @@
         },
         {
           "case": "v3_request_headers_names_lowercase_runtime_difference",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/v3_request_headers_names_lowercase_runtime_difference.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml",
           "status": "fail",
           "matrix_status": "RUNTIME_DIFFERENCE_FAIL",
           "runtime_attempted": true,
@@ -5919,7 +5919,7 @@
         },
         {
           "case": "v3_request_headers_names_pass_no_match",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/imported/v3_request_headers_names_pass_no_match.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/negative-pass-through/v3_request_headers_names_pass_no_match.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5941,7 +5941,7 @@
         },
         {
           "case": "v3_secaction_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_secaction_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/v3_secaction_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5962,7 +5962,7 @@
         },
         {
           "case": "v3_transformation_trim_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/v3_transformation_trim_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/transformations/v3_transformation_trim_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5984,7 +5984,7 @@
         },
         {
           "case": "xml_deep_nesting_future_target",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/xml_deep_nesting_future_target.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_deep_nesting_future_target.yaml",
           "status": "fail",
           "matrix_status": "FUTURE_FAIL",
           "runtime_attempted": true,
@@ -6003,7 +6003,7 @@
         },
         {
           "case": "xml_namespace_edge_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/xml_namespace_edge_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -6022,7 +6022,7 @@
         },
         {
           "case": "xml_request_body_block",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/v3-imported/xml_request_body_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -6046,7 +6046,7 @@
         },
         {
           "case": "xml_request_body_malformed_connector_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/xml_request_body_malformed_connector_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml",
           "status": "fail",
           "matrix_status": "CONNECTOR_GAP_FAIL",
           "runtime_attempted": true,
@@ -6068,7 +6068,7 @@
         },
         {
           "case": "xss_like_encoded_angles_normalization_probe",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/xss_like_encoded_angles_normalization_probe.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -6087,7 +6087,7 @@
         },
         {
           "case": "xss_like_mixed_case_script_token_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/common/cases/xfail/xss_like_mixed_case_script_token_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,

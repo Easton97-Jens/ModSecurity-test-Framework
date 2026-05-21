@@ -12,7 +12,7 @@ Status: scaffolded
   archive flow.
 - `connectors/nginx/harness/run_nginx_smoke.sh` prepares a local NGINX runtime
   under `BUILD_ROOT` and checks for a real HTTP `403`.
-- The shared minimal YAML cases under `tests/common/cases/minimal/` are the
+- The shared minimal YAML cases under `tests/cases/` are the
   rule/request/expectation source used by both Apache and NGINX harnesses.
 - The shared imported YAML cases add raw JSON body, simple multipart
   text-field, and response-body pass-through coverage without hardcoding those
@@ -133,9 +133,9 @@ $BUILD_ROOT/nginx-runtime/phase2_args_block/conf/nginx.conf
 Rules, request details, and expected statuses are read from:
 
 ```text
-tests/common/cases/minimal/*.yaml
-tests/common/cases/imported/*.yaml
-connectors/nginx/tests/cases/imported/*.yaml
+tests/cases/*.yaml
+tests/cases/*.yaml
+tests/cases/connector-specific/nginx/*.yaml
 ```
 
 The harness does not hardcode the rule, request path, request method, headers,

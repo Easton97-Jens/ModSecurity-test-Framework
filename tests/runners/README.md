@@ -22,10 +22,10 @@ Implemented now:
   status assertion used by the Apache and NGINX harnesses.
 
 The Apache and NGINX PoCs use this runner so each YAML file under
-`tests/common/cases/minimal/`, `tests/common/cases/imported/`, or the
-applicable connector-specific imported directory is the single source for the
-rule, request, headers, optional body or multipart body, response fixture, and
-expected HTTP status.
+`tests/cases/` is the single source for the rule, request, headers, optional
+body or multipart body, response fixture, and expected HTTP status.
+XFAIL/imported/pending/future/gap classes are metadata values, not status
+directories.
 Audit-log cases also use the YAML as the source for stable audit-log field
 expectations.
 
@@ -48,7 +48,7 @@ Example:
 
 ```sh
 python3 tests/runners/case_cli.py materialize \
-  --case tests/common/cases/minimal/phase2_args_block.yaml \
+  --case tests/cases/phases/phase2_args_block.yaml \
   --rules-file "$BUILD_ROOT/rules.conf" \
   --env-file "$BUILD_ROOT/case.env" \
   --headers-file "$BUILD_ROOT/request-headers.txt" \
@@ -58,7 +58,7 @@ python3 tests/runners/case_cli.py materialize \
   --audit-log-dir "$BUILD_ROOT/audit"
 
 python3 tests/runners/case_cli.py assert-status \
-  --case tests/common/cases/minimal/phase2_args_block.yaml \
+  --case tests/cases/phases/phase2_args_block.yaml \
   --actual-status 403 \
   --response-body-file "$BUILD_ROOT/response-body.txt" \
   --audit-log-file "$BUILD_ROOT/audit.log"

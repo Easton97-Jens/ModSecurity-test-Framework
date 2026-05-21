@@ -77,14 +77,19 @@ KNOWN_CAPABILITIES = {
 CASE_STATUSES = {
     "active",
     "blocked",
+    "connector-gap",
     "connector-specific",
+    "experimental",
     "fail",
+    "future",
     "fully-imported-common",
     "imported",
     "mapped",
     "mapped-only",
     "minimal",
     "pass",
+    "pending",
+    "runtime-difference",
     "skipped",
     "todo",
     "xfail",
@@ -720,17 +725,35 @@ def case_scope(path: str | Path) -> str:
         if len(tail) >= 5 and tail[1] == "cases" and tail[2] == "connector-specific":
             return f"{tail[3]}/connector-specific"
         if len(tail) >= 3 and tail[1] == "cases":
-            return "common/" + case_group(path)
+            return "common"
     return "unknown"
 
 
-def case_group(path: str | Path) -> str:
-    status_groups = {"minimal", "imported", "v2-imported", "v3-imported", "xfail"}
-    for part in reversed(Path(path).parts):
-        if part in status_groups:
-            return part
-    scope = str(path)
-    return "unknown" if scope else "unknown"
+def case_status_group(case: Mapping[str, Any]) -> str:
+    status = str(case.get("status", "") or "").strip()
+    return status if status else "active"
+
+
+def is_default_runtime_case(case: Mapping[str, Any]) -> bool:
+    return case_status_group(case) in {
+        "active",
+        "fully-imported-common",
+        "imported",
+        "minimal",
+        "pass",
+        "v2-imported",
+        "v3-imported",
+    }
+
+
+def case_group(path: str | Path, case: Mapping[str, Any] | None = None) -> str:
+    if case is None:
+        try:
+            loaded = _load_yaml_with_pyyaml(Path(path))
+            case = loaded if loaded is not None else _load_minimal_yaml(Path(path))
+        except Exception:
+            return "active"
+    return case_status_group(case)
 
 
 def case_info(
@@ -745,7 +768,7 @@ def case_info(
         "name": str(case["name"]),
         "path": str(path),
         "scope": case_scope(path),
-        "group": case_group(path),
+        "group": case_group(path, case),
         "category": str(case.get("category", "")),
         "portable": case.get("portable"),
         "connector": str(case.get("connector", "")),
@@ -797,7 +820,7 @@ def _case_dirs(connector_root: Path, connector: str, scope: str, framework_root:
 
 def _case_path_in_scope(path: str | Path, connector: str, scope: str) -> bool:
     path_scope = case_scope(path)
-    if path_scope.startswith("common/"):
+    if path_scope == "common" or path_scope.startswith("common/"):
         return scope in {"common", "all"}
     if path_scope.startswith(f"{connector}/"):
         return scope in {"connector", "all"}
@@ -812,9 +835,9 @@ def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str
     path_scope = case_scope(path)
     declared_connector = case.get("connector")
     portable = case.get("portable")
-    if not force_all_cases_enabled() and case_group(path) == "xfail":
+    if not force_all_cases_enabled() and not is_default_runtime_case(case):
         return False
-    if path_scope.startswith("common/"):
+    if path_scope == "common" or path_scope.startswith("common/"):
         if declared_connector not in (None, "", "common"):
             return False
         if portable is False:

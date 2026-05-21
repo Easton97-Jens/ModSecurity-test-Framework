@@ -16,13 +16,13 @@ Generated from repository YAML cases and, when present, connector summary result
 | request_body_args_post_names_block | ModSecurity-apache:tests/regression/target/00-targets.t; ModSecurity-nginx:tests/modsecurity-request-body.t | request-body | collections, form-urlencoded, intervention, phase2, request-body | pass | pass | common |  |
 | request_body_raw_text_block | ModSecurity-nginx:tests/modsecurity-request-body.t; ModSecurity-apache:tests/regression/rule/15-json.t | request-body | intervention, phase2, request-body | pass | pass | common |  |
 | response_body_pass | ModSecurity-apache:tests/regression/config/10-response-directives.t; ModSecurity-nginx:tests/modsecurity-response-body.t | response-body | pass-through, phase4, response-body | pass | pass | common | Pass-through does not prove response-body blocking.; NGINX response-body blocking remains mapped as xfail because the upstream test marks it TODO and local probing did not produce stable HTTP 403. |
-| audit_log_phase1_block | tests/common/cases/minimal/audit_log_phase1_block.yaml | minimal | audit-log, intervention, phase1, query-args | pass | pass | common |  |
-| phase1_header_block | tests/common/cases/minimal/phase1_header_block.yaml | minimal | intervention, phase1, request-headers | pass | pass | common |  |
-| phase2_args_block | tests/common/cases/minimal/phase2_args_block.yaml | minimal | intervention, phase2, query-args | pass | pass | common |  |
-| phase2_args_pass | tests/common/cases/minimal/phase2_args_pass.yaml | minimal | pass-through, phase2, query-args | pass | pass | common |  |
-| request_body_json_block | tests/common/cases/minimal/request_body_json_block.yaml | minimal | intervention, phase2, request-body | pass | pass | common |  |
-| request_body_urlencoded_block | tests/common/cases/minimal/request_body_urlencoded_block.yaml | minimal | form-urlencoded, intervention, phase2, request-body | pass | pass | common |  |
-| response_header_basic | tests/common/cases/minimal/response_header_basic.yaml | minimal | intervention, phase3, response-headers | pass | pass | common |  |
+| audit_log_phase1_block | tests/cases/audit-log/audit_log_phase1_block.yaml | minimal | audit-log, intervention, phase1, query-args | pass | pass | common |  |
+| phase1_header_block | tests/cases/request/headers/phase1_header_block.yaml | minimal | intervention, phase1, request-headers | pass | pass | common |  |
+| phase2_args_block | tests/cases/phases/phase2_args_block.yaml | minimal | intervention, phase2, query-args | pass | pass | common |  |
+| phase2_args_pass | tests/cases/phases/phase2_args_pass.yaml | minimal | pass-through, phase2, query-args | pass | pass | common |  |
+| request_body_json_block | tests/cases/body/json/request_body_json_block.yaml | minimal | intervention, phase2, request-body | pass | pass | common |  |
+| request_body_urlencoded_block | tests/cases/phases/request_body_urlencoded_block.yaml | minimal | form-urlencoded, intervention, phase2, request-body | pass | pass | common |  |
+| response_header_basic | tests/cases/response/headers/response_header_basic.yaml | minimal | intervention, phase3, response-headers | pass | pass | common |  |
 | v2_operator_begins_with_block | ModSecurity_V2:tests/op/beginsWith.t | operators | intervention, operators, phase2, query-args | pass | pass | common | Converted from the V2 operator harness to an HTTP phase:2 intervention check.; Empty-string and mismatch branches remain mapped only. |
 | v2_operator_contains_block | ModSecurity_V2:tests/op/contains.t | operators | intervention, operators, phase2, query-args | pass | pass | common | Converted from the V2 operator harness to an HTTP phase:2 intervention check.; Does not cover empty-pattern edge cases from the source test. |
 | v2_operator_contains_word_block | ModSecurity_V2:tests/op/containsWord.t | operators | intervention, operators, phase2, query-args | pass | pass | common | Converted from the V2 operator harness to an HTTP phase:2 intervention check.; Word-boundary negative branches remain mapped only. |
