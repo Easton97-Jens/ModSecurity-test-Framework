@@ -2,14 +2,16 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
+REPO_ROOT="$CONNECTOR_ROOT"
 . "$SCRIPT_DIR/common.sh"
 
 PROBE_ROOT="${RESPONSE_BODY_PROBE_ROOT:-$BUILD_ROOT/response-body-probe}"
 RESULTS_ROOT="$PROBE_ROOT/results"
 LOG_ROOT="$PROBE_ROOT/logs"
 RUNTIME_ROOT="$PROBE_ROOT/runtime"
-CASE_FILE="${RESPONSE_BODY_PROBE_CASE:-$REPO_ROOT/tests/common/cases/xfail/response_body_basic_block.yaml}"
+CASE_FILE="${RESPONSE_BODY_PROBE_CASE:-$FRAMEWORK_ROOT/tests/common/cases/xfail/response_body_basic_block.yaml}"
 REPEAT="${RESPONSE_BODY_PROBE_REPEAT:-3}"
 
 require_absolute_generated_path() {
@@ -20,7 +22,7 @@ require_absolute_generated_path() {
         *) echo "probe_response_body: blocked $label must be absolute: $path"; exit 77 ;;
     esac
     case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*|"$FRAMEWORK_ROOT"|"$FRAMEWORK_ROOT"/*)
             echo "probe_response_body: blocked $label is inside a source checkout: $path"
             exit 77
             ;;
@@ -58,11 +60,11 @@ run_probe_once() {
 
     case "$connector" in
         apache)
-            script="$REPO_ROOT/ci/run-apache-smoke.sh"
+            script="$FRAMEWORK_ROOT/ci/run-apache-smoke.sh"
             runtime_env="APACHE_RUNTIME_LOG_DIR=$log_dir"
             ;;
         nginx)
-            script="$REPO_ROOT/ci/run-nginx-smoke.sh"
+            script="$FRAMEWORK_ROOT/ci/run-nginx-smoke.sh"
             runtime_env="NGINX_RUNTIME_LOG_DIR=$log_dir"
             ;;
         *)

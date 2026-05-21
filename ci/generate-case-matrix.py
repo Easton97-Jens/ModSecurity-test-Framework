@@ -13,7 +13,7 @@ import yaml
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
 CONNECTOR_ROOT = Path.cwd()
 OUTPUT_ROOT = CONNECTOR_ROOT
-IMPORT_STATUS = CONNECTOR_ROOT / "tests/import-status.json"
+IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
 RUNTIME_SNAPSHOT = OUTPUT_ROOT / "docs/testing/runtime-validation-snapshot.json"
 OUT = OUTPUT_ROOT / "docs/testing/generated"
 
@@ -104,7 +104,7 @@ def configure_paths(framework_root: str | Path | None, connector_root: str | Pat
     else:
         CONNECTOR_ROOT = FRAMEWORK_ROOT
     OUTPUT_ROOT = Path(output_root).resolve() if output_root is not None else CONNECTOR_ROOT
-    IMPORT_STATUS = CONNECTOR_ROOT / "tests/import-status.json"
+    IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
     RUNTIME_SNAPSHOT = OUTPUT_ROOT / "docs/testing/runtime-validation-snapshot.json"
     OUT = OUTPUT_ROOT / "docs/testing/generated"
 
@@ -131,6 +131,10 @@ def infer_scope(path: Path) -> str:
     s = str(path).replace("\\", "/")
     if "/tests/common/" in s:
         return "common"
+    if "/connectors/apache/tests/cases/" in s:
+        return "apache"
+    if "/connectors/nginx/tests/cases/" in s:
+        return "nginx"
     if "/tests/apache/" in s:
         return "apache"
     if "/tests/nginx/" in s:
@@ -232,7 +236,7 @@ def gather_cases() -> list[dict]:
     files = []
     files.extend(sorted((FRAMEWORK_ROOT / "tests" / "common" / "cases").rglob("*.yaml")))
     for scope in ["apache", "nginx"]:
-        files.extend(sorted((CONNECTOR_ROOT / "tests" / scope / "cases").rglob("*.yaml")))
+        files.extend(sorted((CONNECTOR_ROOT / "connectors" / scope / "tests" / "cases").rglob("*.yaml")))
     return [parse_case(p) for p in files]
 
 
@@ -305,7 +309,7 @@ def render_gap_summary(cases: list[dict], import_status: dict) -> str:
     for key in ["connector_specific", "runtime_blocked", "mapped_only", "blocked", "xfail"]:
         for item in import_status.get(key, []):
             if isinstance(item, dict):
-                rows.append(f"| {item.get('case') or item.get('source') or 'unknown'} | `tests/import-status.json` | {key} | - | - | {item.get('source', 'unknown')} | {item.get('reason', '')} |")
+                rows.append(f"| {item.get('case') or item.get('source') or 'unknown'} | `config/testing/import-status.json` | {key} | - | - | {item.get('source', 'unknown')} | {item.get('reason', '')} |")
     return "\n".join(rows)
 
 
@@ -909,7 +913,7 @@ def render_root_summary(
         "- Connector root used for adapter inventory/reports: `CONNECTOR_ROOT`.",
         "- Common YAML cases, runners, normalizers, and generators are owned by `ModSecurity-test-Framework`.",
         "- Connector-specific cases, adapter metadata, harnesses, import status, and generated reports are owned by this connector repository.",
-        "- `FRAMEWORK_ROOT` is configurable; the sibling checkout is only a relative local convenience, not an absolute workspace fallback.",
+        "- `FRAMEWORK_ROOT` is configurable and may point at a module/submodule or another explicit checkout; there is no absolute workspace fallback.",
         "",
         "## Testarten",
         f"- Common YAML Cases: **{by_scope.get('common', 0)}**",

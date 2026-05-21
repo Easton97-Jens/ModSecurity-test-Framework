@@ -2,7 +2,9 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
+REPO_ROOT="$CONNECTOR_ROOT"
 . "$SCRIPT_DIR/common.sh"
 
 PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
@@ -38,8 +40,8 @@ show_component() {
 section "SOURCE-BUILD READINESS"
 say "python interpreter: $PYTHON_BIN"
 "$PYTHON_BIN" --version || blocked "python executable failed: $PYTHON_BIN"
-if [ -x "$REPO_ROOT/.venv/bin/python" ]; then say "venv: detected $REPO_ROOT/.venv/bin/python"; else blocked "venv missing (.venv/bin/python); run make setup-dev"; fi
-if ! "$PYTHON_BIN" "$REPO_ROOT/ci/check-python-deps.py"; then blocked "missing Python dependencies for selected interpreter"; fi
+if [ -x "$CONNECTOR_ROOT/.venv/bin/python" ]; then say "venv: detected $CONNECTOR_ROOT/.venv/bin/python"; else blocked "venv missing (.venv/bin/python); run make setup-dev"; fi
+if ! "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/check-python-deps.py"; then blocked "missing Python dependencies for selected interpreter"; fi
 
 for tool in git make gcc autoconf automake libtool pkg-config; do check_cmd "$tool"; done
 if command -v clang >/dev/null 2>&1; then say "toolchain: clang ok (optional)"; else say "toolchain: clang missing (optional)"; fi
@@ -48,7 +50,7 @@ say "build root: $BUILD_ROOT"
 mkdir -p "$BUILD_ROOT" || blocked "cannot create BUILD_ROOT: $BUILD_ROOT"
 say "source root: $SOURCE_ROOT"
 
-if detected=$(BUILD_ROOT="$BUILD_ROOT" MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-}" sh "$REPO_ROOT/ci/find-modsecurity-v3.sh"); then
+if detected=$(BUILD_ROOT="$BUILD_ROOT" MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-}" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$FRAMEWORK_ROOT/ci/find-modsecurity-v3.sh"); then
   say "detected MODSECURITY_V3_SOURCE_DIR=$detected"
 else
   if [ "$DOCTOR_MODE" = "quick" ]; then

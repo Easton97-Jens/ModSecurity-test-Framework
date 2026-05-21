@@ -98,8 +98,8 @@ Relevant logs, under the configured `BUILD_ROOT`:
 It is not promoted to:
 
 - `tests/common/cases/imported/`
-- `tests/apache/cases/imported/`
-- `tests/nginx/cases/imported/`
+- `connectors/apache/tests/cases/imported/`
+- `connectors/nginx/tests/cases/imported/`
 
 `RESPONSE_BODY` remains excluded from `verified_variables`. Active
 `response_body_pass.yaml` is only a pass-through probe with response-body access

@@ -3,12 +3,13 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
 from urllib.parse import unquote
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(os.environ.get("CONNECTOR_ROOT", Path(__file__).resolve().parents[1])).resolve()
 LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
 SKIP_DIR_PARTS = {
     ".git",
@@ -33,7 +34,6 @@ def markdown_files() -> list[Path]:
         REPO_ROOT / "docs",
         REPO_ROOT / "connectors",
         REPO_ROOT / "common",
-        REPO_ROOT / "tests",
         REPO_ROOT / "licenses",
     ]
     files: list[Path] = []

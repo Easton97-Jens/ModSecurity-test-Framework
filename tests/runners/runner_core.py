@@ -714,6 +714,11 @@ def _capability_names(case: Mapping[str, Any]) -> list[str]:
 
 def case_scope(path: str | Path) -> str:
     parts = Path(path).parts
+    if "connectors" in parts:
+        index = parts.index("connectors")
+        tail = parts[index:]
+        if len(tail) >= 6 and tail[1] in {"apache", "nginx"} and tail[2] == "tests" and tail[3] == "cases":
+            return f"{tail[1]}/{tail[4]}"
     if "tests" in parts:
         index = parts.index("tests")
         tail = parts[index:]
@@ -790,9 +795,10 @@ def _case_dirs(connector_root: Path, connector: str, scope: str, framework_root:
     ]
     if force_all_cases_enabled():
         common_dirs.append(common_root / "tests" / "common" / "cases" / "xfail")
-    connector_dirs = [connector_root / "tests" / connector / "cases" / "imported"]
+    connector_case_root = connector_root / "connectors" / connector / "tests" / "cases"
+    connector_dirs = [connector_case_root / "imported"]
     if force_all_cases_enabled():
-        connector_dirs.append(connector_root / "tests" / connector / "cases" / "xfail")
+        connector_dirs.append(connector_case_root / "xfail")
     if scope == "common":
         return _unique_existing_dirs(common_dirs)
     if scope == "connector":

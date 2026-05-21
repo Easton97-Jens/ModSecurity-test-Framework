@@ -135,7 +135,7 @@ Rules, request details, and expected statuses are read from:
 ```text
 tests/common/cases/minimal/*.yaml
 tests/common/cases/imported/*.yaml
-tests/nginx/cases/imported/*.yaml
+connectors/nginx/tests/cases/imported/*.yaml
 ```
 
 The harness does not hardcode the rule, request path, request method, headers,

@@ -57,7 +57,7 @@ NGINX:
   the materialized rules file.
 - A local source-built NGINX smoke has observed the YAML-expected HTTP status
   for all current shared minimal cases.
-- NGINX-specific imported cases under `tests/nginx/cases/imported/` currently
+- NGINX-specific imported cases under `connectors/nginx/tests/cases/imported/` currently
   cover redirect and TX scoring behavior from the local NGINX suite. They stay
   NGINX-only until Apache equivalence is explicitly tested.
 

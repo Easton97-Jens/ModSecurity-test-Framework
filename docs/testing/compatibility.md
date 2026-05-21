@@ -62,8 +62,8 @@ complete response-body behavior.
 | common imported | `tests/common/cases/imported/` | Portable candidates derived from Apache/NGINX tests; compatibility is claimed only after both connector smokes pass |
 | v2 imported | `tests/common/cases/v2-imported/` | Portable v2 semantics candidates adapted to HTTP behavior and proven on both connector PoCs |
 | v3 imported | `tests/common/cases/v3-imported/` | Portable v3 regression candidates adapted to HTTP behavior and proven on both connector PoCs |
-| Apache imported | `tests/apache/cases/imported/` | Apache-only until a common equivalent is proven |
-| NGINX imported | `tests/nginx/cases/imported/` | NGINX-only until a common equivalent is proven |
+| Apache imported | `connectors/apache/tests/cases/imported/` | Apache-only until a common equivalent is proven |
+| NGINX imported | `connectors/nginx/tests/cases/imported/` | NGINX-only until a common equivalent is proven |
 
 Mapped-only categories include HTTP/2, proxy, multipart parser edge cases,
 response-body blocking, external-file operators, debug logs, and connector

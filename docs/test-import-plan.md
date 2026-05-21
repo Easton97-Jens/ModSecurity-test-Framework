@@ -30,8 +30,8 @@ Every relevant source file is mapped in:
 
 - Common cases are allowed only when the rule, request, and expectation are
   connector-neutral and can run through both Apache and NGINX PoC harnesses.
-- Apache-only cases belong under `tests/apache/cases/imported/`.
-- NGINX-only cases belong under `tests/nginx/cases/imported/`.
+- Apache-only cases belong under `connectors/apache/tests/cases/imported/`.
+- NGINX-only cases belong under `connectors/nginx/tests/cases/imported/`.
 - Cases that need HTTP/2, proxy topology, multipart parsing, streaming,
   response-body filters, config inheritance, debug log text, remote rules, or
   external data files remain mapped until the harness has explicit support.
@@ -134,7 +134,7 @@ current shared smoke path does not prove `ARGS:foo` parity.
 ## Imported Connector-Specific Cases
 
 The following NGINX-specific cases were added under
-`tests/nginx/cases/imported/`:
+`connectors/nginx/tests/cases/imported/`:
 
 | Case | Source basis | Category | Expected behavior | Why connector-specific now |
 | --- | --- | --- | --- | --- |

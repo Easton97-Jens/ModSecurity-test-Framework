@@ -2,7 +2,9 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
+REPO_ROOT="$CONNECTOR_ROOT"
 . "$SCRIPT_DIR/common.sh"
 
 PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
@@ -48,9 +50,9 @@ run_blockable() {
 run_pass_fail "make lint" make lint
 run_blockable "make doctor-quick" make doctor-quick
 run_pass_fail "make quick-check" make quick-check
-run_blockable "ci/smoke-installed.sh" sh ci/smoke-installed.sh
-run_pass_fail "$PYTHON_BIN -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py" \
-  "$PYTHON_BIN" -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+run_blockable "framework smoke-installed" sh "$FRAMEWORK_ROOT/ci/smoke-installed.sh"
+run_pass_fail "$PYTHON_BIN -m py_compile framework tests/runners, tests/normalizers, ci" \
+  "$PYTHON_BIN" -m py_compile "$FRAMEWORK_ROOT"/tests/normalizers/*.py "$FRAMEWORK_ROOT"/tests/runners/*.py "$FRAMEWORK_ROOT"/ci/*.py
 run_pass_fail "git diff --check" git diff --check
 
 if [ "$status" -eq 0 ]; then

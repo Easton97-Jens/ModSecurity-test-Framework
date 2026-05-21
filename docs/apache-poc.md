@@ -135,7 +135,7 @@ Rules, request details, and expected statuses are read from:
 ```text
 tests/common/cases/minimal/*.yaml
 tests/common/cases/imported/*.yaml
-tests/apache/cases/imported/*.yaml
+connectors/apache/tests/cases/imported/*.yaml
 ```
 
 The default run executes:

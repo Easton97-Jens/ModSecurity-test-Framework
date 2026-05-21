@@ -17,9 +17,9 @@ FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework
 CONNECTOR_ROOT=/path/to/ModSecurity-conector
 ```
 
-For the local sibling checkout layout, the connector repository may default
-`FRAMEWORK_ROOT` to `../ModSecurity-test-Framework`. That is a relative sibling
-convenience, not a hidden absolute workspace fallback.
+Connector repositories may point `FRAMEWORK_ROOT` at a module/submodule checkout
+such as `modules/ModSecurity-test-Framework`, or at another explicit local
+checkout. That is a configured path, not a hidden absolute workspace fallback.
 
 Common cases are read from this repository:
 
@@ -33,8 +33,8 @@ tests/normalizers/
 Connector-specific inventory is read from the connector repository:
 
 ```text
-$CONNECTOR_ROOT/tests/import-status.json
-$CONNECTOR_ROOT/tests/<connector>/cases/
+$CONNECTOR_ROOT/config/testing/import-status.json
+$CONNECTOR_ROOT/connectors/<connector>/tests/cases/
 $CONNECTOR_ROOT/connectors/<connector>/harness/
 ```
 

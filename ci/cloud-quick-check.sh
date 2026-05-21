@@ -2,7 +2,9 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
+REPO_ROOT="$CONNECTOR_ROOT"
 . "$SCRIPT_DIR/common.sh"
 
 PYTHON_BIN="${PYTHON_BIN:-}"
@@ -27,8 +29,8 @@ run_required "make lint" make lint
 run_required "make generate-test-matrix" make generate-test-matrix
 run_required "make check-test-matrix" make check-test-matrix
 run_required "make quick-check" make quick-check
-run_required "$PYTHON_BIN -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py" \
-  "$PYTHON_BIN" -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+run_required "$PYTHON_BIN -m py_compile framework tests/runners, tests/normalizers, ci" \
+  "$PYTHON_BIN" -m py_compile "$FRAMEWORK_ROOT"/tests/normalizers/*.py "$FRAMEWORK_ROOT"/tests/runners/*.py "$FRAMEWORK_ROOT"/ci/*.py
 run_required "git diff --check" git diff --check
 
 if [ "$status" -eq 0 ]; then

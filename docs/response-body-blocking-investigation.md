@@ -68,8 +68,8 @@ Relevant logs:
 It is not promoted to:
 
 - `tests/common/cases/imported/`
-- `tests/apache/cases/imported/`
-- `tests/nginx/cases/imported/`
+- `connectors/apache/tests/cases/imported/`
+- `connectors/nginx/tests/cases/imported/`
 
 `RESPONSE_BODY` remains excluded from `verified_variables`. Active
 `response_body_pass.yaml` continues to prove only pass-through behavior with
