@@ -5,7 +5,13 @@ from __future__ import annotations
 
 import pathlib
 
-import yaml  # type: ignore[import-not-found]
+try:
+    import yaml  # type: ignore[import-not-found]
+except ModuleNotFoundError as exc:
+    raise SystemExit(
+        "blocked: missing dependency PyYAML; install with: "
+        "python3 -m pip install -r requirements-dev.txt"
+    ) from exc
 
 
 def main() -> int:

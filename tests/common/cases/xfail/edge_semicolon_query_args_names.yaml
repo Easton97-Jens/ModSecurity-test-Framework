@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-ARGS_NAMES.json
+    reason: semicolon query separator edge case.
+category: collections
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: runtime-difference."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: edge_semicolon_query_args_names
+capabilities:
+  intervention: true
+  phase1: false
+  phase2: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS_NAMES "@contains b" "id:4513,phase:2,deny,status:403,msg:'semicolon query args names edge'"
+request:
+  method: GET
+  path: "/?a=1;b=2"
+expect:
+  status: 403
+  intervention: deny

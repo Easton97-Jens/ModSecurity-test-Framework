@@ -1,24 +1,16 @@
 #!/bin/sh
 set -eu
 
-MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-/root/conecter/ModSecurity_V3}"
-MODSECURITY_V3_DIR="${MODSECURITY_V3_DIR:-/src/ModSecurity_V3_build}"
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-test-Framework-build}"
-LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs}"
-REFRESH="${REFRESH:-0}"
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
+
+MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$MODSECURITY_SOURCE_DIR}"
+MODSECURITY_V3_DIR="${MODSECURITY_V3_DIR:-$BUILD_ROOT/ModSecurity_V3_build}"
+LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs}"
+REFRESH="${REFRESH:-0}"
 
 log_file=""
-
-canonical_existing() {
-    target_path=$1
-    if [ -e "$target_path" ]; then
-        (cd "$target_path" 2>/dev/null && pwd -P)
-    else
-        return 1
-    fi
-}
 
 run_logged() {
     label=$1
@@ -49,7 +41,7 @@ for generated_path in "$MODSECURITY_V3_DIR" "$BUILD_ROOT" "$LOG_DIR"; do
             ;;
     esac
     case "$generated_path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*)
             echo "v3_build: blocked generated path is not allowed: $generated_path"
             exit 77
             ;;
@@ -62,21 +54,14 @@ if [ ! -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
     exit 77
 fi
 
-source_real=$(canonical_existing "$MODSECURITY_V3_SOURCE_DIR")
+source_real=$(ci_canonical_existing "$MODSECURITY_V3_SOURCE_DIR")
 
 if [ -e "$MODSECURITY_V3_DIR" ]; then
-    dest_real=$(canonical_existing "$MODSECURITY_V3_DIR")
+    dest_real=$(ci_canonical_existing "$MODSECURITY_V3_DIR")
     if [ "$dest_real" = "$source_real" ]; then
         echo "v3_build: blocked destination equals source checkout"
         exit 77
     fi
-    case "$dest_real" in
-        /root/conecter/*)
-            echo "v3_build: blocked destination is inside read-only /root/conecter: $dest_real"
-            exit 77
-            ;;
-        *) ;;
-    esac
     if [ "$REFRESH" != "1" ]; then
         echo "v3_build: blocked destination exists: $MODSECURITY_V3_DIR"
         echo "v3_build: set REFRESH=1 to replace the destination copy"

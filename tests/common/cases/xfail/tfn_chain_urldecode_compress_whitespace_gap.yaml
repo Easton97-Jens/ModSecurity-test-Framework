@@ -1,0 +1,30 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/urlDecode.t; tests/tfn/compressWhitespace.t
+    reason: urlDecode+compressWhitespace chain runtime gap.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: runtime-difference."
+  - Runtime verification pending; not counted as verified PASS.
+name: tfn_chain_urldecode_compress_whitespace_gap
+capabilities:
+  audit_log: false
+  collections: false
+  request_body: false
+  transformations: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule ARGS:q "@streq a b" "id:4612,phase:2,t:urlDecode,t:compressWhitespace,deny,status:403,msg:'urlDecode compressWhitespace gap'"
+request:
+  method: GET
+  path: "/?q=a+++b"
+expect:
+  status: 403
+  intervention: deny

@@ -1,0 +1,25 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/urlDecode.t
+    reason: benign SQL-like quote encoding runtime-difference probe.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: runtime-difference."
+  - Runtime verification pending; not counted as verified PASS.
+name: sqli_like_quote_encoding_runtime_difference
+capabilities:
+  multipart: false
+  files: false
+  request_body: false
+  transformations: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@contains a'b" "id:4716,phase:2,t:urlDecode,deny,status:403,msg:'sqli-like quote encoding runtime diff'"
+request:
+  method: GET
+  path: "/?q=SAFE"
+expect:
+  status: 403
+  intervention: deny

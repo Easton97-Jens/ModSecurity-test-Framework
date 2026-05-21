@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity-nginx PR #377
+    path: tests/modsecurity-phase4-regression.t
+    reason: phase4 buffering/order future target probe.
+category: response-body
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - RESPONSE_BODY remains non-verified and non-promoted.
+name: phase4_response_body_buffering_order_future_target
+capabilities:
+  response_headers: false
+  response_body: true
+  audit_log: false
+  phase3: false
+  phase4: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_BODY "@contains late-buffer-marker" "id:4906,phase:4,deny,status:403,msg:'phase4 buffering order future target'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    late-buffer-marker
+expect:
+  status: 403
+  intervention: deny

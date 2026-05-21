@@ -1,0 +1,27 @@
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/rule/10-xml.t
+    reason: Source-derived malformed XML branch prepared as connector-gap probe.
+category: body-processors
+portable: true
+status: xfail
+known_limitations:
+  - Malformed XML parser/error behavior is not yet normalized in shared connector smoke.
+name: xml_request_body_malformed_connector_gap
+capabilities:
+  xml: true
+  request_body: true
+  phase2: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecRule XML "@contains broken" "id:4408,phase:2,deny,status:403,msg:'xfail malformed XML connector gap'"
+request:
+  method: POST
+  path: /
+  headers:
+    Content-Type: application/xml
+  body: "<root><broken></root>"
+expect:
+  status: 403
+  intervention: deny

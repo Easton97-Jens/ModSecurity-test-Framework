@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/auditlog.json
+    reason: phase4 outbound escaped value audit connector-gap.
+category: audit-log
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: connector-gap."
+  - RESPONSE_BODY remains non-verified and non-promoted.
+name: phase4_auditlog_outbound_escaped_value_gap
+capabilities:
+  response_headers: false
+  response_body: false
+  audit_log: true
+  phase3: false
+  phase4: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_BODY "@contains quote"value" "id:4909,phase:4,deny,status:403,auditlog,msg:'phase4 outbound escaped value gap'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    quote"value
+expect:
+  status: 403
+  intervention: deny

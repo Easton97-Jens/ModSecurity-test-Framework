@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-RESPONSE_BODY.json
+    reason: phase4 empty response body future compatibility target.
+category: response-body
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - Phase-4/response behavior remains non-verified; no verified PASS claim.
+name: phase4_response_body_empty_future_target
+capabilities:
+  response_headers: false
+  response_body: true
+  audit_log: false
+  phase3: false
+  phase4: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_BODY "@streq " "id:4806,phase:4,deny,status:403,msg:'phase4 empty response body future target'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    TEST-OK-IF-YOU-SEE-THIS
+expect:
+  status: 403
+  intervention: deny

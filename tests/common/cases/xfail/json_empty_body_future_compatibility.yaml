@@ -1,0 +1,27 @@
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/rule/15-json.t
+    reason: empty JSON body handling future compatibility.
+category: body-processors
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: json_empty_body_future_compatibility
+capabilities:
+  intervention: true
+  phase1: false
+  phase2: true
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_BODY "@streq " "id:4516,phase:2,deny,status:403,msg:'json empty body future compatibility'"
+request:
+  method: POST
+  path: "/"
+  headers:
+    Content-Type: application/json
+  body: ""
+expect:
+  status: 403
+  intervention: deny

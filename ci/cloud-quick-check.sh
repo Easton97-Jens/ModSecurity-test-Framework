@@ -1,0 +1,40 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
+
+PYTHON_BIN="${PYTHON_BIN:-}"
+status=0
+
+run_required() {
+  label=$1
+  shift
+  ci_info "cloud-quick-check running $label"
+  if "$@"; then
+    ci_info "cloud-quick-check PASS $label"
+    return
+  fi
+  rc=$?
+  ci_error "cloud-quick-check FAIL $label (exit=$rc)"
+  status=1
+}
+
+run_required "make setup-dev" make setup-dev
+PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
+run_required "make lint" make lint
+run_required "make generate-test-matrix" make generate-test-matrix
+run_required "make check-test-matrix" make check-test-matrix
+run_required "make quick-check" make quick-check
+run_required "$PYTHON_BIN -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py" \
+  "$PYTHON_BIN" -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+run_required "git diff --check" git diff --check
+
+if [ "$status" -eq 0 ]; then
+  ci_info "Cloud check is framework/generator only and not runtime compatibility evidence."
+else
+  ci_error "cloud-quick-check FAIL"
+fi
+
+exit "$status"

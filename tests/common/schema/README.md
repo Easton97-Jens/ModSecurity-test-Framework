@@ -38,6 +38,12 @@ expect:
   response_contains: optional pass-through text
   audit_log:
     required: false
+  phase4_log:
+    required: false
+    contains:
+      - optional stable substring
+    not_contains:
+      - optional stable substring
 ```
 
 `request.body` and `request.multipart` are mutually exclusive. Multipart bodies
@@ -64,7 +70,26 @@ Stable audit-log expectations live in `expect.audit_log`; values are checked as
 substrings, so volatile IDs, timestamps, ports, and absolute generated paths
 must not be required.
 
-TODO:
+NGINX-only PR #377 evidence cases may use connector-specific fields:
+
+```yaml
+nginx:
+  files:
+    phase4-content-types.conf: |
+      application/json
+  location_directives: |
+    modsecurity_phase4_log "@@NGINX_PHASE4_LOG@@";
+    modsecurity_phase4_content_types_file "@@NGINX_FILE:phase4-content-types.conf@@";
+```
+
+`nginx.location_directives` is rendered into an included file inside the NGINX
+`location /` block. `nginx.files` writes deterministic per-case config fixtures
+under that case runtime config directory. Supported placeholders are
+`@@NGINX_PHASE4_LOG@@` and `@@NGINX_FILE:<name>@@`. `expect.phase4_log` checks
+stable substrings in the generated phase-4 log and is intended only for
+connector-specific NGINX imported or xfail cases.
+
+Open work is tracked in `docs/roadmap/todo-inventory.md`:
 
 - Define a machine-readable JSON schema after the YAML shape settles.
 - Reject connector-specific fields in common schema validation.

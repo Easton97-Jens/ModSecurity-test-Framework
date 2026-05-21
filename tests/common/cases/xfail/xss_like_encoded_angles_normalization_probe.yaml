@@ -1,0 +1,25 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/htmlEntityDecode.t
+    reason: benign HTML-like encoded angles normalization probe.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: pending-runtime-verification."
+  - Runtime verification pending; not counted as verified PASS.
+name: xss_like_encoded_angles_normalization_probe
+capabilities:
+  multipart: false
+  files: false
+  request_body: false
+  transformations: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@contains <tag>" "id:4713,phase:2,t:htmlEntityDecode,deny,status:403,msg:'xss-like encoded angles probe'"
+request:
+  method: GET
+  path: "/?q=SAFE"
+expect:
+  status: 403
+  intervention: deny

@@ -1,7 +1,7 @@
 # Origin:
-# - Apache: /root/conecter/ModSecurity-apache/tests/regression/target/00-targets.t
+# - Apache: local <local ModSecurity Apache connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-apache/tests/regression/target/00-targets.t
 #   covers ARGS_POST parsing for application/x-www-form-urlencoded bodies.
-# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity-request-body.t
+# - NGINX: local <local ModSecurity NGINX connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-nginx/tests/modsecurity-request-body.t
 #   covers request-body access and ARGS_POST behavior.
 # Portable because it uses a normal POST form body, SecRequestBodyAccess, and
 # ARGS_POST matching against the shared harness document root without

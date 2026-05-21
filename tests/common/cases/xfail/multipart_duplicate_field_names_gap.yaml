@@ -1,0 +1,37 @@
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/misc/00-multipart-parser.t
+    reason: duplicate multipart field names connector-gap probe.
+category: multipart
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: connector-gap."
+  - Runtime verification pending; not counted as verified PASS.
+name: multipart_duplicate_field_names_gap
+capabilities:
+  multipart: true
+  files: true
+  request_body: true
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecRule ARGS_NAMES "@contains upload" "id:4703,phase:2,deny,status:403,msg:'duplicate multipart field names gap'"
+request:
+  method: POST
+  path: "/"
+  headers:
+    Content-Type: multipart/form-data; boundary=----AaB03x
+  body: |
+    ------AaB03x
+    Content-Disposition: form-data; name="upload"; filename="a.txt"
+
+    a
+    ------AaB03x
+    Content-Disposition: form-data; name="upload"; filename="b.txt"
+
+    b
+    ------AaB03x--
+expect:
+  status: 403
+  intervention: deny

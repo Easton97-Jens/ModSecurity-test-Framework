@@ -1,7 +1,7 @@
 # Origin:
-# - Apache: /root/conecter/ModSecurity-apache/tests/regression/rule/15-json.t
+# - Apache: local <local ModSecurity Apache connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-apache/tests/regression/rule/15-json.t
 #   covers JSON request body handling and Content-Type gating.
-# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity-request-body.t
+# - NGINX: local <local ModSecurity NGINX connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-nginx/tests/modsecurity-request-body.t
 #   covers REQUEST_BODY phase request blocking.
 # Portable because this case matches raw REQUEST_BODY content against the
 # shared harness document root and does not require parsed JSON collections,

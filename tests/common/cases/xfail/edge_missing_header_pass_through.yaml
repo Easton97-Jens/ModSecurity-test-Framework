@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-REQUEST_HEADERS_NAMES.json
+    reason: missing header pass-through edge case.
+category: collections
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: pending-runtime-verification."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: edge_missing_header_pass_through
+capabilities:
+  intervention: true
+  phase1: true
+  phase2: false
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_HEADERS:X-Missing "@streq x" "id:4514,phase:1,deny,status:403,msg:'missing header pass-through edge'"
+request:
+  method: GET
+  path: "/"
+expect:
+  status: 200
+  intervention: pass

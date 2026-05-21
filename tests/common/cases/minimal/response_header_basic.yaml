@@ -1,7 +1,7 @@
 # Origin:
-# - Apache: /root/conecter/ModSecurity-apache/tests/regression/misc/00-phases.t
+# - Apache: local <local ModSecurity Apache connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-apache/tests/regression/misc/00-phases.t
 #   covers RESPONSE_HEADERS in phase:3.
-# - NGINX: /root/conecter/ModSecurity-nginx/src/ngx_http_modsecurity_header_filter.c
+# - NGINX: local <local ModSecurity NGINX connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-nginx/src/ngx_http_modsecurity_header_filter.c
 #   implements response header processing through the header filter.
 # Portable intent: validate a basic response-header intervention against a
 # standard Last-Modified header emitted for static content. If a connector does

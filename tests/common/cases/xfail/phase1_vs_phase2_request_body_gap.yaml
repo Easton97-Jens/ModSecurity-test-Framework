@@ -1,0 +1,27 @@
+origin:
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity-request-body.t
+    reason: request body checked in phase1 expected gap.
+category: phase-handling
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: connector-gap."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: phase1_vs_phase2_request_body_gap
+capabilities:
+  intervention: true
+  phase1: true
+  phase2: true
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_BODY "@contains bodyhit" "id:4511,phase:1,deny,status:403,msg:'phase1 request body gap'"
+request:
+  method: POST
+  path: "/"
+  headers:
+    Content-Type: application/json
+  body: ""
+expect:
+  status: 403
+  intervention: deny

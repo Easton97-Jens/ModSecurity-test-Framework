@@ -1,52 +1,50 @@
 #!/bin/sh
 set -eu
 
-MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-/root/conecter/ModSecurity_V3}"
-MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-/root/conecter/ModSecurity-apache}"
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-test-Framework-build}"
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
+REPO_ROOT="$CONNECTOR_ROOT"
+. "$SCRIPT_DIR/common.sh"
+
+if [ "$CI_SOURCE_ROOT_WAS_SET" = "0" ]; then
+    SOURCE_ROOT="${RUNNER_TEMP:-$BUILD_ROOT}/sources"
+    DEFAULT_MODSECURITY_V3_SOURCE_DIR="$SOURCE_ROOT/ModSecurity_V3"
+fi
+
+AUTO_FETCH_SMOKE_SOURCES="${AUTO_FETCH_SMOKE_SOURCES:-1}"
+MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-}"
+MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$DEFAULT_MODSECURITY_V3_SOURCE_DIR}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache}"
 REFRESH="${REFRESH:-0}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 DOWNLOAD_DIR="${DOWNLOAD_DIR:-$APACHE_BUILD_ROOT/downloads}"
 V3_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity_V3"
-APACHE_CONNECTOR_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity-apache"
+APACHE_CONNECTOR_LEGACY_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity-apache"
 OUTPUT_DIR="$APACHE_BUILD_ROOT/output"
 MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
 BUILD_HTTPD_FROM_SOURCE="${BUILD_HTTPD_FROM_SOURCE:-0}"
-HTTPD_VERSION="${HTTPD_VERSION:-2.4.67}"
-HTTPD_SOURCE_URL="${HTTPD_SOURCE_URL:-https://downloads.apache.org/httpd/httpd-$HTTPD_VERSION.tar.bz2}"
-HTTPD_SHA256_URL="${HTTPD_SHA256_URL:-$HTTPD_SOURCE_URL.sha256}"
-APR_VERSION="${APR_VERSION:-1.7.6}"
-APR_SOURCE_URL="${APR_SOURCE_URL:-https://downloads.apache.org/apr/apr-$APR_VERSION.tar.bz2}"
-APR_SHA256_URL="${APR_SHA256_URL:-$APR_SOURCE_URL.sha256}"
-APR_UTIL_VERSION="${APR_UTIL_VERSION:-1.6.3}"
-APR_UTIL_SOURCE_URL="${APR_UTIL_SOURCE_URL:-https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2}"
-APR_UTIL_SHA256_URL="${APR_UTIL_SHA256_URL:-$APR_UTIL_SOURCE_URL.sha256}"
 HTTPD_BUILD_DIR="${HTTPD_BUILD_DIR:-$APACHE_BUILD_ROOT/httpd}"
 HTTPD_SOURCE_DIR="${HTTPD_SOURCE_DIR:-$APACHE_BUILD_ROOT/httpd-src}"
 HTTPD_PREFIX="${HTTPD_PREFIX:-$BUILD_ROOT/apache-runtime/httpd}"
 BUILD_PCRE2_FROM_SOURCE="${BUILD_PCRE2_FROM_SOURCE:-0}"
 PCRE_CONFIG_BIN="${PCRE_CONFIG:-}"
-PCRE2_VERSION="${PCRE2_VERSION:-10.47}"
-PCRE2_SOURCE_URL="${PCRE2_SOURCE_URL:-https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-$PCRE2_VERSION.tar.bz2}"
-PCRE2_SHA256="${PCRE2_SHA256:-}"
-PCRE2_SHA256_URL="${PCRE2_SHA256_URL:-}"
 PCRE2_SOURCE_DIR="${PCRE2_SOURCE_DIR:-$APACHE_BUILD_ROOT/pcre2-src}"
 PCRE2_PREFIX="${PCRE2_PREFIX:-$OUTPUT_DIR/pcre2}"
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+DEFAULT_APACHE_SOURCE_DIR="$CONNECTOR_ROOT/connectors/apache"
+MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-$DEFAULT_APACHE_SOURCE_DIR}"
+APACHE_MATERIALIZED_SOURCE_DIR="${APACHE_MATERIALIZED_SOURCE_DIR:-$APACHE_BUILD_ROOT/connector-src}"
+if [ "$MODSECURITY_APACHE_SOURCE_DIR" = "$DEFAULT_APACHE_SOURCE_DIR" ]; then
+    APACHE_ADAPTER_SOURCE_DIR="${APACHE_ADAPTER_SOURCE_DIR:-$MODSECURITY_APACHE_SOURCE_DIR}"
+    APACHE_CONNECTOR_BUILD_DIR="$APACHE_MATERIALIZED_SOURCE_DIR"
+else
+    APACHE_ADAPTER_SOURCE_DIR="${APACHE_ADAPTER_SOURCE_DIR:-$CONNECTOR_ROOT/connectors/apache}"
+    APACHE_CONNECTOR_BUILD_DIR="${APACHE_CONNECTOR_BUILD_DIR:-$APACHE_CONNECTOR_LEGACY_BUILD_DIR}"
+fi
 
-default_jobs() {
-    if command -v nproc >/dev/null 2>&1; then
-        nproc
-    else
-        getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1
-    fi
-}
-
-MAKE_JOBS="${MAKE_JOBS:-$(default_jobs)}"
-APXS_BIN="${APXS:-}"
-APACHE_HTTPD_BIN="${APACHE_HTTPD:-${APACHE:-}}"
+MAKE_JOBS="${MAKE_JOBS:-$(ci_default_jobs)}"
+APXS_BIN="${APXS_BIN:-${APXS:-}}"
+APACHE_HTTPD_BIN="${APACHE_HTTPD_BIN:-${APACHE_HTTPD:-${APACHE:-}}}"
 STATUS_FILE="$LOG_DIR/status.txt"
 COMMANDS_FILE="$LOG_DIR/commands.txt"
 SOURCE_INFO_FILE="$LOG_DIR/source-info.txt"
@@ -68,15 +66,6 @@ fail() {
     exit 1
 }
 
-canonical_existing() {
-    target_path=$1
-    if [ -e "$target_path" ]; then
-        (cd "$target_path" 2>/dev/null && pwd -P)
-    else
-        return 1
-    fi
-}
-
 require_absolute_generated_path() {
     path=$1
     label=$2
@@ -85,7 +74,7 @@ require_absolute_generated_path() {
         *) blocked "$label must be an absolute generated path: $path" ;;
     esac
     case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
         *) ;;
@@ -94,14 +83,36 @@ require_absolute_generated_path() {
 
 safe_remove_dir() {
     target=$1
-    real_target=$(canonical_existing "$target")
+    real_target=$(ci_canonical_existing "$target")
     case "$real_target" in
-        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT"|/root/conecter/*)
+        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT")
             blocked "unsafe REFRESH target: $real_target"
             ;;
         *) ;;
     esac
     rm -rf "$target"
+}
+
+
+ensure_modsecurity_v3_source() {
+    if [ -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
+        return 0
+    fi
+    if [ "$AUTO_FETCH_SMOKE_SOURCES" != "1" ]; then
+        blocked "missing MODSECURITY_V3_SOURCE_DIR: $MODSECURITY_V3_SOURCE_DIR"
+    fi
+    echo "apache_poc: MODSECURITY_V3_SOURCE_DIR missing; attempting auto-fetch from $MODSECURITY_V3_GIT_URL ref=$MODSECURITY_V3_GIT_REF"
+    set +e
+    SOURCE_ROOT="$SOURCE_ROOT" \
+        MODSECURITY_V3_SOURCE_DIR="$MODSECURITY_V3_SOURCE_DIR" \
+        MODSECURITY_V3_GIT_URL="$MODSECURITY_V3_GIT_URL" \
+        MODSECURITY_V3_GIT_REF="$MODSECURITY_V3_GIT_REF" \
+        FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$FRAMEWORK_ROOT/ci/fetch-smoke-sources.sh" v3
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ] || [ ! -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
+        blocked "missing MODSECURITY_V3_SOURCE_DIR after auto-fetch: $MODSECURITY_V3_SOURCE_DIR"
+    fi
 }
 
 require_command() {
@@ -133,6 +144,89 @@ run_logged() {
     echo "apache_poc: blocked command failed: $*"
     echo "apache_poc: see log: $log_file"
     exit 77
+}
+
+copy_sanitized_source() {
+    label=$1
+    source_dir=$2
+    dest_dir=$3
+    require_command tar "copy sanitized $label source"
+    log_file="$LOG_DIR/$label.log"
+    archive="$LOG_DIR/$label.tar"
+    mkdir -p "$dest_dir"
+    {
+        echo "[$label]"
+        echo "source=$source_dir"
+        echo "dest=$dest_dir"
+        echo "excludes=.git .github .travis.yml .deps __pycache__ autom4te.cache build artifacts"
+        echo
+    } >> "$COMMANDS_FILE"
+    echo "apache_poc: running $label"
+    if (cd "$source_dir" && tar \
+        --exclude='./.git' \
+        --exclude='./.github' \
+        --exclude='./.travis.yml' \
+        --exclude='./.deps' \
+        --exclude='./__pycache__' \
+        --exclude='./autom4te.cache' \
+        --exclude='*.o' \
+        --exclude='*.lo' \
+        --exclude='*.la' \
+        --exclude='*.so' \
+        --exclude='*.log' \
+        --exclude='./src/.libs' \
+        -cf "$archive" .) >"$log_file" 2>&1 \
+        && tar -xf "$archive" -C "$dest_dir" >>"$log_file" 2>&1; then
+        rm -f "$archive"
+        echo "pass: $label log=$log_file" >> "$STATUS_FILE"
+        return 0
+    fi
+    rc=$?
+    echo "blocked: $label rc=$rc log=$log_file" >> "$STATUS_FILE"
+    echo "apache_poc: blocked sanitized copy failed: $label"
+    echo "apache_poc: see log: $log_file"
+    exit 77
+}
+
+materialize_apache_connector_source() {
+    run_logged materialize-apache-connector-source "$CONNECTOR_ROOT" \
+        env FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$FRAMEWORK_ROOT/ci/materialize-connector-source.sh" \
+        --connector apache \
+        --adapter-dir "$APACHE_ADAPTER_SOURCE_DIR" \
+        --dest-dir "$APACHE_MATERIALIZED_SOURCE_DIR"
+    for required_file in \
+        autogen.sh \
+        configure.ac \
+        Makefile.am \
+        build/apxs-wrapper.in \
+        build/ax_prog_apache.m4 \
+        build/find_apxs.m4 \
+        build/find_libmodsec.m4 \
+        src/mod_security3.c \
+        src/mod_security3.h \
+        src/msc_config.c \
+        src/msc_config.h \
+        src/msc_filters.c \
+        src/msc_filters.h \
+        src/msc_utils.c \
+        src/msc_utils.h \
+        t/conf/extra.conf.in \
+        tests/run-regression-tests.pl.in \
+        tests/regression/server_root/conf/httpd.conf.in \
+        tests/regression/misc/40-secRemoteRules.t.in \
+        tests/regression/misc/50-ipmatchfromfile-external.t.in \
+        tests/regression/misc/60-pmfromfile-external.t.in
+    do
+        if [ ! -f "$APACHE_MATERIALIZED_SOURCE_DIR/$required_file" ]; then
+            blocked "materialized Apache connector source is missing $required_file: $APACHE_MATERIALIZED_SOURCE_DIR"
+        fi
+    done
+    {
+        echo "apache_materialized_connector_source=$APACHE_MATERIALIZED_SOURCE_DIR"
+        echo "apache_materialized_connector_source_manifest=$APACHE_MATERIALIZED_SOURCE_DIR/materialized-source.json"
+        echo "apache_materialized_connector_source_manifest_md=$APACHE_MATERIALIZED_SOURCE_DIR/MATERIALIZED_SOURCE.md"
+        echo "apache_connector_build_source=$APACHE_CONNECTOR_BUILD_DIR"
+    } >> "$ARTIFACTS_FILE"
 }
 
 download_file() {
@@ -288,10 +382,13 @@ build_httpd_from_source() {
     apr_util_archive="$DOWNLOAD_DIR/apr-util-$APR_UTIL_VERSION.tar.bz2"
 
     download_file httpd "$HTTPD_SOURCE_URL" "$httpd_archive"
+    verify_sha256_literal httpd "$httpd_archive" "$HTTPD_SHA256"
     verify_sha256_url httpd "$httpd_archive" "$HTTPD_SHA256_URL"
     download_file apr "$APR_SOURCE_URL" "$apr_archive"
+    verify_sha256_literal apr "$apr_archive" "$APR_SHA256"
     verify_sha256_url apr "$apr_archive" "$APR_SHA256_URL"
     download_file apr-util "$APR_UTIL_SOURCE_URL" "$apr_util_archive"
+    verify_sha256_literal apr-util "$apr_util_archive" "$APR_UTIL_SHA256"
     verify_sha256_url apr-util "$apr_util_archive" "$APR_UTIL_SHA256_URL"
 
     mkdir -p "$HTTPD_BUILD_DIR"
@@ -416,8 +513,11 @@ require_absolute_generated_path "$DOWNLOAD_DIR" "DOWNLOAD_DIR"
 require_absolute_generated_path "$HTTPD_BUILD_DIR" "HTTPD_BUILD_DIR"
 require_absolute_generated_path "$HTTPD_SOURCE_DIR" "HTTPD_SOURCE_DIR"
 require_absolute_generated_path "$HTTPD_PREFIX" "HTTPD_PREFIX"
+if [ "$MODSECURITY_APACHE_SOURCE_DIR" = "$DEFAULT_APACHE_SOURCE_DIR" ]; then
+    require_absolute_generated_path "$APACHE_MATERIALIZED_SOURCE_DIR" "APACHE_MATERIALIZED_SOURCE_DIR"
+fi
 
-[ -d "$MODSECURITY_V3_SOURCE_DIR" ] || blocked "missing MODSECURITY_V3_SOURCE_DIR: $MODSECURITY_V3_SOURCE_DIR"
+ensure_modsecurity_v3_source
 [ -d "$MODSECURITY_APACHE_SOURCE_DIR" ] || blocked "missing MODSECURITY_APACHE_SOURCE_DIR: $MODSECURITY_APACHE_SOURCE_DIR"
 
 if [ -e "$APACHE_BUILD_ROOT" ]; then
@@ -437,7 +537,12 @@ write_git_info "modsecurity-v3-source" "$MODSECURITY_V3_SOURCE_DIR"
 write_git_info "modsecurity-apache-source" "$MODSECURITY_APACHE_SOURCE_DIR"
 
 run_logged copy-modsecurity-v3 "$APACHE_BUILD_ROOT" cp -a "$MODSECURITY_V3_SOURCE_DIR" "$V3_BUILD_DIR"
-run_logged copy-modsecurity-apache "$APACHE_BUILD_ROOT" cp -a "$MODSECURITY_APACHE_SOURCE_DIR" "$APACHE_CONNECTOR_BUILD_DIR"
+if [ "$MODSECURITY_APACHE_SOURCE_DIR" = "$DEFAULT_APACHE_SOURCE_DIR" ]; then
+    materialize_apache_connector_source
+    write_git_info "modsecurity-apache-materialized-source" "$APACHE_MATERIALIZED_SOURCE_DIR"
+else
+    copy_sanitized_source copy-modsecurity-apache "$MODSECURITY_APACHE_SOURCE_DIR" "$APACHE_CONNECTOR_BUILD_DIR"
+fi
 write_git_info "modsecurity-v3-build-copy" "$V3_BUILD_DIR"
 write_git_info "modsecurity-apache-build-copy" "$APACHE_CONNECTOR_BUILD_DIR"
 

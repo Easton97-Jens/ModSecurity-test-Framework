@@ -3,7 +3,8 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-test-Framework-build}"
+. "$SCRIPT_DIR/common.sh"
+
 PROBE_ROOT="${RESPONSE_BODY_PROBE_ROOT:-$BUILD_ROOT/response-body-probe}"
 RESULTS_ROOT="$PROBE_ROOT/results"
 LOG_ROOT="$PROBE_ROOT/logs"
@@ -19,7 +20,7 @@ require_absolute_generated_path() {
         *) echo "probe_response_body: blocked $label must be absolute: $path"; exit 77 ;;
     esac
     case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*)
             echo "probe_response_body: blocked $label is inside a source checkout: $path"
             exit 77
             ;;
@@ -144,7 +145,7 @@ while [ "$i" -le "$REPEAT" ]; do
     i=$((i + 1))
 done
 
-python3 - "$RESULTS_ROOT/response-body-probe-summary.json" \
+"$(ci_python)" - "$RESULTS_ROOT/response-body-probe-summary.json" \
     "$CASE_FILE" "$REPEAT" \
     "$apache_pass" "$apache_fail" "$apache_blocked" \
     "$nginx_pass" "$nginx_fail" "$nginx_blocked" \

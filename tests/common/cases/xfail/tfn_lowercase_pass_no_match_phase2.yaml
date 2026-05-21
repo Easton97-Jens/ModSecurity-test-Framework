@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/lowercase.t
+    reason: t:lowercase no-match pass-through.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: pending-runtime-verification."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: tfn_lowercase_pass_no_match_phase2
+capabilities:
+  intervention: true
+  phase1: false
+  phase2: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@streq blocked" "id:4507,phase:2,t:lowercase,deny,status:403,msg:'t lowercase no match pass-through'"
+request:
+  method: GET
+  path: "/?q=SafeValue"
+expect:
+  status: 200
+  intervention: pass

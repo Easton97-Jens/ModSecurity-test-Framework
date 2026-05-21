@@ -1,0 +1,29 @@
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/misc/00-multipart-parser.t
+    reason: invalid multipart boundary future compatibility target.
+category: multipart
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - Runtime verification pending; not counted as verified PASS.
+name: multipart_invalid_boundary_future_target
+capabilities:
+  multipart: true
+  files: true
+  request_body: true
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_BODY "@contains broken" "id:4704,phase:2,deny,status:403,msg:'invalid multipart boundary future target'"
+request:
+  method: POST
+  path: "/"
+  headers:
+    Content-Type: multipart/form-data; boundary=----BROKEN
+  body: |
+    broken multipart payload without closing boundary
+expect:
+  status: 403
+  intervention: deny

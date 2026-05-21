@@ -1,0 +1,25 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/lowercase.t
+    reason: mixed-case script-like token normalization gap probe.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: runtime-difference."
+  - Runtime verification pending; not counted as verified PASS.
+name: xss_like_mixed_case_script_token_gap
+capabilities:
+  multipart: false
+  files: false
+  request_body: false
+  transformations: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@contains script" "id:4714,phase:2,t:lowercase,deny,status:403,msg:'xss-like mixed case token gap'"
+request:
+  method: GET
+  path: "/?q=SAFE"
+expect:
+  status: 403
+  intervention: deny

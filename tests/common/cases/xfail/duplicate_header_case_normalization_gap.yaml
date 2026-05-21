@@ -1,0 +1,32 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-REQUEST_HEADERS_NAMES.json
+    reason: duplicate/mixed-case header normalization gap probe.
+category: collections
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: connector-gap."
+  - Runtime verification pending; not counted as verified PASS.
+name: duplicate_header_case_normalization_gap
+capabilities:
+  audit_log: false
+  collections: true
+  request_body: false
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule REQUEST_HEADERS_NAMES "@contains x-demo" "id:4607,phase:1,deny,status:403,msg:'duplicate header case normalization gap'"
+request:
+  method: GET
+  path: "/"
+  headers:
+    X-Demo: one
+expect:
+  status: 403
+  intervention: deny

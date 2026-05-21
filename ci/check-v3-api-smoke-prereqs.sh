@@ -1,9 +1,12 @@
 #!/bin/sh
 set -eu
 
-MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-/root/conecter/ModSecurity_V3}"
-MODSECURITY_V3_DIR="${MODSECURITY_V3_DIR:-/src/ModSecurity_V3_build}"
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-test-Framework-build}"
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
+
+MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$MODSECURITY_SOURCE_DIR}"
+MODSECURITY_V3_DIR="${MODSECURITY_V3_DIR:-$BUILD_ROOT/ModSecurity_V3_build}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs}"
 HEADER_FILE="$MODSECURITY_V3_DIR/headers/modsecurity/modsecurity.h"
 LIB_FILE="$MODSECURITY_V3_DIR/src/.libs/libmodsecurity.so"

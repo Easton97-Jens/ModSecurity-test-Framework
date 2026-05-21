@@ -2,7 +2,8 @@
 
 Status: implemented
 
-Source: `/root/conecter/ModSecurity_V2/tests/`
+Local source: `<local ModSecurity v2 checkout>/tests/`
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity
 
 The v2 tree is used only as a regression, semantics, and compatibility source.
 No v2 architecture or Apache harness code is imported into this monorepo.
@@ -35,7 +36,7 @@ Observed local inventory on 2026-05-15: 115 files under `tests/`.
 ## Active V2-Derived Imports
 
 These active cases were observed locally through `make smoke-common` with
-`BUILD_ROOT=/src/ModSecurity-test-Framework-build`; Apache and NGINX both returned
+`BUILD_ROOT=<local-build-root>`; Apache and NGINX both returned
 the expected HTTP 403.
 
 | case | source | status |

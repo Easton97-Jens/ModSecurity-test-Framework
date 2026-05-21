@@ -1,7 +1,7 @@
 # Origin:
-# - Apache: /root/conecter/ModSecurity-apache/tests/regression/rule/00-basics.t
+# - Apache: local <local ModSecurity Apache connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-apache/tests/regression/rule/00-basics.t
 #   covers phase:2 ARGS blocking with HTTP 403.
-# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity.t covers
+# - NGINX: local <local ModSecurity NGINX connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-nginx/tests/modsecurity.t covers
 #   phase:2 ARGS-based block403 behavior.
 # Portable because it uses only libmodsecurity rule semantics, query args,
 # a GET request, and an HTTP status intervention.

@@ -1,0 +1,25 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/compressWhitespace.t
+    reason: unicode whitespace normalization gap probe.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: connector-gap."
+  - Runtime verification pending; not counted as verified PASS.
+name: unicode_whitespace_normalization_gap
+capabilities:
+  multipart: false
+  files: false
+  request_body: false
+  transformations: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@streq a b" "id:4708,phase:2,t:compressWhitespace,deny,status:403,msg:'unicode whitespace normalization gap'"
+request:
+  method: GET
+  path: "/?q=SAFE"
+expect:
+  status: 403
+  intervention: deny

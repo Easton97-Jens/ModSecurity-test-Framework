@@ -1,0 +1,32 @@
+# Source-derived V2 urlDecode negative/pass-through smoke.
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/urlDecode.t
+    reason: Derives from V2 urlDecode coverage and validates a safe no-match pass-through branch using REQUEST_URI.
+category: transformations
+portable: true
+status: imported
+known_limitations:
+  - Validates pass-through for a non-matching decoded REQUEST_URI fragment.
+  - NUL, full-byte-range, and invalid-encoding urlDecode branches remain mapped only.
+name: v2_transformation_url_decode_pass_no_match
+
+capabilities:
+  transformations: true
+  request_uri: true
+  phase1: true
+  pass_through: true
+
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_URI "@contains no_match_after_decode" \
+    "id:3365,phase:1,t:urlDecode,deny,status:403,msg:'v2 imported urldecode no-match pass-through'"
+
+request:
+  method: GET
+  path: "/?arg=Test+Case"
+
+expect:
+  status: 200
+  intervention: pass
+  response_contains: TEST-OK-IF-YOU-SEE-THIS

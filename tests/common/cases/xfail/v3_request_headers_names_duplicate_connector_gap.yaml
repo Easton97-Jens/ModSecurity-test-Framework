@@ -1,0 +1,26 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-REQUEST_HEADERS_NAMES.json
+    reason: Source-derived duplicate-header edge branch prepared as connector-gap coverage.
+category: collections
+portable: true
+status: xfail
+known_limitations:
+  - Duplicate-header normalization may differ across Apache and NGINX.
+name: v3_request_headers_names_duplicate_connector_gap
+capabilities:
+  collections: true
+  request_headers: true
+  phase1: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_HEADERS_NAMES "@contains X-Dupe" "id:4402,phase:1,deny,status:403,msg:'xfail duplicate header-name connector gap'"
+request:
+  method: GET
+  path: /
+  headers:
+    X-Dupe: one
+expect:
+  status: 403
+  intervention: deny

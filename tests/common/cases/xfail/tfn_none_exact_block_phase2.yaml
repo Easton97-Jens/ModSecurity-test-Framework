@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/transformations.json
+    reason: t:none exact match baseline.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: xfail."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: tfn_none_exact_block_phase2
+capabilities:
+  intervention: true
+  phase1: false
+  phase2: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@streq Test+Case" "id:4506,phase:2,t:none,deny,status:403,msg:'t none exact block'"
+request:
+  method: GET
+  path: "/?q=Test%2BCase"
+expect:
+  status: 403
+  intervention: deny

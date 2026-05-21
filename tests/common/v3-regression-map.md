@@ -2,7 +2,8 @@
 
 Status: implemented
 
-Source: `/root/conecter/ModSecurity_V3/test/`
+Local source: `<local ModSecurity v3 checkout>/test/`
+Upstream source: https://github.com/owasp-modsecurity/ModSecurity
 
 The v3 tree is the primary architecture/API reference. Only source-derived,
 connector-neutral YAML cases are imported into this monorepo; no upstream JSON
@@ -29,7 +30,6 @@ JSON regression cases under `test/test-cases/regression/`.
 | `test/test-cases/regression/auditlog.json` | ModSecurity_V3 | v3/master observed 3.0.15 | audit-log | Serial/parallel/JSON audit log behavior | partial | no | yes | `tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml` | imported/mapped | audit-log, query-args, phase1 | Active smoke checks only stable serial substrings; format variants remain mapped |
 | `test/test-cases/regression/issue-2000.json` | ModSecurity_V3 | v3/master observed 3.0.15 | audit-log | Audit log part H output on deny | partial | no | yes | `tests/common/cases/v3-imported/v3_auditlog_serial_fields_block.yaml` | imported/mapped | audit-log, query-args, phase1 | Complete part comparison remains mapped |
 | `test/test-cases/regression/issue-2196.json` | ModSecurity_V3 | v3/master observed 3.0.15 | actions | `nolog,pass` should not write audit output | partial | no | yes | `tests/common/cases/xfail/v3_action_nolog_pass_no_audit.yaml` | xfail | actions, audit-log-absent, query-args, phase1 | Local Apache/NGINX observed empty audit logs, but GitHub Actions observed audit output; not active common PASS |
-| PR #3564 RAW argument collections | ModSecurity PR #3564 | public PR observed 2026-05-15 | collections | RAW URL-encoded collections: `ARGS_RAW`, `ARGS_GET_RAW`, `ARGS_POST_RAW`, `ARGS_NAMES_RAW`, `ARGS_GET_NAMES_RAW`, `ARGS_POST_NAMES_RAW` | partial | no | yes | maps | mapped-only/unsupported-local-source | raw-args, query-args, request-body | Current local `/root/conecter/ModSecurity_V3` has no RAW collection implementation or regression file; active YAML requires a configured v3 source with RAW support plus Apache and NGINX PASS |
 | `test/test-cases/regression/request-body-parser-json.json` | ModSecurity_V3 | v3/master observed 3.0.15 | json | JSON body processor and parsed collections | partial | no | yes | maps | mapped-only | json, body-processors | Parsed JSON collection parity needs dedicated proof before active common import |
 | `test/test-cases/regression/request-body-parser-xml*.json` | ModSecurity_V3 | v3/master observed 3.0.15 | xml | XML schema, DTD, and parser behavior | partial | no | yes | maps | mapped-only | xml, fixtures | External fixture/schema materialization not yet part of active smoke |
 | `test/test-cases/regression/debug_log.json` | ModSecurity_V3 | v3/master observed 3.0.15 | logging | Debug log behavior | partial | partial | yes | maps | mapped-only | logging | Debug log text is volatile and connector-specific |
@@ -41,7 +41,7 @@ JSON regression cases under `test/test-cases/regression/`.
 ## Active V3-Derived Imports
 
 These active cases were observed locally through `make smoke-common` with
-`BUILD_ROOT=/src/ModSecurity-test-Framework-build`; Apache and NGINX both returned
+`BUILD_ROOT=<local-build-root>`; Apache and NGINX both returned
 the expected HTTP 403.
 
 | case | source | status |
@@ -60,22 +60,3 @@ the expected HTTP 403.
 | `v3_auditlog_serial_fields_block.yaml` | `auditlog.json`; `issue-2000.json` | fully-imported-common |
 | `v3_transformation_trim_block.yaml` | `transformations.json` | fully-imported-common |
 | `v3_secaction_block.yaml` | `secruleengine.json` | fully-imported-common |
-
-## PR #3564 RAW Argument Collections
-
-The public PR #3564 describes RAW URL-encoded argument collections and a new
-`variable-ARGS_RAW.json` regression file. The current local v3 reference used by
-this repository does not contain those files or variables, so all RAW
-collections remain `mapped-only/unsupported-local-source`.
-
-The affected variables are:
-
-- `ARGS_RAW`
-- `ARGS_GET_RAW`
-- `ARGS_POST_RAW`
-- `ARGS_NAMES_RAW`
-- `ARGS_GET_NAMES_RAW`
-- `ARGS_POST_NAMES_RAW`
-
-No active common YAML case is added until the configured v3 source contains the
-implementation and both Apache and NGINX return the expected real HTTP behavior.

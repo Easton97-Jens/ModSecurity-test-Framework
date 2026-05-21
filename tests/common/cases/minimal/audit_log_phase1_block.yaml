@@ -1,7 +1,7 @@
 # Origin:
-# - Apache: /root/conecter/ModSecurity-apache/tests/regression/action/10-logging.t
+# - Apache: local <local ModSecurity Apache connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-apache/tests/regression/action/10-logging.t
 #   covers `auditlog` on deny actions with `SecAuditEngine RelevantOnly`.
-# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity-config-auditlog.t
+# - NGINX: local <local ModSecurity NGINX connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-nginx/tests/modsecurity-config-auditlog.t
 #   covers serial audit log directives and audit-log content assertions.
 # Portable because it uses serial audit logging, a phase:1 query-argument
 # intervention, and substring checks for stable rule/request fields only.

@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/auditlog.json
+    reason: phase4 outbound audit message connector-gap probe.
+category: audit-log
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: connector-gap."
+  - Phase-4/response behavior remains non-verified; no verified PASS claim.
+name: phase4_auditlog_outbound_message_connector_gap
+capabilities:
+  response_headers: false
+  response_body: false
+  audit_log: true
+  phase3: false
+  phase4: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_BODY "@contains out-audit" "id:4812,phase:4,deny,status:403,auditlog,msg:'phase4 outbound audit message'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    out-audit
+expect:
+  status: 403
+  intervention: deny

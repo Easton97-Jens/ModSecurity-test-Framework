@@ -1,0 +1,30 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/auditlog.json
+    reason: audit log matched-var encoded value probe.
+category: audit-log
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - Runtime verification pending; not counted as verified PASS.
+name: audit_log_matched_var_encoded_value
+capabilities:
+  audit_log: true
+  collections: false
+  request_body: false
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule ARGS:q "@contains a b" "id:4603,phase:2,t:urlDecode,deny,status:403,auditlog,msg:'audit matched var encoded value'"
+request:
+  method: GET
+  path: "/?q=a+b"
+expect:
+  status: 403
+  intervention: deny

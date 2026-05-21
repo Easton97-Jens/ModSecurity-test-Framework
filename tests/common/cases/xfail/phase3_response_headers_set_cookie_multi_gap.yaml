@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-RESPONSE_HEADERS.json
+    reason: phase3 set-cookie multi-value connector-gap probe.
+category: response-headers
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: connector-gap."
+  - RESPONSE_BODY remains non-verified and non-promoted.
+name: phase3_response_headers_set_cookie_multi_gap
+capabilities:
+  response_headers: true
+  response_body: false
+  audit_log: false
+  phase3: true
+  phase4: false
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_HEADERS:Set-Cookie "@contains token" "id:4904,phase:3,deny,status:403,msg:'phase3 set-cookie multi gap'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    TEST-OK-IF-YOU-SEE-THIS
+expect:
+  status: 403
+  intervention: deny

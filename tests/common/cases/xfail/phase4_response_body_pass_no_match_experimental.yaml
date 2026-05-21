@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-RESPONSE_BODY.json
+    reason: phase4 response body no-match pass-through experimental probe.
+category: response-body
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: experimental."
+  - RESPONSE_BODY remains non-verified and non-promoted.
+name: phase4_response_body_pass_no_match_experimental
+capabilities:
+  response_headers: false
+  response_body: true
+  audit_log: false
+  phase3: false
+  phase4: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_BODY "@contains never-match-token" "id:4905,phase:4,deny,status:403,msg:'phase4 response body no match pass-through'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    TEST-OK-IF-YOU-SEE-THIS
+expect:
+  status: 200
+  intervention: pass

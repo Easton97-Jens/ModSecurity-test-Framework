@@ -1,7 +1,7 @@
 # Origin:
-# - Apache: /root/conecter/ModSecurity-apache/tests/regression/rule/00-basics.t
+# - Apache: local <local ModSecurity Apache connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-apache/tests/regression/rule/00-basics.t
 #   covers a phase:2 ARGS rule that blocks only on a matching argument.
-# - NGINX: /root/conecter/ModSecurity-nginx/tests/modsecurity.t includes
+# - NGINX: local <local ModSecurity NGINX connector reference>; upstream https://github.com/owasp-modsecurity/ModSecurity-nginx/tests/modsecurity.t includes
 #   "nothing to detect" requests that pass when the block pattern is absent.
 # Portable because it uses the same query-argument collection as the blocking
 # case but expects normal origin content when the rule does not match.

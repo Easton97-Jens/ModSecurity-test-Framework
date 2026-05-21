@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/compressWhitespace.t
+    reason: t:compressWhitespace runtime gap probe.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: runtime-difference."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: tfn_compress_whitespace_runtime_gap
+capabilities:
+  intervention: true
+  phase1: false
+  phase2: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@streq a b" "id:4510,phase:2,t:compressWhitespace,deny,status:403,msg:'t compress whitespace gap'"
+request:
+  method: GET
+  path: "/?q=a%20%20%20b"
+expect:
+  status: 403
+  intervention: deny

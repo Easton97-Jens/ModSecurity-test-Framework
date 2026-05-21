@@ -1,0 +1,33 @@
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/rule/10-xml.t
+    reason: partial XML parser future target.
+category: body-processors
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - Runtime verification pending; not counted as verified PASS.
+name: parser_xml_partial_body_future_target
+capabilities:
+  audit_log: false
+  collections: false
+  request_body: true
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule XML "@contains root" "id:4610,phase:2,deny,status:403,msg:'partial XML parser future target'"
+request:
+  method: POST
+  path: "/"
+  headers:
+    Content-Type: application/xml
+  body: "<root><a>"
+expect:
+  status: 403
+  intervention: deny

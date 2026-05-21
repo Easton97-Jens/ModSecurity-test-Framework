@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/op/streq.t
+    reason: "@streq no-match pass-through future compatibility."
+category: operators
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: pending-runtime-verification."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: operator_streq_pass_no_match_phase2
+capabilities:
+  intervention: true
+  phase1: false
+  phase2: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@streq exact" "id:4504,phase:2,deny,status:403,msg:'op streq no match pass-through'"
+request:
+  method: GET
+  path: "/?q=other"
+expect:
+  status: 200
+  intervention: pass

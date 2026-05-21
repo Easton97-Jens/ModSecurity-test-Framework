@@ -1,0 +1,26 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-REQUEST_COOKIES_NAMES.json
+    reason: Source-derived cookie-name case-sensitivity runtime-difference probe.
+category: collections
+portable: true
+status: xfail
+known_limitations:
+  - Cookie-name case handling can diverge between runtimes and connector parsers.
+name: v3_request_cookies_names_case_runtime_difference
+capabilities:
+  collections: true
+  request_cookies: true
+  phase1: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_COOKIES_NAMES "@contains user_token" "id:4403,phase:1,deny,status:403,msg:'xfail cookie-name case runtime difference'"
+request:
+  method: GET
+  path: /
+  headers:
+    Cookie: "USER_TOKEN=Yes"
+expect:
+  status: 403
+  intervention: deny

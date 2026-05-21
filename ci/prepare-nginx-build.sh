@@ -1,16 +1,24 @@
 #!/bin/sh
 set -eu
 
-MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-/root/conecter/ModSecurity_V3}"
-MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-/root/conecter/ModSecurity-nginx}"
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-test-Framework-build}"
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
+REPO_ROOT="$CONNECTOR_ROOT"
+. "$SCRIPT_DIR/common.sh"
+
+if [ "$CI_SOURCE_ROOT_WAS_SET" = "0" ]; then
+    SOURCE_ROOT="${RUNNER_TEMP:-$BUILD_ROOT}/sources"
+    DEFAULT_MODSECURITY_V3_SOURCE_DIR="$SOURCE_ROOT/ModSecurity_V3"
+fi
+
+AUTO_FETCH_SMOKE_SOURCES="${AUTO_FETCH_SMOKE_SOURCES:-1}"
+MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-}"
+MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$DEFAULT_MODSECURITY_V3_SOURCE_DIR}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/nginx}"
 REFRESH="${REFRESH:-0}"
+PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 BUILD_NGINX_FROM_SOURCE="${BUILD_NGINX_FROM_SOURCE:-1}"
-NGINX_SOURCE_MODE="${NGINX_SOURCE_MODE:-github-release}"
-NGINX_GITHUB_REPO="${NGINX_GITHUB_REPO:-https://github.com/nginx/nginx}"
-NGINX_RELEASE_TAG="${NGINX_RELEASE_TAG:-latest}"
-NGINX_SHA256="${NGINX_SHA256:-}"
 NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$BUILD_ROOT/nginx-build}"
 NGINX_SOURCE_DIR="${NGINX_SOURCE_DIR:-$NGINX_BUILD_DIR/nginx-src}"
 NGINX_PREFIX="${NGINX_PREFIX:-$BUILD_ROOT/nginx-runtime/nginx}"
@@ -18,21 +26,21 @@ NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
 DOWNLOAD_DIR="${DOWNLOAD_DIR:-$NGINX_BUILD_DIR/downloads}"
 V3_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity_V3"
-NGINX_CONNECTOR_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity-nginx"
+NGINX_CONNECTOR_LEGACY_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity-nginx"
 OUTPUT_DIR="$NGINX_BUILD_DIR/output"
 MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+DEFAULT_NGINX_SOURCE_DIR="$CONNECTOR_ROOT/connectors/nginx"
+MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$DEFAULT_NGINX_SOURCE_DIR}"
+NGINX_ADAPTER_SOURCE_DIR="${NGINX_ADAPTER_SOURCE_DIR:-$MODSECURITY_NGINX_SOURCE_DIR}"
+NGINX_MATERIALIZED_SOURCE_DIR="${NGINX_MATERIALIZED_SOURCE_DIR:-$NGINX_BUILD_DIR/connector-src}"
+if [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ]; then
+    NGINX_CONNECTOR_BUILD_DIR="$NGINX_MATERIALIZED_SOURCE_DIR"
+else
+    NGINX_CONNECTOR_BUILD_DIR="${NGINX_CONNECTOR_BUILD_DIR:-$NGINX_CONNECTOR_LEGACY_BUILD_DIR}"
+fi
+NGINX_DDEBUG_REPLACEMENT="${NGINX_DDEBUG_REPLACEMENT:-$CONNECTOR_ROOT/connectors/nginx/src/ddebug.h}"
 
-default_jobs() {
-    if command -v nproc >/dev/null 2>&1; then
-        nproc
-    else
-        getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1
-    fi
-}
-
-MAKE_JOBS="${MAKE_JOBS:-$(default_jobs)}"
+MAKE_JOBS="${MAKE_JOBS:-$(ci_default_jobs)}"
 STATUS_FILE="$LOG_DIR/status.txt"
 COMMANDS_FILE="$LOG_DIR/commands.txt"
 SOURCE_INFO_FILE="$LOG_DIR/source-info.txt"
@@ -55,15 +63,6 @@ fail() {
     exit 1
 }
 
-canonical_existing() {
-    target_path=$1
-    if [ -e "$target_path" ]; then
-        (cd "$target_path" 2>/dev/null && pwd -P)
-    else
-        return 1
-    fi
-}
-
 require_absolute_generated_path() {
     path=$1
     label=$2
@@ -72,7 +71,7 @@ require_absolute_generated_path() {
         *) blocked "$label must be an absolute generated path: $path" ;;
     esac
     case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+        "$REPO_ROOT"|"$REPO_ROOT"/*)
             blocked "$label is inside a read-only or source checkout: $path"
             ;;
         *) ;;
@@ -81,14 +80,36 @@ require_absolute_generated_path() {
 
 safe_remove_dir() {
     target=$1
-    real_target=$(canonical_existing "$target")
+    real_target=$(ci_canonical_existing "$target")
     case "$real_target" in
-        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT"|/root/conecter/*)
+        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT")
             blocked "unsafe REFRESH target: $real_target"
             ;;
         *) ;;
     esac
     rm -rf "$target"
+}
+
+
+ensure_modsecurity_v3_source() {
+    if [ -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
+        return 0
+    fi
+    if [ "$AUTO_FETCH_SMOKE_SOURCES" != "1" ]; then
+        blocked "missing MODSECURITY_V3_SOURCE_DIR: $MODSECURITY_V3_SOURCE_DIR"
+    fi
+    echo "nginx_poc: MODSECURITY_V3_SOURCE_DIR missing; attempting auto-fetch from $MODSECURITY_V3_GIT_URL ref=$MODSECURITY_V3_GIT_REF"
+    set +e
+    SOURCE_ROOT="$SOURCE_ROOT" \
+        MODSECURITY_V3_SOURCE_DIR="$MODSECURITY_V3_SOURCE_DIR" \
+        MODSECURITY_V3_GIT_URL="$MODSECURITY_V3_GIT_URL" \
+        MODSECURITY_V3_GIT_REF="$MODSECURITY_V3_GIT_REF" \
+        FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$FRAMEWORK_ROOT/ci/fetch-smoke-sources.sh" v3
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ] || [ ! -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
+        blocked "missing MODSECURITY_V3_SOURCE_DIR after auto-fetch: $MODSECURITY_V3_SOURCE_DIR"
+    fi
 }
 
 require_command() {
@@ -134,8 +155,111 @@ run_fail() {
     run_logged_kind fail "$@"
 }
 
+copy_sanitized_source() {
+    label=$1
+    source_dir=$2
+    dest_dir=$3
+    require_command tar "copy sanitized $label source"
+    log_file="$LOG_DIR/$label.log"
+    archive="$LOG_DIR/$label.tar"
+    mkdir -p "$dest_dir"
+    {
+        echo "[$label]"
+        echo "source=$source_dir"
+        echo "dest=$dest_dir"
+        echo "excludes=.git .github .travis.yml .deps __pycache__ autom4te.cache build artifacts"
+        echo
+    } >> "$COMMANDS_FILE"
+    echo "nginx_poc: running $label"
+    if (cd "$source_dir" && tar \
+        --exclude='./.git' \
+        --exclude='./.github' \
+        --exclude='./.travis.yml' \
+        --exclude='./.deps' \
+        --exclude='./__pycache__' \
+        --exclude='./autom4te.cache' \
+        --exclude='*.o' \
+        --exclude='*.lo' \
+        --exclude='*.la' \
+        --exclude='*.so' \
+        --exclude='*.log' \
+        --exclude='./objs' \
+        -cf "$archive" .) >"$log_file" 2>&1 \
+        && tar -xf "$archive" -C "$dest_dir" >>"$log_file" 2>&1; then
+        rm -f "$archive"
+        echo "pass: $label log=$log_file" >> "$STATUS_FILE"
+        return 0
+    fi
+    rc=$?
+    echo "blocked: $label rc=$rc log=$log_file" >> "$STATUS_FILE"
+    echo "nginx_poc: blocked sanitized copy failed: $label"
+    echo "nginx_poc: see log: $log_file"
+    exit 77
+}
+
+overlay_nginx_debug_header() {
+    target="$NGINX_CONNECTOR_BUILD_DIR/src/ddebug.h"
+    if [ -f "$target" ]; then
+        {
+            echo "[nginx-debug-header-overlay]"
+            echo "status=kept-source-header"
+            echo "target=$target"
+            echo
+        } >> "$COMMANDS_FILE"
+        echo "nginx_debug_header=source:$target" >> "$ARTIFACTS_FILE"
+        return 0
+    fi
+    if [ ! -f "$NGINX_DDEBUG_REPLACEMENT" ]; then
+        blocked "missing repo-owned NGINX debug header replacement: $NGINX_DDEBUG_REPLACEMENT"
+    fi
+    mkdir -p "$NGINX_CONNECTOR_BUILD_DIR/src"
+    log_file="$LOG_DIR/nginx-debug-header-overlay.log"
+    {
+        echo "[nginx-debug-header-overlay]"
+        echo "source=$NGINX_DDEBUG_REPLACEMENT"
+        echo "target=$target"
+        echo
+    } >> "$COMMANDS_FILE"
+    if cp "$NGINX_DDEBUG_REPLACEMENT" "$target" >"$log_file" 2>&1; then
+        echo "pass: nginx-debug-header-overlay log=$log_file" >> "$STATUS_FILE"
+        echo "nginx_debug_header=repo-owned:$NGINX_DDEBUG_REPLACEMENT -> $target" >> "$ARTIFACTS_FILE"
+        return 0
+    fi
+    echo "blocked: nginx-debug-header-overlay log=$log_file" >> "$STATUS_FILE"
+    echo "nginx_poc: blocked unable to overlay NGINX debug header; see $log_file"
+    exit 77
+}
+
+materialize_nginx_connector_source() {
+    run_blocked materialize-nginx-connector-source "$CONNECTOR_ROOT" \
+        env FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$FRAMEWORK_ROOT/ci/materialize-connector-source.sh" \
+        --connector nginx \
+        --adapter-dir "$NGINX_ADAPTER_SOURCE_DIR" \
+        --dest-dir "$NGINX_CONNECTOR_BUILD_DIR"
+    for required_file in \
+        config \
+        src/ddebug.h \
+        src/ngx_http_modsecurity_access.c \
+        src/ngx_http_modsecurity_body_filter.c \
+        src/ngx_http_modsecurity_common.h \
+        src/ngx_http_modsecurity_header_filter.c \
+        src/ngx_http_modsecurity_log.c \
+        src/ngx_http_modsecurity_module.c
+    do
+        if [ ! -f "$NGINX_CONNECTOR_BUILD_DIR/$required_file" ]; then
+            blocked "materialized NGINX connector source is missing $required_file: $NGINX_CONNECTOR_BUILD_DIR"
+        fi
+    done
+    {
+        echo "nginx_connector_source=$NGINX_CONNECTOR_BUILD_DIR"
+        echo "nginx_connector_source_manifest=$NGINX_CONNECTOR_BUILD_DIR/materialized-source.json"
+        echo "nginx_connector_source_manifest_md=$NGINX_CONNECTOR_BUILD_DIR/MATERIALIZED_SOURCE.md"
+        echo "nginx_debug_header=adapter-owned-materialized:$NGINX_CONNECTOR_BUILD_DIR/src/ddebug.h"
+    } >> "$ARTIFACTS_FILE"
+}
+
 github_repo_path() {
-    repo=$NGINX_GITHUB_REPO
+    repo=$NGINX_SOURCE_REPO_URL
     case "$repo" in
         https://github.com/*) repo=${repo#https://github.com/} ;;
         http://github.com/*) repo=${repo#http://github.com/} ;;
@@ -146,7 +270,7 @@ github_repo_path() {
     repo=${repo%/}
     case "$repo" in
         */*) printf '%s\n' "$repo" ;;
-        *) blocked "NGINX_GITHUB_REPO is not a GitHub owner/repo URL or path: $NGINX_GITHUB_REPO" ;;
+        *) blocked "NGINX_SOURCE_REPO_URL is not a GitHub owner/repo URL or path: $NGINX_SOURCE_REPO_URL" ;;
     esac
 }
 
@@ -158,12 +282,12 @@ resolve_nginx_release_tag() {
         return 0
     fi
 
-    require_command python3 "parse GitHub latest release response"
+    require_command "$PYTHON_BIN" "parse GitHub latest release response"
     latest_json="$DOWNLOAD_DIR/nginx-latest-release.json"
     api_url="https://api.github.com/repos/$repo_path/releases/latest"
     run_blocked nginx-github-latest-release "$DOWNLOAD_DIR" \
         curl -fsSL -H "Accept: application/vnd.github+json" -o "$latest_json" "$api_url"
-    if ! RESOLVED_NGINX_RELEASE_TAG=$(python3 - "$latest_json" 2>"$LOG_DIR/nginx-latest-release-parse.log" <<'PY'
+    if ! RESOLVED_NGINX_RELEASE_TAG=$("$PYTHON_BIN" - "$latest_json" 2>"$LOG_DIR/nginx-latest-release-parse.log" <<'PY'
 import json
 import sys
 
@@ -195,8 +319,10 @@ download_nginx_source() {
     echo "nginx_poc: nginx archive sha256(local)=$local_sha"
     {
         echo "nginx_source_mode=$NGINX_SOURCE_MODE"
-        echo "nginx_github_repo=$NGINX_GITHUB_REPO"
+        echo "nginx_source_repo_url=$NGINX_SOURCE_REPO_URL"
+        echo "nginx_github_repo_compat=$NGINX_GITHUB_REPO"
         echo "nginx_release_tag_requested=$NGINX_RELEASE_TAG"
+        echo "nginx_source_git_ref=$NGINX_SOURCE_GIT_REF"
         echo "nginx_release_tag_resolved=$RESOLVED_NGINX_RELEASE_TAG"
         echo "nginx_archive_url=$NGINX_ARCHIVE_URL"
         echo "nginx_archive=$NGINX_ARCHIVE"
@@ -334,18 +460,20 @@ echo "nginx_poc: BUILD_ROOT=$BUILD_ROOT"
 echo "nginx_poc: NGINX_BUILD_DIR=$NGINX_BUILD_DIR"
 echo "nginx_poc: LOG_DIR=$LOG_DIR"
 echo "nginx_poc: NGINX_SOURCE_MODE=$NGINX_SOURCE_MODE"
-echo "nginx_poc: NGINX_GITHUB_REPO=$NGINX_GITHUB_REPO"
+echo "nginx_poc: NGINX_SOURCE_REPO_URL=$NGINX_SOURCE_REPO_URL"
 echo "nginx_poc: NGINX_RELEASE_TAG=$NGINX_RELEASE_TAG"
+echo "nginx_poc: NGINX_SOURCE_GIT_REF=$NGINX_SOURCE_GIT_REF"
 
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"
 require_absolute_generated_path "$NGINX_SOURCE_DIR" "NGINX_SOURCE_DIR"
 require_absolute_generated_path "$NGINX_PREFIX" "NGINX_PREFIX"
+require_absolute_generated_path "$NGINX_CONNECTOR_BUILD_DIR" "NGINX_CONNECTOR_BUILD_DIR"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 require_absolute_generated_path "$OUTPUT_DIR" "OUTPUT_DIR"
 require_absolute_generated_path "$DOWNLOAD_DIR" "DOWNLOAD_DIR"
 
-[ -d "$MODSECURITY_V3_SOURCE_DIR" ] || blocked "missing MODSECURITY_V3_SOURCE_DIR: $MODSECURITY_V3_SOURCE_DIR"
+ensure_modsecurity_v3_source
 [ -d "$MODSECURITY_NGINX_SOURCE_DIR" ] || blocked "missing MODSECURITY_NGINX_SOURCE_DIR: $MODSECURITY_NGINX_SOURCE_DIR"
 
 if [ -e "$NGINX_BUILD_DIR" ]; then
@@ -376,7 +504,12 @@ write_git_info "modsecurity-v3-source" "$MODSECURITY_V3_SOURCE_DIR"
 write_git_info "modsecurity-nginx-source" "$MODSECURITY_NGINX_SOURCE_DIR"
 
 run_blocked copy-modsecurity-v3 "$NGINX_BUILD_DIR" cp -a "$MODSECURITY_V3_SOURCE_DIR" "$V3_BUILD_DIR"
-run_blocked copy-modsecurity-nginx "$NGINX_BUILD_DIR" cp -a "$MODSECURITY_NGINX_SOURCE_DIR" "$NGINX_CONNECTOR_BUILD_DIR"
+if [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ]; then
+    materialize_nginx_connector_source
+else
+    copy_sanitized_source copy-modsecurity-nginx "$MODSECURITY_NGINX_SOURCE_DIR" "$NGINX_CONNECTOR_BUILD_DIR"
+    overlay_nginx_debug_header
+fi
 write_git_info "modsecurity-v3-build-copy" "$V3_BUILD_DIR"
 write_git_info "modsecurity-nginx-build-copy" "$NGINX_CONNECTOR_BUILD_DIR"
 

@@ -1,0 +1,33 @@
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/rule/15-json.t
+    reason: partial JSON parser connector gap probe.
+category: body-processors
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: connector-gap."
+  - Runtime verification pending; not counted as verified PASS.
+name: parser_json_partial_body_connector_gap
+capabilities:
+  audit_log: false
+  collections: false
+  request_body: true
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule REQUEST_BODY "@contains partial" "id:4609,phase:2,deny,status:403,msg:'partial JSON parser gap'"
+request:
+  method: POST
+  path: "/"
+  headers:
+    Content-Type: application/json
+  body: '{"partial": '
+expect:
+  status: 403
+  intervention: deny
