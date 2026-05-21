@@ -36,14 +36,14 @@ not counted as NGINX connector success.
 Defaults are local conveniences only:
 
 ```sh
-MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
-MODSECURITY_NGINX_SOURCE_DIR=/root/conecter/ModSecurity-nginx
+MODSECURITY_V3_SOURCE_DIR=<workspace>/ModSecurity_V3
+MODSECURITY_NGINX_SOURCE_DIR=<workspace>/ModSecurity-nginx
 BUILD_ROOT=/src/ModSecurity-test-Framework-build
 LOG_DIR=$BUILD_ROOT/logs/nginx
 ```
 
 All paths are environment-overridable. Generated files must stay outside the
-Git checkout and outside `/root/conecter/*`.
+Git checkout and outside `<workspace>/*`.
 
 Run the build helper with:
 
@@ -222,4 +222,4 @@ HTTP 403, so the candidate remains xfail/mapped-only.
 - GitHub latest release API:
   https://api.github.com/repos/nginx/nginx/releases/latest
 - NGINX configure documentation: https://nginx.org/en/docs/configure.html
-- ModSecurity-nginx local source: `/root/conecter/ModSecurity-nginx`
+- ModSecurity-nginx local source: `<workspace>/ModSecurity-nginx`

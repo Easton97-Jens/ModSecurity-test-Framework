@@ -2,7 +2,7 @@
 
 Status: implemented
 
-Local source: `/root/conecter/ModSecurity-apache`  
+Local source: `<workspace>/ModSecurity-apache`
 Observed ref: `master`, `v0.0.9-beta1-26-g0488c77`
 
 ## Role

@@ -133,7 +133,7 @@ variable/blocking case passes on both connectors.
 ModSecurity PR #3564 introduces `ARGS_RAW`, `ARGS_GET_RAW`, `ARGS_POST_RAW`,
 `ARGS_NAMES_RAW`, `ARGS_GET_NAMES_RAW`, and `ARGS_POST_NAMES_RAW`.
 
-The current local `/root/conecter/ModSecurity_V3` checkout does not contain the
+The current local `<workspace>/ModSecurity_V3` checkout does not contain the
 RAW collection implementation or its regression file, so this repository marks
 RAW arguments as `mapped-only/unsupported-local-source`. They must not appear in
 active PASS summaries until a configured v3 source includes the PR and both

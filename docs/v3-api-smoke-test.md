@@ -26,11 +26,11 @@ tree does not duplicate implementation logic.
 
 ## Path Model
 
-`/root/conecter` and `/src` are local defaults only. Every relevant path is
+`<workspace>` and `/src` are local defaults only. Every relevant path is
 overridable:
 
 ```sh
-MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
+MODSECURITY_V3_SOURCE_DIR=<workspace>/ModSecurity_V3
 MODSECURITY_V3_DIR=/src/ModSecurity_V3_build
 BUILD_ROOT=/src/ModSecurity-test-Framework-build
 LOG_DIR=/src/ModSecurity-test-Framework-build/logs
@@ -43,7 +43,7 @@ Meaning:
 - `BUILD_ROOT`: writable root for smoke object files, binary, and caches.
 - `LOG_DIR`: writable directory for helper logs.
 
-No build step may write generated files into `/root/conecter/*` or any other
+No build step may write generated files into `<workspace>/*` or any other
 source checkout.
 
 Generated paths (`MODSECURITY_V3_DIR`, `BUILD_ROOT`, `LOG_DIR`, and
@@ -233,7 +233,7 @@ Observed generated artifacts:
 Observed on this workspace via `sh ci/check-v3-api-smoke-prereqs.sh`:
 
 ```text
-v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
+v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=<workspace>/ModSecurity_V3
 v3_api_smoke: MODSECURITY_V3_DIR=/src/ModSecurity_V3_build
 v3_api_smoke: BUILD_ROOT=/src/ModSecurity-test-Framework-build
 v3_api_smoke: LOG_DIR=/src/ModSecurity-test-Framework-build/logs
@@ -246,7 +246,7 @@ v3_api_smoke: library present: /src/ModSecurity_V3_build/src/.libs/libmodsecurit
 Observed on this workspace via `sh ci/run-v3-api-smoke.sh`:
 
 ```text
-v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
+v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=<workspace>/ModSecurity_V3
 v3_api_smoke: MODSECURITY_V3_DIR=/src/ModSecurity_V3_build
 v3_api_smoke: BUILD_ROOT=/src/ModSecurity-test-Framework-build
 v3_api_smoke: LOG_DIR=/src/ModSecurity-test-Framework-build/logs

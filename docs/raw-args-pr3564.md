@@ -22,7 +22,7 @@ The helper below performs a read-only search of the configured v3 source:
 sh ci/check-raw-args-support.sh
 ```
 
-Observed locally on 2026-05-15 against `/root/conecter/ModSecurity_V3`:
+Observed locally on 2026-05-15 against `<workspace>/ModSecurity_V3`:
 
 ```text
 raw_args_support: unsupported-local-source missing: ARGS_RAW ARGS_GET_RAW ARGS_POST_RAW ARGS_NAMES_RAW ARGS_GET_NAMES_RAW ARGS_POST_NAMES_RAW

@@ -62,7 +62,7 @@ unchanged.
 
 Current local evidence:
 
-- `/root/conecter/ModSecurity_V3` is still the observed `v3/master` local
+- `<workspace>/ModSecurity_V3` is still the observed `v3/master` local
   reference.
 - A search of that local source found no RAW collection implementation or
   regression files.

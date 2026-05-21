@@ -6,10 +6,10 @@ Status: implemented
 
 | Source | Observed ref | Role |
 | --- | --- | --- |
-| `/root/conecter/ModSecurity_V3` | `v3/master`, `v3.0.15` | Primary libmodsecurity architecture and API reference |
-| `/root/conecter/ModSecurity_V2` | `v2/master`, `v2.9.13` | Regression, semantics, compatibility, historical Apache reference |
-| `/root/conecter/ModSecurity-apache` | `master`, `v0.0.9-beta1-26-g0488c77` | Apache v3 connector reference |
-| `/root/conecter/ModSecurity-nginx` | `master`, `v1.0.4-14-g9eb44fd` | NGINX v3 connector reference |
+| `<workspace>/ModSecurity_V3` | `v3/master`, `v3.0.15` | Primary libmodsecurity architecture and API reference |
+| `<workspace>/ModSecurity_V2` | `v2/master`, `v2.9.13` | Regression, semantics, compatibility, historical Apache reference |
+| `<workspace>/ModSecurity-apache` | `master`, `v0.0.9-beta1-26-g0488c77` | Apache v3 connector reference |
+| `<workspace>/ModSecurity-nginx` | `master`, `v1.0.4-14-g9eb44fd` | NGINX v3 connector reference |
 
 ## Public Sources
 

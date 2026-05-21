@@ -3,7 +3,7 @@
 Status: implemented
 
 This document records how local ModSecurity v2 and v3 tests are reused in the
-connector compatibility framework. The source trees under `/root/conecter/*`
+connector compatibility framework. The source trees under `<workspace>/*`
 remain read-only references.
 
 ## Source Roles

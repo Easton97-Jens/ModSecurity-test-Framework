@@ -3,7 +3,7 @@
 Status: implemented
 
 This document records the current import policy for local connector tests. The
-source repositories under `/root/conecter/*` are read-only references. No
+source repositories under `<workspace>/*` are read-only references. No
 upstream Apache or NGINX test file is copied verbatim into this repository.
 
 ## Inventory
@@ -12,10 +12,10 @@ Observed local source inventory on 2026-05-15:
 
 | Source | Relevant files analyzed | Notes |
 | --- | ---: | --- |
-| `/root/conecter/ModSecurity-apache/tests/` | 29 | Apache regression `.t`, `.t.in`, and harness files |
-| `/root/conecter/ModSecurity-nginx/tests/` | 17 | NGINX `.t`, README, and converter files |
-| `/root/conecter/ModSecurity_V2/tests/` | 115 | v2 operator, transformation, and regression files used only as semantics/reference material |
-| `/root/conecter/ModSecurity_V3/test/` | 264 | v3 API/regression files; 195 JSON regression cases under `test/test-cases/regression/` |
+| `<workspace>/ModSecurity-apache/tests/` | 29 | Apache regression `.t`, `.t.in`, and harness files |
+| `<workspace>/ModSecurity-nginx/tests/` | 17 | NGINX `.t`, README, and converter files |
+| `<workspace>/ModSecurity_V2/tests/` | 115 | v2 operator, transformation, and regression files used only as semantics/reference material |
+| `<workspace>/ModSecurity_V3/test/` | 264 | v3 API/regression files; 195 JSON regression cases under `test/test-cases/regression/` |
 
 Every relevant source file is mapped in:
 

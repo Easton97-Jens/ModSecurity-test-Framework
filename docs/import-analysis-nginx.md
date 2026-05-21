@@ -2,7 +2,7 @@
 
 Status: implemented
 
-Local source: `/root/conecter/ModSecurity-nginx`  
+Local source: `<workspace>/ModSecurity-nginx`
 Observed ref: `master`, `v1.0.4-14-g9eb44fd`
 
 ## Role

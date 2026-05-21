@@ -34,14 +34,14 @@ not counted as Apache connector success.
 Defaults are local conveniences only:
 
 ```sh
-MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
-MODSECURITY_APACHE_SOURCE_DIR=/root/conecter/ModSecurity-apache
+MODSECURITY_V3_SOURCE_DIR=<workspace>/ModSecurity_V3
+MODSECURITY_APACHE_SOURCE_DIR=<workspace>/ModSecurity-apache
 BUILD_ROOT=/src/ModSecurity-test-Framework-build
 LOG_DIR=$BUILD_ROOT/logs/apache
 ```
 
 All paths are environment-overridable. Generated files must stay outside the
-Git checkout and outside `/root/conecter/*`.
+Git checkout and outside `<workspace>/*`.
 
 ## Source-Built httpd Mode
 

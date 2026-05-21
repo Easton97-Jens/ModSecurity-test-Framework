@@ -88,7 +88,7 @@ $BUILD_ROOT/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so
 ```
 
 Neither PoC writes to `/usr`, `/usr/local`, `/etc/apache2`, `/etc/nginx`, or
-`/root/conecter/*`.
+`<workspace>/*`.
 
 ## Current Local Comparison
 
