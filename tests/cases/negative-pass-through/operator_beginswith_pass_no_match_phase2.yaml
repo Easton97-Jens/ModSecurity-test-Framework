@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/op/beginsWith.t
+    reason: "@beginsWith no-match pass-through future compatibility."
+category: operators
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: pending-runtime-verification."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: operator_beginswith_pass_no_match_phase2
+capabilities:
+  intervention: true
+  phase1: false
+  phase2: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@beginsWith xyz" "id:4502,phase:2,deny,status:403,msg:'op beginsWith no match pass-through'"
+request:
+  method: GET
+  path: "/?q=abcdef"
+expect:
+  status: 200
+  intervention: pass

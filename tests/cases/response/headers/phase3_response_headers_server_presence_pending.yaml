@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-RESPONSE_HEADERS.json
+    reason: phase3 server header presence pending-runtime-verification probe.
+category: response-headers
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: pending-runtime-verification."
+  - RESPONSE_BODY remains non-verified and non-promoted.
+name: phase3_response_headers_server_presence_pending
+capabilities:
+  response_headers: true
+  response_body: false
+  audit_log: false
+  phase3: true
+  phase4: false
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_HEADERS:Server "@contains" "id:4901,phase:3,deny,status:403,msg:'phase3 server header presence'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    TEST-OK-IF-YOU-SEE-THIS
+expect:
+  status: 200
+  intervention: pass

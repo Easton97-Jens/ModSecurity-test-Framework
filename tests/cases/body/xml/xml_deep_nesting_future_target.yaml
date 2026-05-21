@@ -1,0 +1,28 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-XML.json
+    reason: deep XML nesting future compatibility target.
+category: body-processors
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - Runtime verification pending; not counted as verified PASS.
+name: xml_deep_nesting_future_target
+capabilities:
+  multipart: false
+  files: false
+  request_body: true
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecRule XML "@contains deepnode" "id:4712,phase:2,deny,status:403,msg:'deep xml future target'"
+request:
+  method: POST
+  path: "/"
+  headers:
+    Content-Type: application/xml
+  body: "<a><b><c><d><deepnode>v</deepnode></d></c></b></a>"
+expect:
+  status: 403
+  intervention: deny

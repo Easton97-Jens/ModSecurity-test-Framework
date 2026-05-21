@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-RESPONSE_HEADERS.json
+    reason: phase3 encoded response header future compatibility target.
+category: response-headers
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - Phase-4/response behavior remains non-verified; no verified PASS claim.
+name: phase3_response_headers_encoded_value_future_target
+capabilities:
+  response_headers: true
+  response_body: false
+  audit_log: false
+  phase3: true
+  phase4: false
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_HEADERS:Location "@contains %2F" "id:4804,phase:3,deny,status:403,msg:'phase3 encoded response header future target'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    TEST-OK-IF-YOU-SEE-THIS
+expect:
+  status: 403
+  intervention: deny

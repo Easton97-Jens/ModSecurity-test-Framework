@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/removeNulls.t
+    reason: Source-derived removeNulls transformation branch prepared as future compatibility target.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - removeNulls behavior around encoded NUL input is not yet proven in shared connector smoke.
+name: v2_transformation_remove_nulls_future_target
+capabilities:
+  transformations: true
+  request_uri: true
+  phase1: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_URI "@contains nulled" "id:4407,phase:1,t:removeNulls,deny,status:403,msg:'xfail removeNulls future target'"
+request:
+  method: GET
+  path: "/?q=nulled%00text"
+expect:
+  status: 403
+  intervention: deny

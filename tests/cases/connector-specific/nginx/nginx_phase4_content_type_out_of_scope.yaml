@@ -1,0 +1,54 @@
+name: nginx_phase4_content_type_out_of_scope
+origin:
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity-phase4-content-types.t
+    reason: Derived from the PR #377 out-of-scope content-type phase-4 expectation.
+category: response-body
+capabilities:
+  - response_body
+  - phase4
+  - logging
+  - pass_through
+portable: false
+connector: nginx
+status: imported
+
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType image/png text/html text/plain application/json
+  SecRule RESPONSE_BODY "@contains HIT" \
+    "id:920002,phase:4,deny,log,status:403,msg:'phase4 content type scope probe'"
+
+nginx:
+  files:
+    phase4-content-types.conf: |
+      application/json
+  location_directives: |
+    types { }
+    default_type image/png;
+    modsecurity_phase4_mode strict;
+    modsecurity_phase4_log "@@NGINX_PHASE4_LOG@@";
+    modsecurity_phase4_content_types_file "@@NGINX_FILE:phase4-content-types.conf@@";
+
+request:
+  method: GET
+  path: /
+
+response:
+  body: |
+    HIT UNKNOWN
+
+expect:
+  status: 200
+  intervention: none
+  rule_id: none
+  response_contains: HIT UNKNOWN
+  phase4_log:
+    required: true
+    contains:
+      - '"event":"phase4_intervention"'
+      - '"actual_action":"log_only"'
+      - '"reason":"content_type_not_in_scope"'
+    not_contains:
+      - HIT UNKNOWN

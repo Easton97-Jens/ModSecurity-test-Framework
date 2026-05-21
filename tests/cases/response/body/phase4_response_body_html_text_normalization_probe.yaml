@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/config/10-response-directives.t
+    reason: phase4 html/text response body normalization probe.
+category: response-body
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: xfail."
+  - Phase-4/response behavior remains non-verified; no verified PASS claim.
+name: phase4_response_body_html_text_normalization_probe
+capabilities:
+  response_headers: false
+  response_body: true
+  audit_log: false
+  phase3: false
+  phase4: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_BODY "@contains <html" "id:4810,phase:4,deny,status:403,msg:'phase4 html text normalization probe'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    <html>ok</html>
+expect:
+  status: 403
+  intervention: deny

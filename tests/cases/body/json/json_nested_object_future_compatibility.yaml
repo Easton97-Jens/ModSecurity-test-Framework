@@ -1,0 +1,29 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-REQUEST_BODY.json
+    reason: nested JSON structure future compatibility target.
+category: body-processors
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - Runtime verification pending; not counted as verified PASS.
+name: json_nested_object_future_compatibility
+capabilities:
+  multipart: false
+  files: false
+  request_body: true
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_BODY "@contains nested-key" "id:4709,phase:2,deny,status:403,msg:'nested json future target'"
+request:
+  method: POST
+  path: "/"
+  headers:
+    Content-Type: application/json
+  body: |-
+    {"outer":{"nested-key":"v"}}
+expect:
+  status: 403
+  intervention: deny

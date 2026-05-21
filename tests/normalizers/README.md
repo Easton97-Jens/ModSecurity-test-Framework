@@ -15,7 +15,7 @@ Implemented skeleton scope:
 - transaction IDs
 - common server banners
 
-TODO:
+Open work is tracked in `docs/roadmap/todo-inventory.md`:
 
 - Header order normalization is not implemented. It needs an artifact-specific
   parser.

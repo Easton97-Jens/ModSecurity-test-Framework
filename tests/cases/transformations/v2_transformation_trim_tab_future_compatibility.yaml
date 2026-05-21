@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/trim.t
+    reason: Source-derived transformation edge branch for tab trimming prepared as future compatibility target.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - Trim behavior around tab/control characters is not yet proven in shared connector smoke.
+name: v2_transformation_trim_tab_future_compatibility
+capabilities:
+  transformations: true
+  query_args: true
+  phase2: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@streq edge" "id:4405,phase:2,t:trim,deny,status:403,msg:'xfail trim tab future compatibility'"
+request:
+  method: GET
+  path: "/?q=%09edge%09"
+expect:
+  status: 403
+  intervention: deny

@@ -1,0 +1,25 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-ARGS_NAMES.json
+    reason: Source-derived ARGS_NAMES duplicate query-name branch prepared as connector-gap coverage.
+category: collections
+portable: true
+status: xfail
+known_limitations:
+  - Duplicate ARGS_NAMES ordering/aggregation behavior may differ between connectors.
+name: v3_args_names_duplicate_query_connector_gap
+capabilities:
+  collections: true
+  args_names: true
+  phase2: true
+  query_args: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS_NAMES "@contains dup" "id:4404,phase:2,deny,status:403,msg:'xfail duplicate ARGS_NAMES connector gap'"
+request:
+  method: GET
+  path: "/?dup=1&dup=2"
+expect:
+  status: 403
+  intervention: deny

@@ -3,11 +3,12 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+. "$SCRIPT_DIR/common.sh"
+
 SMOKE_DIR="$REPO_ROOT/src/v3-api-smoke"
 
-MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-/root/conecter/ModSecurity_V3}"
-MODSECURITY_V3_DIR="${MODSECURITY_V3_DIR:-/src/ModSecurity_V3_build}"
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-test-Framework-build}"
+MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$MODSECURITY_SOURCE_DIR}"
+MODSECURITY_V3_DIR="${MODSECURITY_V3_DIR:-$BUILD_ROOT/ModSecurity_V3_build}"
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs}"
 BUILD_DIR="${BUILD_DIR:-$BUILD_ROOT/v3-api-smoke}"
 CC="${CC:-cc}"
@@ -33,7 +34,7 @@ case "$BUILD_DIR" in
 esac
 
 case "$BUILD_ROOT" in
-    "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+    "$REPO_ROOT"|"$REPO_ROOT"/*)
         echo "v3_api_smoke: blocked BUILD_ROOT is not an allowed artifact location: $BUILD_ROOT"
         exit 77
         ;;
@@ -41,7 +42,7 @@ case "$BUILD_ROOT" in
 esac
 
 case "$BUILD_DIR" in
-    "$REPO_ROOT"|"$REPO_ROOT"/*|/root/conecter/*)
+    "$REPO_ROOT"|"$REPO_ROOT"/*)
         echo "v3_api_smoke: blocked BUILD_DIR is not an allowed artifact location: $BUILD_DIR"
         exit 77
         ;;

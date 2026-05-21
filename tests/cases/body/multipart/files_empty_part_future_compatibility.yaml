@@ -1,0 +1,32 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-FILES.json
+    reason: FILES empty part future compatibility target.
+category: multipart
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - Runtime verification pending; not counted as verified PASS.
+name: files_empty_part_future_compatibility
+capabilities:
+  multipart: true
+  files: true
+  request_body: true
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecRule FILES "@contains " "id:4706,phase:2,deny,status:403,msg:'FILES empty part future target'"
+request:
+  method: POST
+  path: "/"
+  headers:
+    Content-Type: multipart/form-data; boundary=----AaB03x
+  body: |
+    ------AaB03x
+    Content-Disposition: form-data; name="upload"; filename=""
+
+    ------AaB03x--
+expect:
+  status: 403
+  intervention: deny

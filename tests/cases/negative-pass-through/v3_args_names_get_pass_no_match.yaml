@@ -1,0 +1,33 @@
+# Source-derived V3 ARGS_NAMES negative/pass-through smoke.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-ARGS_NAMES.json
+    reason: Derives from V3 ARGS_NAMES collection coverage and validates no-match pass-through behavior for GET argument names.
+category: collections
+portable: true
+status: imported
+known_limitations:
+  - Validates pass-through when ARGS_NAMES does not contain the tested argument name.
+  - Duplicate argument-name and mixed GET/POST aggregation branches remain mapped only.
+name: v3_args_names_get_pass_no_match
+
+capabilities:
+  collections: true
+  args_names: true
+  phase2: true
+  query_args: true
+  pass_through: true
+
+rules: |
+  SecRuleEngine On
+  SecRule ARGS_NAMES "@contains blocked_name" \
+    "id:3364,phase:2,deny,status:403,msg:'v3 imported args names get no-match pass-through'"
+
+request:
+  method: GET
+  path: "/?key1=value1&key2=value2"
+
+expect:
+  status: 200
+  intervention: pass
+  response_contains: TEST-OK-IF-YOU-SEE-THIS

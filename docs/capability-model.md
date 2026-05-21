@@ -33,11 +33,13 @@ YAML cases may express capabilities as a list or as a mapping of booleans.
 Underscore aliases such as `request_body` normalize to dash names such as
 `request-body`. Unknown capability names fail materialization.
 
-Capabilities do not decide whether a case is active. Discovery is path and
-status based:
+Capabilities do not decide whether a case is active. Topic paths provide
+category/scope; YAML status metadata provides active versus inventory behavior:
 
-- `tests/common/cases/minimal`, `imported`, `v2-imported`, and `v3-imported`
-  are active common scopes.
-- `tests/common/cases/xfail` is excluded from normal discovery and must be
-  selected explicitly with `SMOKE_CASES`.
+- Cases with missing `status` are treated as active.
+- Cases with `status: imported`, `minimal`, `v2-imported`, or `v3-imported`
+  remain default runtime candidates for compatibility.
+- Cases with `status: xfail`, `pending`, `future`, `connector-gap`, or
+  `runtime-difference` are inventory/evidence cases unless force-all execution
+  is requested.
 - Connector-specific cases are active only for their matching connector.

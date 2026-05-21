@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/urlDecodeUni.t
+    reason: t:urlDecodeUni future compatibility target.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: tfn_urldecodeuni_future_target_phase1
+capabilities:
+  intervention: true
+  phase1: true
+  phase2: false
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_URI "@contains uni-decoded" "id:4509,phase:1,t:urlDecodeUni,deny,status:403,msg:'t urlDecodeUni future target'"
+request:
+  method: GET
+  path: "/?q=uni%u002Ddecoded"
+expect:
+  status: 403
+  intervention: deny

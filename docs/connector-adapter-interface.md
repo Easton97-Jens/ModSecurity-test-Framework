@@ -29,7 +29,7 @@ loading, server configuration, request dispatch, log collection, and cleanup.
 
 ## Boundary Rules
 
-- `common/` and `tests/common/` remain connector-neutral.
+- `common/` and `docs/imports/common/` remain connector-neutral.
 - `connectors/<name>/` contains server-specific build/runtime logic.
 - Generated configs, logs, downloads, and binaries stay under `BUILD_ROOT`.
 - Direct libmodsecurity API success never counts as connector success.

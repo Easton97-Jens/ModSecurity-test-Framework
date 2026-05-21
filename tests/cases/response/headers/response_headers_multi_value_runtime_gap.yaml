@@ -1,0 +1,23 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-RESPONSE_HEADERS.json
+    reason: Source-derived multi-value response-header branch prepared as runtime-gap probe.
+category: response-headers
+portable: true
+status: xfail
+known_limitations:
+  - Multi-value response-header handling may vary by connector filter ordering and normalization.
+name: response_headers_multi_value_runtime_gap
+capabilities:
+  response_headers: true
+  phase3: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecRule RESPONSE_HEADERS:Set-Cookie "@contains session" "id:4410,phase:3,deny,status:403,msg:'xfail response headers multi-value gap'"
+request:
+  method: GET
+  path: /
+expect:
+  status: 403
+  intervention: deny

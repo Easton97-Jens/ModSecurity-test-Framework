@@ -1,0 +1,25 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/compressWhitespace.t
+    reason: benign SQL-like keyword spacing compatibility probe.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: pending-runtime-verification."
+  - Runtime verification pending; not counted as verified PASS.
+name: sqli_like_keyword_spacing_probe
+capabilities:
+  multipart: false
+  files: false
+  request_body: false
+  transformations: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:q "@contains select from" "id:4715,phase:2,t:lowercase,t:compressWhitespace,deny,status:403,msg:'sqli-like keyword spacing probe'"
+request:
+  method: GET
+  path: "/?q=SAFE"
+expect:
+  status: 403
+  intervention: deny

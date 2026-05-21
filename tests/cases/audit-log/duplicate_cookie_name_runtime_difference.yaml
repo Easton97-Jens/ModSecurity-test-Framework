@@ -1,0 +1,32 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-REQUEST_COOKIES_NAMES.json
+    reason: duplicate cookie-name runtime-difference probe.
+category: collections
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: runtime-difference."
+  - Runtime verification pending; not counted as verified PASS.
+name: duplicate_cookie_name_runtime_difference
+capabilities:
+  audit_log: false
+  collections: true
+  request_body: false
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule REQUEST_COOKIES_NAMES "@contains dup" "id:4606,phase:1,deny,status:403,msg:'duplicate cookie names runtime diff'"
+request:
+  method: GET
+  path: "/"
+  headers:
+    Cookie: "dup=1; dup=2; other=x"
+expect:
+  status: 403
+  intervention: deny

@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Generate docs/case-matrix.md from YAML cases and optional smoke results."""
+"""Generate docs/testing/case-matrix.md from YAML cases and optional smoke results."""
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-RUNNERS = REPO_ROOT / "tests" / "runners"
+FRAMEWORK_ROOT = Path(os.environ.get("FRAMEWORK_ROOT", Path(__file__).resolve().parents[1])).resolve()
+CONNECTOR_ROOT = Path(os.environ.get("CONNECTOR_ROOT", Path.cwd())).resolve()
+REPO_ROOT = CONNECTOR_ROOT
+RUNNERS = FRAMEWORK_ROOT / "tests" / "runners"
 sys.path.insert(0, str(RUNNERS))
 
 from runner_core import case_info, load_case  # noqa: E402
@@ -30,14 +33,24 @@ def result_status(results: dict[str, object], connector: str, name: str) -> str:
 def case_source(info: dict[str, object], path: Path) -> str:
     origins = info.get("origin", [])
     if not isinstance(origins, list):
-        return str(path.relative_to(REPO_ROOT))
+        return relative_path(path)
     parts = []
     for origin in origins:
         if isinstance(origin, dict):
             parts.append(f"{origin.get('repo', '')}:{origin.get('path', '')}")
     if parts:
         return "; ".join(parts)
-    return str(path.relative_to(REPO_ROOT))
+    return relative_path(path)
+
+
+def relative_path(path: Path) -> str:
+    resolved = path.resolve()
+    for root in (CONNECTOR_ROOT, FRAMEWORK_ROOT):
+        try:
+            return str(resolved.relative_to(root))
+        except ValueError:
+            continue
+    return str(path)
 
 
 def case_kind(info: dict[str, object]) -> str:
@@ -51,9 +64,9 @@ def case_kind(info: dict[str, object]) -> str:
 
 def all_case_paths() -> list[Path]:
     roots = [
-        REPO_ROOT / "tests" / "common" / "cases",
-        REPO_ROOT / "tests" / "apache" / "cases",
-        REPO_ROOT / "tests" / "nginx" / "cases",
+        FRAMEWORK_ROOT / "tests" / "common" / "cases",
+        CONNECTOR_ROOT / "connectors" / "apache" / "tests" / "cases",
+        CONNECTOR_ROOT / "connectors" / "nginx" / "tests" / "cases",
     ]
     return sorted(path for root in roots if root.exists() for path in root.rglob("*.yaml"))
 
@@ -85,8 +98,14 @@ def row(path: Path, results: dict[str, object]) -> str:
 
 
 def main(argv: list[str]) -> int:
-    results_path = Path(argv[1]) if len(argv) > 1 else Path("/src/ModSecurity-test-Framework-build/results/connector-summary.json")
-    output_path = Path(argv[2]) if len(argv) > 2 else REPO_ROOT / "docs" / "case-matrix.md"
+    default_build_root = Path(
+        os.environ.get(
+            "BUILD_ROOT",
+            str(Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local" / "state"))) / "ModSecurity-conector-build"),
+        )
+    )
+    results_path = Path(argv[1]) if len(argv) > 1 else default_build_root / "results" / "connector-summary.json"
+    output_path = Path(argv[2]) if len(argv) > 2 else REPO_ROOT / "docs" / "testing" / "case-matrix.md"
     results = load_results(results_path)
     lines = [
         "# Case Matrix",

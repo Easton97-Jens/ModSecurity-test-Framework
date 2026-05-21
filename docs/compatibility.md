@@ -21,7 +21,7 @@ architecture for new connectors.
 | Envoy connector | unknown | HTTP filter/ext_authz/Wasm options documented, implementation undecided |
 | Lighttpd connector | unknown | Native plugin and mod_magnet options documented, implementation undecided |
 | Traefik connector | unknown | Yaegi/Wasm plugin options documented, implementation undecided |
-| v2 regression reuse | planned | Only portable rule/engine semantics may enter `tests/common/` |
+| v2 regression reuse | planned | Only portable rule/engine semantics may enter `docs/imports/common/` |
 | v2-derived common imports | implemented | Operator and transformation cases including `@streq`, `@contains`, `@beginsWith`, `@endsWith`, `@pm`, `@containsWord`, `t:lowercase`, `t:trim`, `t:urlDecode`, and `t:htmlEntityDecode` pass locally on Apache and NGINX |
 | v3-derived common imports | implemented | Multipart FILES, XML body processor, operator, transformation, action, cookie/header-name/ARGS_NAMES, and stable audit cases pass locally on Apache and NGINX |
 | Source-derived Apache/NGINX test import | implemented | Imported YAML cases are derived, not copied; origin and portability are documented |
@@ -34,7 +34,7 @@ configuration, it is connector-specific unless proven portable.
 
 ## Shared Minimal Cases
 
-The files under `tests/common/cases/minimal/` are portable rule/request models.
+The files under `tests/cases/` are portable rule/request models.
 They are not proof that a connector supports the behavior until that
 connector's runtime harness observes the expected HTTP response.
 
@@ -58,12 +58,12 @@ complete response-body behavior.
 
 | Scope | Location | Compatibility meaning |
 | --- | --- | --- |
-| common minimal | `tests/common/cases/minimal/` | Already proven locally for both PoCs before the import step |
-| common imported | `tests/common/cases/imported/` | Portable candidates derived from Apache/NGINX tests; compatibility is claimed only after both connector smokes pass |
-| v2 imported | `tests/common/cases/v2-imported/` | Portable v2 semantics candidates adapted to HTTP behavior and proven on both connector PoCs |
-| v3 imported | `tests/common/cases/v3-imported/` | Portable v3 regression candidates adapted to HTTP behavior and proven on both connector PoCs |
-| Apache imported | `tests/apache/cases/imported/` | Apache-only until a common equivalent is proven |
-| NGINX imported | `tests/nginx/cases/imported/` | NGINX-only until a common equivalent is proven |
+| common minimal | `tests/cases/` | Already proven locally for both PoCs before the import step |
+| common imported | `tests/cases/` | Portable candidates derived from Apache/NGINX tests; compatibility is claimed only after both connector smokes pass |
+| v2 imported | `tests/cases/` | Portable v2 semantics candidates adapted to HTTP behavior and proven on both connector PoCs |
+| v3 imported | `tests/cases/` | Portable v3 regression candidates adapted to HTTP behavior and proven on both connector PoCs |
+| Apache imported | `tests/cases/connector-specific/apache/` | Apache-only until a common equivalent is proven |
+| NGINX imported | `tests/cases/connector-specific/nginx/` | NGINX-only until a common equivalent is proven |
 
 Mapped-only categories include HTTP/2, proxy, multipart parser edge cases,
 response-body blocking, external-file operators, debug logs, and connector
@@ -133,7 +133,7 @@ variable/blocking case passes on both connectors.
 ModSecurity PR #3564 introduces `ARGS_RAW`, `ARGS_GET_RAW`, `ARGS_POST_RAW`,
 `ARGS_NAMES_RAW`, `ARGS_GET_NAMES_RAW`, and `ARGS_POST_NAMES_RAW`.
 
-The current local `/root/conecter/ModSecurity_V3` checkout does not contain the
+The current local `<workspace>/ModSecurity_V3` checkout does not contain the
 RAW collection implementation or its regression file, so this repository marks
 RAW arguments as `mapped-only/unsupported-local-source`. They must not appear in
 active PASS summaries until a configured v3 source includes the PR and both

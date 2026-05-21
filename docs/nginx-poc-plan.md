@@ -7,7 +7,7 @@ scaffolded build/runtime harness.
 
 ## Local Source Facts
 
-- Source: `/root/conecter/ModSecurity-nginx`
+- Source: `<workspace>/ModSecurity-nginx`
 - Observed branch: `master`
 - Observed version: `v1.0.4-14-g9eb44fd`
 - Build integration is the NGINX third-party module `config` file.
@@ -68,7 +68,7 @@ Observed local source:
 The NGINX PoC reuses the same portable cases as Apache:
 
 ```text
-tests/common/cases/minimal/*.yaml
+tests/cases/*.yaml
 ```
 
 Pass criteria remain the same: a real local HTTP response matching each YAML

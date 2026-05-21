@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/auditlog.json
+    reason: phase4 outbound matched-var audit future target.
+category: audit-log
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: future-compatibility."
+  - RESPONSE_BODY remains non-verified and non-promoted.
+name: phase4_auditlog_outbound_matched_var_future
+capabilities:
+  response_headers: false
+  response_body: false
+  audit_log: true
+  phase3: false
+  phase4: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_BODY "@contains outbound-var" "id:4908,phase:4,deny,status:403,auditlog,msg:'phase4 outbound matched var future'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    outbound-var
+expect:
+  status: 403
+  intervention: deny

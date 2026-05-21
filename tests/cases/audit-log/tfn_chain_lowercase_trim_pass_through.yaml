@@ -1,0 +1,30 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/lowercase.t; tests/tfn/trim.t
+    reason: lowercase+trim chain pass-through candidate.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: pending-runtime-verification."
+  - Runtime verification pending; not counted as verified PASS.
+name: tfn_chain_lowercase_trim_pass_through
+capabilities:
+  audit_log: false
+  collections: false
+  request_body: false
+  transformations: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule ARGS:q "@streq blocked" "id:4611,phase:2,t:lowercase,t:trim,deny,status:403,msg:'lowercase trim chain pass-through'"
+request:
+  method: GET
+  path: "/?q=  Safe  "
+expect:
+  status: 200
+  intervention: pass

@@ -1,0 +1,30 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-ARGS_NAMES.json
+    reason: duplicate args encoded separator edge probe.
+category: collections
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: runtime-difference."
+  - Runtime verification pending; not counted as verified PASS.
+name: duplicate_args_encoded_separator_edge
+capabilities:
+  audit_log: false
+  collections: true
+  request_body: false
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule ARGS_NAMES "@contains b" "id:4608,phase:2,deny,status:403,msg:'duplicate args encoded separator edge'"
+request:
+  method: GET
+  path: "/?a=1%3Bb=2&a=3"
+expect:
+  status: 403
+  intervention: deny

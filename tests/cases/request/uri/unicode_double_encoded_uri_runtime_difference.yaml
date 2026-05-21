@@ -1,0 +1,25 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/urlDecode.t
+    reason: double-encoded URI unicode runtime-difference probe.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: runtime-difference."
+  - Runtime verification pending; not counted as verified PASS.
+name: unicode_double_encoded_uri_runtime_difference
+capabilities:
+  multipart: false
+  files: false
+  request_body: false
+  transformations: true
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_URI "@contains café" "id:4707,phase:1,t:urlDecode,t:urlDecodeUni,deny,status:403,msg:'double encoded unicode uri runtime diff'"
+request:
+  method: GET
+  path: "/?q=%25u0063%25u0061%25u0066%25u00E9"
+expect:
+  status: 403
+  intervention: deny

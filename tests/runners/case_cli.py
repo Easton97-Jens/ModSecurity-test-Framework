@@ -4,44 +4,27 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
+from msconnector_models import (
+    RESULT_STATUSES,
+    connector_summary as build_connector_summary,
+    empty_connector_summary,
+)
 from runner_core import (
     assert_case_artifacts,
     case_info as build_case_info,
     discover_case_files,
+    expected_audit_log,
     load_case,
     write_body_file,
     write_headers_file,
     write_response_fixture,
     write_rules_file,
     write_shell_env,
+    write_nginx_runtime_files,
 )
-
-RESULT_STATUSES = ("pass", "fail", "blocked", "skipped", "xfail")
-IMPORT_STATUS_KEYS = (
-    "fully_imported_common",
-    "connector_specific",
-    "mapped_only",
-    "blocked",
-    "xfail",
-    "v2_imported",
-    "v3_imported",
-)
-VARIABLE_CAPABILITIES = {
-    "ARGS": {"query-args", "form-urlencoded"},
-    "ARGS_NAMES": {"args-names"},
-    "REQUEST_COOKIES": {"request-cookies"},
-    "REQUEST_HEADERS": {"request-headers"},
-    "REQUEST_URI": {"request-uri"},
-    "REQUEST_BODY": {"request-body", "json", "body-processors"},
-    "FILES": {"files"},
-    "XML": {"xml"},
-    "AUDIT_LOG": {"audit-log"},
-    "RESPONSE_HEADERS": {"response-headers"},
-}
 
 
 def materialize(args: argparse.Namespace) -> int:
@@ -53,6 +36,12 @@ def materialize(args: argparse.Namespace) -> int:
         write_body_file(case, args.body_file)
     if args.docroot:
         write_response_fixture(case, args.docroot)
+    write_nginx_runtime_files(
+        case,
+        args.nginx_location_directives_file,
+        args.nginx_runtime_config_dir,
+        args.nginx_phase4_log_file,
+    )
     write_shell_env(
         case,
         args.env_file,
@@ -71,6 +60,7 @@ def assert_status(args: argparse.Namespace) -> int:
         {"status": int(args.actual_status)},
         args.response_body_file,
         args.audit_log_file,
+        args.nginx_phase4_log_file,
     )
     status_file = Path(args.status_file) if args.status_file else None
     if errors:
@@ -88,13 +78,28 @@ def assert_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def write_audit_log_fixture(args: argparse.Namespace) -> int:
+    case = load_case(args.case)
+    audit_log = expected_audit_log(case)
+    content = "\n".join(
+        str(value)
+        for key, value in audit_log.items()
+        if key != "required" and value not in (None, "")
+    )
+    output = Path(args.audit_log_file)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(content + ("\n" if content else ""), encoding="utf-8")
+    return 0
+
+
 def list_cases(args: argparse.Namespace) -> int:
     cases = discover_case_files(
-        args.repo_root,
+        args.connector_root or args.repo_root,
         args.connector,
         args.scope,
         args.smoke_cases or "",
         args.test_case or "",
+        args.framework_root,
     )
     for case_path in cases:
         print(case_path)
@@ -125,26 +130,6 @@ def case_info(args: argparse.Namespace) -> int:
     return 0
 
 
-def verified_variables(entries: list[dict[str, object]]) -> list[str]:
-    variables = []
-    for names in passing_capability_sets(entries):
-        for variable, capabilities in VARIABLE_CAPABILITIES.items():
-            if names.intersection(capabilities):
-                variables.append(variable)
-    return sorted(dict.fromkeys(variables))
-
-
-def passing_capability_sets(entries: list[dict[str, object]]) -> list[set[str]]:
-    sets = []
-    for entry in entries:
-        if str(entry.get("status", "")) != "pass":
-            continue
-        capabilities = entry.get("capabilities", [])
-        if isinstance(capabilities, list):
-            sets.append({str(item) for item in capabilities})
-    return sets
-
-
 def read_jsonl(path: Path) -> list[dict[str, object]]:
     entries = []
     if path.exists():
@@ -155,68 +140,26 @@ def read_jsonl(path: Path) -> list[dict[str, object]]:
     return entries
 
 
-def result_counts(entries: list[dict[str, object]]) -> dict[str, int]:
-    counts = dict.fromkeys(RESULT_STATUSES, 0)
-    for entry in entries:
-        status = str(entry.get("status", "fail"))
-        counts.setdefault(status, 0)
-        counts[status] += 1
-    return counts
-
-
-def import_status_counts(path: str | None) -> dict[str, int]:
-    if not path:
-        return {}
-    import_status_path = Path(path)
-    if not import_status_path.exists():
-        return {}
-    manifest = json.loads(import_status_path.read_text(encoding="utf-8"))
-    return {
-        key: len(manifest.get(key, []))
-        for key in IMPORT_STATUS_KEYS
-        if isinstance(manifest.get(key, []), list)
-    }
-
-
-def audit_behavior(entries: list[dict[str, object]], import_status: dict[str, int]) -> str:
-    for entry in entries:
-        capabilities = entry.get("capabilities", [])
-        if str(entry.get("status", "")) == "fail" and isinstance(capabilities, list):
-            if {"audit-log", "audit-log-absent"}.intersection({str(item) for item in capabilities}):
-                return "unexpected"
-    if import_status.get("xfail", 0):
-        return "unstable"
-    return "stable"
-
-
-def default_environment() -> str:
-    configured = os.environ.get("SMOKE_ENVIRONMENT", "").strip()
-    if configured:
-        return configured
-    if os.environ.get("GITHUB_ACTIONS", "").lower() == "true":
-        return "github-actions"
-    return "local"
-
-
 def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]) -> dict[str, object]:
-    cases = {str(entry.get("name", "")): entry for entry in entries}
-    import_status = import_status_counts(args.import_status_file)
-    summary = {
-        "connector_path": args.connector_path,
-        "validation_mode": args.validation_mode,
-        "environment": args.environment or default_environment(),
-        "audit_behavior": audit_behavior(entries, import_status),
-        "server": args.server or args.connector,
-        "server_binary": args.server_binary or "",
-        "module": args.module or "",
-        "libmodsecurity": args.libmodsecurity or "",
-        "verified_variables": verified_variables(entries),
-        "summary": result_counts(entries),
-        "cases": cases,
-    }
-    if import_status:
-        summary["import_status"] = import_status
-    return summary
+    return build_connector_summary(
+        connector=args.connector,
+        entries=entries,
+        import_status_file=args.import_status_file,
+        connector_path=args.connector_path,
+        validation_mode=args.validation_mode,
+        environment=args.environment,
+        server=args.server or "",
+        server_binary=args.server_binary or "",
+        module=args.module or "",
+        libmodsecurity=args.libmodsecurity or "",
+        origin_source=args.origin_source or "",
+        origin_source_repo=args.origin_source_repo or "",
+        origin_source_url=args.origin_source_url or "",
+        origin_source_commit=args.origin_source_commit or "",
+        origin_source_version=args.origin_source_version or "",
+        origin_license=args.origin_license or "",
+        origin_imported_path=args.origin_imported_path or "",
+    )
 
 
 def write_summary_text(entries: list[dict[str, object]], path: Path) -> None:
@@ -242,6 +185,71 @@ def summarize_results(args: argparse.Namespace) -> int:
     return 0
 
 
+def summarize_empty(args: argparse.Namespace) -> int:
+    summary = {
+        args.connector: empty_connector_summary(
+            connector=args.connector,
+            status=args.status,
+            connector_path=args.connector_path,
+            validation_mode=args.validation_mode,
+            environment=args.environment,
+            server=args.server or "",
+            server_binary=args.server_binary or "",
+            module=args.module or "",
+            libmodsecurity=args.libmodsecurity or "",
+            origin_source=args.origin_source or "",
+            origin_source_repo=args.origin_source_repo or "",
+            origin_source_url=args.origin_source_url or "",
+            origin_source_commit=args.origin_source_commit or "",
+            origin_source_version=args.origin_source_version or "",
+            origin_license=args.origin_license or "",
+            origin_imported_path=args.origin_imported_path or "",
+        )
+    }
+    summary_json = Path(args.summary_json)
+    summary_json.parent.mkdir(parents=True, exist_ok=True)
+    summary_json.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    summary_text = Path(args.summary_text)
+    summary_text.parent.mkdir(parents=True, exist_ok=True)
+    summary_text.write_text(
+        f"{args.status.upper()} {args.connector}-build {args.message}\n",
+        encoding="utf-8",
+    )
+    return 0
+
+
+def validate_real_world_summary(args: argparse.Namespace) -> int:
+    data = json.loads(Path(args.summary_json).read_text(encoding="utf-8"))
+    summary = data.get(args.connector)
+    errors: list[str] = []
+    if not isinstance(summary, dict):
+        errors.append(f"missing connector summary: {args.connector}")
+    else:
+        expected_fields = {
+            "connector_path": args.connector_path,
+            "validation_mode": args.validation_mode,
+            "server": args.server,
+        }
+        for key, expected in expected_fields.items():
+            if summary.get(key) != expected:
+                errors.append(f"{key} expected {expected!r}, got {summary.get(key)!r}")
+        environment = summary.get("environment")
+        if not (environment in {"local", "github-actions"} or environment):
+            errors.append("environment is empty")
+        if summary.get("audit_behavior") not in {"stable", "unstable", "unexpected"}:
+            errors.append(f"unexpected audit_behavior: {summary.get('audit_behavior')!r}")
+        if summary.get("verified_variables") != []:
+            errors.append(f"verified_variables expected [], got {summary.get('verified_variables')!r}")
+        for key in ("server_binary", "module", "libmodsecurity", "summary", "cases"):
+            if key not in summary:
+                errors.append(f"missing summary key: {key}")
+    if errors:
+        print("; ".join(errors), file=sys.stderr)
+        return 1
+    print(f"pass: {args.connector} real-world summary schema")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -258,6 +266,9 @@ def build_parser() -> argparse.ArgumentParser:
     materialize_parser.add_argument("--docroot")
     materialize_parser.add_argument("--audit-log-file")
     materialize_parser.add_argument("--audit-log-dir")
+    materialize_parser.add_argument("--nginx-location-directives-file")
+    materialize_parser.add_argument("--nginx-runtime-config-dir")
+    materialize_parser.add_argument("--nginx-phase4-log-file")
     materialize_parser.set_defaults(func=materialize)
 
     assert_parser = subparsers.add_parser(
@@ -269,13 +280,24 @@ def build_parser() -> argparse.ArgumentParser:
     assert_parser.add_argument("--status-file")
     assert_parser.add_argument("--response-body-file")
     assert_parser.add_argument("--audit-log-file")
+    assert_parser.add_argument("--nginx-phase4-log-file")
     assert_parser.set_defaults(func=assert_status)
+
+    audit_parser = subparsers.add_parser(
+        "write-audit-log-fixture",
+        help="write audit-log fixture content from a shared YAML case",
+    )
+    audit_parser.add_argument("--case", required=True)
+    audit_parser.add_argument("--audit-log-file", required=True)
+    audit_parser.set_defaults(func=write_audit_log_fixture)
 
     list_parser = subparsers.add_parser(
         "list-cases",
         help="list applicable YAML case paths for a connector and scope",
     )
     list_parser.add_argument("--repo-root", required=True)
+    list_parser.add_argument("--framework-root")
+    list_parser.add_argument("--connector-root")
     list_parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
     list_parser.add_argument("--scope", default="all", choices=("common", "connector", "all"))
     list_parser.add_argument("--smoke-cases")
@@ -309,7 +331,50 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--server-binary")
     summarize_parser.add_argument("--module")
     summarize_parser.add_argument("--libmodsecurity")
+    summarize_parser.add_argument("--origin-source")
+    summarize_parser.add_argument("--origin-source-repo")
+    summarize_parser.add_argument("--origin-source-url")
+    summarize_parser.add_argument("--origin-source-commit")
+    summarize_parser.add_argument("--origin-source-version")
+    summarize_parser.add_argument("--origin-license")
+    summarize_parser.add_argument("--origin-imported-path")
     summarize_parser.set_defaults(func=summarize_results)
+
+    validate_parser = subparsers.add_parser(
+        "validate-real-world-summary",
+        help="validate the lightweight real-world connector summary schema",
+    )
+    validate_parser.add_argument("--summary-json", required=True)
+    validate_parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
+    validate_parser.add_argument("--connector-path", default="real-world")
+    validate_parser.add_argument("--validation-mode", default="real-world-connector-path")
+    validate_parser.add_argument("--server", required=True)
+    validate_parser.set_defaults(func=validate_real_world_summary)
+
+    empty_parser = subparsers.add_parser(
+        "summarize-empty",
+        help="write an empty connector summary for blocked or failed preparation",
+    )
+    empty_parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
+    empty_parser.add_argument("--status", required=True, choices=RESULT_STATUSES)
+    empty_parser.add_argument("--message", required=True)
+    empty_parser.add_argument("--summary-json", required=True)
+    empty_parser.add_argument("--summary-text", required=True)
+    empty_parser.add_argument("--connector-path", default="real-world")
+    empty_parser.add_argument("--validation-mode", default="real-world-connector-path")
+    empty_parser.add_argument("--environment")
+    empty_parser.add_argument("--server")
+    empty_parser.add_argument("--server-binary")
+    empty_parser.add_argument("--module")
+    empty_parser.add_argument("--libmodsecurity")
+    empty_parser.add_argument("--origin-source")
+    empty_parser.add_argument("--origin-source-repo")
+    empty_parser.add_argument("--origin-source-url")
+    empty_parser.add_argument("--origin-source-commit")
+    empty_parser.add_argument("--origin-source-version")
+    empty_parser.add_argument("--origin-license")
+    empty_parser.add_argument("--origin-imported-path")
+    empty_parser.set_defaults(func=summarize_empty)
 
     return parser
 

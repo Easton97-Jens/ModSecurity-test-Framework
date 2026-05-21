@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity_V2
+    path: tests/tfn/urlDecode.t
+    reason: plus-vs-space decoding runtime difference.
+category: transformations
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: runtime-difference."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: edge_plus_vs_space_runtime_difference
+capabilities:
+  intervention: true
+  phase1: true
+  phase2: false
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_URI "@contains plus space" "id:4515,phase:1,t:urlDecode,deny,status:403,msg:'plus vs space runtime difference'"
+request:
+  method: GET
+  path: "/?q=plus+space"
+expect:
+  status: 403
+  intervention: deny

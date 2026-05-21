@@ -1,0 +1,36 @@
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/variable-RESPONSE_HEADERS.json
+    reason: phase3 location encoded value runtime-difference probe.
+category: response-headers
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: runtime-difference."
+  - RESPONSE_BODY remains non-verified and non-promoted.
+name: phase3_response_headers_location_encoded_runtime_diff
+capabilities:
+  response_headers: true
+  response_body: false
+  audit_log: false
+  phase3: true
+  phase4: false
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain application/json
+  SecRule RESPONSE_HEADERS:Location "@contains %2F" "id:4903,phase:3,deny,status:403,msg:'phase3 location encoded runtime diff'"
+request:
+  method: GET
+  path: "/"
+response:
+  body: |
+    redirect marker
+expect:
+  status: 403
+  intervention: deny

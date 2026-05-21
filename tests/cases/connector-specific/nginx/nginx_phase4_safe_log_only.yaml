@@ -1,0 +1,48 @@
+name: nginx_phase4_safe_log_only
+origin:
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity-phase4-modes.t
+    reason: Derived from the PR #377 safe-mode phase-4 log-only expectation.
+category: response-body
+capabilities:
+  - response_body
+  - phase4
+  - logging
+  - pass_through
+portable: false
+connector: nginx
+status: imported
+
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain
+  SecRule RESPONSE_BODY "@contains Hello" \
+    "id:910002,phase:4,deny,log,status:403,msg:'phase4 safe probe'"
+
+nginx:
+  location_directives: |
+    modsecurity_phase4_mode safe;
+    modsecurity_phase4_log "@@NGINX_PHASE4_LOG@@";
+
+request:
+  method: GET
+  path: /
+
+response:
+  body: |
+    Hello safe
+
+expect:
+  status: 200
+  intervention: none
+  rule_id: none
+  response_contains: Hello safe
+  phase4_log:
+    required: true
+    contains:
+      - '"event":"phase4_intervention"'
+      - '"actual_action":"log_only"'
+      - '"reason":"mode_safe"'
+    not_contains:
+      - Hello safe

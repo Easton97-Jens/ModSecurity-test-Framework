@@ -25,7 +25,7 @@ connector returns the wrong HTTP status. `blocked` is only for prerequisites.
 | `blocked` | Relevant source exists but current harness cannot execute it |
 | `xfail` | Probeable case with known instability or expected failure |
 
-`tests/import-status.json` is the machine-readable manifest for import status
+`config/testing/import-status.json` is the machine-readable manifest for import status
 counts. Connector summaries copy those counts into `import_status`.
 
 ## Result Metadata

@@ -1,0 +1,24 @@
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/target/00-targets.t
+    reason: header variable in phase2 pass-through expectation.
+category: phase-handling
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: pending-runtime-verification."
+  - Pending cross-connector runtime verification; not counted as verified PASS.
+name: phase2_header_only_pass_through
+capabilities:
+  intervention: true
+  phase1: false
+  phase2: true
+rules: |
+  SecRuleEngine On
+  SecRule REQUEST_HEADERS:X-Phase "@streq block" "id:4512,phase:2,deny,status:403,msg:'phase2 header pass through'"
+request:
+  method: GET
+  path: "/"
+expect:
+  status: 200
+  intervention: pass

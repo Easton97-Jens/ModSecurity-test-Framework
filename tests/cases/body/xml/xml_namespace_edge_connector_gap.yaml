@@ -1,0 +1,29 @@
+origin:
+  - repo: ModSecurity-apache
+    path: tests/regression/rule/10-xml.t
+    reason: XML namespace edge connector-gap probe.
+category: body-processors
+portable: true
+status: xfail
+known_limitations:
+  - "Classification: connector-gap."
+  - Runtime verification pending; not counted as verified PASS.
+name: xml_namespace_edge_connector_gap
+capabilities:
+  multipart: false
+  files: false
+  request_body: true
+  transformations: false
+rules: |
+  SecRuleEngine On
+  SecRule XML "@contains ns:root" "id:4711,phase:2,deny,status:403,msg:'xml namespace edge gap'"
+request:
+  method: POST
+  path: "/"
+  headers:
+    Content-Type: application/xml
+  body: |-
+    <ns:root xmlns:ns="urn:test"><ns:a>1</ns:a></ns:root>
+expect:
+  status: 403
+  intervention: deny

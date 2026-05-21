@@ -7,10 +7,10 @@ Status: scaffolded
 Both connector PoCs use the same portable cases:
 
 ```text
-tests/common/cases/minimal/*.yaml
-tests/common/cases/imported/*.yaml
-tests/common/cases/v2-imported/*.yaml
-tests/common/cases/v3-imported/*.yaml
+tests/cases/*.yaml
+tests/cases/*.yaml
+tests/cases/*.yaml
+tests/cases/*.yaml
 ```
 
 Shared pieces:
@@ -57,7 +57,7 @@ NGINX:
   the materialized rules file.
 - A local source-built NGINX smoke has observed the YAML-expected HTTP status
   for all current shared minimal cases.
-- NGINX-specific imported cases under `tests/nginx/cases/imported/` currently
+- NGINX-specific imported cases under `tests/cases/connector-specific/nginx/` currently
   cover redirect and TX scoring behavior from the local NGINX suite. They stay
   NGINX-only until Apache equivalence is explicitly tested.
 
@@ -88,7 +88,7 @@ $BUILD_ROOT/nginx-runtime/nginx/modules/ngx_http_modsecurity_module.so
 ```
 
 Neither PoC writes to `/usr`, `/usr/local`, `/etc/apache2`, `/etc/nginx`, or
-`/root/conecter/*`.
+`<workspace>/*`.
 
 ## Current Local Comparison
 
@@ -109,7 +109,7 @@ compatibility still requires connector-specific regression coverage.
 
 Imported common cases add phase action, collection, and request-body coverage.
 Their source paths and portability decisions are documented in
-`tests/common/shared-case-origin-map.md` and `docs/test-import-plan.md`.
+`docs/imports/common/shared-case-origin-map.md` and `docs/test-import-plan.md`.
 The local `make smoke-all` run on 2026-05-15 after the V2/V3 import pass
 reported 30 Apache passes and 33 NGINX passes. The difference is the 3
 NGINX-specific imported cases that are not executed on Apache.

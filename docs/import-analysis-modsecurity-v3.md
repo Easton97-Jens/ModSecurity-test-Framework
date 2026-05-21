@@ -2,7 +2,7 @@
 
 Status: implemented
 
-Local source: `/root/conecter/ModSecurity_V3`  
+Local source: `<workspace>/ModSecurity_V3`
 Observed ref: `v3/master`, `v3.0.15`
 
 ## Role

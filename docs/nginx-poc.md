@@ -12,7 +12,7 @@ Status: scaffolded
   archive flow.
 - `connectors/nginx/harness/run_nginx_smoke.sh` prepares a local NGINX runtime
   under `BUILD_ROOT` and checks for a real HTTP `403`.
-- The shared minimal YAML cases under `tests/common/cases/minimal/` are the
+- The shared minimal YAML cases under `tests/cases/` are the
   rule/request/expectation source used by both Apache and NGINX harnesses.
 - The shared imported YAML cases add raw JSON body, simple multipart
   text-field, and response-body pass-through coverage without hardcoding those
@@ -36,14 +36,14 @@ not counted as NGINX connector success.
 Defaults are local conveniences only:
 
 ```sh
-MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
-MODSECURITY_NGINX_SOURCE_DIR=/root/conecter/ModSecurity-nginx
+MODSECURITY_V3_SOURCE_DIR=<workspace>/ModSecurity_V3
+MODSECURITY_NGINX_SOURCE_DIR=<workspace>/ModSecurity-nginx
 BUILD_ROOT=/src/ModSecurity-test-Framework-build
 LOG_DIR=$BUILD_ROOT/logs/nginx
 ```
 
 All paths are environment-overridable. Generated files must stay outside the
-Git checkout and outside `/root/conecter/*`.
+Git checkout and outside `<workspace>/*`.
 
 Run the build helper with:
 
@@ -133,9 +133,9 @@ $BUILD_ROOT/nginx-runtime/phase2_args_block/conf/nginx.conf
 Rules, request details, and expected statuses are read from:
 
 ```text
-tests/common/cases/minimal/*.yaml
-tests/common/cases/imported/*.yaml
-tests/nginx/cases/imported/*.yaml
+tests/cases/*.yaml
+tests/cases/*.yaml
+tests/cases/connector-specific/nginx/*.yaml
 ```
 
 The harness does not hardcode the rule, request path, request method, headers,
@@ -222,4 +222,4 @@ HTTP 403, so the candidate remains xfail/mapped-only.
 - GitHub latest release API:
   https://api.github.com/repos/nginx/nginx/releases/latest
 - NGINX configure documentation: https://nginx.org/en/docs/configure.html
-- ModSecurity-nginx local source: `/root/conecter/ModSecurity-nginx`
+- ModSecurity-nginx local source: `<workspace>/ModSecurity-nginx`

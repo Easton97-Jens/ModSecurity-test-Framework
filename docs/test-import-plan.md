@@ -3,7 +3,7 @@
 Status: implemented
 
 This document records the current import policy for local connector tests. The
-source repositories under `/root/conecter/*` are read-only references. No
+source repositories under `<workspace>/*` are read-only references. No
 upstream Apache or NGINX test file is copied verbatim into this repository.
 
 ## Inventory
@@ -12,26 +12,26 @@ Observed local source inventory on 2026-05-15:
 
 | Source | Relevant files analyzed | Notes |
 | --- | ---: | --- |
-| `/root/conecter/ModSecurity-apache/tests/` | 29 | Apache regression `.t`, `.t.in`, and harness files |
-| `/root/conecter/ModSecurity-nginx/tests/` | 17 | NGINX `.t`, README, and converter files |
-| `/root/conecter/ModSecurity_V2/tests/` | 115 | v2 operator, transformation, and regression files used only as semantics/reference material |
-| `/root/conecter/ModSecurity_V3/test/` | 264 | v3 API/regression files; 195 JSON regression cases under `test/test-cases/regression/` |
+| `<workspace>/ModSecurity-apache/tests/` | 29 | Apache regression `.t`, `.t.in`, and harness files |
+| `<workspace>/ModSecurity-nginx/tests/` | 17 | NGINX `.t`, README, and converter files |
+| `<workspace>/ModSecurity_V2/tests/` | 115 | v2 operator, transformation, and regression files used only as semantics/reference material |
+| `<workspace>/ModSecurity_V3/test/` | 264 | v3 API/regression files; 195 JSON regression cases under `test/test-cases/regression/` |
 
 Every relevant source file is mapped in:
 
 - `tests/apache/apache-regression-map.md`
 - `tests/nginx/nginx-regression-map.md`
-- `tests/common/shared-case-origin-map.md`
-- `tests/common/v2-regression-map.md`
-- `tests/common/v3-regression-map.md`
+- `docs/imports/common/shared-case-origin-map.md`
+- `docs/imports/common/v2-regression-map.md`
+- `docs/imports/common/v3-regression-map.md`
 - `docs/v2-vs-v3-test-compatibility.md`
 
 ## Import Rules
 
 - Common cases are allowed only when the rule, request, and expectation are
   connector-neutral and can run through both Apache and NGINX PoC harnesses.
-- Apache-only cases belong under `tests/apache/cases/imported/`.
-- NGINX-only cases belong under `tests/nginx/cases/imported/`.
+- Apache-only cases belong under `tests/cases/connector-specific/apache/`.
+- NGINX-only cases belong under `tests/cases/connector-specific/nginx/`.
 - Cases that need HTTP/2, proxy topology, multipart parsing, streaming,
   response-body filters, config inheritance, debug log text, remote rules, or
   external data files remain mapped until the harness has explicit support.
@@ -52,7 +52,7 @@ Every relevant source file is mapped in:
 ## Imported Common Cases
 
 The following source-derived common cases were added under
-`tests/common/cases/imported/`:
+`tests/cases/`:
 
 | Case | Source basis | Category | Expected behavior |
 | --- | --- | --- | --- |
@@ -106,7 +106,7 @@ cases uses invented example values.
 `v3_action_nolog_pass_no_audit.yaml` was moved out of active common discovery
 after GitHub Actions reported `expected audit log to be absent or empty`.
 Local Apache and NGINX runs observed HTTP 200 with empty audit logs, so the case
-remains probeable under `tests/common/cases/xfail/` but is not counted as stable
+remains probeable under `tests/cases/` but is not counted as stable
 common PASS.
 
 ## Body And Filter Import Notes
@@ -114,7 +114,7 @@ common PASS.
 The response-body block candidate is deliberately not active common coverage.
 `ModSecurity-nginx/tests/modsecurity-response-body.t` marks the blocking branch
 as TODO. The dedicated local probe in
-`tests/common/cases/xfail/response_body_basic_block.yaml` ran three repeats:
+`tests/cases/response/body/response_body_basic_block.yaml` ran three repeats:
 Apache returned HTTP 200 without the required audit hit, while NGINX matched the
 phase 4 `RESPONSE_BODY` rule and wrote audit/error evidence but returned an
 empty client reply (`000`) instead of stable HTTP 403. The source rows remain
@@ -134,7 +134,7 @@ current shared smoke path does not prove `ARGS:foo` parity.
 ## Imported Connector-Specific Cases
 
 The following NGINX-specific cases were added under
-`tests/nginx/cases/imported/`:
+`tests/cases/connector-specific/nginx/`:
 
 | Case | Source basis | Category | Expected behavior | Why connector-specific now |
 | --- | --- | --- | --- | --- |
