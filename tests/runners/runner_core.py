@@ -714,26 +714,23 @@ def _capability_names(case: Mapping[str, Any]) -> list[str]:
 
 def case_scope(path: str | Path) -> str:
     parts = Path(path).parts
-    if "connectors" in parts:
-        index = parts.index("connectors")
-        tail = parts[index:]
-        if len(tail) >= 6 and tail[1] in {"apache", "nginx"} and tail[2] == "tests" and tail[3] == "cases":
-            return f"{tail[1]}/{tail[4]}"
     if "tests" in parts:
         index = parts.index("tests")
         tail = parts[index:]
-        if len(tail) >= 4 and tail[1] == "common" and tail[2] == "cases":
-            return f"common/{tail[3]}"
-        if len(tail) >= 4 and tail[1] in {"apache", "nginx"} and tail[2] == "cases":
-            return f"{tail[1]}/{tail[3]}"
+        if len(tail) >= 5 and tail[1] == "cases" and tail[2] == "connector-specific":
+            return f"{tail[3]}/connector-specific"
+        if len(tail) >= 3 and tail[1] == "cases":
+            return "common/" + case_group(path)
     return "unknown"
 
 
 def case_group(path: str | Path) -> str:
-    scope = case_scope(path)
-    if "/" in scope:
-        return scope.split("/", 1)[1]
-    return scope
+    status_groups = {"minimal", "imported", "v2-imported", "v3-imported", "xfail"}
+    for part in reversed(Path(path).parts):
+        if part in status_groups:
+            return part
+    scope = str(path)
+    return "unknown" if scope else "unknown"
 
 
 def case_info(
@@ -787,24 +784,14 @@ def _unique_existing_dirs(paths: Iterable[Path]) -> list[Path]:
 
 def _case_dirs(connector_root: Path, connector: str, scope: str, framework_root: Path | None = None) -> list[Path]:
     common_root = framework_root if framework_root is not None else connector_root
-    common_dirs = [
-        common_root / "tests" / "common" / "cases" / "minimal",
-        common_root / "tests" / "common" / "cases" / "imported",
-        common_root / "tests" / "common" / "cases" / "v2-imported",
-        common_root / "tests" / "common" / "cases" / "v3-imported",
-    ]
-    if force_all_cases_enabled():
-        common_dirs.append(common_root / "tests" / "common" / "cases" / "xfail")
-    connector_case_root = connector_root / "connectors" / connector / "tests" / "cases"
-    connector_dirs = [connector_case_root / "imported"]
-    if force_all_cases_enabled():
-        connector_dirs.append(connector_case_root / "xfail")
+    common_dirs = [common_root / "tests" / "cases"]
+    connector_dirs = [common_root / "tests" / "cases" / "connector-specific" / connector]
     if scope == "common":
         return _unique_existing_dirs(common_dirs)
     if scope == "connector":
         return _unique_existing_dirs(connector_dirs)
     if scope == "all":
-        return _unique_existing_dirs(common_dirs + connector_dirs)
+        return _unique_existing_dirs(common_dirs)
     raise ValueError(f"unsupported case scope: {scope}")
 
 
@@ -825,6 +812,8 @@ def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str
     path_scope = case_scope(path)
     declared_connector = case.get("connector")
     portable = case.get("portable")
+    if not force_all_cases_enabled() and case_group(path) == "xfail":
+        return False
     if path_scope.startswith("common/"):
         if declared_connector not in (None, "", "common"):
             return False
@@ -838,7 +827,13 @@ def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str
 
 def _resolve_named_case(item: str, selected_dirs: list[Path]) -> Path:
     name = item if item.endswith(".yaml") else f"{item}.yaml"
-    matches = [directory / name for directory in selected_dirs if (directory / name).is_file()]
+    matches = [
+        path
+        for directory in selected_dirs
+        if directory.is_dir()
+        for path in directory.rglob(name)
+        if path.is_file()
+    ]
     if not matches:
         raise FileNotFoundError(f"missing smoke case in selected scope: {item}")
     if len(matches) > 1:
@@ -854,9 +849,9 @@ def _resolve_case_item(item: str, root: Path, connector: str, scope: str, select
         path = candidate
     else:
         scoped_matches = [
-            directory.parent.parent.parent.parent / candidate
+            directory / candidate
             for directory in selected_dirs
-            if (directory.parent.parent.parent.parent / candidate).is_file()
+            if (directory / candidate).is_file()
         ]
         if len(scoped_matches) == 1:
             path = scoped_matches[0]
@@ -889,7 +884,7 @@ def _selected_case_candidates(
         path
         for directory in selected_dirs
         if directory.is_dir()
-        for path in sorted(directory.glob("*.yaml"))
+        for path in sorted(directory.rglob("*.yaml"))
     ]
 
 

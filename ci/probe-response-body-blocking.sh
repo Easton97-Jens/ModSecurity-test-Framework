@@ -11,7 +11,7 @@ PROBE_ROOT="${RESPONSE_BODY_PROBE_ROOT:-$BUILD_ROOT/response-body-probe}"
 RESULTS_ROOT="$PROBE_ROOT/results"
 LOG_ROOT="$PROBE_ROOT/logs"
 RUNTIME_ROOT="$PROBE_ROOT/runtime"
-CASE_FILE="${RESPONSE_BODY_PROBE_CASE:-$FRAMEWORK_ROOT/tests/common/cases/xfail/response_body_basic_block.yaml}"
+CASE_FILE="${RESPONSE_BODY_PROBE_CASE:-$FRAMEWORK_ROOT/tests/cases/response/body/xfail/response_body_basic_block.yaml}"
 REPEAT="${RESPONSE_BODY_PROBE_REPEAT:-3}"
 
 require_absolute_generated_path() {

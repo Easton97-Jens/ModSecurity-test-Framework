@@ -1,0 +1,47 @@
+name: nginx_phase4_strict_connection_abort
+origin:
+  - repo: ModSecurity-nginx
+    path: tests/modsecurity-phase4-modes.t
+    reason: Derived from the PR #377 strict-mode late-intervention expectation.
+category: response-body
+capabilities:
+  - response_body
+  - phase4
+  - intervention
+  - logging
+portable: false
+connector: nginx
+status: xfail
+known_limitations:
+  - The current smoke harness expects stable HTTP status codes; strict mode may abort after headers are sent.
+  - Kept outside normal discovery until a dedicated empty-reply assertion exists.
+
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain
+  SecRule RESPONSE_BODY "@contains Hello" \
+    "id:910003,phase:4,deny,log,status:403,msg:'phase4 strict probe'"
+
+nginx:
+  location_directives: |
+    modsecurity_phase4_mode strict;
+    modsecurity_phase4_log "@@NGINX_PHASE4_LOG@@";
+
+request:
+  method: GET
+  path: /
+
+response:
+  body: |
+    Hello strict
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 910003
+  phase4_log:
+    required: true
+    contains:
+      - '"event":"phase4_intervention"'
+      - '"actual_action":"connection_abort"'

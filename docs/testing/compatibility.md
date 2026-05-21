@@ -34,7 +34,8 @@ configuration, it is connector-specific unless proven portable.
 
 ## Shared Minimal Cases
 
-The files under `tests/common/cases/minimal/` are portable rule/request models.
+The files under `$FRAMEWORK_ROOT/tests/common/cases/minimal/` are portable
+rule/request models supplied by `ModSecurity-test-Framework`.
 They are not proof that a connector supports the behavior until that
 connector's runtime harness observes the expected HTTP response.
 
@@ -58,10 +59,10 @@ complete response-body behavior.
 
 | Scope | Location | Compatibility meaning |
 | --- | --- | --- |
-| common minimal | `tests/common/cases/minimal/` | Already proven locally for both PoCs before the import step |
-| common imported | `tests/common/cases/imported/` | Portable candidates derived from Apache/NGINX tests; compatibility is claimed only after both connector smokes pass |
-| v2 imported | `tests/common/cases/v2-imported/` | Portable v2 semantics candidates adapted to HTTP behavior and proven on both connector PoCs |
-| v3 imported | `tests/common/cases/v3-imported/` | Portable v3 regression candidates adapted to HTTP behavior and proven on both connector PoCs |
+| common minimal | `$FRAMEWORK_ROOT/tests/common/cases/minimal/` | Already proven locally for both PoCs before the import step |
+| common imported | `$FRAMEWORK_ROOT/tests/common/cases/imported/` | Portable candidates derived from Apache/NGINX tests; compatibility is claimed only after both connector smokes pass |
+| v2 imported | `$FRAMEWORK_ROOT/tests/common/cases/v2-imported/` | Portable v2 semantics candidates adapted to HTTP behavior and proven on both connector PoCs |
+| v3 imported | `$FRAMEWORK_ROOT/tests/common/cases/v3-imported/` | Portable v3 regression candidates adapted to HTTP behavior and proven on both connector PoCs |
 | Apache imported | `connectors/apache/tests/cases/imported/` | Apache-only until a common equivalent is proven |
 | NGINX imported | `connectors/nginx/tests/cases/imported/` | NGINX-only until a common equivalent is proven |
 
@@ -157,7 +158,7 @@ GitHub Actions agree.
 
 The smoke/lint tooling has explicit prerequisites and reports missing runtime inputs as **BLOCKED**.
 
-Shell helper defaults are centralized in `ci/common.sh`. Override variables in
+Shell helper defaults are centralized in `modules/ModSecurity-test-Framework/ci/common.sh`. Override variables in
 the environment rather than editing scripts:
 
 ```bash
@@ -184,7 +185,7 @@ NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
 NGINX_RELEASE_TAG=latest
 ```
 
-`ci/common.sh` is passive and does not run checks, fetch sources, or create
+`modules/ModSecurity-test-Framework/ci/common.sh` is passive and does not run checks, fetch sources, or create
 artifacts by itself. Connector source is repo-local by default; external
 Apache/NGINX connector repositories require explicit opt-in and are not runtime
 defaults.
@@ -199,7 +200,7 @@ python3 -m pip install -r requirements-dev.txt
 
 Currently required for lint helpers:
 
-- `PyYAML>=6,<7` (used by `ci/check-workflow-yaml.py`)
+- `PyYAML>=6,<7` (used by `modules/ModSecurity-test-Framework/ci/check-workflow-yaml.py`)
 
 If missing, lint prints a clear blocked message and installation hint instead of a Python traceback.
 
@@ -229,7 +230,7 @@ make doctor
 
 The doctor output separates source-build readiness from optional installed
 readiness. Source-build readiness uses the configured source aliases from
-`ci/common.sh`; installed Apache/NGINX/libmodsecurity detection is diagnostic
+`modules/ModSecurity-test-Framework/ci/common.sh`; installed Apache/NGINX/libmodsecurity detection is diagnostic
 only and does not make system installations a standard prerequisite. If no
 ModSecurity v3 source tree is available, doctor exits BLOCKED and prints the
 exact export or `make fetch-deps` remediation command.
@@ -243,7 +244,7 @@ To bootstrap real external runtime prerequisites explicitly:
 make fetch-deps
 ```
 
-This uses `ci/fetch-smoke-sources.sh` and fetches the ModSecurity core engine
+This uses `modules/ModSecurity-test-Framework/ci/fetch-smoke-sources.sh` and fetches the ModSecurity core engine
 source from the configured `MODSECURITY_REPO_URL` / `MODSECURITY_GIT_REF` (see
 `docs/testing/bootstrap.md`). Apache and NGINX connector source remains
 repo-local by default.

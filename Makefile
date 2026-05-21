@@ -3,11 +3,13 @@ STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
 BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-test-framework-build
 FRAMEWORK_ROOT ?= $(CURDIR)
 CONNECTOR_ROOT ?= $(CURDIR)
+OUTPUT_ROOT ?= $(CONNECTOR_ROOT)
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
 export FRAMEWORK_ROOT
 export CONNECTOR_ROOT
+export OUTPUT_ROOT
 export PYTHON
 export PYTHONDONTWRITEBYTECODE
 export REFRESH
@@ -32,12 +34,12 @@ lint:
 	git diff --check
 
 generate-test-matrix:
-	$(PYTHON) ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(CONNECTOR_ROOT)"
+	$(PYTHON) ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
 
 check-test-matrix:
-	$(PYTHON) ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(CONNECTOR_ROOT)"
-	@git -C "$(CONNECTOR_ROOT)" diff --exit-code -- docs/testing/generated docs/testing/test-coverage-overview.md TEST-COVERAGE-SUMMARY.md >/dev/null || { \
-		echo "Generated test matrix docs are out of date for CONNECTOR_ROOT=$(CONNECTOR_ROOT)"; \
+	$(PYTHON) ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
+	@git -C "$(OUTPUT_ROOT)" diff --exit-code -- reports/testing docs/testing TEST-COVERAGE-SUMMARY.md >/dev/null || { \
+		echo "Generated test matrix docs are out of date for OUTPUT_ROOT=$(OUTPUT_ROOT)"; \
 		exit 1; \
 	}
 

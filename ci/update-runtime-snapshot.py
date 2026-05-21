@@ -18,7 +18,8 @@ import yaml
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
 CONNECTOR_ROOT = Path.cwd()
 OUTPUT_ROOT = CONNECTOR_ROOT
-SNAPSHOT = OUTPUT_ROOT / "docs/testing/runtime-validation-snapshot.json"
+REPORT_ROOT = OUTPUT_ROOT / "docs/testing"
+SNAPSHOT = REPORT_ROOT / "runtime-validation-snapshot.json"
 sys.path.insert(0, str(FRAMEWORK_ROOT / "tests" / "runners"))
 
 from runner_core import case_group, load_case  # noqa: E402
@@ -30,11 +31,12 @@ def default_build_root() -> Path:
 
 
 def configure_paths(framework_root: str | Path, connector_root: str | Path, output_root: str | Path | None) -> None:
-    global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, SNAPSHOT
+    global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, REPORT_ROOT, SNAPSHOT
     FRAMEWORK_ROOT = Path(framework_root).resolve()
     CONNECTOR_ROOT = Path(connector_root).resolve()
     OUTPUT_ROOT = Path(output_root).resolve() if output_root is not None else CONNECTOR_ROOT
-    SNAPSHOT = OUTPUT_ROOT / "docs/testing/runtime-validation-snapshot.json"
+    REPORT_ROOT = OUTPUT_ROOT / ("docs/testing" if OUTPUT_ROOT == FRAMEWORK_ROOT else "reports/testing")
+    SNAPSHOT = REPORT_ROOT / "runtime-validation-snapshot.json"
 
 
 def git_value(*args: str) -> str:
@@ -314,6 +316,7 @@ def main() -> int:
             "RESPONSE_BODY remains experimental/non-verified.",
         ],
     }
+    SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
     SNAPSHOT.write_text(json.dumps(snapshot, indent=2, sort_keys=False) + "\n", encoding="utf-8")
     return 0
 

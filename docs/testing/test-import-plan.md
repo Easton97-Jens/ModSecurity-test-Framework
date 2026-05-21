@@ -21,8 +21,8 @@ Observed local source inventory on 2026-05-15:
 
 Every relevant source file is mapped in:
 
-- `tests/apache/apache-regression-map.md`
-- `tests/nginx/nginx-regression-map.md`
+- `docs/testing/imports/apache-regression-map.md`
+- `docs/testing/imports/nginx-regression-map.md`
 - `tests/common/shared-case-origin-map.md`
 - `tests/common/v2-regression-map.md`
 - `tests/common/v3-regression-map.md`

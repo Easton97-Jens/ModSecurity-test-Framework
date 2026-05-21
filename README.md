@@ -1,77 +1,99 @@
 # ModSecurity Test Framework
 
-This repository contains the shared ModSecurity connector test framework:
-YAML case schemas, shared runners, normalizers, runtime-matrix generation, and
-coverage/reporting helpers.
+This repository is the shared test, runtime, coverage, and reporting framework
+for ModSecurity connector projects. It owns the reusable YAML case corpus,
+runner code, normalizers, runtime-matrix tooling, generated report logic, and
+testing documentation.
 
-It is not a connector implementation repository. Connector code, connector
-harnesses, adapter metadata, connector-specific cases, and generated connector
-reports live in the consuming connector project.
+It is not a connector implementation repository. Connector projects provide
+connector source code, harness entrypoints, adapter metadata, and connector-local
+runtime evidence.
 
-## Integration Model
+## Runtime Matrix
 
-The framework is used through explicit paths:
+The runtime matrix joins framework-owned YAML cases with connector-owned runtime
+summary evidence. It records per-case Apache and NGINX outcomes as evidence
+only; it never promotes XFAIL, pending, future, connector-gap, or RESPONSE_BODY
+cases automatically.
+
+Connector projects normally run:
+
+```sh
+CONNECTOR_ROOT=/path/to/ModSecurity-conector make runtime-matrix-all
+```
+
+`runtime-matrix-all` sets `FORCE_ALL_CASES=1` and attempts all applicable YAML
+cases. Expected failures remain visible in generated reports.
+
+## YAML Case System
+
+Cases live under `tests/cases/` and are organized by topic:
+
+```text
+request/{args,cookies,headers,uri}/
+body/{json,xml,multipart,files}/
+security/{sql,xss}/
+response/{headers,body}/
+audit-log/
+transformations/
+phases/
+negative-pass-through/
+connector-specific/{apache,nginx,envoy,haproxy,lighttpd,traefik}/
+future-gap/
+```
+
+Case identity comes from the YAML `name` field, not the filesystem path. Path
+taxonomy is used for discovery and reporting only.
+
+## Runner Architecture
+
+The shell harnesses call `tests/runners/case_cli.py`, which uses
+`tests/runners/runner_core.py` to load YAML cases, materialize rules and
+fixtures, and assert runtime responses. Normalizers live in `tests/normalizers/`.
+
+Default discovery uses active/imported/minimal cases. Force-all discovery also
+includes XFAIL, pending, future, and gap cases where they are applicable to the
+current connector.
+
+## Coverage Reports
+
+The generator writes framework-owned reports when `OUTPUT_ROOT` is this
+repository, and connector-owned evidence reports when `OUTPUT_ROOT` is a
+connector repository:
+
+```sh
+python3 ci/generate-case-matrix.py \
+  --framework-root /path/to/ModSecurity-test-Framework \
+  --connector-root /path/to/ModSecurity-conector \
+  --output-root /path/to/ModSecurity-conector
+```
+
+Connector output goes to `reports/testing/` plus a root
+`TEST-COVERAGE-SUMMARY.md`. Framework output goes to `docs/testing/` plus its
+own root `TEST-COVERAGE-SUMMARY.md`.
+
+## Evidence Semantics
+
+- Generated coverage is reporting only.
+- Full runtime evidence must come from local connector source-build smokes.
+- `make smoke-all` is authoritative only if it was actually executed
+  successfully.
+- XFAIL, pending, future, connector-gap, and runtime-difference cases are
+  evidence classes, not PASS promotions.
+- `RESPONSE_BODY` remains non-verified/non-promoted unless explicitly proven by
+  stable full-smoke runtime evidence in the connector project.
+
+## Connector Integration
+
+Use explicit paths:
 
 ```sh
 FRAMEWORK_ROOT=/path/to/ModSecurity-test-Framework
 CONNECTOR_ROOT=/path/to/ModSecurity-conector
 ```
 
-Connector repositories may point `FRAMEWORK_ROOT` at a module/submodule checkout
-such as `modules/ModSecurity-test-Framework`, or at another explicit local
-checkout. That is a configured path, not a hidden absolute workspace fallback.
-
-Common cases are read from this repository:
-
-```text
-tests/common/cases/
-tests/common/schema/
-tests/runners/
-tests/normalizers/
-```
-
-Connector-specific inventory is read from the connector repository:
-
-```text
-$CONNECTOR_ROOT/config/testing/import-status.json
-$CONNECTOR_ROOT/connectors/<connector>/tests/cases/
-$CONNECTOR_ROOT/connectors/<connector>/harness/
-```
-
-Generated reports are written to the connector repository unless another
-`--output-root` is provided.
-
-## Core Commands
-
-Run framework-only checks:
-
-```sh
-make lint
-```
-
-Generate connector reports from the shared framework plus connector inventory:
-
-```sh
-CONNECTOR_ROOT=/path/to/ModSecurity-conector make generate-test-matrix
-CONNECTOR_ROOT=/path/to/ModSecurity-conector make check-test-matrix
-```
-
-Run the connector runtime matrix through the connector project:
-
-```sh
-CONNECTOR_ROOT=/path/to/ModSecurity-conector make runtime-matrix-all
-```
-
-Runtime smokes still belong to the connector project. This framework records
-runtime evidence but never promotes xfail, pending, future, connector-gap, or
-RESPONSE_BODY cases automatically.
-
-## Runtime Evidence Policy
-
-- Generated coverage is reporting only.
-- Full runtime evidence must come from local connector source-build smokes.
-- `RESPONSE_BODY` remains non-verified/non-promoted unless explicitly proven by
-  stable full-smoke runtime evidence in the connector project.
-- `BUILD_ROOT` is a build/output directory, not a cache contract.
-- External Apache/NGINX connector repositories are not default dependencies;
-  connector source comes from the consuming connector repository.
+Connector repositories may vendor this framework as a submodule, commonly under
+`modules/ModSecurity-test-Framework`. There is no hidden absolute workspace
+fallback. Connector-specific inventory stays in the connector repository at
+`config/testing/import-status.json`; runtime evidence stays under
+`reports/testing/`.

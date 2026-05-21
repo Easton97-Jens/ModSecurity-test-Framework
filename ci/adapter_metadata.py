@@ -17,7 +17,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 
-REPO_ROOT = Path(os.environ.get("CONNECTOR_ROOT", Path(__file__).resolve().parents[1])).resolve()
+FRAMEWORK_ROOT = Path(os.environ.get("FRAMEWORK_ROOT", Path(__file__).resolve().parents[1])).resolve()
+REPO_ROOT = Path(os.environ.get("CONNECTOR_ROOT", FRAMEWORK_ROOT)).resolve()
 CONNECTOR_PATHS = {
     "apache": REPO_ROOT / "connectors/apache/metadata.c",
     "nginx": REPO_ROOT / "connectors/nginx/metadata.c",
@@ -180,8 +181,8 @@ def require_contains(path: Path, values: list[str]) -> list[str]:
 def check_drift() -> int:
     errors: list[str] = []
     shared_docs = [
-        REPO_ROOT / "docs/imports/connector-code-import-plan.md",
-        REPO_ROOT / "docs/imports/sources.md",
+        FRAMEWORK_ROOT / "docs/imports/connector-code-import-plan.md",
+        FRAMEWORK_ROOT / "docs/imports/sources.md",
         REPO_ROOT / "docs/licensing/license-and-origin.md",
     ]
     for connector, metadata in load_all().items():
@@ -217,7 +218,7 @@ def check_drift() -> int:
             for value in missing:
                 errors.append(f"{path}: missing {value!r} from adapter metadata")
 
-        analysis_path = REPO_ROOT / f"docs/imports/import-analysis-{connector}.md"
+        analysis_path = FRAMEWORK_ROOT / f"docs/imports/import-analysis-{connector}.md"
         missing = require_contains(analysis_path, [metadata.source_url, metadata.source_version])
         for value in missing:
             errors.append(f"{analysis_path}: missing {value!r} from adapter metadata")

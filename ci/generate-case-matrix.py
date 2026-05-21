@@ -14,8 +14,9 @@ FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
 CONNECTOR_ROOT = Path.cwd()
 OUTPUT_ROOT = CONNECTOR_ROOT
 IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
-RUNTIME_SNAPSHOT = OUTPUT_ROOT / "docs/testing/runtime-validation-snapshot.json"
-OUT = OUTPUT_ROOT / "docs/testing/generated"
+REPORT_ROOT = OUTPUT_ROOT / "docs/testing"
+RUNTIME_SNAPSHOT = REPORT_ROOT / "runtime-validation-snapshot.json"
+OUT = REPORT_ROOT / "generated"
 
 RULE_RE = re.compile(r'^\s*SecRule\s+([^\s]+)\s+"(@[^\s"]+)')
 PHASE_RE = re.compile(r"phase:(\d)")
@@ -74,21 +75,7 @@ MATRIX_STATUS_ORDER = [
     "NOT EXECUTED",
 ]
 
-ROOT_DETAIL_DOCS = [
-    "docs/testing/test-coverage-overview.md",
-    "docs/testing/generated/case-matrix.generated.md",
-    "docs/testing/generated/coverage-summary.generated.md",
-    "docs/testing/generated/xfail-summary.generated.md",
-    "docs/testing/generated/connector-gap-summary.generated.md",
-    "docs/testing/generated/phase-coverage.generated.md",
-    "docs/testing/generated/runtime-matrix.generated.md",
-    "docs/testing/generated/apache-runtime-results.generated.md",
-    "docs/testing/generated/nginx-runtime-results.generated.md",
-    "docs/testing/runtime-validation-snapshot.json",
-    "docs/testing/nginx-runtime-failure-classification.md",
-    "docs/testing/response-body-blocking-investigation.md",
-    "docs/testing/compatibility.md",
-]
+STATUS_GROUPS = {"minimal", "imported", "v2-imported", "v3-imported", "xfail"}
 
 
 def warn(message: str) -> None:
@@ -96,7 +83,7 @@ def warn(message: str) -> None:
 
 
 def configure_paths(framework_root: str | Path | None, connector_root: str | Path | None, output_root: str | Path | None) -> None:
-    global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, IMPORT_STATUS, RUNTIME_SNAPSHOT, OUT
+    global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, REPORT_ROOT, IMPORT_STATUS, RUNTIME_SNAPSHOT, OUT
     if framework_root is not None:
         FRAMEWORK_ROOT = Path(framework_root).resolve()
     if connector_root is not None:
@@ -104,9 +91,10 @@ def configure_paths(framework_root: str | Path | None, connector_root: str | Pat
     else:
         CONNECTOR_ROOT = FRAMEWORK_ROOT
     OUTPUT_ROOT = Path(output_root).resolve() if output_root is not None else CONNECTOR_ROOT
+    REPORT_ROOT = OUTPUT_ROOT / ("docs/testing" if OUTPUT_ROOT == FRAMEWORK_ROOT else "reports/testing")
     IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
-    RUNTIME_SNAPSHOT = OUTPUT_ROOT / "docs/testing/runtime-validation-snapshot.json"
-    OUT = OUTPUT_ROOT / "docs/testing/generated"
+    RUNTIME_SNAPSHOT = REPORT_ROOT / "runtime-validation-snapshot.json"
+    OUT = REPORT_ROOT / "generated"
 
 
 def md(value: object) -> str:
@@ -129,16 +117,12 @@ def read_yaml(path: Path) -> dict:
 
 def infer_scope(path: Path) -> str:
     s = str(path).replace("\\", "/")
-    if "/tests/common/" in s:
+    if "/tests/cases/connector-specific/apache/" in s:
+        return "apache"
+    if "/tests/cases/connector-specific/nginx/" in s:
+        return "nginx"
+    if "/tests/cases/" in s:
         return "common"
-    if "/connectors/apache/tests/cases/" in s:
-        return "apache"
-    if "/connectors/nginx/tests/cases/" in s:
-        return "nginx"
-    if "/tests/apache/" in s:
-        return "apache"
-    if "/tests/nginx/" in s:
-        return "nginx"
     return "unknown"
 
 
@@ -233,10 +217,7 @@ def parse_case(path: Path) -> dict:
 
 
 def gather_cases() -> list[dict]:
-    files = []
-    files.extend(sorted((FRAMEWORK_ROOT / "tests" / "common" / "cases").rglob("*.yaml")))
-    for scope in ["apache", "nginx"]:
-        files.extend(sorted((CONNECTOR_ROOT / "connectors" / scope / "tests" / "cases").rglob("*.yaml")))
+    files = sorted((FRAMEWORK_ROOT / "tests" / "cases").rglob("*.yaml"))
     return [parse_case(p) for p in files]
 
 
@@ -265,6 +246,13 @@ def load_runtime_snapshot() -> dict:
 def write(path: Path, body: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("Generated file — do not edit manually.\n\n" + body.rstrip() + "\n", encoding="utf-8")
+
+
+def report_doc(name: str) -> str:
+    try:
+        return str((REPORT_ROOT / name).relative_to(OUTPUT_ROOT))
+    except ValueError:
+        return str(REPORT_ROOT / name)
 
 
 def render_case_matrix(cases: list[dict]) -> str:
@@ -401,13 +389,24 @@ def render_status_table(title: str, rows: list[dict], columns: list[tuple[str, s
 
 def case_group(case: dict) -> str:
     parts = Path(case["path"]).parts
+    for part in reversed(parts):
+        if part in STATUS_GROUPS:
+            return part
+    return "unknown"
+
+
+def case_category(case: dict) -> str:
+    parts = Path(case["path"]).parts
     try:
         index = parts.index("cases")
     except ValueError:
         return "unknown"
-    if index + 1 < len(parts):
-        return parts[index + 1]
-    return "unknown"
+    category_parts: list[str] = []
+    for part in parts[index + 1 : -1]:
+        if part in STATUS_GROUPS:
+            break
+        category_parts.append(part)
+    return "/".join(category_parts) or "unknown"
 
 
 def runtime_summary_by_connector(snapshot: dict) -> dict[str, dict]:
@@ -575,6 +574,7 @@ def runtime_rows(cases: list[dict], snapshot: dict) -> list[dict[str, str]]:
                 "case_id": case["id"],
                 "path": case["path"],
                 "scope": case["scope"],
+                "category": case_category(case),
                 "group": case_group(case),
                 "yaml_status": case["status"],
                 "runtime_executable": "yes" if runtime_executable(case, "apache") or runtime_executable(case, "nginx") else "no",
@@ -659,8 +659,8 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         *render_runtime_status_count_table(apache_counts, nginx_counts, len(mapped_only)),
         "",
         "## YAML Runtime Matrix",
-        "| case_id | path | scope | group | YAML status | default executable | force-all executable | Apache | Apache reason | Apache evidence | NGINX | NGINX reason | NGINX evidence |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| case_id | path | scope | category | group | YAML status | default executable | force-all executable | Apache | Apache reason | Apache evidence | NGINX | NGINX reason | NGINX evidence |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:
         lines.append(
@@ -671,6 +671,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
                     "case_id",
                     "path",
                     "scope",
+                    "category",
                     "group",
                     "yaml_status",
                     "runtime_executable",
@@ -744,7 +745,7 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
         return [
             "",
             "## Latest Local Runtime Validation Snapshot",
-            "- No local runtime snapshot is recorded in `docs/testing/runtime-validation-snapshot.json`.",
+            f"- No local runtime snapshot is recorded in `{report_doc('runtime-validation-snapshot.json')}`.",
             "- Do not infer runtime PASS counts from generated coverage metadata.",
         ]
 
@@ -852,7 +853,7 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
 
     open_issues = snapshot.get("open_issues", [])
     if isinstance(open_issues, list) and open_issues:
-        lines.extend(["", "## Offene Runtime-Probleme"])
+        lines.extend(["", "## Open Runtime Issues"])
         lines.extend(f"- {issue}" for issue in open_issues)
 
     return lines
@@ -887,56 +888,66 @@ def render_root_summary(
     runtime_executable_count = sum(1 for row in rt_rows if row["runtime_executable"] == "yes")
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
 
+    detail_docs = [
+        "test-coverage-overview.md",
+        "generated/case-matrix.generated.md",
+        "generated/coverage-summary.generated.md",
+        "generated/xfail-summary.generated.md",
+        "generated/connector-gap-summary.generated.md",
+        "generated/phase-coverage.generated.md",
+        "generated/runtime-matrix.generated.md",
+        "generated/apache-runtime-results.generated.md",
+        "generated/nginx-runtime-results.generated.md",
+        "runtime-validation-snapshot.json",
+    ]
+
     lines = [
         "# ModSecurity Connector Test Coverage Summary",
         "",
-        "## Kurzstatus",
-        f"- Gesamtzahl aller YAML Cases: **{metrics['total']}**",
-        f"- verified/pass (`runtime_verified=true`): **{metrics['verified']}**",
-        f"- xfail: **{metrics['xfail']}**",
-        f"- pending-runtime-verification (`runtime_verified=false`): **{metrics['pending_false']}**",
-        f"- pending-runtime-verification (`runtime_verified=unknown`): **{metrics['pending_unknown']}**",
-        f"- connector-gap: **{metrics['connector_gap']}**",
-        f"- runtime-difference: **{metrics['runtime_difference']}**",
-        f"- future/experimental: **{metrics['future_experimental']}**",
-        f"- RESPONSE_BODY Cases: **{metrics['response_body']}**",
-        f"- default runtime-executable YAML Cases: **{runtime_executable_count}**",
-        f"- force-all runtime-executable YAML Cases: **{force_all_executable_count}**",
-        f"- Apache attempted YAML Cases in latest runtime snapshot: **{apache_attempted}**",
-        f"- NGINX attempted YAML Cases in latest runtime snapshot: **{nginx_attempted}**",
-        f"- mapped-only import inventory entries: **{mapped_only_count}**",
+        "## Summary Status",
+        f"- Total YAML cases: **{metrics['total']}**",
+        f"- Verified/pass (`runtime_verified=true`): **{metrics['verified']}**",
+        f"- XFAIL cases: **{metrics['xfail']}**",
+        f"- Pending runtime verification (`runtime_verified=false`): **{metrics['pending_false']}**",
+        f"- Pending runtime verification (`runtime_verified=unknown`): **{metrics['pending_unknown']}**",
+        f"- Connector-gap cases: **{metrics['connector_gap']}**",
+        f"- Runtime-difference cases: **{metrics['runtime_difference']}**",
+        f"- Future/experimental cases: **{metrics['future_experimental']}**",
+        f"- RESPONSE_BODY cases: **{metrics['response_body']}**",
+        f"- Default runtime-executable YAML cases: **{runtime_executable_count}**",
+        f"- Force-all runtime-executable YAML cases: **{force_all_executable_count}**",
+        f"- Apache attempted YAML cases in latest runtime snapshot: **{apache_attempted}**",
+        f"- NGINX attempted YAML cases in latest runtime snapshot: **{nginx_attempted}**",
+        f"- Mapped-only import inventory entries: **{mapped_only_count}**",
         "",
-        "**RESPONSE_BODY ist nicht verified/promoted.** Diese Datei ist generiertes Reporting und keine Runtime-Evidenz.",
+        "**RESPONSE_BODY is not verified or promoted.** This file is generated reporting, not runtime proof.",
         "",
         "## Framework Integration",
-        "- Framework root used for shared cases/tools: `FRAMEWORK_ROOT`.",
-        "- Connector root used for adapter inventory/reports: `CONNECTOR_ROOT`.",
-        "- Common YAML cases, runners, normalizers, and generators are owned by `ModSecurity-test-Framework`.",
-        "- Connector-specific cases, adapter metadata, harnesses, import status, and generated reports are owned by this connector repository.",
-        "- `FRAMEWORK_ROOT` is configurable and may point at a module/submodule or another explicit checkout; there is no absolute workspace fallback.",
+        "- Shared YAML cases, runners, normalizers, generators, and detailed testing documentation are owned by `ModSecurity-test-Framework`.",
+        "- The connector repository owns connector source, harnesses, adapter metadata, `config/testing/import-status.json`, and connector-specific generated evidence under `reports/testing/`.",
+        "- `FRAMEWORK_ROOT` and `CONNECTOR_ROOT` are explicit integration paths; there is no absolute workspace fallback.",
         "",
-        "## Testarten",
-        f"- Common YAML Cases: **{by_scope.get('common', 0)}**",
-        f"- Apache-specific Cases: **{by_scope.get('apache', 0)}**",
-        f"- NGINX-specific Cases: **{by_scope.get('nginx', 0)}**",
-        f"- xfail Cases: **{metrics['xfail']}**",
-        f"- mapped-only import inventory entries: **{mapped_only_count}** (nicht als runnable YAML Cases gezählt)",
-        f"- runtime-blocked import inventory entries: **{runtime_blocked_count}** (belegte Harness-/Umgebungsblocker, keine PASS- oder XFAIL-Promotion)",
-        f"- pending/future compatibility Cases: **{metrics['future_experimental']}** future/experimental; "
-        f"**{metrics['pending_false'] + metrics['pending_unknown']}** nicht runtime-verified",
+        "## Case Types",
+        f"- Common YAML cases: **{by_scope.get('common', 0)}**",
+        f"- Apache-specific YAML cases: **{by_scope.get('apache', 0)}**",
+        f"- NGINX-specific YAML cases: **{by_scope.get('nginx', 0)}**",
+        f"- XFAIL cases: **{metrics['xfail']}**",
+        f"- Mapped-only import inventory entries: **{mapped_only_count}** (not counted as runnable YAML cases)",
+        f"- Runtime-blocked import inventory entries: **{runtime_blocked_count}** (environment/harness blockers, not PASS or XFAIL promotions)",
+        f"- Pending/future compatibility cases: **{metrics['future_experimental']}** future/experimental; **{metrics['pending_false'] + metrics['pending_unknown']}** not runtime-verified",
         "",
-        "## Statusklassen",
+        "## Status Classes",
         "| Status | Count |",
         "|---|---:|",
     ]
     lines.extend(f"| {status} | {count} |" for status, count in sorted(by_status.items()))
     lines.extend(["", "## Scope", "| Scope | Count |", "|---|---:|"])
     lines.extend(f"| {scope} | {by_scope.get(scope, 0)} |" for scope in ["common", "apache", "nginx", "unknown"])
-    lines.extend(["", "## Coverage nach Variablen/Collections", "| Variable / Collection | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Variable / Collection", "| Variable / Collection | Count |", "|---|---:|"])
     lines.extend(f"| `{name}` | {collection_counts.get(name, 0)} |" for name in ROOT_COLLECTIONS)
-    lines.extend(["", "## Coverage nach Phase", "| Phase | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Phase", "| Phase | Count |", "|---|---:|"])
     lines.extend(f"| Phase {phase} | {by_phase.get(phase, 0)} |" for phase in [1, 2, 3, 4])
-    lines.extend(["", "## Coverage nach Themen", "| Topic | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Topic", "| Topic | Count |", "|---|---:|"])
     lines.extend(f"| {topic} | {count} |" for topic, count in topics.items())
     lines.extend(
         [
@@ -952,11 +963,11 @@ def render_root_summary(
             f"- NGINX NOT EXECUTED YAML rows: **{nginx_runtime_counts.get('NOT EXECUTED', 0)}**",
             f"- Apache NOT_EXECUTABLE YAML rows: **{apache_runtime_counts.get('NOT_EXECUTABLE', 0)}**",
             f"- NGINX NOT_EXECUTABLE YAML rows: **{nginx_runtime_counts.get('NOT_EXECUTABLE', 0)}**",
-            f"- mapped-only import inventory entries: **{mapped_only_count}**",
-            "- Runtime Matrix Detail: `docs/testing/generated/runtime-matrix.generated.md`",
-            "- Apache per-case results: `docs/testing/generated/apache-runtime-results.generated.md`",
-            "- NGINX per-case results: `docs/testing/generated/nginx-runtime-results.generated.md`",
-            "- PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence; xfail/pending cases are not promoted.",
+            f"- Mapped-only import inventory entries: **{mapped_only_count}**",
+            f"- Runtime matrix detail: `{report_doc('generated/runtime-matrix.generated.md')}`",
+            f"- Apache per-case results: `{report_doc('generated/apache-runtime-results.generated.md')}`",
+            f"- NGINX per-case results: `{report_doc('generated/nginx-runtime-results.generated.md')}`",
+            "- PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence; XFAIL and pending cases are not promoted.",
             "- RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.",
         ]
     )
@@ -964,36 +975,33 @@ def render_root_summary(
     lines.extend(
         [
             "",
-            "## Offene Bereiche / Gaps",
-            "- Runtime verification pending: Cases mit `runtime_verified=false` oder `runtime_verified=unknown` sind nicht als Runtime-PASS zu lesen.",
-            "- RESPONSE_BODY non-verified: RESPONSE_BODY bleibt nicht promoted, auch wenn Reporting Cases erfasst.",
-            "- GitHub/Codex checks sind absichtlich leichtgewichtig und liefern keine Runtime-Kompatibilitaetsbeweise.",
-            "- XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.",
-            "- Runtime-blocked Import-Einträge sind belegte Harness-/Umgebungsblocker und keine Connector-Gap- oder Runtime-Difference-Promotion.",
-            "- `installed-readiness` ist Komponenten-Erkennung/Readiness, keine Runtime-Ausführung.",
-            "- Es gibt keinen separaten Artefakt-Reuse-Smoke-Pfad; Runtime-Validierung erfolgt per frischem Source-Build.",
-            "- `make smoke-all` bleibt die autoritative Quelle für echte Runtime-PASS-Zahlen.",
+            "## Open Areas / Gaps",
+            "- Runtime verification pending: cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.",
+            "- RESPONSE_BODY remains non-verified and non-promoted.",
+            "- GitHub/Codex checks are intentionally lightweight and do not prove runtime compatibility.",
+            "- XFAIL, pending, future, connector-gap, and runtime-difference cases require local runtime evidence before any status change.",
+            "- Runtime-blocked import entries are environment or harness blockers and do not imply connector-gap/runtime-difference promotion.",
+            "- `installed-readiness` is diagnostic detection, not runtime execution.",
+            "- There is no separate artifact-reuse smoke path; runtime validation uses source-build execution.",
+            "- `make smoke-all` is authoritative only when it is actually executed successfully.",
             "",
-            "## Kommandos",
+            "## Commands",
         ]
     )
     lines.extend(f"- `{command}`" for command in ROOT_COMMANDS)
-    lines.extend(["", "## Detaildokumente"])
-    lines.extend(f"- `{doc}`" for doc in ROOT_DETAIL_DOCS)
+    lines.extend(["", "## Detail Reports"])
+    lines.extend(f"- `{report_doc(doc)}`" for doc in detail_docs)
     lines.extend(
         [
             "",
-            "## Wichtiger Hinweis",
-            "Generated coverage != runtime evidence.",
-            "Full runtime validation is local.",
+            "## Important Note",
+            "Generated coverage is reporting only; it is not runtime evidence by itself.",
+            "Full runtime validation is local and evidence-based.",
             "GitHub/Codex checks are intentionally lightweight.",
-            "XFAIL/pending/gap cases need local runtime validation.",
-            "Die generierte Coverage-Dokumentation ist Reporting. Sie ersetzt keine Runtime-Evidenz.",
-            "Full runtime validation ist lokal; GitHub/Codex checks sind absichtlich leichtgewichtig.",
-            "XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.",
-            "`make smoke-all` bleibt die autoritative Quelle für echte PASS-Zahlen.",
-            "Keine PASS-Zahlen werden aus dieser Datei abgeleitet, wenn `make smoke-all` nicht vollständig lief.",
-            "Keine RESPONSE_BODY-Promotion ohne stabile Full-Smoke-Runtime-Evidenz.",
+            "XFAIL, pending, future, and gap cases need local runtime validation before promotion.",
+            "`make smoke-all` is authoritative only if it was actually executed successfully.",
+            "No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.",
+            "No RESPONSE_BODY promotion is made without stable full-smoke runtime evidence.",
         ]
     )
     return "\n".join(lines)
@@ -1023,13 +1031,30 @@ def render_overview(
     runtime_executable_count = sum(1 for row in rt_rows if row["runtime_executable"] == "yes")
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
 
-    lines = ["# ModSecurity Connector Test Coverage Overview", "", "## Kurzzusammenfassung", f"- Gesamtzahl Cases: **{len(cases)}**", f"- verified/pass count (runtime_verified=true): **{by_runtime.get('true', 0)}**", f"- xfail count: **{by_status.get('xfail', 0)}**", f"- pending-runtime-verification count: **{by_runtime.get('false', 0)}**", f"- connector-gap count: **{connector_gap_count}**", f"- runtime-difference count: **{runtime_diff_count}**", f"- future/experimental count: **{future_exp_count}**", f"- RESPONSE_BODY cases: **{response_body_count}** (weiterhin **nicht verified/promoted**)", f"- mapped-only import inventory entries: **{mapped_only_count}**", "", "## Coverage nach Variable/Collection", "| Variable | Count |", "|---|---:|"]
+    lines = [
+        "# ModSecurity Connector Test Coverage Overview",
+        "",
+        "## Summary",
+        f"- Total cases: **{len(cases)}**",
+        f"- Verified/pass count (`runtime_verified=true`): **{by_runtime.get('true', 0)}**",
+        f"- XFAIL count: **{by_status.get('xfail', 0)}**",
+        f"- Pending runtime verification count: **{by_runtime.get('false', 0)}**",
+        f"- Connector-gap count: **{connector_gap_count}**",
+        f"- Runtime-difference count: **{runtime_diff_count}**",
+        f"- Future/experimental count: **{future_exp_count}**",
+        f"- RESPONSE_BODY cases: **{response_body_count}** (still **not verified/promoted**)",
+        f"- Mapped-only import inventory entries: **{mapped_only_count}**",
+        "",
+        "## Coverage By Variable / Collection",
+        "| Variable | Count |",
+        "|---|---:|",
+    ]
     lines.extend(f"| `{k}` | {v} |" for k, v in by_var.most_common(20))
-    lines.extend(["", "## Coverage nach Phase", "| Phase | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Phase", "| Phase | Count |", "|---|---:|"])
     lines.extend(f"| {phase} | {by_phase.get(phase, 0)} |" for phase in [1, 2, 3, 4])
-    lines.extend(["", "## Coverage nach Status", "| Status | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Status", "| Status | Count |", "|---|---:|"])
     lines.extend(f"| {status} | {count} |" for status, count in sorted(by_status.items()))
-    lines.extend(["", "## Coverage nach Scope", "| Scope | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Scope", "| Scope | Count |", "|---|---:|"])
     lines.extend(f"| {scope} | {by_scope.get(scope, 0)} |" for scope in ["common", "apache", "nginx", "unknown"])
     lines.extend(
         [
@@ -1040,13 +1065,55 @@ def render_overview(
             f"- Apache attempted YAML cases from latest summary: **{apache_attempted}**",
             f"- NGINX attempted YAML cases from latest summary: **{nginx_attempted}**",
             *render_runtime_status_count_table(apache_runtime_counts, nginx_runtime_counts, mapped_only_count),
-            "- Details: `docs/testing/generated/runtime-matrix.generated.md`",
+            f"- Details: `{report_doc('generated/runtime-matrix.generated.md')}`",
         ]
     )
     lines.extend(render_runtime_snapshot(runtime_snapshot))
-    lines.extend(["", "## Top offene Gaps", "- Siehe `docs/testing/generated/connector-gap-summary.generated.md` für detaillierte Einträge.", "", "## Verified Runtime Coverage", "- Runtime-verified ist nur das, was als `runtime_verified=true` klassifiziert ist.", "", "## Pending Runtime Verification", "- Fälle mit `runtime_verified=false/unknown` sind nicht als Runtime-PASS zu lesen.", "", "## XFAIL / Known Gap Coverage", "- XFAIL/Pending/Future/Experimental Fälle sind in der XFAIL-Summary gelistet.", "- XFAIL/Pending/Gaps brauchen lokale Runtime-Validierung vor einer Promotion.", "", "## Connector Gap / Runtime Difference Coverage", "- Connector-Gap und Runtime-Difference sind explizit separat ausgewiesen.", "", "## Phase 3/4 Outbound Coverage", "- Phase 3/4 Fälle sind in `phase-coverage.generated.md` und der Matrix enthalten.", "", "## RESPONSE_BODY Status", "- RESPONSE_BODY bleibt nicht verified/promoted.", "", "## Cloud/Quick/Full Smoke Bedeutung", "- Generated coverage != runtime evidence.", "- Full runtime validation is local.", "- GitHub/Codex checks are intentionally lightweight.", "- XFAIL/pending/gap cases need local runtime validation.", "- GitHub/Codex checks sind absichtlich leichtgewichtig und liefern keine Runtime-Kompatibilitaetsbeweise.", "- Full runtime validation ist lokal.", "- `make smoke-all` bleibt autoritativ für Runtime-Evidenz.", "", "## Generated Artefakte", "- `docs/testing/generated/case-matrix.generated.md`", "- `docs/testing/generated/coverage-summary.generated.md`", "- `docs/testing/generated/xfail-summary.generated.md`", "- `docs/testing/generated/connector-gap-summary.generated.md`", "- `docs/testing/generated/phase-coverage.generated.md`", "", "## Hinweis", "- Generated summaries ersetzen keine Full-Smoke Runtime-Evidenz.", "- Keine RESPONSE_BODY-Promotion ohne stabile Vollbelege."])
+    lines.extend(
+        [
+            "",
+            "## Open Gaps",
+            f"- See `{report_doc('generated/connector-gap-summary.generated.md')}` for detailed entries.",
+            "",
+            "## Verified Runtime Coverage",
+            "- Runtime-verified means only cases explicitly classified as `runtime_verified=true`.",
+            "",
+            "## Pending Runtime Verification",
+            "- Cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.",
+            "",
+            "## XFAIL / Known Gap Coverage",
+            "- XFAIL, pending, future, and experimental cases are listed in the XFAIL summary.",
+            "- XFAIL, pending, and gap cases need local runtime validation before promotion.",
+            "",
+            "## Connector Gap / Runtime Difference Coverage",
+            "- Connector-gap and runtime-difference classes are reported separately.",
+            "",
+            "## Phase 3/4 Outbound Coverage",
+            f"- Phase 3/4 cases are visible in `{report_doc('generated/phase-coverage.generated.md')}` and in the runtime matrix.",
+            "",
+            "## RESPONSE_BODY Status",
+            "- RESPONSE_BODY remains not verified and not promoted.",
+            "",
+            "## Cloud / Quick / Full Smoke Meaning",
+            "- Generated coverage is not runtime evidence by itself.",
+            "- Full runtime validation is local and evidence-based.",
+            "- GitHub/Codex checks are intentionally lightweight.",
+            "- XFAIL, pending, and gap cases need local runtime validation.",
+            "- `make smoke-all` is authoritative only if it was actually executed successfully.",
+            "",
+            "## Generated Artifacts",
+            f"- `{report_doc('generated/case-matrix.generated.md')}`",
+            f"- `{report_doc('generated/coverage-summary.generated.md')}`",
+            f"- `{report_doc('generated/xfail-summary.generated.md')}`",
+            f"- `{report_doc('generated/connector-gap-summary.generated.md')}`",
+            f"- `{report_doc('generated/phase-coverage.generated.md')}`",
+            "",
+            "## Note",
+            "- Generated summaries do not replace full-smoke runtime evidence.",
+            "- No RESPONSE_BODY promotion is made without stable runtime evidence.",
+        ]
+    )
     return "\n".join(lines)
-
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1076,7 +1143,7 @@ def main(argv: list[str] | None = None) -> int:
     write(OUT / "apache-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "apache"))
     write(OUT / "nginx-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "nginx"))
     write(
-        OUTPUT_ROOT / "docs/testing/test-coverage-overview.md",
+        REPORT_ROOT / "test-coverage-overview.md",
         render_overview(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count),
     )
     write(OUTPUT_ROOT / "TEST-COVERAGE-SUMMARY.md", render_root_summary(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase))

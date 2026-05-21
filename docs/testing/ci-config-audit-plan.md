@@ -25,8 +25,8 @@ rg "<local-paths>|<system-paths>|github.com|MODSECURITY|BUILD_ROOT|SOURCE_ROOT" 
 
 ## Current Positive State
 
-- `ci/common.sh` exists and is passive: it defines variables and functions only.
-- `ci/common.sh` now defines canonical/passive source aliases
+- `modules/ModSecurity-test-Framework/ci/common.sh` exists and is passive: it defines variables and functions only.
+- `modules/ModSecurity-test-Framework/ci/common.sh` now defines canonical/passive source aliases
   (`MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`,
   `MODSECURITY_V3_ROOT`) and optional installed-readiness hints/search lists.
 - `make cloud-quick-check` is currently framework/generator/lint oriented and
@@ -47,10 +47,10 @@ workspace paths:
 
 | Area | Current finding | Risk |
 | --- | --- | --- |
-| `ci/common.sh` | `DEFAULT_BUILD_ROOT` now uses a portable local state/output path | `/src` remains usable only as explicit `BUILD_ROOT`. |
-| `ci/common.sh` | legacy v3 source-dir fallback variable removed | No parent-workspace fallback remains. |
+| `modules/ModSecurity-test-Framework/ci/common.sh` | `DEFAULT_BUILD_ROOT` now uses a portable local state/output path | `/src` remains usable only as explicit `BUILD_ROOT`. |
+| `modules/ModSecurity-test-Framework/ci/common.sh` | legacy v3 source-dir fallback variable removed | No parent-workspace fallback remains. |
 | `Makefile` | `BUILD_ROOT` now defaults through local state/output settings | Make no longer implies `/src`. |
-| `ci/build-v3-under-src.sh` / `ci/run-v3-api-smoke.sh` / `ci/check-v3-api-smoke-prereqs.sh` | `MODSECURITY_V3_DIR` defaults under `BUILD_ROOT` | v3 API helpers no longer default to `/src`. |
+| `modules/ModSecurity-test-Framework/ci/build-v3-under-src.sh` / `modules/ModSecurity-test-Framework/ci/run-v3-api-smoke.sh` / `modules/ModSecurity-test-Framework/ci/check-v3-api-smoke-prereqs.sh` | `MODSECURITY_V3_DIR` defaults under `BUILD_ROOT` | v3 API helpers no longer default to `/src`. |
 | `ci/find-modsecurity-v3.sh` | Checks explicit aliases and `$SOURCE_ROOT/ModSecurity_V3` only | No sibling repo auto-detection remains. |
 | Several scripts | Safety guards still protect root-level destructive targets | These are deletion-safety checks, not source fallbacks. |
 
@@ -70,7 +70,7 @@ Risk:
 
 ### 2. Source Directory Naming Is Not Fully Centralized
 
-`ci/common.sh` now centralizes repo URLs/refs and the requested canonical source
+`modules/ModSecurity-test-Framework/ci/common.sh` now centralizes repo URLs/refs and the requested canonical source
 aliases. Remaining follow-up work is to separate fetched source dirs from
 adapter-owned source dirs more explicitly.
 
@@ -101,13 +101,13 @@ Currently referenced external sources:
 
 | Source | Location | Status |
 | --- | --- | --- |
-| `https://github.com/owasp-modsecurity/ModSecurity.git` | `ci/common.sh`, workflow/docs | Core repo, expected |
+| `https://github.com/owasp-modsecurity/ModSecurity.git` | `modules/ModSecurity-test-Framework/ci/common.sh`, workflow/docs | Core repo, expected |
 | `https://github.com/owasp-modsecurity/ModSecurity-apache` | docs/import metadata only | Historical connector reference, not default fetch |
 | `https://github.com/owasp-modsecurity/ModSecurity-nginx` | docs/import metadata only | Historical connector reference, not default fetch |
-| `https://github.com/nginx/nginx` | `ci/common.sh`, NGINX build helper, manual workflow | NGINX server source dependency |
-| `https://downloads.apache.org/httpd/...` | `ci/common.sh` | Apache/httpd server source dependency |
-| `https://downloads.apache.org/apr/...` | `ci/common.sh` | APR/APR-util server source dependency |
-| `https://github.com/PCRE2Project/pcre2/...` | `ci/common.sh` | Library source dependency |
+| `https://github.com/nginx/nginx` | `modules/ModSecurity-test-Framework/ci/common.sh`, NGINX build helper, manual workflow | NGINX server source dependency |
+| `https://downloads.apache.org/httpd/...` | `modules/ModSecurity-test-Framework/ci/common.sh` | Apache/httpd server source dependency |
+| `https://downloads.apache.org/apr/...` | `modules/ModSecurity-test-Framework/ci/common.sh` | APR/APR-util server source dependency |
+| `https://github.com/PCRE2Project/pcre2/...` | `modules/ModSecurity-test-Framework/ci/common.sh` | Library source dependency |
 
 Recommendation:
 
@@ -125,7 +125,7 @@ Risk:
 
 ### 4. Fetch Reuse Does Not Validate Existing Git Checkouts
 
-`ci/fetch-smoke-sources.sh` currently:
+`modules/ModSecurity-test-Framework/ci/fetch-smoke-sources.sh` currently:
 
 - clones configured URL/ref into configured destination.
 - reuses an existing `.git` directory without validating:
@@ -168,12 +168,12 @@ Risk:
 
 ### 6. Installed Readiness Is Still Mixed Into Doctor Output
 
-`ci/doctor.sh` originally checked build tools, Python deps, source paths,
+`modules/ModSecurity-test-Framework/ci/doctor.sh` originally checked build tools, Python deps, source paths,
 GitHub reachability, generated build outputs, and installed
 Apache/NGINX/libmodsecurity readiness in one flow. It reports installed
 components even for source-build validation.
 
-`ci/smoke-installed.sh` is explicitly readiness-only, which is good, but the
+`modules/ModSecurity-test-Framework/ci/smoke-installed.sh` is explicitly readiness-only, which is good, but the
 installed detection logic still contains hardcoded system paths:
 
 - `/lib/x86_64-linux-gnu`
@@ -192,7 +192,7 @@ Recommendation:
   - `OPTIONAL INSTALLED READINESS`
 - Source-build readiness must not require system Apache, NGINX, or installed
   libmodsecurity.
-- Move installed search path lists to `ci/common.sh` as optional readiness
+- Move installed search path lists to `modules/ModSecurity-test-Framework/ci/common.sh` as optional readiness
   defaults.
 - Keep installed-readiness returning `BLOCKED` when incomplete, but document
   that this does not block source-built smoke.
@@ -228,7 +228,7 @@ Risk:
 
 ### 8. Build Dependency Versions Are Not Centralized
 
-`ci/common.sh` now owns:
+`modules/ModSecurity-test-Framework/ci/common.sh` now owns:
 
 - `HTTPD_VERSION`
 - `APR_VERSION`
@@ -256,7 +256,7 @@ Risk:
 These are safe to do in the next small patch. The first pass implemented these
 items without changing runtime smoke semantics:
 
-- Add missing passive aliases in `ci/common.sh`:
+- Add missing passive aliases in `modules/ModSecurity-test-Framework/ci/common.sh`:
   `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_ROOT`, `APACHECTL_BIN`,
   `MODSECURITY_PKG_CONFIG`, `MODSECURITY_LIB_DIR`,
   `MODSECURITY_INCLUDE_DIR`.
@@ -267,11 +267,11 @@ items without changing runtime smoke semantics:
 
 Implemented status:
 
-- `ci/common.sh` now defines the missing source aliases and optional installed
+- `modules/ModSecurity-test-Framework/ci/common.sh` now defines the missing source aliases and optional installed
   hints, plus centralized installed-readiness candidate/search-list variables.
-- `ci/doctor.sh` now reports `SOURCE-BUILD READINESS` and
+- `modules/ModSecurity-test-Framework/ci/doctor.sh` now reports `SOURCE-BUILD READINESS` and
   `OPTIONAL INSTALLED READINESS` separately.
-- `ci/smoke-installed.sh` now consumes the centralized installed-readiness
+- `modules/ModSecurity-test-Framework/ci/smoke-installed.sh` now consumes the centralized installed-readiness
   candidate/search-list variables.
 - Documentation now clarifies that `/src` is a replaceable build-artifact
   location, installed-readiness is optional diagnostics, and `make smoke-all`
@@ -305,6 +305,31 @@ helpers.
 Runtime/build/fetch/debug helpers were deliberately kept unless the reference
 audit proved them dead. Full runtime validation remains local.
 
+## Framework Extraction Follow-Up
+
+The shared test/runtime/coverage layer is now owned by the sibling
+`ModSecurity-test-Framework` checkout and consumed through configurable
+`FRAMEWORK_ROOT` / `CONNECTOR_ROOT` paths.
+
+Moved to the framework:
+
+- common YAML cases and schema notes
+- shared case runner and normalizers
+- matrix, coverage, runtime-snapshot, and runtime-matrix generators
+- generic source-build smoke orchestration helpers
+
+Kept in this connector repository:
+
+- Apache/NGINX connector source and harnesses
+- adapter metadata and connector materialization checks
+- `config/testing/import-status.json`
+- connector-specific cases under `connectors/<connector>/tests/`
+- generated connector reports under `docs/testing/generated`
+
+Connector-local `ci/` entrypoints that overlap with framework-owned helpers are
+compatibility wrappers only; they delegate to `$FRAMEWORK_ROOT`. No xfail,
+pending, connector-gap, or RESPONSE_BODY status was promoted by the extraction.
+
 ## Changes That Should Be Separate
 
 These remain separate follow-ups:
@@ -315,7 +340,7 @@ These remain separate follow-ups:
 ## Proposed Follow-Up Implementation Order
 
 1. Add missing passive aliases and installed-readiness helper variables to
-   `ci/common.sh`.
+   `modules/ModSecurity-test-Framework/ci/common.sh`.
 2. Refactor `doctor` output into source-build and optional-installed sections;
    preserve existing BLOCKED/PASS honesty.
 3. Add git checkout validation to `fetch-smoke-sources.sh`.
