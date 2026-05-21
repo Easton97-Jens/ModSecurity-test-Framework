@@ -21,7 +21,8 @@ from typing import Any
 from adapter_metadata import load_metadata
 
 
-REPO_ROOT = Path(os.environ.get("CONNECTOR_ROOT", Path(__file__).resolve().parents[1])).resolve()
+FRAMEWORK_ROOT = Path(os.environ.get("FRAMEWORK_ROOT", Path(__file__).resolve().parents[1])).resolve()
+REPO_ROOT = Path(os.environ.get("CONNECTOR_ROOT", FRAMEWORK_ROOT)).resolve()
 SCRIPT_RELATIVE = "ci/materialize-connector-source.py"
 EXCLUDED_DIRS = {
     ".deps",
@@ -245,6 +246,51 @@ def copy_adapter_files(
     return entries
 
 
+def apache_framework_template_destination(relative_path: Path) -> Path | None:
+    if relative_path.name == "README.md":
+        return None
+    if relative_path.name == "run-regression-tests.pl.in":
+        return Path("tests") / relative_path.name
+    if relative_path.parts[:1] == ("regression",):
+        return Path("tests") / relative_path
+    if relative_path.parts[:1] == ("t",):
+        return relative_path
+    return None
+
+
+def copy_framework_reference_files(
+    connector: str,
+    destination_root: Path,
+    metadata_license: str,
+    metadata_commit: str,
+    metadata_version: str,
+) -> dict[str, ManifestEntry]:
+    if connector != "apache":
+        return {}
+    source_root = FRAMEWORK_ROOT / "tests/upstream/connector-specific/apache"
+    if not source_root.is_dir():
+        return {}
+    entries: dict[str, ManifestEntry] = {}
+    for relative_path in iter_files(source_root):
+        destination_relative = apache_framework_template_destination(relative_path)
+        if destination_relative is None:
+            continue
+        destination = destination_root / destination_relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_root / relative_path, destination)
+        key = destination_relative.as_posix()
+        entries[key] = ManifestEntry(
+            path=key,
+            source="framework-upstream-reference",
+            origin_path=relative_or_absolute(source_root / relative_path),
+            license=metadata_license,
+            commit=metadata_commit,
+            version=metadata_version,
+            reason="Apache Autotools/regression template retained in the framework upstream reference tree for source-build materialization.",
+        )
+    return entries
+
+
 def manifest_payload(
     connector: str,
     destination: Path,
@@ -320,6 +366,15 @@ def materialize(connector: str, upstream_dir: Path | None, adapter_dir: Path, de
         copy_adapter_files(
             connector,
             adapter,
+            destination,
+            metadata.license,
+            metadata.source_commit,
+            metadata.source_version,
+        )
+    )
+    entries.update(
+        copy_framework_reference_files(
+            connector,
             destination,
             metadata.license,
             metadata.source_commit,
