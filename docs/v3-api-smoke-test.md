@@ -21,7 +21,7 @@ The canonical source and build harness live under:
 src/v3-api-smoke/
 ```
 
-`tests/common/v3-api-smoke/` contains only a pointer to that source so the test
+`docs/imports/common/v3-api-smoke.md` contains only a pointer to that source so the test
 tree does not duplicate implementation logic.
 
 ## Path Model

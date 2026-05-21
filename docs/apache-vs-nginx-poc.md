@@ -109,7 +109,7 @@ compatibility still requires connector-specific regression coverage.
 
 Imported common cases add phase action, collection, and request-body coverage.
 Their source paths and portability decisions are documented in
-`tests/common/shared-case-origin-map.md` and `docs/test-import-plan.md`.
+`docs/imports/common/shared-case-origin-map.md` and `docs/test-import-plan.md`.
 The local `make smoke-all` run on 2026-05-15 after the V2/V3 import pass
 reported 30 Apache passes and 33 NGINX passes. The difference is the 3
 NGINX-specific imported cases that are not executed on Apache.

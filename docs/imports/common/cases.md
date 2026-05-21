@@ -10,7 +10,7 @@ Only portable engine/rule/behavior cases belong in common case metadata.
 
 Do not add cases that require a specific server/proxy runtime.
 
-`tests/cases/phases/phase2_args_block.yaml` is a portable
+`tests/cases/phases/phase2/phase2_args_block.yaml` is a portable
 rule/request/expectation model.
 It becomes a connector pass only when a connector-specific harness executes it
 and observes the expected result.

@@ -66,9 +66,9 @@ APIs.
 
 | Test kind | Portable to v3 connectors? | Placement |
 | --- | --- | --- |
-| Operator semantics | Maybe | `tests/common/` only after capability review |
-| Transformations | Maybe | `tests/common/` only after v3 parity check |
-| Rule parsing | Maybe | `tests/common/` if no connector runtime needed |
+| Operator semantics | Maybe | `docs/imports/common/` only after capability review |
+| Transformations | Maybe | `docs/imports/common/` only after v3 parity check |
+| Rule parsing | Maybe | `docs/imports/common/` if no connector runtime needed |
 | Request body parsing | Partial | Common only if body delivery is engine-only; otherwise connector-specific |
 | Response body inspection | Partial | Capability-dependent |
 | Audit/error log exact text | Partial/no | Normalized and capability-marked, often connector-specific |

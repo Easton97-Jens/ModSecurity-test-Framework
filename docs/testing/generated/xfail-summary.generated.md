@@ -41,8 +41,8 @@ Generated file — do not edit manually.
 | phase2_header_only_pass_through | `tests/cases/negative-pass-through/phase2_header_only_pass_through.yaml` | xfail | 2 | REQUEST_HEADERS:X-Phase | - |
 | tfn_lowercase_pass_no_match_phase2 | `tests/cases/negative-pass-through/tfn_lowercase_pass_no_match_phase2.yaml` | xfail | 2 | ARGS:q | - |
 | tfn_trim_pass_no_match_phase2 | `tests/cases/negative-pass-through/tfn_trim_pass_no_match_phase2.yaml` | xfail | 2 | ARGS:q | - |
-| edge_semicolon_query_args_names | `tests/cases/phases/edge_semicolon_query_args_names.yaml` | xfail | 2 | ARGS_NAMES | - |
-| phase1_vs_phase2_request_body_gap | `tests/cases/phases/phase1_vs_phase2_request_body_gap.yaml` | xfail | 1 | REQUEST_BODY | - |
+| phase1_vs_phase2_request_body_gap | `tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml` | xfail | 1 | REQUEST_BODY | - |
+| edge_semicolon_query_args_names | `tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml` | xfail | 2 | ARGS_NAMES | - |
 | v3_request_cookies_names_case_runtime_difference | `tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml` | xfail | 1 | REQUEST_COOKIES_NAMES | - |
 | v3_request_headers_names_duplicate_connector_gap | `tests/cases/request/headers/v3_request_headers_names_duplicate_connector_gap.yaml` | xfail | 1 | REQUEST_HEADERS_NAMES | - |
 | v3_request_headers_names_lowercase_runtime_difference | `tests/cases/request/headers/v3_request_headers_names_lowercase_runtime_difference.yaml` | xfail | 1 | REQUEST_HEADERS_NAMES | - |

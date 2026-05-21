@@ -18,7 +18,7 @@ Set `FRAMEWORK_ROOT` when the framework checkout is not the module
 - Apache connector source: `connectors/apache` in this repository
 - NGINX connector source: `connectors/nginx` in this repository
 - Shared YAML cases and runner/generator code:
-  `$FRAMEWORK_ROOT/tests/common`, `$FRAMEWORK_ROOT/tests/runners`,
+  `$FRAMEWORK_ROOT/docs/imports/common`, `$FRAMEWORK_ROOT/tests/runners`,
   `$FRAMEWORK_ROOT/tests/normalizers`, and `$FRAMEWORK_ROOT/ci`
 - Apache/httpd, APR/APR-util, PCRE2, and NGINX server sources are separate
   runtime-build dependencies configured through `modules/ModSecurity-test-Framework/ci/common.sh`.

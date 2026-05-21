@@ -21,7 +21,7 @@ architecture for new connectors.
 | Envoy connector | unknown | HTTP filter/ext_authz/Wasm options documented, implementation undecided |
 | Lighttpd connector | unknown | Native plugin and mod_magnet options documented, implementation undecided |
 | Traefik connector | unknown | Yaegi/Wasm plugin options documented, implementation undecided |
-| v2 regression reuse | planned | Only portable rule/engine semantics may enter `tests/common/` |
+| v2 regression reuse | planned | Only portable rule/engine semantics may enter `docs/imports/common/` |
 | v2-derived common imports | implemented | Blocking operator/transformation cases and the `t:urlDecode` no-match pass-through case pass locally on Apache and NGINX |
 | v3-derived common imports | implemented | Blocking multipart/FILES/XML/operator/action/collection/audit cases and no-match pass-through cases for cookies/header names/ARGS_NAMES pass locally on Apache and NGINX |
 | Source-derived Apache/NGINX test import | implemented | Imported YAML cases are derived, not copied; origin and portability are documented |

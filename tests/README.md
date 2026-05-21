@@ -8,7 +8,7 @@ Status: scaffolded
 topic, and connector-specific variants live below
 `tests/cases/connector-specific/<connector>/`.
 
-`tests/common/` contains reference maps and historical import metadata for
+`docs/imports/common/` contains reference maps and historical import metadata for
 portable engine, rule, and behavior tests.
 
 If a test depends on hook order, buffering, streaming, reload, local ports,

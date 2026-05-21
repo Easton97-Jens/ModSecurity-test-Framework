@@ -48,7 +48,7 @@ Example:
 
 ```sh
 python3 tests/runners/case_cli.py materialize \
-  --case tests/cases/phases/phase2_args_block.yaml \
+  --case tests/cases/phases/phase2/phase2_args_block.yaml \
   --rules-file "$BUILD_ROOT/rules.conf" \
   --env-file "$BUILD_ROOT/case.env" \
   --headers-file "$BUILD_ROOT/request-headers.txt" \
@@ -58,7 +58,7 @@ python3 tests/runners/case_cli.py materialize \
   --audit-log-dir "$BUILD_ROOT/audit"
 
 python3 tests/runners/case_cli.py assert-status \
-  --case tests/cases/phases/phase2_args_block.yaml \
+  --case tests/cases/phases/phase2/phase2_args_block.yaml \
   --actual-status 403 \
   --response-body-file "$BUILD_ROOT/response-body.txt" \
   --audit-log-file "$BUILD_ROOT/audit.log"

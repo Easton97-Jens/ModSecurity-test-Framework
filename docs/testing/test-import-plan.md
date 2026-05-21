@@ -23,9 +23,9 @@ Every relevant source file is mapped in:
 
 - `docs/testing/imports/apache-regression-map.md`
 - `docs/testing/imports/nginx-regression-map.md`
-- `tests/common/shared-case-origin-map.md`
-- `tests/common/v2-regression-map.md`
-- `tests/common/v3-regression-map.md`
+- `docs/imports/common/shared-case-origin-map.md`
+- `docs/imports/common/v2-regression-map.md`
+- `docs/imports/common/v3-regression-map.md`
 - `docs/testing/v2-vs-v3-test-compatibility.md`
 
 ModSecurity-nginx PR #377 tests are inventoried separately in
@@ -291,6 +291,6 @@ make generate-test-matrix
 make check-test-matrix
 ```
 
-Data sources include test case YAML files under `tests/common/cases/`, `tests/cases/connector-specific/apache/`, `tests/cases/connector-specific/nginx/`, plus `config/testing/import-status.json`.
+Data sources include test case YAML files under `tests/cases/`, `tests/cases/connector-specific/apache/`, `tests/cases/connector-specific/nginx/`, plus `config/testing/import-status.json`.
 
 Important: generated reports are **not** runtime PASS proof. Authoritative runtime verification remains `make smoke-all`.

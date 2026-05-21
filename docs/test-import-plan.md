@@ -21,9 +21,9 @@ Every relevant source file is mapped in:
 
 - `tests/apache/apache-regression-map.md`
 - `tests/nginx/nginx-regression-map.md`
-- `tests/common/shared-case-origin-map.md`
-- `tests/common/v2-regression-map.md`
-- `tests/common/v3-regression-map.md`
+- `docs/imports/common/shared-case-origin-map.md`
+- `docs/imports/common/v2-regression-map.md`
+- `docs/imports/common/v3-regression-map.md`
 - `docs/v2-vs-v3-test-compatibility.md`
 
 ## Import Rules

@@ -399,7 +399,7 @@
       "cases": [
         {
           "case": "action_allow_phase1_pass",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_allow_phase1_pass.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_allow_phase1_pass.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -419,7 +419,7 @@
         },
         {
           "case": "action_deny_phase1",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_deny_phase1.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_deny_phase1.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -439,7 +439,7 @@
         },
         {
           "case": "action_deny_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_deny_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/action_deny_phase2.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -459,7 +459,7 @@
         },
         {
           "case": "action_status_401_phase1_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_status_401_phase1_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -598,7 +598,7 @@
         },
         {
           "case": "collection_args_combined_size_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_combined_size_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/collection_args_combined_size_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -620,7 +620,7 @@
         },
         {
           "case": "collection_args_get_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_get_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/collection_args_get_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -642,7 +642,7 @@
         },
         {
           "case": "collection_args_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/collection_args_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -761,7 +761,7 @@
         },
         {
           "case": "edge_semicolon_query_args_names",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/edge_semicolon_query_args_names.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1264,7 +1264,7 @@
         },
         {
           "case": "phase1_vs_phase2_request_body_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1_vs_phase2_request_body_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -1285,7 +1285,7 @@
         },
         {
           "case": "phase2_args_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2_args_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/phase2_args_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1306,7 +1306,7 @@
         },
         {
           "case": "phase2_args_pass",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2_args_pass.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/phase2_args_pass.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1787,7 +1787,7 @@
         },
         {
           "case": "request_body_args_post_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_args_post_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/request_body_args_post_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1853,7 +1853,7 @@
         },
         {
           "case": "request_body_raw_text_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_raw_text_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/request_body_raw_text_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -1874,7 +1874,7 @@
         },
         {
           "case": "request_body_urlencoded_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_urlencoded_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/request_body_urlencoded_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2549,7 +2549,7 @@
         },
         {
           "case": "v3_args_names_get_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/v3_args_names_get_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/v3_args_names_get_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -2859,7 +2859,7 @@
         },
         {
           "case": "v3_secaction_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/v3_secaction_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/v3_secaction_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3326,7 +3326,7 @@
       "cases": [
         {
           "case": "action_allow_phase1_pass",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_allow_phase1_pass.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_allow_phase1_pass.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3346,7 +3346,7 @@
         },
         {
           "case": "action_deny_phase1",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_deny_phase1.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_deny_phase1.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3366,7 +3366,7 @@
         },
         {
           "case": "action_deny_phase2",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_deny_phase2.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/action_deny_phase2.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3386,7 +3386,7 @@
         },
         {
           "case": "action_status_401_phase1_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/action_status_401_phase1_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1/action_status_401_phase1_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3525,7 +3525,7 @@
         },
         {
           "case": "collection_args_combined_size_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_combined_size_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/collection_args_combined_size_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3547,7 +3547,7 @@
         },
         {
           "case": "collection_args_get_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_get_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/collection_args_get_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3569,7 +3569,7 @@
         },
         {
           "case": "collection_args_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/collection_args_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/collection_args_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -3688,7 +3688,7 @@
         },
         {
           "case": "edge_semicolon_query_args_names",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/edge_semicolon_query_args_names.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -4346,7 +4346,7 @@
         },
         {
           "case": "phase1_vs_phase2_request_body_gap",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1_vs_phase2_request_body_gap.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
           "status": "fail",
           "matrix_status": "XFAIL_FAIL",
           "runtime_attempted": true,
@@ -4367,7 +4367,7 @@
         },
         {
           "case": "phase2_args_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2_args_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/phase2_args_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4388,7 +4388,7 @@
         },
         {
           "case": "phase2_args_pass",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2_args_pass.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/phase2_args_pass.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4869,7 +4869,7 @@
         },
         {
           "case": "request_body_args_post_names_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_args_post_names_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/request_body_args_post_names_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4935,7 +4935,7 @@
         },
         {
           "case": "request_body_raw_text_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_raw_text_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/request_body_raw_text_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -4956,7 +4956,7 @@
         },
         {
           "case": "request_body_urlencoded_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/request_body_urlencoded_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/request_body_urlencoded_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5631,7 +5631,7 @@
         },
         {
           "case": "v3_args_names_get_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/v3_args_names_get_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/v3_args_names_get_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,
@@ -5941,7 +5941,7 @@
         },
         {
           "case": "v3_secaction_block",
-          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/v3_secaction_block.yaml",
+          "path": "modules/ModSecurity-test-Framework/tests/cases/phases/phase2/v3_secaction_block.yaml",
           "status": "pass",
           "matrix_status": "PASS",
           "runtime_attempted": true,

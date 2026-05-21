@@ -24,8 +24,8 @@ entries. It intentionally excludes runtime status strings such as shell
 | `common/docs/design.md` | 59 | open work | Decide where neutral status values become part of future adapter APIs | refactor | planned | P2 | common | Revisit during first adapter API proposal |
 | `common/docs/design.md` | 60 | open work | Add compile tests proving headers remain connector-independent | test | planned | P2 | common | Add when Common headers become build inputs |
 | `common/src/README.md` | 19 | phase 3 resolved | Add implementation files only after a connector-neutral need exists | refactor | resolved | P3 | common | Metadata-only Common C helpers now exist; broader runtime extraction remains deferred |
-| `tests/common/schema/README.md` | 67 | open work | Define a machine-readable JSON schema | test | planned | P1 | tests/common | Add schema after YAML shape stabilizes |
-| `tests/common/schema/README.md` | 68 | open work | Reject connector-specific fields in common schema validation | test | planned | P1 | tests/common | Add with machine-readable schema |
+| `docs/imports/common/schema.md` | 67 | open work | Define a machine-readable JSON schema | test | planned | P1 | docs/imports/common | Add schema after YAML shape stabilizes |
+| `docs/imports/common/schema.md` | 68 | open work | Reject connector-specific fields in common schema validation | test | planned | P1 | docs/imports/common | Add with machine-readable schema |
 | `modules/ModSecurity-test-Framework/tests/normalizers/README.md` | 18 | open work | Header order normalization | test | planned | P2 | normalizers | Add artifact-specific parser |
 | `modules/ModSecurity-test-Framework/tests/normalizers/README.md` | 19 | open work | Audit log section parsing | audit-log | planned | P2 | normalizers | Add stable section-aware parser |
 | `modules/ModSecurity-test-Framework/tests/normalizers/README.md` | 20 | open work | Connector-specific log formats | connector | deferred | P3 | connector tests | Keep in connector-specific normalizers |
@@ -42,11 +42,11 @@ entries. It intentionally excludes runtime status strings such as shell
 | `connectors/*/docs/build.md` | 7 | open work | Future connector build docs | future-connector | planned | P2 | future-connectors | Fill only when a connector path is selected |
 | `docs/testing/v3-api-smoke-test.md` | 281 | open work | Keep v3 build-copy path reproducible and document fallback behavior | test | planned | P2 | v3-api-smoke | Keep API smoke separate from connector proof |
 | `docs/imports/import-analysis-modsecurity-v2.md` | 57 | open work | Per-test map from v2 Perl structures to v3 YAML cases | test | planned | P2 | imports | Continue source-derived mapping only |
-| `docs/roadmap/roadmap.md` | 12 | RAW-ARGS | PR #3564-dependent RAW argument collection cases | raw-args | mapped | P1 | tests/common | Activate only after local source support plus Apache/NGINX PASS |
+| `docs/roadmap/roadmap.md` | 12 | RAW-ARGS | PR #3564-dependent RAW argument collection cases | raw-args | mapped | P1 | docs/imports/common | Activate only after local source support plus Apache/NGINX PASS |
 | `docs/evidence/raw-args-pr3564.md` | 8 | PR #3564 | RAW argument collection evidence | raw-args | mapped | P1 | evidence | Keep mapped-only until support is proven |
 | `docs/testing/response-body-blocking-investigation.md` | 1 | xfail | Response-body blocking probe | response-body | xfail | P1 | connectors | Do not promote until both connectors return stable HTTP 403 |
-| `tests/cases/response/body/response_body_basic_block.yaml` | 1 | xfail case | Shared response-body blocking probe | response-body | xfail | P1 | tests/common | Explicit probe only; excluded from normal discovery |
-| `tests/cases/audit-log/v3_action_nolog_pass_no_audit.yaml` | 1 | xfail case | `nolog,pass` audit absence differs locally vs CI | audit-log | xfail | P2 | tests/common | Keep probeable but not active common PASS |
+| `tests/cases/response/body/response_body_basic_block.yaml` | 1 | xfail case | Shared response-body blocking probe | response-body | xfail | P1 | docs/imports/common | Explicit probe only; excluded from normal discovery |
+| `tests/cases/audit-log/v3_action_nolog_pass_no_audit.yaml` | 1 | xfail case | `nolog,pass` audit absence differs locally vs CI | audit-log | xfail | P2 | docs/imports/common | Keep probeable but not active common PASS |
 | `connectors/apache/src/msc_filters.c` | 65 | upstream-derived FIXME | Apache response/body filter sanity note | response-body | mapped | P2 | adapter-owned-source | Leave untouched; track during response-filter refactor |
 | `tests/cases/connector-specific/apache/run-regression-tests.pl.in` | 482 | upstream-derived TODO | Use `select()`/`poll()` in upstream harness | cleanup | deferred | P3 | adapter-owned-source | Not used by active smokes |
 | `tests/cases/connector-specific/apache/regression/server_root/conf/httpd.conf.in` | 3 | upstream-derived TODO | Upstream regression template configurability | cleanup | deferred | P3 | adapter-owned-source | Retained as configure template |
@@ -76,7 +76,7 @@ The following owned markers were removed or replaced by inventory references:
 
 - `common/docs/design.md` old `## TODO` heading.
 - `common/src/README.md` old `TODO:` heading.
-- `tests/common/schema/README.md` old `TODO:` heading.
+- `docs/imports/common/schema.md` old `TODO:` heading.
 - `modules/ModSecurity-test-Framework/tests/normalizers/README.md` old `TODO:` heading.
 - Connector-local `TODO.md` titles now use “Planning” while retaining the file
   names expected by workflow structure checks.
