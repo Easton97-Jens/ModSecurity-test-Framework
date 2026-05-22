@@ -401,16 +401,24 @@ def _validate_nginx(case: Mapping[str, Any], where: str) -> None:
     location_directives = nginx.get("location_directives")
     if location_directives is not None and not isinstance(location_directives, str):
         raise ValueError(f"case nginx.location_directives must be a string{where}")
-    files = nginx.get("files", {})
+    _validate_nginx_files(nginx.get("files", {}), where)
+
+
+def _validate_nginx_files(files: Any, where: str) -> None:
     if files is not None and not isinstance(files, Mapping):
         raise ValueError(f"case nginx.files must be a mapping{where}")
-    if isinstance(files, Mapping):
-        for name, content in files.items():
-            file_name = str(name)
-            if not file_name.strip() or file_name.startswith("/") or ".." in Path(file_name).parts:
-                raise ValueError(f"case nginx.files keys must be relative safe paths{where}")
-            if not isinstance(content, str):
-                raise ValueError(f"case nginx.files values must be strings{where}")
+    if not isinstance(files, Mapping):
+        return
+    for name, content in files.items():
+        _validate_nginx_file(name, content, where)
+
+
+def _validate_nginx_file(name: Any, content: Any, where: str) -> None:
+    file_name = str(name)
+    if not file_name.strip() or file_name.startswith("/") or ".." in Path(file_name).parts:
+        raise ValueError(f"case nginx.files keys must be relative safe paths{where}")
+    if not isinstance(content, str):
+        raise ValueError(f"case nginx.files values must be strings{where}")
 
 
 def _validate_expect_string_list(value: Any, key: str, where: str) -> None:
@@ -433,14 +441,20 @@ def _validate_expect(case: Mapping[str, Any], where: str) -> None:
     intervention = expect.get("intervention")
     if intervention is not None and str(intervention) not in INTERVENTIONS:
         raise ValueError(f"case expect.intervention is unsupported{where}")
-    audit_log = expect.get("audit_log", {})
+    _validate_expect_audit_log(expect.get("audit_log", {}), where)
+    _validate_expect_phase4_log(expect.get("phase4_log", {}), where)
+
+
+def _validate_expect_audit_log(audit_log: Any, where: str) -> None:
     if audit_log is not None and not isinstance(audit_log, Mapping):
         raise ValueError(f"case expect.audit_log must be a mapping{where}")
     if isinstance(audit_log, Mapping):
         absent = audit_log.get("absent")
         if absent is not None and not isinstance(absent, bool):
             raise ValueError(f"case expect.audit_log.absent must be a boolean{where}")
-    phase4_log = expect.get("phase4_log", {})
+
+
+def _validate_expect_phase4_log(phase4_log: Any, where: str) -> None:
     if phase4_log is not None and not isinstance(phase4_log, Mapping):
         raise ValueError(f"case expect.phase4_log must be a mapping{where}")
     if isinstance(phase4_log, Mapping):

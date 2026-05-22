@@ -19,7 +19,8 @@ FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
 CONNECTOR_ROOT = Path.cwd()
 OUTPUT_ROOT = CONNECTOR_ROOT
 REPORT_ROOT = OUTPUT_ROOT / "docs/testing"
-SNAPSHOT = REPORT_ROOT / "runtime-validation-snapshot.json"
+SNAPSHOT_FILENAME = "runtime-validation-snapshot.json"
+SNAPSHOT = REPORT_ROOT / SNAPSHOT_FILENAME
 sys.path.insert(0, str(FRAMEWORK_ROOT / "tests" / "runners"))
 
 from runner_core import case_group, load_case  # noqa: E402
@@ -34,9 +35,12 @@ def configure_paths(framework_root: str | Path, connector_root: str | Path, outp
     global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, REPORT_ROOT, SNAPSHOT
     FRAMEWORK_ROOT = Path(framework_root).resolve()
     CONNECTOR_ROOT = Path(connector_root).resolve()
-    OUTPUT_ROOT = Path(output_root).resolve() if output_root is not None else CONNECTOR_ROOT
+    requested_output = Path(output_root).resolve() if output_root is not None else CONNECTOR_ROOT
+    if requested_output not in {FRAMEWORK_ROOT, CONNECTOR_ROOT}:
+        raise ValueError(f"output root must be framework or connector root: {requested_output}")
+    OUTPUT_ROOT = requested_output
     REPORT_ROOT = OUTPUT_ROOT / ("docs/testing" if OUTPUT_ROOT == FRAMEWORK_ROOT else "reports/testing")
-    SNAPSHOT = REPORT_ROOT / "runtime-validation-snapshot.json"
+    SNAPSHOT = REPORT_ROOT / SNAPSHOT_FILENAME
 
 
 def git_value(*args: str) -> str:
@@ -56,7 +60,7 @@ def load_json(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def normalize_case(path: str, build_root: Path) -> str:
+def normalize_case(path: str) -> str:
     try:
         resolved = Path(path).resolve()
         for root in (CONNECTOR_ROOT, FRAMEWORK_ROOT):
@@ -69,19 +73,23 @@ def normalize_case(path: str, build_root: Path) -> str:
         return path
 
 
-def case_metadata(path: str) -> dict[str, str]:
-    relative = normalize_case(path, default_build_root())
+def resolve_case_path(relative: str) -> Path:
     candidate_paths = [CONNECTOR_ROOT / relative, FRAMEWORK_ROOT / relative]
-    case_path = next((candidate for candidate in candidate_paths if candidate.exists()), candidate_paths[0])
+    return next((candidate for candidate in candidate_paths if candidate.exists()), candidate_paths[0])
+
+
+def load_case_metadata(case_path: Path) -> dict:
     try:
-        case = load_case(case_path)
+        return load_case(case_path)
     except Exception:
         try:
             raw = yaml.safe_load(case_path.read_text(encoding="utf-8"))
-            case = raw if isinstance(raw, dict) else {}
+            return raw if isinstance(raw, dict) else {}
         except Exception:
-            case = {}
-    status = str(case.get("status", "active") or "active").strip().lower()
+            return {}
+
+
+def classify_case(relative: str, status: str, case: dict, group: str) -> str:
     text = " ".join(
         [
             relative,
@@ -91,19 +99,26 @@ def case_metadata(path: str) -> dict[str, str]:
             str(case.get("source", "") or ""),
         ]
     ).lower()
-    group = case_group(case_path, case)
     if "connector_gap" in text or "connector-gap" in text:
-        classification = "connector_gap"
-    elif "runtime_difference" in text or "runtime-difference" in text or "runtime_diff" in text:
-        classification = "runtime_difference"
-    elif "future" in text or "experimental" in text:
-        classification = "future"
-    elif "pending" in text:
-        classification = "pending"
-    elif group == "xfail" or status == "xfail":
-        classification = "xfail"
-    else:
-        classification = "active"
+        return "connector_gap"
+    if "runtime_difference" in text or "runtime-difference" in text or "runtime_diff" in text:
+        return "runtime_difference"
+    if "future" in text or "experimental" in text:
+        return "future"
+    if "pending" in text:
+        return "pending"
+    if group == "xfail" or status == "xfail":
+        return "xfail"
+    return "active"
+
+
+def case_metadata(path: str) -> dict[str, str]:
+    relative = normalize_case(path)
+    case_path = resolve_case_path(relative)
+    case = load_case_metadata(case_path)
+    status = str(case.get("status", "active") or "active").strip().lower()
+    group = case_group(case_path, case)
+    classification = classify_case(relative, status, case, group)
     return {
         "yaml_status": status,
         "case_group": group,
@@ -133,7 +148,7 @@ def matrix_status(result_status: str, classification: str) -> str:
     return f"XFAIL_{suffix}"
 
 
-def case_rows(summary: dict, connector: str, build_root: Path, summary_path: Path) -> list[dict]:
+def case_rows(summary: dict, connector: str, summary_path: Path) -> list[dict]:
     connector_summary = summary.get(connector)
     if not isinstance(connector_summary, dict):
         return []
@@ -154,7 +169,7 @@ def case_rows(summary: dict, connector: str, build_root: Path, summary_path: Pat
         rows.append(
             {
                 "case": str(name),
-                "path": normalize_case(str(item.get("path", "")), build_root),
+                "path": normalize_case(str(item.get("path", ""))),
                 "status": status,
                 "matrix_status": matrix_status(status, metadata["classification"]),
                 "runtime_attempted": True,
@@ -179,14 +194,13 @@ def connector_smoke(
     exit_code: str,
     summary_path: Path,
     text_summary_path: Path,
-    build_root: Path,
 ) -> dict:
     summary_data = load_json(summary_path)
     connector_summary = summary_data.get(connector, {}) if isinstance(summary_data, dict) else {}
     counts = connector_summary.get("summary", {}) if isinstance(connector_summary, dict) else {}
     if not isinstance(counts, dict):
         counts = {}
-    rows = case_rows(summary_data, connector, build_root, summary_path)
+    rows = case_rows(summary_data, connector, summary_path)
     status = "NOT_RUN"
     if exit_code not in {"not_run", ""}:
         try:
@@ -224,6 +238,24 @@ def connector_smoke(
         "cases": rows,
         "details": "Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status.",
     }
+
+
+def validated_snapshot_path() -> Path:
+    snapshot_path = SNAPSHOT.resolve()
+    report_root = REPORT_ROOT.resolve()
+    if snapshot_path.name != SNAPSHOT_FILENAME:
+        raise ValueError(f"unexpected snapshot file name: {snapshot_path}")
+    try:
+        snapshot_path.relative_to(report_root)
+    except ValueError as exc:
+        raise ValueError(f"snapshot path must be under report root: {snapshot_path}") from exc
+    return snapshot_path
+
+
+def write_snapshot(snapshot: dict) -> None:
+    snapshot_path = validated_snapshot_path()
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_path.write_text(json.dumps(snapshot, indent=2, sort_keys=False) + "\n", encoding="utf-8")
 
 
 def load_existing_snapshot() -> dict:
@@ -274,7 +306,6 @@ def main() -> int:
                 str(args.apache_exit_code),
                 results_dir / "apache-summary.json",
                 results_dir / "apache-summary.txt",
-                build_root,
             ),
             connector_smoke(
                 "nginx",
@@ -282,7 +313,6 @@ def main() -> int:
                 str(args.nginx_exit_code),
                 results_dir / "nginx-summary.json",
                 results_dir / "nginx-summary.txt",
-                build_root,
             ),
             {
                 "command": "REFRESH=1 make smoke-all",
@@ -316,8 +346,7 @@ def main() -> int:
             "RESPONSE_BODY remains experimental/non-verified.",
         ],
     }
-    SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
-    SNAPSHOT.write_text(json.dumps(snapshot, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    write_snapshot(snapshot)
     return 0
 
 

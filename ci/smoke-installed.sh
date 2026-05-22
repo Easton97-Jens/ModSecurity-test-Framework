@@ -12,6 +12,7 @@ HTTPD_BIN="${APACHE_BIN:-${APACHECTL_BIN:-$(ci_find_bin_multi $CI_APACHE_BIN_CAN
 if [ -z "$APACHECTL_BIN" ] && [ -n "$HTTPD_BIN" ]; then
   case "$(basename "$HTTPD_BIN")" in
     apachectl) APACHECTL_BIN=$HTTPD_BIN ;;
+    *) ;;
   esac
 fi
 if [ -z "$HTTPD_BIN" ] && [ -n "$APXS_BIN" ]; then
