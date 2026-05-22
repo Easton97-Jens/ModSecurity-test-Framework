@@ -31,16 +31,55 @@ def default_build_root() -> Path:
     return Path(os.environ.get("BUILD_ROOT", state_home / "ModSecurity-conector-build"))
 
 
+def resolve_root(root: str | Path, *, label: str) -> Path:
+    try:
+        return Path(root).expanduser().resolve()
+    except Exception as exc:
+        raise ValueError(f"{label} is not a valid path: {root}") from exc
+
+
+def resolve_under_root(root: Path, candidate: Path, *, label: str) -> Path:
+    root = root.resolve()
+    candidate = candidate.resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"{label} must stay under {root}: {candidate}") from exc
+    return candidate
+
+
+def select_output_root(output_root: str | Path | None) -> Path:
+    requested = resolve_root(output_root, label="output root") if output_root is not None else CONNECTOR_ROOT
+    if requested == FRAMEWORK_ROOT:
+        return FRAMEWORK_ROOT
+    if requested == CONNECTOR_ROOT:
+        return CONNECTOR_ROOT
+    raise ValueError(
+        "output root must resolve exactly to the framework root "
+        f"({FRAMEWORK_ROOT}) or connector root ({CONNECTOR_ROOT}): {requested}"
+    )
+
+
+def report_root_for(output_root: Path) -> Path:
+    if output_root == FRAMEWORK_ROOT:
+        return resolve_under_root(FRAMEWORK_ROOT, FRAMEWORK_ROOT / "docs/testing", label="framework report root")
+    if output_root == CONNECTOR_ROOT:
+        return resolve_under_root(CONNECTOR_ROOT, CONNECTOR_ROOT / "reports/testing", label="connector report root")
+    raise ValueError(f"unsupported output root: {output_root}")
+
+
+def snapshot_path_for(output_root: Path) -> Path:
+    report_root = report_root_for(output_root)
+    return resolve_under_root(report_root, report_root / SNAPSHOT_FILENAME, label="runtime snapshot path")
+
+
 def configure_paths(framework_root: str | Path, connector_root: str | Path, output_root: str | Path | None) -> None:
     global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, REPORT_ROOT, SNAPSHOT
-    FRAMEWORK_ROOT = Path(framework_root).resolve()
-    CONNECTOR_ROOT = Path(connector_root).resolve()
-    requested_output = Path(output_root).resolve() if output_root is not None else CONNECTOR_ROOT
-    if requested_output not in {FRAMEWORK_ROOT, CONNECTOR_ROOT}:
-        raise ValueError(f"output root must be framework or connector root: {requested_output}")
-    OUTPUT_ROOT = requested_output
-    REPORT_ROOT = OUTPUT_ROOT / ("docs/testing" if OUTPUT_ROOT == FRAMEWORK_ROOT else "reports/testing")
-    SNAPSHOT = REPORT_ROOT / SNAPSHOT_FILENAME
+    FRAMEWORK_ROOT = resolve_root(framework_root, label="framework root")
+    CONNECTOR_ROOT = resolve_root(connector_root, label="connector root")
+    OUTPUT_ROOT = select_output_root(output_root)
+    REPORT_ROOT = report_root_for(OUTPUT_ROOT)
+    SNAPSHOT = snapshot_path_for(OUTPUT_ROOT)
 
 
 def git_value(*args: str) -> str:
@@ -242,13 +281,11 @@ def connector_smoke(
 
 def validated_snapshot_path() -> Path:
     snapshot_path = SNAPSHOT.resolve()
-    report_root = REPORT_ROOT.resolve()
     if snapshot_path.name != SNAPSHOT_FILENAME:
         raise ValueError(f"unexpected snapshot file name: {snapshot_path}")
-    try:
-        snapshot_path.relative_to(report_root)
-    except ValueError as exc:
-        raise ValueError(f"snapshot path must be under report root: {snapshot_path}") from exc
+    expected_snapshot_path = snapshot_path_for(OUTPUT_ROOT)
+    if snapshot_path != expected_snapshot_path:
+        raise ValueError(f"snapshot path must be the configured report snapshot: {snapshot_path}")
     return snapshot_path
 
 

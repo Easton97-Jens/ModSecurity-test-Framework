@@ -18,6 +18,10 @@ REPORT_ROOT = OUTPUT_ROOT / "docs/testing"
 RUNTIME_SNAPSHOT_FILENAME = "runtime-validation-snapshot.json"
 RUNTIME_SNAPSHOT = REPORT_ROOT / RUNTIME_SNAPSHOT_FILENAME
 OUT = REPORT_ROOT / "generated"
+GENERATED_REPORT_ROOT = OUT
+OVERVIEW_REPORT = REPORT_ROOT / "test-coverage-overview.md"
+ROOT_SUMMARY_REPORT = OUTPUT_ROOT / "TEST-COVERAGE-SUMMARY.md"
+ALLOWED_OUTPUT_PATHS: set[Path] = set()
 
 RULE_RE = re.compile(r'^\s*SecRule\s+([^\s]+)\s+"(@[^\s"]+)')
 PHASE_RE = re.compile(r"phase:(\d)")
@@ -90,25 +94,106 @@ ACTIVE_RUNTIME_STATUSES = {
 }
 
 NON_EXECUTABLE_STATUSES = {"blocked", "mapped-only", "skipped", "todo"}
+GENERATED_REPORT_NAMES = {
+    "apache-runtime-results.generated.md",
+    "case-matrix.generated.md",
+    "connector-gap-summary.generated.md",
+    "coverage-summary.generated.md",
+    "nginx-runtime-results.generated.md",
+    "phase-coverage.generated.md",
+    "runtime-matrix.generated.md",
+    "xfail-summary.generated.md",
+}
 
 
 def warn(message: str) -> None:
     print(f"[matrix-generator] WARN: {message}", file=sys.stderr)
 
 
+def resolve_root(root: str | Path, *, label: str) -> Path:
+    try:
+        return Path(root).expanduser().resolve()
+    except Exception as exc:
+        raise ValueError(f"{label} is not a valid path: {root}") from exc
+
+
+def resolve_under_root(root: Path, candidate: Path, *, label: str) -> Path:
+    root = root.resolve()
+    candidate = candidate.resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"{label} must stay under {root}: {candidate}") from exc
+    return candidate
+
+
+def select_output_root(output_root: str | Path | None) -> Path:
+    requested = resolve_root(output_root, label="output root") if output_root is not None else CONNECTOR_ROOT
+    if requested == FRAMEWORK_ROOT:
+        return FRAMEWORK_ROOT
+    if requested == CONNECTOR_ROOT:
+        return CONNECTOR_ROOT
+    raise ValueError(
+        "output root must resolve exactly to the framework root "
+        f"({FRAMEWORK_ROOT}) or connector root ({CONNECTOR_ROOT}): {requested}"
+    )
+
+
+def report_root_for(output_root: Path) -> Path:
+    if output_root == FRAMEWORK_ROOT:
+        return resolve_under_root(FRAMEWORK_ROOT, FRAMEWORK_ROOT / "docs/testing", label="framework report root")
+    if output_root == CONNECTOR_ROOT:
+        return resolve_under_root(CONNECTOR_ROOT, CONNECTOR_ROOT / "reports/testing", label="connector report root")
+    raise ValueError(f"unsupported output root: {output_root}")
+
+
+def generated_report_path(name: str) -> Path:
+    if name not in GENERATED_REPORT_NAMES:
+        raise ValueError(f"unsupported generated report name: {name}")
+    return allowed_output_path(GENERATED_REPORT_ROOT / name)
+
+
+def overview_report_path() -> Path:
+    return allowed_output_path(OVERVIEW_REPORT)
+
+
+def root_summary_report_path() -> Path:
+    return allowed_output_path(ROOT_SUMMARY_REPORT)
+
+
+def allowed_output_path(path: Path) -> Path:
+    resolved = path.resolve()
+    if resolved not in ALLOWED_OUTPUT_PATHS:
+        raise ValueError(f"unsupported generated report output path: {resolved}")
+    return resolved
+
+
+def output_path_allowlist() -> set[Path]:
+    generated_paths = {
+        resolve_under_root(GENERATED_REPORT_ROOT, GENERATED_REPORT_ROOT / name, label="generated report path")
+        for name in GENERATED_REPORT_NAMES
+    }
+    return generated_paths | {OVERVIEW_REPORT.resolve(), ROOT_SUMMARY_REPORT.resolve()}
+
+
 def configure_paths(framework_root: str | Path | None, connector_root: str | Path | None, output_root: str | Path | None) -> None:
     global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, REPORT_ROOT, IMPORT_STATUS, RUNTIME_SNAPSHOT, OUT
+    global GENERATED_REPORT_ROOT, OVERVIEW_REPORT, ROOT_SUMMARY_REPORT, ALLOWED_OUTPUT_PATHS
     if framework_root is not None:
-        FRAMEWORK_ROOT = Path(framework_root).resolve()
+        FRAMEWORK_ROOT = resolve_root(framework_root, label="framework root")
     if connector_root is not None:
-        CONNECTOR_ROOT = Path(connector_root).resolve()
+        CONNECTOR_ROOT = resolve_root(connector_root, label="connector root")
     else:
         CONNECTOR_ROOT = FRAMEWORK_ROOT
-    OUTPUT_ROOT = Path(output_root).resolve() if output_root is not None else CONNECTOR_ROOT
-    REPORT_ROOT = OUTPUT_ROOT / ("docs/testing" if OUTPUT_ROOT == FRAMEWORK_ROOT else "reports/testing")
+    OUTPUT_ROOT = select_output_root(output_root)
+    REPORT_ROOT = report_root_for(OUTPUT_ROOT)
     IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
     RUNTIME_SNAPSHOT = REPORT_ROOT / RUNTIME_SNAPSHOT_FILENAME
-    OUT = REPORT_ROOT / "generated"
+    OUT = resolve_under_root(REPORT_ROOT, REPORT_ROOT / "generated", label="generated report root")
+    GENERATED_REPORT_ROOT = OUT
+    OVERVIEW_REPORT = resolve_under_root(REPORT_ROOT, REPORT_ROOT / "test-coverage-overview.md", label="coverage overview path")
+    ROOT_SUMMARY_REPORT = resolve_under_root(OUTPUT_ROOT, OUTPUT_ROOT / "TEST-COVERAGE-SUMMARY.md", label="coverage summary path")
+    ALLOWED_OUTPUT_PATHS = output_path_allowlist()
 
 
 def md(value: object) -> str:
@@ -258,6 +343,7 @@ def load_runtime_snapshot() -> dict:
 
 
 def write(path: Path, body: str) -> None:
+    path = allowed_output_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("Generated file — do not edit manually.\n\n" + body.rstrip() + "\n", encoding="utf-8")
 
@@ -1160,19 +1246,19 @@ def main(argv: list[str] | None = None) -> int:
     by_var = Counter(var for case in cases for var in case["variables"])
     response_body_count = sum(1 for case in cases if case["response_body"])
 
-    write(OUT / "case-matrix.generated.md", render_case_matrix(cases))
-    write(OUT / "coverage-summary.generated.md", render_summary(cases, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count))
-    write(OUT / "xfail-summary.generated.md", render_xfail(cases))
-    write(OUT / "connector-gap-summary.generated.md", render_gap_summary(cases, import_status))
-    write(OUT / "phase-coverage.generated.md", render_phase_coverage(cases))
-    write(OUT / "runtime-matrix.generated.md", render_runtime_matrix(cases, import_status, runtime_snapshot))
-    write(OUT / "apache-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "apache"))
-    write(OUT / "nginx-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "nginx"))
+    write(generated_report_path("case-matrix.generated.md"), render_case_matrix(cases))
+    write(generated_report_path("coverage-summary.generated.md"), render_summary(cases, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count))
+    write(generated_report_path("xfail-summary.generated.md"), render_xfail(cases))
+    write(generated_report_path("connector-gap-summary.generated.md"), render_gap_summary(cases, import_status))
+    write(generated_report_path("phase-coverage.generated.md"), render_phase_coverage(cases))
+    write(generated_report_path("runtime-matrix.generated.md"), render_runtime_matrix(cases, import_status, runtime_snapshot))
+    write(generated_report_path("apache-runtime-results.generated.md"), render_connector_runtime_results(cases, runtime_snapshot, "apache"))
+    write(generated_report_path("nginx-runtime-results.generated.md"), render_connector_runtime_results(cases, runtime_snapshot, "nginx"))
     write(
-        REPORT_ROOT / "test-coverage-overview.md",
+        overview_report_path(),
         render_overview(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count),
     )
-    write(OUTPUT_ROOT / "TEST-COVERAGE-SUMMARY.md", render_root_summary(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase))
+    write(root_summary_report_path(), render_root_summary(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase))
     return 0
 
 
