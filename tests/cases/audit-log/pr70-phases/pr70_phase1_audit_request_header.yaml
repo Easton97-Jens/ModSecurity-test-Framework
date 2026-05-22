@@ -1,0 +1,49 @@
+# Source-derived PR #70 phase-1 audit smoke.
+origin:
+  - repo: ModSecurity-apache
+    path: t/00-phases.t
+    reason: Derives the phase:1 audit-log behavior from upstream PR #70 without copying Apache::Test code.
+  - repo: ModSecurity-apache
+    path: t/conf/extra.conf.in
+    reason: Derives only the phase:1 rule shape and audit-log intent from the PR #70 Apache configuration.
+source: ModSecurity-apache PR #70 @ 73c4ae80743810d866771dd4183be2bea44947dd
+category: audit-log
+portable: true
+status: imported
+notes: "PR70 source-derived phase 1 audit smoke; asserts stable audit substrings only."
+known_limitations:
+  - Does not assert complete audit sections, timestamps, transaction IDs, paths, server banners, or header order.
+  - Uses a portable request-header rule instead of copying the upstream Apache Location block.
+name: pr70_phase1_audit_request_header
+
+capabilities:
+  audit_log: true
+  request_headers: true
+  phase1: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule REQUEST_HEADERS:X-PR70-Phase "@streq phase1" \
+    "id:5701,phase:1,deny,status:403,auditlog,msg:'pr70 phase1 audit request header'"
+
+request:
+  method: GET
+  path: "/?pr70=phase1"
+  headers:
+    X-PR70-Phase: phase1
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 5701
+  audit_log:
+    required: true
+    rule_id: 5701
+    uri: "/?pr70=phase1"
+    message: pr70 phase1 audit request header

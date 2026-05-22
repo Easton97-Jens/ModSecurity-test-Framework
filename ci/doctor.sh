@@ -15,8 +15,9 @@ say() { ci_info "doctor $*"; }
 blocked() { ci_blocked "$*"; status=77; }
 warn() { ci_warn "$*"; }
 section() {
+  section_title=$1
   echo ""
-  echo "$1:"
+  echo "$section_title:"
 }
 check_cmd() {
   cmd_name=$1
@@ -89,6 +90,7 @@ APACHE_BIN="${APACHE_BIN:-${APACHECTL_BIN:-$(ci_find_bin_multi $CI_APACHE_BIN_CA
 if [ -z "$APACHECTL_BIN" ] && [ -n "$APACHE_BIN" ]; then
   case "$(basename "$APACHE_BIN")" in
     apachectl) APACHECTL_BIN=$APACHE_BIN ;;
+    *) ;;
   esac
 fi
 if [ -z "$APACHE_BIN" ] && [ -n "$APXS_BIN" ]; then

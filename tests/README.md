@@ -36,4 +36,8 @@ XFAIL, pending, future, connector-gap, and runtime-difference are YAML metadata
 classes, not directory names. Missing YAML `status` is treated as active for
 discovery/reporting without rewriting case content.
 
+Cases that require OWASP Core Rule Set can set `requires_crs: true`. They are
+excluded from `MODSECURITY_TEST_VARIANT=no-crs` and included in
+`MODSECURITY_TEST_VARIANT=with-crs`.
+
 No full connector regression suite exists yet.

@@ -23,10 +23,10 @@ Client -> Apache/NGINX -> connector module -> libmodsecurity -> rule variables -
 The connector-free API smoke under `src/v3-api-smoke/` is useful API evidence,
 but it is not counted as Apache or NGINX connector proof.
 
-## Verified Variables
+## Evidence-Scoped Variables
 
-The active YAML suite currently verifies these variable families through both
-Apache and NGINX in the local source-built smoke harnesses:
+Connector summaries may list these variable families in `verified_variables`
+when passing real-world Apache and NGINX cases support them:
 
 - `ARGS`
 - `ARGS_NAMES`
@@ -39,9 +39,10 @@ Apache and NGINX in the local source-built smoke harnesses:
 - `AUDIT_LOG`
 - `RESPONSE_HEADERS`
 
-`RESPONSE_BODY` is not verified. The only blocking case remains xfail/mapped
-because the dedicated probe has not produced stable HTTP 403 through both
-connectors.
+`RESPONSE_BODY` is not verified. The blocking case remains xfail/mapped because
+the dedicated probe has not produced stable HTTP 403 through both connectors.
+Default smoke PASS evidence, force-all runtime-matrix evidence, mapped-only
+inventory, xfail probes, and API-only smoke evidence remain separate.
 
 ## PR #3564: RAW Argument Collections
 

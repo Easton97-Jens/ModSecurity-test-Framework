@@ -13,6 +13,7 @@ evidence, xfail/mapped-only decisions, and connector-free API smoke boundary.
 | `test-import-plan.md` | Policy for deriving YAML cases from upstream tests |
 | `case-matrix.md` | Generated case inventory and latest observed connector statuses |
 | `response-body-blocking-investigation.md` | Evidence for keeping `RESPONSE_BODY` blocking xfail/mapped-only |
+| `pr70-audit-phase-coverage-plan.md` | Plan for mapping ModSecurity-apache PR #70 audit/phase tests into framework-owned YAML coverage |
 | `pr377-test-import-map.md` | Source-derived map for ModSecurity-nginx PR #377 phase-4 tests |
 | `v2-vs-v3-compatibility.md` | Architecture and API differences between ModSecurity v2 and v3 |
 | `v2-vs-v3-test-compatibility.md` | V2/V3 test import evidence |

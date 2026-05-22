@@ -15,6 +15,7 @@ Set `FRAMEWORK_ROOT` when the framework checkout is not the module
 ## Repositories used
 
 - ModSecurity v3: `https://github.com/owasp-modsecurity/ModSecurity.git` (ref: `v3/master` by default)
+- OWASP Core Rule Set: configured centrally in `$FRAMEWORK_ROOT/ci/common.sh`
 - Apache connector source: `connectors/apache` in this repository
 - NGINX connector source: `connectors/nginx` in this repository
 - Shared YAML cases and runner/generator code:
@@ -29,6 +30,9 @@ Central override variables:
 - `CONNECTOR_ROOT`
 - `BUILD_ROOT`
 - `SOURCE_ROOT`
+- `MODSECURITY_TEST_VARIANT`
+- `CRS_REPO_URL`, `CRS_GIT_REF`, `CRS_SOURCE_DIR`, `CRS_RUNTIME_DIR`
+- `MODSECURITY_RULE_PREAMBLE_FILE`
 - `MODSECURITY_REPO_URL` / `MODSECURITY_GIT_REF`
 - compatibility aliases: `MODSECURITY_V3_GIT_URL`, `MODSECURITY_V3_GIT_REF`
 - source aliases: `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`,
@@ -60,6 +64,14 @@ make fetch-deps
   - `make fetch-deps`
 - Fetch only ModSecurity core explicitly:
   - `make fetch-modsecurity-v3`
+- Fetch only OWASP CRS explicitly:
+  - `make fetch-crs`
+- Run both ModSecurity rule-loading variants:
+  - `make test`
+- Run only local case rules:
+  - `make test-no-crs`
+- Run CRS plus local case rules:
+  - `make test-with-crs`
 
 ## Behavior and safety
 
@@ -67,6 +79,8 @@ make fetch-deps
 - Existing repositories are **not overwritten**; existing git clones are reused.
 - If `git` is missing or network is blocked, command exits BLOCKED/non-zero with clear output.
 - No fake runtime artifacts are created.
+- The concrete CRS version is pinned only in `ci/common.sh`; workflows and
+  Makefiles consume that value rather than redefining it.
 
 ## Paths
 

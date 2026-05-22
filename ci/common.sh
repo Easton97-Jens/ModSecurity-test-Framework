@@ -35,6 +35,20 @@ MODSECURITY_SOURCE_DIR="${MODSECURITY_SOURCE_DIR:-${MODSECURITY_V3_SOURCE_DIR:-$
 MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$MODSECURITY_SOURCE_DIR}"
 MODSECURITY_V3_ROOT="${MODSECURITY_V3_ROOT:-$MODSECURITY_SOURCE_DIR}"
 
+# ModSecurity test variant defaults
+: "${MODSECURITY_TEST_VARIANT:=no-crs}"
+
+# OWASP Core Rule Set defaults
+: "${CRS_REPO_URL:=https://github.com/coreruleset/coreruleset.git}"
+: "${CRS_GIT_REF:=v4.26.0}"
+
+# CRS paths
+: "${CRS_SOURCE_DIR:=${SOURCE_ROOT}/coreruleset}"
+: "${CRS_RUNTIME_DIR:=${BUILD_ROOT}/crs}"
+
+# Optional preamble injected before generated local case rules
+: "${MODSECURITY_RULE_PREAMBLE_FILE:=}"
+
 if [ -n "${CONNECTOR_ROOT:-}" ]; then
     DEFAULT_MODSECURITY_APACHE_SOURCE_DIR="${DEFAULT_MODSECURITY_APACHE_SOURCE_DIR:-$CONNECTOR_ROOT/connectors/apache}"
     DEFAULT_MODSECURITY_NGINX_SOURCE_DIR="${DEFAULT_MODSECURITY_NGINX_SOURCE_DIR:-$CONNECTOR_ROOT/connectors/nginx}"
@@ -99,18 +113,22 @@ CI_INSTALLED_INCLUDE_SEARCH_DIRS="${CI_INSTALLED_INCLUDE_SEARCH_DIRS:-/usr/inclu
 
 ci_info() {
     echo "INFO: $*"
+    return 0
 }
 
 ci_warn() {
     echo "WARN: $*"
+    return 0
 }
 
 ci_blocked() {
     echo "BLOCKED: $*"
+    return 0
 }
 
 ci_error() {
-    echo "ERROR: $*"
+    echo "ERROR: $*" >&2
+    return 0
 }
 
 ci_python() {
@@ -127,6 +145,7 @@ ci_python() {
         return 0
     fi
     printf '%s\n' "$DEFAULT_PYTHON"
+    return 0
 }
 
 ci_default_jobs() {
@@ -135,6 +154,7 @@ ci_default_jobs() {
     else
         getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1
     fi
+    return 0
 }
 
 ci_find_bin_multi() {
@@ -172,6 +192,7 @@ ci_canonical_existing() {
     target_path=$1
     if [ -e "$target_path" ]; then
         (cd "$target_path" 2>/dev/null && pwd -P)
+        return $?
     else
         return 1
     fi
@@ -184,6 +205,7 @@ ci_require_absolute_path() {
         /*) return 0 ;;
         *) ci_blocked "$label must be absolute: $path"; return 77 ;;
     esac
+    return 0
 }
 
 ci_git_value() {
@@ -192,4 +214,5 @@ ci_git_value() {
     if git -C "$git_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         git -C "$git_dir" "$@" 2>/dev/null || true
     fi
+    return 0
 }

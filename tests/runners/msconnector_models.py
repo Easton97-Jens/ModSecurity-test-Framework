@@ -6,6 +6,7 @@ summary JSON schema-compatible with the common C helper concepts.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
@@ -155,49 +156,64 @@ def default_environment() -> str:
     return "local"
 
 
+@dataclass(frozen=True)
+class SummaryContext:
+    connector_path: str = "real-world"
+    validation_mode: str = "real-world-connector-path"
+    environment: str | None = None
+    server: str = ""
+    server_binary: str = ""
+    module: str = ""
+    libmodsecurity: str = ""
+    origin_source: str = ""
+    origin_source_repo: str = ""
+    origin_source_url: str = ""
+    origin_source_commit: str = ""
+    origin_source_version: str = ""
+    origin_license: str = ""
+    origin_imported_path: str = ""
+
+    def resolved_environment(self) -> str:
+        return self.environment or default_environment()
+
+    def resolved_server(self, connector: str) -> str:
+        return self.server or connector
+
+    def origin(self) -> dict[str, str]:
+        return origin_metadata(
+            self.origin_source,
+            self.origin_source_repo,
+            self.origin_source_url,
+            self.origin_source_commit,
+            self.origin_source_version,
+            self.origin_license,
+            self.origin_imported_path,
+        )
+
+
 def connector_summary(
     *,
     connector: str,
     entries: list[dict[str, object]],
     import_status_file: str | None = None,
-    connector_path: str = "real-world",
-    validation_mode: str = "real-world-connector-path",
-    environment: str | None = None,
-    server: str = "",
-    server_binary: str = "",
-    module: str = "",
-    libmodsecurity: str = "",
-    origin_source: str = "",
-    origin_source_repo: str = "",
-    origin_source_url: str = "",
-    origin_source_commit: str = "",
-    origin_source_version: str = "",
-    origin_license: str = "",
-    origin_imported_path: str = "",
+    context: SummaryContext | None = None,
 ) -> dict[str, object]:
+    summary_context = context or SummaryContext()
     cases = {str(entry.get("name", "")): entry for entry in entries}
     import_status = import_status_counts(import_status_file)
     summary: dict[str, object] = {
         "status_model": STATUS_MODEL,
         "origin_model": ORIGIN_MODEL,
         "intervention_model": INTERVENTION_MODEL,
-        "connector_path": connector_path,
-        "validation_mode": validation_mode,
-        "environment": environment or default_environment(),
+        "connector_path": summary_context.connector_path,
+        "validation_mode": summary_context.validation_mode,
+        "environment": summary_context.resolved_environment(),
         "audit_behavior": audit_behavior(entries, import_status),
-        "server": server or connector,
-        "server_binary": server_binary,
-        "module": module,
-        "libmodsecurity": libmodsecurity,
-        "origin": origin_metadata(
-            origin_source,
-            origin_source_repo,
-            origin_source_url,
-            origin_source_commit,
-            origin_source_version,
-            origin_license,
-            origin_imported_path,
-        ),
+        "server": summary_context.resolved_server(connector),
+        "server_binary": summary_context.server_binary,
+        "module": summary_context.module,
+        "libmodsecurity": summary_context.libmodsecurity,
+        "origin": summary_context.origin(),
         "verified_variables": verified_variables(entries),
         "summary": result_counts(entries),
         "cases": cases,
@@ -211,46 +227,26 @@ def empty_connector_summary(
     *,
     connector: str,
     status: str,
-    connector_path: str = "real-world",
-    validation_mode: str = "real-world-connector-path",
-    environment: str | None = None,
-    server: str = "",
-    server_binary: str = "",
-    module: str = "",
-    libmodsecurity: str = "",
-    origin_source: str = "",
-    origin_source_repo: str = "",
-    origin_source_url: str = "",
-    origin_source_commit: str = "",
-    origin_source_version: str = "",
-    origin_license: str = "",
-    origin_imported_path: str = "",
+    context: SummaryContext | None = None,
 ) -> dict[str, object]:
+    summary_context = context or SummaryContext()
     counts = dict.fromkeys(RESULT_STATUSES, 0)
     counts.setdefault(status, 0)
     counts[status] += 1
     return {
         "audit_behavior": "unstable",
         "build": status,
-        "connector_path": connector_path,
-        "environment": environment or default_environment(),
+        "connector_path": summary_context.connector_path,
+        "environment": summary_context.resolved_environment(),
         "intervention_model": INTERVENTION_MODEL,
         "origin_model": ORIGIN_MODEL,
-        "validation_mode": validation_mode,
+        "validation_mode": summary_context.validation_mode,
         "status_model": STATUS_MODEL,
-        "server": server or connector,
-        "server_binary": server_binary,
-        "module": module,
-        "libmodsecurity": libmodsecurity,
-        "origin": origin_metadata(
-            origin_source,
-            origin_source_repo,
-            origin_source_url,
-            origin_source_commit,
-            origin_source_version,
-            origin_license,
-            origin_imported_path,
-        ),
+        "server": summary_context.resolved_server(connector),
+        "server_binary": summary_context.server_binary,
+        "module": summary_context.module,
+        "libmodsecurity": summary_context.libmodsecurity,
+        "origin": summary_context.origin(),
         "verified_variables": [],
         "summary": counts,
         "cases": {},

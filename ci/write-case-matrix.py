@@ -15,18 +15,22 @@ RUNNERS = FRAMEWORK_ROOT / "tests" / "runners"
 sys.path.insert(0, str(RUNNERS))
 
 from runner_core import case_info, load_case  # noqa: E402
+from response_body_status import RESPONSE_BODY_PASS_THROUGH_STATUS, is_response_body_related  # noqa: E402
 
 
-def result_status(results: dict[str, object], connector: str, name: str) -> str:
+def result_status(results: dict[str, object], connector: str, name: str, case: dict[str, object], path: Path) -> str:
     summary = results.get(connector, {})
     if not isinstance(summary, dict):
         return "unknown"
     cases = summary.get("cases", {})
     if not isinstance(cases, dict):
         return "unknown"
-    case = cases.get(name, {})
-    if isinstance(case, dict):
-        return str(case.get("status", "unknown"))
+    result_case = cases.get(name, {})
+    if isinstance(result_case, dict):
+        status = str(result_case.get("status", "unknown"))
+        if status.strip().lower() == "pass" and is_response_body_related(case, path):
+            return RESPONSE_BODY_PASS_THROUGH_STATUS
+        return status
     return "unknown"
 
 
@@ -89,8 +93,8 @@ def row(path: Path, results: dict[str, object]) -> str:
         case_source(info, path),
         category,
         capabilities,
-        result_status(results, "apache", name),
-        result_status(results, "nginx", name),
+        result_status(results, "apache", name, dict(case), path),
+        result_status(results, "nginx", name, dict(case), path),
         case_kind(info),
         notes,
     ]

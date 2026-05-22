@@ -1,0 +1,51 @@
+# Source-derived PR #70 phase-3 audit smoke.
+origin:
+  - repo: ModSecurity-apache
+    path: t/00-phases.t
+    reason: Derives the phase:3 RESPONSE_HEADERS audit-log behavior from upstream PR #70 without copying Apache::Test code.
+  - repo: ModSecurity-apache
+    path: t/conf/extra.conf.in
+    reason: Derives only the phase:3 response-header rule shape and audit-log intent from PR #70.
+source: ModSecurity-apache PR #70 @ 73c4ae80743810d866771dd4183be2bea44947dd
+category: audit-log
+portable: true
+status: imported
+notes: "PR70 source-derived phase 3 audit smoke against the stable static-file Last-Modified response header."
+known_limitations:
+  - Depends on the shared Apache/NGINX harness exposing a static-file Last-Modified header.
+  - Does not assert response-header order, casing, complete audit sections, or server banners.
+name: pr70_phase3_audit_response_header
+
+capabilities:
+  audit_log: true
+  response_headers: true
+  phase3: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule RESPONSE_HEADERS:Last-Modified "@rx ." \
+    "id:5703,phase:3,deny,status:403,auditlog,msg:'pr70 phase3 audit response header'"
+
+request:
+  method: GET
+  path: "/?pr70=phase3"
+
+response:
+  body: |
+    PR70 phase3 response fixture
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 5703
+  audit_log:
+    required: true
+    rule_id: 5703
+    uri: "/?pr70=phase3"
+    message: pr70 phase3 audit response header

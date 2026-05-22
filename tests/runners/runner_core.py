@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import re
 import shlex
 import time
 from typing import Any, Iterable, Mapping
@@ -157,6 +158,9 @@ def _indent_of(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
 
 
+_BLOCK_SCALAR_RE = re.compile(r"^[|>](?:[+-]|\d+)?(?:[+-]|\d+)?$")
+
+
 class MinimalYamlParser:
     """Parse the documented minimal case schema without external dependencies."""
 
@@ -230,7 +234,7 @@ class MinimalYamlParser:
             key = key.strip()
             raw_value = raw_value.strip()
             index += 1
-            if raw_value == "|":
+            if _BLOCK_SCALAR_RE.fullmatch(raw_value):
                 parsed[key], index = self.parse_block(index, current_indent)
                 continue
             if raw_value:
@@ -296,6 +300,9 @@ def _validate_case_metadata(case: Mapping[str, Any], where: str) -> None:
     portable = case.get("portable")
     if portable is not None and not isinstance(portable, bool):
         raise ValueError(f"case portable must be a boolean{where}")
+    requires_crs = case.get("requires_crs")
+    if requires_crs is not None and not isinstance(requires_crs, bool):
+        raise ValueError(f"case requires_crs must be a boolean{where}")
     connector = case.get("connector")
     if connector is not None and str(connector) not in CONNECTORS:
         raise ValueError(f"case connector must be apache, nginx, or common{where}")
@@ -401,16 +408,24 @@ def _validate_nginx(case: Mapping[str, Any], where: str) -> None:
     location_directives = nginx.get("location_directives")
     if location_directives is not None and not isinstance(location_directives, str):
         raise ValueError(f"case nginx.location_directives must be a string{where}")
-    files = nginx.get("files", {})
+    _validate_nginx_files(nginx.get("files", {}), where)
+
+
+def _validate_nginx_files(files: Any, where: str) -> None:
     if files is not None and not isinstance(files, Mapping):
         raise ValueError(f"case nginx.files must be a mapping{where}")
-    if isinstance(files, Mapping):
-        for name, content in files.items():
-            file_name = str(name)
-            if not file_name.strip() or file_name.startswith("/") or ".." in Path(file_name).parts:
-                raise ValueError(f"case nginx.files keys must be relative safe paths{where}")
-            if not isinstance(content, str):
-                raise ValueError(f"case nginx.files values must be strings{where}")
+    if not isinstance(files, Mapping):
+        return
+    for name, content in files.items():
+        _validate_nginx_file(name, content, where)
+
+
+def _validate_nginx_file(name: Any, content: Any, where: str) -> None:
+    file_name = str(name)
+    if not file_name.strip() or file_name.startswith("/") or ".." in Path(file_name).parts:
+        raise ValueError(f"case nginx.files keys must be relative safe paths{where}")
+    if not isinstance(content, str):
+        raise ValueError(f"case nginx.files values must be strings{where}")
 
 
 def _validate_expect_string_list(value: Any, key: str, where: str) -> None:
@@ -433,14 +448,20 @@ def _validate_expect(case: Mapping[str, Any], where: str) -> None:
     intervention = expect.get("intervention")
     if intervention is not None and str(intervention) not in INTERVENTIONS:
         raise ValueError(f"case expect.intervention is unsupported{where}")
-    audit_log = expect.get("audit_log", {})
+    _validate_expect_audit_log(expect.get("audit_log", {}), where)
+    _validate_expect_phase4_log(expect.get("phase4_log", {}), where)
+
+
+def _validate_expect_audit_log(audit_log: Any, where: str) -> None:
     if audit_log is not None and not isinstance(audit_log, Mapping):
         raise ValueError(f"case expect.audit_log must be a mapping{where}")
     if isinstance(audit_log, Mapping):
         absent = audit_log.get("absent")
         if absent is not None and not isinstance(absent, bool):
             raise ValueError(f"case expect.audit_log.absent must be a boolean{where}")
-    phase4_log = expect.get("phase4_log", {})
+
+
+def _validate_expect_phase4_log(phase4_log: Any, where: str) -> None:
     if phase4_log is not None and not isinstance(phase4_log, Mapping):
         raise ValueError(f"case expect.phase4_log must be a mapping{where}")
     if isinstance(phase4_log, Mapping):
@@ -456,6 +477,7 @@ def write_rules_file(
     path: str | Path,
     audit_log_file: str | Path | None = None,
     audit_log_dir: str | Path | None = None,
+    rules_preamble_file: str | Path | None = None,
 ) -> None:
     rules = str(case["rules"])
     if audit_log_file is not None:
@@ -464,9 +486,18 @@ def write_rules_file(
         rules = rules.replace("@@AUDIT_LOG_DIR@@", str(audit_log_dir))
     if "@@AUDIT_LOG@@" in rules or "@@AUDIT_LOG_DIR@@" in rules:
         raise ValueError("audit log placeholders require audit log paths")
+    preamble = ""
+    if rules_preamble_file is not None:
+        preamble_path = Path(rules_preamble_file)
+        if not preamble_path.is_file():
+            raise FileNotFoundError(f"rules preamble file missing: {preamble_path}")
+        preamble = preamble_path.read_text(encoding="utf-8")
+        if preamble and not preamble.endswith("\n"):
+            preamble += "\n"
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(rules if rules.endswith("\n") else f"{rules}\n", encoding="utf-8")
+    local_rules = rules if rules.endswith("\n") else f"{rules}\n"
+    output.write_text(f"{preamble}{local_rules}", encoding="utf-8")
 
 
 def request_headers(case: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -771,6 +802,7 @@ def case_info(
         "group": case_group(path, case),
         "category": str(case.get("category", "")),
         "portable": case.get("portable"),
+        "requires_crs": case_requires_crs(case),
         "connector": str(case.get("connector", "")),
         "case_status": str(case.get("status", "")),
         "capabilities": _capability_names(case),
@@ -831,10 +863,23 @@ def force_all_cases_enabled() -> bool:
     return os.environ.get("FORCE_ALL_CASES", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def modsecurity_test_variant() -> str:
+    variant = os.environ.get("MODSECURITY_TEST_VARIANT", "no-crs").strip() or "no-crs"
+    if variant not in {"no-crs", "with-crs"}:
+        raise ValueError(f"unsupported MODSECURITY_TEST_VARIANT: {variant}")
+    return variant
+
+
+def case_requires_crs(case: Mapping[str, Any]) -> bool:
+    return _bool_value(case.get("requires_crs"))
+
+
 def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str, scope: str) -> bool:
     path_scope = case_scope(path)
     declared_connector = case.get("connector")
     portable = case.get("portable")
+    if case_requires_crs(case) and modsecurity_test_variant() != "with-crs":
+        return False
     if not force_all_cases_enabled() and not is_default_runtime_case(case):
         return False
     if path_scope == "common" or path_scope.startswith("common/"):
