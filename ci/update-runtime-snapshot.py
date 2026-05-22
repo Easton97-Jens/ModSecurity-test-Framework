@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 from datetime import datetime
+from dataclasses import dataclass
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -18,9 +19,12 @@ import yaml
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
 CONNECTOR_ROOT = Path.cwd()
 OUTPUT_ROOT = CONNECTOR_ROOT
-REPORT_ROOT = OUTPUT_ROOT / "docs/testing"
+FRAMEWORK_REPORT_DIR = "docs/testing"
+CONNECTOR_REPORT_DIR = "reports/testing"
+REPORT_ROOT = OUTPUT_ROOT / FRAMEWORK_REPORT_DIR
 SNAPSHOT_FILENAME = "runtime-validation-snapshot.json"
 SNAPSHOT = REPORT_ROOT / SNAPSHOT_FILENAME
+SNAPSHOT_LAYOUT: "SnapshotLayout | None" = None
 sys.path.insert(0, str(FRAMEWORK_ROOT / "tests" / "runners"))
 
 from runner_core import case_group, load_case  # noqa: E402
@@ -29,6 +33,19 @@ from runner_core import case_group, load_case  # noqa: E402
 def default_build_root() -> Path:
     state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
     return Path(os.environ.get("BUILD_ROOT", state_home / "ModSecurity-conector-build"))
+
+
+@dataclass(frozen=True)
+class SnapshotLayout:
+    output_root: Path
+    report_root: Path
+    snapshot: Path
+
+    def write(self, snapshot_data: dict) -> None:
+        if self.snapshot != build_safe_snapshot_path(self.output_root):
+            raise ValueError(f"snapshot path must be the configured report snapshot: {self.snapshot}")
+        self.snapshot.parent.mkdir(parents=True, exist_ok=True)
+        self.snapshot.write_text(json.dumps(snapshot_data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
 
 
 def resolve_root(root: str | Path, *, label: str) -> Path:
@@ -48,38 +65,51 @@ def resolve_under_root(root: Path, candidate: Path, *, label: str) -> Path:
     return candidate
 
 
-def select_output_root(output_root: str | Path | None) -> Path:
+def resolve_allowed_output_root(output_root: str | Path | None) -> Path:
     requested = resolve_root(output_root, label="output root") if output_root is not None else CONNECTOR_ROOT
     if requested == FRAMEWORK_ROOT:
         return FRAMEWORK_ROOT
     if requested == CONNECTOR_ROOT:
         return CONNECTOR_ROOT
-    raise ValueError(
-        "output root must resolve exactly to the framework root "
-        f"({FRAMEWORK_ROOT}) or connector root ({CONNECTOR_ROOT}): {requested}"
-    )
+    raise ValueError(f"output root must resolve exactly to the framework root ({FRAMEWORK_ROOT}) or connector root ({CONNECTOR_ROOT}): {requested}")
 
 
 def report_root_for(output_root: Path) -> Path:
     if output_root == FRAMEWORK_ROOT:
-        return resolve_under_root(FRAMEWORK_ROOT, FRAMEWORK_ROOT / "docs/testing", label="framework report root")
+        return resolve_under_root(FRAMEWORK_ROOT, FRAMEWORK_ROOT / FRAMEWORK_REPORT_DIR, label="framework report root")
     if output_root == CONNECTOR_ROOT:
-        return resolve_under_root(CONNECTOR_ROOT, CONNECTOR_ROOT / "reports/testing", label="connector report root")
+        return resolve_under_root(CONNECTOR_ROOT, CONNECTOR_ROOT / CONNECTOR_REPORT_DIR, label="connector report root")
     raise ValueError(f"unsupported output root: {output_root}")
 
 
-def snapshot_path_for(output_root: Path) -> Path:
+def build_safe_snapshot_path(output_root: Path) -> Path:
     report_root = report_root_for(output_root)
     return resolve_under_root(report_root, report_root / SNAPSHOT_FILENAME, label="runtime snapshot path")
 
 
+def build_safe_snapshot_layout(output_root: Path) -> SnapshotLayout:
+    report_root = report_root_for(output_root)
+    return SnapshotLayout(
+        output_root=output_root,
+        report_root=report_root,
+        snapshot=resolve_under_root(report_root, report_root / SNAPSHOT_FILENAME, label="runtime snapshot path"),
+    )
+
+
+def active_snapshot_layout() -> SnapshotLayout:
+    if SNAPSHOT_LAYOUT is None:
+        raise RuntimeError("snapshot layout has not been configured")
+    return SNAPSHOT_LAYOUT
+
+
 def configure_paths(framework_root: str | Path, connector_root: str | Path, output_root: str | Path | None) -> None:
-    global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, REPORT_ROOT, SNAPSHOT
+    global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, REPORT_ROOT, SNAPSHOT, SNAPSHOT_LAYOUT
     FRAMEWORK_ROOT = resolve_root(framework_root, label="framework root")
     CONNECTOR_ROOT = resolve_root(connector_root, label="connector root")
-    OUTPUT_ROOT = select_output_root(output_root)
-    REPORT_ROOT = report_root_for(OUTPUT_ROOT)
-    SNAPSHOT = snapshot_path_for(OUTPUT_ROOT)
+    OUTPUT_ROOT = resolve_allowed_output_root(output_root)
+    SNAPSHOT_LAYOUT = build_safe_snapshot_layout(OUTPUT_ROOT)
+    REPORT_ROOT = SNAPSHOT_LAYOUT.report_root
+    SNAPSHOT = SNAPSHOT_LAYOUT.snapshot
 
 
 def git_value(*args: str) -> str:
@@ -283,16 +313,16 @@ def validated_snapshot_path() -> Path:
     snapshot_path = SNAPSHOT.resolve()
     if snapshot_path.name != SNAPSHOT_FILENAME:
         raise ValueError(f"unexpected snapshot file name: {snapshot_path}")
-    expected_snapshot_path = snapshot_path_for(OUTPUT_ROOT)
+    expected_snapshot_path = build_safe_snapshot_path(OUTPUT_ROOT)
     if snapshot_path != expected_snapshot_path:
         raise ValueError(f"snapshot path must be the configured report snapshot: {snapshot_path}")
     return snapshot_path
 
 
 def write_snapshot(snapshot: dict) -> None:
-    snapshot_path = validated_snapshot_path()
-    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    snapshot_path.write_text(json.dumps(snapshot, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    if validated_snapshot_path() != active_snapshot_layout().snapshot:
+        raise ValueError("snapshot path validation mismatch")
+    active_snapshot_layout().write(snapshot)
 
 
 def load_existing_snapshot() -> dict:
