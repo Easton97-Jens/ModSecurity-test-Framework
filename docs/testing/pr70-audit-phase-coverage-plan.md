@@ -1,6 +1,6 @@
 # PR #70 Audit Phase Coverage Plan
 
-Status: plan
+Status: partially implemented
 
 This document records how upstream ModSecurity-apache PR #70 should be mapped
 into this external test framework. It is a framework-local plan only. It does
@@ -147,8 +147,15 @@ promote xfail, mapped-only, future, connector-gap, or RESPONSE_BODY cases.
 
 ## Safe Next Step
 
-The safest next code change is a single YAML phase-1 audit smoke derived from
-PR #70 that reuses the existing serial audit-log pattern and asserts only a
-stable rule id/message/URI. Phase 2 can follow by reusing existing request-body
-smoke support. Phase 3 should wait for stable response-header evidence in both
-connectors. Phase 4 and phase 5 remain deferred.
+The first source-derived YAML group is implemented under
+`tests/cases/audit-log/pr70-phases/`:
+
+| case | phase | status | intent |
+| --- | --- | --- | --- |
+| `pr70_phase1_audit_request_header` | 1 | imported | request-header phase-1 rule plus stable serial audit substrings |
+| `pr70_phase2_audit_urlencoded_body` | 2 | imported | URL-encoded request-body/ARGS phase-2 rule plus stable serial audit substrings |
+| `pr70_phase3_audit_response_header` | 3 | imported | static-file response-header phase-3 rule plus stable serial audit substrings |
+| `pr70_phase4_response_body_audit_xfail` | 4 | xfail | RESPONSE_BODY audit probe kept non-promotable |
+
+Phase 5 remains deferred because the framework does not yet have a `phase5`
+capability or stable logging-phase assertion model.

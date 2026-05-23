@@ -3,20 +3,20 @@ Generated file — do not edit manually.
 # ModSecurity Connector Test Coverage Overview
 
 ## Summary
-- Total cases: **133**
+- Total cases: **137**
 - Verified/pass count (`runtime_verified=true`): **0**
-- XFAIL count: **79**
-- Pending runtime verification count: **86**
+- XFAIL count: **80**
+- Pending runtime verification count: **87**
 - Connector-gap count: **11**
 - Runtime-difference count: **13**
-- Future/experimental count: **16**
-- RESPONSE_BODY cases: **23** (still **not verified/promoted**)
+- Future/experimental count: **17**
+- RESPONSE_BODY cases: **24** (still **not verified/promoted**)
 - Mapped-only import inventory entries: **10**
 
 ## Coverage By Variable / Collection
 | Variable | Count |
 |---|---:|
-| `RESPONSE_BODY` | 19 |
+| `RESPONSE_BODY` | 20 |
 | `ARGS:q` | 18 |
 | `REQUEST_BODY` | 10 |
 | `ARGS_NAMES` | 7 |
@@ -40,53 +40,54 @@ Generated file — do not edit manually.
 ## Coverage By Phase
 | Phase | Count |
 |---|---:|
-| 1 | 35 |
-| 2 | 69 |
-| 3 | 11 |
-| 4 | 19 |
+| 1 | 36 |
+| 2 | 70 |
+| 3 | 12 |
+| 4 | 20 |
 
 ## Coverage By Status
 | Status | Count |
 |---|---:|
 | active | 7 |
-| imported | 47 |
-| xfail | 79 |
+| imported | 50 |
+| xfail | 80 |
 
 ## Coverage By Scope
 | Scope | Count |
 |---|---:|
-| common | 126 |
+| common | 130 |
 | apache | 0 |
 | nginx | 7 |
 | unknown | 0 |
 
 ## Runtime Matrix Status
-- Default runtime-executable YAML cases: **54**
-- Force-all runtime-executable YAML cases: **133**
-- Apache attempted YAML cases from latest summary: **126**
-- NGINX attempted YAML cases from latest summary: **54**
+- Default runtime-executable YAML cases: **57**
+- Force-all runtime-executable YAML cases: **137**
+- Apache attempted YAML cases from latest summary: **130**
+- NGINX attempted YAML cases from latest summary: **0**
 | Status | Apache | NGINX |
 |---|---:|---:|
-| PASS | 47 | 50 |
-| RESPONSE_BODY_PASS_THROUGH | 1 | 4 |
+| PASS | 50 | 0 |
+| RESPONSE_BODY_PASS_THROUGH | 1 | 0 |
+| FAIL | 0 | 137 |
 | XFAIL_PASS | 16 | 0 |
 | XFAIL_FAIL | 20 | 0 |
 | PENDING_FAIL | 1 | 0 |
 | FUTURE_PASS | 6 | 0 |
 | FUTURE_RESPONSE_BODY_PASS_THROUGH | 1 | 0 |
-| FUTURE_FAIL | 9 | 0 |
+| FUTURE_FAIL | 10 | 0 |
 | CONNECTOR_GAP_PASS | 4 | 0 |
 | CONNECTOR_GAP_FAIL | 7 | 0 |
 | RUNTIME_DIFFERENCE_PASS | 6 | 0 |
 | RUNTIME_DIFFERENCE_FAIL | 8 | 0 |
-| NOT_EXECUTABLE | 7 | 79 |
+| NOT_EXECUTABLE | 7 | 0 |
 | MAPPED_ONLY | 10 | 10 |
 - Details: `docs/testing/generated/runtime-matrix.generated.md`
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-23** (2026-05-23 20:08:51 CEST)
-- Git: branch `master`, commit `43a122a`
-- BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
+- Snapshot: **2026-05-23** (2026-05-23 21:47:19 CEST)
+- Git: branch `master`, commit `bc83967`
+- BUILD_ROOT: `/root/.local/state/ModSecurity-test-framework-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.
 - Per-case PASS/FAIL/BLOCKED/XFAIL values are runtime evidence for this local run only.
@@ -123,8 +124,8 @@ Generated file — do not edit manually.
 ## Runtime Smoke Status
 | Command | Status | Exit | PASS | FAIL | BLOCKED | XFAIL | Evidence |
 |---|---|---|---|---|---|---|---|
-| FORCE_ALL_CASES=1 REFRESH=1 make smoke-apache | FAIL | 2 | 81 | 45 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/apache-summary.json |
-| FORCE_ALL_CASES=1 REFRESH=1 make smoke-nginx | PASS | 0 | 54 | 0 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/nginx-summary.json |
+| FORCE_ALL_CASES=1 make smoke-apache CONNECTOR_ROOT=/root/conecter/ModSecurity-conector | FAIL | 2 | 84 | 46 | 0 | 0 | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json |
+| FORCE_ALL_CASES=1 make smoke-nginx CONNECTOR_ROOT=/root/conecter/ModSecurity-conector | FAIL | 2 | 0 | 1 | 0 | 0 | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | REFRESH=1 make smoke-all | NOT_RUN | not_run | unknown | unknown | unknown | unknown | not available |
 
 ## Runtime FAIL Details
@@ -160,6 +161,7 @@ Generated file — do not edit manually.
 | apache | phase4_response_body_html_entity_decode_gap | 403 | 200 | runtime summary reported non-pass |
 | apache | phase4_response_body_html_text_normalization_probe | 403 | 200 | runtime summary reported non-pass |
 | apache | phase4_response_body_unicode_runtime_difference | 403 | 200 | runtime summary reported non-pass |
+| apache | pr70_phase4_response_body_audit_xfail | 403 | 200 | runtime summary reported non-pass |
 | apache | response_body_basic_block | 403 | 200 | runtime summary reported non-pass |
 | apache | response_headers_multi_value_runtime_gap | 403 | 200 | runtime summary reported non-pass |
 | apache | sqli_like_keyword_spacing_probe | 403 | 200 | runtime summary reported non-pass |

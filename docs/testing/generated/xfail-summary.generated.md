@@ -14,6 +14,7 @@ Generated file — do not edit manually.
 | duplicate_header_case_normalization_gap | `tests/cases/audit-log/duplicate_header_case_normalization_gap.yaml` | xfail | 1 | REQUEST_HEADERS_NAMES | - |
 | parser_json_partial_body_connector_gap | `tests/cases/audit-log/parser_json_partial_body_connector_gap.yaml` | xfail | 2 | REQUEST_BODY | - |
 | parser_xml_partial_body_future_target | `tests/cases/audit-log/parser_xml_partial_body_future_target.yaml` | xfail | 2 | XML | - |
+| pr70_phase4_response_body_audit_xfail | `tests/cases/audit-log/pr70-phases/pr70_phase4_response_body_audit_xfail.yaml` | xfail | 4 | RESPONSE_BODY | PR70 phase 4 RESPONSE_BODY audit probe; future/non-promoted evidence only. |
 | tfn_chain_lowercase_trim_pass_through | `tests/cases/audit-log/tfn_chain_lowercase_trim_pass_through.yaml` | xfail | 2 | ARGS:q | - |
 | tfn_chain_urldecode_compress_whitespace_gap | `tests/cases/audit-log/tfn_chain_urldecode_compress_whitespace_gap.yaml` | xfail | 2 | ARGS:q | - |
 | v3_action_nolog_pass_no_audit | `tests/cases/audit-log/v3_action_nolog_pass_no_audit.yaml` | xfail | 1 | ARGS:foo | - |

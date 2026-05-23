@@ -1,0 +1,52 @@
+# Source-derived PR #70 phase-2 audit smoke.
+origin:
+  - repo: ModSecurity-apache
+    path: t/00-phases.t
+    reason: Derives the phase:2 ARGS audit-log behavior from upstream PR #70 without copying Apache::Test code.
+  - repo: ModSecurity-apache
+    path: t/conf/extra.conf.in
+    reason: Derives only the phase:2 request-body/ARGS rule shape and audit-log intent from PR #70.
+source: ModSecurity-apache PR #70 @ 73c4ae80743810d866771dd4183be2bea44947dd
+category: audit-log
+portable: true
+status: imported
+notes: "PR70 source-derived phase 2 audit smoke using URL-encoded request-body support."
+known_limitations:
+  - "Checks only stable serial audit substrings: rule id, request URI, and message."
+  - Does not require complete request-body section equality or body parser debug output.
+name: pr70_phase2_audit_urlencoded_body
+
+capabilities:
+  audit_log: true
+  request_body: true
+  form_urlencoded: true
+  phase2: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRequestBodyAccess On
+  SecRule ARGS_POST:arg1 "@streq pr70phase2" \
+    "id:5702,phase:2,deny,status:403,auditlog,msg:'pr70 phase2 audit urlencoded body'"
+
+request:
+  method: POST
+  path: "/?pr70=phase2"
+  headers:
+    Content-Type: application/x-www-form-urlencoded
+  body: arg1=pr70phase2&arg2=clean
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 5702
+  audit_log:
+    required: true
+    rule_id: 5702
+    uri: "/?pr70=phase2"
+    message: pr70 phase2 audit urlencoded body

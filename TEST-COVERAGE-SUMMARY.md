@@ -3,19 +3,19 @@ Generated file — do not edit manually.
 # ModSecurity Connector Test Coverage Summary
 
 ## Summary Status
-- Total YAML cases: **133**
+- Total YAML cases: **137**
 - Verified/pass (`runtime_verified=true`): **0**
-- XFAIL cases: **79**
-- Pending runtime verification (`runtime_verified=false`): **86**
-- Pending runtime verification (`runtime_verified=unknown`): **47**
+- XFAIL cases: **80**
+- Pending runtime verification (`runtime_verified=false`): **87**
+- Pending runtime verification (`runtime_verified=unknown`): **50**
 - Connector-gap cases: **11**
 - Runtime-difference cases: **13**
-- Future/experimental cases: **16**
-- RESPONSE_BODY cases: **23**
-- Default runtime-executable YAML cases: **54**
-- Force-all runtime-executable YAML cases: **133**
-- Apache attempted YAML cases in latest runtime snapshot: **126**
-- NGINX attempted YAML cases in latest runtime snapshot: **54**
+- Future/experimental cases: **17**
+- RESPONSE_BODY cases: **24**
+- Default runtime-executable YAML cases: **57**
+- Force-all runtime-executable YAML cases: **137**
+- Apache attempted YAML cases in latest runtime snapshot: **130**
+- NGINX attempted YAML cases in latest runtime snapshot: **0**
 - Mapped-only import inventory entries: **10**
 
 **RESPONSE_BODY is not verified or promoted.** This file is generated reporting, not runtime proof.
@@ -26,25 +26,25 @@ Generated file — do not edit manually.
 - `FRAMEWORK_ROOT` and `CONNECTOR_ROOT` are explicit integration paths; there is no absolute workspace fallback.
 
 ## Case Types
-- Common YAML cases: **126**
+- Common YAML cases: **130**
 - Apache-specific YAML cases: **0**
 - NGINX-specific YAML cases: **7**
-- XFAIL cases: **79**
+- XFAIL cases: **80**
 - Mapped-only import inventory entries: **10** (not counted as runnable YAML cases)
 - Runtime-blocked import inventory entries: **0** (environment/harness blockers, not PASS or XFAIL promotions)
-- Pending/future compatibility cases: **16** future/experimental; **133** not runtime-verified
+- Pending/future compatibility cases: **17** future/experimental; **137** not runtime-verified
 
 ## Status Classes
 | Status | Count |
 |---|---:|
 | active | 7 |
-| imported | 47 |
-| xfail | 79 |
+| imported | 50 |
+| xfail | 80 |
 
 ## Scope
 | Scope | Count |
 |---|---:|
-| common | 126 |
+| common | 130 |
 | apache | 0 |
 | nginx | 7 |
 | unknown | 0 |
@@ -54,7 +54,7 @@ Generated file — do not edit manually.
 |---|---:|
 | `ARGS` | 43 |
 | `ARGS_NAMES` | 7 |
-| `REQUEST_HEADERS` | 4 |
+| `REQUEST_HEADERS` | 5 |
 | `REQUEST_HEADERS_NAMES` | 5 |
 | `REQUEST_COOKIES` | 2 |
 | `REQUEST_COOKIES_NAMES` | 4 |
@@ -63,59 +63,60 @@ Generated file — do not edit manually.
 | `FILES` | 2 |
 | `FILES_NAMES` | 2 |
 | `XML` | 5 |
-| `RESPONSE_HEADERS` | 10 |
-| `RESPONSE_BODY` | 19 |
+| `RESPONSE_HEADERS` | 11 |
+| `RESPONSE_BODY` | 20 |
 | `AUDIT_LOG` | 0 |
 
 ## Coverage By Phase
 | Phase | Count |
 |---|---:|
-| Phase 1 | 35 |
-| Phase 2 | 69 |
-| Phase 3 | 11 |
-| Phase 4 | 19 |
+| Phase 1 | 36 |
+| Phase 2 | 70 |
+| Phase 3 | 12 |
+| Phase 4 | 20 |
 
 ## Coverage By Topic
 | Topic | Count |
 |---|---:|
-| Operators | 128 |
+| Operators | 132 |
 | Transformations | 28 |
 | Multipart / FILES | 11 |
 | JSON | 7 |
 | XML | 5 |
-| Unicode / Encoding | 16 |
+| Unicode / Encoding | 17 |
 | XSS-like compatibility probes | 2 |
 | SQLi-like compatibility probes | 2 |
-| Audit-log probes | 20 |
-| Response header probes | 10 |
+| Audit-log probes | 24 |
+| Response header probes | 11 |
 | Response body experimental probes | 2 |
 
 ## Runtime Matrix Status
 | Status | Apache | NGINX |
 |---|---:|---:|
-| PASS | 47 | 50 |
-| RESPONSE_BODY_PASS_THROUGH | 1 | 4 |
+| PASS | 50 | 0 |
+| RESPONSE_BODY_PASS_THROUGH | 1 | 0 |
+| FAIL | 0 | 137 |
 | XFAIL_PASS | 16 | 0 |
 | XFAIL_FAIL | 20 | 0 |
 | PENDING_FAIL | 1 | 0 |
 | FUTURE_PASS | 6 | 0 |
 | FUTURE_RESPONSE_BODY_PASS_THROUGH | 1 | 0 |
-| FUTURE_FAIL | 9 | 0 |
+| FUTURE_FAIL | 10 | 0 |
 | CONNECTOR_GAP_PASS | 4 | 0 |
 | CONNECTOR_GAP_FAIL | 7 | 0 |
 | RUNTIME_DIFFERENCE_PASS | 6 | 0 |
 | RUNTIME_DIFFERENCE_FAIL | 8 | 0 |
-| NOT_EXECUTABLE | 7 | 79 |
+| NOT_EXECUTABLE | 7 | 0 |
 | MAPPED_ONLY | 10 | 10 |
 
-- Apache attempted YAML cases from latest summary: **126**
-- NGINX attempted YAML cases from latest summary: **54**
+- Apache attempted YAML cases from latest summary: **130**
+- NGINX attempted YAML cases from latest summary: **0**
 - Apache raw runtime XFAIL observations from latest summary: **0**
 - NGINX raw runtime XFAIL observations from latest summary: **0**
 - Apache NOT EXECUTED YAML rows: **0**
 - NGINX NOT EXECUTED YAML rows: **0**
 - Apache NOT_EXECUTABLE YAML rows: **7**
-- NGINX NOT_EXECUTABLE YAML rows: **79**
+- NGINX NOT_EXECUTABLE YAML rows: **0**
 - Mapped-only import inventory entries: **10**
 - Runtime matrix detail: `docs/testing/generated/runtime-matrix.generated.md`
 - Apache per-case results: `docs/testing/generated/apache-runtime-results.generated.md`
@@ -124,9 +125,9 @@ Generated file — do not edit manually.
 - RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-23** (2026-05-23 20:08:51 CEST)
-- Git: branch `master`, commit `43a122a`
-- BUILD_ROOT: `/root/.local/state/ModSecurity-conector-build`
+- Snapshot: **2026-05-23** (2026-05-23 21:47:19 CEST)
+- Git: branch `master`, commit `bc83967`
+- BUILD_ROOT: `/root/.local/state/ModSecurity-test-framework-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.
 - Per-case PASS/FAIL/BLOCKED/XFAIL values are runtime evidence for this local run only.
@@ -163,8 +164,8 @@ Generated file — do not edit manually.
 ## Runtime Smoke Status
 | Command | Status | Exit | PASS | FAIL | BLOCKED | XFAIL | Evidence |
 |---|---|---|---|---|---|---|---|
-| FORCE_ALL_CASES=1 REFRESH=1 make smoke-apache | FAIL | 2 | 81 | 45 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/apache-summary.json |
-| FORCE_ALL_CASES=1 REFRESH=1 make smoke-nginx | PASS | 0 | 54 | 0 | 0 | 0 | /root/.local/state/ModSecurity-conector-build/results/nginx-summary.json |
+| FORCE_ALL_CASES=1 make smoke-apache CONNECTOR_ROOT=/root/conecter/ModSecurity-conector | FAIL | 2 | 84 | 46 | 0 | 0 | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json |
+| FORCE_ALL_CASES=1 make smoke-nginx CONNECTOR_ROOT=/root/conecter/ModSecurity-conector | FAIL | 2 | 0 | 1 | 0 | 0 | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | REFRESH=1 make smoke-all | NOT_RUN | not_run | unknown | unknown | unknown | unknown | not available |
 
 ## Runtime FAIL Details
@@ -200,6 +201,7 @@ Generated file — do not edit manually.
 | apache | phase4_response_body_html_entity_decode_gap | 403 | 200 | runtime summary reported non-pass |
 | apache | phase4_response_body_html_text_normalization_probe | 403 | 200 | runtime summary reported non-pass |
 | apache | phase4_response_body_unicode_runtime_difference | 403 | 200 | runtime summary reported non-pass |
+| apache | pr70_phase4_response_body_audit_xfail | 403 | 200 | runtime summary reported non-pass |
 | apache | response_body_basic_block | 403 | 200 | runtime summary reported non-pass |
 | apache | response_headers_multi_value_runtime_gap | 403 | 200 | runtime summary reported non-pass |
 | apache | sqli_like_keyword_spacing_probe | 403 | 200 | runtime summary reported non-pass |
