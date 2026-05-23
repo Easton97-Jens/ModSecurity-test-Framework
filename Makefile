@@ -31,6 +31,7 @@ lint:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
 	$(PYTHON) ci/check-python-deps.py
 	$(PYTHON) ci/check-workflow-yaml.py
+	$(PYTHON) ci/check-response-body-promotion.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
 	git diff --check
 
 generate-test-matrix:

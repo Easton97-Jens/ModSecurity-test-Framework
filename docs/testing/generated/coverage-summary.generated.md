@@ -3,7 +3,7 @@ Generated file — do not edit manually.
 # Generated Coverage Summary
 
 - Total cases: 133
-- RESPONSE_BODY cases: 19
+- RESPONSE_BODY cases: 23
 - Verified runtime cases: 0
 - Non-verified runtime cases: 133
 
@@ -67,3 +67,4 @@ Generated file — do not edit manually.
 ## Verification note
 - Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.
 - RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists.
+- RESPONSE_BODY pass-through evidence only; not proof of response-body blocking/inspection.

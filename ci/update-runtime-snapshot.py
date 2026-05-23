@@ -28,6 +28,12 @@ SNAPSHOT_LAYOUT: "SnapshotLayout | None" = None
 sys.path.insert(0, str(FRAMEWORK_ROOT / "tests" / "runners"))
 
 from runner_core import case_group, load_case  # noqa: E402
+from response_body_status import (  # noqa: E402
+    RESPONSE_BODY_RUNTIME_NOTE,
+    is_response_body_related,
+    matrix_status_for_result,
+    response_body_non_promotion_fields,
+)
 
 
 def default_build_root() -> Path:
@@ -181,7 +187,7 @@ def classify_case(relative: str, status: str, case: dict, group: str) -> str:
     return "active"
 
 
-def case_metadata(path: str) -> dict[str, str]:
+def case_metadata(path: str) -> dict[str, object]:
     relative = normalize_case(path)
     case_path = resolve_case_path(relative)
     case = load_case_metadata(case_path)
@@ -192,29 +198,16 @@ def case_metadata(path: str) -> dict[str, str]:
         "yaml_status": status,
         "case_group": group,
         "classification": classification,
+        "response_body_related": is_response_body_related(case, relative),
     }
 
 
-def matrix_status(result_status: str, classification: str) -> str:
-    status = result_status.strip().lower()
-    if status == "blocked":
-        return "BLOCKED"
-    if status == "skipped":
-        return "NOT_EXECUTABLE"
-    if status not in {"pass", "fail"}:
-        return status.upper() if status else "UNKNOWN"
-    suffix = "PASS" if status == "pass" else "FAIL"
-    if classification == "active":
-        return suffix
-    if classification == "connector_gap":
-        return f"CONNECTOR_GAP_{suffix}"
-    if classification == "runtime_difference":
-        return f"RUNTIME_DIFFERENCE_{suffix}"
-    if classification == "pending":
-        return f"PENDING_{suffix}"
-    if classification == "future":
-        return f"FUTURE_{suffix}"
-    return f"XFAIL_{suffix}"
+def matrix_status(result_status: str, classification: str, response_body_related: bool = False) -> str:
+    return matrix_status_for_result(
+        result_status,
+        classification,
+        response_body_related=response_body_related,
+    )
 
 
 def case_rows(summary: dict, connector: str, summary_path: Path) -> list[dict]:
@@ -235,25 +228,29 @@ def case_rows(summary: dict, connector: str, summary_path: Path) -> list[dict]:
         evidence = f"{summary_path}; case={name}; status={status}"
         if expected is not None or actual is not None:
             evidence += f"; expected={expected}; actual={actual}"
-        rows.append(
-            {
-                "case": str(name),
-                "path": normalize_case(str(item.get("path", ""))),
-                "status": status,
-                "matrix_status": matrix_status(status, metadata["classification"]),
-                "runtime_attempted": True,
-                "operation_status": item.get("operation_status", "unknown"),
-                "expected_status": expected,
-                "actual_status": actual,
-                "scope": item.get("scope", "unknown"),
-                "group": item.get("group", "unknown"),
-                "yaml_status": metadata["yaml_status"],
-                "runtime_classification": metadata["classification"],
-                "capabilities": item.get("capabilities", []),
-                "evidence": evidence,
-                "not_auto_promoted": metadata["classification"] != "active",
-            }
-        )
+        response_body_related = bool(metadata["response_body_related"])
+        row = {
+            "case": str(name),
+            "path": normalize_case(str(item.get("path", ""))),
+            "status": status,
+            "matrix_status": matrix_status(status, metadata["classification"], response_body_related),
+            "runtime_attempted": True,
+            "operation_status": item.get("operation_status", "unknown"),
+            "expected_status": expected,
+            "actual_status": actual,
+            "scope": item.get("scope", "unknown"),
+            "group": item.get("group", "unknown"),
+            "yaml_status": metadata["yaml_status"],
+            "runtime_classification": metadata["classification"],
+            "capabilities": item.get("capabilities", []),
+            "evidence": evidence,
+        }
+        row.update(response_body_non_promotion_fields(response_body_related, metadata["classification"]))
+        if response_body_related:
+            row["response_body_related"] = True
+            if status.strip().lower() == "pass":
+                row["reason"] = RESPONSE_BODY_RUNTIME_NOTE
+        rows.append(row)
     return rows
 
 
@@ -361,6 +358,7 @@ def main() -> int:
             "Per-case PASS/FAIL/BLOCKED/XFAIL values are runtime evidence for this local run only.",
             "No xfail/pending YAML case is promoted by this snapshot.",
             "RESPONSE_BODY remains non-verified/non-promoted, including pass-through response-body probes.",
+            "Runtime-passing RESPONSE_BODY cases are marked non-promotable pass-through evidence.",
             "Mapped-only import inventory entries remain visible but are not executed runtime cases.",
             "make smoke-all is not implied by separate Apache/NGINX runtime matrix runs.",
         ],
@@ -405,6 +403,7 @@ def main() -> int:
             "XFAIL, pending, connector-gap, runtime-difference, future, and mapped-only inventory are not promoted by this snapshot.",
             "FORCE_ALL_CASES=1 attempts xfail/pending/future/gap YAML cases where they are applicable to the connector.",
             "RESPONSE_BODY remains non-verified/non-promoted.",
+            "Runtime passed, but this does not verify RESPONSE_BODY support.",
             "make smoke-all was not run by runtime-matrix; full-smoke PASS counts remain unknown.",
         ],
         "open_issues": [

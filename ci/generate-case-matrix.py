@@ -11,6 +11,14 @@ from pathlib import Path
 
 import yaml
 
+from response_body_status import (
+    RESPONSE_BODY_EVIDENCE_NOTE,
+    RESPONSE_BODY_PASS_THROUGH_STATUS,
+    RESPONSE_BODY_RUNTIME_NOTE,
+    is_response_body_related,
+    matrix_status_for_result,
+)
+
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
 CONNECTOR_ROOT = Path.cwd()
 OUTPUT_ROOT = CONNECTOR_ROOT
@@ -73,17 +81,23 @@ ROOT_COMMANDS = [
 
 MATRIX_STATUS_ORDER = [
     "PASS",
+    "RESPONSE_BODY_PASS_THROUGH",
     "FAIL",
     "BLOCKED",
     "XFAIL_PASS",
+    "XFAIL_RESPONSE_BODY_PASS_THROUGH",
     "XFAIL_FAIL",
     "PENDING_PASS",
+    "PENDING_RESPONSE_BODY_PASS_THROUGH",
     "PENDING_FAIL",
     "FUTURE_PASS",
+    "FUTURE_RESPONSE_BODY_PASS_THROUGH",
     "FUTURE_FAIL",
     "CONNECTOR_GAP_PASS",
+    "CONNECTOR_GAP_RESPONSE_BODY_PASS_THROUGH",
     "CONNECTOR_GAP_FAIL",
     "RUNTIME_DIFFERENCE_PASS",
+    "RUNTIME_DIFFERENCE_RESPONSE_BODY_PASS_THROUGH",
     "RUNTIME_DIFFERENCE_FAIL",
     "NOT_EXECUTABLE",
     "MAPPED_ONLY",
@@ -321,15 +335,27 @@ def parse_case(path: Path) -> dict:
     data = read_yaml(path)
     rules = str(data.get("rules", "") or "")
     variables, phases, operators, transformations = extract_rule_metadata(rules)
-    status, category, notes, source, caps = extract_status_metadata(data)
+    status, category, notes, source, _ = extract_status_metadata(data)
     tags = extract_gap_tags(path, status, category, notes, source)
+    case_id = str(data.get("name", path.stem) or path.stem)
+    case_for_detection = dict(data)
+    case_for_detection.update(
+        {
+            "id": case_id,
+            "path": display_path(path),
+            "variables": sorted(variables),
+            "category": category,
+            "notes": notes,
+            "tags": tags,
+        }
+    )
 
-    response_body = bool(caps.get("response_body", False)) or any("RESPONSE_BODY" in var for var in variables)
+    response_body = is_response_body_related(case_for_detection, path)
     if not phases:
         warn(f"no phase metadata found in {path}")
 
     return {
-        "id": str(data.get("name", path.stem) or path.stem),
+        "id": case_id,
         "path": display_path(path),
         "scope": infer_scope(path),
         "status": status,
@@ -381,12 +407,18 @@ def report_doc(name: str) -> str:
 
 
 def render_case_matrix(cases: list[dict]) -> str:
-    rows = ["# Generated Case Matrix", "", "| case_id | path | scope | phase | variables | operators | transformations | status | runtime_verified | notes |", "|---|---|---|---|---|---|---|---|---|---|"]
+    rows = [
+        "# Generated Case Matrix",
+        "",
+        "| case_id | path | scope | phase | variables | operators | transformations | status | runtime_verified | RESPONSE_BODY non-verified | notes |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
+    ]
     for case in cases:
         rows.append(
             f"| {case['id']} | `{case['path']}` | {case['scope']} | {','.join(map(str, case['phases'])) or '-'} | "
             f"{', '.join(case['variables']) or '-'} | {', '.join(case['operators']) or '-'} | "
-            f"{', '.join(case['transformations']) or '-'} | {case['status']} | {case['runtime_verified']} | {case['notes']} |"
+            f"{', '.join(case['transformations']) or '-'} | {case['status']} | {case['runtime_verified']} | "
+            f"{'yes' if case['response_body'] else 'no'} | {case['notes']} |"
         )
     return "\n".join(rows)
 
@@ -400,7 +432,15 @@ def render_summary(cases: list[dict], by_scope: Counter, by_status: Counter, by_
     lines.extend(f"- `{key}`: {value}" for key, value in by_var.most_common())
     lines.extend(["", "## By phase"])
     lines.extend(f"- phase {phase}: {by_phase.get(phase, 0)}" for phase in [1, 2, 3, 4])
-    lines.extend(["", "## Verification note", "- Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.", "- RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists."])
+    lines.extend(
+        [
+            "",
+            "## Verification note",
+            "- Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.",
+            "- RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists.",
+            f"- {RESPONSE_BODY_EVIDENCE_NOTE}",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -600,28 +640,12 @@ def status_label(status: object) -> str:
     return NOT_EXECUTED
 
 
-def semantic_matrix_status(raw_status: str, classification: str) -> str:
-    status = raw_status.strip().lower()
-    if status == "blocked":
-        return "BLOCKED"
-    if status == "skipped":
-        return "NOT_EXECUTABLE"
-    if status == "xfail":
-        return "XFAIL_FAIL"
-    if status not in {"pass", "fail"}:
-        return status.upper() if status else "UNKNOWN"
-    suffix = "PASS" if status == "pass" else "FAIL"
-    if classification == "active":
-        return suffix
-    if classification == "connector_gap":
-        return f"CONNECTOR_GAP_{suffix}"
-    if classification == "runtime_difference":
-        return f"RUNTIME_DIFFERENCE_{suffix}"
-    if classification == "pending":
-        return f"PENDING_{suffix}"
-    if classification == "future":
-        return f"FUTURE_{suffix}"
-    return f"XFAIL_{suffix}"
+def semantic_matrix_status(raw_status: str, classification: str, response_body_related: bool = False) -> str:
+    return matrix_status_for_result(
+        raw_status,
+        classification,
+        response_body_related=response_body_related,
+    )
 
 
 def runtime_executable_for_snapshot(case: dict, connector: str, snapshot: dict) -> bool:
@@ -637,6 +661,7 @@ def runtime_cell_not_applicable(case: dict, connector: str) -> dict[str, str]:
         "status": "NOT_EXECUTABLE",
         "reason": f"{case['scope']}-specific case is not applicable to {connector}",
         "evidence": "-",
+        "promotion": "-",
     }
 
 
@@ -645,6 +670,7 @@ def runtime_cell_inventory_only(case: dict) -> dict[str, str]:
         "status": NOT_EXECUTED,
         "reason": f"YAML status `{case_group(case)}` is metadata inventory and is not part of default runtime smoke discovery",
         "evidence": "metadata only; no PASS promotion",
+        "promotion": "not promoted",
     }
 
 
@@ -653,20 +679,43 @@ def runtime_cell_outside_snapshot(case: dict) -> dict[str, str]:
         "status": "NOT_EXECUTABLE",
         "reason": f"YAML status `{case_group(case)}` is outside active runtime smoke discovery",
         "evidence": "-",
+        "promotion": "not promoted",
     }
 
 
 def runtime_cell_from_observed(case: dict, observed: dict) -> dict[str, str]:
-    status = str(observed.get("matrix_status") or semantic_matrix_status(str(observed.get("status", "")), runtime_classification(case)))
+    classification = str(observed.get("runtime_classification", runtime_classification(case)))
+    observed_case = dict(case)
+    observed_case.update(
+        {
+            "capabilities": observed.get("capabilities", case.get("capabilities", [])),
+            "path": observed.get("path", case.get("path", "")),
+        }
+    )
+    response_body_related = bool(observed.get("response_body_non_verified")) or is_response_body_related(
+        observed_case,
+        observed_case.get("path", ""),
+    )
+    raw_status = str(observed.get("status", ""))
+    computed_status = semantic_matrix_status(raw_status, classification, response_body_related)
+    status = str(observed.get("matrix_status") or computed_status)
+    if response_body_related and raw_status.strip().lower() == "pass":
+        status = computed_status
     if status in {NOT_EXECUTED, "NOT_EXECUTABLE"}:
         reason = str(observed.get("reason") or observed.get("details") or "skipped by runtime smoke")
+    elif response_body_related and raw_status.strip().lower() == "pass":
+        reason = str(observed.get("reason") or f"{RESPONSE_BODY_RUNTIME_NOTE}; classification={classification}")
     else:
-        classification = observed.get("runtime_classification", runtime_classification(case))
         reason = str(observed.get("reason") or f"runtime summary result; classification={classification}")
     expected = observed.get("expected_status", observed.get("expected", "unknown"))
     actual = observed.get("actual_status", observed.get("actual", "unknown"))
     evidence = str(observed.get("evidence") or f"expected={expected}; actual={actual}")
-    return {"status": status, "reason": reason, "evidence": evidence}
+    promotion = (
+        "RESPONSE_BODY non-verified; non-promotable"
+        if response_body_related
+        else ("promotion eligible" if classification == "active" and status == "PASS" else "not promoted")
+    )
+    return {"status": status, "reason": reason, "evidence": evidence, "promotion": promotion}
 
 
 def runtime_cell_without_case_evidence(smoke: dict, connector: str, snapshot: dict) -> dict[str, str]:
@@ -676,11 +725,13 @@ def runtime_cell_without_case_evidence(smoke: dict, connector: str, snapshot: di
             "status": smoke_status,
             "reason": str(smoke.get("details") or f"{connector} smoke did not produce per-case results"),
             "evidence": str(smoke.get("summary_path", "-")),
+            "promotion": "not promoted",
         }
     return {
         "status": "NOT_EXECUTABLE" if is_force_all_snapshot(snapshot) else NOT_EXECUTED,
         "reason": f"no {connector} runtime evidence recorded for this executable YAML case",
         "evidence": str(smoke.get("summary_path", "no summary path recorded")),
+        "promotion": "not promoted",
     }
 
 
@@ -720,9 +771,11 @@ def runtime_rows(cases: list[dict], snapshot: dict) -> list[dict[str, str]]:
                 or runtime_executable_for_snapshot(case, "nginx", {"force_all_cases": True})
                 else "no",
                 "apache_status": apache["status"],
+                "apache_promotion": apache["promotion"],
                 "apache_reason": apache["reason"],
                 "apache_evidence": apache["evidence"],
                 "nginx_status": nginx["status"],
+                "nginx_promotion": nginx["promotion"],
                 "nginx_reason": nginx["reason"],
                 "nginx_evidence": nginx["evidence"],
             }
@@ -791,13 +844,14 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         "- `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that YAML status for that connector.",
         f"- `{NOT_EXECUTED}` means no runtime case evidence is recorded in a non-force/default snapshot.",
         "- `MAPPED_ONLY` entries are import inventory items, not runnable YAML case files.",
+        f"- `{RESPONSE_BODY_PASS_THROUGH_STATUS}` and classified variants are pass-through evidence only and are non-promotable.",
         "",
         "## Status Counts",
         *render_runtime_status_count_table(apache_counts, nginx_counts, len(mapped_only)),
         "",
         "## YAML Runtime Matrix",
-        "| case_id | path | scope | category | metadata class | YAML status | default executable | force-all executable | Apache | Apache reason | Apache evidence | NGINX | NGINX reason | NGINX evidence |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| case_id | path | scope | category | metadata class | YAML status | default executable | force-all executable | Apache | Apache promotion | Apache reason | Apache evidence | NGINX | NGINX promotion | NGINX reason | NGINX evidence |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:
         lines.append(
@@ -814,9 +868,11 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
                     "runtime_executable",
                     "force_all_executable",
                     "apache_status",
+                    "apache_promotion",
                     "apache_reason",
                     "apache_evidence",
                     "nginx_status",
+                    "nginx_promotion",
                     "nginx_reason",
                     "nginx_evidence",
                 ]
@@ -854,6 +910,7 @@ def render_connector_runtime_results(cases: list[dict], snapshot: dict, connecto
         f"- Attempted YAML cases in latest snapshot: **{runtime_attempted_count(snapshot, connector)}**",
         "- Runtime evidence is current local snapshot evidence only; it is not xfail/pending promotion.",
         "- RESPONSE_BODY remains non-verified/non-promoted.",
+        f"- {RESPONSE_BODY_EVIDENCE_NOTE}",
         "",
         "## Counts",
         TABLE_STATUS_COUNT_HEADER,
@@ -865,14 +922,15 @@ def render_connector_runtime_results(cases: list[dict], snapshot: dict, connecto
         [
             "",
             "## Results",
-            "| case_id | path | YAML status | runtime status | reason | evidence |",
-            "|---|---|---|---|---|---|",
+            "| case_id | path | YAML status | runtime status | promotion | reason | evidence |",
+            "|---|---|---|---|---|---|---|",
         ]
     )
     for row in rows:
         lines.append(
             f"| {md(row['case_id'])} | {md(row['path'])} | {md(row['yaml_status'])} | "
-            f"{md(row[f'{connector}_status'])} | {md(row[f'{connector}_reason'])} | {md(row[f'{connector}_evidence'])} |"
+            f"{md(row[f'{connector}_status'])} | {md(row[f'{connector}_promotion'])} | "
+            f"{md(row[f'{connector}_reason'])} | {md(row[f'{connector}_evidence'])} |"
         )
     return "\n".join(lines)
 
