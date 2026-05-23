@@ -200,6 +200,8 @@ required_adapter_owned = {
     "src/msc_filters.h",
     "src/msc_utils.c",
     "src/msc_utils.h",
+}
+required_framework_reference = {
     "t/conf/extra.conf.in",
     "tests/run-regression-tests.pl.in",
     "tests/regression/server_root/conf/httpd.conf.in",
@@ -238,6 +240,9 @@ if any(path in sources_by_path for path in removed_from_source_tree):
     raise SystemExit(1)
 for path in required_adapter_owned:
     if sources_by_path.get(path) != "adapter-owned":
+        raise SystemExit(1)
+for path in required_framework_reference:
+    if sources_by_path.get(path) != "framework-upstream-reference":
         raise SystemExit(1)
 PY
 }
