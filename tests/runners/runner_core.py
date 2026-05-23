@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from pathlib import Path
+import re
 import shlex
 import time
 from typing import Any, Iterable, Mapping
@@ -157,6 +158,9 @@ def _indent_of(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
 
 
+_BLOCK_SCALAR_RE = re.compile(r"^[|>](?:[+-]|\d+)?(?:[+-]|\d+)?$")
+
+
 class MinimalYamlParser:
     """Parse the documented minimal case schema without external dependencies."""
 
@@ -230,7 +234,7 @@ class MinimalYamlParser:
             key = key.strip()
             raw_value = raw_value.strip()
             index += 1
-            if raw_value == "|":
+            if _BLOCK_SCALAR_RE.fullmatch(raw_value):
                 parsed[key], index = self.parse_block(index, current_indent)
                 continue
             if raw_value:
