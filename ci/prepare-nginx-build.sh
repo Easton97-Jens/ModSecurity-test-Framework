@@ -29,6 +29,7 @@ V3_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity_V3"
 NGINX_CONNECTOR_LEGACY_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity-nginx"
 OUTPUT_DIR="$NGINX_BUILD_DIR/output"
 MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
+MSCONNECTOR_COMMON_STAGE="${MSCONNECTOR_COMMON_STAGE:-$NGINX_BUILD_DIR/common/include}"
 DEFAULT_NGINX_SOURCE_DIR="$CONNECTOR_ROOT/connectors/nginx"
 MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$DEFAULT_NGINX_SOURCE_DIR}"
 NGINX_ADAPTER_SOURCE_DIR="${NGINX_ADAPTER_SOURCE_DIR:-$MODSECURITY_NGINX_SOURCE_DIR}"
@@ -510,6 +511,7 @@ require_absolute_generated_path "$NGINX_CONNECTOR_BUILD_DIR" "NGINX_CONNECTOR_BU
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 require_absolute_generated_path "$OUTPUT_DIR" "OUTPUT_DIR"
 require_absolute_generated_path "$DOWNLOAD_DIR" "DOWNLOAD_DIR"
+require_absolute_generated_path "$MSCONNECTOR_COMMON_STAGE" "MSCONNECTOR_COMMON_STAGE"
 
 ensure_modsecurity_v3_source
 [ -d "$MODSECURITY_NGINX_SOURCE_DIR" ] || blocked "missing MODSECURITY_NGINX_SOURCE_DIR: $MODSECURITY_NGINX_SOURCE_DIR"
@@ -556,6 +558,7 @@ run_blocked v3-build-sh "$V3_BUILD_DIR" ./build.sh
 run_blocked v3-configure "$V3_BUILD_DIR" ./configure
 run_blocked v3-make "$V3_BUILD_DIR" make "-j$MAKE_JOBS"
 stage_modsecurity
+stage_msconnector_common_headers
 build_nginx_from_source
 
 echo "pass: nginx connector dynamic module built" >> "$STATUS_FILE"
