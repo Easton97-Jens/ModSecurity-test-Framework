@@ -403,15 +403,48 @@ nginx_configure_script() {
     blocked "NGINX source tree lacks executable configure or auto/configure: $NGINX_SOURCE_DIR"
 }
 
+stage_msconnector_common_headers() {
+    source_common_include="$CONNECTOR_ROOT/common/include"
+    source_required_header="$source_common_include/msconnector/rule_load_stats.h"
+
+    if [ ! -f "$source_required_header" ]; then
+        blocked "missing shared connector header: $source_required_header"
+    fi
+
+    mkdir -p "$NGINX_BUILD_DIR/common"
+
+    run_blocked stage-msconnector-common-headers "$CONNECTOR_ROOT" \
+        cp -a "$source_common_include" "$NGINX_BUILD_DIR/common/"
+
+    if [ ! -f "$MSCONNECTOR_COMMON_STAGE/msconnector/rule_load_stats.h" ]; then
+        blocked "staged shared connector header is missing: $MSCONNECTOR_COMMON_STAGE/msconnector/rule_load_stats.h"
+    fi
+
+    {
+        echo "msconnector_common_stage=$MSCONNECTOR_COMMON_STAGE"
+        echo "msconnector_rule_load_stats_header=$MSCONNECTOR_COMMON_STAGE/msconnector/rule_load_stats.h"
+    } >> "$ARTIFACTS_FILE"
+}
+
 build_nginx_from_source() {
     [ "$NGINX_SOURCE_MODE" = "github-release" ] || blocked "unsupported NGINX_SOURCE_MODE=$NGINX_SOURCE_MODE"
     [ "$BUILD_NGINX_FROM_SOURCE" = "1" ] || blocked "BUILD_NGINX_FROM_SOURCE must be 1 for this PoC unless a later explicit binary/module mode is implemented"
 
+    if [ ! -d "$MSCONNECTOR_COMMON_STAGE" ]; then
+        blocked "missing staged shared connector include directory: $MSCONNECTOR_COMMON_STAGE"
+    fi
+
+    if [ ! -f "$MSCONNECTOR_COMMON_STAGE/msconnector/rule_load_stats.h" ]; then
+        blocked "missing staged shared connector header: $MSCONNECTOR_COMMON_STAGE/msconnector/rule_load_stats.h"
+    fi
+
     download_nginx_source
     configure_script=$(nginx_configure_script)
+
     run_blocked nginx-configure "$NGINX_SOURCE_DIR" env \
         "MODSECURITY_INC=$MODSECURITY_STAGE/include" \
         "MODSECURITY_LIB=$MODSECURITY_STAGE/lib" \
+        "MSCONNECTOR_COMMON_INC=$MSCONNECTOR_COMMON_STAGE" \
         "$configure_script" \
         "--prefix=$NGINX_PREFIX" \
         "--sbin-path=$NGINX_BINARY" \
@@ -422,6 +455,7 @@ build_nginx_from_source() {
         "--http-log-path=$NGINX_PREFIX/logs/access.log" \
         "--with-compat" \
         "--add-dynamic-module=$NGINX_CONNECTOR_BUILD_DIR"
+
     run_fail nginx-make "$NGINX_SOURCE_DIR" make "-j$MAKE_JOBS"
     run_fail nginx-make-install "$NGINX_SOURCE_DIR" make install
 
@@ -429,12 +463,14 @@ build_nginx_from_source() {
     if [ ! -f "$module_candidate" ]; then
         fail "NGINX build completed without expected dynamic module: $module_candidate"
     fi
+
     mkdir -p "$NGINX_PREFIX/modules"
     cp -a "$module_candidate" "$NGINX_MODULE"
 
     if [ ! -x "$NGINX_BINARY" ]; then
         fail "NGINX install completed without executable binary: $NGINX_BINARY"
     fi
+
     if [ ! -f "$NGINX_MODULE" ]; then
         fail "NGINX install completed without dynamic module: $NGINX_MODULE"
     fi
@@ -445,8 +481,10 @@ build_nginx_from_source() {
         "$NGINX_BINARY" -v 2>&1 || true
         echo "nginx_module=$NGINX_MODULE"
         echo "nginx_module_build_copy=$module_candidate"
+        echo "msconnector_common_stage=$MSCONNECTOR_COMMON_STAGE"
         echo
     } >> "$SOURCE_INFO_FILE"
+
     {
         echo "nginx_binary=$NGINX_BINARY"
         echo "nginx_module=$NGINX_MODULE"
