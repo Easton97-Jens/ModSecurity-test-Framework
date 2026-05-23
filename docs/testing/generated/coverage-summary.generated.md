@@ -2,20 +2,20 @@ Generated file — do not edit manually.
 
 # Generated Coverage Summary
 
-- Total cases: 137
+- Total cases: 140
 - RESPONSE_BODY cases: 24
 - Verified runtime cases: 0
-- Non-verified runtime cases: 137
+- Non-verified runtime cases: 140
 
 ## By scope
-- common: 130
+- common: 133
 - apache: 0
 - nginx: 7
 - unknown: 0
 
 ## By status
 - active: 7
-- imported: 50
+- imported: 53
 - xfail: 80
 
 ## By variable/collection
@@ -34,6 +34,8 @@ Generated file — do not edit manually.
 - `RESPONSE_HEADERS:Set-Cookie`: 4
 - `ARGS:probe`: 4
 - `MULTIPART_FILENAME`: 3
+- `ARGS:chain_a`: 3
+- `ARGS:chain_b`: 3
 - `FILES_NAMES`: 2
 - `TX:SCORE`: 2
 - `REQUEST_COOKIES:USER_TOKEN`: 2
@@ -63,7 +65,7 @@ Generated file — do not edit manually.
 
 ## By phase
 - phase 1: 36
-- phase 2: 70
+- phase 2: 73
 - phase 3: 12
 - phase 4: 20
 

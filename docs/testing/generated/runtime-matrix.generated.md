@@ -6,10 +6,10 @@ This matrix joins repository YAML cases with the latest tracked local runtime sn
 It does not promote xfail/pending cases, and RESPONSE_BODY remains non-verified/non-promoted.
 
 ## Counts
-- YAML cases: **137**
-- Default runtime-executable YAML cases: **57**
-- Force-all runtime-executable YAML cases: **137**
-- Apache attempted YAML cases in latest snapshot: **130**
+- YAML cases: **140**
+- Default runtime-executable YAML cases: **60**
+- Force-all runtime-executable YAML cases: **140**
+- Apache attempted YAML cases in latest snapshot: **133**
 - NGINX attempted YAML cases in latest snapshot: **0**
 - mapped-only import inventory entries: **10**
 - `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that YAML status for that connector.
@@ -20,9 +20,9 @@ It does not promote xfail/pending cases, and RESPONSE_BODY remains non-verified/
 ## Status Counts
 | Status | Apache | NGINX |
 |---|---:|---:|
-| PASS | 50 | 0 |
+| PASS | 53 | 0 |
 | RESPONSE_BODY_PASS_THROUGH | 1 | 0 |
-| FAIL | 0 | 137 |
+| FAIL | 0 | 140 |
 | XFAIL_PASS | 16 | 0 |
 | XFAIL_FAIL | 20 | 0 |
 | PENDING_FAIL | 1 | 0 |
@@ -157,6 +157,9 @@ It does not promote xfail/pending cases, and RESPONSE_BODY remains non-verified/
 | phase3_response_headers_set_cookie_multi_gap | tests/cases/response/headers/phase3_response_headers_set_cookie_multi_gap.yaml | common | response/headers | xfail | xfail | no | yes | XFAIL_FAIL | RESPONSE_BODY non-verified; non-promotable | runtime summary result; classification=xfail | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase3_response_headers_set_cookie_multi_gap; status=fail; expected=403; actual=200 | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | response_header_basic | tests/cases/response/headers/response_header_basic.yaml | common | response/headers | active | active | yes | yes | PASS | promotion eligible | runtime summary result; classification=active | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=response_header_basic; status=pass; expected=403; actual=403 | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | response_headers_multi_value_runtime_gap | tests/cases/response/headers/response_headers_multi_value_runtime_gap.yaml | common | response/headers | xfail | xfail | no | yes | XFAIL_FAIL | not promoted | runtime summary result; classification=xfail | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=response_headers_multi_value_runtime_gap; status=fail; expected=403; actual=200 | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
+| rule_chain_both_match_block | tests/cases/security/rule-chain/rule_chain_both_match_block.yaml | common | security/rule-chain | imported | imported | yes | yes | PASS | promotion eligible | runtime summary result; classification=active | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=rule_chain_both_match_block; status=pass; expected=403; actual=403 | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
+| rule_chain_first_only_pass | tests/cases/security/rule-chain/rule_chain_first_only_pass.yaml | common | security/rule-chain | imported | imported | yes | yes | PASS | promotion eligible | runtime summary result; classification=active | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=rule_chain_first_only_pass; status=pass; expected=200; actual=200 | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
+| rule_chain_second_only_pass | tests/cases/security/rule-chain/rule_chain_second_only_pass.yaml | common | security/rule-chain | imported | imported | yes | yes | PASS | promotion eligible | runtime summary result; classification=active | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=rule_chain_second_only_pass; status=pass; expected=200; actual=200 | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | sqli_like_keyword_spacing_probe | tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml | common | security/sql | xfail | xfail | no | yes | XFAIL_FAIL | not promoted | runtime summary result; classification=xfail | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=sqli_like_keyword_spacing_probe; status=fail; expected=403; actual=200 | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | sqli_like_quote_encoding_runtime_difference | tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml | common | security/sql | xfail | xfail | no | yes | RUNTIME_DIFFERENCE_FAIL | not promoted | runtime summary result; classification=runtime_difference | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=sqli_like_quote_encoding_runtime_difference; status=fail; expected=403; actual=200 | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | xss_like_encoded_angles_normalization_probe | tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml | common | security/xss | xfail | xfail | no | yes | XFAIL_FAIL | not promoted | runtime summary result; classification=xfail | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=xss_like_encoded_angles_normalization_probe; status=fail; expected=403; actual=200 | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |

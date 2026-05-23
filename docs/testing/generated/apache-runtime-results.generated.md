@@ -6,7 +6,7 @@ Generated file — do not edit manually.
 - Status: **FAIL**
 - Exit code: `2`
 - Summary evidence: `/root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json`
-- Attempted YAML cases in latest snapshot: **130**
+- Attempted YAML cases in latest snapshot: **133**
 - Runtime evidence is current local snapshot evidence only; it is not xfail/pending promotion.
 - RESPONSE_BODY remains non-verified/non-promoted.
 - RESPONSE_BODY pass-through evidence only; not proof of response-body blocking/inspection.
@@ -14,7 +14,7 @@ Generated file — do not edit manually.
 ## Counts
 | Status | Count |
 |---|---:|
-| PASS | 50 |
+| PASS | 53 |
 | RESPONSE_BODY_PASS_THROUGH | 1 |
 | XFAIL_PASS | 16 |
 | XFAIL_FAIL | 20 |
@@ -149,6 +149,9 @@ Generated file — do not edit manually.
 | phase3_response_headers_set_cookie_multi_gap | tests/cases/response/headers/phase3_response_headers_set_cookie_multi_gap.yaml | xfail | XFAIL_FAIL | RESPONSE_BODY non-verified; non-promotable | runtime summary result; classification=xfail | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase3_response_headers_set_cookie_multi_gap; status=fail; expected=403; actual=200 |
 | response_header_basic | tests/cases/response/headers/response_header_basic.yaml | active | PASS | promotion eligible | runtime summary result; classification=active | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=response_header_basic; status=pass; expected=403; actual=403 |
 | response_headers_multi_value_runtime_gap | tests/cases/response/headers/response_headers_multi_value_runtime_gap.yaml | xfail | XFAIL_FAIL | not promoted | runtime summary result; classification=xfail | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=response_headers_multi_value_runtime_gap; status=fail; expected=403; actual=200 |
+| rule_chain_both_match_block | tests/cases/security/rule-chain/rule_chain_both_match_block.yaml | imported | PASS | promotion eligible | runtime summary result; classification=active | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=rule_chain_both_match_block; status=pass; expected=403; actual=403 |
+| rule_chain_first_only_pass | tests/cases/security/rule-chain/rule_chain_first_only_pass.yaml | imported | PASS | promotion eligible | runtime summary result; classification=active | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=rule_chain_first_only_pass; status=pass; expected=200; actual=200 |
+| rule_chain_second_only_pass | tests/cases/security/rule-chain/rule_chain_second_only_pass.yaml | imported | PASS | promotion eligible | runtime summary result; classification=active | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=rule_chain_second_only_pass; status=pass; expected=200; actual=200 |
 | sqli_like_keyword_spacing_probe | tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml | xfail | XFAIL_FAIL | not promoted | runtime summary result; classification=xfail | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=sqli_like_keyword_spacing_probe; status=fail; expected=403; actual=200 |
 | sqli_like_quote_encoding_runtime_difference | tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml | xfail | RUNTIME_DIFFERENCE_FAIL | not promoted | runtime summary result; classification=runtime_difference | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=sqli_like_quote_encoding_runtime_difference; status=fail; expected=403; actual=200 |
 | xss_like_encoded_angles_normalization_probe | tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml | xfail | XFAIL_FAIL | not promoted | runtime summary result; classification=xfail | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=xss_like_encoded_angles_normalization_probe; status=fail; expected=403; actual=200 |

@@ -1,8 +1,8 @@
 {
   "snapshot_date": "2026-05-23",
-  "captured_at": "2026-05-23 21:47:19 CEST",
+  "captured_at": "2026-05-23 22:31:08 CEST",
   "branch": "master",
-  "commit": "bc83967",
+  "commit": "8271c70",
   "build_root": "/root/.local/state/ModSecurity-test-framework-build",
   "force_all_cases": true,
   "notes": [
@@ -107,7 +107,7 @@
       "summary_path": "/root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json",
       "text_summary_path": "/root/.local/state/ModSecurity-test-framework-build/results/apache-summary.txt",
       "counts": {
-        "pass": 84,
+        "pass": 87,
         "fail": 46,
         "blocked": 0,
         "skipped": 0,
@@ -2176,6 +2176,74 @@
           ],
           "evidence": "/root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=response_headers_multi_value_runtime_gap; status=fail; expected=403; actual=200",
           "not_auto_promoted": true
+        },
+        {
+          "case": "rule_chain_both_match_block",
+          "path": "tests/cases/security/rule-chain/rule_chain_both_match_block.yaml",
+          "status": "pass",
+          "matrix_status": "PASS",
+          "runtime_attempted": true,
+          "operation_status": "ok",
+          "expected_status": 403,
+          "actual_status": 403,
+          "scope": "common",
+          "group": "imported",
+          "yaml_status": "imported",
+          "runtime_classification": "active",
+          "capabilities": [
+            "intervention",
+            "phase2",
+            "query-args",
+            "rule-parser"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=rule_chain_both_match_block; status=pass; expected=403; actual=403",
+          "not_auto_promoted": false
+        },
+        {
+          "case": "rule_chain_first_only_pass",
+          "path": "tests/cases/security/rule-chain/rule_chain_first_only_pass.yaml",
+          "status": "pass",
+          "matrix_status": "PASS",
+          "runtime_attempted": true,
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common",
+          "group": "imported",
+          "yaml_status": "imported",
+          "runtime_classification": "active",
+          "capabilities": [
+            "intervention",
+            "pass-through",
+            "phase2",
+            "query-args",
+            "rule-parser"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=rule_chain_first_only_pass; status=pass; expected=200; actual=200",
+          "not_auto_promoted": false
+        },
+        {
+          "case": "rule_chain_second_only_pass",
+          "path": "tests/cases/security/rule-chain/rule_chain_second_only_pass.yaml",
+          "status": "pass",
+          "matrix_status": "PASS",
+          "runtime_attempted": true,
+          "operation_status": "ok",
+          "expected_status": 200,
+          "actual_status": 200,
+          "scope": "common",
+          "group": "imported",
+          "yaml_status": "imported",
+          "runtime_classification": "active",
+          "capabilities": [
+            "intervention",
+            "pass-through",
+            "phase2",
+            "query-args",
+            "rule-parser"
+          ],
+          "evidence": "/root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=rule_chain_second_only_pass; status=pass; expected=200; actual=200",
+          "not_auto_promoted": false
         },
         {
           "case": "sqli_like_keyword_spacing_probe",

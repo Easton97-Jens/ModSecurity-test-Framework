@@ -14,7 +14,7 @@ Generated file — do not edit manually.
 ## Counts
 | Status | Count |
 |---|---:|
-| FAIL | 137 |
+| FAIL | 140 |
 
 ## Results
 | case_id | path | YAML status | runtime status | promotion | reason | evidence |
@@ -137,6 +137,9 @@ Generated file — do not edit manually.
 | phase3_response_headers_set_cookie_multi_gap | tests/cases/response/headers/phase3_response_headers_set_cookie_multi_gap.yaml | xfail | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | response_header_basic | tests/cases/response/headers/response_header_basic.yaml | active | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | response_headers_multi_value_runtime_gap | tests/cases/response/headers/response_headers_multi_value_runtime_gap.yaml | xfail | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
+| rule_chain_both_match_block | tests/cases/security/rule-chain/rule_chain_both_match_block.yaml | imported | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
+| rule_chain_first_only_pass | tests/cases/security/rule-chain/rule_chain_first_only_pass.yaml | imported | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
+| rule_chain_second_only_pass | tests/cases/security/rule-chain/rule_chain_second_only_pass.yaml | imported | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | sqli_like_keyword_spacing_probe | tests/cases/security/sql/sqli_like_keyword_spacing_probe.yaml | xfail | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | sqli_like_quote_encoding_runtime_difference | tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml | xfail | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | xss_like_encoded_angles_normalization_probe | tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml | xfail | FAIL | not promoted | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |

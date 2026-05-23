@@ -3,10 +3,10 @@ Generated file — do not edit manually.
 # ModSecurity Connector Test Coverage Overview
 
 ## Summary
-- Total cases: **137**
+- Total cases: **140**
 - Verified/pass count (`runtime_verified=true`): **0**
 - XFAIL count: **80**
-- Pending runtime verification count: **87**
+- Pending runtime verification count: **90**
 - Connector-gap count: **11**
 - Runtime-difference count: **13**
 - Future/experimental count: **17**
@@ -31,17 +31,17 @@ Generated file — do not edit manually.
 | `RESPONSE_HEADERS:Set-Cookie` | 4 |
 | `ARGS:probe` | 4 |
 | `MULTIPART_FILENAME` | 3 |
+| `ARGS:chain_a` | 3 |
+| `ARGS:chain_b` | 3 |
 | `FILES_NAMES` | 2 |
 | `TX:SCORE` | 2 |
 | `REQUEST_COOKIES:USER_TOKEN` | 2 |
-| `RESPONSE_HEADERS:Location` | 2 |
-| `ARGS:audit` | 1 |
 
 ## Coverage By Phase
 | Phase | Count |
 |---|---:|
 | 1 | 36 |
-| 2 | 70 |
+| 2 | 73 |
 | 3 | 12 |
 | 4 | 20 |
 
@@ -49,27 +49,27 @@ Generated file — do not edit manually.
 | Status | Count |
 |---|---:|
 | active | 7 |
-| imported | 50 |
+| imported | 53 |
 | xfail | 80 |
 
 ## Coverage By Scope
 | Scope | Count |
 |---|---:|
-| common | 130 |
+| common | 133 |
 | apache | 0 |
 | nginx | 7 |
 | unknown | 0 |
 
 ## Runtime Matrix Status
-- Default runtime-executable YAML cases: **57**
-- Force-all runtime-executable YAML cases: **137**
-- Apache attempted YAML cases from latest summary: **130**
+- Default runtime-executable YAML cases: **60**
+- Force-all runtime-executable YAML cases: **140**
+- Apache attempted YAML cases from latest summary: **133**
 - NGINX attempted YAML cases from latest summary: **0**
 | Status | Apache | NGINX |
 |---|---:|---:|
-| PASS | 50 | 0 |
+| PASS | 53 | 0 |
 | RESPONSE_BODY_PASS_THROUGH | 1 | 0 |
-| FAIL | 0 | 137 |
+| FAIL | 0 | 140 |
 | XFAIL_PASS | 16 | 0 |
 | XFAIL_FAIL | 20 | 0 |
 | PENDING_FAIL | 1 | 0 |
@@ -85,8 +85,8 @@ Generated file — do not edit manually.
 - Details: `docs/testing/generated/runtime-matrix.generated.md`
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-23** (2026-05-23 21:47:19 CEST)
-- Git: branch `master`, commit `bc83967`
+- Snapshot: **2026-05-23** (2026-05-23 22:31:08 CEST)
+- Git: branch `master`, commit `8271c70`
 - BUILD_ROOT: `/root/.local/state/ModSecurity-test-framework-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.
@@ -124,7 +124,7 @@ Generated file — do not edit manually.
 ## Runtime Smoke Status
 | Command | Status | Exit | PASS | FAIL | BLOCKED | XFAIL | Evidence |
 |---|---|---|---|---|---|---|---|
-| FORCE_ALL_CASES=1 make smoke-apache CONNECTOR_ROOT=/root/conecter/ModSecurity-conector | FAIL | 2 | 84 | 46 | 0 | 0 | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json |
+| FORCE_ALL_CASES=1 make smoke-apache CONNECTOR_ROOT=/root/conecter/ModSecurity-conector | FAIL | 2 | 87 | 46 | 0 | 0 | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json |
 | FORCE_ALL_CASES=1 make smoke-nginx CONNECTOR_ROOT=/root/conecter/ModSecurity-conector | FAIL | 2 | 0 | 1 | 0 | 0 | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | REFRESH=1 make smoke-all | NOT_RUN | not_run | unknown | unknown | unknown | unknown | not available |
 
