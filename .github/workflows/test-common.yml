@@ -8,7 +8,7 @@ jobs:
   common-structure:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Compile framework Python
         run: |
           python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
@@ -18,8 +18,8 @@ jobs:
           out="$RUNNER_TEMP/case-runner"
           mkdir -p "$out"
           yaml_count=$(find tests/cases -type f -name "*.yaml" | wc -l)
-          if [ "$yaml_count" -ne 133 ]; then
-            echo "expected 133 YAML cases, found $yaml_count" >&2
+          if [ "$yaml_count" -ne 140 ]; then
+            echo "expected 140 YAML cases, found $yaml_count" >&2
             exit 1
           fi
           python3 tests/runners/case_cli.py list-cases \
