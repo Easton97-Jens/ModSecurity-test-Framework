@@ -578,13 +578,96 @@ def runtime_summary_by_connector(snapshot: dict) -> dict[str, dict]:
     return by_connector
 
 
+def connector_display_name(connector: str) -> str:
+    return "NGINX" if connector == "nginx" else connector.title()
+
+
+def smoke_counts(smoke: dict) -> dict:
+    counts = smoke.get("counts") if isinstance(smoke.get("counts"), dict) else {}
+    return counts if isinstance(counts, dict) else {}
+
+
+def count_value(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def smoke_status_failed(smoke: dict) -> bool:
+    status = status_label(smoke.get("status"))
+    counts = smoke_counts(smoke)
+    return status in {"FAIL", "BLOCKED"} or any(count_value(counts.get(key, 0)) for key in ("fail", "blocked"))
+
+
+def smoke_case_rows(smoke: dict) -> list[dict]:
+    cases = smoke.get("cases", [])
+    return cases if isinstance(cases, list) else []
+
+
+def smoke_per_case_results(smoke: dict) -> str:
+    value = str(smoke.get("per_case_results", "") or "").strip().lower()
+    if value:
+        return value
+    return "available" if smoke_case_rows(smoke) else "unavailable"
+
+
+def smoke_unavailable_reason(smoke: dict, connector: str) -> str:
+    reason = str(smoke.get("per_case_unavailable_reason", "") or "").strip()
+    if reason:
+        return reason
+    blocker = smoke.get("blocker") if isinstance(smoke.get("blocker"), dict) else {}
+    reason = str(blocker.get("reason", "") or "").strip()
+    if reason:
+        return reason
+    if smoke_status_failed(smoke) and not smoke_case_rows(smoke):
+        return str(smoke.get("details") or f"{connector_display_name(connector)} did not complete per-case runtime execution.")
+    return ""
+
+
+def smoke_evidence_note(smoke: dict) -> str:
+    note = str(smoke.get("per_case_unavailable_evidence", "") or "").strip()
+    if note:
+        return note
+    blocker = smoke.get("blocker") if isinstance(smoke.get("blocker"), dict) else {}
+    return str(blocker.get("evidence_note", "") or "").strip()
+
+
+def render_connector_runtime_availability(snapshot: dict) -> list[str]:
+    smokes = runtime_summary_by_connector(snapshot)
+    lines = [
+        "",
+        "## Connector Runtime Availability",
+        "| Connector | Status | Build | Per-case results | Attempted cases | Summary evidence | Note |",
+        "|---|---|---|---|---:|---|---|",
+    ]
+    for connector in ("apache", "nginx"):
+        smoke = smokes.get(connector, {})
+        note = smoke_unavailable_reason(smoke, connector) if smoke_per_case_results(smoke) != "available" else ""
+        if not note:
+            note = str(smoke.get("details", ""))
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    md(connector_display_name(connector)),
+                    md(smoke.get("status", "unknown")),
+                    md(smoke.get("build_status", "unknown")),
+                    md(smoke_per_case_results(smoke)),
+                    md(runtime_attempted_count(snapshot, connector)),
+                    md(smoke.get("summary_path", "unknown")),
+                    md(note or "-"),
+                ]
+            )
+            + " |"
+        )
+    return lines
+
+
 def runtime_results_by_connector(snapshot: dict) -> dict[str, dict[str, dict]]:
     results: dict[str, dict[str, dict]] = {"apache": {}, "nginx": {}}
     for connector, smoke in runtime_summary_by_connector(snapshot).items():
-        raw_cases = smoke.get("cases", [])
-        if not isinstance(raw_cases, list):
-            continue
-        for item in raw_cases:
+        for item in smoke_case_rows(smoke):
             if not isinstance(item, dict):
                 continue
             name = str(item.get("case") or item.get("name") or "").strip()
@@ -723,7 +806,8 @@ def runtime_cell_without_case_evidence(smoke: dict, connector: str, snapshot: di
     if smoke_status in {"FAIL", "BLOCKED"} and not smoke.get("cases"):
         return {
             "status": smoke_status,
-            "reason": str(smoke.get("details") or f"{connector} smoke did not produce per-case results"),
+            "reason": smoke_unavailable_reason(smoke, connector)
+            or f"{connector_display_name(connector)} smoke did not produce per-case results",
             "evidence": str(smoke.get("summary_path", "-")),
             "promotion": "not promoted",
         }
@@ -799,8 +883,7 @@ def ordered_runtime_statuses(*counters: Counter) -> list[str]:
 
 def runtime_attempted_count(snapshot: dict, connector: str) -> int:
     smoke = runtime_summary_by_connector(snapshot).get(connector, {})
-    cases = smoke.get("cases", [])
-    return len(cases) if isinstance(cases, list) else 0
+    return len(smoke_case_rows(smoke))
 
 
 def render_runtime_status_count_table(
@@ -848,6 +931,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         "",
         "## Status Counts",
         *render_runtime_status_count_table(apache_counts, nginx_counts, len(mapped_only)),
+        *render_connector_runtime_availability(snapshot),
         "",
         "## YAML Runtime Matrix",
         "| case_id | path | scope | category | metadata class | YAML status | default executable | force-all executable | Apache | Apache promotion | Apache reason | Apache evidence | NGINX | NGINX promotion | NGINX reason | NGINX evidence |",
@@ -899,25 +983,46 @@ def render_connector_runtime_results(cases: list[dict], snapshot: dict, connecto
     rows = runtime_rows(cases, snapshot)
     counts = runtime_status_counts(rows, connector)
     smoke = runtime_summary_by_connector(snapshot).get(connector, {})
-    connector_name = "NGINX" if connector == "nginx" else connector.title()
+    connector_name = connector_display_name(connector)
+    raw_counts = smoke_counts(smoke)
     lines = [
         f"# Generated {connector_name} Runtime Results",
         "",
         f"- Command: `{smoke.get('command', 'unknown')}`",
         f"- Status: **{smoke.get('status', 'unknown')}**",
         f"- Exit code: `{smoke.get('exit_code', 'unknown')}`",
+        f"- Build status: `{smoke.get('build_status', 'unknown')}`",
+        f"- Per-case results: `{smoke_per_case_results(smoke)}`",
         f"- Summary evidence: `{smoke.get('summary_path', 'unknown')}`",
         f"- Attempted YAML cases in latest snapshot: **{runtime_attempted_count(snapshot, connector)}**",
         "- Runtime evidence is current local snapshot evidence only; it is not xfail/pending promotion.",
         "- RESPONSE_BODY remains non-verified/non-promoted.",
         f"- {RESPONSE_BODY_EVIDENCE_NOTE}",
         "",
-        "## Counts",
+        "## Raw Smoke Summary",
         TABLE_STATUS_COUNT_HEADER,
         TABLE_STATUS_COUNT_SEPARATOR,
     ]
+    for status in ["pass", "fail", "blocked", "skipped", "xfail"]:
+        lines.append(f"| {status.upper()} | {md(raw_counts.get(status, 'unknown'))} |")
+    lines.extend(
+        [
+            "",
+            "## Semantic Status Counts",
+            TABLE_STATUS_COUNT_HEADER,
+            TABLE_STATUS_COUNT_SEPARATOR,
+        ]
+    )
     for status in ordered_runtime_statuses(counts):
         lines.append(f"| {status} | {counts.get(status, 0)} |")
+    if smoke_status_failed(smoke) and smoke_per_case_results(smoke) != "available":
+        lines.extend(
+            [
+                "",
+                f"{connector_name} did not emit per-case rows; semantic counts and result rows use connector-level blocker evidence for visibility.",
+            ]
+        )
+    lines.extend(render_connector_runtime_fail_details(snapshot, connector, heading_level=2))
     lines.extend(
         [
             "",
@@ -933,6 +1038,80 @@ def render_connector_runtime_results(cases: list[dict], snapshot: dict, connecto
             f"{md(row[f'{connector}_reason'])} | {md(row[f'{connector}_evidence'])} |"
         )
     return "\n".join(lines)
+
+
+def render_runtime_failure_table(rows: list[dict[str, object]]) -> list[str]:
+    lines = [
+        "| Case | Expected | Actual | Assessment | Evidence |",
+        "|---|---|---|---|---|",
+    ]
+    for row in rows:
+        lines.append(
+            "| "
+            + " | ".join(
+                md(row.get(key, "-"))
+                for key in ["case", "expected", "actual", "assessment", "evidence"]
+            )
+            + " |"
+        )
+    return lines
+
+
+def runtime_failed_rows_for_connector(snapshot: dict, connector: str) -> list[dict[str, object]]:
+    smoke = runtime_summary_by_connector(snapshot).get(connector, {})
+    cases_by_name = {
+        str(item.get("case") or item.get("name") or ""): item
+        for item in smoke_case_rows(smoke)
+        if isinstance(item, dict)
+    }
+    rows: list[dict[str, object]] = []
+    failed_cases = smoke.get("failed_cases", [])
+    if not isinstance(failed_cases, list):
+        return rows
+    for failed in failed_cases:
+        if not isinstance(failed, dict):
+            continue
+        case_name = str(failed.get("case", "-"))
+        case_row = cases_by_name.get(case_name, {})
+        rows.append(
+            {
+                "case": case_name,
+                "expected": failed.get("expected", "-"),
+                "actual": failed.get("actual", "-"),
+                "assessment": failed.get("assessment", "-"),
+                "evidence": failed.get("evidence") or case_row.get("evidence") or smoke.get("summary_path", "-"),
+            }
+        )
+    return rows
+
+
+def render_connector_runtime_fail_details(snapshot: dict, connector: str, heading_level: int) -> list[str]:
+    smoke = runtime_summary_by_connector(snapshot).get(connector, {})
+    connector_name = connector_display_name(connector)
+    lines = ["", f"{'#' * heading_level} {connector_name} FAIL Details"]
+    failed_rows = runtime_failed_rows_for_connector(snapshot, connector)
+    if failed_rows:
+        lines.extend(render_runtime_failure_table(failed_rows))
+        return lines
+
+    if smoke_status_failed(smoke) and smoke_per_case_results(smoke) != "available":
+        lines.append(f"{connector_name} did not complete per-case runtime execution.")
+        reason = smoke_unavailable_reason(smoke, connector)
+        if reason:
+            lines.append(f"- Reason: {md(reason)}")
+        lines.append(f"- Status: `{md(smoke.get('status', 'unknown'))}`")
+        lines.append(f"- Build status: `{md(smoke.get('build_status', 'unknown'))}`")
+        lines.append(f"- Summary evidence: `{md(smoke.get('summary_path', 'unknown'))}`")
+        text_summary = smoke.get("text_summary_path")
+        if text_summary:
+            lines.append(f"- Text summary: `{md(text_summary)}`")
+        evidence_note = smoke_evidence_note(smoke)
+        if evidence_note:
+            lines.append(f"- Evidence note: {md(evidence_note)}")
+        return lines
+
+    lines.append(f"No {connector_name} runtime FAIL details were reported.")
+    return lines
 
 
 def snapshot_named_rows(snapshot: dict, key: str) -> list:
@@ -1036,19 +1215,10 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
             ],
         )
     )
-    lines.extend(
-        render_status_table(
-            "Runtime FAIL Details",
-            runtime_failed_rows(snapshot),
-            [
-                ("Connector", "connector"),
-                ("Case", "case"),
-                ("Expected", "expected"),
-                ("Actual", "actual"),
-                ("Assessment", "assessment"),
-            ],
-        )
-    )
+    lines.extend(render_connector_runtime_availability(snapshot))
+    lines.extend(["", "## Runtime FAIL Details"])
+    lines.extend(render_connector_runtime_fail_details(snapshot, "apache", heading_level=3))
+    lines.extend(render_connector_runtime_fail_details(snapshot, "nginx", heading_level=3))
     append_snapshot_list(lines, "## Runtime Verified Status", snapshot.get("runtime_verified_status", []))
     append_snapshot_list(lines, "## Open Runtime Issues", snapshot.get("open_issues", []))
     return lines

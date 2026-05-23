@@ -125,8 +125,8 @@ Generated file — do not edit manually.
 - RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-05-23** (2026-05-23 22:31:08 CEST)
-- Git: branch `master`, commit `8271c70`
+- Snapshot: **2026-05-23** (2026-05-23 23:54:09 CEST)
+- Git: branch `master`, commit `9c44d0b`
 - BUILD_ROOT: `/root/.local/state/ModSecurity-test-framework-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache and NGINX smoke summary JSON files.
@@ -168,55 +168,72 @@ Generated file — do not edit manually.
 | FORCE_ALL_CASES=1 make smoke-nginx CONNECTOR_ROOT=/root/conecter/ModSecurity-conector | FAIL | 2 | 0 | 1 | 0 | 0 | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json |
 | REFRESH=1 make smoke-all | NOT_RUN | not_run | unknown | unknown | unknown | unknown | not available |
 
+## Connector Runtime Availability
+| Connector | Status | Build | Per-case results | Attempted cases | Summary evidence | Note |
+|---|---|---|---|---:|---|---|
+| Apache | FAIL | unknown | available | 133 | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status. |
+| NGINX | FAIL | fail | unavailable | 0 | /root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json | NGINX did not complete per-case runtime execution; build=fail; exit_code=2; FAIL nginx-build prepare-nginx-build failed; see /root/.local/state/ModSecurity-test-framework-build/logs/nginx |
+
 ## Runtime FAIL Details
-| Connector | Case | Expected | Actual | Assessment |
+
+### Apache FAIL Details
+| Case | Expected | Actual | Assessment | Evidence |
 |---|---|---|---|---|
-| apache | duplicate_args_encoded_separator_edge | 403 | 200 | runtime summary reported non-pass |
-| apache | duplicate_header_case_normalization_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | edge_semicolon_query_args_names | 403 | 200 | runtime summary reported non-pass |
-| apache | files_empty_part_future_compatibility | 403 | None | runtime summary reported non-pass |
-| apache | files_names_mixed_case_filename_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | json_empty_body_future_compatibility | 403 | None | runtime summary reported non-pass |
-| apache | multipart_duplicate_field_names_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | multipart_empty_filename_connector_gap | 403 | None | runtime summary reported non-pass |
-| apache | parser_xml_partial_body_future_target | 403 | 200 | runtime summary reported non-pass |
-| apache | phase1_vs_phase2_request_body_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | phase3_response_headers_content_type_charset_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | phase3_response_headers_duplicate_value_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| apache | phase3_response_headers_encoded_value_future_target | 403 | 200 | runtime summary reported non-pass |
-| apache | phase3_response_headers_location_encoded_runtime_diff | 403 | 200 | runtime summary reported non-pass |
-| apache | phase3_response_headers_mixed_case_connector_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | phase3_response_headers_multi_value_connector_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | phase3_response_headers_server_presence_pending | 200 | None | runtime summary reported non-pass |
-| apache | phase3_response_headers_set_cookie_multi_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_auditlog_outbound_escaped_value_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_auditlog_outbound_matched_var_future | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_auditlog_outbound_message_connector_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_auditlog_outbound_multiline_section_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_auditlog_outbound_rule_id_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_response_body_buffering_order_future_target | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_response_body_chunk_assumption_connector_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_response_body_compressed_assumption_experimental | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_response_body_empty_future_target | 403 | None | runtime summary reported non-pass |
-| apache | phase4_response_body_html_entity_decode_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_response_body_html_text_normalization_probe | 403 | 200 | runtime summary reported non-pass |
-| apache | phase4_response_body_unicode_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| apache | pr70_phase4_response_body_audit_xfail | 403 | 200 | runtime summary reported non-pass |
-| apache | response_body_basic_block | 403 | 200 | runtime summary reported non-pass |
-| apache | response_headers_multi_value_runtime_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | sqli_like_keyword_spacing_probe | 403 | 200 | runtime summary reported non-pass |
-| apache | sqli_like_quote_encoding_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| apache | tfn_chain_lowercase_trim_pass_through | 200 | 0 | runtime summary reported non-pass |
-| apache | unicode_double_encoded_uri_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| apache | unicode_whitespace_normalization_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | v2_transformation_url_decode_invalid_sequence_mapped_candidate | 403 | None | runtime summary reported non-pass |
-| apache | v3_request_cookies_names_case_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| apache | v3_request_headers_names_lowercase_runtime_difference | 403 | 200 | runtime summary reported non-pass |
-| apache | xml_deep_nesting_future_target | 403 | 200 | runtime summary reported non-pass |
-| apache | xml_namespace_edge_connector_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | xml_request_body_malformed_connector_gap | 403 | 200 | runtime summary reported non-pass |
-| apache | xss_like_encoded_angles_normalization_probe | 403 | 200 | runtime summary reported non-pass |
-| apache | xss_like_mixed_case_script_token_gap | 403 | 200 | runtime summary reported non-pass |
+| duplicate_args_encoded_separator_edge | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=duplicate_args_encoded_separator_edge; status=fail; expected=403; actual=200 |
+| duplicate_header_case_normalization_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=duplicate_header_case_normalization_gap; status=fail; expected=403; actual=200 |
+| edge_semicolon_query_args_names | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=edge_semicolon_query_args_names; status=fail; expected=403; actual=200 |
+| files_empty_part_future_compatibility | 403 | - | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=files_empty_part_future_compatibility; status=fail; expected=403; actual=None |
+| files_names_mixed_case_filename_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=files_names_mixed_case_filename_gap; status=fail; expected=403; actual=200 |
+| json_empty_body_future_compatibility | 403 | - | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=json_empty_body_future_compatibility; status=fail; expected=403; actual=None |
+| multipart_duplicate_field_names_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=multipart_duplicate_field_names_gap; status=fail; expected=403; actual=200 |
+| multipart_empty_filename_connector_gap | 403 | - | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=multipart_empty_filename_connector_gap; status=fail; expected=403; actual=None |
+| parser_xml_partial_body_future_target | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=parser_xml_partial_body_future_target; status=fail; expected=403; actual=200 |
+| phase1_vs_phase2_request_body_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase1_vs_phase2_request_body_gap; status=fail; expected=403; actual=200 |
+| phase3_response_headers_content_type_charset_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase3_response_headers_content_type_charset_gap; status=fail; expected=403; actual=200 |
+| phase3_response_headers_duplicate_value_runtime_difference | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase3_response_headers_duplicate_value_runtime_difference; status=fail; expected=403; actual=200 |
+| phase3_response_headers_encoded_value_future_target | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase3_response_headers_encoded_value_future_target; status=fail; expected=403; actual=200 |
+| phase3_response_headers_location_encoded_runtime_diff | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase3_response_headers_location_encoded_runtime_diff; status=fail; expected=403; actual=200 |
+| phase3_response_headers_mixed_case_connector_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase3_response_headers_mixed_case_connector_gap; status=fail; expected=403; actual=200 |
+| phase3_response_headers_multi_value_connector_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase3_response_headers_multi_value_connector_gap; status=fail; expected=403; actual=200 |
+| phase3_response_headers_server_presence_pending | 200 | - | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase3_response_headers_server_presence_pending; status=fail; expected=200; actual=None |
+| phase3_response_headers_set_cookie_multi_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase3_response_headers_set_cookie_multi_gap; status=fail; expected=403; actual=200 |
+| phase4_auditlog_outbound_escaped_value_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_auditlog_outbound_escaped_value_gap; status=fail; expected=403; actual=200 |
+| phase4_auditlog_outbound_matched_var_future | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_auditlog_outbound_matched_var_future; status=fail; expected=403; actual=200 |
+| phase4_auditlog_outbound_message_connector_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_auditlog_outbound_message_connector_gap; status=fail; expected=403; actual=200 |
+| phase4_auditlog_outbound_multiline_section_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_auditlog_outbound_multiline_section_gap; status=fail; expected=403; actual=200 |
+| phase4_auditlog_outbound_rule_id_runtime_difference | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_auditlog_outbound_rule_id_runtime_difference; status=fail; expected=403; actual=200 |
+| phase4_response_body_buffering_order_future_target | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_response_body_buffering_order_future_target; status=fail; expected=403; actual=200 |
+| phase4_response_body_chunk_assumption_connector_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_response_body_chunk_assumption_connector_gap; status=fail; expected=403; actual=200 |
+| phase4_response_body_compressed_assumption_experimental | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_response_body_compressed_assumption_experimental; status=fail; expected=403; actual=200 |
+| phase4_response_body_empty_future_target | 403 | - | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_response_body_empty_future_target; status=fail; expected=403; actual=None |
+| phase4_response_body_html_entity_decode_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_response_body_html_entity_decode_gap; status=fail; expected=403; actual=200 |
+| phase4_response_body_html_text_normalization_probe | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_response_body_html_text_normalization_probe; status=fail; expected=403; actual=200 |
+| phase4_response_body_unicode_runtime_difference | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=phase4_response_body_unicode_runtime_difference; status=fail; expected=403; actual=200 |
+| pr70_phase4_response_body_audit_xfail | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=pr70_phase4_response_body_audit_xfail; status=fail; expected=403; actual=200 |
+| response_body_basic_block | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=response_body_basic_block; status=fail; expected=403; actual=200 |
+| response_headers_multi_value_runtime_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=response_headers_multi_value_runtime_gap; status=fail; expected=403; actual=200 |
+| sqli_like_keyword_spacing_probe | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=sqli_like_keyword_spacing_probe; status=fail; expected=403; actual=200 |
+| sqli_like_quote_encoding_runtime_difference | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=sqli_like_quote_encoding_runtime_difference; status=fail; expected=403; actual=200 |
+| tfn_chain_lowercase_trim_pass_through | 200 | 0 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=tfn_chain_lowercase_trim_pass_through; status=fail; expected=200; actual=0 |
+| unicode_double_encoded_uri_runtime_difference | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=unicode_double_encoded_uri_runtime_difference; status=fail; expected=403; actual=200 |
+| unicode_whitespace_normalization_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=unicode_whitespace_normalization_gap; status=fail; expected=403; actual=200 |
+| v2_transformation_url_decode_invalid_sequence_mapped_candidate | 403 | - | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=v2_transformation_url_decode_invalid_sequence_mapped_candidate; status=fail; expected=403; actual=None |
+| v3_request_cookies_names_case_runtime_difference | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=v3_request_cookies_names_case_runtime_difference; status=fail; expected=403; actual=200 |
+| v3_request_headers_names_lowercase_runtime_difference | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=v3_request_headers_names_lowercase_runtime_difference; status=fail; expected=403; actual=200 |
+| xml_deep_nesting_future_target | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=xml_deep_nesting_future_target; status=fail; expected=403; actual=200 |
+| xml_namespace_edge_connector_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=xml_namespace_edge_connector_gap; status=fail; expected=403; actual=200 |
+| xml_request_body_malformed_connector_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=xml_request_body_malformed_connector_gap; status=fail; expected=403; actual=200 |
+| xss_like_encoded_angles_normalization_probe | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=xss_like_encoded_angles_normalization_probe; status=fail; expected=403; actual=200 |
+| xss_like_mixed_case_script_token_gap | 403 | 200 | runtime summary reported non-pass | /root/.local/state/ModSecurity-test-framework-build/results/apache-summary.json; case=xss_like_mixed_case_script_token_gap; status=fail; expected=403; actual=200 |
+
+### NGINX FAIL Details
+NGINX did not complete per-case runtime execution.
+- Reason: NGINX did not complete per-case runtime execution; build=fail; exit_code=2; FAIL nginx-build prepare-nginx-build failed; see /root/.local/state/ModSecurity-test-framework-build/logs/nginx
+- Status: `FAIL`
+- Build status: `fail`
+- Summary evidence: `/root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.json`
+- Text summary: `/root/.local/state/ModSecurity-test-framework-build/results/nginx-summary.txt`
+- Evidence note: FAIL nginx-build prepare-nginx-build failed; see /root/.local/state/ModSecurity-test-framework-build/logs/nginx
 
 ## Runtime Verified Status
 - Runtime matrix records current local Apache and NGINX per-case smoke evidence.

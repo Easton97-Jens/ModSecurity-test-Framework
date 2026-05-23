@@ -135,6 +135,19 @@ def load_json(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def first_text_summary_line(path: Path) -> str:
+    if not path.exists():
+        return ""
+    try:
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = line.strip()
+            if line:
+                return line
+    except Exception:
+        return ""
+    return ""
+
+
 def normalize_case(path: str) -> str:
     try:
         resolved = Path(path).resolve()
@@ -275,12 +288,37 @@ def connector_smoke(
             status = "UNKNOWN"
     if counts.get("blocked", 0):
         status = "BLOCKED" if status == "PASS" else status
+    build_status = (
+        str(connector_summary.get("build", "")).strip()
+        if isinstance(connector_summary, dict) and connector_summary.get("build") is not None
+        else ""
+    )
+    per_case_results = "available" if rows else "unavailable"
+    evidence_note = first_text_summary_line(text_summary_path)
+    unavailable_reason = ""
+    blocker: dict[str, object] = {}
+    if not rows and status in {"FAIL", "BLOCKED", "UNKNOWN"}:
+        reason_parts = [f"{connector.upper()} did not complete per-case runtime execution"]
+        if build_status:
+            reason_parts.append(f"build={build_status}")
+        if exit_code not in {"", "not_run"}:
+            reason_parts.append(f"exit_code={exit_code}")
+        if evidence_note:
+            reason_parts.append(evidence_note)
+        unavailable_reason = "; ".join(reason_parts)
+        blocker = {
+            "reason": unavailable_reason,
+            "summary_path": str(summary_path),
+            "text_summary_path": str(text_summary_path),
+            "evidence_note": evidence_note,
+        }
     failed_cases = [
         {
             "case": row["case"],
             "expected": row.get("expected_status"),
             "actual": row.get("actual_status"),
             "assessment": "runtime summary reported non-pass",
+            "evidence": row.get("evidence", str(summary_path)),
         }
         for row in rows
         if row.get("status") not in {"pass"}
@@ -292,6 +330,11 @@ def connector_smoke(
         "exit_code": int(exit_code) if exit_code.isdigit() else exit_code,
         "summary_path": str(summary_path),
         "text_summary_path": str(text_summary_path),
+        "build_status": build_status or "unknown",
+        "per_case_results": per_case_results,
+        "per_case_unavailable_reason": unavailable_reason,
+        "per_case_unavailable_evidence": evidence_note,
+        "blocker": blocker,
         "counts": {
             "pass": counts.get("pass", 0),
             "fail": counts.get("fail", 0),
@@ -385,6 +428,12 @@ def main() -> int:
                 "status": "NOT_RUN",
                 "exit_code": "not_run",
                 "summary_path": "not available",
+                "text_summary_path": "not available",
+                "build_status": "not_run",
+                "per_case_results": "not_run",
+                "per_case_unavailable_reason": "Full smoke-all was not run by runtime-matrix.",
+                "per_case_unavailable_evidence": "",
+                "blocker": {},
                 "counts": {
                     "pass": "unknown",
                     "fail": "unknown",
