@@ -178,7 +178,7 @@ ci_canonical_existing() {
     target_path=$1
     if [ -e "$target_path" ]; then
         (cd "$target_path" 2>/dev/null && pwd -P)
-        return 0
+        return $?
     else
         return 1
     fi
