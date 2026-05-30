@@ -41,18 +41,24 @@ module artifacts, libraries, or runtime prerequisites.
 
 ## Current Proof Cases
 
-The active YAML cases are the only source of rules, requests, and expectations.
-The connector harnesses materialize them and send real HTTP requests.
+The YAML cases are the only source of rules, requests, and expectations. The
+connector harnesses materialize them and send real HTTP requests.
+
+The connector repository's current local default summary can list variable
+families in `verified_variables` when the corresponding real-world cases pass.
+That is evidence-scoped and does not promote force-all failures, mapped-only
+inventory, xfail probes, future cases, connector-gap cases, runtime-difference
+cases, or `RESPONSE_BODY`.
 
 | Verified variable | Example active cases | Status |
 | --- | --- | --- |
-| `ARGS` | `phase2_args_block`, `collection_args_get_block`, V2 operator/transform cases | Apache and NGINX pass locally |
-| `REQUEST_HEADERS` | `phase1_header_block` | Apache and NGINX pass locally |
-| `REQUEST_BODY` | `request_body_json_block`, `request_body_raw_text_block`, `json_request_body_block` | Apache and NGINX pass locally |
-| `FILES` | `multipart_files_value_block`, `multipart_files_names_block`, `multipart_files_combined_size`, `multipart_filename_block` | Apache and NGINX pass locally |
-| `XML` | `xml_request_body_block` | Apache and NGINX pass locally |
-| `AUDIT_LOG` | `audit_log_phase1_block` | Apache and NGINX pass locally |
-| `RESPONSE_HEADERS` | `response_header_basic` | Apache and NGINX pass locally |
+| `ARGS` | `phase2_args_block`, `collection_args_get_block`, V2 operator/transform cases | Evidence-scoped; counted only from passing real-world connector cases |
+| `REQUEST_HEADERS` | `phase1_header_block` | Evidence-scoped; counted only from passing real-world connector cases |
+| `REQUEST_BODY` | `request_body_json_block`, `request_body_raw_text_block`, `json_request_body_block` | Evidence-scoped; counted only from passing real-world connector cases |
+| `FILES` | `multipart_files_value_block`, `multipart_files_names_block`, `multipart_files_combined_size`, `multipart_filename_block` | Evidence-scoped; counted only from passing real-world connector cases |
+| `XML` | `xml_request_body_block` | Evidence-scoped; counted only from passing real-world connector cases |
+| `AUDIT_LOG` | `audit_log_phase1_block` | Evidence-scoped; `audit_behavior` may still be unstable |
+| `RESPONSE_HEADERS` | `response_header_basic` | Evidence-scoped; counted only from passing real-world connector cases |
 
 `RESPONSE_BODY` is deliberately not listed as verified. The active
 `response_body_pass` case proves pass-through with response-body access enabled,
@@ -80,13 +86,16 @@ Each connector summary under `$BUILD_ROOT/results/` records:
 
 ## Current Connector Status
 
-Observed locally on 2026-05-15 with
-`BUILD_ROOT=/src/ModSecurity-test-Framework-build`:
+Current connector status must be read from the connector repository's
+`$BUILD_ROOT/results/connector-summary.json`, tracked runtime snapshot, and
+generated reports. As of the 2026-05-24 connector reports, default local summary
+data and force-all runtime-matrix data are separate evidence classes:
 
-| Connector | Real server | Connector module | Result |
-| --- | --- | --- | --- |
-| Apache | source-built httpd 2.4.67 | `mod_security3.so` | `make smoke-apache` pass |
-| NGINX | source-built NGINX 1.31.0 from `release-1.31.0` | `ngx_http_modsecurity_module.so` | `make smoke-nginx` pass |
+| Evidence class | Apache | NGINX |
+| --- | --- | --- |
+| Default local connector summary | PASS counts may be claimed only from the current connector summary file | PASS counts may be claimed only from the current connector summary file |
+| Force-all runtime matrix snapshot | Contains expected FAIL classes; not a blanket PASS | Contains expected FAIL classes; not a blanket PASS |
+| API-only smoke | Not connector proof | Not connector proof |
 
 Other environments must run the same smoke targets before claiming pass.
 

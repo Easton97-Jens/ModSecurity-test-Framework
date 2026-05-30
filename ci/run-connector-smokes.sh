@@ -11,7 +11,26 @@ RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 export PYTHONDONTWRITEBYTECODE
 
+prepare_crs_variant() {
+    if [ "$MODSECURITY_TEST_VARIANT" != "with-crs" ]; then
+        MODSECURITY_RULE_PREAMBLE_FILE=""
+        export MODSECURITY_RULE_PREAMBLE_FILE
+        return 0
+    fi
+    if [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+        sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
+        MODSECURITY_RULE_PREAMBLE_FILE="$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"
+    fi
+    export MODSECURITY_RULE_PREAMBLE_FILE
+}
+
+prepare_crs_variant
 mkdir -p "$RESULTS_DIR"
+echo "run_connector_smokes: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+echo "run_connector_smokes: RESULTS_DIR=$RESULTS_DIR"
+if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+    echo "run_connector_smokes: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
+fi
 
 run_connector() {
     name=$1

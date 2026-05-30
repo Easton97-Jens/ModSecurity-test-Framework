@@ -79,7 +79,7 @@ passed only on NGINX and remain `portable: false`.
 | --- | --- | --- | --- |
 | `json_request_body_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `multipart_basic_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| `response_body_pass.yaml` | pass, HTTP 200 | pass, HTTP 200 | fully-imported-common |
+| `response_body_pass.yaml` | pass-through, HTTP 200 | pass-through, HTTP 200 | RESPONSE_BODY non-verified/non-promoted |
 | `response_body_basic_block` | fail, HTTP 200 and no audit hit | fail, `RESPONSE_BODY` audit/error hit but client observed `000` empty reply | xfail/mapped-only |
 
 The response-body block row is intentionally not an active smoke. The NGINX

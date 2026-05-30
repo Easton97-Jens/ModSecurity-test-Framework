@@ -410,6 +410,7 @@ build_nginx_from_source() {
     download_nginx_source
     configure_script=$(nginx_configure_script)
     run_blocked nginx-configure "$NGINX_SOURCE_DIR" env \
+        "MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include" \
         "MODSECURITY_INC=$MODSECURITY_STAGE/include" \
         "MODSECURITY_LIB=$MODSECURITY_STAGE/lib" \
         "$configure_script" \

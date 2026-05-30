@@ -1,0 +1,21 @@
+origin:
+  - repo: coreruleset/coreruleset
+    path: rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf
+    reason: CRS SQL injection anomaly scoring should block a basic UNION SELECT probe.
+category: crs
+portable: true
+requires_crs: true
+name: crs_sqli_anomaly_block
+capabilities:
+  query_args: true
+  phase2: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecAction "id:199901,phase:2,pass,nolog"
+request:
+  method: GET
+  path: "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
+expect:
+  status: 403
+  intervention: deny

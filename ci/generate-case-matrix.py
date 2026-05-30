@@ -6,17 +6,37 @@ import re
 import sys
 import argparse
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+
+from response_body_status import (
+    RESPONSE_BODY_EVIDENCE_NOTE,
+    RESPONSE_BODY_PASS_THROUGH_STATUS,
+    RESPONSE_BODY_RUNTIME_NOTE,
+    is_response_body_related,
+    matrix_status_for_result,
+)
 
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
 CONNECTOR_ROOT = Path.cwd()
 OUTPUT_ROOT = CONNECTOR_ROOT
 IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
-REPORT_ROOT = OUTPUT_ROOT / "docs/testing"
-RUNTIME_SNAPSHOT = REPORT_ROOT / "runtime-validation-snapshot.json"
-OUT = REPORT_ROOT / "generated"
+FRAMEWORK_REPORT_DIR = "docs/testing"
+CONNECTOR_REPORT_DIR = "reports/testing"
+GENERATED_DIR = "generated"
+RUNTIME_SNAPSHOT_FILENAME = "runtime-validation-snapshot.json"
+OVERVIEW_FILENAME = "test-coverage-overview.md"
+ROOT_SUMMARY_FILENAME = "TEST-COVERAGE-SUMMARY.md"
+REPORT_ROOT = OUTPUT_ROOT / FRAMEWORK_REPORT_DIR
+RUNTIME_SNAPSHOT = REPORT_ROOT / RUNTIME_SNAPSHOT_FILENAME
+OUT = REPORT_ROOT / GENERATED_DIR
+GENERATED_REPORT_ROOT = OUT
+OVERVIEW_REPORT = REPORT_ROOT / OVERVIEW_FILENAME
+ROOT_SUMMARY_REPORT = OUTPUT_ROOT / ROOT_SUMMARY_FILENAME
+ALLOWED_OUTPUT_PATHS: set[Path] = set()
+REPORT_LAYOUT: "ReportLayout | None" = None
 
 RULE_RE = re.compile(r'^\s*SecRule\s+([^\s]+)\s+"(@[^\s"]+)')
 PHASE_RE = re.compile(r"phase:(\d)")
@@ -24,6 +44,9 @@ PHASE_RE = re.compile(r"phase:(\d)")
 TRANS_RE = re.compile(r"t:(\w+)")
 GAP_TAG_RE = re.compile(r"(connector[_-]?gap|runtime[_-]?difference|future|experimental|pending|mapped[_-]?only)", re.I)
 TABLE_SEPARATOR_2COL = "|---|---|"
+TABLE_STATUS_COUNT_HEADER = "| Status | Count |"
+TABLE_STATUS_COUNT_SEPARATOR = "|---|---:|"
+NOT_EXECUTED = "NOT EXECUTED"
 
 ROOT_COLLECTIONS = [
     "ARGS",
@@ -58,21 +81,27 @@ ROOT_COMMANDS = [
 
 MATRIX_STATUS_ORDER = [
     "PASS",
+    "RESPONSE_BODY_PASS_THROUGH",
     "FAIL",
     "BLOCKED",
     "XFAIL_PASS",
+    "XFAIL_RESPONSE_BODY_PASS_THROUGH",
     "XFAIL_FAIL",
     "PENDING_PASS",
+    "PENDING_RESPONSE_BODY_PASS_THROUGH",
     "PENDING_FAIL",
     "FUTURE_PASS",
+    "FUTURE_RESPONSE_BODY_PASS_THROUGH",
     "FUTURE_FAIL",
     "CONNECTOR_GAP_PASS",
+    "CONNECTOR_GAP_RESPONSE_BODY_PASS_THROUGH",
     "CONNECTOR_GAP_FAIL",
     "RUNTIME_DIFFERENCE_PASS",
+    "RUNTIME_DIFFERENCE_RESPONSE_BODY_PASS_THROUGH",
     "RUNTIME_DIFFERENCE_FAIL",
     "NOT_EXECUTABLE",
     "MAPPED_ONLY",
-    "NOT EXECUTED",
+    NOT_EXECUTED,
 ]
 
 ACTIVE_RUNTIME_STATUSES = {
@@ -86,25 +115,130 @@ ACTIVE_RUNTIME_STATUSES = {
 }
 
 NON_EXECUTABLE_STATUSES = {"blocked", "mapped-only", "skipped", "todo"}
+GENERATED_REPORT_NAMES = {
+    "apache-runtime-results.generated.md",
+    "case-matrix.generated.md",
+    "connector-gap-summary.generated.md",
+    "coverage-summary.generated.md",
+    "nginx-runtime-results.generated.md",
+    "phase-coverage.generated.md",
+    "runtime-matrix.generated.md",
+    "xfail-summary.generated.md",
+}
 
 
 def warn(message: str) -> None:
     print(f"[matrix-generator] WARN: {message}", file=sys.stderr)
 
 
+@dataclass(frozen=True)
+class ReportLayout:
+    output_root: Path
+    report_root: Path
+    generated_root: Path
+    runtime_snapshot: Path
+    overview: Path
+    root_summary: Path
+    generated_reports: dict[str, Path]
+
+    def write_generated(self, name: str, body: str) -> None:
+        if name not in self.generated_reports:
+            raise ValueError(f"unsupported generated report name: {name}")
+        self._write_known(self.generated_reports[name], body)
+
+    def write_overview(self, body: str) -> None:
+        self._write_known(self.overview, body)
+
+    def write_root_summary(self, body: str) -> None:
+        self._write_known(self.root_summary, body)
+
+    def _write_known(self, path: Path, body: str) -> None:
+        if path not in self.allowed_outputs():
+            raise ValueError(f"unsupported generated report output path: {path}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("Generated file — do not edit manually.\n\n" + body.rstrip() + "\n", encoding="utf-8")
+
+    def allowed_outputs(self) -> set[Path]:
+        return set(self.generated_reports.values()) | {self.overview, self.root_summary}
+
+
+def resolve_root(root: str | Path, *, label: str) -> Path:
+    try:
+        return Path(root).expanduser().resolve()
+    except Exception as exc:
+        raise ValueError(f"{label} is not a valid path: {root}") from exc
+
+
+def resolve_under_root(root: Path, candidate: Path, *, label: str) -> Path:
+    root = root.resolve()
+    candidate = candidate.resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"{label} must stay under {root}: {candidate}") from exc
+    return candidate
+
+
+def resolve_allowed_output_root(output_root: str | Path | None) -> Path:
+    requested = resolve_root(output_root, label="output root") if output_root is not None else CONNECTOR_ROOT
+    if requested == FRAMEWORK_ROOT:
+        return FRAMEWORK_ROOT
+    if requested == CONNECTOR_ROOT:
+        return CONNECTOR_ROOT
+    raise ValueError(f"output root must resolve exactly to the framework root ({FRAMEWORK_ROOT}) or connector root ({CONNECTOR_ROOT}): {requested}")
+
+
+def report_root_for(output_root: Path) -> Path:
+    if output_root == FRAMEWORK_ROOT:
+        return resolve_under_root(FRAMEWORK_ROOT, FRAMEWORK_ROOT / FRAMEWORK_REPORT_DIR, label="framework report root")
+    if output_root == CONNECTOR_ROOT:
+        return resolve_under_root(CONNECTOR_ROOT, CONNECTOR_ROOT / CONNECTOR_REPORT_DIR, label="connector report root")
+    raise ValueError(f"unsupported output root: {output_root}")
+
+
+def build_safe_report_layout(output_root: Path) -> ReportLayout:
+    report_root = report_root_for(output_root)
+    generated_root = resolve_under_root(report_root, report_root / GENERATED_DIR, label="generated report root")
+    generated_reports = {
+        name: resolve_under_root(generated_root, generated_root / name, label="generated report path")
+        for name in GENERATED_REPORT_NAMES
+    }
+    return ReportLayout(
+        output_root=output_root,
+        report_root=report_root,
+        generated_root=generated_root,
+        runtime_snapshot=resolve_under_root(report_root, report_root / RUNTIME_SNAPSHOT_FILENAME, label="runtime snapshot path"),
+        overview=resolve_under_root(report_root, report_root / OVERVIEW_FILENAME, label="coverage overview path"),
+        root_summary=resolve_under_root(output_root, output_root / ROOT_SUMMARY_FILENAME, label="coverage summary path"),
+        generated_reports=generated_reports,
+    )
+
+
+def active_report_layout() -> ReportLayout:
+    if REPORT_LAYOUT is None:
+        raise RuntimeError("report layout has not been configured")
+    return REPORT_LAYOUT
+
+
 def configure_paths(framework_root: str | Path | None, connector_root: str | Path | None, output_root: str | Path | None) -> None:
     global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, REPORT_ROOT, IMPORT_STATUS, RUNTIME_SNAPSHOT, OUT
+    global GENERATED_REPORT_ROOT, OVERVIEW_REPORT, ROOT_SUMMARY_REPORT, ALLOWED_OUTPUT_PATHS, REPORT_LAYOUT
     if framework_root is not None:
-        FRAMEWORK_ROOT = Path(framework_root).resolve()
+        FRAMEWORK_ROOT = resolve_root(framework_root, label="framework root")
     if connector_root is not None:
-        CONNECTOR_ROOT = Path(connector_root).resolve()
+        CONNECTOR_ROOT = resolve_root(connector_root, label="connector root")
     else:
         CONNECTOR_ROOT = FRAMEWORK_ROOT
-    OUTPUT_ROOT = Path(output_root).resolve() if output_root is not None else CONNECTOR_ROOT
-    REPORT_ROOT = OUTPUT_ROOT / ("docs/testing" if OUTPUT_ROOT == FRAMEWORK_ROOT else "reports/testing")
+    OUTPUT_ROOT = resolve_allowed_output_root(output_root)
+    REPORT_LAYOUT = build_safe_report_layout(OUTPUT_ROOT)
+    REPORT_ROOT = REPORT_LAYOUT.report_root
     IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
-    RUNTIME_SNAPSHOT = REPORT_ROOT / "runtime-validation-snapshot.json"
-    OUT = REPORT_ROOT / "generated"
+    RUNTIME_SNAPSHOT = REPORT_LAYOUT.runtime_snapshot
+    OUT = REPORT_LAYOUT.generated_root
+    GENERATED_REPORT_ROOT = REPORT_LAYOUT.generated_root
+    OVERVIEW_REPORT = REPORT_LAYOUT.overview
+    ROOT_SUMMARY_REPORT = REPORT_LAYOUT.root_summary
+    ALLOWED_OUTPUT_PATHS = REPORT_LAYOUT.allowed_outputs()
 
 
 def md(value: object) -> str:
@@ -201,15 +335,27 @@ def parse_case(path: Path) -> dict:
     data = read_yaml(path)
     rules = str(data.get("rules", "") or "")
     variables, phases, operators, transformations = extract_rule_metadata(rules)
-    status, category, notes, source, caps = extract_status_metadata(data)
+    status, category, notes, source, _ = extract_status_metadata(data)
     tags = extract_gap_tags(path, status, category, notes, source)
+    case_id = str(data.get("name", path.stem) or path.stem)
+    case_for_detection = dict(data)
+    case_for_detection.update(
+        {
+            "id": case_id,
+            "path": display_path(path),
+            "variables": sorted(variables),
+            "category": category,
+            "notes": notes,
+            "tags": tags,
+        }
+    )
 
-    response_body = bool(caps.get("response_body", False)) or any("RESPONSE_BODY" in var for var in variables)
+    response_body = is_response_body_related(case_for_detection, path)
     if not phases:
         warn(f"no phase metadata found in {path}")
 
     return {
-        "id": str(data.get("name", path.stem) or path.stem),
+        "id": case_id,
         "path": display_path(path),
         "scope": infer_scope(path),
         "status": status,
@@ -253,11 +399,6 @@ def load_runtime_snapshot() -> dict:
     return raw
 
 
-def write(path: Path, body: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("Generated file — do not edit manually.\n\n" + body.rstrip() + "\n", encoding="utf-8")
-
-
 def report_doc(name: str) -> str:
     try:
         return str((REPORT_ROOT / name).relative_to(OUTPUT_ROOT))
@@ -266,12 +407,18 @@ def report_doc(name: str) -> str:
 
 
 def render_case_matrix(cases: list[dict]) -> str:
-    rows = ["# Generated Case Matrix", "", "| case_id | path | scope | phase | variables | operators | transformations | status | runtime_verified | notes |", "|---|---|---|---|---|---|---|---|---|---|"]
+    rows = [
+        "# Generated Case Matrix",
+        "",
+        "| case_id | path | scope | phase | variables | operators | transformations | status | runtime_verified | RESPONSE_BODY non-verified | notes |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
+    ]
     for case in cases:
         rows.append(
             f"| {case['id']} | `{case['path']}` | {case['scope']} | {','.join(map(str, case['phases'])) or '-'} | "
             f"{', '.join(case['variables']) or '-'} | {', '.join(case['operators']) or '-'} | "
-            f"{', '.join(case['transformations']) or '-'} | {case['status']} | {case['runtime_verified']} | {case['notes']} |"
+            f"{', '.join(case['transformations']) or '-'} | {case['status']} | {case['runtime_verified']} | "
+            f"{'yes' if case['response_body'] else 'no'} | {case['notes']} |"
         )
     return "\n".join(rows)
 
@@ -285,7 +432,15 @@ def render_summary(cases: list[dict], by_scope: Counter, by_status: Counter, by_
     lines.extend(f"- `{key}`: {value}" for key, value in by_var.most_common())
     lines.extend(["", "## By phase"])
     lines.extend(f"- phase {phase}: {by_phase.get(phase, 0)}" for phase in [1, 2, 3, 4])
-    lines.extend(["", "## Verification note", "- Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.", "- RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists."])
+    lines.extend(
+        [
+            "",
+            "## Verification note",
+            "- Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.",
+            "- RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists.",
+            f"- {RESPONSE_BODY_EVIDENCE_NOTE}",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -423,13 +578,96 @@ def runtime_summary_by_connector(snapshot: dict) -> dict[str, dict]:
     return by_connector
 
 
+def connector_display_name(connector: str) -> str:
+    return "NGINX" if connector == "nginx" else connector.title()
+
+
+def smoke_counts(smoke: dict) -> dict:
+    counts = smoke.get("counts") if isinstance(smoke.get("counts"), dict) else {}
+    return counts if isinstance(counts, dict) else {}
+
+
+def count_value(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def smoke_status_failed(smoke: dict) -> bool:
+    status = status_label(smoke.get("status"))
+    counts = smoke_counts(smoke)
+    return status in {"FAIL", "BLOCKED"} or any(count_value(counts.get(key, 0)) for key in ("fail", "blocked"))
+
+
+def smoke_case_rows(smoke: dict) -> list[dict]:
+    cases = smoke.get("cases", [])
+    return cases if isinstance(cases, list) else []
+
+
+def smoke_per_case_results(smoke: dict) -> str:
+    value = str(smoke.get("per_case_results", "") or "").strip().lower()
+    if value:
+        return value
+    return "available" if smoke_case_rows(smoke) else "unavailable"
+
+
+def smoke_unavailable_reason(smoke: dict, connector: str) -> str:
+    reason = str(smoke.get("per_case_unavailable_reason", "") or "").strip()
+    if reason:
+        return reason
+    blocker = smoke.get("blocker") if isinstance(smoke.get("blocker"), dict) else {}
+    reason = str(blocker.get("reason", "") or "").strip()
+    if reason:
+        return reason
+    if smoke_status_failed(smoke) and not smoke_case_rows(smoke):
+        return str(smoke.get("details") or f"{connector_display_name(connector)} did not complete per-case runtime execution.")
+    return ""
+
+
+def smoke_evidence_note(smoke: dict) -> str:
+    note = str(smoke.get("per_case_unavailable_evidence", "") or "").strip()
+    if note:
+        return note
+    blocker = smoke.get("blocker") if isinstance(smoke.get("blocker"), dict) else {}
+    return str(blocker.get("evidence_note", "") or "").strip()
+
+
+def render_connector_runtime_availability(snapshot: dict) -> list[str]:
+    smokes = runtime_summary_by_connector(snapshot)
+    lines = [
+        "",
+        "## Connector Runtime Availability",
+        "| Connector | Status | Build | Per-case results | Attempted cases | Summary evidence | Note |",
+        "|---|---|---|---|---:|---|---|",
+    ]
+    for connector in ("apache", "nginx"):
+        smoke = smokes.get(connector, {})
+        note = smoke_unavailable_reason(smoke, connector) if smoke_per_case_results(smoke) != "available" else ""
+        if not note:
+            note = str(smoke.get("details", ""))
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    md(connector_display_name(connector)),
+                    md(smoke.get("status", "unknown")),
+                    md(smoke.get("build_status", "unknown")),
+                    md(smoke_per_case_results(smoke)),
+                    md(runtime_attempted_count(snapshot, connector)),
+                    md(smoke.get("summary_path", "unknown")),
+                    md(note or "-"),
+                ]
+            )
+            + " |"
+        )
+    return lines
+
+
 def runtime_results_by_connector(snapshot: dict) -> dict[str, dict[str, dict]]:
     results: dict[str, dict[str, dict]] = {"apache": {}, "nginx": {}}
     for connector, smoke in runtime_summary_by_connector(snapshot).items():
-        raw_cases = smoke.get("cases", [])
-        if not isinstance(raw_cases, list):
-            continue
-        for item in raw_cases:
+        for item in smoke_case_rows(smoke):
             if not isinstance(item, dict):
                 continue
             name = str(item.get("case") or item.get("name") or "").strip()
@@ -479,34 +717,18 @@ def status_label(status: object) -> str:
     if value in {"pass", "fail", "blocked", "xfail"}:
         return value.upper()
     if value == "skipped":
-        return "NOT EXECUTED"
+        return NOT_EXECUTED
     if value in {"not_run", "not-run"}:
-        return "NOT EXECUTED"
-    return "NOT EXECUTED"
+        return NOT_EXECUTED
+    return NOT_EXECUTED
 
 
-def semantic_matrix_status(raw_status: str, classification: str) -> str:
-    status = raw_status.strip().lower()
-    if status == "blocked":
-        return "BLOCKED"
-    if status == "skipped":
-        return "NOT_EXECUTABLE"
-    if status == "xfail":
-        return "XFAIL_FAIL"
-    if status not in {"pass", "fail"}:
-        return status.upper() if status else "UNKNOWN"
-    suffix = "PASS" if status == "pass" else "FAIL"
-    if classification == "active":
-        return suffix
-    if classification == "connector_gap":
-        return f"CONNECTOR_GAP_{suffix}"
-    if classification == "runtime_difference":
-        return f"RUNTIME_DIFFERENCE_{suffix}"
-    if classification == "pending":
-        return f"PENDING_{suffix}"
-    if classification == "future":
-        return f"FUTURE_{suffix}"
-    return f"XFAIL_{suffix}"
+def semantic_matrix_status(raw_status: str, classification: str, response_body_related: bool = False) -> str:
+    return matrix_status_for_result(
+        raw_status,
+        classification,
+        response_body_related=response_body_related,
+    )
 
 
 def runtime_executable_for_snapshot(case: dict, connector: str, snapshot: dict) -> bool:
@@ -517,53 +739,101 @@ def runtime_executable_for_snapshot(case: dict, connector: str, snapshot: dict) 
     return runtime_executable(case, connector)
 
 
-def runtime_cell(case: dict, connector: str, snapshot: dict) -> dict[str, str]:
-    if not connector_applies(case, connector):
-        return {
-            "status": "NOT_EXECUTABLE",
-            "reason": f"{case['scope']}-specific case is not applicable to {connector}",
-            "evidence": "-",
-        }
-    if not is_force_all_snapshot(snapshot) and not runtime_executable(case, connector):
-        return {
-            "status": "NOT EXECUTED",
-            "reason": f"YAML status `{case_group(case)}` is metadata inventory and is not part of default runtime smoke discovery",
-            "evidence": "metadata only; no PASS promotion",
-        }
-    if not runtime_executable_for_snapshot(case, connector, snapshot):
-        return {
-            "status": "NOT_EXECUTABLE",
-            "reason": f"YAML status `{case_group(case)}` is outside active runtime smoke discovery",
-            "evidence": "-",
-        }
+def runtime_cell_not_applicable(case: dict, connector: str) -> dict[str, str]:
+    return {
+        "status": "NOT_EXECUTABLE",
+        "reason": f"{case['scope']}-specific case is not applicable to {connector}",
+        "evidence": "-",
+        "promotion": "-",
+    }
 
-    results = runtime_results_by_connector(snapshot)
-    observed = results.get(connector, {}).get(case["id"])
-    if observed:
-        status = str(observed.get("matrix_status") or semantic_matrix_status(str(observed.get("status", "")), runtime_classification(case)))
-        if status in {"NOT EXECUTED", "NOT_EXECUTABLE"}:
-            reason = str(observed.get("reason") or observed.get("details") or "skipped by runtime smoke")
-        else:
-            classification = observed.get("runtime_classification", runtime_classification(case))
-            reason = str(observed.get("reason") or f"runtime summary result; classification={classification}")
-        expected = observed.get("expected_status", observed.get("expected", "unknown"))
-        actual = observed.get("actual_status", observed.get("actual", "unknown"))
-        evidence = str(observed.get("evidence") or f"expected={expected}; actual={actual}")
-        return {"status": status, "reason": reason, "evidence": evidence}
 
-    smoke = runtime_summary_by_connector(snapshot).get(connector, {})
+def runtime_cell_inventory_only(case: dict) -> dict[str, str]:
+    return {
+        "status": NOT_EXECUTED,
+        "reason": f"YAML status `{case_group(case)}` is metadata inventory and is not part of default runtime smoke discovery",
+        "evidence": "metadata only; no PASS promotion",
+        "promotion": "not promoted",
+    }
+
+
+def runtime_cell_outside_snapshot(case: dict) -> dict[str, str]:
+    return {
+        "status": "NOT_EXECUTABLE",
+        "reason": f"YAML status `{case_group(case)}` is outside active runtime smoke discovery",
+        "evidence": "-",
+        "promotion": "not promoted",
+    }
+
+
+def runtime_cell_from_observed(case: dict, observed: dict) -> dict[str, str]:
+    classification = str(observed.get("runtime_classification", runtime_classification(case)))
+    observed_case = dict(case)
+    observed_case.update(
+        {
+            "capabilities": observed.get("capabilities", case.get("capabilities", [])),
+            "path": observed.get("path", case.get("path", "")),
+        }
+    )
+    response_body_related = bool(observed.get("response_body_non_verified")) or is_response_body_related(
+        observed_case,
+        observed_case.get("path", ""),
+    )
+    raw_status = str(observed.get("status", ""))
+    computed_status = semantic_matrix_status(raw_status, classification, response_body_related)
+    status = str(observed.get("matrix_status") or computed_status)
+    if response_body_related and raw_status.strip().lower() == "pass":
+        status = computed_status
+    if status in {NOT_EXECUTED, "NOT_EXECUTABLE"}:
+        reason = str(observed.get("reason") or observed.get("details") or "skipped by runtime smoke")
+    elif response_body_related and raw_status.strip().lower() == "pass":
+        reason = str(observed.get("reason") or f"{RESPONSE_BODY_RUNTIME_NOTE}; classification={classification}")
+    else:
+        reason = str(observed.get("reason") or f"runtime summary result; classification={classification}")
+    expected = observed.get("expected_status", observed.get("expected", "unknown"))
+    actual = observed.get("actual_status", observed.get("actual", "unknown"))
+    evidence = str(observed.get("evidence") or f"expected={expected}; actual={actual}")
+    promotion = (
+        "RESPONSE_BODY non-verified; non-promotable"
+        if response_body_related
+        else ("promotion eligible" if classification == "active" and status == "PASS" else "not promoted")
+    )
+    return {"status": status, "reason": reason, "evidence": evidence, "promotion": promotion}
+
+
+def runtime_cell_without_case_evidence(smoke: dict, connector: str, snapshot: dict) -> dict[str, str]:
     smoke_status = status_label(smoke.get("status"))
     if smoke_status in {"FAIL", "BLOCKED"} and not smoke.get("cases"):
         return {
             "status": smoke_status,
-            "reason": str(smoke.get("details") or f"{connector} smoke did not produce per-case results"),
+            "reason": smoke_unavailable_reason(smoke, connector)
+            or f"{connector_display_name(connector)} smoke did not produce per-case results",
             "evidence": str(smoke.get("summary_path", "-")),
+            "promotion": "not promoted",
         }
     return {
-        "status": "NOT_EXECUTABLE" if is_force_all_snapshot(snapshot) else "NOT EXECUTED",
+        "status": "NOT_EXECUTABLE" if is_force_all_snapshot(snapshot) else NOT_EXECUTED,
         "reason": f"no {connector} runtime evidence recorded for this executable YAML case",
         "evidence": str(smoke.get("summary_path", "no summary path recorded")),
+        "promotion": "not promoted",
     }
+
+
+def runtime_cell(case: dict, connector: str, snapshot: dict) -> dict[str, str]:
+    if not connector_applies(case, connector):
+        return runtime_cell_not_applicable(case, connector)
+    if not is_force_all_snapshot(snapshot) and not runtime_executable(case, connector):
+        return runtime_cell_inventory_only(case)
+    if not runtime_executable_for_snapshot(case, connector, snapshot):
+        return runtime_cell_outside_snapshot(case)
+
+    results = runtime_results_by_connector(snapshot)
+    observed = results.get(connector, {}).get(case["id"])
+    if observed:
+        return runtime_cell_from_observed(case, observed)
+
+    smoke = runtime_summary_by_connector(snapshot).get(connector, {})
+    return runtime_cell_without_case_evidence(smoke, connector, snapshot)
 
 
 def runtime_rows(cases: list[dict], snapshot: dict) -> list[dict[str, str]]:
@@ -585,9 +855,11 @@ def runtime_rows(cases: list[dict], snapshot: dict) -> list[dict[str, str]]:
                 or runtime_executable_for_snapshot(case, "nginx", {"force_all_cases": True})
                 else "no",
                 "apache_status": apache["status"],
+                "apache_promotion": apache["promotion"],
                 "apache_reason": apache["reason"],
                 "apache_evidence": apache["evidence"],
                 "nginx_status": nginx["status"],
+                "nginx_promotion": nginx["promotion"],
                 "nginx_reason": nginx["reason"],
                 "nginx_evidence": nginx["evidence"],
             }
@@ -611,8 +883,7 @@ def ordered_runtime_statuses(*counters: Counter) -> list[str]:
 
 def runtime_attempted_count(snapshot: dict, connector: str) -> int:
     smoke = runtime_summary_by_connector(snapshot).get(connector, {})
-    cases = smoke.get("cases", [])
-    return len(cases) if isinstance(cases, list) else 0
+    return len(smoke_case_rows(smoke))
 
 
 def render_runtime_status_count_table(
@@ -654,15 +925,17 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         f"- NGINX attempted YAML cases in latest snapshot: **{runtime_attempted_count(snapshot, 'nginx')}**",
         f"- mapped-only import inventory entries: **{len(mapped_only)}**",
         "- `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that YAML status for that connector.",
-        "- `NOT EXECUTED` means no runtime case evidence is recorded in a non-force/default snapshot.",
+        f"- `{NOT_EXECUTED}` means no runtime case evidence is recorded in a non-force/default snapshot.",
         "- `MAPPED_ONLY` entries are import inventory items, not runnable YAML case files.",
+        f"- `{RESPONSE_BODY_PASS_THROUGH_STATUS}` and classified variants are pass-through evidence only and are non-promotable.",
         "",
         "## Status Counts",
         *render_runtime_status_count_table(apache_counts, nginx_counts, len(mapped_only)),
+        *render_connector_runtime_availability(snapshot),
         "",
         "## YAML Runtime Matrix",
-        "| case_id | path | scope | category | metadata class | YAML status | default executable | force-all executable | Apache | Apache reason | Apache evidence | NGINX | NGINX reason | NGINX evidence |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| case_id | path | scope | category | metadata class | YAML status | default executable | force-all executable | Apache | Apache promotion | Apache reason | Apache evidence | NGINX | NGINX promotion | NGINX reason | NGINX evidence |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:
         lines.append(
@@ -679,9 +952,11 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
                     "runtime_executable",
                     "force_all_executable",
                     "apache_status",
+                    "apache_promotion",
                     "apache_reason",
                     "apache_evidence",
                     "nginx_status",
+                    "nginx_promotion",
                     "nginx_reason",
                     "nginx_evidence",
                 ]
@@ -708,87 +983,149 @@ def render_connector_runtime_results(cases: list[dict], snapshot: dict, connecto
     rows = runtime_rows(cases, snapshot)
     counts = runtime_status_counts(rows, connector)
     smoke = runtime_summary_by_connector(snapshot).get(connector, {})
-    connector_name = "NGINX" if connector == "nginx" else connector.title()
+    connector_name = connector_display_name(connector)
+    raw_counts = smoke_counts(smoke)
     lines = [
         f"# Generated {connector_name} Runtime Results",
         "",
         f"- Command: `{smoke.get('command', 'unknown')}`",
         f"- Status: **{smoke.get('status', 'unknown')}**",
         f"- Exit code: `{smoke.get('exit_code', 'unknown')}`",
+        f"- Build status: `{smoke.get('build_status', 'unknown')}`",
+        f"- Per-case results: `{smoke_per_case_results(smoke)}`",
         f"- Summary evidence: `{smoke.get('summary_path', 'unknown')}`",
         f"- Attempted YAML cases in latest snapshot: **{runtime_attempted_count(snapshot, connector)}**",
         "- Runtime evidence is current local snapshot evidence only; it is not xfail/pending promotion.",
         "- RESPONSE_BODY remains non-verified/non-promoted.",
+        f"- {RESPONSE_BODY_EVIDENCE_NOTE}",
         "",
-        "## Counts",
-        "| Status | Count |",
-        "|---|---:|",
+        "## Raw Smoke Summary",
+        TABLE_STATUS_COUNT_HEADER,
+        TABLE_STATUS_COUNT_SEPARATOR,
     ]
+    for status in ["pass", "fail", "blocked", "skipped", "xfail"]:
+        lines.append(f"| {status.upper()} | {md(raw_counts.get(status, 'unknown'))} |")
+    lines.extend(
+        [
+            "",
+            "## Semantic Status Counts",
+            TABLE_STATUS_COUNT_HEADER,
+            TABLE_STATUS_COUNT_SEPARATOR,
+        ]
+    )
     for status in ordered_runtime_statuses(counts):
         lines.append(f"| {status} | {counts.get(status, 0)} |")
+    if smoke_status_failed(smoke) and smoke_per_case_results(smoke) != "available":
+        lines.extend(
+            [
+                "",
+                f"{connector_name} did not emit per-case rows; semantic counts and result rows use connector-level blocker evidence for visibility.",
+            ]
+        )
+    lines.extend(render_connector_runtime_fail_details(snapshot, connector, heading_level=2))
     lines.extend(
         [
             "",
             "## Results",
-            "| case_id | path | YAML status | runtime status | reason | evidence |",
-            "|---|---|---|---|---|---|",
+            "| case_id | path | YAML status | runtime status | promotion | reason | evidence |",
+            "|---|---|---|---|---|---|---|",
         ]
     )
     for row in rows:
         lines.append(
             f"| {md(row['case_id'])} | {md(row['path'])} | {md(row['yaml_status'])} | "
-            f"{md(row[f'{connector}_status'])} | {md(row[f'{connector}_reason'])} | {md(row[f'{connector}_evidence'])} |"
+            f"{md(row[f'{connector}_status'])} | {md(row[f'{connector}_promotion'])} | "
+            f"{md(row[f'{connector}_reason'])} | {md(row[f'{connector}_evidence'])} |"
         )
     return "\n".join(lines)
 
 
-def render_runtime_snapshot(snapshot: dict) -> list[str]:
-    if not snapshot:
-        return [
-            "",
-            "## Latest Local Runtime Validation Snapshot",
-            f"- No local runtime snapshot is recorded in `{report_doc('runtime-validation-snapshot.json')}`.",
-            "- Do not infer runtime PASS counts from generated coverage metadata.",
-        ]
-
+def render_runtime_failure_table(rows: list[dict[str, object]]) -> list[str]:
     lines = [
-        "",
-        "## Latest Local Runtime Validation Snapshot",
-        f"- Snapshot: **{snapshot.get('snapshot_date', 'unknown')}** ({snapshot.get('captured_at', 'unknown')})",
-        f"- Git: branch `{snapshot.get('branch', 'unknown')}`, commit `{snapshot.get('commit', 'unknown')}`",
-        f"- BUILD_ROOT: `{snapshot.get('build_root', 'unknown')}`",
-        "- This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.",
+        "| Case | Expected | Actual | Assessment | Evidence |",
+        "|---|---|---|---|---|",
     ]
-    notes = snapshot.get("notes", [])
-    if isinstance(notes, list) and notes:
-        lines.extend(f"- {note}" for note in notes)
-
-    framework_rows = snapshot.get("framework_checks", [])
-    if isinstance(framework_rows, list):
-        lines.extend(
-            render_status_table(
-                "Framework Check Status",
-                framework_rows,
-                [("Command", "command"), ("Status", "status"), ("Details", "details")],
+    for row in rows:
+        lines.append(
+            "| "
+            + " | ".join(
+                md(row.get(key, "-"))
+                for key in ["case", "expected", "actual", "assessment", "evidence"]
             )
+            + " |"
         )
+    return lines
 
-    readiness_rows = snapshot.get("readiness_checks", [])
-    if isinstance(readiness_rows, list):
-        lines.extend(
-            render_status_table(
-                "Readiness / Fetch Status",
-                readiness_rows,
-                [("Command", "command"), ("Status", "status"), ("Details", "details")],
-            )
+
+def runtime_failed_rows_for_connector(snapshot: dict, connector: str) -> list[dict[str, object]]:
+    smoke = runtime_summary_by_connector(snapshot).get(connector, {})
+    cases_by_name = {
+        str(item.get("case") or item.get("name") or ""): item
+        for item in smoke_case_rows(smoke)
+        if isinstance(item, dict)
+    }
+    rows: list[dict[str, object]] = []
+    failed_cases = smoke.get("failed_cases", [])
+    if not isinstance(failed_cases, list):
+        return rows
+    for failed in failed_cases:
+        if not isinstance(failed, dict):
+            continue
+        case_name = str(failed.get("case", "-"))
+        case_row = cases_by_name.get(case_name, {})
+        rows.append(
+            {
+                "case": case_name,
+                "expected": failed.get("expected", "-"),
+                "actual": failed.get("actual", "-"),
+                "assessment": failed.get("assessment", "-"),
+                "evidence": failed.get("evidence") or case_row.get("evidence") or smoke.get("summary_path", "-"),
+            }
         )
+    return rows
 
-    smoke_rows = []
-    for item in snapshot.get("runtime_smokes", []):
+
+def render_connector_runtime_fail_details(snapshot: dict, connector: str, heading_level: int) -> list[str]:
+    smoke = runtime_summary_by_connector(snapshot).get(connector, {})
+    connector_name = connector_display_name(connector)
+    lines = ["", f"{'#' * heading_level} {connector_name} FAIL Details"]
+    failed_rows = runtime_failed_rows_for_connector(snapshot, connector)
+    if failed_rows:
+        lines.extend(render_runtime_failure_table(failed_rows))
+        return lines
+
+    if smoke_status_failed(smoke) and smoke_per_case_results(smoke) != "available":
+        lines.append(f"{connector_name} did not complete per-case runtime execution.")
+        reason = smoke_unavailable_reason(smoke, connector)
+        if reason:
+            lines.append(f"- Reason: {md(reason)}")
+        lines.append(f"- Status: `{md(smoke.get('status', 'unknown'))}`")
+        lines.append(f"- Build status: `{md(smoke.get('build_status', 'unknown'))}`")
+        lines.append(f"- Summary evidence: `{md(smoke.get('summary_path', 'unknown'))}`")
+        text_summary = smoke.get("text_summary_path")
+        if text_summary:
+            lines.append(f"- Text summary: `{md(text_summary)}`")
+        evidence_note = smoke_evidence_note(smoke)
+        if evidence_note:
+            lines.append(f"- Evidence note: {md(evidence_note)}")
+        return lines
+
+    lines.append(f"No {connector_name} runtime FAIL details were reported.")
+    return lines
+
+
+def snapshot_named_rows(snapshot: dict, key: str) -> list:
+    rows = snapshot.get(key, [])
+    return rows if isinstance(rows, list) else []
+
+
+def runtime_smoke_rows(snapshot: dict) -> list[dict[str, object]]:
+    rows = []
+    for item in snapshot_named_rows(snapshot, "runtime_smokes"):
         if not isinstance(item, dict):
             continue
         counts = item.get("counts") if isinstance(item.get("counts"), dict) else {}
-        smoke_rows.append(
+        rows.append(
             {
                 "command": item.get("command", "-"),
                 "status": item.get("status", "-"),
@@ -800,10 +1137,72 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
                 "summary_path": item.get("summary_path", item.get("details", "-")),
             }
         )
+    return rows
+
+
+def runtime_failed_rows(snapshot: dict) -> list[dict[str, object]]:
+    rows = []
+    for item in snapshot_named_rows(snapshot, "runtime_smokes"):
+        if not isinstance(item, dict):
+            continue
+        connector = item.get("connector", item.get("command", "-"))
+        for failed in item.get("failed_cases", []):
+            if not isinstance(failed, dict):
+                continue
+            rows.append(
+                {
+                    "connector": connector,
+                    "case": failed.get("case", "-"),
+                    "expected": failed.get("expected", "-"),
+                    "actual": failed.get("actual", "-"),
+                    "assessment": failed.get("assessment", "-"),
+                }
+            )
+    return rows
+
+
+def append_snapshot_list(lines: list[str], title: str, values: object) -> None:
+    if isinstance(values, list) and values:
+        lines.extend(["", title])
+        lines.extend(f"- {entry}" for entry in values)
+
+
+def render_runtime_snapshot(snapshot: dict) -> list[str]:
+    if not snapshot:
+        return [
+            "",
+            "## Latest Local Runtime Validation Snapshot",
+            f"- No local runtime snapshot is recorded in `{report_doc(RUNTIME_SNAPSHOT_FILENAME)}`.",
+            "- Do not infer runtime PASS counts from generated coverage metadata.",
+        ]
+
+    lines = [
+        "",
+        "## Latest Local Runtime Validation Snapshot",
+        f"- Snapshot: **{snapshot.get('snapshot_date', 'unknown')}** ({snapshot.get('captured_at', 'unknown')})",
+        f"- Git: branch `{snapshot.get('branch', 'unknown')}`, commit `{snapshot.get('commit', 'unknown')}`",
+        f"- BUILD_ROOT: `{snapshot.get('build_root', 'unknown')}`",
+        "- This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.",
+    ]
+    lines.extend(f"- {note}" for note in snapshot_named_rows(snapshot, "notes"))
+    lines.extend(
+        render_status_table(
+            "Framework Check Status",
+            snapshot_named_rows(snapshot, "framework_checks"),
+            [("Command", "command"), ("Status", "status"), ("Details", "details")],
+        )
+    )
+    lines.extend(
+        render_status_table(
+            "Readiness / Fetch Status",
+            snapshot_named_rows(snapshot, "readiness_checks"),
+            [("Command", "command"), ("Status", "status"), ("Details", "details")],
+        )
+    )
     lines.extend(
         render_status_table(
             "Runtime Smoke Status",
-            smoke_rows,
+            runtime_smoke_rows(snapshot),
             [
                 ("Command", "command"),
                 ("Status", "status"),
@@ -816,48 +1215,12 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
             ],
         )
     )
-
-    failed_rows = []
-    for item in snapshot.get("runtime_smokes", []):
-        if not isinstance(item, dict):
-            continue
-        connector = item.get("connector", item.get("command", "-"))
-        for failed in item.get("failed_cases", []):
-            if not isinstance(failed, dict):
-                continue
-            failed_rows.append(
-                {
-                    "connector": connector,
-                    "case": failed.get("case", "-"),
-                    "expected": failed.get("expected", "-"),
-                    "actual": failed.get("actual", "-"),
-                    "assessment": failed.get("assessment", "-"),
-                }
-            )
-    lines.extend(
-        render_status_table(
-            "Runtime FAIL Details",
-            failed_rows,
-            [
-                ("Connector", "connector"),
-                ("Case", "case"),
-                ("Expected", "expected"),
-                ("Actual", "actual"),
-                ("Assessment", "assessment"),
-            ],
-        )
-    )
-
-    verification = snapshot.get("runtime_verified_status", [])
-    if isinstance(verification, list) and verification:
-        lines.extend(["", "## Runtime Verified Status"])
-        lines.extend(f"- {entry}" for entry in verification)
-
-    open_issues = snapshot.get("open_issues", [])
-    if isinstance(open_issues, list) and open_issues:
-        lines.extend(["", "## Open Runtime Issues"])
-        lines.extend(f"- {issue}" for issue in open_issues)
-
+    lines.extend(render_connector_runtime_availability(snapshot))
+    lines.extend(["", "## Runtime FAIL Details"])
+    lines.extend(render_connector_runtime_fail_details(snapshot, "apache", heading_level=3))
+    lines.extend(render_connector_runtime_fail_details(snapshot, "nginx", heading_level=3))
+    append_snapshot_list(lines, "## Runtime Verified Status", snapshot.get("runtime_verified_status", []))
+    append_snapshot_list(lines, "## Open Runtime Issues", snapshot.get("open_issues", []))
     return lines
 
 
@@ -891,7 +1254,7 @@ def render_root_summary(
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
 
     detail_docs = [
-        "test-coverage-overview.md",
+        OVERVIEW_FILENAME,
         "generated/case-matrix.generated.md",
         "generated/coverage-summary.generated.md",
         "generated/xfail-summary.generated.md",
@@ -900,7 +1263,7 @@ def render_root_summary(
         "generated/runtime-matrix.generated.md",
         "generated/apache-runtime-results.generated.md",
         "generated/nginx-runtime-results.generated.md",
-        "runtime-validation-snapshot.json",
+        RUNTIME_SNAPSHOT_FILENAME,
     ]
 
     lines = [
@@ -939,17 +1302,17 @@ def render_root_summary(
         f"- Pending/future compatibility cases: **{metrics['future_experimental']}** future/experimental; **{metrics['pending_false'] + metrics['pending_unknown']}** not runtime-verified",
         "",
         "## Status Classes",
-        "| Status | Count |",
-        "|---|---:|",
+        TABLE_STATUS_COUNT_HEADER,
+        TABLE_STATUS_COUNT_SEPARATOR,
     ]
     lines.extend(f"| {status} | {count} |" for status, count in sorted(by_status.items()))
-    lines.extend(["", "## Scope", "| Scope | Count |", "|---|---:|"])
+    lines.extend(["", "## Scope", "| Scope | Count |", TABLE_STATUS_COUNT_SEPARATOR])
     lines.extend(f"| {scope} | {by_scope.get(scope, 0)} |" for scope in ["common", "apache", "nginx", "unknown"])
-    lines.extend(["", "## Coverage By Variable / Collection", "| Variable / Collection | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Variable / Collection", "| Variable / Collection | Count |", TABLE_STATUS_COUNT_SEPARATOR])
     lines.extend(f"| `{name}` | {collection_counts.get(name, 0)} |" for name in ROOT_COLLECTIONS)
-    lines.extend(["", "## Coverage By Phase", "| Phase | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Phase", "| Phase | Count |", TABLE_STATUS_COUNT_SEPARATOR])
     lines.extend(f"| Phase {phase} | {by_phase.get(phase, 0)} |" for phase in [1, 2, 3, 4])
-    lines.extend(["", "## Coverage By Topic", "| Topic | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Topic", "| Topic | Count |", TABLE_STATUS_COUNT_SEPARATOR])
     lines.extend(f"| {topic} | {count} |" for topic, count in topics.items())
     lines.extend(
         [
@@ -961,8 +1324,8 @@ def render_root_summary(
             f"- NGINX attempted YAML cases from latest summary: **{nginx_attempted}**",
             f"- Apache raw runtime XFAIL observations from latest summary: **{apache_smoke_counts.get('xfail', 0)}**",
             f"- NGINX raw runtime XFAIL observations from latest summary: **{nginx_smoke_counts.get('xfail', 0)}**",
-            f"- Apache NOT EXECUTED YAML rows: **{apache_runtime_counts.get('NOT EXECUTED', 0)}**",
-            f"- NGINX NOT EXECUTED YAML rows: **{nginx_runtime_counts.get('NOT EXECUTED', 0)}**",
+            f"- Apache {NOT_EXECUTED} YAML rows: **{apache_runtime_counts.get(NOT_EXECUTED, 0)}**",
+            f"- NGINX {NOT_EXECUTED} YAML rows: **{nginx_runtime_counts.get(NOT_EXECUTED, 0)}**",
             f"- Apache NOT_EXECUTABLE YAML rows: **{apache_runtime_counts.get('NOT_EXECUTABLE', 0)}**",
             f"- NGINX NOT_EXECUTABLE YAML rows: **{nginx_runtime_counts.get('NOT_EXECUTABLE', 0)}**",
             f"- Mapped-only import inventory entries: **{mapped_only_count}**",
@@ -1049,14 +1412,14 @@ def render_overview(
         "",
         "## Coverage By Variable / Collection",
         "| Variable | Count |",
-        "|---|---:|",
+        TABLE_STATUS_COUNT_SEPARATOR,
     ]
     lines.extend(f"| `{k}` | {v} |" for k, v in by_var.most_common(20))
-    lines.extend(["", "## Coverage By Phase", "| Phase | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Phase", "| Phase | Count |", TABLE_STATUS_COUNT_SEPARATOR])
     lines.extend(f"| {phase} | {by_phase.get(phase, 0)} |" for phase in [1, 2, 3, 4])
-    lines.extend(["", "## Coverage By Status", "| Status | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Status", TABLE_STATUS_COUNT_HEADER, TABLE_STATUS_COUNT_SEPARATOR])
     lines.extend(f"| {status} | {count} |" for status, count in sorted(by_status.items()))
-    lines.extend(["", "## Coverage By Scope", "| Scope | Count |", "|---|---:|"])
+    lines.extend(["", "## Coverage By Scope", "| Scope | Count |", TABLE_STATUS_COUNT_SEPARATOR])
     lines.extend(f"| {scope} | {by_scope.get(scope, 0)} |" for scope in ["common", "apache", "nginx", "unknown"])
     lines.extend(
         [
@@ -1124,6 +1487,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-root", default=None)
     args = parser.parse_args(argv)
     configure_paths(args.framework_root, args.connector_root, args.output_root)
+    report_layout = active_report_layout()
 
     cases = gather_cases()
     import_status = load_import_status()
@@ -1136,19 +1500,18 @@ def main(argv: list[str] | None = None) -> int:
     by_var = Counter(var for case in cases for var in case["variables"])
     response_body_count = sum(1 for case in cases if case["response_body"])
 
-    write(OUT / "case-matrix.generated.md", render_case_matrix(cases))
-    write(OUT / "coverage-summary.generated.md", render_summary(cases, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count))
-    write(OUT / "xfail-summary.generated.md", render_xfail(cases))
-    write(OUT / "connector-gap-summary.generated.md", render_gap_summary(cases, import_status))
-    write(OUT / "phase-coverage.generated.md", render_phase_coverage(cases))
-    write(OUT / "runtime-matrix.generated.md", render_runtime_matrix(cases, import_status, runtime_snapshot))
-    write(OUT / "apache-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "apache"))
-    write(OUT / "nginx-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "nginx"))
-    write(
-        REPORT_ROOT / "test-coverage-overview.md",
+    report_layout.write_generated("case-matrix.generated.md", render_case_matrix(cases))
+    report_layout.write_generated("coverage-summary.generated.md", render_summary(cases, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count))
+    report_layout.write_generated("xfail-summary.generated.md", render_xfail(cases))
+    report_layout.write_generated("connector-gap-summary.generated.md", render_gap_summary(cases, import_status))
+    report_layout.write_generated("phase-coverage.generated.md", render_phase_coverage(cases))
+    report_layout.write_generated("runtime-matrix.generated.md", render_runtime_matrix(cases, import_status, runtime_snapshot))
+    report_layout.write_generated("apache-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "apache"))
+    report_layout.write_generated("nginx-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "nginx"))
+    report_layout.write_overview(
         render_overview(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count),
     )
-    write(OUTPUT_ROOT / "TEST-COVERAGE-SUMMARY.md", render_root_summary(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase))
+    report_layout.write_root_summary(render_root_summary(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase))
     return 0
 
 

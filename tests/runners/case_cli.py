@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
 from msconnector_models import (
     RESULT_STATUSES,
+    SummaryContext,
     connector_summary as build_connector_summary,
     empty_connector_summary,
 )
@@ -16,6 +18,7 @@ from runner_core import (
     assert_case_artifacts,
     case_info as build_case_info,
     discover_case_files,
+    effective_expect,
     expected_audit_log,
     load_case,
     write_body_file,
@@ -29,7 +32,13 @@ from runner_core import (
 
 def materialize(args: argparse.Namespace) -> int:
     case = load_case(args.case)
-    write_rules_file(case, args.rules_file, args.audit_log_file, args.audit_log_dir)
+    write_rules_file(
+        case,
+        args.rules_file,
+        args.audit_log_file,
+        args.audit_log_dir,
+        args.rules_preamble_file or None,
+    )
     if args.headers_file:
         write_headers_file(case, args.headers_file)
     if args.body_file:
@@ -70,7 +79,7 @@ def assert_status(args: argparse.Namespace) -> int:
                 handle.write(f"fail: {message}\n")
         print(message, file=sys.stderr)
         return 1
-    expected = case["expect"]["status"]
+    expected = effective_expect(case)["status"]
     if status_file is not None:
         with status_file.open("a", encoding="utf-8") as handle:
             handle.write(f"pass: {case['name']} HTTP {expected} observed\n")
@@ -141,10 +150,17 @@ def read_jsonl(path: Path) -> list[dict[str, object]]:
 
 
 def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]) -> dict[str, object]:
+    context = summary_context(args)
     return build_connector_summary(
         connector=args.connector,
         entries=entries,
         import_status_file=args.import_status_file,
+        context=context,
+    )
+
+
+def summary_context(args: argparse.Namespace) -> SummaryContext:
+    return SummaryContext(
         connector_path=args.connector_path,
         validation_mode=args.validation_mode,
         environment=args.environment,
@@ -190,20 +206,7 @@ def summarize_empty(args: argparse.Namespace) -> int:
         args.connector: empty_connector_summary(
             connector=args.connector,
             status=args.status,
-            connector_path=args.connector_path,
-            validation_mode=args.validation_mode,
-            environment=args.environment,
-            server=args.server or "",
-            server_binary=args.server_binary or "",
-            module=args.module or "",
-            libmodsecurity=args.libmodsecurity or "",
-            origin_source=args.origin_source or "",
-            origin_source_repo=args.origin_source_repo or "",
-            origin_source_url=args.origin_source_url or "",
-            origin_source_commit=args.origin_source_commit or "",
-            origin_source_version=args.origin_source_version or "",
-            origin_license=args.origin_license or "",
-            origin_imported_path=args.origin_imported_path or "",
+            context=summary_context(args),
         )
     }
     summary_json = Path(args.summary_json)
@@ -218,6 +221,36 @@ def summarize_empty(args: argparse.Namespace) -> int:
     return 0
 
 
+def validate_expected_summary_fields(summary: dict[str, object], args: argparse.Namespace) -> list[str]:
+    errors: list[str] = []
+    expected_fields = {
+        "connector_path": args.connector_path,
+        "validation_mode": args.validation_mode,
+        "server": args.server,
+    }
+    for key, expected in expected_fields.items():
+        if summary.get(key) != expected:
+            errors.append(f"{key} expected {expected!r}, got {summary.get(key)!r}")
+    return errors
+
+
+def validate_summary_schema(summary: dict[str, object]) -> list[str]:
+    errors: list[str] = []
+    environment = summary.get("environment")
+    if not (environment in {"local", "github-actions"} or environment):
+        errors.append("environment is empty")
+    if summary.get("audit_behavior") not in {"stable", "unstable", "unexpected"}:
+        errors.append(f"unexpected audit_behavior: {summary.get('audit_behavior')!r}")
+    if summary.get("verified_variables") != []:
+        errors.append(f"verified_variables expected [], got {summary.get('verified_variables')!r}")
+    return errors
+
+
+def validate_required_summary_keys(summary: dict[str, object]) -> list[str]:
+    required_keys = ("server_binary", "module", "libmodsecurity", "summary", "cases")
+    return [f"missing summary key: {key}" for key in required_keys if key not in summary]
+
+
 def validate_real_world_summary(args: argparse.Namespace) -> int:
     data = json.loads(Path(args.summary_json).read_text(encoding="utf-8"))
     summary = data.get(args.connector)
@@ -225,24 +258,9 @@ def validate_real_world_summary(args: argparse.Namespace) -> int:
     if not isinstance(summary, dict):
         errors.append(f"missing connector summary: {args.connector}")
     else:
-        expected_fields = {
-            "connector_path": args.connector_path,
-            "validation_mode": args.validation_mode,
-            "server": args.server,
-        }
-        for key, expected in expected_fields.items():
-            if summary.get(key) != expected:
-                errors.append(f"{key} expected {expected!r}, got {summary.get(key)!r}")
-        environment = summary.get("environment")
-        if not (environment in {"local", "github-actions"} or environment):
-            errors.append("environment is empty")
-        if summary.get("audit_behavior") not in {"stable", "unstable", "unexpected"}:
-            errors.append(f"unexpected audit_behavior: {summary.get('audit_behavior')!r}")
-        if summary.get("verified_variables") != []:
-            errors.append(f"verified_variables expected [], got {summary.get('verified_variables')!r}")
-        for key in ("server_binary", "module", "libmodsecurity", "summary", "cases"):
-            if key not in summary:
-                errors.append(f"missing summary key: {key}")
+        errors.extend(validate_expected_summary_fields(summary, args))
+        errors.extend(validate_summary_schema(summary))
+        errors.extend(validate_required_summary_keys(summary))
     if errors:
         print("; ".join(errors), file=sys.stderr)
         return 1
@@ -266,6 +284,10 @@ def build_parser() -> argparse.ArgumentParser:
     materialize_parser.add_argument("--docroot")
     materialize_parser.add_argument("--audit-log-file")
     materialize_parser.add_argument("--audit-log-dir")
+    materialize_parser.add_argument(
+        "--rules-preamble-file",
+        default=os.environ.get("MODSECURITY_RULE_PREAMBLE_FILE", ""),
+    )
     materialize_parser.add_argument("--nginx-location-directives-file")
     materialize_parser.add_argument("--nginx-runtime-config-dir")
     materialize_parser.add_argument("--nginx-phase4-log-file")

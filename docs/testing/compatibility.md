@@ -83,7 +83,7 @@ cases; see `docs/testing/nginx-runtime-failure-classification.md`.
 | --- | --- | --- | --- |
 | `json_request_body_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `multipart_basic_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| `response_body_pass.yaml` | pass, HTTP 200 | pass, HTTP 200 pass-through evidence | RESPONSE_BODY non-promoted |
+| `response_body_pass.yaml` | pass-through, HTTP 200 | pass-through, HTTP 200 evidence | RESPONSE_BODY non-verified/non-promoted |
 | `response_body_basic_block` | fail, HTTP 200 | fail, HTTP 200 | xfail/mapped-only |
 | PR #377 minimal/safe phase-4 log-only probes | n/a | pass, HTTP 200 in latest NGINX smoke | NGINX-specific log-only evidence; not RESPONSE_BODY promotion |
 | PR #377 content-type out-of-scope phase-4 probe | n/a | pass, HTTP 200 in latest NGINX smoke | NGINX-specific log-only evidence; not RESPONSE_BODY promotion |

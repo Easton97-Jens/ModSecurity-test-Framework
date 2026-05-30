@@ -46,6 +46,19 @@ fi
 NGINX_RUNTIME_BASE="${NGINX_RUNTIME_BASE:-${RUNTIME_BASE:-$NGINX_HARNESS_WORK_ROOT/runtime}}"
 NGINX_RUNTIME_LOG_DIR="${NGINX_RUNTIME_LOG_DIR:-$NGINX_HARNESS_WORK_ROOT/logs}"
 
+prepare_crs_variant() {
+    if [ "$MODSECURITY_TEST_VARIANT" != "with-crs" ]; then
+        MODSECURITY_RULE_PREAMBLE_FILE=""
+        export MODSECURITY_RULE_PREAMBLE_FILE
+        return 0
+    fi
+    if [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+        sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
+        MODSECURITY_RULE_PREAMBLE_FILE="$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"
+    fi
+    export MODSECURITY_RULE_PREAMBLE_FILE
+}
+
 load_nginx_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$CONNECTOR_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell nginx --prefix NGINX_ADAPTER)"
 }
@@ -148,6 +161,12 @@ release_build_root_lock() {
         echo "run_nginx_smoke: lock-release path=$lock_dir method=mkdir"
     fi
 }
+
+prepare_crs_variant
+echo "run_nginx_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+    echo "run_nginx_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
+fi
 
 configure_nginx_origin
 if ! acquire_build_root_lock; then
@@ -306,6 +325,8 @@ LOG_DIR="$NGINX_RUNTIME_LOG_DIR" \
     CONNECTOR_ORIGIN_SOURCE_VERSION="$NGINX_ORIGIN_SOURCE_VERSION" \
     CONNECTOR_ORIGIN_LICENSE="$NGINX_ORIGIN_LICENSE" \
     CONNECTOR_ORIGIN_IMPORTED_PATH="$NGINX_ORIGIN_IMPORTED_PATH" \
+    MODSECURITY_TEST_VARIANT="$MODSECURITY_TEST_VARIANT" \
+    MODSECURITY_RULE_PREAMBLE_FILE="$MODSECURITY_RULE_PREAMBLE_FILE" \
     SMOKE_CASES="$SMOKE_CASES" \
     CASE_SCOPE="$CASE_SCOPE" \
     FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$CONNECTOR_ROOT/connectors/nginx/harness/run_nginx_smoke.sh"

@@ -36,6 +36,19 @@ SMOKE_LOCK_TIMEOUT_SECONDS="${SMOKE_LOCK_TIMEOUT_SECONDS:-900}"
 SMOKE_DISABLE_LOCK="${SMOKE_DISABLE_LOCK:-0}"
 SMOKE_LOCK_MODE="${SMOKE_LOCK_MODE:-wait}"
 
+prepare_crs_variant() {
+    if [ "$MODSECURITY_TEST_VARIANT" != "with-crs" ]; then
+        MODSECURITY_RULE_PREAMBLE_FILE=""
+        export MODSECURITY_RULE_PREAMBLE_FILE
+        return 0
+    fi
+    if [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+        sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
+        MODSECURITY_RULE_PREAMBLE_FILE="$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"
+    fi
+    export MODSECURITY_RULE_PREAMBLE_FILE
+}
+
 load_apache_adapter_metadata() {
     eval "$(CONNECTOR_ROOT="$CONNECTOR_ROOT" "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/adapter_metadata.py" shell apache --prefix APACHE_ADAPTER)"
 }
@@ -139,6 +152,12 @@ release_build_root_lock() {
     fi
 }
 
+prepare_crs_variant
+echo "run_apache_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+    echo "run_apache_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
+fi
+
 configure_apache_origin
 if ! acquire_build_root_lock; then
     write_connector_result blocked "build root lock unavailable: $BUILD_ROOT"
@@ -200,6 +219,8 @@ required_adapter_owned = {
     "src/msc_filters.h",
     "src/msc_utils.c",
     "src/msc_utils.h",
+}
+required_framework_reference = {
     "t/conf/extra.conf.in",
     "tests/run-regression-tests.pl.in",
     "tests/regression/server_root/conf/httpd.conf.in",
@@ -238,6 +259,9 @@ if any(path in sources_by_path for path in removed_from_source_tree):
     raise SystemExit(1)
 for path in required_adapter_owned:
     if sources_by_path.get(path) != "adapter-owned":
+        raise SystemExit(1)
+for path in required_framework_reference:
+    if sources_by_path.get(path) != "framework-upstream-reference":
         raise SystemExit(1)
 PY
 }
@@ -309,6 +333,8 @@ LOG_DIR="$APACHE_RUNTIME_LOG_DIR" \
     CONNECTOR_ORIGIN_SOURCE_VERSION="$APACHE_ORIGIN_SOURCE_VERSION" \
     CONNECTOR_ORIGIN_LICENSE="$APACHE_ORIGIN_LICENSE" \
     CONNECTOR_ORIGIN_IMPORTED_PATH="$APACHE_ORIGIN_IMPORTED_PATH" \
+    MODSECURITY_TEST_VARIANT="$MODSECURITY_TEST_VARIANT" \
+    MODSECURITY_RULE_PREAMBLE_FILE="$MODSECURITY_RULE_PREAMBLE_FILE" \
     SMOKE_CASES="$SMOKE_CASES" \
     CASE_SCOPE="$CASE_SCOPE" \
     FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$CONNECTOR_ROOT/connectors/apache/harness/run_apache_smoke.sh"

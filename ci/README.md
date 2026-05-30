@@ -16,6 +16,10 @@ Important local entrypoints:
 - `ci/cloud-quick-check.sh`: framework/generator/lint check for lightweight CI.
 - `ci/quick-all.sh`: local-preferred quick orchestration; may return BLOCKED.
 - `ci/fetch-smoke-sources.sh`: explicit source fetch helper.
+- `ci/fetch-crs.sh`: explicit OWASP CRS fetch helper using the central pin from
+  `ci/common.sh`.
+- `ci/prepare-crs.sh`: generated CRS setup/preamble helper for the `with-crs`
+  test variant.
 - `ci/doctor.sh`: local prerequisite/readiness diagnostics.
 - `ci/run-connector-smokes.sh`: local Apache+NGINX smoke orchestration.
 
@@ -23,3 +27,12 @@ Full runtime evidence remains local through the Makefile smoke targets.
 Apache and NGINX connector code comes from `connectors/apache` and
 `connectors/nginx` by default; external connector repository fetches require
 explicit opt-in.
+
+CRS runtime validation is variant-based:
+
+- `MODSECURITY_TEST_VARIANT=no-crs` keeps the existing local case-rule behavior.
+- `MODSECURITY_TEST_VARIANT=with-crs` injects `MODSECURITY_RULE_PREAMBLE_FILE`
+  before generated local case rules.
+
+The CRS repository URL, git ref, source path, and runtime path are defined only
+in `ci/common.sh`.

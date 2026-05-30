@@ -2,24 +2,24 @@ Generated file — do not edit manually.
 
 # Generated Coverage Summary
 
-- Total cases: 133
-- RESPONSE_BODY cases: 19
+- Total cases: 141
+- RESPONSE_BODY cases: 24
 - Verified runtime cases: 0
-- Non-verified runtime cases: 133
+- Non-verified runtime cases: 141
 
 ## By scope
-- common: 126
+- common: 134
 - apache: 0
 - nginx: 7
 - unknown: 0
 
 ## By status
-- active: 7
-- imported: 47
-- xfail: 79
+- active: 8
+- imported: 53
+- xfail: 80
 
 ## By variable/collection
-- `RESPONSE_BODY`: 19
+- `RESPONSE_BODY`: 20
 - `ARGS:q`: 18
 - `REQUEST_BODY`: 10
 - `ARGS_NAMES`: 7
@@ -34,11 +34,16 @@ Generated file — do not edit manually.
 - `RESPONSE_HEADERS:Set-Cookie`: 4
 - `ARGS:probe`: 4
 - `MULTIPART_FILENAME`: 3
+- `ARGS:chain_a`: 3
+- `ARGS:chain_b`: 3
 - `FILES_NAMES`: 2
 - `TX:SCORE`: 2
 - `REQUEST_COOKIES:USER_TOKEN`: 2
 - `RESPONSE_HEADERS:Location`: 2
 - `ARGS:audit`: 1
+- `REQUEST_HEADERS:X-PR70-Phase`: 1
+- `ARGS_POST:arg1`: 1
+- `RESPONSE_HEADERS:Last-Modified`: 1
 - `ARGS:foo`: 1
 - `FILES`: 1
 - `ARGS:name`: 1
@@ -59,11 +64,12 @@ Generated file — do not edit manually.
 - `RESPONSE_HEADERS:Server`: 1
 
 ## By phase
-- phase 1: 35
-- phase 2: 69
-- phase 3: 11
-- phase 4: 19
+- phase 1: 36
+- phase 2: 74
+- phase 3: 12
+- phase 4: 20
 
 ## Verification note
 - Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.
 - RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists.
+- RESPONSE_BODY pass-through evidence only; not proof of response-body blocking/inspection.

@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import os
+import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -23,6 +23,7 @@ CONNECTOR_PATHS = {
     "apache": REPO_ROOT / "connectors/apache/metadata.c",
     "nginx": REPO_ROOT / "connectors/nginx/metadata.c",
 }
+SHELL_PREFIX_RE = re.compile(r"[A-Za-z_]\w*", re.ASCII)
 
 
 @dataclass(frozen=True)
@@ -82,7 +83,7 @@ def load_all() -> dict[str, AdapterMetadata]:
 
 
 def validate_prefix(prefix: str) -> None:
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", prefix):
+    if not SHELL_PREFIX_RE.fullmatch(prefix):
         raise ValueError(f"invalid shell variable prefix: {prefix}")
 
 
@@ -178,50 +179,64 @@ def require_contains(path: Path, values: list[str]) -> list[str]:
     return [value for value in values if value and value not in text]
 
 
-def check_drift() -> int:
-    errors: list[str] = []
-    shared_docs = [
+def metadata_values(metadata: AdapterMetadata) -> list[str]:
+    return [
+        metadata.component,
+        metadata.source_url,
+        metadata.source_branch,
+        metadata.source_commit,
+        metadata.source_version,
+        metadata.license,
+        metadata.imported_path,
+    ]
+
+
+def shared_metadata_values(metadata: AdapterMetadata) -> list[str]:
+    return [
+        metadata.component,
+        metadata.source_url,
+        metadata.source_commit,
+        metadata.source_version,
+        metadata.license,
+    ]
+
+
+def shared_doc_paths() -> list[Path]:
+    return [
         FRAMEWORK_ROOT / "docs/imports/connector-code-import-plan.md",
         FRAMEWORK_ROOT / "docs/imports/sources.md",
         REPO_ROOT / "docs/licensing/license-and-origin.md",
     ]
+
+
+def connector_doc_paths(connector: str) -> list[Path]:
+    return [
+        REPO_ROOT / f"connectors/{connector}/ORIGIN.md",
+        REPO_ROOT / f"licenses/{connector}/ORIGIN.md",
+    ]
+
+
+def missing_value_errors(path: Path, values: list[str]) -> list[str]:
+    return [f"{path}: missing {value!r} from adapter metadata" for value in require_contains(path, values)]
+
+
+def drift_errors_for_connector(connector: str, metadata: AdapterMetadata) -> list[str]:
+    errors: list[str] = []
+    for path in connector_doc_paths(connector):
+        errors.extend(missing_value_errors(path, metadata_values(metadata)))
+
+    for path in shared_doc_paths():
+        errors.extend(missing_value_errors(path, shared_metadata_values(metadata)))
+
+    analysis_path = FRAMEWORK_ROOT / f"docs/imports/import-analysis-{connector}.md"
+    errors.extend(missing_value_errors(analysis_path, [metadata.source_url, metadata.source_version]))
+    return errors
+
+
+def check_drift() -> int:
+    errors: list[str] = []
     for connector, metadata in load_all().items():
-        connector_docs = [
-            REPO_ROOT / f"connectors/{connector}/ORIGIN.md",
-            REPO_ROOT / f"licenses/{connector}/ORIGIN.md",
-        ]
-        all_values = [
-            metadata.component,
-            metadata.source_url,
-            metadata.source_branch,
-            metadata.source_commit,
-            metadata.source_version,
-            metadata.license,
-            metadata.imported_path,
-        ]
-        for path in connector_docs:
-            missing = require_contains(path, all_values)
-            for value in missing:
-                errors.append(f"{path}: missing {value!r} from adapter metadata")
-
-        for path in shared_docs:
-            missing = require_contains(
-                path,
-                [
-                    metadata.component,
-                    metadata.source_url,
-                    metadata.source_commit,
-                    metadata.source_version,
-                    metadata.license,
-                ],
-            )
-            for value in missing:
-                errors.append(f"{path}: missing {value!r} from adapter metadata")
-
-        analysis_path = FRAMEWORK_ROOT / f"docs/imports/import-analysis-{connector}.md"
-        missing = require_contains(analysis_path, [metadata.source_url, metadata.source_version])
-        for value in missing:
-            errors.append(f"{analysis_path}: missing {value!r} from adapter metadata")
+        errors.extend(drift_errors_for_connector(connector, metadata))
 
     if errors:
         for error in errors:

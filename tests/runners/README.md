@@ -10,7 +10,8 @@ Implemented now:
 - `case_cli.py materialize` reads a shared YAML case, writes a connector runtime
   rule file, request headers/body files, deterministic multipart bodies,
   response fixtures, audit-log paths, and shell-safe request/expectation
-  variables.
+  variables. An optional `--rules-preamble-file` is written before the local
+  case rules for variants such as OWASP CRS.
 - `case_cli.py assert-status` compares real connector HTTP status, optional
   response body content, and optional audit-log content with the shared YAML
   case expectation.
@@ -19,7 +20,9 @@ Implemented now:
 - `case_cli.py case-info` and `summarize-results` write normalized JSON result
   metadata with origin, category, scope, expected status, and observed status.
 - `runner_core.py` validates the minimal shared case schema and provides the
-  status assertion used by the Apache and NGINX harnesses.
+  status assertion used by the Apache and NGINX harnesses. The base `expect`
+  mapping is used for `MODSECURITY_TEST_VARIANT=no-crs`; a case can provide
+  `expect.variants.with-crs` for a minimal With-CRS assertion override.
 
 The Apache and NGINX PoCs use this runner so each YAML file under
 `tests/cases/` is the single source for the rule, request, headers, optional

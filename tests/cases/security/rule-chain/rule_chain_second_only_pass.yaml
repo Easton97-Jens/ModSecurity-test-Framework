@@ -1,0 +1,38 @@
+origin:
+  - repo: owasp-modsecurity/ModSecurity-apache
+    path: issues/78
+    reason: Source-derived minimal rule-chain conformance fixture; no screenshot or log artifact copied.
+category: security/rule-chain
+source: owasp-modsecurity/ModSecurity-apache#78
+source_derived: true
+provenance:
+  issue: owasp-modsecurity/ModSecurity-apache#78
+  classification: rule-chain conformance fixture
+portable: true
+status: imported
+runtime_verified: false
+notes: "Issue #78 source-derived rule-chain fixture: first chained condition does not match, second value alone must not block."
+known_limitations:
+  - Does not reproduce the issue screenshot or any database/log artifact.
+  - Checks only basic SecRule chain conformance with stable ARGS variables.
+  - Runtime evidence is required before this is counted as fully verified parity.
+name: rule_chain_second_only_pass
+capabilities:
+  query_args: true
+  phase2: true
+  intervention: true
+  pass_through: true
+  rule_parser: true
+rules: |
+  SecRuleEngine On
+  SecRule ARGS:chain_a "@streq alpha" "id:5803,phase:2,deny,status:403,chain,msg:'rule chain second only pass'"
+  SecRule ARGS:chain_b "@streq beta" "t:none"
+request:
+  method: GET
+  path: "/?chain_a=omega&chain_b=beta"
+response:
+  body: "rule-chain second-only pass-through\n"
+expect:
+  status: 200
+  intervention: pass
+  response_contains: rule-chain second-only pass-through

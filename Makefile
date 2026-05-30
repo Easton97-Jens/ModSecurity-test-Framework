@@ -22,8 +22,14 @@ export MODSECURITY_SOURCE_DIR
 export MODSECURITY_V3_SOURCE_DIR
 export MODSECURITY_V3_ROOT
 export SOURCE_ROOT
+export MODSECURITY_TEST_VARIANT
+export CRS_REPO_URL
+export CRS_GIT_REF
+export CRS_SOURCE_DIR
+export CRS_RUNTIME_DIR
+export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint generate-test-matrix check-test-matrix runtime-matrix runtime-matrix-all smoke-apache smoke-nginx smoke-all fetch-deps fetch-modsecurity-v3
+.PHONY: lint generate-test-matrix check-test-matrix runtime-matrix runtime-matrix-all smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs
 
 lint:
 	sh -n ci/*.sh
@@ -31,6 +37,8 @@ lint:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
 	$(PYTHON) ci/check-python-deps.py
 	$(PYTHON) ci/check-workflow-yaml.py
+	$(PYTHON) ci/check-response-body-promotion.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
+	sh ci/check-crs-version-pinning.sh
 	git diff --check
 
 generate-test-matrix:
@@ -58,8 +66,22 @@ smoke-nginx:
 smoke-all:
 	CASE_SCOPE=all sh ci/run-connector-smokes.sh
 
+test: test-no-crs test-with-crs
+
+test-no-crs:
+	MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. ci/common.sh; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
+
+test-with-crs:
+	MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. ci/common.sh; sh ci/fetch-crs.sh; sh ci/prepare-crs.sh; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
+
 fetch-modsecurity-v3:
 	sh ci/fetch-smoke-sources.sh v3
 
 fetch-deps:
 	sh ci/fetch-smoke-sources.sh all
+
+fetch-crs:
+	sh ci/fetch-crs.sh
+
+prepare-crs:
+	sh ci/prepare-crs.sh

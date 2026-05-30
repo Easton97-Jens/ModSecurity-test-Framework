@@ -25,6 +25,27 @@ CONNECTOR_ROOT=/path/to/ModSecurity-conector make runtime-matrix-all
 `runtime-matrix-all` sets `FORCE_ALL_CASES=1` and attempts all applicable YAML
 cases. Expected failures remain visible in generated reports.
 
+## Test Variants
+
+The framework supports two ModSecurity rule-loading variants:
+
+- `no-crs`: load only the local rules materialized from each YAML case.
+- `with-crs`: load OWASP Core Rule Set before the local YAML case rules.
+
+Use these entrypoints with a connector repository:
+
+```sh
+CONNECTOR_ROOT=/path/to/ModSecurity-conector make test-no-crs
+CONNECTOR_ROOT=/path/to/ModSecurity-conector make test-with-crs
+CONNECTOR_ROOT=/path/to/ModSecurity-conector make test
+```
+
+`make test` runs both variants. `make test-with-crs` fetches and prepares CRS
+automatically under `SOURCE_ROOT`/`BUILD_ROOT`; `make fetch-crs` can be used
+explicitly when you want to prefetch it. The CRS version pin, repository URL,
+and generated CRS paths are centralized in `ci/common.sh`; do not duplicate the
+CRS version in Makefiles, workflows, or other scripts.
+
 ## YAML Case System
 
 Cases live under `tests/cases/` and are organized by topic:

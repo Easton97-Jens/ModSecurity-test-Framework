@@ -1,0 +1,54 @@
+# Source-derived PR #70 phase-4 audit probe.
+origin:
+  - repo: ModSecurity-apache
+    path: t/00-phases.t
+    reason: Maps the phase:4 RESPONSE_BODY audit intent from upstream PR #70 as non-promoted xfail evidence.
+  - repo: ModSecurity-apache
+    path: t/conf/extra.conf.in
+    reason: Derives only the phase:4 response-body rule shape and audit-log intent from PR #70.
+source: ModSecurity-apache PR #70 @ 73c4ae80743810d866771dd4183be2bea44947dd
+category: audit-log
+portable: true
+status: xfail
+notes: "PR70 phase 4 RESPONSE_BODY audit probe; future/non-promoted evidence only."
+known_limitations:
+  - RESPONSE_BODY remains non-verified; this probe is not proof of response-body blocking.
+  - Runtime PASS, if observed, must remain non-promotable until Apache and NGINX have explicit stable RESPONSE_BODY evidence.
+  - Does not assert full outbound audit sections or matched response-body values.
+name: pr70_phase4_response_body_audit_xfail
+
+capabilities:
+  audit_log: true
+  response_body: true
+  phase4: true
+  intervention: true
+
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/html text/plain
+  SecResponseBodyLimit 1048576
+  SecRule RESPONSE_BODY "@contains PR70-PHASE4-MARKER" \
+    "id:5704,phase:4,deny,status:403,auditlog,msg:'pr70 phase4 response body audit xfail'"
+
+request:
+  method: GET
+  path: "/?pr70=phase4"
+
+response:
+  body: |
+    PR70-PHASE4-MARKER response fixture
+
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 5704
+  audit_log:
+    required: true
+    rule_id: 5704
+    message: pr70 phase4 response body audit xfail
