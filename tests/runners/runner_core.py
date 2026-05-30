@@ -438,10 +438,11 @@ def _validate_expect_string_list(value: Any, key: str, where: str) -> None:
     raise ValueError(f"case expect.phase4_log.{key} must be a string or string list{where}")
 
 
-def _validate_expect(case: Mapping[str, Any], where: str) -> None:
-    expect = case.get("expect")
-    if not isinstance(expect, Mapping):
-        raise ValueError(f"case requires expect mapping{where}")
+def _expect_without_variants(expect: Mapping[str, Any]) -> dict[str, Any]:
+    return {str(key): value for key, value in expect.items() if str(key) != "variants"}
+
+
+def _validate_expect_mapping(expect: Mapping[str, Any], where: str) -> None:
     status = expect.get("status")
     if not isinstance(status, int):
         raise ValueError(f"case requires integer expect.status{where}")
@@ -450,6 +451,30 @@ def _validate_expect(case: Mapping[str, Any], where: str) -> None:
         raise ValueError(f"case expect.intervention is unsupported{where}")
     _validate_expect_audit_log(expect.get("audit_log", {}), where)
     _validate_expect_phase4_log(expect.get("phase4_log", {}), where)
+
+
+def _validate_expect(case: Mapping[str, Any], where: str) -> None:
+    expect = case.get("expect")
+    if not isinstance(expect, Mapping):
+        raise ValueError(f"case requires expect mapping{where}")
+    base_expect = _expect_without_variants(expect)
+    _validate_expect_mapping(base_expect, where)
+    variants = expect.get("variants")
+    if variants is None:
+        return
+    if not isinstance(variants, Mapping):
+        raise ValueError(f"case expect.variants must be a mapping{where}")
+    for name, override in variants.items():
+        variant_name = str(name)
+        if variant_name not in {"no-crs", "with-crs"}:
+            raise ValueError(f"case expect.variants has unsupported variant {variant_name!r}{where}")
+        if not isinstance(override, Mapping):
+            raise ValueError(f"case expect.variants.{variant_name} must be a mapping{where}")
+        if "variants" in override:
+            raise ValueError(f"case expect.variants.{variant_name} must not contain nested variants{where}")
+        merged = dict(base_expect)
+        merged.update({str(key): value for key, value in override.items()})
+        _validate_expect_mapping(merged, where)
 
 
 def _validate_expect_audit_log(audit_log: Any, where: str) -> None:
@@ -654,7 +679,7 @@ def _bool_value(value: Any) -> bool:
 
 
 def expected_audit_log(case: Mapping[str, Any]) -> Mapping[str, Any]:
-    expect = case["expect"]
+    expect = effective_expect(case)
     audit_log = expect.get("audit_log", {})
     if audit_log is None:
         return {}
@@ -664,7 +689,7 @@ def expected_audit_log(case: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def expected_phase4_log(case: Mapping[str, Any]) -> Mapping[str, Any]:
-    expect = case["expect"]
+    expect = effective_expect(case)
     phase4_log = expect.get("phase4_log", {})
     if phase4_log is None:
         return {}
@@ -704,7 +729,7 @@ def write_shell_env(
     audit_log_dir: str | Path | None = None,
 ) -> None:
     request = case["request"]
-    expect = case["expect"]
+    expect = effective_expect(case)
     body = request_body_bytes(case)
     audit_log = expected_audit_log(case)
     values = {
@@ -794,7 +819,7 @@ def case_info(
     status: str | None = None,
     actual_status: int | None = None,
 ) -> dict[str, Any]:
-    expect = case["expect"]
+    expect = effective_expect(case)
     info: dict[str, Any] = {
         "name": str(case["name"]),
         "path": str(path),
@@ -868,6 +893,19 @@ def modsecurity_test_variant() -> str:
     if variant not in {"no-crs", "with-crs"}:
         raise ValueError(f"unsupported MODSECURITY_TEST_VARIANT: {variant}")
     return variant
+
+
+def effective_expect(case: Mapping[str, Any]) -> dict[str, Any]:
+    expect = case["expect"]
+    if not isinstance(expect, Mapping):
+        raise ValueError("case requires expect mapping")
+    resolved = _expect_without_variants(expect)
+    variants = expect.get("variants")
+    if isinstance(variants, Mapping):
+        override = variants.get(modsecurity_test_variant())
+        if isinstance(override, Mapping):
+            resolved.update({str(key): value for key, value in override.items()})
+    return resolved
 
 
 def case_requires_crs(case: Mapping[str, Any]) -> bool:
@@ -986,7 +1024,7 @@ def response_status(response: Any) -> int | None:
 
 
 def assert_case_response(case: Mapping[str, Any], response: Any) -> list[str]:
-    expect = case["expect"]
+    expect = effective_expect(case)
     expected_status = expect["status"]
     actual_status = response_status(response)
     errors: list[str] = []
@@ -998,7 +1036,7 @@ def assert_case_response(case: Mapping[str, Any], response: Any) -> list[str]:
 
 
 def assert_response_body(case: Mapping[str, Any], body_file: str | Path | None) -> list[str]:
-    expected = case["expect"].get("response_contains")
+    expected = effective_expect(case).get("response_contains")
     if expected in (None, ""):
         return []
     if body_file is None:

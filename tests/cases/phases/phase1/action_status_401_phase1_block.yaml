@@ -34,3 +34,6 @@ expect:
   status: 401
   intervention: block
   rule_id: 2320
+  variants:
+    with-crs:
+      status: 403

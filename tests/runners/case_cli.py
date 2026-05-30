@@ -18,6 +18,7 @@ from runner_core import (
     assert_case_artifacts,
     case_info as build_case_info,
     discover_case_files,
+    effective_expect,
     expected_audit_log,
     load_case,
     write_body_file,
@@ -78,7 +79,7 @@ def assert_status(args: argparse.Namespace) -> int:
                 handle.write(f"fail: {message}\n")
         print(message, file=sys.stderr)
         return 1
-    expected = case["expect"]["status"]
+    expected = effective_expect(case)["status"]
     if status_file is not None:
         with status_file.open("a", encoding="utf-8") as handle:
             handle.write(f"pass: {case['name']} HTTP {expected} observed\n")
