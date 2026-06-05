@@ -15,6 +15,7 @@ from msconnector_models import (
     empty_connector_summary,
 )
 from runner_core import (
+    CONNECTORS,
     assert_case_artifacts,
     case_info as build_case_info,
     discover_case_files,
@@ -28,6 +29,8 @@ from runner_core import (
     write_shell_env,
     write_nginx_runtime_files,
 )
+
+CONNECTOR_CHOICES = tuple(sorted(connector for connector in CONNECTORS if connector != "common"))
 
 
 def materialize(args: argparse.Namespace) -> int:
@@ -320,7 +323,7 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument("--repo-root", required=True)
     list_parser.add_argument("--framework-root")
     list_parser.add_argument("--connector-root")
-    list_parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
+    list_parser.add_argument("--connector", required=True, choices=CONNECTOR_CHOICES)
     list_parser.add_argument("--scope", default="all", choices=("common", "connector", "all"))
     list_parser.add_argument("--smoke-cases")
     list_parser.add_argument("--test-case")
@@ -331,7 +334,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="write normalized case metadata as JSON",
     )
     info_parser.add_argument("--case", required=True)
-    info_parser.add_argument("--connector", choices=("apache", "nginx"))
+    info_parser.add_argument("--connector", choices=CONNECTOR_CHOICES)
     info_parser.add_argument("--status")
     info_parser.add_argument("--actual-status")
     info_parser.add_argument("--output")
@@ -341,7 +344,7 @@ def build_parser() -> argparse.ArgumentParser:
         "summarize-results",
         help="write connector summary files from JSONL case results",
     )
-    summarize_parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
+    summarize_parser.add_argument("--connector", required=True, choices=CONNECTOR_CHOICES)
     summarize_parser.add_argument("--input-jsonl", required=True)
     summarize_parser.add_argument("--summary-json", required=True)
     summarize_parser.add_argument("--summary-text", required=True)
@@ -367,7 +370,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="validate the lightweight real-world connector summary schema",
     )
     validate_parser.add_argument("--summary-json", required=True)
-    validate_parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
+    validate_parser.add_argument("--connector", required=True, choices=CONNECTOR_CHOICES)
     validate_parser.add_argument("--connector-path", default="real-world")
     validate_parser.add_argument("--validation-mode", default="real-world-connector-path")
     validate_parser.add_argument("--server", required=True)
@@ -377,7 +380,7 @@ def build_parser() -> argparse.ArgumentParser:
         "summarize-empty",
         help="write an empty connector summary for blocked or failed preparation",
     )
-    empty_parser.add_argument("--connector", required=True, choices=("apache", "nginx"))
+    empty_parser.add_argument("--connector", required=True, choices=CONNECTOR_CHOICES)
     empty_parser.add_argument("--status", required=True, choices=RESULT_STATUSES)
     empty_parser.add_argument("--message", required=True)
     empty_parser.add_argument("--summary-json", required=True)

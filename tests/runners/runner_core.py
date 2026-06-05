@@ -97,7 +97,7 @@ CASE_STATUSES = {
 }
 
 RESULT_STATUSES = {"pass", "fail", "blocked", "skipped", "xfail"}
-CONNECTORS = {"apache", "nginx", "common"}
+CONNECTORS = {"apache", "envoy", "haproxy", "lighttpd", "nginx", "traefik", "common"}
 INTERVENTIONS = {"deny", "pass", "none", "redirect", "block"}
 REQUEST_METHODS = {"GET", "POST"}
 
@@ -305,7 +305,7 @@ def _validate_case_metadata(case: Mapping[str, Any], where: str) -> None:
         raise ValueError(f"case requires_crs must be a boolean{where}")
     connector = case.get("connector")
     if connector is not None and str(connector) not in CONNECTORS:
-        raise ValueError(f"case connector must be apache, nginx, or common{where}")
+        raise ValueError(f"case connector is unsupported{where}")
     status = case.get("status")
     if status is not None and str(status) not in CASE_STATUSES:
         raise ValueError(f"case status is unsupported{where}")

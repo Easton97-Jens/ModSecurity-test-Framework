@@ -12,22 +12,59 @@ else
     CONNECTOR_ROOT=$(pwd)
 fi
 
+SOURCE_ROOT="${SOURCE_ROOT:-/src}"
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
-RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results/connector-starters}"
-LOG_DIR="$RESULTS_DIR/logs"
-RESULTS_JSONL="$RESULTS_DIR/results.jsonl"
-SUMMARY_JSON="$RESULTS_DIR/summary.json"
+RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
+TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp}"
+LOG_ROOT="${LOG_ROOT:-$BUILD_ROOT/logs}"
+STARTER_RESULTS_DIR="$RESULTS_DIR/connector-starters"
+LOG_DIR="$STARTER_RESULTS_DIR/logs"
+RESULTS_JSONL="$STARTER_RESULTS_DIR/results.jsonl"
+SUMMARY_JSON="$STARTER_RESULTS_DIR/summary.json"
 PYTHON_BIN="${PYTHON:-python3}"
 
-case "$BUILD_ROOT" in
-    /*) ;;
-    *) echo "BLOCKED: BUILD_ROOT must be absolute: $BUILD_ROOT" >&2; exit 77 ;;
-esac
+require_absolute_under_src() {
+    path=$1
+    label=$2
+    case "$path" in
+        /src|/src/*) return 0 ;;
+        /*) echo "BLOCKED: $label must be under /src: $path" >&2; exit 77 ;;
+        *) echo "BLOCKED: $label must be absolute and under /src: $path" >&2; exit 77 ;;
+    esac
+}
 
-case "$RESULTS_DIR" in
-    /*) ;;
-    *) echo "BLOCKED: RESULTS_DIR must be absolute: $RESULTS_DIR" >&2; exit 77 ;;
-esac
+require_under_build_root() {
+    path=$1
+    label=$2
+    case "$path" in
+        "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
+        *) echo "BLOCKED: $label must be under BUILD_ROOT: $path" >&2; exit 77 ;;
+    esac
+}
+
+require_results_root() {
+    path=$1
+    label=$2
+    case "$path" in
+        "$BUILD_ROOT/results"|"$BUILD_ROOT/results"/*) return 0 ;;
+        *) echo "BLOCKED: $label must be under BUILD_ROOT/results: $path" >&2; exit 77 ;;
+    esac
+}
+
+require_log_root() {
+    path=$1
+    label=$2
+    case "$path" in
+        "$BUILD_ROOT/logs"|"$BUILD_ROOT/logs"/*|"$BUILD_ROOT/results"|"$BUILD_ROOT/results"/*) return 0 ;;
+        *) echo "BLOCKED: $label must be under BUILD_ROOT/logs or BUILD_ROOT/results: $path" >&2; exit 77 ;;
+    esac
+}
+
+require_absolute_under_src "$SOURCE_ROOT" SOURCE_ROOT
+require_absolute_under_src "$BUILD_ROOT" BUILD_ROOT
+require_results_root "$RESULTS_DIR" RESULTS_DIR
+require_under_build_root "$TMP_ROOT" TMP_ROOT
+require_log_root "$LOG_ROOT" LOG_ROOT
 
 if [ ! -d "$CONNECTOR_ROOT/connectors" ]; then
     echo "BLOCKED: CONNECTOR_ROOT does not contain connectors/: $CONNECTOR_ROOT" >&2
@@ -39,7 +76,7 @@ command -v "$PYTHON_BIN" >/dev/null 2>&1 || {
     exit 77
 }
 
-mkdir -p "$LOG_DIR"
+mkdir -p "$TMP_ROOT" "$LOG_ROOT" "$LOG_DIR"
 : > "$RESULTS_JSONL"
 
 json_line() {
@@ -148,7 +185,7 @@ run_check() {
     set +e
     (
         cd "$CONNECTOR_ROOT"
-        BUILD_ROOT="$BUILD_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh -c "$command_text"
+        SOURCE_ROOT="$SOURCE_ROOT" BUILD_ROOT="$BUILD_ROOT" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh -c "$command_text"
     ) >"$stdout_log" 2>"$stderr_log"
     rc=$?
     set -e
@@ -178,13 +215,13 @@ run_check traefik build-script "sh connectors/traefik/build/build-starter.sh bui
 run_check traefik build-decision-service "make -C connectors/traefik build-decision-service" make build-decision-service "$starter_notes"
 run_check traefik self-test-decision-service "make -C connectors/traefik self-test-decision-service" make self-test-decision-service "$starter_notes"
 
-"$PYTHON_BIN" - "$RESULTS_JSONL" "$SUMMARY_JSON" "$CONNECTOR_ROOT" "$BUILD_ROOT" "$RESULTS_DIR" <<'PY'
+"$PYTHON_BIN" - "$RESULTS_JSONL" "$SUMMARY_JSON" "$CONNECTOR_ROOT" "$SOURCE_ROOT" "$BUILD_ROOT" "$STARTER_RESULTS_DIR" <<'PY'
 import json
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
-results_path, summary_path, connector_root, build_root, results_dir = sys.argv[1:]
+results_path, summary_path, connector_root, source_root, build_root, results_dir = sys.argv[1:]
 records = []
 with open(results_path, "r", encoding="utf-8") as handle:
     for line in handle:
@@ -224,6 +261,7 @@ else:
 summary = {
     "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     "connector_root": connector_root,
+    "source_root": source_root,
     "build_root": build_root,
     "results_dir": results_dir,
     "overall_status": overall_status,

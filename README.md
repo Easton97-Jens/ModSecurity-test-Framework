@@ -46,6 +46,25 @@ explicitly when you want to prefetch it. The CRS version pin, repository URL,
 and generated CRS paths are centralized in `ci/common.sh`; do not duplicate the
 CRS version in Makefiles, workflows, or other scripts.
 
+## Runtime Smoke Entrypoints
+
+The framework owns runtime-smoke entrypoints for Apache, NGINX, Envoy, HAProxy,
+lighttpd, and Traefik. Apache and NGINX currently have executable connector
+harnesses. Envoy, HAProxy, lighttpd, and Traefik have framework-owned entrypoint
+scripts, but they report BLOCKED until the connector repository provides a real
+server/proxy runtime harness.
+
+Use `make smoke-<connector>` from the connector repository for runtime-smoke
+entry. Use `make connector-starter-checks` only for build/self-test starter
+evidence; starter PASS results are not runtime-smoke evidence and do not verify
+RESPONSE_BODY.
+
+Runtime smoke runners keep sources under `/src`, build/runtime artifacts under
+`/src/ModSecurity-conector-build`, temporary runtime files under
+`/src/ModSecurity-conector-build/tmp`, logs under
+`/src/ModSecurity-conector-build/logs`, and results under
+`/src/ModSecurity-conector-build/results`.
+
 ## YAML Case System
 
 Cases live under `tests/cases/` and are organized by topic:

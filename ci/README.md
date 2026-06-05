@@ -22,11 +22,25 @@ Important local entrypoints:
   test variant.
 - `ci/doctor.sh`: local prerequisite/readiness diagnostics.
 - `ci/run-connector-smokes.sh`: local Apache+NGINX smoke orchestration.
+- `ci/run-envoy-smoke.sh`, `ci/run-haproxy-smoke.sh`,
+  `ci/run-lighttpd-smoke.sh`, and `ci/run-traefik-smoke.sh`: framework-owned
+  runtime-smoke entrypoints for the new connector starters. They currently
+  write BLOCKED evidence when the connector repository has only a harness
+  contract and no executable runtime harness.
+- `ci/run-connector-starter-checks.sh`: build/self-test starter evidence for
+  Envoy, HAProxy, lighttpd, and Traefik. These results are not runtime-smoke
+  evidence.
 
 Full runtime evidence remains local through the Makefile smoke targets.
 Apache and NGINX connector code comes from `connectors/apache` and
 `connectors/nginx` by default; external connector repository fetches require
 explicit opt-in.
+
+Envoy, HAProxy, lighttpd, and Traefik runtime-smoke runners use local roots
+only: `SOURCE_ROOT=/src`, `BUILD_ROOT=/src/ModSecurity-conector-build`,
+`TMP_ROOT=$BUILD_ROOT/tmp`, `LOG_ROOT=$BUILD_ROOT/logs`, and
+`RESULTS_DIR=$BUILD_ROOT/results` unless explicitly overridden to another
+allowed path under `/src`. They do not perform global installations.
 
 CRS runtime validation is variant-based:
 
