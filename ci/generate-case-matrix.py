@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import argparse
@@ -78,6 +79,8 @@ ROOT_COMMANDS = [
     "make generate-test-matrix",
     "make check-test-matrix",
 ]
+
+NEW_CONNECTOR_SMOKE_CONNECTORS = ["envoy", "haproxy", "lighttpd", "traefik"]
 
 MATRIX_STATUS_ORDER = [
     "PASS",
@@ -239,6 +242,107 @@ def configure_paths(framework_root: str | Path | None, connector_root: str | Pat
     OVERVIEW_REPORT = REPORT_LAYOUT.overview
     ROOT_SUMMARY_REPORT = REPORT_LAYOUT.root_summary
     ALLOWED_OUTPUT_PATHS = REPORT_LAYOUT.allowed_outputs()
+
+
+def load_new_connector_smoke_summaries() -> dict[str, dict]:
+    build_root = Path(os.environ.get("BUILD_ROOT", "/src/ModSecurity-conector-build"))
+    results_dir = build_root / "results"
+    summaries: dict[str, dict] = {}
+    for connector in NEW_CONNECTOR_SMOKE_CONNECTORS:
+        path = results_dir / f"{connector}-summary.json"
+        if not path.exists():
+            summaries[connector] = {
+                "connector": connector,
+                "status": "NOT_RUN",
+                "runtime_verified": False,
+                "runtime_status": "not-verified",
+                "response_body_verified": False,
+                "crs_verified": False,
+                "evidence_path": str(path),
+            }
+            continue
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            summaries[connector] = {
+                "connector": connector,
+                "status": "BLOCKED",
+                "runtime_verified": False,
+                "runtime_status": "not-verified",
+                "response_body_verified": False,
+                "crs_verified": False,
+                "reason": f"could not read smoke summary: {exc}",
+                "evidence_path": str(path),
+            }
+            continue
+        if isinstance(data, dict):
+            data = dict(data)
+            data["evidence_path"] = str(path)
+            summaries[connector] = data
+        else:
+            summaries[connector] = {
+                "connector": connector,
+                "status": "BLOCKED",
+                "runtime_verified": False,
+                "runtime_status": "not-verified",
+                "response_body_verified": False,
+                "crs_verified": False,
+                "reason": "smoke summary did not contain a JSON object",
+                "evidence_path": str(path),
+            }
+    return summaries
+
+
+def render_new_connector_smoke_evidence() -> list[str]:
+    summaries = load_new_connector_smoke_summaries()
+    lines = [
+        "",
+        "## New Connector Runtime-Smoke Evidence",
+        "",
+        "This generated section reads local connector smoke summaries from `$BUILD_ROOT/results`. It is reporting only and does not invent PASS values.",
+        "",
+        "| Connector | Status | Runtime status | Runtime verified | CRS verified | RESPONSE_BODY verified | Verified cases | With-CRS | Evidence |",
+        "|---|---|---|---:|---:|---:|---|---|---|",
+    ]
+    for connector in NEW_CONNECTOR_SMOKE_CONNECTORS:
+        data = summaries.get(connector, {})
+        status = str(data.get("status", "NOT_RUN"))
+        runtime_status = str(data.get("runtime_status", "not-verified"))
+        runtime_verified = "yes" if data.get("runtime_verified") is True else "no"
+        crs_verified = "yes" if data.get("crs_verified") is True else "no"
+        response_body_verified = "yes" if data.get("response_body_verified") is True else "no"
+        verified_cases_value = data.get("verified_cases") or data.get("verified_case") or "-"
+        if isinstance(verified_cases_value, list):
+            verified_cases = ", ".join(str(item) for item in verified_cases_value) or "-"
+        else:
+            verified_cases = str(verified_cases_value) if verified_cases_value else "-"
+        with_crs_data = data.get("with_crs")
+        if isinstance(with_crs_data, dict):
+            with_crs = str(with_crs_data.get("status", "not-run"))
+            if with_crs_data.get("crs_loaded") is True:
+                with_crs += " crs_loaded=true"
+            if with_crs_data.get("block_probe_status") not in (None, "not-run"):
+                with_crs += f" block={with_crs_data.get('block_probe_status')}"
+            if with_crs_data.get("pass_probe_status") not in (None, "not-run"):
+                with_crs += f" pass={with_crs_data.get('pass_probe_status')}"
+            if with_crs_data.get("blocked_reason"):
+                with_crs += f" reason={with_crs_data.get('blocked_reason')}"
+        else:
+            with_crs = "-"
+        evidence = data.get("evidence_path", "-")
+        lines.append(
+            f"| {connector} | {status} | {runtime_status} | {runtime_verified} | {crs_verified} | {response_body_verified} | `{verified_cases}` | {with_crs} | `{evidence}` |"
+        )
+    lines.extend(
+        [
+            "",
+            "- HAProxy CRS verification is scoped to `haproxy_crs_sqli_anomaly_block` only when the HAProxy summary reports `with_crs.status=PASS` and `crs_verified=true`.",
+            "- Envoy, lighttpd, and Traefik remain not runtime-verified unless their own summary files report runtime PASS evidence.",
+            "- RESPONSE_BODY remains not verified for these new connector smoke summaries.",
+        ]
+    )
+    return lines
 
 
 def md(value: object) -> str:
@@ -1337,6 +1441,7 @@ def render_root_summary(
         ]
     )
     lines.extend(render_runtime_snapshot(runtime_snapshot))
+    lines.extend(render_new_connector_smoke_evidence())
     lines.extend(
         [
             "",
