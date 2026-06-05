@@ -65,6 +65,13 @@ Runtime smoke runners keep sources under `/src`, build/runtime artifacts under
 `/src/ModSecurity-conector-build/logs`, and results under
 `/src/ModSecurity-conector-build/results`.
 
+HAProxy has a local preparation helper at `ci/prepare-haproxy-runtime.sh`. It
+uses only the HAProxy source URL, version, and checksum centralized in
+`ci/common.sh`, verifies the official checksum before extraction, confirms the
+source Makefile supports `TARGET=linux-glibc`, and stages only a local runtime
+binary under `/src/ModSecurity-conector-build`. That binary is prerequisite
+evidence only; it is not HAProxy runtime-smoke evidence.
+
 ## YAML Case System
 
 Cases live under `tests/cases/` and are organized by topic:
