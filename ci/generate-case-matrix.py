@@ -1374,6 +1374,14 @@ def haproxy_rows_by_matrix_status(smoke: dict, status: str) -> list[dict]:
     ]
 
 
+def haproxy_live_rows_by_matrix_status(smoke: dict, status: str) -> list[dict]:
+    return [
+        row
+        for row in haproxy_rows_by_matrix_status(smoke, status)
+        if row.get("live_executed") is True
+    ]
+
+
 def render_haproxy_empty_detail(status: str, count: int, note: str) -> list[str]:
     return [
         "| Status | Count | Note |",
@@ -1438,17 +1446,26 @@ def render_haproxy_pass_details(snapshot: dict, heading_level: int) -> list[str]
 def render_haproxy_status_details(snapshot: dict, status: str, heading_level: int) -> list[str]:
     smoke = haproxy_smoke(snapshot)
     lines = ["", f"{'#' * heading_level} HAProxy {status} Details"]
-    rows = haproxy_rows_by_matrix_status(smoke, status)
+    if status == "FAIL":
+        rows = haproxy_live_rows_by_matrix_status(smoke, status)
+    else:
+        rows = haproxy_rows_by_matrix_status(smoke, status)
     if not rows:
         notes = {
             "FAIL": "No live HAProxy runtime FAIL rows were reported in the current matrix.",
             "BLOCKED": "No HAProxy BLOCKED rows were reported in the current matrix.",
             "NOT_EXECUTABLE": "No HAProxy NOT_EXECUTABLE rows were reported in the current matrix.",
         }
-        lines.extend(render_haproxy_empty_detail(status, haproxy_matrix_count(smoke, status), notes.get(status, "No rows were reported.")))
+        count = 0 if status == "FAIL" else haproxy_matrix_count(smoke, status)
+        lines.extend(render_haproxy_empty_detail(status, count, notes.get(status, "No rows were reported.")))
         return lines
     if status == "FAIL":
-        lines.extend(["| Case | Variant | Expected | Actual | Evidence |", "|---|---|---:|---:|---|"])
+        lines.extend(
+            [
+                "| Case | Variant | Expected | Actual | Assessment | Evidence |",
+                "|---|---|---:|---:|---|---|",
+            ]
+        )
         for row in rows:
             lines.append(
                 "| "
@@ -1459,6 +1476,7 @@ def render_haproxy_status_details(snapshot: dict, status: str, heading_level: in
                         haproxy_detail_variant(row),
                         row.get("expected_status", "-"),
                         row.get("actual_status", "-"),
+                        "live HAProxy runtime result mismatch",
                         haproxy_detail_evidence(row),
                     ]
                 )
