@@ -320,7 +320,7 @@ Generated file — do not edit manually.
 
 ## New Connector Runtime-Smoke Evidence
 
-This generated section reads local connector smoke/matrix summaries from `$BUILD_ROOT/results`. It is reporting only and does not invent PASS values.
+This generated section reads local connector smoke/matrix summaries from `$BUILD_ROOT/results` when present, then falls back to tracked snapshot evidence or BLOCKED/not-verified status. It is reporting only and does not invent PASS values.
 
 | Connector | Status | Runtime status | Runtime verified | CRS verified | RESPONSE_BODY verified | Verified cases | CRS/split detail | Evidence |
 |---|---|---|---:|---:|---:|---|---|---|

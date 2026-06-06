@@ -322,25 +322,66 @@ def load_haproxy_connector_summary(results_dir: Path, root_path: Path) -> dict:
     }
 
 
-def load_new_connector_smoke_summaries() -> dict[str, dict]:
+DEFAULT_BUILD_ROOT = Path("/src/ModSecurity-conector-build")
+
+
+def new_connector_default_evidence_path(connector: str) -> Path:
+    return DEFAULT_BUILD_ROOT / "results" / f"{connector}-summary.json"
+
+
+def blocked_new_connector_summary(connector: str) -> dict:
+    return {
+        "connector": connector,
+        "status": "BLOCKED",
+        "runtime_verified": False,
+        "runtime_status": "blocked",
+        "response_body_verified": False,
+        "crs_verified": False,
+        "evidence_path": str(new_connector_default_evidence_path(connector)),
+    }
+
+
+def new_connector_summary_from_snapshot(connector: str, runtime_snapshot: dict) -> dict:
+    smoke = runtime_summary_by_connector(runtime_snapshot).get(connector, {})
+    if not isinstance(smoke, dict) or not smoke:
+        return {}
+
+    summary = dict(smoke)
+    summary["connector"] = connector
+    summary["response_body_verified"] = smoke.get("response_body_verified") is True
+    summary["crs_verified"] = smoke.get("crs_verified") is True
+    summary["evidence_path"] = str(smoke.get("summary_path") or new_connector_default_evidence_path(connector))
+
+    if connector == "haproxy":
+        verified_cases = smoke.get("verified_cases") if isinstance(smoke.get("verified_cases"), list) else []
+        summary["status"] = "PARTIAL" if verified_cases else str(smoke.get("status", "BLOCKED"))
+        summary["runtime_verified"] = bool(verified_cases)
+        summary["runtime_status"] = str(smoke.get("runtime_status", "runtime-matrix-partial" if verified_cases else "not-verified"))
+        summary["verified_cases"] = verified_cases
+        summary["full_matrix_verified"] = False
+        summary["matrix_full"] = False
+        summary["counts"] = smoke.get("matrix_counts") if isinstance(smoke.get("matrix_counts"), dict) else smoke.get("counts", {})
+        summary_path = Path(str(smoke.get("summary_path") or new_connector_default_evidence_path(connector)))
+        results_dir = summary_path.parent
+        summary["evidence_path"] = f"{results_dir / 'no-crs' / 'haproxy-summary.json'}; {results_dir / 'with-crs' / 'haproxy-summary.json'}"
+    return summary
+
+
+def load_new_connector_smoke_summaries(runtime_snapshot: dict | None = None) -> dict[str, dict]:
+    runtime_snapshot = runtime_snapshot if isinstance(runtime_snapshot, dict) else {}
     build_root = Path(os.environ.get("BUILD_ROOT", "/src/ModSecurity-conector-build"))
     results_dir = build_root / "results"
     summaries: dict[str, dict] = {}
     for connector in NEW_CONNECTOR_SMOKE_CONNECTORS:
         path = results_dir / f"{connector}-summary.json"
         if connector == "haproxy":
-            summaries[connector] = load_haproxy_connector_summary(results_dir, path)
+            summary = load_haproxy_connector_summary(results_dir, path)
+            if summary.get("status") == "NOT_RUN":
+                summary = new_connector_summary_from_snapshot(connector, runtime_snapshot) or summary
+            summaries[connector] = summary
             continue
         if not path.exists():
-            summaries[connector] = {
-                "connector": connector,
-                "status": "NOT_RUN",
-                "runtime_verified": False,
-                "runtime_status": "not-verified",
-                "response_body_verified": False,
-                "crs_verified": False,
-                "evidence_path": str(path),
-            }
+            summaries[connector] = new_connector_summary_from_snapshot(connector, runtime_snapshot) or blocked_new_connector_summary(connector)
             continue
         try:
             with path.open("r", encoding="utf-8") as handle:
@@ -375,13 +416,13 @@ def load_new_connector_smoke_summaries() -> dict[str, dict]:
     return summaries
 
 
-def render_new_connector_smoke_evidence() -> list[str]:
-    summaries = load_new_connector_smoke_summaries()
+def render_new_connector_smoke_evidence(runtime_snapshot: dict) -> list[str]:
+    summaries = load_new_connector_smoke_summaries(runtime_snapshot)
     lines = [
         "",
         "## New Connector Runtime-Smoke Evidence",
         "",
-        "This generated section reads local connector smoke/matrix summaries from `$BUILD_ROOT/results`. It is reporting only and does not invent PASS values.",
+        "This generated section reads local connector smoke/matrix summaries from `$BUILD_ROOT/results` when present, then falls back to tracked snapshot evidence or BLOCKED/not-verified status. It is reporting only and does not invent PASS values.",
         "",
         "| Connector | Status | Runtime status | Runtime verified | CRS verified | RESPONSE_BODY verified | Verified cases | CRS/split detail | Evidence |",
         "|---|---|---|---:|---:|---:|---|---|---|",
@@ -1822,7 +1863,7 @@ def render_root_summary(
         ]
     )
     lines.extend(render_runtime_snapshot(runtime_snapshot))
-    lines.extend(render_new_connector_smoke_evidence())
+    lines.extend(render_new_connector_smoke_evidence(runtime_snapshot))
     lines.extend(
         [
             "",
