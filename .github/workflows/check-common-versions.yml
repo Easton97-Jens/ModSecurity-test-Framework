@@ -1,0 +1,46 @@
+name: Check common.sh versions
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  check-common-versions:
+    runs-on: ubuntu-latest
+    env:
+      # Version check summaries only; runtime/build artifacts still use common.sh defaults.
+      BUILD_ROOT: ${{ runner.temp }}/ModSecurity-conector-build
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Check versions
+        run: |
+          python3 ci/check-common-versions.py --check --markdown --write-files --timeout 10 | tee common-version-check.md
+          cat common-version-check.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate update patch
+        if: failure()
+        run: |
+          python3 ci/check-common-versions.py --update --timeout 10 || true
+          git diff -- ci/common.sh > common-version-update.patch || true
+          if [ ! -s common-version-update.patch ]; then
+            printf '%s\n' 'No safe common.sh update patch was generated.' > common-version-update.patch
+          fi
+
+      - name: Upload patch
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: common-version-update
+          path: |
+            common-version-check.md
+            common-version-update.patch
