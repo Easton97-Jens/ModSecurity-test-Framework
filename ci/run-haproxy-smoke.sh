@@ -3,7 +3,11 @@ set -eu
 
 SOURCE_ROOT="${SOURCE_ROOT:-/src}"
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
-RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
+if [ "${FORCE_ALL_CASES:-0}" = "1" ] && [ -z "${RESULTS_DIR+x}" ]; then
+    RESULTS_DIR="$BUILD_ROOT/results/force-all"
+else
+    RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
+fi
 TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp}"
 LOG_ROOT="${LOG_ROOT:-$BUILD_ROOT/logs}"
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)

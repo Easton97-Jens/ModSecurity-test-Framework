@@ -96,7 +96,7 @@ CASE_STATUSES = {
     "xfail",
 }
 
-RESULT_STATUSES = {"pass", "fail", "blocked", "skipped", "xfail"}
+RESULT_STATUSES = {"pass", "fail", "blocked", "not_executable", "skipped", "xfail"}
 CONNECTORS = {"apache", "envoy", "haproxy", "lighttpd", "nginx", "traefik", "common"}
 INTERVENTIONS = {"deny", "pass", "none", "redirect", "block"}
 REQUEST_METHODS = {"GET", "POST"}

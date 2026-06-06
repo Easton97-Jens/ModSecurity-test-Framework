@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 from typing import Mapping
 
-RESULT_STATUSES = ("pass", "fail", "blocked", "skipped", "xfail")
+RESULT_STATUSES = ("pass", "fail", "blocked", "not_executable", "skipped", "xfail")
 IMPORT_STATUS_KEYS = (
     "fully_imported_common",
     "connector_specific",
@@ -30,6 +30,7 @@ OPERATION_STATUSES = {
     "pass": "ok",
     "fail": "error",
     "blocked": "blocked",
+    "not_executable": "unsupported",
     "skipped": "unsupported",
     "xfail": "unsupported",
 }

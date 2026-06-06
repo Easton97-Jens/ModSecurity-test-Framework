@@ -10,6 +10,8 @@ TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp/haproxy-runtime-matrix}"
 LOG_ROOT="${LOG_ROOT:-$BUILD_ROOT/logs}"
 PYTHON_BIN="${PYTHON:-python3}"
 MATRIX_VARIANT="${HAPROXY_MATRIX_VARIANT:-all}"
+FORCE_ALL_CASES="${FORCE_ALL_CASES:-0}"
+export FORCE_ALL_CASES
 COMMON_SH="$FRAMEWORK_ROOT/ci/common.sh"
 if [ -f "$COMMON_SH" ]; then
     . "$COMMON_SH"
@@ -70,18 +72,36 @@ run_variant() {
 }
 
 update_snapshot() {
+    snapshot_force_args=
+    haproxy_command="make runtime-matrix-haproxy"
+    if [ "$FORCE_ALL_CASES" = "1" ]; then
+        snapshot_force_args="--force-all"
+        haproxy_command="FORCE_ALL_CASES=1 make runtime-matrix-haproxy"
+    fi
     "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/update-runtime-snapshot.py" \
         --framework-root "$FRAMEWORK_ROOT" \
         --connector-root "$CONNECTOR_ROOT" \
         --output-root "$CONNECTOR_ROOT" \
         --build-root "$BUILD_ROOT" \
         --haproxy-exit-code "$matrix_rc" \
-        --haproxy-command "make runtime-matrix-haproxy"
+        --haproxy-command "$haproxy_command" \
+        $snapshot_force_args
 }
 
 mkdir -p "$RESULTS_ROOT" "$TMP_ROOT"
 
 matrix_rc=0
+if [ "$FORCE_ALL_CASES" = "1" ]; then
+    run_variant no-crs "$RESULTS_ROOT/force-all" || matrix_rc=$?
+    update_snapshot || {
+        rc=$?
+        if [ "$matrix_rc" -eq 0 ]; then
+            matrix_rc=$rc
+        fi
+    }
+    exit "$matrix_rc"
+fi
+
 case "$MATRIX_VARIANT" in
     no-crs)
         run_variant no-crs "$RESULTS_ROOT/no-crs" || matrix_rc=$?
