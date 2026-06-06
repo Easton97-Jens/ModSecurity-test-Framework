@@ -7,67 +7,66 @@ CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
 RESULTS_ROOT="${RESULTS_ROOT:-$BUILD_ROOT/results}"
 TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp/haproxy-runtime-matrix}"
+LOG_ROOT="${LOG_ROOT:-$BUILD_ROOT/logs}"
 PYTHON_BIN="${PYTHON:-python3}"
 MATRIX_VARIANT="${HAPROXY_MATRIX_VARIANT:-all}"
+COMMON_SH="$FRAMEWORK_ROOT/ci/common.sh"
+if [ -f "$COMMON_SH" ]; then
+    . "$COMMON_SH"
+fi
 
-run_smoke_and_preserve_summary() {
-    mkdir -p "$TMP_ROOT"
-    pre_matrix_summary="$TMP_ROOT/pre-root-haproxy-summary.json"
-    pre_matrix_results="$TMP_ROOT/pre-root-haproxy-results.jsonl"
-    pre_matrix_text="$TMP_ROOT/pre-root-haproxy-summary.txt"
-    rm -f "$pre_matrix_summary" "$pre_matrix_results" "$pre_matrix_text"
-    if [ -f "$RESULTS_ROOT/haproxy-summary.json" ] && grep -q '"validation_mode": "haproxy-runtime-matrix"' "$RESULTS_ROOT/haproxy-summary.json"; then
-        cp "$RESULTS_ROOT/haproxy-summary.json" "$pre_matrix_summary"
-        if [ -f "$RESULTS_ROOT/haproxy-results.jsonl" ]; then
-            cp "$RESULTS_ROOT/haproxy-results.jsonl" "$pre_matrix_results"
-        fi
-        if [ -f "$RESULTS_ROOT/haproxy-summary.txt" ]; then
-            cp "$RESULTS_ROOT/haproxy-summary.txt" "$pre_matrix_text"
-        fi
+prepare_crs_if_needed() {
+    MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-$BUILD_ROOT/crs/modsecurity-crs-preamble.conf}"
+    export MODSECURITY_RULE_PREAMBLE_FILE
+    if [ -f "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
+        return 0
     fi
-    echo "haproxy-runtime-matrix: running make smoke-haproxy"
-    set +e
-    FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" BUILD_ROOT="$BUILD_ROOT" \
-        make -C "$CONNECTOR_ROOT" smoke-haproxy
-    smoke_rc=$?
-    set -e
-    echo "haproxy-runtime-matrix: smoke-haproxy exit=$smoke_rc"
-    smoke_summary="$RESULTS_ROOT/haproxy-smoke-summary.json"
-    smoke_results="$RESULTS_ROOT/haproxy-smoke-results.jsonl"
-    if [ -f "$RESULTS_ROOT/haproxy-summary.json" ]; then
-        cp "$RESULTS_ROOT/haproxy-summary.json" "$smoke_summary"
-    else
-        : > "$smoke_summary"
+    if [ ! -f "$FRAMEWORK_ROOT/ci/prepare-crs.sh" ]; then
+        echo "haproxy-runtime-matrix: prepare-crs helper missing" >&2
+        return 77
     fi
-    if [ -f "$RESULTS_ROOT/haproxy-results.jsonl" ]; then
-        cp "$RESULTS_ROOT/haproxy-results.jsonl" "$smoke_results"
-    else
-        : > "$smoke_results"
+    SOURCE_ROOT="${SOURCE_ROOT:-/src}" \
+        BUILD_ROOT="$BUILD_ROOT" \
+        TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp}" \
+        LOG_ROOT="$LOG_ROOT" \
+        CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+        sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
+}
+
+copy_variant_to_root() {
+    variant_dir=$1
+    if [ -f "$variant_dir/haproxy-summary.json" ]; then
+        cp "$variant_dir/haproxy-summary.json" "$RESULTS_ROOT/haproxy-summary.json"
+    fi
+    if [ -f "$variant_dir/haproxy-results.jsonl" ]; then
+        cp "$variant_dir/haproxy-results.jsonl" "$RESULTS_ROOT/haproxy-results.jsonl"
+    fi
+    if [ -f "$variant_dir/haproxy-summary.txt" ]; then
+        cp "$variant_dir/haproxy-summary.txt" "$RESULTS_ROOT/haproxy-summary.txt"
     fi
 }
 
-restore_previous_root_matrix() {
-    if [ -f "$pre_matrix_summary" ]; then
-        cp "$pre_matrix_summary" "$RESULTS_ROOT/haproxy-summary.json"
-        if [ -f "$pre_matrix_results" ]; then
-            cp "$pre_matrix_results" "$RESULTS_ROOT/haproxy-results.jsonl"
-        fi
-        if [ -f "$pre_matrix_text" ]; then
-            cp "$pre_matrix_text" "$RESULTS_ROOT/haproxy-summary.txt"
-        fi
-    fi
-}
-
-write_matrix_variant() {
+run_variant() {
     variant=$1
     out_dir=$2
-    "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/write-haproxy-runtime-matrix.py" \
-        --framework-root "$FRAMEWORK_ROOT" \
-        --connector-root "$CONNECTOR_ROOT" \
-        --build-root "$BUILD_ROOT" \
-        --results-dir "$out_dir" \
-        --variant "$variant" \
-        --smoke-summary "$smoke_summary"
+    mkdir -p "$out_dir"
+    if [ "$variant" = "with-crs" ]; then
+        prepare_crs_if_needed || return $?
+    fi
+    echo "haproxy-runtime-matrix: running make smoke-haproxy variant=$variant results=$out_dir"
+    set +e
+    FRAMEWORK_ROOT="$FRAMEWORK_ROOT" \
+        CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        BUILD_ROOT="$BUILD_ROOT" \
+        RESULTS_DIR="$out_dir" \
+        MODSECURITY_TEST_VARIANT="$variant" \
+        MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}" \
+        make -C "$CONNECTOR_ROOT" smoke-haproxy
+    rc=$?
+    set -e
+    echo "haproxy-runtime-matrix: smoke-haproxy variant=$variant exit=$rc"
+    return "$rc"
 }
 
 update_snapshot() {
@@ -80,23 +79,27 @@ update_snapshot() {
         --haproxy-command "make runtime-matrix-haproxy"
 }
 
-mkdir -p "$RESULTS_ROOT"
-run_smoke_and_preserve_summary
+mkdir -p "$RESULTS_ROOT" "$TMP_ROOT"
 
 matrix_rc=0
 case "$MATRIX_VARIANT" in
     no-crs)
-        write_matrix_variant no-crs "$RESULTS_ROOT/no-crs" || matrix_rc=$?
-        restore_previous_root_matrix
+        run_variant no-crs "$RESULTS_ROOT/no-crs" || matrix_rc=$?
+        copy_variant_to_root "$RESULTS_ROOT/no-crs"
         ;;
     with-crs)
-        write_matrix_variant with-crs "$RESULTS_ROOT/with-crs" || matrix_rc=$?
-        restore_previous_root_matrix
+        run_variant with-crs "$RESULTS_ROOT/with-crs" || matrix_rc=$?
+        copy_variant_to_root "$RESULTS_ROOT/with-crs"
         ;;
     all)
-        write_matrix_variant no-crs "$RESULTS_ROOT/no-crs" || matrix_rc=$?
-        write_matrix_variant with-crs "$RESULTS_ROOT/with-crs" || matrix_rc=$?
-        write_matrix_variant combined "$RESULTS_ROOT" || matrix_rc=$?
+        run_variant no-crs "$RESULTS_ROOT/no-crs" || matrix_rc=$?
+        run_variant with-crs "$RESULTS_ROOT/with-crs" || {
+            rc=$?
+            if [ "$matrix_rc" -eq 0 ]; then
+                matrix_rc=$rc
+            fi
+        }
+        copy_variant_to_root "$RESULTS_ROOT/with-crs"
         update_snapshot || matrix_rc=$?
         ;;
     *)
@@ -105,7 +108,4 @@ case "$MATRIX_VARIANT" in
         ;;
 esac
 
-if [ "$smoke_rc" -ne 0 ] && [ "$matrix_rc" -eq 0 ]; then
-    exit "$smoke_rc"
-fi
 exit "$matrix_rc"

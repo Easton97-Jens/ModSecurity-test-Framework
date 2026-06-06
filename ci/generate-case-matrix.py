@@ -266,6 +266,39 @@ def load_json_dict(path: Path) -> dict:
 
 def load_haproxy_connector_summary(results_dir: Path, root_path: Path) -> dict:
     root_data = load_json_dict(root_path)
+    if isinstance(root_data.get("haproxy"), dict):
+        summary = dict(root_data["haproxy"])
+        cases = summary.get("cases") if isinstance(summary.get("cases"), dict) else {}
+        counts = summary.get("summary") if isinstance(summary.get("summary"), dict) else {}
+        verified_cases = [
+            str(name)
+            for name, row in cases.items()
+            if isinstance(row, dict) and str(row.get("status", "")).lower() == "pass"
+        ]
+        crs_verified_scope = [
+            str(name)
+            for name, row in cases.items()
+            if isinstance(row, dict)
+            and row.get("requires_crs") is True
+            and str(row.get("status", "")).lower() == "pass"
+        ]
+        summary.update(
+            {
+                "connector": "haproxy",
+                "status": "PARTIAL" if verified_cases else ("BLOCKED" if counts.get("blocked", 0) else "NOT_RUN"),
+                "runtime_status": "live-yaml-runtime",
+                "runtime_verified": bool(verified_cases),
+                "response_body_verified": False,
+                "crs_verified": bool(crs_verified_scope),
+                "crs_verified_scope": crs_verified_scope,
+                "full_matrix_verified": False,
+                "matrix_full": False,
+                "counts": counts,
+                "verified_cases": verified_cases,
+                "evidence_path": str(root_path),
+            }
+        )
+        return summary
     if root_data.get("validation_mode") == "haproxy-runtime-matrix":
         root_data = dict(root_data)
         root_data["evidence_path"] = str(root_path)
@@ -290,14 +323,6 @@ def load_haproxy_connector_summary(results_dir: Path, root_path: Path) -> dict:
             "evidence_path": str(root_path),
         }
 
-    aliases: dict[str, object] = {}
-    no_aliases = no_crs_data.get("smoke_aliases") if isinstance(no_crs_data.get("smoke_aliases"), dict) else {}
-    with_aliases = with_crs_data.get("smoke_aliases") if isinstance(with_crs_data.get("smoke_aliases"), dict) else {}
-    if isinstance(no_aliases.get("no_crs"), dict):
-        aliases["no_crs"] = no_aliases["no_crs"]
-    if isinstance(with_aliases.get("with_crs"), dict):
-        aliases["with_crs"] = with_aliases["with_crs"]
-
     verified_cases: list[str] = []
     for data in (no_crs_data, with_crs_data):
         values = data.get("verified_cases") if isinstance(data.get("verified_cases"), list) else []
@@ -317,7 +342,6 @@ def load_haproxy_connector_summary(results_dir: Path, root_path: Path) -> dict:
         "matrix_full": False,
         "counts": matrix_counts if isinstance(matrix_counts, dict) else {},
         "verified_cases": verified_cases,
-        "smoke_aliases": aliases,
         "evidence_path": f"{no_crs_path}; {with_crs_path}",
     }
 
@@ -354,16 +378,21 @@ def new_connector_summary_from_snapshot(connector: str, runtime_snapshot: dict) 
 
     if connector == "haproxy":
         verified_cases = smoke.get("verified_cases") if isinstance(smoke.get("verified_cases"), list) else []
+        if not verified_cases and isinstance(smoke.get("cases"), list):
+            verified_cases = [
+                str(row.get("case"))
+                for row in smoke.get("cases", [])
+                if isinstance(row, dict) and str(row.get("status", "")).lower() == "pass"
+            ]
         summary["status"] = "PARTIAL" if verified_cases else str(smoke.get("status", "BLOCKED"))
         summary["runtime_verified"] = bool(verified_cases)
-        summary["runtime_status"] = str(smoke.get("runtime_status", "runtime-matrix-partial" if verified_cases else "not-verified"))
+        summary["runtime_status"] = str(smoke.get("runtime_status", "live-yaml-runtime" if verified_cases else "not-verified"))
         summary["verified_cases"] = verified_cases
         summary["full_matrix_verified"] = False
         summary["matrix_full"] = False
         summary["counts"] = smoke.get("matrix_counts") if isinstance(smoke.get("matrix_counts"), dict) else smoke.get("counts", {})
         summary_path = Path(str(smoke.get("summary_path") or new_connector_default_evidence_path(connector)))
-        results_dir = summary_path.parent
-        summary["evidence_path"] = f"{results_dir / 'no-crs' / 'haproxy-summary.json'}; {results_dir / 'with-crs' / 'haproxy-summary.json'}"
+        summary["evidence_path"] = str(summary_path)
     return summary
 
 
@@ -451,24 +480,7 @@ def render_new_connector_smoke_evidence(runtime_snapshot: dict) -> list[str]:
             if with_crs_data.get("blocked_reason"):
                 with_crs += f" reason={with_crs_data.get('blocked_reason')}"
         else:
-            aliases = data.get("smoke_aliases")
-            if isinstance(aliases, dict):
-                parts = []
-                for label, key in (("no-crs", "no_crs"), ("with-crs", "with_crs")):
-                    alias = aliases.get(key)
-                    if not isinstance(alias, dict):
-                        continue
-                    detail = f"{label} {alias.get('status', 'not-run')}"
-                    if alias.get("block_probe_status") not in (None, "not-run"):
-                        detail += f" block={alias.get('block_probe_status')}"
-                    if alias.get("pass_probe_status") not in (None, "not-run"):
-                        detail += f" pass={alias.get('pass_probe_status')}"
-                    if alias.get("yaml_case"):
-                        detail += f" yaml={alias.get('yaml_case')}"
-                    parts.append(detail)
-                with_crs = "; ".join(parts) if parts else "-"
-            else:
-                with_crs = "-"
+            with_crs = "-"
         evidence = data.get("evidence_path", "-")
         lines.append(
             f"| {connector} | {status} | {runtime_status} | {runtime_verified} | {crs_verified} | {response_body_verified} | `{verified_cases}` | {with_crs} | `{evidence}` |"
@@ -476,7 +488,7 @@ def render_new_connector_smoke_evidence(runtime_snapshot: dict) -> list[str]:
     lines.extend(
         [
             "",
-            "- HAProxy CRS verification is scoped to `haproxy_crs_sqli_anomaly_block` only when HAProxy with-CRS evidence reports PASS and `crs_verified=true`.",
+            "- HAProxy CRS verification is derived from live with-CRS YAML rows in the latest HAProxy summary.",
             "- Envoy, lighttpd, and Traefik remain not runtime-verified unless their own summary files report runtime PASS evidence.",
             "- RESPONSE_BODY remains not verified for these new connector smoke summaries.",
         ]
@@ -1433,22 +1445,8 @@ def render_haproxy_empty_detail(status: str, count: int, note: str) -> list[str]
 
 def render_haproxy_pass_details(snapshot: dict, heading_level: int) -> list[str]:
     smoke = haproxy_smoke(snapshot)
-    summary_path = str(smoke.get("summary_path", "-"))
     lines = ["", f"{'#' * heading_level} HAProxy PASS Details"]
     rows: list[dict[str, object]] = []
-    aliases = smoke.get("smoke_aliases") if isinstance(smoke.get("smoke_aliases"), dict) else {}
-    no_crs_alias = aliases.get("no_crs") if isinstance(aliases.get("no_crs"), dict) else {}
-    if no_crs_alias.get("verified") is True and str(no_crs_alias.get("status", "")).strip() == "PASS":
-        rows.append(
-            {
-                "case": no_crs_alias.get("name", "haproxy_phase1_header_block"),
-                "variant": "no-crs",
-                "expected": no_crs_alias.get("expected_status", "-"),
-                "actual": no_crs_alias.get("actual_status", no_crs_alias.get("block_probe_status", "-")),
-                "evidence": f"{summary_path}; alias=no_crs; pass_actual={no_crs_alias.get('pass_actual_status', no_crs_alias.get('pass_probe_status', '-'))}",
-                "alias": True,
-            }
-        )
     for row in haproxy_rows_by_matrix_status(smoke, "PASS"):
         if row.get("live_executed") is not True:
             continue

@@ -836,12 +836,15 @@ def case_info(
         "expected_status": expect["status"],
         "expected_intervention": str(expect.get("intervention", "")),
         "actual_status": actual_status,
+        "variant": modsecurity_test_variant(),
     }
     if connector is not None:
         info["executed_connector"] = connector
     if status is not None:
         info["status"] = status
         info["operation_status"] = operation_status(status)
+        if status in {"pass", "fail"}:
+            info["live_executed"] = True
     info["intervention"] = intervention_from_expect(expect)
     return info
 
