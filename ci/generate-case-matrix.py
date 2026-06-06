@@ -1522,6 +1522,49 @@ def render_haproxy_mapped_only_details(snapshot: dict, heading_level: int) -> li
     return lines
 
 
+def render_haproxy_non_pass_summary(snapshot: dict, heading_level: int) -> list[str]:
+    smoke = haproxy_smoke(snapshot)
+    fail_count = len(haproxy_live_rows_by_matrix_status(smoke, "FAIL"))
+    rows = [
+        (
+            "FAIL",
+            fail_count,
+            "Live-executed HAProxy runtime mismatches only; PASS/FAIL require live execution.",
+        ),
+        (
+            "BLOCKED",
+            haproxy_matrix_count(smoke, "BLOCKED"),
+            "Relevant HAProxy rows blocked by current harness or prerequisites.",
+        ),
+        (
+            "NOT_EXECUTABLE",
+            haproxy_matrix_count(smoke, "NOT_EXECUTABLE"),
+            "Rows outside the current HAProxy runtime surface.",
+        ),
+        (
+            "MAPPED_ONLY",
+            haproxy_matrix_count(smoke, "MAPPED_ONLY"),
+            "Import inventory only; not runtime-executable YAML evidence.",
+        ),
+    ]
+    lines = [
+        "",
+        f"{'#' * heading_level} HAProxy Non-PASS Summary",
+        "| Status | Count | Note |",
+        "|---|---:|---|",
+    ]
+    for status, count, note in rows:
+        lines.append(f"| {status} | {count} | {md(note)} |")
+    lines.extend(
+        [
+            "",
+            f"- Detailed BLOCKED, NOT_EXECUTABLE, and MAPPED_ONLY rows are reported in `{report_doc('generated/haproxy-runtime-results.generated.md')}`.",
+            "- BLOCKED, NOT_EXECUTABLE, and MAPPED_ONLY rows are not runtime FAIL rows.",
+        ]
+    )
+    return lines
+
+
 def render_haproxy_runtime_details(snapshot: dict, heading_level: int) -> list[str]:
     lines: list[str] = []
     lines.extend(render_haproxy_pass_details(snapshot, heading_level))
@@ -1529,6 +1572,14 @@ def render_haproxy_runtime_details(snapshot: dict, heading_level: int) -> list[s
     lines.extend(render_haproxy_status_details(snapshot, "BLOCKED", heading_level))
     lines.extend(render_haproxy_status_details(snapshot, "NOT_EXECUTABLE", heading_level))
     lines.extend(render_haproxy_mapped_only_details(snapshot, heading_level))
+    return lines
+
+
+def render_haproxy_compact_runtime_details(snapshot: dict, heading_level: int) -> list[str]:
+    lines: list[str] = []
+    lines.extend(render_haproxy_pass_details(snapshot, heading_level))
+    lines.extend(render_haproxy_status_details(snapshot, "FAIL", heading_level))
+    lines.extend(render_haproxy_non_pass_summary(snapshot, heading_level))
     return lines
 
 
@@ -1638,7 +1689,7 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
     lines.extend(render_connector_runtime_fail_details(snapshot, "apache", heading_level=3))
     lines.extend(render_connector_runtime_fail_details(snapshot, "nginx", heading_level=3))
     lines.extend(["", "## HAProxy Runtime Matrix Details"])
-    lines.extend(render_haproxy_runtime_details(snapshot, heading_level=3))
+    lines.extend(render_haproxy_compact_runtime_details(snapshot, heading_level=3))
     append_snapshot_list(lines, "## Runtime Verified Status", snapshot.get("runtime_verified_status", []))
     append_snapshot_list(lines, "## Open Runtime Issues", snapshot.get("open_issues", []))
     return lines

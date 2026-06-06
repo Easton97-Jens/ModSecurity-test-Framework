@@ -124,8 +124,8 @@ Generated file — do not edit manually.
 - RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
 
 ## Latest Local Runtime Validation Snapshot
-- Snapshot: **2026-06-06** (2026-06-06 12:16:03 CEST)
-- Git: branch `integrate-new-connectors-local`, commit `1354b23`
+- Snapshot: **2026-06-06** (2026-06-06 12:41:08 CEST)
+- Git: branch `integrate-new-connectors-local`, commit `24210f9`
 - BUILD_ROOT: `/src/ModSecurity-conector-build`
 - This is a manual local runtime snapshot rendered from tracked snapshot data and local smoke summary files.
 - Runtime matrix snapshot generated from local Apache, NGINX, and HAProxy summary JSON files when present.
@@ -283,7 +283,7 @@ Generated file — do not edit manually.
 | Case | Variant | Expected | Actual | Evidence |
 |---|---|---:|---:|---|
 | haproxy_phase1_header_block | no-crs | 403 | 403 | /src/ModSecurity-conector-build/results/haproxy-summary.json; alias=no_crs; pass_actual=200 |
-| crs_sqli_anomaly_block | with-crs | 403 | 403 | 1780740959 CRS live decision disruptive=1 status=403 uri=/?id=1%20UNION%20SELECT%20password%20FROM%20users |
+| crs_sqli_anomaly_block | with-crs | 403 | 403 | 1780742465 CRS live decision disruptive=1 status=403 uri=/?id=1%20UNION%20SELECT%20password%20FROM%20users |
 
 - `haproxy_phase1_header_block` is live no-CRS alias evidence and is not counted as a framework YAML PASS row.
 
@@ -292,167 +292,16 @@ Generated file — do not edit manually.
 |---|---:|---|
 | FAIL | 0 | No live HAProxy runtime FAIL rows were reported in the current matrix. |
 
-### HAProxy BLOCKED Details
-| Case | Variant | Reason | Evidence |
-|---|---|---|---|
-| action_allow_phase1_pass | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| action_deny_phase1 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| action_deny_phase2 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| action_status_401_phase1_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| collection_args_combined_size_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| collection_args_get_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| collection_args_names_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| edge_missing_header_pass_through | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| edge_plus_vs_space_runtime_difference | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| edge_semicolon_query_args_names | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| operator_beginswith_pass_no_match_phase2 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| operator_contains_pass_no_match_phase2 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| operator_endswith_pass_no_match_phase2 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| operator_rx_pass_no_match_phase2 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| operator_streq_pass_no_match_phase2 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| phase1_header_block | combined | current HAProxy no-CRS smoke verifies alias haproxy_phase1_header_block, but it does not execute this YAML rule/header exactly | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| phase1_vs_phase2_request_body_gap | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| phase2_args_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| phase2_args_pass | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| phase2_header_only_pass_through | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| rule_chain_both_match_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| rule_chain_first_only_pass | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| rule_chain_second_only_pass | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| sqli_like_keyword_spacing_probe | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| sqli_like_quote_encoding_runtime_difference | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| tfn_compress_whitespace_runtime_gap | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| tfn_lowercase_pass_no_match_phase2 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| tfn_none_exact_block_phase2 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| tfn_trim_pass_no_match_phase2 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| tfn_urldecodeuni_future_target_phase1 | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| unicode_double_encoded_uri_runtime_difference | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| unicode_whitespace_normalization_gap | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_operator_begins_with_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_operator_contains_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_operator_contains_word_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_operator_ends_with_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_operator_pm_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_operator_streq_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_transformation_html_entity_decode_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_transformation_lowercase_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_transformation_remove_nulls_future_target | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_transformation_trim_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_transformation_trim_tab_future_compatibility | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_transformation_url_decode_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_transformation_url_decode_invalid_sequence_mapped_candidate | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v2_transformation_url_decode_pass_no_match | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_args_names_duplicate_query_connector_gap | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_args_names_get_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_args_names_get_pass_no_match | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_operator_pm_digit_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_operator_rx_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_request_headers_names_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_request_headers_names_duplicate_connector_gap | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_request_headers_names_lowercase_runtime_difference | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_request_headers_names_pass_no_match | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_secaction_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| v3_transformation_trim_block | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| xss_like_encoded_angles_normalization_probe | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
-| xss_like_mixed_case_script_token_gap | combined | current HAProxy harness cannot materialize arbitrary framework YAML rules or request data for this relevant phase/request case | /src/ModSecurity-conector-build/results/haproxy-smoke-summary.json |
+### HAProxy Non-PASS Summary
+| Status | Count | Note |
+|---|---:|---|
+| FAIL | 0 | Live-executed HAProxy runtime mismatches only; PASS/FAIL require live execution. |
+| BLOCKED | 59 | Relevant HAProxy rows blocked by current harness or prerequisites. |
+| NOT_EXECUTABLE | 81 | Rows outside the current HAProxy runtime surface. |
+| MAPPED_ONLY | 10 | Import inventory only; not runtime-executable YAML evidence. |
 
-### HAProxy NOT_EXECUTABLE Details
-| Case | Variant | Reason | Evidence |
-|---|---|---|---|
-| audit_log_empty_sections_future_target | combined | audit log behavior is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| audit_log_matched_var_encoded_value | combined | audit log behavior is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| audit_log_message_presence_connector_gap | combined | audit log behavior is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| audit_log_multiline_message_normalization | combined | audit log behavior is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| audit_log_phase1_block | combined | audit log behavior is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| audit_log_rule_id_presence_runtime_difference | combined | audit log behavior is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| duplicate_args_encoded_separator_edge | combined | audit/log cases are outside the current HAProxy harness scope | not live-executed by HAProxy |
-| duplicate_cookie_name_runtime_difference | combined | audit/log cases are outside the current HAProxy harness scope | not live-executed by HAProxy |
-| duplicate_header_case_normalization_gap | combined | audit/log cases are outside the current HAProxy harness scope | not live-executed by HAProxy |
-| files_empty_part_future_compatibility | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| files_names_mixed_case_filename_gap | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| json_duplicate_keys_runtime_difference | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| json_empty_body_future_compatibility | combined | request body, multipart, JSON, XML, and FILES cases are outside the current HAProxy harness scope | not live-executed by HAProxy |
-| json_nested_object_future_compatibility | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| json_request_body_block | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| multipart_basic_block | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| multipart_duplicate_field_names_gap | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| multipart_empty_filename_connector_gap | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| multipart_encoded_filename_runtime_difference | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| multipart_filename_block | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| multipart_files_combined_size | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| multipart_files_names_block | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| multipart_files_value_block | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| multipart_invalid_boundary_future_target | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| nginx_phase4_content_type_out_of_scope | combined | nginx/connector-specific-specific case is not applicable to HAProxy | not live-executed by HAProxy |
-| nginx_phase4_minimal_log_only | combined | nginx/connector-specific-specific case is not applicable to HAProxy | not live-executed by HAProxy |
-| nginx_phase4_safe_log_only | combined | nginx/connector-specific-specific case is not applicable to HAProxy | not live-executed by HAProxy |
-| nginx_phase4_strict_connection_abort | combined | nginx/connector-specific-specific case is not applicable to HAProxy | not live-executed by HAProxy |
-| nginx_redirect_phase1_302 | combined | nginx/connector-specific-specific case is not applicable to HAProxy | not live-executed by HAProxy |
-| nginx_tx_scoring_absolute_block | combined | nginx/connector-specific-specific case is not applicable to HAProxy | not live-executed by HAProxy |
-| nginx_tx_scoring_iterative_block | combined | nginx/connector-specific-specific case is not applicable to HAProxy | not live-executed by HAProxy |
-| parser_json_partial_body_connector_gap | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| parser_xml_partial_body_future_target | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| phase3_response_headers_content_type_charset_gap | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase3_response_headers_duplicate_value_runtime_difference | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase3_response_headers_encoded_value_future_target | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase3_response_headers_location_encoded_runtime_diff | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase3_response_headers_missing_pass_through | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase3_response_headers_mixed_case_connector_gap | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase3_response_headers_multi_value_connector_gap | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase3_response_headers_server_presence_pending | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase3_response_headers_set_cookie_multi_gap | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_auditlog_outbound_escaped_value_gap | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_auditlog_outbound_matched_var_future | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_auditlog_outbound_message_connector_gap | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_auditlog_outbound_multiline_section_gap | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_auditlog_outbound_rule_id_runtime_difference | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_response_body_buffering_order_future_target | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_response_body_chunk_assumption_connector_gap | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_response_body_compressed_assumption_experimental | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_response_body_empty_future_target | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_response_body_html_entity_decode_gap | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_response_body_html_text_normalization_probe | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_response_body_pass_no_match_experimental | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| phase4_response_body_unicode_runtime_difference | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| pr70_phase1_audit_request_header | combined | audit log behavior is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| pr70_phase2_audit_urlencoded_body | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| pr70_phase3_audit_response_header | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| pr70_phase4_response_body_audit_xfail | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| request_body_args_post_names_block | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| request_body_json_block | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| request_body_json_invalid_runtime_difference | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| request_body_raw_text_block | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| request_body_urlencoded_block | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| response_body_basic_block | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| response_body_pass | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| response_header_basic | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| response_headers_multi_value_runtime_gap | combined | HAProxy harness does not support response header/body phases; RESPONSE_BODY is not verified | not live-executed by HAProxy |
-| tfn_chain_lowercase_trim_pass_through | combined | audit/log cases are outside the current HAProxy harness scope | not live-executed by HAProxy |
-| tfn_chain_urldecode_compress_whitespace_gap | combined | audit/log cases are outside the current HAProxy harness scope | not live-executed by HAProxy |
-| v3_action_nolog_pass_no_audit | combined | audit log absence is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| v3_auditlog_serial_fields_block | combined | audit log behavior is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| v3_request_cookies_block | combined | request cookies are not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| v3_request_cookies_names_block | combined | request cookies are not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| v3_request_cookies_names_case_runtime_difference | combined | request cookies are not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| v3_request_cookies_names_pass_no_match | combined | request cookies are not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| v3_request_cookies_pass_no_match | combined | request cookies are not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| xml_deep_nesting_future_target | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| xml_namespace_edge_connector_gap | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| xml_request_body_block | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-| xml_request_body_malformed_connector_gap | combined | request body is not mapped by the current HAProxy harness | not live-executed by HAProxy |
-
-### HAProxy MAPPED_ONLY Details
-| Case | Reason | Evidence |
-|---|---|---|
-| ModSecurity-apache/tests/regression/rule/10-xml.t | XML parser cases require explicit fixture/schema support before active import. | `config/testing/import-status.json` |
-| ModSecurity-apache/tests/regression/misc/00-multipart-parser.t | Multipart parser error and file collection branches exceed the current minimal multipart smoke. | `config/testing/import-status.json` |
-| ModSecurity-nginx/tests/nginx-tests-cvt.pl | Converter tooling is build-runtime support, not a portable rule case. | `config/testing/import-status.json` |
-| ModSecurity_V2/tests/tfn/urlDecode.t | Full-byte, NUL, and invalid-encoding urlDecode branches are mapped only; active smoke imports only source-confirmed text-safe Test+Case -> Test Case. | `config/testing/import-status.json` |
-| ModSecurity_V2/tests/tfn/htmlEntityDecode.t | NUL, nbsp, non-ASCII, and invalid entity branches are mapped only; active smoke imports only the text-safe &lt;&gt; -> <> fragment. | `config/testing/import-status.json` |
-| ModSecurity_V2/tests/op/pm.t | Long phrase-list and no-match branches are mapped only; active smoke imports the source-confirmed param abc/input abcdefghi match. | `config/testing/import-status.json` |
-| ModSecurity_V2/tests/op/containsWord.t | Negative word-boundary branches are mapped only; active smoke imports the source-confirmed param abc/input abc def ghi match. | `config/testing/import-status.json` |
-| ModSecurity-nginx PR #377 tests/modsecurity-phase4-invalid-config.t | Invalid config tests require config-test expected-failure assertions rather than HTTP smokes. | `config/testing/import-status.json` |
-| ModSecurity-nginx PR #377 tests/modsecurity-phase4-regression.t | Large-response phase-4 regression needs dedicated large fixture/log-leak coverage before active import. | `config/testing/import-status.json` |
-| ModSecurity-nginx PR #377 tests/modsecurity-response-body.t | Response-body blocking remains xfail/mapped-only and is not promoted without stable real HTTP blocking semantics. | `config/testing/import-status.json` |
+- Detailed BLOCKED, NOT_EXECUTABLE, and MAPPED_ONLY rows are reported in `reports/testing/generated/haproxy-runtime-results.generated.md`.
+- BLOCKED, NOT_EXECUTABLE, and MAPPED_ONLY rows are not runtime FAIL rows.
 
 ## Runtime Verified Status
 - Runtime matrix records current local Apache, NGINX, and HAProxy per-case smoke evidence when available.
