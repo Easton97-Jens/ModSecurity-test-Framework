@@ -141,7 +141,7 @@ def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) ->
         return []
     errors: list[str] = []
     headers: list[str] = []
-    status_headers = {"runtime status", "Apache", "NGINX"}
+    status_headers = {"runtime status", "Apache", "NGINX", "HAProxy"}
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         cells = markdown_cells(line)
         if cells is None:
@@ -160,13 +160,14 @@ def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) ->
     return errors
 
 
-def generated_markdown_paths(report_root: Path, output_root: Path) -> list[Path]:
+def generated_markdown_paths(report_root: Path, framework_root: Path) -> list[Path]:
     candidates = [
         report_root / "generated" / "runtime-matrix.generated.md",
         report_root / "generated" / "apache-runtime-results.generated.md",
         report_root / "generated" / "nginx-runtime-results.generated.md",
+        report_root / "generated" / "haproxy-runtime-results.generated.md",
         report_root / "test-coverage-overview.md",
-        output_root / "TEST-COVERAGE-SUMMARY.md",
+        framework_root / "TEST-COVERAGE-SUMMARY.md",
     ]
     return candidates
 
@@ -185,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
     cases = load_cases(framework_root)
 
     errors = validate_snapshot(report_root / RUNTIME_SNAPSHOT_FILENAME, cases)
-    for markdown_path in generated_markdown_paths(report_root, output_root):
+    for markdown_path in generated_markdown_paths(report_root, framework_root):
         errors.extend(validate_generated_markdown(markdown_path, cases))
 
     if errors:

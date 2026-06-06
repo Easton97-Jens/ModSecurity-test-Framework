@@ -92,7 +92,8 @@ repositories and must be backed by real-world connector summaries.
   case or metadata changes.
 - Run connector-owned smoke targets before changing PASS/FAIL language in
   connector status docs.
-- Keep generated reports and root `TEST-COVERAGE-SUMMARY.md` refreshed through
-  the connector `make generate-test-matrix` / `make check-test-matrix` flow.
+- Keep connector generated reports and the framework-owned root
+  `TEST-COVERAGE-SUMMARY.md` refreshed through the connector
+  `make generate-test-matrix` / `make check-test-matrix` flow.
 - Keep `RESPONSE_BODY`, RAW-ARGS, mapped-only, xfail, blocked, connector-gap,
   and runtime-difference cases visibly separated in summaries.

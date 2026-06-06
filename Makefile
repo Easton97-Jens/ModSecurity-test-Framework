@@ -51,8 +51,12 @@ generate-test-matrix:
 
 check-test-matrix:
 	$(PYTHON) ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
-	@git -C "$(OUTPUT_ROOT)" diff --exit-code -- reports/testing docs/testing TEST-COVERAGE-SUMMARY.md >/dev/null || { \
+	@git -C "$(OUTPUT_ROOT)" diff --exit-code -- reports/testing docs/testing >/dev/null || { \
 		echo "Generated test matrix docs are out of date for OUTPUT_ROOT=$(OUTPUT_ROOT)"; \
+		exit 1; \
+	}
+	@git -C "$(FRAMEWORK_ROOT)" diff --exit-code -- TEST-COVERAGE-SUMMARY.md >/dev/null || { \
+		echo "Framework coverage summary is out of date. Run make generate-test-matrix"; \
 		exit 1; \
 	}
 

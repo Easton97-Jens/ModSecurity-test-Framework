@@ -35,7 +35,7 @@ RUNTIME_SNAPSHOT = REPORT_ROOT / RUNTIME_SNAPSHOT_FILENAME
 OUT = REPORT_ROOT / GENERATED_DIR
 GENERATED_REPORT_ROOT = OUT
 OVERVIEW_REPORT = REPORT_ROOT / OVERVIEW_FILENAME
-ROOT_SUMMARY_REPORT = OUTPUT_ROOT / ROOT_SUMMARY_FILENAME
+ROOT_SUMMARY_REPORT = FRAMEWORK_ROOT / ROOT_SUMMARY_FILENAME
 ALLOWED_OUTPUT_PATHS: set[Path] = set()
 REPORT_LAYOUT: "ReportLayout | None" = None
 
@@ -73,8 +73,10 @@ ROOT_COMMANDS = [
     "make installed-readiness",
     "make runtime-matrix",
     "make runtime-matrix-all",
+    "make runtime-matrix-haproxy",
     "make smoke-apache",
     "make smoke-nginx",
+    "make smoke-haproxy",
     "make smoke-all",
     "make generate-test-matrix",
     "make check-test-matrix",
@@ -123,11 +125,14 @@ GENERATED_REPORT_NAMES = {
     "case-matrix.generated.md",
     "connector-gap-summary.generated.md",
     "coverage-summary.generated.md",
+    "haproxy-runtime-results.generated.md",
     "nginx-runtime-results.generated.md",
     "phase-coverage.generated.md",
     "runtime-matrix.generated.md",
     "xfail-summary.generated.md",
 }
+
+RUNTIME_CONNECTORS = ("apache", "nginx", "haproxy")
 
 
 def warn(message: str) -> None:
@@ -206,13 +211,18 @@ def build_safe_report_layout(output_root: Path) -> ReportLayout:
         name: resolve_under_root(generated_root, generated_root / name, label="generated report path")
         for name in GENERATED_REPORT_NAMES
     }
+    root_summary = resolve_under_root(
+        FRAMEWORK_ROOT,
+        FRAMEWORK_ROOT / ROOT_SUMMARY_FILENAME,
+        label="framework coverage summary path",
+    )
     return ReportLayout(
         output_root=output_root,
         report_root=report_root,
         generated_root=generated_root,
         runtime_snapshot=resolve_under_root(report_root, report_root / RUNTIME_SNAPSHOT_FILENAME, label="runtime snapshot path"),
         overview=resolve_under_root(report_root, report_root / OVERVIEW_FILENAME, label="coverage overview path"),
-        root_summary=resolve_under_root(output_root, output_root / ROOT_SUMMARY_FILENAME, label="coverage summary path"),
+        root_summary=root_summary,
         generated_reports=generated_reports,
     )
 
@@ -244,12 +254,83 @@ def configure_paths(framework_root: str | Path | None, connector_root: str | Pat
     ALLOWED_OUTPUT_PATHS = REPORT_LAYOUT.allowed_outputs()
 
 
+def load_json_dict(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def load_haproxy_connector_summary(results_dir: Path, root_path: Path) -> dict:
+    root_data = load_json_dict(root_path)
+    if root_data.get("validation_mode") == "haproxy-runtime-matrix":
+        root_data = dict(root_data)
+        root_data["evidence_path"] = str(root_path)
+        return root_data
+
+    no_crs_path = results_dir / "no-crs" / "haproxy-summary.json"
+    with_crs_path = results_dir / "with-crs" / "haproxy-summary.json"
+    no_crs_data = load_json_dict(no_crs_path)
+    with_crs_data = load_json_dict(with_crs_path)
+    if not no_crs_data and not with_crs_data:
+        if root_data:
+            root_data = dict(root_data)
+            root_data["evidence_path"] = str(root_path)
+            return root_data
+        return {
+            "connector": "haproxy",
+            "status": "NOT_RUN",
+            "runtime_verified": False,
+            "runtime_status": "not-verified",
+            "response_body_verified": False,
+            "crs_verified": False,
+            "evidence_path": str(root_path),
+        }
+
+    aliases: dict[str, object] = {}
+    no_aliases = no_crs_data.get("smoke_aliases") if isinstance(no_crs_data.get("smoke_aliases"), dict) else {}
+    with_aliases = with_crs_data.get("smoke_aliases") if isinstance(with_crs_data.get("smoke_aliases"), dict) else {}
+    if isinstance(no_aliases.get("no_crs"), dict):
+        aliases["no_crs"] = no_aliases["no_crs"]
+    if isinstance(with_aliases.get("with_crs"), dict):
+        aliases["with_crs"] = with_aliases["with_crs"]
+
+    verified_cases: list[str] = []
+    for data in (no_crs_data, with_crs_data):
+        values = data.get("verified_cases") if isinstance(data.get("verified_cases"), list) else []
+        verified_cases.extend(str(value) for value in values)
+    verified_cases = list(dict.fromkeys(verified_cases))
+    crs_verified = with_crs_data.get("crs_verified") is True
+    matrix_counts = with_crs_data.get("counts") if isinstance(with_crs_data.get("counts"), dict) else no_crs_data.get("counts", {})
+    return {
+        "connector": "haproxy",
+        "status": "PARTIAL" if verified_cases else "BLOCKED",
+        "runtime_status": "runtime-matrix-partial",
+        "runtime_verified": bool(verified_cases),
+        "response_body_verified": False,
+        "crs_verified": crs_verified,
+        "crs_verified_scope": ["crs_sqli_anomaly_block"] if crs_verified else [],
+        "full_matrix_verified": False,
+        "matrix_full": False,
+        "counts": matrix_counts if isinstance(matrix_counts, dict) else {},
+        "verified_cases": verified_cases,
+        "smoke_aliases": aliases,
+        "evidence_path": f"{no_crs_path}; {with_crs_path}",
+    }
+
+
 def load_new_connector_smoke_summaries() -> dict[str, dict]:
     build_root = Path(os.environ.get("BUILD_ROOT", "/src/ModSecurity-conector-build"))
     results_dir = build_root / "results"
     summaries: dict[str, dict] = {}
     for connector in NEW_CONNECTOR_SMOKE_CONNECTORS:
         path = results_dir / f"{connector}-summary.json"
+        if connector == "haproxy":
+            summaries[connector] = load_haproxy_connector_summary(results_dir, path)
+            continue
         if not path.exists():
             summaries[connector] = {
                 "connector": connector,
@@ -300,9 +381,9 @@ def render_new_connector_smoke_evidence() -> list[str]:
         "",
         "## New Connector Runtime-Smoke Evidence",
         "",
-        "This generated section reads local connector smoke summaries from `$BUILD_ROOT/results`. It is reporting only and does not invent PASS values.",
+        "This generated section reads local connector smoke/matrix summaries from `$BUILD_ROOT/results`. It is reporting only and does not invent PASS values.",
         "",
-        "| Connector | Status | Runtime status | Runtime verified | CRS verified | RESPONSE_BODY verified | Verified cases | With-CRS | Evidence |",
+        "| Connector | Status | Runtime status | Runtime verified | CRS verified | RESPONSE_BODY verified | Verified cases | CRS/split detail | Evidence |",
         "|---|---|---|---:|---:|---:|---|---|---|",
     ]
     for connector in NEW_CONNECTOR_SMOKE_CONNECTORS:
@@ -329,7 +410,24 @@ def render_new_connector_smoke_evidence() -> list[str]:
             if with_crs_data.get("blocked_reason"):
                 with_crs += f" reason={with_crs_data.get('blocked_reason')}"
         else:
-            with_crs = "-"
+            aliases = data.get("smoke_aliases")
+            if isinstance(aliases, dict):
+                parts = []
+                for label, key in (("no-crs", "no_crs"), ("with-crs", "with_crs")):
+                    alias = aliases.get(key)
+                    if not isinstance(alias, dict):
+                        continue
+                    detail = f"{label} {alias.get('status', 'not-run')}"
+                    if alias.get("block_probe_status") not in (None, "not-run"):
+                        detail += f" block={alias.get('block_probe_status')}"
+                    if alias.get("pass_probe_status") not in (None, "not-run"):
+                        detail += f" pass={alias.get('pass_probe_status')}"
+                    if alias.get("yaml_case"):
+                        detail += f" yaml={alias.get('yaml_case')}"
+                    parts.append(detail)
+                with_crs = "; ".join(parts) if parts else "-"
+            else:
+                with_crs = "-"
         evidence = data.get("evidence_path", "-")
         lines.append(
             f"| {connector} | {status} | {runtime_status} | {runtime_verified} | {crs_verified} | {response_body_verified} | `{verified_cases}` | {with_crs} | `{evidence}` |"
@@ -337,7 +435,7 @@ def render_new_connector_smoke_evidence() -> list[str]:
     lines.extend(
         [
             "",
-            "- HAProxy CRS verification is scoped to `haproxy_crs_sqli_anomaly_block` only when the HAProxy summary reports `with_crs.status=PASS` and `crs_verified=true`.",
+            "- HAProxy CRS verification is scoped to `haproxy_crs_sqli_anomaly_block` only when HAProxy with-CRS evidence reports PASS and `crs_verified=true`.",
             "- Envoy, lighttpd, and Traefik remain not runtime-verified unless their own summary files report runtime PASS evidence.",
             "- RESPONSE_BODY remains not verified for these new connector smoke summaries.",
         ]
@@ -677,13 +775,17 @@ def runtime_summary_by_connector(snapshot: dict) -> dict[str, dict]:
         if not isinstance(item, dict):
             continue
         connector = str(item.get("connector", "")).strip()
-        if connector in {"apache", "nginx"}:
+        if connector in RUNTIME_CONNECTORS:
             by_connector[connector] = item
     return by_connector
 
 
 def connector_display_name(connector: str) -> str:
-    return "NGINX" if connector == "nginx" else connector.title()
+    if connector == "nginx":
+        return "NGINX"
+    if connector == "haproxy":
+        return "HAProxy"
+    return connector.title()
 
 
 def smoke_counts(smoke: dict) -> dict:
@@ -745,7 +847,7 @@ def render_connector_runtime_availability(snapshot: dict) -> list[str]:
         "| Connector | Status | Build | Per-case results | Attempted cases | Summary evidence | Note |",
         "|---|---|---|---|---:|---|---|",
     ]
-    for connector in ("apache", "nginx"):
+    for connector in RUNTIME_CONNECTORS:
         smoke = smokes.get(connector, {})
         note = smoke_unavailable_reason(smoke, connector) if smoke_per_case_results(smoke) != "available" else ""
         if not note:
@@ -769,7 +871,7 @@ def render_connector_runtime_availability(snapshot: dict) -> list[str]:
 
 
 def runtime_results_by_connector(snapshot: dict) -> dict[str, dict[str, dict]]:
-    results: dict[str, dict[str, dict]] = {"apache": {}, "nginx": {}}
+    results: dict[str, dict[str, dict]] = {connector: {} for connector in RUNTIME_CONNECTORS}
     for connector, smoke in runtime_summary_by_connector(snapshot).items():
         for item in smoke_case_rows(smoke):
             if not isinstance(item, dict):
@@ -926,13 +1028,15 @@ def runtime_cell_without_case_evidence(smoke: dict, connector: str, snapshot: di
 def runtime_cell(case: dict, connector: str, snapshot: dict) -> dict[str, str]:
     if not connector_applies(case, connector):
         return runtime_cell_not_applicable(case, connector)
+    results = runtime_results_by_connector(snapshot)
+    observed = results.get(connector, {}).get(case["id"])
+    if connector == "haproxy" and observed:
+        return runtime_cell_from_observed(case, observed)
     if not is_force_all_snapshot(snapshot) and not runtime_executable(case, connector):
         return runtime_cell_inventory_only(case)
     if not runtime_executable_for_snapshot(case, connector, snapshot):
         return runtime_cell_outside_snapshot(case)
 
-    results = runtime_results_by_connector(snapshot)
-    observed = results.get(connector, {}).get(case["id"])
     if observed:
         return runtime_cell_from_observed(case, observed)
 
@@ -943,31 +1047,25 @@ def runtime_cell(case: dict, connector: str, snapshot: dict) -> dict[str, str]:
 def runtime_rows(cases: list[dict], snapshot: dict) -> list[dict[str, str]]:
     rows = []
     for case in cases:
-        apache = runtime_cell(case, "apache", snapshot)
-        nginx = runtime_cell(case, "nginx", snapshot)
-        rows.append(
-            {
-                "case_id": case["id"],
-                "path": case["path"],
-                "scope": case["scope"],
-                "category": case_category(case),
-                "group": case_group(case),
-                "yaml_status": case["status"],
-                "runtime_executable": "yes" if runtime_executable(case, "apache") or runtime_executable(case, "nginx") else "no",
-                "force_all_executable": "yes"
-                if runtime_executable_for_snapshot(case, "apache", {"force_all_cases": True})
-                or runtime_executable_for_snapshot(case, "nginx", {"force_all_cases": True})
-                else "no",
-                "apache_status": apache["status"],
-                "apache_promotion": apache["promotion"],
-                "apache_reason": apache["reason"],
-                "apache_evidence": apache["evidence"],
-                "nginx_status": nginx["status"],
-                "nginx_promotion": nginx["promotion"],
-                "nginx_reason": nginx["reason"],
-                "nginx_evidence": nginx["evidence"],
-            }
-        )
+        cells = {connector: runtime_cell(case, connector, snapshot) for connector in RUNTIME_CONNECTORS}
+        row = {
+            "case_id": case["id"],
+            "path": case["path"],
+            "scope": case["scope"],
+            "category": case_category(case),
+            "group": case_group(case),
+            "yaml_status": case["status"],
+            "runtime_executable": "yes" if any(runtime_executable(case, connector) for connector in RUNTIME_CONNECTORS) else "no",
+            "force_all_executable": "yes"
+            if any(runtime_executable_for_snapshot(case, connector, {"force_all_cases": True}) for connector in RUNTIME_CONNECTORS)
+            else "no",
+        }
+        for connector, cell in cells.items():
+            row[f"{connector}_status"] = cell["status"]
+            row[f"{connector}_promotion"] = cell["promotion"]
+            row[f"{connector}_reason"] = cell["reason"]
+            row[f"{connector}_evidence"] = cell["evidence"]
+        rows.append(row)
     return rows
 
 
@@ -993,17 +1091,31 @@ def runtime_attempted_count(snapshot: dict, connector: str) -> int:
 def render_runtime_status_count_table(
     apache_counts: Counter,
     nginx_counts: Counter,
+    haproxy_counts: Counter | None = None,
     mapped_only_count: int = 0,
 ) -> list[str]:
-    statuses = ordered_runtime_statuses(apache_counts, nginx_counts)
+    counters = [apache_counts, nginx_counts]
+    if haproxy_counts is not None:
+        counters.append(haproxy_counts)
+    statuses = ordered_runtime_statuses(*counters)
     if mapped_only_count and "MAPPED_ONLY" not in statuses:
         statuses.append("MAPPED_ONLY")
-    lines = ["| Status | Apache | NGINX |", "|---|---:|---:|"]
+    if haproxy_counts is None:
+        lines = ["| Status | Apache | NGINX |", "|---|---:|---:|"]
+    else:
+        lines = ["| Status | Apache | NGINX | HAProxy |", "|---|---:|---:|---:|"]
     for status in statuses:
         if status == "MAPPED_ONLY":
-            lines.append(f"| {status} | {mapped_only_count} | {mapped_only_count} |")
-        else:
+            if haproxy_counts is None:
+                lines.append(f"| {status} | {mapped_only_count} | {mapped_only_count} |")
+            else:
+                lines.append(f"| {status} | {mapped_only_count} | {mapped_only_count} | {mapped_only_count} |")
+        elif haproxy_counts is None:
             lines.append(f"| {status} | {apache_counts.get(status, 0)} | {nginx_counts.get(status, 0)} |")
+        else:
+            lines.append(
+                f"| {status} | {apache_counts.get(status, 0)} | {nginx_counts.get(status, 0)} | {haproxy_counts.get(status, 0)} |"
+            )
     return lines
 
 
@@ -1011,6 +1123,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
     rows = runtime_rows(cases, snapshot)
     apache_counts = runtime_status_counts(rows, "apache")
     nginx_counts = runtime_status_counts(rows, "nginx")
+    haproxy_counts = runtime_status_counts(rows, "haproxy")
     mapped_only = import_status.get("mapped_only", [])
     if not isinstance(mapped_only, list):
         mapped_only = []
@@ -1027,6 +1140,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         f"- Force-all runtime-executable YAML cases: **{sum(1 for row in rows if row['force_all_executable'] == 'yes')}**",
         f"- Apache attempted YAML cases in latest snapshot: **{runtime_attempted_count(snapshot, 'apache')}**",
         f"- NGINX attempted YAML cases in latest snapshot: **{runtime_attempted_count(snapshot, 'nginx')}**",
+        f"- HAProxy attempted YAML cases in latest snapshot: **{runtime_attempted_count(snapshot, 'haproxy')}**",
         f"- mapped-only import inventory entries: **{len(mapped_only)}**",
         "- `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that YAML status for that connector.",
         f"- `{NOT_EXECUTED}` means no runtime case evidence is recorded in a non-force/default snapshot.",
@@ -1034,12 +1148,12 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         f"- `{RESPONSE_BODY_PASS_THROUGH_STATUS}` and classified variants are pass-through evidence only and are non-promotable.",
         "",
         "## Status Counts",
-        *render_runtime_status_count_table(apache_counts, nginx_counts, len(mapped_only)),
+        *render_runtime_status_count_table(apache_counts, nginx_counts, haproxy_counts, len(mapped_only)),
         *render_connector_runtime_availability(snapshot),
         "",
         "## YAML Runtime Matrix",
-        "| case_id | path | scope | category | metadata class | YAML status | default executable | force-all executable | Apache | Apache promotion | Apache reason | Apache evidence | NGINX | NGINX promotion | NGINX reason | NGINX evidence |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| case_id | path | scope | category | metadata class | YAML status | default executable | force-all executable | Apache | Apache promotion | Apache reason | Apache evidence | NGINX | NGINX promotion | NGINX reason | NGINX evidence | HAProxy | HAProxy promotion | HAProxy reason | HAProxy evidence |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:
         lines.append(
@@ -1063,6 +1177,10 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
                     "nginx_promotion",
                     "nginx_reason",
                     "nginx_evidence",
+                    "haproxy_status",
+                    "haproxy_promotion",
+                    "haproxy_reason",
+                    "haproxy_evidence",
                 ]
             )
             + " |"
@@ -1126,7 +1244,10 @@ def render_connector_runtime_results(cases: list[dict], snapshot: dict, connecto
                 f"{connector_name} did not emit per-case rows; semantic counts and result rows use connector-level blocker evidence for visibility.",
             ]
         )
-    lines.extend(render_connector_runtime_fail_details(snapshot, connector, heading_level=2))
+    if connector == "haproxy":
+        lines.extend(render_haproxy_runtime_details(snapshot, heading_level=2))
+    else:
+        lines.extend(render_connector_runtime_fail_details(snapshot, connector, heading_level=2))
     lines.extend(
         [
             "",
@@ -1215,6 +1336,181 @@ def render_connector_runtime_fail_details(snapshot: dict, connector: str, headin
         return lines
 
     lines.append(f"No {connector_name} runtime FAIL details were reported.")
+    return lines
+
+
+def haproxy_smoke(snapshot: dict) -> dict:
+    return runtime_summary_by_connector(snapshot).get("haproxy", {})
+
+
+def haproxy_matrix_counts(smoke: dict) -> dict:
+    counts = smoke.get("matrix_counts") if isinstance(smoke.get("matrix_counts"), dict) else {}
+    if counts:
+        return counts
+    rows = smoke_case_rows(smoke)
+    return dict(Counter(str(row.get("matrix_status", "NOT_EXECUTABLE")) for row in rows if isinstance(row, dict)))
+
+
+def haproxy_matrix_count(smoke: dict, status: str) -> int:
+    return count_value(haproxy_matrix_counts(smoke).get(status, 0))
+
+
+def haproxy_detail_variant(row: dict) -> str:
+    variant = str(row.get("variant") or "-")
+    if variant == "combined" and row.get("case") == "crs_sqli_anomaly_block" and row.get("crs_verified") is True:
+        return "with-crs"
+    return variant
+
+
+def haproxy_detail_evidence(row: dict) -> str:
+    return str(row.get("source_evidence") or row.get("evidence") or "-")
+
+
+def haproxy_rows_by_matrix_status(smoke: dict, status: str) -> list[dict]:
+    return [
+        row
+        for row in smoke_case_rows(smoke)
+        if isinstance(row, dict) and str(row.get("matrix_status", "")).strip() == status
+    ]
+
+
+def render_haproxy_empty_detail(status: str, count: int, note: str) -> list[str]:
+    return [
+        "| Status | Count | Note |",
+        "|---|---:|---|",
+        f"| {status} | {count} | {md(note)} |",
+    ]
+
+
+def render_haproxy_pass_details(snapshot: dict, heading_level: int) -> list[str]:
+    smoke = haproxy_smoke(snapshot)
+    summary_path = str(smoke.get("summary_path", "-"))
+    lines = ["", f"{'#' * heading_level} HAProxy PASS Details"]
+    rows: list[dict[str, object]] = []
+    aliases = smoke.get("smoke_aliases") if isinstance(smoke.get("smoke_aliases"), dict) else {}
+    no_crs_alias = aliases.get("no_crs") if isinstance(aliases.get("no_crs"), dict) else {}
+    if no_crs_alias.get("verified") is True and str(no_crs_alias.get("status", "")).strip() == "PASS":
+        rows.append(
+            {
+                "case": no_crs_alias.get("name", "haproxy_phase1_header_block"),
+                "variant": "no-crs",
+                "expected": no_crs_alias.get("expected_status", "-"),
+                "actual": no_crs_alias.get("actual_status", no_crs_alias.get("block_probe_status", "-")),
+                "evidence": f"{summary_path}; alias=no_crs; pass_actual={no_crs_alias.get('pass_actual_status', no_crs_alias.get('pass_probe_status', '-'))}",
+                "alias": True,
+            }
+        )
+    for row in haproxy_rows_by_matrix_status(smoke, "PASS"):
+        if row.get("live_executed") is not True:
+            continue
+        rows.append(
+            {
+                "case": row.get("case", "-"),
+                "variant": haproxy_detail_variant(row),
+                "expected": row.get("expected_status", "-"),
+                "actual": row.get("actual_status", "-"),
+                "evidence": haproxy_detail_evidence(row),
+                "alias": False,
+            }
+        )
+    if not rows:
+        lines.extend(
+            render_haproxy_empty_detail(
+                "PASS",
+                haproxy_matrix_count(smoke, "PASS"),
+                "No live HAProxy runtime PASS rows were reported in the current matrix.",
+            )
+        )
+        return lines
+    lines.extend(["| Case | Variant | Expected | Actual | Evidence |", "|---|---|---:|---:|---|"])
+    for row in rows:
+        lines.append(
+            "| "
+            + " | ".join(md(row.get(key, "-")) for key in ["case", "variant", "expected", "actual", "evidence"])
+            + " |"
+        )
+    if any(row.get("alias") for row in rows):
+        lines.append("")
+        lines.append("- `haproxy_phase1_header_block` is live no-CRS alias evidence and is not counted as a framework YAML PASS row.")
+    return lines
+
+
+def render_haproxy_status_details(snapshot: dict, status: str, heading_level: int) -> list[str]:
+    smoke = haproxy_smoke(snapshot)
+    lines = ["", f"{'#' * heading_level} HAProxy {status} Details"]
+    rows = haproxy_rows_by_matrix_status(smoke, status)
+    if not rows:
+        notes = {
+            "FAIL": "No live HAProxy runtime FAIL rows were reported in the current matrix.",
+            "BLOCKED": "No HAProxy BLOCKED rows were reported in the current matrix.",
+            "NOT_EXECUTABLE": "No HAProxy NOT_EXECUTABLE rows were reported in the current matrix.",
+        }
+        lines.extend(render_haproxy_empty_detail(status, haproxy_matrix_count(smoke, status), notes.get(status, "No rows were reported.")))
+        return lines
+    if status == "FAIL":
+        lines.extend(["| Case | Variant | Expected | Actual | Evidence |", "|---|---|---:|---:|---|"])
+        for row in rows:
+            lines.append(
+                "| "
+                + " | ".join(
+                    md(value)
+                    for value in [
+                        row.get("case", "-"),
+                        haproxy_detail_variant(row),
+                        row.get("expected_status", "-"),
+                        row.get("actual_status", "-"),
+                        haproxy_detail_evidence(row),
+                    ]
+                )
+                + " |"
+            )
+        return lines
+    lines.extend(["| Case | Variant | Reason | Evidence |", "|---|---|---|---|"])
+    for row in rows:
+        lines.append(
+            "| "
+            + " | ".join(
+                md(value)
+                for value in [
+                    row.get("case", "-"),
+                    haproxy_detail_variant(row),
+                    row.get("reason", "-"),
+                    haproxy_detail_evidence(row),
+                ]
+            )
+            + " |"
+        )
+    return lines
+
+
+def render_haproxy_mapped_only_details(snapshot: dict, heading_level: int) -> list[str]:
+    smoke = haproxy_smoke(snapshot)
+    lines = ["", f"{'#' * heading_level} HAProxy MAPPED_ONLY Details"]
+    rows = smoke.get("mapped_only") if isinstance(smoke.get("mapped_only"), list) else []
+    if not rows:
+        lines.extend(
+            render_haproxy_empty_detail(
+                "MAPPED_ONLY",
+                haproxy_matrix_count(smoke, "MAPPED_ONLY"),
+                "No HAProxy mapped-only import inventory entries were reported in the current matrix.",
+            )
+        )
+        return lines
+    lines.extend(["| Case | Reason | Evidence |", "|---|---|---|"])
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        lines.append(f"| {md(row.get('source', 'unknown'))} | {md(row.get('reason', ''))} | `config/testing/import-status.json` |")
+    return lines
+
+
+def render_haproxy_runtime_details(snapshot: dict, heading_level: int) -> list[str]:
+    lines: list[str] = []
+    lines.extend(render_haproxy_pass_details(snapshot, heading_level))
+    lines.extend(render_haproxy_status_details(snapshot, "FAIL", heading_level))
+    lines.extend(render_haproxy_status_details(snapshot, "BLOCKED", heading_level))
+    lines.extend(render_haproxy_status_details(snapshot, "NOT_EXECUTABLE", heading_level))
+    lines.extend(render_haproxy_mapped_only_details(snapshot, heading_level))
     return lines
 
 
@@ -1323,6 +1619,8 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
     lines.extend(["", "## Runtime FAIL Details"])
     lines.extend(render_connector_runtime_fail_details(snapshot, "apache", heading_level=3))
     lines.extend(render_connector_runtime_fail_details(snapshot, "nginx", heading_level=3))
+    lines.extend(["", "## HAProxy Runtime Matrix Details"])
+    lines.extend(render_haproxy_runtime_details(snapshot, heading_level=3))
     append_snapshot_list(lines, "## Runtime Verified Status", snapshot.get("runtime_verified_status", []))
     append_snapshot_list(lines, "## Open Runtime Issues", snapshot.get("open_issues", []))
     return lines
@@ -1345,15 +1643,20 @@ def render_root_summary(
     rt_rows = runtime_rows(cases, runtime_snapshot)
     apache_runtime_counts = runtime_status_counts(rt_rows, "apache")
     nginx_runtime_counts = runtime_status_counts(rt_rows, "nginx")
+    haproxy_runtime_counts = runtime_status_counts(rt_rows, "haproxy")
     runtime_smokes = runtime_summary_by_connector(runtime_snapshot)
     apache_smoke_counts = runtime_smokes.get("apache", {}).get("counts", {})
     nginx_smoke_counts = runtime_smokes.get("nginx", {}).get("counts", {})
+    haproxy_smoke_counts = runtime_smokes.get("haproxy", {}).get("counts", {})
     if not isinstance(apache_smoke_counts, dict):
         apache_smoke_counts = {}
     if not isinstance(nginx_smoke_counts, dict):
         nginx_smoke_counts = {}
+    if not isinstance(haproxy_smoke_counts, dict):
+        haproxy_smoke_counts = {}
     apache_attempted = runtime_attempted_count(runtime_snapshot, "apache")
     nginx_attempted = runtime_attempted_count(runtime_snapshot, "nginx")
+    haproxy_attempted = runtime_attempted_count(runtime_snapshot, "haproxy")
     runtime_executable_count = sum(1 for row in rt_rows if row["runtime_executable"] == "yes")
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
 
@@ -1367,6 +1670,7 @@ def render_root_summary(
         "generated/runtime-matrix.generated.md",
         "generated/apache-runtime-results.generated.md",
         "generated/nginx-runtime-results.generated.md",
+        "generated/haproxy-runtime-results.generated.md",
         RUNTIME_SNAPSHOT_FILENAME,
     ]
 
@@ -1387,11 +1691,14 @@ def render_root_summary(
         f"- Force-all runtime-executable YAML cases: **{force_all_executable_count}**",
         f"- Apache attempted YAML cases in latest runtime snapshot: **{apache_attempted}**",
         f"- NGINX attempted YAML cases in latest runtime snapshot: **{nginx_attempted}**",
+        f"- HAProxy attempted YAML cases in latest runtime snapshot: **{haproxy_attempted}**",
         f"- Mapped-only import inventory entries: **{mapped_only_count}**",
         "",
         "**RESPONSE_BODY is not verified or promoted.** This file is generated reporting, not runtime proof.",
         "",
         "## Framework Integration",
+        f"- This framework-owned file is the source of truth for root coverage reporting: `{ROOT_SUMMARY_FILENAME}` in `ModSecurity-test-Framework`.",
+        "- Connector repositories should link to this Framework summary instead of maintaining their own root coverage summary.",
         "- Shared YAML cases, runners, normalizers, generators, and detailed testing documentation are owned by `ModSecurity-test-Framework`.",
         "- The connector repository owns connector source, harnesses, adapter metadata, `config/testing/import-status.json`, and connector-specific generated evidence under `reports/testing/`.",
         "- `FRAMEWORK_ROOT` and `CONNECTOR_ROOT` are explicit integration paths; there is no absolute workspace fallback.",
@@ -1422,20 +1729,25 @@ def render_root_summary(
         [
             "",
             "## Runtime Matrix Status",
-            *render_runtime_status_count_table(apache_runtime_counts, nginx_runtime_counts, mapped_only_count),
+            *render_runtime_status_count_table(apache_runtime_counts, nginx_runtime_counts, haproxy_runtime_counts, mapped_only_count),
             "",
             f"- Apache attempted YAML cases from latest summary: **{apache_attempted}**",
             f"- NGINX attempted YAML cases from latest summary: **{nginx_attempted}**",
+            f"- HAProxy attempted YAML cases from latest summary: **{haproxy_attempted}**",
             f"- Apache raw runtime XFAIL observations from latest summary: **{apache_smoke_counts.get('xfail', 0)}**",
             f"- NGINX raw runtime XFAIL observations from latest summary: **{nginx_smoke_counts.get('xfail', 0)}**",
+            f"- HAProxy raw runtime XFAIL observations from latest summary: **{haproxy_smoke_counts.get('xfail', 0)}**",
             f"- Apache {NOT_EXECUTED} YAML rows: **{apache_runtime_counts.get(NOT_EXECUTED, 0)}**",
             f"- NGINX {NOT_EXECUTED} YAML rows: **{nginx_runtime_counts.get(NOT_EXECUTED, 0)}**",
+            f"- HAProxy {NOT_EXECUTED} YAML rows: **{haproxy_runtime_counts.get(NOT_EXECUTED, 0)}**",
             f"- Apache NOT_EXECUTABLE YAML rows: **{apache_runtime_counts.get('NOT_EXECUTABLE', 0)}**",
             f"- NGINX NOT_EXECUTABLE YAML rows: **{nginx_runtime_counts.get('NOT_EXECUTABLE', 0)}**",
+            f"- HAProxy NOT_EXECUTABLE YAML rows: **{haproxy_runtime_counts.get('NOT_EXECUTABLE', 0)}**",
             f"- Mapped-only import inventory entries: **{mapped_only_count}**",
             f"- Runtime matrix detail: `{report_doc('generated/runtime-matrix.generated.md')}`",
             f"- Apache per-case results: `{report_doc('generated/apache-runtime-results.generated.md')}`",
             f"- NGINX per-case results: `{report_doc('generated/nginx-runtime-results.generated.md')}`",
+            f"- HAProxy per-case results: `{report_doc('generated/haproxy-runtime-results.generated.md')}`",
             "- PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence; XFAIL and pending cases are not promoted.",
             "- RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.",
         ]
@@ -1494,10 +1806,12 @@ def render_overview(
     rt_rows = runtime_rows(cases, runtime_snapshot)
     apache_runtime_counts = runtime_status_counts(rt_rows, "apache")
     nginx_runtime_counts = runtime_status_counts(rt_rows, "nginx")
+    haproxy_runtime_counts = runtime_status_counts(rt_rows, "haproxy")
     mapped_only = import_status.get("mapped_only", [])
     mapped_only_count = len(mapped_only) if isinstance(mapped_only, list) else 0
     apache_attempted = runtime_attempted_count(runtime_snapshot, "apache")
     nginx_attempted = runtime_attempted_count(runtime_snapshot, "nginx")
+    haproxy_attempted = runtime_attempted_count(runtime_snapshot, "haproxy")
     runtime_executable_count = sum(1 for row in rt_rows if row["runtime_executable"] == "yes")
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
 
@@ -1534,8 +1848,10 @@ def render_overview(
             f"- Force-all runtime-executable YAML cases: **{force_all_executable_count}**",
             f"- Apache attempted YAML cases from latest summary: **{apache_attempted}**",
             f"- NGINX attempted YAML cases from latest summary: **{nginx_attempted}**",
-            *render_runtime_status_count_table(apache_runtime_counts, nginx_runtime_counts, mapped_only_count),
+            f"- HAProxy attempted YAML cases from latest summary: **{haproxy_attempted}**",
+            *render_runtime_status_count_table(apache_runtime_counts, nginx_runtime_counts, haproxy_runtime_counts, mapped_only_count),
             f"- Details: `{report_doc('generated/runtime-matrix.generated.md')}`",
+            f"- HAProxy per-case results: `{report_doc('generated/haproxy-runtime-results.generated.md')}`",
         ]
     )
     lines.extend(render_runtime_snapshot(runtime_snapshot))
@@ -1613,6 +1929,7 @@ def main(argv: list[str] | None = None) -> int:
     report_layout.write_generated("runtime-matrix.generated.md", render_runtime_matrix(cases, import_status, runtime_snapshot))
     report_layout.write_generated("apache-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "apache"))
     report_layout.write_generated("nginx-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "nginx"))
+    report_layout.write_generated("haproxy-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "haproxy"))
     report_layout.write_overview(
         render_overview(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count),
     )

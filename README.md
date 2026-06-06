@@ -116,9 +116,10 @@ python3 ci/generate-case-matrix.py \
   --output-root /path/to/ModSecurity-conector
 ```
 
-Connector output goes to `reports/testing/` plus a root
-`TEST-COVERAGE-SUMMARY.md`. Framework output goes to `docs/testing/` plus its
-own root `TEST-COVERAGE-SUMMARY.md`.
+Connector output goes to `reports/testing/`. The root
+`TEST-COVERAGE-SUMMARY.md` is always framework-owned at the
+`ModSecurity-test-Framework` root, even when connector evidence is generated
+from a parent repository.
 
 ## Evidence Semantics
 
