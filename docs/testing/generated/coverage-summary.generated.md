@@ -2,39 +2,55 @@ Generated file — do not edit manually.
 
 # Generated Coverage Summary
 
-- Total cases: 141
-- RESPONSE_BODY cases: 24
+- Total cases: 161
+- RESPONSE_BODY cases: 25
 - Verified runtime cases: 0
-- Non-verified runtime cases: 141
+- Non-verified runtime cases: 161
 
 ## By scope
-- common: 134
+- common: 154
 - apache: 0
 - nginx: 7
 - unknown: 0
 
+## By source
+- ModSecurity-apache PR: 4
+- mrts: 20
+- owasp-modsecurity/ModSecurity-apache#78: 3
+- unknown: 134
+
+## MRTS Source Summary
+- Total MRTS imported cases: **20**
+- Active MRTS cases: **19**
+- Pending MRTS cases: **1**
+- Unclassified MRTS cases: **0**
+- Phase 4 / RESPONSE_BODY MRTS cases: **1**
+- Runtime-executable MRTS cases: **19**
+
 ## By status
-- active: 8
+- active: 27
 - imported: 133
+- pending: 1
 
 ## By variable/collection
-- `RESPONSE_BODY`: 20
+- `RESPONSE_BODY`: 21
 - `ARGS:q`: 18
-- `REQUEST_BODY`: 10
+- `ARGS`: 16
+- `REQUEST_BODY`: 11
+- `REQUEST_URI`: 8
 - `ARGS_NAMES`: 7
-- `REQUEST_URI`: 7
 - `ARGS:test`: 6
 - `REQUEST_HEADERS_NAMES`: 5
+- `XML`: 5
 - `ARGS:a`: 4
 - `REQUEST_COOKIES_NAMES`: 4
-- `XML`: 4
 - `ARGS:param1`: 4
-- `ARGS`: 4
 - `RESPONSE_HEADERS:Set-Cookie`: 4
 - `ARGS:probe`: 4
 - `MULTIPART_FILENAME`: 3
 - `ARGS:chain_a`: 3
 - `ARGS:chain_b`: 3
+- `FILES`: 2
 - `FILES_NAMES`: 2
 - `TX:SCORE`: 2
 - `REQUEST_COOKIES:USER_TOKEN`: 2
@@ -44,7 +60,6 @@ Generated file — do not edit manually.
 - `ARGS_POST:arg1`: 1
 - `RESPONSE_HEADERS:Last-Modified`: 1
 - `ARGS:foo`: 1
-- `FILES`: 1
 - `ARGS:name`: 1
 - `FILES_COMBINED_SIZE`: 1
 - `FILES:filedata1`: 1
@@ -61,12 +76,15 @@ Generated file — do not edit manually.
 - `RESPONSE_HEADERS:X-Missing`: 1
 - `RESPONSE_HEADERS:content-type`: 1
 - `RESPONSE_HEADERS:Server`: 1
+- `REQUEST_HEADERS`: 1
+- `REQUEST_COOKIES`: 1
+- `RESPONSE_HEADERS`: 1
 
 ## By phase
-- phase 1: 36
-- phase 2: 74
-- phase 3: 12
-- phase 4: 20
+- phase 1: 39
+- phase 2: 89
+- phase 3: 13
+- phase 4: 21
 
 ## Verification note
 - Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.

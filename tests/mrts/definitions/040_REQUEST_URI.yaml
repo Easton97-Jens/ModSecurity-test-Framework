@@ -1,0 +1,23 @@
+target: REQUEST_URI
+rulefile: MRTS_040_REQUEST_URI.conf
+testfile: MRTS_040_REQUEST_URI.yaml
+templates:
+- Framework MRTS blocking rule
+colkey:
+- - ''
+operator:
+- '@contains'
+oparg:
+- mrts-uri-token
+phase:
+- 1
+testdata:
+  phase_methods:
+    1: get
+  targets:
+  - target: ''
+    test:
+      data: null
+      input:
+        uri: /mrts-uri-token
+

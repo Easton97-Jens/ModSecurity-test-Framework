@@ -1,0 +1,90 @@
+---
+meta:
+  author: fixture
+  enabled: true
+  name: MRTS_FIXTURE.yaml
+  description: Importer fixture
+tests:
+- test_title: duplicate
+  ruleid: 900100
+  test_id: 1
+  desc: ARGS phase 2 active fixture
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: GET
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+      uri: /
+      version: HTTP/1.1
+      data: q=attack
+    output:
+      log:
+        expect_ids:
+        - 900100
+- test_title: duplicate
+  ruleid: 900101
+  test_id: 2
+  desc: REQUEST_HEADERS phase 1 active fixture
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: GET
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+        X-MRTS-Fixture: yes
+      uri: /
+      version: HTTP/1.1
+    output:
+      log:
+        expect_ids:
+        - 900101
+- test_title: response-body
+  ruleid: 900102
+  test_id: 3
+  desc: RESPONSE_BODY phase 4 pending fixture
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: GET
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+      uri: /
+      version: HTTP/1.1
+    output:
+      log:
+        expect_ids:
+        - 900102
+- test_title: unclassified
+  ruleid: 900199
+  test_id: 4
+  desc: Missing rule pending fixture
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: GET
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+      uri: /
+      version: HTTP/1.1
+    output:
+      log:
+        expect_ids:
+        - 900199
+

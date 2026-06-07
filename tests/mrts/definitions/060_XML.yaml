@@ -1,0 +1,25 @@
+target: XML
+rulefile: MRTS_060_XML.conf
+testfile: MRTS_060_XML.yaml
+templates:
+- Framework MRTS blocking rule
+colkey:
+- - /*
+operator:
+- '@contains'
+oparg:
+- mrts-xml-token
+phase:
+- 2
+testdata:
+  phase_methods:
+    2: post
+  targets:
+  - target: /*
+    test:
+      data: '<root><value>mrts-xml-token</value></root>'
+      input:
+        headers:
+        - name: Content-Type
+          value: application/xml
+

@@ -390,7 +390,10 @@ def load_new_connector_smoke_summaries(runtime_snapshot: dict | None = None) -> 
     results_dir = build_root / "results"
     summaries: dict[str, dict] = {}
     for connector in NEW_CONNECTOR_SMOKE_CONNECTORS:
-        path = results_dir / f"{connector}-summary.json"
+        test_variant = os.environ.get("MODSECURITY_TEST_VARIANT", "no-crs")
+        mrts_variant = os.environ.get("MODSECURITY_MRTS_VARIANT", "no-mrts")
+        variant_path = results_dir / test_variant / mrts_variant / connector / f"{connector}-summary.json"
+        path = variant_path if variant_path.exists() else results_dir / f"{connector}-summary.json"
         if connector == "haproxy":
             summary = load_haproxy_connector_summary(results_dir, path)
             if summary.get("status") == "NOT_RUN":
@@ -696,8 +699,12 @@ def render_case_matrix(cases: list[dict]) -> str:
 
 
 def render_summary(cases: list[dict], by_scope: Counter, by_status: Counter, by_runtime: Counter, by_phase: Counter, by_var: Counter, response_body_count: int) -> str:
+    by_source = source_counts(cases)
     lines = ["# Generated Coverage Summary", "", f"- Total cases: {len(cases)}", f"- RESPONSE_BODY cases: {response_body_count}", f"- Verified runtime cases: {by_runtime.get('true', 0)}", f"- Non-verified runtime cases: {len(cases) - by_runtime.get('true', 0)}", "", "## By scope"]
     lines.extend(f"- {scope}: {by_scope.get(scope, 0)}" for scope in ["common", "apache", "nginx", "unknown"])
+    lines.extend(["", "## By source"])
+    lines.extend(f"- {source}: {count}" for source, count in sorted(by_source.items()))
+    lines.extend(render_mrts_source_summary_lines(cases))
     lines.extend(["", "## By status"])
     lines.extend(f"- {key}: {value}" for key, value in sorted(by_status.items()))
     lines.extend(["", "## By variable/collection"])
@@ -834,7 +841,7 @@ def count_cases_matching(cases: list[dict], *needles: str) -> int:
 def topic_counts(cases: list[dict]) -> dict[str, int]:
     explicit_topics = Counter(case["topic"] for case in cases if case.get("topic"))
     unclassified = [case for case in cases if not case.get("topic")]
-    return {
+    counts = {
         "Operators": explicit_topics.get("Operators", 0) + sum(1 for case in unclassified if case["operators"]),
         "Transformations": explicit_topics.get("Transformations", 0) + sum(1 for case in unclassified if case["transformations"]),
         "Multipart / FILES": explicit_topics.get("Multipart / FILES", 0) + count_cases_matching(unclassified, "multipart", "files", "multipart_filename"),
@@ -850,8 +857,51 @@ def topic_counts(cases: list[dict]) -> dict[str, int]:
             for case in unclassified
             if case["response_body"] and ("experimental" in case["tags"] or "experimental" in case_text(case))
         ),
-        "MRTS generated / unclassified": explicit_topics.get("MRTS generated / unclassified", 0),
     }
+    mrts_unclassified = explicit_topics.get("MRTS generated / unclassified", 0)
+    if mrts_unclassified:
+        counts["MRTS generated / unclassified"] = mrts_unclassified
+    return counts
+
+
+def source_counts(cases: list[dict]) -> Counter:
+    return Counter(case["source"] for case in cases)
+
+
+def mrts_cases(cases: list[dict]) -> list[dict]:
+    return [case for case in cases if str(case.get("source", "")).lower() == "mrts"]
+
+
+def mrts_source_summary(cases: list[dict]) -> dict[str, int]:
+    rows = mrts_cases(cases)
+    return {
+        "total": len(rows),
+        "active": sum(1 for case in rows if case_group(case) == "active"),
+        "pending": sum(1 for case in rows if case_group(case) == "pending"),
+        "unclassified": sum(1 for case in rows if case.get("topic") == "MRTS generated / unclassified"),
+        "response_body_phase4": sum(1 for case in rows if case["response_body"] or 4 in case["phases"]),
+        "runtime_executable": sum(
+            1
+            for case in rows
+            if any(runtime_executable(case, connector) for connector in RUNTIME_CONNECTORS)
+        ),
+    }
+
+
+def render_mrts_source_summary_lines(cases: list[dict]) -> list[str]:
+    if not mrts_cases(cases):
+        return []
+    summary = mrts_source_summary(cases)
+    return [
+        "",
+        "## MRTS Source Summary",
+        f"- Total MRTS imported cases: **{summary['total']}**",
+        f"- Active MRTS cases: **{summary['active']}**",
+        f"- Pending MRTS cases: **{summary['pending']}**",
+        f"- Unclassified MRTS cases: **{summary['unclassified']}**",
+        f"- Phase 4 / RESPONSE_BODY MRTS cases: **{summary['response_body_phase4']}**",
+        f"- Runtime-executable MRTS cases: **{summary['runtime_executable']}**",
+    ]
 
 
 def render_status_table(
@@ -2216,6 +2266,7 @@ def render_root_summary(
         f"- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{count_value(force_all_nginx_counts.get('pass', 0))}** / **{count_value(force_all_nginx_counts.get('fail', 0))}** / **{count_value(force_all_nginx_counts.get('blocked', 0))}** / **{count_value(force_all_nginx_counts.get('not_executable', 0))}**",
         f"- HAProxy force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{count_value(force_all_haproxy_counts.get('pass', 0))}** / **{count_value(force_all_haproxy_counts.get('fail', 0))}** / **{count_value(force_all_haproxy_counts.get('blocked', 0))}** / **{count_value(force_all_haproxy_counts.get('not_executable', 0))}**",
         f"- Mapped-only import inventory entries: **{mapped_only_count}**",
+        *render_mrts_source_summary_lines(cases),
         "",
         "## Important Reporting Semantics",
         "- PASS/FAIL are rendered only from live runtime evidence recorded in connector summaries and decision/result artifacts.",
@@ -2446,6 +2497,7 @@ def render_overview(
         f"- Future/experimental count: **{future_exp_count}**",
         f"- RESPONSE_BODY cases: **{response_body_count}** (still **not verified/promoted**)",
         f"- Mapped-only import inventory entries: **{mapped_only_count}**",
+        *render_mrts_source_summary_lines(cases),
         "",
         "## Coverage By Variable / Collection",
         "| Variable | Count |",

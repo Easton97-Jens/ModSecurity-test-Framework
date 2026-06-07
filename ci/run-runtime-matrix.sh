@@ -6,6 +6,7 @@ FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$SCRIPT_DIR/common.sh"
+. "$SCRIPT_DIR/mrts-common.sh"
 
 PYTHON_BIN="${PYTHON:-$(ci_python)}"
 FORCE_ALL_CASES="${FORCE_ALL_CASES:-0}"
@@ -17,14 +18,14 @@ fi
 
 echo "runtime-matrix: running Apache smoke with REFRESH=1"
 set +e
-REFRESH=1 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" make -C "$CONNECTOR_ROOT" smoke-apache
+REFRESH=1 RESULTS_DIR="$BUILD_ROOT/results" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" make -C "$CONNECTOR_ROOT" smoke-apache
 apache_rc=$?
 set -e
 echo "runtime-matrix: Apache smoke exit=$apache_rc"
 
 echo "runtime-matrix: running NGINX smoke with REFRESH=1"
 set +e
-REFRESH=1 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" make -C "$CONNECTOR_ROOT" smoke-nginx
+REFRESH=1 RESULTS_DIR="$BUILD_ROOT/results" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" make -C "$CONNECTOR_ROOT" smoke-nginx
 nginx_rc=$?
 set -e
 echo "runtime-matrix: NGINX smoke exit=$nginx_rc"
@@ -37,6 +38,11 @@ echo "runtime-matrix: NGINX smoke exit=$nginx_rc"
     --apache-exit-code "$apache_rc" \
     --nginx-exit-code "$nginx_rc" \
     $SNAPSHOT_ARGS
+prepare_mrts_variant
+if [ "$MODSECURITY_MRTS_VARIANT" = "with-mrts" ]; then
+    mrts_import_cases
+fi
+
 "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/generate-case-matrix.py" \
     --framework-root "$FRAMEWORK_ROOT" \
     --connector-root "$CONNECTOR_ROOT" \

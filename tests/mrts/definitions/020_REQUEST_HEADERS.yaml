@@ -1,0 +1,25 @@
+target: REQUEST_HEADERS
+rulefile: MRTS_020_REQUEST_HEADERS.conf
+testfile: MRTS_020_REQUEST_HEADERS.yaml
+templates:
+- Framework MRTS blocking rule
+colkey:
+- - X-MRTS-Header
+operator:
+- '@streq'
+oparg:
+- mrts-header-token
+phase:
+- 1
+testdata:
+  phase_methods:
+    1: get
+  targets:
+  - target: X-MRTS-Header
+    test:
+      data: null
+      input:
+        headers:
+        - name: X-MRTS-Header
+          value: mrts-header-token
+

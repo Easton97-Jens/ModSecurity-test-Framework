@@ -1,0 +1,25 @@
+target: REQUEST_COOKIES
+rulefile: MRTS_030_REQUEST_COOKIES.conf
+testfile: MRTS_030_REQUEST_COOKIES.yaml
+templates:
+- Framework MRTS blocking rule
+colkey:
+- - mrts_cookie
+operator:
+- '@contains'
+oparg:
+- cookie-token
+phase:
+- 1
+testdata:
+  phase_methods:
+    1: get
+  targets:
+  - target: mrts_cookie
+    test:
+      data: null
+      input:
+        headers:
+        - name: Cookie
+          value: mrts_cookie=cookie-token
+

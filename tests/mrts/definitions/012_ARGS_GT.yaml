@@ -1,0 +1,22 @@
+target: ARGS
+rulefile: MRTS_012_ARGS_GT.conf
+testfile: MRTS_012_ARGS_GT.yaml
+templates:
+- Framework MRTS blocking rule
+colkey:
+- - n
+operator:
+- '@gt'
+oparg:
+- 10
+phase:
+- 2
+testdata:
+  phase_methods:
+    2: get
+  targets:
+  - target: n
+    test:
+      data:
+        n: 11
+

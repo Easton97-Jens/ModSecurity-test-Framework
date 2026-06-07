@@ -56,13 +56,13 @@ lint:
 
 quick-check codex-check: lint
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+	$(PYTHON) ci/check-mrts-importer.py
 	git diff --check
 
 generate-test-matrix:
-	$(PYTHON) ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
+	sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; if [ "$$MODSECURITY_MRTS_VARIANT" = "with-mrts" ]; then mrts_import_cases; fi; "$(PYTHON)" ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"'
 
-check-test-matrix:
-	$(PYTHON) ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
+check-test-matrix: generate-test-matrix
 	@git -C "$(OUTPUT_ROOT)" diff --exit-code -- reports/testing docs/testing >/dev/null || { \
 		echo "Generated test matrix docs are out of date for OUTPUT_ROOT=$(OUTPUT_ROOT)"; \
 		exit 1; \
@@ -114,7 +114,7 @@ test-no-mrts:
 	MODSECURITY_MRTS_VARIANT=no-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
 
 test-with-mrts:
-	MODSECURITY_MRTS_VARIANT=with-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; $(PYTHON) ci/import-mrts-cases.py --framework-root "$$FRAMEWORK_ROOT" --mrts-ftw-dir "$$FRAMEWORK_ROOT/tests/mrts/generated/ftw" --mrts-rules-dir "$$FRAMEWORK_ROOT/tests/mrts/generated/rules" --output-dir "$$FRAMEWORK_ROOT/tests/mrts/generated/framework-cases"; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
+	MODSECURITY_MRTS_VARIANT=with-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
 
 test-mrts-matrix:
 	MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_MRTS_VARIANT=no-mrts $(MAKE) test-no-mrts

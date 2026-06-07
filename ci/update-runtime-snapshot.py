@@ -435,17 +435,34 @@ def connector_smoke(
     }
 
 
+def current_test_variant() -> str:
+    return str(os.environ.get("MODSECURITY_TEST_VARIANT") or "no-crs").strip() or "no-crs"
+
+
+def current_mrts_variant() -> str:
+    return str(os.environ.get("MODSECURITY_MRTS_VARIANT") or "no-mrts").strip() or "no-mrts"
+
+
+def variant_summary_path(results_dir: Path, connector: str, fallback: Path) -> Path:
+    path = results_dir / current_test_variant() / current_mrts_variant() / connector / f"{connector}-summary.json"
+    return path if path.exists() else fallback
+
+
+def summary_text_path(summary_path: Path) -> Path:
+    return summary_path.with_name(summary_path.name.replace("-summary.json", "-summary.txt"))
+
+
 def haproxy_default_matrix_smoke(
     existing_by_connector: dict[str, dict],
     command: str,
     exit_code: str,
     results_dir: Path,
 ) -> dict:
-    summary_path = results_dir / "with-crs" / "haproxy-summary.json"
-    text_summary_path = results_dir / "with-crs" / "haproxy-summary.txt"
+    summary_path = variant_summary_path(results_dir, "haproxy", results_dir / "with-crs" / "haproxy-summary.json")
+    text_summary_path = summary_text_path(summary_path)
     if not summary_path.exists():
         summary_path = results_dir / "haproxy-summary.json"
-        text_summary_path = results_dir / "haproxy-summary.txt"
+        text_summary_path = summary_text_path(summary_path)
     if exit_code in {"not_run", ""} and "haproxy" in existing_by_connector:
         return existing_by_connector["haproxy"]
 
@@ -641,6 +658,8 @@ def main() -> int:
     default_nginx_exit_code = "not_run" if args.force_all else str(args.nginx_exit_code)
     default_haproxy_exit_code = "not_run" if args.force_all else str(args.haproxy_exit_code)
     force_all_dir = results_dir / "force-all"
+    default_apache_summary = variant_summary_path(results_dir, "apache", results_dir / "apache-summary.json")
+    default_nginx_summary = variant_summary_path(results_dir, "nginx", results_dir / "nginx-summary.json")
 
     def force_all_smoke_row(connector: str, command: str, exit_code: str) -> dict:
         summary_path = force_all_dir / f"{connector}-summary.json"
@@ -682,16 +701,16 @@ def main() -> int:
                 "apache",
                 args.apache_command,
                 default_apache_exit_code,
-                results_dir / "apache-summary.json",
-                results_dir / "apache-summary.txt",
+                default_apache_summary,
+                summary_text_path(default_apache_summary),
             ),
             connector_smoke_or_existing(
                 existing_by_connector,
                 "nginx",
                 args.nginx_command,
                 default_nginx_exit_code,
-                results_dir / "nginx-summary.json",
-                results_dir / "nginx-summary.txt",
+                default_nginx_summary,
+                summary_text_path(default_nginx_summary),
             ),
             haproxy_default_matrix_smoke(
                 existing_by_connector,

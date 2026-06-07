@@ -1,0 +1,23 @@
+target: RESPONSE_BODY
+rulefile: MRTS_080_RESPONSE_BODY.conf
+testfile: MRTS_080_RESPONSE_BODY.yaml
+templates:
+- Framework MRTS non-disruptive rule
+colkey:
+- - ''
+operator:
+- '@contains'
+oparg:
+- TEST-OK-IF-YOU-SEE-THIS
+phase:
+- 4
+testdata:
+  phase_methods:
+    4: get
+  targets:
+  - target: ''
+    test:
+      data: null
+      input:
+        uri: /
+

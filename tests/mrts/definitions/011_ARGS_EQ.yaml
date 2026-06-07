@@ -1,0 +1,22 @@
+target: ARGS
+rulefile: MRTS_011_ARGS_EQ.conf
+testfile: MRTS_011_ARGS_EQ.yaml
+templates:
+- Framework MRTS blocking rule
+colkey:
+- - n
+operator:
+- '@eq'
+oparg:
+- 10
+phase:
+- 2
+testdata:
+  phase_methods:
+    2: get
+  targets:
+  - target: n
+    test:
+      data:
+        n: 10
+

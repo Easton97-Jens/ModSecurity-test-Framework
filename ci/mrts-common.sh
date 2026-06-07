@@ -55,6 +55,15 @@ mrts_append_rule_preamble() {
     export MODSECURITY_RULE_PREAMBLE_FILE
 }
 
+mrts_import_cases() {
+    MRTS_CASE_ROOT="${MRTS_CASE_ROOT:-$FRAMEWORK_ROOT/tests/mrts/generated/framework-cases}"
+    "${PYTHON:-python3}" "$FRAMEWORK_ROOT/ci/import-mrts-cases.py" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --mrts-ftw-dir "$FRAMEWORK_ROOT/tests/mrts/generated/ftw" \
+        --mrts-rules-dir "$FRAMEWORK_ROOT/tests/mrts/generated/rules" \
+        --output-dir "$MRTS_CASE_ROOT"
+}
+
 prepare_mrts_variant() {
     validate_mrts_variant
     if [ "$MODSECURITY_MRTS_VARIANT" = "no-mrts" ]; then
@@ -69,6 +78,13 @@ prepare_mrts_variant() {
     mrts_append_rule_preamble "$MRTS_LOAD_FILE"
     MRTS_CASE_ROOT="${MRTS_CASE_ROOT:-$FRAMEWORK_ROOT/tests/mrts/generated/framework-cases}"
     mrts_append_extra_case_root "$MRTS_CASE_ROOT"
+}
+
+prepare_mrts_runtime_variant() {
+    prepare_mrts_variant
+    if [ "$MODSECURITY_MRTS_VARIANT" = "with-mrts" ]; then
+        mrts_import_cases
+    fi
 }
 
 set_mrts_results_dir() {

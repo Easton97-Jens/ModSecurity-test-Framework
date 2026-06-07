@@ -12,5 +12,8 @@ TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp}"
 LOG_ROOT="${LOG_ROOT:-$BUILD_ROOT/logs}"
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/connector-smoke-common.sh"
+. "$SCRIPT_DIR/mrts-common.sh"
+
+prepare_mrts_runtime_variant
 
 connector_smoke_run haproxy "$CONNECTOR_ROOT/connectors/haproxy/harness/run_haproxy_smoke.sh"

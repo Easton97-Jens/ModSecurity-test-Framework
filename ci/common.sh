@@ -146,6 +146,27 @@ ci_error() {
     return 0
 }
 
+combine_rule_preambles() {
+    first=$1
+    second=$2
+    label=${3:-combined}
+    if [ -z "$first" ]; then
+        printf '%s\n' "$second"
+        return 0
+    fi
+    if [ -z "$second" ] || [ "$first" = "$second" ]; then
+        printf '%s\n' "$first"
+        return 0
+    fi
+    mkdir -p "$BUILD_ROOT/preambles"
+    combined="$BUILD_ROOT/preambles/$label.load"
+    {
+        printf 'Include "%s"\n' "$first"
+        printf 'Include "%s"\n' "$second"
+    } > "$combined"
+    printf '%s\n' "$combined"
+}
+
 ci_python() {
     if [ -n "${PYTHON:-}" ]; then
         printf '%s\n' "$PYTHON"
