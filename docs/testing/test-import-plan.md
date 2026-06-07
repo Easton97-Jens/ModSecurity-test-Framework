@@ -125,7 +125,7 @@ changes are now applied to adapter-owned NGINX source, but that source intake is
 not a response-body promotion. The dedicated local probe in
 `tests/cases/response/body/response_body_basic_block.yaml` ran three repeats:
 Apache and NGINX both returned HTTP 200 instead of stable HTTP 403. The source
-rows remain `xfail`/`mapped-only`, while `response_body_pass.yaml` remains a
+rows remain `former expected-failure`/`mapped-only`, while `response_body_pass.yaml` remains a
 pass-through smoke only. In the latest 2026-05-21 NGINX run that pass-through
 case returned HTTP 200 after the harness permission fix, but it is still not
 RESPONSE_BODY promotion.
@@ -164,7 +164,7 @@ on NGINX. A 2026-05-20 NGINX source-built run exposed a harness permission
 blocker for the PR #377 expected-200 phase-4 probes, but the 2026-05-21 rerun
 after the harness permission fix returned HTTP 200 for all three active
 phase-4 log-only probes. Strict/invalid-config/large-response response-body
-branches remain xfail or mapped-only in
+branches remain former expected-failure or mapped-only in
 `docs/testing/pr377-test-import-map.md`.
 
 ## Smoke Scopes
@@ -191,13 +191,13 @@ writes detailed result summaries under `$BUILD_ROOT/results/`.
 | proxy | todo | No upstream topology support yet |
 | streaming-buffering | todo | No streaming assertions or chunk control yet |
 | response-body | todo | Connector filter ordering needs explicit support |
-| response-body blocking | xfail | NGINX upstream marks block behavior TODO and local probing did not yield stable HTTP 403 |
+| response-body blocking | non-promoted | NGINX upstream marks block behavior TODO and local probing did not yield stable HTTP 403 |
 | response-body pass-through | pass-through evidence in latest NGINX run | `response_body_pass.yaml` returned HTTP 200 after the NGINX harness permission fix; this is not RESPONSE_BODY blocking verification |
 | multipart basic text field | imported | `multipart_basic_block.yaml` covers simple portable multipart parsing |
 | multipart file collections | imported | FILES, FILES_NAMES, FILES_COMBINED_SIZE, and MULTIPART_FILENAME have active common smoke coverage; FILES_TMPNAMES remains mapped |
 | XML | imported | Tiny XML body processor case is active common coverage; schema/DTD/parser-error cases remain mapped |
 | v2 engine semantics | imported | Operator and transformation cases are active common coverage, including beginsWith, endsWith, pm, containsWord, urlDecode, and htmlEntityDecode |
-| v3 regression JSON | imported | Multipart/XML/operator/action/cookie/header-name/ARGS_NAMES/audit cases are active common coverage; `issue-2196` nolog/pass is xfail due local/CI audit divergence |
+| v3 regression JSON | imported | Multipart/XML/operator/action/cookie/header-name/ARGS_NAMES/audit cases are active common coverage; `issue-2196` nolog/pass keeps former expected-failure history due local/CI audit divergence |
 | external file operators | todo | Needs fixture-file materialization |
 | debug logs | mapped | Text is volatile and connector-specific |
 
@@ -216,9 +216,9 @@ negative-branch evidence for REQUEST_COOKIES/REQUEST_COOKIES_NAMES,
 REQUEST_HEADERS_NAMES, ARGS_NAMES, and REQUEST_URI+t:urlDecode coverage. Apache
 and NGINX passed them in the latest source-built runs after the NGINX harness
 permission fix. They are current local runtime pass-through evidence, not
-automatic promotion for broader xfail/future edge cases.
+automatic promotion for broader former expected-failure/future edge cases.
 
-## Compatibility Expansion Wave (2026-05-19, pending/xfail)
+## Compatibility Expansion Wave (2026-05-19, pending/former expected-failure)
 
 Added 10 source-derived YAML compatibility candidates under `tests/cases/` for known gaps and future targets:
 
@@ -227,21 +227,21 @@ Added 10 source-derived YAML compatibility candidates under `tests/cases/` for k
 - parser/runtime gap probes (invalid JSON, malformed XML)
 - response-header multi-value runtime-gap probe
 
-These are intentionally not promoted to active verified PASS coverage and remain xfail/pending runtime verification.
+These are intentionally not promoted to active verified PASS coverage and remain former expected-failure/pending runtime verification.
 
 ## Operator/Transformation/Phase Expansion (2026-05-19)
 
-Added 16 additional source-derived `xfail` common cases for:
+Added 16 additional source-derived `former expected-failure` common cases for:
 - operators: `@contains`, `@beginsWith`, `@endsWith`, `@streq`, `@rx` (mostly no-match/pass-through targets)
 - transformations: `t:none`, `t:lowercase`, `t:trim`, `t:urlDecode`, `t:urlDecodeUni`, `t:compressWhitespace`
 - phase handling: phase-1 vs phase-2 behavior probes
 - edge/parser: semicolon query, missing header, plus-vs-space decode, empty JSON body
 
-These cases are intentionally tracked as pending/xfail compatibility targets and are not promoted to verified PASS without full runtime evidence.
+These cases are intentionally tracked as pending/former expected-failure compatibility targets and are not promoted to verified PASS without full runtime evidence.
 
 ## Audit/Normalization/Parser Expansion (2026-05-19)
 
-Added 12 additional source-derived xfail compatibility probes for:
+Added 12 additional source-derived former expected-failure compatibility probes for:
 - audit-log presence/normalization/multiline and matched-var evidence
 - duplicate collection/name normalization (headers/cookies/args)
 - parser partial-body edges (JSON/XML)
@@ -251,7 +251,7 @@ All remain pending runtime verification and are excluded from verified PASS acco
 
 ## Multipart/FILES/Unicode/Parser Expansion (2026-05-19)
 
-Added 16 additional source-derived xfail compatibility probes covering:
+Added 16 additional source-derived former expected-failure compatibility probes covering:
 - FILES/FILES_NAMES and multipart edge behavior (boundary, duplicate fields, filename normalization)
 - Unicode/encoding normalization and decode-chain behavior
 - complex JSON/XML structure and parser-edge probes
@@ -261,7 +261,7 @@ All are tracked as pending runtime verification and are not promoted to verified
 
 ## Phase-3/Phase-4 Expansion (2026-05-19)
 
-Added 12 source-derived xfail probes focused on outbound processing:
+Added 12 source-derived former expected-failure probes focused on outbound processing:
 - phase-3 response-header normalization/duplicate/multi-value/missing behavior
 - phase-4 response-body experimental probes (empty/unicode/chunk/compressed/html)
 - phase-4 outbound audit-log behavior probes (rule-id/message expectations)
@@ -270,7 +270,7 @@ These remain non-verified compatibility probes. RESPONSE_BODY is intentionally n
 
 ## Phase-3/4 follow-up expansion (2026-05-19)
 
-Added 10 additional source-derived xfail probes for:
+Added 10 additional source-derived former expected-failure probes for:
 - phase-3 response header presence/charset/location/set-cookie behavior
 - phase-4 response-body no-match/buffering/entity-decode assumptions
 - phase-4 outbound audit matched-var/escaped/multiline assumptions

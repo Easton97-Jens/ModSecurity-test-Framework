@@ -1,0 +1,49 @@
+name: Check common.sh versions
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  check-common-versions:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Check versions
+        run: |
+          set +e
+          export BUILD_ROOT="${RUNNER_TEMP}/ModSecurity-conector-build"
+          python3 ci/check-common-versions.py --check --markdown --write-files --timeout 10 | tee common-version-check.md
+          rc=${PIPESTATUS[0]}
+          cat common-version-check.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+      - name: Generate update patch
+        if: failure()
+        run: |
+          export BUILD_ROOT="${RUNNER_TEMP}/ModSecurity-conector-build"
+          python3 ci/check-common-versions.py --update --timeout 10 || true
+          git diff -- ci/common.sh > common-version-update.patch || true
+          if [ ! -s common-version-update.patch ]; then
+            printf '%s\n' 'No safe common.sh update patch was generated.' > common-version-update.patch
+          fi
+
+      - name: Upload patch
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: common-version-update
+          path: |
+            common-version-check.md
+            common-version-update.patch

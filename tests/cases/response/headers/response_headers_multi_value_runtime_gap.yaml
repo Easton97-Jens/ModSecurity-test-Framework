@@ -4,7 +4,10 @@ origin:
     reason: Source-derived multi-value response-header branch prepared as runtime-gap probe.
 category: response-headers
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "runtime-gap coverage candidate; pending runtime verification and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Multi-value response-header handling may vary by connector filter ordering and normalization.
 name: response_headers_multi_value_runtime_gap
@@ -14,7 +17,7 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecRule RESPONSE_HEADERS:Set-Cookie "@contains session" "id:4410,phase:3,deny,status:403,msg:'xfail response headers multi-value gap'"
+  SecRule RESPONSE_HEADERS:Set-Cookie "@contains session" "id:4410,phase:3,deny,status:403,msg:'former XFAIL response headers multi-value gap'"
 request:
   method: GET
   path: /

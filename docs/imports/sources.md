@@ -45,4 +45,4 @@ server/proxy is implemented in this repository.
 | Topic | Upstream PR | Local use |
 | --- | --- | --- |
 | RAW argument collections | https://github.com/owasp-modsecurity/ModSecurity/pull/3564 | Mapped/evidence-only until local libmodsecurity support and real Apache+NGINX PASS smokes exist |
-| NGINX phase-4 / `RESPONSE_BODY` handling | https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377 | Source changes applied to adapter-owned NGINX files at commit `3d72b004ff27a78ea19c6b945870e2cae62a97ac`; `RESPONSE_BODY` remains xfail/mapped-only |
+| NGINX phase-4 / `RESPONSE_BODY` handling | https://github.com/owasp-modsecurity/ModSecurity-nginx/pull/377 | Source changes applied to adapter-owned NGINX files at commit `3d72b004ff27a78ea19c6b945870e2cae62a97ac`; `RESPONSE_BODY` remains former expected-failure/mapped-only |

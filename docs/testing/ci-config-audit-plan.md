@@ -277,12 +277,12 @@ Implemented status:
   location, installed-readiness is optional diagnostics, and `make smoke-all`
   remains the local authoritative runtime-evidence path.
 
-## XFAIL YAML And CI Helper Follow-Up
+## Former Expected-Failure YAML And CI Helper Follow-Up
 
-The next conservative cleanup fixed malformed XFAIL YAML syntax only. The
+The next conservative cleanup fixed malformed expected-failure YAML syntax only. The
 repaired cases were previously unreadable by the matrix generator, which caused
 them to appear as `unknown` reporting rows despite their source files declaring
-`status: xfail`.
+a historical expected-failure status.
 
 Syntax-only repairs:
 
@@ -327,7 +327,7 @@ Kept in this connector repository:
 - generated connector reports under `docs/testing/generated`
 
 Connector-local `ci/` entrypoints that overlap with framework-owned helpers are
-compatibility wrappers only; they delegate to `$FRAMEWORK_ROOT`. No xfail,
+compatibility wrappers only; they delegate to `$FRAMEWORK_ROOT`. No former expected-failure,
 pending, connector-gap, or RESPONSE_BODY status was promoted by the extraction.
 
 ## Changes That Should Be Separate

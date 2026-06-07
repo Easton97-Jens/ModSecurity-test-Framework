@@ -12,7 +12,7 @@ FORCE_ALL_CASES="${FORCE_ALL_CASES:-0}"
 SNAPSHOT_ARGS=""
 if [ "$FORCE_ALL_CASES" = "1" ]; then
     SNAPSHOT_ARGS="--force-all"
-    echo "runtime-matrix: FORCE_ALL_CASES=1; xfail/pending/future/gap YAML cases will be attempted where applicable"
+    echo "runtime-matrix: FORCE_ALL_CASES=1; all materializable YAML cases will be attempted where applicable"
 fi
 
 echo "runtime-matrix: running Apache smoke with REFRESH=1"

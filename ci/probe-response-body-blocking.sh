@@ -217,7 +217,7 @@ elif summary["nginx"]["stable_pass"] and not summary["apache"]["stable_pass"]:
 elif int(apache_blocked) or int(nginx_blocked):
     summary["classification"] = "blocked-or-mixed"
 else:
-    summary["classification"] = "xfail-mapped-only"
+    summary["classification"] = "not-promoted-mapped-only"
 
 with open(output, "w", encoding="utf-8") as handle:
     json.dump(summary, handle, indent=2, sort_keys=True)

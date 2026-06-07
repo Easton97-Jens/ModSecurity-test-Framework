@@ -1,12 +1,18 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
-BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-test-framework-build
+SOURCE_ROOT ?= /src
+BUILD_ROOT ?= /src/ModSecurity-conector-build
+TMP_ROOT ?= $(BUILD_ROOT)/tmp
+LOG_ROOT ?= $(BUILD_ROOT)/logs
 FRAMEWORK_ROOT ?= $(CURDIR)
 CONNECTOR_ROOT ?= $(CURDIR)
 OUTPUT_ROOT ?= $(CONNECTOR_ROOT)
 PYTHONDONTWRITEBYTECODE ?= 1
 
 export BUILD_ROOT
+export SOURCE_ROOT
+export TMP_ROOT
+export LOG_ROOT
 export FRAMEWORK_ROOT
 export CONNECTOR_ROOT
 export OUTPUT_ROOT
@@ -21,7 +27,6 @@ export MODSECURITY_GIT_REF
 export MODSECURITY_SOURCE_DIR
 export MODSECURITY_V3_SOURCE_DIR
 export MODSECURITY_V3_ROOT
-export SOURCE_ROOT
 export MODSECURITY_TEST_VARIANT
 export CRS_REPO_URL
 export CRS_GIT_REF
@@ -46,8 +51,12 @@ generate-test-matrix:
 
 check-test-matrix:
 	$(PYTHON) ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
-	@git -C "$(OUTPUT_ROOT)" diff --exit-code -- reports/testing docs/testing TEST-COVERAGE-SUMMARY.md >/dev/null || { \
+	@git -C "$(OUTPUT_ROOT)" diff --exit-code -- reports/testing docs/testing >/dev/null || { \
 		echo "Generated test matrix docs are out of date for OUTPUT_ROOT=$(OUTPUT_ROOT)"; \
+		exit 1; \
+	}
+	@git -C "$(FRAMEWORK_ROOT)" diff --exit-code -- TEST-COVERAGE-SUMMARY.md >/dev/null || { \
+		echo "Framework coverage summary is out of date. Run make generate-test-matrix"; \
 		exit 1; \
 	}
 

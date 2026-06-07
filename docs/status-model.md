@@ -9,7 +9,7 @@ The framework separates runtime results from import/classification status.
 | `pass` | Real HTTP behavior matched the YAML expectation | success |
 | `fail` | Server ran but behavior differed from the YAML expectation | exit 1 |
 | `blocked` | Source, download, build, or runtime prerequisite was missing | exit 77 |
-| `xfail` | Expected failure/probe classification, not part of normal smoke | not counted as pass |
+| `not_executable` | Case could not be structurally materialized for the connector/runtime mode | exit 78 |
 | `skipped` | Reserved for explicit future skip behavior | not used silently |
 
 `fail` is used when a rule variable does not reach libmodsecurity or the
@@ -23,7 +23,7 @@ connector returns the wrong HTTP status. `blocked` is only for prerequisites.
 | `connector-specific` | Valid only for a named connector |
 | `mapped-only` | Source is documented but not executable as an active smoke |
 | `blocked` | Relevant source exists but current harness cannot execute it |
-| `xfail` | Probeable case with known instability or expected failure |
+| `former_xfail` | Historical migration metadata for cases now evaluated through normal runtime evidence |
 
 `config/testing/import-status.json` is the machine-readable manifest for import status
 counts. Connector summaries copy those counts into `import_status`.
@@ -38,5 +38,5 @@ Every connector summary JSON includes:
 - `audit_behavior`: `stable`, `unstable`, or `unexpected`
 - `verified_variables`: derived only from passing active cases
 
-`audit_behavior` is `unstable` while the `nolog,pass` no-audit case remains an
-xfail due the local/GitHub Actions difference.
+Former XFAIL cases keep migration metadata, but PASS/FAIL/BLOCKED/NOT_EXECUTABLE
+now comes only from live runtime evidence.

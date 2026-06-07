@@ -11,7 +11,7 @@ entries. It intentionally excludes runtime status strings such as shell
 | Category | Count | Notes |
 | --- | ---: | --- |
 | Owned open/planned items | 23 | Common, schema, normalizer, connector, and future-connector planning |
-| Owned xfail/mapped evidence | 4 | `RESPONSE_BODY`, `v3_action_nolog_pass_no_audit`, RAW-ARGS, response-body pass-through caveat |
+| Owned former expected-failure/mapped evidence | 4 | `RESPONSE_BODY`, `v3_action_nolog_pass_no_audit`, RAW-ARGS, response-body pass-through caveat |
 | Resolved owned items | 1 | Common metadata helper implementations added in Refactor Phase 3 |
 | Imported/upstream-derived markers | 22 | Kept untouched in adapter-owned Apache and NGINX source; classified as adapter-owned-source |
 | Obsolete/resolved markers cleaned | 11 | Owned `TODO:` headings replaced with tracked inventory references |
@@ -44,9 +44,9 @@ entries. It intentionally excludes runtime status strings such as shell
 | `docs/imports/import-analysis-modsecurity-v2.md` | 57 | open work | Per-test map from v2 Perl structures to v3 YAML cases | test | planned | P2 | imports | Continue source-derived mapping only |
 | `docs/roadmap/roadmap.md` | 12 | RAW-ARGS | PR #3564-dependent RAW argument collection cases | raw-args | mapped | P1 | docs/imports/common | Activate only after local source support plus Apache/NGINX PASS |
 | `docs/evidence/raw-args-pr3564.md` | 8 | PR #3564 | RAW argument collection evidence | raw-args | mapped | P1 | evidence | Keep mapped-only until support is proven |
-| `docs/testing/response-body-blocking-investigation.md` | 1 | xfail | Response-body blocking probe | response-body | xfail | P1 | connectors | Do not promote until both connectors return stable HTTP 403 |
-| `tests/cases/response/body/response_body_basic_block.yaml` | 1 | xfail case | Shared response-body blocking probe | response-body | xfail | P1 | docs/imports/common | Explicit probe only; excluded from normal discovery |
-| `tests/cases/audit-log/v3_action_nolog_pass_no_audit.yaml` | 1 | xfail case | `nolog,pass` audit absence differs locally vs CI | audit-log | xfail | P2 | docs/imports/common | Keep probeable but not active common PASS |
+| `docs/testing/response-body-blocking-investigation.md` | 1 | former expected-failure | Response-body blocking probe | response-body | former expected-failure | P1 | connectors | Do not promote until both connectors return stable HTTP 403 |
+| `tests/cases/response/body/response_body_basic_block.yaml` | 1 | former expected-failure case | Shared response-body blocking probe | response-body | former expected-failure | P1 | docs/imports/common | Explicit probe only; excluded from normal discovery |
+| `tests/cases/audit-log/v3_action_nolog_pass_no_audit.yaml` | 1 | former expected-failure case | `nolog,pass` audit absence differs locally vs CI | audit-log | former expected-failure | P2 | docs/imports/common | Keep probeable but not active common PASS |
 | `connectors/apache/src/msc_filters.c` | 65 | upstream-derived FIXME | Apache response/body filter sanity note | response-body | mapped | P2 | adapter-owned-source | Leave untouched; track during response-filter refactor |
 | `tests/cases/connector-specific/apache/run-regression-tests.pl.in` | 482 | upstream-derived TODO | Use `select()`/`poll()` in upstream harness | cleanup | deferred | P3 | adapter-owned-source | Not used by active smokes |
 | `tests/cases/connector-specific/apache/regression/server_root/conf/httpd.conf.in` | 3 | upstream-derived TODO | Upstream regression template configurability | cleanup | deferred | P3 | adapter-owned-source | Retained as configure template |

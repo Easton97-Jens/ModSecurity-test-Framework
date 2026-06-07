@@ -2,14 +2,17 @@
 origin:
   - repo: ModSecurity-apache
     path: t/00-phases.t
-    reason: Maps the phase:4 RESPONSE_BODY audit intent from upstream PR #70 as non-promoted xfail evidence.
+    reason: Maps the phase:4 RESPONSE_BODY audit intent from upstream PR #70 as non-promoted former-XFAIL evidence.
   - repo: ModSecurity-apache
     path: t/conf/extra.conf.in
     reason: Derives only the phase:4 response-body rule shape and audit-log intent from PR #70.
 source: ModSecurity-apache PR #70 @ 73c4ae80743810d866771dd4183be2bea44947dd
 category: audit-log
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "Promoted from expected-failure inventory to normal runtime evidence; live results now determine PASS/FAIL/BLOCKED/NOT_EXECUTABLE."
+promoted_from_xfail_date: "2026-06-07"
 notes: "PR70 phase 4 RESPONSE_BODY audit probe; future/non-promoted evidence only."
 known_limitations:
   - RESPONSE_BODY remains non-verified; this probe is not proof of response-body blocking.
@@ -34,7 +37,7 @@ rules: |
   SecResponseBodyMimeType text/html text/plain
   SecResponseBodyLimit 1048576
   SecRule RESPONSE_BODY "@contains PR70-PHASE4-MARKER" \
-    "id:5704,phase:4,deny,status:403,auditlog,msg:'pr70 phase4 response body audit xfail'"
+    "id:5704,phase:4,deny,status:403,auditlog,msg:'pr70 phase4 response body audit former XFAIL'"
 
 request:
   method: GET
@@ -51,4 +54,4 @@ expect:
   audit_log:
     required: true
     rule_id: 5704
-    message: pr70 phase4 response body audit xfail
+    message: pr70 phase4 response body audit former XFAIL

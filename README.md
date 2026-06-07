@@ -46,6 +46,32 @@ explicitly when you want to prefetch it. The CRS version pin, repository URL,
 and generated CRS paths are centralized in `ci/common.sh`; do not duplicate the
 CRS version in Makefiles, workflows, or other scripts.
 
+## Runtime Smoke Entrypoints
+
+The framework owns runtime-smoke entrypoints for Apache, NGINX, Envoy, HAProxy,
+lighttpd, and Traefik. Apache and NGINX currently have executable connector
+harnesses. Envoy, HAProxy, lighttpd, and Traefik have framework-owned entrypoint
+scripts, but they report BLOCKED until the connector repository provides a real
+server/proxy runtime harness.
+
+Use `make smoke-<connector>` from the connector repository for runtime-smoke
+entry. Use `make connector-starter-checks` only for build/self-test starter
+evidence; starter PASS results are not runtime-smoke evidence and do not verify
+RESPONSE_BODY.
+
+Runtime smoke runners keep sources under `/src`, build/runtime artifacts under
+`/src/ModSecurity-conector-build`, temporary runtime files under
+`/src/ModSecurity-conector-build/tmp`, logs under
+`/src/ModSecurity-conector-build/logs`, and results under
+`/src/ModSecurity-conector-build/results`.
+
+HAProxy has a local preparation helper at `ci/prepare-haproxy-runtime.sh`. It
+uses only the HAProxy source URL, version, and checksum centralized in
+`ci/common.sh`, verifies the official checksum before extraction, confirms the
+source Makefile supports `TARGET=linux-glibc`, and stages only a local runtime
+binary under `/src/ModSecurity-conector-build`. That binary is prerequisite
+evidence only; it is not HAProxy runtime-smoke evidence.
+
 ## YAML Case System
 
 Cases live under `tests/cases/` and are organized by topic:
@@ -90,9 +116,10 @@ python3 ci/generate-case-matrix.py \
   --output-root /path/to/ModSecurity-conector
 ```
 
-Connector output goes to `reports/testing/` plus a root
-`TEST-COVERAGE-SUMMARY.md`. Framework output goes to `docs/testing/` plus its
-own root `TEST-COVERAGE-SUMMARY.md`.
+Connector output goes to `reports/testing/`. The root
+`TEST-COVERAGE-SUMMARY.md` is always framework-owned at the
+`ModSecurity-test-Framework` root, even when connector evidence is generated
+from a parent repository.
 
 ## Evidence Semantics
 

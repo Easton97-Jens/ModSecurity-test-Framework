@@ -1,6 +1,6 @@
 # Response-Body Blocking Investigation
 
-Status: xfail/mapped-only
+Status: former expected-failure/mapped-only
 
 This investigation checks whether a shared `RESPONSE_BODY` blocking case can be
 promoted to active common connector coverage. It uses real connector paths only:
@@ -16,7 +16,7 @@ The direct libmodsecurity API smoke is not counted here.
 | Source | Evidence | Import decision |
 | --- | --- | --- |
 | `ModSecurity-apache/tests/regression/config/10-response-directives.t` | Contains `SecResponseBodyAccess On`, `SecResponseBodyMimeType text/plain null`, and a `RESPONSE_BODY` deny rule expecting HTTP 403. | Source-derived probe candidate |
-| `ModSecurity-nginx/tests/modsecurity-response-body.t` | Contains a comparable `RESPONSE_BODY` deny test, but the upstream Test::Nginx case marks it `TODO: not yet`. | xfail source |
+| `ModSecurity-nginx/tests/modsecurity-response-body.t` | Contains a comparable `RESPONSE_BODY` deny test, but the upstream Test::Nginx case marks it `TODO: not yet`. | former expected-failure source |
 | `ModSecurity_V2/tests/regression/config/10-response-directives.t` | Historical response directive coverage, including response-body blocking expectations. | Compatibility reference |
 | `ModSecurity_V3/test/test-cases/regression/variable-RESPONSE_BODY.json` | V3 regression expects `SecRule RESPONSE_BODY "@contains denystring" ... deny` to return HTTP 403. | Engine/reference evidence |
 
@@ -63,7 +63,7 @@ Relevant logs:
 
 ## Decision
 
-`response_body_basic_block` remains `xfail`/`mapped-only`.
+`response_body_basic_block` remains `former expected-failure`/`mapped-only`.
 
 It is not promoted to:
 

@@ -10,7 +10,7 @@ active ModSecurity review topics:
 
 The framework is intentionally evidence-first. It records what was observed
 through real connector paths and keeps unsupported or unstable behavior mapped
-or xfail instead of reporting fake PASS results.
+or non-promoted instead of reporting fake PASS results.
 
 ## Real-World Connector Path
 
@@ -39,10 +39,10 @@ when passing real-world Apache and NGINX cases support them:
 - `AUDIT_LOG`
 - `RESPONSE_HEADERS`
 
-`RESPONSE_BODY` is not verified. The blocking case remains xfail/mapped because
+`RESPONSE_BODY` is not verified. The blocking case remains non-promoted/mapped-only because
 the dedicated probe has not produced stable HTTP 403 through both connectors.
 Default smoke PASS evidence, force-all runtime-matrix evidence, mapped-only
-inventory, xfail probes, and API-only smoke evidence remain separate.
+inventory, former expected-failure probes, and API-only smoke evidence remain separate.
 
 ## PR #3564: RAW Argument Collections
 
@@ -94,9 +94,9 @@ HTTP result.
 Current local evidence:
 
 - `tests/cases/response/body/response_body_basic_block.yaml` is the explicit
-  derived xfail probe.
-- `make probe-response-body` runs the xfail case through Apache and NGINX.
-- The last documented probe kept the case xfail/mapped-only:
+  derived non-promoted probe.
+- `make probe-response-body` runs the non-promoted case through Apache and NGINX.
+- The last documented probe kept the case non-promoted/mapped-only:
   - Apache returned HTTP 200 without the required audit evidence.
   - NGINX showed Phase-4 match evidence but did not return stable HTTP 403 to
     the client.

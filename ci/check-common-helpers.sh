@@ -51,7 +51,7 @@ int main(void) {
     assert(msconnector_status_from_result("pass") == MSCONNECTOR_STATUS_OK);
     assert(msconnector_status_from_result("fail") == MSCONNECTOR_STATUS_ERROR);
     assert(msconnector_status_from_result("blocked") == MSCONNECTOR_STATUS_BLOCKED);
-    assert(msconnector_status_from_result("xfail") == MSCONNECTOR_STATUS_UNSUPPORTED);
+    assert(msconnector_status_from_result("not_executable") == MSCONNECTOR_STATUS_UNSUPPORTED);
     assert(msconnector_status_from_result("skipped") == MSCONNECTOR_STATUS_UNSUPPORTED);
 
     intervention = msconnector_intervention_make(1, 403, 0, "blocked");

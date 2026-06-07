@@ -99,7 +99,7 @@ PR #377 provenance:
   from ModSecurity-nginx PR #377 commit
   `3d72b004ff27a78ea19c6b945870e2cae62a97ac`.
 - Those changes are source-level phase-4 evidence only. `RESPONSE_BODY` remains
-  xfail/mapped-only and excluded from `verified_variables`.
+  former expected-failure/mapped-only and excluded from `verified_variables`.
 
 Materialized build input:
 

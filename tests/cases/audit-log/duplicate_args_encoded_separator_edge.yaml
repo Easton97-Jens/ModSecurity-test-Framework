@@ -4,7 +4,10 @@ origin:
     reason: duplicate args encoded separator edge probe.
 category: collections
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - "Classification: runtime-difference."
   - Runtime verification pending; not counted as verified PASS.

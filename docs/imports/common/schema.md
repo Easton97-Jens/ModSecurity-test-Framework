@@ -87,7 +87,7 @@ nginx:
 under that case runtime config directory. Supported placeholders are
 `@@NGINX_PHASE4_LOG@@` and `@@NGINX_FILE:<name>@@`. `expect.phase4_log` checks
 stable substrings in the generated phase-4 log and is intended only for
-connector-specific NGINX imported or xfail cases.
+connector-specific NGINX imported or former expected-failure cases.
 
 Open work is tracked in `docs/roadmap/todo-inventory.md`:
 

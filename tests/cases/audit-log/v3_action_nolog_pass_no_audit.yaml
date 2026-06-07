@@ -5,7 +5,10 @@ origin:
     reason: Derives from the V3 nolog/pass case where `ARGS:foo @rx ^bar$` must not write an audit log.
 category: actions
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "Local Apache and NGINX runs observed empty audit logs, but GitHub Actions reported a non-empty audit log; it is not counted as stable common PASS until both environments agree."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Checks audit log absence for a pass-through rule; it does not prove every nolog disruptive-action variant.
   - Uses serial audit placeholders rather than copying the upstream `/tmp/test` paths.

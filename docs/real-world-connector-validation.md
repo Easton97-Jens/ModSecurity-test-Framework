@@ -47,7 +47,7 @@ connector harnesses materialize them and send real HTTP requests.
 The connector repository's current local default summary can list variable
 families in `verified_variables` when the corresponding real-world cases pass.
 That is evidence-scoped and does not promote force-all failures, mapped-only
-inventory, xfail probes, future cases, connector-gap cases, runtime-difference
+inventory, former expected-failure probes, future cases, connector-gap cases, runtime-difference
 cases, or `RESPONSE_BODY`.
 
 | Verified variable | Example active cases | Status |
@@ -62,7 +62,7 @@ cases, or `RESPONSE_BODY`.
 
 `RESPONSE_BODY` is deliberately not listed as verified. The active
 `response_body_pass` case proves pass-through with response-body access enabled,
-but response-body rule-variable blocking remains mapped/xfail until both
+but response-body rule-variable blocking remains non-promoted/mapped-only until both
 connectors return stable HTTP 403 for the same YAML case.
 
 ## Result Metadata
@@ -82,7 +82,7 @@ Each connector summary under `$BUILD_ROOT/results/` records:
 ```
 
 `verified_variables` is computed only from active cases whose result is
-`pass`. Mapped-only, xfail, blocked, and failed cases do not add variables.
+`pass`. Mapped-only, former expected-failure, blocked, and failed cases do not add variables.
 
 ## Current Connector Status
 
