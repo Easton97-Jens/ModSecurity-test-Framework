@@ -1,0 +1,38 @@
+target: ARGS
+rulefile: DEMO_005_EXTENDED_CHECKS.conf
+testfile: DEMO_005_EXTENDED_CHECKS.yaml
+templates:
+- SecRule for TARGETS
+colkey:
+- - ''
+operator:
+- '@contains'
+oparg:
+- attack
+phase:
+- 2
+testdata:
+  phase_methods:
+    2: post
+  targets:
+    - target: ''
+      test:
+        data:
+          foo: attack
+        output:
+          status: 200
+          response_contains: HTTP/1.1
+          log_contains: id
+          log:
+            match_regex: .*
+    - target: arg1
+      test:
+        data:
+          arg1: attack
+        output:
+          status: 200
+          response_contains: HTTP/1.1
+          no_log_contains: abcdefijklmnopqrstuvwxyz
+          log:
+            no_match_regex: '[abcdefijklmnopqrstuvw]xyz[0123456789]'
+            expect_ids: []

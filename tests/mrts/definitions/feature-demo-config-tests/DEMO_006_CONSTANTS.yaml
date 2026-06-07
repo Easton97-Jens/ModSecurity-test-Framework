@@ -1,0 +1,42 @@
+target: ARGS
+rulefile: DEMO_006_CONSTANTS.conf
+testfile: DEMO_006_CONSTANTS.yaml
+constants:
+  one: one
+  template_in_list:
+    - SecRule for TARGETS
+    - Template with constants
+  HEADERS_IN_DICTIONARY:
+    headers:
+      - name: test
+        value: test
+      - name: one
+        value: ~{one}~
+      - name: 2
+        value: ~{TWO}~
+templates: ~{template_in_list}~
+colkey:
+- - ''
+operator:
+- '@contains'
+oparg:
+- attack
+phase: ~{two_in_list}~
+testdata:
+  phase_methods:
+    2: post
+  targets:
+    - target: ''
+      test:
+        data:
+          foo: attack
+        input:
+          headers:
+            - name: one
+              value: ~{one}~
+            - name: 2
+              value: ~{TWO}~
+    - target: ''
+      test:
+        data: ~{FOO_IN_DICT}~
+        input: ~{HEADERS_IN_DICTIONARY}~

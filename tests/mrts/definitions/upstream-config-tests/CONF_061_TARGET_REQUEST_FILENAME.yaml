@@ -1,0 +1,46 @@
+target: REQUEST_FILENAME
+rulefile: MRTS_061_REQUEST_FILENAME.conf
+testfile: MRTS_061_REQUEST_FILENAME.yaml
+templates:
+  - SecRule for TARGETS
+colkey:
+  - - ''
+operator:
+  - '@contains'
+oparg:
+  - attack
+phase:
+  - 1
+  - 2
+  - 3
+  - 4
+testdata:
+  phase_methods:
+    1: get
+    2: post
+    3: post
+    4: post
+  targets:
+    - target: ''
+      test:
+        data: null
+        input:
+          uri: '/in/uri/attack?arg=value'
+    - target: ''
+      test:
+        data: null
+        input:
+          uri: '/attack/in/uri?arg=value'
+    - target: ''
+      test:
+        data: null
+        input:
+          uri: '/in/uri/is%3Fattack?arg=value'
+    - target: ''
+      test:
+        data: null
+        input:
+          uri: '/in/uri/is?attack'
+        output:
+          log:
+            no_expect_ids: []

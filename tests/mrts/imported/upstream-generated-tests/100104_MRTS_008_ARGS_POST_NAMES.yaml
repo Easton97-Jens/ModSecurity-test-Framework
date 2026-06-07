@@ -1,0 +1,95 @@
+---
+meta:
+  author: MRTS generate-rules.py
+  enabled: true
+  name: MRTS_008_ARGS_POST_NAMES.yaml
+  description: Desc
+tests:
+- test_title: 100104-1
+  ruleid: 100104
+  test_id: 1
+  desc: 'Test case for rule 100104, #1'
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: POST
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+        Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+      uri: /post
+      version: HTTP/1.1
+      data: attack=test
+    output:
+      log:
+        expect_ids:
+        - 100104
+- test_title: 100104-2
+  ruleid: 100104
+  test_id: 2
+  desc: 'Test case for rule 100104, #2'
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: POST
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+        Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+      uri: /post
+      version: HTTP/1.1
+      data: attack1=test
+    output:
+      log:
+        expect_ids:
+        - 100104
+- test_title: 100104-3
+  ruleid: 100104
+  test_id: 3
+  desc: 'Test case for rule 100104, #3'
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: POST
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+        Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+      uri: /post
+      version: HTTP/1.1
+      data: attack2=test
+    output:
+      log:
+        expect_ids:
+        - 100104
+- test_title: 100104-4
+  ruleid: 100104
+  test_id: 4
+  desc: 'Test case for rule 100104, #4'
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: POST
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+        Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+      uri: /post
+      version: HTTP/1.1
+      data: attack_foo=test
+    output:
+      log:
+        expect_ids:
+        - 100104

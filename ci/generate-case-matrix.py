@@ -586,7 +586,11 @@ def metadata_string_list(metadata: dict, key: str) -> list[str]:
 
 def metadata_classification(metadata: dict) -> str:
     value = str(metadata.get("classification") or "").strip()
-    return value or "active"
+    if value:
+        return value
+    if str(metadata.get("source") or "").strip().lower() == "mrts":
+        return "unclassified"
+    return "active"
 
 
 def metadata_mapping_field(metadata: dict, key: str) -> dict:
@@ -627,8 +631,12 @@ def parse_case(path: Path) -> dict:
     connector_observations = metadata_mapping_field(metadata, "connector_observations")
     non_promotion = metadata_mapping_field(metadata, "non_promotion")
     traceability = metadata_mapping_field(metadata, "traceability")
+    mrts_corpus = str(metadata.get("mrts_corpus") or "")
+    mrts_rule_id = str(metadata.get("mrts_rule_id") or "")
     tags = set(extract_gap_tags(path, status, category, notes, source))
     tags.update(normalized_report_token(label) for label in report_labels)
+    if mrts_corpus:
+        tags.add(normalized_report_token(mrts_corpus))
     if classification and normalized_report_token(classification) != "active":
         tags.add(normalized_report_token(classification))
     case_id = str(data.get("name", path.stem) or path.stem)
@@ -646,6 +654,8 @@ def parse_case(path: Path) -> dict:
             "connector_observations": connector_observations,
             "non_promotion": non_promotion,
             "traceability": traceability,
+            "mrts_corpus": mrts_corpus,
+            "mrts_rule_id": mrts_rule_id,
             "tags": tags,
         }
     )
@@ -684,6 +694,8 @@ def parse_case(path: Path) -> dict:
         "connector_observations": connector_observations,
         "non_promotion": non_promotion,
         "traceability": traceability,
+        "mrts_corpus": mrts_corpus,
+        "mrts_rule_id": mrts_rule_id,
         "topic": str(metadata.get("topic") or ""),
         "tags": sorted(tags),
     }
@@ -727,14 +739,14 @@ def render_case_matrix(cases: list[dict]) -> str:
     rows = [
         "# Generated Case Matrix",
         "",
-        "| case_id | path | scope | phase | variables | operators | transformations | status | classification | report labels | runtime_verified | RESPONSE_BODY non-verified | notes |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| case_id | path | scope | phase | variables | operators | transformations | status | MRTS corpus | classification | report labels | runtime_verified | RESPONSE_BODY non-verified | notes |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for case in cases:
         rows.append(
             f"| {case['id']} | `{case['path']}` | {case['scope']} | {','.join(map(str, case['phases'])) or '-'} | "
             f"{', '.join(case['variables']) or '-'} | {', '.join(case['operators']) or '-'} | "
-            f"{', '.join(case['transformations']) or '-'} | {case['status']} | {case['metadata_classification']} | "
+            f"{', '.join(case['transformations']) or '-'} | {case['status']} | {case.get('mrts_corpus') or '-'} | {case['metadata_classification']} | "
             f"{', '.join(case['report_labels']) or '-'} | {case['runtime_verified']} | "
             f"{'yes' if case['response_body'] else 'no'} | {case['notes']} |"
         )
@@ -877,6 +889,7 @@ def case_text(case: dict) -> str:
         case["category"],
         case["source"],
         case["notes"],
+        case.get("mrts_corpus", ""),
         case.get("metadata_classification", ""),
         case.get("classification_reason", ""),
         " ".join(case.get("report_labels", [])),
@@ -939,13 +952,21 @@ def mrts_cases(cases: list[dict]) -> list[dict]:
     return [case for case in cases if str(case.get("source", "")).lower() == "mrts"]
 
 
-def mrts_source_summary(cases: list[dict]) -> dict[str, int]:
-    rows = mrts_cases(cases)
+def mrts_cases_for_corpus(cases: list[dict], corpus: str) -> list[dict]:
+    return [case for case in mrts_cases(cases) if str(case.get("mrts_corpus", "")) == corpus]
+
+
+def mrts_source_summary(rows: list[dict]) -> dict[str, int]:
     return {
         "total": len(rows),
         "active": sum(1 for case in rows if case_group(case) == "active"),
         "pending": sum(1 for case in rows if case_group(case) == "pending"),
-        "unclassified": sum(1 for case in rows if case.get("topic") == "MRTS generated / unclassified"),
+        "unclassified": sum(
+            1
+            for case in rows
+            if case.get("topic") == "MRTS generated / unclassified"
+            or normalized_report_token(case.get("metadata_classification", "")) == "unclassified"
+        ),
         "response_body_phase4": sum(1 for case in rows if case["response_body"] or 4 in case["phases"]),
         "runtime_executable": sum(
             1
@@ -953,6 +974,99 @@ def mrts_source_summary(cases: list[dict]) -> dict[str, int]:
             if any(runtime_executable(case, connector) for connector in RUNTIME_CONNECTORS)
         ),
     }
+
+
+def count_files(path: Path, pattern: str) -> int:
+    if not path.is_dir():
+        return 0
+    return sum(1 for _ in path.glob(pattern))
+
+
+def same_file_bytes(left: Path, right: Path) -> bool:
+    try:
+        return left.read_bytes() == right.read_bytes()
+    except OSError:
+        return False
+
+
+def drift_summary(generated_dir: Path, golden_dir: Path, pattern: str) -> dict[str, int]:
+    if not generated_dir.is_dir() or not golden_dir.is_dir():
+        return {"generated": count_files(generated_dir, pattern), "golden": count_files(golden_dir, pattern), "matched": 0, "mismatch": 0, "missing": 0, "extra": 0}
+    generated = {path.name: path for path in generated_dir.glob(pattern)}
+    golden = {path.name: path for path in golden_dir.glob(pattern)}
+    common = sorted(set(generated).intersection(golden))
+    matched = sum(1 for name in common if same_file_bytes(generated[name], golden[name]))
+    mismatch = len(common) - matched
+    return {
+        "generated": len(generated),
+        "golden": len(golden),
+        "matched": matched,
+        "mismatch": mismatch,
+        "missing": len(set(golden) - set(generated)),
+        "extra": len(set(generated) - set(golden)),
+    }
+
+
+def mrts_reference_counts() -> dict[str, int]:
+    return {
+        "upstream_config_definitions": count_files(FRAMEWORK_ROOT / "tests/mrts/definitions/upstream-config-tests", "*.yaml"),
+        "feature_demo_definitions": count_files(FRAMEWORK_ROOT / "tests/mrts/definitions/feature-demo-config-tests", "*.yaml"),
+        "upstream_generated_tests": count_files(FRAMEWORK_ROOT / "tests/mrts/imported/upstream-generated-tests", "*.yaml"),
+        "upstream_generated_rules": count_files(FRAMEWORK_ROOT / "tests/mrts/imported/upstream-generated-rules", "*.conf"),
+        "feature_demo_generated_tests": count_files(FRAMEWORK_ROOT / "tests/mrts/imported/feature-demo-generated-tests", "*.yaml"),
+        "feature_demo_generated_rules": count_files(FRAMEWORK_ROOT / "tests/mrts/imported/feature-demo-generated-rules", "*.conf"),
+        "framework_curated_definitions": len(
+            [
+                path
+                for path in (FRAMEWORK_ROOT / "tests/mrts/definitions").glob("*.yaml")
+                if path.name != ".gitkeep"
+            ]
+        ),
+    }
+
+
+def mrts_golden_drift_counts() -> dict[str, dict[str, int]]:
+    return {
+        "upstream_tests": drift_summary(
+            FRAMEWORK_ROOT / "tests/mrts/generated/ftw",
+            FRAMEWORK_ROOT / "tests/mrts/imported/upstream-generated-tests",
+            "*.yaml",
+        ),
+        "upstream_rules": drift_summary(
+            FRAMEWORK_ROOT / "tests/mrts/generated/rules",
+            FRAMEWORK_ROOT / "tests/mrts/imported/upstream-generated-rules",
+            "*.conf",
+        ),
+        "feature_demo_tests": drift_summary(
+            FRAMEWORK_ROOT / "tests/mrts/generated/feature-demo/ftw",
+            FRAMEWORK_ROOT / "tests/mrts/imported/feature-demo-generated-tests",
+            "*.yaml",
+        ),
+        "feature_demo_rules": drift_summary(
+            FRAMEWORK_ROOT / "tests/mrts/generated/feature-demo/rules",
+            FRAMEWORK_ROOT / "tests/mrts/imported/feature-demo-generated-rules",
+            "*.conf",
+        ),
+    }
+
+
+def mrts_duplicate_rule_ids(cases: list[dict]) -> dict[str, list[str]]:
+    by_rule: dict[str, set[str]] = {}
+    for case in mrts_cases(cases):
+        traceability = case.get("traceability")
+        metadata_rule = ""
+        if isinstance(traceability, dict):
+            metadata_rule = str(traceability.get("rule_id") or "")
+        rule_id = metadata_rule or str(case.get("mrts_rule_id") or "")
+        if not rule_id:
+            text = case_text(case)
+            match = re.search(r"\b(?:rule_id|mrts_rule_id)\s*[:=]?\s*(\d+)\b", text)
+            rule_id = match.group(1) if match else ""
+        if not rule_id:
+            continue
+        corpus = str(case.get("mrts_corpus") or "unknown")
+        by_rule.setdefault(rule_id, set()).add(corpus)
+    return {rule_id: sorted(corpora) for rule_id, corpora in sorted(by_rule.items()) if len(corpora) > 1}
 
 
 def mrts_classification_counts(cases: list[dict]) -> Counter:
@@ -984,10 +1098,13 @@ def format_counter(counter: Counter) -> str:
 def render_mrts_source_summary_lines(cases: list[dict]) -> list[str]:
     if not mrts_cases(cases):
         return []
-    summary = mrts_source_summary(cases)
+    summary = mrts_source_summary(mrts_cases(cases))
     classification_counts = mrts_classification_counts(cases)
     connector_counts = mrts_connector_classification_counts(cases)
-    return [
+    references = mrts_reference_counts()
+    drift = mrts_golden_drift_counts()
+    duplicates = mrts_duplicate_rule_ids(cases)
+    lines = [
         "",
         "## MRTS Source Summary",
         f"- Total MRTS imported cases: **{summary['total']}**",
@@ -1000,7 +1117,49 @@ def render_mrts_source_summary_lines(cases: list[dict]) -> list[str]:
         f"- Apache observed classifications: **{format_counter(connector_counts['apache'])}**",
         f"- NGINX observed classifications: **{format_counter(connector_counts['nginx'])}**",
         f"- HAProxy observed classifications: **{format_counter(connector_counts['haproxy'])}**",
+        "",
+        "| Corpus | Category | Definitions | Golden tests | Golden rules | Framework cases | Active | Pending | Unclassified | Phase 4 / RESPONSE_BODY | Runtime-executable |",
+        "|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
+    corpus_rows = [
+        ("upstream-config-tests", "runnable", references["upstream_config_definitions"], references["upstream_generated_tests"], references["upstream_generated_rules"]),
+        ("feature-demo", "optional/demo", references["feature_demo_definitions"], references["feature_demo_generated_tests"], references["feature_demo_generated_rules"]),
+    ]
+    for corpus, category, definition_count, golden_tests, golden_rules in corpus_rows:
+        corpus_summary = mrts_source_summary(mrts_cases_for_corpus(cases, corpus))
+        lines.append(
+            f"| {corpus} | {category} | {definition_count} | {golden_tests} | {golden_rules} | "
+            f"{corpus_summary['total']} | {corpus_summary['active']} | {corpus_summary['pending']} | "
+            f"{corpus_summary['unclassified']} | {corpus_summary['response_body_phase4']} | {corpus_summary['runtime_executable']} |"
+        )
+    lines.append(
+        f"| upstream-generated | golden-only | - | {references['upstream_generated_tests']} | {references['upstream_generated_rules']} | 0 | 0 | 0 | 0 | 0 | 0 |"
+    )
+    lines.append(
+        f"| framework-curated | legacy/reference | {references['framework_curated_definitions']} | - | - | 0 | 0 | 0 | 0 | 0 | 0 |"
+    )
+    lines.extend(
+        [
+            "",
+            "### MRTS Golden Drift",
+            "| Reference | Generated | Golden | Matched | Mismatch | Missing generated | Extra generated |",
+            "|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for label in ["upstream_tests", "upstream_rules", "feature_demo_tests", "feature_demo_rules"]:
+        item = drift[label]
+        lines.append(
+            f"| {label} | {item['generated']} | {item['golden']} | {item['matched']} | {item['mismatch']} | {item['missing']} | {item['extra']} |"
+        )
+    lines.extend(
+        [
+            "",
+            f"- Duplicate MRTS rule IDs across imported runnable/demo corpora: **{len(duplicates)}**",
+            "- Golden-only references under `tests/mrts/imported/**` are not runtime inputs and are not added to `EXTRA_CASE_ROOTS`.",
+            "- Feature-demo cases are report-visible as optional/demo and pending unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` passes collision checks.",
+        ]
+    )
+    return lines
 
 
 def render_status_table(
@@ -1393,7 +1552,8 @@ def runtime_rows(cases: list[dict], snapshot: dict) -> list[dict[str, str]]:
             "case_id": case["id"],
             "path": case["path"],
             "scope": case["scope"],
-            "category": case_category(case),
+            "category": case.get("category") or case_category(case),
+            "mrts_corpus": case.get("mrts_corpus") or "-",
             "metadata_class": runtime_classification(case),
             "yaml_status": case["status"],
             "runtime_executable": "yes" if any(runtime_executable(case, connector) for connector in RUNTIME_CONNECTORS) else "no",
@@ -1514,8 +1674,8 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         *render_connector_runtime_availability(snapshot),
         "",
         "## YAML Runtime Matrix",
-        "| case_id | path | scope | category | metadata class | YAML status | default executable | force-all executable | Apache | Apache promotion | Apache reason | Apache evidence | NGINX | NGINX promotion | NGINX reason | NGINX evidence | HAProxy | HAProxy promotion | HAProxy reason | HAProxy evidence |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| case_id | path | scope | category | MRTS corpus | metadata class | YAML status | default executable | force-all executable | Apache | Apache promotion | Apache reason | Apache evidence | NGINX | NGINX promotion | NGINX reason | NGINX evidence | HAProxy | HAProxy promotion | HAProxy reason | HAProxy evidence |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:
         lines.append(
@@ -1527,6 +1687,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
                     "path",
                     "scope",
                     "category",
+                    "mrts_corpus",
                     "metadata_class",
                     "yaml_status",
                     "runtime_executable",

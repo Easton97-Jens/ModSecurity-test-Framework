@@ -1,0 +1,28 @@
+target: ARGS
+rulefile: DEMO_008_URI_REFLECT.conf
+testfile: DEMO_008_URI_REFLECT.yaml
+templates:
+- SecRule for TARGETS
+colkey:
+- - ''
+operator:
+- '@contains'
+oparg:
+- foo
+phase:
+- 2
+testdata:
+  phase_methods:
+    2: post
+  targets:
+    - target: ''
+      test:
+        data: '{"status": 201, "body": "<html>reflected-token</html>"}'
+        input:
+          headers:
+            - name: Content-Type
+              value: application/json
+          uri: '/reflect'
+        output:
+          status: 201
+          response_contains: "reflected-token"

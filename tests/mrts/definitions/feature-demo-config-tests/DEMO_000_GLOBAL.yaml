@@ -1,0 +1,71 @@
+global:
+  version: MRTS/0.1
+  baseid: 100000
+  default_operator: "@rx"
+  templates:
+  - name: "SecRule for TARGETS"
+    template: |
+      SecRule ${TARGET}$ "${OPERATOR}$ ${OPARG}$" \
+          "id:${CURRID}$,\
+          phase:${PHASE}$,\
+          deny,\
+          t:none,\
+          log,\
+          msg:'%{MATCHED_VAR_NAME} was caught in phase:${PHASE}$',\
+          ver:'${VERSION}$'"
+  - name: "Actions demo template, with macro at the end"
+    template: |
+      SecRule ${TARGET}$ "${OPERATOR}$ ${OPARG}$" \
+          "id:${CURRID}$,\
+          phase:${PHASE}$,\
+          deny,\
+          t:none,\
+          log,\
+          msg:'%{MATCHED_VAR_NAME} was caught in phase:${PHASE}$',\
+          ver:'${VERSION}$',\
+          ${ACTIONS}$"
+  - name: "Actions demo template, with macro in the middle"
+    template: |
+      SecRule ${TARGET}$ "${OPERATOR}$ ${OPARG}$" \
+          "id:${CURRID}$,\
+          phase:${PHASE}$,\
+          deny,\
+          t:none,\
+          log,\
+          ${ACTIONS}$,\
+          msg:'%{MATCHED_VAR_NAME} was caught in phase:${PHASE}$',\
+          ver:'${VERSION}$'"
+  - name: "Directives demo template"
+    template: |
+      SecRule ${TARGET}$ "${OPERATOR}$ ${OPARG}$" \
+          "id:${CURRID}$,\
+          phase:${PHASE}$,\
+          t:none,\
+          log,\
+          msg:'%{MATCHED_VAR_NAME} was caught in phase:${PHASE}$',\
+          ver:'${VERSION}$'"
+      
+      ${DIRECTIVES}$
+  - name: "Template with constants"
+    template: |
+      SecRule ${TARGET}$ "${OPERATOR}$ ${OPARG}$" \
+          "id:${CURRID}$,\
+          phase:~{phase}~,\
+          deny,\
+          t:~{None}~,\
+          log,\
+          msg:'%{MATCHED_VAR_NAME} was caught in phase:~{phase}~',\
+          ver:'~{VERSION}~'"
+  default_tests_phase_methods:
+  - 2: post
+  default_constants:
+    one: local constants have precedence
+    TWO: 2
+    two_in_list:
+      - 2
+    FOO_IN_DICT:
+      foo: attack
+constants:
+  phase: ${PHASE}$
+  VERSION: ${VERSION}$
+  None: none

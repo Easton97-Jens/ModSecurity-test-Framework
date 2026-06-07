@@ -165,6 +165,7 @@ class MinimalYamlParser:
         if ":" not in raw_value or raw_value.startswith(("'", '"')):
             return parse_scalar(raw_value), index
         key, value = raw_value.split(":", 1)
+        value, index = self.collect_quoted_scalar(value.strip(), index, indent)
         item: dict[str, Any] = {key.strip(): parse_scalar(value.strip())}
         candidate = self.next_significant(index)
         if candidate is not None and indent_of(candidate) == indent + 2:
@@ -194,11 +195,29 @@ class MinimalYamlParser:
             if raw_value in {"|", ">"}:
                 parsed[key], index = self.parse_block(index, current_indent)
             elif raw_value:
+                raw_value, index = self.collect_quoted_scalar(raw_value, index, current_indent)
                 parsed[key] = parse_scalar(raw_value)
             else:
                 nested, index = self.parse_node(index, current_indent + 2)
                 parsed[key] = nested
         return parsed, index
+
+    def collect_quoted_scalar(self, raw_value: str, index: int, parent_indent: int) -> tuple[str, int]:
+        if not raw_value or raw_value[0] not in {"'", '"'}:
+            return raw_value, index
+        quote = raw_value[0]
+        if len(raw_value) > 1 and raw_value.endswith(quote):
+            return raw_value, index
+        parts = [raw_value]
+        while index < len(self.lines):
+            line = self.lines[index]
+            if line.strip() and indent_of(line) <= parent_indent:
+                break
+            parts.append(line.strip())
+            index += 1
+            if parts[-1].endswith(quote):
+                break
+        return " ".join(parts), index
 
     def parse_block(self, index: int, parent_indent: int) -> tuple[str, int]:
         block_lines: list[str] = []
@@ -401,15 +420,24 @@ def rule_blocks(text: str) -> Iterable[str]:
         yield "\n".join(current) + "\n"
 
 
-def read_rule_files(rule_dir: Path) -> tuple[dict[str, str], dict[str, str]]:
-    by_id: dict[str, str] = {}
-    by_base: dict[str, str] = {}
+def relative_path(path: Path | None, root: Path) -> str:
+    if path is None:
+        return ""
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
+
+
+def read_rule_files(rule_dir: Path) -> tuple[dict[str, tuple[str, Path]], dict[str, tuple[str, Path]]]:
+    by_id: dict[str, tuple[str, Path]] = {}
+    by_base: dict[str, tuple[str, Path]] = {}
     for path in sorted(rule_dir.glob("*.conf")):
         text = path.read_text(encoding="utf-8")
-        by_base[path.stem] = text
+        by_base[path.stem] = (text, path)
         for block in rule_blocks(text):
             for rule_id in RULE_ID_RE.findall(block):
-                by_id[rule_id] = block
+                by_id[rule_id] = (block, path)
     return by_id, by_base
 
 
@@ -439,20 +467,69 @@ def test_rule_ids(test: Mapping[str, Any]) -> list[str]:
     return sorted(set(ids))
 
 
-def matching_rule_text(test: Mapping[str, Any], source_path: Path, by_id: Mapping[str, str], by_base: Mapping[str, str]) -> str:
+def matching_rule(
+    test: Mapping[str, Any],
+    source_path: Path,
+    by_id: Mapping[str, tuple[str, Path]],
+    by_base: Mapping[str, tuple[str, Path]],
+) -> tuple[str, Path | None]:
     rule_ids = test_rule_ids(test)
     for rule_id in rule_ids:
         if rule_id in by_id:
             return by_id[rule_id]
     if rule_ids:
-        return ""
+        return "", None
     source_base = source_path.stem
     if "_" in source_base:
         source_base = source_base.split("_", 1)[1]
-    for base, text in by_base.items():
+    for base, item in by_base.items():
         if base == source_base or base in source_path.stem or source_base in base:
-            return text
-    return ""
+            return item
+    return "", None
+
+
+def source_definition_index(definition_dirs: Iterable[Path]) -> dict[str, Path]:
+    index: dict[str, Path] = {}
+    for definition_dir in definition_dirs:
+        if not definition_dir.is_dir():
+            continue
+        for path in sorted(definition_dir.glob("*.yaml")):
+            index[path.name] = path
+            index[path.stem] = path
+            try:
+                lines = path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                continue
+            for line in lines:
+                if line.startswith(("testfile:", "rulefile:")):
+                    _, value = line.split(":", 1)
+                    token = value.strip().strip("'\"")
+                    if token:
+                        index[token] = path
+                        index[Path(token).stem] = path
+    return index
+
+
+def source_definition_for(ftw_file: Path, rule_file: Path | None, index: Mapping[str, Path]) -> Path | None:
+    candidates = [ftw_file.name, ftw_file.stem]
+    if "_" in ftw_file.stem:
+        candidates.append(ftw_file.stem.split("_", 1)[1])
+    if rule_file is not None:
+        candidates.extend([rule_file.name, rule_file.stem])
+    for candidate in candidates:
+        if candidate in index:
+            return index[candidate]
+    return None
+
+
+def upstream_reference_for(path: Path, upstream_dir: Path | None) -> Path | None:
+    if upstream_dir is None or not upstream_dir.is_dir():
+        return None
+    direct = upstream_dir / path.name
+    if direct.exists():
+        return direct
+    matches = sorted(upstream_dir.glob(path.name))
+    return matches[0] if matches else None
 
 
 def detect_phase(rule_text: str) -> int | str:
@@ -503,7 +580,7 @@ def detect_connector_scope(rule_text: str) -> list[str]:
 
 def capability_flags(phase: int | str, variables: list[str], topic: str) -> dict[str, bool]:
     capabilities: dict[str, bool] = {"intervention": True}
-    if isinstance(phase, int):
+    if isinstance(phase, int) and 1 <= phase <= 4:
         capabilities[f"phase{phase}"] = True
     mapping = {
         "ARGS": "query_args",
@@ -730,8 +807,17 @@ def build_case(
     source_path: Path,
     test: Mapping[str, Any],
     rule_text: str,
+    rule_path: Path | None,
     used_names: dict[str, int],
     overlays: Mapping[str, Mapping[str, Any]],
+    *,
+    framework_root: Path,
+    mrts_corpus: str,
+    source_definition: Path | None,
+    upstream_file: Path | None,
+    generated_ftw_file: Path,
+    case_status: str,
+    pending_reason: str,
 ) -> dict[str, Any]:
     stage = first_stage(test)
     request, request_reliable = request_from_stage(stage)
@@ -740,8 +826,12 @@ def build_case(
     variables = detect_variables(rule_text)
     topic = detect_topic(rule_text, variables)
     connector_scope = detect_connector_scope(rule_text)
-    classification_reliable = bool(rule_text and isinstance(phase, int) and variables)
+    supported_phase = isinstance(phase, int) and 1 <= phase <= 4
+    classification_reliable = bool(rule_text and supported_phase and variables)
     active = request_reliable and expect_reliable and classification_reliable
+    status = "active" if active else "pending"
+    if case_status != "computed":
+        status = case_status
     name = stable_case_name(case_seed(source_path, test), used_names)
     limitations = [
         "Generated from MRTS go-ftw output.",
@@ -749,6 +839,8 @@ def build_case(
     ]
     if not active:
         limitations.append(INCOMPLETE_REASON)
+    if status == "pending" and pending_reason and pending_reason not in limitations:
+        limitations.append(pending_reason)
     case: dict[str, Any] = {
         "name": name,
         "origin": [
@@ -760,16 +852,21 @@ def build_case(
         ],
         "category": "mrts",
         "portable": connector_scope == ["common"],
-        "status": "active" if active else "pending",
+        "status": status,
         "known_limitations": limitations,
         "metadata": {
             "source": "mrts",
             "generated": True,
+            "mrts_corpus": mrts_corpus,
+            "source_definition": relative_path(source_definition, framework_root),
+            "upstream_file": relative_path(upstream_file, framework_root),
+            "generated_ftw_file": relative_path(generated_ftw_file, framework_root),
+            "generated_rule_file": relative_path(rule_path, framework_root),
             "phase": phase,
             "topic": topic,
             "variables": variables,
             "connector_scope": connector_scope,
-            "status": "active" if active else "pending",
+            "status": status,
             "runtime_verified": False,
         },
         "capabilities": capability_flags(phase, variables, topic),
@@ -780,11 +877,15 @@ def build_case(
     if not active:
         case["reason"] = INCOMPLETE_REASON
         case["metadata"]["reason"] = INCOMPLETE_REASON
+    if status == "pending" and pending_reason:
+        case["reason"] = pending_reason
+        case["metadata"]["reason"] = pending_reason
     if connector_scope != ["common"]:
         case["connector"] = connector_scope[0]
     rule_id = test.get("ruleid")
     if rule_id not in (None, ""):
         case["expect"]["rule_id"] = int(rule_id) if str(rule_id).isdigit() else str(rule_id)
+        case["metadata"]["mrts_rule_id"] = int(rule_id) if str(rule_id).isdigit() else str(rule_id)
     apply_classification_overlay(case, matching_overlay(name, source_path, test, overlays))
     return case
 
@@ -800,7 +901,19 @@ def iter_ftw_tests(path: Path) -> Iterable[Mapping[str, Any]]:
         yield {"test_title": path.stem, "stages": []}
 
 
-def import_cases(framework_root: Path, ftw_dir: Path, rules_dir: Path, output_dir: Path, classifications_file: Path) -> int:
+def import_cases(
+    framework_root: Path,
+    ftw_dir: Path,
+    rules_dir: Path,
+    output_dir: Path,
+    classifications_file: Path,
+    *,
+    mrts_corpus: str,
+    source_definition_dirs: list[Path],
+    upstream_ftw_dir: Path | None,
+    case_status: str,
+    pending_reason: str,
+) -> int:
     runner_dir = framework_root / "tests" / "runners"
     if str(runner_dir) not in sys.path:
         sys.path.insert(0, str(runner_dir))
@@ -808,6 +921,7 @@ def import_cases(framework_root: Path, ftw_dir: Path, rules_dir: Path, output_di
 
     by_id, by_base = read_rule_files(rules_dir)
     overlays = load_classification_overlays(classifications_file)
+    definition_index = source_definition_index(source_definition_dirs)
     output_dir.mkdir(parents=True, exist_ok=True)
     for old in output_dir.glob("*.yaml"):
         old.unlink()
@@ -816,17 +930,34 @@ def import_cases(framework_root: Path, ftw_dir: Path, rules_dir: Path, output_di
     count = 0
     for ftw_file in sorted(ftw_dir.glob("*.yaml")):
         for test in iter_ftw_tests(ftw_file):
-            rule_text = matching_rule_text(test, ftw_file, by_id, by_base)
             try:
                 source_path = ftw_file.relative_to(framework_root)
             except ValueError:
                 source_path = ftw_file
-            case = build_case(source_path, test, rule_text, used_names, overlays)
+            rule_text, rule_path = matching_rule(test, ftw_file, by_id, by_base)
+            source_definition = source_definition_for(ftw_file, rule_path, definition_index)
+            upstream_file = upstream_reference_for(ftw_file, upstream_ftw_dir)
+            case = build_case(
+                source_path,
+                test,
+                rule_text,
+                rule_path,
+                used_names,
+                overlays,
+                framework_root=framework_root,
+                mrts_corpus=mrts_corpus,
+                source_definition=source_definition,
+                upstream_file=upstream_file,
+                generated_ftw_file=ftw_file,
+                case_status=case_status,
+                pending_reason=pending_reason,
+            )
             output_path = output_dir / f"{case['name']}.yaml"
             write_case(output_path, case)
             load_case(output_path)
             count += 1
     print(f"Imported MRTS framework cases: {count}")
+    print(f"Corpus: {mrts_corpus}")
     print(f"Output: {output_dir}")
     return 0
 
@@ -838,6 +969,11 @@ def main() -> int:
     parser.add_argument("--mrts-rules-dir")
     parser.add_argument("--output-dir")
     parser.add_argument("--classifications-file")
+    parser.add_argument("--mrts-corpus", default="upstream-config-tests")
+    parser.add_argument("--source-definition-dir", action="append", default=[])
+    parser.add_argument("--upstream-ftw-dir")
+    parser.add_argument("--case-status", choices=["computed", "pending", "active"], default="computed")
+    parser.add_argument("--pending-reason", default="")
     args = parser.parse_args()
 
     framework_root = Path(args.framework_root).resolve()
@@ -849,7 +985,23 @@ def main() -> int:
         if args.classifications_file
         else framework_root / DEFAULT_CLASSIFICATIONS_FILE
     )
-    return import_cases(framework_root, ftw_dir, rules_dir, output_dir, classifications_file)
+    source_definition_dirs = [
+        Path(item).resolve()
+        for item in (args.source_definition_dir or [])
+    ]
+    upstream_ftw_dir = Path(args.upstream_ftw_dir).resolve() if args.upstream_ftw_dir else None
+    return import_cases(
+        framework_root,
+        ftw_dir,
+        rules_dir,
+        output_dir,
+        classifications_file,
+        mrts_corpus=args.mrts_corpus,
+        source_definition_dirs=source_definition_dirs,
+        upstream_ftw_dir=upstream_ftw_dir,
+        case_status=args.case_status,
+        pending_reason=args.pending_reason,
+    )
 
 
 if __name__ == "__main__":

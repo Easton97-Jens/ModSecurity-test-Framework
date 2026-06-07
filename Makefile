@@ -29,6 +29,7 @@ export MODSECURITY_V3_SOURCE_DIR
 export MODSECURITY_V3_ROOT
 export MODSECURITY_TEST_VARIANT
 export MODSECURITY_MRTS_VARIANT
+export MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO
 export EXTRA_CASE_ROOTS
 export MRTS_ROOT
 export MRTS_DEFINITIONS
@@ -42,7 +43,7 @@ export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint quick-check codex-check generate-test-matrix check-test-matrix runtime-matrix runtime-matrix-all smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-mrts-matrix mrts-ftw
+.PHONY: lint quick-check codex-check generate-test-matrix check-test-matrix runtime-matrix runtime-matrix-all smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 
 lint:
 	sh -n ci/*.sh
@@ -96,25 +97,22 @@ test-with-crs:
 	MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. ci/common.sh; sh ci/fetch-crs.sh; sh ci/prepare-crs.sh; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
 
 mrts-generate:
-	sh ci/generate-mrts.sh
+	sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; mrts_generate_all_corpora'
 
 mrts-load:
 	sh ci/write-mrts-load.sh
 
 mrts-import:
-	sh ci/generate-mrts.sh
-	sh ci/write-mrts-load.sh >/dev/null
-	$(PYTHON) ci/import-mrts-cases.py \
-		--framework-root "$(FRAMEWORK_ROOT)" \
-		--mrts-ftw-dir "$(FRAMEWORK_ROOT)/tests/mrts/generated/ftw" \
-		--mrts-rules-dir "$(FRAMEWORK_ROOT)/tests/mrts/generated/rules" \
-		--output-dir "$(FRAMEWORK_ROOT)/tests/mrts/generated/framework-cases"
+	sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; mrts_generate_all_corpora; MRTS_RULES_OUT="$$MRTS_UPSTREAM_RULES_OUT" sh ci/write-mrts-load.sh >/dev/null; mrts_import_cases'
 
 test-no-mrts:
 	MODSECURITY_MRTS_VARIANT=no-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
 
 test-with-mrts:
 	MODSECURITY_MRTS_VARIANT=with-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
+
+test-with-mrts-feature-demo:
+	MODSECURITY_MRTS_VARIANT=with-mrts MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1 sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
 
 test-mrts-matrix:
 	MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_MRTS_VARIANT=no-mrts $(MAKE) test-no-mrts

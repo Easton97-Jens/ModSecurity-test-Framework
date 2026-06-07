@@ -27,6 +27,23 @@ MRTS definition files live in:
 tests/mrts/definitions/
 ```
 
+The default runnable corpus is the upstream MRTS config-test corpus:
+
+```text
+tests/mrts/definitions/upstream-config-tests/
+```
+
+Feature-demo config tests are copied 1:1 and remain visible as optional/demo
+coverage, but they are imported as pending/non-runtime by default:
+
+```text
+tests/mrts/definitions/feature-demo-config-tests/
+```
+
+Golden references live under `tests/mrts/imported/`. They are drift/reference
+inputs only: they are never included in `mrts.load`, never imported as runtime
+framework cases, and never appended to `EXTRA_CASE_ROOTS`.
+
 Generated MRTS files live under `tests/mrts/generated/` and are ignored by git.
 They include generated ModSecurity rules, generated go-ftw YAML tests, imported
 framework YAML cases, and `mrts.load`.
@@ -37,6 +54,7 @@ framework YAML cases, and `mrts.load`.
 make mrts-generate
 make test-no-mrts
 make test-with-mrts
+make test-with-mrts-feature-demo
 make test-mrts-matrix
 make mrts-ftw
 ```
@@ -47,7 +65,17 @@ If `EXTRA_CASE_ROOTS` is already set by the caller, it is preserved.
 `make test-with-mrts` generates MRTS artifacts once, writes `mrts.load` once,
 imports generated framework cases once, appends
 `tests/mrts/generated/framework-cases` to `EXTRA_CASE_ROOTS`, and runs the
-existing connector smokes.
+existing connector smokes. By default, `mrts.load` includes only generated rules
+from `upstream-config-tests`.
+
+Feature-demo runtime is explicit opt-in only:
+
+```sh
+MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1 make test-with-mrts-feature-demo
+```
+
+The opt-in path checks for rule-id collisions before it allows feature-demo
+rules into `mrts.load`.
 
 `make mrts-ftw` runs go-ftw directly when `go-ftw` and
 `tests/mrts/ftw.mrts.config.yaml` are available. It is optional and is not part
@@ -69,8 +97,8 @@ If `RESULTS_DIR` is explicitly set, MRTS helpers preserve it.
 ## Coverage Classification
 
 Imported MRTS cases carry `metadata.source: mrts` and are counted by phase,
-topic, variable/collection, and connector scope when their case root is included
-through `EXTRA_CASE_ROOTS`.
+topic, variable/collection, connector scope, and MRTS corpus when their case root
+is included through `EXTRA_CASE_ROOTS`.
 
 Cases are marked `active` only when request, expectation, phase, and variable
 classification are reliable. Otherwise they are marked `pending` with:
@@ -82,3 +110,7 @@ MRTS classification incomplete
 Generated MRTS evidence remains optional and variant-specific. It does not
 promote PASS status by itself, and existing RESPONSE_BODY/phase-4 non-promotion
 policy remains unchanged.
+
+Report categories distinguish `runnable: upstream-config-tests`,
+`optional/demo: feature-demo`, `golden-only: upstream-generated`, and
+`legacy/reference: framework-curated`.

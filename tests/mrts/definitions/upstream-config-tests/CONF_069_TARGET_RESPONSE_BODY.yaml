@@ -1,0 +1,51 @@
+target: RESPONSE_BODY
+rulefile: MRTS_069_RESPONSE_BODY.conf
+testfile: MRTS_069_RESPONSE_BODY.yaml
+templates:
+  - Non-disruptive SecRule for TARGETS
+colkey:
+  - - ''
+operator:
+  - '@contains'
+oparg:
+  - attack
+phase:
+  - 4
+  - 5
+testdata:
+  phase_methods:
+    4: post
+    5: post
+  targets:
+    - target: ''
+      test:
+        data: '{"status": 200, "headers": {"Content-Type":"text/plain"}, "body": "attack"}'
+        input:
+          headers:
+            - name: Content-Type
+              value: application/json
+          uri: '/reflect'
+    - target: ''
+      test:
+        data: '{"status": 200, "headers": {"Content-Type":"text/html"}, "body": "<html>attack</html>"}'
+        input:
+          headers:
+            - name: Content-Type
+              value: application/json
+          uri: '/reflect'
+    - target: ''
+      test:
+        data: '{"status": 200, "headers": {"Content-Type":"text/xml"}, "body": "<level1><level2>attack</level2><level2>foo</level2></level1>"}'
+        input:
+          headers:
+            - name: Content-Type
+              value: application/json
+          uri: '/reflect'
+    - target: ''
+      test:
+        data: '{"status": 200, "headers": {"Content-Type":"application/json"}, "body": "{test:attack}"}'
+        input:
+          headers:
+            - name: Content-Type
+              value: application/json
+          uri: '/reflect'

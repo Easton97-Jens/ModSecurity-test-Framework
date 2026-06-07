@@ -1,0 +1,57 @@
+---
+meta:
+  author: MRTS generate-rules.py
+  enabled: true
+  name: DEMO_005_EXTENDED_CHECKS.yaml
+  description: Desc
+tests:
+- test_title: 100010-1
+  ruleid: 100010
+  test_id: 1
+  desc: 'Test case for rule 100010, #1'
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: POST
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+        Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+      uri: /post
+      version: HTTP/1.1
+      data: foo=attack
+    output:
+      status: 200
+      response_contains: HTTP/1.1
+      log_contains: id
+      log:
+        match_regex: .*
+- test_title: 100010-2
+  ruleid: 100010
+  test_id: 2
+  desc: 'Test case for rule 100010, #2'
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: POST
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+        Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+      uri: /post
+      version: HTTP/1.1
+      data: arg1=attack
+    output:
+      status: 200
+      response_contains: HTTP/1.1
+      no_log_contains: abcdefijklmnopqrstuvwxyz
+      log:
+        no_match_regex: '[abcdefijklmnopqrstuvw]xyz[0123456789]'
+        expect_ids:
+        - 100010

@@ -65,8 +65,15 @@ classification details.
 make mrts-generate
 make test-no-mrts
 make test-with-mrts
+make test-with-mrts-feature-demo
 make test-mrts-matrix
 ```
+
+Default MRTS runtime preparation uses only
+`tests/mrts/definitions/upstream-config-tests`. Feature-demo config tests are
+copied and reported as optional/demo coverage, but they stay pending unless
+`MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` is used. Golden references under
+`tests/mrts/imported/` are for drift reporting only and are never runtime inputs.
 
 ## Runtime Smoke Entrypoints
 
