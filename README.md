@@ -48,9 +48,18 @@ CRS version in Makefiles, workflows, or other scripts.
 
 ## MRTS Integration
 
-MRTS is available as an optional framework-owned test-generation source. It is
-not connector code and is not vendored as a framework submodule. See
-`docs/testing/mrts.md` for setup and classification details.
+MRTS is available as a framework-owned test-generation source. It is not
+connector code and is included as the required framework submodule
+`tools/MRTS`. Initialize it with:
+
+```sh
+git submodule update --init --recursive
+```
+
+The MRTS targets use `tools/MRTS` by default and accept
+`MRTS_ROOT=/path/to/MRTS` for a separate checkout. If the submodule is missing,
+MRTS targets exit with status 77. See `docs/testing/mrts.md` for setup and
+classification details.
 
 ```sh
 make mrts-generate

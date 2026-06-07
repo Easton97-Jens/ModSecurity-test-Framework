@@ -1,22 +1,25 @@
 # MRTS Integration
 
-MRTS is an optional framework-owned test-generation source for ModSecurity
-compatibility probes. It is not connector code, and connector repositories
-should only delegate to the framework MRTS targets.
+MRTS is a framework-owned test-generation source for ModSecurity compatibility
+probes. It is not connector code, and connector repositories should only
+delegate to the framework MRTS targets.
 
-MRTS is expected at `tools/MRTS` by default, but it is not vendored and is not a
-framework submodule.
+MRTS is included as a required framework submodule at `tools/MRTS`. Initialize it
+after cloning the framework:
 
 ```sh
-mkdir -p tools
-git clone https://github.com/owasp-modsecurity/MRTS.git tools/MRTS
+git submodule update --init --recursive
 ```
 
-You can also use a separate local checkout:
+MRTS targets use `tools/MRTS` by default. You can also use a separate local
+checkout:
 
 ```sh
 MRTS_ROOT=/path/to/MRTS make mrts-generate
 ```
+
+If `tools/MRTS` is missing or not initialized, MRTS targets exit with status 77.
+Run `git submodule update --init --recursive` to restore the default checkout.
 
 MRTS definition files live in:
 
