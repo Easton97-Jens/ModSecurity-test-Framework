@@ -1,0 +1,23 @@
+target: RESPONSE_HEADERS
+rulefile: MRTS_070_RESPONSE_HEADERS.conf
+testfile: MRTS_070_RESPONSE_HEADERS.yaml
+templates:
+- Framework MRTS blocking rule
+colkey:
+- - Last-Modified
+operator:
+- '@rx'
+oparg:
+- .
+phase:
+- 3
+testdata:
+  phase_methods:
+    3: get
+  targets:
+  - target: Last-Modified
+    test:
+      data: null
+      input:
+        uri: /
+

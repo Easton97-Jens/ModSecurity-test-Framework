@@ -4,7 +4,10 @@ origin:
     reason: benign SQL-like keyword spacing compatibility probe.
 category: transformations
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - "Classification: pending-runtime-verification."
   - Runtime verification pending; not counted as verified PASS.

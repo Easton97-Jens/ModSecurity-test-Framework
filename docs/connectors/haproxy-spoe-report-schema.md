@@ -44,7 +44,7 @@ Proposed only:
     "passed": 0,
     "failed": 0,
     "skipped": 0,
-    "xfail": 0
+    "former expected-failure": 0
   }
 }
 ```

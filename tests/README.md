@@ -45,4 +45,9 @@ the base `expect` values for `no-crs` and add `expect.variants.with-crs` for a
 minimal With-CRS override. Do not change the base expectation when only the
 With-CRS runtime context differs.
 
+Additional case roots can be supplied through colon-separated
+`EXTRA_CASE_ROOTS`. The optional MRTS integration uses this mechanism only for
+`MODSECURITY_MRTS_VARIANT=with-mrts`; `no-mrts` preserves caller-provided extra
+roots without appending generated MRTS cases.
+
 No full connector regression suite exists yet.

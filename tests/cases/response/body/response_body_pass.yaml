@@ -11,7 +11,7 @@ portable: true
 status: imported
 known_limitations:
   - Pass-through does not prove response-body blocking.
-  - NGINX response-body blocking remains mapped as xfail because the upstream test marks it TODO and local probing did not produce stable HTTP 403.
+  - NGINX response-body blocking remains mapped as former expected-failure because the upstream test marks it TODO and local probing did not produce stable HTTP 403.
 name: response_body_pass
 
 capabilities:

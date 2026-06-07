@@ -4,7 +4,10 @@ origin:
     reason: Source-derived malformed XML branch prepared as connector-gap probe.
 category: body-processors
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "connector-gap coverage candidate; pending runtime verification and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Malformed XML parser/error behavior is not yet normalized in shared connector smoke.
 name: xml_request_body_malformed_connector_gap
@@ -15,7 +18,7 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecRule XML "@contains broken" "id:4408,phase:2,deny,status:403,msg:'xfail malformed XML connector gap'"
+  SecRule XML "@contains broken" "id:4408,phase:2,deny,status:403,msg:'former XFAIL malformed XML connector gap'"
 request:
   method: POST
   path: /

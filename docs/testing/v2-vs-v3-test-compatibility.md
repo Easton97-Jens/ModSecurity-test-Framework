@@ -65,7 +65,7 @@ generated docroot path. After the harness permission fix, the 2026-05-21
 
 Apache passed the corresponding cases as well. This is current local runtime
 pass-through evidence for those no-match branches, not a promotion of any
-separate xfail/future edge cases.
+separate former expected-failure/future edge cases.
 
 ## Mapped Only
 
@@ -82,7 +82,7 @@ The following remain mapped until a future step adds dedicated support:
 
 ## Pending Gap/Target Cases (2026-05-19)
 
-A new xfail compatibility wave adds source-derived but unverified candidates for:
+A new former expected-failure compatibility wave adds source-derived but unverified candidates for:
 
 - V2 transformation edge behavior (`trim` control chars, `urlDecode` invalid encoding, `removeNulls`)
 - V3 collection-name runtime differences (header/cookie/ARGS names)
@@ -92,22 +92,22 @@ These cases are kept outside verified PASS accounting until reproducible Apache+
 
 ## Additional pending operator/transformation coverage (2026-05-19)
 
-A follow-up xfail wave adds operator and transformation compatibility targets from V2/V3 source semantics, including no-match pass-through branches and normalization edge behavior.
+A follow-up former expected-failure wave adds operator and transformation compatibility targets from V2/V3 source semantics, including no-match pass-through branches and normalization edge behavior.
 
 These remain non-verified until reproducible Apache+NGINX full-smoke runtime proof exists.
 
 ## Additional audit/normalization compatibility probes (2026-05-19)
 
-A new xfail wave tracks audit-log and normalization edge behavior that often diverges across connectors and runtimes. These probes are intentionally non-promoted until reproducible cross-connector runtime evidence exists.
+A new former expected-failure wave tracks audit-log and normalization edge behavior that often diverges across connectors and runtimes. These probes are intentionally non-promoted until reproducible cross-connector runtime evidence exists.
 
 ## Multipart/files and encoding probe expansion (2026-05-19)
 
-New source-derived xfail probes track multipart/files edge behavior plus Unicode/encoding and parser-structure differences likely to vary between connector runtimes. They are intentionally non-promoted until reproducible runtime proof exists.
+New source-derived former expected-failure probes track multipart/files edge behavior plus Unicode/encoding and parser-structure differences likely to vary between connector runtimes. They are intentionally non-promoted until reproducible runtime proof exists.
 
 ## Outbound phase compatibility probes (2026-05-19)
 
-New source-derived xfail probes track phase-3/phase-4 runtime differences around response headers, response-body visibility/buffering, and outbound audit logging semantics.
+New source-derived former expected-failure probes track phase-3/phase-4 runtime differences around response headers, response-body visibility/buffering, and outbound audit logging semantics.
 
 ## Outbound follow-up compatibility probes (2026-05-19)
 
-Added further source-derived xfail probes for phase-3/4 response and outbound audit behavior where Apache/NGINX/v2/v3 runtime differences are expected.
+Added further source-derived former expected-failure probes for phase-3/4 response and outbound audit behavior where Apache/NGINX/v2/v3 runtime differences are expected.

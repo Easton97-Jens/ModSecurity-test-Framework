@@ -1,0 +1,23 @@
+target: FILES
+rulefile: MRTS_090_MULTIPART_FILES.conf
+testfile: MRTS_090_MULTIPART_FILES.yaml
+templates:
+- Framework MRTS blocking rule
+colkey:
+- - upload
+operator:
+- '@contains'
+oparg:
+- mrts-file-token
+phase:
+- 2
+testdata:
+  phase_methods:
+    2: post
+  targets:
+  - target: upload
+    test:
+      data: null
+      input:
+        encoded_request: UE9TVCAvdXBsb2FkIEhUVFAvMS4xDQpIb3N0OiBsb2NhbGhvc3QNClVzZXItQWdlbnQ6IE9XQVNQIE1SVFMgdGVzdCBhZ2VudA0KQ29udGVudC1UeXBlOiBtdWx0aXBhcnQvZm9ybS1kYXRhOyBib3VuZGFyeT1tcnRzLWJvdW5kYXJ5DQpDb250ZW50LUxlbmd0aDogMTUxDQoNCi0tbXJ0cy1ib3VuZGFyeQ0KQ29udGVudC1EaXNwb3NpdGlvbjogZm9ybS1kYXRhOyBuYW1lPSJ1cGxvYWQiOyBmaWxlbmFtZT0ibXJ0cy50eHQiDQpDb250ZW50LVR5cGU6IHRleHQvcGxhaW4NCg0KbXJ0cy1maWxlLXRva2VuDQotLW1ydHMtYm91bmRhcnktLQ0K
+

@@ -1,0 +1,24 @@
+target: ARGS
+rulefile: MRTS_102_TRANSFORM_COMPRESS_WHITESPACE.conf
+testfile: MRTS_102_TRANSFORM_COMPRESS_WHITESPACE.yaml
+templates:
+- Framework MRTS action rule
+colkey:
+- - spaced
+operator:
+- '@streq'
+oparg:
+- attack value
+phase:
+- 2
+actions:
+- action:
+  - t:compressWhitespace
+testdata:
+  phase_methods:
+    2: get
+  targets:
+  - target: spaced
+    test:
+      data:
+        spaced: attack   value

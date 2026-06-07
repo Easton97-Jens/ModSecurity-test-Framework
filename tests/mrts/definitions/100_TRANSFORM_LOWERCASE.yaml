@@ -1,0 +1,25 @@
+target: ARGS
+rulefile: MRTS_100_TRANSFORM_LOWERCASE.conf
+testfile: MRTS_100_TRANSFORM_LOWERCASE.yaml
+templates:
+- Framework MRTS action rule
+colkey:
+- - lower
+operator:
+- '@streq'
+oparg:
+- attack
+phase:
+- 2
+actions:
+- action:
+  - t:lowercase
+testdata:
+  phase_methods:
+    2: get
+  targets:
+  - target: lower
+    test:
+      data:
+        lower: ATTACK
+

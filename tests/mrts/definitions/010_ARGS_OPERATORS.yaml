@@ -1,0 +1,27 @@
+target: ARGS
+rulefile: MRTS_010_ARGS_OPERATORS.conf
+testfile: MRTS_010_ARGS_OPERATORS.yaml
+templates:
+- Framework MRTS blocking rule
+colkey:
+- - mrts_arg
+operator:
+- '@rx'
+- '@contains'
+- '@streq'
+- '@beginsWith'
+- '@endsWith'
+- '@pm'
+oparg:
+- attack
+phase:
+- 2
+testdata:
+  phase_methods:
+    2: get
+  targets:
+  - target: mrts_arg
+    test:
+      data:
+        mrts_arg: attack
+

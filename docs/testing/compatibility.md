@@ -84,7 +84,7 @@ cases; see `docs/testing/nginx-runtime-failure-classification.md`.
 | `json_request_body_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `multipart_basic_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `response_body_pass.yaml` | pass-through, HTTP 200 | pass-through, HTTP 200 evidence | RESPONSE_BODY non-verified/non-promoted |
-| `response_body_basic_block` | fail, HTTP 200 | fail, HTTP 200 | xfail/mapped-only |
+| `response_body_basic_block` | fail, HTTP 200 | fail, HTTP 200 | former expected-failure/mapped-only |
 | PR #377 minimal/safe phase-4 log-only probes | n/a | pass, HTTP 200 in latest NGINX smoke | NGINX-specific log-only evidence; not RESPONSE_BODY promotion |
 | PR #377 content-type out-of-scope phase-4 probe | n/a | pass, HTTP 200 in latest NGINX smoke | NGINX-specific log-only evidence; not RESPONSE_BODY promotion |
 
@@ -105,8 +105,8 @@ Observed locally on 2026-05-15 with an explicit external `BUILD_ROOT`:
 | V3 multipart FILES variables | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 XML body processor basic case | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 `@rx`, trim, and `SecAction` basics | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
-| V3 `@pm`, cookies, header names, ARGS_NAMES, and serial audit basics | pass | pass for blocking branches and latest no-match pass-through subset | fully-imported-common for active smoke branches; broader edge cases remain mapped/xfail |
-| V3 `nolog,pass` audit absence (`issue-2196`) | pass locally, empty audit log | pass locally, empty audit log | xfail because GitHub Actions observed a non-empty audit log |
+| V3 `@pm`, cookies, header names, ARGS_NAMES, and serial audit basics | pass | pass for blocking branches and latest no-match pass-through subset | fully-imported-common for active smoke branches; broader edge cases remain mapped/former expected-failure |
+| V3 `nolog,pass` audit absence (`issue-2196`) | pass locally, empty audit log | pass locally, empty audit log | former expected-failure because GitHub Actions observed a non-empty audit log |
 
 The active cases prove only the minimal YAML scenarios. V2 Perl harness
 internals, v3 API-only cases, XML schema/DTD validation, malformed multipart,
@@ -131,7 +131,7 @@ runtime.
 Current active passing cases verify `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`,
 `REQUEST_HEADERS`, `REQUEST_URI`, `REQUEST_BODY`, `FILES`, `XML`, `AUDIT_LOG`,
 and `RESPONSE_HEADERS` through both Apache and NGINX runtime in this workspace.
-`RESPONSE_BODY` remains mapped/xfail until an active response-body
+`RESPONSE_BODY` remains mapped/former expected-failure until an active response-body
 variable/blocking case passes on both connectors.
 
 ## Latest NGINX Runtime Classification (2026-05-21)
@@ -148,7 +148,7 @@ RESPONSE_BODY verification, not response-body blocking proof, and not a full
 phase-4 compatibility claim. See
 `docs/testing/nginx-runtime-failure-classification.md` for the per-case table.
 
-`v3_action_nolog_pass_no_audit` is also classified as xfail/mapped for now:
+`v3_action_nolog_pass_no_audit` is also classified as former expected-failure/mapped for now:
 local runs in this workspace produced HTTP 200 and empty audit logs, but the
 current GitHub Actions run reported `expected audit log to be absent or empty`.
 It is not counted as a stable common PASS until local Apache, local NGINX, and
@@ -359,27 +359,27 @@ It does not replace the authoritative local full source-build smoke
 
 ## Expanded pending compatibility coverage (2026-05-19)
 
-Added a larger source-derived xfail/pending set for connector-gap, runtime-difference, and future-compatibility targets. This extends long-term compatibility tracking without changing current verified PASS semantics.
+Added a larger source-derived former expected-failure/pending set for connector-gap, runtime-difference, and future-compatibility targets. This extends long-term compatibility tracking without changing current verified PASS semantics.
 
-Notably, RESPONSE_BODY remains non-verified and is not promoted; response-body blocking evidence stays xfail/mapped-only until stable cross-connector HTTP 403 proof exists.
+Notably, RESPONSE_BODY remains non-verified and is not promoted; response-body blocking evidence stays former expected-failure/mapped-only until stable cross-connector HTTP 403 proof exists.
 
 ## Pending operator/transformation/phase coverage (2026-05-19)
 
-The compatibility matrix now includes additional source-derived xfail targets for operators, transformations, phase ordering assumptions, and parser/edge behavior. This is roadmap-style coverage, not active verified connector parity.
+The compatibility matrix now includes additional source-derived former expected-failure targets for operators, transformations, phase ordering assumptions, and parser/edge behavior. This is roadmap-style coverage, not active verified connector parity.
 
-`RESPONSE_BODY` classification remains unchanged (xfail/mapped-only, non-verified).
+`RESPONSE_BODY` classification remains unchanged (former expected-failure/mapped-only, non-verified).
 
 ## Audit/normalization/parser pending coverage (2026-05-19)
 
-Compatibility tracking now includes additional source-derived xfail targets for audit-log behavior, duplicate/normalization handling, parser partial-body edges, and transformation-chain interactions. These are roadmap probes and not active PASS parity claims.
+Compatibility tracking now includes additional source-derived former expected-failure targets for audit-log behavior, duplicate/normalization handling, parser partial-body edges, and transformation-chain interactions. These are roadmap probes and not active PASS parity claims.
 
 ## Multipart/files/unicode/parser pending coverage (2026-05-19)
 
-Compatibility tracking now includes additional xfail probes for FILES/multipart parsing, Unicode/encoding normalization, deeper JSON/XML structures, and benign XSS-like/SQLi-like transformation interactions. These remain non-verified roadmap coverage.
+Compatibility tracking now includes additional former expected-failure probes for FILES/multipart parsing, Unicode/encoding normalization, deeper JSON/XML structures, and benign XSS-like/SQLi-like transformation interactions. These remain non-verified roadmap coverage.
 
 ## Outbound phase (3/4) pending coverage (2026-05-19)
 
-Coverage now includes explicit phase-3 response-header and phase-4 outbound/response-body probes as xfail/connector-gap/runtime-difference/future targets. This improves long-term compatibility tracking while keeping RESPONSE_BODY non-verified.
+Coverage now includes explicit phase-3 response-header and phase-4 outbound/response-body probes as former expected-failure/connector-gap/runtime-difference/future targets. This improves long-term compatibility tracking while keeping RESPONSE_BODY non-verified.
 
 ## Additional outbound follow-up probes (2026-05-19)
 

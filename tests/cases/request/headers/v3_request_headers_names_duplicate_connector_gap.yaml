@@ -4,7 +4,10 @@ origin:
     reason: Source-derived duplicate-header edge branch prepared as connector-gap coverage.
 category: collections
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "connector-gap coverage candidate; pending runtime verification and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Duplicate-header normalization may differ across Apache and NGINX.
 name: v3_request_headers_names_duplicate_connector_gap
@@ -15,7 +18,7 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecRule REQUEST_HEADERS_NAMES "@contains X-Dupe" "id:4402,phase:1,deny,status:403,msg:'xfail duplicate header-name connector gap'"
+  SecRule REQUEST_HEADERS_NAMES "@contains X-Dupe" "id:4402,phase:1,deny,status:403,msg:'former XFAIL duplicate header-name connector gap'"
 request:
   method: GET
   path: /

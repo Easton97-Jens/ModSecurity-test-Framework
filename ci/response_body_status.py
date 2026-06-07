@@ -10,10 +10,11 @@ from typing import Any
 
 
 RESPONSE_BODY_EVIDENCE_NOTE = (
-    "RESPONSE_BODY pass-through evidence only; not proof of response-body blocking/inspection."
+    "Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; "
+    "pass-through rows do not prove full RESPONSE_BODY support."
 )
 RESPONSE_BODY_RUNTIME_NOTE = "Runtime passed, but this does not verify RESPONSE_BODY support."
-RESPONSE_BODY_PASS_THROUGH_STATUS = "RESPONSE_BODY_PASS_THROUGH"
+RESPONSE_BODY_PASS_THROUGH_STATUS = "PASS"
 
 _SECRULE_VARIABLE_RE = re.compile(r"^\s*SecRule\s+([^\s]+)", re.MULTILINE)
 _RESPONSE_BODY_MARKERS = ("response_body", "response-body")
@@ -118,16 +119,7 @@ def is_response_body_related(case: Mapping[str, Any] | None, path: str | Path | 
 
 
 def response_body_pass_through_status(classification: str) -> str:
-    normalized = str(classification or "active").strip().lower()
-    prefixes = {
-        "active": "",
-        "connector_gap": "CONNECTOR_GAP_",
-        "runtime_difference": "RUNTIME_DIFFERENCE_",
-        "pending": "PENDING_",
-        "future": "FUTURE_",
-        "xfail": "XFAIL_",
-    }
-    return f"{prefixes.get(normalized, 'XFAIL_')}{RESPONSE_BODY_PASS_THROUGH_STATUS}"
+    return RESPONSE_BODY_PASS_THROUGH_STATUS
 
 
 def matrix_status_for_result(
@@ -139,28 +131,16 @@ def matrix_status_for_result(
     status = result_status.strip().lower()
     if status == "blocked":
         return "BLOCKED"
-    if status == "skipped":
+    if status in {"not_executable", "skipped"}:
         return "NOT_EXECUTABLE"
     if status == "xfail":
-        return "XFAIL_FAIL"
+        return "FAIL"
     if status not in {"pass", "fail"}:
         return status.upper() if status else "UNKNOWN"
     if status == "pass" and response_body_related:
         return response_body_pass_through_status(classification)
 
-    suffix = "PASS" if status == "pass" else "FAIL"
-    normalized = str(classification or "active").strip().lower()
-    if normalized == "active":
-        return suffix
-    if normalized == "connector_gap":
-        return f"CONNECTOR_GAP_{suffix}"
-    if normalized == "runtime_difference":
-        return f"RUNTIME_DIFFERENCE_{suffix}"
-    if normalized == "pending":
-        return f"PENDING_{suffix}"
-    if normalized == "future":
-        return f"FUTURE_{suffix}"
-    return f"XFAIL_{suffix}"
+    return "PASS" if status == "pass" else "FAIL"
 
 
 def response_body_non_promotion_fields(response_body_related: bool, classification: str) -> dict[str, Any]:

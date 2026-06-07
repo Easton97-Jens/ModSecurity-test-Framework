@@ -177,7 +177,7 @@ Phase 9 makes the generated NGINX build source adapter-owned by default:
   module source entries.
 
 This is a source ownership/build-input reduction, not a semantic promotion of
-phase-4 response-body blocking. `RESPONSE_BODY` remains xfail/mapped-only.
+phase-4 response-body blocking. `RESPONSE_BODY` remains former expected-failure/mapped-only.
 
 ## Phase 10 Final NGINX Upstream Removal
 

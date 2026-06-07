@@ -46,6 +46,54 @@ explicitly when you want to prefetch it. The CRS version pin, repository URL,
 and generated CRS paths are centralized in `ci/common.sh`; do not duplicate the
 CRS version in Makefiles, workflows, or other scripts.
 
+## MRTS Integration
+
+MRTS is available as a framework-owned test-generation source. It is not
+connector code and is included as the required framework submodule
+`tools/MRTS`. Initialize it with:
+
+```sh
+git submodule update --init --recursive
+```
+
+The MRTS targets use `tools/MRTS` by default and accept
+`MRTS_ROOT=/path/to/MRTS` for a separate checkout. If the submodule is missing,
+MRTS targets exit with status 77. See `docs/testing/mrts.md` for setup and
+classification details.
+
+```sh
+make mrts-generate
+make test-no-mrts
+make test-with-mrts
+make test-mrts-matrix
+```
+
+## Runtime Smoke Entrypoints
+
+The framework owns runtime-smoke entrypoints for Apache, NGINX, Envoy, HAProxy,
+lighttpd, and Traefik. Apache and NGINX currently have executable connector
+harnesses. Envoy, HAProxy, lighttpd, and Traefik have framework-owned entrypoint
+scripts, but they report BLOCKED until the connector repository provides a real
+server/proxy runtime harness.
+
+Use `make smoke-<connector>` from the connector repository for runtime-smoke
+entry. Use `make connector-starter-checks` only for build/self-test starter
+evidence; starter PASS results are not runtime-smoke evidence and do not verify
+RESPONSE_BODY.
+
+Runtime smoke runners keep sources under `/src`, build/runtime artifacts under
+`/src/ModSecurity-conector-build`, temporary runtime files under
+`/src/ModSecurity-conector-build/tmp`, logs under
+`/src/ModSecurity-conector-build/logs`, and results under
+`/src/ModSecurity-conector-build/results`.
+
+HAProxy has a local preparation helper at `ci/prepare-haproxy-runtime.sh`. It
+uses only the HAProxy source URL, version, and checksum centralized in
+`ci/common.sh`, verifies the official checksum before extraction, confirms the
+source Makefile supports `TARGET=linux-glibc`, and stages only a local runtime
+binary under `/src/ModSecurity-conector-build`. That binary is prerequisite
+evidence only; it is not HAProxy runtime-smoke evidence.
+
 ## YAML Case System
 
 Cases live under `tests/cases/` and are organized by topic:
@@ -77,6 +125,10 @@ discovery also includes XFAIL, pending, future, and gap cases where they are
 applicable to the current connector. These classes are read from YAML metadata
 and connector inventory, not from status directories.
 
+Callers can provide additional case roots with the colon-separated
+`EXTRA_CASE_ROOTS` environment variable. The MRTS helper appends its generated
+framework case root only for `MODSECURITY_MRTS_VARIANT=with-mrts`.
+
 ## Coverage Reports
 
 The generator writes framework-owned reports when `OUTPUT_ROOT` is this
@@ -90,9 +142,10 @@ python3 ci/generate-case-matrix.py \
   --output-root /path/to/ModSecurity-conector
 ```
 
-Connector output goes to `reports/testing/` plus a root
-`TEST-COVERAGE-SUMMARY.md`. Framework output goes to `docs/testing/` plus its
-own root `TEST-COVERAGE-SUMMARY.md`.
+Connector output goes to `reports/testing/`. The root
+`TEST-COVERAGE-SUMMARY.md` is always framework-owned at the
+`ModSecurity-test-Framework` root, even when connector evidence is generated
+from a parent repository.
 
 ## Evidence Semantics
 

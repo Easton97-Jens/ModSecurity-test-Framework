@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import re
@@ -11,6 +12,7 @@ import time
 from typing import Any, Iterable, Mapping
 
 from adapter_interface import ConnectorAdapter
+from case_roots import case_dirs, infer_runner_scope, path_is_in_extra_root
 from msconnector_models import intervention_from_expect, operation_status
 
 DEFAULT_RESPONSE_BODY = "TEST-OK-IF-YOU-SEE-THIS\n"
@@ -93,13 +95,13 @@ CASE_STATUSES = {
     "runtime-difference",
     "skipped",
     "todo",
-    "xfail",
 }
 
-RESULT_STATUSES = {"pass", "fail", "blocked", "skipped", "xfail"}
-CONNECTORS = {"apache", "nginx", "common"}
+RESULT_STATUSES = {"pass", "fail", "blocked", "not_executable", "skipped"}
+CONNECTORS = {"apache", "envoy", "haproxy", "lighttpd", "nginx", "traefik", "common"}
 INTERVENTIONS = {"deny", "pass", "none", "redirect", "block"}
 REQUEST_METHODS = {"GET", "POST"}
+TRANSPORT_RESULTS = {"http_status", "connection_aborted", "aborted"}
 
 
 @dataclass
@@ -305,7 +307,7 @@ def _validate_case_metadata(case: Mapping[str, Any], where: str) -> None:
         raise ValueError(f"case requires_crs must be a boolean{where}")
     connector = case.get("connector")
     if connector is not None and str(connector) not in CONNECTORS:
-        raise ValueError(f"case connector must be apache, nginx, or common{where}")
+        raise ValueError(f"case connector is unsupported{where}")
     status = case.get("status")
     if status is not None and str(status) not in CASE_STATUSES:
         raise ValueError(f"case status is unsupported{where}")
@@ -449,6 +451,9 @@ def _validate_expect_mapping(expect: Mapping[str, Any], where: str) -> None:
     intervention = expect.get("intervention")
     if intervention is not None and str(intervention) not in INTERVENTIONS:
         raise ValueError(f"case expect.intervention is unsupported{where}")
+    transport = expect.get("transport")
+    if transport is not None and str(transport) not in TRANSPORT_RESULTS:
+        raise ValueError(f"case expect.transport is unsupported{where}")
     _validate_expect_audit_log(expect.get("audit_log", {}), where)
     _validate_expect_phase4_log(expect.get("phase4_log", {}), where)
 
@@ -745,6 +750,7 @@ def write_shell_env(
         "EXPECT_INTERVENTION": expect.get("intervention", ""),
         "EXPECT_RULE_ID": expect.get("rule_id", ""),
         "EXPECT_RESPONSE_CONTAINS": expect.get("response_contains", ""),
+        "EXPECT_TRANSPORT": expect.get("transport", "http_status"),
         "EXPECT_AUDIT_LOG_REQUIRED": 1 if _bool_value(audit_log.get("required")) else 0,
     }
     lines = ["# Generated from common test case. Do not edit.\n"]
@@ -774,15 +780,7 @@ def _capability_names(case: Mapping[str, Any]) -> list[str]:
 
 
 def case_scope(path: str | Path) -> str:
-    parts = Path(path).parts
-    if "tests" in parts:
-        index = parts.index("tests")
-        tail = parts[index:]
-        if len(tail) >= 5 and tail[1] == "cases" and tail[2] == "connector-specific":
-            return f"{tail[3]}/connector-specific"
-        if len(tail) >= 3 and tail[1] == "cases":
-            return "common"
-    return "unknown"
+    return infer_runner_scope(path)
 
 
 def case_status_group(case: Mapping[str, Any]) -> str:
@@ -791,6 +789,8 @@ def case_status_group(case: Mapping[str, Any]) -> str:
 
 
 def is_default_runtime_case(case: Mapping[str, Any]) -> bool:
+    if case.get("former_xfail") is True:
+        return False
     return case_status_group(case) in {
         "active",
         "fully-imported-common",
@@ -836,12 +836,15 @@ def case_info(
         "expected_status": expect["status"],
         "expected_intervention": str(expect.get("intervention", "")),
         "actual_status": actual_status,
+        "variant": modsecurity_test_variant(),
     }
     if connector is not None:
         info["executed_connector"] = connector
     if status is not None:
         info["status"] = status
         info["operation_status"] = operation_status(status)
+        if status in {"pass", "fail"}:
+            info["live_executed"] = True
     info["intervention"] = intervention_from_expect(expect)
     return info
 
@@ -850,29 +853,8 @@ def intervention_info(expect: Mapping[str, Any]) -> dict[str, Any]:
     return intervention_from_expect(expect)
 
 
-def _unique_existing_dirs(paths: Iterable[Path]) -> list[Path]:
-    seen: set[Path] = set()
-    unique: list[Path] = []
-    for path in paths:
-        resolved = path.resolve(strict=False)
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        unique.append(path)
-    return unique
-
-
 def _case_dirs(connector_root: Path, connector: str, scope: str, framework_root: Path | None = None) -> list[Path]:
-    common_root = framework_root if framework_root is not None else connector_root
-    common_dirs = [common_root / "tests" / "cases"]
-    connector_dirs = [common_root / "tests" / "cases" / "connector-specific" / connector]
-    if scope == "common":
-        return _unique_existing_dirs(common_dirs)
-    if scope == "connector":
-        return _unique_existing_dirs(connector_dirs)
-    if scope == "all":
-        return _unique_existing_dirs(common_dirs)
-    raise ValueError(f"unsupported case scope: {scope}")
+    return case_dirs(connector_root, connector, scope, framework_root)
 
 
 def _case_path_in_scope(path: str | Path, connector: str, scope: str) -> bool:
@@ -912,15 +894,35 @@ def case_requires_crs(case: Mapping[str, Any]) -> bool:
     return _bool_value(case.get("requires_crs"))
 
 
+def case_connector_scopes(case: Mapping[str, Any]) -> set[str]:
+    metadata = case.get("metadata")
+    scopes: set[str] = set()
+    if isinstance(metadata, Mapping):
+        raw_scope = metadata.get("connector_scope")
+        if isinstance(raw_scope, list):
+            scopes.update(str(item) for item in raw_scope if str(item).strip())
+        elif raw_scope not in (None, ""):
+            scopes.add(str(raw_scope))
+    declared_connector = case.get("connector")
+    if declared_connector not in (None, ""):
+        scopes.add(str(declared_connector))
+    return scopes or {"common"}
+
+
 def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str, scope: str) -> bool:
     path_scope = case_scope(path)
     declared_connector = case.get("connector")
     portable = case.get("portable")
+    connector_scopes = case_connector_scopes(case)
     if case_requires_crs(case) and modsecurity_test_variant() != "with-crs":
         return False
     if not force_all_cases_enabled() and not is_default_runtime_case(case):
         return False
     if path_scope == "common" or path_scope.startswith("common/"):
+        if path_is_in_extra_root(path):
+            if "common" in connector_scopes:
+                return scope in {"common", "all"} and portable is not False
+            return connector in connector_scopes and scope == "all"
         if declared_connector not in (None, "", "common"):
             return False
         if portable is False:
@@ -1023,11 +1025,30 @@ def response_status(response: Any) -> int | None:
     return status if isinstance(status, int) else None
 
 
+def response_transport(response: Any) -> str:
+    if isinstance(response, Mapping):
+        transport = response.get("transport")
+        if transport not in (None, ""):
+            return str(transport)
+    return "http_status"
+
+
 def assert_case_response(case: Mapping[str, Any], response: Any) -> list[str]:
     expect = effective_expect(case)
     expected_status = expect["status"]
+    expected_transport = str(expect.get("transport", "http_status"))
     actual_status = response_status(response)
+    actual_transport = response_transport(response)
     errors: list[str] = []
+    if expected_transport in {"connection_aborted", "aborted"}:
+        if actual_transport not in {"connection_aborted", "aborted"}:
+            errors.append(
+                f"expected transport {expected_transport}, observed {actual_transport}"
+            )
+        return errors
+    if actual_transport in {"connection_aborted", "aborted"}:
+        errors.append(f"expected HTTP {expected_status}, observed transport {actual_transport}")
+        return errors
     if actual_status != expected_status:
         errors.append(f"expected HTTP {expected_status}, observed {actual_status}")
     if str(expect.get("intervention", "")) == "none" and actual_status != 200:
@@ -1132,6 +1153,26 @@ def assert_phase4_log(
         if unexpected in content:
             errors.append(f"expected phase4 log not to contain {unexpected!r}")
     return errors
+
+
+def phase4_log_metadata(phase4_log_file: str | Path | None) -> dict[str, Any]:
+    if phase4_log_file is None:
+        return {}
+    path = Path(phase4_log_file)
+    if not path.exists():
+        return {}
+    metadata: dict[str, Any] = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict) and item.get("event") == "phase4_intervention":
+            metadata = item
+    return metadata
 
 
 def assert_case_artifacts(

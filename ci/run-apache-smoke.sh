@@ -6,6 +6,7 @@ FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$SCRIPT_DIR/common.sh"
+. "$SCRIPT_DIR/mrts-common.sh"
 
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
@@ -37,15 +38,15 @@ SMOKE_DISABLE_LOCK="${SMOKE_DISABLE_LOCK:-0}"
 SMOKE_LOCK_MODE="${SMOKE_LOCK_MODE:-wait}"
 
 prepare_crs_variant() {
+    existing_preamble="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
     if [ "$MODSECURITY_TEST_VARIANT" != "with-crs" ]; then
-        MODSECURITY_RULE_PREAMBLE_FILE=""
+        MODSECURITY_RULE_PREAMBLE_FILE="$existing_preamble"
         export MODSECURITY_RULE_PREAMBLE_FILE
         return 0
     fi
-    if [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
-        sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
-        MODSECURITY_RULE_PREAMBLE_FILE="$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"
-    fi
+    sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
+    crs_preamble="$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"
+    MODSECURITY_RULE_PREAMBLE_FILE=$(combine_rule_preambles "$crs_preamble" "$existing_preamble" "apache-with-crs-${MODSECURITY_MRTS_VARIANT:-no-mrts}")
     export MODSECURITY_RULE_PREAMBLE_FILE
 }
 
@@ -152,8 +153,10 @@ release_build_root_lock() {
     fi
 }
 
+prepare_mrts_runtime_variant
 prepare_crs_variant
 echo "run_apache_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
+echo "run_apache_smoke: MODSECURITY_MRTS_VARIANT=$MODSECURITY_MRTS_VARIANT"
 if [ -n "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
     echo "run_apache_smoke: MODSECURITY_RULE_PREAMBLE_FILE=$MODSECURITY_RULE_PREAMBLE_FILE"
 fi

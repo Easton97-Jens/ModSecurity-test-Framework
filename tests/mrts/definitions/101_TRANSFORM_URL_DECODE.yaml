@@ -1,0 +1,25 @@
+target: ARGS
+rulefile: MRTS_101_TRANSFORM_URL_DECODE.conf
+testfile: MRTS_101_TRANSFORM_URL_DECODE.yaml
+templates:
+- Framework MRTS action rule
+colkey:
+- - encoded
+operator:
+- '@streq'
+oparg:
+- attack value
+phase:
+- 2
+actions:
+- action:
+  - t:urlDecode
+testdata:
+  phase_methods:
+    2: get
+  targets:
+  - target: encoded
+    test:
+      data:
+        encoded: attack%20value
+

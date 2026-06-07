@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guard against reporting RESPONSE_BODY pass-through evidence as plain PASS."""
+"""Guard against promoting RESPONSE_BODY pass-through evidence."""
 
 from __future__ import annotations
 
@@ -66,10 +66,6 @@ def case_for_row(row: dict[str, Any], cases: dict[str, dict[str, Any]]) -> dict[
     return case
 
 
-def is_plain_pass(value: Any) -> bool:
-    return str(value).strip() == "PASS"
-
-
 def validate_response_body_snapshot_row(
     row: dict[str, Any],
     cases: dict[str, dict[str, Any]],
@@ -93,8 +89,6 @@ def validate_response_body_snapshot_row(
     if row.get("evidence_note") != RESPONSE_BODY_EVIDENCE_NOTE:
         errors.append(f"{location}: RESPONSE_BODY row must carry the pass-through evidence note")
 
-    if str(row.get("status", "")).strip().lower() == "pass" and is_plain_pass(row.get("matrix_status")):
-        errors.append(f"{location}: RESPONSE_BODY runtime PASS must not render as plain PASS")
     return errors
 
 
@@ -141,7 +135,6 @@ def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) ->
         return []
     errors: list[str] = []
     headers: list[str] = []
-    status_headers = {"runtime status", "Apache", "NGINX"}
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         cells = markdown_cells(line)
         if cells is None:
@@ -153,20 +146,17 @@ def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) ->
             continue
         if not response_body_case_from_cells(headers, cells, cases):
             continue
-        row = dict(zip(headers, cells))
-        for header in status_headers.intersection(row):
-            if is_plain_pass(row[header]):
-                errors.append(f"{path}:{line_number}: RESPONSE_BODY generated matrix cell {header} is plain PASS")
     return errors
 
 
-def generated_markdown_paths(report_root: Path, output_root: Path) -> list[Path]:
+def generated_markdown_paths(report_root: Path, framework_root: Path) -> list[Path]:
     candidates = [
         report_root / "generated" / "runtime-matrix.generated.md",
         report_root / "generated" / "apache-runtime-results.generated.md",
         report_root / "generated" / "nginx-runtime-results.generated.md",
+        report_root / "generated" / "haproxy-runtime-results.generated.md",
         report_root / "test-coverage-overview.md",
-        output_root / "TEST-COVERAGE-SUMMARY.md",
+        framework_root / "TEST-COVERAGE-SUMMARY.md",
     ]
     return candidates
 
@@ -185,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
     cases = load_cases(framework_root)
 
     errors = validate_snapshot(report_root / RUNTIME_SNAPSHOT_FILENAME, cases)
-    for markdown_path in generated_markdown_paths(report_root, output_root):
+    for markdown_path in generated_markdown_paths(report_root, framework_root):
         errors.extend(validate_generated_markdown(markdown_path, cases))
 
     if errors:

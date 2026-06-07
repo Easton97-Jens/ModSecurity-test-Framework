@@ -4,7 +4,10 @@ origin:
     reason: Source-derived header-name checks adapted as lowercase normalization runtime-difference probe.
 category: collections
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Runtime difference candidate for connector/header-name canonicalization behavior.
 name: v3_request_headers_names_lowercase_runtime_difference
@@ -15,7 +18,7 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecRule REQUEST_HEADERS_NAMES "@contains x-smoke-header" "id:4401,phase:1,deny,status:403,msg:'xfail lowercase header names runtime difference'"
+  SecRule REQUEST_HEADERS_NAMES "@contains x-smoke-header" "id:4401,phase:1,deny,status:403,msg:'former XFAIL lowercase header names runtime difference'"
 request:
   method: GET
   path: /

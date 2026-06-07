@@ -1,0 +1,37 @@
+global:
+  version: MRTS/framework-1
+  baseid: 760000
+  currid: 760000
+  default_operator: "@rx"
+  templates:
+  - name: "Framework MRTS blocking rule"
+    template: |
+      SecRule ${TARGET}$ "${OPERATOR}$ ${OPARG}$" \
+          "id:${CURRID}$,\
+          phase:${PHASE}$,\
+          deny,\
+          status:403,\
+          t:none,\
+          log,\
+          msg:'MRTS ${TARGET}$ phase ${PHASE}$ ${OPERATOR}$',\
+          ver:'${VERSION}$'"
+  - name: "Framework MRTS action rule"
+    template: |
+      SecRule ${TARGET}$ "${OPERATOR}$ ${OPARG}$" \
+          "id:${CURRID}$,\
+          phase:${PHASE}$,\
+          deny,\
+          status:403,\
+          log,\
+          msg:'MRTS ${TARGET}$ phase ${PHASE}$ ${OPERATOR}$ with actions',\
+          ver:'${VERSION}$',\
+          ${ACTIONS}$"
+  - name: "Framework MRTS non-disruptive rule"
+    template: |
+      SecRule ${TARGET}$ "${OPERATOR}$ ${OPARG}$" \
+          "id:${CURRID}$,\
+          phase:${PHASE}$,\
+          t:none,\
+          log,\
+          msg:'MRTS non-disruptive ${TARGET}$ phase ${PHASE}$ ${OPERATOR}$',\
+          ver:'${VERSION}$'"

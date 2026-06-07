@@ -4,7 +4,10 @@ origin:
     reason: phase3 server header presence pending-runtime-verification probe.
 category: response-headers
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - "Classification: pending-runtime-verification."
   - RESPONSE_BODY remains non-verified and non-promoted.

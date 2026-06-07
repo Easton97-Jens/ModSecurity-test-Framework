@@ -1,6 +1,6 @@
 # Response-Body Blocking Investigation
 
-Status: xfail/mapped-only
+Status: former expected-failure/mapped-only
 
 This investigation checks whether a shared `RESPONSE_BODY` blocking case can be
 promoted to active common connector coverage. It uses real connector paths only:
@@ -20,7 +20,7 @@ Observed PR #377 head: `3d72b004ff27a78ea19c6b945870e2cae62a97ac`
 | Source | Evidence | Import decision |
 | --- | --- | --- |
 | `ModSecurity-apache/tests/regression/config/10-response-directives.t` from https://github.com/owasp-modsecurity/ModSecurity-apache | Contains `SecResponseBodyAccess On`, `SecResponseBodyMimeType text/plain null`, and a `RESPONSE_BODY` deny rule expecting HTTP 403. | Source-derived probe candidate |
-| `ModSecurity-nginx/tests/modsecurity-response-body.t` from https://github.com/owasp-modsecurity/ModSecurity-nginx | Contains a comparable `RESPONSE_BODY` deny test, but the upstream Test::Nginx case marks it `TODO: not yet`. PR #377 documents the phase-4/late intervention issue space. | xfail source |
+| `ModSecurity-nginx/tests/modsecurity-response-body.t` from https://github.com/owasp-modsecurity/ModSecurity-nginx | Contains a comparable `RESPONSE_BODY` deny test, but the upstream Test::Nginx case marks it `TODO: not yet`. PR #377 documents the phase-4/late intervention issue space. | former expected-failure source |
 | `ModSecurity_V2/tests/regression/config/10-response-directives.t` from https://github.com/owasp-modsecurity/ModSecurity | Historical response directive coverage, including response-body blocking expectations. | Compatibility reference |
 | `ModSecurity_V3/test/test-cases/regression/variable-RESPONSE_BODY.json` from https://github.com/owasp-modsecurity/ModSecurity | V3 regression expects `SecRule RESPONSE_BODY "@contains denystring" ... deny` to return HTTP 403. | Engine/reference evidence |
 
@@ -93,7 +93,7 @@ Relevant logs, under the configured `BUILD_ROOT`:
 
 ## Decision
 
-`response_body_basic_block` remains `xfail`/`mapped-only`.
+`response_body_basic_block` remains `former expected-failure`/`mapped-only`.
 
 It is not promoted to:
 
@@ -119,8 +119,8 @@ promote `RESPONSE_BODY` support or response-body blocking compatibility.
 
 ## Additional phase-4 experimental probes (2026-05-19)
 
-A dedicated xfail expansion added experimental phase-4 response-body probes (empty/unicode/chunk/compressed/html assumptions) plus outbound audit-log probes. These are compatibility tracking artifacts only and do not change the non-verified RESPONSE_BODY classification.
+A dedicated former expected-failure expansion added experimental phase-4 response-body probes (empty/unicode/chunk/compressed/html assumptions) plus outbound audit-log probes. These are compatibility tracking artifacts only and do not change the non-verified RESPONSE_BODY classification.
 
 ## Follow-up phase-4 probe wave (2026-05-19)
 
-Additional phase-4 response-body and outbound audit probes were added as xfail/future/connector-gap tracking only. They do not alter the RESPONSE_BODY non-verified decision.
+Additional phase-4 response-body and outbound audit probes were added as former expected-failure/future/connector-gap tracking only. They do not alter the RESPONSE_BODY non-verified decision.

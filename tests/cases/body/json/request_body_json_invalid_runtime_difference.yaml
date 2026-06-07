@@ -4,7 +4,10 @@ origin:
     reason: Source-derived invalid JSON parser behavior prepared as runtime-difference probe.
 category: body-processors
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Invalid JSON parser treatment and rule target visibility differ by runtime/setup.
 name: request_body_json_invalid_runtime_difference
@@ -15,7 +18,7 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecRule REQUEST_BODY "@contains badjson" "id:4409,phase:2,deny,status:403,msg:'xfail invalid JSON runtime difference'"
+  SecRule REQUEST_BODY "@contains badjson" "id:4409,phase:2,deny,status:403,msg:'former XFAIL invalid JSON runtime difference'"
 request:
   method: POST
   path: /
