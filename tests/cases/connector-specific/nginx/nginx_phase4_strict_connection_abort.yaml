@@ -38,6 +38,7 @@ response:
 
 expect:
   status: 403
+  transport: connection_aborted
   intervention: deny
   rule_id: 910003
   phase4_log:

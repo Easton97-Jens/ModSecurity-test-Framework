@@ -14,10 +14,14 @@ Generated file — do not edit manually.
 - RESPONSE_BODY cases: **24**
 - Default runtime-executable YAML cases: **61**
 - Force-all runtime-executable YAML cases: **141**
-- Apache attempted YAML cases in default runtime snapshot: **133**
-- NGINX attempted YAML cases in default runtime snapshot: **140**
+- Apache attempted YAML cases in default runtime snapshot: **54**
+- NGINX attempted YAML cases in default runtime snapshot: **60**
 - HAProxy attempted YAML cases in default runtime snapshot: **55**
+- Apache attempted YAML cases in force-all runtime snapshot: **133**
+- NGINX attempted YAML cases in force-all runtime snapshot: **140**
 - HAProxy attempted YAML cases in force-all runtime snapshot: **133**
+- Apache force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **100** / **27** / **0** / **6**
+- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **95** / **39** / **0** / **6**
 - HAProxy force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **104** / **23** / **0** / **6**
 - Mapped-only import inventory entries: **10**
 
@@ -26,7 +30,7 @@ Generated file — do not edit manually.
 - BLOCKED remains reserved for harness, environment, dependency, build, or runtime blockers.
 - NOT_EXECUTABLE means the case is structurally unmappable for that connector/run mode; it is not a blocker and not a pass.
 - Force-all evidence does not promote YAML feature support.
-- RESPONSE_BODY remains experimental/non-promoted, including bounded phase-4 pass-through evidence.
+- RESPONSE_BODY remains experimental/non-promoted, including bounded phase-4 and strict-abort evidence.
 
 ## Framework Integration
 - This framework-owned file is the source of truth for root coverage reporting: `TEST-COVERAGE-SUMMARY.md` in `ModSecurity-test-Framework`.
@@ -105,21 +109,11 @@ Generated file — do not edit manually.
 |---|---:|---:|---:|
 | PASS | 53 | 56 | 54 |
 | RESPONSE_BODY_PASS_THROUGH | 1 | 4 | 1 |
-| XFAIL_PASS | 16 | 16 | 0 |
-| XFAIL_FAIL | 20 | 21 | 0 |
-| PENDING_FAIL | 1 | 1 | 0 |
-| FUTURE_PASS | 6 | 6 | 0 |
-| FUTURE_RESPONSE_BODY_PASS_THROUGH | 1 | 1 | 0 |
-| FUTURE_FAIL | 10 | 10 | 0 |
-| CONNECTOR_GAP_PASS | 4 | 5 | 0 |
-| CONNECTOR_GAP_FAIL | 7 | 6 | 0 |
-| RUNTIME_DIFFERENCE_PASS | 6 | 6 | 0 |
-| RUNTIME_DIFFERENCE_FAIL | 8 | 8 | 0 |
-| NOT_EXECUTABLE | 8 | 1 | 86 |
+| NOT_EXECUTABLE | 87 | 81 | 86 |
 | MAPPED_ONLY | 10 | 10 | 10 |
 
-- Apache attempted YAML cases from default summary: **133**
-- NGINX attempted YAML cases from default summary: **140**
+- Apache attempted YAML cases from default summary: **54**
+- NGINX attempted YAML cases from default summary: **60**
 - HAProxy attempted YAML cases from default summary: **55**
 - Apache raw runtime XFAIL observations from default summary: **0**
 - NGINX raw runtime XFAIL observations from default summary: **0**
@@ -127,8 +121,8 @@ Generated file — do not edit manually.
 - Apache NOT EXECUTED YAML rows: **0**
 - NGINX NOT EXECUTED YAML rows: **0**
 - HAProxy NOT EXECUTED YAML rows: **0**
-- Apache NOT_EXECUTABLE YAML rows: **8**
-- NGINX NOT_EXECUTABLE YAML rows: **1**
+- Apache NOT_EXECUTABLE YAML rows: **87**
+- NGINX NOT_EXECUTABLE YAML rows: **81**
 - HAProxy NOT_EXECUTABLE YAML rows: **86**
 - Mapped-only import inventory entries: **10**
 - Runtime matrix detail: `reports/testing/generated/runtime-matrix.generated.md`
@@ -141,8 +135,8 @@ Generated file — do not edit manually.
 ## Force-All Runtime Matrix Status
 | Connector | Status | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
 |---|---|---:|---:|---:|---:|---:|---|
-| Apache | NOT_AVAILABLE | 0 | unknown | unknown | unknown | unknown | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
-| NGINX | NOT_AVAILABLE | 0 | unknown | unknown | unknown | unknown | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
+| Apache | FAIL | 133 | 100 | 27 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
+| NGINX | FAIL | 140 | 95 | 39 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
 | HAProxy | FAIL | 133 | 104 | 23 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
 
 - HAProxy force-all attempted YAML cases: **133**
@@ -175,7 +169,7 @@ Generated file — do not edit manually.
 - Runtime mode: `force-all`
 - Command: `FORCE_ALL_CASES=1 make smoke-haproxy`
 - Status: **FAIL**
-- Exit code: `2`
+- Exit code: `1`
 - Attempted YAML cases: **133**
 - Total cases in summary: **133**
 - Evidence root: `/src/ModSecurity-conector-build/results/force-all`
@@ -247,21 +241,21 @@ Generated file — do not edit manually.
 ## Default Runtime Smoke Evidence
 | Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
 |---|---|---|---|---|---|---|---|---|---|
-| apache | FORCE_ALL_CASES=1 REFRESH=1 make smoke-apache | FAIL | 2 | 133 | 87 | 46 | 0 | unknown | /src/ModSecurity-conector-build/results/apache-summary.json |
-| nginx | FORCE_ALL_CASES=1 REFRESH=1 make smoke-nginx | FAIL | 2 | 140 | 94 | 46 | 0 | unknown | /src/ModSecurity-conector-build/results/nginx-summary.json |
+| apache | make smoke-apache | PASS | 0 | 54 | 54 | 0 | 0 | 0 | /src/ModSecurity-conector-build/results/apache-summary.json |
+| nginx | make smoke-nginx | PASS | 0 | 60 | 60 | 0 | 0 | 0 | /src/ModSecurity-conector-build/results/nginx-summary.json |
 | haproxy | make smoke-haproxy | PASS | 0 | 55 | 55 | 0 | 0 | 0 | /src/ModSecurity-conector-build/results/haproxy-summary.json |
 | all | REFRESH=1 make smoke-all | NOT_RUN | not_run | 0 | unknown | unknown | unknown | unknown | not available |
 
 ## Force-All Runtime Smoke Evidence
 | Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
 |---|---|---|---|---|---|---|---|---|---|
-| apache | FORCE_ALL_CASES=1 REFRESH=1 make smoke-apache | NOT_AVAILABLE | not_run | 0 | unknown | unknown | unknown | unknown | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
-| nginx | FORCE_ALL_CASES=1 REFRESH=1 make smoke-nginx | NOT_AVAILABLE | not_run | 0 | unknown | unknown | unknown | unknown | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
-| haproxy | FORCE_ALL_CASES=1 make smoke-haproxy | FAIL | 2 | 133 | 104 | 23 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
+| apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 2 | 133 | 100 | 27 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
+| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 140 | 95 | 39 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
+| haproxy | FORCE_ALL_CASES=1 make smoke-haproxy | FAIL | 1 | 133 | 104 | 23 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
 
 ## Validation Snapshot
-- Snapshot: **2026-06-06** (2026-06-06 22:19:59 CEST)
-- Git: branch `integrate-new-connectors-local`, commit `1a09900`
+- Snapshot: **2026-06-07** (2026-06-07 06:24:10 CEST)
+- Git: branch `integrate-new-connectors-local`, commit `eaa8b3a`
 - BUILD_ROOT: `/src/ModSecurity-conector-build`
 - Snapshot file: `reports/testing/runtime-validation-snapshot.json`
 

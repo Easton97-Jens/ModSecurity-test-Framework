@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import re
@@ -100,6 +101,7 @@ RESULT_STATUSES = {"pass", "fail", "blocked", "not_executable", "skipped", "xfai
 CONNECTORS = {"apache", "envoy", "haproxy", "lighttpd", "nginx", "traefik", "common"}
 INTERVENTIONS = {"deny", "pass", "none", "redirect", "block"}
 REQUEST_METHODS = {"GET", "POST"}
+TRANSPORT_RESULTS = {"http_status", "connection_aborted", "aborted"}
 
 
 @dataclass
@@ -449,6 +451,9 @@ def _validate_expect_mapping(expect: Mapping[str, Any], where: str) -> None:
     intervention = expect.get("intervention")
     if intervention is not None and str(intervention) not in INTERVENTIONS:
         raise ValueError(f"case expect.intervention is unsupported{where}")
+    transport = expect.get("transport")
+    if transport is not None and str(transport) not in TRANSPORT_RESULTS:
+        raise ValueError(f"case expect.transport is unsupported{where}")
     _validate_expect_audit_log(expect.get("audit_log", {}), where)
     _validate_expect_phase4_log(expect.get("phase4_log", {}), where)
 
@@ -745,6 +750,7 @@ def write_shell_env(
         "EXPECT_INTERVENTION": expect.get("intervention", ""),
         "EXPECT_RULE_ID": expect.get("rule_id", ""),
         "EXPECT_RESPONSE_CONTAINS": expect.get("response_contains", ""),
+        "EXPECT_TRANSPORT": expect.get("transport", "http_status"),
         "EXPECT_AUDIT_LOG_REQUIRED": 1 if _bool_value(audit_log.get("required")) else 0,
     }
     lines = ["# Generated from common test case. Do not edit.\n"]
@@ -1026,11 +1032,30 @@ def response_status(response: Any) -> int | None:
     return status if isinstance(status, int) else None
 
 
+def response_transport(response: Any) -> str:
+    if isinstance(response, Mapping):
+        transport = response.get("transport")
+        if transport not in (None, ""):
+            return str(transport)
+    return "http_status"
+
+
 def assert_case_response(case: Mapping[str, Any], response: Any) -> list[str]:
     expect = effective_expect(case)
     expected_status = expect["status"]
+    expected_transport = str(expect.get("transport", "http_status"))
     actual_status = response_status(response)
+    actual_transport = response_transport(response)
     errors: list[str] = []
+    if expected_transport in {"connection_aborted", "aborted"}:
+        if actual_transport not in {"connection_aborted", "aborted"}:
+            errors.append(
+                f"expected transport {expected_transport}, observed {actual_transport}"
+            )
+        return errors
+    if actual_transport in {"connection_aborted", "aborted"}:
+        errors.append(f"expected HTTP {expected_status}, observed transport {actual_transport}")
+        return errors
     if actual_status != expected_status:
         errors.append(f"expected HTTP {expected_status}, observed {actual_status}")
     if str(expect.get("intervention", "")) == "none" and actual_status != 200:
@@ -1135,6 +1160,26 @@ def assert_phase4_log(
         if unexpected in content:
             errors.append(f"expected phase4 log not to contain {unexpected!r}")
     return errors
+
+
+def phase4_log_metadata(phase4_log_file: str | Path | None) -> dict[str, Any]:
+    if phase4_log_file is None:
+        return {}
+    path = Path(phase4_log_file)
+    if not path.exists():
+        return {}
+    metadata: dict[str, Any] = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(item, dict) and item.get("event") == "phase4_intervention":
+            metadata = item
+    return metadata
 
 
 def assert_case_artifacts(

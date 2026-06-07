@@ -225,6 +225,15 @@ def matrix_status(result_status: str, classification: str, response_body_related
     )
 
 
+def response_body_pass_is_pass_through(expected: object, actual: object, transport: object) -> bool:
+    if str(transport or "http_status").strip().lower() in {"connection_aborted", "aborted"}:
+        return False
+    try:
+        return int(str(expected)) == 200 and int(str(actual)) == 200
+    except (TypeError, ValueError):
+        return False
+
+
 def case_rows(summary: dict, connector: str, summary_path: Path) -> list[dict]:
     connector_summary = summary.get(connector)
     if not isinstance(connector_summary, dict):
@@ -245,6 +254,12 @@ def case_rows(summary: dict, connector: str, summary_path: Path) -> list[dict]:
             evidence += f"; expected={expected}; actual={actual}"
         response_body_related = bool(metadata["response_body_related"])
         computed_matrix_status = matrix_status(status, metadata["classification"], response_body_related)
+        if (
+            response_body_related
+            and status.strip().lower() == "pass"
+            and not response_body_pass_is_pass_through(expected, actual, item.get("observed_transport_result"))
+        ):
+            computed_matrix_status = matrix_status(status, metadata["classification"], False)
         reason = item.get("reason", "")
         if not reason and status.strip().lower() == "not_executable":
             reason = "structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path"
@@ -276,6 +291,27 @@ def case_rows(summary: dict, connector: str, summary_path: Path) -> list[dict]:
             "evidence_path": item.get("evidence_path", ""),
             "decision_log_path": item.get("decision_log_path", item.get("decision_log", "")),
         }
+        for key in (
+            "phase",
+            "response_headers_seen",
+            "response_body_seen",
+            "response_body_truncated",
+            "response_committed",
+            "intervention",
+            "strict_abort",
+            "observed_status",
+            "observed_transport_result",
+            "connector_phase4_log_path",
+            "nginx_access_log_path",
+            "nginx_error_log_path",
+            "apache_access_log_path",
+            "apache_error_log_path",
+            "response_body_path",
+            "body_bytes_seen",
+            "body_bytes_inspected",
+        ):
+            if key in item:
+                row[key] = item.get(key)
         if item.get("audit_log_path"):
             row["audit_log_path"] = item.get("audit_log_path")
         row.update(response_body_non_promotion_fields(response_body_related, metadata["classification"]))

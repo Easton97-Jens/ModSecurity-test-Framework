@@ -1007,6 +1007,17 @@ def semantic_matrix_status(raw_status: str, classification: str, response_body_r
     )
 
 
+def response_body_pass_is_pass_through(observed: dict) -> bool:
+    if str(observed.get("observed_transport_result", "http_status")).strip().lower() in {"connection_aborted", "aborted"}:
+        return False
+    expected = observed.get("expected_status", observed.get("expected"))
+    actual = observed.get("actual_status", observed.get("actual"))
+    try:
+        return int(str(expected)) == 200 and int(str(actual)) == 200
+    except (TypeError, ValueError):
+        return False
+
+
 def runtime_executable_for_snapshot(case: dict, connector: str, snapshot: dict) -> bool:
     if not connector_applies(case, connector):
         return False
@@ -1056,14 +1067,17 @@ def runtime_cell_from_observed(case: dict, observed: dict) -> dict[str, str]:
         observed_case.get("path", ""),
     )
     raw_status = str(observed.get("status", ""))
-    computed_status = semantic_matrix_status(raw_status, classification, response_body_related)
+    response_body_pass_through = response_body_related and raw_status.strip().lower() == "pass" and response_body_pass_is_pass_through(observed)
+    computed_status = semantic_matrix_status(raw_status, classification, response_body_pass_through)
     status = str(observed.get("matrix_status") or computed_status)
     if response_body_related and raw_status.strip().lower() == "pass":
         status = computed_status
     if status in {NOT_EXECUTED, "NOT_EXECUTABLE"}:
         reason = str(observed.get("reason") or observed.get("details") or "skipped by runtime smoke")
-    elif response_body_related and raw_status.strip().lower() == "pass":
+    elif response_body_pass_through:
         reason = str(observed.get("reason") or f"{RESPONSE_BODY_RUNTIME_NOTE}; classification={classification}")
+    elif response_body_related and raw_status.strip().lower() == "pass":
+        reason = str(observed.get("reason") or f"RESPONSE_BODY disruptive evidence remains non-promoted; classification={classification}")
     else:
         reason = str(observed.get("reason") or f"runtime summary result; classification={classification}")
     expected = observed.get("expected_status", observed.get("expected", "unknown"))
@@ -1229,12 +1243,14 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         f"- Apache attempted YAML cases in default runtime snapshot: **{runtime_attempted_count(snapshot, 'apache')}**",
         f"- NGINX attempted YAML cases in default runtime snapshot: **{runtime_attempted_count(snapshot, 'nginx')}**",
         f"- HAProxy attempted YAML cases in default runtime snapshot: **{runtime_attempted_count(snapshot, 'haproxy')}**",
+        f"- Apache attempted YAML cases in force-all runtime snapshot: **{force_all_runtime_attempted_count(snapshot, 'apache')}**",
+        f"- NGINX attempted YAML cases in force-all runtime snapshot: **{force_all_runtime_attempted_count(snapshot, 'nginx')}**",
         f"- HAProxy attempted YAML cases in force-all runtime snapshot: **{force_all_runtime_attempted_count(snapshot, 'haproxy')}**",
         f"- mapped-only import inventory entries: **{len(mapped_only)}**",
         "- `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that YAML status for that connector.",
         f"- `{NOT_EXECUTED}` means no runtime case evidence is recorded in a non-force/default snapshot.",
         "- `MAPPED_ONLY` entries are import inventory items, not runnable YAML case files.",
-        f"- `{RESPONSE_BODY_PASS_THROUGH_STATUS}` and classified variants are pass-through evidence only and are non-promotable.",
+        f"- `{RESPONSE_BODY_PASS_THROUGH_STATUS}` and bounded Phase 4 / strict-abort classifications remain non-promotable.",
         "",
         "## Status Counts",
         *render_runtime_status_count_table(apache_counts, nginx_counts, haproxy_counts, len(mapped_only)),
@@ -1338,6 +1354,24 @@ def render_connector_runtime_results(cases: list[dict], snapshot: dict, connecto
         lines.extend(render_haproxy_force_all_runtime_details(snapshot, heading_level=2))
     else:
         lines.extend(render_connector_runtime_fail_details(snapshot, connector, heading_level=2))
+        lines.extend(
+            render_connector_phase4_details(
+                snapshot,
+                connector,
+                "runtime_smokes",
+                f"{connector_name} Default Phase 4 / RESPONSE_BODY Evidence",
+                heading_level=2,
+            )
+        )
+        lines.extend(
+            render_connector_phase4_details(
+                snapshot,
+                connector,
+                "force_all_runtime_smokes",
+                f"{connector_name} Force-All Phase 4 / RESPONSE_BODY Evidence",
+                heading_level=2,
+            )
+        )
     lines.extend(
         [
             "",
@@ -1426,6 +1460,75 @@ def render_connector_runtime_fail_details(snapshot: dict, connector: str, headin
         return lines
 
     lines.append(f"No {connector_name} runtime FAIL details were reported.")
+    return lines
+
+
+def phase4_rows_for_smoke(smoke: dict) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for row in smoke_case_rows(smoke):
+        if not isinstance(row, dict):
+            continue
+        capabilities = row.get("capabilities", [])
+        capability_set = {str(item) for item in capabilities} if isinstance(capabilities, list) else set()
+        if (
+            row.get("phase") == 4
+            or "phase4" in capability_set
+            or "response-body" in capability_set
+        ):
+            rows.append(row)
+    return rows
+
+
+def render_connector_phase4_details(
+    snapshot: dict,
+    connector: str,
+    snapshot_key: str,
+    heading: str,
+    heading_level: int,
+) -> list[str]:
+    smokes = (
+        force_all_runtime_summary_by_connector(snapshot)
+        if snapshot_key == "force_all_runtime_smokes"
+        else runtime_summary_by_connector(snapshot)
+    )
+    smoke = smokes.get(connector, {})
+    connector_name = connector_display_name(connector)
+    lines = ["", f"{'#' * heading_level} {heading}"]
+    if not smoke or smoke.get("status") == "NOT_AVAILABLE":
+        lines.append(f"{connector_name} {heading.lower()} is `NOT_AVAILABLE`.")
+        return lines
+    rows = phase4_rows_for_smoke(smoke)
+    if not rows:
+        lines.append("No Phase 4 / RESPONSE_BODY rows are recorded in this summary.")
+        return lines
+    lines.extend(
+        [
+            "| Case | Status | Expected | Observed | Transport | Strict Abort | Body Seen | Truncated | Committed | Audit | Phase4 Log | Evidence |",
+            "|---|---|---:|---:|---|---|---|---|---|---|---|---|",
+        ]
+    )
+    for row in rows:
+        lines.append(
+            "| "
+            + " | ".join(
+                md(value)
+                for value in [
+                    row.get("case", row.get("name", "-")),
+                    row.get("matrix_status", row.get("status", "-")),
+                    row.get("expected_status", row.get("expected", "-")),
+                    row.get("actual_status", row.get("observed", "-")),
+                    row.get("observed_transport_result", "http_status"),
+                    row.get("strict_abort", "-"),
+                    row.get("response_body_seen", "-"),
+                    row.get("response_body_truncated", "-"),
+                    row.get("response_committed", "-"),
+                    row.get("audit_log_path", "-"),
+                    row.get("connector_phase4_log_path", "-"),
+                    row.get("evidence_path") or row.get("evidence") or smoke.get("summary_path", "-"),
+                ]
+            )
+            + " |"
+        )
     return lines
 
 
@@ -1971,7 +2074,11 @@ def render_root_summary(
     apache_smoke_counts = runtime_smokes.get("apache", {}).get("counts", {})
     nginx_smoke_counts = runtime_smokes.get("nginx", {}).get("counts", {})
     haproxy_smoke_counts = runtime_smokes.get("haproxy", {}).get("counts", {})
+    force_all_apache_smoke = force_all_smokes.get("apache", {})
+    force_all_nginx_smoke = force_all_smokes.get("nginx", {})
     force_all_haproxy_smoke = force_all_smokes.get("haproxy", {})
+    force_all_apache_counts = smoke_counts(force_all_apache_smoke)
+    force_all_nginx_counts = smoke_counts(force_all_nginx_smoke)
     force_all_haproxy_counts = smoke_counts(force_all_haproxy_smoke)
     if not isinstance(apache_smoke_counts, dict):
         apache_smoke_counts = {}
@@ -1982,7 +2089,8 @@ def render_root_summary(
     apache_attempted = runtime_attempted_count(runtime_snapshot, "apache")
     nginx_attempted = runtime_attempted_count(runtime_snapshot, "nginx")
     haproxy_attempted = runtime_attempted_count(runtime_snapshot, "haproxy")
-    haproxy_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "haproxy")
+    apache_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "apache")
+    nginx_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "nginx")
     haproxy_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "haproxy")
     runtime_executable_count = sum(1 for row in rt_rows if row["runtime_executable"] == "yes")
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
@@ -2019,7 +2127,11 @@ def render_root_summary(
         f"- Apache attempted YAML cases in default runtime snapshot: **{apache_attempted}**",
         f"- NGINX attempted YAML cases in default runtime snapshot: **{nginx_attempted}**",
         f"- HAProxy attempted YAML cases in default runtime snapshot: **{haproxy_attempted}**",
+        f"- Apache attempted YAML cases in force-all runtime snapshot: **{apache_force_all_attempted}**",
+        f"- NGINX attempted YAML cases in force-all runtime snapshot: **{nginx_force_all_attempted}**",
         f"- HAProxy attempted YAML cases in force-all runtime snapshot: **{haproxy_force_all_attempted}**",
+        f"- Apache force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{count_value(force_all_apache_counts.get('pass', 0))}** / **{count_value(force_all_apache_counts.get('fail', 0))}** / **{count_value(force_all_apache_counts.get('blocked', 0))}** / **{count_value(force_all_apache_counts.get('not_executable', 0))}**",
+        f"- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{count_value(force_all_nginx_counts.get('pass', 0))}** / **{count_value(force_all_nginx_counts.get('fail', 0))}** / **{count_value(force_all_nginx_counts.get('blocked', 0))}** / **{count_value(force_all_nginx_counts.get('not_executable', 0))}**",
         f"- HAProxy force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{count_value(force_all_haproxy_counts.get('pass', 0))}** / **{count_value(force_all_haproxy_counts.get('fail', 0))}** / **{count_value(force_all_haproxy_counts.get('blocked', 0))}** / **{count_value(force_all_haproxy_counts.get('not_executable', 0))}**",
         f"- Mapped-only import inventory entries: **{mapped_only_count}**",
         "",
@@ -2028,7 +2140,7 @@ def render_root_summary(
         "- BLOCKED remains reserved for harness, environment, dependency, build, or runtime blockers.",
         "- NOT_EXECUTABLE means the case is structurally unmappable for that connector/run mode; it is not a blocker and not a pass.",
         "- Force-all evidence does not promote YAML feature support.",
-        "- RESPONSE_BODY remains experimental/non-promoted, including bounded phase-4 pass-through evidence.",
+        "- RESPONSE_BODY remains experimental/non-promoted, including bounded phase-4 and strict-abort evidence.",
         "",
         "## Framework Integration",
         f"- This framework-owned file is the source of truth for root coverage reporting: `{ROOT_SUMMARY_FILENAME}` in `ModSecurity-test-Framework`.",
@@ -2215,6 +2327,8 @@ def render_overview(
     apache_attempted = runtime_attempted_count(runtime_snapshot, "apache")
     nginx_attempted = runtime_attempted_count(runtime_snapshot, "nginx")
     haproxy_attempted = runtime_attempted_count(runtime_snapshot, "haproxy")
+    apache_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "apache")
+    nginx_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "nginx")
     haproxy_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "haproxy")
     runtime_executable_count = sum(1 for row in rt_rows if row["runtime_executable"] == "yes")
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
@@ -2253,6 +2367,8 @@ def render_overview(
             f"- Apache attempted YAML cases from default summary: **{apache_attempted}**",
             f"- NGINX attempted YAML cases from default summary: **{nginx_attempted}**",
             f"- HAProxy attempted YAML cases from default summary: **{haproxy_attempted}**",
+            f"- Apache attempted YAML cases from force-all summary: **{apache_force_all_attempted}**",
+            f"- NGINX attempted YAML cases from force-all summary: **{nginx_force_all_attempted}**",
             f"- HAProxy attempted YAML cases from force-all summary: **{haproxy_force_all_attempted}**",
             *render_runtime_status_count_table(apache_runtime_counts, nginx_runtime_counts, haproxy_runtime_counts, mapped_only_count),
             f"- Details: `{report_doc('generated/runtime-matrix.generated.md')}`",

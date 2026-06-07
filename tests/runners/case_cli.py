@@ -21,6 +21,7 @@ from runner_core import (
     discover_case_files,
     effective_expect,
     expected_audit_log,
+    phase4_log_metadata,
     load_case,
     write_body_file,
     write_headers_file,
@@ -67,12 +68,16 @@ def materialize(args: argparse.Namespace) -> int:
 
 def assert_status(args: argparse.Namespace) -> int:
     case = load_case(args.case)
+    phase4_log_file = args.phase4_log_file or args.nginx_phase4_log_file
     errors = assert_case_artifacts(
         case,
-        {"status": int(args.actual_status)},
+        {
+            "status": int(args.actual_status),
+            "transport": args.observed_transport_result or "http_status",
+        },
         args.response_body_file,
         args.audit_log_file,
-        args.nginx_phase4_log_file,
+        phase4_log_file,
     )
     status_file = Path(args.status_file) if args.status_file else None
     if errors:
@@ -121,6 +126,7 @@ def list_cases(args: argparse.Namespace) -> int:
 def case_info(args: argparse.Namespace) -> int:
     case = load_case(args.case)
     actual_status = int(args.actual_status) if args.actual_status not in (None, "") else None
+    phase4_log_file = args.phase4_log_file or args.nginx_phase4_log_file
     info = build_case_info(
         case,
         args.case,
@@ -128,6 +134,54 @@ def case_info(args: argparse.Namespace) -> int:
         args.status,
         actual_status,
     )
+    capabilities = set(str(value) for value in info.get("capabilities", []))
+    phase4_related = (
+        str(info.get("category", "")).strip() == "response-body"
+        or "phase4" in capabilities
+        or "response-body" in capabilities
+    )
+    if phase4_related:
+        info.setdefault("phase", 4)
+        info.setdefault("response_headers_seen", False)
+        info.setdefault("response_body_seen", False)
+        info.setdefault("response_body_truncated", False)
+        info.setdefault("response_committed", False)
+        info.setdefault("strict_abort", False)
+    info["observed_status"] = actual_status
+    info["observed_transport_result"] = args.observed_transport_result or "http_status"
+    if args.reason:
+        info["reason"] = args.reason
+    if args.output:
+        info["evidence_path"] = args.output
+    if args.audit_log_file:
+        info["audit_log_path"] = args.audit_log_file
+    if args.response_body_file:
+        info["response_body_path"] = args.response_body_file
+    if args.access_log_file:
+        key = f"{args.connector}_access_log_path" if args.connector else "access_log_path"
+        info[key] = args.access_log_file
+    if args.error_log_file:
+        key = f"{args.connector}_error_log_path" if args.connector else "error_log_path"
+        info[key] = args.error_log_file
+    if phase4_log_file:
+        info["connector_phase4_log_path"] = phase4_log_file
+        metadata = phase4_log_metadata(phase4_log_file)
+        for key in (
+            "phase",
+            "response_headers_seen",
+            "response_body_seen",
+            "response_body_truncated",
+            "response_committed",
+            "intervention",
+            "strict_abort",
+            "observed_transport_result",
+            "reason",
+            "rule_id",
+            "body_bytes_seen",
+            "body_bytes_inspected",
+        ):
+            if key in metadata:
+                info[key] = metadata[key]
     output = Path(args.output) if args.output else None
     content = (
         json.dumps(info, sort_keys=True) + "\n"
@@ -154,12 +208,24 @@ def read_jsonl(path: Path) -> list[dict[str, object]]:
 
 def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]) -> dict[str, object]:
     context = summary_context(args)
-    return build_connector_summary(
+    summary = build_connector_summary(
         connector=args.connector,
         entries=entries,
         import_status_file=args.import_status_file,
         context=context,
     )
+    counts = summary.get("summary", {})
+    summary["runtime_mode"] = args.runtime_mode
+    summary["attempted"] = len(entries)
+    summary["total_cases"] = len(entries)
+    summary["evidence_root"] = str(Path(args.summary_json).parent)
+    summary["jsonl_path"] = args.input_jsonl
+    summary["per_case_result_root"] = args.per_case_result_root or ""
+    summary["command"] = args.command or ""
+    summary["exit_status"] = args.exit_status
+    if isinstance(counts, dict):
+        summary["failed_due_to_live_mismatches"] = bool(counts.get("fail", 0))
+    return summary
 
 
 def summary_context(args: argparse.Namespace) -> SummaryContext:
@@ -302,9 +368,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     assert_parser.add_argument("--case", required=True)
     assert_parser.add_argument("--actual-status", required=True)
+    assert_parser.add_argument("--observed-transport-result", default="http_status")
     assert_parser.add_argument("--status-file")
     assert_parser.add_argument("--response-body-file")
     assert_parser.add_argument("--audit-log-file")
+    assert_parser.add_argument("--phase4-log-file")
     assert_parser.add_argument("--nginx-phase4-log-file")
     assert_parser.set_defaults(func=assert_status)
 
@@ -337,6 +405,14 @@ def build_parser() -> argparse.ArgumentParser:
     info_parser.add_argument("--connector", choices=CONNECTOR_CHOICES)
     info_parser.add_argument("--status")
     info_parser.add_argument("--actual-status")
+    info_parser.add_argument("--observed-transport-result", default="http_status")
+    info_parser.add_argument("--reason", default="")
+    info_parser.add_argument("--response-body-file")
+    info_parser.add_argument("--audit-log-file")
+    info_parser.add_argument("--access-log-file")
+    info_parser.add_argument("--error-log-file")
+    info_parser.add_argument("--phase4-log-file")
+    info_parser.add_argument("--nginx-phase4-log-file")
     info_parser.add_argument("--output")
     info_parser.set_defaults(func=case_info)
 
@@ -363,6 +439,10 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--origin-source-version")
     summarize_parser.add_argument("--origin-license")
     summarize_parser.add_argument("--origin-imported-path")
+    summarize_parser.add_argument("--runtime-mode", default="default")
+    summarize_parser.add_argument("--command", default="")
+    summarize_parser.add_argument("--exit-status", default="")
+    summarize_parser.add_argument("--per-case-result-root", default="")
     summarize_parser.set_defaults(func=summarize_results)
 
     validate_parser = subparsers.add_parser(
