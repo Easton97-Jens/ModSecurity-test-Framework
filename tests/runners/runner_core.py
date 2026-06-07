@@ -12,6 +12,7 @@ import time
 from typing import Any, Iterable, Mapping
 
 from adapter_interface import ConnectorAdapter
+from case_roots import case_dirs, infer_runner_scope, path_is_in_extra_root
 from msconnector_models import intervention_from_expect, operation_status
 
 DEFAULT_RESPONSE_BODY = "TEST-OK-IF-YOU-SEE-THIS\n"
@@ -779,15 +780,7 @@ def _capability_names(case: Mapping[str, Any]) -> list[str]:
 
 
 def case_scope(path: str | Path) -> str:
-    parts = Path(path).parts
-    if "tests" in parts:
-        index = parts.index("tests")
-        tail = parts[index:]
-        if len(tail) >= 5 and tail[1] == "cases" and tail[2] == "connector-specific":
-            return f"{tail[3]}/connector-specific"
-        if len(tail) >= 3 and tail[1] == "cases":
-            return "common"
-    return "unknown"
+    return infer_runner_scope(path)
 
 
 def case_status_group(case: Mapping[str, Any]) -> str:
@@ -860,29 +853,8 @@ def intervention_info(expect: Mapping[str, Any]) -> dict[str, Any]:
     return intervention_from_expect(expect)
 
 
-def _unique_existing_dirs(paths: Iterable[Path]) -> list[Path]:
-    seen: set[Path] = set()
-    unique: list[Path] = []
-    for path in paths:
-        resolved = path.resolve(strict=False)
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        unique.append(path)
-    return unique
-
-
 def _case_dirs(connector_root: Path, connector: str, scope: str, framework_root: Path | None = None) -> list[Path]:
-    common_root = framework_root if framework_root is not None else connector_root
-    common_dirs = [common_root / "tests" / "cases"]
-    connector_dirs = [common_root / "tests" / "cases" / "connector-specific" / connector]
-    if scope == "common":
-        return _unique_existing_dirs(common_dirs)
-    if scope == "connector":
-        return _unique_existing_dirs(connector_dirs)
-    if scope == "all":
-        return _unique_existing_dirs(common_dirs)
-    raise ValueError(f"unsupported case scope: {scope}")
+    return case_dirs(connector_root, connector, scope, framework_root)
 
 
 def _case_path_in_scope(path: str | Path, connector: str, scope: str) -> bool:
@@ -922,15 +894,35 @@ def case_requires_crs(case: Mapping[str, Any]) -> bool:
     return _bool_value(case.get("requires_crs"))
 
 
+def case_connector_scopes(case: Mapping[str, Any]) -> set[str]:
+    metadata = case.get("metadata")
+    scopes: set[str] = set()
+    if isinstance(metadata, Mapping):
+        raw_scope = metadata.get("connector_scope")
+        if isinstance(raw_scope, list):
+            scopes.update(str(item) for item in raw_scope if str(item).strip())
+        elif raw_scope not in (None, ""):
+            scopes.add(str(raw_scope))
+    declared_connector = case.get("connector")
+    if declared_connector not in (None, ""):
+        scopes.add(str(declared_connector))
+    return scopes or {"common"}
+
+
 def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str, scope: str) -> bool:
     path_scope = case_scope(path)
     declared_connector = case.get("connector")
     portable = case.get("portable")
+    connector_scopes = case_connector_scopes(case)
     if case_requires_crs(case) and modsecurity_test_variant() != "with-crs":
         return False
     if not force_all_cases_enabled() and not is_default_runtime_case(case):
         return False
     if path_scope == "common" or path_scope.startswith("common/"):
+        if path_is_in_extra_root(path):
+            if "common" in connector_scopes:
+                return scope in {"common", "all"} and portable is not False
+            return connector in connector_scopes and scope == "all"
         if declared_connector not in (None, "", "common"):
             return False
         if portable is False:

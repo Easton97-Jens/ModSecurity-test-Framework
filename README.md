@@ -46,6 +46,19 @@ explicitly when you want to prefetch it. The CRS version pin, repository URL,
 and generated CRS paths are centralized in `ci/common.sh`; do not duplicate the
 CRS version in Makefiles, workflows, or other scripts.
 
+## MRTS Integration
+
+MRTS is available as an optional framework-owned test-generation source. It is
+not connector code and is not vendored as a framework submodule. See
+`docs/testing/mrts.md` for setup and classification details.
+
+```sh
+make mrts-generate
+make test-no-mrts
+make test-with-mrts
+make test-mrts-matrix
+```
+
 ## Runtime Smoke Entrypoints
 
 The framework owns runtime-smoke entrypoints for Apache, NGINX, Envoy, HAProxy,
@@ -102,6 +115,10 @@ Default discovery uses active/imported/minimal metadata classes. Force-all
 discovery also includes XFAIL, pending, future, and gap cases where they are
 applicable to the current connector. These classes are read from YAML metadata
 and connector inventory, not from status directories.
+
+Callers can provide additional case roots with the colon-separated
+`EXTRA_CASE_ROOTS` environment variable. The MRTS helper appends its generated
+framework case root only for `MODSECURITY_MRTS_VARIANT=with-mrts`.
 
 ## Coverage Reports
 

@@ -27,6 +27,8 @@ Implemented now:
 The Apache and NGINX PoCs use this runner so each YAML file under
 `tests/cases/` is the single source for the rule, request, headers, optional
 body or multipart body, response fixture, and expected HTTP status.
+The runner also supports colon-separated `EXTRA_CASE_ROOTS` for optional
+framework-owned generated cases.
 Imported, pending, future, gap, and former-XFAIL classes are metadata values,
 not status directories.
 Audit-log cases also use the YAML as the source for stable audit-log field

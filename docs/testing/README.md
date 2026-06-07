@@ -18,6 +18,7 @@ evidence, former expected-failure/mapped-only decisions, and connector-free API 
 | `v2-vs-v3-compatibility.md` | Architecture and API differences between ModSecurity v2 and v3 |
 | `v2-vs-v3-test-compatibility.md` | V2/V3 test import evidence |
 | `v3-api-smoke-test.md` | Connector-free libmodsecurity v3 API smoke notes |
+| `mrts.md` | Optional MRTS generation, import, and variant-specific runtime testing |
 
 ## Rule
 

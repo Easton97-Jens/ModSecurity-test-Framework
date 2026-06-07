@@ -28,13 +28,21 @@ export MODSECURITY_SOURCE_DIR
 export MODSECURITY_V3_SOURCE_DIR
 export MODSECURITY_V3_ROOT
 export MODSECURITY_TEST_VARIANT
+export MODSECURITY_MRTS_VARIANT
+export EXTRA_CASE_ROOTS
+export MRTS_ROOT
+export MRTS_DEFINITIONS
+export MRTS_RULES_OUT
+export MRTS_FTW_OUT
+export MRTS_LOAD_FILE
+export MRTS_CASE_ROOT
 export CRS_REPO_URL
 export CRS_GIT_REF
 export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint generate-test-matrix check-test-matrix runtime-matrix runtime-matrix-all smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs
+.PHONY: lint quick-check codex-check generate-test-matrix check-test-matrix runtime-matrix runtime-matrix-all smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-mrts-matrix mrts-ftw
 
 lint:
 	sh -n ci/*.sh
@@ -44,6 +52,10 @@ lint:
 	$(PYTHON) ci/check-workflow-yaml.py
 	$(PYTHON) ci/check-response-body-promotion.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
 	sh ci/check-crs-version-pinning.sh
+	git diff --check
+
+quick-check codex-check: lint
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
 	git diff --check
 
 generate-test-matrix:
@@ -82,6 +94,43 @@ test-no-crs:
 
 test-with-crs:
 	MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. ci/common.sh; sh ci/fetch-crs.sh; sh ci/prepare-crs.sh; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
+
+mrts-generate:
+	sh ci/generate-mrts.sh
+
+mrts-load:
+	sh ci/write-mrts-load.sh
+
+mrts-import:
+	sh ci/generate-mrts.sh
+	sh ci/write-mrts-load.sh >/dev/null
+	$(PYTHON) ci/import-mrts-cases.py \
+		--framework-root "$(FRAMEWORK_ROOT)" \
+		--mrts-ftw-dir "$(FRAMEWORK_ROOT)/tests/mrts/generated/ftw" \
+		--mrts-rules-dir "$(FRAMEWORK_ROOT)/tests/mrts/generated/rules" \
+		--output-dir "$(FRAMEWORK_ROOT)/tests/mrts/generated/framework-cases"
+
+test-no-mrts:
+	MODSECURITY_MRTS_VARIANT=no-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
+
+test-with-mrts:
+	MODSECURITY_MRTS_VARIANT=with-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; $(PYTHON) ci/import-mrts-cases.py --framework-root "$$FRAMEWORK_ROOT" --mrts-ftw-dir "$$FRAMEWORK_ROOT/tests/mrts/generated/ftw" --mrts-rules-dir "$$FRAMEWORK_ROOT/tests/mrts/generated/rules" --output-dir "$$FRAMEWORK_ROOT/tests/mrts/generated/framework-cases"; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh'
+
+test-mrts-matrix:
+	MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_MRTS_VARIANT=no-mrts $(MAKE) test-no-mrts
+	MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_MRTS_VARIANT=with-mrts $(MAKE) test-with-mrts
+	MODSECURITY_TEST_VARIANT=with-crs MODSECURITY_MRTS_VARIANT=no-mrts $(MAKE) test-no-mrts
+	MODSECURITY_TEST_VARIANT=with-crs MODSECURITY_MRTS_VARIANT=with-mrts $(MAKE) test-with-mrts
+
+mrts-ftw: mrts-generate
+	@sh -eu -c ' \
+		FRAMEWORK_ROOT="$${FRAMEWORK_ROOT:-$(FRAMEWORK_ROOT)}"; \
+		MRTS_FTW_CONFIG="$${MRTS_FTW_CONFIG:-$$FRAMEWORK_ROOT/tests/mrts/ftw.mrts.config.yaml}"; \
+		MRTS_FTW_OUT="$${MRTS_FTW_OUT:-$$FRAMEWORK_ROOT/tests/mrts/generated/ftw}"; \
+		if ! command -v go-ftw >/dev/null 2>&1; then echo "BLOCKED: go-ftw missing" >&2; exit 77; fi; \
+		if [ ! -f "$$MRTS_FTW_CONFIG" ]; then echo "BLOCKED: MRTS_FTW_CONFIG missing: $$MRTS_FTW_CONFIG" >&2; exit 77; fi; \
+		go-ftw run --config "$$MRTS_FTW_CONFIG" --dir "$$MRTS_FTW_OUT" --wait-for-expect-status-code 200 --fail-fast; \
+	'
 
 fetch-modsecurity-v3:
 	sh ci/fetch-smoke-sources.sh v3

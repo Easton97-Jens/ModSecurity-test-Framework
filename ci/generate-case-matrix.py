@@ -12,6 +12,11 @@ from pathlib import Path
 
 import yaml
 
+RUNNER_DIR = Path(__file__).resolve().parents[1] / "tests" / "runners"
+if str(RUNNER_DIR) not in sys.path:
+    sys.path.insert(0, str(RUNNER_DIR))
+
+from case_roots import all_case_files, infer_report_scope
 from response_body_status import (
     RESPONSE_BODY_EVIDENCE_NOTE,
     RESPONSE_BODY_RUNTIME_NOTE,
@@ -498,14 +503,7 @@ def read_yaml(path: Path) -> dict:
 
 
 def infer_scope(path: Path) -> str:
-    s = str(path).replace("\\", "/")
-    if "/tests/cases/connector-specific/apache/" in s:
-        return "apache"
-    if "/tests/cases/connector-specific/nginx/" in s:
-        return "nginx"
-    if "/tests/cases/" in s:
-        return "common"
-    return "unknown"
+    return infer_report_scope(path)
 
 
 def display_path(path: Path) -> str:
@@ -551,11 +549,33 @@ def extract_rule_metadata(rules: str) -> tuple[set[str], set[int], set[str], set
     return variables, phases, operators, transformations
 
 
+def metadata_mapping(data: dict) -> dict:
+    metadata = data.get("metadata")
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def metadata_variables(metadata: dict) -> set[str]:
+    variables = metadata.get("variables")
+    if not isinstance(variables, list):
+        return set()
+    return {str(item) for item in variables if str(item).strip()}
+
+
+def metadata_phases(metadata: dict) -> set[int]:
+    raw_phase = metadata.get("phase")
+    if isinstance(raw_phase, int):
+        return {raw_phase}
+    if isinstance(raw_phase, str) and raw_phase.isdigit():
+        return {int(raw_phase)}
+    return set()
+
+
 def extract_status_metadata(data: dict) -> tuple[str, str, str, str, dict]:
     status = str(data.get("status", "active") or "active").strip().lower()
     category = str(data.get("category", "unknown") or "unknown")
     notes = str(data.get("notes", data.get("note", "")) or "") or "-"
-    source = str(data.get("source") or data.get("source_ref") or data.get("provenance") or "unknown")
+    metadata = metadata_mapping(data)
+    source = str(data.get("source") or data.get("source_ref") or data.get("provenance") or metadata.get("source") or "unknown")
     caps = data.get("capabilities")
     if not isinstance(caps, dict):
         caps = {}
@@ -573,6 +593,9 @@ def parse_case(path: Path) -> dict:
     data = read_yaml(path)
     rules = str(data.get("rules", "") or "")
     variables, phases, operators, transformations = extract_rule_metadata(rules)
+    metadata = metadata_mapping(data)
+    variables.update(metadata_variables(metadata))
+    phases.update(metadata_phases(metadata))
     status, category, notes, source, _ = extract_status_metadata(data)
     tags = extract_gap_tags(path, status, category, notes, source)
     case_id = str(data.get("name", path.stem) or path.stem)
@@ -592,10 +615,17 @@ def parse_case(path: Path) -> dict:
     if not phases:
         warn(f"no phase metadata found in {path}")
 
+    scope = infer_scope(path)
+    connector_scope = metadata.get("connector_scope")
+    if scope == "common" and isinstance(connector_scope, list):
+        specific_scopes = [str(item) for item in connector_scope if str(item) in {"apache", "nginx"}]
+        if len(specific_scopes) == 1:
+            scope = specific_scopes[0]
+
     return {
         "id": case_id,
         "path": display_path(path),
-        "scope": infer_scope(path),
+        "scope": scope,
         "status": status,
         "former_xfail": bool(data.get("former_xfail") is True),
         "former_xfail_reason": str(data.get("former_xfail_reason", "") or ""),
@@ -609,12 +639,13 @@ def parse_case(path: Path) -> dict:
         "response_body": response_body,
         "source": source,
         "notes": notes,
+        "topic": str(metadata.get("topic") or ""),
         "tags": tags,
     }
 
 
 def gather_cases() -> list[dict]:
-    files = sorted((FRAMEWORK_ROOT / "tests" / "cases").rglob("*.yaml"))
+    files = all_case_files(FRAMEWORK_ROOT)
     return [parse_case(p) for p in files]
 
 
@@ -801,22 +832,25 @@ def count_cases_matching(cases: list[dict], *needles: str) -> int:
 
 
 def topic_counts(cases: list[dict]) -> dict[str, int]:
+    explicit_topics = Counter(case["topic"] for case in cases if case.get("topic"))
+    unclassified = [case for case in cases if not case.get("topic")]
     return {
-        "Operators": sum(1 for case in cases if case["operators"]),
-        "Transformations": sum(1 for case in cases if case["transformations"]),
-        "Multipart / FILES": count_cases_matching(cases, "multipart", "files", "multipart_filename"),
-        "JSON": count_cases_matching(cases, "json"),
-        "XML": count_cases_matching(cases, "xml"),
-        "Unicode / Encoding": count_cases_matching(cases, "unicode", "encoding", "encoded", "urldecode", "url_decode"),
-        "XSS-like compatibility probes": count_cases_matching(cases, "xss_like", "xss-like"),
-        "SQLi-like compatibility probes": count_cases_matching(cases, "sqli_like", "sqli-like"),
-        "Audit-log probes": count_cases_matching(cases, "audit_log", "audit-log", "auditlog"),
-        "Response header probes": count_cases_matching(cases, "response_headers", "response header", "phase3_response_headers"),
-        "Response body experimental probes": sum(
+        "Operators": explicit_topics.get("Operators", 0) + sum(1 for case in unclassified if case["operators"]),
+        "Transformations": explicit_topics.get("Transformations", 0) + sum(1 for case in unclassified if case["transformations"]),
+        "Multipart / FILES": explicit_topics.get("Multipart / FILES", 0) + count_cases_matching(unclassified, "multipart", "files", "multipart_filename"),
+        "JSON": explicit_topics.get("JSON", 0) + count_cases_matching(unclassified, "json"),
+        "XML": explicit_topics.get("XML", 0) + count_cases_matching(unclassified, "xml"),
+        "Unicode / Encoding": explicit_topics.get("Unicode / Encoding", 0) + count_cases_matching(unclassified, "unicode", "encoding", "encoded", "urldecode", "url_decode"),
+        "XSS-like compatibility probes": explicit_topics.get("XSS-like compatibility probes", 0) + count_cases_matching(unclassified, "xss_like", "xss-like"),
+        "SQLi-like compatibility probes": explicit_topics.get("SQLi-like compatibility probes", 0) + count_cases_matching(unclassified, "sqli_like", "sqli-like"),
+        "Audit-log probes": explicit_topics.get("Audit-log probes", 0) + count_cases_matching(unclassified, "audit_log", "audit-log", "auditlog"),
+        "Response header probes": explicit_topics.get("Response header probes", 0) + count_cases_matching(unclassified, "response_headers", "response header", "phase3_response_headers"),
+        "Response body experimental probes": explicit_topics.get("Response body experimental probes", 0) + sum(
             1
-            for case in cases
+            for case in unclassified
             if case["response_body"] and ("experimental" in case["tags"] or "experimental" in case_text(case))
         ),
+        "MRTS generated / unclassified": explicit_topics.get("MRTS generated / unclassified", 0),
     }
 
 

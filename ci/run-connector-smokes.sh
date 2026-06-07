@@ -11,16 +11,37 @@ RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
 export PYTHONDONTWRITEBYTECODE
 
+combine_rule_preambles() {
+    first=$1
+    second=$2
+    label=$3
+    if [ -z "$first" ]; then
+        printf '%s\n' "$second"
+        return 0
+    fi
+    if [ -z "$second" ] || [ "$first" = "$second" ]; then
+        printf '%s\n' "$first"
+        return 0
+    fi
+    mkdir -p "$BUILD_ROOT/preambles"
+    combined="$BUILD_ROOT/preambles/$label.load"
+    {
+        printf 'Include "%s"\n' "$first"
+        printf 'Include "%s"\n' "$second"
+    } > "$combined"
+    printf '%s\n' "$combined"
+}
+
 prepare_crs_variant() {
+    existing_preamble="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
     if [ "$MODSECURITY_TEST_VARIANT" != "with-crs" ]; then
-        MODSECURITY_RULE_PREAMBLE_FILE=""
+        MODSECURITY_RULE_PREAMBLE_FILE="$existing_preamble"
         export MODSECURITY_RULE_PREAMBLE_FILE
         return 0
     fi
-    if [ -z "$MODSECURITY_RULE_PREAMBLE_FILE" ]; then
-        sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
-        MODSECURITY_RULE_PREAMBLE_FILE="$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"
-    fi
+    sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
+    crs_preamble="$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"
+    MODSECURITY_RULE_PREAMBLE_FILE=$(combine_rule_preambles "$crs_preamble" "$existing_preamble" "with-crs-${MODSECURITY_MRTS_VARIANT:-no-mrts}")
     export MODSECURITY_RULE_PREAMBLE_FILE
 }
 

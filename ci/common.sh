@@ -39,6 +39,7 @@ MODSECURITY_V3_ROOT="${MODSECURITY_V3_ROOT:-$MODSECURITY_SOURCE_DIR}"
 
 # ModSecurity test variant defaults
 : "${MODSECURITY_TEST_VARIANT:=no-crs}"
+: "${MODSECURITY_MRTS_VARIANT:=no-mrts}"
 
 # OWASP Core Rule Set defaults
 : "${CRS_REPO_URL:=https://github.com/coreruleset/coreruleset.git}"
