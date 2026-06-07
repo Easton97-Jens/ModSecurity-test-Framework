@@ -27,8 +27,8 @@ Implemented now:
 The Apache and NGINX PoCs use this runner so each YAML file under
 `tests/cases/` is the single source for the rule, request, headers, optional
 body or multipart body, response fixture, and expected HTTP status.
-XFAIL/imported/pending/future/gap classes are metadata values, not status
-directories.
+Imported, pending, future, gap, and former-XFAIL classes are metadata values,
+not status directories.
 Audit-log cases also use the YAML as the source for stable audit-log field
 expectations.
 

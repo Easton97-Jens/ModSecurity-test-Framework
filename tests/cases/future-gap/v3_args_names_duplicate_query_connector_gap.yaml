@@ -4,7 +4,10 @@ origin:
     reason: Source-derived ARGS_NAMES duplicate query-name branch prepared as connector-gap coverage.
 category: collections
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "connector-gap coverage candidate; pending runtime verification and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Duplicate ARGS_NAMES ordering/aggregation behavior may differ between connectors.
 name: v3_args_names_duplicate_query_connector_gap
@@ -16,7 +19,7 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecRule ARGS_NAMES "@contains dup" "id:4404,phase:2,deny,status:403,msg:'xfail duplicate ARGS_NAMES connector gap'"
+  SecRule ARGS_NAMES "@contains dup" "id:4404,phase:2,deny,status:403,msg:'former XFAIL duplicate ARGS_NAMES connector gap'"
 request:
   method: GET
   path: "/?dup=1&dup=2"

@@ -4,7 +4,10 @@ origin:
     reason: phase3 duplicate response header runtime-difference probe.
 category: response-headers
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - "Classification: runtime-difference."
   - Phase-4/response behavior remains non-verified; no verified PASS claim.

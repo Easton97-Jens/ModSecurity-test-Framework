@@ -118,7 +118,7 @@ as TODO. The dedicated local probe in
 Apache returned HTTP 200 without the required audit hit, while NGINX matched the
 phase 4 `RESPONSE_BODY` rule and wrote audit/error evidence but returned an
 empty client reply (`000`) instead of stable HTTP 403. The source rows remain
-`xfail`/`mapped-only`, while `response_body_pass.yaml` remains a pass-through
+`former expected-failure`/`mapped-only`, while `response_body_pass.yaml` remains a pass-through
 smoke only.
 
 `multipart_basic_block.yaml` covers a simple multipart text field visible
@@ -174,13 +174,13 @@ writes detailed result summaries under `$BUILD_ROOT/results/`.
 | proxy | todo | No upstream topology support yet |
 | streaming-buffering | todo | No streaming assertions or chunk control yet |
 | response-body | todo | Connector filter ordering needs explicit support |
-| response-body blocking | xfail | NGINX upstream marks block behavior TODO and local probing did not yield stable HTTP 403 |
+| response-body blocking | former expected-failure | NGINX upstream marks block behavior TODO and local probing did not yield stable HTTP 403 |
 | response-body pass-through | imported | `response_body_pass.yaml` verifies no regression when response-body access is enabled |
 | multipart basic text field | imported | `multipart_basic_block.yaml` covers simple portable multipart parsing |
 | multipart file collections | imported | FILES, FILES_NAMES, FILES_COMBINED_SIZE, and MULTIPART_FILENAME have active common smoke coverage; FILES_TMPNAMES remains mapped |
 | XML | imported | Tiny XML body processor case is active common coverage; schema/DTD/parser-error cases remain mapped |
 | v2 engine semantics | imported | Operator and transformation cases are active common coverage, including beginsWith, endsWith, pm, containsWord, urlDecode, and htmlEntityDecode |
-| v3 regression JSON | imported | Multipart/XML/operator/action/cookie/header-name/ARGS_NAMES/audit cases are active common coverage; `issue-2196` nolog/pass is xfail due local/CI audit divergence |
+| v3 regression JSON | imported | Multipart/XML/operator/action/cookie/header-name/ARGS_NAMES/audit cases are active common coverage; `issue-2196` nolog/pass is former expected-failure due local/CI audit divergence |
 | external file operators | todo | Needs fixture-file materialization |
 | debug logs | mapped | Text is volatile and connector-specific |
 

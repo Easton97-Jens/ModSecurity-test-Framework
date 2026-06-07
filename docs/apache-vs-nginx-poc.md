@@ -139,7 +139,7 @@ body/filter additions are:
 `response_body_basic_block` is not an active common PASS. NGINX recognized the
 response-body rule in local probing, but the HTTP response was not a stable
 403, and the upstream NGINX test marks the block case TODO. It stays documented
-as xfail/mapped-only until both connectors return the same stable HTTP 403.
+as former expected-failure/mapped-only until both connectors return the same stable HTTP 403.
 
 ## Summary Metadata
 

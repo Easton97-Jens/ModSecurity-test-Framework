@@ -73,12 +73,12 @@ Relevant existing coverage:
 | --- | --- |
 | phase 1 | Existing active/imported YAML cases under `tests/cases/phases/phase1/` and request-header cases. |
 | phase 2 | Existing active/imported YAML cases under `tests/cases/phases/phase2/`, including query args and request body. |
-| phase 3 | Existing response-header YAML cases under `tests/cases/response/headers/`; many edge cases remain xfail. |
-| phase 4 | Existing response-body YAML probes are xfail, future, connector-gap, experimental, or pass-through only. RESPONSE_BODY remains non-verified and non-promoted. |
+| phase 3 | Existing response-header YAML cases under `tests/cases/response/headers/`; many edge cases remain former expected-failure. |
+| phase 4 | Existing response-body YAML probes are former expected-failure, future, connector-gap, experimental, or pass-through only. RESPONSE_BODY remains non-verified and non-promoted. |
 | phase 5 | No framework capability exists yet for `phase5`; no active YAML cases use `phase:5`. |
 | audit log | Existing serial audit-log YAML cases under `tests/cases/audit-log/`; stable checks are substring based. |
 | request body | Existing active/imported raw request-body, JSON, XML, multipart, and URL-encoded cases. |
-| response body | Existing pass-through and xfail probes only; no verified blocking promotion. |
+| response body | Existing pass-through and former expected-failure probes only; no verified blocking promotion. |
 
 The audit normalizer is intentionally skeletal. It normalizes timestamps, PIDs,
 thread IDs, localhost ports, and transaction IDs, but it does not parse audit
@@ -96,8 +96,8 @@ expectations can be expressed with existing stable fields:
 | --- | --- | --- |
 | phase 1 | Request-line or request-header rule. Audit log should include the phase-1 rule message and should not require request-body, response-header, or response-body details. | active/imported candidate after Apache and NGINX pass. |
 | phase 2 | URL-encoded request-body or ARGS rule, using existing `request_body` and `form_urlencoded` support. | active/imported candidate if both connectors already pass the existing request-body smoke path. |
-| phase 3 | Basic `RESPONSE_HEADERS` rule against a stable emitted header. | keep active only if existing `response_header_basic` remains stable; otherwise xfail/runtime-difference. |
-| phase 4 | `RESPONSE_BODY` evidence only. | xfail, mapped-only, connector-gap, or deferred. Do not promote RESPONSE_BODY. |
+| phase 3 | Basic `RESPONSE_HEADERS` rule against a stable emitted header. | keep active only if existing `response_header_basic` remains stable; otherwise former expected-failure/runtime-difference. |
+| phase 4 | `RESPONSE_BODY` evidence only. | former expected-failure, mapped-only, connector-gap, or deferred. Do not promote RESPONSE_BODY. |
 | phase 5 | Logging-phase observation. | plan-only until `phase5` is added as a known capability and the runner has stable assertions. |
 
 The first implementation should not copy the upstream Perl file. It should add
@@ -129,11 +129,11 @@ Additional normalizer work should precede any broad audit comparison:
 
 | connector | phase 1 | phase 2 | phase 3 | phase 4 | phase 5 | audit log |
 | --- | --- | --- | --- | --- | --- | --- |
-| Apache | expected pass after source-built smoke proof | expected pass where request-body support is already proven | expected pass only for stable header fixture | deferred/xfail until RESPONSE_BODY blocking is proven | deferred | expected pass only for stable serial substrings |
+| Apache | expected pass after source-built smoke proof | expected pass where request-body support is already proven | expected pass only for stable header fixture | deferred/former expected-failure until RESPONSE_BODY blocking is proven | deferred | expected pass only for stable serial substrings |
 | NGINX | expected pass after source-built smoke proof | expected pass where request-body support is already proven | expected pass only for stable header fixture | depends on existing NGINX phase-4 capability status; log-only evidence is not RESPONSE_BODY promotion | deferred | expected pass only for stable serial substrings |
 
 The matrix is evidence-driven. Generated reports and YAML metadata do not
-promote xfail, mapped-only, future, connector-gap, or RESPONSE_BODY cases.
+promote former expected-failure, mapped-only, future, connector-gap, or RESPONSE_BODY cases.
 
 ## Non-Goals
 
@@ -155,7 +155,7 @@ The first source-derived YAML group is implemented under
 | `pr70_phase1_audit_request_header` | 1 | imported | request-header phase-1 rule plus stable serial audit substrings |
 | `pr70_phase2_audit_urlencoded_body` | 2 | imported | URL-encoded request-body/ARGS phase-2 rule plus stable serial audit substrings |
 | `pr70_phase3_audit_response_header` | 3 | imported | static-file response-header phase-3 rule plus stable serial audit substrings |
-| `pr70_phase4_response_body_audit_xfail` | 4 | xfail | RESPONSE_BODY audit probe kept non-promotable |
+| `pr70_phase4_response_body_audit_xfail` | 4 | imported | RESPONSE_BODY audit probe kept non-promotable; former expected-failure history is metadata only |
 
 Phase 5 remains deferred because the framework does not yet have a `phase5`
 capability or stable logging-phase assertion model.

@@ -4,7 +4,10 @@ origin:
     reason: Source-derived transformation edge branch for tab trimming prepared as future compatibility target.
 category: transformations
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "future-compatibility coverage candidate; pending runtime verification and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Trim behavior around tab/control characters is not yet proven in shared connector smoke.
 name: v2_transformation_trim_tab_future_compatibility
@@ -15,7 +18,7 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecRule ARGS:q "@streq edge" "id:4405,phase:2,t:trim,deny,status:403,msg:'xfail trim tab future compatibility'"
+  SecRule ARGS:q "@streq edge" "id:4405,phase:2,t:trim,deny,status:403,msg:'former XFAIL trim tab future compatibility'"
 request:
   method: GET
   path: "/?q=%09edge%09"

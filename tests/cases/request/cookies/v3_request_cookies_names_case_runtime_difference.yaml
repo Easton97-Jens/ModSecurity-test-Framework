@@ -4,7 +4,10 @@ origin:
     reason: Source-derived cookie-name case-sensitivity runtime-difference probe.
 category: collections
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Cookie-name case handling can diverge between runtimes and connector parsers.
 name: v3_request_cookies_names_case_runtime_difference
@@ -15,7 +18,7 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecRule REQUEST_COOKIES_NAMES "@contains user_token" "id:4403,phase:1,deny,status:403,msg:'xfail cookie-name case runtime difference'"
+  SecRule REQUEST_COOKIES_NAMES "@contains user_token" "id:4403,phase:1,deny,status:403,msg:'former XFAIL cookie-name case runtime difference'"
 request:
   method: GET
   path: /

@@ -4,7 +4,10 @@ origin:
     reason: Source-derived invalid-encoding urlDecode branch prepared as mapped-only candidate.
 category: transformations
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "mapped-only-candidate coverage candidate; pending runtime verification and not counted as verified PASS."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Invalid percent-encoding handling varies and is currently unproven across connectors.
 name: v2_transformation_url_decode_invalid_sequence_mapped_candidate
@@ -15,7 +18,7 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecRule REQUEST_URI "@contains %" "id:4406,phase:1,t:urlDecode,deny,status:403,msg:'xfail invalid urlDecode sequence mapped candidate'"
+  SecRule REQUEST_URI "@contains %" "id:4406,phase:1,t:urlDecode,deny,status:403,msg:'former XFAIL invalid urlDecode sequence mapped candidate'"
 request:
   method: GET
   path: "/?q=%ZZ"

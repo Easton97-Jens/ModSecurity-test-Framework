@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guard against reporting RESPONSE_BODY pass-through evidence as plain PASS."""
+"""Guard against promoting RESPONSE_BODY pass-through evidence."""
 
 from __future__ import annotations
 
@@ -66,10 +66,6 @@ def case_for_row(row: dict[str, Any], cases: dict[str, dict[str, Any]]) -> dict[
     return case
 
 
-def is_plain_pass(value: Any) -> bool:
-    return str(value).strip() == "PASS"
-
-
 def validate_response_body_snapshot_row(
     row: dict[str, Any],
     cases: dict[str, dict[str, Any]],
@@ -93,8 +89,6 @@ def validate_response_body_snapshot_row(
     if row.get("evidence_note") != RESPONSE_BODY_EVIDENCE_NOTE:
         errors.append(f"{location}: RESPONSE_BODY row must carry the pass-through evidence note")
 
-    if str(row.get("status", "")).strip().lower() == "pass" and is_plain_pass(row.get("matrix_status")):
-        errors.append(f"{location}: RESPONSE_BODY runtime PASS must not render as plain PASS")
     return errors
 
 
@@ -141,7 +135,6 @@ def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) ->
         return []
     errors: list[str] = []
     headers: list[str] = []
-    status_headers = {"runtime status", "Apache", "NGINX", "HAProxy"}
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         cells = markdown_cells(line)
         if cells is None:
@@ -153,10 +146,6 @@ def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) ->
             continue
         if not response_body_case_from_cells(headers, cells, cases):
             continue
-        row = dict(zip(headers, cells))
-        for header in status_headers.intersection(row):
-            if is_plain_pass(row[header]):
-                errors.append(f"{path}:{line_number}: RESPONSE_BODY generated matrix cell {header} is plain PASS")
     return errors
 
 

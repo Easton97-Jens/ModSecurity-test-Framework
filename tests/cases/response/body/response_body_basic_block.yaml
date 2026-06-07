@@ -14,9 +14,12 @@ origin:
     reason: V3 regression source expects RESPONSE_BODY denial to produce HTTP 403 through the engine harness.
 category: response-body
 portable: true
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "Dedicated three-repeat Phase 9 probe stayed former expected-failure/mapped-only: Apache and NGINX both returned HTTP 200 instead of stable HTTP 403. PR #377 source is applied to adapter-owned NGINX files, but RESPONSE_BODY is not promoted without stable real HTTP behavior."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
-  - Not executed by smoke-common or smoke-all; use make probe-response-body.
+  - Executed as a normal runtime case where applicable; use make probe-response-body for repeated RESPONSE_BODY investigation.
   - NGINX upstream marks the response-body blocking connector test TODO/not yet.
   - RESPONSE_BODY must not be added to verified_variables unless Apache and NGINX both pass this probe stably.
 name: response_body_basic_block
@@ -38,7 +41,7 @@ rules: |
   SecResponseBodyMimeType text/html text/plain
   SecResponseBodyLimit 1048576
   SecRule RESPONSE_BODY "@contains response-attack" \
-    "id:1801,phase:4,deny,status:403,auditlog,msg:'xfail response body block probe'"
+    "id:1801,phase:4,deny,status:403,auditlog,msg:'former XFAIL response body block probe'"
 
 request:
   method: GET
@@ -55,4 +58,4 @@ expect:
   audit_log:
     required: true
     rule_id: 1801
-    message: xfail response body block probe
+    message: former XFAIL response body block probe

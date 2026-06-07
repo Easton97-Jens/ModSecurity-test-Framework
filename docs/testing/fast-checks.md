@@ -27,7 +27,7 @@ configurable with `FRAMEWORK_ROOT` and defaults locally to the module
   - local source-build Apache/NGINX per-case runtime inventory for the default executable case set
 - `make runtime-matrix-all`
   - local source-build Apache/NGINX per-case runtime inventory with `FORCE_ALL_CASES=1`
-  - attempts xfail, pending, future, experimental, and connector-gap YAML cases where applicable
+  - attempts former expected-failure, pending, future, experimental, and connector-gap YAML cases where applicable
   - recorded PASS/FAIL data is evidence only and does not promote YAML status or RESPONSE_BODY support
 
 ## Honesty rules

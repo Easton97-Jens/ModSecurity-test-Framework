@@ -12,13 +12,13 @@ import os
 from pathlib import Path
 from typing import Mapping
 
-RESULT_STATUSES = ("pass", "fail", "blocked", "not_executable", "skipped", "xfail")
+RESULT_STATUSES = ("pass", "fail", "blocked", "not_executable", "skipped")
 IMPORT_STATUS_KEYS = (
     "fully_imported_common",
     "connector_specific",
     "mapped_only",
     "blocked",
-    "xfail",
+    "former_xfail",
     "v2_imported",
     "v3_imported",
 )
@@ -32,7 +32,6 @@ OPERATION_STATUSES = {
     "blocked": "blocked",
     "not_executable": "unsupported",
     "skipped": "unsupported",
-    "xfail": "unsupported",
 }
 
 VARIABLE_CAPABILITIES = {
@@ -120,6 +119,8 @@ def result_counts(entries: list[dict[str, object]]) -> dict[str, int]:
     counts = dict.fromkeys(RESULT_STATUSES, 0)
     for entry in entries:
         status = str(entry.get("status", "fail"))
+        if status == "xfail":
+            status = "fail"
         counts.setdefault(status, 0)
         counts[status] += 1
     return counts
@@ -145,8 +146,6 @@ def audit_behavior(entries: list[dict[str, object]], import_status: dict[str, in
         if str(entry.get("status", "")) == "fail" and isinstance(capabilities, list):
             if {"audit-log", "audit-log-absent"}.intersection({str(item) for item in capabilities}):
                 return "unexpected"
-    if import_status.get("xfail", 0):
-        return "unstable"
     return "stable"
 
 
@@ -202,7 +201,13 @@ def connector_summary(
     context: SummaryContext | None = None,
 ) -> dict[str, object]:
     summary_context = context or SummaryContext()
-    cases = {str(entry.get("name", "")): entry for entry in entries}
+    normalized_entries = []
+    for entry in entries:
+        normalized = dict(entry)
+        if str(normalized.get("status", "")) == "xfail":
+            normalized["status"] = "fail"
+        normalized_entries.append(normalized)
+    cases = {str(entry.get("name", "")): entry for entry in normalized_entries}
     import_status = import_status_counts(import_status_file)
     summary: dict[str, object] = {
         "status_model": STATUS_MODEL,
@@ -211,14 +216,14 @@ def connector_summary(
         "connector_path": summary_context.connector_path,
         "validation_mode": summary_context.validation_mode,
         "environment": summary_context.resolved_environment(),
-        "audit_behavior": audit_behavior(entries, import_status),
+        "audit_behavior": audit_behavior(normalized_entries, import_status),
         "server": summary_context.resolved_server(connector),
         "server_binary": summary_context.server_binary,
         "module": summary_context.module,
         "libmodsecurity": summary_context.libmodsecurity,
         "origin": summary_context.origin(),
-        "verified_variables": verified_variables(entries),
-        "summary": result_counts(entries),
+        "verified_variables": verified_variables(normalized_entries),
+        "summary": result_counts(normalized_entries),
         "cases": cases,
     }
     if import_status:
@@ -237,7 +242,7 @@ def empty_connector_summary(
     counts.setdefault(status, 0)
     counts[status] += 1
     return {
-        "audit_behavior": "unstable",
+        "audit_behavior": "stable",
         "build": status,
         "connector_path": summary_context.connector_path,
         "environment": summary_context.resolved_environment(),

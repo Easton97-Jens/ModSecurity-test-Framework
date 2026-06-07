@@ -195,7 +195,7 @@ set.
 
 Response-body blocking is not claimed. The NGINX reference test marks that
 behavior TODO, and local probing recognized the rule but did not produce stable
-HTTP 403, so the candidate remains xfail/mapped-only.
+HTTP 403, so the candidate remains former expected-failure/mapped-only.
 
 ## Status Meanings
 

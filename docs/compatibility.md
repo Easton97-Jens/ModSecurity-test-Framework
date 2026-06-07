@@ -80,7 +80,7 @@ passed only on NGINX and remain `portable: false`.
 | `json_request_body_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `multipart_basic_block.yaml` | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | `response_body_pass.yaml` | pass-through, HTTP 200 | pass-through, HTTP 200 | RESPONSE_BODY non-verified/non-promoted |
-| `response_body_basic_block` | fail, HTTP 200 and no audit hit | fail, `RESPONSE_BODY` audit/error hit but client observed `000` empty reply | xfail/mapped-only |
+| `response_body_basic_block` | fail, HTTP 200 and no audit hit | fail, `RESPONSE_BODY` audit/error hit but client observed `000` empty reply | non-promoted/mapped-only |
 
 The response-body block row is intentionally not an active smoke. The NGINX
 reference test marks the behavior TODO. A local three-repeat probe did not
@@ -99,7 +99,7 @@ Observed locally on 2026-05-15 with `BUILD_ROOT=/src/ModSecurity-test-Framework-
 | V3 XML body processor basic case | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 `@rx`, trim, and `SecAction` basics | pass, HTTP 403 | pass, HTTP 403 | fully-imported-common |
 | V3 `@pm`, cookies, header names, ARGS_NAMES, and serial audit basics | pass | pass | fully-imported-common |
-| V3 `nolog,pass` audit absence (`issue-2196`) | pass locally, empty audit log | pass locally, empty audit log | xfail because GitHub Actions observed a non-empty audit log |
+| V3 `nolog,pass` audit absence (`issue-2196`) | pass locally, empty audit log | pass locally, empty audit log | former expected-failure history because GitHub Actions observed a non-empty audit log |
 | PR #3564 RAW argument collections | unsupported in current local v3 source | unsupported in current local v3 source | mapped-only/unsupported-local-source |
 
 The active cases prove only the minimal YAML scenarios. V2 Perl harness
@@ -125,7 +125,7 @@ runtime.
 Current active passing cases verify `ARGS`, `ARGS_NAMES`, `REQUEST_COOKIES`,
 `REQUEST_HEADERS`, `REQUEST_URI`, `REQUEST_BODY`, `FILES`, `XML`, `AUDIT_LOG`,
 and `RESPONSE_HEADERS` through both Apache and NGINX in this workspace.
-`RESPONSE_BODY` remains mapped/xfail until an active response-body
+`RESPONSE_BODY` remains non-promoted/mapped-only until an active response-body
 variable/blocking case passes on both connectors.
 
 ## RAW Argument Collections
@@ -139,7 +139,7 @@ RAW arguments as `mapped-only/unsupported-local-source`. They must not appear in
 active PASS summaries until a configured v3 source includes the PR and both
 Apache and NGINX pass real-world connector smokes for source-derived RAW cases.
 
-`v3_action_nolog_pass_no_audit` is also classified as xfail/mapped for now:
+`v3_action_nolog_pass_no_audit` also keeps former expected-failure metadata for now:
 local runs in this workspace produced HTTP 200 and empty audit logs, but the
 current GitHub Actions run reported `expected audit log to be absent or empty`.
 It is not counted as a stable common PASS until local Apache, local NGINX, and

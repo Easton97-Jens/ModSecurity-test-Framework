@@ -110,7 +110,7 @@ continues to describe source provenance.
 | --- | --- | --- |
 | Apache and NGINX lifecycle mismatch | Shared code could lose hook-specific behavior | Keep imports separate; no `common/` extraction in this step |
 | Buildsystem assumptions | Autotools/APXS and NGINX module builds have different inputs | Preserve native build inputs and document commands |
-| Response filter behavior | Phase 4 and `RESPONSE_BODY` differ by connector | Keep response-body blocking mapped/xfail until proven |
+| Response filter behavior | Phase 4 and `RESPONSE_BODY` differ by connector | Keep response-body blocking mapped/former expected-failure until proven |
 | Audit-log differences | Connector/runtime config can affect log artifacts | Use existing real-world smoke summaries only |
 | Upstream provenance drift | Imported files may diverge from source repos | Maintain `ORIGIN.md` with commit and source path |
 

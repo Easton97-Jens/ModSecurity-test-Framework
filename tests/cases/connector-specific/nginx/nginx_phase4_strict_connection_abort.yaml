@@ -11,10 +11,13 @@ capabilities:
   - logging
 portable: false
 connector: nginx
-status: xfail
+status: imported
+former_xfail: true
+former_xfail_reason: "Strict mode may abort the connection after headers are sent; current smoke schema asserts stable HTTP status and keeps this as NGINX-only former expected-failure evidence."
+promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - The current smoke harness expects stable HTTP status codes; strict mode may abort after headers are sent.
-  - Kept outside normal discovery until a dedicated empty-reply assertion exists.
+  - Normal runtime evidence now decides PASS/FAIL/BLOCKED/NOT_EXECUTABLE; strict abort still needs a dedicated empty-reply assertion.
 
 rules: |
   SecRuleEngine On
