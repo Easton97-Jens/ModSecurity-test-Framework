@@ -9,6 +9,8 @@ MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-no-crs}"
 MODSECURITY_MRTS_VARIANT="${MODSECURITY_MRTS_VARIANT:-no-mrts}"
 MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO="${MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO:-0}"
 MRTS_CASE_ROOT="${MRTS_CASE_ROOT:-$FRAMEWORK_ROOT/tests/mrts/generated/framework-cases}"
+MRTS_UPSTREAM_CASE_ROOT="$MRTS_CASE_ROOT/upstream-config-tests"
+MRTS_FEATURE_DEMO_CASE_ROOT="$MRTS_CASE_ROOT/feature-demo"
 MRTS_UPSTREAM_DEFINITIONS="$FRAMEWORK_ROOT/tests/mrts/definitions/upstream-config-tests"
 MRTS_FEATURE_DEMO_DEFINITIONS="$FRAMEWORK_ROOT/tests/mrts/definitions/feature-demo-config-tests"
 MRTS_UPSTREAM_RULES_OUT="$FRAMEWORK_ROOT/tests/mrts/generated/rules"
@@ -50,6 +52,28 @@ mrts_append_extra_case_root() {
             ;;
     esac
     export EXTRA_CASE_ROOTS
+}
+
+mrts_append_reference_case_root() {
+    new_root=$1
+    case "$(CDPATH= cd "$new_root" 2>/dev/null && pwd || printf '%s' "$new_root")" in
+        "$FRAMEWORK_ROOT"/tests/mrts/imported|"$FRAMEWORK_ROOT"/tests/mrts/imported/*)
+            echo "ERROR: refusing to add MRTS golden references as reference case roots: $new_root" >&2
+            exit 2
+            ;;
+    esac
+    case ":${REFERENCE_CASE_ROOTS:-}:" in
+        *:"$new_root":*)
+            ;;
+        *)
+            if [ -n "${REFERENCE_CASE_ROOTS:-}" ]; then
+                REFERENCE_CASE_ROOTS="${REFERENCE_CASE_ROOTS}:$new_root"
+            else
+                REFERENCE_CASE_ROOTS="$new_root"
+            fi
+            ;;
+    esac
+    export REFERENCE_CASE_ROOTS
 }
 
 mrts_generate_upstream() {
@@ -118,7 +142,9 @@ mrts_append_rule_preamble() {
 
 mrts_import_cases() {
     MRTS_CASE_ROOT="${MRTS_CASE_ROOT:-$FRAMEWORK_ROOT/tests/mrts/generated/framework-cases}"
-    mkdir -p "$MRTS_CASE_ROOT/upstream-config-tests" "$MRTS_CASE_ROOT/feature-demo"
+    MRTS_UPSTREAM_CASE_ROOT="$MRTS_CASE_ROOT/upstream-config-tests"
+    MRTS_FEATURE_DEMO_CASE_ROOT="$MRTS_CASE_ROOT/feature-demo"
+    mkdir -p "$MRTS_UPSTREAM_CASE_ROOT" "$MRTS_FEATURE_DEMO_CASE_ROOT"
     find "$MRTS_CASE_ROOT" -type f -name '*.yaml' -exec rm -f {} \;
     "${PYTHON:-python3}" "$FRAMEWORK_ROOT/ci/import-mrts-cases.py" \
         --framework-root "$FRAMEWORK_ROOT" \
@@ -127,7 +153,7 @@ mrts_import_cases() {
         --upstream-ftw-dir "$MRTS_UPSTREAM_GOLDEN_TESTS" \
         --mrts-ftw-dir "$MRTS_UPSTREAM_FTW_OUT" \
         --mrts-rules-dir "$MRTS_UPSTREAM_RULES_OUT" \
-        --output-dir "$MRTS_CASE_ROOT/upstream-config-tests"
+        --output-dir "$MRTS_UPSTREAM_CASE_ROOT"
     feature_status=pending
     feature_reason="MRTS feature-demo corpus is optional/demo and not part of default runtime."
     if [ "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" = "1" ]; then
@@ -142,7 +168,7 @@ mrts_import_cases() {
         --upstream-ftw-dir "$MRTS_FEATURE_DEMO_GOLDEN_TESTS" \
         --mrts-ftw-dir "$MRTS_FEATURE_DEMO_FTW_OUT" \
         --mrts-rules-dir "$MRTS_FEATURE_DEMO_RULES_OUT" \
-        --output-dir "$MRTS_CASE_ROOT/feature-demo" \
+        --output-dir "$MRTS_FEATURE_DEMO_CASE_ROOT" \
         --case-status "$feature_status" \
         --pending-reason "$feature_reason"
 }
@@ -164,7 +190,11 @@ prepare_mrts_variant() {
         MRTS_FEATURE_DEMO_LOAD_FILE=$(MRTS_RULES_OUT="$MRTS_FEATURE_DEMO_RULES_OUT" MRTS_LOAD_FILE="$FRAMEWORK_ROOT/tests/mrts/generated/feature-demo/mrts.load" sh "$FRAMEWORK_ROOT/ci/write-mrts-load.sh")
         mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE"
     fi
-    mrts_append_extra_case_root "$MRTS_CASE_ROOT"
+    mrts_append_extra_case_root "$MRTS_UPSTREAM_CASE_ROOT"
+    mrts_append_reference_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
+    if [ "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" = "1" ]; then
+        mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
+    fi
 }
 
 prepare_mrts_runtime_variant() {

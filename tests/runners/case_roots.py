@@ -12,6 +12,11 @@ def split_extra_case_roots(raw: str | None = None) -> list[Path]:
     return [Path(item).expanduser() for item in value.split(":") if item.strip()]
 
 
+def split_reference_case_roots(raw: str | None = None) -> list[Path]:
+    value = os.environ.get("REFERENCE_CASE_ROOTS", "") if raw is None else raw
+    return [Path(item).expanduser() for item in value.split(":") if item.strip()]
+
+
 def unique_dirs(paths: Iterable[Path]) -> list[Path]:
     seen: set[Path] = set()
     unique: list[Path] = []
@@ -60,7 +65,11 @@ def path_is_in_extra_root(path: str | Path, extra_roots: Iterable[Path] | None =
     return any(path_is_under(candidate, root) for root in roots)
 
 
-def infer_report_scope(path: str | Path, extra_roots: Iterable[Path] | None = None) -> str:
+def infer_report_scope(
+    path: str | Path,
+    extra_roots: Iterable[Path] | None = None,
+    reference_roots: Iterable[Path] | None = None,
+) -> str:
     candidate = Path(path)
     parts = candidate.parts
     if "tests" in parts:
@@ -71,6 +80,9 @@ def infer_report_scope(path: str | Path, extra_roots: Iterable[Path] | None = No
         if len(tail) >= 3 and tail[1] == "cases":
             return "common"
     if path_is_in_extra_root(candidate, extra_roots):
+        return "common"
+    reference_dirs = list(reference_roots if reference_roots is not None else split_reference_case_roots())
+    if any(path_is_under(candidate, root) for root in reference_dirs):
         return "common"
     return "unknown"
 
@@ -84,6 +96,26 @@ def infer_runner_scope(path: str | Path, extra_roots: Iterable[Path] | None = No
 
 def all_case_files(framework_root: Path, extra_roots: Iterable[Path] | None = None) -> list[Path]:
     roots = unique_dirs([framework_root / "tests" / "cases", *(extra_roots or split_extra_case_roots())])
+    return [
+        path
+        for root in roots
+        if root.is_dir()
+        for path in sorted(root.rglob("*.yaml"))
+    ]
+
+
+def all_report_case_files(
+    framework_root: Path,
+    extra_roots: Iterable[Path] | None = None,
+    reference_roots: Iterable[Path] | None = None,
+) -> list[Path]:
+    roots = unique_dirs(
+        [
+            framework_root / "tests" / "cases",
+            *(extra_roots or split_extra_case_roots()),
+            *(reference_roots or split_reference_case_roots()),
+        ]
+    )
     return [
         path
         for root in roots

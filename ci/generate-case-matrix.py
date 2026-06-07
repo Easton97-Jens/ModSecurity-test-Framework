@@ -16,7 +16,7 @@ RUNNER_DIR = Path(__file__).resolve().parents[1] / "tests" / "runners"
 if str(RUNNER_DIR) not in sys.path:
     sys.path.insert(0, str(RUNNER_DIR))
 
-from case_roots import all_case_files, infer_report_scope
+from case_roots import all_report_case_files, infer_report_scope
 from response_body_status import (
     RESPONSE_BODY_EVIDENCE_NOTE,
     RESPONSE_BODY_RUNTIME_NOTE,
@@ -702,7 +702,7 @@ def parse_case(path: Path) -> dict:
 
 
 def gather_cases() -> list[dict]:
-    files = all_case_files(FRAMEWORK_ROOT)
+    files = all_report_case_files(FRAMEWORK_ROOT)
     return [parse_case(p) for p in files]
 
 
