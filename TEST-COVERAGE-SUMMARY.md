@@ -5,9 +5,10 @@ Generated file — do not edit manually.
 ## Summary Status
 - Total YAML cases: **141**
 - Verified/pass (`runtime_verified=true`): **0**
-- XFAIL cases: **80**
-- Pending runtime verification (`runtime_verified=false`): **91**
-- Pending runtime verification (`runtime_verified=unknown`): **50**
+- Current XFAIL cases: **0**
+- Former XFAIL cases tracked: **80**
+- Pending runtime verification (`runtime_verified=false`): **11**
+- Pending runtime verification (`runtime_verified=unknown`): **130**
 - Connector-gap cases: **11**
 - Runtime-difference cases: **13**
 - Future/experimental cases: **17**
@@ -43,17 +44,17 @@ Generated file — do not edit manually.
 - Common YAML cases: **134**
 - Apache-specific YAML cases: **0**
 - NGINX-specific YAML cases: **7**
-- XFAIL cases: **80**
+- Current XFAIL cases: **0**
+- Former XFAIL cases tracked: **80**
 - Mapped-only import inventory entries: **10** (not counted as runnable YAML cases)
-- Runtime-blocked import inventory entries: **0** (environment/harness blockers, not PASS or XFAIL promotions)
+- Runtime-blocked import inventory entries: **0** (environment/harness blockers, not PASS promotions)
 - Pending/future compatibility cases: **17** future/experimental; **141** not runtime-verified
 
 ## Status Classes
 | Status | Count |
 |---|---:|
 | active | 8 |
-| imported | 53 |
-| xfail | 80 |
+| imported | 133 |
 
 ## Scope
 | Scope | Count |
@@ -104,181 +105,119 @@ Generated file — do not edit manually.
 | Response header probes | 11 |
 | Response body experimental probes | 2 |
 
-## Default Runtime Matrix Status
+## Runtime Matrix Status
 | Status | Apache | NGINX | HAProxy |
 |---|---:|---:|---:|
-| PASS | 53 | 56 | 54 |
-| RESPONSE_BODY_PASS_THROUGH | 1 | 4 | 1 |
-| NOT_EXECUTABLE | 87 | 81 | 86 |
+| PASS | 54 | 60 | 55 |
+| NOT_EXECUTABLE | 7 | 0 | 7 |
+| NOT EXECUTED | 80 | 81 | 79 |
 | MAPPED_ONLY | 10 | 10 | 10 |
 
 - Apache attempted YAML cases from default summary: **54**
 - NGINX attempted YAML cases from default summary: **60**
 - HAProxy attempted YAML cases from default summary: **55**
-- Apache raw runtime XFAIL observations from default summary: **0**
-- NGINX raw runtime XFAIL observations from default summary: **0**
-- HAProxy raw runtime XFAIL observations from default summary: **0**
-- Apache NOT EXECUTED YAML rows: **0**
-- NGINX NOT EXECUTED YAML rows: **0**
-- HAProxy NOT EXECUTED YAML rows: **0**
-- Apache NOT_EXECUTABLE YAML rows: **87**
-- NGINX NOT_EXECUTABLE YAML rows: **81**
-- HAProxy NOT_EXECUTABLE YAML rows: **86**
+- Apache NOT EXECUTED YAML rows: **80**
+- NGINX NOT EXECUTED YAML rows: **81**
+- HAProxy NOT EXECUTED YAML rows: **79**
+- Apache NOT_EXECUTABLE YAML rows: **7**
+- NGINX NOT_EXECUTABLE YAML rows: **0**
+- HAProxy NOT_EXECUTABLE YAML rows: **7**
 - Mapped-only import inventory entries: **10**
 - Runtime matrix detail: `reports/testing/generated/runtime-matrix.generated.md`
 - Apache per-case results: `reports/testing/generated/apache-runtime-results.generated.md`
 - NGINX per-case results: `reports/testing/generated/nginx-runtime-results.generated.md`
 - HAProxy per-case results: `reports/testing/generated/haproxy-runtime-results.generated.md`
-- PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence; XFAIL and pending cases are not promoted.
+- PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence.
 - RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
-
-## Force-All Runtime Matrix Status
-| Connector | Status | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
-|---|---|---:|---:|---:|---:|---:|---|
-| Apache | FAIL | 133 | 100 | 27 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
-| NGINX | FAIL | 140 | 95 | 39 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
-| HAProxy | FAIL | 133 | 104 | 23 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
 
 - HAProxy force-all attempted YAML cases: **133**
 - HAProxy force-all result JSONL: `/src/ModSecurity-conector-build/results/force-all/haproxy-results.jsonl`
 - HAProxy force-all per-case evidence root: `/src/ModSecurity-conector-build/logs/haproxy-runtime`
-- Apache and NGINX force-all render `NOT_AVAILABLE` when no force-all summaries are present.
-- Force-all evidence is traceable runtime evidence but does not promote xfail/pending/future/gap feature support.
+- Force-all evidence is traceable runtime evidence but does not promote pending/future/gap feature support.
 
-## HAProxy Default Runtime Details
-- Runtime mode: `default`
-- Command: `make smoke-haproxy`
-- Status: **PASS**
-- Exit code: `0`
-- Attempted YAML cases: **55**
-- Total cases in summary: **55**
-- Evidence root: `/src/ModSecurity-conector-build/results/with-crs`
-- JSONL evidence: `/src/ModSecurity-conector-build/results/with-crs/haproxy-results.jsonl`
-- Per-case result root: `/src/ModSecurity-conector-build/logs/haproxy-runtime`
+## Framework Check Status
+| Command | Status | Details |
+|---|---|---|
+| make setup-dev | PASS | Development dependencies available in .venv |
+| make lint | PASS | Repository lint checks passed |
+| make generate-test-matrix | PASS | Generated coverage docs refreshed from current metadata |
+| make check-test-matrix | FAIL | Exited 2 in this uncommitted working tree because generated reports differ from HEAD after the HAProxy matrix updates |
+| make quick-check | PASS | Lightweight framework checks passed |
+| make cloud-quick-check | PASS | Framework/generator-only cloud check passed |
+| .venv/bin/python -m py_compile modules/ModSecurity-test-Framework/tests/normalizers/*.py modules/ModSecurity-test-Framework/tests/runners/*.py modules/ModSecurity-test-Framework/ci/*.py | PASS | Framework Python files compiled through the connector module path |
+| sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | POSIX shell syntax check passed for connector integration shell scripts |
+| bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | Bash syntax check passed for connector integration shell scripts |
+| git diff --check | PASS | No whitespace errors reported |
+| diff -u /tmp/pre-connector.diff /tmp/post-connector.diff | PASS | Connector source diff snapshot is unchanged; no new connector source changes were introduced |
+| git diff --exit-code -- connectors/apache/src connectors/nginx/src | BLOCKED | Non-zero because connectors/apache/src/mod_security3.c had a pre-existing unrelated local change before this fix; the pre/post connector diff snapshot is unchanged |
+| git ls-files .venv | PASS | No tracked .venv files |
 
-| Status | Count |
-|---|---:|
-| PASS | 55 |
-| FAIL | 0 |
-| BLOCKED | 0 |
-| NOT_EXECUTABLE | 0 |
-| SKIPPED | 0 |
-| XFAIL | 0 |
-
-## HAProxy Force-All Runtime Details
-- Runtime mode: `force-all`
-- Command: `FORCE_ALL_CASES=1 make smoke-haproxy`
-- Status: **FAIL**
-- Exit code: `1`
-- Attempted YAML cases: **133**
-- Total cases in summary: **133**
-- Evidence root: `/src/ModSecurity-conector-build/results/force-all`
-- JSONL evidence: `/src/ModSecurity-conector-build/results/force-all/haproxy-results.jsonl`
-- Per-case result root: `/src/ModSecurity-conector-build/logs/haproxy-runtime`
-
-| Status | Count |
-|---|---:|
-| PASS | 104 |
-| FAIL | 23 |
-| BLOCKED | 0 |
-| NOT_EXECUTABLE | 6 |
-| SKIPPED | 0 |
-| XFAIL | 0 |
-
-- Force-all exited nonzero because live-executed rows mismatched expected runtime outcomes.
-
-### HAProxy Force-All FAIL Rows
-| Case | Expected | Observed | Reason | Evidence | Decision Log |
-|---|---:|---:|---|---|---|
-| duplicate_args_encoded_separator_edge | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/decision.jsonl |
-| duplicate_header_case_normalization_gap | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/duplicate_header_case_normalization_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/duplicate_header_case_normalization_gap/decision.jsonl |
-| edge_semicolon_query_args_names | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/edge_semicolon_query_args_names/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/edge_semicolon_query_args_names/decision.jsonl |
-| files_names_mixed_case_filename_gap | 403 | 501 | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/logs/haproxy-runtime/files_names_mixed_case_filename_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/files_names_mixed_case_filename_gap/decision.jsonl |
-| multipart_duplicate_field_names_gap | 403 | 501 | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/logs/haproxy-runtime/multipart_duplicate_field_names_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/multipart_duplicate_field_names_gap/decision.jsonl |
-| parser_xml_partial_body_future_target | 403 | 501 | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/logs/haproxy-runtime/parser_xml_partial_body_future_target/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/parser_xml_partial_body_future_target/decision.jsonl |
-| phase1_vs_phase2_request_body_gap | 403 | 501 | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase1_vs_phase2_request_body_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase1_vs_phase2_request_body_gap/decision.jsonl |
-| phase3_response_headers_multi_value_connector_gap | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase3_response_headers_multi_value_connector_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase3_response_headers_multi_value_connector_gap/decision.jsonl |
-| phase3_response_headers_set_cookie_multi_gap | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase3_response_headers_set_cookie_multi_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase3_response_headers_set_cookie_multi_gap/decision.jsonl |
-| phase4_auditlog_outbound_multiline_section_gap | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase4_auditlog_outbound_multiline_section_gap/decision.jsonl |
-| response_headers_multi_value_runtime_gap | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/response_headers_multi_value_runtime_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/response_headers_multi_value_runtime_gap/decision.jsonl |
-| sqli_like_keyword_spacing_probe | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/sqli_like_keyword_spacing_probe/decision.jsonl |
-| sqli_like_quote_encoding_runtime_difference | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/sqli_like_quote_encoding_runtime_difference/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/sqli_like_quote_encoding_runtime_difference/decision.jsonl |
-| tfn_chain_lowercase_trim_pass_through | 200 | 0 | expected HTTP 200; observed HTTP 0 | /src/ModSecurity-conector-build/logs/haproxy-runtime/tfn_chain_lowercase_trim_pass_through/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/tfn_chain_lowercase_trim_pass_through/decision.jsonl |
-| unicode_double_encoded_uri_runtime_difference | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/unicode_double_encoded_uri_runtime_difference/decision.jsonl |
-| unicode_whitespace_normalization_gap | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/unicode_whitespace_normalization_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/unicode_whitespace_normalization_gap/decision.jsonl |
-| v3_request_cookies_names_case_runtime_difference | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_request_cookies_names_case_runtime_difference/decision.jsonl |
-| v3_request_headers_names_lowercase_runtime_difference | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/v3_request_headers_names_lowercase_runtime_difference/decision.jsonl |
-| xml_deep_nesting_future_target | 403 | 501 | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/logs/haproxy-runtime/xml_deep_nesting_future_target/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/xml_deep_nesting_future_target/decision.jsonl |
-| xml_namespace_edge_connector_gap | 403 | 501 | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/logs/haproxy-runtime/xml_namespace_edge_connector_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/xml_namespace_edge_connector_gap/decision.jsonl |
-| xml_request_body_malformed_connector_gap | 403 | 501 | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/xml_request_body_malformed_connector_gap/decision.jsonl |
-| xss_like_encoded_angles_normalization_probe | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/decision.jsonl |
-| xss_like_mixed_case_script_token_gap | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/xss_like_mixed_case_script_token_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/xss_like_mixed_case_script_token_gap/decision.jsonl |
-
-### HAProxy Force-All NOT_EXECUTABLE Rows
-| Case | Reason | Evidence | Decision Log |
-|---|---|---|---|
-| files_empty_part_future_compatibility | structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path | /src/ModSecurity-conector-build/logs/haproxy-runtime/files_empty_part_future_compatibility/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/files_empty_part_future_compatibility/decision.jsonl |
-| json_empty_body_future_compatibility | structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path | /src/ModSecurity-conector-build/logs/haproxy-runtime/json_empty_body_future_compatibility/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/json_empty_body_future_compatibility/decision.jsonl |
-| multipart_empty_filename_connector_gap | structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path | /src/ModSecurity-conector-build/logs/haproxy-runtime/multipart_empty_filename_connector_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/multipart_empty_filename_connector_gap/decision.jsonl |
-| phase3_response_headers_server_presence_pending | structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase3_response_headers_server_presence_pending/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase3_response_headers_server_presence_pending/decision.jsonl |
-| phase4_response_body_empty_future_target | structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase4_response_body_empty_future_target/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase4_response_body_empty_future_target/decision.jsonl |
-| v2_transformation_url_decode_invalid_sequence_mapped_candidate | structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/decision.jsonl |
-
-### HAProxy Force-All BLOCKED Rows
-| Status | Count | Note |
-|---|---:|---|
-| BLOCKED | 0 | No rows were reported. |
-
-## HAProxy Production SPOA Status
-- HAProxy runtime evidence is produced by the production `haproxy-modsecurity-spoa` binary/code path used by the harness.
-- The deprecated synthetic HAProxy matrix writer remains excluded from PASS generation.
-
-## RESPONSE_BODY / Phase 4 Status
-- RESPONSE_BODY remains non-promoted. Bounded phase-4 strict-abort rows are rendered as experimental runtime evidence only.
+## Readiness / Fetch Status
+| Command | Status | Details |
+|---|---|---|
+| make fetch-deps | NOT_RUN | Not rerun during the framework-module migration; runtime-matrix-all used the configured local source tree and build output location |
+| optional installed readiness | BLOCKED | System Apache/APXS/NGINX/libmodsecurity readiness remains diagnostic only and is not required for source-build smokes |
+| make runtime-matrix-all | PASS | Force-all matrix orchestration completed and recorded Apache/NGINX per-case evidence; expected runtime FAILs remain evidence and are not PASS promotions |
 
 ## Runtime Smoke Status
+- Snapshot: **2026-06-07** (2026-06-07 13:26:50 CEST)
+- Git: branch `integrate-new-connectors-local`, commit `b5b983d`
+- BUILD_ROOT: `/src/ModSecurity-conector-build`
+- Snapshot file: `reports/testing/runtime-validation-snapshot.json`
 
-## Default Runtime Smoke Evidence
+### Default Runtime Smoke Status
 | Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
 |---|---|---|---|---|---|---|---|---|---|
 | apache | make smoke-apache | PASS | 0 | 54 | 54 | 0 | 0 | 0 | /src/ModSecurity-conector-build/results/apache-summary.json |
 | nginx | make smoke-nginx | PASS | 0 | 60 | 60 | 0 | 0 | 0 | /src/ModSecurity-conector-build/results/nginx-summary.json |
-| haproxy | make smoke-haproxy | PASS | 0 | 55 | 55 | 0 | 0 | 0 | /src/ModSecurity-conector-build/results/haproxy-summary.json |
+| haproxy | make runtime-matrix-haproxy | PASS | 0 | 55 | 55 | 0 | 0 | 0 | /src/ModSecurity-conector-build/results/with-crs/haproxy-summary.json |
 | all | REFRESH=1 make smoke-all | NOT_RUN | not_run | 0 | unknown | unknown | unknown | unknown | not available |
 
-## Force-All Runtime Smoke Evidence
+### Force-All Runtime Smoke Status
 | Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
 |---|---|---|---|---|---|---|---|---|---|
-| apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 2 | 133 | 100 | 27 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
-| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 140 | 95 | 39 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
+| apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 1 | 133 | 100 | 27 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
+| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 1 | 140 | 95 | 39 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
 | haproxy | FORCE_ALL_CASES=1 make smoke-haproxy | FAIL | 1 | 133 | 104 | 23 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
 
-## Validation Snapshot
-- Snapshot: **2026-06-07** (2026-06-07 06:24:10 CEST)
-- Git: branch `integrate-new-connectors-local`, commit `eaa8b3a`
-- BUILD_ROOT: `/src/ModSecurity-conector-build`
-- Snapshot file: `reports/testing/runtime-validation-snapshot.json`
+## Connector Runtime Availability
+| Connector | Status | Build | Per-case results | Attempted cases | Summary evidence | Note |
+|---|---|---|---|---:|---|---|
+| Apache | PASS | unknown | available | 54 | /src/ModSecurity-conector-build/results/apache-summary.json | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only. |
+| NGINX | PASS | unknown | available | 60 | /src/ModSecurity-conector-build/results/nginx-summary.json | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only. |
+| HAProxy | PASS | unknown | available | 55 | /src/ModSecurity-conector-build/results/with-crs/haproxy-summary.json | Default HAProxy evidence is the supported non-former-XFAIL subset of live HAProxy matrix evidence; force-all rows remain separate runtime evidence. |
 
-## New Connector Runtime-Smoke Evidence
+## Runtime FAIL Details
 
-This generated section reads local connector smoke/matrix summaries from `$BUILD_ROOT/results` when present, then falls back to tracked snapshot evidence or BLOCKED/not-verified status. It is reporting only and does not invent PASS values.
+### Apache FAIL Details
+No Apache runtime FAIL details were reported.
 
-| Connector | Status | Runtime status | Runtime verified | CRS verified | RESPONSE_BODY verified | Verified cases | CRS/split detail | Evidence |
-|---|---|---|---:|---:|---:|---|---|---|
-| envoy | BLOCKED | blocked | no | no | no | `-` | - | `/src/ModSecurity-conector-build/results/envoy-summary.json` |
-| haproxy | PARTIAL | live-yaml-runtime | yes | yes | no | `action_allow_phase1_pass, action_deny_phase1, action_deny_phase2, action_status_401_phase1_block, audit_log_phase1_block, collection_args_combined_size_block, collection_args_get_block, collection_args_names_block, crs_sqli_anomaly_block, json_request_body_block, multipart_basic_block, multipart_filename_block, multipart_files_combined_size, multipart_files_names_block, multipart_files_value_block, phase1_header_block, phase2_args_block, phase2_args_pass, pr70_phase1_audit_request_header, pr70_phase2_audit_urlencoded_body, pr70_phase3_audit_response_header, request_body_args_post_names_block, request_body_json_block, request_body_raw_text_block, request_body_urlencoded_block, response_body_pass, response_header_basic, rule_chain_both_match_block, rule_chain_first_only_pass, rule_chain_second_only_pass, v2_operator_begins_with_block, v2_operator_contains_block, v2_operator_contains_word_block, v2_operator_ends_with_block, v2_operator_pm_block, v2_operator_streq_block, v2_transformation_html_entity_decode_block, v2_transformation_lowercase_block, v2_transformation_trim_block, v2_transformation_url_decode_block, v2_transformation_url_decode_pass_no_match, v3_args_names_get_block, v3_args_names_get_pass_no_match, v3_auditlog_serial_fields_block, v3_operator_pm_digit_block, v3_operator_rx_block, v3_request_cookies_block, v3_request_cookies_names_block, v3_request_cookies_names_pass_no_match, v3_request_cookies_pass_no_match, v3_request_headers_names_block, v3_request_headers_names_pass_no_match, v3_secaction_block, v3_transformation_trim_block, xml_request_body_block` | - | `/src/ModSecurity-conector-build/results/haproxy-summary.json` |
-| lighttpd | BLOCKED | blocked | no | no | no | `-` | - | `/src/ModSecurity-conector-build/results/lighttpd-summary.json` |
-| traefik | BLOCKED | blocked | no | no | no | `-` | - | `/src/ModSecurity-conector-build/results/traefik-summary.json` |
+### NGINX FAIL Details
+No NGINX runtime FAIL details were reported.
 
-- HAProxy CRS verification is derived from live with-CRS YAML rows in the latest HAProxy summary.
-- Envoy, lighttpd, and Traefik remain not runtime-verified unless their own summary files report runtime PASS evidence.
-- RESPONSE_BODY remains not verified for these new connector smoke summaries.
+### HAProxy FAIL Details
+No HAProxy runtime FAIL details were reported.
 
-## Open Runtime Issues / Remaining Gaps
+## Runtime Verified Status
+- Runtime matrix records current local Apache, NGINX, and HAProxy per-case smoke evidence when available.
+- PASS in this snapshot means the case was executed by that connector's smoke harness and matched the case expectation in the summary JSON.
+- Pending, connector-gap, runtime-difference, future, and mapped-only inventory are not promoted by this snapshot.
+- FORCE_ALL_CASES=1 attempts all materializable YAML cases where they are applicable to the connector.
+- HAProxy PASS is scoped to live HAProxy evidence only; current HAProxy coverage is partial request-side YAML execution.
+- RESPONSE_BODY remains non-verified/non-promoted.
+- Runtime passed, but this does not verify RESPONSE_BODY support.
+- make smoke-all was not run by runtime-matrix; full-smoke PASS counts remain unknown.
+
+## Open Runtime Issues
+- Mapped-only import inventory entries are not executable YAML runtime cases.
+- Pending/future/connector-gap/runtime-difference topics require live evidence before any support claim.
+- RESPONSE_BODY remains experimental/non-verified.
+
+## Open Areas / Gaps
 - Runtime verification pending: cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.
 - RESPONSE_BODY remains non-verified and non-promoted.
 - GitHub/Codex checks are intentionally lightweight and do not prove runtime compatibility.
-- XFAIL, pending, future, connector-gap, and runtime-difference cases require local runtime evidence before any status change.
+- Pending, future, connector-gap, and runtime-difference topics require local runtime evidence before any support claim.
 - Runtime-blocked import entries are environment or harness blockers and do not imply connector-gap/runtime-difference promotion.
 - `installed-readiness` is diagnostic detection, not runtime execution.
 - There is no separate artifact-reuse smoke path; runtime validation uses source-build execution.
@@ -316,7 +255,7 @@ This generated section reads local connector smoke/matrix summaries from `$BUILD
 Generated coverage is reporting only; it is not runtime evidence by itself.
 Full runtime validation is local and evidence-based.
 GitHub/Codex checks are intentionally lightweight.
-XFAIL, pending, future, and gap cases need local runtime validation before promotion.
+Pending, future, and gap topics need local runtime validation before promotion.
 `make smoke-all` is authoritative only if it was actually executed successfully.
 No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.
-No RESPONSE_BODY promotion is made without stable full-smoke runtime evidence.
+Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is reported as runtime evidence only.

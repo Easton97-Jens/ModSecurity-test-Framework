@@ -36,19 +36,6 @@ prepare_crs_if_needed() {
         sh "$FRAMEWORK_ROOT/ci/prepare-crs.sh"
 }
 
-copy_variant_to_root() {
-    variant_dir=$1
-    if [ -f "$variant_dir/haproxy-summary.json" ]; then
-        cp "$variant_dir/haproxy-summary.json" "$RESULTS_ROOT/haproxy-summary.json"
-    fi
-    if [ -f "$variant_dir/haproxy-results.jsonl" ]; then
-        cp "$variant_dir/haproxy-results.jsonl" "$RESULTS_ROOT/haproxy-results.jsonl"
-    fi
-    if [ -f "$variant_dir/haproxy-summary.txt" ]; then
-        cp "$variant_dir/haproxy-summary.txt" "$RESULTS_ROOT/haproxy-summary.txt"
-    fi
-}
-
 run_variant() {
     variant=$1
     out_dir=$2
@@ -74,16 +61,18 @@ run_variant() {
 update_snapshot() {
     snapshot_force_args=
     haproxy_command="make runtime-matrix-haproxy"
+    haproxy_exit_code="$matrix_rc"
     if [ "$FORCE_ALL_CASES" = "1" ]; then
         snapshot_force_args="--force-all"
         haproxy_command="FORCE_ALL_CASES=1 make runtime-matrix-haproxy"
+        haproxy_exit_code="$matrix_rc"
     fi
     "$PYTHON_BIN" "$FRAMEWORK_ROOT/ci/update-runtime-snapshot.py" \
         --framework-root "$FRAMEWORK_ROOT" \
         --connector-root "$CONNECTOR_ROOT" \
         --output-root "$CONNECTOR_ROOT" \
         --build-root "$BUILD_ROOT" \
-        --haproxy-exit-code "$matrix_rc" \
+        --haproxy-exit-code "$haproxy_exit_code" \
         --haproxy-command "$haproxy_command" \
         $snapshot_force_args
 }
@@ -105,11 +94,9 @@ fi
 case "$MATRIX_VARIANT" in
     no-crs)
         run_variant no-crs "$RESULTS_ROOT/no-crs" || matrix_rc=$?
-        copy_variant_to_root "$RESULTS_ROOT/no-crs"
         ;;
     with-crs)
         run_variant with-crs "$RESULTS_ROOT/with-crs" || matrix_rc=$?
-        copy_variant_to_root "$RESULTS_ROOT/with-crs"
         ;;
     all)
         run_variant no-crs "$RESULTS_ROOT/no-crs" || matrix_rc=$?
@@ -119,7 +106,6 @@ case "$MATRIX_VARIANT" in
                 matrix_rc=$rc
             fi
         }
-        copy_variant_to_root "$RESULTS_ROOT/with-crs"
         update_snapshot || matrix_rc=$?
         ;;
     *)

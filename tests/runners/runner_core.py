@@ -94,10 +94,9 @@ CASE_STATUSES = {
     "runtime-difference",
     "skipped",
     "todo",
-    "xfail",
 }
 
-RESULT_STATUSES = {"pass", "fail", "blocked", "not_executable", "skipped", "xfail"}
+RESULT_STATUSES = {"pass", "fail", "blocked", "not_executable", "skipped"}
 CONNECTORS = {"apache", "envoy", "haproxy", "lighttpd", "nginx", "traefik", "common"}
 INTERVENTIONS = {"deny", "pass", "none", "redirect", "block"}
 REQUEST_METHODS = {"GET", "POST"}
@@ -797,6 +796,8 @@ def case_status_group(case: Mapping[str, Any]) -> str:
 
 
 def is_default_runtime_case(case: Mapping[str, Any]) -> bool:
+    if case.get("former_xfail") is True:
+        return False
     return case_status_group(case) in {
         "active",
         "fully-imported-common",

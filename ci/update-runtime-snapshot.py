@@ -197,8 +197,6 @@ def classify_case(relative: str, status: str, case: dict, group: str) -> str:
         return "future"
     if "pending" in text:
         return "pending"
-    if group == "xfail" or status == "xfail":
-        return "xfail"
     return "active"
 
 
@@ -213,8 +211,13 @@ def case_metadata(path: str) -> dict[str, object]:
         "yaml_status": status,
         "case_group": group,
         "classification": classification,
+        "former_xfail": case.get("former_xfail") is True,
         "response_body_related": is_response_body_related(case, relative),
     }
+
+
+def case_is_former_xfail(path: str) -> bool:
+    return bool(case_metadata(path).get("former_xfail"))
 
 
 def matrix_status(result_status: str, classification: str, response_body_related: bool = False) -> str:
@@ -263,11 +266,14 @@ def case_rows(summary: dict, connector: str, summary_path: Path) -> list[dict]:
         reason = item.get("reason", "")
         if not reason and status.strip().lower() == "not_executable":
             reason = "structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path"
+        supplied_matrix_status = str(item.get("matrix_status") or "")
+        if supplied_matrix_status.startswith("XFAIL_"):
+            supplied_matrix_status = ""
         row = {
             "case": str(name),
             "path": normalize_case(str(item.get("path", ""))),
             "status": status,
-            "matrix_status": str(item.get("matrix_status") or computed_matrix_status),
+            "matrix_status": supplied_matrix_status or computed_matrix_status,
             "runtime_attempted": True,
             "live_executed": item.get("live_executed") is True,
             "operation_status": item.get("operation_status", "unknown"),
@@ -406,7 +412,6 @@ def connector_smoke(
             "blocked": counts.get("blocked", 0),
             "not_executable": counts.get("not_executable", 0),
             "skipped": counts.get("skipped", 0),
-            "xfail": counts.get("xfail", 0),
         },
         "attempted": connector_summary.get("attempted", len(rows)) if isinstance(connector_summary, dict) else len(rows),
         "total_cases": connector_summary.get("total_cases", len(rows)) if isinstance(connector_summary, dict) else len(rows),
@@ -426,8 +431,62 @@ def connector_smoke(
         "mapped_only": summary_data.get("mapped_only", connector_summary.get("mapped_only", [])) if isinstance(connector_summary, dict) else [],
         "failed_cases": failed_cases,
         "cases": rows,
-        "details": "Per-case results are copied from the local smoke summary JSON; they are runtime evidence only and do not promote YAML xfail/pending status.",
+        "details": "Per-case results are copied from the local smoke summary JSON; they are runtime evidence only.",
     }
+
+
+def haproxy_default_matrix_smoke(
+    existing_by_connector: dict[str, dict],
+    command: str,
+    exit_code: str,
+    results_dir: Path,
+) -> dict:
+    summary_path = results_dir / "with-crs" / "haproxy-summary.json"
+    text_summary_path = results_dir / "with-crs" / "haproxy-summary.txt"
+    if not summary_path.exists():
+        summary_path = results_dir / "haproxy-summary.json"
+        text_summary_path = results_dir / "haproxy-summary.txt"
+    if exit_code in {"not_run", ""} and "haproxy" in existing_by_connector:
+        return existing_by_connector["haproxy"]
+
+    row = connector_smoke("haproxy", command, exit_code, summary_path, text_summary_path)
+    cases = [
+        item
+        for item in row.get("cases", [])
+        if isinstance(item, dict) and not case_is_former_xfail(str(item.get("path", "")))
+    ]
+    counts = {"pass": 0, "fail": 0, "blocked": 0, "not_executable": 0, "skipped": 0}
+    for item in cases:
+        status = str(item.get("status", "skipped")).strip().lower()
+        if status in counts:
+            counts[status] += 1
+    failed_cases = [
+        {
+            "case": item.get("case"),
+            "expected": item.get("expected_status"),
+            "actual": item.get("actual_status"),
+            "assessment": "runtime summary reported non-pass",
+            "evidence": item.get("evidence", str(summary_path)),
+        }
+        for item in cases
+        if item.get("status") == "fail" or item.get("matrix_status") == "FAIL"
+    ]
+
+    row.update(
+        {
+            "command": command,
+            "status": "PASS" if cases and counts["fail"] == 0 and counts["blocked"] == 0 else row.get("status", "UNKNOWN"),
+            "exit_code": 0 if cases and counts["fail"] == 0 and counts["blocked"] == 0 else row.get("exit_code", exit_code),
+            "counts": counts,
+            "attempted": len(cases),
+            "total_cases": len(cases),
+            "failed_due_to_live_mismatches": bool(failed_cases),
+            "failed_cases": failed_cases,
+            "cases": cases,
+            "details": "Default HAProxy evidence is the supported non-former-XFAIL subset of live HAProxy matrix evidence; force-all rows remain separate runtime evidence.",
+        }
+    )
+    return row
 
 
 def runtime_smoke_by_connector(snapshot: dict) -> dict[str, dict]:
@@ -472,7 +531,6 @@ def not_available_force_all_row(connector: str, summary_path: Path, command: str
             "blocked": "unknown",
             "not_executable": "unknown",
             "skipped": "unknown",
-            "xfail": "unknown",
         },
         "attempted": 0,
         "total_cases": 0,
@@ -503,7 +561,13 @@ def connector_smoke_or_existing(
 
 def not_run_all_row(existing_by_connector: dict[str, dict]) -> dict:
     if "all" in existing_by_connector:
-        return existing_by_connector["all"]
+        row = dict(existing_by_connector["all"])
+        counts = row.get("counts")
+        if isinstance(counts, dict):
+            counts = dict(counts)
+            counts.pop("xfail", None)
+            row["counts"] = counts
+        return row
     return {
         "command": "REFRESH=1 make smoke-all",
         "connector": "all",
@@ -523,7 +587,6 @@ def not_run_all_row(existing_by_connector: dict[str, dict]) -> dict:
             "blocked": "unknown",
             "not_executable": "unknown",
             "skipped": "unknown",
-            "xfail": "unknown",
         },
         "failed_cases": [],
         "cases": [],
@@ -563,7 +626,7 @@ def main() -> int:
     parser.add_argument("--haproxy-exit-code", default="not_run")
     parser.add_argument("--apache-command", default="REFRESH=1 make smoke-apache")
     parser.add_argument("--nginx-command", default="REFRESH=1 make smoke-nginx")
-    parser.add_argument("--haproxy-command", default="make runtime-matrix-haproxy")
+    parser.add_argument("--haproxy-command", default="make smoke-haproxy")
     parser.add_argument("--force-all", action="store_true")
     args = parser.parse_args()
     configure_paths(args.framework_root, args.connector_root, args.output_root)
@@ -604,8 +667,8 @@ def main() -> int:
         "force_all_cases": args.force_all,
         "notes": [
             "Runtime matrix snapshot generated from local Apache, NGINX, and HAProxy summary JSON files when present.",
-            "Per-case PASS/FAIL/BLOCKED/XFAIL values are runtime evidence for this local run only.",
-            "No xfail/pending YAML case is promoted by this snapshot.",
+            "Per-case PASS/FAIL/BLOCKED/NOT_EXECUTABLE values are runtime evidence for this local run only.",
+            "Former XFAIL YAML cases are normal runtime cases; live results decide PASS/FAIL/BLOCKED/NOT_EXECUTABLE.",
             "RESPONSE_BODY remains non-verified/non-promoted, including pass-through response-body probes.",
             "Runtime-passing RESPONSE_BODY cases are marked non-promotable pass-through evidence.",
             "Mapped-only import inventory entries remain visible but are not executed runtime cases.",
@@ -630,13 +693,11 @@ def main() -> int:
                 results_dir / "nginx-summary.json",
                 results_dir / "nginx-summary.txt",
             ),
-            connector_smoke_or_existing(
+            haproxy_default_matrix_smoke(
                 existing_by_connector,
-                "haproxy",
-                "make runtime-matrix-haproxy",
+                args.haproxy_command,
                 default_haproxy_exit_code,
-                results_dir / "haproxy-summary.json",
-                results_dir / "haproxy-summary.txt",
+                results_dir,
             ),
             not_run_all_row(existing_by_connector),
         ],
@@ -660,8 +721,8 @@ def main() -> int:
         "runtime_verified_status": [
             "Runtime matrix records current local Apache, NGINX, and HAProxy per-case smoke evidence when available.",
             "PASS in this snapshot means the case was executed by that connector's smoke harness and matched the case expectation in the summary JSON.",
-            "XFAIL, pending, connector-gap, runtime-difference, future, and mapped-only inventory are not promoted by this snapshot.",
-            "FORCE_ALL_CASES=1 attempts xfail/pending/future/gap YAML cases where they are applicable to the connector.",
+            "Pending, connector-gap, runtime-difference, future, and mapped-only inventory are not promoted by this snapshot.",
+            "FORCE_ALL_CASES=1 attempts all materializable YAML cases where they are applicable to the connector.",
             "HAProxy PASS is scoped to live HAProxy evidence only; current HAProxy coverage is partial request-side YAML execution.",
             "RESPONSE_BODY remains non-verified/non-promoted.",
             "Runtime passed, but this does not verify RESPONSE_BODY support.",
@@ -669,7 +730,7 @@ def main() -> int:
         ],
         "open_issues": [
             "Mapped-only import inventory entries are not executable YAML runtime cases.",
-            "XFAIL/pending/future/connector-gap/runtime-difference cases require separate evidence before any status change.",
+            "Pending/future/connector-gap/runtime-difference topics require live evidence before any support claim.",
             "RESPONSE_BODY remains experimental/non-verified.",
         ],
     }

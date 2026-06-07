@@ -14,7 +14,6 @@ import yaml
 
 from response_body_status import (
     RESPONSE_BODY_EVIDENCE_NOTE,
-    RESPONSE_BODY_PASS_THROUGH_STATUS,
     RESPONSE_BODY_RUNTIME_NOTE,
     is_response_body_related,
     matrix_status_for_result,
@@ -86,24 +85,8 @@ NEW_CONNECTOR_SMOKE_CONNECTORS = ["envoy", "haproxy", "lighttpd", "traefik"]
 
 MATRIX_STATUS_ORDER = [
     "PASS",
-    "RESPONSE_BODY_PASS_THROUGH",
     "FAIL",
     "BLOCKED",
-    "XFAIL_PASS",
-    "XFAIL_RESPONSE_BODY_PASS_THROUGH",
-    "XFAIL_FAIL",
-    "PENDING_PASS",
-    "PENDING_RESPONSE_BODY_PASS_THROUGH",
-    "PENDING_FAIL",
-    "FUTURE_PASS",
-    "FUTURE_RESPONSE_BODY_PASS_THROUGH",
-    "FUTURE_FAIL",
-    "CONNECTOR_GAP_PASS",
-    "CONNECTOR_GAP_RESPONSE_BODY_PASS_THROUGH",
-    "CONNECTOR_GAP_FAIL",
-    "RUNTIME_DIFFERENCE_PASS",
-    "RUNTIME_DIFFERENCE_RESPONSE_BODY_PASS_THROUGH",
-    "RUNTIME_DIFFERENCE_FAIL",
     "NOT_EXECUTABLE",
     "MAPPED_ONLY",
     NOT_EXECUTED,
@@ -548,7 +531,7 @@ def parse_runtime_verified(data: dict) -> str:
     status = str(data.get("status", "unknown")).lower()
     if status in {"pass", "verified"}:
         return "true"
-    if status in {"xfail", "pending", "blocked", "unknown"}:
+    if status in {"pending", "blocked", "unknown"}:
         return "false"
     return "unknown"
 
@@ -614,6 +597,9 @@ def parse_case(path: Path) -> dict:
         "path": display_path(path),
         "scope": infer_scope(path),
         "status": status,
+        "former_xfail": bool(data.get("former_xfail") is True),
+        "former_xfail_reason": str(data.get("former_xfail_reason", "") or ""),
+        "promoted_from_xfail_date": str(data.get("promoted_from_xfail_date", "") or ""),
         "category": category,
         "runtime_verified": parse_runtime_verified(data),
         "variables": sorted(variables),
@@ -699,13 +685,48 @@ def render_summary(cases: list[dict], by_scope: Counter, by_status: Counter, by_
     return "\n".join(lines)
 
 
-def render_xfail(cases: list[dict]) -> str:
-    rows = ["# Generated XFAIL/Pending/Future Summary", "", "| case_id | path | status | phase | variables | notes |", "|---|---|---|---|---|---|"]
-    marker_tags = {"future", "experimental", "pending"}
-    for case in cases:
-        if case["status"] in {"xfail", "pending", "future", "experimental"} or marker_tags.intersection(case["tags"]):
-            rows.append(f"| {case['id']} | `{case['path']}` | {case['status']} | {','.join(map(str, case['phases'])) or '-'} | {', '.join(case['variables']) or '-'} | {case['notes']} |")
-    return "\n".join(rows)
+def render_xfail(cases: list[dict], import_status: dict) -> str:
+    current = [case for case in cases if case["status"] == "xfail"]
+    former_cases = [case for case in cases if case.get("former_xfail")]
+    lines = [
+        "# Generated Former XFAIL Migration Summary",
+        "",
+        f"- Current XFAIL YAML cases: **{len(current)}**",
+        f"- Former XFAIL YAML cases tracked: **{len(former_cases)}**",
+        f"- Former XFAIL import manifest entries: **{len(import_status.get('former_xfail', [])) if isinstance(import_status.get('former_xfail', []), list) else 0}**",
+        "",
+    ]
+    if current:
+        lines.extend(
+            [
+                "## Current XFAIL Cases",
+                "| case_id | path | YAML status | phase | variables | notes |",
+                "|---|---|---|---|---|---|",
+            ]
+        )
+        for case in current:
+            lines.append(
+                f"| {case['id']} | `{case['path']}` | {case['status']} | {','.join(map(str, case['phases'])) or '-'} | {', '.join(case['variables']) or '-'} | {case['notes']} |"
+            )
+    else:
+        lines.append("No current XFAIL cases remain.")
+
+    lines.extend(
+        [
+            "",
+            "## Former XFAIL Cases",
+            "| case_id | path | current YAML status | promoted_from_xfail_date | phase | variables | former reason |",
+            "|---|---|---|---|---|---|---|",
+        ]
+    )
+    if not former_cases:
+        lines.append("| - | - | - | - | - | - | - |")
+    for case in former_cases:
+        lines.append(
+            f"| {case['id']} | `{case['path']}` | {case['status']} | {case.get('promoted_from_xfail_date') or '-'} | "
+            f"{','.join(map(str, case['phases'])) or '-'} | {', '.join(case['variables']) or '-'} | {case.get('former_xfail_reason') or '-'} |"
+        )
+    return "\n".join(lines)
 
 
 def render_gap_summary(cases: list[dict], import_status: dict) -> str:
@@ -714,7 +735,7 @@ def render_gap_summary(cases: list[dict], import_status: dict) -> str:
         tags = set(case["tags"])
         if {"connector-gap", "runtime-difference"}.intersection(tags) or case["status"] in {"connector-gap", "runtime-difference"}:
             rows.append(f"| {case['id']} | `{case['path']}` | {case['status']} | {', '.join(case['tags']) or '-'} | {', '.join(case['variables']) or '-'} | {case['source']} | {case['notes']} |")
-    for key in ["connector_specific", "runtime_blocked", "mapped_only", "blocked", "xfail"]:
+    for key in ["connector_specific", "runtime_blocked", "mapped_only", "blocked"]:
         for item in import_status.get(key, []):
             if isinstance(item, dict):
                 rows.append(f"| {item.get('case') or item.get('source') or 'unknown'} | `config/testing/import-status.json` | {key} | - | - | {item.get('source', 'unknown')} | {item.get('reason', '')} |")
@@ -737,7 +758,8 @@ def root_summary_metrics(cases: list[dict], by_status: Counter, by_runtime: Coun
     return {
         "total": len(cases),
         "verified": by_runtime.get("true", 0),
-        "xfail": by_status.get("xfail", 0),
+        "current_xfail": by_status.get("xfail", 0),
+        "former_xfail": sum(1 for case in cases if case.get("former_xfail")),
         "pending_false": by_runtime.get("false", 0),
         "pending_unknown": by_runtime.get("unknown", 0),
         "connector_gap": sum(1 for case in cases if "connector-gap" in case["tags"] or case["status"] == "connector-gap"),
@@ -798,10 +820,16 @@ def topic_counts(cases: list[dict]) -> dict[str, int]:
     }
 
 
-def render_status_table(title: str, rows: list[dict], columns: list[tuple[str, str]]) -> list[str]:
+def render_status_table(
+    title: str,
+    rows: list[dict],
+    columns: list[tuple[str, str]],
+    heading_level: int = 2,
+) -> list[str]:
     if not rows:
         return []
-    out = ["", f"## {title}", "| " + " | ".join(header for header, _ in columns) + " |", "|" + "|".join("---" for _ in columns) + "|"]
+    heading = "#" * max(1, heading_level)
+    out = ["", f"{heading} {title}", "| " + " | ".join(header for header, _ in columns) + " |", "|" + "|".join("---" for _ in columns) + "|"]
     for row in rows:
         out.append("| " + " | ".join(str(row.get(key, "-")) for _, key in columns) + " |")
     return out
@@ -965,11 +993,9 @@ def is_force_all_snapshot(snapshot: dict) -> bool:
 def runtime_executable(case: dict, connector: str) -> bool:
     if not connector_applies(case, connector):
         return False
+    if case.get("former_xfail") is True:
+        return False
     return case_group(case) in ACTIVE_RUNTIME_STATUSES
-
-
-def is_xfail_case(case: dict) -> bool:
-    return case["status"] == "xfail"
 
 
 def runtime_classification(case: dict) -> str:
@@ -983,20 +1009,31 @@ def runtime_classification(case: dict) -> str:
         return "future"
     if "pending" in tags or "pending" in text:
         return "pending"
-    if is_xfail_case(case):
-        return "xfail"
     return "active"
 
 
 def status_label(status: object) -> str:
     value = str(status or "").strip().lower()
-    if value in {"pass", "fail", "blocked", "not_executable", "xfail"}:
+    if value in {"pass", "fail", "blocked", "not_executable"}:
         return value.upper()
+    if value == "xfail":
+        return "FAIL"
     if value == "skipped":
         return NOT_EXECUTED
     if value in {"not_run", "not-run"}:
         return NOT_EXECUTED
     return NOT_EXECUTED
+
+
+def normalized_matrix_status_value(row: dict) -> str:
+    supplied = str(row.get("matrix_status", "") or "").strip()
+    if supplied in {"PASS", "FAIL", "BLOCKED", "NOT_EXECUTABLE"}:
+        return supplied
+    if supplied.endswith("_PASS") or supplied.endswith("_RESPONSE_BODY_PASS_THROUGH"):
+        return "PASS"
+    if supplied.endswith("_FAIL"):
+        return "FAIL"
+    return status_label(row.get("status"))
 
 
 def semantic_matrix_status(raw_status: str, classification: str, response_body_related: bool = False) -> str:
@@ -1069,7 +1106,10 @@ def runtime_cell_from_observed(case: dict, observed: dict) -> dict[str, str]:
     raw_status = str(observed.get("status", ""))
     response_body_pass_through = response_body_related and raw_status.strip().lower() == "pass" and response_body_pass_is_pass_through(observed)
     computed_status = semantic_matrix_status(raw_status, classification, response_body_pass_through)
-    status = str(observed.get("matrix_status") or computed_status)
+    supplied_status = str(observed.get("matrix_status") or "").strip()
+    if supplied_status not in {"PASS", "FAIL", "BLOCKED", "NOT_EXECUTABLE"}:
+        supplied_status = ""
+    status = supplied_status or computed_status
     if response_body_related and raw_status.strip().lower() == "pass":
         status = computed_status
     if status in {NOT_EXECUTED, "NOT_EXECUTABLE"}:
@@ -1114,12 +1154,12 @@ def runtime_cell(case: dict, connector: str, snapshot: dict) -> dict[str, str]:
         return runtime_cell_not_applicable(case, connector)
     results = runtime_results_by_connector(snapshot)
     observed = results.get(connector, {}).get(case["id"])
-    if connector == "haproxy" and observed:
-        return runtime_cell_from_observed(case, observed)
     if not is_force_all_snapshot(snapshot) and not runtime_executable(case, connector):
         return runtime_cell_inventory_only(case)
     if not runtime_executable_for_snapshot(case, connector, snapshot):
         return runtime_cell_outside_snapshot(case)
+    if connector == "haproxy" and observed:
+        return runtime_cell_from_observed(case, observed)
 
     if observed:
         return runtime_cell_from_observed(case, observed)
@@ -1234,7 +1274,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         "# Generated Runtime Matrix",
         "",
         "This matrix joins repository YAML cases with the latest tracked local runtime snapshot.",
-        "It does not promote xfail/pending cases, and RESPONSE_BODY remains non-verified/non-promoted.",
+        "Former XFAIL cases are rendered from live runtime evidence like any other YAML case; RESPONSE_BODY remains non-verified/non-promoted.",
         "",
         "## Counts",
         f"- YAML cases: **{len(cases)}**",
@@ -1250,7 +1290,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         "- `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that YAML status for that connector.",
         f"- `{NOT_EXECUTED}` means no runtime case evidence is recorded in a non-force/default snapshot.",
         "- `MAPPED_ONLY` entries are import inventory items, not runnable YAML case files.",
-        f"- `{RESPONSE_BODY_PASS_THROUGH_STATUS}` and bounded Phase 4 / strict-abort classifications remain non-promotable.",
+        "- Bounded Phase 4 / strict-abort classifications remain non-promotable metadata even when the live runtime status is PASS.",
         "",
         "## Status Counts",
         *render_runtime_status_count_table(apache_counts, nginx_counts, haproxy_counts, len(mapped_only)),
@@ -1322,7 +1362,7 @@ def render_connector_runtime_results(cases: list[dict], snapshot: dict, connecto
         f"- Per-case results: `{smoke_per_case_results(smoke)}`",
         f"- Summary evidence: `{smoke.get('summary_path', 'unknown')}`",
         f"- Attempted YAML cases in default runtime snapshot: **{runtime_attempted_count(snapshot, connector)}**",
-        "- Runtime evidence is current local snapshot evidence only; it is not xfail/pending promotion.",
+        "- Runtime evidence is current local snapshot evidence only.",
         "- RESPONSE_BODY remains non-verified/non-promoted.",
         f"- {RESPONSE_BODY_EVIDENCE_NOTE}",
         "",
@@ -1330,7 +1370,7 @@ def render_connector_runtime_results(cases: list[dict], snapshot: dict, connecto
         TABLE_STATUS_COUNT_HEADER,
         TABLE_STATUS_COUNT_SEPARATOR,
     ]
-    for status in ["pass", "fail", "blocked", "not_executable", "skipped", "xfail"]:
+    for status in ["pass", "fail", "blocked", "not_executable", "skipped"]:
         lines.append(f"| {status.upper()} | {md(raw_counts.get(status, 'unknown'))} |")
     lines.extend(
         [
@@ -1514,7 +1554,7 @@ def render_connector_phase4_details(
                 md(value)
                 for value in [
                     row.get("case", row.get("name", "-")),
-                    row.get("matrix_status", row.get("status", "-")),
+                    normalized_matrix_status_value(row),
                     row.get("expected_status", row.get("expected", "-")),
                     row.get("actual_status", row.get("observed", "-")),
                     row.get("observed_transport_result", "http_status"),
@@ -1541,7 +1581,7 @@ def haproxy_matrix_counts(smoke: dict) -> dict:
     if counts:
         return counts
     rows = smoke_case_rows(smoke)
-    return dict(Counter(str(row.get("matrix_status", "NOT_EXECUTABLE")) for row in rows if isinstance(row, dict)))
+    return dict(Counter(normalized_matrix_status_value(row) for row in rows if isinstance(row, dict)))
 
 
 def haproxy_matrix_count(smoke: dict, status: str) -> int:
@@ -1563,7 +1603,7 @@ def haproxy_rows_by_matrix_status(smoke: dict, status: str) -> list[dict]:
     return [
         row
         for row in smoke_case_rows(smoke)
-        if isinstance(row, dict) and str(row.get("matrix_status", "")).strip() == status
+        if isinstance(row, dict) and normalized_matrix_status_value(row) == status
     ]
 
 
@@ -1797,7 +1837,7 @@ def render_haproxy_smoke_counts(smoke: dict, heading: str, heading_level: int) -
         TABLE_STATUS_COUNT_HEADER,
         TABLE_STATUS_COUNT_SEPARATOR,
     ]
-    for status in ["pass", "fail", "blocked", "not_executable", "skipped", "xfail"]:
+    for status in ["pass", "fail", "blocked", "not_executable", "skipped"]:
         lines.append(f"| {status.upper()} | {md(counts.get(status, 'unknown'))} |")
     if smoke.get("failed_due_to_live_mismatches"):
         lines.extend(["", "- Force-all exited nonzero because live-executed rows mismatched expected runtime outcomes."])
@@ -1887,7 +1927,6 @@ def runtime_smoke_rows_for_key(snapshot: dict, key: str) -> list[dict[str, objec
                 "fail": counts.get("fail", "unknown"),
                 "blocked": counts.get("blocked", "unknown"),
                 "not_executable": counts.get("not_executable", "unknown"),
-                "xfail": counts.get("xfail", "unknown"),
                 "attempted": runtime_attempted_count_from_smoke(item),
                 "summary_path": item.get("summary_path", item.get("details", "-")),
             }
@@ -2016,7 +2055,6 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
                 ("FAIL", "fail"),
                 ("BLOCKED", "blocked"),
                 ("NOT_EXECUTABLE", "not_executable"),
-                ("XFAIL", "xfail"),
                 ("Evidence", "summary_path"),
             ],
         )
@@ -2035,7 +2073,6 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
                 ("FAIL", "fail"),
                 ("BLOCKED", "blocked"),
                 ("NOT_EXECUTABLE", "not_executable"),
-                ("XFAIL", "xfail"),
                 ("Evidence", "summary_path"),
             ],
         )
@@ -2044,8 +2081,6 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
     lines.extend(["", "## Runtime FAIL Details"])
     lines.extend(render_connector_runtime_fail_details(snapshot, "apache", heading_level=3))
     lines.extend(render_connector_runtime_fail_details(snapshot, "nginx", heading_level=3))
-    lines.extend(["", "## HAProxy Runtime Matrix Details"])
-    lines.extend(render_haproxy_compact_runtime_details(snapshot, heading_level=3))
     append_snapshot_list(lines, "## Runtime Verified Status", snapshot.get("runtime_verified_status", []))
     append_snapshot_list(lines, "## Open Runtime Issues", snapshot.get("open_issues", []))
     return lines
@@ -2094,6 +2129,18 @@ def render_root_summary(
     haproxy_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "haproxy")
     runtime_executable_count = sum(1 for row in rt_rows if row["runtime_executable"] == "yes")
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
+    detail_docs = [
+        "generated/case-matrix.generated.md",
+        "generated/coverage-summary.generated.md",
+        "generated/xfail-summary.generated.md",
+        "generated/connector-gap-summary.generated.md",
+        "generated/phase-coverage.generated.md",
+        "generated/runtime-matrix.generated.md",
+        "generated/apache-runtime-results.generated.md",
+        "generated/nginx-runtime-results.generated.md",
+        "generated/haproxy-runtime-results.generated.md",
+        RUNTIME_SNAPSHOT_FILENAME,
+    ]
 
     detail_docs = [
         OVERVIEW_FILENAME,
@@ -2115,7 +2162,8 @@ def render_root_summary(
         "## Summary Status",
         f"- Total YAML cases: **{metrics['total']}**",
         f"- Verified/pass (`runtime_verified=true`): **{metrics['verified']}**",
-        f"- XFAIL cases: **{metrics['xfail']}**",
+        f"- Current XFAIL cases: **{metrics['current_xfail']}**",
+        f"- Former XFAIL cases tracked: **{metrics['former_xfail']}**",
         f"- Pending runtime verification (`runtime_verified=false`): **{metrics['pending_false']}**",
         f"- Pending runtime verification (`runtime_verified=unknown`): **{metrics['pending_unknown']}**",
         f"- Connector-gap cases: **{metrics['connector_gap']}**",
@@ -2153,9 +2201,10 @@ def render_root_summary(
         f"- Common YAML cases: **{by_scope.get('common', 0)}**",
         f"- Apache-specific YAML cases: **{by_scope.get('apache', 0)}**",
         f"- NGINX-specific YAML cases: **{by_scope.get('nginx', 0)}**",
-        f"- XFAIL cases: **{metrics['xfail']}**",
+        f"- Current XFAIL cases: **{metrics['current_xfail']}**",
+        f"- Former XFAIL cases tracked: **{metrics['former_xfail']}**",
         f"- Mapped-only import inventory entries: **{mapped_only_count}** (not counted as runnable YAML cases)",
-        f"- Runtime-blocked import inventory entries: **{runtime_blocked_count}** (environment/harness blockers, not PASS or XFAIL promotions)",
+        f"- Runtime-blocked import inventory entries: **{runtime_blocked_count}** (environment/harness blockers, not PASS promotions)",
         f"- Pending/future compatibility cases: **{metrics['future_experimental']}** future/experimental; **{metrics['pending_false'] + metrics['pending_unknown']}** not runtime-verified",
         "",
         "## Status Classes",
@@ -2174,15 +2223,12 @@ def render_root_summary(
     lines.extend(
         [
             "",
-            "## Default Runtime Matrix Status",
+            "## Runtime Matrix Status",
             *render_runtime_status_count_table(apache_runtime_counts, nginx_runtime_counts, haproxy_runtime_counts, mapped_only_count),
             "",
             f"- Apache attempted YAML cases from default summary: **{apache_attempted}**",
             f"- NGINX attempted YAML cases from default summary: **{nginx_attempted}**",
             f"- HAProxy attempted YAML cases from default summary: **{haproxy_attempted}**",
-            f"- Apache raw runtime XFAIL observations from default summary: **{apache_smoke_counts.get('xfail', 0)}**",
-            f"- NGINX raw runtime XFAIL observations from default summary: **{nginx_smoke_counts.get('xfail', 0)}**",
-            f"- HAProxy raw runtime XFAIL observations from default summary: **{haproxy_smoke_counts.get('xfail', 0)}**",
             f"- Apache {NOT_EXECUTED} YAML rows: **{apache_runtime_counts.get(NOT_EXECUTED, 0)}**",
             f"- NGINX {NOT_EXECUTED} YAML rows: **{nginx_runtime_counts.get(NOT_EXECUTED, 0)}**",
             f"- HAProxy {NOT_EXECUTED} YAML rows: **{haproxy_runtime_counts.get(NOT_EXECUTED, 0)}**",
@@ -2194,37 +2240,42 @@ def render_root_summary(
             f"- Apache per-case results: `{report_doc('generated/apache-runtime-results.generated.md')}`",
             f"- NGINX per-case results: `{report_doc('generated/nginx-runtime-results.generated.md')}`",
             f"- HAProxy per-case results: `{report_doc('generated/haproxy-runtime-results.generated.md')}`",
-            "- PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence; XFAIL and pending cases are not promoted.",
+            "- PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence.",
             "- RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.",
-            "",
-            "## Force-All Runtime Matrix Status",
-            *render_force_all_runtime_status(runtime_snapshot),
             "",
             f"- HAProxy force-all attempted YAML cases: **{haproxy_force_all_attempted}**",
             f"- HAProxy force-all result JSONL: `{md(force_all_haproxy_smoke.get('jsonl_path', 'not available'))}`",
             f"- HAProxy force-all per-case evidence root: `{md(force_all_haproxy_smoke.get('per_case_result_root', 'not available'))}`",
-            "- Apache and NGINX force-all render `NOT_AVAILABLE` when no force-all summaries are present.",
-            "- Force-all evidence is traceable runtime evidence but does not promote xfail/pending/future/gap feature support.",
-        ]
-    )
-    lines.extend(render_haproxy_smoke_counts(haproxy_smoke(runtime_snapshot), "HAProxy Default Runtime Details", 2))
-    lines.extend(render_haproxy_force_all_runtime_details(runtime_snapshot, heading_level=2))
-    lines.extend(
-        [
-            "",
-            "## HAProxy Production SPOA Status",
-            "- HAProxy runtime evidence is produced by the production `haproxy-modsecurity-spoa` binary/code path used by the harness.",
-            "- The deprecated synthetic HAProxy matrix writer remains excluded from PASS generation.",
-            "",
-            "## RESPONSE_BODY / Phase 4 Status",
-            "- RESPONSE_BODY remains non-promoted. Bounded phase-4 strict-abort rows are rendered as experimental runtime evidence only.",
-            "",
-            "## Runtime Smoke Status",
+            "- Force-all evidence is traceable runtime evidence but does not promote pending/future/gap feature support.",
         ]
     )
     lines.extend(
         render_status_table(
-            "Default Runtime Smoke Evidence",
+            "Framework Check Status",
+            snapshot_named_rows(runtime_snapshot, "framework_checks"),
+            [("Command", "command"), ("Status", "status"), ("Details", "details")],
+        )
+    )
+    lines.extend(
+        render_status_table(
+            "Readiness / Fetch Status",
+            snapshot_named_rows(runtime_snapshot, "readiness_checks"),
+            [("Command", "command"), ("Status", "status"), ("Details", "details")],
+        )
+    )
+    lines.extend(
+        [
+            "",
+            "## Runtime Smoke Status",
+            f"- Snapshot: **{runtime_snapshot.get('snapshot_date', 'unknown')}** ({runtime_snapshot.get('captured_at', 'unknown')})",
+            f"- Git: branch `{runtime_snapshot.get('branch', 'unknown')}`, commit `{runtime_snapshot.get('commit', 'unknown')}`",
+            f"- BUILD_ROOT: `{runtime_snapshot.get('build_root', 'unknown')}`",
+            f"- Snapshot file: `{report_doc(RUNTIME_SNAPSHOT_FILENAME)}`",
+        ]
+    )
+    lines.extend(
+        render_status_table(
+            "Default Runtime Smoke Status",
             runtime_smoke_rows(runtime_snapshot),
             [
                 ("Connector", "connector"),
@@ -2238,11 +2289,12 @@ def render_root_summary(
                 ("NOT_EXECUTABLE", "not_executable"),
                 ("Evidence", "summary_path"),
             ],
+            heading_level=3,
         )
     )
     lines.extend(
         render_status_table(
-            "Force-All Runtime Smoke Evidence",
+            "Force-All Runtime Smoke Status",
             force_all_runtime_smoke_rows(runtime_snapshot),
             [
                 ("Connector", "connector"),
@@ -2256,27 +2308,24 @@ def render_root_summary(
                 ("NOT_EXECUTABLE", "not_executable"),
                 ("Evidence", "summary_path"),
             ],
+            heading_level=3,
         )
     )
+    lines.extend(render_connector_runtime_availability(runtime_snapshot))
+    lines.extend(["", "## Runtime FAIL Details"])
+    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "apache", heading_level=3))
+    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "nginx", heading_level=3))
+    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "haproxy", heading_level=3))
+    append_snapshot_list(lines, "## Runtime Verified Status", runtime_snapshot.get("runtime_verified_status", []))
+    append_snapshot_list(lines, "## Open Runtime Issues", runtime_snapshot.get("open_issues", []))
     lines.extend(
         [
             "",
-            "## Validation Snapshot",
-            f"- Snapshot: **{runtime_snapshot.get('snapshot_date', 'unknown')}** ({runtime_snapshot.get('captured_at', 'unknown')})",
-            f"- Git: branch `{runtime_snapshot.get('branch', 'unknown')}`, commit `{runtime_snapshot.get('commit', 'unknown')}`",
-            f"- BUILD_ROOT: `{runtime_snapshot.get('build_root', 'unknown')}`",
-            f"- Snapshot file: `{report_doc(RUNTIME_SNAPSHOT_FILENAME)}`",
-        ]
-    )
-    lines.extend(render_new_connector_smoke_evidence(runtime_snapshot))
-    lines.extend(
-        [
-            "",
-            "## Open Runtime Issues / Remaining Gaps",
+            "## Open Areas / Gaps",
             "- Runtime verification pending: cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.",
             "- RESPONSE_BODY remains non-verified and non-promoted.",
             "- GitHub/Codex checks are intentionally lightweight and do not prove runtime compatibility.",
-            "- XFAIL, pending, future, connector-gap, and runtime-difference cases require local runtime evidence before any status change.",
+            "- Pending, future, connector-gap, and runtime-difference topics require local runtime evidence before any support claim.",
             "- Runtime-blocked import entries are environment or harness blockers and do not imply connector-gap/runtime-difference promotion.",
             "- `installed-readiness` is diagnostic detection, not runtime execution.",
             "- There is no separate artifact-reuse smoke path; runtime validation uses source-build execution.",
@@ -2295,10 +2344,10 @@ def render_root_summary(
             "Generated coverage is reporting only; it is not runtime evidence by itself.",
             "Full runtime validation is local and evidence-based.",
             "GitHub/Codex checks are intentionally lightweight.",
-            "XFAIL, pending, future, and gap cases need local runtime validation before promotion.",
+            "Pending, future, and gap topics need local runtime validation before promotion.",
             "`make smoke-all` is authoritative only if it was actually executed successfully.",
             "No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.",
-            "No RESPONSE_BODY promotion is made without stable full-smoke runtime evidence.",
+            "Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is reported as runtime evidence only.",
         ]
     )
     return "\n".join(lines)
@@ -2322,6 +2371,10 @@ def render_overview(
     apache_runtime_counts = runtime_status_counts(rt_rows, "apache")
     nginx_runtime_counts = runtime_status_counts(rt_rows, "nginx")
     haproxy_runtime_counts = runtime_status_counts(rt_rows, "haproxy")
+    force_all_smokes = force_all_runtime_summary_by_connector(runtime_snapshot)
+    force_all_apache_counts = smoke_counts(force_all_smokes.get("apache", {}))
+    force_all_nginx_counts = smoke_counts(force_all_smokes.get("nginx", {}))
+    force_all_haproxy_counts = smoke_counts(force_all_smokes.get("haproxy", {}))
     mapped_only = import_status.get("mapped_only", [])
     mapped_only_count = len(mapped_only) if isinstance(mapped_only, list) else 0
     apache_attempted = runtime_attempted_count(runtime_snapshot, "apache")
@@ -2332,6 +2385,18 @@ def render_overview(
     haproxy_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "haproxy")
     runtime_executable_count = sum(1 for row in rt_rows if row["runtime_executable"] == "yes")
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
+    detail_docs = [
+        "generated/case-matrix.generated.md",
+        "generated/coverage-summary.generated.md",
+        "generated/xfail-summary.generated.md",
+        "generated/connector-gap-summary.generated.md",
+        "generated/phase-coverage.generated.md",
+        "generated/runtime-matrix.generated.md",
+        "generated/apache-runtime-results.generated.md",
+        "generated/nginx-runtime-results.generated.md",
+        "generated/haproxy-runtime-results.generated.md",
+        RUNTIME_SNAPSHOT_FILENAME,
+    ]
 
     lines = [
         "# ModSecurity Connector Test Coverage Overview",
@@ -2339,7 +2404,8 @@ def render_overview(
         "## Summary",
         f"- Total cases: **{len(cases)}**",
         f"- Verified/pass count (`runtime_verified=true`): **{by_runtime.get('true', 0)}**",
-        f"- XFAIL count: **{by_status.get('xfail', 0)}**",
+        f"- Current XFAIL count: **{by_status.get('xfail', 0)}**",
+        f"- Former XFAIL cases tracked: **{sum(1 for case in cases if case.get('former_xfail'))}**",
         f"- Pending runtime verification count: **{by_runtime.get('false', 0)}**",
         f"- Connector-gap count: **{connector_gap_count}**",
         f"- Runtime-difference count: **{runtime_diff_count}**",
@@ -2370,54 +2436,113 @@ def render_overview(
             f"- Apache attempted YAML cases from force-all summary: **{apache_force_all_attempted}**",
             f"- NGINX attempted YAML cases from force-all summary: **{nginx_force_all_attempted}**",
             f"- HAProxy attempted YAML cases from force-all summary: **{haproxy_force_all_attempted}**",
+            f"- Apache force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{count_value(force_all_apache_counts.get('pass', 0))}** / **{count_value(force_all_apache_counts.get('fail', 0))}** / **{count_value(force_all_apache_counts.get('blocked', 0))}** / **{count_value(force_all_apache_counts.get('not_executable', 0))}**",
+            f"- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{count_value(force_all_nginx_counts.get('pass', 0))}** / **{count_value(force_all_nginx_counts.get('fail', 0))}** / **{count_value(force_all_nginx_counts.get('blocked', 0))}** / **{count_value(force_all_nginx_counts.get('not_executable', 0))}**",
+            f"- HAProxy force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{count_value(force_all_haproxy_counts.get('pass', 0))}** / **{count_value(force_all_haproxy_counts.get('fail', 0))}** / **{count_value(force_all_haproxy_counts.get('blocked', 0))}** / **{count_value(force_all_haproxy_counts.get('not_executable', 0))}**",
             *render_runtime_status_count_table(apache_runtime_counts, nginx_runtime_counts, haproxy_runtime_counts, mapped_only_count),
             f"- Details: `{report_doc('generated/runtime-matrix.generated.md')}`",
             f"- HAProxy per-case results: `{report_doc('generated/haproxy-runtime-results.generated.md')}`",
         ]
     )
-    lines.extend(render_runtime_snapshot(runtime_snapshot))
+    lines.extend(
+        render_status_table(
+            "Framework Check Status",
+            snapshot_named_rows(runtime_snapshot, "framework_checks"),
+            [("Command", "command"), ("Status", "status"), ("Details", "details")],
+        )
+    )
+    lines.extend(
+        render_status_table(
+            "Readiness / Fetch Status",
+            snapshot_named_rows(runtime_snapshot, "readiness_checks"),
+            [("Command", "command"), ("Status", "status"), ("Details", "details")],
+        )
+    )
     lines.extend(
         [
             "",
-            "## Open Gaps",
-            f"- See `{report_doc('generated/connector-gap-summary.generated.md')}` for detailed entries.",
+            "## Runtime Smoke Status",
+            f"- Snapshot: **{runtime_snapshot.get('snapshot_date', 'unknown')}** ({runtime_snapshot.get('captured_at', 'unknown')})",
+            f"- Git: branch `{runtime_snapshot.get('branch', 'unknown')}`, commit `{runtime_snapshot.get('commit', 'unknown')}`",
+            f"- BUILD_ROOT: `{runtime_snapshot.get('build_root', 'unknown')}`",
+            f"- Snapshot file: `{report_doc(RUNTIME_SNAPSHOT_FILENAME)}`",
+        ]
+    )
+    lines.extend(
+        render_status_table(
+            "Default Runtime Smoke Status",
+            runtime_smoke_rows(runtime_snapshot),
+            [
+                ("Connector", "connector"),
+                ("Command", "command"),
+                ("Status", "status"),
+                ("Exit", "exit_code"),
+                ("Attempted", "attempted"),
+                ("PASS", "pass"),
+                ("FAIL", "fail"),
+                ("BLOCKED", "blocked"),
+                ("NOT_EXECUTABLE", "not_executable"),
+                ("Evidence", "summary_path"),
+            ],
+            heading_level=3,
+        )
+    )
+    lines.extend(
+        render_status_table(
+            "Force-All Runtime Smoke Status",
+            force_all_runtime_smoke_rows(runtime_snapshot),
+            [
+                ("Connector", "connector"),
+                ("Command", "command"),
+                ("Status", "status"),
+                ("Exit", "exit_code"),
+                ("Attempted", "attempted"),
+                ("PASS", "pass"),
+                ("FAIL", "fail"),
+                ("BLOCKED", "blocked"),
+                ("NOT_EXECUTABLE", "not_executable"),
+                ("Evidence", "summary_path"),
+            ],
+            heading_level=3,
+        )
+    )
+    lines.extend(render_connector_runtime_availability(runtime_snapshot))
+    lines.extend(["", "## Runtime FAIL Details"])
+    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "apache", heading_level=3))
+    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "nginx", heading_level=3))
+    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "haproxy", heading_level=3))
+    append_snapshot_list(lines, "## Runtime Verified Status", runtime_snapshot.get("runtime_verified_status", []))
+    append_snapshot_list(lines, "## Open Runtime Issues", runtime_snapshot.get("open_issues", []))
+    lines.extend(
+        [
             "",
-            "## Verified Runtime Coverage",
+            "## Open Areas / Gaps",
             "- Runtime-verified means only cases explicitly classified as `runtime_verified=true`.",
-            "",
-            "## Pending Runtime Verification",
             "- Cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.",
-            "",
-            "## XFAIL / Known Gap Coverage",
-            "- XFAIL, pending, future, and experimental cases are listed in the XFAIL summary.",
-            "- XFAIL, pending, and gap cases need local runtime validation before promotion.",
-            "",
-            "## Connector Gap / Runtime Difference Coverage",
-            "- Connector-gap and runtime-difference classes are reported separately.",
-            "",
-            "## Phase 3/4 Outbound Coverage",
+            f"- See `{report_doc('generated/connector-gap-summary.generated.md')}` for detailed connector-gap entries.",
             f"- Phase 3/4 cases are visible in `{report_doc('generated/phase-coverage.generated.md')}` and in the runtime matrix.",
-            "",
-            "## RESPONSE_BODY Status",
             "- RESPONSE_BODY remains not verified and not promoted.",
-            "",
-            "## Cloud / Quick / Full Smoke Meaning",
-            "- Generated coverage is not runtime evidence by itself.",
-            "- Full runtime validation is local and evidence-based.",
             "- GitHub/Codex checks are intentionally lightweight.",
-            "- XFAIL, pending, and gap cases need local runtime validation.",
+            "- Pending and gap topics need local runtime validation.",
             "- `make smoke-all` is authoritative only if it was actually executed successfully.",
             "",
-            "## Generated Artifacts",
-            f"- `{report_doc('generated/case-matrix.generated.md')}`",
-            f"- `{report_doc('generated/coverage-summary.generated.md')}`",
-            f"- `{report_doc('generated/xfail-summary.generated.md')}`",
-            f"- `{report_doc('generated/connector-gap-summary.generated.md')}`",
-            f"- `{report_doc('generated/phase-coverage.generated.md')}`",
+            "## Commands",
+        ]
+    )
+    lines.extend(f"- `{command}`" for command in ROOT_COMMANDS)
+    lines.extend(["", "## Detail Reports"])
+    lines.extend(f"- `{report_doc(doc)}`" for doc in detail_docs)
+    lines.extend(
+        [
             "",
-            "## Note",
-            "- Generated summaries do not replace full-smoke runtime evidence.",
-            "- No RESPONSE_BODY promotion is made without stable runtime evidence.",
+            "## Important Note",
+            "Generated coverage is reporting only; it is not runtime evidence by itself.",
+            "Full runtime validation is local and evidence-based.",
+            "GitHub/Codex checks are intentionally lightweight.",
+            "Pending, future, and gap topics need local runtime validation before promotion.",
+            "`make smoke-all` is authoritative only if it was actually executed successfully.",
+            "No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.",
+            "Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is reported as runtime evidence only.",
         ]
     )
     return "\n".join(lines)
@@ -2444,7 +2569,7 @@ def main(argv: list[str] | None = None) -> int:
 
     report_layout.write_generated("case-matrix.generated.md", render_case_matrix(cases))
     report_layout.write_generated("coverage-summary.generated.md", render_summary(cases, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count))
-    report_layout.write_generated("xfail-summary.generated.md", render_xfail(cases))
+    report_layout.write_generated("xfail-summary.generated.md", render_xfail(cases, import_status))
     report_layout.write_generated("connector-gap-summary.generated.md", render_gap_summary(cases, import_status))
     report_layout.write_generated("phase-coverage.generated.md", render_phase_coverage(cases))
     report_layout.write_generated("runtime-matrix.generated.md", render_runtime_matrix(cases, import_status, runtime_snapshot))
