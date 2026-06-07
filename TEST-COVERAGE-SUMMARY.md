@@ -9,7 +9,7 @@ Generated file — do not edit manually.
 - Former XFAIL cases tracked: **80**
 - Pending runtime verification (`runtime_verified=false`): **12**
 - Pending runtime verification (`runtime_verified=unknown`): **149**
-- Connector-gap cases: **11**
+- Connector-gap cases: **12**
 - Runtime-difference cases: **13**
 - Future/experimental cases: **17**
 - RESPONSE_BODY cases: **25**
@@ -33,6 +33,10 @@ Generated file — do not edit manually.
 - Unclassified MRTS cases: **0**
 - Phase 4 / RESPONSE_BODY MRTS cases: **1**
 - Runtime-executable MRTS cases: **19**
+- MRTS overlay classifications: **active(16), harness-incompatibility(2), importer-mapping-issue(1), non-promoted(1)**
+- Apache observed classifications: **active(1), connector-gap(1), harness-incompatibility(2), importer-mapping-issue(1), non-promoted(1)**
+- NGINX observed classifications: **active(1), harness-incompatibility(3), importer-mapping-issue(1), non-promoted(1)**
+- HAProxy observed classifications: **active(2), harness-incompatibility(2), importer-mapping-issue(1), non-promoted(1)**
 
 ## Important Reporting Semantics
 - PASS/FAIL are rendered only from live runtime evidence recorded in connector summaries and decision/result artifacts.

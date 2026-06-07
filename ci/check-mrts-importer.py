@@ -18,23 +18,27 @@ if str(RUNNER_DIR) not in sys.path:
 from runner_core import load_case
 
 
-def run_import(output_dir: Path) -> None:
+def run_import(output_dir: Path, classifications_file: Path | None = None) -> subprocess.CompletedProcess[str]:
     fixture_root = FRAMEWORK_ROOT / "tests" / "fixtures" / "mrts"
-    subprocess.run(
-        [
-            sys.executable,
-            str(FRAMEWORK_ROOT / "ci" / "import-mrts-cases.py"),
-            "--framework-root",
-            str(FRAMEWORK_ROOT),
-            "--mrts-ftw-dir",
-            str(fixture_root / "ftw"),
-            "--mrts-rules-dir",
-            str(fixture_root / "rules"),
-            "--output-dir",
-            str(output_dir),
-        ],
+    command = [
+        sys.executable,
+        str(FRAMEWORK_ROOT / "ci" / "import-mrts-cases.py"),
+        "--framework-root",
+        str(FRAMEWORK_ROOT),
+        "--mrts-ftw-dir",
+        str(fixture_root / "ftw"),
+        "--mrts-rules-dir",
+        str(fixture_root / "rules"),
+        "--output-dir",
+        str(output_dir),
+    ]
+    if classifications_file is not None:
+        command.extend(["--classifications-file", str(classifications_file)])
+    return subprocess.run(
+        command,
         check=True,
         text=True,
+        capture_output=True,
     )
 
 
@@ -75,6 +79,26 @@ def main() -> int:
         fallback_case = cases["mrts_mrts_fixture_unclassified"]
         assert_case(fallback_case["status"] == "pending", "unclassified fixture should be pending")
         assert_case(fallback_case["metadata"]["topic"] == "MRTS generated / unclassified", "fallback topic mismatch")
+
+        bad_overlay = Path(tmp) / "bad-classifications.yaml"
+        bad_overlay.write_text(
+            "\n".join(
+                [
+                    "version: 1",
+                    "cases:",
+                    "  mrts_mrts_fixture_duplicate:",
+                    "    expected_status: 200",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        try:
+            run_import(Path(tmp) / "bad-cases", bad_overlay)
+        except subprocess.CalledProcessError as exc:
+            assert_case("expected_status" in (exc.stderr or ""), "forbidden overlay key error should mention expected_status")
+        else:
+            raise AssertionError("forbidden overlay key should fail import")
 
         print(json.dumps({"status": "pass", "imported": len(cases)}, sort_keys=True))
     return 0

@@ -26,6 +26,10 @@ Generated file — do not edit manually.
 - Unclassified MRTS cases: **0**
 - Phase 4 / RESPONSE_BODY MRTS cases: **1**
 - Runtime-executable MRTS cases: **19**
+- MRTS overlay classifications: **active(16), harness-incompatibility(2), importer-mapping-issue(1), non-promoted(1)**
+- Apache observed classifications: **active(1), connector-gap(1), harness-incompatibility(2), importer-mapping-issue(1), non-promoted(1)**
+- NGINX observed classifications: **active(1), harness-incompatibility(3), importer-mapping-issue(1), non-promoted(1)**
+- HAProxy observed classifications: **active(2), harness-incompatibility(2), importer-mapping-issue(1), non-promoted(1)**
 
 ## By status
 - active: 27

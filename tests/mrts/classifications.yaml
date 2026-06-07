@@ -1,0 +1,155 @@
+version: 1
+cases:
+  mrts_760012_mrts_050_json_request_body_760012_1:
+    classification: active
+    classification_reason: JSON request-body mapping is reliable; Apache runtime gap is connector-specific evidence.
+    connector_observations:
+      apache:
+        classification: connector-gap
+        classification_reason: Apache MRTS runtime evidence currently returns a connector-level miss for this JSON request-body probe.
+        evidence_label: Apache observed HTTP 404 in the current MRTS runtime snapshot.
+      nginx:
+        classification: active
+        evidence_label: NGINX runtime evidence currently passes this probe.
+      haproxy:
+        classification: active
+        evidence_label: HAProxy runtime evidence currently passes this probe.
+    report_labels:
+      - mrts-json-request-body
+      - apache-runtime-gap
+    non_promotion:
+      reason: Mixed connector evidence; do not promote as universal MRTS PASS.
+      markers:
+        - mixed-runtime-evidence
+    traceability:
+      definition: tests/mrts/definitions/050_JSON_REQUEST_BODY.yaml
+      generated_ftw: tests/mrts/generated/ftw/760012_MRTS_050_JSON_REQUEST_BODY.yaml
+      rule_id: 760012
+
+  mrts_760013_mrts_060_xml_760013_1:
+    classification: harness-incompatibility
+    classification_reason: XML request processing is not yet reliably represented by the framework smoke harness.
+    connector_observations:
+      apache:
+        classification: harness-incompatibility
+        evidence_label: Apache observed HTTP 404 in the current MRTS runtime snapshot.
+      nginx:
+        classification: harness-incompatibility
+        evidence_label: NGINX observed HTTP 404 in the current MRTS runtime snapshot.
+      haproxy:
+        classification: harness-incompatibility
+        evidence_label: HAProxy observed HTTP 501 in the current MRTS runtime snapshot.
+    report_labels:
+      - mrts-xml
+      - harness-incompatibility
+    non_promotion:
+      reason: XML harness behavior is incomplete; keep evidence visible but non-promoted.
+      markers:
+        - harness-incompatibility
+    traceability:
+      definition: tests/mrts/definitions/060_XML.yaml
+      generated_ftw: tests/mrts/generated/ftw/760013_MRTS_060_XML.yaml
+      rule_id: 760013
+
+  mrts_760014_mrts_070_response_headers_760014_1:
+    classification: active
+    classification_reason: Response-header mapping is reliable; NGINX runtime gap is connector-specific evidence.
+    connector_observations:
+      apache:
+        classification: active
+        evidence_label: Apache runtime evidence currently passes this probe.
+      nginx:
+        classification: harness-incompatibility
+        classification_reason: NGINX smoke handling for this phase-3 response-header probe is not yet faithful.
+        evidence_label: NGINX observed HTTP 405 in the current MRTS runtime snapshot.
+      haproxy:
+        classification: active
+        evidence_label: HAProxy runtime evidence currently passes this probe.
+    report_labels:
+      - mrts-response-headers
+      - nginx-harness-incompatibility
+    non_promotion:
+      reason: Mixed connector evidence; do not promote as universal MRTS PASS.
+      markers:
+        - mixed-runtime-evidence
+    traceability:
+      definition: tests/mrts/definitions/070_RESPONSE_HEADERS.yaml
+      generated_ftw: tests/mrts/generated/ftw/760014_MRTS_070_RESPONSE_HEADERS.yaml
+      rule_id: 760014
+
+  mrts_760015_mrts_080_response_body_760015_1:
+    classification: non-promoted
+    classification_reason: RESPONSE_BODY and phase-4 MRTS evidence remains policy-blocked from stable PASS promotion.
+    connector_observations:
+      apache:
+        classification: non-promoted
+        evidence_label: RESPONSE_BODY runtime evidence is intentionally non-promoted.
+      nginx:
+        classification: non-promoted
+        evidence_label: RESPONSE_BODY runtime evidence is intentionally non-promoted.
+      haproxy:
+        classification: non-promoted
+        evidence_label: RESPONSE_BODY runtime evidence is intentionally non-promoted.
+    report_labels:
+      - mrts-response-body
+      - non-promoted
+      - phase-4
+    non_promotion:
+      reason: RESPONSE_BODY and phase-4 cases remain visible but non-promoted by project policy.
+      markers:
+        - response-body
+        - phase-4
+    traceability:
+      definition: tests/mrts/definitions/080_RESPONSE_BODY.yaml
+      generated_ftw: tests/mrts/generated/ftw/760015_MRTS_080_RESPONSE_BODY.yaml
+      rule_id: 760015
+
+  mrts_760016_mrts_090_multipart_files_760016_1:
+    classification: harness-incompatibility
+    classification_reason: Multipart FILES mapping is present, but connector smoke harnesses do not yet exercise it reliably.
+    connector_observations:
+      apache:
+        classification: harness-incompatibility
+        evidence_label: Apache observed HTTP 404 in the current MRTS runtime snapshot.
+      nginx:
+        classification: harness-incompatibility
+        evidence_label: NGINX observed HTTP 404 in the current MRTS runtime snapshot.
+      haproxy:
+        classification: harness-incompatibility
+        evidence_label: HAProxy observed HTTP 501 in the current MRTS runtime snapshot.
+    report_labels:
+      - mrts-multipart-files
+      - harness-incompatibility
+    non_promotion:
+      reason: Multipart FILES harness behavior is incomplete; keep evidence visible but non-promoted.
+      markers:
+        - harness-incompatibility
+    traceability:
+      definition: tests/mrts/definitions/090_MULTIPART_FILES.yaml
+      generated_ftw: tests/mrts/generated/ftw/760016_MRTS_090_MULTIPART_FILES.yaml
+      rule_id: 760016
+
+  mrts_760019_mrts_102_transform_compress_whitespace_760019_1:
+    classification: importer-mapping-issue
+    classification_reason: Whitespace-sensitive ARGS transformation input is not faithfully normalized by the framework importer yet.
+    connector_observations:
+      apache:
+        classification: importer-mapping-issue
+        evidence_label: Apache observed a connection-aborted result in the current MRTS runtime snapshot.
+      nginx:
+        classification: importer-mapping-issue
+        evidence_label: NGINX observed a connection-aborted result in the current MRTS runtime snapshot.
+      haproxy:
+        classification: importer-mapping-issue
+        evidence_label: HAProxy observed HTTP 0 in the current MRTS runtime snapshot.
+    report_labels:
+      - mrts-transformations
+      - importer-mapping-issue
+    non_promotion:
+      reason: Importer normalization needs correction before runtime evidence can be promoted.
+      markers:
+        - importer-mapping-issue
+    traceability:
+      definition: tests/mrts/definitions/102_TRANSFORM_COMPRESS_WHITESPACE.yaml
+      generated_ftw: tests/mrts/generated/ftw/760019_MRTS_102_TRANSFORM_COMPRESS_WHITESPACE.yaml
+      rule_id: 760019

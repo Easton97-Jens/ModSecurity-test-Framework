@@ -573,6 +573,27 @@ def metadata_phases(metadata: dict) -> set[int]:
     return set()
 
 
+def normalized_report_token(value: object) -> str:
+    return str(value).strip().lower().replace("_", "-")
+
+
+def metadata_string_list(metadata: dict, key: str) -> list[str]:
+    raw = metadata.get(key)
+    if not isinstance(raw, list):
+        return []
+    return [str(item) for item in raw if str(item).strip()]
+
+
+def metadata_classification(metadata: dict) -> str:
+    value = str(metadata.get("classification") or "").strip()
+    return value or "active"
+
+
+def metadata_mapping_field(metadata: dict, key: str) -> dict:
+    raw = metadata.get(key)
+    return raw if isinstance(raw, dict) else {}
+
+
 def extract_status_metadata(data: dict) -> tuple[str, str, str, str, dict]:
     status = str(data.get("status", "active") or "active").strip().lower()
     category = str(data.get("category", "unknown") or "unknown")
@@ -600,7 +621,16 @@ def parse_case(path: Path) -> dict:
     variables.update(metadata_variables(metadata))
     phases.update(metadata_phases(metadata))
     status, category, notes, source, _ = extract_status_metadata(data)
-    tags = extract_gap_tags(path, status, category, notes, source)
+    classification = metadata_classification(metadata)
+    classification_reason = str(metadata.get("classification_reason") or "").strip()
+    report_labels = metadata_string_list(metadata, "report_labels")
+    connector_observations = metadata_mapping_field(metadata, "connector_observations")
+    non_promotion = metadata_mapping_field(metadata, "non_promotion")
+    traceability = metadata_mapping_field(metadata, "traceability")
+    tags = set(extract_gap_tags(path, status, category, notes, source))
+    tags.update(normalized_report_token(label) for label in report_labels)
+    if classification and normalized_report_token(classification) != "active":
+        tags.add(normalized_report_token(classification))
     case_id = str(data.get("name", path.stem) or path.stem)
     case_for_detection = dict(data)
     case_for_detection.update(
@@ -610,6 +640,12 @@ def parse_case(path: Path) -> dict:
             "variables": sorted(variables),
             "category": category,
             "notes": notes,
+            "metadata_classification": classification,
+            "classification_reason": classification_reason,
+            "report_labels": report_labels,
+            "connector_observations": connector_observations,
+            "non_promotion": non_promotion,
+            "traceability": traceability,
             "tags": tags,
         }
     )
@@ -642,8 +678,14 @@ def parse_case(path: Path) -> dict:
         "response_body": response_body,
         "source": source,
         "notes": notes,
+        "metadata_classification": classification,
+        "classification_reason": classification_reason,
+        "report_labels": report_labels,
+        "connector_observations": connector_observations,
+        "non_promotion": non_promotion,
+        "traceability": traceability,
         "topic": str(metadata.get("topic") or ""),
-        "tags": tags,
+        "tags": sorted(tags),
     }
 
 
@@ -685,14 +727,15 @@ def render_case_matrix(cases: list[dict]) -> str:
     rows = [
         "# Generated Case Matrix",
         "",
-        "| case_id | path | scope | phase | variables | operators | transformations | status | runtime_verified | RESPONSE_BODY non-verified | notes |",
-        "|---|---|---|---|---|---|---|---|---|---|---|",
+        "| case_id | path | scope | phase | variables | operators | transformations | status | classification | report labels | runtime_verified | RESPONSE_BODY non-verified | notes |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for case in cases:
         rows.append(
             f"| {case['id']} | `{case['path']}` | {case['scope']} | {','.join(map(str, case['phases'])) or '-'} | "
             f"{', '.join(case['variables']) or '-'} | {', '.join(case['operators']) or '-'} | "
-            f"{', '.join(case['transformations']) or '-'} | {case['status']} | {case['runtime_verified']} | "
+            f"{', '.join(case['transformations']) or '-'} | {case['status']} | {case['metadata_classification']} | "
+            f"{', '.join(case['report_labels']) or '-'} | {case['runtime_verified']} | "
             f"{'yes' if case['response_body'] else 'no'} | {case['notes']} |"
         )
     return "\n".join(rows)
@@ -768,11 +811,17 @@ def render_xfail(cases: list[dict], import_status: dict) -> str:
 
 
 def render_gap_summary(cases: list[dict], import_status: dict) -> str:
-    rows = ["# Generated Connector Gap Summary", "", "| case_id | path | status | tags | variables | source/provenance | notes |", "|---|---|---|---|---|---|---|"]
+    rows = ["# Generated Connector Gap Summary", "", "| case_id | path | status | classification | tags | variables | source/provenance | notes |", "|---|---|---|---|---|---|---|---|"]
     for case in cases:
-        tags = set(case["tags"])
-        if {"connector-gap", "runtime-difference"}.intersection(tags) or case["status"] in {"connector-gap", "runtime-difference"}:
-            rows.append(f"| {case['id']} | `{case['path']}` | {case['status']} | {', '.join(case['tags']) or '-'} | {', '.join(case['variables']) or '-'} | {case['source']} | {case['notes']} |")
+        if (
+            case_has_classification(case, "connector-gap", "runtime-difference", "harness-incompatibility", "importer-mapping-issue")
+            or case["status"] in {"connector-gap", "runtime-difference"}
+        ):
+            rows.append(
+                f"| {case['id']} | `{case['path']}` | {case['status']} | "
+                f"{', '.join(sorted(case_classifications(case))) or '-'} | {', '.join(case['tags']) or '-'} | "
+                f"{', '.join(case['variables']) or '-'} | {case['source']} | {case['notes']} |"
+            )
     for key in ["connector_specific", "runtime_blocked", "mapped_only", "blocked"]:
         for item in import_status.get(key, []):
             if isinstance(item, dict):
@@ -800,12 +849,12 @@ def root_summary_metrics(cases: list[dict], by_status: Counter, by_runtime: Coun
         "former_xfail": sum(1 for case in cases if case.get("former_xfail")),
         "pending_false": by_runtime.get("false", 0),
         "pending_unknown": by_runtime.get("unknown", 0),
-        "connector_gap": sum(1 for case in cases if "connector-gap" in case["tags"] or case["status"] == "connector-gap"),
-        "runtime_difference": sum(1 for case in cases if "runtime-difference" in case["tags"] or case["status"] == "runtime-difference"),
+        "connector_gap": sum(1 for case in cases if case_has_classification(case, "connector-gap") or case["status"] == "connector-gap"),
+        "runtime_difference": sum(1 for case in cases if case_has_classification(case, "runtime-difference") or case["status"] == "runtime-difference"),
         "future_experimental": sum(
             1
             for case in cases
-            if "future" in case["tags"] or "experimental" in case["tags"] or case["status"] in {"future", "experimental"}
+            if case_has_classification(case, "future", "experimental") or case["status"] in {"future", "experimental"}
         ),
         "response_body": sum(1 for case in cases if case["response_body"]),
     }
@@ -828,10 +877,28 @@ def case_text(case: dict) -> str:
         case["category"],
         case["source"],
         case["notes"],
+        case.get("metadata_classification", ""),
+        case.get("classification_reason", ""),
+        " ".join(case.get("report_labels", [])),
         " ".join(case["tags"]),
         " ".join(case["variables"]),
     ]
     return " ".join(parts).lower()
+
+
+def case_classifications(case: dict) -> set[str]:
+    values = {normalized_report_token(case.get("metadata_classification", ""))}
+    observations = case.get("connector_observations")
+    if isinstance(observations, dict):
+        for item in observations.values():
+            if isinstance(item, dict):
+                values.add(normalized_report_token(item.get("classification", "")))
+    return {value for value in values if value}
+
+
+def case_has_classification(case: dict, *values: str) -> bool:
+    wanted = {normalized_report_token(value) for value in values}
+    return bool(case_classifications(case).intersection(wanted) or set(case["tags"]).intersection(wanted))
 
 
 def count_cases_matching(cases: list[dict], *needles: str) -> int:
@@ -888,10 +955,38 @@ def mrts_source_summary(cases: list[dict]) -> dict[str, int]:
     }
 
 
+def mrts_classification_counts(cases: list[dict]) -> Counter:
+    rows = mrts_cases(cases)
+    return Counter(normalized_report_token(case.get("metadata_classification", "active")) or "active" for case in rows)
+
+
+def mrts_connector_classification_counts(cases: list[dict]) -> dict[str, Counter]:
+    counts = {connector: Counter() for connector in RUNTIME_CONNECTORS}
+    for case in mrts_cases(cases):
+        observations = case.get("connector_observations")
+        if not isinstance(observations, dict):
+            continue
+        for connector in RUNTIME_CONNECTORS:
+            item = observations.get(connector)
+            if isinstance(item, dict):
+                classification = normalized_report_token(item.get("classification", ""))
+                if classification:
+                    counts[connector][classification] += 1
+    return counts
+
+
+def format_counter(counter: Counter) -> str:
+    if not counter:
+        return "-"
+    return ", ".join(f"{key}({value})" for key, value in sorted(counter.items()))
+
+
 def render_mrts_source_summary_lines(cases: list[dict]) -> list[str]:
     if not mrts_cases(cases):
         return []
     summary = mrts_source_summary(cases)
+    classification_counts = mrts_classification_counts(cases)
+    connector_counts = mrts_connector_classification_counts(cases)
     return [
         "",
         "## MRTS Source Summary",
@@ -901,6 +996,10 @@ def render_mrts_source_summary_lines(cases: list[dict]) -> list[str]:
         f"- Unclassified MRTS cases: **{summary['unclassified']}**",
         f"- Phase 4 / RESPONSE_BODY MRTS cases: **{summary['response_body_phase4']}**",
         f"- Runtime-executable MRTS cases: **{summary['runtime_executable']}**",
+        f"- MRTS overlay classifications: **{format_counter(classification_counts)}**",
+        f"- Apache observed classifications: **{format_counter(connector_counts['apache'])}**",
+        f"- NGINX observed classifications: **{format_counter(connector_counts['nginx'])}**",
+        f"- HAProxy observed classifications: **{format_counter(connector_counts['haproxy'])}**",
     ]
 
 
@@ -1082,7 +1181,38 @@ def runtime_executable(case: dict, connector: str) -> bool:
     return case_group(case) in ACTIVE_RUNTIME_STATUSES
 
 
-def runtime_classification(case: dict) -> str:
+def runtime_classification_token(value: object) -> str:
+    return str(value).strip().lower().replace("-", "_")
+
+
+def connector_observed_classification(case: dict, connector: str) -> str:
+    observations = case.get("connector_observations")
+    if not isinstance(observations, dict):
+        return ""
+    item = observations.get(connector)
+    if not isinstance(item, dict):
+        return ""
+    return runtime_classification_token(item.get("classification", ""))
+
+
+def connector_observed_reason(case: dict, connector: str) -> str:
+    observations = case.get("connector_observations")
+    if not isinstance(observations, dict):
+        return ""
+    item = observations.get(connector)
+    if not isinstance(item, dict):
+        return ""
+    return str(item.get("classification_reason") or item.get("evidence_label") or "").strip()
+
+
+def runtime_classification(case: dict, connector: str | None = None) -> str:
+    if connector:
+        observed_classification = connector_observed_classification(case, connector)
+        if observed_classification:
+            return observed_classification
+    metadata_value = runtime_classification_token(case.get("metadata_classification", ""))
+    if metadata_value and metadata_value != "active":
+        return metadata_value
     tags = set(case["tags"])
     text = case_text(case)
     if "connector-gap" in tags or "connector_gap" in text:
@@ -1174,8 +1304,9 @@ def runtime_cell_outside_snapshot(case: dict) -> dict[str, str]:
     }
 
 
-def runtime_cell_from_observed(case: dict, observed: dict) -> dict[str, str]:
-    classification = str(observed.get("runtime_classification", runtime_classification(case)))
+def runtime_cell_from_observed(case: dict, observed: dict, connector: str) -> dict[str, str]:
+    classification = str(observed.get("runtime_classification", runtime_classification(case, connector)))
+    overlay_reason = connector_observed_reason(case, connector)
     observed_case = dict(case)
     observed_case.update(
         {
@@ -1204,6 +1335,8 @@ def runtime_cell_from_observed(case: dict, observed: dict) -> dict[str, str]:
         reason = str(observed.get("reason") or f"RESPONSE_BODY disruptive evidence remains non-promoted; classification={classification}")
     else:
         reason = str(observed.get("reason") or f"runtime summary result; classification={classification}")
+    if overlay_reason:
+        reason = f"{reason}; overlay={overlay_reason}"
     expected = observed.get("expected_status", observed.get("expected", "unknown"))
     actual = observed.get("actual_status", observed.get("actual", "unknown"))
     evidence = str(observed.get("evidence") or f"expected={expected}; actual={actual}")
@@ -1243,10 +1376,10 @@ def runtime_cell(case: dict, connector: str, snapshot: dict) -> dict[str, str]:
     if not runtime_executable_for_snapshot(case, connector, snapshot):
         return runtime_cell_outside_snapshot(case)
     if connector == "haproxy" and observed:
-        return runtime_cell_from_observed(case, observed)
+        return runtime_cell_from_observed(case, observed, connector)
 
     if observed:
-        return runtime_cell_from_observed(case, observed)
+        return runtime_cell_from_observed(case, observed, connector)
 
     smoke = runtime_summary_by_connector(snapshot).get(connector, {})
     return runtime_cell_without_case_evidence(smoke, connector, snapshot)
@@ -1261,7 +1394,7 @@ def runtime_rows(cases: list[dict], snapshot: dict) -> list[dict[str, str]]:
             "path": case["path"],
             "scope": case["scope"],
             "category": case_category(case),
-            "group": case_group(case),
+            "metadata_class": runtime_classification(case),
             "yaml_status": case["status"],
             "runtime_executable": "yes" if any(runtime_executable(case, connector) for connector in RUNTIME_CONNECTORS) else "no",
             "force_all_executable": "yes"
@@ -1394,7 +1527,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
                     "path",
                     "scope",
                     "category",
-                    "group",
+                    "metadata_class",
                     "yaml_status",
                     "runtime_executable",
                     "force_all_executable",
@@ -2449,9 +2582,9 @@ def render_overview(
     by_var: Counter,
     response_body_count: int,
 ) -> str:
-    connector_gap_count = sum(1 for case in cases if "connector-gap" in case["tags"] or case["status"] == "connector-gap")
-    runtime_diff_count = sum(1 for case in cases if "runtime-difference" in case["tags"] or case["status"] == "runtime-difference")
-    future_exp_count = sum(1 for case in cases if "future" in case["tags"] or "experimental" in case["tags"] or case["status"] in {"future", "experimental"})
+    connector_gap_count = sum(1 for case in cases if case_has_classification(case, "connector-gap") or case["status"] == "connector-gap")
+    runtime_diff_count = sum(1 for case in cases if case_has_classification(case, "runtime-difference") or case["status"] == "runtime-difference")
+    future_exp_count = sum(1 for case in cases if case_has_classification(case, "future", "experimental") or case["status"] in {"future", "experimental"})
     rt_rows = runtime_rows(cases, runtime_snapshot)
     apache_runtime_counts = runtime_status_counts(rt_rows, "apache")
     nginx_runtime_counts = runtime_status_counts(rt_rows, "nginx")

@@ -36,6 +36,48 @@ TRANS_RE = re.compile(r"\bt:[^,\"]+")
 RULE_START_RE = re.compile(r"^\s*(?:SecRule|SecAction)\b")
 SCALAR_TRUE = {"true", "yes", "on"}
 SCALAR_FALSE = {"false", "no", "off"}
+DEFAULT_CLASSIFICATIONS_FILE = Path("tests/mrts/classifications.yaml")
+ROOT_OVERLAY_KEYS = {"version", "cases"}
+CASE_OVERLAY_KEYS = {
+    "classification",
+    "classification_reason",
+    "connector_observations",
+    "report_labels",
+    "non_promotion",
+    "traceability",
+}
+CONNECTOR_OVERLAY_KEYS = {
+    "classification",
+    "classification_reason",
+    "evidence_label",
+    "report_labels",
+    "non_promotion",
+    "traceability",
+}
+NON_PROMOTION_KEYS = {"reason", "markers"}
+TRACEABILITY_KEYS = {"definition", "generated_ftw", "rule_id", "runtime_snapshot", "notes", "source"}
+CONNECTOR_KEYS = {"apache", "nginx", "haproxy"}
+FORBIDDEN_OVERLAY_KEYS = {
+    "body",
+    "data",
+    "expect",
+    "expected",
+    "expected_status",
+    "ftw",
+    "generated_rule",
+    "headers",
+    "http_status",
+    "intervention",
+    "method",
+    "path",
+    "phase",
+    "request",
+    "rule",
+    "rules",
+    "status",
+    "uri",
+    "variables",
+}
 
 
 def parse_scalar(value: str) -> Any:
@@ -178,6 +220,111 @@ def load_yaml(path: Path) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError(f"YAML root must be a mapping: {path}")
     return parsed
+
+
+def overlay_key(value: object) -> str:
+    return str(value).strip().lower().replace("-", "_")
+
+
+def validate_allowed_keys(mapping: Mapping[str, Any], allowed: set[str], context: str) -> None:
+    unknown = sorted(str(key) for key in mapping if overlay_key(key) not in allowed)
+    if unknown:
+        raise ValueError(f"{context} contains unsupported key(s): {', '.join(unknown)}")
+
+
+def validate_no_forbidden_overlay_keys(value: Any, context: str) -> None:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            normalized = overlay_key(key)
+            if normalized in FORBIDDEN_OVERLAY_KEYS:
+                raise ValueError(f"{context} may not set semantic key {key!r}")
+            validate_no_forbidden_overlay_keys(item, f"{context}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            validate_no_forbidden_overlay_keys(item, f"{context}[{index}]")
+
+
+def validate_string_list(value: Any, context: str) -> None:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"{context} must be a list of strings")
+
+
+def validate_optional_string(value: Any, context: str) -> None:
+    if value is not None and not isinstance(value, str):
+        raise ValueError(f"{context} must be a string")
+
+
+def validate_non_promotion(value: Any, context: str) -> None:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{context} must be a mapping")
+    validate_allowed_keys(value, NON_PROMOTION_KEYS, context)
+    validate_optional_string(value.get("reason"), f"{context}.reason")
+    if "markers" in value:
+        validate_string_list(value["markers"], f"{context}.markers")
+
+
+def validate_traceability(value: Any, context: str) -> None:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{context} must be a mapping")
+    validate_allowed_keys(value, TRACEABILITY_KEYS, context)
+    for key, item in value.items():
+        if not isinstance(item, (str, int, bool)):
+            raise ValueError(f"{context}.{key} must be a scalar")
+
+
+def validate_connector_observations(value: Any, context: str) -> None:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{context} must be a mapping")
+    validate_allowed_keys(value, CONNECTOR_KEYS, context)
+    for connector, item in value.items():
+        item_context = f"{context}.{connector}"
+        if not isinstance(item, Mapping):
+            raise ValueError(f"{item_context} must be a mapping")
+        validate_allowed_keys(item, CONNECTOR_OVERLAY_KEYS, item_context)
+        validate_optional_string(item.get("classification"), f"{item_context}.classification")
+        validate_optional_string(item.get("classification_reason"), f"{item_context}.classification_reason")
+        validate_optional_string(item.get("evidence_label"), f"{item_context}.evidence_label")
+        if "report_labels" in item:
+            validate_string_list(item["report_labels"], f"{item_context}.report_labels")
+        if "non_promotion" in item:
+            validate_non_promotion(item["non_promotion"], f"{item_context}.non_promotion")
+        if "traceability" in item:
+            validate_traceability(item["traceability"], f"{item_context}.traceability")
+
+
+def validate_case_overlay(case_key: str, value: Any) -> Mapping[str, Any]:
+    context = f"classification overlay cases.{case_key}"
+    if not isinstance(value, Mapping):
+        raise ValueError(f"{context} must be a mapping")
+    validate_no_forbidden_overlay_keys(value, context)
+    validate_allowed_keys(value, CASE_OVERLAY_KEYS, context)
+    validate_optional_string(value.get("classification"), f"{context}.classification")
+    validate_optional_string(value.get("classification_reason"), f"{context}.classification_reason")
+    if "report_labels" in value:
+        validate_string_list(value["report_labels"], f"{context}.report_labels")
+    if "connector_observations" in value:
+        validate_connector_observations(value["connector_observations"], f"{context}.connector_observations")
+    if "non_promotion" in value:
+        validate_non_promotion(value["non_promotion"], f"{context}.non_promotion")
+    if "traceability" in value:
+        validate_traceability(value["traceability"], f"{context}.traceability")
+    return value
+
+
+def load_classification_overlays(path: Path) -> dict[str, Mapping[str, Any]]:
+    if not path.exists():
+        return {}
+    data = load_yaml(path)
+    validate_no_forbidden_overlay_keys(data, "classification overlay")
+    validate_allowed_keys(data, ROOT_OVERLAY_KEYS, "classification overlay")
+    cases = data.get("cases", {})
+    if not isinstance(cases, Mapping):
+        raise ValueError("classification overlay cases must be a mapping")
+    overlays: dict[str, Mapping[str, Any]] = {}
+    for key, value in cases.items():
+        case_key = str(key)
+        overlays[case_key] = validate_case_overlay(case_key, value)
+    return overlays
 
 
 def yaml_scalar(value: Any) -> str:
@@ -547,7 +694,45 @@ def case_seed(source_path: Path, test: Mapping[str, Any]) -> str:
     return source_path.stem
 
 
-def build_case(source_path: Path, test: Mapping[str, Any], rule_text: str, used_names: dict[str, int]) -> dict[str, Any]:
+def matching_overlay(
+    name: str,
+    source_path: Path,
+    test: Mapping[str, Any],
+    overlays: Mapping[str, Mapping[str, Any]],
+) -> Mapping[str, Any]:
+    rule_id = str(test.get("ruleid") or "").strip()
+    candidates = [name, source_path.stem, str(source_path)]
+    if rule_id:
+        candidates.extend([rule_id, f"rule:{rule_id}"])
+    for candidate in candidates:
+        if candidate in overlays:
+            return overlays[candidate]
+    return {}
+
+
+def apply_classification_overlay(case: dict[str, Any], overlay: Mapping[str, Any]) -> None:
+    if not overlay:
+        return
+    metadata = case.setdefault("metadata", {})
+    for key in [
+        "classification",
+        "classification_reason",
+        "connector_observations",
+        "report_labels",
+        "non_promotion",
+        "traceability",
+    ]:
+        if key in overlay:
+            metadata[key] = overlay[key]
+
+
+def build_case(
+    source_path: Path,
+    test: Mapping[str, Any],
+    rule_text: str,
+    used_names: dict[str, int],
+    overlays: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
     stage = first_stage(test)
     request, request_reliable = request_from_stage(stage)
     expect, expect_reliable = expectation_from_rule(stage, rule_text)
@@ -600,6 +785,7 @@ def build_case(source_path: Path, test: Mapping[str, Any], rule_text: str, used_
     rule_id = test.get("ruleid")
     if rule_id not in (None, ""):
         case["expect"]["rule_id"] = int(rule_id) if str(rule_id).isdigit() else str(rule_id)
+    apply_classification_overlay(case, matching_overlay(name, source_path, test, overlays))
     return case
 
 
@@ -614,13 +800,14 @@ def iter_ftw_tests(path: Path) -> Iterable[Mapping[str, Any]]:
         yield {"test_title": path.stem, "stages": []}
 
 
-def import_cases(framework_root: Path, ftw_dir: Path, rules_dir: Path, output_dir: Path) -> int:
+def import_cases(framework_root: Path, ftw_dir: Path, rules_dir: Path, output_dir: Path, classifications_file: Path) -> int:
     runner_dir = framework_root / "tests" / "runners"
     if str(runner_dir) not in sys.path:
         sys.path.insert(0, str(runner_dir))
     from runner_core import load_case
 
     by_id, by_base = read_rule_files(rules_dir)
+    overlays = load_classification_overlays(classifications_file)
     output_dir.mkdir(parents=True, exist_ok=True)
     for old in output_dir.glob("*.yaml"):
         old.unlink()
@@ -634,7 +821,7 @@ def import_cases(framework_root: Path, ftw_dir: Path, rules_dir: Path, output_di
                 source_path = ftw_file.relative_to(framework_root)
             except ValueError:
                 source_path = ftw_file
-            case = build_case(source_path, test, rule_text, used_names)
+            case = build_case(source_path, test, rule_text, used_names, overlays)
             output_path = output_dir / f"{case['name']}.yaml"
             write_case(output_path, case)
             load_case(output_path)
@@ -650,13 +837,19 @@ def main() -> int:
     parser.add_argument("--mrts-ftw-dir")
     parser.add_argument("--mrts-rules-dir")
     parser.add_argument("--output-dir")
+    parser.add_argument("--classifications-file")
     args = parser.parse_args()
 
     framework_root = Path(args.framework_root).resolve()
     ftw_dir = Path(args.mrts_ftw_dir).resolve() if args.mrts_ftw_dir else framework_root / "tests/mrts/generated/ftw"
     rules_dir = Path(args.mrts_rules_dir).resolve() if args.mrts_rules_dir else framework_root / "tests/mrts/generated/rules"
     output_dir = Path(args.output_dir).resolve() if args.output_dir else framework_root / "tests/mrts/generated/framework-cases"
-    return import_cases(framework_root, ftw_dir, rules_dir, output_dir)
+    classifications_file = (
+        Path(args.classifications_file).resolve()
+        if args.classifications_file
+        else framework_root / DEFAULT_CLASSIFICATIONS_FILE
+    )
+    return import_cases(framework_root, ftw_dir, rules_dir, output_dir, classifications_file)
 
 
 if __name__ == "__main__":
