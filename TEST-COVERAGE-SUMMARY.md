@@ -18,12 +18,12 @@ Generated file — do not edit manually.
 - Apache attempted YAML cases in default runtime snapshot: **54**
 - NGINX attempted YAML cases in default runtime snapshot: **60**
 - HAProxy attempted YAML cases in default runtime snapshot: **54**
-- Apache attempted YAML cases in force-all runtime snapshot: **0**
-- NGINX attempted YAML cases in force-all runtime snapshot: **0**
-- HAProxy attempted YAML cases in force-all runtime snapshot: **0**
-- Apache force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **0** / **0** / **0** / **0**
-- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **0** / **0** / **0** / **0**
-- HAProxy force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **0** / **0** / **0** / **0**
+- Apache attempted YAML cases in force-all runtime snapshot: **516**
+- NGINX attempted YAML cases in force-all runtime snapshot: **523**
+- HAProxy attempted YAML cases in force-all runtime snapshot: **133**
+- Apache force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **183** / **327** / **0** / **6**
+- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **87** / **430** / **0** / **6**
+- HAProxy force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **104** / **23** / **0** / **6**
 - Mapped-only import inventory entries: **10**
 
 ## MRTS Source Summary
@@ -142,19 +142,18 @@ Generated file — do not edit manually.
 |---|---:|---:|---:|
 | PASS | 10 | 10 | 10 |
 | FAIL | 44 | 50 | 44 |
-| NOT_EXECUTABLE | 7 | 0 | 7 |
-| NOT EXECUTED | 479 | 480 | 479 |
+| NOT_EXECUTABLE | 486 | 480 | 486 |
 | MAPPED_ONLY | 10 | 10 | 10 |
 
 - Apache attempted YAML cases from default summary: **54**
 - NGINX attempted YAML cases from default summary: **60**
 - HAProxy attempted YAML cases from default summary: **54**
-- Apache NOT EXECUTED YAML rows: **479**
-- NGINX NOT EXECUTED YAML rows: **480**
-- HAProxy NOT EXECUTED YAML rows: **479**
-- Apache NOT_EXECUTABLE YAML rows: **7**
-- NGINX NOT_EXECUTABLE YAML rows: **0**
-- HAProxy NOT_EXECUTABLE YAML rows: **7**
+- Apache NOT EXECUTED YAML rows: **0**
+- NGINX NOT EXECUTED YAML rows: **0**
+- HAProxy NOT EXECUTED YAML rows: **0**
+- Apache NOT_EXECUTABLE YAML rows: **486**
+- NGINX NOT_EXECUTABLE YAML rows: **480**
+- HAProxy NOT_EXECUTABLE YAML rows: **486**
 - Mapped-only import inventory entries: **10**
 - Runtime matrix detail: `reports/testing/generated/runtime-matrix.generated.md`
 - Apache per-case results: `reports/testing/generated/apache-runtime-results.generated.md`
@@ -163,9 +162,9 @@ Generated file — do not edit manually.
 - PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence.
 - RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
 
-- HAProxy force-all attempted YAML cases: **0**
+- HAProxy force-all attempted YAML cases: **133**
 - HAProxy force-all result JSONL: `/src/ModSecurity-conector-build/results/force-all/haproxy-results.jsonl`
-- HAProxy force-all per-case evidence root: ``
+- HAProxy force-all per-case evidence root: `/src/ModSecurity-conector-build/logs/haproxy-runtime`
 - Force-all evidence is traceable runtime evidence but does not promote pending/future/gap feature support.
 
 ## Framework Check Status
@@ -193,8 +192,8 @@ Generated file — do not edit manually.
 | make runtime-matrix-all | PASS | Force-all matrix orchestration completed and recorded Apache/NGINX per-case evidence; expected runtime FAILs remain evidence and are not PASS promotions |
 
 ## Runtime Smoke Status
-- Snapshot: **2026-06-08** (2026-06-08 00:38:40 CEST)
-- Git: branch `integrate-new-connectors-local`, commit `9f331e2`
+- Snapshot: **2026-06-08** (2026-06-08 16:36:28 CEST)
+- Git: branch `integrate-new-connectors-local`, commit `4ccd37b`
 - BUILD_ROOT: `/src/ModSecurity-conector-build`
 - Snapshot file: `reports/testing/runtime-validation-snapshot.json`
 
@@ -209,9 +208,9 @@ Generated file — do not edit manually.
 ### Force-All Runtime Smoke Status
 | Connector | Command | Status | Exit | Attempted | PASS | FAIL | BLOCKED | NOT_EXECUTABLE | Evidence |
 |---|---|---|---|---|---|---|---|---|---|
-| apache | FORCE_ALL_CASES=1 MODSECURITY_MRTS_VARIANT=with-mrts make smoke-apache | NOT_AVAILABLE | not_run | 0 | unknown | unknown | unknown | unknown | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
-| nginx | FORCE_ALL_CASES=1 MODSECURITY_MRTS_VARIANT=with-mrts make smoke-nginx | NOT_AVAILABLE | not_run | 0 | unknown | unknown | unknown | unknown | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
-| haproxy | FORCE_ALL_CASES=1 make smoke-haproxy | NOT_AVAILABLE | not_run | 0 | unknown | unknown | unknown | unknown | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
+| apache | FORCE_ALL_CASES=1 make smoke-apache | FAIL | 2 | 516 | 183 | 327 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/apache-summary.json |
+| nginx | FORCE_ALL_CASES=1 make smoke-nginx | FAIL | 2 | 523 | 87 | 430 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/nginx-summary.json |
+| haproxy | FORCE_ALL_CASES=1 make smoke-haproxy | FAIL | 1 | 133 | 104 | 23 | 0 | 6 | /src/ModSecurity-conector-build/results/force-all/haproxy-summary.json |
 
 ## Connector Runtime Availability
 | Connector | Status | Build | Per-case results | Attempted cases | Summary evidence | Note |
