@@ -1,0 +1,41 @@
+target: ARGS_NAMES
+rulefile: MRTS_006_ARGS_NAMES_B-POST.conf
+testfile: MRTS_006_ARGS_NAMES_B-POST.yaml
+templates:
+  - SecRule for TARGETS
+colkey:
+  - - ''
+  - - attack1
+  - - attack1
+    - attack2
+  - - /^attack_.*$/
+operator:
+  - '@contains'
+oparg:
+  - attack
+phase:
+  - 2
+  - 3
+  - 4
+testdata:
+  phase_methods:
+    2: post
+    3: post
+    4: post
+  targets:
+    - target: ''
+      test:
+        data:
+          attack: test
+    - target: attack1
+      test:
+        data:
+          attack1: test
+    - target: attack2
+      test:
+        data:
+          attack2: test
+    - target: /^attack_.*$/
+      test:
+        data:
+          attack_foo: test

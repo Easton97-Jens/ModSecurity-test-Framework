@@ -1,0 +1,41 @@
+target: ARGS
+rulefile: MRTS_002_ARGS_B-POST.conf
+testfile: MRTS_002_ARGS_B-POST.yaml
+templates:
+- SecRule for TARGETS
+colkey:
+- - ''
+- - arg1
+- - arg1
+  - arg2
+- - /^arg_.*$/
+operator:
+- '@contains'
+oparg:
+- attack
+phase:
+- 2
+- 3
+- 4
+testdata:
+  phase_methods:
+    2: post
+    3: post
+    4: post
+  targets:
+    - target: ''
+      test:
+        data:
+          foo: attack
+    - target: arg1
+      test:
+        data:
+          arg1: attack
+    - target: arg2
+      test:
+        data:
+          arg2: attack
+    - target: /^arg_.*$/
+      test:
+        data:
+          arg_foo: attack

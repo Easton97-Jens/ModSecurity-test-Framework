@@ -664,6 +664,8 @@ def main() -> int:
     def force_all_smoke_row(connector: str, command: str, exit_code: str) -> dict:
         summary_path = force_all_dir / f"{connector}-summary.json"
         text_summary_path = force_all_dir / f"{connector}-summary.txt"
+        if not args.force_all:
+            return not_available_force_all_row(connector, summary_path, command)
         if summary_path.exists():
             return connector_smoke(
                 connector,

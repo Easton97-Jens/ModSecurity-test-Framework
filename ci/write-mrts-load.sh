@@ -8,6 +8,13 @@ FRAMEWORK_ROOT=$(CDPATH= cd "$FRAMEWORK_ROOT" && pwd)
 MRTS_RULES_OUT="${MRTS_RULES_OUT:-$FRAMEWORK_ROOT/tests/mrts/generated/rules}"
 MRTS_LOAD_FILE="${MRTS_LOAD_FILE:-$FRAMEWORK_ROOT/tests/mrts/generated/mrts.load}"
 
+case "$(CDPATH= cd "$MRTS_RULES_OUT" 2>/dev/null && pwd || printf '%s' "$MRTS_RULES_OUT")" in
+    "$FRAMEWORK_ROOT"/tests/mrts/imported|"$FRAMEWORK_ROOT"/tests/mrts/imported/*)
+        echo "BLOCKED: refusing to write MRTS load file from golden references: $MRTS_RULES_OUT" >&2
+        exit 77
+        ;;
+esac
+
 rule_list=$(find "$MRTS_RULES_OUT" -type f -name '*.conf' 2>/dev/null | sort || true)
 if [ -z "$rule_list" ]; then
     echo "BLOCKED: no MRTS generated rule files found: $MRTS_RULES_OUT" >&2

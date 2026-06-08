@@ -3,79 +3,98 @@ Generated file — do not edit manually.
 # ModSecurity Connector Test Coverage Overview
 
 ## Summary
-- Total cases: **161**
+- Total cases: **540**
 - Verified/pass count (`runtime_verified=true`): **0**
 - Current XFAIL count: **0**
 - Former XFAIL cases tracked: **80**
-- Pending runtime verification count: **12**
-- Connector-gap count: **12**
+- Pending runtime verification count: **410**
+- Connector-gap count: **11**
 - Runtime-difference count: **13**
 - Future/experimental count: **17**
-- RESPONSE_BODY cases: **25** (still **not verified/promoted**)
+- RESPONSE_BODY cases: **32** (still **not verified/promoted**)
 - Mapped-only import inventory entries: **0**
 
 ## MRTS Source Summary
-- Total MRTS imported cases: **20**
-- Active MRTS cases: **19**
-- Pending MRTS cases: **1**
-- Unclassified MRTS cases: **0**
-- Phase 4 / RESPONSE_BODY MRTS cases: **1**
-- Runtime-executable MRTS cases: **19**
-- MRTS overlay classifications: **active(16), harness-incompatibility(2), importer-mapping-issue(1), non-promoted(1)**
-- Apache observed classifications: **active(1), connector-gap(1), harness-incompatibility(2), importer-mapping-issue(1), non-promoted(1)**
-- NGINX observed classifications: **active(1), harness-incompatibility(3), importer-mapping-issue(1), non-promoted(1)**
-- HAProxy observed classifications: **active(2), harness-incompatibility(2), importer-mapping-issue(1), non-promoted(1)**
+- Total MRTS imported cases: **399**
+- Active MRTS cases: **0**
+- Pending MRTS cases: **399**
+- Unclassified MRTS cases: **399**
+- Phase 4 / RESPONSE_BODY MRTS cases: **110**
+- Runtime-executable MRTS cases: **0**
+- MRTS overlay classifications: **unclassified(399)**
+- Apache observed classifications: **-**
+- NGINX observed classifications: **-**
+- HAProxy observed classifications: **-**
+
+| Corpus | Category | Definitions | Golden tests | Golden rules | Framework cases | Active | Pending | Unclassified | Phase 4 / RESPONSE_BODY | Runtime-executable |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| upstream-config-tests | runnable | 16 | 157 | 15 | 383 | 0 | 383 | 383 | 110 | 0 |
+| feature-demo | optional/demo | 9 | 13 | 8 | 16 | 0 | 16 | 16 | 0 | 0 |
+| upstream-generated | golden-only | - | 157 | 15 | 0 | 0 | 0 | 0 | 0 | 0 |
+| framework-curated | legacy/reference | 16 | - | - | 0 | 0 | 0 | 0 | 0 | 0 |
+
+### MRTS Golden Drift
+| Reference | Generated | Golden | Matched | Mismatch | Missing generated | Extra generated |
+|---|---:|---:|---:|---:|---:|---:|
+| upstream_tests | 157 | 157 | 157 | 0 | 0 | 0 |
+| upstream_rules | 15 | 15 | 15 | 0 | 0 | 0 |
+| feature_demo_tests | 13 | 13 | 0 | 0 | 13 | 13 |
+| feature_demo_rules | 8 | 8 | 7 | 1 | 0 | 0 |
+
+- Duplicate MRTS rule IDs across imported runnable/demo corpora: **13**
+- Golden-only references under `tests/mrts/imported/**` are not runtime inputs and are not added to `EXTRA_CASE_ROOTS`.
+- Feature-demo cases are report-visible as optional/demo and pending unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` passes collision checks.
 
 ## Coverage By Variable / Collection
 | Variable | Count |
 |---|---:|
-| `RESPONSE_BODY` | 21 |
+| `ARGS` | 76 |
+| `REQUEST_COOKIES_NAMES` | 64 |
+| `ARGS_NAMES` | 63 |
+| `REQUEST_COOKIES` | 60 |
+| `RESPONSE_BODY` | 28 |
 | `ARGS:q` | 18 |
-| `ARGS` | 16 |
-| `REQUEST_BODY` | 11 |
-| `REQUEST_URI` | 8 |
-| `ARGS_NAMES` | 7 |
+| `REQUEST_BODY` | 10 |
+| `XML` | 7 |
+| `REQUEST_URI` | 7 |
 | `ARGS:test` | 6 |
 | `REQUEST_HEADERS_NAMES` | 5 |
-| `XML` | 5 |
 | `ARGS:a` | 4 |
-| `REQUEST_COOKIES_NAMES` | 4 |
 | `ARGS:param1` | 4 |
 | `RESPONSE_HEADERS:Set-Cookie` | 4 |
 | `ARGS:probe` | 4 |
 | `MULTIPART_FILENAME` | 3 |
 | `ARGS:chain_a` | 3 |
 | `ARGS:chain_b` | 3 |
-| `FILES` | 2 |
 | `FILES_NAMES` | 2 |
 | `TX:SCORE` | 2 |
 
 ## Coverage By Phase
 | Phase | Count |
 |---|---:|
-| 1 | 39 |
-| 2 | 89 |
-| 3 | 13 |
-| 4 | 21 |
+| 1 | 105 |
+| 2 | 192 |
+| 3 | 114 |
+| 4 | 126 |
 
 ## Coverage By Status
 | Status | Count |
 |---|---:|
-| active | 27 |
+| active | 8 |
 | imported | 133 |
-| pending | 1 |
+| pending | 399 |
 
 ## Coverage By Scope
 | Scope | Count |
 |---|---:|
-| common | 154 |
+| common | 533 |
 | apache | 0 |
 | nginx | 7 |
 | unknown | 0 |
 
 ## Runtime Matrix Status
-- Default runtime-executable YAML cases: **80**
-- Force-all runtime-executable YAML cases: **161**
+- Default runtime-executable YAML cases: **61**
+- Force-all runtime-executable YAML cases: **540**
 - Apache attempted YAML cases from default summary: **54**
 - NGINX attempted YAML cases from default summary: **60**
 - HAProxy attempted YAML cases from default summary: **134**
@@ -89,7 +108,7 @@ Generated file — do not edit manually.
 |---|---:|---:|---:|
 | PASS | 54 | 60 | 105 |
 | FAIL | 0 | 0 | 23 |
-| NOT_EXECUTABLE | 107 | 101 | 33 |
+| NOT_EXECUTABLE | 486 | 480 | 412 |
 - Details: `docs/testing/generated/runtime-matrix.generated.md`
 - HAProxy per-case results: `docs/testing/generated/haproxy-runtime-results.generated.md`
 

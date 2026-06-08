@@ -1,0 +1,76 @@
+target: REQUEST_COOKIES_NAMES
+rulefile: MRTS_060_REQUEST_COOKIES_NAMES.conf
+testfile: MRTS_060_REQUEST_COOKIES_NAMES.yaml
+templates:
+  - SecRule for TARGETS
+colkey:
+  - - ''
+  - - attack1
+  - - attack1
+    - attack2
+  - - /^attack_.*$/
+operator:
+  - '@contains'
+oparg:
+  - attack
+phase:
+  - 1
+  - 2
+  - 3
+  - 4
+testdata:
+  phase_methods:
+    1: get
+    2: post
+    3: post
+    4: post
+  targets:
+    - target: ''
+      test:
+        data: null
+        input:
+          headers:
+            - name: Cookie
+              value: attack=test
+    - target: attack1
+      test:
+        data: null
+        input:
+          headers:
+            - name: Cookie
+              value: attack1=test
+    - target: attack1
+      test:
+        data: null
+        input:
+          headers:
+            - name: Cookie
+              value: attack1=test;hello=test
+    - target: attack2
+      test:
+        data: null
+        input:
+          headers:
+            - name: Cookie
+              value: attack2=test
+    - target: attack2
+      test:
+        data: null
+        input:
+          headers:
+            - name: Cookie
+              value: hello=test;attack2=test
+    - target: /^attack_.*$/
+      test:
+        data: null
+        input:
+          headers:
+            - name: Cookie
+              value: attack_foo=test
+    - target: /^attack_.*$/
+      test:
+        data: null
+        input:
+          headers:
+            - name: Cookie
+              value: hello=test;attack_foo=text;world=test

@@ -1,0 +1,40 @@
+target: ARGS
+rulefile: DEMO_007_BEFORE-AFTER.conf
+testfile: DEMO_007_BEFORE-AFTER.yaml
+templates:
+- SecRule for TARGETS
+colkey:
+- - arg1
+- - arg2
+operator:
+- '@contains'
+oparg:
+- attack
+phase:
+- 2
+generation:
+  before: |
+    # STRING BEFORE ALL
+    SecAction "id:${CURRID}$,phase:2, pass, setenv:'before=123'"
+  after: |
+    # STRING AFTER ALL
+    SecAction "id:${CURRID}$,phase:2 pass, setenv:'after=789'"
+  before_each: |
+      # STRING BEFORE EACH
+      SecAction "id:${CURRID}$,phase:${PHASE}$, pass, setenv:'before_each=456'"
+  after_each: |
+      # STRING AFTER EACH
+      SecAction "id:${CURRID}$,phase:${PHASE}$, pass, setenv:'after_each=456'"
+
+testdata:
+  phase_methods:
+    2: post
+  targets:
+    - target: arg1
+      test:
+        data:
+          arg1: attack
+    - target: arg2
+      test:
+        data:
+          arg2: attack

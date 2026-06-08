@@ -6,9 +6,12 @@ FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
 FRAMEWORK_ROOT=$(CDPATH= cd "$FRAMEWORK_ROOT" && pwd)
 
 MRTS_ROOT="${MRTS_ROOT:-$FRAMEWORK_ROOT/tools/MRTS}"
-MRTS_DEFINITIONS="${MRTS_DEFINITIONS:-$FRAMEWORK_ROOT/tests/mrts/definitions}"
+MRTS_CORPUS="${MRTS_CORPUS:-upstream-config-tests}"
+MRTS_DEFINITIONS="${MRTS_DEFINITIONS:-$FRAMEWORK_ROOT/tests/mrts/definitions/upstream-config-tests}"
 MRTS_RULES_OUT="${MRTS_RULES_OUT:-$FRAMEWORK_ROOT/tests/mrts/generated/rules}"
 MRTS_FTW_OUT="${MRTS_FTW_OUT:-$FRAMEWORK_ROOT/tests/mrts/generated/ftw}"
+PYTHONDONTWRITEBYTECODE="${PYTHONDONTWRITEBYTECODE:-1}"
+export PYTHONDONTWRITEBYTECODE
 
 if [ ! -d "$MRTS_ROOT" ]; then
     echo "BLOCKED: MRTS_ROOT missing: $MRTS_ROOT" >&2
@@ -20,12 +23,24 @@ if [ ! -f "$MRTS_ROOT/mrts/generate-rules.py" ]; then
     exit 77
 fi
 
-if [ ! -d "$MRTS_DEFINITIONS" ]; then
-    echo "BLOCKED: MRTS definitions missing: $MRTS_DEFINITIONS" >&2
-    exit 77
-fi
+definition_dirs=$(printf '%s\n' "$MRTS_DEFINITIONS" | tr ':' '\n')
+for definitions_dir in $definition_dirs; do
+    if [ ! -d "$definitions_dir" ]; then
+        echo "BLOCKED: MRTS definitions missing: $definitions_dir" >&2
+        exit 77
+    fi
+done
 
-definition_list=$(find "$MRTS_DEFINITIONS" -type f -name '*.yaml' | sort)
+definition_list=$(
+    for definitions_dir in $definition_dirs; do
+        if [ ! -d "$definitions_dir" ]; then
+            echo "BLOCKED: MRTS definitions missing: $definitions_dir" >&2
+            exit 77
+        fi
+        find "$definitions_dir" -type f -name '*.yaml'
+    done
+)
+definition_list=$(printf '%s\n' "$definition_list" | sort)
 if [ -z "$definition_list" ]; then
     echo "BLOCKED: no MRTS definition YAML files found: $MRTS_DEFINITIONS" >&2
     exit 77
@@ -38,7 +53,7 @@ find "$MRTS_FTW_OUT" -type f -name '*.yaml' -exec rm -f {} \;
 set -- $definition_list
 (
     cd "$MRTS_ROOT"
-    python3 "$MRTS_ROOT/mrts/generate-rules.py" \
+    "${PYTHON:-python3}" "$MRTS_ROOT/mrts/generate-rules.py" \
         -r "$@" \
         -e "$MRTS_RULES_OUT" \
         -t "$MRTS_FTW_OUT"
@@ -48,6 +63,7 @@ rule_count=$(find "$MRTS_RULES_OUT" -type f -name '*.conf' | wc -l | tr -d ' ')
 ftw_count=$(find "$MRTS_FTW_OUT" -type f -name '*.yaml' | wc -l | tr -d ' ')
 
 echo "MRTS generation complete"
+echo "Corpus: $MRTS_CORPUS"
 echo "Definitions: $(printf '%s\n' "$definition_list" | wc -l | tr -d ' ')"
 echo "Rules: $rule_count ($MRTS_RULES_OUT)"
 echo "FTW tests: $ftw_count ($MRTS_FTW_OUT)"

@@ -1,0 +1,30 @@
+target: ARGS
+rulefile: DEMO_003_ACTIONS.conf
+testfile: DEMO_003_ACTIONS.yaml
+templates:
+- Actions demo template, with macro at the end
+- Actions demo template, with macro in the middle
+colkey:
+- - ''
+operator:
+- '@contains'
+oparg:
+- attack
+phase:
+  - 2
+actions:
+  - action:
+      - setvar:ABC=1
+      - auditlog
+      - status:400
+  - action:
+      - setvar:XYZ=2
+      - status:500
+testdata:
+  phase_methods:
+    2: post
+  targets:
+    - target: ''
+      test:
+        data:
+          foo: attack

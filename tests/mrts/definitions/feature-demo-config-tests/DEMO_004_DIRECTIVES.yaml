@@ -1,0 +1,27 @@
+target: ARGS
+rulefile: DEMO_004_DIRECTIVES.conf
+testfile: DEMO_004_DIRECTIVES.yaml
+templates:
+- Directives demo template
+colkey:
+- - ''
+operator:
+- '@contains'
+oparg:
+- attack
+phase:
+  - 2
+directives:
+  - directive:
+      - SecAction "id:${CURRID}$,phase:${PHASE}$, pass, setenv:'123=abc'"
+      - SecAction "id:${CURRID}$,phase:${PHASE}$, pass, setenv:'456=def'"
+  - directive:
+      - SecAction "id:${CURRID}$,phase:${PHASE}$, pass, setenv:'789=xyz'"
+testdata:
+  phase_methods:
+    2: post
+  targets:
+    - target: ''
+      test:
+        data:
+          foo: attack

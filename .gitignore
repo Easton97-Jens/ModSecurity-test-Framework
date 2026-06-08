@@ -3,7 +3,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-/tests/mrts/generated/rules/*.conf
-/tests/mrts/generated/ftw/*.yaml
-/tests/mrts/generated/framework-cases/*.yaml
+/tests/mrts/generated/**/*.conf
+/tests/mrts/generated/**/*.yaml
+/tests/mrts/generated/**/*.load
 /tests/mrts/generated/mrts.load

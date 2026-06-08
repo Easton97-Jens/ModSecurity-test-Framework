@@ -1,0 +1,29 @@
+---
+meta:
+  author: MRTS generate-rules.py
+  enabled: true
+  name: DEMO_002_ENCODED_REQUEST.yaml
+  description: Desc
+tests:
+- test_title: 100000-1
+  ruleid: 100000
+  test_id: 1
+  desc: 'Test case for rule 100000, #1'
+  stages:
+  - description: Send request
+    input:
+      dest_addr: 127.0.0.1
+      port: 80
+      protocol: http
+      method: POST
+      headers:
+        User-Agent: OWASP MRTS test agent
+        Host: localhost
+        Accept: text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,text/plain;q=0.8,image/png,*/*;q=0.5
+      uri: /post
+      version: HTTP/1.1
+      encoded_request: UE9TVCAvcG9zdCBIVFRQLzEuMQ0KQWNjZXB0OiB0ZXh0L3htbCxhcHBsaWNhdGlvbi94bWwsYXBwbGljYXRpb24veGh0bWwreG1sLHRleHQvaHRtbDtxPTAuOSx0ZXh0L3BsYWluO3E9MC44LGltYWdlL3BuZywqLyo7cT0wLjUNCkNvbm5lY3Rpb246IGNsb3NlDQpDb250ZW50LUxlbmd0aDogMTANCkNvbnRlbnQtVHlwZTogYXBwbGljYXRpb24veC13d3ctZm9ybS11cmxlbmNvZGVkDQpIb3N0OiBsb2NhbGhvc3QNClVzZXItQWdlbnQ6IE9XQVNQIE1SVFMgdGVzdCBhZ2VudA0KDQpmb289YXR0YWNr
+    output:
+      log:
+        expect_ids:
+        - 100000
