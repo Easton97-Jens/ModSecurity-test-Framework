@@ -69,11 +69,14 @@ make test-with-mrts-feature-demo
 make test-mrts-matrix
 ```
 
-Default MRTS runtime preparation uses only
-`tests/mrts/definitions/upstream-config-tests`. Feature-demo config tests are
-copied and reported as optional/demo coverage, but they stay pending unless
-`MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` is used. Golden references under
-`tests/mrts/imported/` are for drift reporting only and are never runtime inputs.
+Default MRTS runtime preparation reads upstream config tests directly from
+`$MRTS_ROOT/config_tests` and writes generated rules, go-ftw YAML, imported
+framework cases, and `mrts.load` under `$MRTS_BUILD_ROOT`. Feature-demo config
+tests are read from `$MRTS_ROOT/feature_demo/config_tests` and remain
+optional/demo evidence unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` is used.
+Golden references under `$MRTS_ROOT/generated` and
+`$MRTS_ROOT/feature_demo/generated` are for drift reporting only and are never
+runtime inputs.
 
 ## Runtime Smoke Entrypoints
 
@@ -88,18 +91,17 @@ entry. Use `make connector-starter-checks` only for build/self-test starter
 evidence; starter PASS results are not runtime-smoke evidence and do not verify
 RESPONSE_BODY.
 
-Runtime smoke runners keep sources under `/src`, build/runtime artifacts under
-`/src/ModSecurity-conector-build`, temporary runtime files under
-`/src/ModSecurity-conector-build/tmp`, logs under
-`/src/ModSecurity-conector-build/logs`, and results under
-`/src/ModSecurity-conector-build/results`.
+Runtime smoke runners default to state-local source and build roots under
+`${XDG_STATE_HOME:-$HOME/.local/state}`. Callers can still provide explicit
+`SOURCE_ROOT`, `BUILD_ROOT`, `TMP_ROOT`, `LOG_ROOT`, and `RESULTS_DIR` values
+for isolated local runs.
 
 HAProxy has a local preparation helper at `ci/prepare-haproxy-runtime.sh`. It
 uses only the HAProxy source URL, version, and checksum centralized in
 `ci/common.sh`, verifies the official checksum before extraction, confirms the
 source Makefile supports `TARGET=linux-glibc`, and stages only a local runtime
-binary under `/src/ModSecurity-conector-build`. That binary is prerequisite
-evidence only; it is not HAProxy runtime-smoke evidence.
+binary under `BUILD_ROOT`. That binary is prerequisite evidence only; it is not
+HAProxy runtime-smoke evidence.
 
 ## YAML Case System
 

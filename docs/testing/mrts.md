@@ -21,32 +21,39 @@ MRTS_ROOT=/path/to/MRTS make mrts-generate
 If `tools/MRTS` is missing or not initialized, MRTS targets exit with status 77.
 Run `git submodule update --init --recursive` to restore the default checkout.
 
-MRTS definition files live in:
+MRTS source inputs are read directly from the MRTS submodule:
 
 ```text
-tests/mrts/definitions/
+$MRTS_ROOT/config_tests/
+$MRTS_ROOT/feature_demo/config_tests/
 ```
 
 The default runnable corpus is the upstream MRTS config-test corpus:
 
 ```text
-tests/mrts/definitions/upstream-config-tests/
+$MRTS_ROOT/config_tests/
 ```
 
-Feature-demo config tests are copied 1:1 and remain visible as optional/demo
-coverage, but they are imported as pending/non-runtime by default:
+Feature-demo config tests remain visible as optional/demo coverage, but they are
+imported as pending/non-runtime by default:
 
 ```text
-tests/mrts/definitions/feature-demo-config-tests/
+$MRTS_ROOT/feature_demo/config_tests/
 ```
 
-Golden references live under `tests/mrts/imported/`. They are drift/reference
-inputs only: they are never included in `mrts.load`, never imported as runtime
-framework cases, and never appended to `EXTRA_CASE_ROOTS`.
+Golden references live under `$MRTS_ROOT/generated/` and
+`$MRTS_ROOT/feature_demo/generated/`. They are drift/reference inputs only: they
+are never included in `mrts.load`, never imported as runtime framework cases,
+and never appended to `EXTRA_CASE_ROOTS`.
 
-Generated MRTS files live under `tests/mrts/generated/` and are ignored by git.
-They include generated ModSecurity rules, generated go-ftw YAML tests, imported
-framework YAML cases, and `mrts.load`.
+Generated MRTS files live under `$MRTS_BUILD_ROOT`, which defaults to
+`$BUILD_ROOT/mrts`. They include generated ModSecurity rules, generated go-ftw
+YAML tests, imported framework YAML cases, and `mrts.load`:
+
+```text
+$MRTS_BUILD_ROOT/upstream-config-tests/{rules,ftw,framework-cases,mrts.load}
+$MRTS_BUILD_ROOT/feature-demo/{rules,ftw,framework-cases,mrts.load}
+```
 
 ## Commands
 
@@ -63,10 +70,10 @@ make mrts-ftw
 If `EXTRA_CASE_ROOTS` is already set by the caller, it is preserved.
 
 `make test-with-mrts` generates MRTS artifacts once, writes `mrts.load` once,
-imports generated framework cases once, appends
-`tests/mrts/generated/framework-cases` to `EXTRA_CASE_ROOTS`, and runs the
-existing connector smokes. By default, `mrts.load` includes only generated rules
-from `upstream-config-tests`.
+imports generated framework cases once, appends the build-root upstream MRTS
+framework case directory to `EXTRA_CASE_ROOTS`, and runs the existing connector
+smokes. By default, `mrts.load` includes only generated rules from
+`upstream-config-tests`.
 
 Feature-demo runtime is explicit opt-in only:
 
@@ -114,3 +121,11 @@ policy remains unchanged.
 Report categories distinguish `runnable: upstream-config-tests`,
 `optional/demo: feature-demo`, `golden-only: upstream-generated`, and
 `legacy/reference: framework-curated`.
+
+## Native Infrastructure Overlay
+
+The framework carries an experimental NGINX PR24 overlay under
+`tests/mrts/infra-overlays/nginx-pr24/`. The overlay is staged into
+`$MRTS_NATIVE_ROOT` for native MRTS runs, and all runtime path, port, module,
+log, and command edits happen only in that staging copy. Replace this overlay
+with `$MRTS_ROOT/config_infra/nginx_linux` once MRTS PR 24 is merged upstream.

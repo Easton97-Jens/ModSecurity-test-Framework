@@ -27,6 +27,12 @@ from response_body_status import (
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
 CONNECTOR_ROOT = Path.cwd()
 OUTPUT_ROOT = CONNECTOR_ROOT
+DEFAULT_STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
+BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_STATE_HOME / "ModSecurity-conector-build"))).resolve()
+MRTS_ROOT = Path(os.environ.get("MRTS_ROOT", str(FRAMEWORK_ROOT / "tools/MRTS"))).resolve()
+MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(BUILD_ROOT / "mrts"))).resolve()
+MRTS_UPSTREAM_BUILD_ROOT = MRTS_BUILD_ROOT / "upstream-config-tests"
+MRTS_FEATURE_DEMO_BUILD_ROOT = MRTS_BUILD_ROOT / "feature-demo"
 IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
 FRAMEWORK_REPORT_DIR = "docs/testing"
 CONNECTOR_REPORT_DIR = "reports/testing"
@@ -511,6 +517,10 @@ def infer_scope(path: Path) -> str:
 
 def display_path(path: Path) -> str:
     resolved = path.resolve()
+    try:
+        return "$MRTS_BUILD_ROOT/" + str(resolved.relative_to(MRTS_BUILD_ROOT))
+    except ValueError:
+        pass
     for root in (CONNECTOR_ROOT, FRAMEWORK_ROOT):
         try:
             return str(resolved.relative_to(root))
@@ -1009,16 +1019,16 @@ def drift_summary(generated_dir: Path, golden_dir: Path, pattern: str) -> dict[s
 
 def mrts_reference_counts() -> dict[str, int]:
     return {
-        "upstream_config_definitions": count_files(FRAMEWORK_ROOT / "tests/mrts/definitions/upstream-config-tests", "*.yaml"),
-        "feature_demo_definitions": count_files(FRAMEWORK_ROOT / "tests/mrts/definitions/feature-demo-config-tests", "*.yaml"),
-        "upstream_generated_tests": count_files(FRAMEWORK_ROOT / "tests/mrts/imported/upstream-generated-tests", "*.yaml"),
-        "upstream_generated_rules": count_files(FRAMEWORK_ROOT / "tests/mrts/imported/upstream-generated-rules", "*.conf"),
-        "feature_demo_generated_tests": count_files(FRAMEWORK_ROOT / "tests/mrts/imported/feature-demo-generated-tests", "*.yaml"),
-        "feature_demo_generated_rules": count_files(FRAMEWORK_ROOT / "tests/mrts/imported/feature-demo-generated-rules", "*.conf"),
+        "upstream_config_definitions": count_files(MRTS_ROOT / "config_tests", "*.yaml"),
+        "feature_demo_definitions": count_files(MRTS_ROOT / "feature_demo/config_tests", "*.yaml"),
+        "upstream_generated_tests": count_files(MRTS_ROOT / "generated/tests/regression/tests", "*.yaml"),
+        "upstream_generated_rules": count_files(MRTS_ROOT / "generated/rules", "*.conf"),
+        "feature_demo_generated_tests": count_files(MRTS_ROOT / "feature_demo/generated/tests", "*.yaml"),
+        "feature_demo_generated_rules": count_files(MRTS_ROOT / "feature_demo/generated/rules", "*.conf"),
         "framework_curated_definitions": len(
             [
                 path
-                for path in (FRAMEWORK_ROOT / "tests/mrts/definitions").glob("*.yaml")
+                for path in (FRAMEWORK_ROOT / "tests/fixtures/mrts/framework-curated-definitions").glob("*.yaml")
                 if path.name != ".gitkeep"
             ]
         ),
@@ -1028,23 +1038,23 @@ def mrts_reference_counts() -> dict[str, int]:
 def mrts_golden_drift_counts() -> dict[str, dict[str, int]]:
     return {
         "upstream_tests": drift_summary(
-            FRAMEWORK_ROOT / "tests/mrts/generated/ftw",
-            FRAMEWORK_ROOT / "tests/mrts/imported/upstream-generated-tests",
+            MRTS_UPSTREAM_BUILD_ROOT / "ftw",
+            MRTS_ROOT / "generated/tests/regression/tests",
             "*.yaml",
         ),
         "upstream_rules": drift_summary(
-            FRAMEWORK_ROOT / "tests/mrts/generated/rules",
-            FRAMEWORK_ROOT / "tests/mrts/imported/upstream-generated-rules",
+            MRTS_UPSTREAM_BUILD_ROOT / "rules",
+            MRTS_ROOT / "generated/rules",
             "*.conf",
         ),
         "feature_demo_tests": drift_summary(
-            FRAMEWORK_ROOT / "tests/mrts/generated/feature-demo/ftw",
-            FRAMEWORK_ROOT / "tests/mrts/imported/feature-demo-generated-tests",
+            MRTS_FEATURE_DEMO_BUILD_ROOT / "ftw",
+            MRTS_ROOT / "feature_demo/generated/tests",
             "*.yaml",
         ),
         "feature_demo_rules": drift_summary(
-            FRAMEWORK_ROOT / "tests/mrts/generated/feature-demo/rules",
-            FRAMEWORK_ROOT / "tests/mrts/imported/feature-demo-generated-rules",
+            MRTS_FEATURE_DEMO_BUILD_ROOT / "rules",
+            MRTS_ROOT / "feature_demo/generated/rules",
             "*.conf",
         ),
     }
@@ -1155,7 +1165,7 @@ def render_mrts_source_summary_lines(cases: list[dict]) -> list[str]:
         [
             "",
             f"- Duplicate MRTS rule IDs across imported runnable/demo corpora: **{len(duplicates)}**",
-            "- Golden-only references under `tests/mrts/imported/**` are not runtime inputs and are not added to `EXTRA_CASE_ROOTS`.",
+            "- Golden-only references under `tools/MRTS/generated/**` and `tools/MRTS/feature_demo/generated/**` are drift inputs only.",
             "- Feature-demo cases are report-visible as optional/demo and pending unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` passes collision checks.",
         ]
     )

@@ -7,3 +7,7 @@ __pycache__/
 /tests/mrts/generated/**/*.yaml
 /tests/mrts/generated/**/*.load
 /tests/mrts/generated/mrts.load
+/tests/mrts/generated/**/mrts.load
+/tests/mrts/native/
+/tests/mrts/**/native-results/
+/tests/mrts/**/native-logs/

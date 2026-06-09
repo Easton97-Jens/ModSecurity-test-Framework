@@ -54,7 +54,7 @@ Generated file — do not edit manually.
 | feature_demo_rules | 8 | 8 | 7 | 1 | 0 | 0 |
 
 - Duplicate MRTS rule IDs across imported runnable/demo corpora: **13**
-- Golden-only references under `tests/mrts/imported/**` are not runtime inputs and are not added to `EXTRA_CASE_ROOTS`.
+- Golden-only references under `tools/MRTS/generated/**` and `tools/MRTS/feature_demo/generated/**` are drift inputs only.
 - Feature-demo cases are report-visible as optional/demo and pending unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` passes collision checks.
 
 ## Important Reporting Semantics

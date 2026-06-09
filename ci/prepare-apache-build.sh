@@ -123,6 +123,26 @@ require_command() {
     fi
 }
 
+require_c_header() {
+    header=$1
+    purpose=$2
+    cc_bin="${CC:-cc}"
+    check_src="$LOG_DIR/check-${header}.c"
+    check_obj="$LOG_DIR/check-${header}.o"
+    check_log="$LOG_DIR/check-${header}.log"
+
+    mkdir -p "$LOG_DIR"
+    cat >"$check_src" <<EOF
+#include <$header>
+int main(void) { return 0; }
+EOF
+    if $cc_bin ${CPPFLAGS:-} -c "$check_src" -o "$check_obj" >"$check_log" 2>&1; then
+        rm -f "$check_src" "$check_obj" "$check_log"
+        return 0
+    fi
+    blocked "missing development header for $purpose: <$header>; set CPPFLAGS/LDFLAGS for a local dependency path or install the matching system development package outside this run; see $check_log"
+}
+
 run_logged() {
     label=$1
     cwd=$2
@@ -367,6 +387,7 @@ build_httpd_from_source() {
     require_command make "build Apache httpd"
     require_command cc "build Apache httpd"
     require_command perl "build Apache httpd support scripts"
+    require_c_header expat.h "Apache httpd source build"
 
     if [ -e "$HTTPD_PREFIX" ]; then
         if [ "$REFRESH" != "1" ]; then

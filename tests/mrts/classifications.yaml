@@ -22,8 +22,8 @@ cases:
       markers:
         - mixed-runtime-evidence
     traceability:
-      definition: tests/mrts/definitions/050_JSON_REQUEST_BODY.yaml
-      generated_ftw: tests/mrts/generated/ftw/760012_MRTS_050_JSON_REQUEST_BODY.yaml
+      definition: tests/fixtures/mrts/framework-curated-definitions/050_JSON_REQUEST_BODY.yaml
+      generated_ftw: $MRTS_BUILD_ROOT/upstream-config-tests/ftw/760012_MRTS_050_JSON_REQUEST_BODY.yaml
       rule_id: 760012
 
   mrts_760013_mrts_060_xml_760013_1:
@@ -47,8 +47,8 @@ cases:
       markers:
         - harness-incompatibility
     traceability:
-      definition: tests/mrts/definitions/060_XML.yaml
-      generated_ftw: tests/mrts/generated/ftw/760013_MRTS_060_XML.yaml
+      definition: tests/fixtures/mrts/framework-curated-definitions/060_XML.yaml
+      generated_ftw: $MRTS_BUILD_ROOT/upstream-config-tests/ftw/760013_MRTS_060_XML.yaml
       rule_id: 760013
 
   mrts_760014_mrts_070_response_headers_760014_1:
@@ -73,8 +73,8 @@ cases:
       markers:
         - mixed-runtime-evidence
     traceability:
-      definition: tests/mrts/definitions/070_RESPONSE_HEADERS.yaml
-      generated_ftw: tests/mrts/generated/ftw/760014_MRTS_070_RESPONSE_HEADERS.yaml
+      definition: tests/fixtures/mrts/framework-curated-definitions/070_RESPONSE_HEADERS.yaml
+      generated_ftw: $MRTS_BUILD_ROOT/upstream-config-tests/ftw/760014_MRTS_070_RESPONSE_HEADERS.yaml
       rule_id: 760014
 
   mrts_760015_mrts_080_response_body_760015_1:
@@ -100,8 +100,8 @@ cases:
         - response-body
         - phase-4
     traceability:
-      definition: tests/mrts/definitions/080_RESPONSE_BODY.yaml
-      generated_ftw: tests/mrts/generated/ftw/760015_MRTS_080_RESPONSE_BODY.yaml
+      definition: tests/fixtures/mrts/framework-curated-definitions/080_RESPONSE_BODY.yaml
+      generated_ftw: $MRTS_BUILD_ROOT/upstream-config-tests/ftw/760015_MRTS_080_RESPONSE_BODY.yaml
       rule_id: 760015
 
   mrts_760016_mrts_090_multipart_files_760016_1:
@@ -125,8 +125,8 @@ cases:
       markers:
         - harness-incompatibility
     traceability:
-      definition: tests/mrts/definitions/090_MULTIPART_FILES.yaml
-      generated_ftw: tests/mrts/generated/ftw/760016_MRTS_090_MULTIPART_FILES.yaml
+      definition: tests/fixtures/mrts/framework-curated-definitions/090_MULTIPART_FILES.yaml
+      generated_ftw: $MRTS_BUILD_ROOT/upstream-config-tests/ftw/760016_MRTS_090_MULTIPART_FILES.yaml
       rule_id: 760016
 
   mrts_760019_mrts_102_transform_compress_whitespace_760019_1:
@@ -150,6 +150,6 @@ cases:
       markers:
         - importer-mapping-issue
     traceability:
-      definition: tests/mrts/definitions/102_TRANSFORM_COMPRESS_WHITESPACE.yaml
-      generated_ftw: tests/mrts/generated/ftw/760019_MRTS_102_TRANSFORM_COMPRESS_WHITESPACE.yaml
+      definition: tests/fixtures/mrts/framework-curated-definitions/102_TRANSFORM_COMPRESS_WHITESPACE.yaml
+      generated_ftw: $MRTS_BUILD_ROOT/upstream-config-tests/ftw/760019_MRTS_102_TRANSFORM_COMPRESS_WHITESPACE.yaml
       rule_id: 760019

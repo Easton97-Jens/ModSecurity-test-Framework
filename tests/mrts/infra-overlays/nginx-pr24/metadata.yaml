@@ -1,0 +1,54 @@
+version: 1
+name: nginx-pr24
+source:
+  pr_url: https://github.com/owasp-modsecurity/MRTS/pull/24
+  pr_number: 24
+  pr_head_sha: 134ea7e35d72e7d72294b66d80dafa07daa5fc92
+  captured_at_utc: "2026-06-09T15:18:21Z"
+  upstream_status: open-pr
+  stability: experimental
+  replacement_note: replace with $MRTS_ROOT/config_infra/nginx_linux once merged upstream
+limitations:
+  - Phase 4 and RESPONSE_BODY remain non-promoted under framework policy.
+  - Native PR24 evidence is separate from connector smoke evidence.
+adopted_files:
+  - ftw.mrts.config.yaml
+  - infra/fastcgi.conf
+  - infra/fastcgi_params
+  - infra/koi-utf
+  - infra/koi-win
+  - infra/log/access.log
+  - infra/log/error.log
+  - infra/log/modsec_audit.log
+  - infra/mime.types
+  - infra/modsecurity/main.conf
+  - infra/modsecurity/modsecurity.conf
+  - infra/modsecurity/unicode.mapping
+  - infra/modules-available/mod-http-geoip2.conf
+  - infra/modules-available/mod-http-headers-more-filter.conf
+  - infra/modules-available/mod-http-image-filter.conf
+  - infra/modules-available/mod-http-modsecurity.conf
+  - infra/modules-available/mod-http-xslt-filter.conf
+  - infra/modules-available/mod-mail.conf
+  - infra/modules-available/mod-stream-geoip2.conf
+  - infra/modules-available/mod-stream.conf
+  - infra/modules-enabled/mod-http-geoip2.conf
+  - infra/modules-enabled/mod-http-headers-more-filter.conf
+  - infra/modules-enabled/mod-http-image-filter.conf
+  - infra/modules-enabled/mod-http-modsecurity.conf
+  - infra/modules-enabled/mod-http-xslt-filter.conf
+  - infra/modules-enabled/mod-mail.conf
+  - infra/modules-enabled/mod-stream-geoip2.conf
+  - infra/modules-enabled/mod-stream.conf
+  - infra/nginx.conf
+  - infra/proxy_params
+  - infra/run/.gitignore
+  - infra/scgi_params
+  - infra/sites-available/default
+  - infra/sites-enabled/default
+  - infra/snippets/fastcgi-php.conf
+  - infra/snippets/snakeoil.conf
+  - infra/uwsgi_params
+  - infra/win-utf
+  - start.py
+  - stop.py
