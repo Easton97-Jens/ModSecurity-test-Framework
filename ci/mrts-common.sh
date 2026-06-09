@@ -8,6 +8,7 @@ BUILD_ROOT="${BUILD_ROOT:-$FRAMEWORK_ROOT/build}"
 MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-no-crs}"
 MODSECURITY_MRTS_VARIANT="${MODSECURITY_MRTS_VARIANT:-no-mrts}"
 MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO="${MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO:-0}"
+MODSECURITY_MRTS_PREPARED="${MODSECURITY_MRTS_PREPARED:-0}"
 MRTS_CASE_ROOT="${MRTS_CASE_ROOT:-$FRAMEWORK_ROOT/tests/mrts/generated/framework-cases}"
 MRTS_UPSTREAM_CASE_ROOT="$MRTS_CASE_ROOT/upstream-config-tests"
 MRTS_FEATURE_DEMO_CASE_ROOT="$MRTS_CASE_ROOT/feature-demo"
@@ -182,6 +183,31 @@ prepare_mrts_variant() {
         return 0
     fi
 
+    if [ "$MODSECURITY_MRTS_PREPARED" = "1" ]; then
+        MRTS_LOAD_FILE="${MRTS_LOAD_FILE:-$FRAMEWORK_ROOT/tests/mrts/generated/mrts.load}"
+        if [ ! -f "$MRTS_LOAD_FILE" ]; then
+            echo "BLOCKED: prepared MRTS load file missing: $MRTS_LOAD_FILE" >&2
+            exit 77
+        fi
+        if [ ! -d "$MRTS_UPSTREAM_CASE_ROOT" ]; then
+            echo "BLOCKED: prepared MRTS case root missing: $MRTS_UPSTREAM_CASE_ROOT" >&2
+            exit 77
+        fi
+        mrts_append_rule_preamble "$MRTS_LOAD_FILE"
+        mrts_append_extra_case_root "$MRTS_UPSTREAM_CASE_ROOT"
+        mrts_append_reference_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
+        if [ "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" = "1" ]; then
+            MRTS_FEATURE_DEMO_LOAD_FILE="${MRTS_FEATURE_DEMO_LOAD_FILE:-$FRAMEWORK_ROOT/tests/mrts/generated/feature-demo/mrts.load}"
+            if [ ! -f "$MRTS_FEATURE_DEMO_LOAD_FILE" ]; then
+                echo "BLOCKED: prepared feature-demo MRTS load file missing: $MRTS_FEATURE_DEMO_LOAD_FILE" >&2
+                exit 77
+            fi
+            mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE"
+            mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
+        fi
+        return 0
+    fi
+
     mrts_generate_all_corpora
     MRTS_LOAD_FILE=$(MRTS_RULES_OUT="$MRTS_UPSTREAM_RULES_OUT" sh "$FRAMEWORK_ROOT/ci/write-mrts-load.sh")
     mrts_append_rule_preamble "$MRTS_LOAD_FILE"
@@ -199,7 +225,7 @@ prepare_mrts_variant() {
 
 prepare_mrts_runtime_variant() {
     prepare_mrts_variant
-    if [ "$MODSECURITY_MRTS_VARIANT" = "with-mrts" ]; then
+    if [ "$MODSECURITY_MRTS_VARIANT" = "with-mrts" ] && [ "$MODSECURITY_MRTS_PREPARED" != "1" ]; then
         mrts_import_cases
     fi
 }
