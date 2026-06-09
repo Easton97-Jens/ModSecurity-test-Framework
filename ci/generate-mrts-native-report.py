@@ -16,6 +16,33 @@ except Exception:  # pragma: no cover - report still works without PyYAML.
 
 
 TARGETS = ("apache2_ubuntu", "nginx-pr24")
+DEPENDENCY_REMEDIATIONS = {
+    "go-ftw": {
+        "env_var": "GO_FTW_BIN",
+        "scope": "native MRTS targets and mrts-ftw-style go-ftw execution",
+        "hint": "Set GO_FTW_BIN to a local go-ftw binary.",
+    },
+    "albedo": {
+        "env_var": "ALBEDO_BIN",
+        "scope": "native MRTS targets only",
+        "hint": "Set ALBEDO_BIN to a local albedo backend binary.",
+    },
+    "apachectl": {
+        "env_var": "APACHECTL_BIN",
+        "scope": "apache2_ubuntu native MRTS target only",
+        "hint": "Set APACHECTL_BIN to a local apachectl-compatible binary.",
+    },
+    "nginx": {
+        "env_var": "MRTS_NATIVE_NGINX_BIN",
+        "scope": "nginx-pr24 native MRTS target only",
+        "hint": "Set MRTS_NATIVE_NGINX_BIN to a local nginx binary.",
+    },
+    "ngx_http_modsecurity_module.so": {
+        "env_var": "MRTS_NATIVE_NGINX_MODULE_DIR",
+        "scope": "nginx-pr24 native MRTS target only",
+        "hint": "Set MRTS_NATIVE_NGINX_MODULE_DIR to a local directory containing ngx_http_modsecurity_module.so.",
+    },
+}
 
 
 def utc_now() -> str:
@@ -79,7 +106,18 @@ def normalize_job(target: str, native_root: Path) -> dict[str, Any]:
     if job.get("summary_path"):
         job["summary_path"] = display_native_path(Path(str(job["summary_path"])), native_root)
     job["status"] = str(job.get("status") or "UNKNOWN").upper().replace("-", "_")
+    job["remediation"] = dependency_remediations(str(job.get("reason") or ""))
     return job
+
+
+def dependency_remediations(reason: str) -> list[dict[str, str]]:
+    if not reason:
+        return []
+    found = []
+    for dependency, remediation in DEPENDENCY_REMEDIATIONS.items():
+        if dependency in reason:
+            found.append({"dependency": dependency, **remediation})
+    return found
 
 
 def display_native_path(path: Path, native_root: Path) -> str:
@@ -127,6 +165,19 @@ def report_markdown(report: dict[str, Any]) -> str:
                 summary_path=job.get("summary_path", "-"),
             )
         )
+    remediation_lines = []
+    for target in TARGETS:
+        job = report["targets"].get(target, {})
+        for remediation in job.get("remediation", []):
+            remediation_lines.append(
+                "- {target}: `{dependency}` missing; set `{env_var}`. Scope: {scope}. {hint}".format(
+                    target=target,
+                    dependency=remediation.get("dependency", "-"),
+                    env_var=remediation.get("env_var", "-"),
+                    scope=remediation.get("scope", "-"),
+                    hint=remediation.get("hint", ""),
+                )
+            )
     overlay = report.get("nginx_pr24_overlay", {})
     source = overlay.get("source") if isinstance(overlay.get("source"), dict) else {}
     lines.extend(
@@ -148,6 +199,9 @@ def report_markdown(report: dict[str, Any]) -> str:
             "## Known Limitations",
             "- Phase 4 and RESPONSE_BODY native evidence remains non-promoted.",
             "- Missing native binaries, modules, go-ftw, or backend tooling is reported as BLOCKED.",
+            "",
+            "## Missing Dependency Remediation",
+            *(remediation_lines or ["- No missing native dependencies were reported in this run."]),
             "",
             "## Comparison Hints",
             "- Compare native MRTS results with connector smoke evidence by target and corpus.",

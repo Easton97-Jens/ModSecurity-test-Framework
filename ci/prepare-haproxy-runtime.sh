@@ -37,6 +37,26 @@ require_command() {
     fi
 }
 
+require_c_header() {
+    header=$1
+    purpose=$2
+    cc_bin="${CC:-cc}"
+    check_src="$LOG_DIR/check-${header}.c"
+    check_obj="$LOG_DIR/check-${header}.o"
+    check_log="$LOG_DIR/check-${header}.log"
+
+    mkdir -p "$LOG_DIR"
+    cat >"$check_src" <<EOF
+#include <$header>
+int main(void) { return 0; }
+EOF
+    if $cc_bin ${CPPFLAGS:-} -c "$check_src" -o "$check_obj" >"$check_log" 2>&1; then
+        rm -f "$check_src" "$check_obj" "$check_log"
+        return 0
+    fi
+    blocked "missing development header for $purpose: <$header>; set CPPFLAGS/LDFLAGS for a local dependency path or install the matching system development package outside this run; see $check_log"
+}
+
 require_under_source_root() {
     path=$1
     label=$2
@@ -65,6 +85,22 @@ require_under_build_root() {
             ;;
         *) ;;
     esac
+}
+
+require_under_runtime_root() {
+    path=$1
+    label=$2
+    state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}"
+
+    case "$path" in
+        /src|/src/*|/tmp|/tmp/*) return 0 ;;
+    esac
+    if [ -n "$state_root" ]; then
+        case "$path" in
+            "$state_root"|"$state_root"/*) return 0 ;;
+        esac
+    fi
+    blocked "$label must be under /src, /tmp, or XDG state home: $path"
 }
 
 safe_remove_dir() {
@@ -108,10 +144,7 @@ validate_paths() {
         /src|/src/*) ;;
         *) blocked "SOURCE_ROOT must be under /src: $SOURCE_ROOT" ;;
     esac
-    case "$BUILD_ROOT" in
-        /src|/src/*) ;;
-        *) blocked "BUILD_ROOT must be under /src: $BUILD_ROOT" ;;
-    esac
+    require_under_runtime_root "$BUILD_ROOT" BUILD_ROOT
     require_under_source_root "$HAPROXY_SOURCE_ROOT" HAPROXY_SOURCE_ROOT
     require_under_source_root "$HAPROXY_DOWNLOAD_DIR" HAPROXY_DOWNLOAD_DIR
     require_under_source_root "$HAPROXY_SOURCE_DIR" HAPROXY_SOURCE_DIR
@@ -219,6 +252,7 @@ require_command tar "extract HAProxy source"
 require_command sha256sum "verify HAProxy source"
 require_command make "build HAProxy"
 require_command cc "build HAProxy"
+require_c_header crypt.h "HAProxy source build"
 
 download_and_verify
 extract_source

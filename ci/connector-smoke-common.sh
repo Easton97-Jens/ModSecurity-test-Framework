@@ -30,6 +30,25 @@ connector_smoke_require_src_path() {
     esac
 }
 
+connector_smoke_require_runtime_path() {
+    path=$1
+    label=$2
+    state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}"
+
+    case "$path" in
+        /src|/src/*|/tmp|/tmp/*) return 0 ;;
+    esac
+    if [ -n "$state_root" ]; then
+        case "$path" in
+            "$state_root"|"$state_root"/*) return 0 ;;
+        esac
+    fi
+    case "$path" in
+        /*) echo "BLOCKED: $label must be under /src, /tmp, or XDG state home: $path" >&2; exit 77 ;;
+        *) echo "BLOCKED: $label must be absolute and under /src, /tmp, or XDG state home: $path" >&2; exit 77 ;;
+    esac
+}
+
 connector_smoke_require_build_path() {
     path=$1
     label=$2
@@ -43,8 +62,8 @@ connector_smoke_require_results_path() {
     path=$1
     label=$2
     case "$path" in
-        "$BUILD_ROOT/results"|"$BUILD_ROOT/results"/*) return 0 ;;
-        *) echo "BLOCKED: $label must be under BUILD_ROOT/results: $path" >&2; exit 77 ;;
+        "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
+        *) echo "BLOCKED: $label must be under BUILD_ROOT: $path" >&2; exit 77 ;;
     esac
 }
 
@@ -52,14 +71,14 @@ connector_smoke_require_log_path() {
     path=$1
     label=$2
     case "$path" in
-        "$BUILD_ROOT/logs"|"$BUILD_ROOT/logs"/*|"$BUILD_ROOT/results"|"$BUILD_ROOT/results"/*) return 0 ;;
-        *) echo "BLOCKED: $label must be under BUILD_ROOT/logs or BUILD_ROOT/results: $path" >&2; exit 77 ;;
+        "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
+        *) echo "BLOCKED: $label must be under BUILD_ROOT: $path" >&2; exit 77 ;;
     esac
 }
 
 connector_smoke_validate_roots() {
     connector_smoke_require_src_path "$SOURCE_ROOT" SOURCE_ROOT
-    connector_smoke_require_src_path "$BUILD_ROOT" BUILD_ROOT
+    connector_smoke_require_runtime_path "$BUILD_ROOT" BUILD_ROOT
     connector_smoke_require_build_path "$TMP_ROOT" TMP_ROOT
     connector_smoke_require_results_path "$RESULTS_DIR" RESULTS_DIR
     connector_smoke_require_log_path "$LOG_ROOT" LOG_ROOT
