@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections import Counter, defaultdict
@@ -19,6 +20,12 @@ TEST_VARIANTS = ("no-crs", "with-crs")
 MRTS_VARIANTS = ("no-mrts", "with-mrts")
 RULE_TARGET_RE = re.compile(r"^\s*SecRule\s+([^\s]+)\s+")
 PHASE_RE = re.compile(r"phase:(\d)")
+DEFAULT_STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
+DEFAULT_BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_STATE_HOME / "ModSecurity-conector-build"))).resolve()
+MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(DEFAULT_BUILD_ROOT / "mrts"))).resolve()
+MRTS_ROOT = Path(os.environ.get("MRTS_ROOT", "")).resolve() if os.environ.get("MRTS_ROOT") else None
+MRTS_UPSTREAM_CASE_ROOT = MRTS_BUILD_ROOT / "upstream-config-tests/framework-cases"
+MRTS_FEATURE_DEMO_CASE_ROOT = MRTS_BUILD_ROOT / "feature-demo/framework-cases"
 
 
 @dataclass
@@ -113,16 +120,19 @@ def metadata_phase(data: dict[str, Any], capabilities: list[str], rules: str) ->
 
 def source_kind_for(path: Path, framework_root: Path, metadata: dict[str, Any]) -> tuple[str, str]:
     mrts_corpus = norm(metadata.get("mrts_corpus")) or "none"
-    if path_under(path, framework_root / "tests/mrts/generated/framework-cases/upstream-config-tests"):
-        return "mrts-imported", "upstream-config-tests"
-    if path_under(path, framework_root / "tests/mrts/generated/framework-cases/feature-demo"):
-        return "feature-demo-report-only", "feature-demo"
-    if path_under(path, framework_root / "tests/mrts/imported"):
-        return "golden-only", "upstream-generated"
     if mrts_corpus and mrts_corpus != "none":
         if mrts_corpus == "feature-demo":
             return "feature-demo-report-only", mrts_corpus
         return "mrts-imported", mrts_corpus
+    if path_under(path, MRTS_UPSTREAM_CASE_ROOT):
+        return "mrts-imported", "upstream-config-tests"
+    if path_under(path, MRTS_FEATURE_DEMO_CASE_ROOT):
+        return "feature-demo-report-only", "feature-demo"
+    if MRTS_ROOT and (
+        path_under(path, MRTS_ROOT / "generated")
+        or path_under(path, MRTS_ROOT / "feature_demo/generated")
+    ):
+        return "golden-only", "upstream-generated"
     return "framework-owned", "none"
 
 
@@ -132,9 +142,8 @@ def load_cases(framework_root: Path) -> tuple[dict[str, CaseMeta], dict[str, Cas
     counts: Counter[str] = Counter()
     roots = [
         framework_root / "tests/cases",
-        framework_root / "tests/mrts/generated/framework-cases/upstream-config-tests",
-        framework_root / "tests/mrts/generated/framework-cases/feature-demo",
-        framework_root / "tests/mrts/imported",
+        MRTS_UPSTREAM_CASE_ROOT,
+        MRTS_FEATURE_DEMO_CASE_ROOT,
     ]
     for root in roots:
         if not root.is_dir():
@@ -207,14 +216,12 @@ def lookup_meta(case_id: str, case: dict[str, Any], by_id: dict[str, CaseMeta], 
     if case_id in by_id:
         return by_id[case_id]
     metadata = case.get("metadata") if isinstance(case.get("metadata"), dict) else {}
-    if "tests/mrts/generated/framework-cases/upstream-config-tests/" in path:
+    path_obj = Path(path) if path else Path("/__missing_case__")
+    source_kind, mrts_corpus = source_kind_for(path_obj, Path("/__missing_framework_root__"), metadata)
+    if source_kind == "framework-owned" and "/upstream-config-tests/framework-cases/" in path:
         source_kind, mrts_corpus = "mrts-imported", "upstream-config-tests"
-    elif "tests/mrts/generated/framework-cases/feature-demo/" in path:
+    elif source_kind == "framework-owned" and "/feature-demo/framework-cases/" in path:
         source_kind, mrts_corpus = "feature-demo-report-only", "feature-demo"
-    elif "tests/mrts/imported/" in path:
-        source_kind, mrts_corpus = "golden-only", "upstream-generated"
-    else:
-        source_kind, mrts_corpus = source_kind_for(Path(path), Path("/__missing_framework_root__"), metadata)
     capabilities = listify(case.get("capabilities"))
     return CaseMeta(
         case_id=case_id,
@@ -694,7 +701,7 @@ def render_markdown(entries: list[dict[str, Any]], source_counts: Counter[str], 
             "- Classification does not alter expected or actual status.",
             "- `no-mrts` variants must not contain MRTS runtime cases.",
             "- `with-mrts` variants include only selected MRTS runtime cases.",
-            "- `tests/mrts/imported/**` is golden/reference only.",
+            "- MRTS golden outputs under the submodule are drift/reference only.",
             "- Generated MRTS artifacts remain ignored and uncommitted.",
         ]
     )

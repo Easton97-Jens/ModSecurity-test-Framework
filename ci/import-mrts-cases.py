@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import os
 import re
 import sys
 from pathlib import Path
@@ -970,6 +971,8 @@ def main() -> int:
     parser.add_argument("--output-dir")
     parser.add_argument("--classifications-file")
     parser.add_argument("--mrts-corpus", default="upstream-config-tests")
+    parser.add_argument("--build-root", default=os.environ.get("BUILD_ROOT", ""))
+    parser.add_argument("--mrts-build-root", default=os.environ.get("MRTS_BUILD_ROOT", ""))
     parser.add_argument("--source-definition-dir", action="append", default=[])
     parser.add_argument("--upstream-ftw-dir")
     parser.add_argument("--case-status", choices=["computed", "pending", "active"], default="computed")
@@ -977,9 +980,12 @@ def main() -> int:
     args = parser.parse_args()
 
     framework_root = Path(args.framework_root).resolve()
-    ftw_dir = Path(args.mrts_ftw_dir).resolve() if args.mrts_ftw_dir else framework_root / "tests/mrts/generated/ftw"
-    rules_dir = Path(args.mrts_rules_dir).resolve() if args.mrts_rules_dir else framework_root / "tests/mrts/generated/rules"
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else framework_root / "tests/mrts/generated/framework-cases"
+    default_state_home = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
+    build_root = Path(args.build_root).resolve() if args.build_root else default_state_home / "ModSecurity-conector-build"
+    mrts_build_root = Path(args.mrts_build_root).resolve() if args.mrts_build_root else build_root / "mrts"
+    ftw_dir = Path(args.mrts_ftw_dir).resolve() if args.mrts_ftw_dir else mrts_build_root / args.mrts_corpus / "ftw"
+    rules_dir = Path(args.mrts_rules_dir).resolve() if args.mrts_rules_dir else mrts_build_root / args.mrts_corpus / "rules"
+    output_dir = Path(args.output_dir).resolve() if args.output_dir else mrts_build_root / args.mrts_corpus / "framework-cases"
     classifications_file = (
         Path(args.classifications_file).resolve()
         if args.classifications_file

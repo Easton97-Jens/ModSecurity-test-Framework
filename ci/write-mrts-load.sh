@@ -5,11 +5,14 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
 FRAMEWORK_ROOT=$(CDPATH= cd "$FRAMEWORK_ROOT" && pwd)
 
-MRTS_RULES_OUT="${MRTS_RULES_OUT:-$FRAMEWORK_ROOT/tests/mrts/generated/rules}"
-MRTS_LOAD_FILE="${MRTS_LOAD_FILE:-$FRAMEWORK_ROOT/tests/mrts/generated/mrts.load}"
+DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}}"
+BUILD_ROOT="${BUILD_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-build}"
+MRTS_BUILD_ROOT="${MRTS_BUILD_ROOT:-$BUILD_ROOT/mrts}"
+MRTS_RULES_OUT="${MRTS_RULES_OUT:-$MRTS_BUILD_ROOT/upstream-config-tests/rules}"
+MRTS_LOAD_FILE="${MRTS_LOAD_FILE:-$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load}"
 
 case "$(CDPATH= cd "$MRTS_RULES_OUT" 2>/dev/null && pwd || printf '%s' "$MRTS_RULES_OUT")" in
-    "$FRAMEWORK_ROOT"/tests/mrts/imported|"$FRAMEWORK_ROOT"/tests/mrts/imported/*)
+    "$FRAMEWORK_ROOT"/tools/MRTS/generated|"$FRAMEWORK_ROOT"/tools/MRTS/generated/*|"$FRAMEWORK_ROOT"/tools/MRTS/feature_demo/generated|"$FRAMEWORK_ROOT"/tools/MRTS/feature_demo/generated/*)
         echo "BLOCKED: refusing to write MRTS load file from golden references: $MRTS_RULES_OUT" >&2
         exit 77
         ;;

@@ -1,9 +1,10 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
-SOURCE_ROOT ?= /src
-BUILD_ROOT ?= /src/ModSecurity-conector-build
+SOURCE_ROOT ?= $(STATE_HOME)/ModSecurity-conector-src
+BUILD_ROOT ?= $(STATE_HOME)/ModSecurity-conector-build
 TMP_ROOT ?= $(BUILD_ROOT)/tmp
 LOG_ROOT ?= $(BUILD_ROOT)/logs
+MRTS_BUILD_ROOT ?= $(BUILD_ROOT)/mrts
 FRAMEWORK_ROOT ?= $(CURDIR)
 CONNECTOR_ROOT ?= $(CURDIR)
 OUTPUT_ROOT ?= $(CONNECTOR_ROOT)
@@ -38,6 +39,7 @@ export MRTS_RULES_OUT
 export MRTS_FTW_OUT
 export MRTS_LOAD_FILE
 export MRTS_CASE_ROOT
+export MRTS_BUILD_ROOT
 export CRS_REPO_URL
 export CRS_GIT_REF
 export CRS_SOURCE_DIR
@@ -125,7 +127,9 @@ mrts-ftw: mrts-generate
 	@sh -eu -c ' \
 		FRAMEWORK_ROOT="$${FRAMEWORK_ROOT:-$(FRAMEWORK_ROOT)}"; \
 		MRTS_FTW_CONFIG="$${MRTS_FTW_CONFIG:-$$FRAMEWORK_ROOT/tests/mrts/ftw.mrts.config.yaml}"; \
-		MRTS_FTW_OUT="$${MRTS_FTW_OUT:-$$FRAMEWORK_ROOT/tests/mrts/generated/ftw}"; \
+		BUILD_ROOT="$${BUILD_ROOT:-$(BUILD_ROOT)}"; \
+		MRTS_BUILD_ROOT="$${MRTS_BUILD_ROOT:-$$BUILD_ROOT/mrts}"; \
+		MRTS_FTW_OUT="$${MRTS_FTW_OUT:-$$MRTS_BUILD_ROOT/upstream-config-tests/ftw}"; \
 		if ! command -v go-ftw >/dev/null 2>&1; then echo "BLOCKED: go-ftw missing" >&2; exit 77; fi; \
 		if [ ! -f "$$MRTS_FTW_CONFIG" ]; then echo "BLOCKED: MRTS_FTW_CONFIG missing: $$MRTS_FTW_CONFIG" >&2; exit 77; fi; \
 		go-ftw run --config "$$MRTS_FTW_CONFIG" --dir "$$MRTS_FTW_OUT" --wait-for-expect-status-code 200 --fail-fast; \
