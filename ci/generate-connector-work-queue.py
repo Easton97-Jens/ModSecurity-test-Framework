@@ -252,6 +252,21 @@ def functional_areas(meta: CaseMeta, case: dict[str, Any]) -> list[str]:
         if value in values:
             areas.add(area)
     text = " ".join(values)
+    substring_variable_map = {
+        "args-names": "args_names",
+        "args": "args",
+        "request-cookies-names": "request_cookies_names",
+        "request-cookies": "request_cookies",
+        "request-headers-names": "request_headers_names",
+        "request-headers": "request_headers",
+        "request-uri": "request_uri",
+        "request-body": "request_body_urlencoded",
+        "response-headers": "response_headers",
+        "response-body": "response_body",
+    }
+    for value, area in substring_variable_map.items():
+        if value in text:
+            areas.add(area)
     if "json" in text:
         areas.add("request_body_json")
     if "multipart" in text or "filename" in text:
@@ -580,7 +595,7 @@ def markdown_table(headers: list[str], rows: list[list[Any]]) -> list[str]:
     return lines
 
 
-def render_markdown(entries: list[dict[str, Any]], source_counts: Counter[str], generated_at: str) -> str:
+def render_markdown(entries: list[dict[str, Any]], source_counts: Counter[str], runtime_source_counts: Counter[str], generated_at: str) -> str:
     failures = [entry for entry in entries if entry["runtime_status"] == "FAIL"]
     non_pass = [entry for entry in entries if entry["runtime_status"] != "PASS"]
     priority_counts = count_by(non_pass, "priority")
@@ -594,7 +609,8 @@ def render_markdown(entries: list[dict[str, Any]], source_counts: Counter[str], 
         f"- Total runtime cases analyzed: **{len(entries)}**",
         f"- Total failures: **{len(failures)}**",
         f"- P0/P1/P2/P3: **{priority_counts['P0']}** / **{priority_counts['P1']}** / **{priority_counts['P2']}** / **{priority_counts['P3']}**",
-        f"- Source split: framework-owned({source_counts['framework-owned']}), MRTS imported({source_counts['mrts-imported']}), feature-demo report-only({source_counts['feature-demo-report-only']}), golden-only({source_counts['golden-only']})",
+        f"- Source inventory split: framework-owned({source_counts['framework-owned']}), MRTS imported({source_counts['mrts-imported']}), feature-demo report-only({source_counts['feature-demo-report-only']}), golden-only({source_counts['golden-only']})",
+        f"- Runtime source split: framework-owned({runtime_source_counts['framework-owned']}), MRTS imported({runtime_source_counts['mrts-imported']}), feature-demo report-only({runtime_source_counts['feature-demo-report-only']}), golden-only({runtime_source_counts['golden-only']}), runtime-job({runtime_source_counts['runtime-job']})",
         "",
         "## Per Connector Summary",
     ]
@@ -702,6 +718,7 @@ def main() -> int:
     by_id, by_path, source_counts = load_cases(framework_root)
     full_matrix = load_full_matrix(connector_root, full_matrix_path)
     entries = collect_entries(full_matrix, by_id, by_path)
+    runtime_source_counts = count_by(entries, "source_kind")
 
     generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     payload = {
@@ -709,6 +726,7 @@ def main() -> int:
         "framework_root": str(framework_root),
         "connector_root": str(connector_root),
         "source_counts": dict(source_counts),
+        "runtime_source_counts": dict(runtime_source_counts),
         "totals": {
             "entries": len(entries),
             "failures": sum(1 for entry in entries if entry["runtime_status"] == "FAIL"),
@@ -723,7 +741,7 @@ def main() -> int:
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "connector-work-queue.generated.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output_dir / "connector-work-queue.generated.md").write_text(render_markdown(entries, source_counts, generated_at), encoding="utf-8")
+    (output_dir / "connector-work-queue.generated.md").write_text(render_markdown(entries, source_counts, runtime_source_counts, generated_at), encoding="utf-8")
     return 0
 
 
