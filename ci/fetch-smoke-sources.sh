@@ -36,6 +36,7 @@ require_fetch_path() {
     path=$1
     label=$2
     require_absolute_path "$path" "$label"
+    assert_safe_runtime_path "$path" "$label" || exit 77
     case "$path" in
         "$SOURCE_ROOT"|"$SOURCE_ROOT"/*) ;;
         *)
@@ -52,16 +53,29 @@ clone_source() {
     require_fetch_path "$dest" "clone destination"
     if [ -d "$dest/.git" ]; then
         ci_info "fetch_smoke_sources reusing $dest"
+        git -C "$dest" fetch --tags --prune origin "$ref" || {
+            notice "source fetch blocked for $url ref=$ref"
+            exit 77
+        }
+        git -C "$dest" checkout --detach FETCH_HEAD >/dev/null 2>&1 || {
+            ci_blocked "fetch_smoke_sources could not checkout ref=$ref in $dest"
+            exit 77
+        }
+        git -C "$dest" submodule sync --recursive >/dev/null 2>&1 || true
+        git -C "$dest" submodule update --init --recursive || {
+            ci_blocked "fetch_smoke_sources submodule update failed: $dest"
+            exit 77
+        }
         return 0
     fi
     ci_info "fetch_smoke_sources fetching $url ref=$ref into $dest"
     set +e
-    git clone --branch "$ref" "$url" "$dest"
+    git clone --recursive --branch "$ref" "$url" "$dest"
     rc=$?
     set -e
     if [ "$rc" -ne 0 ]; then
         notice "source fetch blocked for $url ref=$ref"
-        rm -rf "$dest"
+        safe_remove_runtime_path "$dest" "$SOURCE_ROOT" "failed source clone" || true
         exit 77
     fi
 }
@@ -88,6 +102,7 @@ clone_external_connector_source() {
 }
 
 require_absolute_path "$SOURCE_ROOT" "SOURCE_ROOT"
+assert_safe_runtime_path "$SOURCE_ROOT" SOURCE_ROOT || exit 77
 require_fetch_path "$MODSECURITY_V3_SOURCE_DIR" "MODSECURITY_V3_SOURCE_DIR"
 mkdir -p "$SOURCE_ROOT"
 

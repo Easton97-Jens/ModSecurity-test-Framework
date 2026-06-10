@@ -24,7 +24,7 @@ NGINX_SOURCE_DIR="${NGINX_SOURCE_DIR:-$NGINX_BUILD_DIR/nginx-src}"
 NGINX_PREFIX="${NGINX_PREFIX:-$BUILD_ROOT/nginx-runtime/nginx}"
 NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
-DOWNLOAD_DIR="${DOWNLOAD_DIR:-$NGINX_BUILD_DIR/downloads}"
+DOWNLOAD_DIR="${NGINX_DOWNLOAD_DIR:-${DOWNLOAD_DIR:-$NGINX_BUILD_DIR/downloads}}"
 V3_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity_V3"
 NGINX_CONNECTOR_LEGACY_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity-nginx"
 OUTPUT_DIR="$NGINX_BUILD_DIR/output"
@@ -68,26 +68,14 @@ require_absolute_generated_path() {
     label=$2
     case "$path" in
         /*) ;;
-        *) blocked "$label must be an absolute generated path: $path" ;;
+        *) ci_blocked "$label must be an absolute generated path: $path"; exit 77 ;;
     esac
-    case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*)
-            blocked "$label is inside a read-only or source checkout: $path"
-            ;;
-        *) ;;
-    esac
+    assert_safe_runtime_path "$path" "$label" || exit 77
 }
 
 safe_remove_dir() {
     target=$1
-    real_target=$(ci_canonical_existing "$target")
-    case "$real_target" in
-        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT")
-            blocked "unsafe REFRESH target: $real_target"
-            ;;
-        *) ;;
-    esac
-    rm -rf "$target"
+    safe_remove_runtime_path "$target" "$BUILD_ROOT" "NGINX REFRESH target" || exit 77
 }
 
 

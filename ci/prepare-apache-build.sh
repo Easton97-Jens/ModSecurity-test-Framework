@@ -18,7 +18,7 @@ MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$DEFAULT_MODSECURITY_V3_
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache}"
 REFRESH="${REFRESH:-0}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
-DOWNLOAD_DIR="${DOWNLOAD_DIR:-$APACHE_BUILD_ROOT/downloads}"
+DOWNLOAD_DIR="${APACHE_DOWNLOAD_DIR:-${DOWNLOAD_DIR:-$APACHE_BUILD_ROOT/downloads}}"
 V3_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity_V3"
 APACHE_CONNECTOR_LEGACY_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity-apache"
 OUTPUT_DIR="$APACHE_BUILD_ROOT/output"
@@ -71,26 +71,14 @@ require_absolute_generated_path() {
     label=$2
     case "$path" in
         /*) ;;
-        *) blocked "$label must be an absolute generated path: $path" ;;
+        *) ci_blocked "$label must be an absolute generated path: $path"; exit 77 ;;
     esac
-    case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*)
-            blocked "$label is inside a read-only or source checkout: $path"
-            ;;
-        *) ;;
-    esac
+    assert_safe_runtime_path "$path" "$label" || exit 77
 }
 
 safe_remove_dir() {
     target=$1
-    real_target=$(ci_canonical_existing "$target")
-    case "$real_target" in
-        /|/src|/tmp|/var|/home|/root|"$REPO_ROOT"|"$BUILD_ROOT")
-            blocked "unsafe REFRESH target: $real_target"
-            ;;
-        *) ;;
-    esac
-    rm -rf "$target"
+    safe_remove_runtime_path "$target" "$BUILD_ROOT" "Apache REFRESH target" || exit 77
 }
 
 

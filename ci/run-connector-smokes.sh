@@ -23,8 +23,10 @@ combine_rule_preambles() {
         printf '%s\n' "$first"
         return 0
     fi
-    mkdir -p "$BUILD_ROOT/preambles"
     combined="$BUILD_ROOT/preambles/$label.load"
+    assert_safe_runtime_path "$BUILD_ROOT/preambles" "rule preamble directory" || return 77
+    assert_not_system_path_for_write "$combined" "combined rule preamble" || return 77
+    mkdir -p "$BUILD_ROOT/preambles"
     {
         printf 'Include "%s"\n' "$first"
         printf 'Include "%s"\n' "$second"
@@ -46,6 +48,7 @@ prepare_crs_variant() {
 }
 
 prepare_crs_variant
+assert_safe_runtime_path "$RESULTS_DIR" RESULTS_DIR || exit 77
 mkdir -p "$RESULTS_DIR"
 echo "run_connector_smokes: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
 echo "run_connector_smokes: RESULTS_DIR=$RESULTS_DIR"

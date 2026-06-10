@@ -18,14 +18,14 @@ fi
 
 echo "runtime-matrix: running Apache smoke with REFRESH=1"
 set +e
-REFRESH=1 RESULTS_DIR="$BUILD_ROOT/results" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" make -C "$CONNECTOR_ROOT" smoke-apache
+REFRESH=1 SKIP_RUNTIME_COMPONENT_PREPARE=1 RESULTS_DIR="$BUILD_ROOT/results" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" make -C "$CONNECTOR_ROOT" smoke-apache
 apache_rc=$?
 set -e
 echo "runtime-matrix: Apache smoke exit=$apache_rc"
 
 echo "runtime-matrix: running NGINX smoke with REFRESH=1"
 set +e
-REFRESH=1 RESULTS_DIR="$BUILD_ROOT/results" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" make -C "$CONNECTOR_ROOT" smoke-nginx
+REFRESH=1 SKIP_RUNTIME_COMPONENT_PREPARE=1 RESULTS_DIR="$BUILD_ROOT/results" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" make -C "$CONNECTOR_ROOT" smoke-nginx
 nginx_rc=$?
 set -e
 echo "runtime-matrix: NGINX smoke exit=$nginx_rc"

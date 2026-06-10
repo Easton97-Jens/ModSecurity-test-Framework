@@ -20,6 +20,7 @@ require_fetch_path() {
     path=$1
     label=$2
     ci_require_absolute_path "$path" "$label" || exit 77
+    assert_safe_runtime_path "$path" "$label" || exit 77
     case "$path" in
         "$SOURCE_ROOT"|"$SOURCE_ROOT"/*) ;;
         *)
@@ -49,6 +50,11 @@ checkout_existing_crs() {
         ci_blocked "fetch_crs could not checkout CRS ref: $CRS_GIT_REF"
         exit 77
     }
+    git -C "$CRS_SOURCE_DIR" submodule sync --recursive >/dev/null 2>&1 || true
+    git -C "$CRS_SOURCE_DIR" submodule update --init --recursive || {
+        ci_blocked "fetch_crs submodule update failed"
+        exit 77
+    }
 }
 
 clone_crs() {
@@ -62,17 +68,18 @@ clone_crs() {
     fi
     ci_info "fetch_crs fetching $CRS_REPO_URL ref=$CRS_GIT_REF into $CRS_SOURCE_DIR"
     set +e
-    git clone --depth 1 --branch "$CRS_GIT_REF" "$CRS_REPO_URL" "$CRS_SOURCE_DIR"
+    git clone --recursive --depth 1 --branch "$CRS_GIT_REF" "$CRS_REPO_URL" "$CRS_SOURCE_DIR"
     rc=$?
     set -e
     if [ "$rc" -ne 0 ]; then
         notice "CRS clone blocked for $CRS_REPO_URL ref=$CRS_GIT_REF"
-        rm -rf "$CRS_SOURCE_DIR"
+        safe_remove_runtime_path "$CRS_SOURCE_DIR" "$SOURCE_ROOT" "failed CRS clone" || true
         exit 77
     fi
 }
 
 ci_require_absolute_path "$SOURCE_ROOT" "SOURCE_ROOT" || exit 77
+assert_safe_runtime_path "$SOURCE_ROOT" SOURCE_ROOT || exit 77
 require_fetch_path "$CRS_SOURCE_DIR" "CRS_SOURCE_DIR"
 mkdir -p "$SOURCE_ROOT"
 clone_crs

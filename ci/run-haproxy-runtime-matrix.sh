@@ -14,8 +14,14 @@ FORCE_ALL_CASES="${FORCE_ALL_CASES:-0}"
 export FORCE_ALL_CASES
 COMMON_SH="$FRAMEWORK_ROOT/ci/common.sh"
 if [ -f "$COMMON_SH" ]; then
+    REPO_ROOT="$CONNECTOR_ROOT"
     . "$COMMON_SH"
 fi
+
+assert_safe_runtime_path "$BUILD_ROOT" BUILD_ROOT || exit 77
+assert_safe_runtime_path "$RESULTS_ROOT" RESULTS_ROOT || exit 77
+assert_safe_runtime_path "$TMP_ROOT" TMP_ROOT || exit 77
+assert_safe_runtime_path "$LOG_ROOT" LOG_ROOT || exit 77
 
 prepare_crs_if_needed() {
     MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-$BUILD_ROOT/crs/modsecurity-crs-preamble.conf}"
@@ -39,6 +45,7 @@ prepare_crs_if_needed() {
 run_variant() {
     variant=$1
     out_dir=$2
+    assert_safe_runtime_path "$out_dir" "HAProxy matrix results dir" || return 77
     mkdir -p "$out_dir"
     if [ "$variant" = "with-crs" ]; then
         prepare_crs_if_needed || return $?
@@ -51,6 +58,7 @@ run_variant() {
         RESULTS_DIR="$out_dir" \
         MODSECURITY_TEST_VARIANT="$variant" \
         MODSECURITY_RULE_PREAMBLE_FILE="${MODSECURITY_RULE_PREAMBLE_FILE:-}" \
+        SKIP_RUNTIME_COMPONENT_PREPARE=1 \
         make -C "$CONNECTOR_ROOT" smoke-haproxy
     rc=$?
     set -e
