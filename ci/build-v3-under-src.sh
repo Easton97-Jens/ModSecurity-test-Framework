@@ -40,13 +40,7 @@ for generated_path in "$MODSECURITY_V3_DIR" "$BUILD_ROOT" "$LOG_DIR"; do
             exit 77
             ;;
     esac
-    case "$generated_path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*)
-            echo "v3_build: blocked generated path is not allowed: $generated_path"
-            exit 77
-            ;;
-        *) ;;
-    esac
+    assert_safe_runtime_path "$generated_path" "$generated_path" || exit 77
 done
 
 if [ ! -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
@@ -67,14 +61,7 @@ if [ -e "$MODSECURITY_V3_DIR" ]; then
         echo "v3_build: set REFRESH=1 to replace the destination copy"
         exit 77
     fi
-    case "$dest_real" in
-        /|/src|/tmp|/var|/home|/root|"$BUILD_ROOT")
-            echo "v3_build: blocked unsafe REFRESH destination: $dest_real"
-            exit 77
-            ;;
-        *) ;;
-    esac
-    rm -rf "$MODSECURITY_V3_DIR"
+    safe_remove_runtime_path "$MODSECURITY_V3_DIR" "$BUILD_ROOT" "v3 build REFRESH destination" || exit 77
 fi
 
 dest_parent=$(dirname "$MODSECURITY_V3_DIR")

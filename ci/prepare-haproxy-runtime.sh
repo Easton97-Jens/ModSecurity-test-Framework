@@ -60,6 +60,7 @@ EOF
 require_under_source_root() {
     path=$1
     label=$2
+    assert_safe_runtime_path "$path" "$label" || exit 77
     case "$path" in
         "$SOURCE_ROOT"|"$SOURCE_ROOT"/*) ;;
         *) blocked "$label must be under SOURCE_ROOT: $path" ;;
@@ -72,9 +73,27 @@ require_under_source_root() {
     esac
 }
 
+require_under_source_root_or_cache() {
+    path=$1
+    label=$2
+    assert_safe_runtime_path "$path" "$label" || exit 77
+    case "$path" in
+        "$SOURCE_ROOT"|"$SOURCE_ROOT"/*) ;;
+        "$CONNECTOR_COMPONENT_CACHE"|"$CONNECTOR_COMPONENT_CACHE"/*) ;;
+        *) blocked "$label must be under SOURCE_ROOT or CONNECTOR_COMPONENT_CACHE: $path" ;;
+    esac
+    case "$path" in
+        "$CONNECTOR_ROOT"|"$CONNECTOR_ROOT"/*)
+            blocked "$label must not be inside connector checkout: $path"
+            ;;
+        *) ;;
+    esac
+}
+
 require_under_build_root() {
     path=$1
     label=$2
+    assert_safe_runtime_path "$path" "$label" || exit 77
     case "$path" in
         "$BUILD_ROOT"|"$BUILD_ROOT"/*) ;;
         *) blocked "$label must be under BUILD_ROOT: $path" ;;
@@ -90,17 +109,7 @@ require_under_build_root() {
 require_under_runtime_root() {
     path=$1
     label=$2
-    state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}"
-
-    case "$path" in
-        /src|/src/*|/tmp|/tmp/*) return 0 ;;
-    esac
-    if [ -n "$state_root" ]; then
-        case "$path" in
-            "$state_root"|"$state_root"/*) return 0 ;;
-        esac
-    fi
-    blocked "$label must be under /src, /tmp, or XDG state home: $path"
+    assert_safe_runtime_path "$path" "$label" || exit 77
 }
 
 safe_remove_dir() {
@@ -108,11 +117,15 @@ safe_remove_dir() {
     real_target=$(ci_canonical_existing "$target" 2>/dev/null || true)
     [ -n "$real_target" ] || return 0
     case "$real_target" in
-        /|/src|/tmp|/var|/home|/root|"$CONNECTOR_ROOT"|"$BUILD_ROOT"|"$SOURCE_ROOT")
+        "$BUILD_ROOT"/*)
+            safe_remove_runtime_path "$target" "$BUILD_ROOT" "HAProxy REFRESH target" || exit 77
+            ;;
+        "$SOURCE_ROOT"/*)
+            safe_remove_runtime_path "$target" "$SOURCE_ROOT" "HAProxy REFRESH target" || exit 77
+            ;;
+        *)
             blocked "unsafe REFRESH target: $real_target"
             ;;
-        "$BUILD_ROOT"/*|"$SOURCE_ROOT"/*) rm -rf "$target" ;;
-        *) blocked "unsafe REFRESH target outside generated roots: $real_target" ;;
     esac
 }
 
@@ -140,14 +153,11 @@ run_logged() {
 }
 
 validate_paths() {
-    case "$SOURCE_ROOT" in
-        /src|/src/*) ;;
-        *) blocked "SOURCE_ROOT must be under /src: $SOURCE_ROOT" ;;
-    esac
+    assert_safe_runtime_path "$SOURCE_ROOT" SOURCE_ROOT || exit 77
     require_under_runtime_root "$BUILD_ROOT" BUILD_ROOT
-    require_under_source_root "$HAPROXY_SOURCE_ROOT" HAPROXY_SOURCE_ROOT
-    require_under_source_root "$HAPROXY_DOWNLOAD_DIR" HAPROXY_DOWNLOAD_DIR
-    require_under_source_root "$HAPROXY_SOURCE_DIR" HAPROXY_SOURCE_DIR
+    require_under_source_root_or_cache "$HAPROXY_SOURCE_ROOT" HAPROXY_SOURCE_ROOT
+    require_under_source_root_or_cache "$HAPROXY_DOWNLOAD_DIR" HAPROXY_DOWNLOAD_DIR
+    require_under_source_root_or_cache "$HAPROXY_SOURCE_DIR" HAPROXY_SOURCE_DIR
     require_under_build_root "$HAPROXY_RUNTIME_BUILD_DIR" HAPROXY_RUNTIME_BUILD_DIR
     require_under_build_root "$HAPROXY_RUNTIME_BUILD_WORKTREE" HAPROXY_RUNTIME_BUILD_WORKTREE
     require_under_build_root "$HAPROXY_RUNTIME_DIR" HAPROXY_RUNTIME_DIR

@@ -158,8 +158,10 @@ combine_rule_preambles() {
         printf '%s\n' "$first"
         return 0
     fi
-    mkdir -p "$BUILD_ROOT/preambles"
     combined="$BUILD_ROOT/preambles/$label.load"
+    assert_safe_runtime_path "$BUILD_ROOT/preambles" "rule preamble directory" || return 77
+    assert_not_system_path_for_write "$combined" "combined rule preamble" || return 77
+    mkdir -p "$BUILD_ROOT/preambles"
     {
         printf 'Include "%s"\n' "$first"
         printf 'Include "%s"\n' "$second"
@@ -235,13 +237,184 @@ ci_canonical_existing() {
 }
 
 ci_require_absolute_path() {
-    path=$1
-    label=$2
-    case "$path" in
+    ci_abs_path=$1
+    ci_abs_label=$2
+    case "$ci_abs_path" in
         /*) return 0 ;;
-        *) ci_blocked "$label must be absolute: $path"; return 77 ;;
+        *) ci_blocked "$ci_abs_label must be absolute: $ci_abs_path"; return 77 ;;
     esac
     return 0
+}
+
+ci_path_is_system_path() {
+    ci_path_value=$1
+    case "$ci_path_value" in
+        /usr|/usr/*|/usr/local|/usr/local/*|/opt|/opt/*|/etc|/etc/*|/var|/var/*|/lib|/lib/*|/lib64|/lib64/*|/bin|/bin/*|/sbin|/sbin/*|/run|/run/*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+blocked_system_path_write() {
+    ci_block_path=$1
+    ci_block_label=${2:-path}
+    ci_blocked "blocker_reason=system_path_write_forbidden label=$ci_block_label path=$ci_block_path"
+    return 77
+}
+
+assert_not_system_path_for_write() {
+    ci_assert_path=$1
+    ci_assert_label=${2:-path}
+    ci_require_absolute_path "$ci_assert_path" "$ci_assert_label" || return 77
+    if ci_path_is_system_path "$ci_assert_path"; then
+        blocked_system_path_write "$ci_assert_path" "$ci_assert_label"
+        return 77
+    fi
+    return 0
+}
+
+assert_safe_runtime_path() {
+    ci_safe_path=$1
+    ci_safe_label=${2:-path}
+    ci_state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}"
+    ci_cache_home="${XDG_CACHE_HOME:-${HOME:-}/.cache}"
+    ci_component_cache="${CONNECTOR_COMPONENT_CACHE:-}"
+
+    assert_not_system_path_for_write "$ci_safe_path" "$ci_safe_label" || return 77
+    case "$ci_safe_path" in
+        /|/src|/tmp|"${HOME:-__no_home__}")
+            ci_blocked "$ci_safe_label is not a safe runtime path: $ci_safe_path"
+            return 77
+            ;;
+    esac
+    if [ -n "${REPO_ROOT:-}" ]; then
+        case "$ci_safe_path" in
+            "$REPO_ROOT"|"$REPO_ROOT"/*)
+                ci_blocked "$ci_safe_label is inside a read-only/source checkout: $ci_safe_path"
+                return 77
+                ;;
+        esac
+    fi
+    if [ -n "${FRAMEWORK_ROOT:-}" ]; then
+        case "$ci_safe_path" in
+            "$FRAMEWORK_ROOT"|"$FRAMEWORK_ROOT"/*)
+                ci_blocked "$ci_safe_label is inside a read-only/source checkout: $ci_safe_path"
+                return 77
+                ;;
+        esac
+    fi
+    if [ -n "${CONNECTOR_ROOT:-}" ]; then
+        case "$ci_safe_path" in
+            "$CONNECTOR_ROOT"|"$CONNECTOR_ROOT"/*)
+                ci_blocked "$ci_safe_label is inside a read-only/source checkout: $ci_safe_path"
+                return 77
+                ;;
+        esac
+    fi
+
+    case "$ci_safe_path" in
+        "$BUILD_ROOT"|"$BUILD_ROOT"/*|"$TMP_ROOT"|"$TMP_ROOT"/*|"$LOG_ROOT"|"$LOG_ROOT"/*)
+            return 0
+            ;;
+    esac
+    if [ -n "${MRTS_BUILD_ROOT:-}" ]; then
+        case "$ci_safe_path" in
+            "$MRTS_BUILD_ROOT"|"$MRTS_BUILD_ROOT"/*) return 0 ;;
+        esac
+    fi
+    if [ -n "${MRTS_NATIVE_ROOT:-}" ]; then
+        case "$ci_safe_path" in
+            "$MRTS_NATIVE_ROOT"|"$MRTS_NATIVE_ROOT"/*) return 0 ;;
+        esac
+    fi
+    if [ -n "$ci_component_cache" ]; then
+        case "$ci_safe_path" in
+            "$ci_component_cache"|"$ci_component_cache"/*) return 0 ;;
+        esac
+    fi
+    case "$ci_safe_path" in
+        /src/ModSecurity-conector-cache|/src/ModSecurity-conector-cache/*|/tmp/*)
+            return 0
+            ;;
+    esac
+    if [ -n "$ci_state_root" ]; then
+        case "$ci_safe_path" in
+            "$ci_state_root"|"$ci_state_root"/*) return 0 ;;
+        esac
+    fi
+    if [ -n "$ci_cache_home" ]; then
+        case "$ci_safe_path" in
+            "$ci_cache_home"|"$ci_cache_home"/*) return 0 ;;
+        esac
+    fi
+    ci_blocked "$ci_safe_label is not under an allowed runtime/cache root: $ci_safe_path"
+    return 77
+}
+
+safe_remove_runtime_path() {
+    ci_remove_target=$1
+    ci_remove_owner_root=${2:-}
+    ci_remove_label=${3:-runtime path}
+    ci_remove_real_target=$(ci_canonical_existing "$ci_remove_target" 2>/dev/null || printf '%s' "$ci_remove_target")
+
+    assert_safe_runtime_path "$ci_remove_real_target" "$ci_remove_label" || return 77
+    case "$ci_remove_real_target" in
+        /|/src|/tmp|"${HOME:-__no_home__}"|"$BUILD_ROOT"|"$TMP_ROOT"|"$LOG_ROOT")
+            ci_blocked "unsafe remove target for $ci_remove_label: $ci_remove_real_target"
+            return 77
+            ;;
+    esac
+    if [ -n "${MRTS_BUILD_ROOT:-}" ] && [ "$ci_remove_real_target" = "$MRTS_BUILD_ROOT" ]; then
+        ci_blocked "unsafe remove target for $ci_remove_label: $ci_remove_real_target"
+        return 77
+    fi
+    if [ -n "${MRTS_NATIVE_ROOT:-}" ] && [ "$ci_remove_real_target" = "$MRTS_NATIVE_ROOT" ]; then
+        ci_blocked "unsafe remove target for $ci_remove_label: $ci_remove_real_target"
+        return 77
+    fi
+    if [ -n "${CONNECTOR_COMPONENT_CACHE:-}" ] && [ "$ci_remove_real_target" = "$CONNECTOR_COMPONENT_CACHE" ]; then
+        ci_blocked "unsafe remove target for $ci_remove_label: $ci_remove_real_target"
+        return 77
+    fi
+    if [ -n "$ci_remove_owner_root" ] && [ "$ci_remove_real_target" = "$ci_remove_owner_root" ]; then
+        ci_blocked "unsafe remove target for $ci_remove_label: $ci_remove_real_target"
+        return 77
+    fi
+    if [ -n "$ci_remove_owner_root" ]; then
+        assert_not_system_path_for_write "$ci_remove_owner_root" "$ci_remove_label owner root" || return 77
+        case "$ci_remove_real_target" in
+            "$ci_remove_owner_root"/*) ;;
+            *)
+                ci_blocked "$ci_remove_label remove target outside owner root: $ci_remove_real_target owner=$ci_remove_owner_root"
+                return 77
+                ;;
+        esac
+    fi
+    rm -rf "$ci_remove_target"
+    return 0
+}
+
+cleanup_runtime_workdir() {
+    ci_cleanup_target=$1
+    ci_cleanup_owner_root=${2:-}
+    ci_cleanup_label=${3:-runtime workdir}
+    if [ "${KEEP_RUNTIME_ARTIFACTS:-0}" = "1" ]; then
+        ci_info "keeping $ci_cleanup_label: $ci_cleanup_target"
+        return 0
+    fi
+    case "$ci_cleanup_target" in
+        /tmp/*)
+            safe_remove_runtime_path "$ci_cleanup_target" "$ci_cleanup_owner_root" "$ci_cleanup_label"
+            return $?
+            ;;
+        *)
+            ci_info "not auto-removing non-/tmp $ci_cleanup_label: $ci_cleanup_target"
+            return 0
+            ;;
+    esac
 }
 
 ci_git_value() {

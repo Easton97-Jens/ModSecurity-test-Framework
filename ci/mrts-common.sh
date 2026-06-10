@@ -121,6 +121,7 @@ mrts_rule_ids() {
 
 mrts_check_feature_demo_runtime_safe() {
     tmp_dir="${TMP_ROOT:-$BUILD_ROOT/tmp}"
+    assert_safe_runtime_path "$tmp_dir" MRTS_TMP_ROOT || exit 77
     mkdir -p "$tmp_dir"
     upstream_ids="$tmp_dir/mrts-upstream-rule-ids.$$"
     feature_ids="$tmp_dir/mrts-feature-demo-rule-ids.$$"
@@ -145,8 +146,10 @@ mrts_append_rule_preamble() {
         return 0
     fi
 
-    mkdir -p "$BUILD_ROOT/preambles"
     combined="$BUILD_ROOT/preambles/mrts-combined.load"
+    assert_safe_runtime_path "$BUILD_ROOT/preambles" MRTS_PREAMBLE_DIR || exit 77
+    assert_not_system_path_for_write "$combined" MRTS_COMBINED_PREAMBLE || exit 77
+    mkdir -p "$BUILD_ROOT/preambles"
     {
         printf 'Include "%s"\n' "$existing_preamble"
         printf 'Include "%s"\n' "$new_preamble"
@@ -156,6 +159,8 @@ mrts_append_rule_preamble() {
 }
 
 mrts_import_cases() {
+    assert_safe_runtime_path "$MRTS_UPSTREAM_CASE_ROOT" MRTS_UPSTREAM_CASE_ROOT || exit 77
+    assert_safe_runtime_path "$MRTS_FEATURE_DEMO_CASE_ROOT" MRTS_FEATURE_DEMO_CASE_ROOT || exit 77
     mkdir -p "$MRTS_UPSTREAM_CASE_ROOT" "$MRTS_FEATURE_DEMO_CASE_ROOT"
     find "$MRTS_UPSTREAM_CASE_ROOT" "$MRTS_FEATURE_DEMO_CASE_ROOT" -type f -name '*.yaml' -exec rm -f {} \;
     "${PYTHON:-python3}" "$FRAMEWORK_ROOT/ci/import-mrts-cases.py" \

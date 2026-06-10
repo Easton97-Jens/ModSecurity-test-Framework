@@ -21,13 +21,7 @@ require_absolute_generated_path() {
         /*) ;;
         *) echo "probe_response_body: blocked $label must be absolute: $path"; exit 77 ;;
     esac
-    case "$path" in
-        "$REPO_ROOT"|"$REPO_ROOT"/*|"$FRAMEWORK_ROOT"|"$FRAMEWORK_ROOT"/*)
-            echo "probe_response_body: blocked $label is inside a source checkout: $path"
-            exit 77
-            ;;
-        *) ;;
-    esac
+    assert_safe_runtime_path "$path" "$label" || exit 77
 }
 
 case "$REPEAT" in
@@ -54,6 +48,9 @@ run_probe_once() {
     results_dir="$RESULTS_ROOT/$connector/repeat-$repeat"
     log_dir="$LOG_ROOT/$connector/repeat-$repeat"
     runtime_base="$RUNTIME_ROOT/$connector/repeat-$repeat"
+    assert_safe_runtime_path "$results_dir" "probe results dir" || exit 77
+    assert_safe_runtime_path "$log_dir" "probe log dir" || exit 77
+    assert_safe_runtime_path "$runtime_base" "probe runtime dir" || exit 77
     mkdir -p "$results_dir" "$log_dir" "$runtime_base"
     chmod go+rx "$BUILD_ROOT" "$PROBE_ROOT" "$RUNTIME_ROOT" \
         "$RUNTIME_ROOT/$connector" "$runtime_base" 2>/dev/null || true

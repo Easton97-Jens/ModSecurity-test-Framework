@@ -4,6 +4,9 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
 FRAMEWORK_ROOT=$(CDPATH= cd "$FRAMEWORK_ROOT" && pwd)
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$FRAMEWORK_ROOT}"
+REPO_ROOT="$CONNECTOR_ROOT"
+. "$SCRIPT_DIR/common.sh"
 
 DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}}"
 BUILD_ROOT="${BUILD_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-build}"
@@ -24,8 +27,12 @@ if [ -z "$rule_list" ]; then
     exit 77
 fi
 
+assert_safe_runtime_path "$MRTS_RULES_OUT" MRTS_RULES_OUT || exit 77
+assert_safe_runtime_path "$(dirname "$MRTS_LOAD_FILE")" MRTS_LOAD_FILE_DIR || exit 77
+assert_not_system_path_for_write "$MRTS_LOAD_FILE" MRTS_LOAD_FILE || exit 77
 mkdir -p "$(dirname "$MRTS_LOAD_FILE")"
 tmp_file="$MRTS_LOAD_FILE.tmp.$$"
+assert_not_system_path_for_write "$tmp_file" MRTS_LOAD_FILE_TMP || exit 77
 : > "$tmp_file"
 
 printf '%s\n' "$rule_list" | while IFS= read -r rule_file; do

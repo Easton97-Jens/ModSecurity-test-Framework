@@ -4,6 +4,9 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)}"
 FRAMEWORK_ROOT=$(CDPATH= cd "$FRAMEWORK_ROOT" && pwd)
+CONNECTOR_ROOT="${CONNECTOR_ROOT:-$FRAMEWORK_ROOT}"
+REPO_ROOT="$CONNECTOR_ROOT"
+. "$SCRIPT_DIR/common.sh"
 
 MRTS_ROOT="${MRTS_ROOT:-$FRAMEWORK_ROOT/tools/MRTS}"
 DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}}"
@@ -57,6 +60,8 @@ if [ -z "$definition_list" ]; then
     exit 77
 fi
 
+assert_safe_runtime_path "$MRTS_RULES_OUT" MRTS_RULES_OUT || exit 77
+assert_safe_runtime_path "$MRTS_FTW_OUT" MRTS_FTW_OUT || exit 77
 mkdir -p "$MRTS_RULES_OUT" "$MRTS_FTW_OUT"
 find "$MRTS_RULES_OUT" -type f -name '*.conf' -exec rm -f {} \;
 find "$MRTS_FTW_OUT" -type f -name '*.yaml' -exec rm -f {} \;

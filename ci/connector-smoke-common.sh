@@ -23,35 +23,19 @@ PYTHON_BIN="${PYTHON:-$(ci_python)}"
 connector_smoke_require_src_path() {
     path=$1
     label=$2
-    case "$path" in
-        /src|/src/*) return 0 ;;
-        /*) echo "BLOCKED: $label must be under /src: $path" >&2; exit 77 ;;
-        *) echo "BLOCKED: $label must be absolute and under /src: $path" >&2; exit 77 ;;
-    esac
+    assert_safe_runtime_path "$path" "$label" || exit 77
 }
 
 connector_smoke_require_runtime_path() {
     path=$1
     label=$2
-    state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}"
-
-    case "$path" in
-        /src|/src/*|/tmp|/tmp/*) return 0 ;;
-    esac
-    if [ -n "$state_root" ]; then
-        case "$path" in
-            "$state_root"|"$state_root"/*) return 0 ;;
-        esac
-    fi
-    case "$path" in
-        /*) echo "BLOCKED: $label must be under /src, /tmp, or XDG state home: $path" >&2; exit 77 ;;
-        *) echo "BLOCKED: $label must be absolute and under /src, /tmp, or XDG state home: $path" >&2; exit 77 ;;
-    esac
+    assert_safe_runtime_path "$path" "$label" || exit 77
 }
 
 connector_smoke_require_build_path() {
     path=$1
     label=$2
+    assert_safe_runtime_path "$path" "$label" || exit 77
     case "$path" in
         "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
         *) echo "BLOCKED: $label must be under BUILD_ROOT: $path" >&2; exit 77 ;;
@@ -61,6 +45,7 @@ connector_smoke_require_build_path() {
 connector_smoke_require_results_path() {
     path=$1
     label=$2
+    assert_safe_runtime_path "$path" "$label" || exit 77
     case "$path" in
         "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
         *) echo "BLOCKED: $label must be under BUILD_ROOT: $path" >&2; exit 77 ;;
@@ -70,6 +55,7 @@ connector_smoke_require_results_path() {
 connector_smoke_require_log_path() {
     path=$1
     label=$2
+    assert_safe_runtime_path "$path" "$label" || exit 77
     case "$path" in
         "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
         *) echo "BLOCKED: $label must be under BUILD_ROOT: $path" >&2; exit 77 ;;

@@ -47,6 +47,19 @@ fi
 NGINX_RUNTIME_BASE="${NGINX_RUNTIME_BASE:-${RUNTIME_BASE:-$NGINX_HARNESS_WORK_ROOT/runtime}}"
 NGINX_RUNTIME_LOG_DIR="${NGINX_RUNTIME_LOG_DIR:-$NGINX_HARNESS_WORK_ROOT/logs}"
 
+validate_runtime_paths() {
+    assert_safe_runtime_path "$BUILD_ROOT" BUILD_ROOT || exit 77
+    assert_safe_runtime_path "$RESULTS_DIR" RESULTS_DIR || exit 77
+    assert_safe_runtime_path "$NGINX_BUILD_DIR" NGINX_BUILD_DIR || exit 77
+    assert_safe_runtime_path "$NGINX_PREFIX" NGINX_PREFIX || exit 77
+    assert_safe_runtime_path "$NGINX_HARNESS_WORK_ROOT" NGINX_HARNESS_WORK_ROOT || exit 77
+    assert_safe_runtime_path "$NGINX_RUNTIME_BASE" NGINX_RUNTIME_BASE || exit 77
+    assert_safe_runtime_path "$NGINX_RUNTIME_LOG_DIR" NGINX_RUNTIME_LOG_DIR || exit 77
+    assert_safe_runtime_path "$NGINX_BUILD_LOG_DIR" NGINX_BUILD_LOG_DIR || exit 77
+    assert_safe_runtime_path "$CRS_RUNTIME_DIR" CRS_RUNTIME_DIR || exit 77
+    assert_safe_runtime_path "${MRTS_BUILD_ROOT:-$BUILD_ROOT/mrts}" MRTS_BUILD_ROOT || exit 77
+}
+
 prepare_crs_variant() {
     existing_preamble="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
     if [ "$MODSECURITY_TEST_VARIANT" != "with-crs" ]; then
@@ -88,6 +101,7 @@ configure_nginx_origin() {
 write_connector_result() {
     status=$1
     message=$2
+    assert_safe_runtime_path "$RESULTS_DIR" RESULTS_DIR || exit 77
     mkdir -p "$RESULTS_DIR"
     "$PYTHON_BIN" "$FRAMEWORK_ROOT/tests/runners/case_cli.py" summarize-empty \
         --connector nginx \
@@ -119,6 +133,8 @@ acquire_build_root_lock() {
     lock_dir="$BUILD_ROOT/.smoke.lock"
     echo "run_nginx_smoke: lock-acquire begin path=$lock_dir mode=$SMOKE_LOCK_MODE timeout=${SMOKE_LOCK_TIMEOUT_SECONDS}s"
     if command -v flock >/dev/null 2>&1; then
+        assert_safe_runtime_path "$BUILD_ROOT" BUILD_ROOT || return 77
+        assert_not_system_path_for_write "$lock_dir.file" "smoke lock file" || return 77
         mkdir -p "$BUILD_ROOT"
         lock_file="$lock_dir.file"
         : > "$lock_file"
@@ -158,11 +174,12 @@ release_build_root_lock() {
         return 0
     fi
     if [ -d "$lock_dir" ]; then
-        rm -rf "$lock_dir"
+        safe_remove_runtime_path "$lock_dir" "$BUILD_ROOT" "NGINX smoke lock directory" || return 77
         echo "run_nginx_smoke: lock-release path=$lock_dir method=mkdir"
     fi
 }
 
+validate_runtime_paths
 prepare_mrts_runtime_variant
 prepare_crs_variant
 echo "run_nginx_smoke: MODSECURITY_TEST_VARIANT=$MODSECURITY_TEST_VARIANT"
