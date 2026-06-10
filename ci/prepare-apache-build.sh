@@ -19,6 +19,7 @@ LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/apache}"
 REFRESH="${REFRESH:-0}"
 APACHE_BUILD_ROOT="${APACHE_BUILD_ROOT:-$BUILD_ROOT/apache-build}"
 DOWNLOAD_DIR="${APACHE_DOWNLOAD_DIR:-${DOWNLOAD_DIR:-$APACHE_BUILD_ROOT/downloads}}"
+APACHE_BUILD_OWNER_ROOT="${APACHE_BUILD_OWNER_ROOT:-$BUILD_ROOT}"
 V3_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity_V3"
 APACHE_CONNECTOR_LEGACY_BUILD_DIR="$APACHE_BUILD_ROOT/ModSecurity-apache"
 OUTPUT_DIR="$APACHE_BUILD_ROOT/output"
@@ -78,7 +79,7 @@ require_absolute_generated_path() {
 
 safe_remove_dir() {
     target=$1
-    safe_remove_runtime_path "$target" "$BUILD_ROOT" "Apache REFRESH target" || exit 77
+    safe_remove_runtime_path "$target" "$APACHE_BUILD_OWNER_ROOT" "Apache REFRESH target" || exit 77
 }
 
 

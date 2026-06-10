@@ -73,6 +73,23 @@ require_under_source_root() {
     esac
 }
 
+require_under_source_root_or_cache() {
+    path=$1
+    label=$2
+    assert_safe_runtime_path "$path" "$label" || exit 77
+    case "$path" in
+        "$SOURCE_ROOT"|"$SOURCE_ROOT"/*) ;;
+        "$CONNECTOR_COMPONENT_CACHE"|"$CONNECTOR_COMPONENT_CACHE"/*) ;;
+        *) blocked "$label must be under SOURCE_ROOT or CONNECTOR_COMPONENT_CACHE: $path" ;;
+    esac
+    case "$path" in
+        "$CONNECTOR_ROOT"|"$CONNECTOR_ROOT"/*)
+            blocked "$label must not be inside connector checkout: $path"
+            ;;
+        *) ;;
+    esac
+}
+
 require_under_build_root() {
     path=$1
     label=$2
@@ -138,9 +155,9 @@ run_logged() {
 validate_paths() {
     assert_safe_runtime_path "$SOURCE_ROOT" SOURCE_ROOT || exit 77
     require_under_runtime_root "$BUILD_ROOT" BUILD_ROOT
-    require_under_source_root "$HAPROXY_SOURCE_ROOT" HAPROXY_SOURCE_ROOT
-    require_under_source_root "$HAPROXY_DOWNLOAD_DIR" HAPROXY_DOWNLOAD_DIR
-    require_under_source_root "$HAPROXY_SOURCE_DIR" HAPROXY_SOURCE_DIR
+    require_under_source_root_or_cache "$HAPROXY_SOURCE_ROOT" HAPROXY_SOURCE_ROOT
+    require_under_source_root_or_cache "$HAPROXY_DOWNLOAD_DIR" HAPROXY_DOWNLOAD_DIR
+    require_under_source_root_or_cache "$HAPROXY_SOURCE_DIR" HAPROXY_SOURCE_DIR
     require_under_build_root "$HAPROXY_RUNTIME_BUILD_DIR" HAPROXY_RUNTIME_BUILD_DIR
     require_under_build_root "$HAPROXY_RUNTIME_BUILD_WORKTREE" HAPROXY_RUNTIME_BUILD_WORKTREE
     require_under_build_root "$HAPROXY_RUNTIME_DIR" HAPROXY_RUNTIME_DIR
