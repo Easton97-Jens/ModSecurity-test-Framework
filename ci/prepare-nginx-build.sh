@@ -29,6 +29,10 @@ V3_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity_V3"
 NGINX_CONNECTOR_LEGACY_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity-nginx"
 OUTPUT_DIR="$NGINX_BUILD_DIR/output"
 MODSECURITY_STAGE="$OUTPUT_DIR/modsecurity"
+MODSECURITY_SHARED_PREFIX="${MODSECURITY_SHARED_PREFIX:-}"
+if [ -n "$MODSECURITY_SHARED_PREFIX" ]; then
+    MODSECURITY_STAGE="$MODSECURITY_SHARED_PREFIX"
+fi
 DEFAULT_NGINX_SOURCE_DIR="$CONNECTOR_ROOT/connectors/nginx"
 MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$DEFAULT_NGINX_SOURCE_DIR}"
 NGINX_ADAPTER_SOURCE_DIR="${NGINX_ADAPTER_SOURCE_DIR:-$MODSECURITY_NGINX_SOURCE_DIR}"
@@ -347,6 +351,24 @@ write_git_info() {
 }
 
 stage_modsecurity() {
+    if [ -n "$MODSECURITY_SHARED_PREFIX" ]; then
+        if [ ! -f "$MODSECURITY_STAGE/include/modsecurity/modsecurity.h" ]; then
+            blocked "missing shared v3 header: $MODSECURITY_STAGE/include/modsecurity/modsecurity.h"
+        fi
+        if [ ! -f "$MODSECURITY_STAGE/lib/libmodsecurity.so" ]; then
+            blocked "missing shared v3 library: $MODSECURITY_STAGE/lib/libmodsecurity.so"
+        fi
+        {
+            echo "modsecurity_stage=$MODSECURITY_STAGE"
+            echo "modsecurity_header=$MODSECURITY_STAGE/include/modsecurity/modsecurity.h"
+            echo "modsecurity_library=$MODSECURITY_STAGE/lib/libmodsecurity.so"
+            echo "modsecurity_shared_prefix=$MODSECURITY_SHARED_PREFIX"
+            echo "modsecurity_shared_build_id=${MODSECURITY_BUILD_ID:-}"
+        } >> "$ARTIFACTS_FILE"
+        echo "pass: shared libmodsecurity reused from $MODSECURITY_SHARED_PREFIX" >> "$STATUS_FILE"
+        return 0
+    fi
+
     header_dir="$V3_BUILD_DIR/headers"
     lib_dir="$V3_BUILD_DIR/src/.libs"
     lib_log="$LOG_DIR/stage-modsecurity-library.log"
@@ -460,6 +482,9 @@ require_absolute_generated_path "$NGINX_PREFIX" "NGINX_PREFIX"
 require_absolute_generated_path "$NGINX_CONNECTOR_BUILD_DIR" "NGINX_CONNECTOR_BUILD_DIR"
 require_absolute_generated_path "$LOG_DIR" "LOG_DIR"
 require_absolute_generated_path "$OUTPUT_DIR" "OUTPUT_DIR"
+if [ -n "$MODSECURITY_SHARED_PREFIX" ]; then
+    require_absolute_generated_path "$MODSECURITY_SHARED_PREFIX" "MODSECURITY_SHARED_PREFIX"
+fi
 require_absolute_generated_path "$DOWNLOAD_DIR" "DOWNLOAD_DIR"
 
 ensure_modsecurity_v3_source
@@ -492,20 +517,34 @@ mkdir -p "$NGINX_BUILD_DIR" "$LOG_DIR" "$OUTPUT_DIR" "$DOWNLOAD_DIR"
 write_git_info "modsecurity-v3-source" "$MODSECURITY_V3_SOURCE_DIR"
 write_git_info "modsecurity-nginx-source" "$MODSECURITY_NGINX_SOURCE_DIR"
 
-run_blocked copy-modsecurity-v3 "$NGINX_BUILD_DIR" cp -a "$MODSECURITY_V3_SOURCE_DIR" "$V3_BUILD_DIR"
+if [ -z "$MODSECURITY_SHARED_PREFIX" ]; then
+    run_blocked copy-modsecurity-v3 "$NGINX_BUILD_DIR" cp -a "$MODSECURITY_V3_SOURCE_DIR" "$V3_BUILD_DIR"
+else
+    {
+        echo "[modsecurity-v3-shared-build]"
+        echo "source=$MODSECURITY_V3_SOURCE_DIR"
+        echo "prefix=$MODSECURITY_SHARED_PREFIX"
+        echo "build_id=${MODSECURITY_BUILD_ID:-}"
+        echo
+    } >> "$SOURCE_INFO_FILE"
+fi
 if [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ]; then
     materialize_nginx_connector_source
 else
     copy_sanitized_source copy-modsecurity-nginx "$MODSECURITY_NGINX_SOURCE_DIR" "$NGINX_CONNECTOR_BUILD_DIR"
     overlay_nginx_debug_header
 fi
-write_git_info "modsecurity-v3-build-copy" "$V3_BUILD_DIR"
+if [ -z "$MODSECURITY_SHARED_PREFIX" ]; then
+    write_git_info "modsecurity-v3-build-copy" "$V3_BUILD_DIR"
+fi
 write_git_info "modsecurity-nginx-build-copy" "$NGINX_CONNECTOR_BUILD_DIR"
 
-run_blocked v3-git-submodule-update "$V3_BUILD_DIR" git submodule update --init --recursive
-run_blocked v3-build-sh "$V3_BUILD_DIR" ./build.sh
-run_blocked v3-configure "$V3_BUILD_DIR" ./configure
-run_blocked v3-make "$V3_BUILD_DIR" make "-j$MAKE_JOBS"
+if [ -z "$MODSECURITY_SHARED_PREFIX" ]; then
+    run_blocked v3-git-submodule-update "$V3_BUILD_DIR" git submodule update --init --recursive
+    run_blocked v3-build-sh "$V3_BUILD_DIR" ./build.sh
+    run_blocked v3-configure "$V3_BUILD_DIR" ./configure
+    run_blocked v3-make "$V3_BUILD_DIR" make "-j$MAKE_JOBS"
+fi
 stage_modsecurity
 build_nginx_from_source
 
