@@ -140,7 +140,7 @@ class ReportLayout:
     generated_root: Path
     runtime_snapshot: Path
     overview: Path
-    root_summary: Path
+    root_summary: Path | None
     generated_reports: dict[str, Path]
 
     def write_generated(self, name: str, body: str) -> None:
@@ -152,6 +152,8 @@ class ReportLayout:
         self._write_known(self.overview, body)
 
     def write_root_summary(self, body: str) -> None:
+        if self.root_summary is None:
+            return
         self._write_known(self.root_summary, body)
 
     def _write_known(self, path: Path, body: str) -> None:
@@ -161,7 +163,10 @@ class ReportLayout:
         path.write_text("Generated file — do not edit manually.\n\n" + body.rstrip() + "\n", encoding="utf-8")
 
     def allowed_outputs(self) -> set[Path]:
-        return set(self.generated_reports.values()) | {self.overview, self.root_summary}
+        outputs = set(self.generated_reports.values()) | {self.overview}
+        if self.root_summary is not None:
+            outputs.add(self.root_summary)
+        return outputs
 
 
 def resolve_root(root: str | Path, *, label: str) -> Path:
@@ -198,17 +203,21 @@ def report_root_for(output_root: Path) -> Path:
     raise ValueError(f"unsupported output root: {output_root}")
 
 
-def build_safe_report_layout(output_root: Path) -> ReportLayout:
+def build_safe_report_layout(output_root: Path, *, write_root_summary: bool = True) -> ReportLayout:
     report_root = report_root_for(output_root)
     generated_root = resolve_under_root(report_root, report_root / GENERATED_DIR, label="generated report root")
     generated_reports = {
         name: resolve_under_root(generated_root, generated_root / name, label="generated report path")
         for name in GENERATED_REPORT_NAMES
     }
-    root_summary = resolve_under_root(
-        FRAMEWORK_ROOT,
-        FRAMEWORK_ROOT / ROOT_SUMMARY_FILENAME,
-        label="framework coverage summary path",
+    root_summary = (
+        resolve_under_root(
+            FRAMEWORK_ROOT,
+            FRAMEWORK_ROOT / ROOT_SUMMARY_FILENAME,
+            label="framework coverage summary path",
+        )
+        if write_root_summary
+        else None
     )
     return ReportLayout(
         output_root=output_root,
@@ -227,7 +236,13 @@ def active_report_layout() -> ReportLayout:
     return REPORT_LAYOUT
 
 
-def configure_paths(framework_root: str | Path | None, connector_root: str | Path | None, output_root: str | Path | None) -> None:
+def configure_paths(
+    framework_root: str | Path | None,
+    connector_root: str | Path | None,
+    output_root: str | Path | None,
+    *,
+    write_root_summary: bool = True,
+) -> None:
     global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, REPORT_ROOT, IMPORT_STATUS, RUNTIME_SNAPSHOT, OUT
     global GENERATED_REPORT_ROOT, OVERVIEW_REPORT, ROOT_SUMMARY_REPORT, ALLOWED_OUTPUT_PATHS, REPORT_LAYOUT
     if framework_root is not None:
@@ -237,7 +252,7 @@ def configure_paths(framework_root: str | Path | None, connector_root: str | Pat
     else:
         CONNECTOR_ROOT = FRAMEWORK_ROOT
     OUTPUT_ROOT = resolve_allowed_output_root(output_root)
-    REPORT_LAYOUT = build_safe_report_layout(OUTPUT_ROOT)
+    REPORT_LAYOUT = build_safe_report_layout(OUTPUT_ROOT, write_root_summary=write_root_summary)
     REPORT_ROOT = REPORT_LAYOUT.report_root
     IMPORT_STATUS = CONNECTOR_ROOT / "config/testing/import-status.json"
     RUNTIME_SNAPSHOT = REPORT_LAYOUT.runtime_snapshot
@@ -2958,8 +2973,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--framework-root", default=str(FRAMEWORK_ROOT))
     parser.add_argument("--connector-root", default=None)
     parser.add_argument("--output-root", default=None)
+    parser.add_argument("--skip-root-summary", action="store_true")
     args = parser.parse_args(argv)
-    configure_paths(args.framework_root, args.connector_root, args.output_root)
+    configure_paths(args.framework_root, args.connector_root, args.output_root, write_root_summary=not args.skip_root_summary)
     report_layout = active_report_layout()
 
     cases = gather_cases()
