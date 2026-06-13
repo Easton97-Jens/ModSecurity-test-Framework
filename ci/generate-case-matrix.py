@@ -2527,6 +2527,10 @@ def render_root_summary(
         "generated/apache-runtime-results.generated.md",
         "generated/nginx-runtime-results.generated.md",
         "generated/haproxy-runtime-results.generated.md",
+        "generated/mrts-native-apache.generated.md",
+        "generated/mrts-native-nginx.generated.md",
+        "generated/mrts-native-summary.generated.md",
+        "generated/mrts-native-full.generated.md",
         RUNTIME_SNAPSHOT_FILENAME,
     ]
 
@@ -2832,6 +2836,18 @@ def render_overview(
             *render_runtime_status_count_table(apache_runtime_counts, nginx_runtime_counts, haproxy_runtime_counts, mapped_only_count),
             f"- Details: `{report_doc('generated/runtime-matrix.generated.md')}`",
             f"- HAProxy per-case results: `{report_doc('generated/haproxy-runtime-results.generated.md')}`",
+        ]
+    )
+    lines.extend(
+        [
+            "",
+            "## MRTS Native Infrastructure Evidence",
+            f"- Apache native: `{report_doc('generated/mrts-native-apache.generated.md')}`",
+            f"- NGINX PR24 native: `{report_doc('generated/mrts-native-nginx.generated.md')}`",
+            f"- Native summary: `{report_doc('generated/mrts-native-summary.generated.md')}`",
+            f"- Combined native report: `{report_doc('generated/mrts-native-full.generated.md')}`",
+            "",
+            "These native MRTS reports are separate from connector full-matrix evidence.",
         ]
     )
     lines.extend(
