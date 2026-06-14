@@ -18,6 +18,9 @@ import yaml
 CONNECTORS = ("apache", "nginx", "haproxy")
 TEST_VARIANTS = ("no-crs", "with-crs")
 MRTS_VARIANTS = ("no-mrts", "with-mrts")
+WITH_MRTS_DETECTION_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
+WITH_MRTS_DETECTION_ONLY_WORK_DIRECTION = "classification_only"
+WITH_MRTS_DETECTION_ONLY_PRIORITY = "report_only"
 RULE_TARGET_RE = re.compile(r"^\s*SecRule\s+([^\s]+)\s+")
 PHASE_RE = re.compile(r"phase:(\d)")
 DEFAULT_STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
@@ -319,6 +322,22 @@ def response_body_or_phase4(meta: CaseMeta, areas: list[str]) -> bool:
     return meta.phase == "4" or "response_body" in areas
 
 
+def is_with_mrts_detection_only_non_disruptive(
+    mrts_variant: str,
+    status: str,
+    expected: int | None,
+    actual: int | None,
+    work_direction: str,
+) -> bool:
+    return (
+        mrts_variant == "with-mrts"
+        and work_direction == "intervention_blocking"
+        and status == "FAIL"
+        and expected == 403
+        and actual == 200
+    )
+
+
 def choose_work_direction(connector: str, patterns: list[str], areas: list[str], phase4_response: bool) -> str:
     pattern_set = set(patterns)
     area_set = set(areas)
@@ -478,14 +497,27 @@ def collect_entries(full_matrix: dict[str, Any], by_id: dict[str, CaseMeta], by_
             areas = functional_areas(meta, case)
             patterns = failure_patterns(status, expected, actual)
             phase4_response = response_body_or_phase4(meta, areas)
+            mrts_variant = norm(run.get("mrts_variant"))
             work_direction = choose_work_direction(connector, patterns, areas, phase4_response)
             classification = choose_classification(connector, status, patterns, meta, phase4_response)
+            priority = initial_priority(status, patterns, areas, phase4_response)
+            detection_only_overlay = is_with_mrts_detection_only_non_disruptive(
+                mrts_variant,
+                status,
+                expected,
+                actual,
+                work_direction,
+            )
+            if detection_only_overlay:
+                work_direction = WITH_MRTS_DETECTION_ONLY_WORK_DIRECTION
+                classification = WITH_MRTS_DETECTION_ONLY_CLASSIFICATION
+                priority = WITH_MRTS_DETECTION_ONLY_PRIORITY
             entries.append(
                 {
                     "case_id": str(case_id),
                     "connector": connector,
                     "test_variant": norm(run.get("test_variant")),
-                    "mrts_variant": norm(run.get("mrts_variant")),
+                    "mrts_variant": mrts_variant,
                     "source_kind": meta.source_kind,
                     "mrts_corpus": meta.mrts_corpus,
                     "category": meta.category,
@@ -498,7 +530,7 @@ def collect_entries(full_matrix: dict[str, Any], by_id: dict[str, CaseMeta], by_
                     "connector_pattern": [],
                     "classification": classification,
                     "work_direction": [work_direction],
-                    "priority": initial_priority(status, patterns, areas, phase4_response),
+                    "priority": priority,
                     "reason": norm(case.get("reason")),
                     "evidence": norm(case.get("evidence_path") or case.get("evidence") or summary_path),
                     "summary_path": str(summary_path),
@@ -555,6 +587,9 @@ def apply_priority_rules(entries: list[dict[str, Any]]) -> None:
         if count >= 10:
             high_volume.add(key)
     for entry in entries:
+        if entry.get("classification") == WITH_MRTS_DETECTION_ONLY_CLASSIFICATION:
+            entry["priority"] = WITH_MRTS_DETECTION_ONLY_PRIORITY
+            continue
         patterns = set(entry["failure_pattern"])
         connectors = set(entry["connector_pattern"])
         areas = set(entry["functional_area"])

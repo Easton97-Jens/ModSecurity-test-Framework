@@ -14,6 +14,8 @@ CONNECTORS = ("apache", "nginx", "haproxy")
 PHASES = ("1", "2", "3", "4")
 STATUS_ORDER = ("PASS", "FAIL", "BLOCKED", "NOT_EXECUTABLE", "UNKNOWN")
 PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
+REPORT_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
+REPORT_ONLY_PRIORITY = "report_only"
 PHASE_ROW_RE = re.compile(r"^\|\s*([1-4])\s*\|\s*(\d+)\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*$")
 COUNT_TOKEN_RE = re.compile(r"([^,()]+)\((\d+)\)")
 
@@ -187,6 +189,10 @@ def phase_work_direction(entry: dict[str, Any]) -> list[str]:
     areas = set(as_list(entry.get("functional_area")))
     directions = set(as_list(entry.get("work_direction")))
     patterns = set(as_list(entry.get("failure_pattern")))
+    classification = str(entry.get("classification") or "")
+
+    if classification == REPORT_ONLY_CLASSIFICATION or "classification_only" in directions:
+        return ["classification_only"]
 
     if is_phase4_or_response_body(entry):
         return ["response_body_non_promoted"]
@@ -229,6 +235,8 @@ def phase_work_direction(entry: dict[str, Any]) -> list[str]:
 
 
 def simple_blocking_cluster_key(entry: dict[str, Any]) -> tuple[str, str, str] | None:
+    if str(entry.get("classification") or "") == REPORT_ONLY_CLASSIFICATION:
+        return None
     if str(entry.get("phase")) not in {"1", "2"}:
         return None
     if status_value(entry) != "FAIL":
@@ -250,6 +258,8 @@ def high_volume_patterns(entries: list[dict[str, Any]]) -> set[tuple[str, str]]:
     for entry in entries:
         if status_value(entry) != "FAIL":
             continue
+        if str(entry.get("classification") or "") == REPORT_ONLY_CLASSIFICATION:
+            continue
         connector = str(entry.get("connector") or "")
         for pattern in as_list(entry.get("failure_pattern")):
             counts[(connector, pattern)] += 1
@@ -263,7 +273,11 @@ def choose_priority(entry: dict[str, Any], p0_clusters: set[tuple[str, str, str]
     patterns = set(as_list(entry.get("failure_pattern")))
     source_kind = str(entry.get("source_kind") or "")
     connector = str(entry.get("connector") or "")
+    classification = str(entry.get("classification") or "")
+    directions = set(as_list(entry.get("work_direction")))
 
+    if classification == REPORT_ONLY_CLASSIFICATION or "classification_only" in directions:
+        return REPORT_ONLY_PRIORITY
     if is_phase4_or_response_body(entry):
         return "P3"
     if source_kind in {"golden-only", "feature-demo-report-only"} or status == "NOT_EXECUTABLE":
