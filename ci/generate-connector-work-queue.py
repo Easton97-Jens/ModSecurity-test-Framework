@@ -45,15 +45,15 @@ NO_MRTS_NOMATCH_SEMANTIC_GROUPS = {
         "work_direction": "collection_semantics",
         "priority": "P3",
     },
-    "xml_body_processor_collection_semantics": {
+    "xml_processor_activation_missing": {
         "case_ids": {
             "parser_xml_partial_body_future_target",
             "xml_deep_nesting_future_target",
             "xml_namespace_edge_connector_gap",
             "xml_request_body_malformed_connector_gap",
         },
-        "work_direction": "xml_processor",
-        "priority": "P2",
+        "work_direction": "classification_only",
+        "priority": "report_only",
     },
     "multipart_collection_semantics": {
         "case_ids": {

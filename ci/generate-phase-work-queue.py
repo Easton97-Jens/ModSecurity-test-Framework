@@ -15,18 +15,20 @@ PHASES = ("1", "2", "3", "4")
 STATUS_ORDER = ("PASS", "FAIL", "BLOCKED", "NOT_EXECUTABLE", "UNKNOWN")
 PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 REPORT_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
+REPORT_ONLY_CLASSIFICATIONS = {
+    REPORT_ONLY_CLASSIFICATION,
+    "xml_processor_activation_missing",
+}
 REPORT_ONLY_PRIORITY = "report_only"
 NO_MRTS_NOMATCH_SEMANTIC_PRIORITY = {
     "transformation_request_literal_no_match": "P3",
     "collection_name_normalization_semantics": "P3",
-    "xml_body_processor_collection_semantics": "P2",
     "multipart_collection_semantics": "P2",
     "phase1_request_body_unavailable": "P3",
 }
 NO_MRTS_NOMATCH_SEMANTIC_DIRECTION = {
     "transformation_request_literal_no_match": "transformation_semantics",
     "collection_name_normalization_semantics": "collection_semantics",
-    "xml_body_processor_collection_semantics": "xml_processor",
     "multipart_collection_semantics": "multipart_files",
     "phase1_request_body_unavailable": "request_body_processor",
 }
@@ -205,7 +207,7 @@ def phase_work_direction(entry: dict[str, Any]) -> list[str]:
     patterns = set(as_list(entry.get("failure_pattern")))
     classification = str(entry.get("classification") or "")
 
-    if classification == REPORT_ONLY_CLASSIFICATION or "classification_only" in directions:
+    if classification in REPORT_ONLY_CLASSIFICATIONS or "classification_only" in directions:
         return ["classification_only"]
     if classification in NO_MRTS_NOMATCH_SEMANTIC_DIRECTION:
         return [NO_MRTS_NOMATCH_SEMANTIC_DIRECTION[classification]]
@@ -251,7 +253,9 @@ def phase_work_direction(entry: dict[str, Any]) -> list[str]:
 
 
 def simple_blocking_cluster_key(entry: dict[str, Any]) -> tuple[str, str, str] | None:
-    if str(entry.get("classification") or "") == REPORT_ONLY_CLASSIFICATION:
+    if str(entry.get("classification") or "") in REPORT_ONLY_CLASSIFICATIONS:
+        return None
+    if "classification_only" in as_list(entry.get("work_direction")):
         return None
     if str(entry.get("classification") or "") in NO_MRTS_NOMATCH_SEMANTIC_DIRECTION:
         return None
@@ -276,7 +280,9 @@ def high_volume_patterns(entries: list[dict[str, Any]]) -> set[tuple[str, str]]:
     for entry in entries:
         if status_value(entry) != "FAIL":
             continue
-        if str(entry.get("classification") or "") == REPORT_ONLY_CLASSIFICATION:
+        if str(entry.get("classification") or "") in REPORT_ONLY_CLASSIFICATIONS:
+            continue
+        if "classification_only" in as_list(entry.get("work_direction")):
             continue
         if str(entry.get("classification") or "") in NO_MRTS_NOMATCH_SEMANTIC_DIRECTION:
             continue
@@ -296,7 +302,7 @@ def choose_priority(entry: dict[str, Any], p0_clusters: set[tuple[str, str, str]
     classification = str(entry.get("classification") or "")
     directions = set(as_list(entry.get("work_direction")))
 
-    if classification == REPORT_ONLY_CLASSIFICATION or "classification_only" in directions:
+    if classification in REPORT_ONLY_CLASSIFICATIONS or "classification_only" in directions:
         return REPORT_ONLY_PRIORITY
     if classification in NO_MRTS_NOMATCH_SEMANTIC_PRIORITY:
         return NO_MRTS_NOMATCH_SEMANTIC_PRIORITY[classification]
