@@ -536,7 +536,7 @@ def display_path(path: Path) -> str:
         return "$MRTS_BUILD_ROOT/" + str(resolved.relative_to(MRTS_BUILD_ROOT))
     except ValueError:
         pass
-    for root in (CONNECTOR_ROOT, FRAMEWORK_ROOT):
+    for root in (FRAMEWORK_ROOT, CONNECTOR_ROOT):
         try:
             return str(resolved.relative_to(root))
         except ValueError:

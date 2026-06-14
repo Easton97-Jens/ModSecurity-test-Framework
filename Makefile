@@ -80,7 +80,7 @@ generate-test-matrix:
 refresh-framework-reports:
 	MODSECURITY_MRTS_VARIANT=with-mrts $(MAKE) generate-test-matrix CONNECTOR_ROOT="$(FRAMEWORK_ROOT)" OUTPUT_ROOT="$(FRAMEWORK_ROOT)"
 
-check-test-matrix: generate-test-matrix
+check-test-matrix: refresh-framework-reports
 	@git -C "$(OUTPUT_ROOT)" diff --exit-code -- reports/testing docs/testing >/dev/null || { \
 		echo "Generated test matrix docs are out of date for OUTPUT_ROOT=$(OUTPUT_ROOT)"; \
 		exit 1; \

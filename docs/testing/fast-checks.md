@@ -94,7 +94,7 @@ Even with `READY`, `smoke-installed` remains non-authoritative until installed-r
 Use `make cloud-quick-check` for GitHub/Codex CI environments where checks must
 stay lightweight and deterministic.
 
-- Required/pass-fail: `setup-dev`, `lint`, `generate-test-matrix`,
+- Required/pass-fail: `setup-dev`, `lint`, `refresh-framework-reports`,
   `check-test-matrix`, `quick-check`, Python compile, `git diff --check`.
 - Runtime probes are intentionally excluded: no `quick-all`, no
   `installed-readiness`, and no full connector smoke.
