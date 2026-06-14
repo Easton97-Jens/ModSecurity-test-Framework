@@ -392,7 +392,7 @@ def is_with_mrts_detection_only_non_disruptive(
         mrts_variant == "with-mrts"
         and work_direction == "intervention_blocking"
         and status == "FAIL"
-        and expected == 403
+        and expected in {401, 403, 302}
         and actual == 200
     )
 
