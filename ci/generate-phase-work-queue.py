@@ -17,19 +17,18 @@ PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 REPORT_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
 REPORT_ONLY_CLASSIFICATIONS = {
     REPORT_ONLY_CLASSIFICATION,
+    "multipart_processor_activation_missing",
     "xml_processor_activation_missing",
 }
 REPORT_ONLY_PRIORITY = "report_only"
 NO_MRTS_NOMATCH_SEMANTIC_PRIORITY = {
     "transformation_request_literal_no_match": "P3",
     "collection_name_normalization_semantics": "P3",
-    "multipart_collection_semantics": "P2",
     "phase1_request_body_unavailable": "P3",
 }
 NO_MRTS_NOMATCH_SEMANTIC_DIRECTION = {
     "transformation_request_literal_no_match": "transformation_semantics",
     "collection_name_normalization_semantics": "collection_semantics",
-    "multipart_collection_semantics": "multipart_files",
     "phase1_request_body_unavailable": "request_body_processor",
 }
 PHASE_ROW_RE = re.compile(r"^\|\s*([1-4])\s*\|\s*(\d+)\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*$")

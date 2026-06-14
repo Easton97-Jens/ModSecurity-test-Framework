@@ -55,13 +55,13 @@ NO_MRTS_NOMATCH_SEMANTIC_GROUPS = {
         "work_direction": "classification_only",
         "priority": "report_only",
     },
-    "multipart_collection_semantics": {
+    "multipart_processor_activation_missing": {
         "case_ids": {
             "files_names_mixed_case_filename_gap",
             "multipart_duplicate_field_names_gap",
         },
-        "work_direction": "multipart_files",
-        "priority": "P2",
+        "work_direction": "classification_only",
+        "priority": "report_only",
     },
     "phase1_request_body_unavailable": {
         "case_ids": {
