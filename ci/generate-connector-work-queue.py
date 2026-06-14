@@ -18,6 +18,68 @@ import yaml
 CONNECTORS = ("apache", "nginx", "haproxy")
 TEST_VARIANTS = ("no-crs", "with-crs")
 MRTS_VARIANTS = ("no-mrts", "with-mrts")
+WITH_MRTS_DETECTION_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
+WITH_MRTS_DETECTION_ONLY_WORK_DIRECTION = "classification_only"
+WITH_MRTS_DETECTION_ONLY_PRIORITY = "report_only"
+NO_MRTS_NOMATCH_SEMANTIC_GROUPS = {
+    "transformation_request_literal_no_match": {
+        "case_ids": {
+            "sqli_like_keyword_spacing_probe",
+            "sqli_like_quote_encoding_runtime_difference",
+            "unicode_double_encoded_uri_runtime_difference",
+            "unicode_whitespace_normalization_gap",
+            "xss_like_encoded_angles_normalization_probe",
+            "xss_like_mixed_case_script_token_gap",
+        },
+        "work_direction": "transformation_semantics",
+        "priority": "P3",
+    },
+    "collection_name_normalization_semantics": {
+        "case_ids": {
+            "duplicate_args_encoded_separator_edge",
+            "duplicate_header_case_normalization_gap",
+            "edge_semicolon_query_args_names",
+            "v3_request_cookies_names_case_runtime_difference",
+            "v3_request_headers_names_lowercase_runtime_difference",
+        },
+        "work_direction": "collection_semantics",
+        "priority": "P3",
+    },
+    "xml_processor_activation_missing": {
+        "case_ids": {
+            "parser_xml_partial_body_future_target",
+            "xml_deep_nesting_future_target",
+            "xml_namespace_edge_connector_gap",
+            "xml_request_body_malformed_connector_gap",
+        },
+        "work_direction": "classification_only",
+        "priority": "report_only",
+    },
+    "multipart_processor_activation_missing": {
+        "case_ids": {
+            "files_names_mixed_case_filename_gap",
+            "multipart_duplicate_field_names_gap",
+        },
+        "work_direction": "classification_only",
+        "priority": "report_only",
+    },
+    "phase1_request_body_unavailable": {
+        "case_ids": {
+            "phase1_vs_phase2_request_body_gap",
+        },
+        "work_direction": "request_body_processor",
+        "priority": "P3",
+    },
+}
+NO_MRTS_NOMATCH_BY_CASE = {
+    case_id: {
+        "classification": classification,
+        "work_direction": data["work_direction"],
+        "priority": data["priority"],
+    }
+    for classification, data in NO_MRTS_NOMATCH_SEMANTIC_GROUPS.items()
+    for case_id in data["case_ids"]
+}
 RULE_TARGET_RE = re.compile(r"^\s*SecRule\s+([^\s]+)\s+")
 PHASE_RE = re.compile(r"phase:(\d)")
 DEFAULT_STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
@@ -319,6 +381,41 @@ def response_body_or_phase4(meta: CaseMeta, areas: list[str]) -> bool:
     return meta.phase == "4" or "response_body" in areas
 
 
+def is_with_mrts_detection_only_non_disruptive(
+    mrts_variant: str,
+    status: str,
+    expected: int | None,
+    actual: int | None,
+    work_direction: str,
+) -> bool:
+    return (
+        mrts_variant == "with-mrts"
+        and work_direction == "intervention_blocking"
+        and status == "FAIL"
+        and expected in {401, 403, 302}
+        and actual == 200
+    )
+
+
+def no_mrts_nomatch_semantic_classification(
+    case_id: str,
+    mrts_variant: str,
+    status: str,
+    expected: int | None,
+    actual: int | None,
+    work_direction: str,
+) -> dict[str, str] | None:
+    if (
+        mrts_variant != "no-mrts"
+        or work_direction != "intervention_blocking"
+        or status != "FAIL"
+        or expected != 403
+        or actual != 200
+    ):
+        return None
+    return NO_MRTS_NOMATCH_BY_CASE.get(case_id)
+
+
 def choose_work_direction(connector: str, patterns: list[str], areas: list[str], phase4_response: bool) -> str:
     pattern_set = set(patterns)
     area_set = set(areas)
@@ -478,14 +575,39 @@ def collect_entries(full_matrix: dict[str, Any], by_id: dict[str, CaseMeta], by_
             areas = functional_areas(meta, case)
             patterns = failure_patterns(status, expected, actual)
             phase4_response = response_body_or_phase4(meta, areas)
+            mrts_variant = norm(run.get("mrts_variant"))
             work_direction = choose_work_direction(connector, patterns, areas, phase4_response)
             classification = choose_classification(connector, status, patterns, meta, phase4_response)
+            priority = initial_priority(status, patterns, areas, phase4_response)
+            detection_only_overlay = is_with_mrts_detection_only_non_disruptive(
+                mrts_variant,
+                status,
+                expected,
+                actual,
+                work_direction,
+            )
+            if detection_only_overlay:
+                work_direction = WITH_MRTS_DETECTION_ONLY_WORK_DIRECTION
+                classification = WITH_MRTS_DETECTION_ONLY_CLASSIFICATION
+                priority = WITH_MRTS_DETECTION_ONLY_PRIORITY
+            semantic_nomatch = no_mrts_nomatch_semantic_classification(
+                str(case_id),
+                mrts_variant,
+                status,
+                expected,
+                actual,
+                work_direction,
+            )
+            if semantic_nomatch:
+                work_direction = semantic_nomatch["work_direction"]
+                classification = semantic_nomatch["classification"]
+                priority = semantic_nomatch["priority"]
             entries.append(
                 {
                     "case_id": str(case_id),
                     "connector": connector,
                     "test_variant": norm(run.get("test_variant")),
-                    "mrts_variant": norm(run.get("mrts_variant")),
+                    "mrts_variant": mrts_variant,
                     "source_kind": meta.source_kind,
                     "mrts_corpus": meta.mrts_corpus,
                     "category": meta.category,
@@ -498,7 +620,7 @@ def collect_entries(full_matrix: dict[str, Any], by_id: dict[str, CaseMeta], by_
                     "connector_pattern": [],
                     "classification": classification,
                     "work_direction": [work_direction],
-                    "priority": initial_priority(status, patterns, areas, phase4_response),
+                    "priority": priority,
                     "reason": norm(case.get("reason")),
                     "evidence": norm(case.get("evidence_path") or case.get("evidence") or summary_path),
                     "summary_path": str(summary_path),
@@ -555,6 +677,13 @@ def apply_priority_rules(entries: list[dict[str, Any]]) -> None:
         if count >= 10:
             high_volume.add(key)
     for entry in entries:
+        if entry.get("classification") == WITH_MRTS_DETECTION_ONLY_CLASSIFICATION:
+            entry["priority"] = WITH_MRTS_DETECTION_ONLY_PRIORITY
+            continue
+        semantic = NO_MRTS_NOMATCH_SEMANTIC_GROUPS.get(str(entry.get("classification") or ""))
+        if semantic:
+            entry["priority"] = semantic["priority"]
+            continue
         patterns = set(entry["failure_pattern"])
         connectors = set(entry["connector_pattern"])
         areas = set(entry["functional_area"])

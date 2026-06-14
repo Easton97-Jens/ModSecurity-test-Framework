@@ -26,7 +26,7 @@ run_required() {
 run_required "make setup-dev" make setup-dev
 PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 run_required "make lint" make lint
-run_required "make generate-test-matrix" make generate-test-matrix
+run_required "make refresh-framework-reports" make refresh-framework-reports
 run_required "make check-test-matrix" make check-test-matrix
 run_required "make quick-check" make quick-check
 run_required "$PYTHON_BIN -m py_compile framework tests/runners, tests/normalizers, ci" \
