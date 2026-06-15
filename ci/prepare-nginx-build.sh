@@ -252,15 +252,15 @@ materialize_nginx_connector_source() {
 
 github_repo_path() {
     repo=$NGINX_SOURCE_REPO_URL
+    ci_require_https_github_repo_url "$repo" NGINX_SOURCE_REPO_URL || blocked "NGINX_SOURCE_REPO_URL must use HTTPS GitHub owner/repo form"
     case "$repo" in
         https://github.com/*) repo=${repo#https://github.com/} ;;
-        http://github.com/*) repo=${repo#http://github.com/} ;;
-        git@github.com:*) repo=${repo#git@github.com:} ;;
         *) ;;
     esac
     repo=${repo%.git}
     repo=${repo%/}
     case "$repo" in
+        */*/*) blocked "NGINX_SOURCE_REPO_URL must be a plain GitHub owner/repo URL: $NGINX_SOURCE_REPO_URL" ;;
         */*) printf '%s\n' "$repo" ;;
         *) blocked "NGINX_SOURCE_REPO_URL is not a GitHub owner/repo URL or path: $NGINX_SOURCE_REPO_URL" ;;
     esac

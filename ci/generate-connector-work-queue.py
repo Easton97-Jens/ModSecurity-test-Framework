@@ -241,7 +241,7 @@ def load_cases(framework_root: Path) -> tuple[dict[str, CaseMeta], dict[str, Cas
 
 
 def load_full_matrix(connector_root: Path, explicit: Path | None) -> dict[str, Any]:
-    path = explicit or connector_root / "reports/testing/generated/full-runtime-matrix.generated.json"
+    path = explicit or connector_root / "reports/testing/generated/canonical/full-runtime-matrix.generated.json"
     if not path.is_file():
         return {"runs": [], "missing_full_matrix": str(path)}
     data = read_json(path)
@@ -847,6 +847,11 @@ def main() -> int:
 
     framework_root = Path(args.framework_root).resolve()
     connector_root = Path(args.connector_root).resolve()
+    connector_ci = connector_root / "ci"
+    if str(connector_ci) not in sys.path:
+        sys.path.insert(0, str(connector_ci))
+    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
+
     output_root = Path(args.output_root).resolve() if args.output_root else connector_root
     output_dir = output_root / "reports/testing/generated"
     full_matrix_path = Path(args.full_runtime_matrix).resolve() if args.full_runtime_matrix else None
@@ -875,9 +880,19 @@ def main() -> int:
             "no_mrts_mrts_runtime_cases": sum(1 for entry in entries if entry["mrts_variant"] == "no-mrts" and entry["mrts_corpus"] != "none"),
         },
     }
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "connector-work-queue.generated.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output_dir / "connector-work-queue.generated.md").write_text(render_markdown(entries, source_counts, runtime_source_counts, generated_at), encoding="utf-8")
+    metadata = build_metadata(
+        generated_by="framework:ci/generate-connector-work-queue.py",
+        make_target="generate-work-queue",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[full_matrix_path or connector_root / "reports/testing/generated/canonical/full-runtime-matrix.generated.json"],
+        generated_at=generated_at,
+    )
+    json_path = report_path_from_root(output_dir, "connector_work_queue", "json")
+    md_path = report_path_from_root(output_dir, "connector_work_queue", "md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
+    md_path.write_text(generated_markdown_text(render_markdown(entries, source_counts, runtime_source_counts, generated_at), metadata), encoding="utf-8")
     return 0
 
 

@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,10 +23,10 @@ TARGET_REPORT_FILENAMES = {
     "nginx-pr24": ("mrts-native-nginx.generated.json", "mrts-native-nginx.generated.md"),
 }
 NATIVE_REPORT_LINKS = {
-    "apache": "reports/testing/generated/mrts-native-apache.generated.md",
-    "nginx": "reports/testing/generated/mrts-native-nginx.generated.md",
-    "summary": "reports/testing/generated/mrts-native-summary.generated.md",
-    "combined": "reports/testing/generated/mrts-native-full.generated.md",
+    "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
+    "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
+    "summary": "reports/testing/generated/mrts-native/mrts-native-summary.generated.md",
+    "combined": "reports/testing/generated/mrts-native/mrts-native-full.generated.md",
 }
 DEPENDENCY_REMEDIATIONS = {
     "go-ftw": {
@@ -597,6 +598,11 @@ def main() -> int:
 
     framework_root = Path(args.framework_root).resolve()
     connector_root = Path(args.connector_root).resolve()
+    connector_ci = connector_root / "ci"
+    if str(connector_ci) not in sys.path:
+        sys.path.insert(0, str(connector_ci))
+    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
+
     build_root = Path(os.environ.get("BUILD_ROOT", str(default_state_home() / "ModSecurity-conector-build"))).resolve()
     native_root = Path(args.native_root).resolve() if args.native_root else Path(os.environ.get("MRTS_NATIVE_ROOT", str(build_root / "mrts-native"))).resolve()
     output_root = Path(args.output_root).resolve() if args.output_root else connector_root
@@ -615,23 +621,49 @@ def main() -> int:
         "nginx_pr24_overlay": read_overlay_metadata(framework_root),
         "reports": NATIVE_REPORT_LINKS,
     }
-    components = read_optional_json(report_dir / "runtime-component-cache.generated.json")
+    components = read_optional_json(report_path_from_root(report_dir, "runtime_component_cache", "json"))
     target_reports = {
         target: target_report_payload(report, target, components, native_root)
         for target in TARGETS
     }
     summary_report = summary_report_payload(report, target_reports)
 
-    json_path = report_dir / "mrts-native-full.generated.json"
-    md_path = report_dir / "mrts-native-full.generated.md"
-    json_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    md_path.write_text(report_markdown(report), encoding="utf-8")
+    base_metadata = build_metadata(
+        generated_by="framework:ci/generate-mrts-native-report.py",
+        make_target="mrts-native-full-run",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[native_root / "apache2_ubuntu/job.json", native_root / "nginx-pr24/job.json"],
+        generated_at=report["generated_at"],
+    )
+    json_path = report_path_from_root(report_dir, "mrts_native_full", "json")
+    md_path = report_path_from_root(report_dir, "mrts_native_full", "md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(generated_json_text(report, base_metadata), encoding="utf-8")
+    md_path.write_text(generated_markdown_text(report_markdown(report), base_metadata), encoding="utf-8")
     for target, payload in target_reports.items():
         json_name, md_name = TARGET_REPORT_FILENAMES[target]
-        (report_dir / json_name).write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        (report_dir / md_name).write_text(target_report_markdown(payload), encoding="utf-8")
-    (report_dir / "mrts-native-summary.generated.json").write_text(json.dumps(summary_report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (report_dir / "mrts-native-summary.generated.md").write_text(summary_report_markdown(summary_report), encoding="utf-8")
+        key = "mrts_native_apache" if target == "apache2_ubuntu" else "mrts_native_nginx"
+        target_metadata = build_metadata(
+            generated_by="framework:ci/generate-mrts-native-report.py",
+            make_target="mrts-native-full-run",
+            connector_root=connector_root,
+            framework_root=framework_root,
+            inputs=[native_root / f"{target}/job.json"],
+            generated_at=payload["generated_at"],
+        )
+        report_path_from_root(report_dir, key, "json").write_text(generated_json_text(payload, target_metadata), encoding="utf-8")
+        report_path_from_root(report_dir, key, "md").write_text(generated_markdown_text(target_report_markdown(payload), target_metadata), encoding="utf-8")
+    summary_metadata = build_metadata(
+        generated_by="framework:ci/generate-mrts-native-report.py",
+        make_target="mrts-native-full-run",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[report_path_from_root(report_dir, "mrts_native_apache", "json"), report_path_from_root(report_dir, "mrts_native_nginx", "json")],
+        generated_at=summary_report["generated_at"],
+    )
+    report_path_from_root(report_dir, "mrts_native_summary", "json").write_text(generated_json_text(summary_report, summary_metadata), encoding="utf-8")
+    report_path_from_root(report_dir, "mrts_native_summary", "md").write_text(generated_markdown_text(summary_report_markdown(summary_report), summary_metadata), encoding="utf-8")
     print(md_path)
     return 0
 
