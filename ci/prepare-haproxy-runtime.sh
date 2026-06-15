@@ -167,6 +167,8 @@ validate_paths() {
 
 download_and_verify() {
     [ -n "$HAPROXY_SHA256" ] || blocked "HAPROXY_SHA256 is not defined"
+    ci_require_https_url "$HAPROXY_SHA256_URL" HAPROXY_SHA256_URL || blocked "HAPROXY_SHA256_URL must use HTTPS"
+    ci_require_https_url "$HAPROXY_SOURCE_URL" HAPROXY_SOURCE_URL || blocked "HAPROXY_SOURCE_URL must use HTTPS"
     mkdir -p "$HAPROXY_DOWNLOAD_DIR"
     run_logged haproxy-sha256-download "$HAPROXY_DOWNLOAD_DIR" \
         curl -fsSL --retry 3 --retry-delay 2 -o "$SHA256_PATH" "$HAPROXY_SHA256_URL"

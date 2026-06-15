@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -563,7 +564,7 @@ def build_payload(
         "connectors": connectors,
         "recommended_work_order": recommended_work_order,
         "guardrails": {
-            "runtime_status_source": "reports/testing/generated/connector-work-queue.generated.json",
+            "runtime_status_source": inputs.get("connector_work_queue", "unknown"),
             "classification_is_explanatory_only": True,
             "phase4_response_body_non_promoted": True,
             "missing_phase_metadata_policy": "reported as unknown; never forced into phases 1-4",
@@ -752,11 +753,16 @@ def main() -> int:
 
     framework_root = Path(args.framework_root).resolve()
     connector_root = Path(args.connector_root).resolve()
+    connector_ci = connector_root / "ci"
+    if str(connector_ci) not in sys.path:
+        sys.path.insert(0, str(connector_ci))
+    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
+
     output_root = Path(args.output_root).resolve() if args.output_root else connector_root
     output_dir = output_root / "reports/testing/generated"
-    connector_work_queue_path = Path(args.connector_work_queue).resolve() if args.connector_work_queue else output_dir / "connector-work-queue.generated.json"
-    phase_coverage_path = Path(args.phase_coverage).resolve() if args.phase_coverage else output_dir / "phase-coverage.generated.md"
-    full_runtime_matrix_path = Path(args.full_runtime_matrix).resolve() if args.full_runtime_matrix else output_dir / "full-runtime-matrix.generated.json"
+    connector_work_queue_path = Path(args.connector_work_queue).resolve() if args.connector_work_queue else report_path_from_root(output_dir, "connector_work_queue", "json")
+    phase_coverage_path = Path(args.phase_coverage).resolve() if args.phase_coverage else report_path_from_root(output_dir, "phase_coverage", "md")
+    full_runtime_matrix_path = Path(args.full_runtime_matrix).resolve() if args.full_runtime_matrix else report_path_from_root(output_dir, "full_runtime_matrix", "json")
 
     if not connector_work_queue_path.is_file():
         raise SystemExit(f"missing connector work queue JSON: {connector_work_queue_path}")
@@ -777,9 +783,19 @@ def main() -> int:
         },
     )
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "phase-work-queue.generated.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output_dir / "phase-work-queue.generated.md").write_text(render_markdown(payload), encoding="utf-8")
+    metadata = build_metadata(
+        generated_by="framework:ci/generate-phase-work-queue.py",
+        make_target="generate-phase-work-queue",
+        connector_root=connector_root,
+        framework_root=framework_root,
+        inputs=[connector_work_queue_path, phase_coverage_path, full_runtime_matrix_path],
+        generated_at=str(payload.get("generated_at") or ""),
+    )
+    json_path = report_path_from_root(output_dir, "phase_work_queue", "json")
+    md_path = report_path_from_root(output_dir, "phase_work_queue", "md")
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
+    md_path.write_text(generated_markdown_text(render_markdown(payload), metadata), encoding="utf-8")
     return 0
 
 

@@ -602,19 +602,14 @@ def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> Comp
 
 
 def github_repo_path(repo_url: str) -> str | None:
-    repo = repo_url.strip()
-    if repo.startswith("git@github.com:"):
-        repo = repo[len("git@github.com:") :]
-    else:
-        parsed = urlparse(repo)
-        if parsed.netloc != "github.com":
-            return None
-        repo = parsed.path.lstrip("/")
-    repo = repo.removesuffix(".git").strip("/")
-    parts = [part for part in repo.split("/") if part]
-    if len(parts) < 2:
+    parsed = urlparse(repo_url.strip())
+    if parsed.scheme != "https" or parsed.netloc != "github.com" or parsed.query or parsed.fragment:
         return None
-    return "/".join(parts[:2])
+    repo = parsed.path.removeprefix("/").removesuffix(".git").strip("/")
+    parts = repo.split("/")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return None
+    return f"{parts[0]}/{parts[1]}"
 
 
 def latest_github_release(client: HttpClient, repo_path: str) -> dict[str, Any]:
