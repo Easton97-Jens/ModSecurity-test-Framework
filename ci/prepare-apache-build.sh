@@ -246,6 +246,7 @@ download_file() {
     label=$1
     url=$2
     dest=$3
+    ci_require_https_url "$url" "$label source URL" || blocked "$label source URL must use HTTPS"
     require_command curl "download $label"
     mkdir -p "$DOWNLOAD_DIR"
     run_logged "$label-download" "$DOWNLOAD_DIR" curl -L --fail --retry 3 --retry-delay 2 -o "$dest" "$url"

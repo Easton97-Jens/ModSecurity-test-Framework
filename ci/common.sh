@@ -112,6 +112,21 @@ HAPROXY_RUNTIME_BUILD_WORKTREE="${HAPROXY_RUNTIME_BUILD_WORKTREE:-$HAPROXY_RUNTI
 HAPROXY_RUNTIME_DIR="${HAPROXY_RUNTIME_DIR:-$BUILD_ROOT/haproxy-runtime/haproxy}"
 HAPROXY_BIN="${HAPROXY_BIN:-$HAPROXY_RUNTIME_DIR/sbin/haproxy}"
 
+GO_FTW_SOURCE_URL="${GO_FTW_SOURCE_URL:-https://github.com/coreruleset/go-ftw}"
+GO_FTW_PROMPT_EXPECTED_LATEST="${GO_FTW_PROMPT_EXPECTED_LATEST:-v2.2.0}"
+GO_FTW_GIT_REF="${GO_FTW_GIT_REF:-$GO_FTW_PROMPT_EXPECTED_LATEST}"
+GO_FTW_BIN="${GO_FTW_BIN:-go-ftw}"
+
+ALBEDO_SOURCE_URL="${ALBEDO_SOURCE_URL:-https://github.com/coreruleset/albedo}"
+ALBEDO_PROMPT_EXPECTED_LATEST="${ALBEDO_PROMPT_EXPECTED_LATEST:-v0.3.0}"
+ALBEDO_GIT_REF="${ALBEDO_GIT_REF:-$ALBEDO_PROMPT_EXPECTED_LATEST}"
+ALBEDO_BIN="${ALBEDO_BIN:-albedo}"
+
+EXPAT_SOURCE_URL="${EXPAT_SOURCE_URL:-https://github.com/libexpat/libexpat}"
+EXPAT_GIT_REF="${EXPAT_GIT_REF:-master}"
+EXPAT_GIT_URL="${EXPAT_GIT_URL:-$EXPAT_SOURCE_URL}"
+EXPAT_PROMPT_EXPECTED_LATEST="${EXPAT_PROMPT_EXPECTED_LATEST:-$EXPAT_GIT_REF}"
+
 APACHE_BIN="${APACHE_BIN:-}"
 APACHECTL_BIN="${APACHECTL_BIN:-}"
 APXS_BIN="${APXS_BIN:-${APXS:-}}"
@@ -143,6 +158,103 @@ ci_blocked() {
 
 ci_error() {
     echo "ERROR: $*" >&2
+    return 0
+}
+
+ci_is_https_url() {
+    case "$1" in
+        https://*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+ci_require_https_url() {
+    ci_url=$1
+    ci_label=${2:-url}
+    if ci_is_https_url "$ci_url"; then
+        return 0
+    fi
+    ci_blocked "$ci_label must use https:// only: $ci_url"
+    return 77
+}
+
+ci_require_https_url_if_set() {
+    ci_url=$1
+    ci_label=${2:-url}
+    if [ -z "$ci_url" ]; then
+        return 0
+    fi
+    ci_require_https_url "$ci_url" "$ci_label"
+}
+
+ci_require_https_github_repo_url() {
+    ci_url=$1
+    ci_label=${2:-github repo url}
+
+    case "$ci_url" in
+        https://github.com/*) ;;
+        *)
+            ci_blocked "$ci_label must use https://github.com/... only: $ci_url"
+            return 77
+            ;;
+    esac
+
+    case "$ci_url" in
+        *" "*|*"	"*|*"#"*|*"?"*)
+            ci_blocked "$ci_label contains invalid characters: $ci_url"
+            return 77
+            ;;
+    esac
+
+    ci_repo=${ci_url#https://github.com/}
+    ci_repo=${ci_repo%.git}
+    ci_repo=${ci_repo%/}
+    case "$ci_repo" in
+        */*/*|/*|*/*/)
+            ci_blocked "$ci_label must be https://github.com/owner/repo only: $ci_url"
+            return 77
+            ;;
+        */*)
+            ci_owner=${ci_repo%%/*}
+            ci_name=${ci_repo#*/}
+            if [ -n "$ci_owner" ] && [ -n "$ci_name" ]; then
+                return 0
+            fi
+            ;;
+        *) ;;
+    esac
+
+    ci_blocked "$ci_label must be https://github.com/owner/repo only: $ci_url"
+    return 77
+}
+
+ci_require_https_github_repo_url_if_set() {
+    ci_url=$1
+    ci_label=${2:-github repo url}
+    if [ -z "$ci_url" ]; then
+        return 0
+    fi
+    ci_require_https_github_repo_url "$ci_url" "$ci_label"
+}
+
+ci_validate_https_runtime_url_config() {
+    ci_require_https_github_repo_url "$CRS_REPO_URL" CRS_REPO_URL || return 77
+    ci_require_https_github_repo_url "$MODSECURITY_REPO_URL" MODSECURITY_REPO_URL || return 77
+    ci_require_https_github_repo_url "$MODSECURITY_V3_GIT_URL" MODSECURITY_V3_GIT_URL || return 77
+    ci_require_https_github_repo_url_if_set "$MODSECURITY_APACHE_REPO_URL" MODSECURITY_APACHE_REPO_URL || return 77
+    ci_require_https_github_repo_url_if_set "$MODSECURITY_APACHE_GIT_URL" MODSECURITY_APACHE_GIT_URL || return 77
+    ci_require_https_github_repo_url_if_set "$MODSECURITY_NGINX_REPO_URL" MODSECURITY_NGINX_REPO_URL || return 77
+    ci_require_https_github_repo_url_if_set "$MODSECURITY_NGINX_GIT_URL" MODSECURITY_NGINX_GIT_URL || return 77
+    ci_require_https_github_repo_url "$NGINX_SOURCE_REPO_URL" NGINX_SOURCE_REPO_URL || return 77
+    ci_require_https_github_repo_url "$NGINX_GITHUB_REPO" NGINX_GITHUB_REPO || return 77
+    ci_require_https_github_repo_url "$GO_FTW_SOURCE_URL" GO_FTW_SOURCE_URL || return 77
+    ci_require_https_github_repo_url "$ALBEDO_SOURCE_URL" ALBEDO_SOURCE_URL || return 77
+    ci_require_https_github_repo_url "$EXPAT_SOURCE_URL" EXPAT_SOURCE_URL || return 77
+    ci_require_https_url "$HAPROXY_SOURCE_URL" HAPROXY_SOURCE_URL || return 77
+    ci_require_https_url "$HTTPD_SOURCE_URL" HTTPD_SOURCE_URL || return 77
+    ci_require_https_url "$APR_SOURCE_URL" APR_SOURCE_URL || return 77
+    ci_require_https_url "$APR_UTIL_SOURCE_URL" APR_UTIL_SOURCE_URL || return 77
+    ci_require_https_url "$PCRE2_SOURCE_URL" PCRE2_SOURCE_URL || return 77
     return 0
 }
 

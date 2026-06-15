@@ -50,6 +50,7 @@ clone_source() {
     url=$1
     ref=$2
     dest=$3
+    ci_require_https_github_repo_url "$url" "fetch_smoke_sources source url" || exit 77
     require_fetch_path "$dest" "clone destination"
     if [ -d "$dest/.git" ]; then
         ci_info "fetch_smoke_sources reusing $dest"

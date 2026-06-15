@@ -151,10 +151,10 @@ def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) ->
 
 def generated_markdown_paths(report_root: Path, framework_root: Path) -> list[Path]:
     candidates = [
-        report_root / "generated" / "runtime-matrix.generated.md",
-        report_root / "generated" / "apache-runtime-results.generated.md",
-        report_root / "generated" / "nginx-runtime-results.generated.md",
-        report_root / "generated" / "haproxy-runtime-results.generated.md",
+        report_root / "generated" / "runtime" / "runtime-matrix.generated.md",
+        report_root / "generated" / "runtime" / "apache-runtime-results.generated.md",
+        report_root / "generated" / "runtime" / "nginx-runtime-results.generated.md",
+        report_root / "generated" / "runtime" / "haproxy-runtime-results.generated.md",
         report_root / "test-coverage-overview.md",
         framework_root / "TEST-COVERAGE-SUMMARY.md",
     ]

@@ -79,6 +79,7 @@ clone_crs() {
 }
 
 ci_require_absolute_path "$SOURCE_ROOT" "SOURCE_ROOT" || exit 77
+ci_require_https_github_repo_url "$CRS_REPO_URL" "CRS_REPO_URL" || exit 77
 assert_safe_runtime_path "$SOURCE_ROOT" SOURCE_ROOT || exit 77
 require_fetch_path "$CRS_SOURCE_DIR" "CRS_SOURCE_DIR"
 mkdir -p "$SOURCE_ROOT"

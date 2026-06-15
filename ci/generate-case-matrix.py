@@ -48,6 +48,7 @@ OVERVIEW_REPORT = REPORT_ROOT / OVERVIEW_FILENAME
 ROOT_SUMMARY_REPORT = FRAMEWORK_ROOT / ROOT_SUMMARY_FILENAME
 ALLOWED_OUTPUT_PATHS: set[Path] = set()
 REPORT_LAYOUT: "ReportLayout | None" = None
+REPORT_UTILS: Any = None
 
 RULE_RE = re.compile(r'^\s*SecRule\s+([^\s]+)\s+"(@[^\s"]+)')
 PHASE_RE = re.compile(r"phase:(\d)")
@@ -125,6 +126,17 @@ GENERATED_REPORT_NAMES = {
     "runtime-matrix.generated.md",
     "xfail-summary.generated.md",
 }
+GENERATED_REPORT_CATEGORIES = {
+    "apache-runtime-results.generated.md": "runtime",
+    "case-matrix.generated.md": "coverage",
+    "connector-gap-summary.generated.md": "coverage",
+    "coverage-summary.generated.md": "coverage",
+    "haproxy-runtime-results.generated.md": "runtime",
+    "nginx-runtime-results.generated.md": "runtime",
+    "phase-coverage.generated.md": "coverage",
+    "runtime-matrix.generated.md": "runtime",
+    "xfail-summary.generated.md": "coverage",
+}
 
 RUNTIME_CONNECTORS = ("apache", "nginx", "haproxy")
 
@@ -160,7 +172,19 @@ class ReportLayout:
         if path not in self.allowed_outputs():
             raise ValueError(f"unsupported generated report output path: {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("Generated file — do not edit manually.\n\n" + body.rstrip() + "\n", encoding="utf-8")
+        text = "Generated file - do not edit manually.\n\n" + body.rstrip() + "\n"
+        if REPORT_UTILS is not None and path.name in GENERATED_REPORT_NAMES:
+            generated_at = REPORT_UTILS.utc_now()
+            metadata = REPORT_UTILS.build_metadata(
+                generated_by="framework:ci/generate-case-matrix.py",
+                make_target="generate-test-matrix",
+                connector_root=CONNECTOR_ROOT,
+                framework_root=FRAMEWORK_ROOT,
+                inputs=[IMPORT_STATUS, RUNTIME_SNAPSHOT],
+                generated_at=generated_at,
+            )
+            text = REPORT_UTILS.generated_markdown_text(body, metadata)
+        path.write_text(text, encoding="utf-8")
 
     def allowed_outputs(self) -> set[Path]:
         outputs = set(self.generated_reports.values()) | {self.overview}
@@ -207,7 +231,11 @@ def build_safe_report_layout(output_root: Path, *, write_root_summary: bool = Tr
     report_root = report_root_for(output_root)
     generated_root = resolve_under_root(report_root, report_root / GENERATED_DIR, label="generated report root")
     generated_reports = {
-        name: resolve_under_root(generated_root, generated_root / name, label="generated report path")
+        name: resolve_under_root(
+            generated_root,
+            generated_root / GENERATED_REPORT_CATEGORIES[name] / name,
+            label="generated report path",
+        )
         for name in GENERATED_REPORT_NAMES
     }
     root_summary = (
@@ -244,13 +272,22 @@ def configure_paths(
     write_root_summary: bool = True,
 ) -> None:
     global FRAMEWORK_ROOT, CONNECTOR_ROOT, OUTPUT_ROOT, REPORT_ROOT, IMPORT_STATUS, RUNTIME_SNAPSHOT, OUT
-    global GENERATED_REPORT_ROOT, OVERVIEW_REPORT, ROOT_SUMMARY_REPORT, ALLOWED_OUTPUT_PATHS, REPORT_LAYOUT
+    global GENERATED_REPORT_ROOT, OVERVIEW_REPORT, ROOT_SUMMARY_REPORT, ALLOWED_OUTPUT_PATHS, REPORT_LAYOUT, REPORT_UTILS
     if framework_root is not None:
         FRAMEWORK_ROOT = resolve_root(framework_root, label="framework root")
     if connector_root is not None:
         CONNECTOR_ROOT = resolve_root(connector_root, label="connector root")
     else:
         CONNECTOR_ROOT = FRAMEWORK_ROOT
+    connector_ci = CONNECTOR_ROOT / "ci"
+    if connector_ci.is_dir() and str(connector_ci) not in sys.path:
+        sys.path.insert(0, str(connector_ci))
+    try:
+        import generated_report_utils as report_utils
+
+        REPORT_UTILS = report_utils
+    except Exception:
+        REPORT_UTILS = None
     OUTPUT_ROOT = resolve_allowed_output_root(output_root)
     REPORT_LAYOUT = build_safe_report_layout(OUTPUT_ROOT, write_root_summary=write_root_summary)
     REPORT_ROOT = REPORT_LAYOUT.report_root
@@ -754,6 +791,12 @@ def load_runtime_snapshot() -> dict:
 
 
 def report_doc(name: str) -> str:
+    if REPORT_UTILS is not None and name.startswith("generated/"):
+        try:
+            rewritten = REPORT_UTILS.report_relpath_for_filename(Path(name).name).removeprefix("reports/testing/")
+            name = rewritten
+        except Exception:
+            pass
     try:
         return str((REPORT_ROOT / name).relative_to(OUTPUT_ROOT))
     except ValueError:

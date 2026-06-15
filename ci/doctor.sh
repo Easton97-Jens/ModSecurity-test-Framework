@@ -65,6 +65,9 @@ else
 fi
 
 if command -v git >/dev/null 2>&1; then
+  if ! ci_require_https_github_repo_url "$MODSECURITY_V3_GIT_URL" MODSECURITY_V3_GIT_URL; then
+    blocked "MODSECURITY_V3_GIT_URL does not satisfy HTTPS GitHub URL policy"
+  fi
   if git ls-remote --heads "$MODSECURITY_V3_GIT_URL" >/dev/null 2>&1; then
     say "github reachability: ok"
   else
