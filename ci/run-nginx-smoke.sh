@@ -37,11 +37,7 @@ SMOKE_DISABLE_LOCK="${SMOKE_DISABLE_LOCK:-0}"
 SMOKE_LOCK_MODE="${SMOKE_LOCK_MODE:-wait}"
 CURRENT_UID=$(id -u 2>/dev/null || printf 'unknown')
 if [ -z "${NGINX_HARNESS_WORK_ROOT:-}" ]; then
-    if [ "$CURRENT_UID" = "0" ]; then
-        NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-${TMPDIR:-/tmp}}"
-    else
-        NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}}"
-    fi
+    NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-$VERIFIED_RUN_ROOT/nginx-harness}"
     NGINX_HARNESS_WORK_ROOT="$NGINX_HARNESS_PARENT/ModSecurity-conector-nginx-runtime-$CURRENT_UID"
 fi
 NGINX_RUNTIME_BASE="${NGINX_RUNTIME_BASE:-${RUNTIME_BASE:-$NGINX_HARNESS_WORK_ROOT/runtime}}"
@@ -52,6 +48,7 @@ validate_runtime_paths() {
     assert_safe_runtime_path "$RESULTS_DIR" RESULTS_DIR || exit 77
     assert_safe_runtime_path "$NGINX_BUILD_DIR" NGINX_BUILD_DIR || exit 77
     assert_safe_runtime_path "$NGINX_PREFIX" NGINX_PREFIX || exit 77
+    assert_safe_runtime_path "$NGINX_HARNESS_PARENT" NGINX_HARNESS_PARENT || exit 77
     assert_safe_runtime_path "$NGINX_HARNESS_WORK_ROOT" NGINX_HARNESS_WORK_ROOT || exit 77
     assert_safe_runtime_path "$NGINX_RUNTIME_BASE" NGINX_RUNTIME_BASE || exit 77
     assert_safe_runtime_path "$NGINX_RUNTIME_LOG_DIR" NGINX_RUNTIME_LOG_DIR || exit 77
@@ -336,6 +333,7 @@ LOG_DIR="$NGINX_RUNTIME_LOG_DIR" \
     NGINX_BINARY="$NGINX_BINARY" \
     NGINX_MODULE="$NGINX_MODULE" \
     MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" \
+    NGINX_HARNESS_PARENT="$NGINX_HARNESS_PARENT" \
     NGINX_HARNESS_WORK_ROOT="$NGINX_HARNESS_WORK_ROOT" \
     RUNTIME_BASE="$NGINX_RUNTIME_BASE" \
     CONNECTOR_ORIGIN_SOURCE="$NGINX_ORIGIN_SOURCE" \

@@ -276,9 +276,29 @@ resolve_nginx_release_tag() {
 
     require_command "$PYTHON_BIN" "parse GitHub latest release response"
     latest_json="$DOWNLOAD_DIR/nginx-latest-release.json"
+    latest_tmp="$DOWNLOAD_DIR/nginx-latest-release.json.tmp"
     api_url="https://api.github.com/repos/$repo_path/releases/latest"
-    run_blocked nginx-github-latest-release "$DOWNLOAD_DIR" \
-        curl -fsSL -H "Accept: application/vnd.github+json" -o "$latest_json" "$api_url"
+    mkdir -p "$DOWNLOAD_DIR"
+    {
+        echo "[nginx-github-latest-release]"
+        echo "cwd=$DOWNLOAD_DIR"
+        echo "command=curl -fsSL --retry 3 --retry-delay 2 -H Accept: application/vnd.github+json -o $latest_tmp $api_url"
+        echo
+    } >> "$COMMANDS_FILE"
+    if curl -fsSL --retry 3 --retry-delay 2 -H "Accept: application/vnd.github+json" -o "$latest_tmp" "$api_url" >"$LOG_DIR/nginx-github-latest-release.log" 2>&1; then
+        mv "$latest_tmp" "$latest_json"
+        echo "pass: nginx-github-latest-release log=$LOG_DIR/nginx-github-latest-release.log" >> "$STATUS_FILE"
+    elif [ -s "$latest_json" ]; then
+        rm -f "$latest_tmp"
+        echo "warn: blocked_network nginx-github-latest-release; using cached $latest_json log=$LOG_DIR/nginx-github-latest-release.log" >> "$STATUS_FILE"
+        echo "nginx_poc: blocked_network latest release lookup failed; using cached $latest_json"
+    else
+        rm -f "$latest_tmp"
+        echo "blocked: nginx-github-latest-release log=$LOG_DIR/nginx-github-latest-release.log" >> "$STATUS_FILE"
+        echo "nginx_poc: blocked command failed: curl latest release $api_url"
+        echo "nginx_poc: see log: $LOG_DIR/nginx-github-latest-release.log"
+        exit 77
+    fi
     if ! RESOLVED_NGINX_RELEASE_TAG=$("$PYTHON_BIN" - "$latest_json" 2>"$LOG_DIR/nginx-latest-release-parse.log" <<'PY'
 import json
 import sys

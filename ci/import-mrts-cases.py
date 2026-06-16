@@ -980,8 +980,8 @@ def main() -> int:
     args = parser.parse_args()
 
     framework_root = Path(args.framework_root).resolve()
-    default_state_home = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-    build_root = Path(args.build_root).resolve() if args.build_root else default_state_home / "ModSecurity-conector-build"
+    default_run_root = Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified")))
+    build_root = Path(args.build_root).resolve() if args.build_root else default_run_root / "build"
     mrts_build_root = Path(args.mrts_build_root).resolve() if args.mrts_build_root else build_root / "mrts"
     ftw_dir = Path(args.mrts_ftw_dir).resolve() if args.mrts_ftw_dir else mrts_build_root / args.mrts_corpus / "ftw"
     rules_dir = Path(args.mrts_rules_dir).resolve() if args.mrts_rules_dir else mrts_build_root / args.mrts_corpus / "rules"

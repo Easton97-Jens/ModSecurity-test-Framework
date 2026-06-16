@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   scaffold-lint:
     runs-on: ubuntu-latest
@@ -12,8 +15,11 @@ jobs:
       - name: Initialize runner temp paths
         run: |
           set -eu
+          verified_root="$RUNNER_TEMP/ModSecurity-conector-verified"
           {
-            echo "BUILD_ROOT=$RUNNER_TEMP/ModSecurity-test-Framework-build"
+            echo "VERIFIED_RUN_ROOT=$verified_root"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+            echo "BUILD_ROOT=$verified_root/build"
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
       - name: Run framework lint

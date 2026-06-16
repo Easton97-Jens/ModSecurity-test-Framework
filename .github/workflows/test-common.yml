@@ -4,11 +4,21 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   common-structure:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Initialize runner temp paths
+        run: |
+          set -eu
+          {
+            echo "VERIFIED_RUN_ROOT=$RUNNER_TEMP/ModSecurity-conector-verified"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+          } >> "$GITHUB_ENV"
       - name: Compile framework Python
         run: |
           python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
