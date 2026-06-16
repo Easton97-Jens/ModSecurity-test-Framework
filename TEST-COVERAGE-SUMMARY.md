@@ -1,4 +1,4 @@
-Generated file — do not edit manually.
+Generated file - do not edit manually.
 
 # ModSecurity Connector Test Coverage Summary
 

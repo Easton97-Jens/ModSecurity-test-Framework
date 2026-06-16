@@ -448,7 +448,7 @@ assert_safe_runtime_path() {
         esac
     fi
     case "$ci_safe_path" in
-        /src/ModSecurity-conector-cache|/src/ModSecurity-conector-cache/*|/tmp/*)
+        /tmp/*)
             return 0
             ;;
     esac
