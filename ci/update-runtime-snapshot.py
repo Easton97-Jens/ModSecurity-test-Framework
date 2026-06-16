@@ -39,8 +39,8 @@ RUNTIME_CONNECTORS = ("apache", "nginx", "haproxy")
 
 
 def default_build_root() -> Path:
-    state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
-    return Path(os.environ.get("BUILD_ROOT", state_home / "ModSecurity-conector-build"))
+    run_root = Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified")))
+    return Path(os.environ.get("BUILD_ROOT", run_root / "build"))
 
 
 @dataclass(frozen=True)

@@ -9,11 +9,20 @@
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-master}"
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-${REPO_ROOT:-}}"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-${REPO_ROOT:-$FRAMEWORK_ROOT}}"
-DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}}"
-DEFAULT_BUILD_ROOT="${DEFAULT_BUILD_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-build}"
+VERIFIED_RUN_ROOT="${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}"
+VERIFIED_STATE_ROOT="${VERIFIED_STATE_ROOT:-$VERIFIED_RUN_ROOT/state}"
+VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
+VERIFIED_SOURCE_ROOT="${VERIFIED_SOURCE_ROOT:-$VERIFIED_RUN_ROOT/src}"
+VERIFIED_TMP_ROOT="${VERIFIED_TMP_ROOT:-$VERIFIED_RUN_ROOT/tmp}"
+VERIFIED_LOG_ROOT="${VERIFIED_LOG_ROOT:-$VERIFIED_RUN_ROOT/logs}"
+VERIFIED_COMPONENT_CACHE="${VERIFIED_COMPONENT_CACHE:-$VERIFIED_RUN_ROOT/component-cache}"
+NGINX_HARNESS_PARENT="${NGINX_HARNESS_PARENT:-$VERIFIED_RUN_ROOT/nginx-harness}"
+DEFAULT_STATE_HOME="${DEFAULT_STATE_HOME:-$VERIFIED_STATE_ROOT}"
+DEFAULT_BUILD_ROOT="${DEFAULT_BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
 BUILD_ROOT="${BUILD_ROOT:-$DEFAULT_BUILD_ROOT}"
-TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp}"
-LOG_ROOT="${LOG_ROOT:-$BUILD_ROOT/logs}"
+TMP_ROOT="${TMP_ROOT:-$VERIFIED_TMP_ROOT}"
+LOG_ROOT="${LOG_ROOT:-$VERIFIED_LOG_ROOT}"
+CONNECTOR_COMPONENT_CACHE="${CONNECTOR_COMPONENT_CACHE:-$VERIFIED_COMPONENT_CACHE}"
 if [ -n "${SOURCE_ROOT:-}" ]; then
     CI_SOURCE_ROOT_WAS_SET=1
 else
@@ -29,7 +38,7 @@ if [ -n "${MODSECURITY_NGINX_SOURCE_DIR:-}" ]; then
 else
     CI_MODSECURITY_NGINX_SOURCE_DIR_WAS_SET=0
 fi
-DEFAULT_SOURCE_ROOT="${DEFAULT_SOURCE_ROOT:-$DEFAULT_STATE_HOME/ModSecurity-conector-src}"
+DEFAULT_SOURCE_ROOT="${DEFAULT_SOURCE_ROOT:-$VERIFIED_SOURCE_ROOT}"
 SOURCE_ROOT="${SOURCE_ROOT:-$DEFAULT_SOURCE_ROOT}"
 DEFAULT_PYTHON="${DEFAULT_PYTHON:-python3}"
 DEFAULT_MODSECURITY_V3_SOURCE_DIR="${DEFAULT_MODSECURITY_V3_SOURCE_DIR:-$SOURCE_ROOT/ModSecurity_V3}"
@@ -361,7 +370,7 @@ ci_require_absolute_path() {
 ci_path_is_system_path() {
     ci_path_value=$1
     case "$ci_path_value" in
-        /usr|/usr/*|/usr/local|/usr/local/*|/opt|/opt/*|/etc|/etc/*|/var|/var/*|/lib|/lib/*|/lib64|/lib64/*|/bin|/bin/*|/sbin|/sbin/*|/run|/run/*)
+        /usr|/usr/*|/usr/local|/usr/local/*|/opt|/opt/*|/etc|/etc/*|/var/lib|/var/lib/*|/var/run|/var/run/*|/var/log|/var/log/*|/lib|/lib/*|/lib64|/lib64/*|/bin|/bin/*|/sbin|/sbin/*|/run|/run/*)
             return 0
             ;;
         *)
@@ -391,9 +400,10 @@ assert_not_system_path_for_write() {
 assert_safe_runtime_path() {
     ci_safe_path=$1
     ci_safe_label=${2:-path}
-    ci_state_root="${XDG_STATE_HOME:-${HOME:-}/.local/state}"
+    ci_state_root="${XDG_STATE_HOME:-$VERIFIED_STATE_ROOT}"
     ci_cache_home="${XDG_CACHE_HOME:-${HOME:-}/.cache}"
     ci_component_cache="${CONNECTOR_COMPONENT_CACHE:-}"
+    ci_verified_root="${VERIFIED_RUN_ROOT:-}"
 
     assert_not_system_path_for_write "$ci_safe_path" "$ci_safe_label" || return 77
     case "$ci_safe_path" in
@@ -432,6 +442,11 @@ assert_safe_runtime_path() {
             return 0
             ;;
     esac
+    if [ -n "$ci_verified_root" ]; then
+        case "$ci_safe_path" in
+            "$ci_verified_root"|"$ci_verified_root"/*) return 0 ;;
+        esac
+    fi
     if [ -n "${MRTS_BUILD_ROOT:-}" ]; then
         case "$ci_safe_path" in
             "$MRTS_BUILD_ROOT"|"$MRTS_BUILD_ROOT"/*) return 0 ;;
@@ -448,7 +463,7 @@ assert_safe_runtime_path() {
         esac
     fi
     case "$ci_safe_path" in
-        /tmp/*)
+        /tmp/*|/var/tmp/*)
             return 0
             ;;
     esac

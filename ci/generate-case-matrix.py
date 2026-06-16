@@ -27,8 +27,8 @@ from response_body_status import (
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
 CONNECTOR_ROOT = Path.cwd()
 OUTPUT_ROOT = CONNECTOR_ROOT
-DEFAULT_STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_STATE_HOME / "ModSecurity-conector-build"))).resolve()
+DEFAULT_RUN_ROOT = Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified")))
+BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_RUN_ROOT / "build"))).resolve()
 MRTS_ROOT = Path(os.environ.get("MRTS_ROOT", str(FRAMEWORK_ROOT / "tools/MRTS"))).resolve()
 MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(BUILD_ROOT / "mrts"))).resolve()
 MRTS_UPSTREAM_BUILD_ROOT = MRTS_BUILD_ROOT / "upstream-config-tests"

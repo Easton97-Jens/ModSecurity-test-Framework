@@ -62,7 +62,8 @@ def utc_now() -> str:
 
 
 def default_state_home() -> Path:
-    return Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
+    run_root = Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified")))
+    return Path(os.environ.get("VERIFIED_STATE_ROOT", str(run_root / "state")))
 
 
 def read_json(path: Path) -> dict[str, Any]:

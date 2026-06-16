@@ -82,8 +82,8 @@ NO_MRTS_NOMATCH_BY_CASE = {
 }
 RULE_TARGET_RE = re.compile(r"^\s*SecRule\s+([^\s]+)\s+")
 PHASE_RE = re.compile(r"phase:(\d)")
-DEFAULT_STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", str(Path.home() / ".local/state")))
-DEFAULT_BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_STATE_HOME / "ModSecurity-conector-build"))).resolve()
+DEFAULT_RUN_ROOT = Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified")))
+DEFAULT_BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_RUN_ROOT / "build"))).resolve()
 MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(DEFAULT_BUILD_ROOT / "mrts"))).resolve()
 MRTS_ROOT = Path(os.environ.get("MRTS_ROOT", "")).resolve() if os.environ.get("MRTS_ROOT") else None
 MRTS_UPSTREAM_CASE_ROOT = MRTS_BUILD_ROOT / "upstream-config-tests/framework-cases"
