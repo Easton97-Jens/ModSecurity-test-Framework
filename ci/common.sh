@@ -370,7 +370,10 @@ ci_require_absolute_path() {
 ci_path_is_system_path() {
     ci_path_value=$1
     case "$ci_path_value" in
-        /usr|/usr/*|/usr/local|/usr/local/*|/opt|/opt/*|/etc|/etc/*|/var/lib|/var/lib/*|/var/run|/var/run/*|/var/log|/var/log/*|/lib|/lib/*|/lib64|/lib64/*|/bin|/bin/*|/sbin|/sbin/*|/run|/run/*)
+        /var/tmp|/var/tmp/*)
+            return 1
+            ;;
+        /usr|/usr/*|/usr/local|/usr/local/*|/opt|/opt/*|/etc|/etc/*|/var|/var/*|/lib|/lib/*|/lib64|/lib64/*|/bin|/bin/*|/sbin|/sbin/*|/run|/run/*)
             return 0
             ;;
         *)
@@ -409,6 +412,10 @@ assert_safe_runtime_path() {
     case "$ci_safe_path" in
         /|/src|/tmp|"${HOME:-__no_home__}")
             ci_blocked "$ci_safe_label is not a safe runtime path: $ci_safe_path"
+            return 77
+            ;;
+        /root|/root/*)
+            ci_blocked "$ci_safe_label is under /root and is not a safe runtime path: $ci_safe_path"
             return 77
             ;;
     esac
@@ -463,7 +470,7 @@ assert_safe_runtime_path() {
         esac
     fi
     case "$ci_safe_path" in
-        /tmp/*|/var/tmp/*)
+        /tmp/*|/var/tmp|/var/tmp/*)
             return 0
             ;;
     esac
