@@ -12,6 +12,8 @@ else
     CONNECTOR_ROOT=$(pwd)
 fi
 
+. "$SCRIPT_DIR/common.sh"
+
 SOURCE_ROOT="${SOURCE_ROOT:-/src}"
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
@@ -23,13 +25,13 @@ RESULTS_JSONL="$STARTER_RESULTS_DIR/results.jsonl"
 SUMMARY_JSON="$STARTER_RESULTS_DIR/summary.json"
 PYTHON_BIN="${PYTHON:-python3}"
 
-require_absolute_under_src() {
+require_safe_runtime_or_src() {
     path=$1
     label=$2
     case "$path" in
         /src|/src/*) return 0 ;;
-        /*) echo "BLOCKED: $label must be under /src: $path" >&2; exit 77 ;;
-        *) echo "BLOCKED: $label must be absolute and under /src: $path" >&2; exit 77 ;;
+        /*) assert_safe_runtime_path "$path" "$label" || exit 77 ;;
+        *) echo "BLOCKED: $label must be absolute and under /src or a safe runtime root: $path" >&2; exit 77 ;;
     esac
 }
 
@@ -39,6 +41,15 @@ require_under_build_root() {
     case "$path" in
         "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
         *) echo "BLOCKED: $label must be under BUILD_ROOT: $path" >&2; exit 77 ;;
+    esac
+}
+
+require_under_build_root_or_safe_runtime() {
+    path=$1
+    label=$2
+    case "$path" in
+        "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
+        *) require_safe_runtime_or_src "$path" "$label" ;;
     esac
 }
 
@@ -56,14 +67,14 @@ require_log_root() {
     label=$2
     case "$path" in
         "$BUILD_ROOT/logs"|"$BUILD_ROOT/logs"/*|"$BUILD_ROOT/results"|"$BUILD_ROOT/results"/*) return 0 ;;
-        *) echo "BLOCKED: $label must be under BUILD_ROOT/logs or BUILD_ROOT/results: $path" >&2; exit 77 ;;
+        *) require_safe_runtime_or_src "$path" "$label" ;;
     esac
 }
 
-require_absolute_under_src "$SOURCE_ROOT" SOURCE_ROOT
-require_absolute_under_src "$BUILD_ROOT" BUILD_ROOT
+require_safe_runtime_or_src "$SOURCE_ROOT" SOURCE_ROOT
+require_safe_runtime_or_src "$BUILD_ROOT" BUILD_ROOT
 require_results_root "$RESULTS_DIR" RESULTS_DIR
-require_under_build_root "$TMP_ROOT" TMP_ROOT
+require_under_build_root_or_safe_runtime "$TMP_ROOT" TMP_ROOT
 require_log_root "$LOG_ROOT" LOG_ROOT
 
 if [ ! -d "$CONNECTOR_ROOT/connectors" ]; then

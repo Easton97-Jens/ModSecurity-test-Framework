@@ -184,6 +184,8 @@ class ReportLayout:
                 generated_at=generated_at,
             )
             text = REPORT_UTILS.generated_markdown_text(body, metadata)
+        if path.exists() and generated_report_equivalent(path.read_text(encoding="utf-8"), text):
+            return
         path.write_text(text, encoding="utf-8")
 
     def allowed_outputs(self) -> set[Path]:
@@ -256,6 +258,20 @@ def build_safe_report_layout(output_root: Path, *, write_root_summary: bool = Tr
         root_summary=root_summary,
         generated_reports=generated_reports,
     )
+
+
+def generated_report_equivalent(existing: str, candidate: str) -> bool:
+    if existing == candidate:
+        return True
+
+    def stable_lines(text: str) -> list[str]:
+        return [
+            line
+            for line in text.splitlines()
+            if not line.startswith("> Generated at: `")
+        ]
+
+    return stable_lines(existing) == stable_lines(candidate)
 
 
 def active_report_layout() -> ReportLayout:

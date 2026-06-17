@@ -160,8 +160,8 @@ Generated file - do not edit manually.
 | make runtime-matrix-all | PASS | Force-all matrix orchestration completed and recorded Apache/NGINX per-case evidence; expected runtime FAILs remain evidence and are not PASS promotions |
 
 ## Runtime Smoke Status
-- Snapshot: **2026-06-16** (2026-06-16 19:07:10 CEST)
-- Git: branch `master`, commit `b53340a`
+- Snapshot: **2026-06-16** (2026-06-16 21:13:26 CEST)
+- Git: branch `master`, commit `614c804`
 - BUILD_ROOT: `/var/tmp/ModSecurity-conector-verified/build`
 - Snapshot file: `reports/testing/runtime-validation-snapshot.json`
 
