@@ -19,7 +19,7 @@ capabilities:
   transformations: false
 rules: |
   SecRuleEngine On
-  SecRule MULTIPART_FILENAME "@streq " "id:4701,phase:2,deny,status:403,msg:'empty multipart filename gap'"
+  SecRule MULTIPART_FILENAME "@rx ^$" "id:4701,phase:2,deny,status:403,msg:'empty multipart filename gap'"
 request:
   method: POST
   path: "/"

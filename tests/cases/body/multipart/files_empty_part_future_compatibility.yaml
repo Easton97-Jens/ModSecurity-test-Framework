@@ -19,7 +19,7 @@ capabilities:
   transformations: false
 rules: |
   SecRuleEngine On
-  SecRule FILES "@contains " "id:4706,phase:2,deny,status:403,msg:'FILES empty part future target'"
+  SecRule FILES "@rx ^$" "id:4706,phase:2,deny,status:403,msg:'FILES empty part future target'"
 request:
   method: POST
   path: "/"

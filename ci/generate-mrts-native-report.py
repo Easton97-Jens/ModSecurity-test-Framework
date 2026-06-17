@@ -353,6 +353,10 @@ def target_report_payload(report: dict[str, Any], target: str, components: dict[
         "separate_from_connector_full_matrix": True,
         **source,
         "status": job.get("status", "NOT_RUN"),
+        "classification": job.get("classification", "optional_native_evidence_unknown"),
+        "classification_notes": job.get("classification_notes", "-"),
+        "optional": bool(job.get("optional", True)),
+        "critical_merge_blocker": bool(job.get("critical_merge_blocker", False)),
         "counts": job.get("counts", {"attempted": 0, "pass": 0, "fail": 0, "blocked": 0, "not_executable": 0}),
         "known_limitations": job.get("known_limitations", known_limitations([])),
         "first_failing_cases": job.get("first_failing_cases", []),
@@ -413,7 +417,18 @@ def target_report_markdown(payload: dict[str, Any]) -> str:
                 "",
             ]
         )
-    lines.extend(["## Status", f"- Status: **{payload.get('status', 'NOT_RUN')}**", "", "## Counts"])
+    lines.extend(
+        [
+            "## Status",
+            f"- Status: **{payload.get('status', 'NOT_RUN')}**",
+            f"- Classification: `{payload.get('classification', 'optional_native_evidence_unknown')}`",
+            f"- Optional evidence: `{str(payload.get('optional', True)).lower()}`",
+            f"- Critical merge blocker: `{str(payload.get('critical_merge_blocker', False)).lower()}`",
+            f"- Notes: {payload.get('classification_notes', '-')}",
+            "",
+            "## Counts",
+        ]
+    )
     lines.extend(counts_markdown(payload.get("counts", {})))
     lines.extend(["", "## Known Limitations"])
     for item in payload.get("known_limitations", []):
@@ -458,6 +473,9 @@ def summary_report_payload(report: dict[str, Any], target_reports: dict[str, dic
         "targets": {
             target: {
                 "status": payload.get("status", "NOT_RUN"),
+                "classification": payload.get("classification", "optional_native_evidence_unknown"),
+                "optional": bool(payload.get("optional", True)),
+                "critical_merge_blocker": bool(payload.get("critical_merge_blocker", False)),
                 "counts": payload.get("counts", {}),
                 "report": NATIVE_REPORT_LINKS["apache" if target == "apache2_ubuntu" else "nginx"],
             }
@@ -476,15 +494,15 @@ def summary_report_markdown(payload: dict[str, Any]) -> str:
         "",
         f"Generated at: `{payload.get('generated_at', '-')}`",
         "",
-        "| Native target | Report | Status | Attempted | Pass | Fail | Blocked |",
-        "|---|---|---|---:|---:|---:|---:|",
+        "| Native target | Report | Status | Classification | Critical blocker | Attempted | Pass | Fail | Blocked |",
+        "|---|---|---|---|---:|---:|---:|---:|---:|",
     ]
     for label, key in (("Apache2 Ubuntu", "apache2_ubuntu"), ("NGINX PR24", "nginx-pr24")):
         item = apache if key == "apache2_ubuntu" else nginx
         counts = item.get("counts", {})
         report_path = item.get("report", "-")
         lines.append(
-            f"| {label} | {Path(report_path).name if report_path != '-' else '-'} | {item.get('status', 'NOT_RUN')} | {counts.get('attempted', 0)} | {counts.get('pass', 0)} | {counts.get('fail', 0)} | {counts.get('blocked', 0)} |"
+            f"| {label} | {Path(report_path).name if report_path != '-' else '-'} | {item.get('status', 'NOT_RUN')} | `{item.get('classification', 'optional_native_evidence_unknown')}` | {str(item.get('critical_merge_blocker', False)).lower()} | {counts.get('attempted', 0)} | {counts.get('pass', 0)} | {counts.get('fail', 0)} | {counts.get('blocked', 0)} |"
         )
     lines.extend(
         [
@@ -519,16 +537,18 @@ def report_markdown(report: dict[str, Any]) -> str:
         "These native MRTS reports are separate from connector full-matrix evidence.",
         "",
         "## Native Target Summary",
-        "| Target | Status | Attempted | PASS | FAIL | BLOCKED | Reason | Run log | Summary |",
-        "|---|---|---:|---:|---:|---:|---|---|---|",
+        "| Target | Status | Classification | Critical blocker | Attempted | PASS | FAIL | BLOCKED | Reason | Run log | Summary |",
+        "|---|---|---|---:|---:|---:|---:|---:|---|---|---|",
     ]
     for target in TARGETS:
         job = report["targets"].get(target, {})
         counts = job.get("counts", {})
         lines.append(
-            "| {target} | {status} | {attempted} | {passed} | {failed} | {blocked} | {reason} | `{run_log}` | `{summary_path}` |".format(
+            "| {target} | {status} | `{classification}` | {critical_blocker} | {attempted} | {passed} | {failed} | {blocked} | {reason} | `{run_log}` | `{summary_path}` |".format(
                 target=target,
                 status=job.get("status", "UNKNOWN"),
+                classification=job.get("classification", "optional_native_evidence_unknown"),
+                critical_blocker=str(job.get("critical_merge_blocker", False)).lower(),
                 attempted=counts.get("attempted", 0),
                 passed=counts.get("pass", 0),
                 failed=counts.get("fail", 0),

@@ -22,7 +22,7 @@ rules: |
   SecRule ARGS:q "@contains script" "id:4714,phase:2,t:lowercase,deny,status:403,msg:'xss-like mixed case token gap'"
 request:
   method: GET
-  path: "/?q=SAFE"
+  path: "/?q=ScRiPt"
 expect:
   status: 403
   intervention: deny
