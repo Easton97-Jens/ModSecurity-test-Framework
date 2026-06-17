@@ -22,7 +22,7 @@ rules: |
   SecRule ARGS:q "@contains a'b" "id:4716,phase:2,t:urlDecode,deny,status:403,msg:'sqli-like quote encoding runtime diff'"
 request:
   method: GET
-  path: "/?q=SAFE"
+  path: "/?q=a%2527b"
 expect:
   status: 403
   intervention: deny

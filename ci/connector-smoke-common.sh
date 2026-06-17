@@ -209,6 +209,12 @@ connector_smoke_run() {
     rc=$?
     set -e
     results_jsonl="$RESULTS_DIR/$connector-results.jsonl"
+    if [ "$rc" -eq 0 ] && [ "${RUN_ONE_CASE:-0}" = "1" ]; then
+        case_result_path="${LOG_DIR:-$LOG_ROOT/$connector-runtime}/result.json"
+        if [ -s "$case_result_path" ]; then
+            exit 0
+        fi
+    fi
     if [ "$rc" -eq 0 ] && [ ! -s "$results_jsonl" ]; then
         connector_smoke_write_evidence "$connector" BLOCKED 77 blocked "runtime harness produced no case evidence" "$harness_script"
         echo "$connector runtime smoke: BLOCKED - runtime harness produced no case evidence"
