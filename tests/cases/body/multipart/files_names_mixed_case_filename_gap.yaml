@@ -1,7 +1,7 @@
 origin:
   - repo: ModSecurity_V3
     path: test/test-cases/regression/variable-FILES_NAMES.json
-    reason: FILES_NAMES mixed-case filename normalization gap.
+    reason: Mixed-case uploaded filename normalization probe.
 category: multipart
 portable: true
 status: imported
@@ -9,8 +9,7 @@ former_xfail: true
 former_xfail_reason: "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
 promoted_from_xfail_date: "2026-06-07"
 known_limitations:
-  - "Classification: runtime-difference."
-  - Runtime verification pending; not counted as verified PASS.
+  - Uses MULTIPART_FILENAME because FILES_NAMES contains file field names, not uploaded filenames.
 name: files_names_mixed_case_filename_gap
 capabilities:
   multipart: true
@@ -19,19 +18,18 @@ capabilities:
   transformations: false
 rules: |
   SecRuleEngine On
-  SecRule FILES_NAMES "@contains MiXeD.TXT" "id:4705,phase:2,deny,status:403,msg:'FILES_NAMES mixed case gap'"
+  SecRequestBodyAccess On
+  SecRule MULTIPART_FILENAME "@contains MiXeD.TXT" "id:4705,phase:2,deny,status:403,msg:'multipart filename mixed case probe'"
 request:
   method: POST
-  path: "/"
-  headers:
-    Content-Type: multipart/form-data; boundary=----AaB03x
-  body: |
-    ------AaB03x
-    Content-Disposition: form-data; name="upload"; filename="MiXeD.TXT"
-    Content-Type: text/plain
-
-    content
-    ------AaB03x--
+  path: /
+  multipart:
+    boundary: modsec-smoke-mixed-case-filename
+    parts:
+      - name: upload
+        filename: MiXeD.TXT
+        content_type: text/plain
+        body: content
 expect:
   status: 403
   intervention: deny

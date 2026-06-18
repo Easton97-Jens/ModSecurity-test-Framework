@@ -100,7 +100,7 @@ Generated file - do not edit manually.
 | Variable / Collection | Count |
 |---|---:|
 | `ARGS` | 121 |
-| `ARGS_NAMES` | 63 |
+| `ARGS_NAMES` | 62 |
 | `REQUEST_HEADERS` | 5 |
 | `REQUEST_HEADERS_NAMES` | 5 |
 | `REQUEST_COOKIES` | 62 |
@@ -126,7 +126,7 @@ Generated file - do not edit manually.
 | Topic | Count |
 |---|---:|
 | Operators | 523 |
-| Transformations | 31 |
+| Transformations | 32 |
 | Multipart / FILES | 11 |
 | JSON | 7 |
 | XML | 8 |

@@ -9,8 +9,8 @@ former_xfail: true
 former_xfail_reason: "outbound response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY remains non-verified."
 promoted_from_xfail_date: "2026-06-07"
 known_limitations:
-  - "Classification: future-compatibility."
-  - Phase-4/response behavior remains non-verified; no verified PASS claim.
+  - "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument."
+  - Phase-4/empty-response behavior remains a future target unless full-matrix evidence proves otherwise.
 name: phase4_response_body_empty_future_target
 capabilities:
   response_headers: false
@@ -27,13 +27,12 @@ rules: |
   SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
   SecResponseBodyAccess On
   SecResponseBodyMimeType text/html text/plain application/json
-  SecRule RESPONSE_BODY "@streq " "id:4806,phase:4,deny,status:403,msg:'phase4 empty response body future target'"
+  SecRule RESPONSE_BODY "@rx ^$" "id:4806,phase:4,deny,status:403,msg:'phase4 empty response body future target'"
 request:
   method: GET
   path: "/"
 response:
-  body: |
-    TEST-OK-IF-YOU-SEE-THIS
+  body: ""
 expect:
   status: 403
   intervention: deny

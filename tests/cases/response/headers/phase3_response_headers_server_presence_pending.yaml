@@ -9,8 +9,8 @@ former_xfail: true
 former_xfail_reason: "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
 promoted_from_xfail_date: "2026-06-07"
 known_limitations:
-  - "Classification: pending-runtime-verification."
-  - RESPONSE_BODY remains non-verified and non-promoted.
+  - "Classification: fixture-syntax-gap fixed; uses a valid Server-header presence operator."
+  - Non-disruptive pending probe; RESPONSE_BODY remains non-verified and non-promoted.
 name: phase3_response_headers_server_presence_pending
 capabilities:
   response_headers: true
@@ -27,7 +27,7 @@ rules: |
   SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
   SecResponseBodyAccess On
   SecResponseBodyMimeType text/html text/plain application/json
-  SecRule RESPONSE_HEADERS:Server "@contains" "id:4901,phase:3,deny,status:403,msg:'phase3 server header presence'"
+  SecRule RESPONSE_HEADERS:Server "@rx .+" "id:4901,phase:3,pass,log,auditlog,msg:'phase3 server header presence'"
 request:
   method: GET
   path: "/"

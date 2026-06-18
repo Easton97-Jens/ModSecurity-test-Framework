@@ -18,7 +18,7 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecRule REQUEST_URI "@contains %" "id:4406,phase:1,t:urlDecode,deny,status:403,msg:'former XFAIL invalid urlDecode sequence mapped candidate'"
+  SecRule REQUEST_URI "@rx \x25" "id:4406,phase:1,t:urlDecode,deny,status:403,msg:'invalid-urlDecode-sequence-mapped-candidate'"
 request:
   method: GET
   path: "/?q=%ZZ"
