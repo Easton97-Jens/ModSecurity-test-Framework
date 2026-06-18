@@ -9,7 +9,7 @@ former_xfail: true
 former_xfail_reason: "multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS."
 promoted_from_xfail_date: "2026-06-07"
 known_limitations:
-  - "Classification: connector-gap."
+  - "Classification: test-input-gap fixed; payload now contains an encoded Unicode em space."
   - Runtime verification pending; not counted as verified PASS.
 name: unicode_whitespace_normalization_gap
 capabilities:
@@ -22,7 +22,7 @@ rules: |
   SecRule ARGS:q "@streq a b" "id:4708,phase:2,t:compressWhitespace,deny,status:403,msg:'unicode whitespace normalization gap'"
 request:
   method: GET
-  path: "/?q=SAFE"
+  path: "/?q=a%E2%80%83b"
 expect:
   status: 403
   intervention: deny

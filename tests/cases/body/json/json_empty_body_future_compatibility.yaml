@@ -9,8 +9,8 @@ former_xfail: true
 former_xfail_reason: "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
 promoted_from_xfail_date: "2026-06-07"
 known_limitations:
-  - "Classification: future-compatibility."
-  - Pending cross-connector runtime verification; not counted as verified PASS.
+  - "Classification: fixture-syntax-gap fixed; uses a valid empty-body regex instead of an empty @streq argument."
+  - Pending full-matrix refresh; targeted no-CRS/no-MRTS validation is required after this fix.
 name: json_empty_body_future_compatibility
 capabilities:
   intervention: true
@@ -18,7 +18,8 @@ capabilities:
   phase2: true
 rules: |
   SecRuleEngine On
-  SecRule REQUEST_BODY "@streq " "id:4516,phase:2,deny,status:403,msg:'json empty body future compatibility'"
+  SecRequestBodyAccess On
+  SecRule REQUEST_BODY "@rx ^$" "id:4516,phase:2,deny,status:403,msg:'json empty body future compatibility'"
 request:
   method: POST
   path: "/"
