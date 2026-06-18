@@ -10,7 +10,7 @@ former_xfail_reason: "multipart/files/unicode/json/xml/xss-like/sqli-like compat
 promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - "Classification: connector-gap."
-  - Runtime verification pending; not counted as verified PASS.
+  - Duplicate file field-name parser probe.
 name: multipart_duplicate_field_names_gap
 capabilities:
   multipart: true
@@ -19,22 +19,22 @@ capabilities:
   transformations: false
 rules: |
   SecRuleEngine On
-  SecRule ARGS_NAMES "@contains upload" "id:4703,phase:2,deny,status:403,msg:'duplicate multipart field names gap'"
+  SecRequestBodyAccess On
+  SecRule FILES_NAMES "@contains upload" "id:4703,phase:2,deny,status:403,msg:'duplicate multipart file field names gap'"
 request:
   method: POST
-  path: "/"
-  headers:
-    Content-Type: multipart/form-data; boundary=----AaB03x
-  body: |
-    ------AaB03x
-    Content-Disposition: form-data; name="upload"; filename="a.txt"
-
-    a
-    ------AaB03x
-    Content-Disposition: form-data; name="upload"; filename="b.txt"
-
-    b
-    ------AaB03x--
+  path: /
+  multipart:
+    boundary: modsec-smoke-duplicate-file-fields
+    parts:
+      - name: upload
+        filename: a.txt
+        content_type: text/plain
+        body: a
+      - name: upload
+        filename: b.txt
+        content_type: text/plain
+        body: b
 expect:
   status: 403
   intervention: deny

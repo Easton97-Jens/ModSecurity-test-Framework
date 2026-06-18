@@ -9,7 +9,6 @@ former_xfail: true
 former_xfail_reason: "phase3/phase4 response/audit compatibility candidate; runtime_verified=false; RESPONSE_BODY non-verified."
 promoted_from_xfail_date: "2026-06-07"
 known_limitations:
-  - "Classification: runtime-difference."
   - RESPONSE_BODY remains non-verified and non-promoted.
 name: phase4_auditlog_outbound_multiline_section_gap
 capabilities:
@@ -27,7 +26,7 @@ rules: |
   SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
   SecResponseBodyAccess On
   SecResponseBodyMimeType text/html text/plain application/json
-  SecRule RESPONSE_BODY "@contains lineA lineB" "id:4910,phase:4,deny,status:403,auditlog,msg:'phase4 outbound multiline gap'"
+  SecRule RESPONSE_BODY "@contains lineA lineB" "id:4910,phase:4,t:compressWhitespace,deny,status:403,auditlog,msg:'phase4 outbound multiline gap'"
 request:
   method: GET
   path: "/"
