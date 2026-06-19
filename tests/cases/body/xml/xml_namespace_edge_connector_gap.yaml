@@ -19,7 +19,10 @@ capabilities:
   transformations: false
 rules: |
   SecRuleEngine On
-  SecRule XML "@contains ns:root" "id:4711,phase:2,deny,status:403,msg:'xml namespace edge gap'"
+  SecRequestBodyAccess On
+  SecRule REQUEST_HEADERS:Content-Type "@rx ^(?:application|text)/xml$" \
+    "id:47110,phase:1,t:none,t:lowercase,nolog,pass,ctl:requestBodyProcessor=XML"
+  SecRule XML:/* "@contains 1" "id:4711,phase:2,deny,status:403,msg:'xml namespace edge gap'"
 request:
   method: POST
   path: "/"
