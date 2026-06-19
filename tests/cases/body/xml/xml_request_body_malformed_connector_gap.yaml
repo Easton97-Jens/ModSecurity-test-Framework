@@ -18,6 +18,9 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule REQUEST_HEADERS:Content-Type "@rx ^(?:application|text)/xml$" \
+    "id:44080,phase:1,t:none,t:lowercase,nolog,pass,ctl:requestBodyProcessor=XML"
   SecRule XML "@contains broken" "id:4408,phase:2,deny,status:403,msg:'former XFAIL malformed XML connector gap'"
 request:
   method: POST

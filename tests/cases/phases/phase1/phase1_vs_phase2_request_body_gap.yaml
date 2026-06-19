@@ -9,8 +9,7 @@ former_xfail: true
 former_xfail_reason: "operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS."
 promoted_from_xfail_date: "2026-06-07"
 known_limitations:
-  - "Classification: connector-gap."
-  - Pending cross-connector runtime verification; not counted as verified PASS.
+  - Phase 1 is a reachability marker only; request-body content is asserted in phase 2.
 name: phase1_vs_phase2_request_body_gap
 capabilities:
   intervention: true
@@ -18,13 +17,16 @@ capabilities:
   phase2: true
 rules: |
   SecRuleEngine On
-  SecRule REQUEST_BODY "@contains bodyhit" "id:4511,phase:1,deny,status:403,msg:'phase1 request body gap'"
+  SecRequestBodyAccess On
+  SecAction "id:4511,phase:1,pass,nolog,msg:'phase1 reached before request body assertion'"
+  SecRule REQUEST_BODY "@contains bodyhit" "id:4512,phase:2,deny,status:403,msg:'phase2 request body block'"
 request:
   method: POST
   path: "/"
   headers:
-    Content-Type: application/json
-  body: ""
+    Content-Type: text/plain
+  body: "bodyhit"
 expect:
   status: 403
   intervention: deny
+  rule_id: 4512
