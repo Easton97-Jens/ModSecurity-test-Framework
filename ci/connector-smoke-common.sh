@@ -1,12 +1,7 @@
 #!/bin/sh
 
-CONNECTOR_SMOKE_SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+CONNECTOR_SMOKE_SCRIPT_DIR="${CONNECTOR_SMOKE_SCRIPT_DIR:-$(CDPATH= cd "$(dirname "$0")" && pwd)}"
 FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$CONNECTOR_SMOKE_SCRIPT_DIR/.." && pwd)}"
-SOURCE_ROOT="${SOURCE_ROOT:-/src}"
-BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
-RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
-TMP_ROOT="${TMP_ROOT:-$BUILD_ROOT/tmp}"
-LOG_ROOT="${LOG_ROOT:-$BUILD_ROOT/logs}"
 
 if [ -n "${CONNECTOR_ROOT:-}" ]; then
     CONNECTOR_ROOT=$(CDPATH= cd "$CONNECTOR_ROOT" && pwd)
@@ -18,6 +13,7 @@ fi
 
 . "$CONNECTOR_SMOKE_SCRIPT_DIR/common.sh"
 
+RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 PYTHON_BIN="${PYTHON:-$(ci_python)}"
 
 connector_smoke_require_src_path() {
@@ -65,9 +61,9 @@ connector_smoke_require_log_path() {
 connector_smoke_validate_roots() {
     connector_smoke_require_src_path "$SOURCE_ROOT" SOURCE_ROOT
     connector_smoke_require_runtime_path "$BUILD_ROOT" BUILD_ROOT
-    connector_smoke_require_build_path "$TMP_ROOT" TMP_ROOT
-    connector_smoke_require_results_path "$RESULTS_DIR" RESULTS_DIR
-    connector_smoke_require_log_path "$LOG_ROOT" LOG_ROOT
+    connector_smoke_require_runtime_path "$TMP_ROOT" TMP_ROOT
+    connector_smoke_require_runtime_path "$RESULTS_DIR" RESULTS_DIR
+    connector_smoke_require_runtime_path "$LOG_ROOT" LOG_ROOT
     [ -d "$CONNECTOR_ROOT/connectors" ] || {
         echo "BLOCKED: CONNECTOR_ROOT does not contain connectors/: $CONNECTOR_ROOT" >&2
         exit 77
@@ -77,6 +73,314 @@ connector_smoke_validate_roots() {
         exit 77
     }
     mkdir -p "$RESULTS_DIR" "$TMP_ROOT" "$LOG_ROOT"
+}
+
+connector_smoke_is_global_runtime_path() {
+    path=$1
+    case "$path" in
+        /usr|/usr/*|/usr/local|/usr/local/*|/opt|/opt/*|/bin|/bin/*|/sbin|/sbin/*)
+            return 0
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+connector_smoke_local_binary_path_ok() {
+    path=$1
+    case "$path" in
+        /*) ;;
+        *) return 1 ;;
+    esac
+    connector_smoke_is_global_runtime_path "$path" && return 1
+    [ -f "$path" ] || return 1
+    [ -x "$path" ] || return 1
+    return 0
+}
+
+connector_smoke_require_local_binary_path() {
+    path=$1
+    label=${2:-runtime binary}
+    case "$path" in
+        /*) ;;
+        *)
+            echo "BLOCKED: $label must be an explicit absolute local path, not a PATH lookup: $path" >&2
+            return 77
+            ;;
+    esac
+    if connector_smoke_is_global_runtime_path "$path"; then
+        echo "BLOCKED: $label must not point at a global system path: $path" >&2
+        return 77
+    fi
+    if [ ! -f "$path" ] || [ ! -x "$path" ]; then
+        echo "BLOCKED: $label is not executable: $path" >&2
+        return 77
+    fi
+    return 0
+}
+
+connector_smoke_runtime_env_was_set() {
+    env_var=$1
+    flag_var="${env_var}_WAS_SET"
+    flag_value=$(eval "printf '%s' \"\${$flag_var:-}\"")
+    [ "$flag_value" = "1" ]
+}
+
+connector_smoke_connector_name_for_env_var() {
+    case "$1" in
+        ENVOY_BIN) printf '%s\n' envoy ;;
+        TRAEFIK_BIN) printf '%s\n' traefik ;;
+        LIGHTTPD_BIN) printf '%s\n' lighttpd ;;
+        *) printf '%s\n' "" ;;
+    esac
+}
+
+connector_smoke_connector_lookup_roots() {
+    case "$1" in
+        envoy)
+            printf '%s\n' \
+                "${ENVOY_COMPONENT_ROOT:-}" \
+                "${ENVOY_RUNTIME_ROOT:-}" \
+                "${ENVOY_CONFIG_ROOT:-}" \
+                "${ENVOY_RESULT_ROOT:-}"
+            ;;
+        traefik)
+            printf '%s\n' \
+                "${TRAEFIK_COMPONENT_ROOT:-}" \
+                "${TRAEFIK_RUNTIME_ROOT:-}" \
+                "${TRAEFIK_CONFIG_ROOT:-}" \
+                "${TRAEFIK_RESULT_ROOT:-}"
+            ;;
+        lighttpd)
+            printf '%s\n' \
+                "${LIGHTTPD_COMPONENT_ROOT:-}" \
+                "${LIGHTTPD_RUNTIME_ROOT:-}" \
+                "${LIGHTTPD_CONFIG_ROOT:-}" \
+                "${LIGHTTPD_RESULT_ROOT:-}"
+            ;;
+    esac
+}
+
+find_runtime_binary_in_root() {
+    root=$1
+    binary_name=$2
+    [ -n "$root" ] || return 1
+    [ -d "$root" ] || return 1
+    case "$root" in
+        /usr|/usr/*|/usr/local|/usr/local/*|/opt|/opt/*|/bin|/bin/*|/sbin|/sbin/*)
+            return 1
+            ;;
+    esac
+    for candidate in \
+        "$root/$binary_name" \
+        "$root/bin/$binary_name" \
+        "$root/sbin/$binary_name" \
+        "$root/runtime/$binary_name" \
+        "$root/runtime/bin/$binary_name" \
+        "$root/$binary_name/bin/$binary_name" \
+        "$root/$binary_name/sbin/$binary_name"
+    do
+        if [ -f "$candidate" ] && [ -x "$candidate" ] && ! connector_smoke_is_global_runtime_path "$candidate"; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    find "$root" -maxdepth 6 -type f -name "$binary_name" -perm /111 2>/dev/null | while IFS= read -r candidate; do
+        if ! connector_smoke_is_global_runtime_path "$candidate"; then
+            printf '%s\n' "$candidate"
+            break
+        fi
+    done | sed -n '1p'
+}
+
+find_runtime_binary() {
+    env_var=$1
+    binary_name=$2
+    env_value=$(eval "printf '%s' \"\${$env_var:-}\"")
+    connector=$(connector_smoke_connector_name_for_env_var "$env_var")
+    if [ -n "$env_value" ]; then
+        if connector_smoke_runtime_env_was_set "$env_var"; then
+            connector_smoke_require_local_binary_path "$env_value" "$env_var" || return 1
+            printf '%s\n' "$env_value"
+            return 0
+        fi
+        if connector_smoke_local_binary_path_ok "$env_value"; then
+            printf '%s\n' "$env_value"
+            return 0
+        fi
+    fi
+
+    for root in \
+        $(connector_smoke_connector_lookup_roots "$connector") \
+        "${CONNECTOR_COMPONENT_CACHE:-}" \
+        "${VERIFIED_COMPONENT_CACHE:-}" \
+        "${VERIFIED_BUILD_ROOT:-}" \
+        "${BUILD_ROOT:-}" \
+        "${VERIFIED_RUN_ROOT:-}" \
+        "${SOURCE_ROOT:-}"
+    do
+        found=$(find_runtime_binary_in_root "$root" "$binary_name" || true)
+        if [ -n "$found" ]; then
+            printf '%s\n' "$found"
+            return 0
+        fi
+    done
+    return 1
+}
+
+require_local_binary() {
+    env_var=$1
+    binary_name=$2
+    find_runtime_binary "$env_var" "$binary_name"
+}
+
+connector_smoke_runtime_lookup_roots_args() {
+    connector=${1:-}
+    seen_roots=
+    for root in \
+        $(connector_smoke_connector_lookup_roots "$connector") \
+        "${CONNECTOR_COMPONENT_CACHE:-}" \
+        "${VERIFIED_COMPONENT_CACHE:-}" \
+        "${VERIFIED_BUILD_ROOT:-}" \
+        "${BUILD_ROOT:-}" \
+        "${VERIFIED_RUN_ROOT:-}" \
+        "${SOURCE_ROOT:-}"
+    do
+        [ -n "$root" ] || continue
+        case "
+$seen_roots
+" in
+            *"
+$root
+"*) continue ;;
+        esac
+        seen_roots="${seen_roots}
+$root"
+        printf '%s\n' "--runtime-lookup-root"
+        printf '%s\n' "$root"
+    done
+}
+
+resolve_evidence_root() {
+    connector=$1
+    connector_result_root=
+    if [ -n "${EVIDENCE_ROOT:-}" ]; then
+        printf '%s\n' "$EVIDENCE_ROOT"
+        return 0
+    fi
+    case "$connector" in
+        envoy) connector_result_root=${ENVOY_RESULT_ROOT:-} ;;
+        traefik) connector_result_root=${TRAEFIK_RESULT_ROOT:-} ;;
+        lighttpd) connector_result_root=${LIGHTTPD_RESULT_ROOT:-} ;;
+    esac
+    if [ -n "$connector_result_root" ]; then
+        printf '%s\n' "$connector_result_root"
+        return 0
+    fi
+    if [ -n "${VERIFIED_RUN_ROOT:-}" ]; then
+        printf '%s/%s-smoke\n' "$VERIFIED_RUN_ROOT" "$connector"
+        return 0
+    fi
+    printf '%s/results/%s-smoke\n' "$BUILD_ROOT" "$connector"
+}
+
+resolve_log_root() {
+    connector=$1
+    evidence_root=$2
+    connector_log_root=
+    if [ -n "${LOG_DIR:-}" ]; then
+        printf '%s\n' "$LOG_DIR"
+        return 0
+    fi
+    case "$connector" in
+        envoy) connector_log_root=${ENVOY_LOG_ROOT:-} ;;
+        traefik) connector_log_root=${TRAEFIK_LOG_ROOT:-} ;;
+        lighttpd) connector_log_root=${LIGHTTPD_LOG_ROOT:-} ;;
+    esac
+    if [ -n "$connector_log_root" ]; then
+        printf '%s\n' "$connector_log_root"
+        return 0
+    fi
+    printf '%s/logs\n' "$evidence_root"
+}
+
+ensure_runtime_dirs() {
+    evidence_root=${1:-}
+    connector_smoke_validate_roots
+    if [ -n "$evidence_root" ]; then
+        connector_smoke_require_runtime_path "$evidence_root" EVIDENCE_ROOT
+        mkdir -p "$evidence_root"
+    fi
+}
+
+write_blocked_result() {
+    connector=$1
+    integration_mode=$2
+    skipped_reason=$3
+    missing_dependency=$4
+    architecture_decision=${5:-}
+    resolved_runtime_binary=${6:-}
+    runtime_binary_env_var=${7:-}
+    runtime_binary_name=${8:-}
+    evidence_root=$(resolve_evidence_root "$connector")
+    log_dir=$(resolve_log_root "$connector" "$evidence_root")
+    writer="$CONNECTOR_ROOT/common/scripts/write_smoke_result.py"
+    starter_available=false
+    if connector_smoke_starter_available "$connector"; then
+        starter_available=true
+    fi
+
+    ensure_runtime_dirs "$evidence_root"
+    connector_smoke_require_runtime_path "$log_dir" LOG_DIR
+    mkdir -p "$log_dir"
+    [ -f "$writer" ] || {
+        echo "BLOCKED: common smoke result writer missing: $writer" >&2
+        exit 77
+    }
+    lookup_args=$(connector_smoke_runtime_lookup_roots_args "$connector")
+
+    # shellcheck disable=SC2086
+    "$PYTHON_BIN" "$writer" \
+        --connector "$connector" \
+        --integration-mode "$integration_mode" \
+        --status BLOCKED \
+        --exit-code 77 \
+        --runtime-verified false \
+        --response-body-verified false \
+        --allowed-request-status not-run \
+        --blocked-request-status not-run \
+        --evidence-root "$evidence_root" \
+        --results-dir "$RESULTS_DIR" \
+        --connector-root "$CONNECTOR_ROOT" \
+        --source-root "$SOURCE_ROOT" \
+        --build-root "$BUILD_ROOT" \
+        --tmp-root "$TMP_ROOT" \
+        --log-root "$LOG_ROOT" \
+        --log-dir "$log_dir" \
+        --harness-path "${HARNESS_PATH:-}" \
+        --skipped-reason "$skipped_reason" \
+        --resolved-runtime-binary "$resolved_runtime_binary" \
+        --runtime-binary-env-var "$runtime_binary_env_var" \
+        --runtime-binary-name "$runtime_binary_name" \
+        --starter-checks-available "$starter_available" \
+        --missing-dependency "$missing_dependency" \
+        --architecture-decision "$architecture_decision" \
+        $lookup_args
+}
+
+connector_skip_missing_dependency() {
+    connector=$1
+    integration_mode=$2
+    skipped_reason=$3
+    missing_dependency=$4
+    architecture_decision=${5:-}
+    resolved_runtime_binary=${6:-}
+    runtime_binary_env_var=${7:-}
+    runtime_binary_name=${8:-}
+    write_blocked_result "$connector" "$integration_mode" "$skipped_reason" "$missing_dependency" "$architecture_decision" "$resolved_runtime_binary" "$runtime_binary_env_var" "$runtime_binary_name"
+    echo "$connector runtime smoke: BLOCKED - $skipped_reason"
+    echo "Runtime not verified"
+    echo "Evidence root: $(resolve_evidence_root "$connector")"
+    exit 77
 }
 
 connector_smoke_starter_available() {
@@ -204,7 +508,7 @@ connector_smoke_run() {
     set +e
     (
         cd "$CONNECTOR_ROOT"
-        SOURCE_ROOT="$SOURCE_ROOT" BUILD_ROOT="$BUILD_ROOT" RESULTS_DIR="$RESULTS_DIR" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$harness_script"
+        SOURCE_ROOT="$SOURCE_ROOT" BUILD_ROOT="$BUILD_ROOT" RESULTS_DIR="$RESULTS_DIR" TMP_ROOT="$TMP_ROOT" LOG_ROOT="$LOG_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" sh "$harness_script"
     )
     rc=$?
     set -e
