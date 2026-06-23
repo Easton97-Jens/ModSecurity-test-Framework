@@ -3,10 +3,11 @@
   "components": [
     {
       "name": "envoy",
+      "artifact_type": "direct_binary",
       "version_env": "ENVOY_VERSION",
       "version": "1.38.2",
-      "source_page_env": "ENVOY_SOURCE_PAGE",
-      "source_page": "https://github.com/envoyproxy/envoy/releases",
+      "source_url_env": "ENVOY_SOURCE_URL",
+      "source_url": "https://github.com/envoyproxy/envoy/releases",
       "install_docs_env": "ENVOY_INSTALL_DOCS_URL",
       "install_docs": "https://www.envoyproxy.io/docs/envoy/latest/start/install",
       "download_url_env": "ENVOY_DOWNLOAD_URL",
@@ -19,6 +20,7 @@
       "expected_binary": "$CONNECTOR_COMPONENT_CACHE/envoy/bin/envoy",
       "component_root_env": "ENVOY_COMPONENT_ROOT",
       "component_root": "$CONNECTOR_COMPONENT_CACHE/envoy",
+      "runtime_binary_produced": true,
       "download_requires_opt_in": true,
       "global_install_allowed": false,
       "path_fallback_allowed": false,
@@ -27,10 +29,11 @@
     },
     {
       "name": "traefik",
+      "artifact_type": "tarball_with_binary",
       "version_env": "TRAEFIK_VERSION",
       "version": "3.7.5",
-      "source_page_env": "TRAEFIK_SOURCE_PAGE",
-      "source_page": "https://github.com/traefik/traefik/releases",
+      "source_url_env": "TRAEFIK_SOURCE_URL",
+      "source_url": "https://github.com/traefik/traefik/releases",
       "install_docs_env": "TRAEFIK_INSTALL_DOCS_URL",
       "install_docs": "https://doc.traefik.io/traefik/getting-started/install-traefik/",
       "download_url_env": "TRAEFIK_DOWNLOAD_URL",
@@ -43,6 +46,7 @@
       "expected_binary": "$CONNECTOR_COMPONENT_CACHE/traefik/bin/traefik",
       "component_root_env": "TRAEFIK_COMPONENT_ROOT",
       "component_root": "$CONNECTOR_COMPONENT_CACHE/traefik",
+      "runtime_binary_produced": true,
       "download_requires_opt_in": true,
       "global_install_allowed": false,
       "path_fallback_allowed": false,
@@ -51,12 +55,15 @@
     },
     {
       "name": "lighttpd",
+      "artifact_type": "source_tarball",
       "version_env": "LIGHTTPD_VERSION",
       "version": "1.4.84",
-      "source_page_env": "LIGHTTPD_SOURCE_PAGE",
-      "source_page": "https://download.lighttpd.net/lighttpd/releases-1.4.x/",
-      "latest_marker_env": "LIGHTTPD_LATEST_MARKER_URL",
-      "latest_marker": "https://download.lighttpd.net/lighttpd/releases-1.4.x/latest.txt",
+      "source_url_env": "LIGHTTPD_SOURCE_URL",
+      "source_url": "https://download.lighttpd.net/lighttpd/releases-1.4.x/",
+      "release_index_url_env": "LIGHTTPD_RELEASE_INDEX_URL",
+      "release_index_url": "https://download.lighttpd.net/lighttpd/releases-1.4.x/",
+      "latest_url_env": "LIGHTTPD_LATEST_URL",
+      "latest_url": "https://download.lighttpd.net/lighttpd/releases-1.4.x/latest.txt",
       "download_url_env": "LIGHTTPD_DOWNLOAD_URL",
       "download_url": "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.84.tar.xz",
       "sha256_env": "LIGHTTPD_SHA256",
@@ -67,11 +74,13 @@
       "expected_binary": "$CONNECTOR_COMPONENT_CACHE/lighttpd/bin/lighttpd",
       "component_root_env": "LIGHTTPD_COMPONENT_ROOT",
       "component_root": "$CONNECTOR_COMPONENT_CACHE/lighttpd",
+      "source_stage_dir": "$CONNECTOR_COMPONENT_CACHE/lighttpd/src/lighttpd-1.4.84",
+      "runtime_binary_produced": false,
       "download_requires_opt_in": true,
       "global_install_allowed": false,
       "path_fallback_allowed": false,
       "enabled": true,
-      "status": "source_pinned_download_opt_in_required"
+      "status": "source_pinned_build_required"
     }
   ]
 }

@@ -42,8 +42,7 @@ fi
 # Open connector runtime component defaults. These are passive local paths only:
 # checks, downloads, installs, and directory creation happen outside common.sh.
 ENVOY_VERSION="${ENVOY_VERSION:-1.38.2}"
-ENVOY_SOURCE_PAGE="${ENVOY_SOURCE_PAGE:-https://github.com/envoyproxy/envoy/releases}"
-ENVOY_SOURCE_URL="${ENVOY_SOURCE_URL:-$ENVOY_SOURCE_PAGE}"
+ENVOY_SOURCE_URL="${ENVOY_SOURCE_URL:-https://github.com/envoyproxy/envoy/releases}"
 ENVOY_INSTALL_DOCS_URL="${ENVOY_INSTALL_DOCS_URL:-https://www.envoyproxy.io/docs/envoy/latest/start/install}"
 ENVOY_DOWNLOAD_URL="${ENVOY_DOWNLOAD_URL:-https://github.com/envoyproxy/envoy/releases/download/v$ENVOY_VERSION/envoy-$ENVOY_VERSION-linux-x86_64}"
 ENVOY_SHA256="${ENVOY_SHA256:-87744a1fc998d677078c9703113a192d0830badc6888662441632847fcb38899}"
@@ -60,8 +59,7 @@ ENVOY_AUTHZ_PORT="${ENVOY_AUTHZ_PORT:-18082}"
 ENVOY_INTEGRATION_MODE="${ENVOY_INTEGRATION_MODE:-ext_authz}"
 
 TRAEFIK_VERSION="${TRAEFIK_VERSION:-3.7.5}"
-TRAEFIK_SOURCE_PAGE="${TRAEFIK_SOURCE_PAGE:-https://github.com/traefik/traefik/releases}"
-TRAEFIK_SOURCE_URL="${TRAEFIK_SOURCE_URL:-$TRAEFIK_SOURCE_PAGE}"
+TRAEFIK_SOURCE_URL="${TRAEFIK_SOURCE_URL:-https://github.com/traefik/traefik/releases}"
 TRAEFIK_INSTALL_DOCS_URL="${TRAEFIK_INSTALL_DOCS_URL:-https://doc.traefik.io/traefik/getting-started/install-traefik/}"
 TRAEFIK_DOWNLOAD_URL="${TRAEFIK_DOWNLOAD_URL:-https://github.com/traefik/traefik/releases/download/v$TRAEFIK_VERSION/traefik_v${TRAEFIK_VERSION}_linux_amd64.tar.gz}"
 TRAEFIK_SHA256="${TRAEFIK_SHA256:-9da81a928fde965c2c4678698bbc28bc3f600223b14c32b35bd480bf5ec863dc}"
@@ -78,11 +76,9 @@ TRAEFIK_AUTHZ_PORT="${TRAEFIK_AUTHZ_PORT:-18182}"
 TRAEFIK_INTEGRATION_MODE="${TRAEFIK_INTEGRATION_MODE:-forwardAuth}"
 
 LIGHTTPD_VERSION="${LIGHTTPD_VERSION:-1.4.84}"
-LIGHTTPD_SOURCE_PAGE="${LIGHTTPD_SOURCE_PAGE:-https://download.lighttpd.net/lighttpd/releases-1.4.x/}"
-LIGHTTPD_SOURCE_URL="${LIGHTTPD_SOURCE_URL:-$LIGHTTPD_SOURCE_PAGE}"
-LIGHTTPD_RELEASE_INDEX_URL="${LIGHTTPD_RELEASE_INDEX_URL:-$LIGHTTPD_SOURCE_PAGE}"
-LIGHTTPD_LATEST_MARKER_URL="${LIGHTTPD_LATEST_MARKER_URL:-https://download.lighttpd.net/lighttpd/releases-1.4.x/latest.txt}"
-LIGHTTPD_LATEST_URL="${LIGHTTPD_LATEST_URL:-$LIGHTTPD_LATEST_MARKER_URL}"
+LIGHTTPD_SOURCE_URL="${LIGHTTPD_SOURCE_URL:-https://download.lighttpd.net/lighttpd/releases-1.4.x/}"
+LIGHTTPD_RELEASE_INDEX_URL="${LIGHTTPD_RELEASE_INDEX_URL:-$LIGHTTPD_SOURCE_URL}"
+LIGHTTPD_LATEST_URL="${LIGHTTPD_LATEST_URL:-https://download.lighttpd.net/lighttpd/releases-1.4.x/latest.txt}"
 LIGHTTPD_DOWNLOAD_URL="${LIGHTTPD_DOWNLOAD_URL:-https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$LIGHTTPD_VERSION.tar.xz}"
 LIGHTTPD_SHA256="${LIGHTTPD_SHA256:-076dd43bec8f2ba9ce6db7e7ca7e8ad72271cd529805ead2400b56efaa026f70}"
 LIGHTTPD_SHA256_URL="${LIGHTTPD_SHA256_URL:-https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$LIGHTTPD_VERSION.sha256sum}"
@@ -133,6 +129,7 @@ MODSECURITY_V3_ROOT="${MODSECURITY_V3_ROOT:-$MODSECURITY_SOURCE_DIR}"
 
 # Optional preamble injected before generated local case rules
 : "${MODSECURITY_RULE_PREAMBLE_FILE:=}"
+MODSECURITY_TARGETED_SMOKE_RULE_FILE="${MODSECURITY_TARGETED_SMOKE_RULE_FILE:-$CONNECTOR_ROOT/common/rules/modsecurity_targeted_smoke.conf}"
 
 if [ -n "${CONNECTOR_ROOT:-}" ]; then
     DEFAULT_MODSECURITY_APACHE_SOURCE_DIR="${DEFAULT_MODSECURITY_APACHE_SOURCE_DIR:-$CONNECTOR_ROOT/connectors/apache}"
@@ -332,16 +329,17 @@ ci_validate_https_runtime_url_config() {
     ci_require_https_github_repo_url "$GO_FTW_SOURCE_URL" GO_FTW_SOURCE_URL || return 77
     ci_require_https_github_repo_url "$ALBEDO_SOURCE_URL" ALBEDO_SOURCE_URL || return 77
     ci_require_https_github_repo_url "$EXPAT_SOURCE_URL" EXPAT_SOURCE_URL || return 77
-    ci_require_https_url "$ENVOY_SOURCE_PAGE" ENVOY_SOURCE_PAGE || return 77
+    ci_require_https_url "$ENVOY_SOURCE_URL" ENVOY_SOURCE_URL || return 77
     ci_require_https_url "$ENVOY_INSTALL_DOCS_URL" ENVOY_INSTALL_DOCS_URL || return 77
     ci_require_https_url_if_set "$ENVOY_DOWNLOAD_URL" ENVOY_DOWNLOAD_URL || return 77
     ci_require_https_url_if_set "$ENVOY_SHA256_URL" ENVOY_SHA256_URL || return 77
-    ci_require_https_url "$TRAEFIK_SOURCE_PAGE" TRAEFIK_SOURCE_PAGE || return 77
+    ci_require_https_url "$TRAEFIK_SOURCE_URL" TRAEFIK_SOURCE_URL || return 77
     ci_require_https_url "$TRAEFIK_INSTALL_DOCS_URL" TRAEFIK_INSTALL_DOCS_URL || return 77
     ci_require_https_url_if_set "$TRAEFIK_DOWNLOAD_URL" TRAEFIK_DOWNLOAD_URL || return 77
     ci_require_https_url_if_set "$TRAEFIK_SHA256_URL" TRAEFIK_SHA256_URL || return 77
-    ci_require_https_url "$LIGHTTPD_SOURCE_PAGE" LIGHTTPD_SOURCE_PAGE || return 77
-    ci_require_https_url_if_set "$LIGHTTPD_LATEST_MARKER_URL" LIGHTTPD_LATEST_MARKER_URL || return 77
+    ci_require_https_url "$LIGHTTPD_SOURCE_URL" LIGHTTPD_SOURCE_URL || return 77
+    ci_require_https_url_if_set "$LIGHTTPD_RELEASE_INDEX_URL" LIGHTTPD_RELEASE_INDEX_URL || return 77
+    ci_require_https_url_if_set "$LIGHTTPD_LATEST_URL" LIGHTTPD_LATEST_URL || return 77
     ci_require_https_url_if_set "$LIGHTTPD_DOWNLOAD_URL" LIGHTTPD_DOWNLOAD_URL || return 77
     ci_require_https_url_if_set "$LIGHTTPD_SHA256_URL" LIGHTTPD_SHA256_URL || return 77
     ci_require_https_url "$HAPROXY_SOURCE_URL" HAPROXY_SOURCE_URL || return 77

@@ -260,6 +260,251 @@ $root"
     done
 }
 
+connector_smoke_decision_backend_value() {
+    connector=${1:-}
+    connector_backend=
+    case "$connector" in
+        envoy) connector_backend="${ENVOY_DECISION_BACKEND:-}" ;;
+        traefik) connector_backend="${TRAEFIK_DECISION_BACKEND:-}" ;;
+        lighttpd) connector_backend="${LIGHTTPD_DECISION_BACKEND:-}" ;;
+    esac
+    if [ -n "$connector_backend" ]; then
+        printf '%s\n' "$connector_backend"
+        return 0
+    fi
+    printf '%s\n' "${DECISION_BACKEND:-simple}"
+}
+
+connector_smoke_normalize_decision_backend() {
+    backend=${1:-simple}
+    case "$backend" in
+        ""|simple|decision-service|local-decision-service)
+            printf '%s\n' simple
+            ;;
+        libmodsecurity)
+            printf '%s\n' libmodsecurity
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+connector_smoke_modsecurity_missing() {
+    CONNECTOR_SMOKE_MODSECURITY_MISSING_REASON=$1
+    CONNECTOR_SMOKE_MODSECURITY_MISSING_DEPENDENCY=${2:-libmodsecurity}
+    export CONNECTOR_SMOKE_MODSECURITY_MISSING_REASON CONNECTOR_SMOKE_MODSECURITY_MISSING_DEPENDENCY
+    return 1
+}
+
+connector_smoke_resolve_modsecurity_backend() {
+    rule_file=${1:-${MODSECURITY_TARGETED_SMOKE_RULE_FILE:-}}
+    [ -n "$rule_file" ] || connector_smoke_modsecurity_missing \
+        "modsecurity targeted smoke rule file is not configured" \
+        "modsecurity targeted smoke rule"
+
+    export CONNECTOR_COMPONENT_CACHE VERIFIED_COMPONENT_CACHE VERIFIED_BUILD_ROOT
+    export BUILD_ROOT VERIFIED_RUN_ROOT TMP_ROOT LOG_ROOT
+    export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR MODSECURITY_LIB_FILE
+    export MODSECURITY_PKG_CONFIG_PATH MODSECURITY_PREFIX MODSECURITY_MANIFEST
+
+    if ! resolved=$("$PYTHON_BIN" - "$rule_file" <<'PY' 2>&1
+import json
+import os
+import sys
+from pathlib import Path
+
+rule_file = Path(sys.argv[1])
+if not rule_file.is_file():
+    raise SystemExit(f"modsecurity targeted smoke rule file missing: {rule_file}")
+
+system_roots = (
+    "/usr",
+    "/usr/local",
+    "/opt",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib64",
+)
+
+
+def env_path(name: str) -> Path | None:
+    value = os.environ.get(name, "")
+    return Path(value) if value else None
+
+
+def under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve(strict=False).relative_to(root.resolve(strict=False))
+        return True
+    except ValueError:
+        return False
+
+
+def is_system_path(path: Path) -> bool:
+    text = str(path)
+    return any(text == root or text.startswith(f"{root}/") for root in system_roots)
+
+
+allowed_roots: list[Path] = []
+for name in (
+    "CONNECTOR_COMPONENT_CACHE",
+    "VERIFIED_COMPONENT_CACHE",
+    "VERIFIED_BUILD_ROOT",
+    "BUILD_ROOT",
+    "VERIFIED_RUN_ROOT",
+    "TMP_ROOT",
+    "LOG_ROOT",
+    "XDG_CACHE_HOME",
+):
+    value = os.environ.get(name, "")
+    if value:
+        allowed_roots.append(Path(value))
+for literal in ("/tmp", "/var/tmp"):
+    allowed_roots.append(Path(literal))
+
+
+def is_allowed_local(path: Path) -> bool:
+    if not path.is_absolute() or is_system_path(path):
+        return False
+    return any(under(path, root) for root in allowed_roots)
+
+
+def reject_if_not_local(path: Path, label: str) -> None:
+    if not is_allowed_local(path):
+        raise SystemExit(f"{label} must be a local common.sh-managed path, not a system/PATH fallback: {path}")
+
+
+def find_lib(lib_dir: Path) -> Path | None:
+    for name in ("libmodsecurity.so", "libmodsecurity.so.3"):
+        candidate = lib_dir / name
+        if candidate.exists():
+            return candidate
+    for candidate in sorted(lib_dir.glob("libmodsecurity.so*")):
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def candidate_ok(data: dict[str, str]) -> bool:
+    include_dir = Path(data.get("include_dir", ""))
+    lib_dir = Path(data.get("lib_dir", ""))
+    lib_file = Path(data.get("lib_file", "")) if data.get("lib_file") else find_lib(lib_dir)
+    if not include_dir or not lib_dir or not lib_file:
+        return False
+    for path, label in (
+        (include_dir, "MODSECURITY_INCLUDE_DIR"),
+        (lib_dir, "MODSECURITY_LIB_DIR"),
+        (lib_file, "MODSECURITY_LIB_FILE"),
+    ):
+        reject_if_not_local(path, label)
+    required_headers = (
+        include_dir / "modsecurity/modsecurity.h",
+        include_dir / "modsecurity/rules_set.h",
+        include_dir / "modsecurity/transaction.h",
+    )
+    return all(path.is_file() for path in required_headers) and lib_file.exists()
+
+
+def emit(data: dict[str, str]) -> None:
+    include_dir = Path(data["include_dir"])
+    lib_dir = Path(data["lib_dir"])
+    lib_file = Path(data.get("lib_file", "")) if data.get("lib_file") else find_lib(lib_dir)
+    pkg_config_path = Path(data.get("pkg_config_path", "")) if data.get("pkg_config_path") else None
+    prefix = data.get("prefix", "")
+    manifest = data.get("manifest", "")
+    if pkg_config_path and pkg_config_path.exists():
+        reject_if_not_local(pkg_config_path, "MODSECURITY_PKG_CONFIG_PATH")
+    else:
+        pkg_config_path = None
+    print(f"MODSECURITY_INCLUDE_DIR={include_dir}")
+    print(f"MODSECURITY_LIB_DIR={lib_dir}")
+    print(f"MODSECURITY_LIB_FILE={lib_file}")
+    print(f"MODSECURITY_PKG_CONFIG_PATH={pkg_config_path or ''}")
+    print(f"MODSECURITY_PREFIX={prefix}")
+    print(f"MODSECURITY_MANIFEST={manifest}")
+
+
+env_include = env_path("MODSECURITY_INCLUDE_DIR")
+env_lib_dir = env_path("MODSECURITY_LIB_DIR")
+env_lib_file = env_path("MODSECURITY_LIB_FILE")
+if env_include or env_lib_dir or env_lib_file:
+    if not env_include:
+        raise SystemExit("MODSECURITY_INCLUDE_DIR is required when overriding local libmodsecurity paths")
+    if not env_lib_dir and not env_lib_file:
+        raise SystemExit("MODSECURITY_LIB_DIR or MODSECURITY_LIB_FILE is required when overriding local libmodsecurity paths")
+    if env_lib_file and not env_lib_dir:
+        env_lib_dir = env_lib_file.parent
+    data = {
+        "include_dir": str(env_include),
+        "lib_dir": str(env_lib_dir),
+        "lib_file": str(env_lib_file or ""),
+        "pkg_config_path": os.environ.get("MODSECURITY_PKG_CONFIG_PATH", ""),
+        "prefix": os.environ.get("MODSECURITY_PREFIX", ""),
+        "manifest": os.environ.get("MODSECURITY_MANIFEST", ""),
+    }
+    if not candidate_ok(data):
+        raise SystemExit("local libmodsecurity override is incomplete: headers and library are required")
+    emit(data)
+    raise SystemExit(0)
+
+candidates: list[dict[str, str]] = []
+seen_manifests: set[Path] = set()
+for cache_name in ("CONNECTOR_COMPONENT_CACHE", "VERIFIED_COMPONENT_CACHE"):
+    cache_value = os.environ.get(cache_name, "")
+    if not cache_value:
+        continue
+    cache = Path(cache_value)
+    for manifest in sorted((cache / "builds/modsecurity").glob("*/manifest.json"), key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True):
+        if manifest in seen_manifests:
+            continue
+        seen_manifests.add(manifest)
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        data["manifest"] = str(manifest)
+        candidates.append(data)
+    for prefix in sorted((cache / "prefix/modsecurity").glob("*"), key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True):
+        candidates.append({
+            "include_dir": str(prefix / "include"),
+            "lib_dir": str(prefix / "lib"),
+            "lib_file": str(prefix / "lib/libmodsecurity.so"),
+            "pkg_config_path": str(prefix / "lib/pkgconfig"),
+            "prefix": str(prefix),
+            "manifest": "",
+        })
+
+for candidate in candidates:
+    try:
+        ok = candidate_ok(candidate)
+    except SystemExit:
+        continue
+    if ok:
+        emit(candidate)
+        raise SystemExit(0)
+
+raise SystemExit("local libmodsecurity headers/library not available in common.sh-managed component caches")
+PY
+    ); then
+        connector_smoke_modsecurity_missing "$resolved" "libmodsecurity"
+        return 1
+    fi
+
+    MODSECURITY_INCLUDE_DIR=$(printf '%s\n' "$resolved" | sed -n 's/^MODSECURITY_INCLUDE_DIR=//p')
+    MODSECURITY_LIB_DIR=$(printf '%s\n' "$resolved" | sed -n 's/^MODSECURITY_LIB_DIR=//p')
+    MODSECURITY_LIB_FILE=$(printf '%s\n' "$resolved" | sed -n 's/^MODSECURITY_LIB_FILE=//p')
+    MODSECURITY_PKG_CONFIG_PATH=$(printf '%s\n' "$resolved" | sed -n 's/^MODSECURITY_PKG_CONFIG_PATH=//p')
+    MODSECURITY_PREFIX=$(printf '%s\n' "$resolved" | sed -n 's/^MODSECURITY_PREFIX=//p')
+    MODSECURITY_MANIFEST=$(printf '%s\n' "$resolved" | sed -n 's/^MODSECURITY_MANIFEST=//p')
+    MODSECURITY_TARGETED_SMOKE_RULE_FILE=$rule_file
+    export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR MODSECURITY_LIB_FILE
+    export MODSECURITY_PKG_CONFIG_PATH MODSECURITY_PREFIX MODSECURITY_MANIFEST
+    export MODSECURITY_TARGETED_SMOKE_RULE_FILE
+    return 0
+}
+
 resolve_evidence_root() {
     connector=$1
     connector_result_root=
@@ -321,8 +566,19 @@ write_blocked_result() {
     resolved_runtime_binary=${6:-}
     runtime_binary_env_var=${7:-}
     runtime_binary_name=${8:-}
+    decision_backend=$(connector_smoke_decision_backend_value "$connector")
+    if decision_backend=$(connector_smoke_normalize_decision_backend "$decision_backend" 2>/dev/null); then
+        :
+    else
+        decision_backend=${DECISION_BACKEND:-simple}
+    fi
+    modsecurity_rule_file=${MODSECURITY_TARGETED_SMOKE_RULE_FILE:-}
     evidence_root=$(resolve_evidence_root "$connector")
     log_dir=$(resolve_log_root "$connector" "$evidence_root")
+    decision_log_path=
+    if [ "$decision_backend" = "libmodsecurity" ]; then
+        decision_log_path="$log_dir/modsecurity-decision.log"
+    fi
     writer="$CONNECTOR_ROOT/common/scripts/write_smoke_result.py"
     starter_available=false
     if connector_smoke_starter_available "$connector"; then
@@ -363,6 +619,13 @@ write_blocked_result() {
         --runtime-binary-name "$runtime_binary_name" \
         --starter-checks-available "$starter_available" \
         --missing-dependency "$missing_dependency" \
+        --decision-backend "$decision_backend" \
+        --modsecurity-backend-verified false \
+        --modsecurity-rule-file "$modsecurity_rule_file" \
+        --modsecurity-rule-id 1000001 \
+        --modsecurity-rule-loaded false \
+        --intervention-status not-run \
+        --decision-log-path "$decision_log_path" \
         --architecture-decision "$architecture_decision" \
         $lookup_args
 }
