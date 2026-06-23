@@ -12,20 +12,20 @@ else
 fi
 
 . "$SCRIPT_DIR/common.sh"
+. "$SCRIPT_DIR/runtime-component-common.sh"
 
 ci_validate_https_runtime_url_config || exit 77
 
-sha_status=pinned
-if [ -z "$ENVOY_SHA256" ] || [ "$ENVOY_SHA256" = "TODO_PIN_SHA256" ]; then
-    sha_status=missing
-fi
+sha_status=$(runtime_component_sha_status "$ENVOY_SHA256")
+blocked_extra="Stage a prepared Envoy binary at:
+  $ENVOY_COMPONENT_ROOT/bin/envoy
+or set ENVOY_BIN to an executable local/common.sh-managed path."
 
 assert_safe_runtime_path "$ENVOY_COMPONENT_ROOT" ENVOY_COMPONENT_ROOT || exit 77
 assert_safe_runtime_path "$ENVOY_RUNTIME_ROOT" ENVOY_RUNTIME_ROOT || exit 77
 assert_safe_runtime_path "$ENVOY_CONFIG_ROOT" ENVOY_CONFIG_ROOT || exit 77
 assert_safe_runtime_path "$ENVOY_LOG_ROOT" ENVOY_LOG_ROOT || exit 77
 assert_safe_runtime_path "$ENVOY_RESULT_ROOT" ENVOY_RESULT_ROOT || exit 77
-assert_not_system_path_for_write "$ENVOY_COMPONENT_ROOT/bin" ENVOY_COMPONENT_BIN_DIR || exit 77
 ci_require_absolute_path "$ENVOY_BIN" ENVOY_BIN || exit 77
 if ci_path_is_system_path "$ENVOY_BIN"; then
     ci_blocked "ENVOY_BIN must not point at a global system path: $ENVOY_BIN"
@@ -35,28 +35,35 @@ fi
 if [ -f "$ENVOY_BIN" ] && [ -x "$ENVOY_BIN" ]; then
     printf 'envoy runtime binary: %s\n' "$ENVOY_BIN"
     printf 'envoy_version=%s\n' "$ENVOY_VERSION"
-    printf 'envoy_source_page=%s\n' "$ENVOY_SOURCE_PAGE"
+    printf 'envoy_source_url=%s\n' "$ENVOY_SOURCE_URL"
     printf 'envoy_download_url=%s\n' "$ENVOY_DOWNLOAD_URL"
     printf 'envoy_sha256_status=%s\n' "$sha_status"
     exit 0
 fi
 
-mkdir -p "$ENVOY_COMPONENT_ROOT/bin"
+if ! require_runtime_download_opt_in; then
+    write_prepare_blocked_message \
+        envoy \
+        "$ENVOY_VERSION" \
+        "$ENVOY_SOURCE_URL" \
+        "$ENVOY_INSTALL_DOCS_URL" \
+        "" \
+        "$ENVOY_DOWNLOAD_URL" \
+        "$sha_status" \
+        "$ENVOY_SHA256_URL" \
+        "$ENVOY_BIN" \
+        "$blocked_extra"
+    exit 77
+fi
 
-cat >&2 <<EOF
-BLOCKED: envoy runtime dependency is not staged locally.
-Version: $ENVOY_VERSION
-Source page: $ENVOY_SOURCE_PAGE
-Install docs: $ENVOY_INSTALL_DOCS_URL
-Download URL: $ENVOY_DOWNLOAD_URL
-SHA256 status: $sha_status
-SHA256 URL: $ENVOY_SHA256_URL
-Expected local binary: $ENVOY_BIN
-Stage a prepared Envoy binary at:
-  $ENVOY_COMPONENT_ROOT/bin/envoy
-or set ENVOY_BIN to an executable local/common.sh-managed path.
-No global installation or download was attempted. Download execution is
-disabled unless a future helper uses ALLOW_RUNTIME_DOWNLOADS=1 with the pinned
-version and SHA256 above.
-EOF
-exit 77
+require_pinned_runtime_source envoy "$ENVOY_VERSION" "$ENVOY_SOURCE_URL" "$ENVOY_DOWNLOAD_URL" "$ENVOY_SHA256" || exit 77
+
+artifact="$ENVOY_COMPONENT_ROOT/downloads/envoy-$ENVOY_VERSION-linux-x86_64"
+download_runtime_artifact envoy "$ENVOY_DOWNLOAD_URL" "$artifact" >/dev/null || exit 77
+verify_runtime_artifact_sha256 envoy "$ENVOY_SHA256" "$artifact" || exit 77
+stage_executable_binary envoy "$artifact" "$ENVOY_BIN" >/dev/null || exit 77
+
+printf 'envoy runtime binary staged: %s\n' "$ENVOY_BIN"
+printf 'envoy_version=%s\n' "$ENVOY_VERSION"
+printf 'envoy_download_url=%s\n' "$ENVOY_DOWNLOAD_URL"
+printf 'envoy_sha256_status=%s\n' "$sha_status"
