@@ -181,3 +181,17 @@ Connector repositories may vendor this framework as a submodule, commonly under
 fallback. Connector-specific inventory stays in the connector repository at
 `config/testing/import-status.json`; runtime evidence stays under
 `reports/testing/`.
+
+## GitHub Actions Artifacts
+
+The framework repository has its own artifact cleanup workflow when it runs as
+an independent GitHub repository. That workflow keeps only the newest artifact
+per logical artifact group and applies a repository-wide cap of the newest 20
+artifacts. Artifact names with run IDs, attempts, or long numeric suffixes are
+grouped together before pruning.
+
+Connector repositories that vendor this framework as a submodule run their own
+root workflows separately; the framework workflows only execute when GitHub
+Actions is enabled for the framework repository itself. Framework report,
+patch, log, debug, and coverage uploads are best-effort diagnostics with
+one-day retention.

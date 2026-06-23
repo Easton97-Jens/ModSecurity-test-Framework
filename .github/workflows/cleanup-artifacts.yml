@@ -1,0 +1,165 @@
+name: cleanup-artifacts
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 3 * * *'
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  cleanup-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Cleanup old artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const GLOBAL_KEEP_LIMIT = 20;
+            const { owner, repo } = context.repo;
+
+            function artifactGroupName(name) {
+              return name
+                .replace(/-\d{8,}$/u, '')
+                .replace(/-\d{6,}-\d+$/u, '')
+                .replace(/-run-\d+$/u, '')
+                .replace(/-attempt-\d+$/u, '');
+            }
+
+            function compareArtifactsNewestFirst(left, right) {
+              const createdDiff = Date.parse(right.created_at) - Date.parse(left.created_at);
+              if (createdDiff !== 0) {
+                return createdDiff;
+              }
+              return right.id - left.id;
+            }
+
+            function markdownCell(value) {
+              return String(value ?? '')
+                .replace(/\\/gu, '\\\\')
+                .replace(/\|/gu, '\\|')
+                .replace(/\r?\n/gu, ' ');
+            }
+
+            function artifactRow(entry) {
+              const artifact = entry.artifact ?? entry;
+              const group = entry.group ?? artifactGroupName(artifact.name);
+              return `| ${markdownCell(artifact.name)} | ${markdownCell(group)} | ${artifact.id} | ${markdownCell(artifact.created_at)} |`;
+            }
+
+            function artifactTable(entries, emptyText, extraHeader = '') {
+              if (entries.length === 0) {
+                return `${emptyText}\n`;
+              }
+
+              const header = extraHeader
+                ? '| Artifact | Group | ID | Created | Reason |\n| --- | --- | ---: | --- | --- |\n'
+                : '| Artifact | Group | ID | Created |\n| --- | --- | ---: | --- |\n';
+
+              const rows = entries.map((entry) => {
+                const base = artifactRow(entry);
+                if (!extraHeader) {
+                  return base;
+                }
+                return `${base.slice(0, -1)}| ${markdownCell(entry.reason)} |`;
+              });
+              return `${header}${rows.join('\n')}\n`;
+            }
+
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+
+            const groups = new Map();
+            for (const artifact of artifacts) {
+              const group = artifactGroupName(artifact.name);
+              if (!groups.has(group)) {
+                groups.set(group, []);
+              }
+              groups.get(group).push(artifact);
+            }
+
+            const retainedByGroup = [];
+            const deleteById = new Map();
+
+            for (const [group, groupArtifacts] of groups) {
+              groupArtifacts.sort(compareArtifactsNewestFirst);
+              const [newest, ...older] = groupArtifacts;
+              if (newest) {
+                retainedByGroup.push(newest);
+              }
+              for (const artifact of older) {
+                deleteById.set(artifact.id, {
+                  artifact,
+                  group,
+                  reason: 'older artifact in logical group',
+                });
+              }
+            }
+
+            retainedByGroup.sort(compareArtifactsNewestFirst);
+            const kept = retainedByGroup.slice(0, GLOBAL_KEEP_LIMIT);
+            const keptIds = new Set(kept.map((artifact) => artifact.id));
+            for (const artifact of retainedByGroup.slice(GLOBAL_KEEP_LIMIT)) {
+              deleteById.set(artifact.id, {
+                artifact,
+                group: artifactGroupName(artifact.name),
+                reason: `outside newest ${GLOBAL_KEEP_LIMIT} artifacts`,
+              });
+            }
+
+            const deleteCandidates = Array.from(deleteById.values())
+              .sort((left, right) => compareArtifactsNewestFirst(left.artifact, right.artifact));
+            const deleted = [];
+            const errors = [];
+
+            for (const entry of deleteCandidates) {
+              try {
+                await github.rest.actions.deleteArtifact({
+                  owner,
+                  repo,
+                  artifact_id: entry.artifact.id,
+                });
+                deleted.push(entry);
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                errors.push({ ...entry, reason: message });
+              }
+            }
+
+            const finalKept = kept.filter((artifact) => keptIds.has(artifact.id));
+            const summary = [
+              '# Artifact cleanup',
+              '',
+              `- Found artifacts: ${artifacts.length}`,
+              `- Logical groups: ${groups.size}`,
+              `- Kept artifacts: ${finalKept.length}`,
+              `- Deleted artifacts: ${deleted.length}`,
+              `- Errors: ${errors.length}`,
+              '',
+              '## Kept artifacts',
+              '',
+              artifactTable(finalKept, '_None._'),
+              '',
+              '## Deleted artifacts',
+              '',
+              artifactTable(deleted, '_None._', 'Reason'),
+              '',
+              '## Errors',
+              '',
+              artifactTable(errors, '_None._', 'Reason'),
+              '',
+            ].join('\n');
+
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+
+            if (errors.length > 0) {
+              core.setFailed(`Failed to delete ${errors.length} artifact(s).`);
+            }

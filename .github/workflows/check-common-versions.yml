@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   check-common-versions:
@@ -43,11 +44,116 @@ jobs:
             printf '%s\n' 'No safe common.sh update patch was generated.' > common-version-update.patch
           fi
 
+      - name: Cleanup artifacts before upload
+        if: always()
+        continue-on-error: true
+        uses: actions/github-script@v7
+        env:
+          ARTIFACT_NAME: common-version-update
+        with:
+          script: |
+            const GLOBAL_KEEP_LIMIT = 20;
+            const PRE_UPLOAD_KEEP_LIMIT = Math.max(GLOBAL_KEEP_LIMIT - 1, 0);
+            const { owner, repo } = context.repo;
+            const targetName = process.env.ARTIFACT_NAME || 'artifact';
+            const targetGroup = artifactGroupName(targetName);
+
+            function artifactGroupName(name) {
+              return name
+                .replace(/-\d{8,}$/u, '')
+                .replace(/-\d{6,}-\d+$/u, '')
+                .replace(/-run-\d+$/u, '')
+                .replace(/-attempt-\d+$/u, '');
+            }
+
+            function compareArtifactsNewestFirst(left, right) {
+              const createdDiff = Date.parse(right.created_at) - Date.parse(left.created_at);
+              if (createdDiff !== 0) {
+                return createdDiff;
+              }
+              return right.id - left.id;
+            }
+
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+
+            const groups = new Map();
+            for (const artifact of artifacts) {
+              const group = artifactGroupName(artifact.name);
+              if (!groups.has(group)) {
+                groups.set(group, []);
+              }
+              groups.get(group).push(artifact);
+            }
+
+            const deleteById = new Map();
+            const retainedByGroup = [];
+
+            for (const [group, groupArtifacts] of groups) {
+              groupArtifacts.sort(compareArtifactsNewestFirst);
+              const [newest, ...older] = groupArtifacts;
+              if (group === targetGroup) {
+                for (const artifact of groupArtifacts) {
+                  deleteById.set(artifact.id, {
+                    artifact,
+                    group,
+                    reason: `same logical group as upcoming upload: ${targetGroup}`,
+                  });
+                }
+                continue;
+              }
+              if (newest) {
+                retainedByGroup.push(newest);
+              }
+              for (const artifact of older) {
+                deleteById.set(artifact.id, {
+                  artifact,
+                  group,
+                  reason: 'older artifact in logical group',
+                });
+              }
+            }
+
+            retainedByGroup.sort(compareArtifactsNewestFirst);
+
+            for (const artifact of retainedByGroup.slice(PRE_UPLOAD_KEEP_LIMIT)) {
+              deleteById.set(artifact.id, {
+                artifact,
+                group: artifactGroupName(artifact.name),
+                reason: `reserve one slot while keeping newest ${GLOBAL_KEEP_LIMIT} artifacts after upload`,
+              });
+            }
+
+            const deleteCandidates = Array.from(deleteById.values())
+              .sort((left, right) => compareArtifactsNewestFirst(left.artifact, right.artifact));
+
+            core.info(`Found ${artifacts.length} artifact(s); deleting ${deleteCandidates.length} before uploading ${targetName}.`);
+
+            for (const entry of deleteCandidates) {
+              try {
+                await github.rest.actions.deleteArtifact({
+                  owner,
+                  repo,
+                  artifact_id: entry.artifact.id,
+                });
+                core.info(`Deleted artifact ${entry.artifact.name} (${entry.artifact.id}) from group ${entry.group}: ${entry.reason}`);
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                core.warning(`Could not delete artifact ${entry.artifact.name} (${entry.artifact.id}) from group ${entry.group}: ${message}`);
+              }
+            }
+
       - name: Upload patch
-        if: failure()
+        if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: common-version-update
+          retention-days: 1
+          if-no-files-found: warn
           path: |
             common-version-check.md
             common-version-update.patch
