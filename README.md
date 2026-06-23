@@ -195,3 +195,13 @@ root workflows separately; the framework workflows only execute when GitHub
 Actions is enabled for the framework repository itself. Framework report,
 patch, log, debug, and coverage uploads are best-effort diagnostics with
 one-day retention.
+
+## GitHub Actions Version Updates
+
+Dependabot checks GitHub Actions weekly for this framework repository. When the
+framework is vendored as `modules/ModSecurity-test-Framework`, the parent
+connector repository can scan these workflow files too, but automatic writes to
+the submodule require separate permissions such as `SUBMODULE_UPDATE_TOKEN` and
+usually a separate framework pull request. SHA-pinned actions are not updated
+automatically, and local, Docker, or dynamic `uses:` entries are reported
+without modification.
