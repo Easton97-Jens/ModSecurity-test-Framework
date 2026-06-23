@@ -75,12 +75,18 @@
       "component_root_env": "LIGHTTPD_COMPONENT_ROOT",
       "component_root": "$CONNECTOR_COMPONENT_CACHE/lighttpd",
       "source_stage_dir": "$CONNECTOR_COMPONENT_CACHE/lighttpd/src/lighttpd-1.4.84",
-      "runtime_binary_produced": false,
+      "source_staged": false,
+      "build_supported": true,
+      "build_requires_opt_in": true,
+      "runtime_binary_produced": true,
+      "integration_mode": "sidecar_proxy",
+      "runtime_smoke_verified": false,
+      "targeted_modsecurity_smoke_verified": false,
       "download_requires_opt_in": true,
       "global_install_allowed": false,
       "path_fallback_allowed": false,
       "enabled": true,
-      "status": "source_pinned_build_required"
+      "status": "source_pinned_build_opt_in_required"
     }
   ]
 }

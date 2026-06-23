@@ -103,11 +103,6 @@ else
     source_dir="$LIGHTTPD_SOURCE_STAGE_DIR"
 fi
 
-if [ ! -x "$source_dir/configure" ]; then
-    ci_blocked "lighttpd source configure script is missing or not executable: $source_dir/configure"
-    exit 77
-fi
-
 if [ "${ALLOW_RUNTIME_BUILDS:-0}" != "1" ]; then
     {
         printf 'BLOCKED: lighttpd source is staged, but local build requires ALLOW_RUNTIME_BUILDS=1.\n'
@@ -122,11 +117,21 @@ fi
 
 mkdir -p "$LIGHTTPD_BUILD_LOG_ROOT"
 missing_tools=
-for tool in make tar grep find sed; do
+for tool in make tar grep find sed tee; do
     if ! command -v "$tool" >/dev/null 2>&1; then
         missing_tools="$missing_tools $tool"
     fi
 done
+if [ ! -x "$source_dir/configure" ]; then
+    if [ -x "$source_dir/autogen.sh" ]; then
+        if ! command -v autoreconf >/dev/null 2>&1; then
+            missing_tools="$missing_tools autoreconf"
+        fi
+    else
+        ci_blocked "lighttpd source has neither executable configure nor executable autogen.sh: $source_dir"
+        exit 77
+    fi
+fi
 
 cc_bin="${CC:-}"
 if [ -n "$cc_bin" ]; then
@@ -148,6 +153,19 @@ fi
 if [ -n "$missing_tools" ]; then
     printf '%s\n' "$missing_tools" > "$LIGHTTPD_BUILD_MISSING_DEPS_LOG"
     ci_blocked "lighttpd build dependencies are missing:$missing_tools"
+    exit 77
+fi
+
+if [ ! -x "$source_dir/configure" ]; then
+    printf './autogen.sh\n' > "$LIGHTTPD_BUILD_LOG_ROOT/autogen-command.txt"
+    if ! (cd "$source_dir" && ./autogen.sh > "$LIGHTTPD_BUILD_LOG_ROOT/autogen.stdout.log" 2> "$LIGHTTPD_BUILD_LOG_ROOT/autogen.stderr.log"); then
+        ci_blocked "lighttpd autogen failed; see $LIGHTTPD_BUILD_LOG_ROOT/autogen.stderr.log"
+        exit 77
+    fi
+fi
+
+if [ ! -x "$source_dir/configure" ]; then
+    ci_blocked "lighttpd autogen did not produce executable configure: $source_dir/configure"
     exit 77
 fi
 
