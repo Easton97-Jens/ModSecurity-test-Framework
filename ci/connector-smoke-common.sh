@@ -160,6 +160,35 @@ connector_smoke_connector_lookup_roots() {
     esac
 }
 
+connector_smoke_default_verified_roots() {
+    seen_default_roots=
+    for base in \
+        "${RUNNER_TEMP:-}" \
+        "${TMPDIR:-}" \
+        /tmp \
+        /var/tmp
+    do
+        [ -n "$base" ] || continue
+        for root in \
+            "$base/ModSecurity-conector-verified" \
+            "$base/ModSecurity-conector-verified/component-cache" \
+            "$base/ModSecurity-conector-verified/build" \
+            "$base/ModSecurity-conector-verified/src"
+        do
+            case "
+$seen_default_roots
+" in
+                *"
+$root
+"*) continue ;;
+            esac
+            seen_default_roots="${seen_default_roots}
+$root"
+            printf '%s\n' "$root"
+        done
+    done
+}
+
 find_runtime_binary_in_root() {
     root=$1
     binary_name=$2
@@ -216,7 +245,8 @@ find_runtime_binary() {
         "${VERIFIED_BUILD_ROOT:-}" \
         "${BUILD_ROOT:-}" \
         "${VERIFIED_RUN_ROOT:-}" \
-        "${SOURCE_ROOT:-}"
+        "${SOURCE_ROOT:-}" \
+        $(connector_smoke_default_verified_roots)
     do
         found=$(find_runtime_binary_in_root "$root" "$binary_name" || true)
         if [ -n "$found" ]; then
@@ -243,7 +273,8 @@ connector_smoke_runtime_lookup_roots_args() {
         "${VERIFIED_BUILD_ROOT:-}" \
         "${BUILD_ROOT:-}" \
         "${VERIFIED_RUN_ROOT:-}" \
-        "${SOURCE_ROOT:-}"
+        "${SOURCE_ROOT:-}" \
+        $(connector_smoke_default_verified_roots)
     do
         [ -n "$root" ] || continue
         case "
@@ -304,7 +335,8 @@ connector_smoke_resolve_modsecurity_backend() {
         "modsecurity targeted smoke rule"
 
     export CONNECTOR_COMPONENT_CACHE VERIFIED_COMPONENT_CACHE VERIFIED_BUILD_ROOT
-    export BUILD_ROOT VERIFIED_RUN_ROOT TMP_ROOT LOG_ROOT
+    export BUILD_ROOT VERIFIED_RUN_ROOT TMP_ROOT LOG_ROOT SOURCE_ROOT
+    export MODSECURITY_SOURCE_DIR MODSECURITY_V3_SOURCE_DIR MODSECURITY_V3_ROOT
     export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR MODSECURITY_LIB_FILE
     export MODSECURITY_PKG_CONFIG_PATH MODSECURITY_PREFIX MODSECURITY_MANIFEST
 
@@ -348,6 +380,16 @@ def is_system_path(path: Path) -> bool:
 
 
 allowed_roots: list[Path] = []
+
+
+def add_unique_path(target: list[Path], path: Path | None) -> None:
+    if path is None or not path.is_absolute():
+        return
+    text = str(path)
+    if text not in {str(existing) for existing in target}:
+        target.append(path)
+
+
 for name in (
     "CONNECTOR_COMPONENT_CACHE",
     "VERIFIED_COMPONENT_CACHE",
@@ -356,13 +398,28 @@ for name in (
     "VERIFIED_RUN_ROOT",
     "TMP_ROOT",
     "LOG_ROOT",
+    "SOURCE_ROOT",
+    "MODSECURITY_SOURCE_DIR",
+    "MODSECURITY_V3_SOURCE_DIR",
+    "MODSECURITY_V3_ROOT",
     "XDG_CACHE_HOME",
 ):
     value = os.environ.get(name, "")
     if value:
-        allowed_roots.append(Path(value))
+        add_unique_path(allowed_roots, Path(value))
 for literal in ("/tmp", "/var/tmp"):
-    allowed_roots.append(Path(literal))
+    add_unique_path(allowed_roots, Path(literal))
+for base_text in (
+    os.environ.get("RUNNER_TEMP", ""),
+    os.environ.get("TMPDIR", ""),
+    "/tmp",
+    "/var/tmp",
+):
+    if not base_text:
+        continue
+    verified_root = Path(base_text) / "ModSecurity-conector-verified"
+    add_unique_path(allowed_roots, verified_root)
+    add_unique_path(allowed_roots, verified_root / "component-cache")
 
 
 def is_allowed_local(path: Path) -> bool:
@@ -451,30 +508,73 @@ if env_include or env_lib_dir or env_lib_file:
 
 candidates: list[dict[str, str]] = []
 seen_manifests: set[Path] = set()
-for cache_name in ("CONNECTOR_COMPONENT_CACHE", "VERIFIED_COMPONENT_CACHE"):
-    cache_value = os.environ.get(cache_name, "")
-    if not cache_value:
+
+
+def add_manifest_candidate(manifest: Path) -> None:
+    if manifest in seen_manifests:
+        return
+    seen_manifests.add(manifest)
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    data["manifest"] = str(manifest)
+    candidates.append(data)
+
+
+def add_prefix_candidate(prefix: Path) -> None:
+    candidates.append({
+        "include_dir": str(prefix / "include"),
+        "lib_dir": str(prefix / "lib"),
+        "lib_file": str(prefix / "lib/libmodsecurity.so"),
+        "pkg_config_path": str(prefix / "lib/pkgconfig"),
+        "prefix": str(prefix),
+        "manifest": "",
+    })
+
+
+search_roots: list[Path] = []
+for name in (
+    "CONNECTOR_COMPONENT_CACHE",
+    "VERIFIED_COMPONENT_CACHE",
+    "VERIFIED_BUILD_ROOT",
+    "BUILD_ROOT",
+    "VERIFIED_RUN_ROOT",
+    "TMP_ROOT",
+    "LOG_ROOT",
+    "SOURCE_ROOT",
+):
+    value = os.environ.get(name, "")
+    if value:
+        add_unique_path(search_roots, Path(value))
+for base_text in (
+    os.environ.get("RUNNER_TEMP", ""),
+    os.environ.get("TMPDIR", ""),
+    "/tmp",
+    "/var/tmp",
+):
+    if not base_text:
         continue
-    cache = Path(cache_value)
+    verified_root = Path(base_text) / "ModSecurity-conector-verified"
+    add_unique_path(search_roots, verified_root)
+    add_unique_path(search_roots, verified_root / "component-cache")
+
+cache_roots: list[Path] = []
+for root in search_roots:
+    add_unique_path(cache_roots, root)
+    add_unique_path(cache_roots, root / "component-cache")
+    if root.name in {"build", "logs", "tmp", "src", "sources"}:
+        add_unique_path(cache_roots, root.parent / "component-cache")
+    if root.name == "component-cache":
+        add_unique_path(cache_roots, root)
+
+for cache in cache_roots:
     for manifest in sorted((cache / "builds/modsecurity").glob("*/manifest.json"), key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True):
         if manifest in seen_manifests:
             continue
-        seen_manifests.add(manifest)
-        try:
-            data = json.loads(manifest.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        data["manifest"] = str(manifest)
-        candidates.append(data)
+        add_manifest_candidate(manifest)
     for prefix in sorted((cache / "prefix/modsecurity").glob("*"), key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True):
-        candidates.append({
-            "include_dir": str(prefix / "include"),
-            "lib_dir": str(prefix / "lib"),
-            "lib_file": str(prefix / "lib/libmodsecurity.so"),
-            "pkg_config_path": str(prefix / "lib/pkgconfig"),
-            "prefix": str(prefix),
-            "manifest": "",
-        })
+        add_prefix_candidate(prefix)
 
 for candidate in candidates:
     try:
@@ -578,6 +678,9 @@ write_blocked_result() {
     decision_log_path=
     if [ "$decision_backend" = "libmodsecurity" ]; then
         decision_log_path="$log_dir/modsecurity-decision.log"
+        if [ "${MODSECURITY_RULESET:-targeted}" = "crs" ]; then
+            decision_log_path="$log_dir/crs-decision.log"
+        fi
     fi
     writer="$CONNECTOR_ROOT/common/scripts/write_smoke_result.py"
     starter_available=false
@@ -620,13 +723,22 @@ write_blocked_result() {
         --starter-checks-available "$starter_available" \
         --missing-dependency "$missing_dependency" \
         --decision-backend "$decision_backend" \
+        --modsecurity-ruleset "${MODSECURITY_RULESET:-targeted}" \
+        --crs-smoke-case "${CRS_SMOKE_CASE:-minimal}" \
         --modsecurity-backend-verified false \
         --modsecurity-rule-file "$modsecurity_rule_file" \
-        --modsecurity-rule-id 1000001 \
+        --modsecurity-rule-id "$([ "${MODSECURITY_RULESET:-targeted}" = "crs" ] && printf '' || printf '1000001')" \
         --modsecurity-rule-loaded false \
         --intervention-status not-run \
         --decision-log-path "$decision_log_path" \
         --architecture-decision "$architecture_decision" \
+        --crs-repo-url "${CRS_REPO_URL:-}" \
+        --crs-git-ref "${CRS_GIT_REF:-}" \
+        --crs-source-dir "${CRS_SOURCE_DIR:-}" \
+        --crs-runtime-dir "${CRS_RUNTIME_DIR:-}" \
+        --crs-version "" \
+        --crs-minimal-smoke-verified false \
+        --crs-secondary-smoke-verified false \
         $lookup_args
 }
 
