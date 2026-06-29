@@ -1,5 +1,7 @@
 # Apache Regression Map
 
+**Language:** English | [Deutsch](apache-regression-map.de.md)
+
 Status: scaffolded
 
 Source inventory: 29 relevant files under

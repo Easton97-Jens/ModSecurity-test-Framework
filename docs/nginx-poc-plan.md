@@ -1,5 +1,7 @@
 # NGINX PoC Plan
 
+**Language:** English | [Deutsch](nginx-poc-plan.de.md)
+
 Status: scaffolded
 
 This document records the NGINX PoC direction and the source facts used for the

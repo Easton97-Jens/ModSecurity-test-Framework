@@ -1,5 +1,7 @@
 # Future Connectors
 
+**Language:** English | [Deutsch](future-connectors.de.md)
+
 No new connector is implemented in this stabilization step. Each future
 connector must first provide a real-world harness equivalent to Apache and
 NGINX.

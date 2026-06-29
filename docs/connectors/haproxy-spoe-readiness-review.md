@@ -1,5 +1,7 @@
 # HAProxy SPOE/SPOA Readiness Review (Documentation-Only)
 
+**Language:** English | [Deutsch](haproxy-spoe-readiness-review.de.md)
+
 ## Kurzfazit
 Das Framework ist teilweise vorbereitet, aber es fehlen noch zentrale Verträge/Runner/Schemas.
 

@@ -1,5 +1,7 @@
 # Capability Model
 
+**Language:** English | [Deutsch](capability-model.de.md)
+
 Capabilities describe what a YAML case exercises. They are evidence labels, not
 automatic skips. A capability is counted as verified only when a real connector
 smoke case passes through Apache or NGINX.

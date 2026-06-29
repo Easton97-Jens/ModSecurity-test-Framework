@@ -321,6 +321,25 @@ connector_smoke_normalize_decision_backend() {
     esac
 }
 
+connector_smoke_modsecurity_rule_file() {
+    case "${MODSECURITY_RULESET:-targeted}:${MODSECURITY_SMOKE_CASE:-targeted}" in
+        targeted:request_body)
+            printf '%s\n' "${MODSECURITY_REQUEST_BODY_SMOKE_RULE_FILE:-$CONNECTOR_ROOT/common/rules/modsecurity_request_body_smoke.conf}"
+            ;;
+        *)
+            printf '%s\n' "${MODSECURITY_TARGETED_SMOKE_RULE_FILE:-$CONNECTOR_ROOT/common/rules/modsecurity_targeted_smoke.conf}"
+            ;;
+    esac
+}
+
+connector_smoke_modsecurity_rule_id() {
+    case "${MODSECURITY_RULESET:-targeted}:${MODSECURITY_SMOKE_CASE:-targeted}" in
+        crs:*) printf '%s\n' "" ;;
+        targeted:request_body) printf '%s\n' "1000002" ;;
+        *) printf '%s\n' "1000001" ;;
+    esac
+}
+
 connector_smoke_modsecurity_missing() {
     CONNECTOR_SMOKE_MODSECURITY_MISSING_REASON=$1
     CONNECTOR_SMOKE_MODSECURITY_MISSING_DEPENDENCY=${2:-libmodsecurity}
@@ -672,7 +691,7 @@ write_blocked_result() {
     else
         decision_backend=${DECISION_BACKEND:-simple}
     fi
-    modsecurity_rule_file=${MODSECURITY_TARGETED_SMOKE_RULE_FILE:-}
+    modsecurity_rule_file=$(connector_smoke_modsecurity_rule_file)
     evidence_root=$(resolve_evidence_root "$connector")
     log_dir=$(resolve_log_root "$connector" "$evidence_root")
     decision_log_path=
@@ -680,6 +699,8 @@ write_blocked_result() {
         decision_log_path="$log_dir/modsecurity-decision.log"
         if [ "${MODSECURITY_RULESET:-targeted}" = "crs" ]; then
             decision_log_path="$log_dir/crs-decision.log"
+        elif [ "${MODSECURITY_SMOKE_CASE:-targeted}" = "request_body" ]; then
+            decision_log_path="$log_dir/request-body-decision.log"
         fi
     fi
     writer="$CONNECTOR_ROOT/common/scripts/write_smoke_result.py"
@@ -724,11 +745,19 @@ write_blocked_result() {
         --missing-dependency "$missing_dependency" \
         --decision-backend "$decision_backend" \
         --modsecurity-ruleset "${MODSECURITY_RULESET:-targeted}" \
+        --modsecurity-smoke-case "${MODSECURITY_SMOKE_CASE:-targeted}" \
         --crs-smoke-case "${CRS_SMOKE_CASE:-minimal}" \
         --modsecurity-backend-verified false \
         --modsecurity-rule-file "$modsecurity_rule_file" \
-        --modsecurity-rule-id "$([ "${MODSECURITY_RULESET:-targeted}" = "crs" ] && printf '' || printf '1000001')" \
+        --modsecurity-rule-id "$(connector_smoke_modsecurity_rule_id)" \
         --modsecurity-rule-loaded false \
+        --request-body-smoke-verified false \
+        --request-body-access-enabled false \
+        --request-body-rule-file "$([ "${MODSECURITY_SMOKE_CASE:-targeted}" = "request_body" ] && printf '%s' "$modsecurity_rule_file" || printf '')" \
+        --request-body-rule-id "$([ "${MODSECURITY_SMOKE_CASE:-targeted}" = "request_body" ] && printf '1000002' || printf '')" \
+        --request-body-rule-loaded false \
+        --request-method "$([ "${MODSECURITY_SMOKE_CASE:-targeted}" = "request_body" ] && printf 'POST' || printf '')" \
+        --blocked-body-marker "$([ "${MODSECURITY_SMOKE_CASE:-targeted}" = "request_body" ] && printf 'modsec-request-body-block' || printf '')" \
         --intervention-status not-run \
         --decision-log-path "$decision_log_path" \
         --architecture-decision "$architecture_decision" \

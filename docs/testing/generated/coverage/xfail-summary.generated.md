@@ -2,6 +2,8 @@ Generated file - do not edit manually.
 
 # Generated Former XFAIL Migration Summary
 
+**Language:** English | [Deutsch](xfail-summary.generated.de.md)
+
 - Current XFAIL YAML cases: **0**
 - Former XFAIL YAML cases tracked: **80**
 - Former XFAIL import manifest entries: **0**

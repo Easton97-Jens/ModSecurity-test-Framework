@@ -1,5 +1,7 @@
 # Compatibility
 
+**Language:** English | [Deutsch](compatibility.de.md)
+
 Status: scaffolded
 
 ## Version Position

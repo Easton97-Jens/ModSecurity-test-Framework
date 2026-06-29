@@ -1,5 +1,7 @@
 # Apache vs NGINX PoC
 
+**Language:** English | [Deutsch](apache-vs-nginx-poc.de.md)
+
 Status: scaffolded
 
 ## Shared Behavior

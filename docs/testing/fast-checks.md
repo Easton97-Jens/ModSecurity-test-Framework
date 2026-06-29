@@ -1,5 +1,7 @@
 # Fast Checks vs Full Smoke
 
+**Language:** English | [Deutsch](fast-checks.de.md)
+
 ## Purpose
 
 Fast checks provide rapid feedback for Codex/developer iterations without pretending to be full connector validation.

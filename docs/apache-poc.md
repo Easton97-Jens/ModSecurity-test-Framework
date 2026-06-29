@@ -1,5 +1,7 @@
 # Apache Connector PoC
 
+**Language:** English | [Deutsch](apache-poc.de.md)
+
 Status: scaffolded
 
 ## Implemented

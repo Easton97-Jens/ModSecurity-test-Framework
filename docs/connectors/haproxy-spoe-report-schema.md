@@ -1,5 +1,7 @@
 # HAProxy SPOE/SPOA Proposed Report Schema
 
+**Language:** English | [Deutsch](haproxy-spoe-report-schema.de.md)
+
 ## Status
 schema_status: proposed
 implementation_status: not_started

@@ -1,5 +1,7 @@
 # libmodsecurity v3 API Smoke Test
 
+**Language:** English | [Deutsch](v3-api-smoke-test.de.md)
+
 Status: implemented portable build harness. A local explicit-build-root run
 observed `primary_args_phase2` pass after building libmodsecurity.
 

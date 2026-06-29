@@ -1,5 +1,7 @@
 # PR Evidence Summary
 
+**Language:** English | [Deutsch](pr-evidence-summary.de.md)
+
 Status: implemented
 
 This repository packages the current evidence/validation framework for two

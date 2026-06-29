@@ -1,5 +1,7 @@
 # Connector Code Import Plan
 
+**Language:** English | [Deutsch](connector-code-import-plan.de.md)
+
 Status: implemented
 
 This document defines the controlled import path for the existing Apache and

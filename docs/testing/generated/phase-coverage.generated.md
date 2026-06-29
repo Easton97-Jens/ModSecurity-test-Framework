@@ -2,6 +2,8 @@ Generated file — do not edit manually.
 
 # Generated Phase Coverage
 
+**Language:** English | [Deutsch](phase-coverage.generated.de.md)
+
 | phase | case_count | top_variables | status_distribution |
 |---|---:|---|---|
 | 1 | 105 | REQUEST_COOKIES_NAMES(19), REQUEST_COOKIES(15), ARGS(10), ARGS_NAMES(8), REQUEST_URI(7) | active:2, imported:34, pending:69 |

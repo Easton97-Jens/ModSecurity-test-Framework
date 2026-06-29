@@ -1,5 +1,7 @@
 # Status Model
 
+**Language:** English | [Deutsch](status-model.de.md)
+
 The framework separates runtime results from import/classification status.
 
 ## Runtime Status

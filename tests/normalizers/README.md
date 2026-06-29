@@ -1,5 +1,7 @@
 # Normalizers
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: scaffolded
 
 Normalizers remove or stabilize volatile values from artifacts before

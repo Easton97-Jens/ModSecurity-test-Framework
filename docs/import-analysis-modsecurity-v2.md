@@ -1,5 +1,7 @@
 # Import Analysis: ModSecurity v2
 
+**Language:** English | [Deutsch](import-analysis-modsecurity-v2.de.md)
+
 Status: implemented
 
 Local source: `<workspace>/ModSecurity_V2`

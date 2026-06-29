@@ -1,5 +1,7 @@
 # Common Case Reference
 
+**Language:** English | [Deutsch](cases.de.md)
+
 Status: scaffolded
 
 The runtime YAML corpus now lives under `tests/cases/` and is organized by

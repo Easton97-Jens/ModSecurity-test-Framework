@@ -1,5 +1,7 @@
 # Common Test Schema
 
+**Language:** English | [Deutsch](schema.de.md)
+
 Status: scaffolded
 
 Portable common cases use the minimal mapping shape below:

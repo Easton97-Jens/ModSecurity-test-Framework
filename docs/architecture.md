@@ -1,5 +1,7 @@
 # Architecture
 
+**Language:** English | [Deutsch](architecture.de.md)
+
 Status: scaffolded
 
 ## Direction

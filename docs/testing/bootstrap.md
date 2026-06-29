@@ -1,5 +1,7 @@
 # Runtime Bootstrap (Optional)
 
+**Language:** English | [Deutsch](bootstrap.de.md)
+
 This project can optionally fetch real upstream smoke prerequisites from GitHub.
 Apache and NGINX connector source is repo-local by default; external connector
 repositories are not part of the default runtime bootstrap.

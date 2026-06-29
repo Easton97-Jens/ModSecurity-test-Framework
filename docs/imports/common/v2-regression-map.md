@@ -1,5 +1,7 @@
 # ModSecurity v2 Regression Map
 
+**Language:** English | [Deutsch](v2-regression-map.de.md)
+
 Status: implemented
 
 Local source: `<local ModSecurity v2 checkout>/tests/`

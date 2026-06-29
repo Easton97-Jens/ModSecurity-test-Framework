@@ -1,5 +1,7 @@
 # V2 vs V3 Test Compatibility
 
+**Language:** English | [Deutsch](v2-vs-v3-test-compatibility.de.md)
+
 Status: implemented
 
 This document records how local ModSecurity v2 and v3 tests are reused in the

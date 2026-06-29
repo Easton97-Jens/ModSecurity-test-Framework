@@ -1,5 +1,7 @@
 # ModSecurity Test Framework
 
+**Language:** English | [Deutsch](README.de.md)
+
 This repository is the shared test, runtime, coverage, and reporting framework
 for ModSecurity connector projects. It owns the reusable YAML case corpus,
 runner code, normalizers, runtime-matrix tooling, generated report logic, and

@@ -1,5 +1,7 @@
 # Common Fixtures
 
+**Language:** English | [Deutsch](fixtures.de.md)
+
 Status: scaffolded
 
 Only portable fixtures belong here.

@@ -2,6 +2,8 @@ Generated file - do not edit manually.
 
 # Generated Coverage Summary
 
+**Language:** English | [Deutsch](coverage-summary.generated.de.md)
+
 - Total cases: 540
 - RESPONSE_BODY cases: 32
 - Verified runtime cases: 0

@@ -1,5 +1,7 @@
 # Sources
 
+**Language:** English | [Deutsch](sources.de.md)
+
 Status: implemented
 
 ## Local Sources

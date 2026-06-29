@@ -1,5 +1,7 @@
 # Import Analysis: ModSecurity v3 / libmodsecurity
 
+**Language:** English | [Deutsch](import-analysis-modsecurity-v3.de.md)
+
 Status: implemented
 
 Local reference: `/root/conecter/ModSecurity_V3`

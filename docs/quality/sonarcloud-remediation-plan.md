@@ -1,5 +1,7 @@
 # SonarCloud Remediation Plan
 
+**Language:** English | [Deutsch](sonarcloud-remediation-plan.de.md)
+
 Source: SonarCloud API for project
 `Easton97-Jens_ModSecurity-conector`, branch `master`, queried on 2026-05-15.
 The query returned 31 open issues in the current remote analysis snapshot:
