@@ -4,6 +4,8 @@ Generierte Datei – nicht manuell bearbeiten.
 
 **Sprache:** [English](runtime-matrix.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 Diese Matrix verbindet Repository-YAML-Fälle mit dem neuesten verfolgten lokalen Laufzeit-Snapshot.
 Frühere XFAIL-Fälle werden wie alle anderen YAML-Fälle aus Live-Runtime-Nachweisen gerendert; RESPONSE_BODY bleibt non-verified/non-promoted.
 

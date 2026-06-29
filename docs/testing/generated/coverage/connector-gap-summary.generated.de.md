@@ -4,6 +4,8 @@ Generierte Datei – nicht manuell bearbeiten.
 
 **Sprache:** [English](connector-gap-summary.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 | case_id | path | status | classification | tags | variables | source/provenance | notes |
 |---|---|---|---|---|---|---|---|
 | audit_log_message_presence_connector_gap | `tests/cases/audit-log/audit_log_message_presence_connector_gap.yaml` | imported | active | connector-gap | ARGS:a | unknown | - |

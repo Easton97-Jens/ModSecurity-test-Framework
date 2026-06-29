@@ -4,6 +4,8 @@ Generierte Datei – nicht manuell bearbeiten.
 
 **Sprache:** [English](case-matrix.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 | case_id | path | scope | phase | variables | operators | transformations | status | MRTS corpus | classification | report labels | runtime_verified | RESPONSE_BODY non-verified | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | audit_log_empty_sections_future_target | `tests/cases/audit-log/audit_log_empty_sections_future_target.yaml` | common | 1 | ARGS:a | @streq | - | imported | - | active | - | unknown | no | - |

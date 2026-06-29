@@ -4,6 +4,8 @@ Generierte Datei – nicht manuell bearbeiten.
 
 **Sprache:** [English](haproxy-runtime-results.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 - Befehl: `make smoke-haproxy`
 - Status: **FAIL**
 - Exit-Code: `2`

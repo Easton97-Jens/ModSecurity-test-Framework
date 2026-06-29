@@ -4,6 +4,8 @@ Generierte Datei – nicht manuell bearbeiten.
 
 **Sprache:** [English](phase-coverage.generated.md) | Deutsch
 
+> Hinweis: Diese deutsche Datei ist eine übersetzte Begleitdatei zur generierten englischen Quelle. Maschinenlesbare Werte, Tabellen, IDs, Pfade und Metriken bleiben absichtlich unverändert. Bei einer Neuerzeugung der englischen Quelle muss diese Datei geprüft und aktualisiert werden.
+
 | phase | case_count | top_variables | status_distribution |
 |---|---:|---|---|
 | 1 | 105 | REQUEST_COOKIES_NAMES(19), REQUEST_COOKIES(15), ARGS(10), ARGS_NAMES(8), REQUEST_URI(7) | active:2, imported:34, pending:69 |
