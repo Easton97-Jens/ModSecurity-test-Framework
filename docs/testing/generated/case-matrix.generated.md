@@ -2,6 +2,8 @@ Generated file — do not edit manually.
 
 # Generated Case Matrix
 
+**Language:** English | [Deutsch](case-matrix.generated.de.md)
+
 | case_id | path | scope | phase | variables | operators | transformations | status | MRTS corpus | classification | report labels | runtime_verified | RESPONSE_BODY non-verified | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | audit_log_empty_sections_future_target | `tests/cases/audit-log/audit_log_empty_sections_future_target.yaml` | common | 1 | ARGS:a | @streq | - | imported | - | active | - | unknown | no | - |

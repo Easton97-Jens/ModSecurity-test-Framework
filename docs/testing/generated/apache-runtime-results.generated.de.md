@@ -1,21 +1,21 @@
-Generated file — do not edit manually.
+Generierte Datei – nicht manuell bearbeiten.
 
-# Generated Apache Runtime Results
+# Generierte Apache-Laufzeitergebnisse
 
-**Language:** English | [Deutsch](apache-runtime-results.generated.de.md)
+**Sprache:** [English](apache-runtime-results.generated.md) | Deutsch
 
-- Command: `make smoke-apache`
+- Befehl: `make smoke-apache`
 - Status: **PASS**
-- Exit code: `0`
-- Build status: `unknown`
-- Per-case results: `available`
-- Summary evidence: `/src/ModSecurity-conector-build/results/apache-summary.json`
-- Attempted YAML cases in default runtime snapshot: **54**
-- Runtime evidence is current local snapshot evidence only.
-- RESPONSE_BODY remains non-verified/non-promoted.
-- Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.
+- Exit-Code: `0`
+- Build-Status: `unknown`
+- Ergebnisse pro Fall: `available`
+- Zusammenfassender Nachweis: `/src/ModSecurity-conector-build/results/apache-summary.json`
+- Versuchte YAML-Fälle im Standard-Laufzeit-Snapshot: **54**
+- Runtime-Nachweise sind nur aktuelle lokale Snapshot-Nachweise.
+- RESPONSE_BODY bleibt non-verified/non-promoted.
+- Begrenzter Nachweis für Phase 4/strikter Abbruch bleibt bestehen experimental/non-promoted; Pass-Through-Zeilen beweisen nicht die vollständige RESPONSE_BODY-Unterstützung.
 
-## Raw Smoke Summary
+## Raw-Smoke-Zusammenfassung
 | Status | Count |
 |---|---:|
 | PASS | 54 |
@@ -24,21 +24,21 @@ Generated file — do not edit manually.
 | NOT_EXECUTABLE | 0 |
 | SKIPPED | 0 |
 
-## Semantic Status Counts
+## Semantische Statuszählungen
 | Status | Count |
 |---|---:|
 | PASS | 54 |
 | NOT_EXECUTABLE | 486 |
 
 ## Apache FAIL Details
-No Apache runtime FAIL details were reported.
+Es wurden keine Details zur Apache-Laufzeit FAIL gemeldet.
 
-## Apache Default Phase 4 / RESPONSE_BODY Evidence
+## Apache-Standardphase 4 / RESPONSE_BODY Nachweise
 | Case | Status | Expected | Observed | Transport | Strict Abort | Body Seen | Truncated | Committed | Audit | Phase4 Log | Evidence |
 |---|---|---:|---:|---|---|---|---|---|---|---|---|
 | response_body_pass | PASS | 200 | 200 | http_status | False | False | False | False | /src/ModSecurity-conector-build/logs/apache-runtime/response_body_pass/audit.log | /src/ModSecurity-conector-build/logs/apache-runtime/response_body_pass/phase4.log | /src/ModSecurity-conector-build/logs/apache-runtime/response_body_pass/result.json |
 
-## Apache Force-All Phase 4 / RESPONSE_BODY Evidence
+## Apache Force-All Phase 4 / RESPONSE_BODY Nachweise
 | Case | Status | Expected | Observed | Transport | Strict Abort | Body Seen | Truncated | Committed | Audit | Phase4 Log | Evidence |
 |---|---|---:|---:|---|---|---|---|---|---|---|---|
 | phase4_auditlog_outbound_escaped_value_gap | PASS | 403 | 403 | http_status | False | True | False | False | /src/ModSecurity-conector-build/logs/apache-runtime/phase4_auditlog_outbound_escaped_value_gap/audit.log | /src/ModSecurity-conector-build/logs/apache-runtime/phase4_auditlog_outbound_escaped_value_gap/phase4.log | /src/ModSecurity-conector-build/logs/apache-runtime/phase4_auditlog_outbound_escaped_value_gap/result.json |
@@ -58,7 +58,7 @@ No Apache runtime FAIL details were reported.
 | response_body_basic_block | PASS | 403 | 403 | http_status | False | True | False | False | /src/ModSecurity-conector-build/logs/apache-runtime/response_body_basic_block/audit.log | /src/ModSecurity-conector-build/logs/apache-runtime/response_body_basic_block/phase4.log | /src/ModSecurity-conector-build/logs/apache-runtime/response_body_basic_block/result.json |
 | response_body_pass | PASS | 200 | 200 | http_status | False | False | False | False | /src/ModSecurity-conector-build/logs/apache-runtime/response_body_pass/audit.log | /src/ModSecurity-conector-build/logs/apache-runtime/response_body_pass/phase4.log | /src/ModSecurity-conector-build/logs/apache-runtime/response_body_pass/result.json |
 
-## Results
+## Ergebnisse
 | case_id | path | YAML status | runtime status | promotion | reason | evidence |
 |---|---|---|---|---|---|---|
 | audit_log_empty_sections_future_target | tests/cases/audit-log/audit_log_empty_sections_future_target.yaml | imported | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |

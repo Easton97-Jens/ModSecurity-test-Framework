@@ -1,37 +1,37 @@
-Generated file — do not edit manually.
+Generierte Datei – nicht manuell bearbeiten.
 
-# Generated Coverage Summary
+# Generierte Abdeckungszusammenfassung
 
-**Language:** English | [Deutsch](coverage-summary.generated.de.md)
+**Sprache:** [English](coverage-summary.generated.md) | Deutsch
 
-- Total cases: 540
-- RESPONSE_BODY cases: 32
-- Verified runtime cases: 0
-- Non-verified runtime cases: 540
+- Gesamtzahl der Fälle: 540
+- RESPONSE_BODY Fälle: 32
+- Verifizierte Laufzeitfälle: 0
+- Nicht verifizierte Laufzeitfälle: 540
 
-## By scope
-- common: 533
-- apache: 0
-- nginx: 7
-- unknown: 0
+## Nach Umfang
+- gemeinsam: 533
+- Apache: 0
+- Nginx: 7
+- unbekannt: 0
 
-## By source
-- ModSecurity-apache PR: 4
+## Nach Quelle
+- ModSecurity-Apache PR: 4
 - mrts: 399
 - owasp-modsecurity/ModSecurity-apache#78: 3
-- unknown: 134
+- unbekannt: 134
 
-## MRTS Source Summary
-- Total MRTS imported cases: **399**
-- Active MRTS cases: **0**
-- Pending MRTS cases: **399**
-- Unclassified MRTS cases: **399**
-- Phase 4 / RESPONSE_BODY MRTS cases: **110**
-- Runtime-executable MRTS cases: **0**
-- MRTS overlay classifications: **unclassified(399)**
-- Apache observed classifications: **-**
-- NGINX observed classifications: **-**
-- HAProxy observed classifications: **-**
+## MRTS Quellenzusammenfassung
+- Insgesamt MRTS importierte Fälle: **399**
+- Aktive MRTS Fälle: **0**
+- Ausstehende MRTS-Fälle: **399**
+- Nicht klassifizierte MRTS Fälle: **399**
+- Phase 4 / RESPONSE_BODY MRTS Fälle: **110**
+- Zur Laufzeit ausführbare MRTS Fälle: **0**
+- MRTS Overlay-Klassifizierungen: **nicht klassifiziert(399)**
+- Von Apache beobachtete Klassifizierungen: **-**
+- NGINX beobachtete Klassifizierungen: **-**
+- Von HAProxy beobachtete Klassifizierungen: **-**
 
 | Corpus | Category | Definitions | Golden tests | Golden rules | Framework cases | Active | Pending | Unclassified | Phase 4 / RESPONSE_BODY | Runtime-executable |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -48,16 +48,16 @@ Generated file — do not edit manually.
 | feature_demo_tests | 13 | 13 | 0 | 0 | 13 | 13 |
 | feature_demo_rules | 8 | 8 | 7 | 1 | 0 | 0 |
 
-- Duplicate MRTS rule IDs across imported runnable/demo corpora: **13**
-- Golden-only references under `tools/MRTS/generated/**` and `tools/MRTS/feature_demo/generated/**` are drift inputs only.
-- Feature-demo cases are report-visible as optional/demo and pending unless `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` passes collision checks.
+- Doppelte MRTS-Regel-IDs in importierten runnable/demo-Korpora: **13**
+- Nur-Gold-Referenzen unter `tools/MRTS/generated/**` und `tools/MRTS/feature_demo/generated/**` sind nur Drifteingaben.
+- Feature-Demo-Fälle sind im Bericht als optional/demo sichtbar und ausstehend, es sei denn, `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` besteht die Kollisionsprüfungen.
 
-## By status
-- active: 8
-- imported: 133
-- pending: 399
+## Nach Status
+- aktiv: 8
+- importiert: 133
+- ausstehend: 399
 
-## By variable/collection
+## Von variable/collection
 - `ARGS`: 76
 - `REQUEST_COOKIES_NAMES`: 64
 - `ARGS_NAMES`: 63
@@ -103,13 +103,13 @@ Generated file — do not edit manually.
 - `RESPONSE_HEADERS:content-type`: 1
 - `RESPONSE_HEADERS:Server`: 1
 
-## By phase
-- phase 1: 105
-- phase 2: 192
-- phase 3: 114
-- phase 4: 126
+## Nach Phase
+- Phase 1: 105
+- Phase 2: 192
+- Phase 3: 114
+- Phase 4: 126
 
-## Verification note
-- Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.
-- RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists.
-- Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.
+## Verifizierungshinweis
+- Generierte Zusammenfassungen dienen nur der Berichterstattung und ersetzen nicht den vollständigen Laufzeitnachweis aus `make smoke-all`.
+- RESPONSE_BODY bleibt non-verified/non-promoted, bis ein stabiler Full-Smoke-Laufzeitnachweis vorliegt.
+- Begrenzter Nachweis für Phase 4/strikter Abbruch bleibt bestehen experimental/non-promoted; Pass-Through-Zeilen beweisen nicht die vollständige RESPONSE_BODY-Unterstützung.

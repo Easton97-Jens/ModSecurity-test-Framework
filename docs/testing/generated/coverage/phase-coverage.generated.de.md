@@ -1,8 +1,8 @@
-Generated file - do not edit manually.
+Generierte Datei – nicht manuell bearbeiten.
 
-# Generated Phase Coverage
+# Generierte Phasenabdeckung
 
-**Language:** English | [Deutsch](phase-coverage.generated.de.md)
+**Sprache:** [English](phase-coverage.generated.md) | Deutsch
 
 | phase | case_count | top_variables | status_distribution |
 |---|---:|---|---|

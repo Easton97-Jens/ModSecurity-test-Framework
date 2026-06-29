@@ -2,6 +2,8 @@ Generated file — do not edit manually.
 
 # Generated HAProxy Runtime Results
 
+**Language:** English | [Deutsch](haproxy-runtime-results.generated.de.md)
+
 - Command: `make smoke-haproxy`
 - Status: **FAIL**
 - Exit code: `2`

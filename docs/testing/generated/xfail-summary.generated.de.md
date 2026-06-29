@@ -1,16 +1,16 @@
-Generated file — do not edit manually.
+Generierte Datei – nicht manuell bearbeiten.
 
-# Generated Former XFAIL Migration Summary
+# Generierte ehemalige XFAIL Migrationszusammenfassung
 
-**Language:** English | [Deutsch](xfail-summary.generated.de.md)
+**Sprache:** [English](xfail-summary.generated.md) | Deutsch
 
-- Current XFAIL YAML cases: **0**
-- Former XFAIL YAML cases tracked: **80**
-- Former XFAIL import manifest entries: **0**
+- Aktuelle XFAIL YAML-Fälle: **0**
+- Ehemalige XFAIL YAML-Fälle verfolgt: **80**
+- Ehemalige XFAIL-Importmanifesteinträge: **0**
 
-No current XFAIL cases remain.
+Es sind keine aktuellen XFAIL-Fälle mehr vorhanden.
 
-## Former XFAIL Cases
+## Ehemalige XFAIL Fälle
 | case_id | path | current YAML status | promoted_from_xfail_date | phase | variables | former reason |
 |---|---|---|---|---|---|---|
 | audit_log_empty_sections_future_target | `tests/cases/audit-log/audit_log_empty_sections_future_target.yaml` | imported | 2026-06-07 | 1 | ARGS:a | audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS. |

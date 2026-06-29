@@ -1,8 +1,8 @@
-Generated file - do not edit manually.
+Generierte Datei – nicht manuell bearbeiten.
 
-# Generated Connector Gap Summary
+# Generierte Zusammenfassung der Verbindungslücke
 
-**Language:** English | [Deutsch](connector-gap-summary.generated.de.md)
+**Sprache:** [English](connector-gap-summary.generated.md) | Deutsch
 
 | case_id | path | status | classification | tags | variables | source/provenance | notes |
 |---|---|---|---|---|---|---|---|

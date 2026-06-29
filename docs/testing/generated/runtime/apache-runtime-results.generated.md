@@ -2,6 +2,8 @@ Generated file - do not edit manually.
 
 # Generated Apache Runtime Results
 
+**Language:** English | [Deutsch](apache-runtime-results.generated.de.md)
+
 - Command: `make smoke-apache`
 - Status: **PASS**
 - Exit code: `0`

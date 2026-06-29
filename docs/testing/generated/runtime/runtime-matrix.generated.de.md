@@ -1,43 +1,43 @@
-Generated file — do not edit manually.
+Generierte Datei – nicht manuell bearbeiten.
 
-# Generated Runtime Matrix
+# Generierte Laufzeitmatrix
 
-**Language:** English | [Deutsch](runtime-matrix.generated.de.md)
+**Sprache:** [English](runtime-matrix.generated.md) | Deutsch
 
-This matrix joins repository YAML cases with the latest tracked local runtime snapshot.
-Former XFAIL cases are rendered from live runtime evidence like any other YAML case; RESPONSE_BODY remains non-verified/non-promoted.
+Diese Matrix verbindet Repository-YAML-Fälle mit dem neuesten verfolgten lokalen Laufzeit-Snapshot.
+Frühere XFAIL-Fälle werden wie alle anderen YAML-Fälle aus Live-Runtime-Nachweisen gerendert; RESPONSE_BODY bleibt non-verified/non-promoted.
 
-## Counts
-- YAML cases: **540**
-- Default runtime-executable YAML cases: **61**
-- Force-all runtime-executable YAML cases: **540**
-- Apache attempted YAML cases in default runtime snapshot: **54**
-- NGINX attempted YAML cases in default runtime snapshot: **60**
-- HAProxy attempted YAML cases in default runtime snapshot: **134**
-- Apache attempted YAML cases in force-all runtime snapshot: **133**
-- NGINX attempted YAML cases in force-all runtime snapshot: **140**
-- HAProxy attempted YAML cases in force-all runtime snapshot: **133**
-- mapped-only import inventory entries: **0**
-- `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that YAML status for that connector.
-- `NOT EXECUTED` means no runtime case evidence is recorded in a non-force/default snapshot.
-- `MAPPED_ONLY` entries are import inventory items, not runnable YAML case files.
-- Bounded Phase 4 / strict-abort classifications remain non-promotable metadata even when the live runtime status is PASS.
+## Zählt
+- YAML-Fälle: **540**
+- Standardmäßige zur Laufzeit ausführbare YAML-Fälle: **61**
+- Alle zur Laufzeit ausführbaren YAML-Fälle erzwingen: **540**
+- Apache versuchte YAML-Fälle im Standard-Laufzeit-Snapshot: **54**
+- NGINX versuchte YAML-Fälle im Standard-Laufzeit-Snapshot: **60**
+- HAProxy versuchte YAML-Fälle im Standard-Laufzeit-Snapshot: **134**
+- Apache hat YAML-Fälle im Force-All-Laufzeit-Snapshot versucht: **133**
+- NGINX versuchte YAML-Fälle im Force-All-Laufzeit-Snapshot: **140**
+- HAProxy hat YAML-Fälle im Force-All-Laufzeit-Snapshot versucht: **133**
+- Nur zugeordnete Importinventareinträge: **0**
+- `NOT_EXECUTABLE` bedeutet, dass der YAML-Fall nicht auf diesen Connector anwendbar ist oder der Runner diesen YAML-Status für diesen Connector nicht ausführen kann.
+- `NOT EXECUTED` bedeutet, dass in einem non-force/default-Snapshot kein Laufzeitfallbeweis aufgezeichnet wird.
+- `MAPPED_ONLY` Einträge sind Importinventareinträge, nicht ausführbare YAML-Falldateien.
+- Begrenzte Phase-4-/Strict-Abort-Klassifizierungen bleiben selbst dann nicht promotable Metadaten, wenn der Live-Laufzeitstatus PASS ist.
 
-## Status Counts
+## Status zählt
 | Status | Apache | NGINX | HAProxy |
 |---|---:|---:|---:|
 | PASS | 54 | 60 | 105 |
 | FAIL | 0 | 0 | 23 |
 | NOT_EXECUTABLE | 486 | 480 | 412 |
 
-## Connector Runtime Availability
+## Laufzeitverfügbarkeit des Connectors
 | Connector | Status | Build | Per-case results | Attempted cases | Summary evidence | Note |
 |---|---|---|---|---:|---|---|
 | Apache | PASS | unknown | available | 54 | /src/ModSecurity-conector-build/results/apache-summary.json | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only. |
 | NGINX | PASS | unknown | available | 60 | /src/ModSecurity-conector-build/results/nginx-summary.json | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only. |
 | HAProxy | FAIL | unknown | available | 134 | /src/ModSecurity-conector-build/results/haproxy-summary.json | Per-case results are copied from the local smoke summary JSON; they are runtime evidence only. |
 
-## YAML Runtime Matrix
+## YAML Laufzeitmatrix
 | case_id | path | scope | category | MRTS corpus | metadata class | YAML status | default executable | force-all executable | Apache | Apache promotion | Apache reason | Apache evidence | NGINX | NGINX promotion | NGINX reason | NGINX evidence | HAProxy | HAProxy promotion | HAProxy reason | HAProxy evidence |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | audit_log_empty_sections_future_target | tests/cases/audit-log/audit_log_empty_sections_future_target.yaml | common | audit-log | - | future | imported | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json | PASS | not promoted | runtime summary result; classification=future | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=audit_log_empty_sections_future_target; status=pass; expected=403; actual=403 |
@@ -581,6 +581,6 @@ Former XFAIL cases are rendered from live runtime evidence like any other YAML c
 | mrts_100018_demo_007_before_after_100018_1 | $MRTS_BUILD_ROOT/feature-demo/framework-cases/mrts_100018_demo_007_before_after_100018_1.yaml | common | mrts | feature-demo | unclassified | pending | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json | NOT_EXECUTABLE | not promoted | no haproxy runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/haproxy-summary.json |
 | mrts_100021_demo_008_uri_reflect_100021_1 | $MRTS_BUILD_ROOT/feature-demo/framework-cases/mrts_100021_demo_008_uri_reflect_100021_1.yaml | common | mrts | feature-demo | unclassified | pending | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json | NOT_EXECUTABLE | not promoted | no haproxy runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/haproxy-summary.json |
 
-## Mapped-only Import Inventory
+## Nur zugeordnetes Importinventar
 | source | reason | runtime status |
 |---|---|---|

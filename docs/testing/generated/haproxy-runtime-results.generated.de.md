@@ -1,21 +1,21 @@
-Generated file - do not edit manually.
+Generierte Datei – nicht manuell bearbeiten.
 
-# Generated HAProxy Runtime Results
+# Generierte HAProxy-Laufzeitergebnisse
 
-**Language:** English | [Deutsch](haproxy-runtime-results.generated.de.md)
+**Sprache:** [English](haproxy-runtime-results.generated.md) | Deutsch
 
-- Command: `make smoke-haproxy`
+- Befehl: `make smoke-haproxy`
 - Status: **FAIL**
-- Exit code: `2`
-- Build status: `unknown`
-- Per-case results: `available`
-- Summary evidence: `/src/ModSecurity-conector-build/results/haproxy-summary.json`
-- Attempted YAML cases in default runtime snapshot: **134**
-- Runtime evidence is current local snapshot evidence only.
-- RESPONSE_BODY remains non-verified/non-promoted.
-- Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.
+- Exit-Code: `2`
+- Build-Status: `unknown`
+- Ergebnisse pro Fall: `available`
+- Zusammenfassender Nachweis: `/src/ModSecurity-conector-build/results/haproxy-summary.json`
+- Versuchte YAML-Fälle im Standard-Laufzeit-Snapshot: **134**
+- Runtime-Nachweise sind nur aktuelle lokale Snapshot-Nachweise.
+- RESPONSE_BODY bleibt non-verified/non-promoted.
+- Begrenzter Nachweis für Phase 4/strikter Abbruch bleibt bestehen experimental/non-promoted; Pass-Through-Zeilen beweisen nicht die vollständige RESPONSE_BODY-Unterstützung.
 
-## Raw Smoke Summary
+## Raw-Smoke-Zusammenfassung
 | Status | Count |
 |---|---:|
 | PASS | 105 |
@@ -24,7 +24,7 @@ Generated file - do not edit manually.
 | NOT_EXECUTABLE | 6 |
 | SKIPPED | 0 |
 
-## Semantic Status Counts
+## Semantische Statuszählungen
 | Status | Count |
 |---|---:|
 | PASS | 105 |
@@ -187,16 +187,16 @@ Generated file - do not edit manually.
 |---|---:|---|
 | MAPPED_ONLY | 0 | No HAProxy mapped-only import inventory entries were reported in the current matrix. |
 
-## HAProxy Force-All Runtime Details
-- Runtime mode: `force-all`
-- Command: `FORCE_ALL_CASES=1 make smoke-haproxy`
+## HAProxy Force-All Laufzeitdetails
+- Laufzeitmodus: `force-all`
+- Befehl: `FORCE_ALL_CASES=1 make smoke-haproxy`
 - Status: **FAIL**
-- Exit code: `2`
-- Attempted YAML cases: **133**
-- Total cases in summary: **133**
-- Evidence root: `/src/ModSecurity-conector-build/results/force-all`
-- JSONL evidence: `/src/ModSecurity-conector-build/results/force-all/haproxy-results.jsonl`
-- Per-case result root: `/src/ModSecurity-conector-build/logs/haproxy-runtime`
+- Exit-Code: `2`
+- Versuchte YAML-Fälle: **133**
+- Gesamtzahl der Fälle im Überblick: **133**
+- Nachweiswurzel: `/src/ModSecurity-conector-build/results/force-all`
+- JSONL Nachweis: `/src/ModSecurity-conector-build/results/force-all/haproxy-results.jsonl`
+- Ergebnisstamm pro Fall: `/src/ModSecurity-conector-build/logs/haproxy-runtime`
 
 | Status | Count |
 |---|---:|
@@ -206,9 +206,9 @@ Generated file - do not edit manually.
 | NOT_EXECUTABLE | 6 |
 | SKIPPED | 0 |
 
-- Force-all exited nonzero because live-executed rows mismatched expected runtime outcomes.
+- „Force-all“ wurde ungleich Null beendet, weil live ausgeführte Zeilen nicht mit den erwarteten Laufzeitergebnissen übereinstimmten.
 
-### HAProxy Force-All FAIL Rows
+### HAProxy Force-All FAIL Zeilen
 | Case | Expected | Observed | Reason | Evidence | Decision Log |
 |---|---:|---:|---|---|---|
 | duplicate_args_encoded_separator_edge | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/duplicate_args_encoded_separator_edge/decision.jsonl |
@@ -235,7 +235,7 @@ Generated file - do not edit manually.
 | xss_like_encoded_angles_normalization_probe | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/xss_like_encoded_angles_normalization_probe/decision.jsonl |
 | xss_like_mixed_case_script_token_gap | 403 | 200 | expected HTTP 403; observed HTTP 200 | /src/ModSecurity-conector-build/logs/haproxy-runtime/xss_like_mixed_case_script_token_gap/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/xss_like_mixed_case_script_token_gap/decision.jsonl |
 
-### HAProxy Force-All NOT_EXECUTABLE Rows
+### HAProxy Force-All NOT_EXECUTABLE Zeilen
 | Case | Reason | Evidence | Decision Log |
 |---|---|---|---|
 | files_empty_part_future_compatibility | structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path | /src/ModSecurity-conector-build/logs/haproxy-runtime/files_empty_part_future_compatibility/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/files_empty_part_future_compatibility/decision.jsonl |
@@ -245,12 +245,12 @@ Generated file - do not edit manually.
 | phase4_response_body_empty_future_target | structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase4_response_body_empty_future_target/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/phase4_response_body_empty_future_target/decision.jsonl |
 | v2_transformation_url_decode_invalid_sequence_mapped_candidate | structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/result.json | /src/ModSecurity-conector-build/logs/haproxy-runtime/v2_transformation_url_decode_invalid_sequence_mapped_candidate/decision.jsonl |
 
-### HAProxy Force-All BLOCKED Rows
+### HAProxy Force-All BLOCKED Zeilen
 | Status | Count | Note |
 |---|---:|---|
 | BLOCKED | 0 | No rows were reported. |
 
-## Results
+## Ergebnisse
 | case_id | path | YAML status | runtime status | promotion | reason | evidence |
 |---|---|---|---|---|---|---|
 | audit_log_empty_sections_future_target | tests/cases/audit-log/audit_log_empty_sections_future_target.yaml | imported | PASS | not promoted | runtime summary result; classification=future | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=audit_log_empty_sections_future_target; status=pass; expected=403; actual=403 |

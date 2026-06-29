@@ -1,8 +1,8 @@
-Generated file - do not edit manually.
+Generierte Datei – nicht manuell bearbeiten.
 
-# Generated Case Matrix
+# Generierte Fallmatrix
 
-**Language:** English | [Deutsch](case-matrix.generated.de.md)
+**Sprache:** [English](case-matrix.generated.md) | Deutsch
 
 | case_id | path | scope | phase | variables | operators | transformations | status | MRTS corpus | classification | report labels | runtime_verified | RESPONSE_BODY non-verified | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|

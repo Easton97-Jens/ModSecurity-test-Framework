@@ -1,21 +1,21 @@
-Generated file - do not edit manually.
+Generierte Datei – nicht manuell bearbeiten.
 
-# Generated NGINX Runtime Results
+# Generierte NGINX Laufzeitergebnisse
 
-**Language:** English | [Deutsch](nginx-runtime-results.generated.de.md)
+**Sprache:** [English](nginx-runtime-results.generated.md) | Deutsch
 
-- Command: `make smoke-nginx`
+- Befehl: `make smoke-nginx`
 - Status: **PASS**
-- Exit code: `0`
-- Build status: `unknown`
-- Per-case results: `available`
-- Summary evidence: `/src/ModSecurity-conector-build/results/nginx-summary.json`
-- Attempted YAML cases in default runtime snapshot: **60**
-- Runtime evidence is current local snapshot evidence only.
-- RESPONSE_BODY remains non-verified/non-promoted.
-- Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.
+- Exit-Code: `0`
+- Build-Status: `unknown`
+- Ergebnisse pro Fall: `available`
+- Zusammenfassender Nachweis: `/src/ModSecurity-conector-build/results/nginx-summary.json`
+- Versuchte YAML-Fälle im Standard-Laufzeit-Snapshot: **60**
+- Runtime-Nachweise sind nur aktuelle lokale Snapshot-Nachweise.
+- RESPONSE_BODY bleibt non-verified/non-promoted.
+- Begrenzter Nachweis für Phase 4/strikter Abbruch bleibt bestehen experimental/non-promoted; Pass-Through-Zeilen beweisen nicht die vollständige RESPONSE_BODY-Unterstützung.
 
-## Raw Smoke Summary
+## Raw-Smoke-Zusammenfassung
 | Status | Count |
 |---|---:|
 | PASS | 60 |
@@ -24,16 +24,16 @@ Generated file - do not edit manually.
 | NOT_EXECUTABLE | 0 |
 | SKIPPED | 0 |
 
-## Semantic Status Counts
+## Semantische Statuszählungen
 | Status | Count |
 |---|---:|
 | PASS | 60 |
 | NOT_EXECUTABLE | 480 |
 
 ## NGINX FAIL Details
-No NGINX runtime FAIL details were reported.
+Es wurden keine NGINX Laufzeit-FAIL Details gemeldet.
 
-## NGINX Default Phase 4 / RESPONSE_BODY Evidence
+## NGINX Standardphase 4 / RESPONSE_BODY Nachweis
 | Case | Status | Expected | Observed | Transport | Strict Abort | Body Seen | Truncated | Committed | Audit | Phase4 Log | Evidence |
 |---|---|---:|---:|---|---|---|---|---|---|---|---|
 | nginx_phase4_content_type_out_of_scope | PASS | 200 | 200 | http_status | False | True | False | True | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_content_type_out_of_scope/audit.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_content_type_out_of_scope/phase4.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_content_type_out_of_scope/result.json |
@@ -41,7 +41,7 @@ No NGINX runtime FAIL details were reported.
 | nginx_phase4_safe_log_only | PASS | 200 | 200 | http_status | False | True | False | True | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_safe_log_only/audit.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_safe_log_only/phase4.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_safe_log_only/result.json |
 | response_body_pass | PASS | 200 | 200 | http_status | False | False | False | False | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/response_body_pass/audit.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/response_body_pass/phase4.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/response_body_pass/result.json |
 
-## NGINX Force-All Phase 4 / RESPONSE_BODY Evidence
+## NGINX Force-All Phase 4 / RESPONSE_BODY Nachweise
 | Case | Status | Expected | Observed | Transport | Strict Abort | Body Seen | Truncated | Committed | Audit | Phase4 Log | Evidence |
 |---|---|---:|---:|---|---|---|---|---|---|---|---|
 | nginx_phase4_content_type_out_of_scope | PASS | 200 | 200 | http_status | False | True | False | True | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_content_type_out_of_scope/audit.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_content_type_out_of_scope/phase4.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/nginx_phase4_content_type_out_of_scope/result.json |
@@ -65,7 +65,7 @@ No NGINX runtime FAIL details were reported.
 | response_body_basic_block | FAIL | 403 | 200 | http_status | False | False | False | False | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/response_body_basic_block/audit.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/response_body_basic_block/phase4.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/response_body_basic_block/result.json |
 | response_body_pass | PASS | 200 | 200 | http_status | False | False | False | False | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/response_body_pass/audit.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/response_body_pass/phase4.log | /src/ModSecurity-conector-build/ModSecurity-conector-nginx-runtime-0/logs/response_body_pass/result.json |
 
-## Results
+## Ergebnisse
 | case_id | path | YAML status | runtime status | promotion | reason | evidence |
 |---|---|---|---|---|---|---|
 | audit_log_empty_sections_future_target | tests/cases/audit-log/audit_log_empty_sections_future_target.yaml | imported | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json |

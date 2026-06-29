@@ -1,16 +1,16 @@
-Generated file — do not edit manually.
+Generierte Datei – nicht manuell bearbeiten.
 
-# Generated Former XFAIL Migration Summary
+# Generierte ehemalige XFAIL Migrationszusammenfassung
 
-**Language:** English | [Deutsch](xfail-summary.generated.de.md)
+**Sprache:** [English](xfail-summary.generated.md) | Deutsch
 
-- Current XFAIL YAML cases: **0**
-- Former XFAIL YAML cases tracked: **80**
-- Former XFAIL import manifest entries: **0**
+- Aktuelle XFAIL YAML-Fälle: **0**
+- Ehemalige XFAIL YAML-Fälle verfolgt: **80**
+- Ehemalige XFAIL-Importmanifesteinträge: **0**
 
-No current XFAIL cases remain.
+Es sind keine aktuellen XFAIL-Fälle mehr vorhanden.
 
-## Former XFAIL Cases
+## Ehemalige XFAIL Fälle
 | case_id | path | current YAML status | promoted_from_xfail_date | phase | variables | former reason |
 |---|---|---|---|---|---|---|
 | audit_log_empty_sections_future_target | `tests/cases/audit-log/audit_log_empty_sections_future_target.yaml` | imported | 2026-06-07 | 1 | ARGS:a | audit/normalization/parser/transformation-chain compatibility candidate; runtime_verified=false and not counted as verified PASS. |
@@ -32,8 +32,8 @@ No current XFAIL cases remain.
 | json_nested_object_future_compatibility | `tests/cases/body/json/json_nested_object_future_compatibility.yaml` | imported | 2026-06-07 | 2 | REQUEST_BODY | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | request_body_json_invalid_runtime_difference | `tests/cases/body/json/request_body_json_invalid_runtime_difference.yaml` | imported | 2026-06-07 | 2 | REQUEST_BODY | runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS. |
 | files_empty_part_future_compatibility | `tests/cases/body/multipart/files_empty_part_future_compatibility.yaml` | imported | 2026-06-07 | 2 | FILES | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
-| files_names_mixed_case_filename_gap | `tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml` | imported | 2026-06-07 | 2 | FILES_NAMES | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
-| multipart_duplicate_field_names_gap | `tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml` | imported | 2026-06-07 | 2 | ARGS_NAMES | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
+| files_names_mixed_case_filename_gap | `tests/cases/body/multipart/files_names_mixed_case_filename_gap.yaml` | imported | 2026-06-07 | 2 | MULTIPART_FILENAME | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
+| multipart_duplicate_field_names_gap | `tests/cases/body/multipart/multipart_duplicate_field_names_gap.yaml` | imported | 2026-06-07 | 2 | FILES_NAMES | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | multipart_empty_filename_connector_gap | `tests/cases/body/multipart/multipart_empty_filename_connector_gap.yaml` | imported | 2026-06-07 | 2 | MULTIPART_FILENAME | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | multipart_encoded_filename_runtime_difference | `tests/cases/body/multipart/multipart_encoded_filename_runtime_difference.yaml` | imported | 2026-06-07 | 2 | MULTIPART_FILENAME | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | multipart_invalid_boundary_future_target | `tests/cases/body/multipart/multipart_invalid_boundary_future_target.yaml` | imported | 2026-06-07 | 2 | REQUEST_BODY | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |

@@ -2,6 +2,8 @@ Generated file — do not edit manually.
 
 # Generated NGINX Runtime Results
 
+**Language:** English | [Deutsch](nginx-runtime-results.generated.de.md)
+
 - Command: `make smoke-nginx`
 - Status: **PASS**
 - Exit code: `0`
