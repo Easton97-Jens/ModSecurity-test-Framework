@@ -1,5 +1,7 @@
 # Real-World Connector Validation
 
+**Language:** English | [Deutsch](real-world-connector-validation.de.md)
+
 Status: implemented
 
 `real-world-connector-path` means the smoke result came from this path:

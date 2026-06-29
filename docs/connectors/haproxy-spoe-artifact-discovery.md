@@ -1,5 +1,7 @@
 # HAProxy SPOE/SPOA Artifact Discovery (Documentation-Only)
 
+**Language:** English | [Deutsch](haproxy-spoe-artifact-discovery.de.md)
+
 ## Status
 contract_status: draft
 implementation_status: not_started

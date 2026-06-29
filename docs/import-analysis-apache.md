@@ -1,5 +1,7 @@
 # Import Analysis: ModSecurity Apache Connector
 
+**Language:** English | [Deutsch](import-analysis-apache.de.md)
+
 Status: implemented
 
 Local source: `<workspace>/ModSecurity-apache`

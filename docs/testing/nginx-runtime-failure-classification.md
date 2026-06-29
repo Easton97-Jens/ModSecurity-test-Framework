@@ -1,5 +1,7 @@
 # NGINX Runtime Permission Resolution
 
+**Language:** English | [Deutsch](nginx-runtime-failure-classification.de.md)
+
 Date: 2026-05-21
 
 This note updates the previous 2026-05-20 NGINX runtime classification. It does

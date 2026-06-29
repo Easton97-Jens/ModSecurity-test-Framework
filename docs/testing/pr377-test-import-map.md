@@ -1,5 +1,7 @@
 # PR #377 Test Import Map
 
+**Language:** English | [Deutsch](pr377-test-import-map.de.md)
+
 Status: implemented
 
 This document maps ModSecurity-nginx PR #377 tests to this repository's

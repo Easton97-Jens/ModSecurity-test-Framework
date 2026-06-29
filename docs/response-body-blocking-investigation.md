@@ -1,5 +1,7 @@
 # Response-Body Blocking Investigation
 
+**Language:** English | [Deutsch](response-body-blocking-investigation.de.md)
+
 Status: former expected-failure/mapped-only
 
 This investigation checks whether a shared `RESPONSE_BODY` blocking case can be

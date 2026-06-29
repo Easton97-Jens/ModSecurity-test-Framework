@@ -1,5 +1,7 @@
 # Minimal Upstream File Set
 
+**Language:** English | [Deutsch](minimal-upstream-file-set.de.md)
+
 Status: implemented
 
 This document defines the current adapter-owned Apache and NGINX source sets

@@ -1,5 +1,7 @@
 # Roadmap
 
+**Language:** English | [Deutsch](roadmap.de.md)
+
 Status: current evidence-based framework roadmap snapshot
 
 This framework roadmap tracks reusable YAML cases, runners, normalizers, and

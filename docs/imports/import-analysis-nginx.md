@@ -1,5 +1,7 @@
 # Import Analysis: ModSecurity NGINX Connector
 
+**Language:** English | [Deutsch](import-analysis-nginx.de.md)
+
 Status: implemented
 
 Local reference: `/root/conecter/ModSecurity-nginx`

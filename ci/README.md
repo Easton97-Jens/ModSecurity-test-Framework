@@ -1,5 +1,7 @@
 # CI
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: scaffolded
 
 CI helper scripts belong here after they are proven to be connector-neutral or

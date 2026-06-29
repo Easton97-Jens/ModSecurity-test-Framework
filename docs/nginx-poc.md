@@ -1,5 +1,7 @@
 # NGINX Connector PoC
 
+**Language:** English | [Deutsch](nginx-poc.de.md)
+
 Status: scaffolded
 
 ## Implemented

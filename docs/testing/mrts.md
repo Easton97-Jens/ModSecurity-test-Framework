@@ -1,5 +1,7 @@
 # MRTS Integration
 
+**Language:** English | [Deutsch](mrts.de.md)
+
 MRTS is a framework-owned test-generation source for ModSecurity compatibility
 probes. It is not connector code, and connector repositories should only
 delegate to the framework MRTS targets.

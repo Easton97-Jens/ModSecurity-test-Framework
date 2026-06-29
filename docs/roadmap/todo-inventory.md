@@ -1,5 +1,7 @@
 # TODO Inventory
 
+**Language:** English | [Deutsch](todo-inventory.de.md)
+
 Status: implemented
 
 This inventory tracks actionable work markers and status-labelled planning

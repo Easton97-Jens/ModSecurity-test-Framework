@@ -1,5 +1,7 @@
 # Connector Adapter Interface
 
+**Language:** English | [Deutsch](connector-adapter-interface.de.md)
+
 This document is the stable contract for future connector harnesses. It is not
 a webserver implementation plan.
 

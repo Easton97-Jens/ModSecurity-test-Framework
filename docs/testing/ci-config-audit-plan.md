@@ -1,5 +1,7 @@
 # CI Config Audit And Cleanup Plan
 
+**Language:** English | [Deutsch](ci-config-audit-plan.de.md)
+
 Date: 2026-05-20
 
 This document audits the current `ci/`, Makefile, docs, and GitHub workflow

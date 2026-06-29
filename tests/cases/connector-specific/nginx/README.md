@@ -1,5 +1,7 @@
 # NGINX-Specific Cases
 
+**Language:** English | [Deutsch](README.de.md)
+
 Cases in this directory are NGINX-only evidence probes. They are marked with
 YAML metadata such as `portable: false`, `connector: nginx`, and `status`
 instead of being separated into status directories.

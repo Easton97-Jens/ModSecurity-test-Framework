@@ -1,5 +1,7 @@
 # HAProxy SPOE/SPOA Disabled Connector Key Implementation Plan
 
+**Language:** English | [Deutsch](haproxy-spoe-disabled-key-implementation-plan.de.md)
+
 ## Status
 plan_status: draft
 implementation_status: not_started

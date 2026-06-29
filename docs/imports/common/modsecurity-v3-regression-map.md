@@ -1,5 +1,7 @@
 # ModSecurity v3 Regression Map
 
+**Language:** English | [Deutsch](modsecurity-v3-regression-map.de.md)
+
 Status: compatibility pointer
 
 The detailed v3 regression inventory now lives in

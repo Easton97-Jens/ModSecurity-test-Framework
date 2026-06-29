@@ -1,5 +1,7 @@
 # NGINX Regression Map
 
+**Language:** English | [Deutsch](nginx-regression-map.de.md)
+
 Status: scaffolded
 
 Source inventory: 17 relevant files under

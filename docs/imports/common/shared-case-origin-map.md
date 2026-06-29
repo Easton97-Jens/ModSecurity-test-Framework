@@ -1,5 +1,7 @@
 # Shared Case Origin Map
 
+**Language:** English | [Deutsch](shared-case-origin-map.de.md)
+
 Status: implemented
 
 Only connector-neutral rule/request/expectation fragments are mapped here. The

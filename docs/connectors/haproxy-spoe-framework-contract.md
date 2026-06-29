@@ -1,5 +1,7 @@
 # HAProxy SPOE/SPOA Framework Contract
 
+**Language:** English | [Deutsch](haproxy-spoe-framework-contract.de.md)
+
 ## Status
 contract_status: draft
 implementation_status: not_started

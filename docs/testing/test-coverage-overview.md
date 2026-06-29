@@ -1,3 +1,5 @@
+**Language:** English | [Deutsch](test-coverage-overview.de.md)
+
 Generated file - do not edit manually.
 
 # ModSecurity Connector Test Coverage Overview

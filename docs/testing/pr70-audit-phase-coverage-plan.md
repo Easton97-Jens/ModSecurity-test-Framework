@@ -1,5 +1,7 @@
 # PR #70 Audit Phase Coverage Plan
 
+**Language:** English | [Deutsch](pr70-audit-phase-coverage-plan.de.md)
+
 Status: partially implemented
 
 This document records how upstream ModSecurity-apache PR #70 should be mapped

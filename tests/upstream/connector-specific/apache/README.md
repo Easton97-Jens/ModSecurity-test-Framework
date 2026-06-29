@@ -1,5 +1,7 @@
 # Apache Connector Tests
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: scaffolded
 
 Apache-specific tests belong here.

@@ -1,5 +1,7 @@
 # Upstream Pruning Analysis
 
+**Language:** English | [Deutsch](upstream-pruning-analysis.de.md)
+
 Status: implemented
 
 This document records the pruning review for the controlled Apache and NGINX

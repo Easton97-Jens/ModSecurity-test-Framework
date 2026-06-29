@@ -1,5 +1,7 @@
 # Test Import Plan
 
+**Language:** English | [Deutsch](test-import-plan.de.md)
+
 Status: implemented
 
 This document records the current import policy for local connector tests. The

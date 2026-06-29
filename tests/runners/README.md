@@ -1,5 +1,7 @@
 # Runners
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: scaffolded
 
 The runner layer defines the adapter shape expected by future connector tests.

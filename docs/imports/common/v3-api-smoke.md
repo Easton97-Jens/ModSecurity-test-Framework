@@ -1,5 +1,7 @@
 # v3 API Smoke Probe Source
 
+**Language:** English | [Deutsch](v3-api-smoke.de.md)
+
 The canonical connector-free smoke probe source lives in:
 
 ```text
@@ -8,4 +10,3 @@ src/v3-api-smoke/v3_api_smoke.c
 
 `docs/imports/common` keeps this pointer because the probe is a portable
 libmodsecurity v3 API check, but it must not duplicate the implementation.
-

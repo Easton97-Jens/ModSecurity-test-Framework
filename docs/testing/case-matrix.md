@@ -1,5 +1,7 @@
 # Case Matrix
 
+**Language:** English | [Deutsch](case-matrix.de.md)
+
 This page is a stable index for the current generated matrix reports.
 Historical inline tables were removed because they duplicated generated output
 and could drift from live YAML/runtime evidence.

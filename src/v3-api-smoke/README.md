@@ -1,5 +1,7 @@
 # libmodsecurity v3 API Smoke Probe
 
+**Language:** English | [Deutsch](README.de.md)
+
 Status: implemented portable build harness. Local default run observed
 `primary_args_phase2` pass after building libmodsecurity in `/src`.
 
