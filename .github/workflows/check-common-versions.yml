@@ -6,8 +6,9 @@ on:
     - cron: "0 6 * * 1"
 
 permissions:
-  contents: read
-  actions: write
+  contents: write
+  pull-requests: write
+  actions: read
 
 jobs:
   check-common-versions:
@@ -15,145 +16,77 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v6
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.x"
 
-      - name: Check versions
+      - name: Install tools
         run: |
-          set +e
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Validate and update common.sh
+        run: |
+          set -euo pipefail
           export VERIFIED_RUN_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified"
           export XDG_STATE_HOME="${RUNNER_TEMP}/state"
           export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
-          python3 ci/check-common-versions.py --check --markdown --write-files --timeout 10 | tee common-version-check.md
-          rc=${PIPESTATUS[0]}
+          mkdir -p "$BUILD_ROOT"
+          python3 ci/check-common-versions.py --update --markdown --write-files --timeout 20 | tee common-version-check.md
+          cp "$BUILD_ROOT/results/common-version-check/summary.json" common-version-summary.json
           cat common-version-check.md >> "$GITHUB_STEP_SUMMARY"
-          exit "$rc"
 
-      - name: Generate update patch
-        if: failure()
+      - name: Format generated files
         run: |
-          export VERIFIED_RUN_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified"
-          export XDG_STATE_HOME="${RUNNER_TEMP}/state"
-          export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
-          python3 ci/check-common-versions.py --update --timeout 10 || true
-          git diff -- ci/common.sh > common-version-update.patch || true
-          if [ ! -s common-version-update.patch ]; then
-            printf '%s\n' 'No safe common.sh update patch was generated.' > common-version-update.patch
-          fi
+          set -euo pipefail
+          python3 -m json.tool common-version-summary.json > common-version-summary.pretty.json
+          mv common-version-summary.pretty.json common-version-summary.json
 
-      - name: Cleanup artifacts before upload
-        if: always()
-        continue-on-error: true
-        uses: actions/github-script@v9
-        env:
-          ARTIFACT_NAME: common-version-update
+      - name: Syntax and ShellCheck
+        run: |
+          set -euo pipefail
+          bash -n ci/common.sh
+          bash -n ci/check-common-helpers.sh
+          shellcheck -x ci/common.sh ci/check-common-helpers.sh
+          python3 -m py_compile ci/check-common-versions.py
+
+      - name: Build pull request body
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('common-version-summary.json').read_text())
+          updates = data.get('updates_applied', [])
+          lines = [
+              'This pull request was created automatically by the `check-common-versions` workflow.',
+              '',
+              '## Updated components / variables',
+              '',
+          ]
+          if updates:
+              lines.extend(['| Variable | Previous | New |', '| --- | --- | --- |'])
+              for update in updates:
+                  lines.append(f"| `{update['variable']}` | `{update['old']}` | `{update['new']}` |")
+          else:
+              lines.append('No common.sh dependency version changes were generated.')
+          lines.extend(['', '## Validation', '', '- `ci/check-common-versions.py --update --markdown --write-files`', '- `bash -n ci/common.sh ci/check-common-helpers.sh`', '- `shellcheck -x ci/common.sh ci/check-common-helpers.sh`', '- `python3 -m py_compile ci/check-common-versions.py`', ''])
+          Path('common-version-pr-body.md').write_text('\n'.join(lines), encoding='utf-8')
+          PY
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v6
         with:
-          script: |
-            const GLOBAL_KEEP_LIMIT = 20;
-            const PRE_UPLOAD_KEEP_LIMIT = Math.max(GLOBAL_KEEP_LIMIT - 1, 0);
-            const { owner, repo } = context.repo;
-            const targetName = process.env.ARTIFACT_NAME || 'artifact';
-            const targetGroup = artifactGroupName(targetName);
-
-            function artifactGroupName(name) {
-              return name
-                .replace(/-\d{8,}$/u, '')
-                .replace(/-\d{6,}-\d+$/u, '')
-                .replace(/-run-\d+$/u, '')
-                .replace(/-attempt-\d+$/u, '');
-            }
-
-            function compareArtifactsNewestFirst(left, right) {
-              const createdDiff = Date.parse(right.created_at) - Date.parse(left.created_at);
-              if (createdDiff !== 0) {
-                return createdDiff;
-              }
-              return right.id - left.id;
-            }
-
-            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {
-              owner,
-              repo,
-              per_page: 100,
-            });
-
-            const groups = new Map();
-            for (const artifact of artifacts) {
-              const group = artifactGroupName(artifact.name);
-              if (!groups.has(group)) {
-                groups.set(group, []);
-              }
-              groups.get(group).push(artifact);
-            }
-
-            const deleteById = new Map();
-            const retainedByGroup = [];
-
-            for (const [group, groupArtifacts] of groups) {
-              groupArtifacts.sort(compareArtifactsNewestFirst);
-              const [newest, ...older] = groupArtifacts;
-              if (group === targetGroup) {
-                for (const artifact of groupArtifacts) {
-                  deleteById.set(artifact.id, {
-                    artifact,
-                    group,
-                    reason: `same logical group as upcoming upload: ${targetGroup}`,
-                  });
-                }
-                continue;
-              }
-              if (newest) {
-                retainedByGroup.push(newest);
-              }
-              for (const artifact of older) {
-                deleteById.set(artifact.id, {
-                  artifact,
-                  group,
-                  reason: 'older artifact in logical group',
-                });
-              }
-            }
-
-            retainedByGroup.sort(compareArtifactsNewestFirst);
-
-            for (const artifact of retainedByGroup.slice(PRE_UPLOAD_KEEP_LIMIT)) {
-              deleteById.set(artifact.id, {
-                artifact,
-                group: artifactGroupName(artifact.name),
-                reason: `reserve one slot while keeping newest ${GLOBAL_KEEP_LIMIT} artifacts after upload`,
-              });
-            }
-
-            const deleteCandidates = Array.from(deleteById.values())
-              .sort((left, right) => compareArtifactsNewestFirst(left.artifact, right.artifact));
-
-            core.info(`Found ${artifacts.length} artifact(s); deleting ${deleteCandidates.length} before uploading ${targetName}.`);
-
-            for (const entry of deleteCandidates) {
-              try {
-                await github.rest.actions.deleteArtifact({
-                  owner,
-                  repo,
-                  artifact_id: entry.artifact.id,
-                });
-                core.info(`Deleted artifact ${entry.artifact.name} (${entry.artifact.id}) from group ${entry.group}: ${entry.reason}`);
-              } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                core.warning(`Could not delete artifact ${entry.artifact.name} (${entry.artifact.id}) from group ${entry.group}: ${message}`);
-              }
-            }
-
-      - name: Upload patch
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          name: common-version-update
-          retention-days: 1
-          if-no-files-found: warn
-          path: |
-            common-version-check.md
-            common-version-update.patch
+          token: ${{ github.token }}
+          commit-message: "chore: update common.sh dependency versions"
+          title: "chore: update common.sh dependency versions"
+          body-path: common-version-pr-body.md
+          branch: automation/update-common-sh
+          delete-branch: true
+          add-paths: |
+            ci/common.sh

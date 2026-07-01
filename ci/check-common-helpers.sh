@@ -1,8 +1,9 @@
 #!/bin/sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(CDPATH='' cd "$SCRIPT_DIR/.." && pwd)
+# shellcheck source=ci/common.sh
 . "$SCRIPT_DIR/common.sh"
 
 CC_BIN="${CC:-cc}"
@@ -15,7 +16,7 @@ case "$BUILD_ROOT" in
     *) echo "common_helper_smoke: BUILD_ROOT must be absolute: $BUILD_ROOT"; exit 77 ;;
 esac
 
-case "$(CDPATH= cd "$BUILD_ROOT" 2>/dev/null && pwd 2>/dev/null || printf '%s' "$BUILD_ROOT")" in
+case "$(CDPATH='' cd "$BUILD_ROOT" 2>/dev/null && pwd 2>/dev/null || printf '%s' "$BUILD_ROOT")" in
     "$REPO_ROOT"|"$REPO_ROOT"/*)
         echo "common_helper_smoke: BUILD_ROOT must not be inside the checkout: $BUILD_ROOT"
         exit 77
