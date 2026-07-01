@@ -48,6 +48,21 @@ explicitly when you want to prefetch it. The CRS version pin, repository URL,
 and generated CRS paths are centralized in `ci/common.sh`; do not duplicate the
 CRS version in Makefiles, workflows, or other scripts.
 
+
+## Automated common.sh dependency updates
+
+The `Check common.sh versions` GitHub Actions workflow runs weekly and can also
+be started manually with `workflow_dispatch`. It validates the version, source
+URL, Git ref, and SHA256 defaults centralized in `ci/common.sh`, applies safe
+upstream updates with `ci/check-common-versions.py --update`, runs Bash syntax
+checks and ShellCheck, and opens a pull request on
+`automation/update-common-sh` using `peter-evans/create-pull-request` when
+`ci/common.sh` changed. If no update is available, the workflow exits
+successfully and does not create an empty pull request. Optional empty values,
+such as local connector repository overrides and checksum fields that are not
+used by a Git checkout mode, are documented in `ci/common.sh` and accepted by
+the checker.
+
 ## MRTS Integration
 
 MRTS is available as a framework-owned test-generation source. It is not
