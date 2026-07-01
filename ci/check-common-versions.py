@@ -28,6 +28,23 @@ PARAM_EXPANSION_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*):[-=]([^{}]*)\}")
 BRACED_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 PLAIN_VAR_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 SHA256_RE = re.compile(r"\b([A-Fa-f0-9]{64})\b")
+OPTIONAL_EMPTY_VARIABLES = {
+    "APACHE_BIN",
+    "APACHECTL_BIN",
+    "APXS_BIN",
+    "MODSECURITY_APACHE_REPO_URL",
+    "MODSECURITY_APACHE_GIT_URL",
+    "MODSECURITY_NGINX_REPO_URL",
+    "MODSECURITY_NGINX_GIT_URL",
+    "MODSECURITY_PKG_CONFIG",
+    "MODSECURITY_LIB_DIR",
+    "MODSECURITY_INCLUDE_DIR",
+    "MODSECURITY_RULE_PREAMBLE_FILE",
+    "NGINX_BIN",
+    "NGINX_SHA256",
+    "PCRE2_SHA256",
+    "PCRE2_SHA256_URL",
+}
 
 STATUS_CURRENT = "current"
 STATUS_OUTDATED = "outdated"
@@ -78,6 +95,15 @@ class ComponentResult:
     source: str = ""
     updates: list[UpdateChange] = dataclasses.field(default_factory=list)
     details: dict[str, Any] = dataclasses.field(default_factory=dict)
+
+
+def validate_entries(entries: dict[str, VariableEntry]) -> list[str]:
+    """Return tracked variables that resolve to empty without being documented as optional."""
+    missing: list[str] = []
+    for item in sorted(entries.values(), key=lambda current: current.line):
+        if item.tracked and not item.resolved and item.name not in OPTIONAL_EMPTY_VARIABLES:
+            missing.append(item.name)
+    return missing
 
 
 def build_root() -> Path:
@@ -1032,12 +1058,14 @@ def make_summary(
     counts: dict[str, int] = {}
     for result in results:
         counts[result.status] = counts.get(result.status, 0) + 1
+    missing_required = validate_entries(entries)
     return {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "common_sh": str(common_sh),
         "status_counts": counts,
         "components": [result_to_dict(result) for result in results],
         "inventory": inventory(entries),
+        "missing_required": missing_required,
         "updates_applied": [dataclasses.asdict(update) for update in updates_applied],
     }
 
@@ -1051,19 +1079,30 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         "",
         "## Components",
         "",
-        "| Component | Status | Current | Latest | Message |",
+        "| Komponente | aktuelle Version | neueste Version | Status | Aktion |",
         "| --- | --- | --- | --- | --- |",
     ]
     for result in summary["components"]:
+        action = "none"
+        if result.get("updates"):
+            action = ", ".join(update["variable"] for update in result["updates"])
+        elif result["status"] == STATUS_UNKNOWN:
+            action = result.get("details", {}).get("reason") or "manual review"
+        elif result["status"] == STATUS_BLOCKED:
+            action = "retry when upstream is reachable"
         lines.append(
-            "| {component} | `{status}` | {current} | {latest} | {message} |".format(
+            "| {component} | {current} | {latest} | `{status}` | {action} |".format(
                 component=markdown_escape(result["component"]),
-                status=markdown_escape(result["status"]),
                 current=markdown_escape(result.get("current") or ""),
                 latest=markdown_escape(result.get("latest") or ""),
-                message=markdown_escape(result.get("message") or ""),
+                status=markdown_escape(result["status"]),
+                action=markdown_escape(action),
             )
         )
+    if summary["missing_required"]:
+        lines.extend(["", "## Missing required values", ""])
+        for name in summary["missing_required"]:
+            lines.append(f"- `{name}`")
     updates = summary["updates_applied"]
     if updates:
         lines.extend(["", "## Applied Updates", ""])
@@ -1157,6 +1196,18 @@ def main(argv: list[str] | None = None) -> int:
     lines, entries = parse_common(common_sh)
     client = HttpClient(timeout=args.timeout)
     results = check_all(entries, client)
+    missing_required = validate_entries(entries)
+    if missing_required:
+        results.append(
+            ComponentResult(
+                component="common.sh required values",
+                status=STATUS_ERROR,
+                message="Required tracked variables resolved to empty: "
+                + ", ".join(missing_required),
+                variables=missing_required,
+                details={"action": "define a value or add the variable to OPTIONAL_EMPTY_VARIABLES"},
+            )
+        )
     rc = exit_code(results)
     updates_applied: list[UpdateChange] = []
 
