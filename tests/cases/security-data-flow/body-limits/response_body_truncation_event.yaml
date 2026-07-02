@@ -1,0 +1,28 @@
+origin:
+  - repo: ModSecurity-test-Framework
+    path: tests/cases/security-data-flow/body-limits/response_body_truncation_event.yaml
+    reason: Framework-owned connector-neutral security/data-flow case; pending connector runtime evidence.
+category: security-data-flow
+portable: true
+status: connector-gap
+former_xfail: true
+former_xfail_reason: "framework case only; runtime_verified=false and not counted as verified PASS."
+known_limitations:
+  - Pending connector runtime evidence; not counted as verified PASS.
+  - No connector implementation, adapter metadata, or runtime evidence is provided by this framework case.
+name: response_body_truncation_event
+description: "Response-body truncation must create event evidence without logging body payload bytes."
+tags:
+  - security-data-flow
+  - body-limit
+  - event-jsonl
+capabilities:
+  security_data_flow: true
+  runtime_verified: false
+request:
+  method: GET
+  path: "/security-data-flow/response_body_truncation_event"
+expect:
+  outcome: event_evidence_no_payload
+  status: 200
+  runtime_verified: false

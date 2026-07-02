@@ -22,6 +22,10 @@ jobs:
             echo "BUILD_ROOT=$verified_root/build"
             echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
+      - name: Install Python dev dependencies
+        run: |
+          set -eu
+          python3 -m pip install -r requirements-dev.txt
       - name: Run framework lint
         run: |
           set -eu

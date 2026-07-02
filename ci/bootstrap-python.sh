@@ -7,7 +7,7 @@ REPO_ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 
 VENV_DIR="${VENV_DIR:-.venv}"
 PYTHON_BIN="${PYTHON_BIN:-$DEFAULT_PYTHON}"
-REQ_FILE="${REQ_FILE:-requirements-dev.txt}"
+REQ_FILE="${REQ_FILE:-$REPO_ROOT/requirements-dev.txt}"
 
 if [ ! -f "$REQ_FILE" ]; then
     ci_blocked "missing dependency file: $REQ_FILE" >&2

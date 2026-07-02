@@ -1,0 +1,28 @@
+origin:
+  - repo: ModSecurity-test-Framework
+    path: tests/cases/security-data-flow/transaction-id/transaction_id_control_char_rejected.yaml
+    reason: Framework-owned connector-neutral security/data-flow case; pending connector runtime evidence.
+category: security-data-flow
+portable: true
+status: connector-gap
+former_xfail: true
+former_xfail_reason: "framework case only; runtime_verified=false and not counted as verified PASS."
+known_limitations:
+  - Pending connector runtime evidence; not counted as verified PASS.
+  - No connector implementation, adapter metadata, or runtime evidence is provided by this framework case.
+name: transaction_id_control_char_rejected
+description: "Transaction IDs containing control characters, CR/LF, or non-printable bytes must be rejected."
+tags:
+  - security-data-flow
+  - transaction-id
+  - log-safety
+capabilities:
+  security_data_flow: true
+  runtime_verified: false
+request:
+  method: GET
+  path: "/security-data-flow/transaction_id_control_char_rejected"
+expect:
+  outcome: blocked
+  status: 400
+  runtime_verified: false

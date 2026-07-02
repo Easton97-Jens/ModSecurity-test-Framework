@@ -1,0 +1,26 @@
+origin:
+  - repo: ModSecurity-test-Framework
+    path: tests/cases/security-data-flow/phase-order/phase_skip_rejected.yaml
+    reason: Framework-owned connector-neutral security/data-flow case; pending connector runtime evidence.
+category: security-data-flow
+portable: true
+status: connector-gap
+former_xfail: true
+former_xfail_reason: "framework case only; runtime_verified=false and not counted as verified PASS."
+known_limitations:
+  - Pending connector runtime evidence; not counted as verified PASS.
+  - No connector implementation, adapter metadata, or runtime evidence is provided by this framework case.
+name: phase_skip_rejected
+description: "Strict/common flow guards must reject skipped phases or emit connector-gap evidence until runtime support exists."
+tags:
+  - security-data-flow
+  - phase-order
+capabilities:
+  security_data_flow: true
+  runtime_verified: false
+request:
+  method: GET
+  path: "/security-data-flow/phase_skip_rejected"
+expect:
+  outcome: rejected_or_connector_gap
+  runtime_verified: false
