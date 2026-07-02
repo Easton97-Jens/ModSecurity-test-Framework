@@ -39,6 +39,11 @@ if [ -n "${LIGHTTPD_BIN:-}" ]; then
 else
     LIGHTTPD_BIN_WAS_SET=0
 fi
+if [ -n "${HAPROXY_BIN:-}" ]; then
+    HAPROXY_BIN_WAS_SET=1
+else
+    HAPROXY_BIN_WAS_SET=0
+fi
 
 # Open connector runtime component defaults. These are passive local paths only:
 # checks, downloads, installs, and directory creation happen outside common.sh.
@@ -326,7 +331,28 @@ ci_require_https_github_repo_url_if_set() {
     ci_require_https_github_repo_url "$ci_url" "$ci_label"
 }
 
+ci_validate_safe_ref_config() {
+    for ci_ref_pair in \
+        "CRS_GIT_REF:$CRS_GIT_REF" \
+        "MODSECURITY_GIT_REF:$MODSECURITY_GIT_REF" \
+        "MODSECURITY_V3_GIT_REF:$MODSECURITY_V3_GIT_REF" \
+        "MODSECURITY_APACHE_GIT_REF:$MODSECURITY_APACHE_GIT_REF" \
+        "MODSECURITY_NGINX_GIT_REF:$MODSECURITY_NGINX_GIT_REF" \
+        "NGINX_RELEASE_TAG:$NGINX_RELEASE_TAG" \
+        "NGINX_SOURCE_GIT_REF:$NGINX_SOURCE_GIT_REF" \
+        "GO_FTW_GIT_REF:$GO_FTW_GIT_REF" \
+        "ALBEDO_GIT_REF:$ALBEDO_GIT_REF" \
+        "EXPAT_GIT_REF:$EXPAT_GIT_REF"
+    do
+        ci_ref_label=${ci_ref_pair%%:*}
+        ci_ref_value=${ci_ref_pair#*:}
+        ci_require_safe_ref "$ci_ref_value" "$ci_ref_label" || return 77
+    done
+    return 0
+}
+
 ci_validate_https_runtime_url_config() {
+    ci_validate_safe_ref_config || return 77
     ci_require_https_github_repo_url "$CRS_REPO_URL" CRS_REPO_URL || return 77
     ci_require_https_github_repo_url "$MODSECURITY_REPO_URL" MODSECURITY_REPO_URL || return 77
     ci_require_https_github_repo_url "$MODSECURITY_V3_GIT_URL" MODSECURITY_V3_GIT_URL || return 77
@@ -463,9 +489,6 @@ ci_require_absolute_path() {
 ci_path_is_system_path() {
     ci_path_value=$1
     case "$ci_path_value" in
-        /var/tmp|/var/tmp/*)
-            return 1
-            ;;
         /usr|/usr/*|/opt|/opt/*|/etc|/etc/*|/var|/var/*|/lib|/lib/*|/lib64|/lib64/*|/bin|/bin/*|/sbin|/sbin/*|/run|/run/*)
             return 0
             ;;
@@ -493,6 +516,42 @@ assert_not_system_path_for_write() {
     return 0
 }
 
+ci_canonical_path() {
+    ci_path=$1
+    python3 - "$ci_path" <<'PY'
+import os, sys
+print(os.path.realpath(sys.argv[1]))
+PY
+}
+
+ci_reject_traversal_path() {
+    ci_path=$1
+    ci_label=${2:-path}
+    case "$ci_path" in
+        *"/../"*|../*|*/..|..|*"/./"*)
+            ci_blocked "$ci_label contains traversal segments: $ci_path"
+            return 77
+            ;;
+    esac
+    return 0
+}
+
+ci_require_safe_ref() {
+    ci_ref=$1
+    ci_label=${2:-ref}
+    case "$ci_ref" in
+        ""|*" "*|*"	"*|*".."*|/*|*/*/*)
+            ci_blocked "$ci_label contains unsafe characters: $ci_ref"
+            return 77
+            ;;
+    esac
+    if printf '%s' "$ci_ref" | LC_ALL=C grep -Eq '[^A-Za-z0-9._/-]|[$`"'"'"';{}()#&|<>\]'; then
+        ci_blocked "$ci_label contains unsupported characters: $ci_ref"
+        return 77
+    fi
+    return 0
+}
+
 assert_safe_runtime_path() {
     ci_safe_path=$1
     ci_safe_label=${2:-path}
@@ -501,6 +560,8 @@ assert_safe_runtime_path() {
     ci_component_cache="${CONNECTOR_COMPONENT_CACHE:-}"
     ci_verified_root="${VERIFIED_RUN_ROOT:-}"
 
+    ci_reject_traversal_path "$ci_safe_path" "$ci_safe_label" || return 77
+    ci_safe_path=$(ci_canonical_path "$ci_safe_path")
     assert_not_system_path_for_write "$ci_safe_path" "$ci_safe_label" || return 77
     case "$ci_safe_path" in
         /|/src|/tmp|"${HOME:-__no_home__}")
@@ -562,11 +623,6 @@ assert_safe_runtime_path() {
             "$ci_component_cache"|"$ci_component_cache"/*) return 0 ;;
         esac
     fi
-    case "$ci_safe_path" in
-        /tmp/*|/var/tmp|/var/tmp/*)
-            return 0
-            ;;
-    esac
     if [ -n "$ci_state_root" ]; then
         case "$ci_safe_path" in
             "$ci_state_root"|"$ci_state_root"/*) return 0 ;;
@@ -589,7 +645,7 @@ safe_remove_runtime_path() {
 
     assert_safe_runtime_path "$ci_remove_real_target" "$ci_remove_label" || return 77
     case "$ci_remove_real_target" in
-        /|/src|/tmp|"${HOME:-__no_home__}"|"$BUILD_ROOT"|"$TMP_ROOT"|"$LOG_ROOT")
+        /|/src|/tmp|/var|/var/tmp|"${HOME:-__no_home__}"|"$BUILD_ROOT"|"$TMP_ROOT"|"$LOG_ROOT"|"$VERIFIED_RUN_ROOT"|"$CONNECTOR_COMPONENT_CACHE")
             ci_blocked "unsafe remove target for $ci_remove_label: $ci_remove_real_target"
             return 77
             ;;
@@ -655,7 +711,7 @@ ci_git_value() {
 
 # Export shared defaults for child scripts invoked after sourcing common.sh.
 export DEFAULT_BRANCH FRAMEWORK_ROOT CONNECTOR_ROOT VERIFIED_RUN_ROOT VERIFIED_STATE_ROOT VERIFIED_BUILD_ROOT VERIFIED_SOURCE_ROOT VERIFIED_TMP_ROOT VERIFIED_LOG_ROOT VERIFIED_COMPONENT_CACHE
-export SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE DEFAULT_PYTHON
+export SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE DEFAULT_PYTHON HAPROXY_BIN_WAS_SET
 export CRS_REPO_URL CRS_GIT_REF MODSECURITY_REPO_URL MODSECURITY_GIT_REF MODSECURITY_V3_GIT_URL MODSECURITY_V3_GIT_REF
 export HTTPD_VERSION HTTPD_SOURCE_URL HTTPD_SHA256 HTTPD_SHA256_URL APR_VERSION APR_SOURCE_URL APR_SHA256 APR_SHA256_URL APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL PCRE2_VERSION PCRE2_SOURCE_URL PCRE2_SHA256 PCRE2_SHA256_URL
 export NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF NGINX_SHA256 HAPROXY_VERSION HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256

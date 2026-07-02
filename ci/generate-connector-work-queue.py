@@ -837,6 +837,16 @@ def render_markdown(entries: list[dict[str, Any]], source_counts: Counter[str], 
     return "\n".join(lines) + "\n"
 
 
+
+def require_under(root: Path, candidate: Path, label: str) -> Path:
+    root = root.resolve()
+    candidate = candidate.resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise SystemExit(f"{label} must stay under {root}: {candidate}") from exc
+    return candidate
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--framework-root", default=Path(__file__).resolve().parents[1])
@@ -847,13 +857,13 @@ def main() -> int:
 
     framework_root = Path(args.framework_root).resolve()
     connector_root = Path(args.connector_root).resolve()
-    connector_ci = connector_root / "ci"
-    if str(connector_ci) not in sys.path:
-        sys.path.insert(0, str(connector_ci))
+    framework_ci = framework_root / "ci"
+    if str(framework_ci) not in sys.path:
+        sys.path.insert(0, str(framework_ci))
     from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
 
     output_root = Path(args.output_root).resolve() if args.output_root else connector_root
-    output_dir = output_root / "reports/testing/generated"
+    output_dir = require_under(output_root, output_root / "reports/testing/generated", "generated report directory")
     full_matrix_path = Path(args.full_runtime_matrix).resolve() if args.full_runtime_matrix else None
 
     by_id, by_path, source_counts = load_cases(framework_root)

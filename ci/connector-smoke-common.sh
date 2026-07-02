@@ -130,6 +130,7 @@ connector_smoke_connector_name_for_env_var() {
         ENVOY_BIN) printf '%s\n' envoy ;;
         TRAEFIK_BIN) printf '%s\n' traefik ;;
         LIGHTTPD_BIN) printf '%s\n' lighttpd ;;
+        HAPROXY_BIN) printf '%s\n' haproxy ;;
         *) printf '%s\n' "" ;;
     esac
 }
@@ -157,36 +158,19 @@ connector_smoke_connector_lookup_roots() {
                 "${LIGHTTPD_CONFIG_ROOT:-}" \
                 "${LIGHTTPD_RESULT_ROOT:-}"
             ;;
+        haproxy)
+            printf '%s\n' \
+                "${HAPROXY_RUNTIME_DIR:-}" \
+                "${HAPROXY_RUNTIME_BUILD_DIR:-}" \
+                "${HAPROXY_SOURCE_ROOT:-}"
+            ;;
     esac
 }
 
 connector_smoke_default_verified_roots() {
-    seen_default_roots=
-    for base in \
-        "${RUNNER_TEMP:-}" \
-        "${TMPDIR:-}" \
-        /tmp \
-        /var/tmp
-    do
-        [ -n "$base" ] || continue
-        for root in \
-            "$base/ModSecurity-conector-verified" \
-            "$base/ModSecurity-conector-verified/component-cache" \
-            "$base/ModSecurity-conector-verified/build" \
-            "$base/ModSecurity-conector-verified/src"
-        do
-            case "
-$seen_default_roots
-" in
-                *"
-$root
-"*) continue ;;
-            esac
-            seen_default_roots="${seen_default_roots}
-$root"
-            printf '%s\n' "$root"
-        done
-    done
+    # Shared /tmp and /var/tmp discovery is intentionally disabled.
+    # Callers must opt in with explicit, validated VERIFIED_* or component roots.
+    return 0
 }
 
 find_runtime_binary_in_root() {
@@ -245,8 +229,7 @@ find_runtime_binary() {
         "${VERIFIED_BUILD_ROOT:-}" \
         "${BUILD_ROOT:-}" \
         "${VERIFIED_RUN_ROOT:-}" \
-        "${SOURCE_ROOT:-}" \
-        $(connector_smoke_default_verified_roots)
+        "${SOURCE_ROOT:-}"
     do
         found=$(find_runtime_binary_in_root "$root" "$binary_name" || true)
         if [ -n "$found" ]; then
@@ -273,8 +256,7 @@ connector_smoke_runtime_lookup_roots_args() {
         "${VERIFIED_BUILD_ROOT:-}" \
         "${BUILD_ROOT:-}" \
         "${VERIFIED_RUN_ROOT:-}" \
-        "${SOURCE_ROOT:-}" \
-        $(connector_smoke_default_verified_roots)
+        "${SOURCE_ROOT:-}"
     do
         [ -n "$root" ] || continue
         case "

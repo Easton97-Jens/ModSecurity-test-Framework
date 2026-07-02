@@ -295,9 +295,9 @@ def configure_paths(
         CONNECTOR_ROOT = resolve_root(connector_root, label="connector root")
     else:
         CONNECTOR_ROOT = FRAMEWORK_ROOT
-    connector_ci = CONNECTOR_ROOT / "ci"
-    if connector_ci.is_dir() and str(connector_ci) not in sys.path:
-        sys.path.insert(0, str(connector_ci))
+    framework_ci = FRAMEWORK_ROOT / "ci"
+    if str(framework_ci) not in sys.path:
+        sys.path.insert(0, str(framework_ci))
     try:
         import generated_report_utils as report_utils
 
