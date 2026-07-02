@@ -23,8 +23,9 @@ def main() -> int:
 
     print("blocked: missing required Python dependencies for CI helpers", file=sys.stderr)
     for module, requirement in missing:
-        print(f" - module '{module}' not found (install requirement: {requirement})", file=sys.stderr)
-    print("hint: python3 -m pip install -r requirements-dev.txt", file=sys.stderr)
+        print(f"Missing Python dependency: {module} / {requirement}.", file=sys.stderr)
+    print("Run: python3 -m pip install -r requirements-dev.txt", file=sys.stderr)
+    print("Or: make setup-dev", file=sys.stderr)
     return 2
 
 

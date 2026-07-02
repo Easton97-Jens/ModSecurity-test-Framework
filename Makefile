@@ -46,7 +46,7 @@ export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint quick-check codex-check generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 
 define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 	@set +e; \
@@ -59,6 +59,9 @@ define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 	exit "$$refresh_rc"
 endef
 
+setup-dev install-dev-deps:
+	sh ci/bootstrap-python.sh
+
 lint:
 	sh -n ci/*.sh
 	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh; else echo "bash unavailable"; fi
@@ -66,8 +69,16 @@ lint:
 	$(PYTHON) ci/check-python-deps.py
 	$(PYTHON) ci/check-workflow-yaml.py
 	$(PYTHON) ci/check-response-body-promotion.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
+	$(PYTHON) ci/check-security-data-flow-cases.py
+	$(PYTHON) ci/check-security-data-flow-normalizers.py
 	sh ci/check-crs-version-pinning.sh
 	git diff --check
+
+check-security-data-flow-cases:
+	$(PYTHON) ci/check-security-data-flow-cases.py
+
+check-security-data-flow-normalizers:
+	$(PYTHON) ci/check-security-data-flow-normalizers.py
 
 quick-check codex-check: lint
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py

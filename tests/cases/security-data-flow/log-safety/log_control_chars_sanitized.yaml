@@ -1,0 +1,26 @@
+origin:
+  - repo: ModSecurity-test-Framework
+    path: tests/cases/security-data-flow/log-safety/log_control_chars_sanitized.yaml
+    reason: Framework-owned connector-neutral security/data-flow case; pending connector runtime evidence.
+category: security-data-flow
+portable: true
+status: connector-gap
+former_xfail: true
+former_xfail_reason: "framework case only; runtime_verified=false and not counted as verified PASS."
+known_limitations:
+  - Pending connector runtime evidence; not counted as verified PASS.
+  - No connector implementation, adapter metadata, or runtime evidence is provided by this framework case.
+name: log_control_chars_sanitized
+description: "Control characters in event and decision logs must be sanitized before persistence."
+tags:
+  - security-data-flow
+  - log-safety
+capabilities:
+  security_data_flow: true
+  runtime_verified: false
+request:
+  method: GET
+  path: "/security-data-flow/log_control_chars_sanitized"
+expect:
+  outcome: sanitized_logs
+  runtime_verified: false
