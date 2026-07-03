@@ -295,9 +295,9 @@ def configure_paths(
         CONNECTOR_ROOT = resolve_root(connector_root, label="connector root")
     else:
         CONNECTOR_ROOT = FRAMEWORK_ROOT
-    connector_ci = CONNECTOR_ROOT / "ci"
-    if connector_ci.is_dir() and str(connector_ci) not in sys.path:
-        sys.path.insert(0, str(connector_ci))
+    framework_ci = FRAMEWORK_ROOT / "ci"
+    if str(framework_ci) not in sys.path:
+        sys.path.insert(0, str(framework_ci))
     try:
         import generated_report_utils as report_utils
 
@@ -1567,9 +1567,12 @@ def runtime_cell_from_observed(case: dict, observed: dict, connector: str) -> di
     supplied_status = str(observed.get("matrix_status") or "").strip()
     if supplied_status not in {"PASS", "FAIL", "BLOCKED", "NOT_EXECUTABLE"}:
         supplied_status = ""
-    status = supplied_status or computed_status
-    if response_body_related and raw_status.strip().lower() == "pass":
-        status = computed_status
+    non_promotable_runtime = (
+        response_body_related
+        or str(classification).strip().lower() in {"pending", "future", "connector_gap", "runtime_difference", "non-promoted", "non_promoted"}
+        or observed.get("strict_abort") is True
+    )
+    status = computed_status if non_promotable_runtime else (supplied_status or computed_status)
     if status in {NOT_EXECUTED, "NOT_EXECUTABLE"}:
         reason = str(observed.get("reason") or observed.get("details") or "skipped by runtime smoke")
     elif response_body_pass_through:
@@ -1583,11 +1586,12 @@ def runtime_cell_from_observed(case: dict, observed: dict, connector: str) -> di
     expected = observed.get("expected_status", observed.get("expected", "unknown"))
     actual = observed.get("actual_status", observed.get("actual", "unknown"))
     evidence = str(observed.get("evidence") or f"expected={expected}; actual={actual}")
-    promotion = (
-        "RESPONSE_BODY non-verified; non-promotable"
-        if response_body_related
-        else ("promotion eligible" if classification == "active" and status == "PASS" else "not promoted")
-    )
+    if response_body_related:
+        promotion = "RESPONSE_BODY non-verified; non-promotable"
+    elif classification == "active" and status == "PASS" and observed.get("live_executed") is True:
+        promotion = "promotion eligible"
+    else:
+        promotion = "not promoted"
     return {"status": status, "reason": reason, "evidence": evidence, "promotion": promotion}
 
 

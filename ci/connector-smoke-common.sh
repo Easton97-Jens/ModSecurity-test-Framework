@@ -130,6 +130,7 @@ connector_smoke_connector_name_for_env_var() {
         ENVOY_BIN) printf '%s\n' envoy ;;
         TRAEFIK_BIN) printf '%s\n' traefik ;;
         LIGHTTPD_BIN) printf '%s\n' lighttpd ;;
+        HAPROXY_BIN) printf '%s\n' haproxy ;;
         *) printf '%s\n' "" ;;
     esac
 }
@@ -157,36 +158,19 @@ connector_smoke_connector_lookup_roots() {
                 "${LIGHTTPD_CONFIG_ROOT:-}" \
                 "${LIGHTTPD_RESULT_ROOT:-}"
             ;;
+        haproxy)
+            printf '%s\n' \
+                "${HAPROXY_RUNTIME_DIR:-}" \
+                "${HAPROXY_RUNTIME_BUILD_DIR:-}" \
+                "${HAPROXY_SOURCE_ROOT:-}"
+            ;;
     esac
 }
 
 connector_smoke_default_verified_roots() {
-    seen_default_roots=
-    for base in \
-        "${RUNNER_TEMP:-}" \
-        "${TMPDIR:-}" \
-        /tmp \
-        /var/tmp
-    do
-        [ -n "$base" ] || continue
-        for root in \
-            "$base/ModSecurity-conector-verified" \
-            "$base/ModSecurity-conector-verified/component-cache" \
-            "$base/ModSecurity-conector-verified/build" \
-            "$base/ModSecurity-conector-verified/src"
-        do
-            case "
-$seen_default_roots
-" in
-                *"
-$root
-"*) continue ;;
-            esac
-            seen_default_roots="${seen_default_roots}
-$root"
-            printf '%s\n' "$root"
-        done
-    done
+    # Shared /tmp and /var/tmp discovery is intentionally disabled.
+    # Callers must opt in with explicit, validated VERIFIED_* or component roots.
+    return 0
 }
 
 find_runtime_binary_in_root() {
@@ -245,8 +229,7 @@ find_runtime_binary() {
         "${VERIFIED_BUILD_ROOT:-}" \
         "${BUILD_ROOT:-}" \
         "${VERIFIED_RUN_ROOT:-}" \
-        "${SOURCE_ROOT:-}" \
-        $(connector_smoke_default_verified_roots)
+        "${SOURCE_ROOT:-}"
     do
         found=$(find_runtime_binary_in_root "$root" "$binary_name" || true)
         if [ -n "$found" ]; then
@@ -273,8 +256,7 @@ connector_smoke_runtime_lookup_roots_args() {
         "${VERIFIED_BUILD_ROOT:-}" \
         "${BUILD_ROOT:-}" \
         "${VERIFIED_RUN_ROOT:-}" \
-        "${SOURCE_ROOT:-}" \
-        $(connector_smoke_default_verified_roots)
+        "${SOURCE_ROOT:-}"
     do
         [ -n "$root" ] || continue
         case "
@@ -919,9 +901,42 @@ connector_smoke_run() {
     results_jsonl="$RESULTS_DIR/$connector-results.jsonl"
     if [ "$rc" -eq 0 ] && [ "${RUN_ONE_CASE:-0}" = "1" ]; then
         case_result_path="${LOG_DIR:-$LOG_ROOT/$connector-runtime}/result.json"
-        if [ -s "$case_result_path" ]; then
-            exit 0
+        if [ ! -s "$case_result_path" ]; then
+            connector_smoke_write_evidence "$connector" BLOCKED 77 blocked "RUN_ONE_CASE result.json missing" "$harness_script"
+            exit 77
         fi
+        "$PYTHON_BIN" - "$case_result_path" "$connector" "${MODSECURITY_TEST_VARIANT:-no-crs}" "${MODSECURITY_MRTS_VARIANT:-no-mrts}" "${TEST_CASE:-${SMOKE_CASES:-}}" <<'PY_RUN_ONE_CASE' || exit 77
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+connector = sys.argv[2]
+test_variant = sys.argv[3]
+mrts_variant = sys.argv[4]
+requested = sys.argv[5]
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception as exc:
+    raise SystemExit(f"RUN_ONE_CASE invalid JSON result: {exc}")
+if not isinstance(data, dict):
+    raise SystemExit("RUN_ONE_CASE result must be a JSON object")
+if data.get("connector") not in (None, "", connector):
+    raise SystemExit(f"RUN_ONE_CASE connector mismatch: {data.get('connector')!r} != {connector!r}")
+if data.get("test_variant") not in (None, "", test_variant):
+    raise SystemExit("RUN_ONE_CASE test variant mismatch")
+if data.get("mrts_variant") not in (None, "", mrts_variant):
+    raise SystemExit("RUN_ONE_CASE MRTS variant mismatch")
+status = str(data.get("status") or "").strip().lower()
+if status not in {"pass", "fail", "blocked", "not_executable", "skipped"}:
+    raise SystemExit(f"RUN_ONE_CASE invalid runtime status: {status!r}")
+case_id = str(data.get("name") or data.get("case") or data.get("case_id") or data.get("path") or "")
+if requested and requested not in case_id and case_id not in requested:
+    raise SystemExit(f"RUN_ONE_CASE requested case mismatch: {requested!r} vs {case_id!r}")
+if data.get("live_executed") is not True and status == "pass":
+    raise SystemExit("RUN_ONE_CASE PASS must carry live_executed=true")
+PY_RUN_ONE_CASE
+        exit 0
     fi
     if [ "$rc" -eq 0 ] && [ ! -s "$results_jsonl" ]; then
         connector_smoke_write_evidence "$connector" BLOCKED 77 blocked "runtime harness produced no case evidence" "$harness_script"

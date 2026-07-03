@@ -28,6 +28,7 @@ PARAM_EXPANSION_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*):[-=]([^{}]*)\}")
 BRACED_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 PLAIN_VAR_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 SHA256_RE = re.compile(r"\b([A-Fa-f0-9]{64})\b")
+SAFE_REF_RE = re.compile(r"^(?!.*\.\.)(?!/)(?!.*//)[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
 OPTIONAL_EMPTY_VARIABLES = {
     "APACHE_BIN",
     "APACHECTL_BIN",
@@ -194,9 +195,17 @@ def value(entries: dict[str, VariableEntry], name: str) -> str:
     return current.resolved if current else ""
 
 
+def require_shell_safe_default(variable: str, new_default: str) -> None:
+    if any(ch in new_default for ch in (" ", "\t", "\n", "$", "`", "\"", "'", ";", "{", "}", "(", ")", "#", "&", "|", "<", ">", "\\")):
+        raise UpstreamError(f"refusing unsafe shell default for {variable}: {new_default!r}")
+    if ".." in new_default or new_default.startswith("/") or "//" in new_default:
+        raise UpstreamError(f"refusing traversal-like shell default for {variable}: {new_default!r}")
+
+
 def plan_update(
     entries: dict[str, VariableEntry], variable: str, new_default: str
 ) -> UpdateChange | None:
+    require_shell_safe_default(variable, new_default)
     current = entry(entries, variable)
     if current is None:
         return None
@@ -650,7 +659,10 @@ def release_tag_name(release: dict[str, Any], repo_path: str) -> str:
     tag = release.get("tag_name")
     if not isinstance(tag, str) or not tag.strip():
         raise UpstreamUnknown(f"GitHub latest release for {repo_path} did not include tag_name")
-    return tag.strip()
+    tag = tag.strip()
+    if not SAFE_REF_RE.fullmatch(tag):
+        raise UpstreamError(f"GitHub release tag for {repo_path} is not shell-safe: {tag!r}")
+    return tag
 
 
 def check_github_release_ref(
@@ -674,7 +686,7 @@ def check_github_release_ref(
             source=repo_url,
             details={"reason": "repository URL or ref is empty"},
         )
-    if current_ref in {"latest", "master", "main"} or "/" in current_ref:
+    if not SAFE_REF_RE.fullmatch(current_ref) or current_ref in {"latest", "master", "main"} or "/" in current_ref:
         return ComponentResult(
             component=component,
             status=STATUS_UNKNOWN,

@@ -220,7 +220,14 @@ def case_is_former_xfail(path: str) -> bool:
     return bool(case_metadata(path).get("former_xfail"))
 
 
-def matrix_status(result_status: str, classification: str, response_body_related: bool = False) -> str:
+NON_PROMOTABLE_CLASSIFICATIONS = {"pending", "future", "connector_gap", "runtime_difference", "non-promoted", "non_promoted"}
+
+
+def matrix_status(result_status: str, classification: str, response_body_related: bool = False, *, strict_abort: bool = False) -> str:
+    if strict_abort and str(result_status).strip().lower() == "pass":
+        return "NOT_EXECUTABLE"
+    if str(classification).strip().lower() in NON_PROMOTABLE_CLASSIFICATIONS and str(result_status).strip().lower() == "pass":
+        return "NOT_EXECUTABLE"
     return matrix_status_for_result(
         result_status,
         classification,
@@ -256,13 +263,13 @@ def case_rows(summary: dict, connector: str, summary_path: Path) -> list[dict]:
         if expected is not None or actual is not None:
             evidence += f"; expected={expected}; actual={actual}"
         response_body_related = bool(metadata["response_body_related"])
-        computed_matrix_status = matrix_status(status, metadata["classification"], response_body_related)
+        computed_matrix_status = matrix_status(status, metadata["classification"], response_body_related, strict_abort=item.get("strict_abort") is True)
         if (
             response_body_related
             and status.strip().lower() == "pass"
             and not response_body_pass_is_pass_through(expected, actual, item.get("observed_transport_result"))
         ):
-            computed_matrix_status = matrix_status(status, metadata["classification"], False)
+            computed_matrix_status = matrix_status(status, metadata["classification"], False, strict_abort=item.get("strict_abort") is True)
         reason = item.get("reason", "")
         if not reason and status.strip().lower() == "not_executable":
             reason = "structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path"
@@ -325,6 +332,10 @@ def case_rows(summary: dict, connector: str, summary_path: Path) -> list[dict]:
             row["response_body_related"] = True
             if status.strip().lower() == "pass":
                 row["reason"] = RESPONSE_BODY_RUNTIME_NOTE
+        if row.get("strict_abort") is True and status.strip().lower() == "pass":
+            row["promotion_allowed"] = False
+            row["runtime_verified"] = False
+            row["reason"] = row.get("reason") or "strict abort evidence is non-promotable"
         rows.append(row)
     return rows
 
@@ -337,6 +348,7 @@ def connector_smoke(
     text_summary_path: Path,
     *,
     runtime_mode: str = "default",
+    require_current_run: bool = False,
 ) -> dict:
     summary_data = load_json(summary_path)
     connector_summary = summary_data.get(connector, {}) if isinstance(summary_data, dict) else {}
@@ -344,11 +356,15 @@ def connector_smoke(
     if not isinstance(counts, dict):
         counts = {}
     rows = case_rows(summary_data, connector, summary_path)
+    if require_current_run and exit_code in {"not_run", ""}:
+        rows = []
+        summary_data = {}
+        connector_summary = {}
     if isinstance(connector_summary, dict):
         runtime_mode = str(connector_summary.get("runtime_mode") or runtime_mode)
     effective_exit_code = str(exit_code)
     metadata_exit_status = connector_summary.get("exit_status") if isinstance(connector_summary, dict) else None
-    if effective_exit_code in {"not_run", ""} and metadata_exit_status is not None and rows:
+    if effective_exit_code in {"not_run", ""} and metadata_exit_status is not None and rows and not require_current_run:
         effective_exit_code = str(metadata_exit_status)
     status = "NOT_RUN"
     if effective_exit_code not in {"not_run", ""}:
@@ -453,7 +469,6 @@ def summary_text_path(summary_path: Path) -> Path:
 
 
 def haproxy_default_matrix_smoke(
-    existing_by_connector: dict[str, dict],
     command: str,
     exit_code: str,
     results_dir: Path,
@@ -463,14 +478,19 @@ def haproxy_default_matrix_smoke(
     if not summary_path.exists():
         summary_path = results_dir / "haproxy-summary.json"
         text_summary_path = summary_text_path(summary_path)
-    if exit_code in {"not_run", ""} and "haproxy" in existing_by_connector:
-        return existing_by_connector["haproxy"]
+    if exit_code in {"not_run", ""}:
+        return not_available_force_all_row("haproxy", summary_path, command)
 
     row = connector_smoke("haproxy", command, exit_code, summary_path, text_summary_path)
     cases = [
         item
         for item in row.get("cases", [])
-        if isinstance(item, dict) and not case_is_former_xfail(str(item.get("path", "")))
+        if isinstance(item, dict)
+        and item.get("live_executed") is True
+        and not case_is_former_xfail(str(item.get("path", "")))
+        and item.get("runtime_classification") == "active"
+        and item.get("response_body_non_verified") is not True
+        and item.get("strict_abort") is not True
     ]
     counts = {"pass": 0, "fail": 0, "blocked": 0, "not_executable": 0, "skipped": 0}
     for item in cases:
@@ -674,6 +694,7 @@ def main() -> int:
                 summary_path,
                 text_summary_path,
                 runtime_mode="force-all",
+                require_current_run=True,
             )
         if connector in existing_force_by_connector:
             return existing_force_by_connector[connector]
@@ -715,7 +736,6 @@ def main() -> int:
                 summary_text_path(default_nginx_summary),
             ),
             haproxy_default_matrix_smoke(
-                existing_by_connector,
                 args.haproxy_command,
                 default_haproxy_exit_code,
                 results_dir,

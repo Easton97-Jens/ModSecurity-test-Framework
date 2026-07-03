@@ -223,6 +223,8 @@ def connector_summary(args: argparse.Namespace, entries: list[dict[str, object]]
     summary["per_case_result_root"] = args.per_case_result_root or ""
     summary["command"] = args.command or ""
     summary["exit_status"] = args.exit_status
+    summary["run_id"] = args.run_id or os.environ.get("SMOKE_RUN_ID", "")
+    summary["run_started_at"] = args.run_started_at or os.environ.get("SMOKE_RUN_STARTED_AT", "")
     if isinstance(counts, dict):
         summary["failed_due_to_live_mismatches"] = bool(counts.get("fail", 0))
     return summary
@@ -442,6 +444,8 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser.add_argument("--runtime-mode", default="default")
     summarize_parser.add_argument("--command", default="")
     summarize_parser.add_argument("--exit-status", default="")
+    summarize_parser.add_argument("--run-id", default="")
+    summarize_parser.add_argument("--run-started-at", default="")
     summarize_parser.add_argument("--per-case-result-root", default="")
     summarize_parser.set_defaults(func=summarize_results)
 

@@ -46,7 +46,7 @@ export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all smoke-apache smoke-nginx smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
 
 define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 	@set +e; \
@@ -107,11 +107,20 @@ runtime-matrix:
 runtime-matrix-all:
 	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,FORCE_ALL_CASES=1 sh ci/run-runtime-matrix.sh)
 
+runtime-matrix-haproxy:
+	sh ci/run-haproxy-runtime-matrix.sh
+
+runtime-matrix-haproxy-all:
+	FORCE_ALL_CASES=1 sh ci/run-haproxy-runtime-matrix.sh
+
 smoke-apache:
 	CASE_SCOPE=all sh ci/run-apache-smoke.sh
 
 smoke-nginx:
 	CASE_SCOPE=all sh ci/run-nginx-smoke.sh
+
+smoke-haproxy:
+	CASE_SCOPE=all sh ci/run-haproxy-smoke.sh
 
 smoke-all:
 	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,CASE_SCOPE=all sh ci/run-connector-smokes.sh)
@@ -171,3 +180,6 @@ fetch-crs:
 
 prepare-crs:
 	sh ci/prepare-crs.sh
+
+prepare-haproxy-runtime:
+	sh ci/prepare-haproxy-runtime.sh
