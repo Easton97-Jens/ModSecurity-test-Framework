@@ -18,8 +18,6 @@ PRIORITY_ORDER = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
 REPORT_ONLY_CLASSIFICATION = "with_mrts_detection_only_non_disruptive"
 REPORT_ONLY_CLASSIFICATIONS = {
     REPORT_ONLY_CLASSIFICATION,
-    "multipart_processor_activation_missing",
-    "xml_processor_activation_missing",
 }
 REPORT_ONLY_PRIORITY = "report_only"
 NO_MRTS_NOMATCH_SEMANTIC_PRIORITY = {
@@ -742,15 +740,6 @@ def render_markdown(payload: dict[str, Any]) -> str:
 
 
 
-def require_under(root: Path, candidate: Path, label: str) -> Path:
-    root = root.resolve()
-    candidate = candidate.resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
-        raise SystemExit(f"{label} must stay under {root}: {candidate}") from exc
-    return candidate
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--framework-root", default=Path(__file__).resolve().parents[1])
@@ -766,7 +755,7 @@ def main() -> int:
     framework_ci = framework_root / "ci"
     if str(framework_ci) not in sys.path:
         sys.path.insert(0, str(framework_ci))
-    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
+    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root, require_under
 
     output_root = Path(args.output_root).resolve() if args.output_root else connector_root
     output_dir = require_under(output_root, output_root / "reports/testing/generated", "generated report directory")

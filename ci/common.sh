@@ -522,6 +522,7 @@ ci_canonical_path() {
 import os, sys
 print(os.path.realpath(sys.argv[1]))
 PY
+    return $?
 }
 
 ci_reject_traversal_path() {

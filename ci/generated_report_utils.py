@@ -58,6 +58,34 @@ def report_path_from_root(root: Path | str, name: str, suffix: str) -> Path:
     return target
 
 
+
+def reject_path_traversal(value: Path | str, label: str) -> None:
+    raw = str(value)
+    path = Path(raw)
+    if any(part in {"..", ""} for part in path.parts):
+        raise ValueError(f"{label} contains unsafe traversal or empty path segment: {raw}")
+
+
+def require_under(root: Path | str, candidate: Path | str, label: str) -> Path:
+    reject_path_traversal(candidate, label)
+    root_path = Path(root).resolve()
+    candidate_path = Path(candidate)
+    if not candidate_path.is_absolute():
+        candidate_path = root_path / candidate_path
+    resolved = candidate_path.resolve(strict=False)
+    try:
+        resolved.relative_to(root_path)
+    except ValueError as exc:
+        raise ValueError(f"{label} must stay under {root_path}: {resolved}") from exc
+    parent = resolved.parent
+    if parent.exists() and parent.resolve(strict=True) != parent.resolve(strict=False):
+        raise ValueError(f"{label} parent resolves through an unsafe symlink: {parent}")
+    try:
+        parent.resolve(strict=True).relative_to(root_path)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"{label} parent must stay under {root_path}: {parent}") from exc
+    return resolved
+
 def generated_json_text(payload: Any, metadata: dict[str, Any]) -> str:
     document = {"metadata": metadata, "data": payload}
     return json.dumps(document, indent=2, sort_keys=True) + "\n"

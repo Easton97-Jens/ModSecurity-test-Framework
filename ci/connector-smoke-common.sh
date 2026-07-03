@@ -901,9 +901,42 @@ connector_smoke_run() {
     results_jsonl="$RESULTS_DIR/$connector-results.jsonl"
     if [ "$rc" -eq 0 ] && [ "${RUN_ONE_CASE:-0}" = "1" ]; then
         case_result_path="${LOG_DIR:-$LOG_ROOT/$connector-runtime}/result.json"
-        if [ -s "$case_result_path" ]; then
-            exit 0
+        if [ ! -s "$case_result_path" ]; then
+            connector_smoke_write_evidence "$connector" BLOCKED 77 blocked "RUN_ONE_CASE result.json missing" "$harness_script"
+            exit 77
         fi
+        "$PYTHON_BIN" - "$case_result_path" "$connector" "${MODSECURITY_TEST_VARIANT:-no-crs}" "${MODSECURITY_MRTS_VARIANT:-no-mrts}" "${TEST_CASE:-${SMOKE_CASES:-}}" <<'PY_RUN_ONE_CASE' || exit 77
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+connector = sys.argv[2]
+test_variant = sys.argv[3]
+mrts_variant = sys.argv[4]
+requested = sys.argv[5]
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception as exc:
+    raise SystemExit(f"RUN_ONE_CASE invalid JSON result: {exc}")
+if not isinstance(data, dict):
+    raise SystemExit("RUN_ONE_CASE result must be a JSON object")
+if data.get("connector") not in (None, "", connector):
+    raise SystemExit(f"RUN_ONE_CASE connector mismatch: {data.get('connector')!r} != {connector!r}")
+if data.get("test_variant") not in (None, "", test_variant):
+    raise SystemExit("RUN_ONE_CASE test variant mismatch")
+if data.get("mrts_variant") not in (None, "", mrts_variant):
+    raise SystemExit("RUN_ONE_CASE MRTS variant mismatch")
+status = str(data.get("status") or "").strip().lower()
+if status not in {"pass", "fail", "blocked", "not_executable", "skipped"}:
+    raise SystemExit(f"RUN_ONE_CASE invalid runtime status: {status!r}")
+case_id = str(data.get("name") or data.get("case") or data.get("case_id") or data.get("path") or "")
+if requested and requested not in case_id and case_id not in requested:
+    raise SystemExit(f"RUN_ONE_CASE requested case mismatch: {requested!r} vs {case_id!r}")
+if data.get("live_executed") is not True and status == "pass":
+    raise SystemExit("RUN_ONE_CASE PASS must carry live_executed=true")
+PY_RUN_ONE_CASE
+        exit 0
     fi
     if [ "$rc" -eq 0 ] && [ ! -s "$results_jsonl" ]; then
         connector_smoke_write_evidence "$connector" BLOCKED 77 blocked "runtime harness produced no case evidence" "$harness_script"

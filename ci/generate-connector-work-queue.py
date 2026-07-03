@@ -52,8 +52,8 @@ NO_MRTS_NOMATCH_SEMANTIC_GROUPS = {
             "xml_namespace_edge_connector_gap",
             "xml_request_body_malformed_connector_gap",
         },
-        "work_direction": "classification_only",
-        "priority": "report_only",
+        "work_direction": "xml_processor",
+        "priority": "P2",
     },
     "multipart_processor_activation_missing": {
         "case_ids": {
@@ -388,13 +388,7 @@ def is_with_mrts_detection_only_non_disruptive(
     actual: int | None,
     work_direction: str,
 ) -> bool:
-    return (
-        mrts_variant == "with-mrts"
-        and work_direction == "intervention_blocking"
-        and status == "FAIL"
-        and expected in {401, 403, 302}
-        and actual == 200
-    )
+    return False
 
 
 def no_mrts_nomatch_semantic_classification(
@@ -838,15 +832,6 @@ def render_markdown(entries: list[dict[str, Any]], source_counts: Counter[str], 
 
 
 
-def require_under(root: Path, candidate: Path, label: str) -> Path:
-    root = root.resolve()
-    candidate = candidate.resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
-        raise SystemExit(f"{label} must stay under {root}: {candidate}") from exc
-    return candidate
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--framework-root", default=Path(__file__).resolve().parents[1])
@@ -860,7 +845,7 @@ def main() -> int:
     framework_ci = framework_root / "ci"
     if str(framework_ci) not in sys.path:
         sys.path.insert(0, str(framework_ci))
-    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
+    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root, require_under
 
     output_root = Path(args.output_root).resolve() if args.output_root else connector_root
     output_dir = require_under(output_root, output_root / "reports/testing/generated", "generated report directory")

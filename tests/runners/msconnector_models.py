@@ -95,10 +95,28 @@ def origin_metadata(
     }
 
 
+NON_PROMOTABLE_CLASSIFICATIONS = {"pending", "future", "connector_gap", "connector-gap", "runtime_difference", "runtime-difference", "non-promoted", "non_promoted"}
+
+
+def is_verified_runtime_pass(entry: dict[str, object]) -> bool:
+    if str(entry.get("status", "")).strip().lower() != "pass":
+        return False
+    if entry.get("live_executed") is not True:
+        return False
+    if entry.get("runtime_verified") is False or entry.get("promotion_allowed") is False:
+        return False
+    if entry.get("response_body_non_verified") is True or entry.get("strict_abort") is True:
+        return False
+    classification = str(entry.get("runtime_classification") or entry.get("metadata_classification") or "active").strip().lower()
+    if classification in NON_PROMOTABLE_CLASSIFICATIONS:
+        return False
+    return True
+
+
 def passing_capability_sets(entries: list[dict[str, object]]) -> list[set[str]]:
     sets = []
     for entry in entries:
-        if str(entry.get("status", "")) != "pass":
+        if not is_verified_runtime_pass(entry):
             continue
         capabilities = entry.get("capabilities", [])
         if isinstance(capabilities, list):

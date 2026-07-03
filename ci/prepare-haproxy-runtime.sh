@@ -21,6 +21,8 @@ MAKE_JOBS="${MAKE_JOBS:-$(ci_default_jobs)}"
 ARCHIVE_NAME="haproxy-$HAPROXY_VERSION.tar.gz"
 ARCHIVE_PATH="$HAPROXY_DOWNLOAD_DIR/$ARCHIVE_NAME"
 SHA256_PATH="$HAPROXY_DOWNLOAD_DIR/$ARCHIVE_NAME.sha256"
+PROVENANCE_FILE="$HAPROXY_SOURCE_DIR/.haproxy-source-provenance"
+BINARY_PROVENANCE_FILE="$HAPROXY_RUNTIME_DIR/haproxy.provenance"
 
 blocked() {
     echo "haproxy_prepare: blocked $*"
@@ -193,10 +195,39 @@ download_and_verify() {
     } >> "$ARTIFACTS_FILE"
 }
 
+write_source_provenance() {
+    {
+        echo "haproxy_version=$HAPROXY_VERSION"
+        echo "haproxy_source_url=$HAPROXY_SOURCE_URL"
+        echo "haproxy_sha256=$HAPROXY_SHA256"
+        echo "haproxy_archive=$ARCHIVE_PATH"
+    } > "$PROVENANCE_FILE"
+}
+
+verify_source_provenance() {
+    [ -f "$PROVENANCE_FILE" ] || return 1
+    grep -Fx "haproxy_version=$HAPROXY_VERSION" "$PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    grep -Fx "haproxy_source_url=$HAPROXY_SOURCE_URL" "$PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    grep -Fx "haproxy_sha256=$HAPROXY_SHA256" "$PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    return 0
+}
+
+verify_binary_provenance() {
+    [ -x "$HAPROXY_BIN" ] || return 1
+    [ -f "$BINARY_PROVENANCE_FILE" ] || return 1
+    grep -Fx "haproxy_version=$HAPROXY_VERSION" "$BINARY_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    grep -Fx "haproxy_source_url=$HAPROXY_SOURCE_URL" "$BINARY_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    grep -Fx "haproxy_sha256=$HAPROXY_SHA256" "$BINARY_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    return 0
+}
+
 extract_source() {
     if [ -d "$HAPROXY_SOURCE_DIR" ] && [ "${REFRESH:-0}" != "1" ]; then
-        echo "haproxy_prepare: source exists: $HAPROXY_SOURCE_DIR"
-        return 0
+        if verify_source_provenance; then
+            echo "haproxy_prepare: source provenance verified: $HAPROXY_SOURCE_DIR"
+            return 0
+        fi
+        blocked "existing HAProxy source lacks current verified provenance: $HAPROXY_SOURCE_DIR"
     fi
     if [ "${REFRESH:-0}" = "1" ]; then
         safe_remove_dir "$HAPROXY_SOURCE_DIR"
@@ -206,6 +237,7 @@ extract_source() {
     mkdir -p "$HAPROXY_SOURCE_DIR"
     run_logged haproxy-source-extract "$HAPROXY_DOWNLOAD_DIR" \
         tar -xf "$ARCHIVE_PATH" -C "$HAPROXY_SOURCE_DIR" --strip-components=1
+    write_source_provenance
 }
 
 verify_build_target() {
@@ -239,11 +271,19 @@ build_haproxy() {
     chmod 0755 "$HAPROXY_BIN"
     [ -x "$HAPROXY_BIN" ] || blocked "staged HAProxy binary is not executable: $HAPROXY_BIN"
     {
+        echo "haproxy_version=$HAPROXY_VERSION"
+        echo "haproxy_source_url=$HAPROXY_SOURCE_URL"
+        echo "haproxy_sha256=$HAPROXY_SHA256"
         echo "haproxy_runtime_build_dir=$HAPROXY_RUNTIME_BUILD_DIR"
         echo "haproxy_runtime_build_worktree=$HAPROXY_RUNTIME_BUILD_WORKTREE"
         echo "haproxy_runtime_dir=$HAPROXY_RUNTIME_DIR"
         echo "haproxy_bin=$HAPROXY_BIN"
     } >> "$ARTIFACTS_FILE"
+    {
+        echo "haproxy_version=$HAPROXY_VERSION"
+        echo "haproxy_source_url=$HAPROXY_SOURCE_URL"
+        echo "haproxy_sha256=$HAPROXY_SHA256"
+    } > "$BINARY_PROVENANCE_FILE"
 }
 
 mkdir -p "$LOG_DIR"
@@ -252,8 +292,8 @@ mkdir -p "$LOG_DIR"
 : > "$ARTIFACTS_FILE"
 
 validate_paths
-if [ -x "$HAPROXY_BIN" ] && [ "${REFRESH:-0}" != "1" ]; then
-    echo "haproxy_prepare: ready existing binary: $HAPROXY_BIN"
+if verify_binary_provenance && [ "${REFRESH:-0}" != "1" ]; then
+    echo "haproxy_prepare: ready existing provenance-verified binary: $HAPROXY_BIN"
     echo "pass: existing binary $HAPROXY_BIN" >> "$STATUS_FILE"
     echo "haproxy_bin=$HAPROXY_BIN" >> "$ARTIFACTS_FILE"
     exit 0

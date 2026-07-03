@@ -18,6 +18,7 @@ except Exception:  # pragma: no cover - report still works without PyYAML.
 
 
 TARGETS = ("apache2_ubuntu", "nginx-pr24")
+MAX_RUN_LOG_BYTES = 1024 * 1024
 TARGET_REPORT_FILENAMES = {
     "apache2_ubuntu": ("mrts-native-apache.generated.json", "mrts-native-apache.generated.md"),
     "nginx-pr24": ("mrts-native-nginx.generated.json", "mrts-native-nginx.generated.md"),
@@ -82,9 +83,32 @@ def read_optional_json(path: Path) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
-def read_text_if_file(path: Path) -> str:
+def canonical_under(path: Path, roots: list[Path]) -> Path | None:
     try:
-        return path.read_text(encoding="utf-8", errors="ignore")
+        resolved = path.resolve(strict=True)
+    except OSError:
+        return None
+    for root in roots:
+        try:
+            resolved.relative_to(root.resolve(strict=True) if root.exists() else root.resolve(strict=False))
+            return resolved
+        except ValueError:
+            continue
+    return None
+
+
+def read_bounded_run_log(path: Path, roots: list[Path], max_bytes: int = MAX_RUN_LOG_BYTES) -> str:
+    resolved = canonical_under(path, roots)
+    if resolved is None or not resolved.is_file() or resolved.is_symlink():
+        return ""
+    try:
+        stat = resolved.stat()
+    except OSError:
+        return ""
+    if stat.st_size > max_bytes:
+        return ""
+    try:
+        return resolved.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return ""
 
@@ -108,8 +132,8 @@ def parse_failed_cases(run_text: str) -> list[str]:
     return failed
 
 
-def collect_run_counts(run_log: Path, status: str) -> dict[str, Any]:
-    run_text = read_text_if_file(run_log)
+def collect_run_counts(run_log: Path, status: str, allowed_roots: list[Path] | None = None) -> dict[str, Any]:
+    run_text = read_bounded_run_log(run_log, allowed_roots or [run_log.parent])
     attempted = int(first_match(r"run\s+([0-9]+)\s+total tests", run_text) or 0)
     pass_count = run_text.count("passed in")
     failed_cases = parse_failed_cases(run_text)
@@ -175,7 +199,7 @@ def normalize_job(target: str, native_root: Path) -> dict[str, Any]:
     job.setdefault("target", target)
     raw_run_log = Path(str(job.get("run_log") or job_root / "run.log"))
     status = str(job.get("status") or "UNKNOWN").upper().replace("-", "_")
-    counts = collect_run_counts(raw_run_log, status)
+    counts = collect_run_counts(raw_run_log, status, [native_root, job_root])
     job["job_root"] = display_native_path(Path(str(job.get("job_root") or job_root)), native_root)
     job["job_json"] = display_native_path(Path(str(job.get("job_json") or job_json)), native_root)
     job["run_log"] = display_native_path(raw_run_log, native_root)
@@ -610,15 +634,6 @@ def report_markdown(report: dict[str, Any]) -> str:
 
 
 
-def require_under(root: Path, candidate: Path, label: str) -> Path:
-    root = root.resolve()
-    candidate = candidate.resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
-        raise SystemExit(f"{label} must stay under {root}: {candidate}") from exc
-    return candidate
-
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--framework-root", default=Path(__file__).resolve().parents[1])
@@ -632,7 +647,7 @@ def main() -> int:
     framework_ci = framework_root / "ci"
     if str(framework_ci) not in sys.path:
         sys.path.insert(0, str(framework_ci))
-    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root
+    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root, require_under
 
     build_root = Path(os.environ.get("BUILD_ROOT", str(default_state_home() / "ModSecurity-conector-build"))).resolve()
     native_root = Path(args.native_root).resolve() if args.native_root else Path(os.environ.get("MRTS_NATIVE_ROOT", str(build_root / "mrts-native"))).resolve()

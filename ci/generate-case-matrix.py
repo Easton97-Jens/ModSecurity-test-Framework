@@ -1567,9 +1567,12 @@ def runtime_cell_from_observed(case: dict, observed: dict, connector: str) -> di
     supplied_status = str(observed.get("matrix_status") or "").strip()
     if supplied_status not in {"PASS", "FAIL", "BLOCKED", "NOT_EXECUTABLE"}:
         supplied_status = ""
-    status = supplied_status or computed_status
-    if response_body_related and raw_status.strip().lower() == "pass":
-        status = computed_status
+    non_promotable_runtime = (
+        response_body_related
+        or str(classification).strip().lower() in {"pending", "future", "connector_gap", "runtime_difference", "non-promoted", "non_promoted"}
+        or observed.get("strict_abort") is True
+    )
+    status = computed_status if non_promotable_runtime else (supplied_status or computed_status)
     if status in {NOT_EXECUTED, "NOT_EXECUTABLE"}:
         reason = str(observed.get("reason") or observed.get("details") or "skipped by runtime smoke")
     elif response_body_pass_through:
@@ -1586,7 +1589,7 @@ def runtime_cell_from_observed(case: dict, observed: dict, connector: str) -> di
     promotion = (
         "RESPONSE_BODY non-verified; non-promotable"
         if response_body_related
-        else ("promotion eligible" if classification == "active" and status == "PASS" else "not promoted")
+        else ("promotion eligible" if classification == "active" and status == "PASS" and observed.get("live_executed") is True else "not promoted")
     )
     return {"status": status, "reason": reason, "evidence": evidence, "promotion": promotion}
 
