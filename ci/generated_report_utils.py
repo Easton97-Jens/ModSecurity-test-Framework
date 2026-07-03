@@ -29,6 +29,10 @@ REPORT_OUTPUTS = {
     ("mrts_native_summary", "md"): "mrts_native_summary.generated.md",
 }
 
+REPORT_OUTPUT_DIR = Path("reports/testing/generated")
+FULL_RUNTIME_MATRIX_INPUT = Path("reports/testing/generated/canonical/full-runtime-matrix.generated.json")
+
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -48,6 +52,53 @@ def build_metadata(*, generated_by: str, make_target: str, connector_root: Path 
         "inputs": [_as_posix(item) for item in inputs],
     }
 
+
+
+def trusted_root(value: Path | str, label: str) -> Path:
+    reject_path_traversal(value, label)
+    return Path(value).resolve()
+
+
+def require_existing_file_under_approved_roots(candidate: Path | str, approved_roots: Iterable[Path | str], label: str) -> Path:
+    reject_path_traversal(candidate, label)
+    candidate_path = Path(candidate).resolve(strict=True)
+    if not candidate_path.is_file():
+        raise ValueError(f"{label} must be a regular file: {candidate_path}")
+    for root in approved_roots:
+        root_path = Path(root).resolve()
+        try:
+            candidate_path.relative_to(root_path)
+            return candidate_path
+        except ValueError:
+            continue
+    roots = ", ".join(str(Path(root).resolve()) for root in approved_roots)
+    raise ValueError(f"{label} must stay under approved roots ({roots}): {candidate_path}")
+
+
+def metadata_path_label(path: Path, approved_root: Path, root_label: str) -> str:
+    resolved = path.resolve(strict=False)
+    root = approved_root.resolve()
+    try:
+        relative = resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"metadata path must stay under {root}: {resolved}") from exc
+    return f"{root_label}/{relative.as_posix()}"
+
+
+def resolve_full_runtime_matrix_input(connector_root: Path, explicit_full_matrix: Path | None) -> Path:
+    if explicit_full_matrix is not None:
+        return require_existing_file_under_approved_roots(explicit_full_matrix, [connector_root], "full runtime matrix")
+    return require_under(connector_root, FULL_RUNTIME_MATRIX_INPUT, "default full runtime matrix")
+
+
+def generated_report_dir(output_root: Path) -> Path:
+    return require_under(output_root, REPORT_OUTPUT_DIR, "generated report directory")
+
+
+def connector_work_queue_output_path(output_dir: Path, suffix: str) -> Path:
+    if suffix not in {"json", "md"}:
+        raise ValueError(f"unsupported connector work queue output suffix: {suffix}")
+    return report_path_from_root(output_dir, "connector_work_queue", suffix)
 
 def report_path_from_root(root: Path | str, name: str, suffix: str) -> Path:
     filename = REPORT_OUTPUTS.get((name, suffix))
@@ -76,12 +127,22 @@ def require_under(root: Path | str, candidate: Path | str, label: str) -> Path:
     except ValueError as exc:
         raise ValueError(f"{label} must stay under {root_path}: {resolved}") from exc
     parent = resolved.parent
-    if parent.exists() and parent.resolve(strict=True) != parent.resolve(strict=False):
-        raise ValueError(f"{label} parent resolves through an unsafe symlink: {parent}")
+    existing_parent = parent
+    while not existing_parent.exists() and existing_parent != existing_parent.parent:
+        existing_parent = existing_parent.parent
     try:
-        parent.resolve(strict=True).relative_to(root_path)
-    except (OSError, ValueError) as exc:
-        raise ValueError(f"{label} parent must stay under {root_path}: {parent}") from exc
+        existing_resolved = existing_parent.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f"{label} parent must be resolvable: {parent}") from exc
+    try:
+        existing_resolved.relative_to(root_path)
+    except ValueError:
+        try:
+            root_path.relative_to(existing_resolved)
+        except ValueError as exc:
+            raise ValueError(f"{label} parent must stay under {root_path}: {parent}") from exc
+    if existing_parent.is_symlink() and existing_resolved != existing_parent.resolve(strict=False):
+        raise ValueError(f"{label} parent resolves through an unsafe symlink: {existing_parent}")
     return resolved
 
 def generated_json_text(payload: Any, metadata: dict[str, Any]) -> str:

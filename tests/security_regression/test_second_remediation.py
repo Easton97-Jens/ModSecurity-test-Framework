@@ -120,6 +120,27 @@ connector_smoke_run haproxy {harness}
             with self.assertRaises(ValueError):
                 utils.require_under(root, symlink_escape, "mrts output")
 
+    def test_connector_work_queue_matrix_input_and_output_paths_are_confined(self):
+        utils = load_module("ci/generated_report_utils.py", "generated_report_utils_connector_queue_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            connector_root = tmp_path / "connector"
+            connector_root.mkdir()
+            output_root = tmp_path / "output"
+            output_root.mkdir()
+            outside = tmp_path / "outside.json"
+            outside.write_text("{}", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                utils.trusted_root(connector_root / ".." / "connector", "connector root")
+            with self.assertRaises(ValueError):
+                utils.resolve_full_runtime_matrix_input(connector_root, outside)
+            output_dir = utils.generated_report_dir(output_root)
+            json_path = utils.connector_work_queue_output_path(output_dir, "json")
+            md_path = utils.connector_work_queue_output_path(output_dir, "md")
+            self.assertTrue(str(json_path).startswith(str(output_root.resolve())))
+            self.assertTrue(str(md_path).startswith(str(output_root.resolve())))
+            self.assertEqual(utils.metadata_path_label(utils.resolve_full_runtime_matrix_input(connector_root, None), connector_root, "$CONNECTOR_ROOT"), "$CONNECTOR_ROOT/reports/testing/generated/canonical/full-runtime-matrix.generated.json")
+
     def test_makefile_haproxy_targets_exist(self):
         result = subprocess.run(["make", "-n", "runtime-matrix-haproxy", "runtime-matrix-haproxy-all", "smoke-haproxy", "prepare-haproxy-runtime"], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.assertEqual(result.returncode, 0, result.stderr)

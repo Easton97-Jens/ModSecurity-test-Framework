@@ -240,11 +240,10 @@ def load_cases(framework_root: Path) -> tuple[dict[str, CaseMeta], dict[str, Cas
     return by_id, by_path, counts
 
 
-def load_full_matrix(connector_root: Path, explicit: Path | None) -> dict[str, Any]:
-    path = explicit or connector_root / "reports/testing/generated/canonical/full-runtime-matrix.generated.json"
-    if not path.is_file():
-        return {"runs": [], "missing_full_matrix": str(path)}
-    data = read_json(path)
+def load_full_matrix(matrix_path: Path) -> dict[str, Any]:
+    if not matrix_path.is_file():
+        return {"runs": [], "missing_full_matrix": str(matrix_path)}
+    data = read_json(matrix_path)
     return data if isinstance(data, dict) else {"runs": []}
 
 
@@ -829,18 +828,29 @@ def main() -> int:
     args = parser.parse_args()
 
     framework_root = Path(args.framework_root).resolve()
-    connector_root = Path(args.connector_root).resolve()
     framework_ci = framework_root / "ci"
     if str(framework_ci) not in sys.path:
         sys.path.insert(0, str(framework_ci))
-    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root, require_under
+    from generated_report_utils import (
+        build_metadata,
+        connector_work_queue_output_path,
+        generated_json_text,
+        generated_markdown_text,
+        generated_report_dir,
+        metadata_path_label,
+        resolve_full_runtime_matrix_input,
+        trusted_root,
+    )
 
-    output_root = Path(args.output_root).resolve() if args.output_root else connector_root
-    output_dir = require_under(output_root, output_root / "reports/testing/generated", "generated report directory")
-    full_matrix_path = Path(args.full_runtime_matrix).resolve() if args.full_runtime_matrix else None
+    connector_root = trusted_root(args.connector_root, "connector root")
+    output_root = trusted_root(args.output_root, "output root") if args.output_root else connector_root
+    output_dir = generated_report_dir(output_root)
+    explicit_full_matrix = trusted_root(args.full_runtime_matrix, "full runtime matrix") if args.full_runtime_matrix else None
+    full_matrix_path = resolve_full_runtime_matrix_input(connector_root, explicit_full_matrix)
+    full_matrix_input = metadata_path_label(full_matrix_path, connector_root, "$CONNECTOR_ROOT")
 
     by_id, by_path, source_counts = load_cases(framework_root)
-    full_matrix = load_full_matrix(connector_root, full_matrix_path)
+    full_matrix = load_full_matrix(full_matrix_path)
     entries = collect_entries(full_matrix, by_id, by_path)
     runtime_source_counts = count_by(entries, "source_kind")
 
@@ -868,11 +878,11 @@ def main() -> int:
         make_target="generate-work-queue",
         connector_root=connector_root,
         framework_root=framework_root,
-        inputs=[full_matrix_path or connector_root / "reports/testing/generated/canonical/full-runtime-matrix.generated.json"],
+        inputs=[full_matrix_input],
         generated_at=generated_at,
     )
-    json_path = report_path_from_root(output_dir, "connector_work_queue", "json")
-    md_path = report_path_from_root(output_dir, "connector_work_queue", "md")
+    json_path = connector_work_queue_output_path(output_dir, "json")
+    md_path = connector_work_queue_output_path(output_dir, "md")
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
     md_path.write_text(generated_markdown_text(render_markdown(entries, source_counts, runtime_source_counts, generated_at), metadata), encoding="utf-8")
