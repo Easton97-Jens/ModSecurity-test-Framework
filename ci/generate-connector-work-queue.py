@@ -381,13 +381,7 @@ def response_body_or_phase4(meta: CaseMeta, areas: list[str]) -> bool:
     return meta.phase == "4" or "response_body" in areas
 
 
-def is_with_mrts_detection_only_non_disruptive(
-    mrts_variant: str,
-    status: str,
-    expected: int | None,
-    actual: int | None,
-    work_direction: str,
-) -> bool:
+def is_with_mrts_detection_only_non_disruptive() -> bool:
     return False
 
 
@@ -573,13 +567,7 @@ def collect_entries(full_matrix: dict[str, Any], by_id: dict[str, CaseMeta], by_
             work_direction = choose_work_direction(connector, patterns, areas, phase4_response)
             classification = choose_classification(connector, status, patterns, meta, phase4_response)
             priority = initial_priority(status, patterns, areas, phase4_response)
-            detection_only_overlay = is_with_mrts_detection_only_non_disruptive(
-                mrts_variant,
-                status,
-                expected,
-                actual,
-                work_direction,
-            )
+            detection_only_overlay = is_with_mrts_detection_only_non_disruptive()
             if detection_only_overlay:
                 work_direction = WITH_MRTS_DETECTION_ONLY_WORK_DIRECTION
                 classification = WITH_MRTS_DETECTION_ONLY_CLASSIFICATION

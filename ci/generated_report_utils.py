@@ -11,18 +11,23 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-SAFE_REPORT_NAMES = {
-    "connector_work_queue",
-    "phase_work_queue",
-    "phase_coverage",
-    "full_runtime_matrix",
-    "runtime_component_cache",
-    "mrts_native_full",
-    "mrts_native_apache",
-    "mrts_native_nginx",
-    "mrts_native_summary",
+REPORT_OUTPUTS = {
+    ("connector_work_queue", "json"): "connector_work_queue.generated.json",
+    ("connector_work_queue", "md"): "connector_work_queue.generated.md",
+    ("phase_work_queue", "json"): "phase_work_queue.generated.json",
+    ("phase_work_queue", "md"): "phase_work_queue.generated.md",
+    ("phase_coverage", "md"): "phase_coverage.generated.md",
+    ("full_runtime_matrix", "json"): "full_runtime_matrix.generated.json",
+    ("runtime_component_cache", "json"): "runtime_component_cache.generated.json",
+    ("mrts_native_full", "json"): "mrts_native_full.generated.json",
+    ("mrts_native_full", "md"): "mrts_native_full.generated.md",
+    ("mrts_native_apache", "json"): "mrts_native_apache.generated.json",
+    ("mrts_native_apache", "md"): "mrts_native_apache.generated.md",
+    ("mrts_native_nginx", "json"): "mrts_native_nginx.generated.json",
+    ("mrts_native_nginx", "md"): "mrts_native_nginx.generated.md",
+    ("mrts_native_summary", "json"): "mrts_native_summary.generated.json",
+    ("mrts_native_summary", "md"): "mrts_native_summary.generated.md",
 }
-SAFE_SUFFIXES = {"json", "md"}
 
 
 def utc_now() -> str:
@@ -45,17 +50,10 @@ def build_metadata(*, generated_by: str, make_target: str, connector_root: Path 
 
 
 def report_path_from_root(root: Path | str, name: str, suffix: str) -> Path:
-    if name not in SAFE_REPORT_NAMES:
-        raise ValueError(f"unsupported generated report name: {name}")
-    if suffix not in SAFE_SUFFIXES:
-        raise ValueError(f"unsupported generated report suffix: {suffix}")
-    base = Path(root).resolve()
-    target = (base / "canonical" / f"{name}.generated.{suffix}").resolve()
-    try:
-        target.relative_to(base)
-    except ValueError as exc:
-        raise ValueError(f"generated report path escapes output root: {target}") from exc
-    return target
+    filename = REPORT_OUTPUTS.get((name, suffix))
+    if filename is None:
+        raise ValueError(f"unsupported generated report output: {name}.{suffix}")
+    return require_under(Path(root).resolve(), Path("canonical") / filename, f"generated report {name}.{suffix}")
 
 
 

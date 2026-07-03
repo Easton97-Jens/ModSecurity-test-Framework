@@ -469,7 +469,6 @@ def summary_text_path(summary_path: Path) -> Path:
 
 
 def haproxy_default_matrix_smoke(
-    existing_by_connector: dict[str, dict],
     command: str,
     exit_code: str,
     results_dir: Path,
@@ -737,7 +736,6 @@ def main() -> int:
                 summary_text_path(default_nginx_summary),
             ),
             haproxy_default_matrix_smoke(
-                existing_by_connector,
                 args.haproxy_command,
                 default_haproxy_exit_code,
                 results_dir,

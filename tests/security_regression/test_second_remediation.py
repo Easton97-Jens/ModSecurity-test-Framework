@@ -36,7 +36,7 @@ class SecondRemediationTests(unittest.TestCase):
 
     def test_with_mrts_and_xml_failures_not_report_only(self):
         queue = load_module("ci/generate-connector-work-queue.py", "connector_queue_test")
-        self.assertFalse(queue.is_with_mrts_detection_only_non_disruptive("with-mrts", "FAIL", 401, 200, "intervention_blocking"))
+        self.assertFalse(queue.is_with_mrts_detection_only_non_disruptive())
         self.assertEqual(queue.NO_MRTS_NOMATCH_BY_CASE["xml_request_body_malformed_connector_gap"]["work_direction"], "xml_processor")
         self.assertEqual(queue.NO_MRTS_NOMATCH_BY_CASE["xml_request_body_malformed_connector_gap"]["priority"], "P2")
 
@@ -69,7 +69,7 @@ class SecondRemediationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             results = Path(tmp) / "results"
             (results / "with-crs").mkdir(parents=True)
-            row = snap.haproxy_default_matrix_smoke({}, "make runtime-matrix-haproxy", "not_run", results)
+            row = snap.haproxy_default_matrix_smoke("make runtime-matrix-haproxy", "not_run", results)
             self.assertEqual(row["status"], "NOT_AVAILABLE")
             self.assertEqual(row["connector"], "haproxy")
 
@@ -106,16 +106,19 @@ connector_smoke_run haproxy {harness}
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "out"
             root.mkdir()
+            traversal_candidate = "../escape.json"
             with self.assertRaises(ValueError):
-                utils.require_under(root, "../escape.json", "connector output")
+                utils.require_under(root, traversal_candidate, "connector output")
+            absolute_escape = Path(tmp) / "escape.json"
             with self.assertRaises(ValueError):
-                utils.require_under(root, Path(tmp) / "escape.json", "phase output")
+                utils.require_under(root, absolute_escape, "phase output")
             outside = Path(tmp) / "outside"
             outside.mkdir()
             link = root / "link"
             link.symlink_to(outside, target_is_directory=True)
+            symlink_escape = link / "mrts.json"
             with self.assertRaises(ValueError):
-                utils.require_under(root, link / "mrts.json", "mrts output")
+                utils.require_under(root, symlink_escape, "mrts output")
 
     def test_makefile_haproxy_targets_exist(self):
         result = subprocess.run(["make", "-n", "runtime-matrix-haproxy", "runtime-matrix-haproxy-all", "smoke-haproxy", "prepare-haproxy-runtime"], cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

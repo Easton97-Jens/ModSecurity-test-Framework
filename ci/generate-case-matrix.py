@@ -1586,11 +1586,12 @@ def runtime_cell_from_observed(case: dict, observed: dict, connector: str) -> di
     expected = observed.get("expected_status", observed.get("expected", "unknown"))
     actual = observed.get("actual_status", observed.get("actual", "unknown"))
     evidence = str(observed.get("evidence") or f"expected={expected}; actual={actual}")
-    promotion = (
-        "RESPONSE_BODY non-verified; non-promotable"
-        if response_body_related
-        else ("promotion eligible" if classification == "active" and status == "PASS" and observed.get("live_executed") is True else "not promoted")
-    )
+    if response_body_related:
+        promotion = "RESPONSE_BODY non-verified; non-promotable"
+    elif classification == "active" and status == "PASS" and observed.get("live_executed") is True:
+        promotion = "promotion eligible"
+    else:
+        promotion = "not promoted"
     return {"status": status, "reason": reason, "evidence": evidence, "promotion": promotion}
 
 
