@@ -446,6 +446,244 @@ ci_find_bin_multi() {
     return 1
 }
 
+ci_command_path() {
+    ci_cmd=$1
+    [ -n "$ci_cmd" ] || return 1
+    ci_cmd_path=$(command -v "$ci_cmd" 2>/dev/null || true)
+    if [ -n "$ci_cmd_path" ]; then
+        printf '%s\n' "$ci_cmd_path"
+        return 0
+    fi
+    if [ -x "$ci_cmd" ]; then
+        printf '%s\n' "$ci_cmd"
+        return 0
+    fi
+    return 1
+}
+
+skip_blocked() {
+    echo "BLOCKED: $*" >&2
+    exit 77
+}
+
+require_command_or_blocked() {
+    ci_required_cmd=$1
+    ci_required_reason=${2:-missing required command: $ci_required_cmd}
+
+    ci_command_path "$ci_required_cmd" >/dev/null 2>&1 || skip_blocked "$ci_required_reason"
+    return 0
+}
+
+find_apxs_or_blocked() {
+    for ci_apxs_candidate in "${APXS_BIN:-}" "${APXS:-}"; do
+        if [ -z "$ci_apxs_candidate" ]; then
+            continue
+        fi
+        ci_apxs_path=$(ci_command_path "$ci_apxs_candidate" 2>/dev/null || true)
+        if [ -n "$ci_apxs_path" ]; then
+            printf '%s\n' "$ci_apxs_path"
+            return 0
+        fi
+        skip_blocked "missing apxs/apxs2 for Apache connector checks"
+    done
+
+    ci_apxs_path=$(ci_find_bin_multi $CI_APXS_BIN_CANDIDATES 2>/dev/null || true)
+    if [ -n "$ci_apxs_path" ]; then
+        printf '%s\n' "$ci_apxs_path"
+        return 0
+    fi
+
+    skip_blocked "missing apxs/apxs2 for Apache connector checks"
+}
+
+modsecurity_include_flags_or_blocked() {
+    ci_modsecurity_flags=
+    ci_modsecurity_found=0
+
+    for ci_modsecurity_include in ${MODSECURITY_INCLUDE:-} ${MODSECURITY_INCLUDE_DIR:-} ${MODSECURITY_INC:-} ${V3INCLUDE:-}; do
+        case "$ci_modsecurity_include" in
+            -I*)
+                ci_modsecurity_dir=${ci_modsecurity_include#-I}
+                ci_modsecurity_flag=$ci_modsecurity_include
+                ;;
+            *)
+                ci_modsecurity_dir=$ci_modsecurity_include
+                ci_modsecurity_flag="-I$ci_modsecurity_dir"
+                ;;
+        esac
+        if [ -n "$ci_modsecurity_dir" ] && [ -f "$ci_modsecurity_dir/modsecurity/modsecurity.h" ]; then
+            ci_modsecurity_flags="$ci_modsecurity_flags $ci_modsecurity_flag"
+            ci_modsecurity_found=1
+        fi
+    done
+
+    if [ "$ci_modsecurity_found" != 1 ]; then
+        for ci_modsecurity_dir in /usr/include /usr/local/include; do
+            if [ -f "$ci_modsecurity_dir/modsecurity/modsecurity.h" ]; then
+                ci_modsecurity_flags="$ci_modsecurity_flags -I$ci_modsecurity_dir"
+                ci_modsecurity_found=1
+                break
+            fi
+        done
+    fi
+
+    if [ "$ci_modsecurity_found" = 1 ]; then
+        printf '%s\n' "$ci_modsecurity_flags"
+        return 0
+    fi
+
+    skip_blocked "missing libmodsecurity headers"
+}
+
+require_modsecurity_headers_or_blocked() {
+    modsecurity_include_flags_or_blocked >/dev/null
+    return 0
+}
+
+ci_nginx_include_dir_flags() {
+    ci_nginx_dir=$1
+    [ -n "$ci_nginx_dir" ] && [ -d "$ci_nginx_dir" ] || return 1
+
+    if [ -f "$ci_nginx_dir/ngx_config.h" ] \
+        && [ -f "$ci_nginx_dir/ngx_core.h" ] \
+        && [ -f "$ci_nginx_dir/ngx_http.h" ]; then
+        printf '%s\n' "-I$ci_nginx_dir"
+        return 0
+    fi
+
+    if [ -f "$ci_nginx_dir/nginx/ngx_config.h" ] \
+        && [ -f "$ci_nginx_dir/nginx/ngx_core.h" ] \
+        && [ -f "$ci_nginx_dir/nginx/ngx_http.h" ]; then
+        printf '%s\n' "-I$ci_nginx_dir/nginx"
+        return 0
+    fi
+
+    return 1
+}
+
+ci_nginx_source_dir_flags() {
+    ci_nginx_dir=$1
+    [ -n "$ci_nginx_dir" ] && [ -d "$ci_nginx_dir" ] || return 1
+
+    if [ -f "$ci_nginx_dir/src/core/ngx_config.h" ] \
+        && [ -f "$ci_nginx_dir/src/core/ngx_core.h" ] \
+        && [ -f "$ci_nginx_dir/src/http/ngx_http.h" ] \
+        && [ -f "$ci_nginx_dir/objs/ngx_auto_config.h" ]; then
+        printf '%s\n' "-I$ci_nginx_dir/src/core -I$ci_nginx_dir/src/http -I$ci_nginx_dir/src/event -I$ci_nginx_dir/src/os/unix -I$ci_nginx_dir/objs"
+        return 0
+    fi
+
+    return 1
+}
+
+nginx_include_flags_or_blocked() {
+    ci_nginx_flags=
+    ci_nginx_found=0
+
+    for ci_nginx_dir in "${NGINX_INCLUDE_DIR:-}" "${NGINX_INCLUDE:-}" /usr/include/nginx /usr/local/include/nginx /usr/include /usr/local/include; do
+        ci_nginx_dir_flags=$(ci_nginx_include_dir_flags "$ci_nginx_dir" 2>/dev/null || true)
+        if [ -n "$ci_nginx_dir_flags" ]; then
+            ci_nginx_flags="$ci_nginx_flags $ci_nginx_dir_flags"
+            ci_nginx_found=1
+            break
+        fi
+    done
+
+    if [ "$ci_nginx_found" != 1 ]; then
+        for ci_nginx_dir in "${NGINX_SOURCE_DIR:-}" "${NGINX_SRC:-}" "${MODSECURITY_NGINX_SOURCE_DIR:-}"; do
+            ci_nginx_dir_flags=$(ci_nginx_source_dir_flags "$ci_nginx_dir" 2>/dev/null || true)
+            if [ -n "$ci_nginx_dir_flags" ]; then
+                ci_nginx_flags="$ci_nginx_flags $ci_nginx_dir_flags"
+                ci_nginx_found=1
+                break
+            fi
+        done
+    fi
+
+    if [ "$ci_nginx_found" = 1 ]; then
+        printf '%s\n' "$ci_nginx_flags"
+        return 0
+    fi
+
+    skip_blocked "missing NGINX headers/source for NGINX connector C checks"
+}
+
+require_nginx_headers_or_blocked() {
+    nginx_include_flags_or_blocked >/dev/null
+    return 0
+}
+
+ci_haproxy_include_dir_flags() {
+    ci_haproxy_dir=$1
+    [ -n "$ci_haproxy_dir" ] && [ -d "$ci_haproxy_dir" ] || return 1
+
+    if [ -f "$ci_haproxy_dir/haproxy/api.h" ] \
+        || [ -f "$ci_haproxy_dir/common/cfgparse.h" ] \
+        || [ -f "$ci_haproxy_dir/types/global.h" ]; then
+        printf '%s\n' "-I$ci_haproxy_dir"
+        return 0
+    fi
+
+    if [ -f "$ci_haproxy_dir/api.h" ]; then
+        ci_haproxy_parent=$(CDPATH= cd -- "$ci_haproxy_dir/.." 2>/dev/null && pwd)
+        printf '%s\n' "-I$ci_haproxy_parent"
+        return 0
+    fi
+
+    return 1
+}
+
+ci_haproxy_source_dir_flags() {
+    ci_haproxy_dir=$1
+    [ -n "$ci_haproxy_dir" ] && [ -d "$ci_haproxy_dir" ] || return 1
+
+    if [ -f "$ci_haproxy_dir/include/haproxy/api.h" ] \
+        || [ -f "$ci_haproxy_dir/include/common/cfgparse.h" ] \
+        || [ -f "$ci_haproxy_dir/include/types/global.h" ]; then
+        printf '%s\n' "-I$ci_haproxy_dir/include -I$ci_haproxy_dir/src"
+        return 0
+    fi
+
+    return 1
+}
+
+haproxy_include_flags_or_blocked() {
+    ci_haproxy_flags=
+    ci_haproxy_found=0
+
+    for ci_haproxy_dir in "${HAPROXY_INCLUDE_DIR:-}" "${HAPROXY_INCLUDE:-}" /usr/include /usr/local/include /usr/include/haproxy /usr/local/include/haproxy; do
+        ci_haproxy_dir_flags=$(ci_haproxy_include_dir_flags "$ci_haproxy_dir" 2>/dev/null || true)
+        if [ -n "$ci_haproxy_dir_flags" ]; then
+            ci_haproxy_flags="$ci_haproxy_flags $ci_haproxy_dir_flags"
+            ci_haproxy_found=1
+            break
+        fi
+    done
+
+    if [ "$ci_haproxy_found" != 1 ]; then
+        for ci_haproxy_dir in "${HAPROXY_SOURCE_DIR:-}" "${HAPROXY_SRC:-}" "${MODSECURITY_HAPROXY_SOURCE_DIR:-}"; do
+            ci_haproxy_dir_flags=$(ci_haproxy_source_dir_flags "$ci_haproxy_dir" 2>/dev/null || true)
+            if [ -n "$ci_haproxy_dir_flags" ]; then
+                ci_haproxy_flags="$ci_haproxy_flags $ci_haproxy_dir_flags"
+                ci_haproxy_found=1
+                break
+            fi
+        done
+    fi
+
+    if [ "$ci_haproxy_found" = 1 ]; then
+        printf '%s\n' "$ci_haproxy_flags"
+        return 0
+    fi
+
+    skip_blocked "missing HAProxy headers/source for HAProxy connector C checks"
+}
+
+require_haproxy_headers_or_blocked() {
+    haproxy_include_flags_or_blocked >/dev/null
+    return 0
+}
+
 ci_resolve_apache_from_apxs() {
     apxs_path=$1
     [ -n "$apxs_path" ] || return 1
@@ -486,8 +724,22 @@ ci_require_absolute_path() {
     return 0
 }
 
+ci_path_is_configured_project_path() {
+    ci_project_path=$1
+    for ci_project_root in "${REPO_ROOT:-}" "${CONNECTOR_ROOT:-}" "${FRAMEWORK_ROOT:-}"; do
+        [ -n "$ci_project_root" ] || continue
+        case "$ci_project_path" in
+            "$ci_project_root"|"$ci_project_root"/*) return 0 ;;
+        esac
+    done
+    return 1
+}
+
 ci_path_is_system_path() {
     ci_path_value=$1
+    if ci_path_is_configured_project_path "$ci_path_value"; then
+        return 1
+    fi
     case "$ci_path_value" in
         /var/tmp|/var/tmp/*)
             return 1
@@ -512,6 +764,9 @@ assert_not_system_path_for_write() {
     ci_assert_path=$1
     ci_assert_label=${2:-path}
     ci_require_absolute_path "$ci_assert_path" "$ci_assert_label" || return 77
+    if ci_path_is_configured_project_path "$ci_assert_path"; then
+        return 0
+    fi
     if ci_path_is_system_path "$ci_assert_path"; then
         blocked_system_path_write "$ci_assert_path" "$ci_assert_label"
         return 77
@@ -568,10 +823,18 @@ assert_safe_runtime_path() {
     ci_safe_path=$(ci_canonical_path "$ci_safe_path")
     assert_not_system_path_for_write "$ci_safe_path" "$ci_safe_label" || return 77
     case "$ci_safe_path" in
-        /|/src|/tmp|"${HOME:-__no_home__}")
+        /|/tmp|"${HOME:-__no_home__}")
             ci_blocked "$ci_safe_label is not a safe runtime path: $ci_safe_path"
             return 77
             ;;
+        /src|/src/*)
+            return 0
+            ;;
+    esac
+    if ci_path_is_configured_project_path "$ci_safe_path"; then
+        return 0
+    fi
+    case "$ci_safe_path" in
         /root|/root/*)
             ci_blocked "$ci_safe_label is under /root and is not a safe runtime path: $ci_safe_path"
             return 77
