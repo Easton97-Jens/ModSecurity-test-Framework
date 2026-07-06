@@ -1,5 +1,7 @@
 # Security Data Flow Framework Tests
 
+**Language:** English | [Deutsch](security-data-flow.de.md)
+
 These tests define connector-neutral security and data-flow cases in the framework. They do not implement connector code, common runtime code, server adapters, harness entrypoints, adapter metadata, or runtime evidence.
 
 A connector repository must execute these cases and keep runtime evidence in that connector repository. A starter PASS is not runtime evidence, and no case in this category claims production readiness, CRS coverage, a full matrix result, or RESPONSE_BODY verification. RESPONSE_BODY remains unverified until stable connector runtime evidence exists.

@@ -183,6 +183,7 @@ class ReportLayout:
                 inputs=[IMPORT_STATUS, RUNTIME_SNAPSHOT],
                 generated_at=generated_at,
             )
+            metadata["output_name"] = path.name
             text = REPORT_UTILS.generated_markdown_text(body, metadata)
         if path.exists() and generated_report_equivalent(path.read_text(encoding="utf-8"), text):
             return
@@ -268,7 +269,13 @@ def generated_report_equivalent(existing: str, candidate: str) -> bool:
         return [
             line
             for line in text.splitlines()
-            if not line.startswith("> Generated at: `")
+            if not line.startswith(
+                (
+                    "> Generated at: `",
+                    "> Connector SHA: `",
+                    "> Framework SHA: `",
+                )
+            )
         ]
 
     return stable_lines(existing) == stable_lines(candidate)
