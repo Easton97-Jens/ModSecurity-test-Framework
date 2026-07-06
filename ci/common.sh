@@ -466,6 +466,38 @@ skip_blocked() {
     exit 77
 }
 
+is_local_run() {
+    [ "${GITHUB_ACTIONS:-}" = "true" ] && return 1
+    [ "${CI:-}" = "true" ] && return 1
+    return 0
+}
+
+ci_fail_local_provisioning() {
+    echo "FAIL: $*" >&2
+    exit 1
+}
+
+framework_prepare_runtime_components() {
+    if ! is_local_run; then
+        return 77
+    fi
+
+    ci_prepare_script="${CONNECTOR_ROOT:-}/ci/prepare-runtime-components.py"
+    if [ ! -f "$ci_prepare_script" ]; then
+        echo "FAIL: missing local runtime provisioning helper: $ci_prepare_script" >&2
+        return 1
+    fi
+
+    ci_prepare_python=$(ci_python)
+    "$ci_prepare_python" "$ci_prepare_script" \
+        --connector-root "$CONNECTOR_ROOT" \
+        --framework-root "$FRAMEWORK_ROOT" \
+        --cache-root "$CONNECTOR_COMPONENT_CACHE" \
+        --output-root "$CONNECTOR_ROOT" \
+        --build-root "$BUILD_ROOT" \
+        --native-root "${MRTS_NATIVE_ROOT:-$BUILD_ROOT/mrts-native}" >&2
+}
+
 require_command_or_blocked() {
     ci_required_cmd=$1
     ci_required_reason=${2:-missing required command: $ci_required_cmd}
@@ -474,7 +506,7 @@ require_command_or_blocked() {
     return 0
 }
 
-find_apxs_or_blocked() {
+framework_find_apxs() {
     for ci_apxs_candidate in "${APXS_BIN:-}" "${APXS:-}"; do
         if [ -z "$ci_apxs_candidate" ]; then
             continue
@@ -484,7 +516,6 @@ find_apxs_or_blocked() {
             printf '%s\n' "$ci_apxs_path"
             return 0
         fi
-        skip_blocked "missing apxs/apxs2 for Apache connector checks"
     done
 
     ci_apxs_path=$(ci_find_bin_multi $CI_APXS_BIN_CANDIDATES 2>/dev/null || true)
@@ -493,10 +524,59 @@ find_apxs_or_blocked() {
         return 0
     fi
 
+    for ci_apxs_candidate in \
+        "$CONNECTOR_COMPONENT_CACHE"/builds/connectors/apache/*/httpd/bin/apxs \
+        "$CONNECTOR_COMPONENT_CACHE"/builds/connectors/apache/*/httpd/bin/apxs2 \
+        "$CONNECTOR_COMPONENT_CACHE"/builds/connectors/apache/*/build/httpd/support/apxs \
+        "$BUILD_ROOT"/apache-build/httpd/bin/apxs \
+        "$BUILD_ROOT"/apache-build/build/httpd/support/apxs; do
+        ci_apxs_path=$(ci_command_path "$ci_apxs_candidate" 2>/dev/null || true)
+        if [ -n "$ci_apxs_path" ]; then
+            printf '%s\n' "$ci_apxs_path"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+find_apxs_or_blocked() {
+    ci_apxs_path=$(framework_find_apxs 2>/dev/null || true)
+    if [ -n "$ci_apxs_path" ]; then
+        printf '%s\n' "$ci_apxs_path"
+        return 0
+    fi
+
     skip_blocked "missing apxs/apxs2 for Apache connector checks"
 }
 
-modsecurity_include_flags_or_blocked() {
+require_or_provision_apxs() {
+    ci_apxs_path=$(framework_find_apxs 2>/dev/null || true)
+    if [ -n "$ci_apxs_path" ]; then
+        printf '%s\n' "$ci_apxs_path"
+        return 0
+    fi
+
+    if ! is_local_run; then
+        skip_blocked "missing apxs/apxs2 for Apache connector checks"
+    fi
+
+    ci_provision_rc=0
+    if framework_prepare_runtime_components; then
+        :
+    else
+        ci_provision_rc=$?
+    fi
+    ci_apxs_path=$(framework_find_apxs 2>/dev/null || true)
+    if [ -n "$ci_apxs_path" ]; then
+        printf '%s\n' "$ci_apxs_path"
+        return 0
+    fi
+
+    ci_fail_local_provisioning "local Apache/APXS provisioning did not produce apxs/apxs2 (prepare-runtime-components rc=$ci_provision_rc)"
+}
+
+ci_modsecurity_include_flags() {
     ci_modsecurity_flags=
     ci_modsecurity_found=0
 
@@ -518,7 +598,13 @@ modsecurity_include_flags_or_blocked() {
     done
 
     if [ "$ci_modsecurity_found" != 1 ]; then
-        for ci_modsecurity_dir in /usr/include /usr/local/include; do
+        for ci_modsecurity_dir in \
+            "$CONNECTOR_COMPONENT_CACHE"/prefix/modsecurity/*/include \
+            "$CONNECTOR_COMPONENT_CACHE"/sources/ModSecurity_V3/headers \
+            "$CONNECTOR_COMPONENT_CACHE"/builds/modsecurity/*/source/headers \
+            "$MODSECURITY_SOURCE_DIR"/headers \
+            /usr/include \
+            /usr/local/include; do
             if [ -f "$ci_modsecurity_dir/modsecurity/modsecurity.h" ]; then
                 ci_modsecurity_flags="$ci_modsecurity_flags -I$ci_modsecurity_dir"
                 ci_modsecurity_found=1
@@ -532,11 +618,52 @@ modsecurity_include_flags_or_blocked() {
         return 0
     fi
 
+    return 1
+}
+
+modsecurity_include_flags_or_blocked() {
+    ci_modsecurity_flags=$(ci_modsecurity_include_flags 2>/dev/null || true)
+    if [ -n "$ci_modsecurity_flags" ]; then
+        printf '%s\n' "$ci_modsecurity_flags"
+        return 0
+    fi
+
     skip_blocked "missing libmodsecurity headers"
+}
+
+modsecurity_include_flags_or_provision() {
+    ci_modsecurity_flags=$(ci_modsecurity_include_flags 2>/dev/null || true)
+    if [ -n "$ci_modsecurity_flags" ]; then
+        printf '%s\n' "$ci_modsecurity_flags"
+        return 0
+    fi
+
+    if ! is_local_run; then
+        skip_blocked "missing libmodsecurity headers"
+    fi
+
+    ci_provision_rc=0
+    if framework_prepare_runtime_components; then
+        :
+    else
+        ci_provision_rc=$?
+    fi
+    ci_modsecurity_flags=$(ci_modsecurity_include_flags 2>/dev/null || true)
+    if [ -n "$ci_modsecurity_flags" ]; then
+        printf '%s\n' "$ci_modsecurity_flags"
+        return 0
+    fi
+
+    ci_fail_local_provisioning "local libmodsecurity provisioning did not produce headers (prepare-runtime-components rc=$ci_provision_rc)"
 }
 
 require_modsecurity_headers_or_blocked() {
     modsecurity_include_flags_or_blocked >/dev/null
+    return 0
+}
+
+require_or_provision_modsecurity_headers() {
+    modsecurity_include_flags_or_provision >/dev/null
     return 0
 }
 
@@ -569,14 +696,14 @@ ci_nginx_source_dir_flags() {
         && [ -f "$ci_nginx_dir/src/core/ngx_core.h" ] \
         && [ -f "$ci_nginx_dir/src/http/ngx_http.h" ] \
         && [ -f "$ci_nginx_dir/objs/ngx_auto_config.h" ]; then
-        printf '%s\n' "-I$ci_nginx_dir/src/core -I$ci_nginx_dir/src/http -I$ci_nginx_dir/src/event -I$ci_nginx_dir/src/os/unix -I$ci_nginx_dir/objs"
+        printf '%s\n' "-I$ci_nginx_dir/src/core -I$ci_nginx_dir/src/http -I$ci_nginx_dir/src/http/modules -I$ci_nginx_dir/src/http/v2 -I$ci_nginx_dir/src/http/v3 -I$ci_nginx_dir/src/event -I$ci_nginx_dir/src/os/unix -I$ci_nginx_dir/objs"
         return 0
     fi
 
     return 1
 }
 
-nginx_include_flags_or_blocked() {
+ci_nginx_include_flags() {
     ci_nginx_flags=
     ci_nginx_found=0
 
@@ -590,7 +717,14 @@ nginx_include_flags_or_blocked() {
     done
 
     if [ "$ci_nginx_found" != 1 ]; then
-        for ci_nginx_dir in "${NGINX_SOURCE_DIR:-}" "${NGINX_SRC:-}" "${MODSECURITY_NGINX_SOURCE_DIR:-}"; do
+        for ci_nginx_dir in \
+            "${NGINX_SOURCE_DIR:-}" \
+            "${NGINX_SRC:-}" \
+            "${MODSECURITY_NGINX_SOURCE_DIR:-}" \
+            "$CONNECTOR_COMPONENT_CACHE"/builds/connectors/nginx/*/build/nginx-src \
+            "$CONNECTOR_COMPONENT_CACHE"/builds/connectors/nginx/*/nginx-src \
+            "$BUILD_ROOT"/nginx-build/nginx-src \
+            "$SOURCE_ROOT"/nginx/nginx-*; do
             ci_nginx_dir_flags=$(ci_nginx_source_dir_flags "$ci_nginx_dir" 2>/dev/null || true)
             if [ -n "$ci_nginx_dir_flags" ]; then
                 ci_nginx_flags="$ci_nginx_flags $ci_nginx_dir_flags"
@@ -605,7 +739,43 @@ nginx_include_flags_or_blocked() {
         return 0
     fi
 
+    return 1
+}
+
+nginx_include_flags_or_blocked() {
+    ci_nginx_flags=$(ci_nginx_include_flags 2>/dev/null || true)
+    if [ -n "$ci_nginx_flags" ]; then
+        printf '%s\n' "$ci_nginx_flags"
+        return 0
+    fi
+
     skip_blocked "missing NGINX headers/source for NGINX connector C checks"
+}
+
+require_or_provision_nginx_headers() {
+    ci_nginx_flags=$(ci_nginx_include_flags 2>/dev/null || true)
+    if [ -n "$ci_nginx_flags" ]; then
+        printf '%s\n' "$ci_nginx_flags"
+        return 0
+    fi
+
+    if ! is_local_run; then
+        skip_blocked "missing NGINX headers/source for NGINX connector C checks"
+    fi
+
+    ci_provision_rc=0
+    if framework_prepare_runtime_components; then
+        :
+    else
+        ci_provision_rc=$?
+    fi
+    ci_nginx_flags=$(ci_nginx_include_flags 2>/dev/null || true)
+    if [ -n "$ci_nginx_flags" ]; then
+        printf '%s\n' "$ci_nginx_flags"
+        return 0
+    fi
+
+    ci_fail_local_provisioning "local NGINX provisioning did not produce headers/source (prepare-runtime-components rc=$ci_provision_rc)"
 }
 
 require_nginx_headers_or_blocked() {
@@ -620,13 +790,13 @@ ci_haproxy_include_dir_flags() {
     if [ -f "$ci_haproxy_dir/haproxy/api.h" ] \
         || [ -f "$ci_haproxy_dir/common/cfgparse.h" ] \
         || [ -f "$ci_haproxy_dir/types/global.h" ]; then
-        printf '%s\n' "-I$ci_haproxy_dir"
+        printf '%s\n' "-Dtypeof=__typeof__ -I$ci_haproxy_dir"
         return 0
     fi
 
     if [ -f "$ci_haproxy_dir/api.h" ]; then
         ci_haproxy_parent=$(CDPATH= cd -- "$ci_haproxy_dir/.." 2>/dev/null && pwd)
-        printf '%s\n' "-I$ci_haproxy_parent"
+        printf '%s\n' "-Dtypeof=__typeof__ -I$ci_haproxy_parent"
         return 0
     fi
 
@@ -640,14 +810,14 @@ ci_haproxy_source_dir_flags() {
     if [ -f "$ci_haproxy_dir/include/haproxy/api.h" ] \
         || [ -f "$ci_haproxy_dir/include/common/cfgparse.h" ] \
         || [ -f "$ci_haproxy_dir/include/types/global.h" ]; then
-        printf '%s\n' "-I$ci_haproxy_dir/include -I$ci_haproxy_dir/src"
+        printf '%s\n' "-Dtypeof=__typeof__ -I$ci_haproxy_dir/include -I$ci_haproxy_dir/src"
         return 0
     fi
 
     return 1
 }
 
-haproxy_include_flags_or_blocked() {
+ci_haproxy_include_flags() {
     ci_haproxy_flags=
     ci_haproxy_found=0
 
@@ -661,7 +831,14 @@ haproxy_include_flags_or_blocked() {
     done
 
     if [ "$ci_haproxy_found" != 1 ]; then
-        for ci_haproxy_dir in "${HAPROXY_SOURCE_DIR:-}" "${HAPROXY_SRC:-}" "${MODSECURITY_HAPROXY_SOURCE_DIR:-}"; do
+        for ci_haproxy_dir in \
+            "${HAPROXY_SOURCE_DIR:-}" \
+            "${HAPROXY_SRC:-}" \
+            "${MODSECURITY_HAPROXY_SOURCE_DIR:-}" \
+            "$CONNECTOR_COMPONENT_CACHE"/sources/haproxy/haproxy-* \
+            "$CONNECTOR_COMPONENT_CACHE"/builds/connectors/haproxy/*/haproxy-runtime-build/worktree \
+            "$BUILD_ROOT"/haproxy-runtime-build/worktree \
+            "$SOURCE_ROOT"/haproxy/haproxy-*; do
             ci_haproxy_dir_flags=$(ci_haproxy_source_dir_flags "$ci_haproxy_dir" 2>/dev/null || true)
             if [ -n "$ci_haproxy_dir_flags" ]; then
                 ci_haproxy_flags="$ci_haproxy_flags $ci_haproxy_dir_flags"
@@ -676,7 +853,43 @@ haproxy_include_flags_or_blocked() {
         return 0
     fi
 
+    return 1
+}
+
+haproxy_include_flags_or_blocked() {
+    ci_haproxy_flags=$(ci_haproxy_include_flags 2>/dev/null || true)
+    if [ -n "$ci_haproxy_flags" ]; then
+        printf '%s\n' "$ci_haproxy_flags"
+        return 0
+    fi
+
     skip_blocked "missing HAProxy headers/source for HAProxy connector C checks"
+}
+
+require_or_provision_haproxy_headers() {
+    ci_haproxy_flags=$(ci_haproxy_include_flags 2>/dev/null || true)
+    if [ -n "$ci_haproxy_flags" ]; then
+        printf '%s\n' "$ci_haproxy_flags"
+        return 0
+    fi
+
+    if ! is_local_run; then
+        skip_blocked "missing HAProxy headers/source for HAProxy connector C checks"
+    fi
+
+    ci_provision_rc=0
+    if framework_prepare_runtime_components; then
+        :
+    else
+        ci_provision_rc=$?
+    fi
+    ci_haproxy_flags=$(ci_haproxy_include_flags 2>/dev/null || true)
+    if [ -n "$ci_haproxy_flags" ]; then
+        printf '%s\n' "$ci_haproxy_flags"
+        return 0
+    fi
+
+    ci_fail_local_provisioning "local HAProxy provisioning did not produce headers/source (prepare-runtime-components rc=$ci_provision_rc)"
 }
 
 require_haproxy_headers_or_blocked() {
