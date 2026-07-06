@@ -6,10 +6,16 @@ code in this repository so generators never import executable connector code.
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
+
+GENERATED_NOTICE = "Generated file - do not edit manually."
+DATA_SOURCE_POLICY = "verified-inputs-only"
 
 REPORT_OUTPUTS = {
     ("connector_work_queue", "json"): "connector_work_queue.generated.json",
@@ -31,6 +37,21 @@ REPORT_OUTPUTS = {
 
 REPORT_OUTPUT_DIR = Path("reports/testing/generated")
 FULL_RUNTIME_MATRIX_INPUT = Path("reports/testing/generated/canonical/full-runtime-matrix.generated.json")
+GENERATED_REPORT_CATEGORIES = {
+    "apache-runtime-results.generated.md": "runtime",
+    "case-matrix.generated.md": "coverage",
+    "connector-gap-summary.generated.md": "coverage",
+    "coverage-summary.generated.md": "coverage",
+    "haproxy-runtime-results.generated.md": "runtime",
+    "mrts-native-apache.generated.md": "mrts-native",
+    "mrts-native-full.generated.md": "mrts-native",
+    "mrts-native-nginx.generated.md": "mrts-native",
+    "mrts-native-summary.generated.md": "mrts-native",
+    "nginx-runtime-results.generated.md": "runtime",
+    "phase-coverage.generated.md": "coverage",
+    "runtime-matrix.generated.md": "runtime",
+    "xfail-summary.generated.md": "coverage",
+}
 
 
 
@@ -42,14 +63,144 @@ def _as_posix(path: Path | str) -> str:
     return str(Path(path))
 
 
+def git_sha(root: Path | str | None) -> str:
+    if root is None:
+        return "unknown"
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=10,
+        )
+    except Exception:
+        return "unknown"
+    return result.stdout.strip() or "unknown"
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def relative_label(path: Path, connector_root: Path, framework_root: Path) -> str:
+    resolved = path.resolve(strict=False)
+    for root in (connector_root, framework_root):
+        try:
+            return resolved.relative_to(root.resolve(strict=False)).as_posix()
+        except ValueError:
+            continue
+    return resolved.as_posix()
+
+
+def read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def current_verified_run_id(connector_root: Path) -> str:
+    explicit = os.environ.get("VERIFIED_RUN_ID", "").strip()
+    if explicit:
+        return explicit
+    snapshot = read_json_object(connector_root / "reports/testing/runtime-validation-snapshot.json")
+    for key in ("verified_run_id", "run_id"):
+        value = str(snapshot.get(key) or "").strip()
+        if value:
+            return value
+    snapshot_date = str(snapshot.get("snapshot_date") or "").strip()
+    commit = str(snapshot.get("commit") or "").strip()
+    if snapshot_date and commit:
+        return f"{snapshot_date}-{commit}"
+    sha = git_sha(connector_root)
+    return sha[:12] if sha != "unknown" else "unknown"
+
+
+def input_records(inputs: Iterable[Path | str], connector_root: Path, framework_root: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for raw in inputs:
+        path = Path(raw)
+        if not path.is_absolute():
+            path = connector_root / path
+        label = relative_label(path, connector_root, framework_root)
+        if not path.exists():
+            records.append(
+                {
+                    "path": label,
+                    "status": "missing",
+                    "source_hash": "missing",
+                    "verified_run_id": "unknown",
+                    "notes": "input file is missing",
+                }
+            )
+            continue
+        if not path.is_file():
+            records.append(
+                {
+                    "path": label,
+                    "status": "unknown",
+                    "source_hash": "unknown",
+                    "verified_run_id": "unknown",
+                    "notes": "input path is not a regular file",
+                }
+            )
+            continue
+        size = path.stat().st_size
+        records.append(
+            {
+                "path": label,
+                "status": "empty" if size == 0 else "present",
+                "source_hash": sha256_file(path) if size else "empty",
+                "verified_run_id": current_verified_run_id(connector_root),
+                "notes": "input file available" if size else "input file is empty",
+            }
+        )
+    return records
+
+
+def input_status_summary(records: list[dict[str, Any]]) -> str:
+    statuses = {str(record.get("status") or "unknown") for record in records}
+    if not records:
+        return "unknown"
+    if statuses == {"present"}:
+        return "complete"
+    if "missing" in statuses:
+        return "missing"
+    if "unknown" in statuses:
+        return "unknown"
+    return "partial"
+
+
 def build_metadata(*, generated_by: str, make_target: str, connector_root: Path | str, framework_root: Path | str, inputs: Iterable[Path | str], generated_at: str | None = None) -> dict[str, Any]:
+    connector = Path(connector_root).resolve(strict=False)
+    framework = Path(framework_root).resolve(strict=False)
+    records = input_records(inputs, connector, framework)
     return {
+        "generated_notice": GENERATED_NOTICE,
         "generated_at": generated_at or utc_now(),
+        "verified_run_id": current_verified_run_id(connector),
+        "data_source_policy": DATA_SOURCE_POLICY,
         "generated_by": generated_by,
         "make_target": make_target,
-        "connector_root": _as_posix(connector_root),
-        "framework_root": _as_posix(framework_root),
-        "inputs": [_as_posix(item) for item in inputs],
+        "owner": "runtime",
+        "severity": "informational",
+        "connector_root": _as_posix(connector),
+        "framework_root": _as_posix(framework),
+        "connector_sha": git_sha(connector),
+        "framework_sha": git_sha(framework),
+        "input_status": input_status_summary(records),
+        "inputs": records,
+        "missing_inputs": [record["path"] for record in records if record["status"] == "missing"],
+        "empty_inputs": [record["path"] for record in records if record["status"] == "empty"],
+        "unknown_inputs": [record["path"] for record in records if record["status"] == "unknown"],
+        "schema_version": 1,
     }
 
 
@@ -107,6 +258,13 @@ def report_path_from_root(root: Path | str, name: str, suffix: str) -> Path:
     return require_under(Path(root).resolve(), Path("canonical") / filename, f"generated report {name}.{suffix}")
 
 
+def report_relpath_for_filename(filename: str | Path) -> str:
+    name = Path(filename).name
+    category = GENERATED_REPORT_CATEGORIES.get(name)
+    if category is None:
+        raise ValueError(f"unsupported generated report filename: {name}")
+    return (REPORT_OUTPUT_DIR / category / name).as_posix()
+
 
 def reject_path_traversal(value: Path | str, label: str) -> None:
     raw = str(value)
@@ -151,12 +309,91 @@ def generated_json_text(payload: Any, metadata: dict[str, Any]) -> str:
 
 
 def generated_markdown_text(body: str, metadata: dict[str, Any]) -> str:
-    generated_at = metadata.get("generated_at", "")
-    generated_by = metadata.get("generated_by", "")
+    text = body.strip()
+    availability_marker = "\n## Data Availability / Missing Information"
+    if availability_marker in text:
+        text = text.split(availability_marker, 1)[0].rstrip()
+    sources_marker = "\n## Data Sources"
+    if sources_marker in text:
+        text = text.split(sources_marker, 1)[0].rstrip()
+    switch = language_switch(str(metadata.get("output_name") or ""))
+    if switch is not None:
+        text = insert_language_switch(text, switch[1], switch[0])
     header = [
-        "<!-- Generated file - do not edit manually. -->",
-        f"> Generated at: `{generated_at}`",
-        f"> Generated by: `{generated_by}`",
+        f"> {GENERATED_NOTICE}",
+        ">",
+        f"> Generated at: `{metadata.get('generated_at', 'unknown')}`",
+        f"> Verified run id: `{metadata.get('verified_run_id', 'unknown')}`",
+        f"> Data source policy: `{metadata.get('data_source_policy', DATA_SOURCE_POLICY)}`",
+        f"> Generator: `{metadata.get('generated_by', 'unknown')}`",
+        f"> Make target: `{metadata.get('make_target', 'unknown')}`",
+        f"> Owner: `{metadata.get('owner', 'unknown')}`",
+        f"> Severity: `{metadata.get('severity', 'unknown')}`",
+        f"> Connector SHA: `{metadata.get('connector_sha', 'unknown')}`",
+        f"> Framework SHA: `{metadata.get('framework_sha', 'unknown')}`",
+        f"> Input status: `{metadata.get('input_status', 'unknown')}`",
         "",
     ]
-    return "\n".join(header) + body.rstrip() + "\n"
+    return "\n".join(header) + "\n" + text + "\n\n" + data_sources_section(metadata) + "\n\n" + missing_information_section(metadata) + "\n"
+
+
+def language_switch(output_name: str) -> tuple[str, str] | None:
+    if not output_name.endswith(".md"):
+        return None
+    if output_name.endswith(".de.md"):
+        english_name = output_name.removesuffix(".de.md") + ".md"
+        return "**Sprache:**", f"**Sprache:** [English]({english_name}) | Deutsch"
+    german_name = output_name.removesuffix(".md") + ".de.md"
+    return "**Language:**", f"**Language:** English | [Deutsch]({german_name})"
+
+
+def insert_language_switch(markdown: str, switch: str, prefix: str) -> str:
+    lines = [line for line in markdown.splitlines() if not line.startswith(prefix)]
+    try:
+        heading_index = next(index for index, line in enumerate(lines) if line.startswith("# "))
+    except StopIteration:
+        return "\n".join([switch, "", *lines]).strip()
+    before = lines[: heading_index + 1]
+    after = lines[heading_index + 1 :]
+    while after and not after[0].strip():
+        after.pop(0)
+    return "\n".join([*before, "", switch, "", *after]).strip()
+
+
+def data_sources_section(metadata: dict[str, Any]) -> str:
+    lines = [
+        "## Data Sources",
+        "",
+        "| Value | Source | Source Hash | Verified Run ID | Status |",
+        "|---|---|---|---|---|",
+    ]
+    records = metadata.get("inputs")
+    if not isinstance(records, list) or not records:
+        lines.append("| Declared inputs | `-` | `unknown` | `unknown` | unknown |")
+    else:
+        for record in records:
+            source = str(record.get("path", "-")).replace("|", "\\|")
+            source_hash = str(record.get("source_hash") or "unknown")
+            run_id = str(record.get("verified_run_id") or metadata.get("verified_run_id") or "unknown")
+            status = str(record.get("status") or "unknown")
+            lines.append(f"| Declared input | `{source}` | `{source_hash}` | `{run_id}` | {status} |")
+    return "\n".join(lines)
+
+
+def missing_information_section(metadata: dict[str, Any]) -> str:
+    lines = [
+        "## Data Availability / Missing Information",
+        "",
+        "| Input | Status | Notes |",
+        "|---|---|---|",
+    ]
+    records = metadata.get("inputs")
+    if not isinstance(records, list) or not records:
+        lines.append("| `-` | unknown | no input files were declared for this generated report |")
+    else:
+        for record in records:
+            path = str(record.get("path", "-")).replace("|", "\\|")
+            status = str(record.get("status") or "unknown")
+            notes = str(record.get("notes") or "-").replace("|", "\\|")
+            lines.append(f"| `{path}` | {status} | {notes} |")
+    return "\n".join(lines)

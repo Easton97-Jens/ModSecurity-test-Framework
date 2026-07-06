@@ -489,6 +489,9 @@ ci_require_absolute_path() {
 ci_path_is_system_path() {
     ci_path_value=$1
     case "$ci_path_value" in
+        /var/tmp|/var/tmp/*)
+            return 1
+            ;;
         /usr|/usr/*|/opt|/opt/*|/etc|/etc/*|/var|/var/*|/lib|/lib/*|/lib64|/lib64/*|/bin|/bin/*|/sbin|/sbin/*|/run|/run/*)
             return 0
             ;;
