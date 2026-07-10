@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
+from contextlib import redirect_stderr
 from pathlib import Path
 import tempfile
 import unittest
@@ -148,6 +150,37 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--run-dir", str(run_dir), "--run-id", "run-existing",
             ]))
+
+    def test_validator_rejects_evidence_from_other_current_commits(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
+            root = Path(temporary)
+            capability_path = root / "capabilities.json"
+            capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
+            run_dir = root / "evidence/envoy/stale-commit"
+            self.assertEqual(0, no_crs.main([
+                "init", "--connector", "envoy", "--capabilities", str(capability_path),
+                "--run-dir", str(run_dir), "--run-id", "stale-commit",
+            ]))
+            self.assertEqual(0, no_crs.main([
+                "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
+                "--stage-rc", "0", "--host-version", "1.0",
+            ]))
+            fake_commit = "f" * 40
+            for name in ("result.json", "manifest.json", "inventory/run.json"):
+                path = run_dir / name
+                payload = json.loads(path.read_text(encoding="utf-8"))
+                payload["connector_commit"] = fake_commit
+                payload["framework_commit"] = fake_commit
+                no_crs.write_json(path, payload)
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                rc = no_crs.main([
+                    "validate", "--evidence-root", str(run_dir), "--connector", "envoy",
+                    "--connector-root", str(ROOT.parents[1]),
+                    "--capabilities", str(capability_path), "--check", "status",
+                ])
+            self.assertEqual(1, rc)
+            self.assertIn("does not match current", stderr.getvalue())
 
     def test_init_rejects_symlink_in_run_parent_chain(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:

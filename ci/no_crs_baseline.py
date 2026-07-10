@@ -410,6 +410,13 @@ def git_value(root: Path, *arguments: str) -> str:
         return "unknown"
 
 
+def git_worktree_clean(root: Path | None) -> bool:
+    if root is None:
+        return True
+    status = git_value(root, "status", "--porcelain=v1", "--untracked-files=all")
+    return status == ""
+
+
 def compiler_version() -> str:
     compiler = os.environ.get("CC", "cc").split()[0]
     try:
@@ -799,12 +806,19 @@ def init_run(args: argparse.Namespace) -> int:
     connector_commit = args.connector_commit or (
         git_value(connector_root, "rev-parse", "HEAD") if connector_root else "unknown"
     )
+    # Standalone framework/unit-test runs may intentionally have no connector
+    # checkout.  Production evidence passes --connector-root and records both
+    # repository states fail-closed.
+    connector_worktree_clean = git_worktree_clean(connector_root)
+    framework_worktree_clean = git_worktree_clean(FRAMEWORK_ROOT) if connector_root else True
     inventory = {
         "schema_version": 1,
         "connector": args.connector,
         "run_id": args.run_id,
         "connector_commit": connector_commit,
         "framework_commit": framework_commit,
+        "connector_worktree_clean": connector_worktree_clean,
+        "framework_worktree_clean": framework_worktree_clean,
         "host_name": manifest_capabilities["host_name"],
         "host_version": args.host_version or "not_available",
         "integration_mode": manifest_capabilities["integration_mode"],
@@ -838,6 +852,8 @@ def init_run(args: argparse.Namespace) -> int:
         "ended_at": None,
         "connector_commit": connector_commit,
         "framework_commit": framework_commit,
+        "connector_worktree_clean": connector_worktree_clean,
+        "framework_worktree_clean": framework_worktree_clean,
         "host_name": manifest_capabilities["host_name"],
         "host_version": inventory["host_version"],
         "integration_mode": manifest_capabilities["integration_mode"],
@@ -1565,6 +1581,10 @@ def finalize_run(args: argparse.Namespace) -> int:
             evidence_stage, pass_ids, event_metadata_verified,
             body_payload_absent_from_events, host_version, libmodsecurity_version,
         )
+        if manifest.get("connector_worktree_clean") is not True:
+            pass_gate_failures.append("PASS requires a clean connector worktree")
+        if manifest.get("framework_worktree_clean") is not True:
+            pass_gate_failures.append("PASS requires a clean framework worktree")
         if pass_gate_failures:
             status = "FAIL"
             blocked_before_execution = False
@@ -1603,6 +1623,8 @@ def finalize_run(args: argparse.Namespace) -> int:
         "connector": connector,
         "connector_commit": manifest["connector_commit"],
         "framework_commit": manifest["framework_commit"],
+        "connector_worktree_clean": manifest["connector_worktree_clean"],
+        "framework_worktree_clean": manifest["framework_worktree_clean"],
         "run_id": manifest["run_id"],
         "host_name": manifest["host_name"],
         "host_version": host_version,
@@ -2128,6 +2150,10 @@ def status_errors(run_dir: Path) -> list[str]:
             result.get("host_version"),
             result.get("libmodsecurity_version"),
         )
+        if result.get("connector_worktree_clean") is not True:
+            expected_gate_failures.append("PASS requires a clean connector worktree")
+        if result.get("framework_worktree_clean") is not True:
+            expected_gate_failures.append("PASS requires a clean framework worktree")
         if expected_gate_failures:
             expected_status = "FAIL"
     if result.get("status") != expected_status:
@@ -2139,6 +2165,7 @@ def status_errors(run_dir: Path) -> list[str]:
     for field in (
         "connector", "run_id", "connector_commit", "framework_commit", "host_name",
         "host_version", "integration_mode", "libmodsecurity_version", "evidence_stage", "ruleset",
+        "connector_worktree_clean", "framework_worktree_clean",
     ):
         if result.get(field) != manifest.get(field):
             errors.append(f"manifest/result {field} mismatch")
@@ -2222,10 +2249,36 @@ def validate_command(args: argparse.Namespace) -> int:
     for connector in sorted(expected_connectors - found_connectors):
         errors.append(f"{connector}: canonical result.json missing")
     connector_root = Path(args.connector_root or ".")
+    current_connector_commit = git_value(connector_root, "rev-parse", "HEAD")
+    current_framework_commit = git_value(FRAMEWORK_ROOT, "rev-parse", "HEAD")
+    check_current_provenance = args.check in {"all", "completeness", "status"}
     for connector, run_dir in run_dirs:
         capabilities_path = args.capabilities or str(connector_root / f"connectors/{connector}/capabilities.json")
         capabilities = load_capability_manifest(capabilities_path, connector)
         errors.extend(f"{connector}: {error}" for error in validate_run(run_dir, connector, capabilities, checks))
+        if check_current_provenance:
+            result = load_json(run_dir / "result.json")
+            if not isinstance(result, Mapping):
+                errors.append(f"{connector}: provenance: result.json must be an object")
+                continue
+            if current_connector_commit == "unknown":
+                errors.append(f"{connector}: provenance: current connector commit cannot be resolved")
+            elif result.get("connector_commit") != current_connector_commit:
+                errors.append(
+                    f"{connector}: provenance: evidence connector_commit {result.get('connector_commit')!r} "
+                    f"does not match current {current_connector_commit!r}"
+                )
+            if current_framework_commit == "unknown":
+                errors.append(f"{connector}: provenance: current framework commit cannot be resolved")
+            elif result.get("framework_commit") != current_framework_commit:
+                errors.append(
+                    f"{connector}: provenance: evidence framework_commit {result.get('framework_commit')!r} "
+                    f"does not match current {current_framework_commit!r}"
+                )
+            if not git_worktree_clean(connector_root):
+                errors.append(f"{connector}: provenance: current connector worktree is dirty")
+            if not git_worktree_clean(FRAMEWORK_ROOT):
+                errors.append(f"{connector}: provenance: current framework worktree is dirty")
     if errors:
         for error in errors:
             print(f"no-crs-evidence: {error}", file=sys.stderr)

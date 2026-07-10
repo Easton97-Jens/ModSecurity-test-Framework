@@ -4,7 +4,7 @@
   "title": "Canonical No-CRS run inventory",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schema_version", "connector", "run_id", "evidence_stage", "ruleset", "connector_commit", "framework_commit", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "compiler_version", "operating_system", "architecture", "python_version", "rules_sha256", "catalog_sha256", "capability_manifest_sha256", "executed_targets", "created_at"],
+  "required": ["schema_version", "connector", "run_id", "evidence_stage", "ruleset", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "compiler_version", "operating_system", "architecture", "python_version", "rules_sha256", "catalog_sha256", "capability_manifest_sha256", "executed_targets", "created_at"],
   "properties": {
     "schema_version": {"const": 1},
     "connector": {"enum": ["apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"]},
@@ -13,6 +13,8 @@
     "ruleset": {"const": "no-crs-baseline"},
     "connector_commit": {"type": "string", "minLength": 1},
     "framework_commit": {"type": "string", "minLength": 1},
+    "connector_worktree_clean": {"type": "boolean"},
+    "framework_worktree_clean": {"type": "boolean"},
     "host_name": {"type": "string", "minLength": 1},
     "host_version": {"type": "string", "minLength": 1},
     "integration_mode": {"type": "string", "minLength": 1},
