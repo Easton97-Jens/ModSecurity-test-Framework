@@ -787,7 +787,15 @@ def parse_case(path: Path) -> dict:
 
 
 def gather_cases() -> list[dict]:
-    files = all_report_case_files(FRAMEWORK_ROOT)
+    # The canonical No-CRS catalog has its own capability/status model and
+    # result-derived reports.  Feeding its opt-in YAML transport probes into
+    # the legacy import/runtime matrix would silently collapse UNSUPPORTED and
+    # NOT_EXECUTED into the older pending classification.
+    no_crs_root = (FRAMEWORK_ROOT / "tests/cases/no-crs-baseline").resolve()
+    files = [
+        path for path in all_report_case_files(FRAMEWORK_ROOT)
+        if no_crs_root not in path.resolve().parents
+    ]
     return [parse_case(p) for p in files]
 
 

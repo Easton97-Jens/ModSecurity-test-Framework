@@ -898,14 +898,22 @@ connector_smoke_run() {
     )
     rc=$?
     set -e
+    case "${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}" in
+        build|config_load|start_smoke)
+            # These stages deliberately produce no request-case evidence.  The
+            # connector harness exit status and stage-specific logs are the
+            # evidence; runtime result requirements start at minimal_runtime_smoke.
+            exit "$rc"
+            ;;
+    esac
     results_jsonl="$RESULTS_DIR/$connector-results.jsonl"
     if [ "$rc" -eq 0 ] && [ "${RUN_ONE_CASE:-0}" = "1" ]; then
         case_result_path="${LOG_DIR:-$LOG_ROOT/$connector-runtime}/result.json"
         if [ ! -s "$case_result_path" ]; then
-            connector_smoke_write_evidence "$connector" BLOCKED 77 blocked "RUN_ONE_CASE result.json missing" "$harness_script"
-            exit 77
+            connector_smoke_write_evidence "$connector" FAIL 1 failed "RUN_ONE_CASE result.json missing after execution" "$harness_script"
+            exit 1
         fi
-        "$PYTHON_BIN" - "$case_result_path" "$connector" "${MODSECURITY_TEST_VARIANT:-no-crs}" "${MODSECURITY_MRTS_VARIANT:-no-mrts}" "${TEST_CASE:-${SMOKE_CASES:-}}" <<'PY_RUN_ONE_CASE' || exit 77
+        "$PYTHON_BIN" - "$case_result_path" "$connector" "${MODSECURITY_TEST_VARIANT:-no-crs}" "${MODSECURITY_MRTS_VARIANT:-no-mrts}" "${TEST_CASE:-${SMOKE_CASES:-}}" <<'PY_RUN_ONE_CASE' || exit 1
 import json
 import sys
 from pathlib import Path
@@ -939,10 +947,10 @@ PY_RUN_ONE_CASE
         exit 0
     fi
     if [ "$rc" -eq 0 ] && [ ! -s "$results_jsonl" ]; then
-        connector_smoke_write_evidence "$connector" BLOCKED 77 blocked "runtime harness produced no case evidence" "$harness_script"
-        echo "$connector runtime smoke: BLOCKED - runtime harness produced no case evidence"
+        connector_smoke_write_evidence "$connector" FAIL 1 failed "runtime harness produced no case evidence after execution" "$harness_script"
+        echo "$connector runtime smoke: FAIL - runtime harness produced no case evidence after execution"
         echo "Runtime not verified"
-        exit 77
+        exit 1
     fi
     exit "$rc"
 }

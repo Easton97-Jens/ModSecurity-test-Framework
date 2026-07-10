@@ -1,0 +1,48 @@
+name: deny_request_body_marker_403
+title: Deny the buffered request-body marker in phase 2
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 2
+required_capabilities:
+  - request_body_buffered
+  - phase2
+  - deny
+capabilities:
+  request_body: true
+  phase2: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+request:
+  method: POST
+  path: /no-crs/request-body
+  headers:
+    Content-Type: text/plain
+  body: no-crs-request-body-marker
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1100101
+  audit_log:
+    required: true
+    rule_id: 1100101
+    message: no-crs phase-2 deny
+expected_result: deny
+expected_status: 403
+expected_rule_id: 1100101
+expected_event_fields:
+  - rule_id
+  - phase
+  - status
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

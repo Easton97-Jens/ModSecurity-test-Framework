@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modsecurity-connector.invalid/schemas/no-crs-capability-manifest-v1.json",
+  "title": "Canonical connector capability manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "connector", "host_name", "integration_mode", "capabilities", "host_model_constraints", "evidence_stages"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "connector": {"enum": ["apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"]},
+    "host_name": {"type": "string", "minLength": 1},
+    "integration_mode": {"type": "string", "minLength": 1},
+    "host_model_constraints": {"type": "array", "items": {"type": "string"}},
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["connection_metadata", "request_headers", "request_body_buffered", "request_body_streaming", "response_headers", "response_body_buffered", "response_body_streaming", "phase1", "phase2", "phase3", "phase4", "late_intervention", "deny", "redirect", "drop", "abort_connection", "log_only", "transaction_id", "event_jsonl", "config_inline_rules", "config_rules_file", "config_remote_rules"],
+      "patternProperties": {
+        "^[a-z][a-z0-9_]+$": {"$ref": "#/$defs/capability"}
+      }
+    },
+    "evidence_stages": {
+      "type": "object",
+      "required": ["source_contract", "compile", "link", "config_load", "start_smoke", "minimal_runtime_smoke", "no_crs_baseline", "crs_smoke", "extended_matrix"]
+    }
+  },
+  "$defs": {
+    "capability": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["state", "reason"],
+      "properties": {
+        "state": {"enum": ["verified", "implemented_not_asserted", "configured_not_exercised", "unsupported_by_host_model", "not_implemented", "not_applicable"]},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
+

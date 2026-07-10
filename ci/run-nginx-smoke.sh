@@ -325,6 +325,11 @@ if [ "$needs_build" -eq 1 ]; then
     fi
 fi
 
+if [ "${MSCONNECTOR_SMOKE_STAGE:-minimal_runtime_smoke}" = "build" ]; then
+    echo "run_nginx_smoke: build stage complete; host config/start/request stages not executed"
+    exit 0
+fi
+
 LOG_DIR="$NGINX_RUNTIME_LOG_DIR" \
     RESULTS_DIR="$RESULTS_DIR" \
     BUILD_ROOT="$BUILD_ROOT" \

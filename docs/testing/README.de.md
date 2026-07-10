@@ -21,6 +21,7 @@ Nachweise, frühere expected-failure/mapped-only-Entscheidungen und anschlussfre
 | `v2-vs-v3-test-compatibility.md` | V2/V3 Testimportnachweis |
 | `v3-api-smoke-test.md` | Konnektorfreie libmodsecurity v3 API Smokenotizen |
 | `mrts.md` | Optionale MRTS Generierung, Import und variantenspezifische Laufzeittests |
+| `no-crs-baseline.de.md` | Kanonischer capability-gesteuerter No-CRS-Evidence-Vertrag für alle Connectoren |
 
 ## Regel
 

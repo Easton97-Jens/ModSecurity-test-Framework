@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modsecurity-connector.invalid/schemas/no-crs-inventory-v1.json",
+  "title": "Canonical No-CRS run inventory",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "connector", "run_id", "evidence_stage", "ruleset", "connector_commit", "framework_commit", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "compiler_version", "operating_system", "architecture", "python_version", "rules_sha256", "catalog_sha256", "capability_manifest_sha256", "executed_targets", "created_at"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "connector": {"enum": ["apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"]},
+    "run_id": {"type": "string", "minLength": 1},
+    "evidence_stage": {"enum": ["minimal_runtime_smoke", "no_crs_baseline"]},
+    "ruleset": {"const": "no-crs-baseline"},
+    "connector_commit": {"type": "string", "minLength": 1},
+    "framework_commit": {"type": "string", "minLength": 1},
+    "host_name": {"type": "string", "minLength": 1},
+    "host_version": {"type": "string", "minLength": 1},
+    "integration_mode": {"type": "string", "minLength": 1},
+    "libmodsecurity_version": {"type": "string", "minLength": 1},
+    "compiler_version": {"type": "string", "minLength": 1},
+    "operating_system": {"type": "string", "minLength": 1},
+    "architecture": {"type": "string", "minLength": 1},
+    "python_version": {"type": "string", "minLength": 1},
+    "rules_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "catalog_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "capability_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "executed_targets": {"type": "array", "items": {"type": "string"}},
+    "created_at": {"type": "string", "minLength": 1},
+    "finalized_at": {"type": "string", "minLength": 1}
+  }
+}

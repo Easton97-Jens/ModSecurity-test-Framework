@@ -9,6 +9,18 @@ FRAMEWORK_ROOT ?= $(CURDIR)
 CONNECTOR_ROOT ?= $(CURDIR)
 OUTPUT_ROOT ?= $(CONNECTOR_ROOT)
 PYTHONDONTWRITEBYTECODE ?= 1
+NO_CRS_TOOL ?= $(FRAMEWORK_ROOT)/ci/no_crs_baseline.py
+NO_CRS_RUN_ID ?= local
+CONNECTOR ?=
+CAPABILITIES_FILE ?= $(CONNECTOR_ROOT)/connectors/$(CONNECTOR)/capabilities.json
+EVIDENCE_ROOT ?= $(BUILD_ROOT)/no-crs-evidence
+NO_CRS_RUN_DIR ?= $(EVIDENCE_ROOT)/$(CONNECTOR)/$(NO_CRS_RUN_ID)
+PLAN_FILE ?= $(BUILD_ROOT)/no-crs-plans/$(CONNECTOR)/$(NO_CRS_RUN_ID).json
+NO_CRS_STAGE_RC ?= 0
+NO_CRS_STAGE_REASON ?=
+NO_CRS_FINALIZE_ARGS ?=
+EVIDENCE_STAGE ?= no_crs_baseline
+NO_CRS_SUMMARY_ROOT ?= $(EVIDENCE_ROOT)/summary/$(NO_CRS_RUN_ID)
 
 export BUILD_ROOT
 export SOURCE_ROOT
@@ -46,7 +58,7 @@ export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-doc-consistency
 
 define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 	@set +e; \
@@ -71,6 +83,7 @@ lint:
 	$(PYTHON) ci/check-response-body-promotion.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
 	$(PYTHON) ci/check-security-data-flow-cases.py
 	$(PYTHON) ci/check-security-data-flow-normalizers.py
+	$(PYTHON) ci/no_crs_baseline.py catalog-check
 	sh ci/check-crs-version-pinning.sh
 	sh ci/check-open-runtime-provisioning-contract.sh
 	git diff --check
@@ -80,6 +93,60 @@ check-security-data-flow-cases:
 
 check-security-data-flow-normalizers:
 	$(PYTHON) ci/check-security-data-flow-normalizers.py
+
+test-no-crs-contract:
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest discover -s tests/no_crs -v
+
+check-no-crs-catalog:
+	$(PYTHON) "$(NO_CRS_TOOL)" catalog-check
+
+no-crs-plan: check-no-crs-catalog
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
+	$(PYTHON) "$(NO_CRS_TOOL)" select --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --evidence-stage "$(EVIDENCE_STAGE)" --output "$(PLAN_FILE)"
+
+no-crs-init: no-crs-plan
+	$(PYTHON) "$(NO_CRS_TOOL)" init --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --evidence-stage "$(EVIDENCE_STAGE)" --plan "$(PLAN_FILE)" --run-dir "$(NO_CRS_RUN_DIR)" --run-id "$(NO_CRS_RUN_ID)" --connector-root "$(CONNECTOR_ROOT)" --executed-target "$(EVIDENCE_STAGE)-$(CONNECTOR)"
+
+no-crs-finalize:
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
+	$(PYTHON) "$(NO_CRS_TOOL)" finalize --run-dir "$(NO_CRS_RUN_DIR)" --capabilities "$(CAPABILITIES_FILE)" --stage-rc "$(NO_CRS_STAGE_RC)" --stage-reason "$(NO_CRS_STAGE_REASON)" $(NO_CRS_FINALIZE_ARGS)
+
+no-crs-summary:
+	mkdir -p "$(NO_CRS_SUMMARY_ROOT)"
+	$(PYTHON) "$(NO_CRS_TOOL)" summarize --evidence-root "$(EVIDENCE_ROOT)" --run-id "$(NO_CRS_RUN_ID)" --output-json "$(NO_CRS_SUMMARY_ROOT)/all-connectors-no-crs-summary.json" --output-md "$(NO_CRS_SUMMARY_ROOT)/all-connectors-no-crs-summary.md" --output-md-de "$(NO_CRS_SUMMARY_ROOT)/all-connectors-no-crs-summary.de.md" $(if $(REPORTS_DIR),--reports-dir "$(REPORTS_DIR)",)
+
+define RUN_NO_CRS_CHECK
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
+	$(PYTHON) "$(NO_CRS_TOOL)" validate --evidence-root "$(NO_CRS_RUN_DIR)" --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --check "$(1)"
+endef
+
+check-no-crs-result-schema:
+	$(call RUN_NO_CRS_CHECK,schema)
+
+check-no-crs-evidence-completeness:
+	$(call RUN_NO_CRS_CHECK,completeness)
+
+check-no-crs-capability-consistency:
+	$(call RUN_NO_CRS_CHECK,capability)
+
+check-no-crs-claim-policy:
+	$(call RUN_NO_CRS_CHECK,claim-policy)
+
+check-no-crs-artifact-layout:
+	$(call RUN_NO_CRS_CHECK,layout)
+
+check-no-crs-body-payload-absence:
+	$(call RUN_NO_CRS_CHECK,body-payload)
+
+check-no-crs-status-consistency:
+	$(call RUN_NO_CRS_CHECK,status)
+
+check-no-crs-evidence:
+	$(call RUN_NO_CRS_CHECK,all)
+
+# Repository-owned bilingual reports are checked at the root.  Framework-side
+# document consistency starts by validating the one canonical source catalog.
+check-no-crs-doc-consistency: check-no-crs-catalog
 
 quick-check codex-check: lint
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py

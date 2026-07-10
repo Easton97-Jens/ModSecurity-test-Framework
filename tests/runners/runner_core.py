@@ -509,6 +509,12 @@ def write_rules_file(
     audit_log_dir: str | Path | None = None,
     rules_preamble_file: str | Path | None = None,
 ) -> None:
+    if case.get("no_crs_baseline") is True and rules_preamble_file is None:
+        raise ValueError("canonical No-CRS cases require tests/rules/no-crs-baseline.conf as rules preamble")
+    if case.get("no_crs_baseline") is True:
+        canonical_preamble = Path(__file__).resolve().parents[2] / "tests/rules/no-crs-baseline.conf"
+        if Path(rules_preamble_file).resolve() != canonical_preamble.resolve():
+            raise ValueError(f"canonical No-CRS case requires rules preamble {canonical_preamble}")
     rules = str(case["rules"])
     if audit_log_file is not None:
         rules = rules.replace("@@AUDIT_LOG@@", str(audit_log_file))
@@ -789,6 +795,8 @@ def case_status_group(case: Mapping[str, Any]) -> str:
 
 
 def is_default_runtime_case(case: Mapping[str, Any]) -> bool:
+    if case.get("no_crs_baseline") is True:
+        return os.environ.get("NO_CRS_BASELINE", "").strip().lower() in {"1", "true", "yes", "on"}
     if case.get("former_xfail") is True:
         return False
     return case_status_group(case) in {

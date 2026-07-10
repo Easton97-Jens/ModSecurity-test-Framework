@@ -1,0 +1,47 @@
+name: deny_response_body_marker_403
+title: Exercise a buffered response-body rule in phase 4
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 4
+required_capabilities:
+  - response_body_buffered
+  - phase4
+capabilities:
+  response_body: true
+  phase4: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+request:
+  method: GET
+  path: /no-crs/response-body
+response:
+  body: no-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1100301
+  audit_log:
+    required: true
+    rule_id: 1100301
+    message: no-crs phase-4 intervention probe
+expected_result: deny_or_late_intervention
+expected_status: 403
+expected_rule_id: 1100301
+expected_event_fields:
+  - rule_id
+  - phase
+  - status
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED
