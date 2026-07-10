@@ -72,6 +72,7 @@ lint:
 	$(PYTHON) ci/check-security-data-flow-cases.py
 	$(PYTHON) ci/check-security-data-flow-normalizers.py
 	sh ci/check-crs-version-pinning.sh
+	sh ci/check-open-runtime-provisioning-contract.sh
 	git diff --check
 
 check-security-data-flow-cases:
