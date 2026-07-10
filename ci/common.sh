@@ -59,6 +59,8 @@ ENVOY_CONFIG_ROOT="${ENVOY_CONFIG_ROOT:-$ENVOY_RUNTIME_ROOT/config}"
 ENVOY_LOG_ROOT="${ENVOY_LOG_ROOT:-$VERIFIED_LOG_ROOT/envoy-smoke}"
 ENVOY_RESULT_ROOT="${ENVOY_RESULT_ROOT:-$VERIFIED_RUN_ROOT/envoy-smoke}"
 ENVOY_BIN="${ENVOY_BIN:-$ENVOY_COMPONENT_ROOT/bin/envoy}"
+ENVOY_SOURCE_ROOT="${ENVOY_SOURCE_ROOT:-$ENVOY_COMPONENT_ROOT/src/envoy-$ENVOY_VERSION}"
+ENVOY_BUILD_ROOT="${ENVOY_BUILD_ROOT:-$BUILD_ROOT/envoy-connector}"
 ENVOY_SMOKE_PORT="${ENVOY_SMOKE_PORT:-18080}"
 ENVOY_UPSTREAM_PORT="${ENVOY_UPSTREAM_PORT:-18081}"
 ENVOY_AUTHZ_PORT="${ENVOY_AUTHZ_PORT:-18082}"
@@ -76,6 +78,8 @@ TRAEFIK_CONFIG_ROOT="${TRAEFIK_CONFIG_ROOT:-$TRAEFIK_RUNTIME_ROOT/config}"
 TRAEFIK_LOG_ROOT="${TRAEFIK_LOG_ROOT:-$VERIFIED_LOG_ROOT/traefik-smoke}"
 TRAEFIK_RESULT_ROOT="${TRAEFIK_RESULT_ROOT:-$VERIFIED_RUN_ROOT/traefik-smoke}"
 TRAEFIK_BIN="${TRAEFIK_BIN:-$TRAEFIK_COMPONENT_ROOT/bin/traefik}"
+TRAEFIK_SOURCE_ROOT="${TRAEFIK_SOURCE_ROOT:-$TRAEFIK_COMPONENT_ROOT/src/traefik-$TRAEFIK_VERSION}"
+TRAEFIK_BUILD_ROOT="${TRAEFIK_BUILD_ROOT:-$BUILD_ROOT/traefik-connector}"
 TRAEFIK_SMOKE_PORT="${TRAEFIK_SMOKE_PORT:-18180}"
 TRAEFIK_UPSTREAM_PORT="${TRAEFIK_UPSTREAM_PORT:-18181}"
 TRAEFIK_AUTHZ_PORT="${TRAEFIK_AUTHZ_PORT:-18182}"
@@ -94,6 +98,11 @@ LIGHTTPD_CONFIG_ROOT="${LIGHTTPD_CONFIG_ROOT:-$LIGHTTPD_RUNTIME_ROOT/config}"
 LIGHTTPD_LOG_ROOT="${LIGHTTPD_LOG_ROOT:-$VERIFIED_LOG_ROOT/lighttpd-smoke}"
 LIGHTTPD_RESULT_ROOT="${LIGHTTPD_RESULT_ROOT:-$VERIFIED_RUN_ROOT/lighttpd-smoke}"
 LIGHTTPD_BIN="${LIGHTTPD_BIN:-$LIGHTTPD_COMPONENT_ROOT/bin/lighttpd}"
+LIGHTTPD_SOURCE_DIR="${LIGHTTPD_SOURCE_DIR:-$LIGHTTPD_COMPONENT_ROOT/src/lighttpd-$LIGHTTPD_VERSION}"
+LIGHTTPD_BUILD_ROOT="${LIGHTTPD_BUILD_ROOT:-$LIGHTTPD_COMPONENT_ROOT/build/lighttpd-$LIGHTTPD_VERSION}"
+LIGHTTPD_INCLUDE_DIR="${LIGHTTPD_INCLUDE_DIR:-$LIGHTTPD_SOURCE_DIR/src}"
+LIGHTTPD_CONNECTOR_BUILD_ROOT="${LIGHTTPD_CONNECTOR_BUILD_ROOT:-$BUILD_ROOT/lighttpd-connector}"
+LIGHTTPD_MODULE_DIR="${LIGHTTPD_MODULE_DIR:-$LIGHTTPD_CONNECTOR_BUILD_ROOT/modules}"
 LIGHTTPD_SMOKE_PORT="${LIGHTTPD_SMOKE_PORT:-18280}"
 LIGHTTPD_UPSTREAM_PORT="${LIGHTTPD_UPSTREAM_PORT:-18281}"
 LIGHTTPD_AUTHZ_PORT="${LIGHTTPD_AUTHZ_PORT:-18282}"
@@ -496,6 +505,161 @@ framework_prepare_runtime_components() {
         --output-root "$CONNECTOR_ROOT" \
         --build-root "$BUILD_ROOT" \
         --native-root "${MRTS_NATIVE_ROOT:-$BUILD_ROOT/mrts-native}" >&2
+}
+
+ci_runtime_version_matches() {
+    ci_expected_runtime_version=$1
+    ci_runtime_version_text=$2
+    [ -n "$ci_expected_runtime_version" ] || return 1
+
+    case "$ci_runtime_version_text" in
+        "$ci_expected_runtime_version"|\
+        "$ci_expected_runtime_version"[!0-9.]*|\
+        *[!0-9.]"$ci_expected_runtime_version"|\
+        *[!0-9.]"$ci_expected_runtime_version"[!0-9.]*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+ci_runtime_binary_matches_version() {
+    ci_runtime_binary=$1
+    ci_runtime_version=$2
+    ci_runtime_version_arg=$3
+    [ -f "$ci_runtime_binary" ] && [ -x "$ci_runtime_binary" ] || return 1
+
+    ci_runtime_version_output=$("$ci_runtime_binary" "$ci_runtime_version_arg" 2>&1 || true)
+    ci_runtime_version_matches "$ci_runtime_version" "$ci_runtime_version_output"
+}
+
+ci_stage_matching_runtime_binary() {
+    ci_runtime_name=$1
+    ci_runtime_version=$2
+    ci_runtime_version_arg=$3
+    ci_runtime_destination=$4
+    ci_runtime_system_path=$(command -v "$ci_runtime_name" 2>/dev/null || true)
+    [ -n "$ci_runtime_system_path" ] && [ -x "$ci_runtime_system_path" ] || return 1
+
+    ci_runtime_binary_matches_version \
+        "$ci_runtime_system_path" "$ci_runtime_version" "$ci_runtime_version_arg" || return 1
+
+    assert_safe_runtime_path "$(dirname "$ci_runtime_destination")" "${ci_runtime_name} staging directory" || return 1
+    mkdir -p "$(dirname "$ci_runtime_destination")"
+    cp "$ci_runtime_system_path" "$ci_runtime_destination"
+    chmod 0755 "$ci_runtime_destination"
+    printf '%s\n' "$ci_runtime_destination"
+}
+
+envoy_build_paths() {
+    export ENVOY_COMPONENT_ROOT ENVOY_SOURCE_ROOT ENVOY_BUILD_ROOT ENVOY_BIN
+    printf 'ENVOY_COMPONENT_ROOT=%s\n' "$ENVOY_COMPONENT_ROOT"
+    printf 'ENVOY_SOURCE_ROOT=%s\n' "$ENVOY_SOURCE_ROOT"
+    printf 'ENVOY_BUILD_ROOT=%s\n' "$ENVOY_BUILD_ROOT"
+    printf 'ENVOY_BIN=%s\n' "$ENVOY_BIN"
+}
+
+traefik_build_paths() {
+    export TRAEFIK_COMPONENT_ROOT TRAEFIK_SOURCE_ROOT TRAEFIK_BUILD_ROOT TRAEFIK_BIN
+    printf 'TRAEFIK_COMPONENT_ROOT=%s\n' "$TRAEFIK_COMPONENT_ROOT"
+    printf 'TRAEFIK_SOURCE_ROOT=%s\n' "$TRAEFIK_SOURCE_ROOT"
+    printf 'TRAEFIK_BUILD_ROOT=%s\n' "$TRAEFIK_BUILD_ROOT"
+    printf 'TRAEFIK_BIN=%s\n' "$TRAEFIK_BIN"
+}
+
+lighttpd_build_paths() {
+    export LIGHTTPD_COMPONENT_ROOT LIGHTTPD_SOURCE_DIR LIGHTTPD_BUILD_ROOT
+    export LIGHTTPD_INCLUDE_DIR LIGHTTPD_CONNECTOR_BUILD_ROOT LIGHTTPD_MODULE_DIR LIGHTTPD_BIN
+    printf 'LIGHTTPD_COMPONENT_ROOT=%s\n' "$LIGHTTPD_COMPONENT_ROOT"
+    printf 'LIGHTTPD_SOURCE_DIR=%s\n' "$LIGHTTPD_SOURCE_DIR"
+    printf 'LIGHTTPD_BUILD_ROOT=%s\n' "$LIGHTTPD_BUILD_ROOT"
+    printf 'LIGHTTPD_INCLUDE_DIR=%s\n' "$LIGHTTPD_INCLUDE_DIR"
+    printf 'LIGHTTPD_CONNECTOR_BUILD_ROOT=%s\n' "$LIGHTTPD_CONNECTOR_BUILD_ROOT"
+    printf 'LIGHTTPD_MODULE_DIR=%s\n' "$LIGHTTPD_MODULE_DIR"
+    printf 'LIGHTTPD_BIN=%s\n' "$LIGHTTPD_BIN"
+}
+
+require_or_provision_envoy() {
+    envoy_build_paths >/dev/null
+    if [ -x "$ENVOY_BIN" ]; then
+        if ci_runtime_binary_matches_version "$ENVOY_BIN" "$ENVOY_VERSION" --version; then
+            printf '%s\n' "$ENVOY_BIN"
+            return 0
+        fi
+        echo "FAIL: Envoy binary does not match pinned version $ENVOY_VERSION: $ENVOY_BIN" >&2
+        return 1
+    fi
+    ci_staged_runtime=$(ci_stage_matching_runtime_binary envoy "$ENVOY_VERSION" --version "$ENVOY_COMPONENT_ROOT/bin/envoy" 2>/dev/null || true)
+    if [ -n "$ci_staged_runtime" ]; then
+        ENVOY_BIN=$ci_staged_runtime
+        export ENVOY_BIN
+        printf '%s\n' "$ENVOY_BIN"
+        return 0
+    fi
+    if ALLOW_RUNTIME_DOWNLOADS=1 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        sh "$FRAMEWORK_ROOT/ci/prepare-envoy-runtime.sh" >&2 \
+        && ci_runtime_binary_matches_version "$ENVOY_BIN" "$ENVOY_VERSION" --version; then
+        printf '%s\n' "$ENVOY_BIN"
+        return 0
+    fi
+    echo "FAIL: Envoy provisioning did not produce $ENVOY_BIN" >&2
+    return 1
+}
+
+require_or_provision_traefik() {
+    traefik_build_paths >/dev/null
+    if [ -x "$TRAEFIK_BIN" ]; then
+        if ci_runtime_binary_matches_version "$TRAEFIK_BIN" "$TRAEFIK_VERSION" version; then
+            printf '%s\n' "$TRAEFIK_BIN"
+            return 0
+        fi
+        echo "FAIL: Traefik binary does not match pinned version $TRAEFIK_VERSION: $TRAEFIK_BIN" >&2
+        return 1
+    fi
+    ci_staged_runtime=$(ci_stage_matching_runtime_binary traefik "$TRAEFIK_VERSION" version "$TRAEFIK_COMPONENT_ROOT/bin/traefik" 2>/dev/null || true)
+    if [ -n "$ci_staged_runtime" ]; then
+        TRAEFIK_BIN=$ci_staged_runtime
+        export TRAEFIK_BIN
+        printf '%s\n' "$TRAEFIK_BIN"
+        return 0
+    fi
+    if ALLOW_RUNTIME_DOWNLOADS=1 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        sh "$FRAMEWORK_ROOT/ci/prepare-traefik-runtime.sh" >&2 \
+        && ci_runtime_binary_matches_version "$TRAEFIK_BIN" "$TRAEFIK_VERSION" version; then
+        printf '%s\n' "$TRAEFIK_BIN"
+        return 0
+    fi
+    echo "FAIL: Traefik provisioning did not produce $TRAEFIK_BIN" >&2
+    return 1
+}
+
+require_or_provision_lighttpd() {
+    lighttpd_build_paths >/dev/null
+    if [ -x "$LIGHTTPD_BIN" ]; then
+        if ! ci_runtime_binary_matches_version "$LIGHTTPD_BIN" "$LIGHTTPD_VERSION" -v; then
+            echo "FAIL: lighttpd binary does not match pinned version $LIGHTTPD_VERSION: $LIGHTTPD_BIN" >&2
+            return 1
+        fi
+    else
+        ci_staged_runtime=$(ci_stage_matching_runtime_binary lighttpd "$LIGHTTPD_VERSION" -v "$LIGHTTPD_COMPONENT_ROOT/bin/lighttpd" 2>/dev/null || true)
+        if [ -n "$ci_staged_runtime" ]; then
+            LIGHTTPD_BIN=$ci_staged_runtime
+            export LIGHTTPD_BIN
+        fi
+    fi
+    if [ -x "$LIGHTTPD_BIN" ] && [ -f "$LIGHTTPD_INCLUDE_DIR/plugin.h" ]; then
+        printf '%s\n' "$LIGHTTPD_BIN"
+        return 0
+    fi
+    if ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 \
+        LIGHTTPD_BIN= \
+        FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        sh "$FRAMEWORK_ROOT/ci/prepare-lighttpd-runtime.sh" >&2 \
+        && ci_runtime_binary_matches_version "$LIGHTTPD_BIN" "$LIGHTTPD_VERSION" -v \
+        && [ -f "$LIGHTTPD_INCLUDE_DIR/plugin.h" ]; then
+        printf '%s\n' "$LIGHTTPD_BIN"
+        return 0
+    fi
+    echo "FAIL: lighttpd provisioning did not produce binary and headers" >&2
+    return 1
 }
 
 require_command_or_blocked() {

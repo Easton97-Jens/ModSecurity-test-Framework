@@ -17,7 +17,7 @@ fi
 ci_validate_https_runtime_url_config || exit 77
 
 sha_status=$(runtime_component_sha_status "$LIGHTTPD_SHA256")
-LIGHTTPD_SOURCE_STAGE_DIR="${LIGHTTPD_SOURCE_STAGE_DIR:-$LIGHTTPD_COMPONENT_ROOT/src/lighttpd-$LIGHTTPD_VERSION}"
+LIGHTTPD_SOURCE_STAGE_DIR="${LIGHTTPD_SOURCE_STAGE_DIR:-${LIGHTTPD_SOURCE_DIR:-$LIGHTTPD_COMPONENT_ROOT/src/lighttpd-$LIGHTTPD_VERSION}}"
 LIGHTTPD_STAGED_BIN="$LIGHTTPD_COMPONENT_ROOT/bin/lighttpd"
 LIGHTTPD_BUILD_ROOT="${LIGHTTPD_BUILD_ROOT:-$LIGHTTPD_COMPONENT_ROOT/build/lighttpd-$LIGHTTPD_VERSION}"
 LIGHTTPD_BUILD_LOG_ROOT="${LIGHTTPD_BUILD_LOG_ROOT:-$LIGHTTPD_LOG_ROOT/prepare-runtime}"
@@ -66,12 +66,13 @@ Expected build output:
   $LIGHTTPD_STAGED_BIN
 or set LIGHTTPD_BIN to an executable local/common.sh-managed path."
 
-if [ -f "$LIGHTTPD_BIN" ] && [ -x "$LIGHTTPD_BIN" ]; then
+if [ -f "$LIGHTTPD_BIN" ] && [ -x "$LIGHTTPD_BIN" ] && [ -d "$LIGHTTPD_SOURCE_STAGE_DIR" ]; then
     print_binary_status "$LIGHTTPD_BIN"
     exit 0
 fi
 
-if [ "${LIGHTTPD_BIN_WAS_SET:-0}" = "1" ]; then
+if [ "${LIGHTTPD_BIN_WAS_SET:-0}" = "1" ] \
+    && { [ ! -f "$LIGHTTPD_BIN" ] || [ ! -x "$LIGHTTPD_BIN" ]; }; then
     ci_blocked "explicit LIGHTTPD_BIN is not executable: $LIGHTTPD_BIN"
     exit 77
 fi
@@ -101,6 +102,15 @@ if [ ! -d "$LIGHTTPD_SOURCE_STAGE_DIR" ]; then
     source_dir=$(extract_runtime_source_tar lighttpd "$archive" "$source_parent" "lighttpd-$LIGHTTPD_VERSION") || exit 77
 else
     source_dir="$LIGHTTPD_SOURCE_STAGE_DIR"
+fi
+
+# A matching binary may have been staged from an existing installation. Keep
+# provisioning the pinned source tree for external module headers, then reuse
+# the staged binary without rebuilding stock lighttpd.
+if [ -f "$LIGHTTPD_BIN" ] && [ -x "$LIGHTTPD_BIN" ]; then
+    print_binary_status "$LIGHTTPD_BIN"
+    printf 'lighttpd_source_dir=%s\n' "$source_dir"
+    exit 0
 fi
 
 if [ "${ALLOW_RUNTIME_BUILDS:-0}" != "1" ]; then
