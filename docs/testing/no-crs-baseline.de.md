@@ -58,7 +58,7 @@ python3 ci/no_crs_baseline.py finalize \
   --run-dir "$RUN_DIR" \
   --capabilities "$CONNECTOR_ROOT/connectors/envoy/capabilities.json" \
   --source-result "$RAW_RESULT" \
-  --source-events "$RAW_EVENTS" \
+  --source-events "$CANONICAL_EVENTS" \
   --stdout-log "$STDOUT_LOG" \
   --stderr-log "$STDERR_LOG" \
   --stage-rc "$HOST_RC" \
@@ -77,6 +77,13 @@ python3 ci/no_crs_baseline.py validate \
 `--source-log NAME=PATH`. Ein Exitcode null erzeugt keinen PASS. Ein 403-Deny
 wird nur mit der zusätzlich beobachteten Regel-ID `1100001` zu PASS; erwartete
 Event-Felder verlangen ein tatsächlich beobachtetes Event.
+`--source-events` akzeptiert ausschließlich normalisierte, flache kanonische
+Metadata-JSONL; host-spezifische rohe Event-Logs müssen zuerst einen
+connector-eigenen Normalizer durchlaufen. Zulässig sind Connector-,
+Transaction- und Regel-ID, Phase, Status, HTTP-Status, Truncation,
+Content-Type sowie geprüfte Body-Größen-/Hash-Metadaten. Unbekannte Felder,
+verschachtelte Werte, doppelte JSON-Schlüssel sowie Payload- oder
+Credential-Felder werden verworfen, bevor kanonische Evidence geschrieben wird.
 `minimal_runtime_smoke` darf nur PASS sein, wenn sein Regel-`1100001`-Event
 `connector`, `transaction_id`, `rule_id`, `phase` und `status` enthält, der
 Event-Stream keine Body-Nutzlast enthält und konkrete Host- sowie

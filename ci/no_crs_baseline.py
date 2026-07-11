@@ -34,6 +34,7 @@ from msconnector_models import STATUS_MODEL, operation_status  # noqa: E402
 
 CATALOG_PATH = FRAMEWORK_ROOT / "tests/cases/no-crs-baseline/catalog.json"
 RULES_PATH = FRAMEWORK_ROOT / "tests/rules/no-crs-baseline.conf"
+EVENT_SCHEMA_PATH = FRAMEWORK_ROOT / "tests/schemas/no-crs-baseline/event.schema.json"
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 EVIDENCE_STAGES = (
     "source_contract",
@@ -332,11 +333,21 @@ def secure_read_text(path: str | Path, *, errors: str = "strict") -> str:
         os.close(parent_descriptor)
 
 
+def reject_duplicate_json_keys(pairs: Sequence[tuple[str, Any]]) -> dict[str, Any]:
+    """Build an object while rejecting ambiguous duplicate JSON keys."""
+    payload: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in payload:
+            raise ValueError(f"duplicate JSON object key: {key!r}")
+        payload[key] = value
+    return payload
+
+
 def load_json(path: str | Path) -> Any:
     source = Path(path)
     try:
-        return json.loads(secure_read_text(source))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return json.loads(secure_read_text(source), object_pairs_hook=reject_duplicate_json_keys)
+    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
         raise ContractError(f"{source}: invalid JSON: {exc}") from exc
 
 
@@ -364,8 +375,8 @@ def read_jsonl(path: str | Path, *, required: bool = True) -> list[dict[str, Any
         if not line.strip():
             continue
         try:
-            record = json.loads(line)
-        except json.JSONDecodeError as exc:
+            record = json.loads(line, object_pairs_hook=reject_duplicate_json_keys)
+        except (ValueError, json.JSONDecodeError) as exc:
             raise ContractError(f"{source}:{line_number}: invalid JSON: {exc}") from exc
         if not isinstance(record, dict):
             raise ContractError(f"{source}:{line_number}: JSONL record must be an object")
@@ -1013,7 +1024,11 @@ def canonical_core_event_contract(
     events: Sequence[Mapping[str, Any]], connector: str,
 ) -> tuple[bool, bool]:
     """Return metadata and payload-absence evidence for the rule-1100001 event."""
-    payload_absent = bool(events) and not any(forbidden_payload_errors(event) for event in events)
+    payload_absent = bool(events) and not any(canonical_event_errors(event) for event in events)
+    if not payload_absent:
+        # A malformed or unreviewed event is not usable to establish either
+        # canonical metadata evidence or the payload-absence claim.
+        return False, False
     event = event_for_rule(events, 1100001)
     if event is None:
         return False, payload_absent
@@ -1223,7 +1238,7 @@ def append_derived_event_records(
     if not base or base.get("status") != "PASS" or not event:
         return
     fields = event_field_names(event)
-    payload_clean = not forbidden_payload_errors(event)
+    payload_clean = not canonical_event_errors(event)
     for case_id in (
         "event_contains_connector", "event_contains_transaction_id", "event_contains_rule_id",
         "event_contains_phase", "event_contains_status",
@@ -1459,10 +1474,13 @@ def finalize_run(args: argparse.Namespace) -> int:
     if args.source_events:
         events = read_jsonl(args.source_events)
         for index, event in enumerate(events):
-            errors = forbidden_payload_errors(event, f"events[{index}]")
+            errors = canonical_event_errors(event, f"events[{index}]")
             if errors:
                 raise ContractError("; ".join(errors))
-        copy_artifact(Path(args.source_events), run_dir / "events.jsonl")
+        # Serialize the reviewed parsed records rather than copying raw JSONL
+        # text, so duplicate keys and other parser ambiguities cannot enter
+        # the canonical artifact after validation.
+        write_jsonl(run_dir / "events.jsonl", events)
         manifest["artifacts"]["events"] = artifact_entry(
             "events.jsonl", "produced", sha256=sha256_file(run_dir / "events.jsonl")
         )
@@ -1822,6 +1840,8 @@ def json_schema_errors(
     if isinstance(value, str):
         if isinstance(schema.get("minLength"), int) and len(value) < schema["minLength"]:
             errors.append(f"{location}: string is shorter than minLength")
+        if isinstance(schema.get("maxLength"), int) and len(value) > schema["maxLength"]:
+            errors.append(f"{location}: string is longer than maxLength")
         if isinstance(schema.get("pattern"), str) and re.fullmatch(schema["pattern"], value) is None:
             errors.append(f"{location}: string does not match {schema['pattern']!r}")
     if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -1872,6 +1892,53 @@ def json_schema_errors(
     return errors
 
 
+def canonical_event_errors(event: object, location: str = "event") -> list[str]:
+    """Validate the deliberately small metadata-only canonical event contract.
+
+    Host event logs are connector-local inputs.  They must be normalized by a
+    host adapter before reaching this writer, so a canonical event never
+    accepts arbitrary fields or nested values merely because they do not match
+    a known sensitive-field blacklist.
+    """
+    schema = load_json(EVENT_SCHEMA_PATH)
+    if not isinstance(schema, Mapping):
+        return [f"{location}: checked-in event schema must contain an object"]
+    errors = json_schema_errors(event, schema, root_schema=schema, location=location)
+    errors.extend(forbidden_payload_errors(event, location))
+    return errors
+
+
+def result_evidence_stage_errors(value: object, location: str = "result.json.evidence_stages") -> list[str]:
+    """Validate the complete shared evidence-stage vocabulary in a result."""
+    errors: list[str] = []
+    if not isinstance(value, Mapping):
+        return [f"{location}: must be an object"]
+    keys = {str(key) for key in value}
+    missing = sorted(set(EVIDENCE_STAGES) - keys)
+    unknown = sorted(keys - set(EVIDENCE_STAGES))
+    if missing:
+        errors.append(f"{location}: missing stages: {', '.join(missing)}")
+    if unknown:
+        errors.append(f"{location}: unknown stages: {', '.join(unknown)}")
+    for stage in EVIDENCE_STAGES:
+        entry = value.get(stage)
+        if not isinstance(entry, Mapping):
+            errors.append(f"{location}.{stage}: must be an object")
+            continue
+        status = str(entry.get("status") or "")
+        if status not in EVIDENCE_STAGE_STATUSES:
+            errors.append(f"{location}.{stage}: invalid status {status!r}")
+        if not str(entry.get("reason") or "").strip():
+            errors.append(f"{location}.{stage}: missing non-empty reason")
+        evidence = entry.get("evidence")
+        if evidence is not None and (
+            not isinstance(evidence, list)
+            or any(not isinstance(item, str) or not item for item in evidence)
+        ):
+            errors.append(f"{location}.{stage}: evidence must be a list of non-empty strings")
+    return errors
+
+
 def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     result = load_json(run_dir / "result.json")
@@ -1884,8 +1951,9 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
     manifest_schema = load_json(schema_root / "manifest.schema.json")
     inventory_schema = load_json(schema_root / "inventory.schema.json")
     case_result_schema = load_json(schema_root / "case-result.schema.json")
+    event_schema = load_json(schema_root / "event.schema.json")
     if not all(isinstance(item, Mapping) for item in (
-        result_schema, manifest_schema, inventory_schema, case_result_schema,
+        result_schema, manifest_schema, inventory_schema, case_result_schema, event_schema,
     )):
         return ["checked-in JSON schemas must contain objects"]
     errors.extend(f"result.json schema: {error}" for error in json_schema_errors(result, result_schema))
@@ -1907,6 +1975,7 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         "cases_total", "cases_passed",
         "cases_failed", "cases_blocked", "capabilities_verified", "capabilities_unsupported",
         "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed",
+        "evidence_stages",
     ), "result.json"))
     errors.extend(required_keys(manifest, (
         "schema_version", "connector", "run_id", "evidence_stage", "ruleset", "status",
@@ -1935,6 +2004,7 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         errors.append("status is outside the canonical status vocabulary")
     if result.get("evidence_stage") not in WRITABLE_EVIDENCE_STAGES:
         errors.append("result evidence_stage is not writable by the canonical runner")
+    errors.extend(result_evidence_stage_errors(result.get("evidence_stages")))
     if not (
         result.get("evidence_stage")
         == manifest.get("evidence_stage")
@@ -1974,6 +2044,8 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         if case_id in seen:
             errors.append(f"{label}: duplicate case_id {case_id}")
         seen.add(case_id)
+    for index, event in enumerate(read_jsonl(run_dir / "events.jsonl", required=False)):
+        errors.extend(canonical_event_errors(event, f"events.jsonl[{index}]"))
     errors.extend(validate_capability_manifest(capabilities, connector))
     return errors
 
@@ -2163,7 +2235,10 @@ def body_payload_errors(run_dir: Path) -> list[str]:
             if path.name == "events.jsonl":
                 events = records
             for index, record in enumerate(records):
-                errors.extend(forbidden_payload_errors(record, f"{path.name}[{index}]"))
+                if path.name == "events.jsonl":
+                    errors.extend(canonical_event_errors(record, f"{path.name}[{index}]"))
+                else:
+                    errors.extend(forbidden_payload_errors(record, f"{path.name}[{index}]"))
         else:
             payload = load_json(path)
             errors.extend(forbidden_payload_errors(payload, path.name))
@@ -2176,7 +2251,7 @@ def body_payload_errors(run_dir: Path) -> list[str]:
             errors.append(f"{path}: sensitive HTTP header is present")
     result = load_json(run_dir / "result.json")
     if isinstance(result, Mapping):
-        expected_absence = bool(events) and not any(forbidden_payload_errors(event) for event in events)
+        expected_absence = bool(events) and not any(canonical_event_errors(event) for event in events)
         if result.get("body_payload_absent_from_events") is not expected_absence:
             errors.append("body_payload_absent_from_events is inconsistent with events.jsonl")
     return errors

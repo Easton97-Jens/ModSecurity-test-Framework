@@ -55,7 +55,7 @@ python3 ci/no_crs_baseline.py finalize \
   --run-dir "$RUN_DIR" \
   --capabilities "$CONNECTOR_ROOT/connectors/envoy/capabilities.json" \
   --source-result "$RAW_RESULT" \
-  --source-events "$RAW_EVENTS" \
+  --source-events "$CANONICAL_EVENTS" \
   --stdout-log "$STDOUT_LOG" \
   --stderr-log "$STDERR_LOG" \
   --stage-rc "$HOST_RC" \
@@ -73,6 +73,12 @@ python3 ci/no_crs_baseline.py validate \
 `--source-result`, and `--source-log NAME=PATH` arguments. It does not derive a
 PASS from exit code zero. A 403 denial becomes PASS only when the source also
 identifies rule `1100001`; expected event fields require an observed event.
+`--source-events` accepts only normalized, flat canonical metadata JSONL;
+host-specific raw event logs must first pass through a connector-owned
+normalizer. The accepted fields are the connector, transaction and rule IDs,
+phase, status, HTTP status, truncation, content type, and reviewed body
+size/hash metadata. Unknown fields, nested values, duplicate JSON keys, and
+payload or credential fields are rejected before canonical evidence is written.
 `minimal_runtime_smoke` can be PASS only when its rule-`1100001` event contains
 `connector`, `transaction_id`, `rule_id`, `phase`, and `status`, no body payload
 is present in the event stream, and concrete host and libModSecurity versions

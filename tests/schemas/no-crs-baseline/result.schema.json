@@ -4,7 +4,7 @@
   "title": "Canonical No-CRS connector result",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schema_version", "status_model", "connector", "run_id", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "evidence_stage", "ruleset", "status", "started", "requests_sent", "source_statuses", "source_failure", "allowed_request_status", "blocked_request_status", "observed_rule_ids", "transaction_ids", "request_headers_verified", "request_body_verified", "response_headers_verified", "response_body_verified", "late_intervention_verified", "event_metadata_verified", "body_payload_absent_from_events", "pass_gate_failures", "cases_total", "cases_passed", "cases_failed", "cases_blocked", "cases_unsupported", "cases_not_applicable", "cases_not_executed", "status_counts", "capabilities_verified", "capabilities_unsupported", "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed"],
+  "required": ["schema_version", "status_model", "connector", "run_id", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "evidence_stage", "evidence_stages", "ruleset", "status", "started", "requests_sent", "source_statuses", "source_failure", "allowed_request_status", "blocked_request_status", "observed_rule_ids", "transaction_ids", "request_headers_verified", "request_body_verified", "response_headers_verified", "response_body_verified", "late_intervention_verified", "event_metadata_verified", "body_payload_absent_from_events", "pass_gate_failures", "cases_total", "cases_passed", "cases_failed", "cases_blocked", "cases_unsupported", "cases_not_applicable", "cases_not_executed", "status_counts", "capabilities_verified", "capabilities_unsupported", "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed"],
   "properties": {
     "schema_version": {"const": 1},
     "status_model": {"const": "msconnector_status"},
@@ -22,6 +22,22 @@
     "integration_mode": {"type": "string", "minLength": 1},
     "libmodsecurity_version": {"type": "string", "minLength": 1},
     "evidence_stage": {"enum": ["minimal_runtime_smoke", "no_crs_baseline"]},
+    "evidence_stages": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_contract", "compile", "link", "config_load", "start_smoke", "minimal_runtime_smoke", "no_crs_baseline", "crs_smoke", "extended_matrix"],
+      "properties": {
+        "source_contract": {"$ref": "#/$defs/evidence_stage"},
+        "compile": {"$ref": "#/$defs/evidence_stage"},
+        "link": {"$ref": "#/$defs/evidence_stage"},
+        "config_load": {"$ref": "#/$defs/evidence_stage"},
+        "start_smoke": {"$ref": "#/$defs/evidence_stage"},
+        "minimal_runtime_smoke": {"$ref": "#/$defs/evidence_stage"},
+        "no_crs_baseline": {"$ref": "#/$defs/evidence_stage"},
+        "crs_smoke": {"$ref": "#/$defs/evidence_stage"},
+        "extended_matrix": {"$ref": "#/$defs/evidence_stage"}
+      }
+    },
     "ruleset": {"const": "no-crs-baseline"},
     "status": {"enum": ["PASS", "FAIL", "BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"]},
     "started": {"type": "boolean"},
@@ -66,5 +82,17 @@
     "capability_states": {"type": "object"},
     "artifacts": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
     "claims_not_allowed": {"type": "array", "items": {"type": "string"}, "minItems": 1}
+  },
+  "$defs": {
+    "evidence_stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reason"],
+      "properties": {
+        "status": {"enum": ["supported_and_verified", "supported_not_verified", "implemented_not_asserted", "unsupported_by_host_model", "not_implemented", "blocked_before_execution", "failed", "not_executed", "not_applicable"]},
+        "reason": {"type": "string", "minLength": 1},
+        "evidence": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+      }
+    }
   }
 }

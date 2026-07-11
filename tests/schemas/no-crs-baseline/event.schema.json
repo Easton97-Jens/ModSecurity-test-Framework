@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modsecurity-connector.invalid/schemas/no-crs-event-v1.json",
+  "title": "Canonical No-CRS event metadata",
+  "description": "Flat, metadata-only event records accepted by the canonical evidence writer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connector"
+  ],
+  "properties": {
+    "connector": {
+      "enum": [
+        "apache",
+        "nginx",
+        "haproxy",
+        "envoy",
+        "traefik",
+        "lighttpd"
+      ]
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "rule_id": {
+      "type": [
+        "integer",
+        "string"
+      ],
+      "pattern": "[0-9]{1,10}"
+    },
+    "phase": {
+      "type": [
+        "integer",
+        "string"
+      ],
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9_-]{1,64}"
+    },
+    "status": {
+      "type": [
+        "integer",
+        "string"
+      ],
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9_-]{1,64}"
+    },
+    "http_status": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "content_type": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "body_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "body_bytes_seen": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "body_bytes_inspected": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "body_hash": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "[A-Za-z0-9:._-]+"
+    },
+    "body_length": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "body_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "request_body_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "response_body_size": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

@@ -144,6 +144,13 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "validate", "--evidence-root", str(run_dir), "--connector", "envoy",
                 "--capabilities", str(capability_path), "--check", "schema",
             ]))
+            tampered = json.loads(json.dumps(result))
+            tampered.pop("evidence_stages")
+            no_crs.write_json(run_dir / "result.json", tampered)
+            schema_errors = no_crs.schema_errors(
+                run_dir, "envoy", no_crs.load_capability_manifest(capability_path, "envoy")
+            )
+            self.assertTrue(any("missing required property evidence_stages" in error for error in schema_errors))
             no_crs.write_json(run_dir / "result.json", result)
             manifest_payload = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
             original_manifest = dict(manifest_payload)
@@ -276,6 +283,77 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "--source-events", str(events), "--stage-rc", "0",
             ]))
             self.assertFalse((run_dir / "events.jsonl").exists())
+
+    def test_finalize_rejects_unreviewed_or_nested_event_metadata(self) -> None:
+        base_event = {
+            "connector": "envoy", "transaction_id": "tx-event-contract",
+            "rule_id": 1100001, "phase": "request_headers", "status": "blocked",
+        }
+        self.assertEqual([], no_crs.canonical_event_errors(base_event))
+        for suffix, extra in (
+            ("unknown", {"data": "arbitrary unreviewed payload"}),
+            ("nested", {"metadata": {"snippet": "arbitrary unreviewed payload"}}),
+            ("container", {"status": {"value": "blocked"}}),
+        ):
+            with self.subTest(suffix=suffix), tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
+                root = Path(temporary)
+                capability_path = root / "capabilities.json"
+                capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
+                run_dir = root / f"evidence/envoy/{suffix}"
+                self.assertEqual(0, no_crs.main([
+                    "init", "--connector", "envoy", "--capabilities", str(capability_path),
+                    "--run-dir", str(run_dir), "--run-id", suffix,
+                ]))
+                events = root / "events.jsonl"
+                events.write_text(json.dumps({**base_event, **extra}) + "\n", encoding="utf-8")
+                self.assertTrue(no_crs.canonical_event_errors({**base_event, **extra}))
+                self.assertEqual(1, no_crs.main([
+                    "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
+                    "--source-events", str(events), "--stage-rc", "0",
+                ]))
+                self.assertFalse((run_dir / "events.jsonl").exists())
+
+    def test_event_schema_detects_post_finalize_tampering(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
+            root = Path(temporary)
+            capability_path = root / "capabilities.json"
+            capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
+            run_dir = root / "evidence/envoy/tampered-event"
+            source = root / "source.json"
+            source.write_text(json.dumps({
+                "connector": "envoy", "status": "PASS", "started": True,
+                "requests_sent": True, "allowed_request_status": 200,
+                "blocked_request_status": 403, "observed_rule_ids": [1100001],
+            }), encoding="utf-8")
+            events = root / "events.jsonl"
+            events.write_text(json.dumps({
+                "connector": "envoy", "transaction_id": "tx-tampered", "rule_id": 1100001,
+                "phase": 1, "status": 403,
+            }) + "\n", encoding="utf-8")
+            self.assertEqual(0, no_crs.main([
+                "init", "--connector", "envoy", "--capabilities", str(capability_path),
+                "--evidence-stage", "minimal_runtime_smoke", "--run-dir", str(run_dir),
+                "--run-id", "tampered-event", "--host-version", "1.0",
+                "--libmodsecurity-version", "3.0.15",
+            ]))
+            self.assertEqual(0, no_crs.main([
+                "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
+                "--source-result", str(source), "--source-events", str(events),
+                "--stage-rc", "0", "--host-version", "1.0",
+                "--libmodsecurity-version", "3.0.15",
+            ]))
+            (run_dir / "events.jsonl").write_text(json.dumps({
+                "connector": "envoy", "transaction_id": "tx-tampered", "rule_id": 1100001,
+                "phase": 1, "status": 403, "metadata": {"payload": "unreviewed"},
+            }) + "\n", encoding="utf-8")
+            capabilities = no_crs.load_capability_manifest(capability_path, "envoy")
+            self.assertTrue(any("unexpected property metadata" in error for error in no_crs.schema_errors(
+                run_dir, "envoy", capabilities,
+            )))
+            self.assertTrue(any("unexpected property metadata" in error for error in no_crs.body_payload_errors(run_dir)))
+            self.assertEqual((False, False), no_crs.canonical_core_event_contract(
+                no_crs.read_jsonl(run_dir / "events.jsonl"), "envoy",
+            ))
 
     def test_http_403_without_observed_rule_id_is_not_deny_pass(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
