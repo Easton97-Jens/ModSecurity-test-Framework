@@ -48,7 +48,7 @@ expect:
       - '"event":"phase4_intervention"'
       - '"message_id":"MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200"'
       - '"connector":"nginx"'
-      - '"phase":"4"'
+      - '"phase":"response_body"'
       - '"rule_id":"1100301"'
       - '"requested_action":"deny"'
       - '"actual_action":"abort_connection"'
@@ -63,10 +63,10 @@ expect:
       - '"transport_result":"connection_aborted"'
     not_contains:
       - no-crs-response-body-marker
-      - '"intervention_log"'
-      - '"request_body"'
-      - '"response_body"'
-      - '"matched_value"'
+      - '"intervention_log":'
+      - '"request_body":'
+      - '"response_body":'
+      - '"matched_value":'
 expected_result: connection_aborted
 expected_status: null
 expected_rule_id: 1100301

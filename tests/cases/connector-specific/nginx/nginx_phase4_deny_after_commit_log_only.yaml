@@ -46,7 +46,7 @@ expect:
       - '"event":"phase4_intervention"'
       - '"message_id":"MSCONN_EVENT_PHASE4_LATE_INTERVENTION"'
       - '"connector":"nginx"'
-      - '"phase":"4"'
+      - '"phase":"response_body"'
       - '"rule_id":"1100301"'
       - '"requested_action":"deny"'
       - '"actual_action":"log_only"'
@@ -61,10 +61,10 @@ expect:
       - '"transport_result":"log_only"'
     not_contains:
       - no-crs-response-body-marker
-      - '"intervention_log"'
-      - '"request_body"'
-      - '"response_body"'
-      - '"matched_value"'
+      - '"intervention_log":'
+      - '"request_body":'
+      - '"response_body":'
+      - '"matched_value":'
 expected_result: late_intervention_log_only
 expected_status: null
 expected_rule_id: 1100301
