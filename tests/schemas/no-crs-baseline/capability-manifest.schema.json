@@ -14,7 +14,7 @@
     "capabilities": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["connection_metadata", "request_headers", "request_body_buffered", "request_body_streaming", "response_headers", "response_body_buffered", "response_body_streaming", "phase1", "phase2", "phase3", "phase4", "phase4_rule_evaluation", "phase4_pre_commit_deny", "late_intervention", "late_intervention_log_only", "late_intervention_abort", "late_intervention_status_metadata", "deny", "redirect", "drop", "abort_connection", "log_only", "transaction_id", "event_jsonl", "config_inline_rules", "config_rules_file", "config_remote_rules"],
+      "required": ["connection_metadata", "transport_metadata", "request_headers", "request_body_buffered", "request_body_streaming", "request_body_incremental_ingest", "response_headers", "response_body_buffered", "response_body_streaming", "response_body_incremental_ingest", "phase1", "phase2", "phase3", "phase4", "phase4_rule_evaluation", "phase4_end_of_stream_evaluation", "phase4_pre_commit_deny", "late_intervention", "late_intervention_log_only", "late_intervention_abort", "late_intervention_status_metadata", "content_type_scope", "header_limits", "request_body_limits", "response_body_limits", "no_full_response_buffering", "first_byte_before_response_end", "http1_content_length", "http1_chunked", "keep_alive", "parallel_requests", "http2", "client_abort", "upstream_abort", "response_body_decompression", "deny", "redirect", "drop", "abort_connection", "log_only", "transaction_id", "event_jsonl", "config_inline_rules", "config_rules_file", "config_remote_rules"],
       "patternProperties": {
         "^[a-z][a-z0-9_]+$": {"$ref": "#/$defs/capability"}
       }

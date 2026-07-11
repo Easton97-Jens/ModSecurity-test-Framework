@@ -1,0 +1,27 @@
+name: phase3_redirect_before_commit_fixture
+title: Declarative phase-3 redirect before headers are committed
+category: no-crs-full-lifecycle
+portable: true
+status: future
+no_crs_baseline: true
+phase: 3
+capabilities:
+  response_headers: true
+  phase3: true
+  redirect: true
+rules: |
+  SecRuleEngine On
+request:
+  method: GET
+  path: /no-crs/full-lifecycle/response-header-redirect
+response:
+  headers:
+    X-Modsec-Upstream: redirect
+  body: phase3 upstream body
+expect:
+  status: 302
+  intervention: redirect
+full_lifecycle:
+  response_committed_before_intervention: false
+  redirect_location: https://no-crs.invalid/phase3-redirect
+  evidence_status: not_executed_until_real_host

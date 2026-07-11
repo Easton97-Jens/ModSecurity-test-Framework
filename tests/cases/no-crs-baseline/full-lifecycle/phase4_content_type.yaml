@@ -1,0 +1,31 @@
+name: phase4_content_type_fixture
+title: Declarative phase-4 content-type scope variants
+category: no-crs-full-lifecycle
+portable: true
+status: future
+no_crs_baseline: true
+phase: 4
+capabilities:
+  response_body: true
+  phase4: true
+rules: |
+  SecRuleEngine On
+request:
+  method: GET
+  path: /no-crs/full-lifecycle/content-type
+response:
+  body: no-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 200
+  intervention: none
+full_lifecycle:
+  scope_file: ../../fixtures/no-crs-baseline/in-scope-content-types.txt
+  variants:
+    in_scope: text/plain
+    charset: text/plain; charset=utf-8
+    out_of_scope: image/png
+    missing: null
+  evidence_status: not_executed_until_real_host
+known_limitations:
+  - A connector may report an in-scope marker only after end-of-stream evaluation; content-type scope is not a response-body blocking promotion by itself.

@@ -37,6 +37,93 @@ Die kanonischen Fallstatus sind `PASS`, `FAIL`, `BLOCKED`, `UNSUPPORTED`,
 Fälle erhöhen niemals die PASS-Anzahl. Exit 77 gilt ausschließlich für einen
 Prerequisite-Blocker vor Beginn der Host-Ausführung.
 
+## Full-Lifecycle-No-CRS-Vertrag
+
+Der gleiche Katalog enthält nun eine Full-Lifecycle-Grundlage für Phase 1 bis
+4. Er ergänzt 45 capability-gesteuerte Katalogeinträge (insgesamt 104), ohne
+einen zweiten Runner oder ein zweites Evidence-Modell einzuführen. Die
+deklarativen Fixtures liegen unter
+`tests/cases/no-crs-baseline/full-lifecycle/`; Dateien für den
+Content-Type-Scope liegen unter `tests/fixtures/no-crs-baseline/`.
+
+Diese Fixtures verwenden bewusst `status: future` und
+`not_executed_until_real_host`. Sie sind Inventar beziehungsweise Verträge für
+einen connector-eigenen Host-Driver, keine synthetische Runtime-Evidence und
+keine direkten `runner_case`-Zuordnungen. Jeder Katalogeintrag verlangt zudem
+einen echten Host und verbietet synthetische PASS-Evidence.
+
+Der Katalog deckt ab:
+
+- Phase 1 Allow, Deny, alternativen Status, Redirect und Transaction-ID;
+- Phase 2 Request-Body-Regel, einen über zwei Chunks geteilten Marker,
+  exakt-am-Limit/über-Limit- und ProcessPartial-Metadaten sowie payloadfreie
+  Events;
+- Phase 3 Response-Header-Deny/Redirect vor dem Commit sowie Metadaten für
+  originalen und sichtbaren Status;
+- Phase 4 inkrementelle Ingestion, explizite End-of-Stream-Auswertung,
+  Pre-Commit-Deny soweit vom Host unterstützt sowie getrennte
+  Late-Intervention-Ergebnisse für `minimal`, `safe` und `strict`;
+- Content-Type-Fälle innerhalb und außerhalb des Scope, mit Charset, ohne
+  Content-Type sowie ungültige und Wildcard-Scope-Dateien;
+- einen synchronisierten First-Byte-Nachweis: Der Upstream pausiert nach dem
+  ersten Chunk, der Client muss diesen vor der Freigabe erhalten, erst dann
+  folgt der spätere Marker;
+- HTTP/1.1 Content-Length und Chunked, Keep-Alive, sequenzielle und parallele
+  Requests, HTTP/2 sofern verfügbar sowie Client-/Upstream-Abbrüche;
+- Request-/Response-Body-Limits und begrenzte, payloadfreie Event-Metadaten.
+
+`response_body_incremental_ingest` bedeutet, dass Chunks die Engine ohne
+connector-eigene Full-Response-Pufferung erreichen. Es bedeutet nicht
+per-Chunk-Regelauswertung: `phase4_end_of_stream_evaluation` beschreibt
+ausdrücklich das zulässige End-of-Stream-Auswertungsmodell.
+`no_full_response_buffering` und `first_byte_before_response_end` können nur
+mit einem kanonischen Event PASS werden, das beweist, dass der erste Client-Byte
+ankam, während der Upstream noch nicht beendet war; ein Timeout oder eine
+behauptete Dauer allein reicht nicht.
+
+Das kanonische Metadatenvokabular bleibt absichtlich flach und payloadfrei. Es
+ergänzt Late-Intervention-Modus, Content-Type-Scope, Limit-Ergebnis,
+Chunk-/End-of-Stream-Flags, First-Byte-/Barrier-Status,
+Protokoll/Transfer-Encoding, Connection-Reuse sowie Client-/Upstream-Abbruch.
+Response- oder Request-Text, Match-Werte oder Intervention-Log-Inhalte werden
+niemals akzeptiert.
+
+Zur Kompatibilität mit dem begrenzten Common-JSON-Writer akzeptiert das
+Event-Schema auch dessen feste Metadatenfelder: Zeitstempel/Level, Message- und
+Entscheidungsmetadaten, HTTP-Reason-Text, Methode/URI/Client-IP,
+`response_started`, `body_truncated`, `redacted` sowie Sequence-/Hash-Zähler.
+Diese Felder bleiben in `events.jsonl`; Case-Result- und Result-Projektionen
+übernehmen nur den geprüften Entscheidungs- und Lifecycle-Zustand. Ein
+Connector-Normalizer muss potenziell sensible Freitexte oder
+anfrageidentifizierende Werte vor dem Schreiben eines Events redigieren; die
+Sperren für Payloads, Match-Werte, Secrets und verschachtelte Werte gelten
+weiterhin.
+Beim Einlesen werden Common-Lifecycle-Labels auf die Framework-Regelphasen
+normalisiert: `connection` → 0, `uri`/`request_headers` → 1,
+`request_body` → 2, `response_headers` → 3, `response_body` → 4 und
+`logging` → 5. Unbekannte Phasenwerte werden verworfen, statt stillschweigend
+als Evidence zu gelten.
+
+### Opt-in-Artefaktprofil für den Full-Lifecycle-Lauf
+
+Das Standardprofil `generic` erhält das oben beschriebene Legacy-Layout:
+`events.jsonl` und die drei Host-Logs bleiben optional. Ein connector-eigener
+Driver, der die Full-Lifecycle-Fälle des Katalogs tatsächlich ausführt, muss
+für `select` und `init` `--artifact-profile full_lifecycle` setzen (oder für
+die Make-Targets `NO_CRS_ARTIFACT_PROFILE=full_lifecycle`). Das Profil ist nur
+für die Stufe `no_crs_baseline` gültig und wird in Plan, Inventar, Manifest und
+Ergebnis festgehalten.
+
+Für dieses Profil verlangt `finalize` host-erzeugte Eingaben für
+`--source-events`, `--stdout-log`, `--stderr-log` und `--host-log`. Danach
+verlangt es die folgenden produzierten Artefakte: `manifest.json`,
+`result.json`, `results.jsonl`, `events.jsonl`, `inventory/run.json`,
+`logs/stdout.log`, `logs/stderr.log` und `logs/host.log`. Leere reguläre
+Dateien sind bei einem nicht eindeutigen oder fehlgeschlagenen Host-Lauf
+zulässige Evidence, fehlende Eingaben werden jedoch verworfen statt erzeugt.
+Das Profil stellt vollständige Nachvollziehbarkeit her; es macht weder ein
+Future-Fixture zu ausgeführter Evidence noch erteilt es selbstständig PASS.
+
 ## Writer- und Validator-Ablauf
 
 ```sh

@@ -1,11 +1,22 @@
-Generated file - do not edit manually.
+> Generated file - do not edit manually.
+>
+> Generated at: `2026-07-11T12:43:31Z`
+> Verified run id: `3e7a08507b7f`
+> Data source policy: `verified-inputs-only`
+> Generator: `framework:ci/generate-case-matrix.py`
+> Make target: `generate-test-matrix`
+> Owner: `runtime`
+> Severity: `informational`
+> Connector SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
+> Framework SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
+> Input status: `missing`
 
 # Generated Former XFAIL Migration Summary
 
 **Language:** English | [Deutsch](xfail-summary.generated.de.md)
 
 - Current XFAIL YAML cases: **0**
-- Former XFAIL YAML cases tracked: **80**
+- Former XFAIL YAML cases tracked: **95**
 - Former XFAIL import manifest entries: **0**
 
 No current XFAIL cases remain.
@@ -38,8 +49,8 @@ No current XFAIL cases remain.
 | multipart_encoded_filename_runtime_difference | `tests/cases/body/multipart/multipart_encoded_filename_runtime_difference.yaml` | imported | 2026-06-07 | 2 | MULTIPART_FILENAME | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | multipart_invalid_boundary_future_target | `tests/cases/body/multipart/multipart_invalid_boundary_future_target.yaml` | imported | 2026-06-07 | 2 | REQUEST_BODY | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | xml_deep_nesting_future_target | `tests/cases/body/xml/xml_deep_nesting_future_target.yaml` | imported | 2026-06-07 | 2 | XML | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
-| xml_namespace_edge_connector_gap | `tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | imported | 2026-06-07 | 2 | XML | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
-| xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | imported | 2026-06-07 | 2 | XML | connector-gap coverage candidate; pending runtime verification and not counted as verified PASS. |
+| xml_namespace_edge_connector_gap | `tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | imported | 2026-06-07 | 1,2 | REQUEST_HEADERS:Content-Type, XML:/* | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
+| xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | imported | 2026-06-07 | 1,2 | REQUEST_HEADERS:Content-Type, XML | connector-gap coverage candidate; pending runtime verification and not counted as verified PASS. |
 | nginx_phase4_strict_connection_abort | `tests/cases/connector-specific/nginx/nginx_phase4_strict_connection_abort.yaml` | imported | 2026-06-07 | 4 | RESPONSE_BODY | Strict mode may abort the connection after headers are sent; current smoke schema asserts stable HTTP status and keeps this as NGINX-only former expected-failure evidence. |
 | v3_args_names_duplicate_query_connector_gap | `tests/cases/future-gap/v3_args_names_duplicate_query_connector_gap.yaml` | imported | 2026-06-07 | 2 | ARGS_NAMES | connector-gap coverage candidate; pending runtime verification and not counted as verified PASS. |
 | edge_missing_header_pass_through | `tests/cases/negative-pass-through/edge_missing_header_pass_through.yaml` | imported | 2026-06-07 | 1 | REQUEST_HEADERS:X-Missing | operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS. |
@@ -51,7 +62,7 @@ No current XFAIL cases remain.
 | phase2_header_only_pass_through | `tests/cases/negative-pass-through/phase2_header_only_pass_through.yaml` | imported | 2026-06-07 | 2 | REQUEST_HEADERS:X-Phase | operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | tfn_lowercase_pass_no_match_phase2 | `tests/cases/negative-pass-through/tfn_lowercase_pass_no_match_phase2.yaml` | imported | 2026-06-07 | 2 | ARGS:q | operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | tfn_trim_pass_no_match_phase2 | `tests/cases/negative-pass-through/tfn_trim_pass_no_match_phase2.yaml` | imported | 2026-06-07 | 2 | ARGS:q | operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS. |
-| phase1_vs_phase2_request_body_gap | `tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml` | imported | 2026-06-07 | 1 | REQUEST_BODY | operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS. |
+| phase1_vs_phase2_request_body_gap | `tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml` | imported | 2026-06-07 | 1,2 | REQUEST_BODY | operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | edge_semicolon_query_args_names | `tests/cases/phases/phase2/edge_semicolon_query_args_names.yaml` | imported | 2026-06-07 | 2 | ARGS_NAMES | operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | v3_request_cookies_names_case_runtime_difference | `tests/cases/request/cookies/v3_request_cookies_names_case_runtime_difference.yaml` | imported | 2026-06-07 | 1 | REQUEST_COOKIES_NAMES | runtime-difference coverage candidate; pending runtime verification and not counted as verified PASS. |
 | v3_request_headers_names_duplicate_connector_gap | `tests/cases/request/headers/v3_request_headers_names_duplicate_connector_gap.yaml` | imported | 2026-06-07 | 1 | REQUEST_HEADERS_NAMES | connector-gap coverage candidate; pending runtime verification and not counted as verified PASS. |
@@ -89,7 +100,36 @@ No current XFAIL cases remain.
 | sqli_like_quote_encoding_runtime_difference | `tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml` | imported | 2026-06-07 | 2 | ARGS:q | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | xss_like_encoded_angles_normalization_probe | `tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml` | imported | 2026-06-07 | 2 | ARGS:q | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | xss_like_mixed_case_script_token_gap | `tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml` | imported | 2026-06-07 | 2 | ARGS:q | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
+| request_body_limit_exceeded | `tests/cases/security-data-flow/body-limits/request_body_limit_exceeded.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| response_body_truncation_event | `tests/cases/security-data-flow/body-limits/response_body_truncation_event.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| decision_jsonl_no_body_payload | `tests/cases/security-data-flow/events/decision_jsonl_no_body_payload.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| event_jsonl_no_body_payload | `tests/cases/security-data-flow/events/event_jsonl_no_body_payload.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| integrity_event_hash_chain_tamper_detected | `tests/cases/security-data-flow/events/integrity_event_hash_chain_tamper_detected.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| integrity_event_hash_chain_valid | `tests/cases/security-data-flow/events/integrity_event_hash_chain_valid.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| conflicting_content_length_rejected | `tests/cases/security-data-flow/headers/conflicting_content_length_rejected.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| header_count_limit_exceeded | `tests/cases/security-data-flow/headers/header_count_limit_exceeded.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| header_value_limit_exceeded | `tests/cases/security-data-flow/headers/header_value_limit_exceeded.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| log_control_chars_sanitized | `tests/cases/security-data-flow/log-safety/log_control_chars_sanitized.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| log_secret_like_payload_redacted | `tests/cases/security-data-flow/log-safety/log_secret_like_payload_redacted.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| duplicate_mutating_phase_rejected | `tests/cases/security-data-flow/phase-order/duplicate_mutating_phase_rejected.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| phase_skip_rejected | `tests/cases/security-data-flow/phase-order/phase_skip_rejected.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| transaction_id_control_char_rejected | `tests/cases/security-data-flow/transaction-id/transaction_id_control_char_rejected.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
+| transaction_id_too_long_rejected | `tests/cases/security-data-flow/transaction-id/transaction_id_too_long_rejected.yaml` | connector-gap | - | - | - | framework case only; runtime_verified=false and not counted as verified PASS. |
 | tfn_compress_whitespace_runtime_gap | `tests/cases/transformations/tfn_compress_whitespace_runtime_gap.yaml` | imported | 2026-06-07 | 2 | ARGS:q | operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | tfn_none_exact_block_phase2 | `tests/cases/transformations/tfn_none_exact_block_phase2.yaml` | imported | 2026-06-07 | 2 | ARGS:q | operator/transformation/phase/edge/parser compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | unicode_whitespace_normalization_gap | `tests/cases/transformations/unicode_whitespace_normalization_gap.yaml` | imported | 2026-06-07 | 2 | ARGS:q | multipart/files/unicode/json/xml/xss-like/sqli-like compatibility candidate; runtime_verified=false and not counted as verified PASS. |
 | v2_transformation_trim_tab_future_compatibility | `tests/cases/transformations/v2_transformation_trim_tab_future_compatibility.yaml` | imported | 2026-06-07 | 2 | ARGS:q | future-compatibility coverage candidate; pending runtime verification and not counted as verified PASS. |
+
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `config/testing/import-status.json` | `missing` | `unknown` | missing |
+| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `3e7a08507b7f` | present |
+
+## Data Availability / Missing Information
+
+| Input | Status | Notes |
+|---|---|---|
+| `config/testing/import-status.json` | missing | input file is missing |
+| `docs/testing/runtime-validation-snapshot.json` | present | input file available |

@@ -60,22 +60,40 @@ EVIDENCE_STAGE_STATUSES = {
 }
 CAPABILITIES = (
     "connection_metadata",
+    "transport_metadata",
     "request_headers",
     "request_body_buffered",
     "request_body_streaming",
+    "request_body_incremental_ingest",
     "response_headers",
     "response_body_buffered",
     "response_body_streaming",
+    "response_body_incremental_ingest",
     "phase1",
     "phase2",
     "phase3",
     "phase4",
     "phase4_rule_evaluation",
+    "phase4_end_of_stream_evaluation",
     "phase4_pre_commit_deny",
     "late_intervention",
     "late_intervention_log_only",
     "late_intervention_abort",
     "late_intervention_status_metadata",
+    "content_type_scope",
+    "header_limits",
+    "request_body_limits",
+    "response_body_limits",
+    "no_full_response_buffering",
+    "first_byte_before_response_end",
+    "http1_content_length",
+    "http1_chunked",
+    "keep_alive",
+    "parallel_requests",
+    "http2",
+    "client_abort",
+    "upstream_abort",
+    "response_body_decompression",
     "deny",
     "redirect",
     "drop",
@@ -110,6 +128,22 @@ CASE_STATUSES = (
 )
 SELECTION_STATUSES = ("SELECTED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED")
 WRITABLE_EVIDENCE_STAGES = ("minimal_runtime_smoke", "no_crs_baseline")
+DEFAULT_ARTIFACT_PROFILE = "generic"
+FULL_LIFECYCLE_ARTIFACT_PROFILE = "full_lifecycle"
+ARTIFACT_PROFILES = (
+    DEFAULT_ARTIFACT_PROFILE,
+    FULL_LIFECYCLE_ARTIFACT_PROFILE,
+)
+FULL_LIFECYCLE_REQUIRED_ARTIFACTS = (
+    ("manifest", "manifest.json"),
+    ("result", "result.json"),
+    ("case_results", "results.jsonl"),
+    ("events", "events.jsonl"),
+    ("inventory", "inventory/run.json"),
+    ("stdout", "logs/stdout.log"),
+    ("stderr", "logs/stderr.log"),
+    ("host_log", "logs/host.log"),
+)
 MINIMAL_RUNTIME_CASE_IDS = ("allow_without_marker", "deny_header_marker_403")
 REPORT_STATUSES = (
     "PASS",
@@ -183,6 +217,21 @@ PHASE4_EXPECTED_RESULTS = {
     "event_contains_original_status",
     "event_contains_late_intervention_action",
     "legacy_phase4_deny_before_commit",
+    "marker_split_across_chunks",
+    "end_of_stream_evaluation",
+    "late_intervention_log_only_minimal",
+    "late_intervention_log_only_safe",
+    "connection_aborted_strict",
+    "content_type_in_scope",
+    "content_type_in_scope_with_charset",
+    "content_type_out_of_scope",
+    "content_type_missing",
+    "no_full_response_buffering",
+    "first_byte_before_response_end",
+    "response_body_at_limit",
+    "response_body_over_limit",
+    "response_body_process_partial",
+    "response_body_reject",
 }
 PHASE4_CASE_IDS = (
     "phase4_rule_observed",
@@ -191,7 +240,73 @@ PHASE4_CASE_IDS = (
     "phase4_deny_after_commit_abort",
     "phase4_event_contains_original_status",
     "phase4_event_contains_late_intervention_action",
+    "phase4_marker_split_across_chunks",
+    "phase4_end_of_stream_evaluation",
+    "phase4_deny_before_commit_if_supported",
+    "phase4_deny_after_commit_log_only_minimal",
+    "phase4_deny_after_commit_log_only_safe",
+    "phase4_deny_after_commit_abort_strict",
+    "phase4_status_metadata",
+    "phase4_action_metadata",
+    "phase4_no_payload_event",
+    "phase4_in_scope_content_type",
+    "phase4_content_type_with_charset",
+    "phase4_out_of_scope_content_type",
+    "phase4_missing_content_type",
+    "phase4_no_full_response_buffering",
+    "phase4_first_byte_before_response_end",
+    "phase4_body_at_limit",
+    "phase4_body_over_limit",
+    "phase4_body_process_partial",
+    "phase4_body_reject",
 )
+FULL_LIFECYCLE_REQUIRED_IDS = {
+    "phase1_allow",
+    "phase1_deny_403",
+    "phase1_alternative_status",
+    "phase1_redirect",
+    "phase1_transaction_id",
+    "phase2_request_body_rule",
+    "phase2_marker_split_across_chunks",
+    "phase2_at_limit",
+    "phase2_over_limit",
+    "phase2_truncated",
+    "phase2_no_payload_event",
+    "phase3_response_header_rule",
+    "phase3_deny_before_commit",
+    "phase3_redirect_before_commit",
+    "phase3_original_and_visible_status",
+    "phase4_marker_split_across_chunks",
+    "phase4_end_of_stream_evaluation",
+    "phase4_deny_before_commit_if_supported",
+    "phase4_deny_after_commit_log_only_minimal",
+    "phase4_deny_after_commit_log_only_safe",
+    "phase4_deny_after_commit_abort_strict",
+    "phase4_status_metadata",
+    "phase4_action_metadata",
+    "phase4_no_payload_event",
+    "phase4_in_scope_content_type",
+    "phase4_content_type_with_charset",
+    "phase4_out_of_scope_content_type",
+    "phase4_missing_content_type",
+    "phase4_invalid_scope_file",
+    "phase4_wildcard_scope_rejected",
+    "phase4_no_full_response_buffering",
+    "phase4_first_byte_before_response_end",
+    "transport_http11_content_length",
+    "transport_http11_chunked",
+    "transport_keep_alive",
+    "transport_sequential_requests",
+    "transport_parallel_requests",
+    "transport_http2_if_supported",
+    "transport_client_abort",
+    "transport_upstream_abort",
+    "phase4_body_at_limit",
+    "phase4_body_over_limit",
+    "phase4_body_process_partial",
+    "phase4_body_reject",
+    "full_lifecycle_event_metadata_bounded",
+}
 PHASE4_SEMANTIC_FIELDS = (
     "http_status",
     "requested_action",
@@ -200,14 +315,47 @@ PHASE4_SEMANTIC_FIELDS = (
     "visible_http_status",
     "late_intervention",
     "headers_sent",
+    "response_started",
     "body_started",
+    "body_truncated",
     "response_committed",
     "connection_aborted",
     "transport_result",
+    "late_intervention_mode",
+    "content_type_scope",
+    "body_limit_outcome",
+    "marker_split_across_chunks",
+    "end_of_stream_evaluation",
+    "no_full_response_buffering",
+    "first_byte_before_response_end",
+    "upstream_response_finished_at_first_byte",
+    "transport_protocol",
+    "transfer_encoding",
+    "connection_reused",
+    "client_aborted",
+    "upstream_aborted",
 )
 REQUESTED_ACTIONS = {"deny", "redirect", "drop", "log_only", "abort_connection"}
 ACTUAL_ACTIONS = {"deny", "redirect", "log_only", "abort_connection"}
 TRANSPORT_RESULTS = {"http_status", "log_only", "connection_aborted", "not_observable"}
+LATE_INTERVENTION_MODES = {"minimal", "safe", "strict"}
+CONTENT_TYPE_SCOPES = {"in_scope", "out_of_scope", "missing"}
+BODY_LIMIT_OUTCOMES = {"at_limit", "over_limit", "process_partial", "reject"}
+TRANSPORT_PROTOCOLS = {"http1", "http2"}
+TRANSFER_ENCODINGS = {"content_length", "chunked", "none"}
+COMMON_PHASE_TO_CANONICAL = {
+    # URI parsing and request-header processing both constitute ModSecurity
+    # phase 1 evidence.  Common deliberately exposes the finer host lifecycle
+    # labels, which must not be confused with the framework's rule phases.
+    "connection": 0,
+    "uri": 1,
+    "request_headers": 1,
+    "request_body": 2,
+    "response_headers": 3,
+    "response_body": 4,
+    "logging": 5,
+}
+CANONICAL_PHASES = frozenset(range(6))
 STATUS_ALIASES = {
     "pass": "PASS",
     "passed": "PASS",
@@ -525,12 +673,25 @@ def catalog_cases(catalog: Mapping[str, Any]) -> list[dict[str, Any]]:
     return [canonical_case(item, defaults) for item in cases if isinstance(item, Mapping)]
 
 
+def normalize_artifact_profile(value: object) -> str:
+    """Return a known evidence-artifact profile, preserving legacy generic runs."""
+    profile = str(value or DEFAULT_ARTIFACT_PROFILE).strip()
+    if profile not in ARTIFACT_PROFILES:
+        raise ContractError(f"unsupported artifact profile: {profile!r}")
+    return profile
+
+
 def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     if catalog.get("schema_version") != 1:
         errors.append("catalog.schema_version must be 1")
     if catalog.get("catalog") != "no-crs-baseline":
         errors.append("catalog.catalog must be no-crs-baseline")
+    if catalog.get("full_lifecycle_artifact_profile") != FULL_LIFECYCLE_ARTIFACT_PROFILE:
+        errors.append(
+            "catalog.full_lifecycle_artifact_profile must be "
+            f"{FULL_LIFECYCLE_ARTIFACT_PROFILE!r}"
+        )
     try:
         cases = catalog_cases(catalog)
     except ContractError as exc:
@@ -551,7 +712,30 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
         "forbidden_event_fields",
         "connector_applicability",
         "unsupported_behavior",
+        "evidence_requirement",
     )
+    catalog_root = CATALOG_PATH.parent.resolve(strict=False)
+    shared_fixture_root = (FRAMEWORK_ROOT / "tests/fixtures/no-crs-baseline").resolve(strict=False)
+
+    def checked_fixture_path(
+        raw_path: object,
+        *,
+        root: Path,
+        label: str,
+        case_id: str,
+    ) -> None:
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            errors.append(f"{case_id}: {label} must be a non-empty relative path")
+            return
+        candidate = (catalog_root / raw_path).resolve(strict=False)
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            errors.append(f"{case_id}: {label} must remain under {root}")
+            return
+        if not candidate.is_file():
+            errors.append(f"{case_id}: {label} is missing: {candidate}")
+
     seen: set[str] = set()
     for case in cases:
         case_id = str(case.get("case_id") or "")
@@ -581,11 +765,31 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
             errors.append(f"{prefix}: connector_applicability must be capability_driven")
         if case.get("unsupported_behavior") != "UNSUPPORTED":
             errors.append(f"{prefix}: unsupported_behavior must be UNSUPPORTED")
+        evidence_requirement = case.get("evidence_requirement")
+        if not isinstance(evidence_requirement, Mapping):
+            errors.append(f"{prefix}: evidence_requirement must be an object")
+        else:
+            if evidence_requirement.get("requires_real_host") is not True:
+                errors.append(f"{prefix}: evidence_requirement.requires_real_host must be true")
+            if evidence_requirement.get("accepts_synthetic_pass") is not False:
+                errors.append(f"{prefix}: evidence_requirement.accepts_synthetic_pass must be false")
         runner_case = case.get("runner_case")
         if runner_case:
             runner_path = CATALOG_PATH.parent / str(runner_case)
             if not runner_path.is_file():
                 errors.append(f"{prefix}: runner_case is missing: {runner_path}")
+        request = case.get("request")
+        if isinstance(request, Mapping):
+            if "fixture" in request:
+                checked_fixture_path(
+                    request.get("fixture"), root=catalog_root,
+                    label="request.fixture", case_id=prefix,
+                )
+            if "fixture_file" in request:
+                checked_fixture_path(
+                    request.get("fixture_file"), root=shared_fixture_root,
+                    label="request.fixture_file", case_id=prefix,
+                )
     required_ids = {
         "allow_without_marker", "deny_header_marker_403", "deny_with_alternative_status",
         "transaction_id_present", "transaction_id_generated_or_fallback", "multiple_headers",
@@ -609,7 +813,7 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
         "finish_failure_propagation", "clean_shutdown", "allow", "deny", "log_only",
         "redirect_if_supported", "drop_if_supported", "abort_if_supported",
     }
-    missing_ids = sorted(required_ids - seen)
+    missing_ids = sorted((required_ids | FULL_LIFECYCLE_REQUIRED_IDS) - seen)
     if missing_ids:
         errors.append(f"catalog missing required cases: {', '.join(missing_ids)}")
     by_id = {str(case.get("case_id") or ""): case for case in cases}
@@ -699,6 +903,99 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
         missing_event_fields = sorted(event_fields - declared_event_fields)
         if missing_event_fields:
             errors.append(f"{case_id}: missing Phase-4 event fields: {', '.join(missing_event_fields)}")
+    for case_id in sorted(FULL_LIFECYCLE_REQUIRED_IDS):
+        case = by_id.get(case_id)
+        if not case:
+            continue
+        if not str(case.get("group") or "").startswith("full-lifecycle-"):
+            errors.append(f"{case_id}: group must use the full-lifecycle namespace")
+        requirement = case.get("evidence_requirement")
+        if not isinstance(requirement, Mapping) or requirement.get("requires_real_host") is not True:
+            errors.append(f"{case_id}: must retain the real-host evidence requirement")
+
+    full_lifecycle_contracts = {
+        "phase2_marker_split_across_chunks": (
+            "request_marker_split_across_chunks", 2,
+            {"request_body_incremental_ingest", "phase2", "event_jsonl"},
+            {"marker_split_across_chunks", "body_bytes_seen", "body_bytes_inspected"},
+        ),
+        "phase3_deny_before_commit": (
+            "phase3_deny_before_commit", 3,
+            {"response_headers", "phase3", "deny", "transport_metadata", "event_jsonl"},
+            {"requested_action", "actual_action", "headers_sent", "visible_http_status"},
+        ),
+        "phase3_redirect_before_commit": (
+            "phase3_redirect_before_commit", 3,
+            {"response_headers", "phase3", "redirect", "transport_metadata", "event_jsonl"},
+            {"requested_action", "actual_action", "headers_sent", "visible_http_status"},
+        ),
+        "phase4_marker_split_across_chunks": (
+            "marker_split_across_chunks", 4,
+            {"response_body_incremental_ingest", "phase4", "phase4_end_of_stream_evaluation", "event_jsonl"},
+            {"marker_split_across_chunks", "end_of_stream_evaluation"},
+        ),
+        "phase4_end_of_stream_evaluation": (
+            "end_of_stream_evaluation", 4,
+            {"response_body_incremental_ingest", "phase4", "phase4_end_of_stream_evaluation", "event_jsonl"},
+            {"end_of_stream_evaluation", "body_started"},
+        ),
+        "phase4_deny_after_commit_log_only_minimal": (
+            "late_intervention_log_only_minimal", 4,
+            {"late_intervention", "late_intervention_log_only", "late_intervention_status_metadata", "event_jsonl"},
+            {"late_intervention", "late_intervention_mode", "actual_action", "connection_aborted"},
+        ),
+        "phase4_deny_after_commit_log_only_safe": (
+            "late_intervention_log_only_safe", 4,
+            {"late_intervention", "late_intervention_log_only", "late_intervention_status_metadata", "event_jsonl"},
+            {"late_intervention", "late_intervention_mode", "actual_action", "connection_aborted"},
+        ),
+        "phase4_deny_after_commit_abort_strict": (
+            "connection_aborted_strict", 4,
+            {"late_intervention", "late_intervention_abort", "late_intervention_status_metadata", "event_jsonl"},
+            {"late_intervention", "late_intervention_mode", "actual_action", "connection_aborted"},
+        ),
+        "phase4_no_full_response_buffering": (
+            "no_full_response_buffering", 4,
+            {"response_body_incremental_ingest", "no_full_response_buffering", "first_byte_before_response_end", "event_jsonl"},
+            {"no_full_response_buffering", "first_byte_before_response_end", "upstream_response_finished_at_first_byte"},
+        ),
+        "phase4_first_byte_before_response_end": (
+            "first_byte_before_response_end", 4,
+            {"response_body_incremental_ingest", "first_byte_before_response_end", "event_jsonl"},
+            {"first_byte_before_response_end", "upstream_response_finished_at_first_byte"},
+        ),
+        "phase4_content_type_with_charset": (
+            "content_type_in_scope_with_charset", 4,
+            {"response_body_incremental_ingest", "phase4", "content_type_scope", "event_jsonl"},
+            {"content_type", "content_type_scope"},
+        ),
+        "phase4_out_of_scope_content_type": (
+            "content_type_out_of_scope", 4,
+            {"response_body_incremental_ingest", "phase4", "content_type_scope", "event_jsonl"},
+            {"content_type", "content_type_scope", "transport_result"},
+        ),
+        "phase4_missing_content_type": (
+            "content_type_missing", 4,
+            {"response_body_incremental_ingest", "phase4", "content_type_scope", "event_jsonl"},
+            {"content_type_scope", "transport_result"},
+        ),
+    }
+    for case_id, (expected_result, phase, required_capabilities, event_fields) in full_lifecycle_contracts.items():
+        case = by_id.get(case_id)
+        if not case:
+            continue
+        if case.get("expected_result") != expected_result:
+            errors.append(f"{case_id}: expected_result must be {expected_result}")
+        if case.get("phase") != phase:
+            errors.append(f"{case_id}: phase must be {phase}")
+        declared_capabilities = {str(item) for item in case.get("required_capabilities", [])}
+        missing_capabilities = sorted(required_capabilities - declared_capabilities)
+        if missing_capabilities:
+            errors.append(f"{case_id}: missing full-lifecycle capabilities: {', '.join(missing_capabilities)}")
+        declared_event_fields = {str(item) for item in case.get("expected_event_fields", [])}
+        missing_event_fields = sorted(event_fields - declared_event_fields)
+        if missing_event_fields:
+            errors.append(f"{case_id}: missing full-lifecycle event fields: {', '.join(missing_event_fields)}")
     legacy = by_id.get("deny_response_body_marker_403")
     if legacy:
         if legacy.get("deprecated_alias_for") != "phase4_deny_before_commit":
@@ -721,6 +1018,7 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
             "id:1100003,phase:1",
             "id:1100101,phase:2",
             "id:1100201,phase:3",
+            "id:1100202,phase:3,redirect",
             "id:1100301,phase:4",
             "id:1100401,phase:1",
             "id:1100402,phase:1",
@@ -819,7 +1117,18 @@ def select_cases(
     manifest: Mapping[str, Any],
     catalog: Mapping[str, Any],
     evidence_stage: str = "no_crs_baseline",
+    artifact_profile: str = DEFAULT_ARTIFACT_PROFILE,
 ) -> dict[str, Any]:
+    artifact_profile = normalize_artifact_profile(artifact_profile)
+    if artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE:
+        if evidence_stage != "no_crs_baseline":
+            raise ContractError(
+                "full_lifecycle artifact profile requires the no_crs_baseline evidence stage"
+            )
+        if catalog.get("full_lifecycle_artifact_profile") != artifact_profile:
+            raise ContractError(
+                "catalog does not declare the requested full_lifecycle artifact profile"
+            )
     capabilities = manifest["capabilities"]
     selections: list[dict[str, Any]] = []
     cases = catalog_cases(catalog)
@@ -863,6 +1172,7 @@ def select_cases(
         "catalog": "no-crs-baseline",
         "ruleset": "no-crs-baseline",
         "evidence_stage": evidence_stage,
+        "artifact_profile": artifact_profile,
         "capability_manifest": str(manifest.get("source_path") or ""),
         "generated_at": utc_now(),
         "counts": {name: counts.get(name, 0) for name in SELECTION_STATUSES},
@@ -877,6 +1187,9 @@ def plan_semantics(plan: Mapping[str, Any]) -> dict[str, Any]:
         "catalog": plan.get("catalog"),
         "ruleset": plan.get("ruleset"),
         "evidence_stage": plan.get("evidence_stage"),
+        "artifact_profile": str(
+            plan.get("artifact_profile") or DEFAULT_ARTIFACT_PROFILE
+        ),
         "counts": plan.get("counts"),
         "cases": plan.get("cases"),
     }
@@ -888,8 +1201,11 @@ def validate_plan_against_capabilities(
     manifest: Mapping[str, Any],
     catalog: Mapping[str, Any],
     evidence_stage: str,
+    artifact_profile: str = DEFAULT_ARTIFACT_PROFILE,
 ) -> None:
-    expected = select_cases(connector, manifest, catalog, evidence_stage)
+    expected = select_cases(
+        connector, manifest, catalog, evidence_stage, artifact_profile
+    )
     if plan_semantics(plan) != plan_semantics(expected):
         raise ContractError(
             "plan does not match a fresh capability-driven selection; regenerate it with the select command"
@@ -943,6 +1259,7 @@ def initial_artifacts() -> dict[str, dict[str, Any]]:
 def init_run(args: argparse.Namespace) -> int:
     connector_root = Path(args.connector_root).resolve() if args.connector_root else None
     run_dir = Path(args.run_dir)
+    artifact_profile = normalize_artifact_profile(args.artifact_profile)
     safe_run_dir(run_dir, connector_root)
     if run_dir.exists() or run_dir.is_symlink():
         raise ContractError(f"init requires a fresh, nonexistent run-dir: {run_dir}")
@@ -953,10 +1270,14 @@ def init_run(args: argparse.Namespace) -> int:
         if not isinstance(plan, dict) or plan.get("connector") != args.connector:
             raise ContractError("plan is invalid or belongs to another connector")
         validate_plan_against_capabilities(
-            plan, args.connector, manifest_capabilities, catalog, args.evidence_stage
+            plan, args.connector, manifest_capabilities, catalog, args.evidence_stage,
+            artifact_profile,
         )
     else:
-        plan = select_cases(args.connector, manifest_capabilities, catalog, args.evidence_stage)
+        plan = select_cases(
+            args.connector, manifest_capabilities, catalog, args.evidence_stage,
+            artifact_profile,
+        )
     for directory in (run_dir, run_dir / "logs", run_dir / "config", run_dir / "inventory"):
         descriptor = open_directory_chain(directory, create=True)
         os.close(descriptor)
@@ -993,6 +1314,7 @@ def init_run(args: argparse.Namespace) -> int:
         "architecture": platform.machine() or "unknown",
         "python_version": platform.python_version(),
         "evidence_stage": args.evidence_stage,
+        "artifact_profile": artifact_profile,
         "ruleset": "no-crs-baseline",
         "rules_sha256": sha256_file(RULES_PATH),
         "catalog_sha256": sha256_file(CATALOG_PATH),
@@ -1011,6 +1333,7 @@ def init_run(args: argparse.Namespace) -> int:
         "connector": args.connector,
         "run_id": args.run_id,
         "evidence_stage": args.evidence_stage,
+        "artifact_profile": artifact_profile,
         "ruleset": "no-crs-baseline",
         "status": "NOT_EXECUTED",
         "started_at": utc_now(),
@@ -1181,11 +1504,56 @@ def supplied_transaction_ids(raw: Mapping[str, Any]) -> list[str]:
     return sorted(dict.fromkeys(transaction_ids))
 
 
+def normalize_canonical_phase(value: object) -> int | None:
+    """Map closed Common phase labels to the framework's rule-phase numbers.
+
+    Common distinguishes URI parsing from request-header processing, whereas
+    both are canonical ModSecurity phase 1 evidence.  Only the published
+    Common labels and canonical integer values are accepted so that an
+    arbitrary phase string cannot silently become usable evidence.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value in CANONICAL_PHASES else None
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower()
+    if normalized in COMMON_PHASE_TO_CANONICAL:
+        return COMMON_PHASE_TO_CANONICAL[normalized]
+    if normalized in {str(phase) for phase in CANONICAL_PHASES}:
+        return int(normalized)
+    return None
+
+
+def canonicalize_event_phase(
+    event: Mapping[str, Any], *, location: str = "event",
+) -> dict[str, Any]:
+    """Copy an accepted event and store its phase in canonical numeric form."""
+    normalized = dict(event)
+    if "phase" not in normalized:
+        return normalized
+    phase = normalize_canonical_phase(normalized["phase"])
+    if phase is None:
+        raise ContractError(
+            f"{location}.phase: unsupported Common/canonical phase {normalized['phase']!r}"
+        )
+    normalized["phase"] = phase
+    return normalized
+
+
 def phase4_event_matches_outcome(event: Mapping[str, Any], expected_result: str) -> bool:
     """Identify the right event when one run contains several Phase-4 paths."""
-    if str(event.get("phase") or "").strip() != "4":
+    if normalize_canonical_phase(event.get("phase")) != 4:
         return False
-    if expected_result in {"rule_observed", "event_contains_original_status"}:
+    if expected_result in {
+        "rule_observed", "event_contains_original_status", "marker_split_across_chunks",
+        "end_of_stream_evaluation", "content_type_in_scope",
+        "content_type_in_scope_with_charset", "content_type_out_of_scope",
+        "content_type_missing", "no_full_response_buffering",
+        "first_byte_before_response_end", "response_body_at_limit",
+        "response_body_over_limit", "response_body_process_partial", "response_body_reject",
+    }:
         return True
     requested = str(event.get("requested_action") or "").strip().lower().replace("-", "_")
     actual = str(event.get("actual_action") or "").strip().lower().replace("-", "_")
@@ -1199,11 +1567,32 @@ def phase4_event_matches_outcome(event: Mapping[str, Any], expected_result: str)
             and actual == "log_only"
             and event.get("late_intervention") is True
         )
+    if expected_result == "late_intervention_log_only_minimal":
+        return (
+            requested == "deny"
+            and actual == "log_only"
+            and event.get("late_intervention") is True
+            and event.get("late_intervention_mode") == "minimal"
+        )
+    if expected_result == "late_intervention_log_only_safe":
+        return (
+            requested == "deny"
+            and actual == "log_only"
+            and event.get("late_intervention") is True
+            and event.get("late_intervention_mode") == "safe"
+        )
     if expected_result == "connection_aborted":
         return (
             requested == "deny"
             and actual == "abort_connection"
             and event.get("connection_aborted") is True
+        )
+    if expected_result == "connection_aborted_strict":
+        return (
+            requested == "deny"
+            and actual == "abort_connection"
+            and event.get("connection_aborted") is True
+            and event.get("late_intervention_mode") == "strict"
         )
     if expected_result == "event_contains_late_intervention_action":
         return requested == "deny" and actual in {"deny", "log_only", "abort_connection"}
@@ -1294,10 +1683,28 @@ _RAW_SEMANTIC_FIELD_ALIASES = {
     "visible_http_status": ("visible_http_status", "client_status"),
     "late_intervention": ("late_intervention", "intervention"),
     "headers_sent": ("headers_sent", "header_sent"),
+    "response_started": ("response_started",),
     "body_started": ("body_started", "response_body_seen"),
+    "body_truncated": ("body_truncated", "response_body_truncated"),
     "response_committed": ("response_committed",),
     "connection_aborted": ("connection_aborted", "strict_abort"),
     "transport_result": ("transport_result", "observed_transport_result"),
+    "late_intervention_mode": ("late_intervention_mode", "phase4_mode"),
+    "content_type_scope": ("content_type_scope", "scope_result"),
+    "body_limit_outcome": ("body_limit_outcome", "limit_outcome"),
+    "marker_split_across_chunks": ("marker_split_across_chunks",),
+    "end_of_stream_evaluation": ("end_of_stream_evaluation",),
+    "no_full_response_buffering": ("no_full_response_buffering",),
+    "first_byte_before_response_end": ("first_byte_before_response_end",),
+    "upstream_response_finished_at_first_byte": (
+        "upstream_response_finished_at_first_byte",
+        "upstream_response_complete_at_first_byte",
+    ),
+    "transport_protocol": ("transport_protocol", "protocol"),
+    "transfer_encoding": ("transfer_encoding",),
+    "connection_reused": ("connection_reused", "keep_alive_reused"),
+    "client_aborted": ("client_aborted",),
+    "upstream_aborted": ("upstream_aborted",),
 }
 
 
@@ -1337,7 +1744,14 @@ def normalize_transport_result(value: object) -> str | None:
 def normalize_semantic_value(field: str, value: object) -> object:
     if field in {"http_status", "original_http_status", "visible_http_status"}:
         return optional_int(value)
-    if field in {"late_intervention", "headers_sent", "body_started", "response_committed", "connection_aborted"}:
+    if field in {
+        "late_intervention", "headers_sent", "response_started", "body_started", "body_truncated",
+        "response_committed",
+        "connection_aborted", "marker_split_across_chunks",
+        "end_of_stream_evaluation", "no_full_response_buffering",
+        "first_byte_before_response_end", "upstream_response_finished_at_first_byte",
+        "connection_reused", "client_aborted", "upstream_aborted",
+    }:
         return optional_bool(value)
     if field == "requested_action":
         return normalize_action(value, REQUESTED_ACTIONS)
@@ -1345,6 +1759,22 @@ def normalize_semantic_value(field: str, value: object) -> object:
         return normalize_action(value, ACTUAL_ACTIONS)
     if field == "transport_result":
         return normalize_transport_result(value)
+    if field == "late_intervention_mode":
+        normalized = str(value or "").strip().lower()
+        return normalized if normalized in LATE_INTERVENTION_MODES else None
+    if field == "content_type_scope":
+        normalized = str(value or "").strip().lower().replace("-", "_")
+        return normalized if normalized in CONTENT_TYPE_SCOPES else None
+    if field == "body_limit_outcome":
+        normalized = str(value or "").strip().lower().replace("-", "_")
+        return normalized if normalized in BODY_LIMIT_OUTCOMES else None
+    if field == "transport_protocol":
+        normalized = str(value or "").strip().lower().replace("/", "").replace(".", "")
+        aliases = {"http11": "http1", "http1": "http1", "http2": "http2"}
+        return aliases.get(normalized)
+    if field == "transfer_encoding":
+        normalized = str(value or "").strip().lower().replace("-", "_")
+        return normalized if normalized in TRANSFER_ENCODINGS else None
     raise ContractError(f"unsupported semantic field: {field}")
 
 
@@ -1404,7 +1834,7 @@ def is_phase4_semantic_case(case: Mapping[str, Any]) -> bool:
 
 
 def phase_is_four(value: object) -> bool:
-    return str(value).strip() == "4"
+    return normalize_canonical_phase(value) == 4
 
 
 def phase4_pass_errors(
@@ -1425,7 +1855,7 @@ def phase4_pass_errors(
     expected_rule_id = optional_int(record.get("expected_rule_id"))
     if record.get("live_executed") is not True:
         errors.append("live_executed must be true")
-    if expected_rule_id is None or expected_rule_id not in record.get("observed_rule_ids", []):
+    if expected_rule_id is not None and expected_rule_id not in record.get("observed_rule_ids", []):
         errors.append("expected phase-4 rule was not observed")
     if matching_event is None:
         errors.append("canonical phase-4 event is missing")
@@ -1525,6 +1955,96 @@ def phase4_pass_errors(
         validate_abort_client_status()
         return errors
 
+    if expected_result in {
+        "late_intervention_log_only_minimal", "late_intervention_log_only_safe",
+    }:
+        expected_mode = "minimal" if expected_result.endswith("_minimal") else "safe"
+        require_status_triplet()
+        require_event_value("requested_action", "deny")
+        require_event_value("actual_action", "log_only")
+        require_event_value("late_intervention", True)
+        require_event_value("late_intervention_mode", expected_mode)
+        require_event_value("headers_sent", True)
+        require_event_value("connection_aborted", False)
+        if record.get("visible_http_status") != record.get("original_http_status"):
+            errors.append("late log-only intervention must preserve the visible HTTP status")
+        require_observable_client_status()
+        return errors
+
+    if expected_result == "connection_aborted_strict":
+        require_status_triplet()
+        require_event_value("requested_action", "deny")
+        require_event_value("actual_action", "abort_connection")
+        require_event_value("late_intervention", True)
+        require_event_value("late_intervention_mode", "strict")
+        require_event_value("headers_sent", True)
+        require_event_value("connection_aborted", True)
+        if record.get("visible_http_status") != record.get("original_http_status"):
+            errors.append("strict post-commit abort must preserve the already visible HTTP status")
+        validate_abort_client_status()
+        return errors
+
+    if expected_result == "marker_split_across_chunks":
+        require_event_value("marker_split_across_chunks", True)
+        require_event_value("end_of_stream_evaluation", True)
+        return errors
+
+    if expected_result == "end_of_stream_evaluation":
+        require_event_value("end_of_stream_evaluation", True)
+        require_event_value("body_started", True)
+        return errors
+
+    if expected_result in {"content_type_in_scope", "content_type_in_scope_with_charset"}:
+        require_event_value("content_type_scope", "in_scope")
+        content_type = str(matching_event.get("content_type") or "")
+        if not content_type:
+            errors.append("in-scope response evidence is missing content_type")
+        if expected_result == "content_type_in_scope_with_charset" and "charset=" not in content_type.lower():
+            errors.append("charset content-type case requires a charset parameter")
+        return errors
+
+    if expected_result == "content_type_out_of_scope":
+        require_event_value("content_type_scope", "out_of_scope")
+        if not str(matching_event.get("content_type") or ""):
+            errors.append("out-of-scope response evidence is missing content_type")
+        require_observable_client_status()
+        return errors
+
+    if expected_result == "content_type_missing":
+        require_event_value("content_type_scope", "missing")
+        if matching_event.get("content_type") not in (None, ""):
+            errors.append("missing-content-type evidence must not invent content_type")
+        require_observable_client_status()
+        return errors
+
+    if expected_result == "no_full_response_buffering":
+        require_event_value("no_full_response_buffering", True)
+        require_event_value("first_byte_before_response_end", True)
+        require_event_value("upstream_response_finished_at_first_byte", False)
+        return errors
+
+    if expected_result == "first_byte_before_response_end":
+        require_event_value("first_byte_before_response_end", True)
+        require_event_value("upstream_response_finished_at_first_byte", False)
+        return errors
+
+    limit_outcomes = {
+        "response_body_at_limit": "at_limit",
+        "response_body_over_limit": "over_limit",
+        "response_body_process_partial": "process_partial",
+        "response_body_reject": "reject",
+    }
+    if expected_result in limit_outcomes:
+        require_event_value("body_limit_outcome", limit_outcomes[expected_result])
+        for field in ("body_bytes_seen", "body_bytes_inspected", "truncated"):
+            if field not in matching_event:
+                errors.append(f"canonical event is missing {field}")
+        if expected_result == "response_body_process_partial" and matching_event.get("truncated") is not True:
+            errors.append("ProcessPartial evidence must set truncated=true")
+        if expected_result == "response_body_reject" and matching_event.get("truncated") is not False:
+            errors.append("Reject evidence must set truncated=false")
+        return errors
+
     if expected_result == "event_contains_original_status":
         require_status_triplet()
         if matching_event.get("late_intervention") is True and (
@@ -1553,6 +2073,140 @@ def phase4_pass_errors(
             errors.append("abort action conflicts with connection_aborted=false")
         if actual_action in {"deny", "log_only"} and matching_event.get("connection_aborted") is True:
             errors.append("non-abort action conflicts with connection_aborted=true")
+    return errors
+
+
+def full_lifecycle_pass_errors(
+    record: Mapping[str, Any], matching_event: Mapping[str, Any] | None,
+) -> list[str]:
+    """Validate the non-Phase-4 portions of the full-lifecycle catalog.
+
+    These checks intentionally require a canonical event for each specialized
+    PASS.  A host result with only an HTTP status cannot establish chunk
+    boundaries, limit policy, transport mode, or a commit boundary.
+    """
+    expected_result = str(record.get("expected_result") or "")
+    outcomes = {
+        "request_marker_split_across_chunks",
+        "request_body_at_limit",
+        "request_body_over_limit",
+        "request_body_process_partial",
+        "phase3_deny_before_commit",
+        "phase3_redirect_before_commit",
+        "response_status_metadata",
+        "transport_http11_content_length",
+        "transport_http11_chunked",
+        "transport_keep_alive",
+        "transport_sequential_requests",
+        "transport_parallel_requests",
+        "transport_http2",
+        "transport_client_abort",
+        "transport_upstream_abort",
+        "event_bounded_or_truncated",
+    }
+    if expected_result not in outcomes:
+        return []
+    errors: list[str] = []
+    if matching_event is None:
+        return ["canonical full-lifecycle event is missing"]
+    errors.extend(canonical_event_errors(
+        matching_event, connector=str(record.get("connector") or "") or None,
+    ))
+
+    def require(field: str, expected: object = _MISSING) -> None:
+        if field not in matching_event:
+            errors.append(f"canonical event is missing {field}")
+            return
+        value = matching_event[field]
+        if field in PHASE4_SEMANTIC_FIELDS:
+            try:
+                value = normalize_semantic_value(field, value)
+            except ContractError:
+                errors.append(f"canonical event has invalid {field}")
+                return
+            if record.get(field) != value:
+                errors.append(f"case result {field} does not match canonical event")
+        if expected is not _MISSING and value != expected:
+            errors.append(f"canonical event {field}={value!r}, expected {expected!r}")
+
+    def require_limit(expected: str) -> None:
+        require("body_limit_outcome", expected)
+        for field in ("body_bytes_seen", "body_bytes_inspected", "truncated"):
+            require(field)
+
+    if expected_result == "request_marker_split_across_chunks":
+        require("marker_split_across_chunks", True)
+        for field in ("body_bytes_seen", "body_bytes_inspected"):
+            require(field)
+        return errors
+    if expected_result == "request_body_at_limit":
+        require_limit("at_limit")
+        return errors
+    if expected_result == "request_body_over_limit":
+        require_limit("over_limit")
+        return errors
+    if expected_result == "request_body_process_partial":
+        require_limit("process_partial")
+        require("truncated", True)
+        return errors
+    if expected_result == "phase3_deny_before_commit":
+        require("requested_action", "deny")
+        require("actual_action", "deny")
+        require("headers_sent", False)
+        require("visible_http_status", 403)
+        if matching_event.get("late_intervention") is True:
+            errors.append("phase-3 pre-commit deny cannot be a late intervention")
+        return errors
+    if expected_result == "phase3_redirect_before_commit":
+        require("requested_action", "redirect")
+        require("actual_action", "redirect")
+        require("headers_sent", False)
+        require("visible_http_status", 302)
+        if matching_event.get("late_intervention") is True:
+            errors.append("phase-3 pre-commit redirect cannot be a late intervention")
+        return errors
+    if expected_result == "response_status_metadata":
+        for field in ("http_status", "original_http_status", "visible_http_status", "headers_sent"):
+            require(field)
+        if matching_event.get("headers_sent") is False and (
+            matching_event.get("visible_http_status") != matching_event.get("http_status")
+        ):
+            errors.append("uncommitted response metadata must expose the WAF status")
+        return errors
+    if expected_result == "transport_http11_content_length":
+        require("transport_protocol", "http1")
+        require("transfer_encoding", "content_length")
+        require("transport_result", "http_status")
+        return errors
+    if expected_result == "transport_http11_chunked":
+        require("transport_protocol", "http1")
+        require("transfer_encoding", "chunked")
+        require("transport_result", "http_status")
+        return errors
+    if expected_result in {"transport_keep_alive", "transport_sequential_requests"}:
+        require("connection_reused", True)
+        require("transport_protocol")
+        return errors
+    if expected_result == "transport_parallel_requests":
+        require("transport_protocol")
+        if len(record.get("transaction_ids", [])) < 2:
+            errors.append("parallel transport evidence requires at least two transaction IDs")
+        return errors
+    if expected_result == "transport_http2":
+        require("transport_protocol", "http2")
+        require("transport_result", "http_status")
+        return errors
+    if expected_result == "transport_client_abort":
+        require("client_aborted", True)
+        require("transport_result")
+        return errors
+    if expected_result == "transport_upstream_abort":
+        require("upstream_aborted", True)
+        require("transport_result")
+        return errors
+    if expected_result == "event_bounded_or_truncated":
+        for field in ("truncated", "body_bytes_seen", "body_bytes_inspected"):
+            require(field)
     return errors
 
 
@@ -1665,6 +2319,7 @@ def normalize_case_record(
                 validation_errors.append("canonical event is missing expected fields")
             if matching_event and event_errors:
                 validation_errors.extend(event_errors)
+        validation_errors.extend(full_lifecycle_pass_errors(record, matching_event))
         if validation_errors:
             record["status"] = "FAIL"
             record["operation_status"] = operation_status("fail")
@@ -1874,17 +2529,7 @@ def selection_record(
         "expected_event_fields": list(case.get("expected_event_fields", [])),
         "observed_event_fields": [],
         "event_metadata_verified": False,
-        "http_status": None,
-        "requested_action": None,
-        "actual_action": None,
-        "original_http_status": None,
-        "visible_http_status": None,
-        "late_intervention": None,
-        "headers_sent": None,
-        "body_started": None,
-        "response_committed": None,
-        "connection_aborted": None,
-        "transport_result": None,
+        **{field: None for field in PHASE4_SEMANTIC_FIELDS},
         "reason": reason,
         "exit_code": exit_code,
         "artifacts": {},
@@ -1940,10 +2585,13 @@ def derive_deprecated_alias_targets(
 def resolve_deprecated_aliases(
     records: list[dict[str, Any]],
     case_by_id: Mapping[str, Mapping[str, Any]],
+    selected_case_ids: set[str] | None = None,
 ) -> None:
     """Make deprecated aliases a view of the canonical replacement outcome."""
     positions = {str(record.get("case_id") or ""): index for index, record in enumerate(records)}
     for alias_id, case in case_by_id.items():
+        if selected_case_ids is not None and alias_id not in selected_case_ids:
+            continue
         target_id = str(case.get("deprecated_alias_for") or "")
         if not target_id:
             continue
@@ -2021,6 +2669,27 @@ def copy_named_log(run_dir: Path, label: str, source_text: str, manifest: dict[s
     manifest["artifacts"][label] = artifact_entry(
         str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
     )
+
+
+def require_full_lifecycle_artifact_inputs(args: argparse.Namespace) -> None:
+    """Require host-produced evidence inputs for the opt-in full-lifecycle profile.
+
+    Result and case-result records are normalized by this command, but events
+    and the three logs must originate with the host run.  Empty input files are
+    allowed for failed or inconclusive runs; silently omitted files are not.
+    """
+    required_arguments = (
+        ("--source-events", args.source_events),
+        ("--stdout-log", args.stdout_log),
+        ("--stderr-log", args.stderr_log),
+        ("--host-log", args.host_log),
+    )
+    missing = [name for name, value in required_arguments if not str(value or "").strip()]
+    if missing:
+        raise ContractError(
+            "full_lifecycle artifact profile requires host-produced "
+            + ", ".join(missing)
+        )
 
 
 def aggregate_status(
@@ -2136,6 +2805,12 @@ def finalize_run(args: argparse.Namespace) -> int:
     plan = load_json(plan_path)
     if not isinstance(manifest, dict) or not isinstance(plan, dict):
         raise ContractError("manifest and plan must be JSON objects")
+    artifact_profile = normalize_artifact_profile(manifest.get("artifact_profile"))
+    plan_artifact_profile = normalize_artifact_profile(plan.get("artifact_profile"))
+    if plan_artifact_profile != artifact_profile:
+        raise ContractError("manifest and plan artifact profiles differ")
+    if artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE:
+        require_full_lifecycle_artifact_inputs(args)
     provenance_required = bool(
         manifest.get("provenance_required") is True
         or manifest.get("connector_commit") not in {None, "", "unknown"}
@@ -2155,14 +2830,18 @@ def finalize_run(args: argparse.Namespace) -> int:
 
     events: list[dict[str, Any]] = []
     if args.source_events:
-        events = read_jsonl(args.source_events)
-        for index, event in enumerate(events):
+        source_events = read_jsonl(args.source_events)
+        for index, event in enumerate(source_events):
             errors = canonical_event_errors(event, f"events[{index}]", connector)
             if errors:
                 raise ContractError("; ".join(errors))
+        events = [
+            canonicalize_event_phase(event, location=f"events[{index}]")
+            for index, event in enumerate(source_events)
+        ]
         # Serialize the reviewed parsed records rather than copying raw JSONL
-        # text, so duplicate keys and other parser ambiguities cannot enter
-        # the canonical artifact after validation.
+        # text, so duplicate keys, Common lifecycle labels, and other parser
+        # ambiguities cannot enter the canonical artifact after validation.
         write_jsonl(run_dir / "events.jsonl", events)
         manifest["artifacts"]["events"] = artifact_entry(
             "events.jsonl", "produced", sha256=sha256_file(run_dir / "events.jsonl")
@@ -2264,7 +2943,12 @@ def finalize_run(args: argparse.Namespace) -> int:
         record = selection_record(selection, case_by_id[case_id], connector, status, reason, stage_rc)
         records.append(record)
         deduplicated[case_id] = record
-    resolve_deprecated_aliases(records, case_by_id)
+    selected_case_ids = {
+        str(item.get("case_id") or "")
+        for item in plan.get("cases", [])
+        if isinstance(item, Mapping)
+    }
+    resolve_deprecated_aliases(records, case_by_id, selected_case_ids)
     deduplicated = {record["case_id"]: record for record in records}
     order = {item["case_id"]: index for index, item in enumerate(plan.get("cases", [])) if isinstance(item, Mapping)}
     records.sort(key=lambda item: order.get(item["case_id"], len(order)))
@@ -2410,6 +3094,7 @@ def finalize_run(args: argparse.Namespace) -> int:
         "integration_mode": manifest["integration_mode"],
         "libmodsecurity_version": libmodsecurity_version,
         "evidence_stage": evidence_stage,
+        "artifact_profile": artifact_profile,
         "ruleset": "no-crs-baseline",
         "status": status,
         "exit_code": stage_rc,
@@ -2607,6 +3292,9 @@ def canonical_event_errors(
         return [f"{location}: checked-in event schema must contain an object"]
     errors = json_schema_errors(event, schema, root_schema=schema, location=location)
     errors.extend(forbidden_payload_errors(event, location))
+    if isinstance(event, Mapping) and "phase" in event:
+        if normalize_canonical_phase(event.get("phase")) is None:
+            errors.append(f"{location}.phase: unsupported Common/canonical phase")
     # Core request events predate these correlation fields, so the schema
     # keeps them optional.  Every Phase-4 record must nevertheless identify
     # its producer event and message before it becomes canonical evidence.
@@ -2752,9 +3440,7 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
             "operation_status", "live_executed", "required_capabilities", "expected_result",
             "observed_result", "expected_status", "expected_rule_id",
             "actual_status", "observed_rule_ids", "transaction_ids", "expected_event_fields",
-            "observed_event_fields", "event_metadata_verified", "http_status", "requested_action", "actual_action",
-            "original_http_status", "visible_http_status", "late_intervention", "headers_sent",
-            "body_started", "response_committed", "connection_aborted", "transport_result",
+            "observed_event_fields", "event_metadata_verified", *PHASE4_SEMANTIC_FIELDS,
             "reason", "exit_code", "artifacts",
         ), label))
         if record.get("status") not in CASE_STATUSES:
@@ -2832,6 +3518,14 @@ def completeness_errors(run_dir: Path) -> list[str]:
             )
             for error in phase4_pass_errors(record, matching_event):
                 errors.append(f"{case_id}: {error}")
+        matching_event = event_for_case(
+            events,
+            optional_int(record.get("expected_rule_id")),
+            record,
+            [str(value) for value in record.get("transaction_ids", [])],
+        )
+        for error in full_lifecycle_pass_errors(record, matching_event):
+            errors.append(f"{case_id}: {error}")
     return errors
 
 
@@ -2855,9 +3549,13 @@ def capability_errors(run_dir: Path, capabilities: Mapping[str, Any]) -> list[st
             if state not in EXECUTABLE_CAPABILITY_STATES:
                 errors.append(f"{record.get('case_id')}: PASS conflicts with {capability}={state}")
     boundary_fields = {
-        "request_body_verified": ("request_body_buffered", "request_body_streaming"),
+        "request_body_verified": (
+            "request_body_buffered", "request_body_streaming", "request_body_incremental_ingest",
+        ),
         "response_headers_verified": ("response_headers",),
-        "response_body_verified": ("response_body_buffered", "response_body_streaming"),
+        "response_body_verified": (
+            "response_body_buffered", "response_body_streaming", "response_body_incremental_ingest",
+        ),
         "late_intervention_verified": ("late_intervention",),
     }
     for field, names in boundary_fields.items():
@@ -2918,6 +3616,21 @@ def layout_errors(run_dir: Path) -> list[str]:
     manifest = load_json(run_dir / "manifest.json")
     if not isinstance(manifest, Mapping) or not isinstance(manifest.get("artifacts"), Mapping):
         return errors + ["manifest artifacts must be an object"]
+    plan = load_json(run_dir / "plan.json")
+    if not isinstance(plan, Mapping):
+        return errors + ["plan.json must contain an object"]
+    try:
+        artifact_profile = normalize_artifact_profile(manifest.get("artifact_profile"))
+    except ContractError as exc:
+        errors.append(str(exc))
+        artifact_profile = DEFAULT_ARTIFACT_PROFILE
+    try:
+        plan_artifact_profile = normalize_artifact_profile(plan.get("artifact_profile"))
+    except ContractError as exc:
+        errors.append(f"plan: {exc}")
+        plan_artifact_profile = DEFAULT_ARTIFACT_PROFILE
+    if plan_artifact_profile != artifact_profile:
+        errors.append("plan and manifest artifact profiles differ")
     for name, entry in manifest["artifacts"].items():
         if not isinstance(entry, Mapping):
             errors.append(f"manifest artifact {name} must be an object")
@@ -2940,6 +3653,28 @@ def layout_errors(run_dir: Path) -> list[str]:
             errors.append(f"manifest says {state} but artifact exists: {name} -> {path}")
         if state == "produced" and entry.get("sha256") and sha256_file(path) != entry["sha256"]:
             errors.append(f"artifact checksum mismatch: {name}")
+    if FULL_LIFECYCLE_ARTIFACT_PROFILE in {
+        artifact_profile,
+        plan_artifact_profile,
+    }:
+        for name, expected_path in FULL_LIFECYCLE_REQUIRED_ARTIFACTS:
+            entry = manifest["artifacts"].get(name)
+            if not isinstance(entry, Mapping):
+                errors.append(f"full_lifecycle artifact is missing from manifest: {name}")
+                continue
+            if entry.get("path") != expected_path:
+                errors.append(
+                    f"full_lifecycle artifact {name} must use {expected_path}"
+                )
+            if entry.get("state") != "produced":
+                errors.append(
+                    f"full_lifecycle artifact {name} must be produced"
+                )
+                continue
+            if not (run_dir / expected_path).is_file():
+                errors.append(
+                    f"full_lifecycle artifact is missing: {expected_path}"
+                )
     declared_paths = {
         str(Path(str(entry.get("path"))))
         for entry in manifest["artifacts"].values()
@@ -2995,10 +3730,21 @@ def status_errors(run_dir: Path) -> list[str]:
     result = load_json(run_dir / "result.json")
     manifest = load_json(run_dir / "manifest.json")
     inventory = load_json(run_dir / "inventory/run.json")
+    plan = load_json(run_dir / "plan.json")
     records = read_jsonl(run_dir / "results.jsonl")
     errors: list[str] = []
-    if not isinstance(result, Mapping) or not isinstance(manifest, Mapping) or not isinstance(inventory, Mapping):
-        return ["result, manifest, and inventory must be objects"]
+    if not all(isinstance(payload, Mapping) for payload in (result, manifest, inventory, plan)):
+        return ["result, manifest, inventory, and plan must be objects"]
+    profiles: dict[str, str] = {}
+    for label, payload in (
+        ("result", result), ("manifest", manifest), ("inventory", inventory), ("plan", plan),
+    ):
+        try:
+            profiles[label] = normalize_artifact_profile(payload.get("artifact_profile"))
+        except ContractError as exc:
+            errors.append(f"{label}: {exc}")
+    if profiles and len(set(profiles.values())) != 1:
+        errors.append("plan, result, manifest, and inventory artifact profiles differ")
     counts = Counter(record.get("status") for record in records)
     expected_status_counts = {name: counts[name] for name in CASE_STATUSES}
     expected_fields = {
@@ -3527,7 +4273,10 @@ def catalog_check_command(_args: argparse.Namespace) -> int:
 def select_command(args: argparse.Namespace) -> int:
     manifest = load_capability_manifest(args.capabilities, args.connector)
     manifest["source_path"] = str(Path(args.capabilities).resolve())
-    plan = select_cases(args.connector, manifest, load_catalog(), args.evidence_stage)
+    plan = select_cases(
+        args.connector, manifest, load_catalog(), args.evidence_stage,
+        args.artifact_profile,
+    )
     write_json(args.output, plan)
     print(args.output)
     return 0
@@ -3544,6 +4293,11 @@ def build_parser() -> argparse.ArgumentParser:
     select_parser.add_argument("--connector", required=True, choices=CONNECTORS)
     select_parser.add_argument("--capabilities", required=True)
     select_parser.add_argument("--evidence-stage", choices=WRITABLE_EVIDENCE_STAGES, default="no_crs_baseline")
+    select_parser.add_argument(
+        "--artifact-profile", choices=ARTIFACT_PROFILES,
+        default=DEFAULT_ARTIFACT_PROFILE,
+        help="generic legacy artifacts or the strict full_lifecycle evidence set",
+    )
     select_parser.add_argument("--output", required=True)
     select_parser.set_defaults(func=select_command)
 
@@ -3551,6 +4305,11 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--connector", required=True, choices=CONNECTORS)
     init_parser.add_argument("--capabilities", required=True)
     init_parser.add_argument("--evidence-stage", choices=WRITABLE_EVIDENCE_STAGES, default="no_crs_baseline")
+    init_parser.add_argument(
+        "--artifact-profile", choices=ARTIFACT_PROFILES,
+        default=DEFAULT_ARTIFACT_PROFILE,
+        help="must match the capability-selection plan artifact profile",
+    )
     init_parser.add_argument("--plan")
     init_parser.add_argument("--run-dir", required=True)
     init_parser.add_argument("--run-id", required=True)

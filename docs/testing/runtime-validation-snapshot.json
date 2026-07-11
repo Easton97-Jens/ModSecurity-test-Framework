@@ -1305,7 +1305,7 @@
           "not_auto_promoted": true,
           "runtime_verified": false,
           "promotion_allowed": false,
-          "evidence_note": "Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.",
+          "evidence_note": "RESPONSE_BODY remains non-verified/non-promoted; legacy bounded samples and pass-through rows do not prove selected-host support.",
           "response_body_related": true
         },
         {

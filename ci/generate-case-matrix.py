@@ -1770,7 +1770,7 @@ def render_runtime_matrix(cases: list[dict], import_status: dict, snapshot: dict
         "- `NOT_EXECUTABLE` means the YAML case is not applicable to that connector or the runner cannot execute that YAML status for that connector.",
         f"- `{NOT_EXECUTED}` means no runtime case evidence is recorded in a non-force/default snapshot.",
         "- `MAPPED_ONLY` entries are import inventory items, not runnable YAML case files.",
-        "- Bounded Phase 4 / strict-abort classifications remain non-promotable metadata even when the live runtime status is PASS.",
+        "- RESPONSE_BODY classifications remain non-promotable metadata unless current selected-host chunks, EOS, and canonical artifacts prove them; legacy bounded samples are not runtime evidence.",
         "",
         "## Status Counts",
         *render_runtime_status_count_table(apache_counts, nginx_counts, haproxy_counts, len(mapped_only)),
@@ -2642,6 +2642,8 @@ def render_root_summary(
     ]
 
     lines = [
+        "**Language:** English | [Deutsch](TEST-COVERAGE-SUMMARY.de.md)",
+        "",
         "# ModSecurity Connector Test Coverage Summary",
         "",
         "## Summary Status",
@@ -2674,7 +2676,7 @@ def render_root_summary(
         "- BLOCKED remains reserved for harness, environment, dependency, build, or runtime blockers.",
         "- NOT_EXECUTABLE means the case is structurally unmappable for that connector/run mode; it is not a blocker and not a pass.",
         "- Force-all evidence does not promote YAML feature support.",
-        "- RESPONSE_BODY remains experimental/non-promoted, including bounded phase-4 and strict-abort evidence.",
+        "- RESPONSE_BODY remains non-verified/non-promoted; legacy bounded samples are noncanonical and not current runtime evidence.",
         "",
         "## Framework Integration",
         f"- This framework-owned file is the source of truth for root coverage reporting: `{ROOT_SUMMARY_FILENAME}` in `ModSecurity-test-Framework`.",
@@ -2833,7 +2835,7 @@ def render_root_summary(
             "Pending, future, and gap topics need local runtime validation before promotion.",
             "`make smoke-all` is authoritative only if it was actually executed successfully.",
             "No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.",
-            "Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is reported as runtime evidence only.",
+            "Phase 4 / RESPONSE_BODY remains non-promoted; historic bounded strict-abort samples are noncanonical and not current runtime evidence.",
         ]
     )
     return "\n".join(lines)
@@ -2885,6 +2887,8 @@ def render_overview(
     ]
 
     lines = [
+        "**Language:** English | [Deutsch](test-coverage-overview.de.md)",
+        "",
         "# ModSecurity Connector Test Coverage Overview",
         "",
         "## Summary",
@@ -3041,7 +3045,7 @@ def render_overview(
             "Pending, future, and gap topics need local runtime validation before promotion.",
             "`make smoke-all` is authoritative only if it was actually executed successfully.",
             "No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.",
-            "Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is reported as runtime evidence only.",
+            "Phase 4 / RESPONSE_BODY remains non-promoted; historic bounded strict-abort samples are noncanonical and not current runtime evidence.",
         ]
     )
     return "\n".join(lines)

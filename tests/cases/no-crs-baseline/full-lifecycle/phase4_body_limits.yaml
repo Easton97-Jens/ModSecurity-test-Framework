@@ -1,0 +1,36 @@
+name: phase4_body_limits_fixture
+title: Declarative phase-4 response body limit boundaries
+category: no-crs-full-lifecycle
+portable: true
+status: future
+no_crs_baseline: true
+phase: 4
+capabilities:
+  response_body: true
+  phase4: true
+rules: |
+  SecRuleEngine On
+request:
+  method: GET
+  path: /no-crs/full-lifecycle/response-limit
+response:
+  body: 0123456789abcdef no-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 200
+  intervention: none
+full_lifecycle:
+  limit_bytes: 16
+  variants:
+    at_limit: 16
+    over_limit: 17
+    process_partial: 17
+    reject: 17
+  required_event_fields:
+    - body_limit_outcome
+    - body_bytes_seen
+    - body_bytes_inspected
+    - truncated
+  evidence_status: not_executed_until_real_host
+known_limitations:
+  - Events may contain byte counts and truncation state, never response body content or a matched value.

@@ -29,6 +29,24 @@ smoke case passes through Apache or NGINX.
 `RESPONSE_BODY` is intentionally not emitted in `verified_variables` while
 `response_body_basic_block` remains non-promoted/mapped-only.
 
+## Full-lifecycle No-CRS vocabulary
+
+The canonical No-CRS manifest uses underscore-separated capability keys. The
+full-lifecycle additions are `transport_metadata`,
+`request_body_incremental_ingest`, `response_body_incremental_ingest`,
+`phase4_end_of_stream_evaluation`, `content_type_scope`, `header_limits`,
+`request_body_limits`, `response_body_limits`, `no_full_response_buffering`,
+`first_byte_before_response_end`, `http1_content_length`, `http1_chunked`,
+`keep_alive`, `parallel_requests`, `http2`, `client_abort`, `upstream_abort`,
+and `response_body_decompression`.
+
+`response_body_incremental_ingest` is distinct from an assertion that a phase-4
+rule is evaluated for every chunk. A connector may correctly declare
+`phase4_end_of_stream_evaluation` when it incrementally ingests chunks but the
+engine completes rule evaluation at end of stream. The no-buffer and first-byte
+capabilities require synchronized real-host evidence; fixture presence,
+configuration, or a mapper self-test is insufficient for `verified`.
+
 ## Validation Rules
 
 YAML cases may express capabilities as a list or as a mapping of booleans.

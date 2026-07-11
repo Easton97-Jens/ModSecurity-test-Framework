@@ -10,6 +10,7 @@
     "connector": {"enum": ["apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"]},
     "run_id": {"type": "string", "minLength": 1},
     "evidence_stage": {"enum": ["minimal_runtime_smoke", "no_crs_baseline"]},
+    "artifact_profile": {"enum": ["generic", "full_lifecycle"]},
     "ruleset": {"const": "no-crs-baseline"},
     "status": {"enum": ["PASS", "FAIL", "BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"]},
     "started_at": {"type": "string", "minLength": 1},

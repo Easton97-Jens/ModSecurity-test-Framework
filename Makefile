@@ -19,6 +19,7 @@ PLAN_FILE ?= $(BUILD_ROOT)/no-crs-plans/$(CONNECTOR)/$(NO_CRS_RUN_ID).json
 NO_CRS_STAGE_RC ?= 0
 NO_CRS_STAGE_REASON ?=
 NO_CRS_FINALIZE_ARGS ?=
+NO_CRS_ARTIFACT_PROFILE ?= generic
 EVIDENCE_STAGE ?= no_crs_baseline
 NO_CRS_SUMMARY_ROOT ?= $(EVIDENCE_ROOT)/summary/$(NO_CRS_RUN_ID)
 
@@ -102,10 +103,10 @@ check-no-crs-catalog:
 
 no-crs-plan: check-no-crs-catalog
 	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
-	$(PYTHON) "$(NO_CRS_TOOL)" select --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --evidence-stage "$(EVIDENCE_STAGE)" --output "$(PLAN_FILE)"
+	$(PYTHON) "$(NO_CRS_TOOL)" select --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --evidence-stage "$(EVIDENCE_STAGE)" --artifact-profile "$(NO_CRS_ARTIFACT_PROFILE)" --output "$(PLAN_FILE)"
 
 no-crs-init: no-crs-plan
-	$(PYTHON) "$(NO_CRS_TOOL)" init --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --evidence-stage "$(EVIDENCE_STAGE)" --plan "$(PLAN_FILE)" --run-dir "$(NO_CRS_RUN_DIR)" --run-id "$(NO_CRS_RUN_ID)" --connector-root "$(CONNECTOR_ROOT)" --executed-target "$(EVIDENCE_STAGE)-$(CONNECTOR)"
+	$(PYTHON) "$(NO_CRS_TOOL)" init --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --evidence-stage "$(EVIDENCE_STAGE)" --artifact-profile "$(NO_CRS_ARTIFACT_PROFILE)" --plan "$(PLAN_FILE)" --run-dir "$(NO_CRS_RUN_DIR)" --run-id "$(NO_CRS_RUN_ID)" --connector-root "$(CONNECTOR_ROOT)" --executed-target "$(EVIDENCE_STAGE)-$(CONNECTOR)"
 
 no-crs-finalize:
 	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }

@@ -1,0 +1,31 @@
+name: phase2_body_limits_fixture
+title: Declarative phase-2 request body limit boundaries
+category: no-crs-full-lifecycle
+portable: true
+status: future
+no_crs_baseline: true
+phase: 2
+capabilities:
+  request_body: true
+  phase2: true
+rules: |
+  SecRuleEngine On
+request:
+  method: POST
+  path: /no-crs/full-lifecycle/request-limit
+  headers:
+    Content-Type: text/plain
+  body: 0123456789abcdef
+expect:
+  status: 200
+  intervention: none
+full_lifecycle:
+  limit_bytes: 16
+  variants:
+    at_limit: 16
+    over_limit: 17
+    process_partial: 17
+  requires_payload_free_limit_event: true
+  evidence_status: not_executed_until_real_host
+known_limitations:
+  - Limit policy and host-visible status are connector configuration dependent; the canonical event must carry only bounded count and truncation metadata.

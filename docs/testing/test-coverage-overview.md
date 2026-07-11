@@ -1,19 +1,19 @@
-**Language:** English | [Deutsch](test-coverage-overview.de.md)
-
 Generated file - do not edit manually.
+
+**Language:** English | [Deutsch](test-coverage-overview.de.md)
 
 # ModSecurity Connector Test Coverage Overview
 
 ## Summary
-- Total cases: **540**
+- Total cases: **557**
 - Verified/pass count (`runtime_verified=true`): **0**
 - Current XFAIL count: **0**
-- Former XFAIL cases tracked: **80**
-- Pending runtime verification count: **410**
-- Connector-gap count: **11**
+- Former XFAIL cases tracked: **95**
+- Pending runtime verification count: **412**
+- Connector-gap count: **26**
 - Runtime-difference count: **13**
 - Future/experimental count: **17**
-- RESPONSE_BODY cases: **32** (still **not verified/promoted**)
+- RESPONSE_BODY cases: **35** (still **not verified/promoted**)
 - Mapped-only import inventory entries: **0**
 
 ## MRTS Source Summary
@@ -57,8 +57,8 @@ Generated file - do not edit manually.
 | `RESPONSE_BODY` | 28 |
 | `ARGS:q` | 18 |
 | `REQUEST_BODY` | 10 |
-| `XML` | 7 |
 | `REQUEST_URI` | 7 |
+| `XML` | 6 |
 | `ARGS:test` | 6 |
 | `REQUEST_HEADERS_NAMES` | 5 |
 | `ARGS:a` | 4 |
@@ -69,13 +69,13 @@ Generated file - do not edit manually.
 | `ARGS:chain_a` | 3 |
 | `ARGS:chain_b` | 3 |
 | `FILES_NAMES` | 2 |
-| `TX:SCORE` | 2 |
+| `REQUEST_HEADERS:Content-Type` | 2 |
 
 ## Coverage By Phase
 | Phase | Count |
 |---|---:|
-| 1 | 105 |
-| 2 | 192 |
+| 1 | 107 |
+| 2 | 193 |
 | 3 | 114 |
 | 4 | 126 |
 
@@ -83,20 +83,21 @@ Generated file - do not edit manually.
 | Status | Count |
 |---|---:|
 | active | 8 |
+| connector-gap | 15 |
 | imported | 133 |
-| pending | 399 |
+| pending | 401 |
 
 ## Coverage By Scope
 | Scope | Count |
 |---|---:|
-| common | 533 |
+| common | 548 |
 | apache | 0 |
-| nginx | 7 |
+| nginx | 9 |
 | unknown | 0 |
 
 ## Runtime Matrix Status
 - Default runtime-executable YAML cases: **61**
-- Force-all runtime-executable YAML cases: **540**
+- Force-all runtime-executable YAML cases: **557**
 - Apache attempted YAML cases from default summary: **54**
 - NGINX attempted YAML cases from default summary: **60**
 - HAProxy attempted YAML cases from default summary: **134**
@@ -110,15 +111,15 @@ Generated file - do not edit manually.
 |---|---:|---:|---:|
 | PASS | 54 | 60 | 105 |
 | FAIL | 0 | 0 | 23 |
-| NOT_EXECUTABLE | 486 | 480 | 412 |
-- Details: `docs/testing/generated/runtime-matrix.generated.md`
-- HAProxy per-case results: `docs/testing/generated/haproxy-runtime-results.generated.md`
+| NOT_EXECUTABLE | 503 | 497 | 429 |
+- Details: `docs/testing/generated/runtime/runtime-matrix.generated.md`
+- HAProxy per-case results: `docs/testing/generated/runtime/haproxy-runtime-results.generated.md`
 
 ## MRTS Native Infrastructure Evidence
-- Apache native: `docs/testing/generated/mrts-native-apache.generated.md`
-- NGINX PR24 native: `docs/testing/generated/mrts-native-nginx.generated.md`
-- Native summary: `docs/testing/generated/mrts-native-summary.generated.md`
-- Combined native report: `docs/testing/generated/mrts-native-full.generated.md`
+- Apache native: `docs/testing/generated/mrts-native/mrts-native-apache.generated.md`
+- NGINX PR24 native: `docs/testing/generated/mrts-native/mrts-native-nginx.generated.md`
+- Native summary: `docs/testing/generated/mrts-native/mrts-native-summary.generated.md`
+- Combined native report: `docs/testing/generated/mrts-native/mrts-native-full.generated.md`
 
 These native MRTS reports are separate from connector full-matrix evidence.
 
@@ -227,8 +228,8 @@ No NGINX runtime FAIL details were reported.
 ## Open Areas / Gaps
 - Runtime-verified means only cases explicitly classified as `runtime_verified=true`.
 - Cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.
-- See `docs/testing/generated/connector-gap-summary.generated.md` for detailed connector-gap entries.
-- Phase 3/4 cases are visible in `docs/testing/generated/phase-coverage.generated.md` and in the runtime matrix.
+- See `docs/testing/generated/coverage/connector-gap-summary.generated.md` for detailed connector-gap entries.
+- Phase 3/4 cases are visible in `docs/testing/generated/coverage/phase-coverage.generated.md` and in the runtime matrix.
 - RESPONSE_BODY remains not verified and not promoted.
 - GitHub/Codex checks are intentionally lightweight.
 - Pending and gap topics need local runtime validation.
@@ -250,15 +251,15 @@ No NGINX runtime FAIL details were reported.
 - `make check-test-matrix`
 
 ## Detail Reports
-- `docs/testing/generated/case-matrix.generated.md`
-- `docs/testing/generated/coverage-summary.generated.md`
-- `docs/testing/generated/xfail-summary.generated.md`
-- `docs/testing/generated/connector-gap-summary.generated.md`
-- `docs/testing/generated/phase-coverage.generated.md`
-- `docs/testing/generated/runtime-matrix.generated.md`
-- `docs/testing/generated/apache-runtime-results.generated.md`
-- `docs/testing/generated/nginx-runtime-results.generated.md`
-- `docs/testing/generated/haproxy-runtime-results.generated.md`
+- `docs/testing/generated/coverage/case-matrix.generated.md`
+- `docs/testing/generated/coverage/coverage-summary.generated.md`
+- `docs/testing/generated/coverage/xfail-summary.generated.md`
+- `docs/testing/generated/coverage/connector-gap-summary.generated.md`
+- `docs/testing/generated/coverage/phase-coverage.generated.md`
+- `docs/testing/generated/runtime/runtime-matrix.generated.md`
+- `docs/testing/generated/runtime/apache-runtime-results.generated.md`
+- `docs/testing/generated/runtime/nginx-runtime-results.generated.md`
+- `docs/testing/generated/runtime/haproxy-runtime-results.generated.md`
 - `docs/testing/runtime-validation-snapshot.json`
 
 ## Important Note
@@ -268,4 +269,4 @@ GitHub/Codex checks are intentionally lightweight.
 Pending, future, and gap topics need local runtime validation before promotion.
 `make smoke-all` is authoritative only if it was actually executed successfully.
 No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY remains non-promoted; historic bounded strict-abort samples are noncanonical and not current runtime evidence.

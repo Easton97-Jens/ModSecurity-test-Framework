@@ -10,8 +10,8 @@ from typing import Any
 
 
 RESPONSE_BODY_EVIDENCE_NOTE = (
-    "Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; "
-    "pass-through rows do not prove full RESPONSE_BODY support."
+    "RESPONSE_BODY remains non-verified/non-promoted; legacy bounded samples "
+    "and pass-through rows do not prove selected-host support."
 )
 RESPONSE_BODY_RUNTIME_NOTE = "Runtime passed, but this does not verify RESPONSE_BODY support."
 RESPONSE_BODY_PASS_THROUGH_STATUS = "PASS"

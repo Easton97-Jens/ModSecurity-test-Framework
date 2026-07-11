@@ -93,7 +93,9 @@ def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
     for canonical, aliases in {
         "late_intervention": ("late_intervention", "intervention"),
         "headers_sent": ("headers_sent", "header_sent"),
+        "response_started": ("response_started",),
         "body_started": ("body_started", "response_body_seen"),
+        "body_truncated": ("body_truncated", "response_body_truncated"),
         "response_committed": ("response_committed",),
         "connection_aborted": ("connection_aborted", "strict_abort"),
     }.items():
@@ -109,6 +111,49 @@ def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
             "http_status", "log_only", "connection_aborted", "not_observable",
         }:
             output["transport_result"] = normalized_transport
+    mode = first("late_intervention_mode", "phase4_mode")
+    if mode is not None:
+        normalized_mode = str(mode).strip().lower()
+        if normalized_mode in {"minimal", "safe", "strict"}:
+            output["late_intervention_mode"] = normalized_mode
+    scope = first("content_type_scope", "scope_result")
+    if scope is not None:
+        normalized_scope = str(scope).strip().lower().replace("-", "_")
+        if normalized_scope in {"in_scope", "out_of_scope", "missing"}:
+            output["content_type_scope"] = normalized_scope
+    limit_outcome = first("body_limit_outcome", "limit_outcome")
+    if limit_outcome is not None:
+        normalized_limit = str(limit_outcome).strip().lower().replace("-", "_")
+        if normalized_limit in {"at_limit", "over_limit", "process_partial", "reject"}:
+            output["body_limit_outcome"] = normalized_limit
+    for canonical, aliases in {
+        "marker_split_across_chunks": ("marker_split_across_chunks",),
+        "end_of_stream_evaluation": ("end_of_stream_evaluation",),
+        "no_full_response_buffering": ("no_full_response_buffering",),
+        "first_byte_before_response_end": ("first_byte_before_response_end",),
+        "upstream_response_finished_at_first_byte": (
+            "upstream_response_finished_at_first_byte",
+            "upstream_response_complete_at_first_byte",
+        ),
+        "connection_reused": ("connection_reused", "keep_alive_reused"),
+        "client_aborted": ("client_aborted",),
+        "upstream_aborted": ("upstream_aborted",),
+    }.items():
+        value = _phase4_bool(first(*aliases))
+        if value is not None:
+            output[canonical] = value
+    protocol = first("transport_protocol", "protocol")
+    if protocol is not None:
+        normalized_protocol = str(protocol).strip().lower().replace("/", "").replace(".", "")
+        if normalized_protocol in {"http1", "http11"}:
+            output["transport_protocol"] = "http1"
+        elif normalized_protocol == "http2":
+            output["transport_protocol"] = "http2"
+    transfer_encoding = first("transfer_encoding",)
+    if transfer_encoding is not None:
+        normalized_encoding = str(transfer_encoding).strip().lower().replace("-", "_")
+        if normalized_encoding in {"content_length", "chunked", "none"}:
+            output["transfer_encoding"] = normalized_encoding
     return output
 
 
@@ -242,12 +287,16 @@ def case_info(args: argparse.Namespace) -> int:
         for key in (
             "phase",
             "response_headers_seen",
+            "response_started",
             "response_body_seen",
             "response_body_truncated",
+            "body_truncated",
             "observed_transport_result",
             "rule_id",
             "body_bytes_seen",
             "body_bytes_inspected",
+            "truncated",
+            "content_type",
         ):
             if key in metadata:
                 info[key] = metadata[key]

@@ -29,6 +29,25 @@ Der Smoke-Fall läuft über Apache oder NGINX.
 `RESPONSE_BODY` wird in `verified_variables` während absichtlich nicht ausgegeben
 `response_body_basic_block` bleibt non-promoted/mapped-only.
 
+## Full-Lifecycle-No-CRS-Vokabular
+
+Das kanonische No-CRS-Manifest verwendet Capability-Schlüssel mit Unterstrich.
+Die Full-Lifecycle-Ergänzungen sind `transport_metadata`,
+`request_body_incremental_ingest`, `response_body_incremental_ingest`,
+`phase4_end_of_stream_evaluation`, `content_type_scope`, `header_limits`,
+`request_body_limits`, `response_body_limits`, `no_full_response_buffering`,
+`first_byte_before_response_end`, `http1_content_length`, `http1_chunked`,
+`keep_alive`, `parallel_requests`, `http2`, `client_abort`, `upstream_abort`
+und `response_body_decompression`.
+
+`response_body_incremental_ingest` ist von der Behauptung getrennt, dass eine
+Phase-4-Regel für jeden Chunk ausgewertet wird. Ein Connector kann korrekt
+`phase4_end_of_stream_evaluation` deklarieren, wenn er Chunks inkrementell
+übergibt, die Engine die Regelauswertung aber erst am Streamende abschließt.
+Die No-Buffer- und First-Byte-Capabilities benötigen synchronisierte
+Real-Host-Evidence; die Existenz eines Fixtures, Konfiguration oder ein
+Mapper-Selbsttest reicht nicht für `verified`.
+
 ## Validierungsregeln
 
 YAML Fälle können Fähigkeiten als Liste oder als Zuordnung von booleschen Werten ausdrücken.

@@ -3,10 +3,11 @@
   "$id": "https://modsecurity-connector.invalid/schemas/no-crs-case-catalog-v1.json",
   "title": "Canonical No-CRS case catalog",
   "type": "object",
-  "required": ["schema_version", "catalog", "ruleset", "defaults", "cases"],
+  "required": ["schema_version", "catalog", "full_lifecycle_artifact_profile", "ruleset", "defaults", "cases"],
   "properties": {
     "schema_version": {"const": 1},
     "catalog": {"const": "no-crs-baseline"},
+    "full_lifecycle_artifact_profile": {"const": "full_lifecycle"},
     "ruleset": {"type": "object"},
     "defaults": {"type": "object"},
     "cases": {
@@ -26,6 +27,15 @@
           "expected_rule_id": {"type": ["integer", "null"]},
           "expected_event_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
           "forbidden_event_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "evidence_requirement": {
+            "type": "object",
+            "required": ["requires_real_host", "accepts_synthetic_pass"],
+            "properties": {
+              "requires_real_host": {"const": true},
+              "accepts_synthetic_pass": {"const": false}
+            }
+          },
+          "runner_case": {"type": "string", "minLength": 1},
           "deprecated_alias_for": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"}
         }
       }

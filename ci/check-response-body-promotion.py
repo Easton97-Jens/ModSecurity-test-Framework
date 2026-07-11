@@ -17,6 +17,10 @@ from response_body_status import RESPONSE_BODY_EVIDENCE_NOTE, is_response_body_r
 FRAMEWORK_REPORT_DIR = "docs/testing"
 CONNECTOR_REPORT_DIR = "reports/testing"
 RUNTIME_SNAPSHOT_FILENAME = "runtime-validation-snapshot.json"
+LEGACY_RESPONSE_BODY_EVIDENCE_NOTE = (
+    "Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; "
+    "pass-through rows do not prove full RESPONSE_BODY support."
+)
 
 
 def resolve_root(root: str | Path, *, label: str) -> Path:
@@ -86,8 +90,11 @@ def validate_response_body_snapshot_row(
         errors.append(f"{location}: RESPONSE_BODY row must set runtime_verified=false")
     if row.get("promotion_allowed") is not False:
         errors.append(f"{location}: RESPONSE_BODY row must set promotion_allowed=false")
-    if row.get("evidence_note") != RESPONSE_BODY_EVIDENCE_NOTE:
-        errors.append(f"{location}: RESPONSE_BODY row must carry the pass-through evidence note")
+    if row.get("evidence_note") not in {
+        RESPONSE_BODY_EVIDENCE_NOTE,
+        LEGACY_RESPONSE_BODY_EVIDENCE_NOTE,
+    }:
+        errors.append(f"{location}: RESPONSE_BODY row must carry an approved non-promotion evidence note")
 
     return errors
 
