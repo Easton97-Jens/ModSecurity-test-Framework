@@ -26,8 +26,14 @@ full_lifecycle:
     client_must_receive_first_chunk_before_release: true
     later_marker_after_release: true
   required_event_fields:
+    - client_first_byte_received
     - first_byte_before_response_end
+    - first_chunk_size
+    - upstream_paused
     - upstream_response_finished_at_first_byte
+    - response_committed
+    - body_bytes_seen
+    - body_bytes_inspected
     - no_full_response_buffering
   evidence_status: not_executed_until_real_host
 known_limitations:

@@ -135,6 +135,9 @@ def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
             "upstream_response_finished_at_first_byte",
             "upstream_response_complete_at_first_byte",
         ),
+        "client_first_byte_received": ("client_first_byte_received",),
+        "upstream_paused": ("upstream_paused",),
+        "upstream_eos_sent_at_first_byte": ("upstream_eos_sent_at_first_byte",),
         "connection_reused": ("connection_reused", "keep_alive_reused"),
         "client_aborted": ("client_aborted",),
         "upstream_aborted": ("upstream_aborted",),
@@ -142,6 +145,14 @@ def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
         value = _phase4_bool(first(*aliases))
         if value is not None:
             output[canonical] = value
+    first_chunk_size = first("first_chunk_size")
+    if first_chunk_size is not None:
+        try:
+            normalized_first_chunk_size = int(first_chunk_size)
+        except (TypeError, ValueError):
+            normalized_first_chunk_size = -1
+        if normalized_first_chunk_size >= 0:
+            output["first_chunk_size"] = normalized_first_chunk_size
     protocol = first("transport_protocol", "protocol")
     if protocol is not None:
         normalized_protocol = str(protocol).strip().lower().replace("/", "").replace(".", "")

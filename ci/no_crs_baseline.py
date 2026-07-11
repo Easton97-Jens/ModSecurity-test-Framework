@@ -31,6 +31,7 @@ if str(RUNNER_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNNER_ROOT))
 
 from msconnector_models import STATUS_MODEL, operation_status  # noqa: E402
+from synchronized_upstream import first_byte_evidence_errors  # noqa: E402
 
 CATALOG_PATH = FRAMEWORK_ROOT / "tests/cases/no-crs-baseline/catalog.json"
 RULES_PATH = FRAMEWORK_ROOT / "tests/rules/no-crs-baseline.conf"
@@ -143,7 +144,9 @@ FULL_LIFECYCLE_REQUIRED_ARTIFACTS = (
     ("stdout", "logs/stdout.log"),
     ("stderr", "logs/stderr.log"),
     ("host_log", "logs/host.log"),
+    ("first_byte_evidence", "inventory/first-byte-evidence.json"),
 )
+FIRST_BYTE_EVIDENCE_RELATIVE_PATH = "inventory/first-byte-evidence.json"
 MINIMAL_RUNTIME_CASE_IDS = ("allow_without_marker", "deny_header_marker_403")
 REPORT_STATUSES = (
     "PASS",
@@ -329,6 +332,10 @@ PHASE4_SEMANTIC_FIELDS = (
     "no_full_response_buffering",
     "first_byte_before_response_end",
     "upstream_response_finished_at_first_byte",
+    "client_first_byte_received",
+    "first_chunk_size",
+    "upstream_paused",
+    "upstream_eos_sent_at_first_byte",
     "transport_protocol",
     "transfer_encoding",
     "connection_reused",
@@ -957,12 +964,22 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
         "phase4_no_full_response_buffering": (
             "no_full_response_buffering", 4,
             {"response_body_incremental_ingest", "no_full_response_buffering", "first_byte_before_response_end", "event_jsonl"},
-            {"no_full_response_buffering", "first_byte_before_response_end", "upstream_response_finished_at_first_byte"},
+            {
+                "no_full_response_buffering", "client_first_byte_received",
+                "first_byte_before_response_end", "first_chunk_size", "upstream_paused",
+                "upstream_eos_sent_at_first_byte", "upstream_response_finished_at_first_byte",
+                "response_committed", "body_bytes_seen", "body_bytes_inspected",
+            },
         ),
         "phase4_first_byte_before_response_end": (
             "first_byte_before_response_end", 4,
             {"response_body_incremental_ingest", "first_byte_before_response_end", "event_jsonl"},
-            {"first_byte_before_response_end", "upstream_response_finished_at_first_byte"},
+            {
+                "client_first_byte_received", "first_byte_before_response_end",
+                "first_chunk_size", "upstream_paused", "upstream_eos_sent_at_first_byte",
+                "upstream_response_finished_at_first_byte", "response_committed",
+                "body_bytes_seen", "body_bytes_inspected",
+            },
         ),
         "phase4_content_type_with_charset": (
             "content_type_in_scope_with_charset", 4,
@@ -1248,6 +1265,7 @@ def initial_artifacts() -> dict[str, dict[str, Any]]:
         "stdout": artifact_entry("logs/stdout.log", "not_produced"),
         "stderr": artifact_entry("logs/stderr.log", "not_produced"),
         "host_log": artifact_entry("logs/host.log", "not_produced"),
+        "first_byte_evidence": artifact_entry(FIRST_BYTE_EVIDENCE_RELATIVE_PATH, "not_produced"),
         "rule_load_log": artifact_entry("logs/rule-load.log", "not_produced"),
         "rules": artifact_entry("config/no-crs-baseline.conf", "produced"),
         "inventory": artifact_entry("inventory/run.json", "produced"),
@@ -1700,6 +1718,10 @@ _RAW_SEMANTIC_FIELD_ALIASES = {
         "upstream_response_finished_at_first_byte",
         "upstream_response_complete_at_first_byte",
     ),
+    "client_first_byte_received": ("client_first_byte_received",),
+    "first_chunk_size": ("first_chunk_size",),
+    "upstream_paused": ("upstream_paused",),
+    "upstream_eos_sent_at_first_byte": ("upstream_eos_sent_at_first_byte",),
     "transport_protocol": ("transport_protocol", "protocol"),
     "transfer_encoding": ("transfer_encoding",),
     "connection_reused": ("connection_reused", "keep_alive_reused"),
@@ -1742,7 +1764,7 @@ def normalize_transport_result(value: object) -> str | None:
 
 
 def normalize_semantic_value(field: str, value: object) -> object:
-    if field in {"http_status", "original_http_status", "visible_http_status"}:
+    if field in {"http_status", "original_http_status", "visible_http_status", "first_chunk_size"}:
         return optional_int(value)
     if field in {
         "late_intervention", "headers_sent", "response_started", "body_started", "body_truncated",
@@ -1750,6 +1772,7 @@ def normalize_semantic_value(field: str, value: object) -> object:
         "connection_aborted", "marker_split_across_chunks",
         "end_of_stream_evaluation", "no_full_response_buffering",
         "first_byte_before_response_end", "upstream_response_finished_at_first_byte",
+        "client_first_byte_received", "upstream_paused", "upstream_eos_sent_at_first_byte",
         "connection_reused", "client_aborted", "upstream_aborted",
     }:
         return optional_bool(value)
@@ -2019,13 +2042,45 @@ def phase4_pass_errors(
 
     if expected_result == "no_full_response_buffering":
         require_event_value("no_full_response_buffering", True)
+        require_event_value("client_first_byte_received", True)
         require_event_value("first_byte_before_response_end", True)
+        require_event_value("first_chunk_size")
+        if not isinstance(matching_event.get("first_chunk_size"), int) or matching_event["first_chunk_size"] < 1:
+            errors.append("no-full-buffer evidence requires first_chunk_size > 0")
+        require_event_value("upstream_paused", True)
+        require_event_value("upstream_eos_sent_at_first_byte", False)
         require_event_value("upstream_response_finished_at_first_byte", False)
+        require_event_value("response_committed", True)
+        for field in ("body_bytes_seen", "body_bytes_inspected"):
+            if not isinstance(matching_event.get(field), int):
+                errors.append(f"no-full-buffer evidence requires {field}")
+        if (
+            isinstance(matching_event.get("body_bytes_seen"), int)
+            and isinstance(matching_event.get("body_bytes_inspected"), int)
+            and matching_event["body_bytes_inspected"] > matching_event["body_bytes_seen"]
+        ):
+            errors.append("no-full-buffer evidence has inspected bytes above seen bytes")
         return errors
 
     if expected_result == "first_byte_before_response_end":
+        require_event_value("client_first_byte_received", True)
         require_event_value("first_byte_before_response_end", True)
+        require_event_value("first_chunk_size")
+        if not isinstance(matching_event.get("first_chunk_size"), int) or matching_event["first_chunk_size"] < 1:
+            errors.append("first-byte evidence requires first_chunk_size > 0")
+        require_event_value("upstream_paused", True)
+        require_event_value("upstream_eos_sent_at_first_byte", False)
         require_event_value("upstream_response_finished_at_first_byte", False)
+        require_event_value("response_committed", True)
+        for field in ("body_bytes_seen", "body_bytes_inspected"):
+            if not isinstance(matching_event.get(field), int):
+                errors.append(f"first-byte evidence requires {field}")
+        if (
+            isinstance(matching_event.get("body_bytes_seen"), int)
+            and isinstance(matching_event.get("body_bytes_inspected"), int)
+            and matching_event["body_bytes_inspected"] > matching_event["body_bytes_seen"]
+        ):
+            errors.append("first-byte evidence has inspected bytes above seen bytes")
         return errors
 
     limit_outcomes = {
@@ -2671,6 +2726,57 @@ def copy_named_log(run_dir: Path, label: str, source_text: str, manifest: dict[s
     )
 
 
+def copy_first_byte_evidence(
+    run_dir: Path,
+    source_text: str,
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Copy a bounded first-byte barrier record into the canonical inventory.
+
+    A connector harness may create the source record with the reusable
+    synchronized upstream helper.  This function deliberately accepts a
+    synthetic record for diagnostic retention, but the promotion gate below
+    prevents it from proving either first-byte or no-buffer capabilities.
+    """
+    source = Path(source_text)
+    payload = load_json(source)
+    errors = first_byte_evidence_errors(payload)
+    if errors:
+        raise ContractError("; ".join(errors))
+    if not isinstance(payload, dict):
+        raise ContractError("first-byte evidence must be a JSON object")
+    copy_artifact(source, run_dir / FIRST_BYTE_EVIDENCE_RELATIVE_PATH)
+    destination = run_dir / FIRST_BYTE_EVIDENCE_RELATIVE_PATH
+    manifest["artifacts"]["first_byte_evidence"] = artifact_entry(
+        FIRST_BYTE_EVIDENCE_RELATIVE_PATH,
+        "produced",
+        sha256=sha256_file(destination),
+    )
+    return payload
+
+
+def prevent_synthetic_first_byte_promotion(
+    records: Sequence[dict[str, Any]],
+    evidence: Mapping[str, Any] | None,
+) -> None:
+    """Downgrade only the claims a synthetic barrier run cannot establish."""
+    if evidence is None or evidence.get("evidence_origin") == "real_host":
+        return
+    protected_case_ids = {
+        "phase4_first_byte_before_response_end",
+        "phase4_no_full_response_buffering",
+    }
+    for record in records:
+        if record.get("case_id") not in protected_case_ids or record.get("status") != "PASS":
+            continue
+        record["status"] = "FAIL"
+        record["operation_status"] = operation_status("fail")
+        record["reason"] = (
+            "synthetic first-byte evidence is retained for diagnostics but cannot "
+            "promote a canonical host capability"
+        )
+
+
 def require_full_lifecycle_artifact_inputs(args: argparse.Namespace) -> None:
     """Require host-produced evidence inputs for the opt-in full-lifecycle profile.
 
@@ -2683,6 +2789,7 @@ def require_full_lifecycle_artifact_inputs(args: argparse.Namespace) -> None:
         ("--stdout-log", args.stdout_log),
         ("--stderr-log", args.stderr_log),
         ("--host-log", args.host_log),
+        ("--first-byte-evidence", args.first_byte_evidence),
     )
     missing = [name for name, value in required_arguments if not str(value or "").strip()]
     if missing:
@@ -2811,6 +2918,7 @@ def finalize_run(args: argparse.Namespace) -> int:
         raise ContractError("manifest and plan artifact profiles differ")
     if artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE:
         require_full_lifecycle_artifact_inputs(args)
+    first_byte_evidence: dict[str, Any] | None = None
     provenance_required = bool(
         manifest.get("provenance_required") is True
         or manifest.get("connector_commit") not in {None, "", "unknown"}
@@ -2845,6 +2953,11 @@ def finalize_run(args: argparse.Namespace) -> int:
         write_jsonl(run_dir / "events.jsonl", events)
         manifest["artifacts"]["events"] = artifact_entry(
             "events.jsonl", "produced", sha256=sha256_file(run_dir / "events.jsonl")
+        )
+
+    if args.first_byte_evidence:
+        first_byte_evidence = copy_first_byte_evidence(
+            run_dir, args.first_byte_evidence, manifest
         )
 
     raw_records: list[dict[str, Any]] = []
@@ -2911,6 +3024,7 @@ def finalize_run(args: argparse.Namespace) -> int:
     append_derived_event_records(records, plan, case_by_id, events)
     derive_deprecated_alias_targets(records, plan, case_by_id, events)
     append_derived_phase4_records(records, plan, case_by_id, events)
+    prevent_synthetic_first_byte_promotion(records, first_byte_evidence)
     deduplicated: dict[str, dict[str, Any]] = {}
     for record in records:
         deduplicated[record["case_id"]] = record
@@ -3040,6 +3154,14 @@ def finalize_run(args: argparse.Namespace) -> int:
         if manifest.get("framework_worktree_clean") is not True:
             pass_gate_failures.append("PASS requires a clean framework worktree")
         pass_gate_failures.extend(provenance_pass_gate_failures(manifest))
+        if (
+            artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE
+            and first_byte_evidence is not None
+            and first_byte_evidence.get("evidence_origin") != "real_host"
+        ):
+            pass_gate_failures.append(
+                "PASS requires real-host first-byte evidence; synthetic harness output is non-promoting"
+            )
         if pass_gate_failures:
             status = "FAIL"
             blocked_before_execution = False
@@ -4330,6 +4452,11 @@ def build_parser() -> argparse.ArgumentParser:
     finalize_parser.add_argument("--source-results-jsonl", action="append", default=[])
     finalize_parser.add_argument("--source-summary", action="append", default=[])
     finalize_parser.add_argument("--source-events")
+    finalize_parser.add_argument(
+        "--first-byte-evidence",
+        default="",
+        help="payload-free JSON emitted by the synchronized streaming barrier",
+    )
     finalize_parser.add_argument("--stdout-log", default="")
     finalize_parser.add_argument("--stderr-log", default="")
     finalize_parser.add_argument("--host-log", default="")

@@ -10,6 +10,7 @@ CONNECTOR_ROOT ?= $(CURDIR)
 OUTPUT_ROOT ?= $(CONNECTOR_ROOT)
 PYTHONDONTWRITEBYTECODE ?= 1
 NO_CRS_TOOL ?= $(FRAMEWORK_ROOT)/ci/no_crs_baseline.py
+FULL_LIFECYCLE_EVIDENCE_TOOL ?= $(FRAMEWORK_ROOT)/ci/check_full_lifecycle_evidence.py
 NO_CRS_RUN_ID ?= local
 CONNECTOR ?=
 CAPABILITIES_FILE ?= $(CONNECTOR_ROOT)/connectors/$(CONNECTOR)/capabilities.json
@@ -59,7 +60,7 @@ export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-doc-consistency
+.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion
 
 define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 	@set +e; \
@@ -144,6 +145,23 @@ check-no-crs-status-consistency:
 
 check-no-crs-evidence:
 	$(call RUN_NO_CRS_CHECK,all)
+
+define RUN_FULL_LIFECYCLE_EVIDENCE_CHECK
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
+	$(PYTHON) "$(FULL_LIFECYCLE_EVIDENCE_TOOL)" --run-dir "$(NO_CRS_RUN_DIR)" --check "$(1)"
+endef
+
+check-first-byte-before-response-end:
+	$(call RUN_FULL_LIFECYCLE_EVIDENCE_CHECK,first-byte)
+
+check-no-full-response-buffering:
+	$(call RUN_FULL_LIFECYCLE_EVIDENCE_CHECK,no-full-response-buffering)
+
+check-full-lifecycle-event-privacy:
+	$(call RUN_FULL_LIFECYCLE_EVIDENCE_CHECK,event-privacy)
+
+check-full-lifecycle-promotion:
+	$(call RUN_FULL_LIFECYCLE_EVIDENCE_CHECK,promotion)
 
 # Repository-owned bilingual reports are checked at the root.  Framework-side
 # document consistency starts by validating the one canonical source catalog.

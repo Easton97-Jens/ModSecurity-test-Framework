@@ -175,6 +175,19 @@
     "first_byte_before_response_end": {
       "type": "boolean"
     },
+    "client_first_byte_received": {
+      "type": "boolean"
+    },
+    "first_chunk_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "upstream_paused": {
+      "type": "boolean"
+    },
+    "upstream_eos_sent_at_first_byte": {
+      "type": "boolean"
+    },
     "upstream_response_finished_at_first_byte": {
       "type": "boolean"
     },

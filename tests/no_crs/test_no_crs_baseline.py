@@ -5,7 +5,10 @@ import io
 import json
 from contextlib import redirect_stderr
 from pathlib import Path
+import socket
 import tempfile
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -15,8 +18,23 @@ SPEC = importlib.util.spec_from_file_location("no_crs_baseline", ROOT / "ci/no_c
 assert SPEC is not None and SPEC.loader is not None
 no_crs = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(no_crs)
+CHECK_SPEC = importlib.util.spec_from_file_location(
+    "check_full_lifecycle_evidence", ROOT / "ci/check_full_lifecycle_evidence.py"
+)
+assert CHECK_SPEC is not None and CHECK_SPEC.loader is not None
+full_lifecycle_check = importlib.util.module_from_spec(CHECK_SPEC)
+CHECK_SPEC.loader.exec_module(full_lifecycle_check)
 from runner_core import load_case, write_rules_file  # noqa: E402
 from case_cli import phase4_runtime_evidence  # noqa: E402
+from synchronized_upstream import (  # noqa: E402
+    SynchronizedStreamingUpstream,
+    first_byte_evidence_errors,
+    main as streaming_main,
+    merge_first_byte_evidence,
+    run_client_barrier,
+    serve_with_control_files,
+    write_evidence,
+)
 
 
 def manifest(connector: str = "envoy", executable: set[str] | None = None) -> dict[str, object]:
@@ -103,6 +121,13 @@ class NoCrsBaselineTest(unittest.TestCase):
         self.assertIn(expected, finalize_recipe)
         self.assertIn("NO_CRS_ARTIFACT_PROFILE ?= generic", makefile)
         self.assertIn('--artifact-profile "$(NO_CRS_ARTIFACT_PROFILE)"', makefile)
+        for target in (
+            "check-first-byte-before-response-end:",
+            "check-no-full-response-buffering:",
+            "check-full-lifecycle-event-privacy:",
+            "check-full-lifecycle-promotion:",
+        ):
+            self.assertIn(target, makefile)
 
     def test_generic_artifact_profile_keeps_optional_legacy_artifacts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
@@ -195,13 +220,35 @@ class NoCrsBaselineTest(unittest.TestCase):
             stdout_path = root / "stdout.log"
             stderr_path = root / "stderr.log"
             host_log_path = root / "host.log"
+            first_byte_path = root / "first-byte-evidence.json"
             events_path.write_text('{"connector":"envoy"}\n', encoding="utf-8")
             for path in (stdout_path, stderr_path, host_log_path):
                 path.write_text("", encoding="utf-8")
+            write_evidence(first_byte_path, {
+                "schema_version": 1,
+                "evidence_type": "synchronized_first_byte",
+                "evidence_origin": "synthetic_harness",
+                "promotion_eligible": False,
+                "client_first_byte_received": True,
+                "first_byte_before_response_end": True,
+                "first_chunk_size": 1,
+                "upstream_paused": True,
+                "upstream_eos_sent_at_first_byte": False,
+                "upstream_response_finished_at_first_byte": False,
+                "response_committed": True,
+                "body_bytes_seen": None,
+                "body_bytes_inspected": None,
+                "no_full_response_buffering": None,
+                "connector_owned_full_response_buffer": None,
+                "transport_protocol": "http1",
+                "body_payload_persisted": False,
+                "outcome": "PASS",
+            })
             self.assertEqual(0, no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--source-events", str(events_path), "--stdout-log", str(stdout_path),
                 "--stderr-log", str(stderr_path), "--host-log", str(host_log_path),
+                "--first-byte-evidence", str(first_byte_path),
                 "--stage-rc", "0",
             ]))
             expected_paths = dict(no_crs.FULL_LIFECYCLE_REQUIRED_ARTIFACTS)
@@ -374,8 +421,15 @@ class NoCrsBaselineTest(unittest.TestCase):
             marker_split_across_chunks=True,
             end_of_stream_evaluation=True,
             no_full_response_buffering=True,
+            client_first_byte_received=True,
             first_byte_before_response_end=True,
+            first_chunk_size=17,
+            upstream_paused=True,
+            upstream_eos_sent_at_first_byte=False,
             upstream_response_finished_at_first_byte=False,
+            response_committed=True,
+            body_bytes_seen=17,
+            body_bytes_inspected=17,
         )
         record = self.normalize_phase4("phase4_first_byte_before_response_end", event)
         self.assertEqual("PASS", record["status"])
@@ -387,6 +441,248 @@ class NoCrsBaselineTest(unittest.TestCase):
         buffered["upstream_response_finished_at_first_byte"] = True
         record = self.normalize_phase4("phase4_no_full_response_buffering", buffered)
         self.assertEqual("FAIL", record["status"])
+
+    def test_synchronized_upstream_emits_payload_free_barrier_evidence(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="first-byte-probe-") as temporary:
+            output = Path(temporary) / "first-byte-evidence.json"
+            with SynchronizedStreamingUpstream() as upstream:
+                address = upstream.address
+                evidence = run_client_barrier(
+                    target_host=address.host,
+                    target_port=address.port,
+                    upstream=upstream,
+                    host_metadata={
+                        "response_committed": True,
+                        "body_bytes_seen": 17,
+                        "body_bytes_inspected": 17,
+                        "no_full_response_buffering": True,
+                        "connector_owned_full_response_buffer": False,
+                    },
+                )
+            self.assertEqual([], first_byte_evidence_errors(evidence, require_complete_proof=True))
+            self.assertEqual("synthetic_harness", evidence["evidence_origin"])
+            self.assertFalse(evidence["promotion_eligible"])
+            self.assertTrue(evidence["client_first_byte_received"])
+            self.assertTrue(evidence["upstream_paused"])
+            self.assertFalse(evidence["upstream_eos_sent_at_first_byte"])
+            self.assertGreater(evidence["first_chunk_size"], 0)
+            write_evidence(output, evidence)
+            serialized = output.read_text(encoding="utf-8")
+            self.assertNotIn("first-byte-prefix", serialized)
+            self.assertNotIn("no-crs-response-body-marker", serialized)
+
+    def test_synthetic_first_byte_evidence_cannot_promote_cases(self) -> None:
+        records = [
+            {
+                "case_id": "phase4_first_byte_before_response_end",
+                "status": "PASS",
+                "operation_status": "ok",
+                "reason": "synthetic test fixture",
+            },
+            {
+                "case_id": "phase4_no_full_response_buffering",
+                "status": "PASS",
+                "operation_status": "ok",
+                "reason": "synthetic test fixture",
+            },
+        ]
+        no_crs.prevent_synthetic_first_byte_promotion(
+            records, {"evidence_origin": "synthetic_harness"}
+        )
+        self.assertEqual(["FAIL", "FAIL"], [record["status"] for record in records])
+        self.assertTrue(all("cannot promote" in record["reason"] for record in records))
+
+    def test_control_file_daemon_pauses_until_the_harness_releases_it(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="first-byte-daemon-") as temporary:
+            root = Path(temporary)
+            ready = root / "ready.json"
+            paused = root / "paused.json"
+            release = root / "release"
+            server_evidence = root / "server-evidence.json"
+            failures: list[BaseException] = []
+
+            def serve() -> None:
+                try:
+                    serve_with_control_files(
+                        ready_file=ready,
+                        paused_file=paused,
+                        release_file=release,
+                        server_evidence_file=server_evidence,
+                        timeout=5.0,
+                    )
+                except BaseException as exc:  # capture daemon-thread failures for assertions
+                    failures.append(exc)
+
+            thread = threading.Thread(target=serve, daemon=True)
+            thread.start()
+            deadline = time.monotonic() + 2.0
+            while not ready.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(ready.is_file())
+            address = json.loads(ready.read_text(encoding="utf-8"))
+            with socket.create_connection(
+                (address["upstream_host"], address["upstream_port"]), timeout=2.0
+            ) as client:
+                client.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                received = bytearray()
+                while b"\r\n\r\n" not in received or not received.split(b"\r\n\r\n", 1)[1]:
+                    received.extend(client.recv(4096))
+                deadline = time.monotonic() + 2.0
+                while not paused.exists() and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(paused.is_file())
+                paused_payload = json.loads(paused.read_text(encoding="utf-8"))
+                self.assertTrue(paused_payload["upstream_paused"])
+                self.assertFalse(paused_payload["upstream_eos_sent"])
+                self.assertGreater(paused_payload["first_chunk_size"], 0)
+                merged = merge_first_byte_evidence(
+                    paused_payload,
+                    client_first_byte_received=True,
+                    evidence_origin="real_host",
+                    host_metadata={
+                        "response_committed": True,
+                        "body_bytes_seen": paused_payload["first_chunk_size"],
+                        "body_bytes_inspected": paused_payload["first_chunk_size"],
+                        "no_full_response_buffering": True,
+                        "connector_owned_full_response_buffer": False,
+                    },
+                )
+                self.assertEqual(
+                    [], first_byte_evidence_errors(
+                        merged, require_real_host=True, require_complete_proof=True
+                    )
+                )
+                release.touch()
+                while client.recv(4096):
+                    pass
+            thread.join(timeout=3.0)
+            self.assertFalse(thread.is_alive())
+            self.assertEqual([], failures)
+            daemon_evidence = json.loads(server_evidence.read_text(encoding="utf-8"))
+            self.assertTrue(daemon_evidence["upstream_eos_sent"])
+            self.assertNotIn("no-crs-response-body-marker", json.dumps(daemon_evidence))
+
+    def test_merge_cli_uses_only_client_file_size_and_writes_payload_free_evidence(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="first-byte-merge-") as temporary:
+            root = Path(temporary)
+            paused = root / "paused.json"
+            client_output = root / "client-body.bin"
+            metadata = root / "host-metadata.json"
+            output = root / "first-byte-evidence.json"
+            paused.write_text(json.dumps({
+                "schema_version": 1,
+                "evidence_type": "synchronized_upstream_paused",
+                "first_chunk_size": 7,
+                "upstream_paused": True,
+                "upstream_eos_sent": False,
+                "body_payload_persisted": False,
+            }), encoding="utf-8")
+            client_output.write_bytes(b"payload-is-never-read")
+            metadata.write_text(json.dumps({
+                "response_committed": True,
+                "body_bytes_seen": 7,
+                "body_bytes_inspected": 7,
+                "no_full_response_buffering": True,
+                "connector_owned_full_response_buffer": False,
+            }), encoding="utf-8")
+            self.assertEqual(0, streaming_main([
+                "--merge-evidence", "--paused-file", str(paused),
+                "--client-first-byte-file", str(client_output),
+                "--host-metadata-json", str(metadata), "--evidence-origin", "real_host",
+                "--output", str(output),
+            ]))
+            serialized = output.read_text(encoding="utf-8")
+            self.assertNotIn("payload-is-never-read", serialized)
+            evidence = json.loads(serialized)
+            self.assertEqual([], first_byte_evidence_errors(
+                evidence, require_real_host=True, require_complete_proof=True
+            ))
+
+    def test_full_lifecycle_checker_accepts_real_host_barrier_evidence(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-lifecycle-check-") as temporary:
+            root = Path(temporary)
+            capability_path = root / "capabilities.json"
+            capability_path.write_text(
+                json.dumps(manifest("envoy", executable=set(no_crs.CAPABILITIES))),
+                encoding="utf-8",
+            )
+            run_dir = root / "evidence/envoy/real-host"
+            self.assertEqual(0, no_crs.main([
+                "init", "--connector", "envoy", "--capabilities", str(capability_path),
+                "--artifact-profile", "full_lifecycle", "--run-dir", str(run_dir),
+                "--run-id", "real-host", "--host-version", "1.0", "--libmodsecurity-version", "3.0",
+            ]))
+            event = {
+                "connector": "envoy",
+                "event": "phase4_intervention",
+                "message_id": "phase4-first-byte",
+                "transaction_id": "tx-first-byte",
+                "rule_id": 1100301,
+                "phase": 4,
+                "status": "intervened",
+                "no_full_response_buffering": True,
+                "client_first_byte_received": True,
+                "first_byte_before_response_end": True,
+                "first_chunk_size": 17,
+                "upstream_paused": True,
+                "upstream_eos_sent_at_first_byte": False,
+                "upstream_response_finished_at_first_byte": False,
+                "response_committed": True,
+                "body_bytes_seen": 17,
+                "body_bytes_inspected": 17,
+            }
+            events_path = root / "events.jsonl"
+            events_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+            source_path = root / "source-results.json"
+            source_path.write_text(json.dumps({"cases": [
+                {
+                    "case_id": "phase4_first_byte_before_response_end",
+                    "status": "PASS", "live_executed": True,
+                    "observed_rule_ids": [1100301], "transaction_id": "tx-first-byte",
+                },
+                {
+                    "case_id": "phase4_no_full_response_buffering",
+                    "status": "PASS", "live_executed": True,
+                    "observed_rule_ids": [1100301], "transaction_id": "tx-first-byte",
+                },
+            ]}), encoding="utf-8")
+            stdout_path = root / "stdout.log"
+            stderr_path = root / "stderr.log"
+            host_log_path = root / "host.log"
+            for path in (stdout_path, stderr_path, host_log_path):
+                path.write_text("", encoding="utf-8")
+            first_byte_path = root / "first-byte-evidence.json"
+            write_evidence(first_byte_path, {
+                "schema_version": 1,
+                "evidence_type": "synchronized_first_byte",
+                "evidence_origin": "real_host",
+                "promotion_eligible": True,
+                "client_first_byte_received": True,
+                "first_byte_before_response_end": True,
+                "first_chunk_size": 17,
+                "upstream_paused": True,
+                "upstream_eos_sent_at_first_byte": False,
+                "upstream_response_finished_at_first_byte": False,
+                "response_committed": True,
+                "body_bytes_seen": 17,
+                "body_bytes_inspected": 17,
+                "no_full_response_buffering": True,
+                "connector_owned_full_response_buffer": False,
+                "transport_protocol": "http1",
+                "body_payload_persisted": False,
+                "outcome": "PASS",
+            })
+            self.assertEqual(0, no_crs.main([
+                "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
+                "--source-result", str(source_path), "--source-events", str(events_path),
+                "--stdout-log", str(stdout_path), "--stderr-log", str(stderr_path),
+                "--host-log", str(host_log_path), "--first-byte-evidence", str(first_byte_path),
+                "--stage-rc", "0", "--host-version", "1.0", "--libmodsecurity-version", "3.0",
+            ]))
+            self.assertEqual([], full_lifecycle_check.first_byte_errors(run_dir))
+            self.assertEqual([], full_lifecycle_check.no_full_response_buffering_errors(run_dir))
+            self.assertEqual([], full_lifecycle_check.event_privacy_errors(run_dir))
+            self.assertEqual([], full_lifecycle_check.promotion_errors(run_dir))
 
     def test_full_lifecycle_late_modes_require_their_actual_runtime_mode(self) -> None:
         base = {
@@ -538,6 +834,10 @@ class NoCrsBaselineTest(unittest.TestCase):
             "end_of_stream_evaluation": True,
             "no_full_response_buffering": True,
             "first_byte_before_response_end": True,
+            "client_first_byte_received": True,
+            "first_chunk_size": 17,
+            "upstream_paused": True,
+            "upstream_eos_sent_at_first_byte": False,
             "upstream_response_finished_at_first_byte": False,
             "transport_protocol": "HTTP/1.1",
             "transfer_encoding": "Content-Length",
@@ -553,6 +853,10 @@ class NoCrsBaselineTest(unittest.TestCase):
         self.assertTrue(evidence["end_of_stream_evaluation"])
         self.assertTrue(evidence["no_full_response_buffering"])
         self.assertTrue(evidence["first_byte_before_response_end"])
+        self.assertTrue(evidence["client_first_byte_received"])
+        self.assertEqual(17, evidence["first_chunk_size"])
+        self.assertTrue(evidence["upstream_paused"])
+        self.assertFalse(evidence["upstream_eos_sent_at_first_byte"])
         self.assertFalse(evidence["upstream_response_finished_at_first_byte"])
         self.assertEqual("http1", evidence["transport_protocol"])
         self.assertEqual("content_length", evidence["transfer_encoding"])
