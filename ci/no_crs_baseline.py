@@ -681,11 +681,43 @@ def catalog_cases(catalog: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 
 def normalize_artifact_profile(value: object) -> str:
-    """Return a known evidence-artifact profile, preserving legacy generic runs."""
+    """Return a known profile while accepting profile-less legacy plan inputs."""
     profile = str(value or DEFAULT_ARTIFACT_PROFILE).strip()
     if profile not in ARTIFACT_PROFILES:
         raise ContractError(f"unsupported artifact profile: {profile!r}")
     return profile
+
+
+def canonical_artifact_profile(payload: Mapping[str, Any], label: str) -> str:
+    """Read an explicit profile from a canonical run artifact.
+
+    A missing profile used to be interpreted as ``generic`` for backward
+    compatibility.  That is safe only while accepting an external legacy plan
+    before ``init`` stamps it.  Once an artifact is part of a canonical run,
+    the profile is identity data and must never be inferred.
+    """
+    if "artifact_profile" not in payload:
+        raise ContractError(f"{label}: missing artifact_profile")
+    value = payload.get("artifact_profile")
+    if not isinstance(value, str) or not value.strip():
+        raise ContractError(f"{label}: artifact_profile must be a non-empty string")
+    return normalize_artifact_profile(value)
+
+
+def normalize_host_profile(value: object, *, default: str = "default") -> str:
+    """Return a stable host-profile label for newly initialized runs."""
+    profile = str(value or "").strip()
+    return profile or default
+
+
+def canonical_host_profile(payload: Mapping[str, Any], label: str) -> str:
+    """Read an explicit, non-empty host profile from a canonical artifact."""
+    if "host_profile" not in payload:
+        raise ContractError(f"{label}: missing host_profile")
+    profile = payload.get("host_profile")
+    if not isinstance(profile, str) or not profile.strip():
+        raise ContractError(f"{label}: host_profile must be a non-empty string")
+    return profile.strip()
 
 
 def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
@@ -1278,6 +1310,7 @@ def init_run(args: argparse.Namespace) -> int:
     connector_root = Path(args.connector_root).resolve() if args.connector_root else None
     run_dir = Path(args.run_dir)
     artifact_profile = normalize_artifact_profile(args.artifact_profile)
+    host_profile = normalize_host_profile(args.host_profile)
     safe_run_dir(run_dir, connector_root)
     if run_dir.exists() or run_dir.is_symlink():
         raise ContractError(f"init requires a fresh, nonexistent run-dir: {run_dir}")
@@ -1296,6 +1329,11 @@ def init_run(args: argparse.Namespace) -> int:
             args.connector, manifest_capabilities, catalog, args.evidence_stage,
             artifact_profile,
         )
+    # A legacy external plan may predate artifact profiles.  It is valid only
+    # as an input to init; every persisted canonical run artifact carries the
+    # explicit selected profile and host profile from this point onward.
+    plan["artifact_profile"] = artifact_profile
+    plan["host_profile"] = host_profile
     for directory in (run_dir, run_dir / "logs", run_dir / "config", run_dir / "inventory"):
         descriptor = open_directory_chain(directory, create=True)
         os.close(descriptor)
@@ -1312,6 +1350,9 @@ def init_run(args: argparse.Namespace) -> int:
     connector_worktree_clean = git_worktree_clean(connector_root)
     framework_worktree_clean = git_worktree_clean(FRAMEWORK_ROOT) if connector_root else True
     provenance_required = connector_root is not None
+    executed_targets = list(args.executed_target or [
+        f"{args.evidence_stage}-{args.connector}"
+    ])
     inventory = {
         "schema_version": 1,
         "connector": args.connector,
@@ -1326,6 +1367,10 @@ def init_run(args: argparse.Namespace) -> int:
         "host_name": manifest_capabilities["host_name"],
         "host_version": args.host_version or "not_available",
         "integration_mode": manifest_capabilities["integration_mode"],
+        # A connector may expose both a compatibility path and a selected
+        # full-lifecycle host path.  Keep that selection explicit in every
+        # canonical artifact; it is never inferred from a target name.
+        "host_profile": host_profile,
         "libmodsecurity_version": args.libmodsecurity_version or "not_available",
         "compiler_version": args.compiler_version or compiler_version(),
         "operating_system": platform.platform(),
@@ -1337,7 +1382,7 @@ def init_run(args: argparse.Namespace) -> int:
         "rules_sha256": sha256_file(RULES_PATH),
         "catalog_sha256": sha256_file(CATALOG_PATH),
         "capability_manifest_sha256": sha256_file(run_dir / "inventory/capabilities.json"),
-        "executed_targets": list(args.executed_target or []),
+        "executed_targets": executed_targets,
         "created_at": utc_now(),
     }
     write_json(run_dir / "inventory/run.json", inventory)
@@ -1366,13 +1411,14 @@ def init_run(args: argparse.Namespace) -> int:
         "host_name": manifest_capabilities["host_name"],
         "host_version": inventory["host_version"],
         "integration_mode": manifest_capabilities["integration_mode"],
+        "host_profile": inventory["host_profile"],
         "libmodsecurity_version": args.libmodsecurity_version or inventory["libmodsecurity_version"],
         "compiler_version": inventory["compiler_version"],
         "operating_system": inventory["operating_system"],
         "architecture": inventory["architecture"],
         "rules": ["config/no-crs-baseline.conf"],
         "cases": [item["case_id"] for item in plan.get("cases", [])],
-        "executed_targets": list(args.executed_target or []),
+        "executed_targets": executed_targets,
         "capability_manifest": "inventory/capabilities.json",
         "artifacts": artifacts,
     }
@@ -2955,10 +3001,20 @@ def finalize_run(args: argparse.Namespace) -> int:
     plan = load_json(plan_path)
     if not isinstance(manifest, dict) or not isinstance(plan, dict):
         raise ContractError("manifest and plan must be JSON objects")
-    artifact_profile = normalize_artifact_profile(manifest.get("artifact_profile"))
-    plan_artifact_profile = normalize_artifact_profile(plan.get("artifact_profile"))
+    artifact_profile = canonical_artifact_profile(manifest, "manifest.json")
+    host_profile = canonical_host_profile(manifest, "manifest.json")
+    plan_artifact_profile = canonical_artifact_profile(plan, "plan.json")
     if plan_artifact_profile != artifact_profile:
         raise ContractError("manifest and plan artifact profiles differ")
+    if canonical_host_profile(plan, "plan.json") != host_profile:
+        raise ContractError("manifest and plan host profiles differ")
+    initial_inventory = load_json(run_dir / "inventory/run.json")
+    if not isinstance(initial_inventory, Mapping):
+        raise ContractError("inventory/run.json must contain an object")
+    if canonical_artifact_profile(initial_inventory, "inventory/run.json") != artifact_profile:
+        raise ContractError("manifest and inventory artifact profiles differ")
+    if canonical_host_profile(initial_inventory, "inventory/run.json") != host_profile:
+        raise ContractError("manifest and inventory host profiles differ")
     if artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE:
         require_full_lifecycle_artifact_inputs(args)
     first_byte_evidence: dict[str, Any] | None = None
@@ -3257,6 +3313,8 @@ def finalize_run(args: argparse.Namespace) -> int:
         "host_name": manifest["host_name"],
         "host_version": host_version,
         "integration_mode": manifest["integration_mode"],
+        "host_profile": host_profile,
+        "executed_targets": list(manifest.get("executed_targets", [])),
         "libmodsecurity_version": libmodsecurity_version,
         "evidence_stage": evidence_stage,
         "artifact_profile": artifact_profile,
@@ -3531,7 +3589,7 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
     )
     errors.extend(required_keys(result, (
         "schema_version", "status_model", "connector", "connector_commit", "framework_commit", "host_name",
-        "host_version", "integration_mode", "libmodsecurity_version", "run_id",
+        "host_version", "integration_mode", "artifact_profile", "host_profile", "executed_targets", "libmodsecurity_version", "run_id",
         "connector_worktree_clean", "framework_worktree_clean", "provenance_required",
         "connector_commit_at_finalize", "framework_commit_at_finalize",
         "evidence_stage", "ruleset", "status", "exit_code", "blocked_before_execution", "started",
@@ -3550,7 +3608,7 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
     errors.extend(required_keys(manifest, (
         "schema_version", "connector", "run_id", "evidence_stage", "ruleset", "status",
         "started_at", "ended_at", "connector_commit", "framework_commit", "host_name",
-        "host_version", "integration_mode", "libmodsecurity_version", "compiler_version",
+        "host_version", "integration_mode", "artifact_profile", "host_profile", "libmodsecurity_version", "compiler_version",
         "operating_system", "architecture", "rules", "cases", "executed_targets", "artifacts",
         "capability_manifest", "connector_worktree_clean", "framework_worktree_clean",
         "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize",
@@ -3558,7 +3616,7 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
     errors.extend(required_keys(inventory, (
         "schema_version", "connector", "run_id", "evidence_stage", "ruleset",
         "connector_commit", "framework_commit", "host_name", "host_version",
-        "integration_mode", "libmodsecurity_version", "compiler_version",
+        "integration_mode", "artifact_profile", "host_profile", "libmodsecurity_version", "compiler_version",
         "operating_system", "architecture", "python_version", "rules_sha256",
         "catalog_sha256", "capability_manifest_sha256", "executed_targets", "created_at",
         "connector_worktree_clean", "framework_worktree_clean", "provenance_required",
@@ -3785,12 +3843,12 @@ def layout_errors(run_dir: Path) -> list[str]:
     if not isinstance(plan, Mapping):
         return errors + ["plan.json must contain an object"]
     try:
-        artifact_profile = normalize_artifact_profile(manifest.get("artifact_profile"))
+        artifact_profile = canonical_artifact_profile(manifest, "manifest.json")
     except ContractError as exc:
         errors.append(str(exc))
         artifact_profile = DEFAULT_ARTIFACT_PROFILE
     try:
-        plan_artifact_profile = normalize_artifact_profile(plan.get("artifact_profile"))
+        plan_artifact_profile = canonical_artifact_profile(plan, "plan.json")
     except ContractError as exc:
         errors.append(f"plan: {exc}")
         plan_artifact_profile = DEFAULT_ARTIFACT_PROFILE
@@ -3905,11 +3963,21 @@ def status_errors(run_dir: Path) -> list[str]:
         ("result", result), ("manifest", manifest), ("inventory", inventory), ("plan", plan),
     ):
         try:
-            profiles[label] = normalize_artifact_profile(payload.get("artifact_profile"))
+            profiles[label] = canonical_artifact_profile(payload, f"{label}.json")
         except ContractError as exc:
             errors.append(f"{label}: {exc}")
     if profiles and len(set(profiles.values())) != 1:
         errors.append("plan, result, manifest, and inventory artifact profiles differ")
+    host_profiles: dict[str, str] = {}
+    for label, payload in (
+        ("result", result), ("manifest", manifest), ("inventory", inventory), ("plan", plan),
+    ):
+        try:
+            host_profiles[label] = canonical_host_profile(payload, f"{label}.json")
+        except ContractError as exc:
+            errors.append(f"{label}: {exc}")
+    if host_profiles and len(set(host_profiles.values())) != 1:
+        errors.append("plan, result, manifest, and inventory host profiles differ")
     counts = Counter(record.get("status") for record in records)
     expected_status_counts = {name: counts[name] for name in CASE_STATUSES}
     expected_fields = {
@@ -4034,7 +4102,7 @@ def status_errors(run_dir: Path) -> list[str]:
         errors.append("blocked_before_execution is inconsistent with case evidence and exit code")
     for field in (
         "connector", "run_id", "connector_commit", "framework_commit", "host_name",
-        "host_version", "integration_mode", "libmodsecurity_version", "evidence_stage", "ruleset",
+        "host_version", "integration_mode", "artifact_profile", "host_profile", "executed_targets", "libmodsecurity_version", "evidence_stage", "ruleset",
         "connector_worktree_clean", "framework_worktree_clean", "provenance_required",
         "connector_commit_at_finalize", "framework_commit_at_finalize",
     ):
@@ -4266,6 +4334,14 @@ def result_only_summary_errors(result: Mapping[str, Any], connector: str) -> lis
     if not isinstance(schema, Mapping):
         return ["checked-in result schema must contain an object"]
     errors = json_schema_errors(result, schema, root_schema=schema, location="result.json")
+    try:
+        canonical_artifact_profile(result, "result.json")
+    except ContractError as exc:
+        errors.append(str(exc))
+    try:
+        canonical_host_profile(result, "result.json")
+    except ContractError as exc:
+        errors.append(str(exc))
     if result.get("connector") != connector:
         errors.append(f"result.json connector {result.get('connector')!r} does not match {connector!r}")
     for field in (
@@ -4484,6 +4560,11 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--host-version", default="")
     init_parser.add_argument("--libmodsecurity-version", default="")
     init_parser.add_argument("--compiler-version", default="")
+    init_parser.add_argument(
+        "--host-profile",
+        default="",
+        help="explicit selected host profile; defaults to the compatibility/default profile",
+    )
     init_parser.add_argument("--executed-target", action="append", default=[])
     init_parser.set_defaults(func=init_run)
 

@@ -1027,6 +1027,15 @@ def _resolve_case_item(item: str, root: Path, connector: str, scope: str, select
             for directory in selected_dirs
             if (directory / candidate).is_file()
         ]
+        # Canonical no-CRS lifecycle fixtures are intentionally grouped below
+        # tests/cases/no-crs-baseline while the shared runner scope begins at
+        # tests/cases.  Accept their catalog-relative fixture path without
+        # widening the caller's scope to an arbitrary directory.
+        scoped_matches.extend(
+            directory / "no-crs-baseline" / candidate
+            for directory in selected_dirs
+            if (directory / "no-crs-baseline" / candidate).is_file()
+        )
         if len(scoped_matches) == 1:
             path = scoped_matches[0]
         else:

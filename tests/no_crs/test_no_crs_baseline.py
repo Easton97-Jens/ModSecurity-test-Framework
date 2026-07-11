@@ -129,7 +129,7 @@ class NoCrsBaselineTest(unittest.TestCase):
         ):
             self.assertIn(target, makefile)
 
-    def test_generic_artifact_profile_keeps_optional_legacy_artifacts(self) -> None:
+    def test_generic_legacy_plan_is_stamped_with_required_canonical_identity(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
             root = Path(temporary)
             capability_path = root / "capabilities.json"
@@ -152,40 +152,66 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--stage-rc", "0",
             ]))
-            result = no_crs.load_json(run_dir / "result.json")
-            manifest_payload = no_crs.load_json(run_dir / "manifest.json")
-            self.assertEqual("generic", result["artifact_profile"])
-            self.assertEqual("generic", manifest_payload["artifact_profile"])
+            for relative_path in (
+                "plan.json", "manifest.json", "inventory/run.json", "result.json",
+            ):
+                payload = no_crs.load_json(run_dir / relative_path)
+                self.assertEqual("generic", payload["artifact_profile"])
+                self.assertEqual("default", payload["host_profile"])
             self.assertFalse((run_dir / "events.jsonl").exists())
             self.assertFalse((run_dir / "logs/stdout.log").exists())
             self.assertFalse((run_dir / "logs/stderr.log").exists())
             self.assertFalse((run_dir / "logs/host.log").exists())
             self.assertEqual([], no_crs.layout_errors(run_dir))
 
-            # Existing generic runs and pre-profile external plans do not gain
-            # a new required field merely because the strict profile exists.
-            for relative_path in ("result.json", "inventory/run.json"):
-                path = run_dir / relative_path
-                payload = no_crs.load_json(path)
-                payload.pop("artifact_profile")
-                no_crs.write_json(path, payload)
-            legacy_manifest = no_crs.load_json(run_dir / "manifest.json")
-            legacy_manifest.pop("artifact_profile")
-            legacy_manifest["artifacts"]["result"]["sha256"] = no_crs.sha256_file(
+            # A profile-less external plan remains a supported init input, but
+            # profile-less run artifacts are no longer canonical evidence.
+            for schema_name in ("result", "manifest", "inventory"):
+                schema = no_crs.load_json(
+                    ROOT / f"tests/schemas/no-crs-baseline/{schema_name}.schema.json"
+                )
+                self.assertTrue(
+                    {"artifact_profile", "host_profile"}.issubset(schema["required"])
+                )
+            result = no_crs.load_json(run_dir / "result.json")
+            result.pop("artifact_profile")
+            self.assertTrue(any(
+                "missing artifact_profile" in error
+                for error in no_crs.result_only_summary_errors(result, "envoy")
+            ))
+            no_crs.write_json(run_dir / "result.json", result)
+            manifest_payload = no_crs.load_json(run_dir / "manifest.json")
+            manifest_payload["artifacts"]["result"]["sha256"] = no_crs.sha256_file(
                 run_dir / "result.json"
             )
-            legacy_manifest["artifacts"]["inventory"]["sha256"] = no_crs.sha256_file(
-                run_dir / "inventory/run.json"
-            )
-            self.assertNotIn("artifact_profile", no_crs.load_json(run_dir / "plan.json"))
-            no_crs.write_json(run_dir / "manifest.json", legacy_manifest)
+            no_crs.write_json(run_dir / "manifest.json", manifest_payload)
             capabilities = no_crs.load_capability_manifest(capability_path, "envoy")
-            self.assertEqual(
-                [],
-                no_crs.validate_run(
+            self.assertTrue(any(
+                "artifact_profile" in error
+                for error in no_crs.validate_run(
                     run_dir, "envoy", capabilities, tuple(no_crs.VALID_CHECKS),
-                ),
-            )
+                )
+            ))
+
+    def test_init_persists_an_explicit_host_profile_across_canonical_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-profile-") as temporary:
+            root = Path(temporary)
+            capability_path = root / "capabilities.json"
+            capability_path.write_text(json.dumps(manifest("envoy")), encoding="utf-8")
+            run_dir = root / "evidence/envoy/profile"
+            self.assertEqual(0, no_crs.main([
+                "init", "--connector", "envoy", "--capabilities", str(capability_path),
+                "--run-dir", str(run_dir), "--run-id", "profile",
+                "--host-profile", "ext_proc",
+                "--executed-target", "full-lifecycle-envoy-ext-proc",
+            ]))
+            self.assertEqual(0, no_crs.main([
+                "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
+                "--stage-rc", "77",
+            ]))
+            for relative_path in ("manifest.json", "inventory/run.json", "result.json"):
+                payload = no_crs.load_json(run_dir / relative_path)
+                self.assertEqual("ext_proc", payload["host_profile"])
 
     def test_full_lifecycle_artifact_profile_requires_host_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
@@ -345,8 +371,16 @@ class NoCrsBaselineTest(unittest.TestCase):
             by_id["phase4_deny_before_commit"]["runner_case"],
         )
         runner_cases = [case for case in no_crs.catalog_cases(catalog) if case.get("runner_case")]
-        self.assertEqual(8, len(runner_cases))
+        self.assertEqual(10, len(runner_cases))
         self.assertNotIn("deny_response_header_marker_403", {case["case_id"] for case in runner_cases})
+        self.assertEqual(
+            "full-lifecycle/phase3_deny_before_commit.yaml",
+            by_id["phase3_deny_before_commit"]["runner_case"],
+        )
+        self.assertEqual(
+            "full-lifecycle/phase3_redirect_before_commit.yaml",
+            by_id["phase3_redirect_before_commit"]["runner_case"],
+        )
         rules = no_crs.RULES_PATH.read_text(encoding="utf-8")
         self.assertIn('REQUEST_HEADERS:X-Modsec-Smoke "@streq block"', rules)
         self.assertIn("id:1100001,phase:1,deny,status:403", rules)
@@ -384,7 +418,16 @@ class NoCrsBaselineTest(unittest.TestCase):
                 fixture = load_case(fixture_path)
                 self.assertEqual("future", fixture["status"])
                 self.assertEqual("not_executed_until_real_host", fixture["full_lifecycle"]["evidence_status"])
-                self.assertNotIn("runner_case", catalog_case)
+                if catalog_case["case_id"] in {
+                    "phase3_deny_before_commit",
+                    "phase3_redirect_before_commit",
+                }:
+                    self.assertEqual(
+                        catalog_case["request"]["fixture"],
+                        catalog_case["runner_case"],
+                    )
+                else:
+                    self.assertNotIn("runner_case", catalog_case)
 
     def test_full_lifecycle_phase2_split_requires_chunk_evidence(self) -> None:
         catalog = no_crs.load_catalog()

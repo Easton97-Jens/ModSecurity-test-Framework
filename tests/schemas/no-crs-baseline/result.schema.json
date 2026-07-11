@@ -4,7 +4,7 @@
   "title": "Canonical No-CRS connector result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "status_model", "connector", "run_id", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "evidence_stage", "evidence_stages", "ruleset", "status", "exit_code", "source_statuses", "source_failure", "blocked_before_execution", "started", "requests_sent", "allowed_request_status", "blocked_request_status", "observed_rule_ids", "transaction_ids", "request_headers_verified", "request_body_verified", "response_headers_verified", "response_body_verified", "late_intervention_verified", "phase4_case_results", "event_metadata_verified", "body_payload_absent_from_events", "pass_gate_failures", "cases_total", "cases_passed", "cases_failed", "cases_blocked", "cases_unsupported", "cases_not_applicable", "cases_not_executed", "status_counts", "group_statuses", "capabilities_verified", "capabilities_unsupported", "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed", "production_ready", "security_verified", "crs_verified", "crs_complete", "full_matrix_ready", "started_at", "ended_at"],
+  "required": ["schema_version", "status_model", "connector", "run_id", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize", "host_name", "host_version", "integration_mode", "artifact_profile", "host_profile", "executed_targets", "libmodsecurity_version", "evidence_stage", "evidence_stages", "ruleset", "status", "exit_code", "source_statuses", "source_failure", "blocked_before_execution", "started", "requests_sent", "allowed_request_status", "blocked_request_status", "observed_rule_ids", "transaction_ids", "request_headers_verified", "request_body_verified", "response_headers_verified", "response_body_verified", "late_intervention_verified", "phase4_case_results", "event_metadata_verified", "body_payload_absent_from_events", "pass_gate_failures", "cases_total", "cases_passed", "cases_failed", "cases_blocked", "cases_unsupported", "cases_not_applicable", "cases_not_executed", "status_counts", "group_statuses", "capabilities_verified", "capabilities_unsupported", "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed", "production_ready", "security_verified", "crs_verified", "crs_complete", "full_matrix_ready", "started_at", "ended_at"],
   "properties": {
     "schema_version": {"const": 1},
     "status_model": {"const": "msconnector_status"},
@@ -20,6 +20,8 @@
     "host_name": {"type": "string", "minLength": 1},
     "host_version": {"type": "string", "minLength": 1},
     "integration_mode": {"type": "string", "minLength": 1},
+    "host_profile": {"type": "string", "minLength": 1},
+    "executed_targets": {"type": "array", "items": {"type": "string", "minLength": 1}, "minItems": 1},
     "libmodsecurity_version": {"type": "string", "minLength": 1},
     "evidence_stage": {"enum": ["minimal_runtime_smoke", "no_crs_baseline"]},
     "artifact_profile": {"enum": ["generic", "full_lifecycle"]},

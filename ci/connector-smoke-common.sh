@@ -335,7 +335,7 @@ connector_smoke_resolve_modsecurity_backend() {
         "modsecurity targeted smoke rule file is not configured" \
         "modsecurity targeted smoke rule"
 
-    export CONNECTOR_COMPONENT_CACHE VERIFIED_COMPONENT_CACHE VERIFIED_BUILD_ROOT
+    export CACHE_ROOT CONNECTOR_COMPONENT_CACHE VERIFIED_COMPONENT_CACHE VERIFIED_BUILD_ROOT
     export BUILD_ROOT VERIFIED_RUN_ROOT TMP_ROOT LOG_ROOT SOURCE_ROOT
     export MODSECURITY_SOURCE_DIR MODSECURITY_V3_SOURCE_DIR MODSECURITY_V3_ROOT
     export MODSECURITY_INCLUDE_DIR MODSECURITY_LIB_DIR MODSECURITY_LIB_FILE
@@ -392,6 +392,7 @@ def add_unique_path(target: list[Path], path: Path | None) -> None:
 
 
 for name in (
+    "CACHE_ROOT",
     "CONNECTOR_COMPONENT_CACHE",
     "VERIFIED_COMPONENT_CACHE",
     "VERIFIED_BUILD_ROOT",
@@ -420,7 +421,7 @@ for base_text in (
         continue
     verified_root = Path(base_text) / "ModSecurity-conector-verified"
     add_unique_path(allowed_roots, verified_root)
-    add_unique_path(allowed_roots, verified_root / "component-cache")
+    add_unique_path(allowed_roots, verified_root / "cache-v2" / "shared")
 
 
 def is_allowed_local(path: Path) -> bool:
@@ -536,6 +537,7 @@ def add_prefix_candidate(prefix: Path) -> None:
 
 search_roots: list[Path] = []
 for name in (
+    "CACHE_ROOT",
     "CONNECTOR_COMPONENT_CACHE",
     "VERIFIED_COMPONENT_CACHE",
     "VERIFIED_BUILD_ROOT",
@@ -558,15 +560,15 @@ for base_text in (
         continue
     verified_root = Path(base_text) / "ModSecurity-conector-verified"
     add_unique_path(search_roots, verified_root)
-    add_unique_path(search_roots, verified_root / "component-cache")
+    add_unique_path(search_roots, verified_root / "cache-v2" / "shared")
 
 cache_roots: list[Path] = []
 for root in search_roots:
     add_unique_path(cache_roots, root)
-    add_unique_path(cache_roots, root / "component-cache")
+    add_unique_path(cache_roots, root / "cache-v2" / "shared")
     if root.name in {"build", "logs", "tmp", "src", "sources"}:
-        add_unique_path(cache_roots, root.parent / "component-cache")
-    if root.name == "component-cache":
+        add_unique_path(cache_roots, root.parent / "cache-v2" / "shared")
+    if root.name == "shared" and root.parent.name == "cache-v2":
         add_unique_path(cache_roots, root)
 
 for cache in cache_roots:
