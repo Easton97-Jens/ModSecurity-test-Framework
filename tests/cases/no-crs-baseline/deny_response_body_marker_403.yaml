@@ -1,5 +1,5 @@
-name: deny_response_body_marker_403
-title: Exercise a buffered response-body rule in phase 4
+name: phase4_deny_before_commit
+title: Canonical pre-commit phase-4 HTTP 403 denial (legacy fixture filename)
 category: no-crs-baseline
 portable: true
 status: pending
@@ -33,13 +33,19 @@ expect:
     required: true
     rule_id: 1100301
     message: no-crs phase-4 intervention probe
-expected_result: deny_or_late_intervention
+expected_result: deny_before_commit
 expected_status: 403
 expected_rule_id: 1100301
 expected_event_fields:
   - rule_id
   - phase
-  - status
+  - http_status
+  - requested_action
+  - actual_action
+  - original_http_status
+  - visible_http_status
+  - headers_sent
+  - connection_aborted
 forbidden_event_fields:
   - request_body
   - response_body

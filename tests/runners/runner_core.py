@@ -410,6 +410,14 @@ def _validate_nginx(case: Mapping[str, Any], where: str) -> None:
     location_directives = nginx.get("location_directives")
     if location_directives is not None and not isinstance(location_directives, str):
         raise ValueError(f"case nginx.location_directives must be a string{where}")
+    phase4_mode = nginx.get("phase4_mode")
+    if phase4_mode is not None and (
+        not isinstance(phase4_mode, str)
+        or phase4_mode not in {"minimal", "safe", "strict"}
+    ):
+        raise ValueError(
+            f"case nginx.phase4_mode must be minimal, safe, or strict{where}"
+        )
     _validate_nginx_files(nginx.get("files", {}), where)
 
 
@@ -636,6 +644,11 @@ def nginx_location_directives(case: Mapping[str, Any]) -> str:
     return str(directives)
 
 
+def nginx_phase4_mode(case: Mapping[str, Any]) -> str:
+    mode = nginx_metadata(case).get("phase4_mode", "")
+    return "" if mode in (None, "") else str(mode)
+
+
 def _replace_nginx_placeholders(
     content: str,
     nginx_runtime_config_dir: Path,
@@ -758,6 +771,10 @@ def write_shell_env(
         "EXPECT_RESPONSE_CONTAINS": expect.get("response_contains", ""),
         "EXPECT_TRANSPORT": expect.get("transport", "http_status"),
         "EXPECT_AUDIT_LOG_REQUIRED": 1 if _bool_value(audit_log.get("required")) else 0,
+        # NGINX alone consumes this optional per-case setting.  Keeping it in
+        # the generated environment lets its host template apply a real mode
+        # without copying expected outcomes into the runner.
+        "NGINX_PHASE4_MODE": nginx_phase4_mode(case),
     }
     lines = ["# Generated from common test case. Do not edit.\n"]
     for key, value in values.items():

@@ -23,10 +23,12 @@
           "request": {"type": "object"},
           "expected_result": {"type": "string", "minLength": 1},
           "expected_status": {"type": ["integer", "null"]},
-          "expected_rule_id": {"type": ["integer", "null"]}
+          "expected_rule_id": {"type": ["integer", "null"]},
+          "expected_event_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "forbidden_event_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "deprecated_alias_for": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"}
         }
       }
     }
   }
 }
-

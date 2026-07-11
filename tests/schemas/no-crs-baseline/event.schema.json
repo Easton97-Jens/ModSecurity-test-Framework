@@ -19,6 +19,18 @@
         "lighttpd"
       ]
     },
+    "event": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "[A-Za-z0-9:._-]{1,256}"
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "[A-Za-z0-9:._-]{1,256}"
+    },
     "transaction_id": {
       "type": "string",
       "minLength": 1,
@@ -51,6 +63,43 @@
       "type": "integer",
       "minimum": 0,
       "maximum": 999
+    },
+    "requested_action": {
+      "type": "string",
+      "enum": ["deny", "redirect", "drop", "log_only", "abort_connection"]
+    },
+    "actual_action": {
+      "type": "string",
+      "enum": ["deny", "redirect", "log_only", "abort_connection"]
+    },
+    "original_http_status": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999
+    },
+    "visible_http_status": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999
+    },
+    "late_intervention": {
+      "type": "boolean"
+    },
+    "headers_sent": {
+      "type": "boolean"
+    },
+    "body_started": {
+      "type": "boolean"
+    },
+    "response_committed": {
+      "type": "boolean"
+    },
+    "connection_aborted": {
+      "type": "boolean"
+    },
+    "transport_result": {
+      "type": "string",
+      "enum": ["http_status", "log_only", "connection_aborted", "not_observable"]
     },
     "truncated": {
       "type": "boolean"

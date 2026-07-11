@@ -70,7 +70,12 @@ CAPABILITIES = (
     "phase2",
     "phase3",
     "phase4",
+    "phase4_rule_evaluation",
+    "phase4_pre_commit_deny",
     "late_intervention",
+    "late_intervention_log_only",
+    "late_intervention_abort",
+    "late_intervention_status_metadata",
     "deny",
     "redirect",
     "drop",
@@ -103,7 +108,7 @@ CASE_STATUSES = (
     "NOT_APPLICABLE",
     "NOT_EXECUTED",
 )
-SELECTION_STATUSES = ("SELECTED", "UNSUPPORTED", "NOT_APPLICABLE")
+SELECTION_STATUSES = ("SELECTED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED")
 WRITABLE_EVIDENCE_STAGES = ("minimal_runtime_smoke", "no_crs_baseline")
 MINIMAL_RUNTIME_CASE_IDS = ("allow_without_marker", "deny_header_marker_403")
 REPORT_STATUSES = (
@@ -144,6 +149,9 @@ FORBIDDEN_EVENT_KEYS = {
     "body_payload",
     "body_snippet",
     "blocked_body_marker",
+    "intervention_log",
+    "matched_value",
+    "rule_message",
     "request_body_marker",
     "request_content",
     "refresh_token",
@@ -167,6 +175,39 @@ BODY_SENTINELS = (
     "no-crs-request-body-marker",
     "no-crs-response-body-marker",
 )
+PHASE4_EXPECTED_RESULTS = {
+    "rule_observed",
+    "deny_before_commit",
+    "late_intervention_log_only",
+    "connection_aborted",
+    "event_contains_original_status",
+    "event_contains_late_intervention_action",
+    "legacy_phase4_deny_before_commit",
+}
+PHASE4_CASE_IDS = (
+    "phase4_rule_observed",
+    "phase4_deny_before_commit",
+    "phase4_deny_after_commit_log_only",
+    "phase4_deny_after_commit_abort",
+    "phase4_event_contains_original_status",
+    "phase4_event_contains_late_intervention_action",
+)
+PHASE4_SEMANTIC_FIELDS = (
+    "http_status",
+    "requested_action",
+    "actual_action",
+    "original_http_status",
+    "visible_http_status",
+    "late_intervention",
+    "headers_sent",
+    "body_started",
+    "response_committed",
+    "connection_aborted",
+    "transport_result",
+)
+REQUESTED_ACTIONS = {"deny", "redirect", "drop", "log_only", "abort_connection"}
+ACTUAL_ACTIONS = {"deny", "redirect", "log_only", "abort_connection"}
+TRANSPORT_RESULTS = {"http_status", "log_only", "connection_aborted", "not_observable"}
 STATUS_ALIASES = {
     "pass": "PASS",
     "passed": "PASS",
@@ -549,6 +590,10 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
         "allow_without_marker", "deny_header_marker_403", "deny_with_alternative_status",
         "transaction_id_present", "transaction_id_generated_or_fallback", "multiple_headers",
         "deny_request_body_marker_403", "deny_response_header_marker_403", "deny_response_body_marker_403",
+        "phase4_rule_observed", "phase4_deny_before_commit",
+        "phase4_deny_after_commit_log_only", "phase4_deny_after_commit_abort",
+        "phase4_event_contains_original_status",
+        "phase4_event_contains_late_intervention_action",
         "duplicate_header_names", "empty_header_value", "case_insensitive_header_name",
         "header_count_at_limit", "header_count_over_limit", "total_header_bytes_at_limit",
         "total_header_bytes_over_limit", "invalid_content_length", "conflicting_content_length",
@@ -567,6 +612,106 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
     missing_ids = sorted(required_ids - seen)
     if missing_ids:
         errors.append(f"catalog missing required cases: {', '.join(missing_ids)}")
+    by_id = {str(case.get("case_id") or ""): case for case in cases}
+    phase4_contracts = {
+        "phase4_rule_observed": (
+            "rule_observed",
+            {"response_body_buffered", "phase4", "phase4_rule_evaluation", "event_jsonl"},
+            {"event", "message_id", "rule_id", "phase"},
+            None,
+        ),
+        "phase4_deny_before_commit": (
+            "deny_before_commit",
+            {
+                "response_body_buffered", "phase4", "phase4_rule_evaluation",
+                "phase4_pre_commit_deny", "deny", "late_intervention_status_metadata", "event_jsonl",
+            },
+            {
+                "event", "message_id", "rule_id", "phase", "http_status", "requested_action", "actual_action",
+                "original_http_status", "visible_http_status", "headers_sent", "connection_aborted",
+            },
+            403,
+        ),
+        "phase4_deny_after_commit_log_only": (
+            "late_intervention_log_only",
+            {
+                "response_body_buffered", "phase4", "phase4_rule_evaluation", "late_intervention",
+                "late_intervention_log_only", "late_intervention_status_metadata", "event_jsonl",
+            },
+            {
+                "event", "message_id", "rule_id", "phase", "http_status", "requested_action", "actual_action",
+                "original_http_status", "visible_http_status", "late_intervention", "headers_sent",
+                "connection_aborted",
+            },
+            None,
+        ),
+        "phase4_deny_after_commit_abort": (
+            "connection_aborted",
+            {
+                "response_body_buffered", "phase4", "phase4_rule_evaluation", "late_intervention",
+                "late_intervention_abort", "late_intervention_status_metadata", "event_jsonl",
+            },
+            {
+                "event", "message_id", "rule_id", "phase", "http_status", "requested_action", "actual_action",
+                "original_http_status", "visible_http_status", "late_intervention", "headers_sent",
+                "connection_aborted",
+            },
+            None,
+        ),
+        "phase4_event_contains_original_status": (
+            "event_contains_original_status",
+            {
+                "response_body_buffered", "phase4", "phase4_rule_evaluation",
+                "late_intervention_status_metadata", "event_jsonl",
+            },
+            {"event", "message_id", "rule_id", "phase", "http_status", "original_http_status", "visible_http_status"},
+            None,
+        ),
+        "phase4_event_contains_late_intervention_action": (
+            "event_contains_late_intervention_action",
+            {
+                "response_body_buffered", "phase4", "phase4_rule_evaluation",
+                "late_intervention_status_metadata", "event_jsonl",
+            },
+            {"event", "message_id", "rule_id", "phase", "requested_action", "actual_action", "late_intervention"},
+            None,
+        ),
+    }
+    for case_id, (expected_result, required_capabilities, event_fields, expected_status) in phase4_contracts.items():
+        case = by_id.get(case_id)
+        if not case:
+            continue
+        if case.get("phase") != 4:
+            errors.append(f"{case_id}: phase must be 4")
+        if case.get("group") != "late-intervention":
+            errors.append(f"{case_id}: group must be late-intervention")
+        if case.get("expected_result") != expected_result:
+            errors.append(f"{case_id}: expected_result must be {expected_result}")
+        if optional_int(case.get("expected_rule_id")) != 1100301:
+            errors.append(f"{case_id}: expected_rule_id must be 1100301")
+        if optional_int(case.get("expected_status")) != expected_status:
+            errors.append(f"{case_id}: expected_status is not canonical for its semantic outcome")
+        declared_capabilities = {str(item) for item in case.get("required_capabilities", [])}
+        missing_capabilities = sorted(required_capabilities - declared_capabilities)
+        if missing_capabilities:
+            errors.append(f"{case_id}: missing Phase-4 capabilities: {', '.join(missing_capabilities)}")
+        declared_event_fields = {str(item) for item in case.get("expected_event_fields", [])}
+        missing_event_fields = sorted(event_fields - declared_event_fields)
+        if missing_event_fields:
+            errors.append(f"{case_id}: missing Phase-4 event fields: {', '.join(missing_event_fields)}")
+    legacy = by_id.get("deny_response_body_marker_403")
+    if legacy:
+        if legacy.get("deprecated_alias_for") != "phase4_deny_before_commit":
+            errors.append("deny_response_body_marker_403 must be a deprecated alias for phase4_deny_before_commit")
+        if legacy.get("expected_result") != "legacy_phase4_deny_before_commit":
+            errors.append("deny_response_body_marker_403 must retain strict pre-commit alias semantics")
+        if optional_int(legacy.get("expected_status")) != 403:
+            errors.append("deny_response_body_marker_403 must retain expected_status=403")
+        if legacy.get("runner_case"):
+            errors.append("deny_response_body_marker_403 is an alias and must not own a runner fixture")
+    pre_commit = by_id.get("phase4_deny_before_commit")
+    if pre_commit and pre_commit.get("runner_case") != "deny_response_body_marker_403.yaml":
+        errors.append("phase4_deny_before_commit must own the legacy pre-commit runner fixture")
     if RULES_PATH.is_file():
         rules = RULES_PATH.read_text(encoding="utf-8")
         required_rule_contracts = (
@@ -683,10 +828,15 @@ def select_cases(
     for case in cases:
         required = [str(item) for item in case["required_capabilities"]]
         states = {name: capability_state(capabilities[name]) for name in required}
-        if any(state in {"unsupported_by_host_model", "not_implemented"} for state in states.values()):
+        if any(state == "unsupported_by_host_model" for state in states.values()):
             selection = "UNSUPPORTED"
         elif any(state == "not_applicable" for state in states.values()):
             selection = "NOT_APPLICABLE"
+        elif any(state == "not_implemented" for state in states.values()):
+            # A missing implementation is materially different from a host
+            # model boundary.  Keep the case visible, but do not pretend it
+            # was executable or classify it as host-model unsupported.
+            selection = "NOT_EXECUTED"
         else:
             selection = "SELECTED"
         reasons = []
@@ -1020,6 +1170,74 @@ def event_for_rule(events: Sequence[Mapping[str, Any]], rule_id: int | None) -> 
     return next((event for event in events if rule_id in event_rule_ids(event)), None)
 
 
+def supplied_transaction_ids(raw: Mapping[str, Any]) -> list[str]:
+    transaction_ids: list[str] = []
+    values = raw.get("transaction_ids")
+    if isinstance(values, list):
+        transaction_ids.extend(str(item) for item in values if str(item).strip())
+    for key in ("transaction_id", "tx_id"):
+        if str(raw.get(key) or "").strip():
+            transaction_ids.append(str(raw[key]))
+    return sorted(dict.fromkeys(transaction_ids))
+
+
+def phase4_event_matches_outcome(event: Mapping[str, Any], expected_result: str) -> bool:
+    """Identify the right event when one run contains several Phase-4 paths."""
+    if str(event.get("phase") or "").strip() != "4":
+        return False
+    if expected_result in {"rule_observed", "event_contains_original_status"}:
+        return True
+    requested = str(event.get("requested_action") or "").strip().lower().replace("-", "_")
+    actual = str(event.get("actual_action") or "").strip().lower().replace("-", "_")
+    if actual == "connection_abort":
+        actual = "abort_connection"
+    if expected_result in {"deny_before_commit", "legacy_phase4_deny_before_commit"}:
+        return requested == "deny" and actual == "deny" and event.get("headers_sent") is False
+    if expected_result == "late_intervention_log_only":
+        return (
+            requested == "deny"
+            and actual == "log_only"
+            and event.get("late_intervention") is True
+        )
+    if expected_result == "connection_aborted":
+        return (
+            requested == "deny"
+            and actual == "abort_connection"
+            and event.get("connection_aborted") is True
+        )
+    if expected_result == "event_contains_late_intervention_action":
+        return requested == "deny" and actual in {"deny", "log_only", "abort_connection"}
+    return False
+
+
+def event_for_case(
+    events: Sequence[Mapping[str, Any]],
+    rule_id: int | None,
+    case: Mapping[str, Any],
+    transaction_ids: Sequence[str] = (),
+) -> Mapping[str, Any] | None:
+    if rule_id is None:
+        candidates = list(events)
+    else:
+        candidates = [event for event in events if rule_id in event_rule_ids(event)]
+    supplied = {str(value) for value in transaction_ids if str(value).strip()}
+    if supplied:
+        candidates = [
+            event for event in candidates
+            if supplied.intersection(event_transaction_ids(event))
+        ]
+        if not candidates:
+            return None
+    if not candidates:
+        return None
+    if is_phase4_semantic_case(case):
+        expected_result = str(case.get("expected_result") or "")
+        for event in candidates:
+            if phase4_event_matches_outcome(event, expected_result):
+                return event
+    return candidates[0]
+
+
 def canonical_core_event_contract(
     events: Sequence[Mapping[str, Any]], connector: str,
 ) -> tuple[bool, bool]:
@@ -1067,6 +1285,277 @@ def concrete_version(value: object) -> bool:
     )
 
 
+_MISSING = object()
+_RAW_SEMANTIC_FIELD_ALIASES = {
+    "http_status": ("http_status", "waf_status", "intervention_status"),
+    "requested_action": ("requested_action", "wanted_action"),
+    "actual_action": ("actual_action",),
+    "original_http_status": ("original_http_status", "upstream_status"),
+    "visible_http_status": ("visible_http_status", "client_status"),
+    "late_intervention": ("late_intervention", "intervention"),
+    "headers_sent": ("headers_sent", "header_sent"),
+    "body_started": ("body_started", "response_body_seen"),
+    "response_committed": ("response_committed",),
+    "connection_aborted": ("connection_aborted", "strict_abort"),
+    "transport_result": ("transport_result", "observed_transport_result"),
+}
+
+
+def optional_bool(value: object) -> bool | None:
+    if value in (None, "", "null", "none", "not-run"):
+        return None
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "on"}:
+        return True
+    if text in {"0", "false", "no", "off"}:
+        return False
+    raise ContractError(f"invalid Boolean: {value!r}")
+
+
+def normalize_action(value: object, allowed: set[str]) -> str | None:
+    if value in (None, "", "null", "none", "not-run"):
+        return None
+    action = str(value).strip().lower().replace("-", "_")
+    # This is the one legacy spelling emitted by existing host adapters.  The
+    # canonical event vocabulary is deliberately only ``abort_connection``.
+    if action == "connection_abort":
+        action = "abort_connection"
+    return action if action in allowed else None
+
+
+def normalize_transport_result(value: object) -> str | None:
+    if value in (None, "", "null", "none", "not-run"):
+        return None
+    transport = str(value).strip().lower().replace("-", "_")
+    if transport == "aborted":
+        transport = "connection_aborted"
+    return transport if transport in TRANSPORT_RESULTS else None
+
+
+def normalize_semantic_value(field: str, value: object) -> object:
+    if field in {"http_status", "original_http_status", "visible_http_status"}:
+        return optional_int(value)
+    if field in {"late_intervention", "headers_sent", "body_started", "response_committed", "connection_aborted"}:
+        return optional_bool(value)
+    if field == "requested_action":
+        return normalize_action(value, REQUESTED_ACTIONS)
+    if field == "actual_action":
+        return normalize_action(value, ACTUAL_ACTIONS)
+    if field == "transport_result":
+        return normalize_transport_result(value)
+    raise ContractError(f"unsupported semantic field: {field}")
+
+
+def raw_semantic_value(raw: Mapping[str, Any], field: str) -> object:
+    for name in _RAW_SEMANTIC_FIELD_ALIASES[field]:
+        if name in raw:
+            return raw[name]
+    return _MISSING
+
+
+def semantic_runtime_fields(
+    raw: Mapping[str, Any], matching_event: Mapping[str, Any] | None,
+) -> tuple[dict[str, object], list[str]]:
+    """Project only known runtime evidence into a canonical case record.
+
+    The function intentionally has no capability-manifest input.  A capability
+    says that a path might exist; it is never evidence that a particular live
+    request took that path.
+    """
+    values: dict[str, object] = {}
+    errors: list[str] = []
+    for field in PHASE4_SEMANTIC_FIELDS:
+        raw_value = raw_semantic_value(raw, field)
+        event_value = matching_event.get(field, _MISSING) if matching_event else _MISSING
+        raw_normalized: object = _MISSING
+        event_normalized: object = _MISSING
+        if raw_value is not _MISSING:
+            try:
+                raw_normalized = normalize_semantic_value(field, raw_value)
+            except ContractError:
+                errors.append(f"{field}: invalid raw runtime value")
+        if event_value is not _MISSING:
+            try:
+                event_normalized = normalize_semantic_value(field, event_value)
+            except ContractError:
+                errors.append(f"{field}: invalid event runtime value")
+        if (
+            raw_normalized is not _MISSING
+            and event_normalized is not _MISSING
+            and raw_normalized != event_normalized
+        ):
+            errors.append(f"{field}: raw and event runtime evidence disagree")
+        if raw_normalized is not _MISSING:
+            values[field] = raw_normalized
+        elif event_normalized is not _MISSING:
+            values[field] = event_normalized
+        else:
+            values[field] = None
+    return values, errors
+
+
+def is_phase4_semantic_case(case: Mapping[str, Any]) -> bool:
+    return (
+        str(case.get("phase") or "") == "4"
+        and str(case.get("expected_result") or "") in PHASE4_EXPECTED_RESULTS
+    )
+
+
+def phase_is_four(value: object) -> bool:
+    return str(value).strip() == "4"
+
+
+def phase4_pass_errors(
+    record: Mapping[str, Any], matching_event: Mapping[str, Any] | None,
+    runtime_evidence_errors: Sequence[str] = (),
+) -> list[str]:
+    """Return semantic evidence failures for a canonical Phase-4 PASS.
+
+    These checks deliberately use the matched canonical event as the source of
+    truth for intervention metadata.  It prevents a host result from turning a
+    visible 200 into a synthetic 403 PASS, and it makes post-finalize record
+    tampering detectable by the validators that call this function again.
+    """
+    errors = list(runtime_evidence_errors)
+    expected_result = str(record.get("expected_result") or "")
+    if expected_result not in PHASE4_EXPECTED_RESULTS:
+        return errors
+    expected_rule_id = optional_int(record.get("expected_rule_id"))
+    if record.get("live_executed") is not True:
+        errors.append("live_executed must be true")
+    if expected_rule_id is None or expected_rule_id not in record.get("observed_rule_ids", []):
+        errors.append("expected phase-4 rule was not observed")
+    if matching_event is None:
+        errors.append("canonical phase-4 event is missing")
+        return errors
+    errors.extend(canonical_event_errors(
+        matching_event,
+        connector=str(record.get("connector") or "") or None,
+    ))
+    if not phase_is_four(matching_event.get("phase")):
+        errors.append("canonical event does not report phase 4")
+    if expected_rule_id is not None and expected_rule_id not in event_rule_ids(matching_event):
+        errors.append("canonical event does not report the expected rule")
+    def require_event_value(field: str, expected: object = _MISSING) -> None:
+        if field not in matching_event:
+            errors.append(f"canonical event is missing {field}")
+            return
+        try:
+            event_value = normalize_semantic_value(field, matching_event[field])
+        except ContractError:
+            errors.append(f"canonical event has invalid {field}")
+            return
+        if record.get(field) != event_value:
+            errors.append(f"case result {field} does not match canonical event")
+        if expected is not _MISSING and event_value != expected:
+            errors.append(f"canonical event {field}={event_value!r}, expected {expected!r}")
+
+    def require_status_triplet() -> None:
+        require_event_value("http_status", 403)
+        require_event_value("original_http_status")
+        require_event_value("visible_http_status")
+
+    def require_observable_client_status() -> None:
+        """Bind a host-observed HTTP status to the event's visible status."""
+        transport = record.get("transport_result")
+        if transport in {"connection_aborted", "not_observable"}:
+            errors.append("HTTP outcome cannot use a non-observable transport result")
+            return
+        actual_status = record.get("actual_status")
+        visible_status = record.get("visible_http_status")
+        if actual_status is None:
+            errors.append("HTTP outcome is missing an observed client status")
+        elif actual_status != visible_status:
+            errors.append("observed client status does not match visible_http_status")
+
+    def validate_abort_client_status() -> None:
+        """Compare abort status only when an HTTP status was observable."""
+        transport = record.get("transport_result")
+        if transport in {"connection_aborted", "not_observable"}:
+            return
+        actual_status = record.get("actual_status")
+        visible_status = record.get("visible_http_status")
+        if actual_status is None:
+            if transport in {"http_status", "log_only"}:
+                errors.append("observable abort transport is missing an observed client status")
+            return
+        if actual_status != visible_status:
+            errors.append("observed abort status does not match visible_http_status")
+
+    if expected_result == "rule_observed":
+        return errors
+
+    if expected_result in {"deny_before_commit", "legacy_phase4_deny_before_commit"}:
+        require_status_triplet()
+        require_event_value("requested_action", "deny")
+        require_event_value("actual_action", "deny")
+        require_event_value("visible_http_status", 403)
+        require_event_value("headers_sent", False)
+        require_event_value("connection_aborted", False)
+        if matching_event.get("late_intervention") is True:
+            errors.append("pre-commit deny cannot be marked as a late intervention")
+        if matching_event.get("response_committed") is True:
+            errors.append("pre-commit deny cannot have response_committed=true")
+        require_observable_client_status()
+        return errors
+
+    if expected_result == "late_intervention_log_only":
+        require_status_triplet()
+        require_event_value("requested_action", "deny")
+        require_event_value("actual_action", "log_only")
+        require_event_value("late_intervention", True)
+        require_event_value("headers_sent", True)
+        require_event_value("connection_aborted", False)
+        if record.get("visible_http_status") != record.get("original_http_status"):
+            errors.append("log-only late intervention must preserve the visible HTTP status")
+        require_observable_client_status()
+        return errors
+
+    if expected_result == "connection_aborted":
+        require_status_triplet()
+        require_event_value("requested_action", "deny")
+        require_event_value("actual_action", "abort_connection")
+        require_event_value("late_intervention", True)
+        require_event_value("headers_sent", True)
+        require_event_value("connection_aborted", True)
+        if record.get("visible_http_status") != record.get("original_http_status"):
+            errors.append("post-commit abort must preserve the already visible HTTP status")
+        validate_abort_client_status()
+        return errors
+
+    if expected_result == "event_contains_original_status":
+        require_status_triplet()
+        if matching_event.get("late_intervention") is True and (
+            record.get("visible_http_status") != record.get("original_http_status")
+        ):
+            errors.append("late-intervention status metadata must preserve the visible status")
+        if matching_event.get("headers_sent") is False and (
+            record.get("visible_http_status") != record.get("http_status")
+        ):
+            errors.append("uncommitted response metadata must expose the WAF status")
+        return errors
+
+    if expected_result == "event_contains_late_intervention_action":
+        require_event_value("requested_action", "deny")
+        require_event_value("actual_action")
+        require_event_value("late_intervention")
+        actual_action = record.get("actual_action")
+        late_intervention = record.get("late_intervention")
+        if actual_action not in {"deny", "log_only", "abort_connection"}:
+            errors.append("phase-4 deny must resolve to deny, log_only, or abort_connection")
+        if actual_action == "deny" and late_intervention is not False:
+            errors.append("deny action must not be marked as a late intervention")
+        if actual_action in {"log_only", "abort_connection"} and late_intervention is not True:
+            errors.append("post-commit action must be marked as a late intervention")
+        if actual_action == "abort_connection" and matching_event.get("connection_aborted") is False:
+            errors.append("abort action conflicts with connection_aborted=false")
+        if actual_action in {"deny", "log_only"} and matching_event.get("connection_aborted") is True:
+            errors.append("non-abort action conflicts with connection_aborted=true")
+    return errors
+
+
 def normalize_case_record(
     raw: Mapping[str, Any],
     connector: str,
@@ -1082,9 +1571,6 @@ def normalize_case_record(
     observed_result = raw.get("observed_result") or raw.get("outcome")
     if str(observed_result or "") == "rejected_by_host_before_connector":
         status = "NOT_APPLICABLE"
-    actual_status = optional_int(
-        raw.get("actual_status", raw.get("observed_status", raw.get("intervention_status")))
-    )
     observed_rule_ids: list[int] = []
     candidates: list[object] = []
     if isinstance(raw.get("observed_rule_ids"), list):
@@ -1100,32 +1586,42 @@ def normalize_case_record(
         if rule_id not in observed_rule_ids:
             observed_rule_ids.append(rule_id)
     expected_rule_id = optional_int(case.get("expected_rule_id"))
-    matching_event = event_for_rule(events, expected_rule_id)
+    transaction_ids = supplied_transaction_ids(raw)
+    matching_event = event_for_case(events, expected_rule_id, case, transaction_ids)
+    semantic_values, runtime_evidence_errors = semantic_runtime_fields(raw, matching_event)
+    actual_status_value: object = _MISSING
+    for field in ("actual_status", "observed_status", "visible_http_status", "client_status"):
+        if field in raw:
+            actual_status_value = raw[field]
+            break
+    if not is_phase4_semantic_case(case):
+        if actual_status_value is _MISSING and semantic_values["visible_http_status"] is not None:
+            actual_status_value = semantic_values["visible_http_status"]
+        # Keep the historical intervention_status fallback only for legacy
+        # non-Phase-4 records.  It is a requested WAF status, not proof of the
+        # client-visible status in a late intervention.
+        if actual_status_value is _MISSING and "intervention_status" in raw:
+            actual_status_value = raw["intervention_status"]
+    actual_status = optional_int(actual_status_value) if actual_status_value is not _MISSING else None
     observed_event_fields = sorted(event_field_names(matching_event)) if matching_event else []
     if matching_event:
         for rule_id in event_rule_ids(matching_event):
             if rule_id not in observed_rule_ids:
                 observed_rule_ids.append(rule_id)
-    transaction_ids = []
-    raw_transaction_ids = raw.get("transaction_ids")
-    if isinstance(raw_transaction_ids, list):
-        transaction_ids.extend(str(item) for item in raw_transaction_ids if str(item).strip())
-    for key in ("transaction_id", "tx_id"):
-        if str(raw.get(key) or "").strip():
-            transaction_ids.append(str(raw[key]))
     if matching_event:
         transaction_ids.extend(event_transaction_ids(matching_event))
     transaction_ids = sorted(dict.fromkeys(transaction_ids))
     expected_fields = [str(item) for item in case.get("expected_event_fields", [])]
     expected_status = optional_int(case.get("expected_status"))
-    if status == "PASS":
-        if expected_status is not None and actual_status != expected_status:
-            status = "FAIL"
-        if expected_rule_id is not None and expected_rule_id not in observed_rule_ids:
-            status = "FAIL"
-        if expected_fields and not set(expected_fields).issubset(observed_event_fields):
-            status = "FAIL"
-    return {
+    event_errors = (
+        canonical_event_errors(matching_event, connector=connector) if matching_event else []
+    )
+    event_metadata_verified = bool(
+        matching_event
+        and not event_errors
+        and all(field in observed_event_fields for field in expected_fields)
+    ) if expected_fields else bool(matching_event and not event_errors and raw.get("event_metadata_verified"))
+    record = {
         "schema_version": 1,
         "connector": connector,
         "case_id": case_id,
@@ -1148,13 +1644,35 @@ def normalize_case_record(
         "transaction_ids": transaction_ids,
         "expected_event_fields": expected_fields,
         "observed_event_fields": observed_event_fields,
-        "event_metadata_verified": bool(
-            matching_event and all(field in observed_event_fields for field in expected_fields)
-        ) if expected_fields else bool(raw.get("event_metadata_verified")),
+        "event_metadata_verified": event_metadata_verified,
+        **semantic_values,
         "reason": str(raw.get("reason") or raw.get("skipped_reason") or ""),
         "exit_code": optional_int(raw.get("exit_code")),
         "artifacts": raw.get("artifacts") if isinstance(raw.get("artifacts"), Mapping) else {},
     }
+    if status == "PASS":
+        validation_errors: list[str] = []
+        if is_phase4_semantic_case(case):
+            validation_errors.extend(phase4_pass_errors(
+                record, matching_event, runtime_evidence_errors,
+            ))
+        else:
+            if expected_status is not None and actual_status != expected_status:
+                validation_errors.append("actual status does not match expected status")
+            if expected_rule_id is not None and expected_rule_id not in observed_rule_ids:
+                validation_errors.append("expected rule was not observed")
+            if expected_fields and not set(expected_fields).issubset(observed_event_fields):
+                validation_errors.append("canonical event is missing expected fields")
+            if matching_event and event_errors:
+                validation_errors.extend(event_errors)
+        if validation_errors:
+            record["status"] = "FAIL"
+            record["operation_status"] = operation_status("fail")
+            detail = "; ".join(dict.fromkeys(validation_errors))
+            record["reason"] = "; ".join(
+                part for part in (str(record["reason"]), f"runtime evidence invalid: {detail}") if part
+            )
+    return record
 
 
 def derive_core_records(
@@ -1277,6 +1795,57 @@ def append_derived_event_records(
                 records.append(record)
 
 
+def append_derived_phase4_records(
+    records: list[dict[str, Any]],
+    plan: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+) -> None:
+    """Reuse a valid Phase-4 outcome event for its narrower evidence claims.
+
+    Each real pre-commit, safe late-intervention, or strict-abort outcome
+    observes rule 1100301.  Its status/action fields may prove the narrower
+    facts for that exact transaction.  The inverse is never true: this helper
+    deliberately never derives one disruptive outcome from another.
+    """
+    by_id = {str(record.get("case_id") or ""): record for record in records}
+    selections = {
+        str(item.get("case_id") or ""): item
+        for item in plan.get("cases", [])
+        if isinstance(item, Mapping)
+    }
+    for base_case_id in (
+        "phase4_deny_before_commit",
+        "phase4_deny_after_commit_log_only",
+        "phase4_deny_after_commit_abort",
+    ):
+        base = by_id.get(base_case_id)
+        if not base or base.get("status") != "PASS":
+            continue
+        for case_id in (
+            "phase4_rule_observed",
+            "phase4_event_contains_original_status",
+            "phase4_event_contains_late_intervention_action",
+        ):
+            if case_id in by_id or selections.get(case_id, {}).get("selection_status") != "SELECTED":
+                continue
+            derived_raw = dict(base)
+            derived_raw.update({
+                "case_id": case_id,
+                "status": "PASS",
+                "reason": f"derived from the validated {base_case_id} runtime event",
+            })
+            record = normalize_case_record(
+                derived_raw,
+                str(plan.get("connector") or base.get("connector") or ""),
+                case_by_id,
+                events,
+            )
+            if record is not None and record.get("status") == "PASS":
+                records.append(record)
+                by_id[case_id] = record
+
+
 def selection_record(
     selection: Mapping[str, Any],
     case: Mapping[str, Any],
@@ -1305,10 +1874,107 @@ def selection_record(
         "expected_event_fields": list(case.get("expected_event_fields", [])),
         "observed_event_fields": [],
         "event_metadata_verified": False,
+        "http_status": None,
+        "requested_action": None,
+        "actual_action": None,
+        "original_http_status": None,
+        "visible_http_status": None,
+        "late_intervention": None,
+        "headers_sent": None,
+        "body_started": None,
+        "response_committed": None,
+        "connection_aborted": None,
+        "transport_result": None,
         "reason": reason,
         "exit_code": exit_code,
         "artifacts": {},
     }
+
+
+def derive_deprecated_alias_targets(
+    records: list[dict[str, Any]],
+    plan: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+) -> None:
+    """Allow a fully evidenced legacy execution to populate its new target.
+
+    Old host runners may still report ``deny_response_body_marker_403`` during
+    the migration.  It can seed the replacement case only after it satisfies
+    the strict pre-commit evidence contract; a bare 403 can never do so.
+    """
+    selections = {
+        str(item.get("case_id") or ""): item
+        for item in plan.get("cases", [])
+        if isinstance(item, Mapping)
+    }
+    existing = {str(record.get("case_id") or "") for record in records}
+    derived: list[dict[str, Any]] = []
+    for record in records:
+        case = case_by_id.get(str(record.get("case_id") or ""))
+        target_id = str(case.get("deprecated_alias_for") or "") if case else ""
+        if (
+            not target_id
+            or target_id in existing
+            or record.get("status") != "PASS"
+            or selections.get(target_id, {}).get("selection_status") != "SELECTED"
+        ):
+            continue
+        target_raw = dict(record)
+        target_raw["case_id"] = target_id
+        target_raw["reason"] = (
+            f"normalized from deprecated alias {record.get('case_id')} with strict pre-commit evidence"
+        )
+        target = normalize_case_record(
+            target_raw,
+            str(record.get("connector") or plan.get("connector") or ""),
+            case_by_id,
+            events,
+        )
+        if target is not None:
+            derived.append(target)
+            existing.add(target_id)
+    records.extend(derived)
+
+
+def resolve_deprecated_aliases(
+    records: list[dict[str, Any]],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+) -> None:
+    """Make deprecated aliases a view of the canonical replacement outcome."""
+    positions = {str(record.get("case_id") or ""): index for index, record in enumerate(records)}
+    for alias_id, case in case_by_id.items():
+        target_id = str(case.get("deprecated_alias_for") or "")
+        if not target_id:
+            continue
+        target = records[positions[target_id]] if target_id in positions else None
+        alias_index = positions.get(alias_id)
+        alias = records[alias_index] if alias_index is not None else None
+        if target is not None and target.get("status") == "PASS":
+            replacement = dict(target)
+            replacement.update({
+                "case_id": alias_id,
+                "group": case.get("group", ""),
+                "phase": case.get("phase"),
+                "required_capabilities": list(case.get("required_capabilities", [])),
+                "expected_result": case.get("expected_result"),
+                "expected_status": optional_int(case.get("expected_status")),
+                "expected_rule_id": optional_int(case.get("expected_rule_id")),
+                "expected_event_fields": list(case.get("expected_event_fields", [])),
+                "reason": f"deprecated alias for {target_id}; canonical replacement passed",
+            })
+            if alias_index is None:
+                positions[alias_id] = len(records)
+                records.append(replacement)
+            else:
+                records[alias_index] = replacement
+            continue
+        if alias is not None and alias.get("status") == "PASS":
+            alias["status"] = "FAIL"
+            alias["operation_status"] = operation_status("fail")
+            alias["reason"] = (
+                f"deprecated alias requires {target_id}=PASS; canonical replacement did not pass"
+            )
 
 
 def load_source_json(path: Path) -> object:
@@ -1443,6 +2109,21 @@ def aggregate_case_status(records: Sequence[Mapping[str, Any]]) -> str:
     return "NOT_APPLICABLE"
 
 
+def phase4_case_result_projection(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the payload-free Phase-4 portion of a canonical case result."""
+    fields = (
+        "case_id",
+        "status",
+        "live_executed",
+        "expected_result",
+        "expected_rule_id",
+        "observed_rule_ids",
+        "transaction_ids",
+        *PHASE4_SEMANTIC_FIELDS,
+    )
+    return {field: record.get(field) for field in fields}
+
+
 def finalize_run(args: argparse.Namespace) -> int:
     connector_root = Path(args.connector_root).resolve() if args.connector_root else None
     run_dir = Path(args.run_dir)
@@ -1549,6 +2230,8 @@ def finalize_run(args: argparse.Namespace) -> int:
     for payload in source_payloads:
         records.extend(derive_core_records(payload, connector, case_by_id, events))
     append_derived_event_records(records, plan, case_by_id, events)
+    derive_deprecated_alias_targets(records, plan, case_by_id, events)
+    append_derived_phase4_records(records, plan, case_by_id, events)
     deduplicated: dict[str, dict[str, Any]] = {}
     for record in records:
         deduplicated[record["case_id"]] = record
@@ -1569,6 +2252,9 @@ def finalize_run(args: argparse.Namespace) -> int:
         elif selected == "NOT_APPLICABLE":
             status = "NOT_APPLICABLE"
             reason = str(selection.get("selection_reason") or "not applicable to host model")
+        elif selected == "NOT_EXECUTED":
+            status = "NOT_EXECUTED"
+            reason = str(selection.get("selection_reason") or "capability is not implemented")
         elif stage_rc == 77 and not any_live:
             status = "BLOCKED"
             reason = args.stage_reason or "blocked before execution"
@@ -1578,6 +2264,8 @@ def finalize_run(args: argparse.Namespace) -> int:
         record = selection_record(selection, case_by_id[case_id], connector, status, reason, stage_rc)
         records.append(record)
         deduplicated[case_id] = record
+    resolve_deprecated_aliases(records, case_by_id)
+    deduplicated = {record["case_id"]: record for record in records}
     order = {item["case_id"]: index for index, item in enumerate(plan.get("cases", [])) if isinstance(item, Mapping)}
     records.sort(key=lambda item: order.get(item["case_id"], len(order)))
 
@@ -1636,7 +2324,7 @@ def finalize_run(args: argparse.Namespace) -> int:
     unsupported_capabilities = sorted({
         name for name in CAPABILITIES
         if capability_state(declared_capabilities.get(name)) in {
-            "unsupported_by_host_model", "not_implemented", "not_applicable"
+            "unsupported_by_host_model", "not_applicable"
         }
     } - set(verified_capabilities))
     not_exercised_capabilities = sorted(set(CAPABILITIES) - set(verified_capabilities) - set(unsupported_capabilities))
@@ -1737,11 +2425,19 @@ def finalize_run(args: argparse.Namespace) -> int:
         "request_headers_verified": {"allow_without_marker", "deny_header_marker_403"}.issubset(pass_ids),
         "request_body_verified": "deny_request_body_marker_403" in pass_ids,
         "response_headers_verified": "deny_response_header_marker_403" in pass_ids,
-        "response_body_verified": "deny_response_body_marker_403" in pass_ids,
+        "response_body_verified": "phase4_rule_observed" in pass_ids,
         "late_intervention_verified": bool(
-            {"deny_response_header_marker_403", "deny_response_body_marker_403"}.intersection(pass_ids)
+            {
+                "phase4_deny_after_commit_log_only",
+                "phase4_deny_after_commit_abort",
+            }.intersection(pass_ids)
             and "late_intervention" in verified_capabilities
         ),
+        "phase4_case_results": [
+            phase4_case_result_projection(record)
+            for record in records
+            if record.get("case_id") in PHASE4_CASE_IDS
+        ],
         "event_metadata_verified": event_metadata_verified,
         "body_payload_absent_from_events": body_payload_absent_from_events,
         "pass_gate_failures": pass_gate_failures,
@@ -1911,6 +2607,14 @@ def canonical_event_errors(
         return [f"{location}: checked-in event schema must contain an object"]
     errors = json_schema_errors(event, schema, root_schema=schema, location=location)
     errors.extend(forbidden_payload_errors(event, location))
+    # Core request events predate these correlation fields, so the schema
+    # keeps them optional.  Every Phase-4 record must nevertheless identify
+    # its producer event and message before it becomes canonical evidence.
+    if isinstance(event, Mapping) and phase_is_four(event.get("phase")):
+        for field in ("event", "message_id"):
+            value = event.get(field)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(f"{location}.{field}: phase-4 events require a non-empty string")
     if connector and isinstance(event, Mapping) and event.get("connector") != connector:
         errors.append(
             f"{location}.connector: {event.get('connector')!r} does not match {connector!r}"
@@ -1977,15 +2681,18 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         "host_version", "integration_mode", "libmodsecurity_version", "run_id",
         "connector_worktree_clean", "framework_worktree_clean", "provenance_required",
         "connector_commit_at_finalize", "framework_commit_at_finalize",
-        "evidence_stage", "ruleset", "status", "started",
+        "evidence_stage", "ruleset", "status", "exit_code", "blocked_before_execution", "started",
         "requests_sent", "source_statuses", "source_failure", "allowed_request_status", "blocked_request_status", "observed_rule_ids",
         "transaction_ids", "request_headers_verified", "request_body_verified",
         "response_headers_verified", "response_body_verified", "late_intervention_verified",
+        "phase4_case_results",
         "event_metadata_verified", "body_payload_absent_from_events", "pass_gate_failures",
-        "cases_total", "cases_passed",
-        "cases_failed", "cases_blocked", "capabilities_verified", "capabilities_unsupported",
+        "cases_total", "cases_passed", "cases_failed", "cases_blocked", "cases_unsupported",
+        "cases_not_applicable", "cases_not_executed", "status_counts", "group_statuses",
+        "capabilities_verified", "capabilities_unsupported",
         "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed",
-        "evidence_stages",
+        "evidence_stages", "production_ready", "security_verified", "crs_verified", "crs_complete",
+        "full_matrix_ready", "started_at", "ended_at",
     ), "result.json"))
     errors.extend(required_keys(manifest, (
         "schema_version", "connector", "run_id", "evidence_stage", "ruleset", "status",
@@ -2041,10 +2748,14 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         label = f"results.jsonl[{index}]"
         errors.extend(f"{label} schema: {error}" for error in json_schema_errors(record, case_result_schema))
         errors.extend(required_keys(record, (
-            "schema_version", "connector", "case_id", "status", "live_executed",
-            "required_capabilities", "expected_result", "expected_status", "expected_rule_id",
+            "schema_version", "connector", "case_id", "group", "phase", "status",
+            "operation_status", "live_executed", "required_capabilities", "expected_result",
+            "observed_result", "expected_status", "expected_rule_id",
             "actual_status", "observed_rule_ids", "transaction_ids", "expected_event_fields",
-            "observed_event_fields", "reason", "artifacts",
+            "observed_event_fields", "event_metadata_verified", "http_status", "requested_action", "actual_action",
+            "original_http_status", "visible_http_status", "late_intervention", "headers_sent",
+            "body_started", "response_committed", "connection_aborted", "transport_result",
+            "reason", "exit_code", "artifacts",
         ), label))
         if record.get("status") not in CASE_STATUSES:
             errors.append(f"{label}: invalid status")
@@ -2099,7 +2810,11 @@ def completeness_errors(run_dir: Path) -> list[str]:
         if record.get("live_executed") is not True:
             errors.append(f"{case_id}: PASS requires live_executed=true")
         expected_status = record.get("expected_status")
-        if expected_status is not None and record.get("actual_status") != expected_status:
+        if (
+            not is_phase4_semantic_case(record)
+            and expected_status is not None
+            and record.get("actual_status") != expected_status
+        ):
             errors.append(f"{case_id}: PASS status mismatch")
         expected_rule = record.get("expected_rule_id")
         if expected_rule is not None and expected_rule not in record.get("observed_rule_ids", []):
@@ -2108,6 +2823,15 @@ def completeness_errors(run_dir: Path) -> list[str]:
         observed_fields = set(record.get("observed_event_fields", []))
         if expected_fields and not expected_fields.issubset(observed_fields):
             errors.append(f"{case_id}: PASS missing expected event fields")
+        if is_phase4_semantic_case(record):
+            matching_event = event_for_case(
+                events,
+                optional_int(record.get("expected_rule_id")),
+                record,
+                [str(value) for value in record.get("transaction_ids", [])],
+            )
+            for error in phase4_pass_errors(record, matching_event):
+                errors.append(f"{case_id}: {error}")
     return errors
 
 
@@ -2325,13 +3049,19 @@ def status_errors(run_dir: Path) -> list[str]:
         }.issubset(pass_ids),
         "request_body_verified": "deny_request_body_marker_403" in pass_ids,
         "response_headers_verified": "deny_response_header_marker_403" in pass_ids,
-        "response_body_verified": "deny_response_body_marker_403" in pass_ids,
+        "response_body_verified": "phase4_rule_observed" in pass_ids,
         "late_intervention_verified": bool(
             {
-                "deny_response_header_marker_403", "deny_response_body_marker_403",
+                "phase4_deny_after_commit_log_only",
+                "phase4_deny_after_commit_abort",
             }.intersection(pass_ids)
             and "late_intervention" in verified_capabilities
         ),
+        "phase4_case_results": [
+            phase4_case_result_projection(record)
+            for record in records
+            if record.get("case_id") in PHASE4_CASE_IDS
+        ],
         "capabilities_verified": verified_capabilities,
     }
     for field, expected in expected_record_fields.items():

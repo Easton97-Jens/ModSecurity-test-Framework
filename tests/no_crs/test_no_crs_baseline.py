@@ -16,6 +16,7 @@ assert SPEC is not None and SPEC.loader is not None
 no_crs = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(no_crs)
 from runner_core import load_case, write_rules_file  # noqa: E402
+from case_cli import phase4_runtime_evidence  # noqa: E402
 
 
 def manifest(connector: str = "envoy", executable: set[str] | None = None) -> dict[str, object]:
@@ -42,6 +43,45 @@ def manifest(connector: str = "envoy", executable: set[str] | None = None) -> di
 
 
 class NoCrsBaselineTest(unittest.TestCase):
+    def normalize_phase4(
+        self,
+        case_id: str,
+        event: dict[str, object],
+        *,
+        raw: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "case_id": case_id,
+            "status": "PASS",
+            "live_executed": True,
+            "observed_rule_ids": [1100301],
+        }
+        if raw:
+            payload.update(raw)
+        catalog = no_crs.load_catalog()
+        record = no_crs.normalize_case_record(
+            payload,
+            "apache",
+            {case["case_id"]: case for case in no_crs.catalog_cases(catalog)},
+            [event],
+        )
+        self.assertIsNotNone(record)
+        return record  # type: ignore[return-value]
+
+    @staticmethod
+    def phase4_event(**fields: object) -> dict[str, object]:
+        event: dict[str, object] = {
+            "connector": "apache",
+            "event": "phase4_intervention",
+            "message_id": "phase4-1100301",
+            "transaction_id": "tx-phase4",
+            "rule_id": 1100301,
+            "phase": 4,
+            "status": "intervened",
+        }
+        event.update(fields)
+        return event
+
     def test_source_records_accepts_collector_case_list(self) -> None:
         records = no_crs.source_records({
             "cases": [
@@ -74,7 +114,29 @@ class NoCrsBaselineTest(unittest.TestCase):
     def test_catalog_has_complete_mandatory_core_and_native_rule_contract(self) -> None:
         catalog = no_crs.load_catalog()
         self.assertEqual([], no_crs.validate_catalog(catalog))
-        self.assertEqual(53, len(no_crs.catalog_cases(catalog)))
+        self.assertEqual(59, len(no_crs.catalog_cases(catalog)))
+        by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
+        self.assertEqual(
+            {
+                "phase4_rule_observed",
+                "phase4_deny_before_commit",
+                "phase4_deny_after_commit_log_only",
+                "phase4_deny_after_commit_abort",
+                "phase4_event_contains_original_status",
+                "phase4_event_contains_late_intervention_action",
+            },
+            set(no_crs.PHASE4_CASE_IDS),
+        )
+        self.assertEqual(
+            "phase4_deny_before_commit",
+            by_id["deny_response_body_marker_403"]["deprecated_alias_for"],
+        )
+        self.assertEqual(403, by_id["deny_response_body_marker_403"]["expected_status"])
+        self.assertNotIn("runner_case", by_id["deny_response_body_marker_403"])
+        self.assertEqual(
+            "deny_response_body_marker_403.yaml",
+            by_id["phase4_deny_before_commit"]["runner_case"],
+        )
         runner_cases = [case for case in no_crs.catalog_cases(catalog) if case.get("runner_case")]
         self.assertEqual(8, len(runner_cases))
         self.assertNotIn("deny_response_header_marker_403", {case["case_id"] for case in runner_cases})
@@ -115,6 +177,411 @@ class NoCrsBaselineTest(unittest.TestCase):
         self.assertEqual("IMPLEMENTED, NOT ASSERTED", no_crs.capability_cell({
             "capabilities_verified": [], "capability_states": {"phase3": "implemented_not_asserted"},
         }, "phase3"))
+
+    def test_phase4_selection_keeps_not_implemented_distinct_from_host_unsupported(self) -> None:
+        executable = {
+            "response_body_buffered", "phase4", "phase4_rule_evaluation", "event_jsonl",
+            "phase4_pre_commit_deny", "deny", "late_intervention_status_metadata",
+        }
+        lighttpd = manifest("lighttpd", executable=executable)
+        lighttpd["capabilities"]["phase4_pre_commit_deny"]["state"] = "not_implemented"  # type: ignore[index]
+        lighttpd["capabilities"]["phase4_pre_commit_deny"]["reason"] = "unit-test missing implementation"  # type: ignore[index]
+        plan = no_crs.select_cases("lighttpd", lighttpd, no_crs.load_catalog())
+        by_id = {item["case_id"]: item for item in plan["cases"]}
+        self.assertEqual("NOT_EXECUTED", by_id["phase4_deny_before_commit"]["selection_status"])
+
+        envoy = manifest("envoy", executable=executable)
+        envoy["capabilities"]["phase4"]["state"] = "unsupported_by_host_model"  # type: ignore[index]
+        envoy["capabilities"]["phase4"]["reason"] = "unit-test host boundary"  # type: ignore[index]
+        plan = no_crs.select_cases("envoy", envoy, no_crs.load_catalog())
+        by_id = {item["case_id"]: item for item in plan["cases"]}
+        self.assertEqual("UNSUPPORTED", by_id["phase4_rule_observed"]["selection_status"])
+
+    def test_phase4_normalizer_observes_rule_without_rewriting_a_visible_200(self) -> None:
+        record = self.normalize_phase4(
+            "phase4_rule_observed",
+            self.phase4_event(visible_http_status=200, original_http_status=200),
+            raw={"actual_status": 200},
+        )
+        self.assertEqual("PASS", record["status"])
+        self.assertEqual(200, record["actual_status"])
+        self.assertEqual(200, record["visible_http_status"])
+
+    def test_phase4_log_extraction_projects_only_runtime_metadata(self) -> None:
+        evidence = phase4_runtime_evidence({
+            "wanted_action": "deny",
+            "actual_action": "connection_abort",
+            "waf_status": 403,
+            "upstream_status": 200,
+            "client_status": 200,
+            "intervention": True,
+            "header_sent": True,
+            "response_body_seen": True,
+            "strict_abort": True,
+            "observed_transport_result": "aborted",
+            "response_body": "must-not-be-projected",
+        })
+        self.assertEqual("deny", evidence["requested_action"])
+        self.assertEqual("abort_connection", evidence["actual_action"])
+        self.assertEqual(403, evidence["http_status"])
+        self.assertEqual(200, evidence["original_http_status"])
+        self.assertEqual(200, evidence["visible_http_status"])
+        self.assertTrue(evidence["late_intervention"])
+        self.assertTrue(evidence["headers_sent"])
+        self.assertTrue(evidence["body_started"])
+        self.assertTrue(evidence["connection_aborted"])
+        self.assertEqual("connection_aborted", evidence["transport_result"])
+        self.assertNotIn("response_committed", evidence)
+        self.assertNotIn("response_body", evidence)
+
+    def test_phase4_pre_commit_deny_requires_uncommitted_headers(self) -> None:
+        event = self.phase4_event(
+            http_status=403,
+            requested_action="deny",
+            actual_action="deny",
+            original_http_status=200,
+            visible_http_status=403,
+            headers_sent=False,
+            connection_aborted=False,
+        )
+        record = self.normalize_phase4(
+            "phase4_deny_before_commit", event, raw={"actual_status": 403},
+        )
+        self.assertEqual("PASS", record["status"])
+        record = self.normalize_phase4(
+            "phase4_deny_before_commit", {**event, "headers_sent": True},
+            raw={"actual_status": 403},
+        )
+        self.assertEqual("FAIL", record["status"])
+
+    def test_phase4_log_only_requires_late_runtime_evidence(self) -> None:
+        event = self.phase4_event(
+            http_status=403,
+            requested_action="deny",
+            actual_action="log_only",
+            original_http_status=200,
+            visible_http_status=200,
+            late_intervention=True,
+            headers_sent=True,
+            connection_aborted=False,
+        )
+        record = self.normalize_phase4(
+            "phase4_deny_after_commit_log_only", event, raw={"actual_status": 200},
+        )
+        self.assertEqual("PASS", record["status"])
+        without_late = dict(event)
+        without_late.pop("late_intervention")
+        record = self.normalize_phase4(
+            "phase4_deny_after_commit_log_only", without_late, raw={"actual_status": 200},
+        )
+        self.assertEqual("FAIL", record["status"])
+        missing_rule = dict(event)
+        missing_rule["rule_id"] = 1100302
+        record = self.normalize_phase4(
+            "phase4_deny_after_commit_log_only", missing_rule, raw={"actual_status": 200},
+        )
+        self.assertEqual("FAIL", record["status"])
+
+    def test_phase4_normalizer_binds_multiple_events_by_transaction_id(self) -> None:
+        pre_commit = self.phase4_event(
+            transaction_id="tx-pre",
+            http_status=403,
+            requested_action="deny",
+            actual_action="deny",
+            original_http_status=200,
+            visible_http_status=403,
+            headers_sent=False,
+            connection_aborted=False,
+        )
+        log_only = self.phase4_event(
+            transaction_id="tx-safe",
+            http_status=403,
+            requested_action="deny",
+            actual_action="log_only",
+            original_http_status=200,
+            visible_http_status=200,
+            late_intervention=True,
+            headers_sent=True,
+            connection_aborted=False,
+        )
+        catalog = no_crs.load_catalog()
+        record = no_crs.normalize_case_record(
+            {
+                "case_id": "phase4_deny_after_commit_log_only",
+                "status": "PASS",
+                "live_executed": True,
+                "observed_rule_ids": [1100301],
+                "transaction_id": "tx-safe",
+                "actual_status": 200,
+            },
+            "apache",
+            {case["case_id"]: case for case in no_crs.catalog_cases(catalog)},
+            [pre_commit, log_only],
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual("PASS", record["status"])
+        self.assertEqual(200, record["visible_http_status"])
+
+    def test_phase4_abort_requires_a_real_abort_action(self) -> None:
+        event = self.phase4_event(
+            http_status=403,
+            requested_action="deny",
+            actual_action="abort_connection",
+            original_http_status=200,
+            visible_http_status=200,
+            late_intervention=True,
+            headers_sent=True,
+            connection_aborted=True,
+        )
+        record = self.normalize_phase4("phase4_deny_after_commit_abort", event)
+        self.assertEqual("PASS", record["status"])
+        record = self.normalize_phase4(
+            "phase4_deny_after_commit_abort", {**event, "connection_aborted": False},
+        )
+        self.assertEqual("FAIL", record["status"])
+        record = self.normalize_phase4(
+            "phase4_deny_after_commit_abort", {**event, "actual_action": "log_only"},
+        )
+        self.assertEqual("FAIL", record["status"])
+
+    def test_phase4_client_status_matches_visible_status_when_observable(self) -> None:
+        pre_commit = self.phase4_event(
+            http_status=403,
+            requested_action="deny",
+            actual_action="deny",
+            original_http_status=200,
+            visible_http_status=403,
+            headers_sent=False,
+            connection_aborted=False,
+        )
+        self.assertEqual(
+            "FAIL",
+            self.normalize_phase4(
+                "phase4_deny_before_commit", pre_commit, raw={"actual_status": 200},
+            )["status"],
+        )
+        log_only = self.phase4_event(
+            http_status=403,
+            requested_action="deny",
+            actual_action="log_only",
+            original_http_status=200,
+            visible_http_status=200,
+            late_intervention=True,
+            headers_sent=True,
+            connection_aborted=False,
+        )
+        self.assertEqual(
+            "FAIL",
+            self.normalize_phase4(
+                "phase4_deny_after_commit_log_only", log_only, raw={"actual_status": 403},
+            )["status"],
+        )
+
+        abort = self.phase4_event(
+            http_status=403,
+            requested_action="deny",
+            actual_action="abort_connection",
+            original_http_status=200,
+            visible_http_status=200,
+            late_intervention=True,
+            headers_sent=True,
+            connection_aborted=True,
+        )
+        # A connection-reset transport has no observable final HTTP response,
+        # so a supplied status is not compared to the already-visible status.
+        self.assertEqual(
+            "PASS",
+            self.normalize_phase4(
+                "phase4_deny_after_commit_abort",
+                abort,
+                raw={"actual_status": 418, "transport_result": "connection_aborted"},
+            )["status"],
+        )
+        self.assertEqual(
+            "FAIL",
+            self.normalize_phase4(
+                "phase4_deny_after_commit_abort",
+                abort,
+                raw={"actual_status": 418, "transport_result": "http_status"},
+            )["status"],
+        )
+
+    def test_phase4_metadata_cases_require_actions_and_statuses_from_the_event(self) -> None:
+        pre_commit = self.phase4_event(
+            http_status=403,
+            requested_action="deny",
+            actual_action="deny",
+            original_http_status=200,
+            visible_http_status=403,
+            late_intervention=False,
+            headers_sent=False,
+            connection_aborted=False,
+        )
+        self.assertEqual(
+            "PASS",
+            self.normalize_phase4("phase4_event_contains_original_status", pre_commit)["status"],
+        )
+        self.assertEqual(
+            "PASS",
+            self.normalize_phase4("phase4_event_contains_late_intervention_action", pre_commit)["status"],
+        )
+        for field in ("requested_action", "actual_action", "original_http_status", "visible_http_status"):
+            with self.subTest(field=field):
+                event = dict(pre_commit)
+                event.pop(field)
+                case_id = (
+                    "phase4_event_contains_late_intervention_action"
+                    if field in {"requested_action", "actual_action"}
+                    else "phase4_event_contains_original_status"
+                )
+                self.assertEqual("FAIL", self.normalize_phase4(case_id, event)["status"])
+
+    def test_phase4_normalizer_rejects_unknown_or_payload_event_fields(self) -> None:
+        event = self.phase4_event(visible_http_status=200, original_http_status=200)
+        for field, value in (
+            ("unreviewed_field", "unexpected"),
+            ("response_body", "no-crs-response-body-marker"),
+            ("matched_value", "sensitive match"),
+        ):
+            with self.subTest(field=field):
+                self.assertEqual(
+                    "FAIL",
+                    self.normalize_phase4("phase4_rule_observed", {**event, field: value})["status"],
+                )
+        for field in ("event", "message_id"):
+            with self.subTest(missing_phase4_identity=field):
+                missing = dict(event)
+                missing.pop(field)
+                self.assertTrue(any(
+                    f"{field}: phase-4 events require a non-empty string" in error
+                    for error in no_crs.canonical_event_errors(missing)
+                ))
+                self.assertEqual(
+                    "FAIL",
+                    self.normalize_phase4("phase4_rule_observed", missing)["status"],
+                )
+
+    def test_phase4_statuses_and_legacy_alias_are_never_promoted_without_evidence(self) -> None:
+        event = self.phase4_event(
+            http_status=403,
+            requested_action="deny",
+            actual_action="deny",
+            original_http_status=200,
+            visible_http_status=403,
+            headers_sent=False,
+            connection_aborted=False,
+        )
+        for status in ("UNSUPPORTED", "NOT_EXECUTED"):
+            with self.subTest(status=status):
+                record = self.normalize_phase4(
+                    "phase4_deny_before_commit", event, raw={"status": status},
+                )
+                self.assertEqual(status, record["status"])
+
+        catalog = no_crs.load_catalog()
+        case_by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
+        alias = self.normalize_phase4(
+            "deny_response_body_marker_403", event, raw={"actual_status": 403},
+        )
+        self.assertEqual("PASS", alias["status"])
+        failed_target = dict(alias)
+        failed_target.update({"case_id": "phase4_deny_before_commit", "status": "FAIL"})
+        records = [alias, failed_target]
+        no_crs.resolve_deprecated_aliases(records, case_by_id)
+        self.assertEqual("FAIL", records[0]["status"])
+
+        target = self.normalize_phase4(
+            "phase4_deny_before_commit", event, raw={"actual_status": 403},
+        )
+        records = [dict(alias, status="NOT_EXECUTED"), target]
+        no_crs.resolve_deprecated_aliases(records, case_by_id)
+        self.assertEqual("PASS", records[0]["status"])
+        self.assertEqual("legacy_phase4_deny_before_commit", records[0]["expected_result"])
+
+    def test_valid_phase4_outcomes_derive_only_their_narrower_facts(self) -> None:
+        catalog = no_crs.load_catalog()
+        case_by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
+        plan = no_crs.select_cases(
+            "apache", manifest("apache", executable=set(no_crs.CAPABILITIES)), catalog,
+        )
+        outcomes = (
+            (
+                "phase4_deny_before_commit",
+                self.phase4_event(
+                    http_status=403,
+                    requested_action="deny",
+                    actual_action="deny",
+                    original_http_status=200,
+                    visible_http_status=403,
+                    late_intervention=False,
+                    headers_sent=False,
+                    connection_aborted=False,
+                ),
+                {"actual_status": 403},
+                {"phase4_deny_after_commit_log_only", "phase4_deny_after_commit_abort"},
+            ),
+            (
+                "phase4_deny_after_commit_log_only",
+                self.phase4_event(
+                    http_status=403,
+                    requested_action="deny",
+                    actual_action="log_only",
+                    original_http_status=200,
+                    visible_http_status=200,
+                    late_intervention=True,
+                    headers_sent=True,
+                    connection_aborted=False,
+                ),
+                {"actual_status": 200},
+                {"phase4_deny_before_commit", "phase4_deny_after_commit_abort"},
+            ),
+            (
+                "phase4_deny_after_commit_abort",
+                self.phase4_event(
+                    http_status=403,
+                    requested_action="deny",
+                    actual_action="abort_connection",
+                    original_http_status=200,
+                    visible_http_status=200,
+                    late_intervention=True,
+                    headers_sent=True,
+                    connection_aborted=True,
+                ),
+                {"transport_result": "connection_aborted"},
+                {"phase4_deny_before_commit", "phase4_deny_after_commit_log_only"},
+            ),
+        )
+        for base_case_id, event, raw, absent_outcomes in outcomes:
+            with self.subTest(base_case_id=base_case_id):
+                base = self.normalize_phase4(base_case_id, event, raw=raw)
+                self.assertEqual("PASS", base["status"])
+                records = [base]
+                no_crs.append_derived_phase4_records(records, plan, case_by_id, [event])
+                by_id = {record["case_id"]: record for record in records}
+                self.assertEqual("PASS", by_id["phase4_rule_observed"]["status"])
+                self.assertEqual("PASS", by_id["phase4_event_contains_original_status"]["status"])
+                self.assertEqual("PASS", by_id["phase4_event_contains_late_intervention_action"]["status"])
+                self.assertTrue(absent_outcomes.isdisjoint(by_id))
+
+    def test_phase1_deny_remains_strict(self) -> None:
+        catalog = no_crs.load_catalog()
+        record = no_crs.normalize_case_record(
+            {
+                "case_id": "deny_header_marker_403",
+                "status": "PASS",
+                "live_executed": True,
+                "actual_status": 200,
+                "observed_rule_ids": [1100001],
+            },
+            "apache",
+            {case["case_id"]: case for case in no_crs.catalog_cases(catalog)},
+            [{
+                "connector": "apache", "transaction_id": "tx-phase1", "rule_id": 1100001,
+                "phase": 1, "status": "blocked",
+            }],
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual("FAIL", record["status"])
 
     def test_zero_exit_without_case_evidence_is_not_pass(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
@@ -166,6 +633,41 @@ class NoCrsBaselineTest(unittest.TestCase):
             (run_dir / "raw").mkdir()
             (run_dir / "raw/untracked.log").write_text("untracked\n", encoding="utf-8")
             self.assertTrue(any("unmanifested artifact" in error for error in no_crs.layout_errors(run_dir)))
+
+    def test_schemas_reject_unreviewed_result_and_case_fields(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
+            root = Path(temporary)
+            capability_path = root / "capabilities.json"
+            capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
+            run_dir = root / "evidence/envoy/strict-schema"
+            self.assertEqual(0, no_crs.main([
+                "init", "--connector", "envoy", "--capabilities", str(capability_path),
+                "--run-dir", str(run_dir), "--run-id", "strict-schema", "--host-version", "1.0",
+            ]))
+            self.assertEqual(0, no_crs.main([
+                "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
+                "--stage-rc", "0", "--host-version", "1.0",
+            ]))
+            capabilities = no_crs.load_capability_manifest(capability_path, "envoy")
+            result = no_crs.load_json(run_dir / "result.json")
+            self.assertIsInstance(result, dict)
+            result["unreviewed_result_field"] = "must be rejected"  # type: ignore[index]
+            no_crs.write_json(run_dir / "result.json", result)
+            self.assertTrue(any(
+                "result.json schema: $: unexpected property unreviewed_result_field" in error
+                for error in no_crs.schema_errors(run_dir, "envoy", capabilities)
+            ))
+
+            result.pop("unreviewed_result_field")  # type: ignore[union-attr]
+            no_crs.write_json(run_dir / "result.json", result)
+            records = no_crs.read_jsonl(run_dir / "results.jsonl")
+            self.assertTrue(records)
+            records[0]["unreviewed_case_field"] = "must be rejected"
+            no_crs.write_jsonl(run_dir / "results.jsonl", records)
+            self.assertTrue(any(
+                "results.jsonl[0] schema: $: unexpected property unreviewed_case_field" in error
+                for error in no_crs.schema_errors(run_dir, "envoy", capabilities)
+            ))
 
     def test_init_requires_fresh_run_directory(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:

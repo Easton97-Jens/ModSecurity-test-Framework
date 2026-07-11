@@ -3,8 +3,8 @@
   "$id": "https://modsecurity-connector.invalid/schemas/no-crs-result-v1.json",
   "title": "Canonical No-CRS connector result",
   "type": "object",
-  "additionalProperties": true,
-  "required": ["schema_version", "status_model", "connector", "run_id", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "evidence_stage", "evidence_stages", "ruleset", "status", "started", "requests_sent", "source_statuses", "source_failure", "allowed_request_status", "blocked_request_status", "observed_rule_ids", "transaction_ids", "request_headers_verified", "request_body_verified", "response_headers_verified", "response_body_verified", "late_intervention_verified", "event_metadata_verified", "body_payload_absent_from_events", "pass_gate_failures", "cases_total", "cases_passed", "cases_failed", "cases_blocked", "cases_unsupported", "cases_not_applicable", "cases_not_executed", "status_counts", "capabilities_verified", "capabilities_unsupported", "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed"],
+  "additionalProperties": false,
+  "required": ["schema_version", "status_model", "connector", "run_id", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "evidence_stage", "evidence_stages", "ruleset", "status", "exit_code", "source_statuses", "source_failure", "blocked_before_execution", "started", "requests_sent", "allowed_request_status", "blocked_request_status", "observed_rule_ids", "transaction_ids", "request_headers_verified", "request_body_verified", "response_headers_verified", "response_body_verified", "late_intervention_verified", "phase4_case_results", "event_metadata_verified", "body_payload_absent_from_events", "pass_gate_failures", "cases_total", "cases_passed", "cases_failed", "cases_blocked", "cases_unsupported", "cases_not_applicable", "cases_not_executed", "status_counts", "group_statuses", "capabilities_verified", "capabilities_unsupported", "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed", "production_ready", "security_verified", "crs_verified", "crs_complete", "full_matrix_ready", "started_at", "ended_at"],
   "properties": {
     "schema_version": {"const": 1},
     "status_model": {"const": "msconnector_status"},
@@ -40,6 +40,8 @@
     },
     "ruleset": {"const": "no-crs-baseline"},
     "status": {"enum": ["PASS", "FAIL", "BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"]},
+    "exit_code": {"type": "integer"},
+    "blocked_before_execution": {"type": "boolean"},
     "started": {"type": "boolean"},
     "requests_sent": {"type": "boolean"},
     "source_statuses": {"type": "array", "items": {"type": "string"}},
@@ -53,6 +55,10 @@
     "response_headers_verified": {"type": "boolean"},
     "response_body_verified": {"type": "boolean"},
     "late_intervention_verified": {"type": "boolean"},
+    "phase4_case_results": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/phase4_case_result"}
+    },
     "event_metadata_verified": {"type": "boolean"},
     "body_payload_absent_from_events": {"type": "boolean"},
     "pass_gate_failures": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
@@ -76,14 +82,53 @@
         "NOT_EXECUTED": {"type": "integer", "minimum": 0}
       }
     },
+    "group_statuses": {
+      "type": "object",
+      "additionalProperties": {"enum": ["PASS", "FAIL", "BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"]}
+    },
     "capabilities_verified": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "capabilities_unsupported": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "capabilities_not_exercised": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-    "capability_states": {"type": "object"},
+    "capability_states": {
+      "type": "object",
+      "additionalProperties": {"enum": ["verified", "implemented_not_asserted", "configured_not_exercised", "unsupported_by_host_model", "not_implemented", "not_applicable"]}
+    },
     "artifacts": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
-    "claims_not_allowed": {"type": "array", "items": {"type": "string"}, "minItems": 1}
+    "claims_not_allowed": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "production_ready": {"const": false},
+    "security_verified": {"const": false},
+    "crs_verified": {"const": false},
+    "crs_complete": {"const": false},
+    "full_matrix_ready": {"const": false},
+    "started_at": {"type": "string", "minLength": 1},
+    "ended_at": {"type": "string", "minLength": 1}
   },
   "$defs": {
+    "phase4_case_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "status", "live_executed", "expected_result", "expected_rule_id", "observed_rule_ids", "transaction_ids", "http_status", "requested_action", "actual_action", "original_http_status", "visible_http_status", "late_intervention", "headers_sent", "body_started", "response_committed", "connection_aborted", "transport_result"],
+      "properties": {
+        "case_id": {"enum": ["phase4_rule_observed", "phase4_deny_before_commit", "phase4_deny_after_commit_log_only", "phase4_deny_after_commit_abort", "phase4_event_contains_original_status", "phase4_event_contains_late_intervention_action"]},
+        "status": {"enum": ["PASS", "FAIL", "BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"]},
+        "live_executed": {"type": "boolean"},
+        "expected_result": {"type": "string", "minLength": 1},
+        "expected_rule_id": {"type": ["integer", "null"]},
+        "observed_rule_ids": {"type": "array", "items": {"type": "integer"}, "uniqueItems": true},
+        "transaction_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "http_status": {"type": ["integer", "null"], "minimum": 0, "maximum": 999},
+        "requested_action": {"type": ["string", "null"], "enum": ["deny", "redirect", "drop", "log_only", "abort_connection", null]},
+        "actual_action": {"type": ["string", "null"], "enum": ["deny", "redirect", "log_only", "abort_connection", null]},
+        "original_http_status": {"type": ["integer", "null"], "minimum": 0, "maximum": 999},
+        "visible_http_status": {"type": ["integer", "null"], "minimum": 0, "maximum": 999},
+        "late_intervention": {"type": ["boolean", "null"]},
+        "headers_sent": {"type": ["boolean", "null"]},
+        "body_started": {"type": ["boolean", "null"]},
+        "response_committed": {"type": ["boolean", "null"]},
+        "connection_aborted": {"type": ["boolean", "null"]},
+        "transport_result": {"type": ["string", "null"], "enum": ["http_status", "log_only", "connection_aborted", "not_observable", null]}
+      }
+    },
     "evidence_stage": {
       "type": "object",
       "additionalProperties": false,

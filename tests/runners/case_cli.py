@@ -34,6 +34,84 @@ from runner_core import (
 CONNECTOR_CHOICES = tuple(sorted(connector for connector in CONNECTORS if connector != "common"))
 
 
+def _phase4_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return None
+
+
+def _phase4_action(value: object, allowed: set[str]) -> str | None:
+    if value in (None, ""):
+        return None
+    action = str(value).strip().lower().replace("-", "_")
+    if action == "connection_abort":
+        action = "abort_connection"
+    return action if action in allowed else None
+
+
+def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
+    """Project only reviewed, payload-free late-intervention log fields.
+
+    Missing values intentionally remain absent.  In particular, a case default
+    such as ``response_committed=false`` is not runtime evidence for an
+    uncommitted pre-commit deny.
+    """
+    output: dict[str, object] = {}
+
+    def first(*names: str) -> object | None:
+        for name in names:
+            if name in metadata:
+                return metadata[name]
+        return None
+
+    requested = _phase4_action(
+        first("requested_action", "wanted_action"),
+        {"deny", "redirect", "drop", "log_only", "abort_connection"},
+    )
+    actual = _phase4_action(
+        first("actual_action"),
+        {"deny", "redirect", "log_only", "abort_connection"},
+    )
+    if requested is not None:
+        output["requested_action"] = requested
+    if actual is not None:
+        output["actual_action"] = actual
+    for canonical, aliases in {
+        "http_status": ("http_status", "waf_status", "intervention_status"),
+        "original_http_status": ("original_http_status", "upstream_status"),
+        "visible_http_status": ("visible_http_status", "client_status"),
+    }.items():
+        value = first(*aliases)
+        if value is not None:
+            output[canonical] = value
+    for canonical, aliases in {
+        "late_intervention": ("late_intervention", "intervention"),
+        "headers_sent": ("headers_sent", "header_sent"),
+        "body_started": ("body_started", "response_body_seen"),
+        "response_committed": ("response_committed",),
+        "connection_aborted": ("connection_aborted", "strict_abort"),
+    }.items():
+        value = _phase4_bool(first(*aliases))
+        if value is not None:
+            output[canonical] = value
+    transport = first("transport_result", "observed_transport_result")
+    if transport is not None:
+        normalized_transport = str(transport).strip().lower().replace("-", "_")
+        if normalized_transport == "aborted":
+            normalized_transport = "connection_aborted"
+        if normalized_transport in {
+            "http_status", "log_only", "connection_aborted", "not_observable",
+        }:
+            output["transport_result"] = normalized_transport
+    return output
+
+
 def materialize(args: argparse.Namespace) -> int:
     case = load_case(args.case)
     write_rules_file(
@@ -142,11 +220,6 @@ def case_info(args: argparse.Namespace) -> int:
     )
     if phase4_related:
         info.setdefault("phase", 4)
-        info.setdefault("response_headers_seen", False)
-        info.setdefault("response_body_seen", False)
-        info.setdefault("response_body_truncated", False)
-        info.setdefault("response_committed", False)
-        info.setdefault("strict_abort", False)
     info["observed_status"] = actual_status
     info["observed_transport_result"] = args.observed_transport_result or "http_status"
     if args.reason:
@@ -171,17 +244,14 @@ def case_info(args: argparse.Namespace) -> int:
             "response_headers_seen",
             "response_body_seen",
             "response_body_truncated",
-            "response_committed",
-            "intervention",
-            "strict_abort",
             "observed_transport_result",
-            "reason",
             "rule_id",
             "body_bytes_seen",
             "body_bytes_inspected",
         ):
             if key in metadata:
                 info[key] = metadata[key]
+        info.update(phase4_runtime_evidence(metadata))
     output = Path(args.output) if args.output else None
     content = (
         json.dumps(info, sort_keys=True) + "\n"

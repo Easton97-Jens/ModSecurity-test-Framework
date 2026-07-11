@@ -14,7 +14,7 @@
     "capabilities": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["connection_metadata", "request_headers", "request_body_buffered", "request_body_streaming", "response_headers", "response_body_buffered", "response_body_streaming", "phase1", "phase2", "phase3", "phase4", "late_intervention", "deny", "redirect", "drop", "abort_connection", "log_only", "transaction_id", "event_jsonl", "config_inline_rules", "config_rules_file", "config_remote_rules"],
+      "required": ["connection_metadata", "request_headers", "request_body_buffered", "request_body_streaming", "response_headers", "response_body_buffered", "response_body_streaming", "phase1", "phase2", "phase3", "phase4", "phase4_rule_evaluation", "phase4_pre_commit_deny", "late_intervention", "late_intervention_log_only", "late_intervention_abort", "late_intervention_status_metadata", "deny", "redirect", "drop", "abort_connection", "log_only", "transaction_id", "event_jsonl", "config_inline_rules", "config_rules_file", "config_remote_rules"],
       "patternProperties": {
         "^[a-z][a-z0-9_]+$": {"$ref": "#/$defs/capability"}
       }
@@ -36,4 +36,3 @@
     }
   }
 }
-
