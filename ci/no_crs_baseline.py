@@ -811,6 +811,7 @@ def init_run(args: argparse.Namespace) -> int:
     # repository states fail-closed.
     connector_worktree_clean = git_worktree_clean(connector_root)
     framework_worktree_clean = git_worktree_clean(FRAMEWORK_ROOT) if connector_root else True
+    provenance_required = connector_root is not None
     inventory = {
         "schema_version": 1,
         "connector": args.connector,
@@ -819,6 +820,9 @@ def init_run(args: argparse.Namespace) -> int:
         "framework_commit": framework_commit,
         "connector_worktree_clean": connector_worktree_clean,
         "framework_worktree_clean": framework_worktree_clean,
+        "provenance_required": provenance_required,
+        "connector_commit_at_finalize": connector_commit,
+        "framework_commit_at_finalize": framework_commit,
         "host_name": manifest_capabilities["host_name"],
         "host_version": args.host_version or "not_available",
         "integration_mode": manifest_capabilities["integration_mode"],
@@ -854,6 +858,9 @@ def init_run(args: argparse.Namespace) -> int:
         "framework_commit": framework_commit,
         "connector_worktree_clean": connector_worktree_clean,
         "framework_worktree_clean": framework_worktree_clean,
+        "provenance_required": provenance_required,
+        "connector_commit_at_finalize": connector_commit,
+        "framework_commit_at_finalize": framework_commit,
         "host_name": manifest_capabilities["host_name"],
         "host_version": inventory["host_version"],
         "integration_mode": manifest_capabilities["integration_mode"],
@@ -935,7 +942,9 @@ def source_records(payload: object) -> list[dict[str, Any]]:
     if isinstance(results, list):
         records.extend(dict(item) for item in results if isinstance(item, Mapping))
     cases = payload.get("cases")
-    if isinstance(cases, Mapping):
+    if isinstance(cases, list):
+        records.extend(dict(item) for item in cases if isinstance(item, Mapping))
+    elif isinstance(cases, Mapping):
         for case_id, item in cases.items():
             if isinstance(item, Mapping):
                 record = dict(item)
@@ -1378,6 +1387,30 @@ def canonical_pass_gate_failures(
     return failures
 
 
+def provenance_pass_gate_failures(payload: Mapping[str, Any]) -> list[str]:
+    """Return fail-closed PASS gates for the end-of-run repository state."""
+    if payload.get("provenance_required") is not True:
+        return []
+    failures: list[str] = []
+    connector_commit = str(payload.get("connector_commit") or "unknown")
+    framework_commit = str(payload.get("framework_commit") or "unknown")
+    connector_commit_at_finalize = str(
+        payload.get("connector_commit_at_finalize") or "unknown"
+    )
+    framework_commit_at_finalize = str(
+        payload.get("framework_commit_at_finalize") or "unknown"
+    )
+    if connector_commit_at_finalize == "unknown":
+        failures.append("PASS requires a resolvable connector commit at finalize")
+    elif connector_commit_at_finalize != connector_commit:
+        failures.append("PASS requires an unchanged connector commit through finalize")
+    if framework_commit_at_finalize == "unknown":
+        failures.append("PASS requires a resolvable framework commit at finalize")
+    elif framework_commit_at_finalize != framework_commit:
+        failures.append("PASS requires an unchanged framework commit through finalize")
+    return failures
+
+
 def aggregate_case_status(records: Sequence[Mapping[str, Any]]) -> str:
     statuses = Counter(str(record.get("status")) for record in records)
     if statuses["FAIL"]:
@@ -1394,8 +1427,9 @@ def aggregate_case_status(records: Sequence[Mapping[str, Any]]) -> str:
 
 
 def finalize_run(args: argparse.Namespace) -> int:
+    connector_root = Path(args.connector_root).resolve() if args.connector_root else None
     run_dir = Path(args.run_dir)
-    safe_run_dir(run_dir)
+    safe_run_dir(run_dir, connector_root)
     manifest_path = run_dir / "manifest.json"
     plan_path = run_dir / "plan.json"
     if not manifest_path.is_file() or not plan_path.is_file():
@@ -1404,6 +1438,12 @@ def finalize_run(args: argparse.Namespace) -> int:
     plan = load_json(plan_path)
     if not isinstance(manifest, dict) or not isinstance(plan, dict):
         raise ContractError("manifest and plan must be JSON objects")
+    provenance_required = bool(
+        manifest.get("provenance_required") is True
+        or manifest.get("connector_commit") not in {None, "", "unknown"}
+    )
+    if provenance_required and connector_root is None:
+        raise ContractError("finalize requires --connector-root for repository provenance")
     connector = str(manifest.get("connector") or "")
     evidence_stage = str(manifest.get("evidence_stage") or "")
     if evidence_stage not in WRITABLE_EVIDENCE_STAGES:
@@ -1539,6 +1579,28 @@ def finalize_run(args: argparse.Namespace) -> int:
         name, source_text = item.split("=", 1)
         copy_named_log(run_dir, name, source_text, manifest)
 
+    # Recheck provenance after the connector-owned runtime work and artifact
+    # collection.  A clean init snapshot is insufficient: either checkout may
+    # have changed while the run was in progress.
+    if provenance_required:
+        assert connector_root is not None
+        connector_commit_at_finalize = git_value(connector_root, "rev-parse", "HEAD")
+        framework_commit_at_finalize = git_value(FRAMEWORK_ROOT, "rev-parse", "HEAD")
+        connector_clean_at_finalize = git_worktree_clean(connector_root)
+        framework_clean_at_finalize = git_worktree_clean(FRAMEWORK_ROOT)
+        manifest["connector_worktree_clean"] = bool(
+            manifest.get("connector_worktree_clean") is True and connector_clean_at_finalize
+        )
+        manifest["framework_worktree_clean"] = bool(
+            manifest.get("framework_worktree_clean") is True and framework_clean_at_finalize
+        )
+    else:
+        connector_commit_at_finalize = str(manifest.get("connector_commit") or "unknown")
+        framework_commit_at_finalize = str(manifest.get("framework_commit") or "unknown")
+    manifest["provenance_required"] = provenance_required
+    manifest["connector_commit_at_finalize"] = connector_commit_at_finalize
+    manifest["framework_commit_at_finalize"] = framework_commit_at_finalize
+
     source_statuses = [str(payload.get("status") or "").upper() for payload in source_payloads]
     source_failure = "FAIL" in source_statuses
     status, blocked_before_execution = aggregate_status(records, stage_rc, source_failure=source_failure)
@@ -1585,6 +1647,7 @@ def finalize_run(args: argparse.Namespace) -> int:
             pass_gate_failures.append("PASS requires a clean connector worktree")
         if manifest.get("framework_worktree_clean") is not True:
             pass_gate_failures.append("PASS requires a clean framework worktree")
+        pass_gate_failures.extend(provenance_pass_gate_failures(manifest))
         if pass_gate_failures:
             status = "FAIL"
             blocked_before_execution = False
@@ -1594,6 +1657,11 @@ def finalize_run(args: argparse.Namespace) -> int:
         raise ContractError("inventory/run.json must contain an object")
     inventory["host_version"] = host_version
     inventory["libmodsecurity_version"] = libmodsecurity_version
+    for field in (
+        "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize",
+        "connector_worktree_clean", "framework_worktree_clean",
+    ):
+        inventory[field] = manifest[field]
     inventory["finalized_at"] = args.ended_at or utc_now()
     write_json(inventory_path, inventory)
     manifest["artifacts"]["inventory"]["sha256"] = sha256_file(inventory_path)
@@ -1625,6 +1693,9 @@ def finalize_run(args: argparse.Namespace) -> int:
         "framework_commit": manifest["framework_commit"],
         "connector_worktree_clean": manifest.get("connector_worktree_clean", False),
         "framework_worktree_clean": manifest.get("framework_worktree_clean", False),
+        "provenance_required": manifest.get("provenance_required", False),
+        "connector_commit_at_finalize": manifest.get("connector_commit_at_finalize", "unknown"),
+        "framework_commit_at_finalize": manifest.get("framework_commit_at_finalize", "unknown"),
         "run_id": manifest["run_id"],
         "host_name": manifest["host_name"],
         "host_version": host_version,
@@ -1826,6 +1897,8 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
     errors.extend(required_keys(result, (
         "schema_version", "status_model", "connector", "connector_commit", "framework_commit", "host_name",
         "host_version", "integration_mode", "libmodsecurity_version", "run_id",
+        "connector_worktree_clean", "framework_worktree_clean", "provenance_required",
+        "connector_commit_at_finalize", "framework_commit_at_finalize",
         "evidence_stage", "ruleset", "status", "started",
         "requests_sent", "source_statuses", "source_failure", "allowed_request_status", "blocked_request_status", "observed_rule_ids",
         "transaction_ids", "request_headers_verified", "request_body_verified",
@@ -1840,7 +1913,8 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         "started_at", "ended_at", "connector_commit", "framework_commit", "host_name",
         "host_version", "integration_mode", "libmodsecurity_version", "compiler_version",
         "operating_system", "architecture", "rules", "cases", "executed_targets", "artifacts",
-        "capability_manifest",
+        "capability_manifest", "connector_worktree_clean", "framework_worktree_clean",
+        "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize",
     ), "manifest.json"))
     errors.extend(required_keys(inventory, (
         "schema_version", "connector", "run_id", "evidence_stage", "ruleset",
@@ -1848,6 +1922,8 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         "integration_mode", "libmodsecurity_version", "compiler_version",
         "operating_system", "architecture", "python_version", "rules_sha256",
         "catalog_sha256", "capability_manifest_sha256", "executed_targets", "created_at",
+        "connector_worktree_clean", "framework_worktree_clean", "provenance_required",
+        "connector_commit_at_finalize", "framework_commit_at_finalize",
     ), "inventory/run.json"))
     if result.get("schema_version") != 1 or manifest.get("schema_version") != 1:
         errors.append("schema_version must be 1")
@@ -2115,6 +2191,7 @@ def status_errors(run_dir: Path) -> list[str]:
     if not isinstance(result, Mapping) or not isinstance(manifest, Mapping) or not isinstance(inventory, Mapping):
         return ["result, manifest, and inventory must be objects"]
     counts = Counter(record.get("status") for record in records)
+    expected_status_counts = {name: counts[name] for name in CASE_STATUSES}
     expected_fields = {
         "cases_total": len(records), "cases_passed": counts["PASS"],
         "cases_failed": counts["FAIL"], "cases_blocked": counts["BLOCKED"],
@@ -2125,6 +2202,72 @@ def status_errors(run_dir: Path) -> list[str]:
     for field, expected in expected_fields.items():
         if result.get(field) != expected:
             errors.append(f"{field}={result.get(field)!r}, expected {expected}")
+    if result.get("status_counts") != expected_status_counts:
+        errors.append(
+            f"status_counts={result.get('status_counts')!r}, expected {expected_status_counts!r}"
+        )
+
+    records_by_id = {
+        str(record.get("case_id") or ""): record
+        for record in records
+        if record.get("case_id")
+    }
+    pass_ids = {
+        str(record.get("case_id"))
+        for record in records
+        if record.get("status") == "PASS"
+    }
+    verified_capabilities = sorted({
+        str(capability)
+        for record in records
+        if record.get("status") == "PASS"
+        for capability in record.get("required_capabilities", [])
+    })
+    expected_record_fields: dict[str, object] = {
+        "allowed_request_status": records_by_id.get("allow_without_marker", {}).get("actual_status"),
+        "blocked_request_status": records_by_id.get("deny_header_marker_403", {}).get("actual_status"),
+        "observed_rule_ids": sorted({
+            rule_id for record in records for rule_id in record.get("observed_rule_ids", [])
+        }),
+        "transaction_ids": sorted({
+            transaction_id
+            for record in records
+            for transaction_id in record.get("transaction_ids", [])
+        }),
+        "requests_sent": any(record.get("live_executed") is True for record in records),
+        "request_headers_verified": {
+            "allow_without_marker", "deny_header_marker_403",
+        }.issubset(pass_ids),
+        "request_body_verified": "deny_request_body_marker_403" in pass_ids,
+        "response_headers_verified": "deny_response_header_marker_403" in pass_ids,
+        "response_body_verified": "deny_response_body_marker_403" in pass_ids,
+        "late_intervention_verified": bool(
+            {
+                "deny_response_header_marker_403", "deny_response_body_marker_403",
+            }.intersection(pass_ids)
+            and "late_intervention" in verified_capabilities
+        ),
+        "capabilities_verified": verified_capabilities,
+    }
+    for field, expected in expected_record_fields.items():
+        if result.get(field) != expected:
+            errors.append(f"{field} is inconsistent with canonical case records")
+
+    expected_group_statuses = {
+        group: aggregate_case_status([
+            record for record in records if record.get("group") == group
+        ])
+        for group in sorted({
+            str(record.get("group") or "") for record in records if record.get("group")
+        })
+    }
+    if result.get("group_statuses") != expected_group_statuses:
+        errors.append("group_statuses is inconsistent with canonical case records")
+    expected_source_failure = "FAIL" in {
+        str(status).upper() for status in result.get("source_statuses", [])
+    }
+    if result.get("source_failure") is not expected_source_failure:
+        errors.append("source_failure is inconsistent with source_statuses")
     if result.get("status") != manifest.get("status"):
         errors.append("manifest/result status mismatch")
     expected_status, expected_blocked_before_execution = aggregate_status(
@@ -2144,7 +2287,7 @@ def status_errors(run_dir: Path) -> list[str]:
     if expected_status == "PASS":
         expected_gate_failures = canonical_pass_gate_failures(
             str(result.get("evidence_stage") or ""),
-            {str(record.get("case_id")) for record in records if record.get("status") == "PASS"},
+            pass_ids,
             event_metadata_verified,
             body_payload_absent,
             result.get("host_version"),
@@ -2154,6 +2297,7 @@ def status_errors(run_dir: Path) -> list[str]:
             expected_gate_failures.append("PASS requires a clean connector worktree")
         if result.get("framework_worktree_clean") is not True:
             expected_gate_failures.append("PASS requires a clean framework worktree")
+        expected_gate_failures.extend(provenance_pass_gate_failures(result))
         if expected_gate_failures:
             expected_status = "FAIL"
     if result.get("status") != expected_status:
@@ -2165,7 +2309,8 @@ def status_errors(run_dir: Path) -> list[str]:
     for field in (
         "connector", "run_id", "connector_commit", "framework_commit", "host_name",
         "host_version", "integration_mode", "libmodsecurity_version", "evidence_stage", "ruleset",
-        "connector_worktree_clean", "framework_worktree_clean",
+        "connector_worktree_clean", "framework_worktree_clean", "provenance_required",
+        "connector_commit_at_finalize", "framework_commit_at_finalize",
     ):
         if result.get(field) != manifest.get(field):
             errors.append(f"manifest/result {field} mismatch")
@@ -2309,7 +2454,7 @@ def stage_report_status(value: object) -> str:
 def result_cell(result: Mapping[str, Any] | None, field: str) -> str:
     if result is None:
         return "NOT EXECUTED"
-    if field == "no_crs_baseline":
+    if field == "no_crs_baseline" and result.get("evidence_stage") == "no_crs_baseline":
         return report_status(str(result.get("status") or "NOT_EXECUTED"))
     stages = result.get("evidence_stages", {})
     if isinstance(stages, Mapping) and field in stages:
@@ -2569,6 +2714,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     finalize_parser = subparsers.add_parser("finalize", help="normalize actual host evidence into canonical artifacts")
     finalize_parser.add_argument("--run-dir", required=True)
+    finalize_parser.add_argument("--connector-root")
     finalize_parser.add_argument("--capabilities", required=True)
     finalize_parser.add_argument("--source-result", action="append", default=[])
     finalize_parser.add_argument("--source-results-jsonl", action="append", default=[])

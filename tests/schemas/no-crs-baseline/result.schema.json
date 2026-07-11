@@ -4,7 +4,7 @@
   "title": "Canonical No-CRS connector result",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schema_version", "status_model", "connector", "run_id", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "evidence_stage", "ruleset", "status", "started", "requests_sent", "source_statuses", "source_failure", "allowed_request_status", "blocked_request_status", "observed_rule_ids", "transaction_ids", "request_headers_verified", "request_body_verified", "response_headers_verified", "response_body_verified", "late_intervention_verified", "event_metadata_verified", "body_payload_absent_from_events", "pass_gate_failures", "cases_total", "cases_passed", "cases_failed", "cases_blocked", "cases_unsupported", "cases_not_applicable", "cases_not_executed", "status_counts", "capabilities_verified", "capabilities_unsupported", "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed"],
+  "required": ["schema_version", "status_model", "connector", "run_id", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "evidence_stage", "ruleset", "status", "started", "requests_sent", "source_statuses", "source_failure", "allowed_request_status", "blocked_request_status", "observed_rule_ids", "transaction_ids", "request_headers_verified", "request_body_verified", "response_headers_verified", "response_body_verified", "late_intervention_verified", "event_metadata_verified", "body_payload_absent_from_events", "pass_gate_failures", "cases_total", "cases_passed", "cases_failed", "cases_blocked", "cases_unsupported", "cases_not_applicable", "cases_not_executed", "status_counts", "capabilities_verified", "capabilities_unsupported", "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed"],
   "properties": {
     "schema_version": {"const": 1},
     "status_model": {"const": "msconnector_status"},
@@ -14,6 +14,9 @@
     "framework_commit": {"type": "string", "minLength": 1},
     "connector_worktree_clean": {"type": "boolean"},
     "framework_worktree_clean": {"type": "boolean"},
+    "provenance_required": {"type": "boolean"},
+    "connector_commit_at_finalize": {"type": "string", "minLength": 1},
+    "framework_commit_at_finalize": {"type": "string", "minLength": 1},
     "host_name": {"type": "string", "minLength": 1},
     "host_version": {"type": "string", "minLength": 1},
     "integration_mode": {"type": "string", "minLength": 1},

@@ -109,7 +109,7 @@ no-crs-init: no-crs-plan
 
 no-crs-finalize:
 	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
-	$(PYTHON) "$(NO_CRS_TOOL)" finalize --run-dir "$(NO_CRS_RUN_DIR)" --capabilities "$(CAPABILITIES_FILE)" --stage-rc "$(NO_CRS_STAGE_RC)" --stage-reason "$(NO_CRS_STAGE_REASON)" $(NO_CRS_FINALIZE_ARGS)
+	$(PYTHON) "$(NO_CRS_TOOL)" finalize --run-dir "$(NO_CRS_RUN_DIR)" --connector-root "$(CONNECTOR_ROOT)" --capabilities "$(CAPABILITIES_FILE)" --stage-rc "$(NO_CRS_STAGE_RC)" --stage-reason "$(NO_CRS_STAGE_REASON)" $(NO_CRS_FINALIZE_ARGS)
 
 no-crs-summary:
 	mkdir -p "$(NO_CRS_SUMMARY_ROOT)"
@@ -117,7 +117,7 @@ no-crs-summary:
 
 define RUN_NO_CRS_CHECK
 	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
-	$(PYTHON) "$(NO_CRS_TOOL)" validate --evidence-root "$(NO_CRS_RUN_DIR)" --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --check "$(1)"
+	$(PYTHON) "$(NO_CRS_TOOL)" validate --evidence-root "$(NO_CRS_RUN_DIR)" --connector "$(CONNECTOR)" --connector-root "$(CONNECTOR_ROOT)" --capabilities "$(CAPABILITIES_FILE)" --check "$(1)"
 endef
 
 check-no-crs-result-schema:

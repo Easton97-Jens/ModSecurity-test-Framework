@@ -4,7 +4,7 @@
   "title": "Canonical No-CRS artifact manifest",
   "type": "object",
   "additionalProperties": true,
-  "required": ["schema_version", "connector", "run_id", "evidence_stage", "ruleset", "status", "started_at", "ended_at", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "compiler_version", "operating_system", "architecture", "rules", "cases", "executed_targets", "capability_manifest", "artifacts"],
+  "required": ["schema_version", "connector", "run_id", "evidence_stage", "ruleset", "status", "started_at", "ended_at", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize", "host_name", "host_version", "integration_mode", "libmodsecurity_version", "compiler_version", "operating_system", "architecture", "rules", "cases", "executed_targets", "capability_manifest", "artifacts"],
   "properties": {
     "schema_version": {"const": 1},
     "connector": {"enum": ["apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"]},
@@ -18,6 +18,9 @@
     "framework_commit": {"type": "string", "minLength": 1},
     "connector_worktree_clean": {"type": "boolean"},
     "framework_worktree_clean": {"type": "boolean"},
+    "provenance_required": {"type": "boolean"},
+    "connector_commit_at_finalize": {"type": "string", "minLength": 1},
+    "framework_commit_at_finalize": {"type": "string", "minLength": 1},
     "host_name": {"type": "string", "minLength": 1},
     "host_version": {"type": "string", "minLength": 1},
     "integration_mode": {"type": "string", "minLength": 1},

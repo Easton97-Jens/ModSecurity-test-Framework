@@ -7,6 +7,7 @@ from contextlib import redirect_stderr
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,6 +42,26 @@ def manifest(connector: str = "envoy", executable: set[str] | None = None) -> di
 
 
 class NoCrsBaselineTest(unittest.TestCase):
+    def test_source_records_accepts_collector_case_list(self) -> None:
+        records = no_crs.source_records({
+            "cases": [
+                {"case_id": "allow_without_marker", "status": "PASS"},
+                {"case_id": "deny_header_marker_403", "status": "PASS"},
+            ]
+        })
+        self.assertEqual(
+            ["allow_without_marker", "deny_header_marker_403"],
+            [record["case_id"] for record in records],
+        )
+
+    def test_makefile_propagates_connector_root_to_finalize_and_validation(self) -> None:
+        makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        validation_recipe = makefile.split("define RUN_NO_CRS_CHECK", 1)[1].split("endef", 1)[0]
+        finalize_recipe = makefile.split("no-crs-finalize:", 1)[1].split("no-crs-summary:", 1)[0]
+        expected = '--connector-root "$(CONNECTOR_ROOT)"'
+        self.assertIn(expected, validation_recipe)
+        self.assertIn(expected, finalize_recipe)
+
     def test_post_execution_missing_evidence_is_fail_not_exit_77(self) -> None:
         source = (ROOT / "ci/connector-smoke-common.sh").read_text(encoding="utf-8")
         block = source[source.index('if [ "$rc" -eq 0 ] && [ "${RUN_ONE_CASE:-0}" = "1" ]'):]
@@ -334,6 +355,37 @@ class NoCrsBaselineTest(unittest.TestCase):
             self.assertEqual(2, result["cases_passed"])
             self.assertTrue(result["event_metadata_verified"])
             self.assertTrue(result["body_payload_absent_from_events"])
+            self.assertEqual("PASS", no_crs.result_cell(result, "minimal_runtime_smoke"))
+            self.assertEqual("NOT EXECUTED", no_crs.result_cell(result, "no_crs_baseline"))
+
+            tampered = json.loads(json.dumps(result))
+            tampered["status_counts"]["PASS"] = 999
+            no_crs.write_json(run_dir / "result.json", tampered)
+            self.assertTrue(any(
+                "status_counts=" in error for error in no_crs.status_errors(run_dir)
+            ))
+
+            tampered = json.loads(json.dumps(result))
+            tampered["allowed_request_status"] = None
+            tampered["blocked_request_status"] = None
+            no_crs.write_json(run_dir / "result.json", tampered)
+            core_code_errors = no_crs.status_errors(run_dir)
+            self.assertTrue(any("allowed_request_status" in error for error in core_code_errors))
+            self.assertTrue(any("blocked_request_status" in error for error in core_code_errors))
+
+            for field in (
+                "request_headers_verified", "request_body_verified",
+                "response_headers_verified", "response_body_verified",
+                "late_intervention_verified",
+            ):
+                tampered = json.loads(json.dumps(result))
+                tampered[field] = not tampered[field]
+                no_crs.write_json(run_dir / "result.json", tampered)
+                self.assertTrue(any(
+                    field in error for error in no_crs.status_errors(run_dir)
+                ), field)
+            no_crs.write_json(run_dir / "result.json", result)
+
             inventory = json.loads((run_dir / "inventory/run.json").read_text(encoding="utf-8"))
             self.assertEqual("minimal_runtime_smoke", inventory["evidence_stage"])
             self.assertEqual("no-crs-baseline", inventory["ruleset"])
@@ -387,6 +439,94 @@ class NoCrsBaselineTest(unittest.TestCase):
                 else:
                     self.assertFalse(result["event_metadata_verified"])
                     self.assertGreater(result["cases_failed"], 0)
+
+    def test_finalize_rechecks_worktrees_and_commits_before_pass(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
+            root = Path(temporary)
+            connector_root = root / "connector-checkout"
+            connector_root.mkdir()
+            capability_path = root / "capabilities.json"
+            capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
+            run_dir = root / "evidence/envoy/provenance-race"
+            source = root / "source.json"
+            source.write_text(json.dumps({
+                "connector": "envoy", "status": "PASS", "started": True,
+                "requests_sent": True, "allowed_request_status": 200,
+                "blocked_request_status": 403, "observed_rule_ids": [1100001],
+            }), encoding="utf-8")
+            events = root / "events.jsonl"
+            events.write_text(json.dumps({
+                "connector": "envoy", "transaction_id": "tx-provenance",
+                "rule_id": 1100001, "phase": 1, "status": 403,
+            }) + "\n", encoding="utf-8")
+
+            connector_commit = "c" * 40
+            framework_commit = "f" * 40
+            state = {
+                "connector_commit": connector_commit,
+                "framework_commit": framework_commit,
+                "connector_clean": True,
+                "framework_clean": True,
+            }
+
+            def fake_git_value(checkout: Path, *arguments: str) -> str:
+                self.assertEqual(("rev-parse", "HEAD"), arguments)
+                if Path(checkout).resolve() == connector_root.resolve():
+                    return str(state["connector_commit"])
+                if Path(checkout).resolve() == no_crs.FRAMEWORK_ROOT.resolve():
+                    return str(state["framework_commit"])
+                return "unknown"
+
+            def fake_git_worktree_clean(checkout: Path | None) -> bool:
+                if checkout is not None and Path(checkout).resolve() == connector_root.resolve():
+                    return bool(state["connector_clean"])
+                if checkout is not None and Path(checkout).resolve() == no_crs.FRAMEWORK_ROOT.resolve():
+                    return bool(state["framework_clean"])
+                return True
+
+            with (
+                mock.patch.object(no_crs, "git_value", side_effect=fake_git_value),
+                mock.patch.object(
+                    no_crs, "git_worktree_clean", side_effect=fake_git_worktree_clean,
+                ),
+            ):
+                self.assertEqual(0, no_crs.main([
+                    "init", "--connector", "envoy", "--capabilities", str(capability_path),
+                    "--evidence-stage", "minimal_runtime_smoke", "--run-dir", str(run_dir),
+                    "--run-id", "provenance-race", "--connector-root", str(connector_root),
+                    "--host-version", "1.0", "--libmodsecurity-version", "3.0.15",
+                ]))
+                state.update({
+                    "connector_commit": "d" * 40,
+                    "framework_commit": "e" * 40,
+                    "connector_clean": False,
+                    "framework_clean": False,
+                })
+                self.assertEqual(1, no_crs.main([
+                    "finalize", "--run-dir", str(run_dir),
+                    "--connector-root", str(connector_root),
+                    "--capabilities", str(capability_path), "--source-result", str(source),
+                    "--source-events", str(events), "--stage-rc", "0",
+                    "--host-version", "1.0", "--libmodsecurity-version", "3.0.15",
+                ]))
+
+            result = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
+            self.assertEqual("FAIL", result["status"])
+            self.assertFalse(result["connector_worktree_clean"])
+            self.assertFalse(result["framework_worktree_clean"])
+            self.assertEqual("d" * 40, result["connector_commit_at_finalize"])
+            self.assertEqual("e" * 40, result["framework_commit_at_finalize"])
+            self.assertIn("PASS requires a clean connector worktree", result["pass_gate_failures"])
+            self.assertIn("PASS requires a clean framework worktree", result["pass_gate_failures"])
+            self.assertIn(
+                "PASS requires an unchanged connector commit through finalize",
+                result["pass_gate_failures"],
+            )
+            self.assertIn(
+                "PASS requires an unchanged framework commit through finalize",
+                result["pass_gate_failures"],
+            )
+            self.assertEqual([], no_crs.status_errors(run_dir))
 
     def test_body_payload_scanner_rejects_body_and_secret_fields(self) -> None:
         errors = no_crs.forbidden_payload_errors({
