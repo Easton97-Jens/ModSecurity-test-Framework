@@ -1560,6 +1560,42 @@ def canonicalize_event_phase(
     return normalized
 
 
+def phase4_first_byte_barrier_matches(
+    event: Mapping[str, Any], *, require_no_full_response_buffering: bool,
+) -> bool:
+    """Return whether a Phase-4 event is the complete streaming barrier proof.
+
+    A single host run can emit ordinary Phase-4 events before the synchronized
+    streaming event.  Rule ID alone is therefore not enough to associate a
+    first-byte case with its evidence: choose only the event that carries the
+    complete causal barrier, then let the normal Phase-4 checks validate it.
+    """
+    first_chunk_size = event.get("first_chunk_size")
+    body_bytes_seen = event.get("body_bytes_seen")
+    body_bytes_inspected = event.get("body_bytes_inspected")
+    integer_values = (first_chunk_size, body_bytes_seen, body_bytes_inspected)
+    if any(isinstance(value, bool) or not isinstance(value, int) for value in integer_values):
+        return False
+    if first_chunk_size < 1 or body_bytes_seen < 0 or body_bytes_inspected < 0:
+        return False
+    if body_bytes_inspected > body_bytes_seen:
+        return False
+    if (
+        event.get("client_first_byte_received") is not True
+        or event.get("first_byte_before_response_end") is not True
+        or event.get("upstream_paused") is not True
+        or event.get("upstream_eos_sent_at_first_byte") is not False
+        or event.get("upstream_response_finished_at_first_byte") is not False
+        or event.get("response_committed") is not True
+    ):
+        return False
+    return (
+        event.get("no_full_response_buffering") is True
+        if require_no_full_response_buffering
+        else True
+    )
+
+
 def phase4_event_matches_outcome(event: Mapping[str, Any], expected_result: str) -> bool:
     """Identify the right event when one run contains several Phase-4 paths."""
     if normalize_canonical_phase(event.get("phase")) != 4:
@@ -1568,11 +1604,18 @@ def phase4_event_matches_outcome(event: Mapping[str, Any], expected_result: str)
         "rule_observed", "event_contains_original_status", "marker_split_across_chunks",
         "end_of_stream_evaluation", "content_type_in_scope",
         "content_type_in_scope_with_charset", "content_type_out_of_scope",
-        "content_type_missing", "no_full_response_buffering",
-        "first_byte_before_response_end", "response_body_at_limit",
+        "content_type_missing", "response_body_at_limit",
         "response_body_over_limit", "response_body_process_partial", "response_body_reject",
     }:
         return True
+    if expected_result == "no_full_response_buffering":
+        return phase4_first_byte_barrier_matches(
+            event, require_no_full_response_buffering=True,
+        )
+    if expected_result == "first_byte_before_response_end":
+        return phase4_first_byte_barrier_matches(
+            event, require_no_full_response_buffering=False,
+        )
     requested = str(event.get("requested_action") or "").strip().lower().replace("-", "_")
     actual = str(event.get("actual_action") or "").strip().lower().replace("-", "_")
     if actual == "connection_abort":

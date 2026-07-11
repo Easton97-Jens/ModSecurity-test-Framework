@@ -442,6 +442,60 @@ class NoCrsBaselineTest(unittest.TestCase):
         record = self.normalize_phase4("phase4_no_full_response_buffering", buffered)
         self.assertEqual("FAIL", record["status"])
 
+    def test_first_byte_cases_choose_the_barrier_event_after_an_ordinary_phase4_event(self) -> None:
+        catalog = no_crs.load_catalog()
+        case_by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
+        ordinary = self.phase4_event(
+            actual_action="log_only",
+            body_bytes_seen=27,
+            body_bytes_inspected=27,
+            response_committed=True,
+        )
+        barrier = self.phase4_event(
+            transaction_id="tx-streaming-barrier",
+            actual_action="log_only",
+            no_full_response_buffering=True,
+            client_first_byte_received=True,
+            first_byte_before_response_end=True,
+            first_chunk_size=17,
+            upstream_paused=True,
+            upstream_eos_sent_at_first_byte=False,
+            upstream_response_finished_at_first_byte=False,
+            response_committed=True,
+            body_bytes_seen=44,
+            body_bytes_inspected=44,
+        )
+        for case_id in (
+            "phase4_first_byte_before_response_end",
+            "phase4_no_full_response_buffering",
+        ):
+            with self.subTest(case_id=case_id):
+                record = no_crs.normalize_case_record(
+                    {
+                        "case_id": case_id,
+                        "status": "PASS",
+                        "live_executed": True,
+                        "observed_rule_ids": [1100301],
+                        # The first-byte helper has a separate event stream;
+                        # do not rely on a transaction ID to associate it.
+                        "first_byte_before_response_end": True,
+                        "first_chunk_size": 17,
+                        "upstream_paused": True,
+                        "upstream_eos_sent_at_first_byte": False,
+                        "upstream_response_finished_at_first_byte": False,
+                        "response_committed": True,
+                        "body_bytes_seen": 44,
+                        "body_bytes_inspected": 44,
+                        "no_full_response_buffering": True,
+                    },
+                    "apache",
+                    case_by_id,
+                    [ordinary, barrier],
+                )
+                self.assertIsNotNone(record)
+                self.assertEqual("PASS", record["status"])
+                self.assertIn("first_byte_before_response_end", record["observed_event_fields"])
+
     def test_synchronized_upstream_emits_payload_free_barrier_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="first-byte-probe-") as temporary:
             output = Path(temporary) / "first-byte-evidence.json"
