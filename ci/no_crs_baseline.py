@@ -1024,7 +1024,9 @@ def canonical_core_event_contract(
     events: Sequence[Mapping[str, Any]], connector: str,
 ) -> tuple[bool, bool]:
     """Return metadata and payload-absence evidence for the rule-1100001 event."""
-    payload_absent = bool(events) and not any(canonical_event_errors(event) for event in events)
+    payload_absent = bool(events) and not any(
+        canonical_event_errors(event, connector=connector) for event in events
+    )
     if not payload_absent:
         # A malformed or unreviewed event is not usable to establish either
         # canonical metadata evidence or the payload-absence claim.
@@ -1474,7 +1476,7 @@ def finalize_run(args: argparse.Namespace) -> int:
     if args.source_events:
         events = read_jsonl(args.source_events)
         for index, event in enumerate(events):
-            errors = canonical_event_errors(event, f"events[{index}]")
+            errors = canonical_event_errors(event, f"events[{index}]", connector)
             if errors:
                 raise ContractError("; ".join(errors))
         # Serialize the reviewed parsed records rather than copying raw JSONL
@@ -1892,7 +1894,11 @@ def json_schema_errors(
     return errors
 
 
-def canonical_event_errors(event: object, location: str = "event") -> list[str]:
+def canonical_event_errors(
+    event: object,
+    location: str = "event",
+    connector: str | None = None,
+) -> list[str]:
     """Validate the deliberately small metadata-only canonical event contract.
 
     Host event logs are connector-local inputs.  They must be normalized by a
@@ -1905,6 +1911,10 @@ def canonical_event_errors(event: object, location: str = "event") -> list[str]:
         return [f"{location}: checked-in event schema must contain an object"]
     errors = json_schema_errors(event, schema, root_schema=schema, location=location)
     errors.extend(forbidden_payload_errors(event, location))
+    if connector and isinstance(event, Mapping) and event.get("connector") != connector:
+        errors.append(
+            f"{location}.connector: {event.get('connector')!r} does not match {connector!r}"
+        )
     return errors
 
 
@@ -2045,7 +2055,7 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
             errors.append(f"{label}: duplicate case_id {case_id}")
         seen.add(case_id)
     for index, event in enumerate(read_jsonl(run_dir / "events.jsonl", required=False)):
-        errors.extend(canonical_event_errors(event, f"events.jsonl[{index}]"))
+        errors.extend(canonical_event_errors(event, f"events.jsonl[{index}]", connector))
     errors.extend(validate_capability_manifest(capabilities, connector))
     return errors
 
@@ -2589,14 +2599,43 @@ def find_result(evidence_root: Path, connector: str, run_id: str) -> Mapping[str
         if not path.is_file():
             return None
         payload = load_json(path)
-        return payload if isinstance(payload, Mapping) else None
+        if not isinstance(payload, Mapping):
+            raise ContractError(f"{path}: result.json must contain an object")
+        return payload
     paths = sorted((evidence_root / connector).glob("*/result.json"))
     if not paths:
         return None
     if len(paths) > 1:
         raise ContractError(f"multiple results for {connector}; pass --run-id")
     payload = load_json(paths[0])
-    return payload if isinstance(payload, Mapping) else None
+    if not isinstance(payload, Mapping):
+        raise ContractError(f"{paths[0]}: result.json must contain an object")
+    return payload
+
+
+def result_only_summary_errors(result: Mapping[str, Any], connector: str) -> list[str]:
+    """Reject malformed or claim-bearing inputs before result-only aggregation.
+
+    The aggregate intentionally consumes only the canonical result files, not
+    host artifacts.  It still validates the result contract so a partial or
+    forged object cannot become a rendered PASS simply because it contains a
+    status field.
+    """
+    schema = load_json(FRAMEWORK_ROOT / "tests/schemas/no-crs-baseline/result.schema.json")
+    if not isinstance(schema, Mapping):
+        return ["checked-in result schema must contain an object"]
+    errors = json_schema_errors(result, schema, root_schema=schema, location="result.json")
+    if result.get("connector") != connector:
+        errors.append(f"result.json connector {result.get('connector')!r} does not match {connector!r}")
+    for field in (
+        "production_ready", "security_verified", "crs_verified", "crs_complete", "full_matrix_ready",
+    ):
+        if result.get(field) is not False:
+            errors.append(f"result.json must set {field}=false")
+    claims = result.get("claims_not_allowed")
+    if not isinstance(claims, list) or not set(CLAIMS_NOT_ALLOWED).issubset({str(item) for item in claims}):
+        errors.append("result.json claims_not_allowed is incomplete")
+    return errors
 
 
 def render_summary(results: Mapping[str, Mapping[str, Any] | None], *, german: bool = False) -> str:
@@ -2686,6 +2725,13 @@ def render_connector_report(connector: str, result: Mapping[str, Any] | None, *,
 def summarize_command(args: argparse.Namespace) -> int:
     evidence_root = Path(args.evidence_root)
     results = {connector: find_result(evidence_root, connector, args.run_id or "") for connector in CONNECTORS}
+    errors = [
+        f"{connector}: {error}"
+        for connector, result in results.items() if result is not None
+        for error in result_only_summary_errors(result, connector)
+    ]
+    if errors:
+        raise ContractError("refusing to summarize invalid canonical result(s): " + "; ".join(errors))
     rendered_statuses = [
         report_status(str(result.get("status") or "NOT_EXECUTED")) if result else "NOT EXECUTED"
         for result in results.values()

@@ -294,6 +294,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             ("unknown", {"data": "arbitrary unreviewed payload"}),
             ("nested", {"metadata": {"snippet": "arbitrary unreviewed payload"}}),
             ("container", {"status": {"value": "blocked"}}),
+            ("wrong-connector", {"connector": "apache"}),
         ):
             with self.subTest(suffix=suffix), tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
                 root = Path(temporary)
@@ -306,7 +307,9 @@ class NoCrsBaselineTest(unittest.TestCase):
                 ]))
                 events = root / "events.jsonl"
                 events.write_text(json.dumps({**base_event, **extra}) + "\n", encoding="utf-8")
-                self.assertTrue(no_crs.canonical_event_errors({**base_event, **extra}))
+                self.assertTrue(no_crs.canonical_event_errors(
+                    {**base_event, **extra}, connector="envoy",
+                ))
                 self.assertEqual(1, no_crs.main([
                     "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                     "--source-events", str(events), "--stage-rc", "0",
@@ -638,6 +641,25 @@ class NoCrsBaselineTest(unittest.TestCase):
             connector_report = no_crs.render_connector_report("envoy", None)
             self.assertIn("| Phase 1 | NOT EXECUTED |", connector_report)
             self.assertIn("| Events | NOT EXECUTED |", connector_report)
+
+    def test_summary_rejects_partial_or_claim_bearing_result(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
+            root = Path(temporary)
+            result_path = root / "envoy/run/result.json"
+            result_path.parent.mkdir(parents=True)
+            result_path.write_text(json.dumps({
+                "connector": "envoy", "status": "PASS", "production_ready": True,
+            }), encoding="utf-8")
+            output_json = root / "summary.json"
+            stderr = io.StringIO()
+            with redirect_stderr(stderr):
+                self.assertEqual(1, no_crs.main([
+                    "summarize", "--evidence-root", str(root), "--run-id", "run",
+                    "--output-json", str(output_json), "--output-md", str(root / "summary.md"),
+                    "--output-md-de", str(root / "summary.de.md"),
+                ]))
+            self.assertFalse(output_json.exists())
+            self.assertIn("refusing to summarize invalid canonical result", stderr.getvalue())
 
 
 if __name__ == "__main__":
