@@ -291,7 +291,10 @@ class NoCrsBaselineTest(unittest.TestCase):
             stderr_path = root / "stderr.log"
             host_log_path = root / "host.log"
             first_byte_path = root / "first-byte-evidence.json"
-            events_path.write_text('{"connector":"envoy"}\n', encoding="utf-8")
+            events_path.write_text(
+                '{"connector":"envoy","integration_mode":"unit-test-host-model"}\n',
+                encoding="utf-8",
+            )
             for path in (stdout_path, stderr_path, host_log_path):
                 path.write_text("", encoding="utf-8")
             write_evidence(first_byte_path, {
@@ -512,6 +515,87 @@ class NoCrsBaselineTest(unittest.TestCase):
         record = no_crs.normalize_case_record(raw, "apache", case_by_id, [missing])
         self.assertIsNotNone(record)
         self.assertEqual("FAIL", record["status"])
+
+    def test_phase3_prefers_a_matching_host_confirmed_outcome(self) -> None:
+        catalog = no_crs.load_catalog()
+        case_by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
+        raw = {
+            "case_id": "phase3_deny_before_commit",
+            "status": "PASS",
+            "live_executed": True,
+            "actual_status": 403,
+            "transaction_id": "tx-host-outcome",
+            "observed_rule_ids": [1100201],
+        }
+        decision = {
+            "connector": "lighttpd",
+            "integration_mode": "patched-native-lighttpd",
+            "event": "MSCONN_EVENT_RESPONSE_BLOCKED",
+            "message_id": "MSCONN_EVENT_RESPONSE_BLOCKED",
+            "transaction_id": "tx-host-outcome",
+            "rule_id": 1100201,
+            "phase": 3,
+            "status": "blocked",
+            "http_status": 403,
+            "original_http_status": 200,
+            "visible_http_status": 200,
+            "requested_action": "deny",
+            "actual_action": "deny",
+            "late_intervention": False,
+            "headers_sent": False,
+            "connection_aborted": False,
+            "response_committed": False,
+            "transport_result": "",
+        }
+        outcome = dict(decision)
+        outcome.update({"visible_http_status": 403, "transport_result": "http_status"})
+        record = no_crs.normalize_case_record(
+            raw,
+            "lighttpd",
+            case_by_id,
+            [decision, outcome],
+            "patched-native-lighttpd",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual("PASS", record["status"])
+        self.assertEqual(403, record["visible_http_status"])
+
+        false_outcome = dict(outcome)
+        false_outcome["visible_http_status"] = 429
+        record = no_crs.normalize_case_record(
+            raw,
+            "lighttpd",
+            case_by_id,
+            [decision, false_outcome],
+            "patched-native-lighttpd",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual("FAIL", record["status"])
+
+        wrong_mode = dict(outcome)
+        wrong_mode["integration_mode"] = "stock-lighttpd-plugin"
+        record = no_crs.normalize_case_record(
+            raw,
+            "lighttpd",
+            case_by_id,
+            [wrong_mode],
+            "patched-native-lighttpd",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual("FAIL", record["status"])
+        self.assertIn("integration_mode", record["reason"])
+
+        not_executed = dict(raw)
+        not_executed.update({"status": "NOT_EXECUTED", "live_executed": False})
+        record = no_crs.normalize_case_record(
+            not_executed,
+            "lighttpd",
+            case_by_id,
+            [wrong_mode],
+            "patched-native-lighttpd",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual("NOT_EXECUTED", record["status"])
 
     def test_full_lifecycle_first_byte_proof_requires_a_causal_barrier_event(self) -> None:
         event = self.phase4_event(
@@ -765,6 +849,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             ]))
             event = {
                 "connector": "envoy",
+                "integration_mode": "unit-test-host-model",
                 "event": "phase4_intervention",
                 "message_id": "phase4-first-byte",
                 "transaction_id": "tx-first-byte",

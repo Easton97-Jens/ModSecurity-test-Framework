@@ -720,6 +720,20 @@ def canonical_host_profile(payload: Mapping[str, Any], label: str) -> str:
     return profile.strip()
 
 
+def required_event_integration_mode(payload: Mapping[str, Any]) -> str | None:
+    """Return the selected mode only for strict full-lifecycle evidence.
+
+    Generic and compatibility artifacts retain optional event metadata. A
+    selected full-lifecycle PASS, by contrast, must bind its raw event to the
+    exact host integration recorded by its manifest/result.
+    """
+
+    if payload.get("artifact_profile") != FULL_LIFECYCLE_ARTIFACT_PROFILE:
+        return None
+    value = str(payload.get("integration_mode") or "").strip()
+    return value or None
+
+
 def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
     if catalog.get("schema_version") != 1:
@@ -1711,6 +1725,7 @@ def event_for_case(
     rule_id: int | None,
     case: Mapping[str, Any],
     transaction_ids: Sequence[str] = (),
+    integration_mode: str | None = None,
 ) -> Mapping[str, Any] | None:
     if rule_id is None:
         candidates = list(events)
@@ -1726,26 +1741,70 @@ def event_for_case(
             return None
     if not candidates:
         return None
+    if integration_mode:
+        # A raw event from a compatibility path must not satisfy a selected
+        # native host profile merely because connector, rule, and transaction
+        # identifiers happen to overlap. Prefer the exact selected mode. Keep
+        # an unmatched candidate only so the caller can produce the specific
+        # mismatch diagnostic instead of silently dropping causal evidence.
+        matched_mode = [
+            event
+            for event in candidates
+            if event.get("integration_mode") == integration_mode
+        ]
+        if matched_mode:
+            candidates = matched_mode
     if is_phase4_semantic_case(case):
         expected_result = str(case.get("expected_result") or "")
         for event in candidates:
             if phase4_event_matches_outcome(event, expected_result):
                 return event
+    # A Common rule-decision event can precede the host action.  When the same
+    # transaction later publishes a bounded, host-confirmed outcome, prefer
+    # that outcome for a non-Phase-4 case.  Do not manufacture a match: the
+    # visible status must agree with the catalog's expected status whenever it
+    # has one, otherwise retain the original decision event for validation.
+    expected_status = optional_int(case.get("expected_status"))
+    confirmed = [
+        event
+        for event in candidates
+        if str(event.get("transport_result") or "")
+        in {"http_status", "log_only", "connection_aborted"}
+        and (
+            expected_status is None
+            or optional_int(event.get("visible_http_status")) == expected_status
+        )
+    ]
+    if confirmed:
+        return confirmed[-1]
     return candidates[0]
 
 
 def canonical_core_event_contract(
-    events: Sequence[Mapping[str, Any]], connector: str,
+    events: Sequence[Mapping[str, Any]],
+    connector: str,
+    integration_mode: str | None = None,
 ) -> tuple[bool, bool]:
     """Return metadata and payload-absence evidence for the rule-1100001 event."""
     payload_absent = bool(events) and not any(
-        canonical_event_errors(event, connector=connector) for event in events
+        canonical_event_errors(
+            event,
+            connector=connector,
+            integration_mode=integration_mode,
+        )
+        for event in events
     )
     if not payload_absent:
         # A malformed or unreviewed event is not usable to establish either
         # canonical metadata evidence or the payload-absence claim.
         return False, False
-    event = event_for_rule(events, 1100001)
+    candidates = [event for event in events if 1100001 in event_rule_ids(event)]
+    if integration_mode:
+        candidates = [
+            event for event in candidates
+            if event.get("integration_mode") == integration_mode
+        ]
+    event = candidates[-1] if candidates else None
     if event is None:
         return False, payload_absent
     fields = event_field_names(event)
@@ -2359,6 +2418,7 @@ def normalize_case_record(
     connector: str,
     case_by_id: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None = None,
 ) -> dict[str, Any] | None:
     case_id = str(raw.get("case_id") or raw.get("case") or raw.get("name") or "").strip()
     if not case_id or case_id not in case_by_id:
@@ -2385,7 +2445,9 @@ def normalize_case_record(
             observed_rule_ids.append(rule_id)
     expected_rule_id = optional_int(case.get("expected_rule_id"))
     transaction_ids = supplied_transaction_ids(raw)
-    matching_event = event_for_case(events, expected_rule_id, case, transaction_ids)
+    matching_event = event_for_case(
+        events, expected_rule_id, case, transaction_ids, integration_mode,
+    )
     semantic_values, runtime_evidence_errors = semantic_runtime_fields(raw, matching_event)
     actual_status_value: object = _MISSING
     for field in ("actual_status", "observed_status", "visible_http_status", "client_status"):
@@ -2412,7 +2474,11 @@ def normalize_case_record(
     expected_fields = [str(item) for item in case.get("expected_event_fields", [])]
     expected_status = optional_int(case.get("expected_status"))
     event_errors = (
-        canonical_event_errors(matching_event, connector=connector) if matching_event else []
+        canonical_event_errors(
+            matching_event,
+            connector=connector,
+            integration_mode=integration_mode,
+        ) if matching_event else []
     )
     event_metadata_verified = bool(
         matching_event
@@ -2479,6 +2545,7 @@ def derive_core_records(
     connector: str,
     case_by_id: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None = None,
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     explicitly_executed = source.get("requests_sent") is True or source.get("runtime_verified") is True
@@ -2493,7 +2560,7 @@ def derive_core_records(
                 "actual_status": allowed_status,
                 "live_executed": True,
                 "reason": "normalized from explicit source allowed_request_status",
-            }, connector, case_by_id, events,
+            }, connector, case_by_id, events, integration_mode,
         )
         if record:
             records.append(record)
@@ -2517,7 +2584,7 @@ def derive_core_records(
                 "observed_rule_ids": source_rule_ids,
                 "live_executed": True,
                 "reason": "normalized from explicit source blocked_request_status and rule ID",
-            }, connector, case_by_id, events,
+            }, connector, case_by_id, events, integration_mode,
         )
         if record:
             records.append(record)
@@ -2549,6 +2616,7 @@ def append_derived_event_records(
     plan: Mapping[str, Any],
     case_by_id: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None = None,
 ) -> None:
     by_id = {record["case_id"]: record for record in records}
     selections = {item["case_id"]: item for item in plan.get("cases", []) if isinstance(item, Mapping)}
@@ -2557,7 +2625,7 @@ def append_derived_event_records(
     if not base or base.get("status") != "PASS" or not event:
         return
     fields = event_field_names(event)
-    payload_clean = not canonical_event_errors(event)
+    payload_clean = not canonical_event_errors(event, integration_mode=integration_mode)
     for case_id in (
         "event_contains_connector", "event_contains_transaction_id", "event_contains_rule_id",
         "event_contains_phase", "event_contains_status",
@@ -2575,7 +2643,7 @@ def append_derived_event_records(
                 "observed_rule_ids": [1100001],
                 "live_executed": True,
                 "reason": "derived from the observed rule-1100001 event",
-            }, str(plan["connector"]), case_by_id, events,
+            }, str(plan["connector"]), case_by_id, events, integration_mode,
         )
         if record:
             records.append(record)
@@ -2588,7 +2656,7 @@ def append_derived_event_records(
                 {"case_id": "event_has_no_request_body_payload", "status": "PASS", "actual_status": 403,
                  "observed_rule_ids": [1100101], "live_executed": True,
                  "reason": "observed phase-2 event contains no forbidden body payload"},
-                str(plan["connector"]), case_by_id, events,
+                str(plan["connector"]), case_by_id, events, integration_mode,
             )
             if record:
                 records.append(record)
@@ -2599,6 +2667,7 @@ def append_derived_phase4_records(
     plan: Mapping[str, Any],
     case_by_id: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None = None,
 ) -> None:
     """Reuse a valid Phase-4 outcome event for its narrower evidence claims.
 
@@ -2639,6 +2708,7 @@ def append_derived_phase4_records(
                 str(plan.get("connector") or base.get("connector") or ""),
                 case_by_id,
                 events,
+                integration_mode,
             )
             if record is not None and record.get("status") == "PASS":
                 records.append(record)
@@ -2685,6 +2755,7 @@ def derive_deprecated_alias_targets(
     plan: Mapping[str, Any],
     case_by_id: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None = None,
 ) -> None:
     """Allow a fully evidenced legacy execution to populate its new target.
 
@@ -2719,6 +2790,7 @@ def derive_deprecated_alias_targets(
             str(record.get("connector") or plan.get("connector") or ""),
             case_by_id,
             events,
+            integration_mode,
         )
         if target is not None:
             derived.append(target)
@@ -3026,6 +3098,7 @@ def finalize_run(args: argparse.Namespace) -> int:
         raise ContractError("finalize requires --connector-root for repository provenance")
     connector = str(manifest.get("connector") or "")
     evidence_stage = str(manifest.get("evidence_stage") or "")
+    selected_event_integration_mode = required_event_integration_mode(manifest)
     if evidence_stage not in WRITABLE_EVIDENCE_STAGES:
         raise ContractError(f"unsupported writable evidence stage: {evidence_stage!r}")
     capabilities = load_capability_manifest(run_dir / "inventory/capabilities.json", connector)
@@ -3115,14 +3188,34 @@ def finalize_run(args: argparse.Namespace) -> int:
 
     records: list[dict[str, Any]] = []
     for raw in raw_records:
-        record = normalize_case_record(raw, connector, case_by_id, events)
+        record = normalize_case_record(
+            raw,
+            connector,
+            case_by_id,
+            events,
+            selected_event_integration_mode,
+        )
         if record:
             records.append(record)
     for payload in source_payloads:
-        records.extend(derive_core_records(payload, connector, case_by_id, events))
-    append_derived_event_records(records, plan, case_by_id, events)
-    derive_deprecated_alias_targets(records, plan, case_by_id, events)
-    append_derived_phase4_records(records, plan, case_by_id, events)
+        records.extend(
+            derive_core_records(
+                payload,
+                connector,
+                case_by_id,
+                events,
+                selected_event_integration_mode,
+            )
+        )
+    append_derived_event_records(
+        records, plan, case_by_id, events, selected_event_integration_mode,
+    )
+    derive_deprecated_alias_targets(
+        records, plan, case_by_id, events, selected_event_integration_mode,
+    )
+    append_derived_phase4_records(
+        records, plan, case_by_id, events, selected_event_integration_mode,
+    )
     prevent_synthetic_first_byte_promotion(records, first_byte_evidence)
     deduplicated: dict[str, dict[str, Any]] = {}
     for record in records:
@@ -3231,7 +3324,7 @@ def finalize_run(args: argparse.Namespace) -> int:
     source_started = any(payload.get("started") is True for payload in source_payloads)
     started = source_started or requests_sent
     event_metadata_verified, body_payload_absent_from_events = canonical_core_event_contract(
-        events, connector
+        events, connector, selected_event_integration_mode
     )
     host_version = args.host_version or manifest["host_version"]
     libmodsecurity_version = args.libmodsecurity_version or manifest["libmodsecurity_version"]
@@ -3502,6 +3595,7 @@ def canonical_event_errors(
     event: object,
     location: str = "event",
     connector: str | None = None,
+    integration_mode: str | None = None,
 ) -> list[str]:
     """Validate the deliberately small metadata-only canonical event contract.
 
@@ -3529,6 +3623,10 @@ def canonical_event_errors(
     if connector and isinstance(event, Mapping) and event.get("connector") != connector:
         errors.append(
             f"{location}.connector: {event.get('connector')!r} does not match {connector!r}"
+        )
+    if integration_mode and isinstance(event, Mapping) and event.get("integration_mode") != integration_mode:
+        errors.append(
+            f"{location}.integration_mode: {event.get('integration_mode')!r} does not match selected {integration_mode!r}"
         )
     return errors
 
@@ -3639,6 +3737,12 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         == inventory.get("evidence_stage")
     ):
         errors.append("manifest/result/inventory evidence_stage mismatch")
+    if not (
+        result.get("integration_mode")
+        == manifest.get("integration_mode")
+        == inventory.get("integration_mode")
+    ):
+        errors.append("manifest/result/inventory integration_mode mismatch")
     if any(
         payload.get("ruleset") != "no-crs-baseline"
         for payload in (result, manifest, inventory)
@@ -3674,8 +3778,16 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         if case_id in seen:
             errors.append(f"{label}: duplicate case_id {case_id}")
         seen.add(case_id)
+    event_integration_mode = required_event_integration_mode(manifest)
     for index, event in enumerate(read_jsonl(run_dir / "events.jsonl", required=False)):
-        errors.extend(canonical_event_errors(event, f"events.jsonl[{index}]", connector))
+        errors.extend(
+            canonical_event_errors(
+                event,
+                f"events.jsonl[{index}]",
+                connector,
+                event_integration_mode,
+            )
+        )
     errors.extend(validate_capability_manifest(capabilities, connector))
     return errors
 
@@ -3687,8 +3799,11 @@ def completeness_errors(run_dir: Path) -> list[str]:
     if not isinstance(result, Mapping):
         return ["result.json must be an object"]
     connector = str(result.get("connector") or "")
+    integration_mode = required_event_integration_mode(result)
     events = read_jsonl(run_dir / "events.jsonl", required=False)
-    event_metadata_verified, body_payload_absent = canonical_core_event_contract(events, connector)
+    event_metadata_verified, body_payload_absent = canonical_core_event_contract(
+        events, connector, integration_mode
+    )
     if result.get("event_metadata_verified") is not event_metadata_verified:
         errors.append("event_metadata_verified is inconsistent with the canonical rule-1100001 event")
     if result.get("status") == "PASS":
@@ -3738,6 +3853,7 @@ def completeness_errors(run_dir: Path) -> list[str]:
                 optional_int(record.get("expected_rule_id")),
                 record,
                 [str(value) for value in record.get("transaction_ids", [])],
+                integration_mode,
             )
             for error in phase4_pass_errors(record, matching_event):
                 errors.append(f"{case_id}: {error}")
@@ -3746,7 +3862,14 @@ def completeness_errors(run_dir: Path) -> list[str]:
             optional_int(record.get("expected_rule_id")),
             record,
             [str(value) for value in record.get("transaction_ids", [])],
+            integration_mode,
         )
+        for error in canonical_event_errors(
+            matching_event,
+            connector=connector,
+            integration_mode=integration_mode,
+        ):
+            errors.append(f"{case_id}: {error}")
         for error in full_lifecycle_pass_errors(record, matching_event):
             errors.append(f"{case_id}: {error}")
     return errors
@@ -4071,7 +4194,9 @@ def status_errors(run_dir: Path) -> list[str]:
     )
     events = read_jsonl(run_dir / "events.jsonl", required=False)
     event_metadata_verified, body_payload_absent = canonical_core_event_contract(
-        events, str(result.get("connector") or "")
+        events,
+        str(result.get("connector") or ""),
+        required_event_integration_mode(result),
     )
     if result.get("event_metadata_verified") is not event_metadata_verified:
         errors.append("event_metadata_verified is inconsistent with the canonical rule-1100001 event")
