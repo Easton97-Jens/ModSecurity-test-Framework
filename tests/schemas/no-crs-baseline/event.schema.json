@@ -31,6 +31,12 @@
         "lighttpd"
       ]
     },
+    "run_id": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 256,
+      "pattern": "[A-Za-z0-9:._-]{0,256}"
+    },
     "integration_mode": {
       "type": "string",
       "minLength": 0,
@@ -53,6 +59,18 @@
       "type": "string",
       "minLength": 0,
       "maxLength": 256
+    },
+    "transport_case_id": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 128,
+      "pattern": "[A-Za-z0-9:._-]{0,128}"
+    },
+    "barrier_id": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 128,
+      "pattern": "[A-Za-z0-9:._-]{0,128}"
     },
     "rule_id": {
       "type": [
@@ -92,7 +110,7 @@
     },
     "actual_action": {
       "type": "string",
-      "enum": ["", "deny", "redirect", "log_only", "abort_connection"]
+      "enum": ["", "deny", "redirect", "log_only", "abort_connection", "stream_reset"]
     },
     "action": {
       "type": "string",
@@ -155,7 +173,7 @@
     },
     "transport_result": {
       "type": "string",
-      "enum": ["", "http_status", "log_only", "connection_aborted", "not_observable"]
+      "enum": ["", "completed", "log_only", "connection_aborted", "stream_reset", "client_cancelled", "client_disconnected", "upstream_reset", "upstream_disconnected", "timeout", "short_write", "write_would_block", "engine_error", "host_error", "http_status", "not_observable"]
     },
     "late_intervention_mode": {
       "type": "string",
@@ -199,7 +217,68 @@
     },
     "transport_protocol": {
       "type": "string",
-      "enum": ["http1", "http2"]
+      "enum": ["", "http1", "http2"]
+    },
+    "requested_protocol": {
+      "type": "string",
+      "enum": ["", "http1", "h2", "h2c", "h3"]
+    },
+    "downstream_protocol": {
+      "type": "string",
+      "enum": ["", "http1", "h2", "h2c", "h3"]
+    },
+    "upstream_protocol": {
+      "type": "string",
+      "enum": ["", "http1", "h2", "h2c", "h3"]
+    },
+    "negotiated_protocol": {
+      "type": "string",
+      "enum": ["", "http1", "h2", "h2c", "h3"]
+    },
+    "transport": {
+      "type": "string",
+      "enum": ["", "tcp", "tls_tcp", "quic_udp"]
+    },
+    "alpn": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9:._/-]{0,64}"
+    },
+    "stream_id": {
+      "type": ["integer", "string", "null"],
+      "minimum": 0,
+      "maximum": 4611686018427387903,
+      "maxLength": 19,
+      "pattern": "[0-9]{0,19}"
+    },
+    "connection_id": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 128,
+      "pattern": "[A-Za-z0-9:._-]{0,128}"
+    },
+    "quic_connection_id_present": {
+      "type": "boolean"
+    },
+    "quic_version": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9:._-]{0,64}"
+    },
+    "fallback_used": {
+      "type": "boolean"
+    },
+    "stream_reset": {
+      "type": "boolean"
+    },
+    "stream_reset_code": {
+      "type": ["integer", "string", "null"],
+      "minimum": 0,
+      "maximum": 4611686018427387903,
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9:._-]{0,64}"
     },
     "transfer_encoding": {
       "type": "string",
@@ -213,6 +292,41 @@
     },
     "upstream_aborted": {
       "type": "boolean"
+    },
+    "client_disconnected": {
+      "type": "boolean"
+    },
+    "upstream_disconnected": {
+      "type": "boolean"
+    },
+    "cancelled": {
+      "type": "boolean"
+    },
+    "reset_by": {
+      "type": "string",
+      "enum": ["", "client", "upstream", "engine", "host", "strict_intervention", "timeout"]
+    },
+    "reset_code": {
+      "type": ["integer", "string", "null"],
+      "minimum": 0,
+      "maximum": 4611686018427387903,
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9:._-]{0,64}"
+    },
+    "timeout_stage": {
+      "type": "string",
+      "enum": ["", "engine", "request_body", "response_body", "upstream", "client_idle", "before_commit", "after_commit"]
+    },
+    "write_result": {
+      "type": "string",
+      "enum": ["", "completed", "short_write", "write_would_block", "engine_error", "host_error"]
+    },
+    "eos_seen": {
+      "type": "boolean"
+    },
+    "cleanup_reason": {
+      "type": "string",
+      "enum": ["", "normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort"]
     },
     "truncated": {
       "type": "boolean"

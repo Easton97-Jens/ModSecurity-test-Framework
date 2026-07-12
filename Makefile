@@ -11,6 +11,27 @@ OUTPUT_ROOT ?= $(CONNECTOR_ROOT)
 PYTHONDONTWRITEBYTECODE ?= 1
 NO_CRS_TOOL ?= $(FRAMEWORK_ROOT)/ci/no_crs_baseline.py
 FULL_LIFECYCLE_EVIDENCE_TOOL ?= $(FRAMEWORK_ROOT)/ci/check_full_lifecycle_evidence.py
+TRANSPORT_HARDENING_EVIDENCE_TOOL ?= $(FRAMEWORK_ROOT)/ci/check_transport_hardening_evidence.py
+PROTOCOL_CLIENT_TOOL ?= $(FRAMEWORK_ROOT)/ci/protocol_client.py
+PROTOCOL_EVIDENCE_TOOL ?= $(FRAMEWORK_ROOT)/ci/check_protocol_evidence.py
+PROTOCOL_URL ?=
+PROTOCOL_PROFILE ?= http1
+PROTOCOL_ARTIFACT_DIR ?= $(BUILD_ROOT)/protocol-client/$(PROTOCOL_PROFILE)
+PROTOCOL_STRICT ?= 0
+PROTOCOL_CONNECTOR ?=
+PROTOCOL_INTEGRATION_MODE ?=
+PROTOCOL_RUN_ID ?=
+PROTOCOL_TRANSACTION_ID ?=
+PROTOCOL_TRANSPORT_CASE_ID ?=
+PROTOCOL_RULE_ID ?=
+PROTOCOL_PHASE ?=
+PROTOCOL_FOLLOWUP_URL ?=
+PROTOCOL_INSECURE ?= 0
+PROTOCOL_CACERT ?=
+PROTOCOL_STREAM_ID ?=
+PROTOCOL_UPSTREAM_PROTOCOL ?=
+PROTOCOL_QUIC_UDP_OBSERVED ?= 0
+PROTOCOL_OBSERVATION_SIDECAR ?=
 NO_CRS_RUN_ID ?= local
 CONNECTOR ?=
 CAPABILITIES_FILE ?= $(CONNECTOR_ROOT)/connectors/$(CONNECTOR)/capabilities.json
@@ -20,6 +41,9 @@ PLAN_FILE ?= $(BUILD_ROOT)/no-crs-plans/$(CONNECTOR)/$(NO_CRS_RUN_ID).json
 NO_CRS_STAGE_RC ?= 0
 NO_CRS_STAGE_REASON ?=
 NO_CRS_FINALIZE_ARGS ?=
+# A managed, payload-free protocol-client bundle can be promoted only through
+# the full-lifecycle finalizer, which copies and binds it to protocol cases.
+NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR ?=
 NO_CRS_ARTIFACT_PROFILE ?= generic
 EVIDENCE_STAGE ?= no_crs_baseline
 NO_CRS_SUMMARY_ROOT ?= $(EVIDENCE_ROOT)/summary/$(NO_CRS_RUN_ID)
@@ -60,7 +84,7 @@ export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion
+.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
 
 define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 	@set +e; \
@@ -111,7 +135,7 @@ no-crs-init: no-crs-plan
 
 no-crs-finalize:
 	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
-	$(PYTHON) "$(NO_CRS_TOOL)" finalize --run-dir "$(NO_CRS_RUN_DIR)" --connector-root "$(CONNECTOR_ROOT)" --capabilities "$(CAPABILITIES_FILE)" --stage-rc "$(NO_CRS_STAGE_RC)" --stage-reason "$(NO_CRS_STAGE_REASON)" $(NO_CRS_FINALIZE_ARGS)
+	$(PYTHON) "$(NO_CRS_TOOL)" finalize --run-dir "$(NO_CRS_RUN_DIR)" --connector-root "$(CONNECTOR_ROOT)" --capabilities "$(CAPABILITIES_FILE)" --stage-rc "$(NO_CRS_STAGE_RC)" --stage-reason "$(NO_CRS_STAGE_REASON)" $(if $(NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR),--protocol-client-artifact-dir "$(NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR)",) $(NO_CRS_FINALIZE_ARGS)
 
 no-crs-summary:
 	mkdir -p "$(NO_CRS_SUMMARY_ROOT)"
@@ -140,6 +164,9 @@ check-no-crs-artifact-layout:
 check-no-crs-body-payload-absence:
 	$(call RUN_NO_CRS_CHECK,body-payload)
 
+check-no-crs-protocol-client:
+	$(call RUN_NO_CRS_CHECK,protocol-client)
+
 check-no-crs-status-consistency:
 	$(call RUN_NO_CRS_CHECK,status)
 
@@ -162,6 +189,31 @@ check-full-lifecycle-event-privacy:
 
 check-full-lifecycle-promotion:
 	$(call RUN_FULL_LIFECYCLE_EVIDENCE_CHECK,promotion)
+
+check-transport-hardening-evidence:
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
+	$(PYTHON) "$(TRANSPORT_HARDENING_EVIDENCE_TOOL)" --run-dir "$(NO_CRS_RUN_DIR)" --check all
+
+# The managed client is intentionally opt-in: callers name an explicit target
+# and profile, and the emitted artifacts are suitable for a later canonical
+# case/event correlation.  H3 uses only --http3-only inside the helper.
+protocol-client:
+	@test -n "$(PROTOCOL_URL)" || { echo "PROTOCOL_URL is required" >&2; exit 2; }
+	@case "$(PROTOCOL_STRICT)" in 1|true|yes) test -n "$(PROTOCOL_FOLLOWUP_URL)" || { echo "PROTOCOL_FOLLOWUP_URL is required for strict evidence" >&2; exit 2; } ;; esac
+	@set +e; \
+	"$(PYTHON)" "$(PROTOCOL_CLIENT_TOOL)" --url "$(PROTOCOL_URL)" --protocol "$(PROTOCOL_PROFILE)" --artifact-dir "$(PROTOCOL_ARTIFACT_DIR)" $(if $(filter 1 true yes,$(PROTOCOL_STRICT)),--followup-url "$(PROTOCOL_FOLLOWUP_URL)",) $(if $(filter 1 true yes,$(PROTOCOL_INSECURE)),--insecure,) $(if $(PROTOCOL_CACERT),--cacert "$(PROTOCOL_CACERT)",) $(if $(PROTOCOL_CONNECTOR),--connector "$(PROTOCOL_CONNECTOR)",) $(if $(PROTOCOL_INTEGRATION_MODE),--integration-mode "$(PROTOCOL_INTEGRATION_MODE)",) $(if $(PROTOCOL_RUN_ID),--run-id "$(PROTOCOL_RUN_ID)",) $(if $(PROTOCOL_TRANSACTION_ID),--transaction-id "$(PROTOCOL_TRANSACTION_ID)",) $(if $(PROTOCOL_TRANSPORT_CASE_ID),--transport-case-id "$(PROTOCOL_TRANSPORT_CASE_ID)",) $(if $(PROTOCOL_RULE_ID),--rule-id "$(PROTOCOL_RULE_ID)",) $(if $(PROTOCOL_PHASE),--phase "$(PROTOCOL_PHASE)",) $(if $(PROTOCOL_STREAM_ID),--stream-id "$(PROTOCOL_STREAM_ID)",) $(if $(PROTOCOL_UPSTREAM_PROTOCOL),--upstream-protocol "$(PROTOCOL_UPSTREAM_PROTOCOL)",) $(if $(filter 1 true yes,$(PROTOCOL_QUIC_UDP_OBSERVED)),--quic-udp-observed,) $(if $(PROTOCOL_OBSERVATION_SIDECAR),--observation-sidecar "$(PROTOCOL_OBSERVATION_SIDECAR)",); \
+	client_rc=$$?; \
+	case "$(PROTOCOL_STRICT)" in \
+		1|true|yes) "$(PYTHON)" "$(PROTOCOL_EVIDENCE_TOOL)" --artifact-dir "$(PROTOCOL_ARTIFACT_DIR)" --protocol "$(PROTOCOL_PROFILE)" --strict $(if $(PROTOCOL_CONNECTOR),--connector "$(PROTOCOL_CONNECTOR)",) $(if $(PROTOCOL_INTEGRATION_MODE),--integration-mode "$(PROTOCOL_INTEGRATION_MODE)",) $(if $(PROTOCOL_RUN_ID),--run-id "$(PROTOCOL_RUN_ID)",) $(if $(PROTOCOL_TRANSACTION_ID),--transaction-id "$(PROTOCOL_TRANSACTION_ID)",) $(if $(PROTOCOL_TRANSPORT_CASE_ID),--expected-transport-case-id "$(PROTOCOL_TRANSPORT_CASE_ID)",) $(if $(PROTOCOL_RULE_ID),--rule-id "$(PROTOCOL_RULE_ID)",) $(if $(PROTOCOL_PHASE),--phase "$(PROTOCOL_PHASE)",) $(if $(PROTOCOL_STREAM_ID),--expected-stream-id "$(PROTOCOL_STREAM_ID)",) $(if $(PROTOCOL_UPSTREAM_PROTOCOL),--expected-upstream-protocol "$(PROTOCOL_UPSTREAM_PROTOCOL)",); exit $$? ;; \
+		*) exit $$client_rc ;; \
+	esac
+
+check-protocol-evidence:
+	@test -d "$(PROTOCOL_ARTIFACT_DIR)" || { echo "PROTOCOL_ARTIFACT_DIR is required" >&2; exit 2; }
+	$(PYTHON) "$(PROTOCOL_EVIDENCE_TOOL)" --artifact-dir "$(PROTOCOL_ARTIFACT_DIR)" --protocol "$(PROTOCOL_PROFILE)" $(if $(filter 1 true yes,$(PROTOCOL_STRICT)),--strict,) $(if $(PROTOCOL_CONNECTOR),--connector "$(PROTOCOL_CONNECTOR)",) $(if $(PROTOCOL_INTEGRATION_MODE),--integration-mode "$(PROTOCOL_INTEGRATION_MODE)",) $(if $(PROTOCOL_RUN_ID),--run-id "$(PROTOCOL_RUN_ID)",) $(if $(PROTOCOL_TRANSACTION_ID),--transaction-id "$(PROTOCOL_TRANSACTION_ID)",) $(if $(PROTOCOL_TRANSPORT_CASE_ID),--expected-transport-case-id "$(PROTOCOL_TRANSPORT_CASE_ID)",) $(if $(PROTOCOL_RULE_ID),--rule-id "$(PROTOCOL_RULE_ID)",) $(if $(PROTOCOL_PHASE),--phase "$(PROTOCOL_PHASE)",) $(if $(PROTOCOL_STREAM_ID),--expected-stream-id "$(PROTOCOL_STREAM_ID)",) $(if $(PROTOCOL_UPSTREAM_PROTOCOL),--expected-upstream-protocol "$(PROTOCOL_UPSTREAM_PROTOCOL)",)
+
+test-protocol-client:
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest discover -s tests/protocol_client -v
 
 # Repository-owned bilingual reports are checked at the root.  Framework-side
 # document consistency starts by validating the one canonical source catalog.

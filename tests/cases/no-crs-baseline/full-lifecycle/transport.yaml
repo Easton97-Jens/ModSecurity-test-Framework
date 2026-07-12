@@ -27,8 +27,42 @@ full_lifecycle:
     - sequential
     - parallel
     - http2
+    - h2_tls
+    - h2_tls_no_fallback
+    - h2c_prior_knowledge
+    - h2_phase1
+    - h2_phase2
+    - h2_phase3
+    - h2_phase4_safe
+    - h2_phase4_strict
+    - h2_parallel_isolation
+    - h2_deny_isolation
+    - h2_parallel_cleanup
+    - h2_first_byte
+    - h2_no_buffer
+    - h2_client_rst_stream
+    - h2_server_rst_stream
+    - h2_upstream_reset
+    - h3_only
+    - h3_quic_transport
+    - h3_no_fallback
+    - h3_alt_svc
+    - h3_phase1
+    - h3_phase2
+    - h3_phase3
+    - h3_phase4_safe
+    - h3_phase4_strict
+    - h3_parallel_isolation
+    - h3_reset_isolation
+    - h3_parallel_cleanup
+    - h3_first_byte
+    - h3_no_buffer
+    - h3_client_cancel
+    - h3_server_reset
+    - h3_upstream_reset
     - client_abort
     - upstream_abort
   evidence_status: not_executed_until_real_host
 known_limitations:
-  - HTTP/2 is selected only when the host and its real runtime harness support it.
+  - H2 TLS, h2c, and H3 are separate forced-client profiles; a fallback cannot be promoted.
+  - H3 requires actual QUIC/UDP plus an HTTP/3-capable client and remains blocked or not executed otherwise.

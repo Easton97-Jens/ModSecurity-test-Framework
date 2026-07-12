@@ -206,6 +206,59 @@ NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF:-$NGINX_RELEASE_TAG}"
 # NGINX Git checkout mode does not use a tarball checksum.
 NGINX_SHA256="${NGINX_SHA256:-}"
 
+# Managed NGINX protocol builds are deliberately explicit.  The default keeps
+# the established clear-text HTTP/1.1 smoke path unchanged; H2/H3 are opted in
+# by selecting a profile at build time.  The H3 profile uses a pinned OpenSSL
+# source tree rather than silently relying on whichever system TLS library is
+# installed.  The source is only fetched/extracted by prepare-nginx-build.sh
+# when that profile is selected.
+NGINX_PROTOCOL_PROFILE="${NGINX_PROTOCOL_PROFILE:-h1}"
+NGINX_QUIC_TLS_LIBRARY="${NGINX_QUIC_TLS_LIBRARY:-openssl}"
+NGINX_QUIC_TLS_VERSION="${NGINX_QUIC_TLS_VERSION:-3.5.1}"
+NGINX_QUIC_TLS_SOURCE_URL="${NGINX_QUIC_TLS_SOURCE_URL:-https://github.com/openssl/openssl/releases/download/openssl-3.5.1/openssl-3.5.1.tar.gz}"
+NGINX_QUIC_TLS_SOURCE_SHA256="${NGINX_QUIC_TLS_SOURCE_SHA256:-529043b15cffa5f36077a4d0af83f3de399807181d607441d734196d889b641f}"
+# Optional explicit archive location, normally supplied by the managed
+# runtime-component cache.  An empty value means prepare-nginx-build.sh uses
+# the URL basename below NGINX_DOWNLOAD_DIR.
+NGINX_QUIC_TLS_ARCHIVE="${NGINX_QUIC_TLS_ARCHIVE:-}"
+
+nginx_protocol_profile_valid() {
+    case "${1:-$NGINX_PROTOCOL_PROFILE}" in
+        h1|h1-h2|h1-h2-h3-quic) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+nginx_protocol_profile_has_http2() {
+    case "${1:-$NGINX_PROTOCOL_PROFILE}" in
+        h1-h2|h1-h2-h3-quic) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+nginx_protocol_profile_has_http3() {
+    case "${1:-$NGINX_PROTOCOL_PROFILE}" in
+        h1-h2-h3-quic) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+nginx_protocol_profile_configure_flags() {
+    case "${1:-$NGINX_PROTOCOL_PROFILE}" in
+        h1)
+            ;;
+        h1-h2)
+            printf '%s\n' --with-http_ssl_module --with-http_v2_module
+            ;;
+        h1-h2-h3-quic)
+            printf '%s\n' --with-http_ssl_module --with-http_v2_module --with-http_v3_module
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 HAPROXY_VERSION="${HAPROXY_VERSION:-3.2.21}"
 HAPROXY_SOURCE_URL="${HAPROXY_SOURCE_URL:-https://www.haproxy.org/download/3.2/src/haproxy-$HAPROXY_VERSION.tar.gz}"
 HAPROXY_SHA256_URL="${HAPROXY_SHA256_URL:-$HAPROXY_SOURCE_URL.sha256}"
@@ -375,6 +428,7 @@ ci_validate_https_runtime_url_config() {
     ci_require_https_github_repo_url_if_set "$MODSECURITY_NGINX_GIT_URL" MODSECURITY_NGINX_GIT_URL || return 77
     ci_require_https_github_repo_url "$NGINX_SOURCE_REPO_URL" NGINX_SOURCE_REPO_URL || return 77
     ci_require_https_github_repo_url "$NGINX_GITHUB_REPO" NGINX_GITHUB_REPO || return 77
+    ci_require_https_url "$NGINX_QUIC_TLS_SOURCE_URL" NGINX_QUIC_TLS_SOURCE_URL || return 77
     ci_require_https_github_repo_url "$GO_FTW_SOURCE_URL" GO_FTW_SOURCE_URL || return 77
     ci_require_https_github_repo_url "$ALBEDO_SOURCE_URL" ALBEDO_SOURCE_URL || return 77
     ci_require_https_github_repo_url "$EXPAT_SOURCE_URL" EXPAT_SOURCE_URL || return 77

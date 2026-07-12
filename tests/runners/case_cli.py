@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -55,6 +56,61 @@ def _phase4_action(value: object, allowed: set[str]) -> str | None:
     return action if action in allowed else None
 
 
+def _protocol(value: object) -> str | None:
+    """Normalize only explicit protocol-observation fields.
+
+    The legacy ``transport_protocol`` field is intentionally handled
+    separately below.  In particular, an ambiguous historical ``protocol``
+    field must not manufacture negotiated H2/H3 evidence.
+    """
+    if value in (None, ""):
+        return None
+    normalized = str(value).strip().lower().replace("_", "").replace(" ", "")
+    return {
+        "http1": "http1",
+        "http/1": "http1",
+        "http/1.0": "http1",
+        "http/1.1": "http1",
+        "http10": "http1",
+        "http11": "http1",
+        "h1": "http1",
+        "h2": "h2",
+        "http2": "h2",
+        "http/2": "h2",
+        "http/2.0": "h2",
+        "h2c": "h2c",
+        "http2c": "h2c",
+        "http/2c": "h2c",
+        "h3": "h3",
+        "http3": "h3",
+        "http/3": "h3",
+        "http/3.0": "h3",
+    }.get(normalized)
+
+
+def _transport(value: object) -> str | None:
+    if value in (None, ""):
+        return None
+    normalized = str(value).strip().lower().replace("/", "_").replace("-", "_")
+    return {
+        "tcp": "tcp",
+        "tls_tcp": "tls_tcp",
+        "tlstcp": "tls_tcp",
+        "quic_udp": "quic_udp",
+        "quicudp": "quic_udp",
+    }.get(normalized)
+
+
+def _bounded_token(value: object, *, maximum: int, allow_slash: bool = False) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    pattern = r"[A-Za-z0-9:._/-]+" if allow_slash else r"[A-Za-z0-9:._-]+"
+    if not normalized or len(normalized) > maximum or re.fullmatch(pattern, normalized) is None:
+        return None
+    return normalized
+
+
 def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
     """Project only reviewed, payload-free late-intervention log fields.
 
@@ -76,7 +132,7 @@ def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
     )
     actual = _phase4_action(
         first("actual_action"),
-        {"deny", "redirect", "log_only", "abort_connection"},
+        {"deny", "redirect", "log_only", "abort_connection", "stream_reset"},
     )
     if requested is not None:
         output["requested_action"] = requested
@@ -108,7 +164,10 @@ def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
         if normalized_transport == "aborted":
             normalized_transport = "connection_aborted"
         if normalized_transport in {
-            "http_status", "log_only", "connection_aborted", "not_observable",
+            "completed", "log_only", "connection_aborted", "stream_reset",
+            "client_cancelled", "client_disconnected", "upstream_reset",
+            "upstream_disconnected", "timeout", "short_write", "write_would_block",
+            "engine_error", "host_error", "http_status", "not_observable",
         }:
             output["transport_result"] = normalized_transport
     mode = first("late_intervention_mode", "phase4_mode")
@@ -139,8 +198,15 @@ def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
         "upstream_paused": ("upstream_paused",),
         "upstream_eos_sent_at_first_byte": ("upstream_eos_sent_at_first_byte",),
         "connection_reused": ("connection_reused", "keep_alive_reused"),
+        "quic_connection_id_present": ("quic_connection_id_present",),
+        "fallback_used": ("fallback_used",),
+        "stream_reset": ("stream_reset", "stream_reset_observed"),
         "client_aborted": ("client_aborted",),
         "upstream_aborted": ("upstream_aborted",),
+        "client_disconnected": ("client_disconnected", "client_disconnect"),
+        "upstream_disconnected": ("upstream_disconnected", "upstream_disconnect"),
+        "cancelled": ("cancelled", "client_cancelled"),
+        "eos_seen": ("eos_seen", "eos_received"),
     }.items():
         value = _phase4_bool(first(*aliases))
         if value is not None:
@@ -160,6 +226,92 @@ def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
             output["transport_protocol"] = "http1"
         elif normalized_protocol == "http2":
             output["transport_protocol"] = "http2"
+
+    # Explicit protocol provenance is deliberately separate from the legacy
+    # ``transport_protocol`` field above.  Only these explicit values may
+    # later satisfy the framework's H2/H3 evidence gate.
+    for canonical, aliases in {
+        "requested_protocol": ("requested_protocol",),
+        "downstream_protocol": ("downstream_protocol",),
+        "upstream_protocol": ("upstream_protocol",),
+        "negotiated_protocol": ("negotiated_protocol",),
+    }.items():
+        normalized = _protocol(first(*aliases))
+        if normalized is not None:
+            output[canonical] = normalized
+    normalized_transport = _transport(first("transport", "network_transport"))
+    if normalized_transport is not None:
+        output["transport"] = normalized_transport
+    alpn = _bounded_token(first("alpn", "negotiated_alpn"), maximum=64, allow_slash=True)
+    if alpn is not None:
+        output["alpn"] = alpn
+    stream_id = first("stream_id", "http2_stream_id", "http3_stream_id")
+    if stream_id is not None and not isinstance(stream_id, bool):
+        try:
+            normalized_stream_id = int(stream_id)
+        except (TypeError, ValueError):
+            normalized_stream_id = -1
+        if 0 <= normalized_stream_id <= 4_611_686_018_427_387_903:
+            output["stream_id"] = normalized_stream_id
+    transport_case_id = _bounded_token(
+        first("transport_case_id", "protocol_case_id"), maximum=128,
+    )
+    if transport_case_id is not None:
+        output["transport_case_id"] = transport_case_id
+    barrier_id = _bounded_token(first("barrier_id"), maximum=128)
+    if barrier_id is not None:
+        output["barrier_id"] = barrier_id
+    quic_version = _bounded_token(first("quic_version",), maximum=64)
+    if quic_version is not None:
+        output["quic_version"] = quic_version
+    reset_code = first("stream_reset_code",)
+    if isinstance(reset_code, int) and not isinstance(reset_code, bool) and reset_code >= 0:
+        output["stream_reset_code"] = reset_code
+    else:
+        normalized_reset_code = _bounded_token(reset_code, maximum=64)
+        if normalized_reset_code is not None:
+            output["stream_reset_code"] = normalized_reset_code
+    reset_code = first("reset_code",)
+    if isinstance(reset_code, int) and not isinstance(reset_code, bool) and reset_code >= 0:
+        output["reset_code"] = reset_code
+    else:
+        normalized_reset_code = _bounded_token(reset_code, maximum=64)
+        if normalized_reset_code is not None:
+            output["reset_code"] = normalized_reset_code
+    for canonical, aliases, allowed in (
+        (
+            "reset_by", ("reset_by",),
+            {"client", "upstream", "engine", "host", "strict_intervention", "timeout"},
+        ),
+        (
+            "timeout_stage", ("timeout_stage",),
+            {"engine", "request_body", "response_body", "upstream", "client_idle", "before_commit", "after_commit"},
+        ),
+        (
+            "write_result", ("write_result",),
+            {"completed", "short_write", "write_would_block", "engine_error", "host_error"},
+        ),
+        (
+            "cleanup_reason", ("cleanup_reason",),
+            {"normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort"},
+        ),
+    ):
+        value = first(*aliases)
+        if value is None:
+            continue
+        normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+        if normalized in allowed:
+            output[canonical] = normalized
+    connection_id = _bounded_token(first("connection_id",), maximum=128)
+    is_quic = (
+        output.get("negotiated_protocol") == "h3"
+        or output.get("downstream_protocol") == "h3"
+        or output.get("transport") == "quic_udp"
+    )
+    if connection_id is not None and (
+        not is_quic or re.fullmatch(r"sha256:[0-9a-f]{16,64}", connection_id) is not None
+    ):
+        output["connection_id"] = connection_id
     transfer_encoding = first("transfer_encoding",)
     if transfer_encoding is not None:
         normalized_encoding = str(transfer_encoding).strip().lower().replace("-", "_")

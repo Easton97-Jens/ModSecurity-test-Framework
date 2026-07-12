@@ -26,7 +26,10 @@ from typing import Any, Iterable, Mapping, Sequence
 
 
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[1]
+CI_ROOT = FRAMEWORK_ROOT / "ci"
 RUNNER_ROOT = FRAMEWORK_ROOT / "tests/runners"
+if str(CI_ROOT) not in sys.path:
+    sys.path.insert(0, str(CI_ROOT))
 if str(RUNNER_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNNER_ROOT))
 
@@ -92,6 +95,21 @@ CAPABILITIES = (
     "keep_alive",
     "parallel_requests",
     "http2",
+    "http2_downstream",
+    "http2_upstream",
+    "http2_tls_alpn",
+    "http2_cleartext_h2c",
+    "http2_multiplexing",
+    "http2_stream_reset",
+    "http3_downstream",
+    "http3_upstream",
+    "http3_quic",
+    "http3_alt_svc",
+    "http3_multiplexing",
+    "http3_stream_reset",
+    "protocol_transaction_isolation",
+    "protocol_first_byte_before_response_end",
+    "protocol_no_full_response_buffering",
     "client_abort",
     "upstream_abort",
     "response_body_decompression",
@@ -147,6 +165,21 @@ FULL_LIFECYCLE_REQUIRED_ARTIFACTS = (
     ("first_byte_evidence", "inventory/first-byte-evidence.json"),
 )
 FIRST_BYTE_EVIDENCE_RELATIVE_PATH = "inventory/first-byte-evidence.json"
+# These are deliberately separate from ``FULL_LIFECYCLE_REQUIRED_ARTIFACTS``.
+# A generic full-lifecycle run may legitimately have no transport-hardening
+# case (and must not be made to invent one).  The transport-hardening checker
+# requires its complete evidence subset as soon as a transport case is
+# promoted; ``effective_config`` is retained as bounded provenance only.
+TRANSPORT_HARDENING_ARTIFACT_PATHS = {
+    "client_log": "logs/client.log",
+    "upstream_log": "logs/upstream.log",
+    "transport_log": "logs/transport.log",
+    "cleanup_log": "logs/cleanup.log",
+    "transport_observations": "inventory/transport-observations.json",
+    "connection_lifecycle": "inventory/connection-lifecycle.json",
+    "barrier_events": "inventory/barrier-events.jsonl",
+    "effective_config": "effective-config/manifest.json",
+}
 ENGINE_LIFECYCLE_ARTIFACT_PATHS = {
     "engine_version": "engine-version.txt",
     "engine_library_sha256": "engine-library-sha256.txt",
@@ -154,6 +187,48 @@ ENGINE_LIFECYCLE_ARTIFACT_PATHS = {
     "transaction_counts": "transaction-counts.json",
     "lifecycle_counters": "lifecycle-counters.json",
 }
+PROTOCOL_CLIENT_ARTIFACT_DIR = "inventory/protocol-client"
+PROTOCOL_CLIENT_ARTIFACT_PATHS = {
+    "client_version": f"{PROTOCOL_CLIENT_ARTIFACT_DIR}/client-version.txt",
+    "client_features": f"{PROTOCOL_CLIENT_ARTIFACT_DIR}/client-features.txt",
+    "client_command": f"{PROTOCOL_CLIENT_ARTIFACT_DIR}/client-command.txt",
+    "client_protocol_observation": (
+        f"{PROTOCOL_CLIENT_ARTIFACT_DIR}/client-protocol-observation.json"
+    ),
+    "client_followup_observation": (
+        f"{PROTOCOL_CLIENT_ARTIFACT_DIR}/client-followup-observation.json"
+    ),
+}
+PROTOCOL_CLIENT_REQUIRED_ARTIFACT_NAMES = tuple(
+    name for name in PROTOCOL_CLIENT_ARTIFACT_PATHS
+    if name != "client_followup_observation"
+)
+# curl can force and observe negotiation, but it does not expose a portable
+# stream-control primitive.  These case outcomes therefore need a dedicated
+# H2/H3 stream client before they can be promoted; a sidecar label alone is
+# not a client-observed reset/cancel proof.
+DEDICATED_STREAM_CONTROL_RESULTS = frozenset({
+    "connection_aborted_strict",
+    "protocol_client_stream_reset",
+    "protocol_server_stream_reset",
+    "protocol_upstream_reset",
+    "protocol_transaction_isolation",
+    "protocol_unrelated_stream_healthy",
+    "protocol_parallel_cleanup_balanced",
+})
+# Finalization is a trust boundary in its own right.  Keep this explicit
+# rather than relying on a later ``validate --check all`` invocation to catch
+# a substituted or shared modern-protocol client bundle.
+FINALIZE_VALIDATION_CHECKS = (
+    "schema",
+    "completeness",
+    "capability",
+    "claim-policy",
+    "layout",
+    "body-payload",
+    "protocol-client",
+    "status",
+)
 MINIMAL_RUNTIME_CASE_IDS = ("allow_without_marker", "deny_header_marker_403")
 REPORT_STATUSES = (
     "PASS",
@@ -311,6 +386,35 @@ FULL_LIFECYCLE_REQUIRED_IDS = {
     "transport_http2_if_supported",
     "transport_client_abort",
     "transport_upstream_abort",
+    "client_disconnect_before_request_body_eos",
+    "client_disconnect_during_request_body",
+    "client_disconnect_after_response_headers",
+    "client_disconnect_after_first_response_chunk",
+    "client_disconnect_before_response_eos",
+    "client_cancelled_during_request_body",
+    "upstream_reset_before_headers",
+    "upstream_reset_after_headers",
+    "upstream_reset_during_body",
+    "upstream_close_without_eos",
+    "upstream_content_length_short",
+    "phase4_strict_http1_client_abort",
+    "phase4_strict_http2_stream_reset",
+    "phase4_strict_host_survives",
+    "phase4_strict_followup_request_succeeds",
+    "keepalive_allow_allow",
+    "keepalive_allow_deny_allow",
+    "keepalive_safe_followup",
+    "keepalive_after_strict_new_connection",
+    "parallel_transaction_ids_unique",
+    "parallel_events_not_cross_bound",
+    "parallel_mixed_actions",
+    "parallel_cleanup_balanced",
+    "engine_timeout_before_commit",
+    "engine_timeout_after_commit",
+    "upstream_timeout",
+    "client_idle_timeout",
+    "response_short_write_resume",
+    "response_write_would_block_resume",
     "phase4_body_at_limit",
     "phase4_body_over_limit",
     "phase4_body_process_partial",
@@ -343,19 +447,104 @@ PHASE4_SEMANTIC_FIELDS = (
     "first_chunk_size",
     "upstream_paused",
     "upstream_eos_sent_at_first_byte",
+    # ``transport_protocol`` is the historical http1/http2 field.  New
+    # protocol evidence must use the explicit provenance fields below so a
+    # client fallback cannot be relabelled as a newer protocol.
     "transport_protocol",
+    "requested_protocol",
+    "downstream_protocol",
+    "upstream_protocol",
+    "negotiated_protocol",
+    "transport",
+    "alpn",
+    "stream_id",
+    "transport_case_id",
+    "barrier_id",
+    "connection_id",
     "transfer_encoding",
     "connection_reused",
+    "quic_connection_id_present",
+    "quic_version",
+    "fallback_used",
+    "stream_reset",
+    "stream_reset_code",
     "client_aborted",
     "upstream_aborted",
+    # Transport-hardening metadata is bounded and payload-free.  These are
+    # optional observations, not capabilities and never promote a result by
+    # themselves.
+    "client_disconnected",
+    "upstream_disconnected",
+    "cancelled",
+    "reset_by",
+    "reset_code",
+    "timeout_stage",
+    "write_result",
+    "eos_seen",
+    "cleanup_reason",
 )
 REQUESTED_ACTIONS = {"deny", "redirect", "drop", "log_only", "abort_connection"}
-ACTUAL_ACTIONS = {"deny", "redirect", "log_only", "abort_connection"}
-TRANSPORT_RESULTS = {"http_status", "log_only", "connection_aborted", "not_observable"}
+ACTUAL_ACTIONS = {"deny", "redirect", "log_only", "abort_connection", "stream_reset"}
+TRANSPORT_RESULTS = {
+    # ``http_status`` and ``not_observable`` are retained only for backwards
+    # compatibility with pre-hardening artifacts.  New writers should use
+    # ``completed`` for a normal completed transport.
+    "completed", "log_only", "connection_aborted", "stream_reset",
+    "client_cancelled", "client_disconnected", "upstream_reset",
+    "upstream_disconnected", "timeout", "short_write", "write_would_block",
+    "engine_error", "host_error", "http_status", "not_observable",
+}
+RESET_BY_VALUES = {
+    "client", "upstream", "engine", "host", "strict_intervention", "timeout",
+}
+TIMEOUT_STAGES = {
+    "engine", "request_body", "response_body", "upstream", "client_idle",
+    "before_commit", "after_commit",
+}
+WRITE_RESULTS = {
+    "completed", "short_write", "write_would_block", "engine_error", "host_error",
+}
+CLEANUP_REASONS = {
+    "normal", "cancelled", "client_disconnected", "upstream_disconnected",
+    "stream_reset", "timeout", "engine_error", "host_error", "strict_abort",
+}
 LATE_INTERVENTION_MODES = {"minimal", "safe", "strict"}
 CONTENT_TYPE_SCOPES = {"in_scope", "out_of_scope", "missing"}
 BODY_LIMIT_OUTCOMES = {"at_limit", "over_limit", "process_partial", "reject"}
-TRANSPORT_PROTOCOLS = {"http1", "http2"}
+# Keep this historical vocabulary stable.  It is deliberately not extended
+# to H3: new evidence uses negotiated_protocol + transport instead.
+LEGACY_TRANSPORT_PROTOCOLS = {"http1", "http2"}
+CANONICAL_PROTOCOLS = {"http1", "h2", "h2c", "h3"}
+CANONICAL_TRANSPORTS = {"tcp", "tls_tcp", "quic_udp"}
+MAX_STREAM_ID = 4_611_686_018_427_387_903
+PROTOCOL_PROVENANCE_FIELDS = (
+    "requested_protocol",
+    "downstream_protocol",
+    "upstream_protocol",
+    "negotiated_protocol",
+    "transport",
+    "alpn",
+    "stream_id",
+    "transport_case_id",
+    "connection_id",
+    "connection_reused",
+    "quic_connection_id_present",
+    "quic_version",
+    "fallback_used",
+    "stream_reset",
+    "stream_reset_code",
+)
+# A reused HTTP/1.1 connection predates protocol provenance and must not turn
+# an otherwise legacy record into a protocol claim on its own.
+PROTOCOL_CLAIM_FIELDS = tuple(
+    field for field in PROTOCOL_PROVENANCE_FIELDS if field != "connection_reused"
+)
+TRANSPORT_CLAIM_FIELDS = frozenset({
+    *PROTOCOL_CLAIM_FIELDS,
+    "client_disconnected", "upstream_disconnected", "cancelled", "reset_by",
+    "reset_code", "timeout_stage", "write_result", "eos_seen", "cleanup_reason",
+    "barrier_id",
+})
 TRANSFER_ENCODINGS = {"content_length", "chunked", "none"}
 COMMON_PHASE_TO_CANONICAL = {
     # URI parsing and request-header processing both constitute ModSecurity
@@ -821,6 +1010,22 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
             errors.append(f"{prefix}: expected_event_fields must be a list")
         if not isinstance(case.get("forbidden_event_fields"), list):
             errors.append(f"{prefix}: forbidden_event_fields must be a list")
+        if "transport_hardening" in case and not isinstance(case.get("transport_hardening"), bool):
+            errors.append(f"{prefix}: transport_hardening must be Boolean")
+        if case.get("transport_hardening") is True:
+            if not str(case.get("group") or "").startswith("full-lifecycle-transport"):
+                errors.append(f"{prefix}: transport_hardening cases must use the full-lifecycle transport namespace")
+            required_transport_fields = {
+                "run_id", "integration_mode", "transaction_id", "phase", "event", "message_id",
+                "requested_action", "actual_action", "transport_result", "transport_case_id",
+            }
+            declared_transport_fields = {str(field) for field in case.get("expected_event_fields", [])}
+            missing_transport_fields = sorted(required_transport_fields - declared_transport_fields)
+            if missing_transport_fields:
+                errors.append(
+                    f"{prefix}: transport_hardening case is missing causal event fields: "
+                    + ", ".join(missing_transport_fields)
+                )
         if case.get("connector_applicability") != "capability_driven":
             errors.append(f"{prefix}: connector_applicability must be capability_driven")
         if case.get("unsupported_behavior") != "UNSUPPORTED":
@@ -1310,7 +1515,7 @@ def artifact_entry(path: str, state: str, *, sha256: str | None = None, note: st
 
 
 def initial_artifacts() -> dict[str, dict[str, Any]]:
-    return {
+    artifacts = {
         "manifest": artifact_entry("manifest.json", "produced"),
         "result": artifact_entry("result.json", "not_produced"),
         "case_results": artifact_entry("results.jsonl", "not_produced"),
@@ -1325,6 +1530,14 @@ def initial_artifacts() -> dict[str, dict[str, Any]]:
         "capability_manifest": artifact_entry("inventory/capabilities.json", "produced"),
         "plan": artifact_entry("plan.json", "produced"),
     }
+    # Inventory-only transport sidecars are initialized for every run so the
+    # manifest has stable canonical paths.  They become mandatory only when a
+    # transport-hardening case is promoted by the dedicated checker.
+    artifacts.update({
+        name: artifact_entry(path, "not_produced")
+        for name, path in TRANSPORT_HARDENING_ARTIFACT_PATHS.items()
+    })
+    return artifacts
 
 
 def init_run(args: argparse.Namespace) -> int:
@@ -1627,6 +1840,62 @@ def canonicalize_event_phase(
     return normalized
 
 
+EVENT_PROTOCOL_NORMALIZATION_FIELDS = (
+    "transport_protocol",
+    "requested_protocol",
+    "downstream_protocol",
+    "upstream_protocol",
+    "negotiated_protocol",
+    "transport",
+    "alpn",
+    "stream_id",
+    "transport_case_id",
+    "barrier_id",
+    "connection_id",
+    "quic_connection_id_present",
+    "quic_version",
+    "fallback_used",
+    "stream_reset",
+    "stream_reset_code",
+    "connection_reused",
+    "client_disconnected",
+    "upstream_disconnected",
+    "cancelled",
+    "reset_by",
+    "reset_code",
+    "timeout_stage",
+    "write_result",
+    "eos_seen",
+    "cleanup_reason",
+)
+
+
+def canonicalize_event_protocol_provenance(
+    event: Mapping[str, Any], *, location: str = "event",
+) -> dict[str, Any]:
+    """Normalize accepted protocol aliases before writing canonical JSONL.
+
+    Flat Common events may serialize empty optional fields.  Empty values stay
+    empty (and non-promoting), while non-empty aliases such as ``HTTP/3`` are
+    rewritten to their closed canonical form.
+    """
+    normalized = dict(event)
+    for field in EVENT_PROTOCOL_NORMALIZATION_FIELDS:
+        if field not in normalized:
+            continue
+        value = normalized[field]
+        if _empty_runtime_value(value):
+            continue
+        try:
+            canonical = normalize_semantic_value(field, value)
+        except ContractError as exc:
+            raise ContractError(f"{location}.{field}: invalid transport provenance") from exc
+        if canonical is None:
+            raise ContractError(f"{location}.{field}: unsupported transport provenance value {value!r}")
+        normalized[field] = canonical
+    return normalized
+
+
 def phase4_first_byte_barrier_matches(
     event: Mapping[str, Any], *, require_no_full_response_buffering: bool,
 ) -> bool:
@@ -1712,14 +1981,20 @@ def phase4_event_matches_outcome(event: Mapping[str, Any], expected_result: str)
     if expected_result == "connection_aborted":
         return (
             requested == "deny"
-            and actual == "abort_connection"
-            and event.get("connection_aborted") is True
+            and actual in {"abort_connection", "stream_reset"}
+            and (
+                event.get("connection_aborted") is True
+                or event.get("stream_reset") is True
+            )
         )
     if expected_result == "connection_aborted_strict":
         return (
             requested == "deny"
-            and actual == "abort_connection"
-            and event.get("connection_aborted") is True
+            and actual in {"abort_connection", "stream_reset"}
+            and (
+                event.get("connection_aborted") is True
+                or event.get("stream_reset") is True
+            )
             and event.get("late_intervention_mode") == "strict"
         )
     if expected_result == "event_contains_late_intervention_action":
@@ -1776,7 +2051,7 @@ def event_for_case(
         event
         for event in candidates
         if str(event.get("transport_result") or "")
-        in {"http_status", "log_only", "connection_aborted"}
+        in {"http_status", "log_only", "connection_aborted", "stream_reset"}
         and (
             expected_status is None
             or optional_int(event.get("visible_http_status")) == expected_status
@@ -1878,10 +2153,34 @@ _RAW_SEMANTIC_FIELD_ALIASES = {
     "upstream_paused": ("upstream_paused",),
     "upstream_eos_sent_at_first_byte": ("upstream_eos_sent_at_first_byte",),
     "transport_protocol": ("transport_protocol", "protocol"),
+    "requested_protocol": ("requested_protocol",),
+    "downstream_protocol": ("downstream_protocol",),
+    "upstream_protocol": ("upstream_protocol",),
+    "negotiated_protocol": ("negotiated_protocol",),
+    "transport": ("transport",),
+    "alpn": ("alpn",),
+    "stream_id": ("stream_id",),
+    "transport_case_id": ("transport_case_id", "protocol_case_id"),
+    "barrier_id": ("barrier_id",),
+    "connection_id": ("connection_id",),
     "transfer_encoding": ("transfer_encoding",),
     "connection_reused": ("connection_reused", "keep_alive_reused"),
+    "quic_connection_id_present": ("quic_connection_id_present",),
+    "quic_version": ("quic_version",),
+    "fallback_used": ("fallback_used",),
+    "stream_reset": ("stream_reset", "stream_reset_observed"),
+    "stream_reset_code": ("stream_reset_code",),
     "client_aborted": ("client_aborted",),
     "upstream_aborted": ("upstream_aborted",),
+    "client_disconnected": ("client_disconnected", "client_disconnect"),
+    "upstream_disconnected": ("upstream_disconnected", "upstream_disconnect"),
+    "cancelled": ("cancelled", "client_cancelled"),
+    "reset_by": ("reset_by",),
+    "reset_code": ("reset_code",),
+    "timeout_stage": ("timeout_stage",),
+    "write_result": ("write_result",),
+    "eos_seen": ("eos_seen", "eos_received"),
+    "cleanup_reason": ("cleanup_reason",),
 }
 
 
@@ -1918,9 +2217,125 @@ def normalize_transport_result(value: object) -> str | None:
     return transport if transport in TRANSPORT_RESULTS else None
 
 
+def normalize_transport_enum(
+    value: object, *, allowed: set[str], field: str,
+) -> str | None:
+    """Normalize a closed, metadata-only transport vocabulary."""
+    if _empty_runtime_value(value):
+        return None
+    normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+    if normalized not in allowed:
+        return None
+    return normalized
+
+
+def _empty_runtime_value(value: object) -> bool:
+    """Return whether an optional host value is intentionally absent."""
+    return value in (None, "", "null", "none", "not-run")
+
+
+def normalize_protocol(value: object) -> str | None:
+    """Normalize a host spelling into the closed protocol vocabulary.
+
+    The accepted aliases are input compatibility only.  Canonical artifacts
+    always serialize one of http1, h2, h2c, or h3; ambiguous labels such as
+    ``http3_fallback`` intentionally have no mapping.
+    """
+    if _empty_runtime_value(value):
+        return None
+    normalized = str(value).strip().lower().replace("_", "").replace(" ", "")
+    aliases = {
+        "http1": "http1",
+        "http/1": "http1",
+        "http/1.0": "http1",
+        "http/1.1": "http1",
+        "http10": "http1",
+        "http11": "http1",
+        "h1": "http1",
+        "h2": "h2",
+        "http2": "h2",
+        "http/2": "h2",
+        "http/2.0": "h2",
+        "h2c": "h2c",
+        "http2c": "h2c",
+        "http/2c": "h2c",
+        "h3": "h3",
+        "http3": "h3",
+        "http/3": "h3",
+        "http/3.0": "h3",
+    }
+    return aliases.get(normalized)
+
+
+def normalize_legacy_transport_protocol(value: object) -> str | None:
+    """Normalize only the legacy http1/http2 result field.
+
+    H2 is intentionally rendered as its historical ``http2`` value here;
+    h3 has no legacy representation and must use negotiated_protocol.
+    """
+    protocol = normalize_protocol(value)
+    return {"http1": "http1", "h2": "http2"}.get(protocol)
+
+
+def normalize_transport(value: object) -> str | None:
+    if _empty_runtime_value(value):
+        return None
+    normalized = str(value).strip().lower().replace("/", "_").replace("-", "_")
+    aliases = {
+        "tcp": "tcp",
+        "tls_tcp": "tls_tcp",
+        "tlstcp": "tls_tcp",
+        "quic_udp": "quic_udp",
+        "quicudp": "quic_udp",
+    }
+    return aliases.get(normalized)
+
+
+def normalize_bounded_token(
+    value: object, *, maximum: int, field: str, allow_slash: bool = False,
+) -> str | None:
+    if _empty_runtime_value(value):
+        return None
+    if not isinstance(value, str):
+        raise ContractError(f"invalid {field}: expected a string")
+    normalized = value.strip()
+    pattern = r"[A-Za-z0-9:._/-]+" if allow_slash else r"[A-Za-z0-9:._-]+"
+    if not normalized or len(normalized) > maximum or re.fullmatch(pattern, normalized) is None:
+        raise ContractError(f"invalid {field}: expected a bounded token")
+    return normalized
+
+
+def normalize_stream_id(value: object) -> int | None:
+    normalized = optional_int(value)
+    if normalized is None:
+        return None
+    if normalized < 0 or normalized > MAX_STREAM_ID:
+        raise ContractError(f"invalid stream_id: {value!r}")
+    return normalized
+
+
+def normalize_stream_reset_code(value: object) -> int | str | None:
+    if _empty_runtime_value(value):
+        return None
+    if isinstance(value, bool):
+        raise ContractError(f"invalid stream_reset_code: {value!r}")
+    if isinstance(value, int):
+        if value < 0 or value > MAX_STREAM_ID:
+            raise ContractError(f"invalid stream_reset_code: {value!r}")
+        return value
+    return normalize_bounded_token(value, maximum=64, field="stream_reset_code")
+
+
+def is_hashed_connection_id(value: object) -> bool:
+    """Allow only a bounded non-reversible identifier for QUIC evidence."""
+    return isinstance(value, str) and re.fullmatch(r"sha256:[0-9a-f]{16,64}", value) is not None
+
+
 def normalize_semantic_value(field: str, value: object) -> object:
     if field in {"http_status", "original_http_status", "visible_http_status", "first_chunk_size"}:
         return optional_int(value)
+    if field == "stream_id":
+        return normalize_stream_id(value)
     if field in {
         "late_intervention", "headers_sent", "response_started", "body_started", "body_truncated",
         "response_committed",
@@ -1928,7 +2343,9 @@ def normalize_semantic_value(field: str, value: object) -> object:
         "end_of_stream_evaluation", "no_full_response_buffering",
         "first_byte_before_response_end", "upstream_response_finished_at_first_byte",
         "client_first_byte_received", "upstream_paused", "upstream_eos_sent_at_first_byte",
-        "connection_reused", "client_aborted", "upstream_aborted",
+        "connection_reused", "quic_connection_id_present", "fallback_used", "stream_reset",
+        "client_aborted", "upstream_aborted",
+        "client_disconnected", "upstream_disconnected", "cancelled", "eos_seen",
     }:
         return optional_bool(value)
     if field == "requested_action":
@@ -1947,9 +2364,33 @@ def normalize_semantic_value(field: str, value: object) -> object:
         normalized = str(value or "").strip().lower().replace("-", "_")
         return normalized if normalized in BODY_LIMIT_OUTCOMES else None
     if field == "transport_protocol":
-        normalized = str(value or "").strip().lower().replace("/", "").replace(".", "")
-        aliases = {"http11": "http1", "http1": "http1", "http2": "http2"}
-        return aliases.get(normalized)
+        return normalize_legacy_transport_protocol(value)
+    if field in {"requested_protocol", "downstream_protocol", "upstream_protocol", "negotiated_protocol"}:
+        return normalize_protocol(value)
+    if field == "transport":
+        return normalize_transport(value)
+    if field == "alpn":
+        return normalize_bounded_token(value, maximum=64, field="alpn", allow_slash=True)
+    if field == "transport_case_id":
+        return normalize_bounded_token(value, maximum=128, field="transport_case_id")
+    if field == "barrier_id":
+        return normalize_bounded_token(value, maximum=128, field="barrier_id")
+    if field == "connection_id":
+        return normalize_bounded_token(value, maximum=128, field="connection_id")
+    if field == "quic_version":
+        return normalize_bounded_token(value, maximum=64, field="quic_version")
+    if field == "stream_reset_code":
+        return normalize_stream_reset_code(value)
+    if field == "reset_code":
+        return normalize_stream_reset_code(value)
+    if field == "reset_by":
+        return normalize_transport_enum(value, allowed=RESET_BY_VALUES, field=field)
+    if field == "timeout_stage":
+        return normalize_transport_enum(value, allowed=TIMEOUT_STAGES, field=field)
+    if field == "write_result":
+        return normalize_transport_enum(value, allowed=WRITE_RESULTS, field=field)
+    if field == "cleanup_reason":
+        return normalize_transport_enum(value, allowed=CLEANUP_REASONS, field=field)
     if field == "transfer_encoding":
         normalized = str(value or "").strip().lower().replace("-", "_")
         return normalized if normalized in TRANSFER_ENCODINGS else None
@@ -1989,6 +2430,16 @@ def semantic_runtime_fields(
                 event_normalized = normalize_semantic_value(field, event_value)
             except ContractError:
                 errors.append(f"{field}: invalid event runtime value")
+        # New protocol and transport fields must never quietly turn an
+        # unknown spelling into an absent value.  That would let an invalid
+        # reset/cancel/fallback claim evade the evidence gates below.  Older
+        # unrelated semantic fields retain their historical permissive
+        # behavior.
+        if field in TRANSPORT_CLAIM_FIELDS:
+            if raw_value is not _MISSING and not _empty_runtime_value(raw_value) and raw_normalized is None:
+                errors.append(f"{field}: invalid raw runtime value")
+            if event_value is not _MISSING and not _empty_runtime_value(event_value) and event_normalized is None:
+                errors.append(f"{field}: invalid event runtime value")
         if (
             raw_normalized is not _MISSING
             and event_normalized is not _MISSING
@@ -2001,6 +2452,14 @@ def semantic_runtime_fields(
             values[field] = event_normalized
         else:
             values[field] = None
+    effective_downstream = values.get("negotiated_protocol") or values.get("downstream_protocol")
+    if effective_downstream == "h3" or values.get("transport") == "quic_udp":
+        connection_id = values.get("connection_id")
+        if connection_id is not None and not is_hashed_connection_id(connection_id):
+            # Do not let a failed/non-promoting source record persist a raw
+            # QUIC CID in canonical case JSONL either.
+            values["connection_id"] = None
+            errors.append("connection_id: raw QUIC connection identifiers are forbidden")
     return values, errors
 
 
@@ -2011,6 +2470,260 @@ def is_phase4_semantic_case(case: Mapping[str, Any]) -> bool:
     )
 
 
+def protocol_claimed(record: Mapping[str, Any]) -> bool:
+    """Return whether a record asserts any new protocol provenance.
+
+    The legacy ``transport_protocol`` field deliberately does not count: it
+    is kept for old H1/H2 artifacts and cannot promote a modern protocol
+    result on its own.
+    """
+    for field in PROTOCOL_CLAIM_FIELDS:
+        value = record.get(field)
+        # Common's flat serializer may emit false for an unset optional
+        # boolean.  A false fallback/reset/QUIC-presence bit by itself is not
+        # a protocol observation and must remain non-promoting.
+        if isinstance(value, bool):
+            if value:
+                return True
+            continue
+        if value not in (None, ""):
+            return True
+    return False
+
+
+def case_protocol_profile(case: Mapping[str, Any]) -> str | None:
+    """Return the catalog's optional downstream protocol execution profile."""
+    request = case.get("request")
+    if not isinstance(request, Mapping) or "protocol_profile" not in request:
+        return None
+    profile = normalize_protocol(request.get("protocol_profile"))
+    if profile not in CANONICAL_PROTOCOLS:
+        raise ContractError(f"invalid case protocol_profile: {request.get('protocol_profile')!r}")
+    return profile
+
+
+def normalized_event_semantic_value(
+    event: Mapping[str, Any], field: str,
+) -> object:
+    if field not in event:
+        return _MISSING
+    return normalize_semantic_value(field, event[field])
+
+
+def protocol_pass_errors(
+    record: Mapping[str, Any],
+    matching_event: Mapping[str, Any] | None,
+    *,
+    expected_run_id: str | None = None,
+    expected_integration_mode: str | None = None,
+    required_protocol: str | None = None,
+) -> list[str]:
+    """Validate non-promoting H2/H3 protocol provenance for one PASS.
+
+    This is intentionally evidence-driven.  A capability declaration, a raw
+    result field, or the historical ``transport_protocol`` field cannot
+    establish negotiated H2/H3 traffic.  A protocol claim needs a matching
+    canonical host event and the event must carry the negotiated path.
+    """
+    if required_protocol is not None and required_protocol not in CANONICAL_PROTOCOLS:
+        return [f"unsupported required protocol profile: {required_protocol!r}"]
+    if not protocol_claimed(record) and required_protocol is None:
+        return []
+    errors: list[str] = []
+    if matching_event is None:
+        return ["protocol provenance requires a matching canonical event"]
+
+    def event_value(field: str) -> object:
+        try:
+            return normalized_event_semantic_value(matching_event, field)
+        except ContractError:
+            errors.append(f"canonical event has invalid {field}")
+            return _MISSING
+
+    def require_event(field: str, expected: object = _MISSING) -> object:
+        value = event_value(field)
+        if value is _MISSING or value is None:
+            errors.append(f"canonical event is missing protocol provenance {field}")
+            return None
+        if record.get(field) != value:
+            errors.append(f"case result {field} does not match canonical event")
+        if expected is not _MISSING and value != expected:
+            errors.append(f"canonical event {field}={value!r}, expected {expected!r}")
+        return value
+
+    # Bind the event to the same causal operation, not merely to a host that
+    # happened to negotiate the desired protocol elsewhere in the run.
+    if matching_event.get("connector") != record.get("connector"):
+        errors.append("protocol event connector does not match case result")
+    record_phase = normalize_canonical_phase(record.get("phase"))
+    event_phase = normalize_canonical_phase(matching_event.get("phase"))
+    if record_phase is None or event_phase != record_phase:
+        errors.append("protocol event phase does not match case result")
+    transaction_ids = {
+        str(value) for value in record.get("transaction_ids", []) if str(value).strip()
+    }
+    if not transaction_ids:
+        errors.append("protocol PASS requires a transaction_id")
+    elif not transaction_ids.intersection(event_transaction_ids(matching_event)):
+        errors.append("protocol event transaction_id does not match case result")
+    expected_rule_id = optional_int(record.get("expected_rule_id"))
+    observed_rule_ids = {
+        int(value) for value in record.get("observed_rule_ids", [])
+        if not isinstance(value, bool) and str(value).strip().lstrip("-").isdigit()
+    }
+    event_rule_values = set(event_rule_ids(matching_event))
+    if expected_rule_id is not None and expected_rule_id not in event_rule_values:
+        errors.append("protocol event does not report the expected rule")
+    elif expected_rule_id is None and observed_rule_ids and not observed_rule_ids.intersection(event_rule_values):
+        errors.append("protocol event rule_id does not match case result")
+
+    for field, allowed in (
+        ("requested_action", REQUESTED_ACTIONS),
+        ("actual_action", ACTUAL_ACTIONS),
+    ):
+        try:
+            event_action = normalize_action(matching_event.get(field), allowed)
+        except ContractError:
+            event_action = None
+        if record.get(field) != event_action:
+            errors.append(f"protocol event {field} does not match case result")
+
+    run_id = expected_run_id if expected_run_id is not None else record.get("run_id")
+    if run_id is not None:
+        if not isinstance(run_id, str) or not run_id.strip():
+            errors.append("protocol PASS requires a non-empty run_id")
+        elif matching_event.get("run_id") != run_id:
+            errors.append("protocol event run_id does not match case result")
+    integration_mode = (
+        expected_integration_mode
+        if expected_integration_mode is not None
+        else record.get("integration_mode")
+    )
+    if integration_mode is not None:
+        if not isinstance(integration_mode, str) or not integration_mode.strip():
+            errors.append("protocol PASS requires a non-empty integration_mode")
+        elif matching_event.get("integration_mode") != integration_mode:
+            errors.append("protocol event integration_mode does not match case result")
+
+    requested = record.get("requested_protocol")
+    downstream = record.get("downstream_protocol")
+    negotiated = record.get("negotiated_protocol")
+    transport = record.get("transport")
+    fallback_used = record.get("fallback_used")
+    downstream_protocol = negotiated or downstream
+
+    if required_protocol is not None:
+        if requested != required_protocol:
+            errors.append("case protocol_profile does not match requested_protocol")
+        if downstream != required_protocol:
+            errors.append("case protocol_profile does not match downstream_protocol")
+        if negotiated != required_protocol:
+            errors.append("case protocol_profile does not match negotiated_protocol")
+        downstream_protocol = required_protocol
+
+    if requested is not None:
+        require_event("requested_protocol")
+    if downstream is not None:
+        require_event("downstream_protocol")
+    if record.get("upstream_protocol") is not None:
+        require_event("upstream_protocol")
+    if negotiated is not None:
+        require_event("negotiated_protocol")
+    if transport is not None:
+        require_event("transport")
+    if record.get("alpn") is not None:
+        require_event("alpn")
+    if record.get("stream_id") is not None:
+        require_event("stream_id")
+    if record.get("transport_case_id") is not None:
+        require_event("transport_case_id")
+    if record.get("connection_id") is not None:
+        require_event("connection_id")
+    if record.get("quic_connection_id_present") is not None:
+        require_event("quic_connection_id_present")
+    if record.get("quic_version") is not None:
+        require_event("quic_version")
+    if fallback_used is not None:
+        require_event("fallback_used")
+    if record.get("stream_reset") is not None:
+        require_event("stream_reset")
+    if record.get("stream_reset_code") is not None:
+        require_event("stream_reset_code")
+
+    if requested in {"h2", "h2c", "h3"}:
+        if negotiated is None:
+            errors.append("protocol PASS requires negotiated_protocol")
+        elif requested != negotiated:
+            errors.append("requested_protocol does not match negotiated_protocol")
+        if fallback_used is not False:
+            errors.append("protocol PASS requires fallback_used=false")
+    if downstream is not None and negotiated is not None and downstream != negotiated:
+        errors.append("downstream_protocol does not match negotiated_protocol")
+
+    if downstream_protocol in {"h2", "h2c", "h3"}:
+        for field in (
+            "requested_protocol", "downstream_protocol", "negotiated_protocol",
+            "transport", "fallback_used", "stream_id", "transport_case_id",
+        ):
+            require_event(field)
+        if requested != downstream_protocol:
+            errors.append("protocol PASS requested_protocol does not match downstream protocol")
+        if downstream != downstream_protocol:
+            errors.append("protocol PASS downstream_protocol does not match negotiated_protocol")
+        if fallback_used is not False:
+            errors.append("protocol PASS requires fallback_used=false")
+        if not isinstance(record.get("stream_id"), int) or isinstance(record.get("stream_id"), bool):
+            errors.append("H2/H3 protocol PASS requires a stream_id")
+        if not isinstance(record.get("transport_case_id"), str) or not record.get("transport_case_id"):
+            errors.append("H2/H3 protocol PASS requires a transport_case_id")
+
+    expected_transport = {
+        "h2": "tls_tcp",
+        "h2c": "tcp",
+        "h3": "quic_udp",
+    }.get(downstream_protocol)
+    if expected_transport is not None and transport != expected_transport:
+        errors.append(
+            f"{downstream_protocol} protocol PASS requires transport={expected_transport}"
+        )
+    if downstream_protocol == "h2":
+        if str(record.get("alpn") or "").lower() != "h2":
+            errors.append("h2 protocol PASS requires alpn=h2")
+    if downstream_protocol == "h2c" and record.get("alpn") not in (None, ""):
+        errors.append("h2c protocol PASS must not claim TLS ALPN")
+    if downstream_protocol == "h3":
+        if str(record.get("alpn") or "").lower() != "h3":
+            errors.append("h3 protocol PASS requires alpn=h3")
+        if record.get("quic_connection_id_present") is not True:
+            errors.append("h3 protocol PASS requires quic_connection_id_present=true")
+        if not isinstance(record.get("quic_version"), str) or not record.get("quic_version"):
+            errors.append("h3 protocol PASS requires quic_version")
+        connection_id = record.get("connection_id")
+        if connection_id is not None and not is_hashed_connection_id(connection_id):
+            errors.append("h3 protocol evidence may not persist a raw connection_id")
+
+    stream_reset = record.get("stream_reset")
+    if stream_reset is True and downstream_protocol not in {"h2", "h2c", "h3"}:
+        errors.append("stream_reset is valid only for an H2/H3 downstream protocol")
+    if (
+        str(record.get("expected_result") or "") == "connection_aborted_strict"
+        and downstream_protocol in {"h2", "h2c", "h3"}
+    ):
+        if record.get("requested_action") != "deny":
+            errors.append("H2/H3 strict PASS requires requested_action=deny")
+        if record.get("actual_action") != "stream_reset":
+            errors.append("H2/H3 strict PASS requires actual_action=stream_reset")
+        if stream_reset is not True:
+            errors.append("H2/H3 strict PASS requires a client-observed stream_reset")
+        if record.get("stream_reset_code") is None:
+            errors.append("H2/H3 strict PASS requires stream_reset_code")
+        if record.get("transport_result") != "stream_reset":
+            errors.append("H2/H3 strict PASS requires transport_result=stream_reset")
+        if record.get("connection_aborted") is True:
+            errors.append("H2/H3 strict stream reset must not claim connection_aborted")
+    return errors
+
+
 def phase_is_four(value: object) -> bool:
     return normalize_canonical_phase(value) == 4
 
@@ -2018,6 +2731,7 @@ def phase_is_four(value: object) -> bool:
 def phase4_pass_errors(
     record: Mapping[str, Any], matching_event: Mapping[str, Any] | None,
     runtime_evidence_errors: Sequence[str] = (),
+    required_protocol: str | None = None,
 ) -> list[str]:
     """Return semantic evidence failures for a canonical Phase-4 PASS.
 
@@ -2038,6 +2752,9 @@ def phase4_pass_errors(
     if matching_event is None:
         errors.append("canonical phase-4 event is missing")
         return errors
+    errors.extend(protocol_pass_errors(
+        record, matching_event, required_protocol=required_protocol,
+    ))
     errors.extend(canonical_event_errors(
         matching_event,
         connector=str(record.get("connector") or "") or None,
@@ -2124,10 +2841,17 @@ def phase4_pass_errors(
     if expected_result == "connection_aborted":
         require_status_triplet()
         require_event_value("requested_action", "deny")
-        require_event_value("actual_action", "abort_connection")
+        require_event_value(
+            "actual_action",
+            "stream_reset" if record.get("negotiated_protocol") in {"h2", "h2c", "h3"}
+            else "abort_connection",
+        )
         require_event_value("late_intervention", True)
         require_event_value("headers_sent", True)
-        require_event_value("connection_aborted", True)
+        if record.get("negotiated_protocol") in {"h2", "h2c", "h3"}:
+            require_event_value("stream_reset", True)
+        else:
+            require_event_value("connection_aborted", True)
         if record.get("visible_http_status") != record.get("original_http_status"):
             errors.append("post-commit abort must preserve the already visible HTTP status")
         validate_abort_client_status()
@@ -2152,11 +2876,21 @@ def phase4_pass_errors(
     if expected_result == "connection_aborted_strict":
         require_status_triplet()
         require_event_value("requested_action", "deny")
-        require_event_value("actual_action", "abort_connection")
+        require_event_value(
+            "actual_action",
+            "stream_reset" if record.get("negotiated_protocol") in {"h2", "h2c", "h3"}
+            else "abort_connection",
+        )
         require_event_value("late_intervention", True)
         require_event_value("late_intervention_mode", "strict")
         require_event_value("headers_sent", True)
-        require_event_value("connection_aborted", True)
+        if record.get("negotiated_protocol") in {"h2", "h2c", "h3"}:
+            require_event_value("stream_reset", True)
+            require_event_value("stream_reset_code")
+            require_event_value("connection_aborted", False)
+            require_event_value("transport_result", "stream_reset")
+        else:
+            require_event_value("connection_aborted", True)
         if record.get("visible_http_status") != record.get("original_http_status"):
             errors.append("strict post-commit abort must preserve the already visible HTTP status")
         validate_abort_client_status()
@@ -2273,14 +3007,16 @@ def phase4_pass_errors(
         require_event_value("late_intervention")
         actual_action = record.get("actual_action")
         late_intervention = record.get("late_intervention")
-        if actual_action not in {"deny", "log_only", "abort_connection"}:
-            errors.append("phase-4 deny must resolve to deny, log_only, or abort_connection")
+        if actual_action not in {"deny", "log_only", "abort_connection", "stream_reset"}:
+            errors.append("phase-4 deny must resolve to deny, log_only, abort_connection, or stream_reset")
         if actual_action == "deny" and late_intervention is not False:
             errors.append("deny action must not be marked as a late intervention")
-        if actual_action in {"log_only", "abort_connection"} and late_intervention is not True:
+        if actual_action in {"log_only", "abort_connection", "stream_reset"} and late_intervention is not True:
             errors.append("post-commit action must be marked as a late intervention")
         if actual_action == "abort_connection" and matching_event.get("connection_aborted") is False:
             errors.append("abort action conflicts with connection_aborted=false")
+        if actual_action == "stream_reset" and matching_event.get("stream_reset") is False:
+            errors.append("stream-reset action conflicts with stream_reset=false")
         if actual_action in {"deny", "log_only"} and matching_event.get("connection_aborted") is True:
             errors.append("non-abort action conflicts with connection_aborted=true")
     return errors
@@ -2420,6 +3156,17 @@ def full_lifecycle_pass_errors(
     return errors
 
 
+def optional_case_provenance(value: object, *, maximum: int, field: str) -> str | None:
+    if _empty_runtime_value(value):
+        return None
+    if not isinstance(value, str):
+        raise ContractError(f"invalid {field}: expected a string")
+    normalized = value.strip()
+    if not normalized or len(normalized) > maximum:
+        raise ContractError(f"invalid {field}: expected a bounded non-empty string")
+    return normalized
+
+
 def normalize_case_record(
     raw: Mapping[str, Any],
     connector: str,
@@ -2433,6 +3180,19 @@ def normalize_case_record(
     case = case_by_id[case_id]
     status = normalize_status(raw.get("status"))
     live_executed = raw.get("live_executed") is True
+    provenance_errors: list[str] = []
+    try:
+        raw_run_id = optional_case_provenance(raw.get("run_id"), maximum=256, field="run_id")
+    except ContractError:
+        raw_run_id = None
+        provenance_errors.append("run_id: invalid raw runtime value")
+    try:
+        raw_integration_mode = optional_case_provenance(
+            raw.get("integration_mode"), maximum=64, field="integration_mode",
+        )
+    except ContractError:
+        raw_integration_mode = None
+        provenance_errors.append("integration_mode: invalid raw runtime value")
     observed_result = raw.get("observed_result") or raw.get("outcome")
     if str(observed_result or "") == "rejected_by_host_before_connector":
         status = "NOT_APPLICABLE"
@@ -2495,6 +3255,8 @@ def normalize_case_record(
     record = {
         "schema_version": 1,
         "connector": connector,
+        "run_id": raw_run_id,
+        "integration_mode": raw_integration_mode,
         "case_id": case_id,
         "group": case.get("group", ""),
         "phase": case.get("phase"),
@@ -2522,10 +3284,15 @@ def normalize_case_record(
         "artifacts": raw.get("artifacts") if isinstance(raw.get("artifacts"), Mapping) else {},
     }
     if status == "PASS":
-        validation_errors: list[str] = []
+        validation_errors: list[str] = list(provenance_errors)
+        try:
+            required_protocol = case_protocol_profile(case)
+        except ContractError as exc:
+            required_protocol = None
+            validation_errors.append(str(exc))
         if is_phase4_semantic_case(case):
             validation_errors.extend(phase4_pass_errors(
-                record, matching_event, runtime_evidence_errors,
+                record, matching_event, runtime_evidence_errors, required_protocol,
             ))
         else:
             if expected_status is not None and actual_status != expected_status:
@@ -2536,6 +3303,9 @@ def normalize_case_record(
                 validation_errors.append("canonical event is missing expected fields")
             if matching_event and event_errors:
                 validation_errors.extend(event_errors)
+            validation_errors.extend(protocol_pass_errors(
+                record, matching_event, required_protocol=required_protocol,
+            ))
         validation_errors.extend(full_lifecycle_pass_errors(record, matching_event))
         if validation_errors:
             record["status"] = "FAIL"
@@ -2733,6 +3503,8 @@ def selection_record(
     return {
         "schema_version": 1,
         "connector": connector,
+        "run_id": None,
+        "integration_mode": None,
         "case_id": selection["case_id"],
         "group": case.get("group", ""),
         "phase": case.get("phase"),
@@ -2923,19 +3695,122 @@ def copy_first_byte_evidence(
     return payload
 
 
+def _supplemental_sidecar_errors(
+    name: str,
+    payload: object,
+    *,
+    connector: str,
+    run_id: str | None,
+    integration_mode: str | None,
+) -> list[str]:
+    """Validate one payload-free supplemental full-lifecycle sidecar."""
+    schema_names = {
+        "transport_observations": "transport-observations.schema.json",
+        "connection_lifecycle": "connection-lifecycle.schema.json",
+        "effective_config": "effective-config.schema.json",
+    }
+    schema_name = schema_names.get(name)
+    if schema_name is None:
+        return []
+    schema = load_json(FRAMEWORK_ROOT / "tests/schemas/no-crs-baseline" / schema_name)
+    if not isinstance(schema, Mapping):
+        return [f"{name}: checked-in schema is invalid"]
+    errors = json_schema_errors(payload, schema, root_schema=schema, location=name)
+    errors.extend(forbidden_payload_errors(payload, name))
+    if not isinstance(payload, Mapping):
+        return errors
+    if payload.get("connector") != connector:
+        errors.append(f"{name}: connector does not match canonical run")
+    if run_id is not None and payload.get("run_id") != run_id:
+        errors.append(f"{name}: run_id does not match canonical run")
+    if integration_mode is not None and payload.get("integration_mode") != integration_mode:
+        errors.append(f"{name}: integration_mode does not match canonical run")
+    if name == "effective_config":
+        files = payload.get("files")
+        if isinstance(files, list):
+            seen: set[str] = set()
+            for index, entry in enumerate(files):
+                if not isinstance(entry, Mapping):
+                    continue
+                raw_path = str(entry.get("path") or "")
+                path = Path(raw_path)
+                if path.is_absolute() or ".." in path.parts or raw_path in {"", "."}:
+                    errors.append(f"effective_config.files[{index}].path is unsafe")
+                    continue
+                if raw_path in seen:
+                    errors.append(f"effective_config.files has duplicate path {raw_path!r}")
+                seen.add(raw_path)
+    if name in {"transport_observations", "connection_lifecycle"}:
+        records_key = "observations" if name == "transport_observations" else "records"
+        records = payload.get(records_key)
+        if isinstance(records, list):
+            for index, record in enumerate(records):
+                if not isinstance(record, Mapping):
+                    continue
+                if record.get("protocol") == "h3":
+                    connection_id = record.get("connection_id")
+                    if connection_id is not None and not is_hashed_connection_id(connection_id):
+                        errors.append(
+                            f"{name}.{records_key}[{index}].connection_id: "
+                            "raw H3 connection identifiers are forbidden"
+                        )
+    return errors
+
+
+def _copy_barrier_events_artifact(
+    run_dir: Path,
+    source_text: str,
+    connector: str,
+    manifest: dict[str, Any],
+    *,
+    run_id: str | None,
+    integration_mode: str | None,
+) -> None:
+    """Normalize a bounded barrier-event JSONL sidecar before retaining it."""
+    source = Path(source_text)
+    raw_records = read_jsonl(source)
+    records: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for index, raw in enumerate(raw_records):
+        location = f"barrier_events[{index}]"
+        try:
+            event = canonicalize_event_phase(raw, location=location)
+            event = canonicalize_event_protocol_provenance(event, location=location)
+        except ContractError as exc:
+            errors.append(str(exc))
+            continue
+        errors.extend(canonical_event_errors(event, location, connector, integration_mode))
+        if run_id is not None and event.get("run_id") != run_id:
+            errors.append(f"{location}.run_id does not match canonical run")
+        if integration_mode is not None and event.get("integration_mode") != integration_mode:
+            errors.append(f"{location}.integration_mode does not match canonical run")
+        records.append(event)
+    if errors:
+        raise ContractError("; ".join(errors))
+    destination = run_dir / TRANSPORT_HARDENING_ARTIFACT_PATHS["barrier_events"]
+    write_jsonl(destination, records)
+    manifest["artifacts"]["barrier_events"] = artifact_entry(
+        str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
+    )
+
+
 def copy_engine_lifecycle_artifacts(
     run_dir: Path,
     source_artifacts: Sequence[str],
     connector: str,
     artifact_profile: str,
     manifest: dict[str, Any],
+    *,
+    run_id: str | None = None,
+    integration_mode: str | None = None,
 ) -> None:
-    """Copy bounded engine provenance/accounting sidecars into a host run.
+    """Copy allowlisted engine and transport-hardening artifacts into a run.
 
     These files are inventory only.  They cannot affect case selection or
     capability promotion, which continues to require transaction-bound event
-    evidence.  Keeping this allowlist in the Framework prevents arbitrary raw
-    connector files from entering canonical evidence.
+    evidence plus the dedicated transport-hardening validator.  Keeping this
+    allowlist in the Framework prevents arbitrary raw connector files from
+    entering canonical evidence.
     """
     if not source_artifacts:
         return
@@ -2946,12 +3821,36 @@ def copy_engine_lifecycle_artifacts(
         if "=" not in item:
             raise ContractError("--source-artifact must be NAME=PATH")
         name, source_text = item.split("=", 1)
-        if name not in ENGINE_LIFECYCLE_ARTIFACT_PATHS:
+        if name not in {
+            *ENGINE_LIFECYCLE_ARTIFACT_PATHS,
+            *TRANSPORT_HARDENING_ARTIFACT_PATHS,
+        }:
             raise ContractError(f"unsupported engine lifecycle artifact: {name!r}")
         if name in seen:
             raise ContractError(f"duplicate engine lifecycle artifact: {name}")
         seen.add(name)
         source = Path(source_text)
+        if name == "barrier_events":
+            _copy_barrier_events_artifact(
+                run_dir,
+                source_text,
+                connector,
+                manifest,
+                run_id=run_id,
+                integration_mode=integration_mode,
+            )
+            continue
+        if name == "effective_config" and source.is_dir():
+            if source.is_symlink():
+                raise ContractError("effective_config source directory must not be a symlink")
+            source = source / "manifest.json"
+        if name in {"client_log", "upstream_log", "transport_log", "cleanup_log"}:
+            destination = run_dir / TRANSPORT_HARDENING_ARTIFACT_PATHS[name]
+            copy_artifact(source, destination)
+            manifest["artifacts"][name] = artifact_entry(
+                str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
+            )
+            continue
         if name in {"engine_version", "engine_library_sha256", "ruleset_sha256"}:
             try:
                 text = source.read_text(encoding="utf-8").strip()
@@ -2965,6 +3864,26 @@ def copy_engine_lifecycle_artifacts(
             payload = load_json(source)
             if not isinstance(payload, Mapping):
                 raise ContractError(f"engine lifecycle artifact {name} must be an object")
+            supplemental_errors = _supplemental_sidecar_errors(
+                name,
+                payload,
+                connector=connector,
+                run_id=run_id,
+                integration_mode=integration_mode,
+            )
+            if supplemental_errors:
+                raise ContractError("; ".join(supplemental_errors))
+            if name in {"transport_observations", "connection_lifecycle", "effective_config"}:
+                destination = run_dir / TRANSPORT_HARDENING_ARTIFACT_PATHS[name]
+                # JSON is reserialized after strict parsing, so duplicate
+                # keys and non-canonical formatting cannot survive into
+                # canonical inventory.
+                write_json(destination, payload)
+                manifest["artifacts"][name] = artifact_entry(
+                    str(destination.relative_to(run_dir)), "produced",
+                    sha256=sha256_file(destination),
+                )
+                continue
             if payload.get("schema_version") != 1 or payload.get("connector") != connector:
                 raise ContractError(f"engine lifecycle artifact {name} has invalid identity")
             if name == "transaction_counts":
@@ -2972,7 +3891,11 @@ def copy_engine_lifecycle_artifacts(
                 identifiers = payload.get("transaction_ids")
                 if not isinstance(observed, int) or observed < 0 or not isinstance(identifiers, list):
                     raise ContractError(f"engine lifecycle artifact {name} has invalid transaction accounting")
-                if observed != len(identifiers) or not all(isinstance(value, str) and value for value in identifiers):
+                if (
+                    observed != len(identifiers)
+                    or not all(isinstance(value, str) and value for value in identifiers)
+                    or len(set(identifiers)) != len(identifiers)
+                ):
                     raise ContractError(f"engine lifecycle artifact {name} has inconsistent transaction accounting")
             else:
                 counter_names = (
@@ -2982,16 +3905,161 @@ def copy_engine_lifecycle_artifacts(
                 )
                 if any(not isinstance(payload.get(field), int) or payload[field] < 0 for field in counter_names):
                     raise ContractError(f"engine lifecycle artifact {name} has invalid counters")
+                optional_counter_names = (
+                    "client_disconnects", "upstream_disconnects", "stream_resets", "timeouts",
+                    "short_writes", "write_would_block", "cleanup_normal", "cleanup_cancel",
+                    "cleanup_abort",
+                )
+                if any(
+                    field in payload
+                    and (not isinstance(payload[field], int) or payload[field] < 0)
+                    for field in optional_counter_names
+                ):
+                    raise ContractError(f"engine lifecycle artifact {name} has invalid transport counters")
+                if (
+                    "transport_counters_bound" in payload
+                    and not isinstance(payload["transport_counters_bound"], bool)
+                ):
+                    raise ContractError(
+                        f"engine lifecycle artifact {name} has invalid transport_counters_bound"
+                    )
                 if not (
                     payload["transactions_started"] >= payload["transactions_finished"]
                     >= payload["transactions_destroyed"]
                 ):
                     raise ContractError(f"engine lifecycle artifact {name} has inconsistent transaction lifecycle")
-        destination = run_dir / ENGINE_LIFECYCLE_ARTIFACT_PATHS[name]
+        destination_path = (
+            TRANSPORT_HARDENING_ARTIFACT_PATHS.get(name)
+            or ENGINE_LIFECYCLE_ARTIFACT_PATHS[name]
+        )
+        destination = run_dir / destination_path
         copy_artifact(source, destination)
         manifest["artifacts"][name] = artifact_entry(
             str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
         )
+
+
+def copy_protocol_client_artifacts(
+    run_dir: Path,
+    source_text: str,
+    artifact_profile: str,
+    manifest: dict[str, Any],
+) -> Path:
+    """Copy the managed payload-free client bundle into a canonical run.
+
+    A protocol case may not cite an arbitrary external artifact directory.  A
+    full-lifecycle finalizer copies the narrow allowlist into its own
+    inventory, declares checksums in the manifest, and later binds that bundle
+    to the canonical case/event identity.  The optional follow-up observation
+    is retained only when the strict client produced it.
+    """
+
+    if artifact_profile != FULL_LIFECYCLE_ARTIFACT_PROFILE:
+        raise ContractError("protocol client artifacts require the full_lifecycle profile")
+    source = Path(source_text)
+    if source.is_symlink() or not source.is_dir():
+        raise ContractError("protocol client artifact directory is missing or unsafe")
+    destination_root = run_dir / PROTOCOL_CLIENT_ARTIFACT_DIR
+    for name in PROTOCOL_CLIENT_REQUIRED_ARTIFACT_NAMES:
+        source_name = Path(PROTOCOL_CLIENT_ARTIFACT_PATHS[name]).name
+        input_path = source / source_name
+        if input_path.is_symlink() or not input_path.is_file():
+            raise ContractError(f"protocol client artifact is missing or unsafe: {source_name}")
+        destination = run_dir / PROTOCOL_CLIENT_ARTIFACT_PATHS[name]
+        copy_artifact(input_path, destination)
+        manifest["artifacts"][name] = artifact_entry(
+            str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
+        )
+    followup_source = source / Path(PROTOCOL_CLIENT_ARTIFACT_PATHS["client_followup_observation"]).name
+    if followup_source.exists():
+        if followup_source.is_symlink() or not followup_source.is_file():
+            raise ContractError("protocol client follow-up artifact is unsafe")
+        followup_destination = run_dir / PROTOCOL_CLIENT_ARTIFACT_PATHS["client_followup_observation"]
+        copy_artifact(followup_source, followup_destination)
+        manifest["artifacts"]["client_followup_observation"] = artifact_entry(
+            str(followup_destination.relative_to(run_dir)), "produced",
+            sha256=sha256_file(followup_destination),
+        )
+    return destination_root
+
+
+def protocol_client_artifact_errors(
+    artifact_dir: Path,
+    record: Mapping[str, Any],
+    protocol: str,
+) -> list[str]:
+    """Delegate the client half of a protocol PASS to its narrow validator."""
+
+    try:
+        from check_protocol_evidence import validate_protocol_artifacts
+    except ImportError as exc:  # pragma: no cover - source checkout defect
+        return [f"protocol client evidence checker is unavailable: {exc}"]
+    strict = str(record.get("expected_result") or "") == "connection_aborted_strict"
+    visible_status = record.get("visible_http_status")
+    expected_client_status = (
+        visible_status
+        if isinstance(visible_status, int) and not isinstance(visible_status, bool)
+        else None
+    )
+    stream_id = record.get("stream_id")
+    expected_stream_id = (
+        stream_id if isinstance(stream_id, int) and not isinstance(stream_id, bool) else None
+    )
+    upstream_protocol = record.get("upstream_protocol")
+    expected_upstream_protocol = (
+        str(upstream_protocol) if isinstance(upstream_protocol, str) and upstream_protocol else None
+    )
+    transport_case_id = record.get("transport_case_id")
+    expected_transport_case_id = (
+        str(transport_case_id)
+        if isinstance(transport_case_id, str) and transport_case_id else None
+    )
+    return validate_protocol_artifacts(
+        artifact_dir,
+        protocol=protocol,
+        strict=strict,
+        connector=str(record.get("connector") or "") or None,
+        integration_mode=str(record.get("integration_mode") or "") or None,
+        run_id=str(record.get("run_id") or "") or None,
+        transaction_id=(
+            str(record.get("transaction_ids", [""])[0])
+            if isinstance(record.get("transaction_ids"), list)
+            and record.get("transaction_ids") else None
+        ),
+        rule_id=(
+            str(record.get("expected_rule_id"))
+            if record.get("expected_rule_id") is not None else None
+        ),
+        phase=str(record.get("phase") or "") or None,
+        expected_client_status=expected_client_status,
+        expected_stream_id=expected_stream_id,
+        expected_upstream_protocol=expected_upstream_protocol,
+        expected_transport_case_id=expected_transport_case_id,
+    )
+
+
+def record_protocol_profile(
+    record: Mapping[str, Any], case: Mapping[str, Any] | None,
+) -> str | None:
+    """Return the modern downstream profile asserted by one case record.
+
+    A catalog profile is authoritative, but validation must also catch a
+    legacy/generic case that tries to assert modern provenance directly in
+    its result.  The historical ``transport_protocol`` field is deliberately
+    excluded because it cannot promote H2/H3 evidence by itself.
+    """
+
+    if case is not None:
+        profile = case_protocol_profile(case)
+        if profile in {"h2", "h2c", "h3"}:
+            return profile
+    for field in (
+        "negotiated_protocol", "downstream_protocol", "requested_protocol",
+    ):
+        value = record.get(field)
+        if value in {"h2", "h2c", "h3"}:
+            return str(value)
+    return None
 
 
 def prevent_synthetic_first_byte_promotion(
@@ -3130,6 +4198,8 @@ def phase4_case_result_projection(record: Mapping[str, Any]) -> dict[str, Any]:
         "case_id",
         "status",
         "live_executed",
+        "run_id",
+        "integration_mode",
         "expected_result",
         "expected_rule_id",
         "observed_rule_ids",
@@ -3137,6 +4207,63 @@ def phase4_case_result_projection(record: Mapping[str, Any]) -> dict[str, Any]:
         *PHASE4_SEMANTIC_FIELDS,
     )
     return {field: record.get(field) for field in fields}
+
+
+def bind_case_protocol_provenance(
+    records: Sequence[dict[str, Any]],
+    manifest: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    event_integration_mode: str | None,
+) -> None:
+    """Bind case records to their canonical run and recheck protocol PASSes.
+
+    Case results are stored inside one run directory, but protocol promotion
+    additionally requires an explicit event-level run/integration identity.
+    This final binding prevents a source result from borrowing an H2/H3 event
+    from another run or host mode.
+    """
+    run_id = str(manifest.get("run_id") or "")
+    integration_mode = str(manifest.get("integration_mode") or "")
+    for record in records:
+        supplied_run_id = record.get("run_id")
+        supplied_mode = record.get("integration_mode")
+        context_errors: list[str] = []
+        if supplied_run_id is not None and supplied_run_id != run_id:
+            context_errors.append("source case run_id does not match canonical run")
+        if supplied_mode is not None and supplied_mode != integration_mode:
+            context_errors.append("source case integration_mode does not match canonical run")
+        record["run_id"] = run_id
+        record["integration_mode"] = integration_mode
+        if record.get("status") != "PASS":
+            continue
+        case = case_by_id.get(str(record.get("case_id") or ""))
+        matching_event = (
+            event_for_case(
+                events,
+                optional_int(record.get("expected_rule_id")),
+                case,
+                [str(value) for value in record.get("transaction_ids", [])],
+                event_integration_mode,
+            )
+            if case is not None
+            else None
+        )
+        context_errors.extend(protocol_pass_errors(
+            record,
+            matching_event,
+            expected_run_id=run_id,
+            expected_integration_mode=integration_mode,
+            required_protocol=case_protocol_profile(case) if case is not None else None,
+        ))
+        if context_errors:
+            record["status"] = "FAIL"
+            record["operation_status"] = operation_status("fail")
+            detail = "; ".join(dict.fromkeys(context_errors))
+            record["reason"] = "; ".join(
+                part for part in (str(record.get("reason") or ""), f"protocol provenance invalid: {detail}")
+                if part
+            )
 
 
 def finalize_run(args: argparse.Namespace) -> int:
@@ -3189,14 +4316,17 @@ def finalize_run(args: argparse.Namespace) -> int:
     events: list[dict[str, Any]] = []
     if args.source_events:
         source_events = read_jsonl(args.source_events)
-        for index, event in enumerate(source_events):
+        for index, source_event in enumerate(source_events):
+            event = canonicalize_event_phase(
+                source_event, location=f"events[{index}]",
+            )
+            event = canonicalize_event_protocol_provenance(
+                event, location=f"events[{index}]",
+            )
             errors = canonical_event_errors(event, f"events[{index}]", connector)
             if errors:
                 raise ContractError("; ".join(errors))
-        events = [
-            canonicalize_event_phase(event, location=f"events[{index}]")
-            for index, event in enumerate(source_events)
-        ]
+            events.append(event)
         # Serialize the reviewed parsed records rather than copying raw JSONL
         # text, so duplicate keys, Common lifecycle labels, and other parser
         # ambiguities cannot enter the canonical artifact after validation.
@@ -3215,7 +4345,17 @@ def finalize_run(args: argparse.Namespace) -> int:
         connector,
         artifact_profile,
         manifest,
+        run_id=str(manifest.get("run_id") or "") or None,
+        integration_mode=str(manifest.get("integration_mode") or "") or None,
     )
+    protocol_client_artifact_dir: Path | None = None
+    if str(getattr(args, "protocol_client_artifact_dir", "") or "").strip():
+        protocol_client_artifact_dir = copy_protocol_client_artifacts(
+            run_dir,
+            str(args.protocol_client_artifact_dir),
+            artifact_profile,
+            manifest,
+        )
 
     raw_records: list[dict[str, Any]] = []
     source_payloads: list[Mapping[str, Any]] = []
@@ -3340,6 +4480,54 @@ def finalize_run(args: argparse.Namespace) -> int:
         if isinstance(item, Mapping)
     }
     resolve_deprecated_aliases(records, case_by_id, selected_case_ids)
+    bind_case_protocol_provenance(
+        records,
+        manifest,
+        case_by_id,
+        events,
+        selected_event_integration_mode,
+    )
+    for record in records:
+        if record.get("status") != "PASS":
+            continue
+        case = case_by_id.get(str(record.get("case_id") or ""))
+        try:
+            protocol = record_protocol_profile(record, case)
+        except ContractError as exc:
+            protocol = None
+            errors = [str(exc)]
+        else:
+            errors = []
+        if protocol not in {"h2", "h2c", "h3"}:
+            continue
+        if str(record.get("expected_result") or "") in DEDICATED_STREAM_CONTROL_RESULTS:
+            errors.append(
+                "protocol reset/cancel or multiplexing PASS requires a dedicated "
+                "stream-control client; the managed curl probe is negotiation-only"
+            )
+        elif protocol_client_artifact_dir is None:
+            errors.append("protocol PASS requires a managed client artifact bundle")
+        else:
+            artifacts = record.get("artifacts")
+            if not isinstance(artifacts, Mapping):
+                artifacts = {}
+            record["artifacts"] = {
+                **dict(artifacts),
+                "protocol_client_dir": PROTOCOL_CLIENT_ARTIFACT_DIR,
+            }
+            errors.extend(protocol_client_artifact_errors(
+                protocol_client_artifact_dir, record, protocol,
+            ))
+        if errors:
+            record["status"] = "FAIL"
+            record["operation_status"] = operation_status("fail")
+            detail = "; ".join(dict.fromkeys(errors))
+            record["reason"] = "; ".join(
+                part for part in (
+                    str(record.get("reason") or ""),
+                    f"protocol client evidence invalid: {detail}",
+                ) if part
+            )
     deduplicated = {record["case_id"]: record for record in records}
     order = {item["case_id"]: index for index, item in enumerate(plan.get("cases", [])) if isinstance(item, Mapping)}
     records.sort(key=lambda item: order.get(item["case_id"], len(order)))
@@ -3566,7 +4754,9 @@ def finalize_run(args: argparse.Namespace) -> int:
     write_json(run_dir / "result.json", result)
     manifest["artifacts"]["result"]["sha256"] = sha256_file(run_dir / "result.json")
     write_json(manifest_path, manifest)
-    errors = validate_run(run_dir, connector, capabilities, checks=("schema", "completeness", "capability", "claim-policy", "layout", "body-payload", "status"))
+    errors = validate_run(
+        run_dir, connector, capabilities, checks=FINALIZE_VALIDATION_CHECKS,
+    )
     if errors:
         for error in errors:
             print(f"no-crs-finalize: {error}", file=sys.stderr)
@@ -3694,6 +4884,35 @@ def canonical_event_errors(
         return [f"{location}: checked-in event schema must contain an object"]
     errors = json_schema_errors(event, schema, root_schema=schema, location=location)
     errors.extend(forbidden_payload_errors(event, location))
+    if isinstance(event, Mapping):
+        protocol_values: dict[str, object] = {}
+        for field in EVENT_PROTOCOL_NORMALIZATION_FIELDS:
+            if field not in event:
+                continue
+            try:
+                protocol_values[field] = normalize_semantic_value(field, event[field])
+            except ContractError:
+                errors.append(f"{location}.{field}: invalid transport provenance")
+                continue
+            if (
+                field in TRANSPORT_CLAIM_FIELDS
+                and not _empty_runtime_value(event[field])
+                and protocol_values[field] is None
+            ):
+                errors.append(f"{location}.{field}: unsupported transport provenance")
+        negotiated = protocol_values.get("negotiated_protocol")
+        downstream = protocol_values.get("downstream_protocol")
+        transport = protocol_values.get("transport")
+        stream_reset = protocol_values.get("stream_reset")
+        effective_downstream = negotiated or downstream
+        if effective_downstream == "h3" or transport == "quic_udp":
+            connection_id = protocol_values.get("connection_id")
+            if connection_id is not None and not is_hashed_connection_id(connection_id):
+                errors.append(
+                    f"{location}.connection_id: raw QUIC connection identifiers are forbidden"
+                )
+        if stream_reset is True and effective_downstream not in {"h2", "h2c", "h3"}:
+            errors.append(f"{location}.stream_reset: requires h2, h2c, or h3 downstream protocol")
     if isinstance(event, Mapping) and "phase" in event:
         if normalize_canonical_phase(event.get("phase")) is None:
             errors.append(f"{location}.phase: unsupported Common/canonical phase")
@@ -3713,6 +4932,22 @@ def canonical_event_errors(
         errors.append(
             f"{location}.integration_mode: {event.get('integration_mode')!r} does not match selected {integration_mode!r}"
         )
+    return errors
+
+
+def canonical_case_protocol_errors(record: Mapping[str, Any], location: str) -> list[str]:
+    """Reject privacy-invalid protocol data in canonical case results."""
+    errors: list[str] = []
+    try:
+        negotiated = normalize_semantic_value("negotiated_protocol", record.get("negotiated_protocol"))
+        downstream = normalize_semantic_value("downstream_protocol", record.get("downstream_protocol"))
+        transport = normalize_semantic_value("transport", record.get("transport"))
+    except ContractError:
+        return [f"{location}: invalid protocol provenance"]
+    if negotiated == "h3" or downstream == "h3" or transport == "quic_udp":
+        connection_id = record.get("connection_id")
+        if connection_id is not None and not is_hashed_connection_id(connection_id):
+            errors.append(f"{location}.connection_id: raw QUIC connection identifiers are forbidden")
     return errors
 
 
@@ -3848,13 +5083,15 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         label = f"results.jsonl[{index}]"
         errors.extend(f"{label} schema: {error}" for error in json_schema_errors(record, case_result_schema))
         errors.extend(required_keys(record, (
-            "schema_version", "connector", "case_id", "group", "phase", "status",
+            "schema_version", "connector", "run_id", "integration_mode", "case_id", "group", "phase", "status",
             "operation_status", "live_executed", "required_capabilities", "expected_result",
             "observed_result", "expected_status", "expected_rule_id",
             "actual_status", "observed_rule_ids", "transaction_ids", "expected_event_fields",
             "observed_event_fields", "event_metadata_verified", *PHASE4_SEMANTIC_FIELDS,
             "reason", "exit_code", "artifacts",
         ), label))
+        if isinstance(record, Mapping):
+            errors.extend(canonical_case_protocol_errors(record, label))
         if record.get("status") not in CASE_STATUSES:
             errors.append(f"{label}: invalid status")
         if record.get("connector") != connector:
@@ -4334,6 +5571,83 @@ def status_errors(run_dir: Path) -> list[str]:
     return errors
 
 
+def protocol_client_errors(run_dir: Path) -> list[str]:
+    """Re-evaluate run-local client evidence for every modern protocol PASS.
+
+    Finalization is not the only trust boundary: a later validation must
+    detect a deleted, substituted, or hand-edited bundle in
+    ``inventory/protocol-client``.  A managed curl invocation describes one
+    request only, so separate promoted protocol cases must use separate
+    canonical runs until a dedicated multiplexing client contract exists.
+    """
+
+    errors: list[str] = []
+    records = read_jsonl(run_dir / "results.jsonl")
+    catalog = load_catalog()
+    case_by_id = {case["case_id"]: case for case in catalog_cases(catalog)}
+    modern_records: list[tuple[Mapping[str, Any], str]] = []
+    for record in records:
+        if record.get("status") != "PASS":
+            continue
+        case = case_by_id.get(str(record.get("case_id") or ""))
+        try:
+            protocol = record_protocol_profile(record, case)
+        except ContractError as exc:
+            errors.append(f"{record.get('case_id')}: {exc}")
+            continue
+        if protocol in {"h2", "h2c", "h3"}:
+            modern_records.append((record, protocol))
+
+    if not modern_records:
+        return errors
+    if len(modern_records) > 1:
+        case_ids = ", ".join(str(record.get("case_id") or "") for record, _ in modern_records)
+        errors.append(
+            "managed protocol client represents one request; modern protocol PASSes "
+            f"must be finalized in separate canonical runs: {case_ids}"
+        )
+
+    manifest = load_json(run_dir / "manifest.json")
+    if not isinstance(manifest, Mapping):
+        return [*errors, "manifest.json must be an object"]
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, Mapping):
+        return [*errors, "manifest.json artifacts must be an object"]
+    artifact_dir = run_dir / PROTOCOL_CLIENT_ARTIFACT_DIR
+    for name in PROTOCOL_CLIENT_REQUIRED_ARTIFACT_NAMES:
+        expected_path = PROTOCOL_CLIENT_ARTIFACT_PATHS[name]
+        entry = artifacts.get(name)
+        path = run_dir / expected_path
+        if not isinstance(entry, Mapping):
+            errors.append(f"protocol client artifact is missing from manifest: {name}")
+            continue
+        if entry.get("path") != expected_path or entry.get("state") != "produced":
+            errors.append(f"protocol client artifact has invalid manifest entry: {name}")
+            continue
+        if not path.is_file() or path.is_symlink():
+            errors.append(f"protocol client artifact is missing or unsafe: {name}")
+            continue
+        if entry.get("sha256") != sha256_file(path):
+            errors.append(f"protocol client artifact checksum mismatch: {name}")
+
+    for record, protocol in modern_records:
+        case_id = str(record.get("case_id") or "")
+        if str(record.get("expected_result") or "") in DEDICATED_STREAM_CONTROL_RESULTS:
+            errors.append(
+                f"{case_id}: reset/cancel or multiplexing PASS requires a dedicated "
+                "stream-control client"
+            )
+            continue
+        record_artifacts = record.get("artifacts")
+        if not isinstance(record_artifacts, Mapping) or (
+            record_artifacts.get("protocol_client_dir") != PROTOCOL_CLIENT_ARTIFACT_DIR
+        ):
+            errors.append(f"{case_id}: protocol client bundle is not declared by the case result")
+        for error in protocol_client_artifact_errors(artifact_dir, record, protocol):
+            errors.append(f"{case_id}: {error}")
+    return errors
+
+
 VALID_CHECKS = {
     "schema": schema_errors,
     "completeness": completeness_errors,
@@ -4341,6 +5655,7 @@ VALID_CHECKS = {
     "claim-policy": claim_policy_errors,
     "layout": layout_errors,
     "body-payload": body_payload_errors,
+    "protocol-client": protocol_client_errors,
     "status": status_errors,
 }
 
@@ -4822,12 +6137,26 @@ def build_parser() -> argparse.ArgumentParser:
         "--source-artifact",
         action="append",
         default=[],
-        help="allowlisted full-lifecycle engine artifact as NAME=PATH",
+        help=(
+            "allowlisted full-lifecycle artifact as NAME=PATH "
+            "(engine_version, engine_library_sha256, ruleset_sha256, "
+            "transaction_counts, lifecycle_counters, client_log, upstream_log, "
+            "transport_log, cleanup_log, transport_observations, "
+            "connection_lifecycle, barrier_events, effective_config)"
+        ),
     )
     finalize_parser.add_argument(
         "--first-byte-evidence",
         default="",
         help="payload-free JSON emitted by the synchronized streaming barrier",
+    )
+    finalize_parser.add_argument(
+        "--protocol-client-artifact-dir",
+        default="",
+        help=(
+            "directory containing managed payload-free client artifacts; "
+            "required for any promoted H2/H2C/H3 case"
+        ),
     )
     finalize_parser.add_argument("--stdout-log", default="")
     finalize_parser.add_argument("--stderr-log", default="")

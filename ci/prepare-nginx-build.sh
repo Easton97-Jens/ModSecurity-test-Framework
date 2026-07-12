@@ -15,16 +15,50 @@ fi
 AUTO_FETCH_SMOKE_SOURCES="${AUTO_FETCH_SMOKE_SOURCES:-1}"
 MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-}"
 MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$DEFAULT_MODSECURITY_V3_SOURCE_DIR}"
-LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/nginx}"
 REFRESH="${REFRESH:-0}"
 PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 BUILD_NGINX_FROM_SOURCE="${BUILD_NGINX_FROM_SOURCE:-1}"
-NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$BUILD_ROOT/nginx-build}"
+
+# Keep the historical H1 locations exactly as they were.  Other profiles get
+# isolated defaults so a binary/module built without H3 can never be reused as
+# a QUIC host by accident.  Explicit caller paths (the managed cache supplies
+# these) always win.
+if [ -n "${NGINX_BUILD_DIR+x}" ]; then NGINX_BUILD_DIR_WAS_SET=1; else NGINX_BUILD_DIR_WAS_SET=0; fi
+if [ -n "${NGINX_PREFIX+x}" ]; then NGINX_PREFIX_WAS_SET=1; else NGINX_PREFIX_WAS_SET=0; fi
+if [ -n "${LOG_DIR+x}" ]; then NGINX_LOG_DIR_WAS_SET=1; else NGINX_LOG_DIR_WAS_SET=0; fi
+case "$NGINX_PROTOCOL_PROFILE" in
+    h1)
+        NGINX_PROFILE_PATH_SUFFIX=""
+        ;;
+    h1-h2|h1-h2-h3-quic)
+        NGINX_PROFILE_PATH_SUFFIX="-$NGINX_PROTOCOL_PROFILE"
+        ;;
+    *)
+        # Defer the user-facing failure until the regular status/log helpers
+        # below are available.
+        NGINX_PROFILE_PATH_SUFFIX="-$NGINX_PROTOCOL_PROFILE"
+        ;;
+esac
+if [ "$NGINX_BUILD_DIR_WAS_SET" = "1" ]; then
+    NGINX_BUILD_DIR="$NGINX_BUILD_DIR"
+else
+    NGINX_BUILD_DIR="$BUILD_ROOT/nginx-build$NGINX_PROFILE_PATH_SUFFIX"
+fi
+if [ "$NGINX_PREFIX_WAS_SET" = "1" ]; then
+    NGINX_PREFIX="$NGINX_PREFIX"
+else
+    NGINX_PREFIX="$BUILD_ROOT/nginx-runtime/nginx$NGINX_PROFILE_PATH_SUFFIX"
+fi
+if [ "$NGINX_LOG_DIR_WAS_SET" = "1" ]; then
+    LOG_DIR="$LOG_DIR"
+else
+    LOG_DIR="$BUILD_ROOT/logs/nginx$NGINX_PROFILE_PATH_SUFFIX"
+fi
 NGINX_SOURCE_DIR="${NGINX_SOURCE_DIR:-$NGINX_BUILD_DIR/nginx-src}"
-NGINX_PREFIX="${NGINX_PREFIX:-$BUILD_ROOT/nginx-runtime/nginx}"
 NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
 DOWNLOAD_DIR="${NGINX_DOWNLOAD_DIR:-${DOWNLOAD_DIR:-$NGINX_BUILD_DIR/downloads}}"
+NGINX_QUIC_TLS_SOURCE_DIR="${NGINX_QUIC_TLS_SOURCE_DIR:-$NGINX_BUILD_DIR/quic-tls-$NGINX_QUIC_TLS_LIBRARY-$NGINX_QUIC_TLS_VERSION}"
 V3_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity_V3"
 NGINX_CONNECTOR_LEGACY_BUILD_DIR="$NGINX_BUILD_DIR/ModSecurity-nginx"
 OUTPUT_DIR="$NGINX_BUILD_DIR/output"
@@ -52,6 +86,9 @@ ARTIFACTS_FILE="$LOG_DIR/artifacts.txt"
 RESOLVED_NGINX_RELEASE_TAG=
 NGINX_ARCHIVE_URL=
 NGINX_ARCHIVE=
+NGINX_ARCHIVE_SHA256_LOCAL=
+NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL=
+NGINX_PROTOCOL_BUILD_CACHE_KEY=
 
 blocked() {
     echo "nginx_poc: blocked $*"
@@ -80,6 +117,194 @@ require_absolute_generated_path() {
 safe_remove_dir() {
     target=$1
     safe_remove_runtime_path "$target" "$BUILD_ROOT" "NGINX REFRESH target" || exit 77
+}
+
+validate_nginx_protocol_profile() {
+    if ! nginx_protocol_profile_valid "$NGINX_PROTOCOL_PROFILE"; then
+        blocked "unsupported NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE; expected h1, h1-h2, or h1-h2-h3-quic"
+    fi
+}
+
+validate_pinned_sha256() {
+    value=$1
+    label=$2
+    if ! printf '%s\n' "$value" | grep -Eq '^[[:xdigit:]]{64}$'; then
+        blocked "$label must be a pinned 64-character SHA-256 value"
+    fi
+}
+
+nginx_connector_patchset_sha256() {
+    "$PYTHON_BIN" - "$NGINX_ADAPTER_SOURCE_DIR" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+digest = hashlib.sha256()
+if not root.is_dir():
+    print("missing")
+    raise SystemExit(0)
+for item in sorted(path for path in root.rglob("*") if path.is_file() and ".git" not in path.parts):
+    relative = item.relative_to(root).as_posix()
+    digest.update(relative.encode("utf-8", "surrogateescape"))
+    digest.update(b"\0")
+    digest.update(hashlib.sha256(item.read_bytes()).digest())
+    digest.update(b"\0")
+print(digest.hexdigest())
+PY
+}
+
+nginx_common_commit() {
+    git -C "$CONNECTOR_ROOT/common" rev-parse HEAD 2>/dev/null || printf '%s\n' unavailable
+}
+
+ensure_quic_tls_source() {
+    nginx_protocol_profile_has_http3 "$NGINX_PROTOCOL_PROFILE" || return 0
+
+    [ "$NGINX_QUIC_TLS_LIBRARY" = "openssl" ] || \
+        blocked "H3 profile requires the pinned OpenSSL QUIC/TLS source; unsupported NGINX_QUIC_TLS_LIBRARY=$NGINX_QUIC_TLS_LIBRARY"
+    [ -n "$NGINX_QUIC_TLS_VERSION" ] || blocked "H3 profile requires NGINX_QUIC_TLS_VERSION"
+    [ -n "$NGINX_QUIC_TLS_SOURCE_URL" ] || blocked "H3 profile requires NGINX_QUIC_TLS_SOURCE_URL"
+    validate_pinned_sha256 "$NGINX_QUIC_TLS_SOURCE_SHA256" NGINX_QUIC_TLS_SOURCE_SHA256
+    if ! ci_require_https_url "$NGINX_QUIC_TLS_SOURCE_URL" NGINX_QUIC_TLS_SOURCE_URL; then
+        blocked "H3 profile requires an HTTPS NGINX_QUIC_TLS_SOURCE_URL"
+    fi
+    case "$NGINX_QUIC_TLS_SOURCE_DIR" in
+        "$NGINX_BUILD_DIR"/*) ;;
+        *) blocked "NGINX_QUIC_TLS_SOURCE_DIR must be below NGINX_BUILD_DIR: $NGINX_QUIC_TLS_SOURCE_DIR" ;;
+    esac
+    if [ -z "$NGINX_QUIC_TLS_ARCHIVE" ]; then
+        quic_tls_archive_name=$(basename "${NGINX_QUIC_TLS_SOURCE_URL%%\?*}")
+        [ -n "$quic_tls_archive_name" ] || blocked "could not derive archive name from NGINX_QUIC_TLS_SOURCE_URL"
+        NGINX_QUIC_TLS_ARCHIVE="$DOWNLOAD_DIR/$quic_tls_archive_name"
+    fi
+    require_absolute_generated_path "$NGINX_QUIC_TLS_ARCHIVE" NGINX_QUIC_TLS_ARCHIVE
+    require_command tar "extract pinned NGINX QUIC TLS source"
+    require_command sha256sum "verify pinned NGINX QUIC TLS source"
+
+    if [ ! -f "$NGINX_QUIC_TLS_ARCHIVE" ]; then
+        require_command curl "download pinned NGINX QUIC TLS source"
+        run_blocked nginx-quic-tls-source-download "$DOWNLOAD_DIR" \
+            curl -L --fail --retry 3 --retry-delay 2 -o "$NGINX_QUIC_TLS_ARCHIVE" "$NGINX_QUIC_TLS_SOURCE_URL"
+    fi
+    NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL=$(sha256sum "$NGINX_QUIC_TLS_ARCHIVE" | awk '{print $1}')
+    if [ "$NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL" != "$NGINX_QUIC_TLS_SOURCE_SHA256" ]; then
+        blocked "NGINX_QUIC_TLS_SOURCE_SHA256 mismatch for $NGINX_QUIC_TLS_ARCHIVE; refusing an H3 fallback build"
+    fi
+    mkdir -p "$NGINX_QUIC_TLS_SOURCE_DIR"
+    run_blocked nginx-quic-tls-source-extract "$DOWNLOAD_DIR" \
+        tar -xf "$NGINX_QUIC_TLS_ARCHIVE" -C "$NGINX_QUIC_TLS_SOURCE_DIR" --strip-components=1
+    [ -f "$NGINX_QUIC_TLS_SOURCE_DIR/Configure" ] || \
+        blocked "pinned NGINX QUIC TLS source lacks OpenSSL Configure: $NGINX_QUIC_TLS_SOURCE_DIR"
+}
+
+write_protocol_build_provenance() {
+    NGINX_PROTOCOL_PROVENANCE_FILE="$NGINX_BUILD_DIR/nginx-protocol-build-provenance.txt"
+    protocol_flags=$(nginx_protocol_profile_configure_flags "$NGINX_PROTOCOL_PROFILE" | tr '\n' ' ' | sed 's/[[:space:]]*$//') || \
+        blocked "could not resolve configure flags for NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE"
+    connector_patchset_sha256=$(nginx_connector_patchset_sha256) || blocked "could not hash NGINX connector patchset"
+    common_commit=$(nginx_common_commit)
+    case "$NGINX_PROTOCOL_PROFILE" in
+        h1)
+            tls_library=not_used
+            tls_version=
+            tls_source_url=
+            tls_source_sha256=
+            tls_source_sha256_local=
+            ;;
+        h1-h2)
+            tls_library=system
+            tls_version=$(openssl version 2>/dev/null || printf unavailable)
+            tls_source_url=
+            tls_source_sha256=
+            tls_source_sha256_local=
+            ;;
+        h1-h2-h3-quic)
+            tls_library=$NGINX_QUIC_TLS_LIBRARY
+            tls_version=$NGINX_QUIC_TLS_VERSION
+            tls_source_url=$NGINX_QUIC_TLS_SOURCE_URL
+            tls_source_sha256=$NGINX_QUIC_TLS_SOURCE_SHA256
+            tls_source_sha256_local=$NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL
+            ;;
+    esac
+    NGINX_PROTOCOL_BUILD_CACHE_KEY=$(
+        {
+            echo "nginx_protocol_profile=$NGINX_PROTOCOL_PROFILE"
+            echo "nginx_release_tag=$RESOLVED_NGINX_RELEASE_TAG"
+            echo "nginx_source_git_ref=$NGINX_SOURCE_GIT_REF"
+            echo "nginx_commit=$NGINX_SOURCE_GIT_REF"
+            echo "nginx_source_archive_sha256=$NGINX_ARCHIVE_SHA256_LOCAL"
+            echo "nginx_protocol_build_flags=$protocol_flags"
+            echo "tls_library=$tls_library"
+            echo "tls_version=$tls_version"
+            echo "tls_source_url=$tls_source_url"
+            echo "tls_source_sha256=$tls_source_sha256"
+            echo "modsecurity_nginx_patchset_sha256=$connector_patchset_sha256"
+            echo "common_commit=$common_commit"
+            echo "cc=${CC:-cc}"
+            echo "cppflags=${CPPFLAGS:-}"
+            echo "cflags=${CFLAGS:-}"
+            echo "cxxflags=${CXXFLAGS:-}"
+            echo "ldflags=${LDFLAGS:-}"
+            echo "libs=${LIBS:-}"
+        } | sha256sum | awk '{print $1}'
+    )
+    {
+        echo "nginx_protocol_profile=$NGINX_PROTOCOL_PROFILE"
+        echo "nginx_release_tag=$RESOLVED_NGINX_RELEASE_TAG"
+        echo "nginx_source_git_ref=$NGINX_SOURCE_GIT_REF"
+        echo "nginx_commit=$NGINX_SOURCE_GIT_REF"
+        echo "nginx_source_archive_sha256=$NGINX_ARCHIVE_SHA256_LOCAL"
+        echo "nginx_protocol_build_flags=$protocol_flags"
+        echo "http2_enabled=$(nginx_protocol_profile_has_http2 "$NGINX_PROTOCOL_PROFILE" && printf true || printf false)"
+        echo "http3_enabled=$(nginx_protocol_profile_has_http3 "$NGINX_PROTOCOL_PROFILE" && printf true || printf false)"
+        echo "tls_library=$tls_library"
+        echo "tls_version=$tls_version"
+        echo "tls_source_url=$tls_source_url"
+        echo "tls_source_sha256=$tls_source_sha256"
+        echo "tls_source_sha256_local=$tls_source_sha256_local"
+        echo "tls_source_archive=${NGINX_QUIC_TLS_ARCHIVE:-}"
+        echo "tls_source_dir=${NGINX_QUIC_TLS_SOURCE_DIR:-}"
+        echo "modsecurity_nginx_patchset_sha256=$connector_patchset_sha256"
+        echo "common_commit=$common_commit"
+        echo "cc=${CC:-cc}"
+        echo "cppflags=${CPPFLAGS:-}"
+        echo "cflags=${CFLAGS:-}"
+        echo "cxxflags=${CXXFLAGS:-}"
+        echo "ldflags=${LDFLAGS:-}"
+        echo "libs=${LIBS:-}"
+        echo "nginx_protocol_build_cache_key=$NGINX_PROTOCOL_BUILD_CACHE_KEY"
+    } > "$NGINX_PROTOCOL_PROVENANCE_FILE"
+    cat "$NGINX_PROTOCOL_PROVENANCE_FILE" >> "$ARTIFACTS_FILE"
+    echo "nginx_protocol_provenance=$NGINX_PROTOCOL_PROVENANCE_FILE" >> "$ARTIFACTS_FILE"
+}
+
+verify_nginx_protocol_build() {
+    NGINX_VERSION_LOG="$LOG_DIR/nginx-version.txt"
+    if ! "$NGINX_BINARY" -V > "$NGINX_VERSION_LOG" 2>&1; then
+        fail "NGINX host verification failed: $NGINX_BINARY -V; see $NGINX_VERSION_LOG"
+    fi
+    for required_flag in $(nginx_protocol_profile_configure_flags "$NGINX_PROTOCOL_PROFILE"); do
+        if ! grep -F -- "$required_flag" "$NGINX_VERSION_LOG" >/dev/null 2>&1; then
+            fail "NGINX -V is missing required $NGINX_PROTOCOL_PROFILE flag $required_flag; see $NGINX_VERSION_LOG"
+        fi
+    done
+    if nginx_protocol_profile_has_http3 "$NGINX_PROTOCOL_PROFILE" && \
+        ! grep -F -- "--with-openssl=$NGINX_QUIC_TLS_SOURCE_DIR" "$NGINX_VERSION_LOG" >/dev/null 2>&1; then
+        fail "NGINX -V does not bind the H3 build to the pinned TLS source; see $NGINX_VERSION_LOG"
+    fi
+    {
+        echo "[nginx-version]"
+        echo "nginx_protocol_profile=$NGINX_PROTOCOL_PROFILE"
+        cat "$NGINX_VERSION_LOG"
+        echo
+    } >> "$SOURCE_INFO_FILE"
+    {
+        echo "nginx_v_log=$NGINX_VERSION_LOG"
+        echo "nginx_http_ssl_configure_flag=$(grep -F -- --with-http_ssl_module "$NGINX_VERSION_LOG" >/dev/null 2>&1 && printf true || printf false)"
+        echo "nginx_http_v2_configure_flag=$(grep -F -- --with-http_v2_module "$NGINX_VERSION_LOG" >/dev/null 2>&1 && printf true || printf false)"
+        echo "nginx_http_v3_configure_flag=$(grep -F -- --with-http_v3_module "$NGINX_VERSION_LOG" >/dev/null 2>&1 && printf true || printf false)"
+    } >> "$ARTIFACTS_FILE"
 }
 
 
@@ -328,6 +553,7 @@ download_nginx_source() {
     echo "nginx_poc: nginx archive url=$NGINX_ARCHIVE_URL"
     run_blocked nginx-source-download "$DOWNLOAD_DIR" curl -L --fail --retry 3 --retry-delay 2 -o "$NGINX_ARCHIVE" "$NGINX_ARCHIVE_URL"
     local_sha=$(sha256sum "$NGINX_ARCHIVE" | awk '{print $1}')
+    NGINX_ARCHIVE_SHA256_LOCAL=$local_sha
     echo "nginx_poc: nginx archive sha256(local)=$local_sha"
     {
         echo "nginx_source_mode=$NGINX_SOURCE_MODE"
@@ -438,11 +664,10 @@ build_nginx_from_source() {
     [ "$BUILD_NGINX_FROM_SOURCE" = "1" ] || blocked "BUILD_NGINX_FROM_SOURCE must be 1 for this PoC unless a later explicit binary/module mode is implemented"
 
     download_nginx_source
+    ensure_quic_tls_source
+    write_protocol_build_provenance
     configure_script=$(nginx_configure_script)
-    run_blocked nginx-configure "$NGINX_SOURCE_DIR" env \
-        "MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include" \
-        "MODSECURITY_INC=$MODSECURITY_STAGE/include" \
-        "MODSECURITY_LIB=$MODSECURITY_STAGE/lib" \
+    set -- \
         "$configure_script" \
         "--prefix=$NGINX_PREFIX" \
         "--sbin-path=$NGINX_BINARY" \
@@ -453,6 +678,25 @@ build_nginx_from_source() {
         "--http-log-path=$NGINX_PREFIX/logs/access.log" \
         "--with-compat" \
         "--add-dynamic-module=$NGINX_CONNECTOR_BUILD_DIR"
+    case "$NGINX_PROTOCOL_PROFILE" in
+        h1)
+            ;;
+        h1-h2)
+            set -- "$@" --with-http_ssl_module --with-http_v2_module
+            ;;
+        h1-h2-h3-quic)
+            set -- "$@" --with-http_ssl_module --with-http_v2_module --with-http_v3_module \
+                "--with-openssl=$NGINX_QUIC_TLS_SOURCE_DIR"
+            ;;
+        *)
+            blocked "unsupported NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE"
+            ;;
+    esac
+    run_blocked nginx-configure "$NGINX_SOURCE_DIR" env \
+        "MSCONNECTOR_COMMON_INC=$CONNECTOR_ROOT/common/include" \
+        "MODSECURITY_INC=$MODSECURITY_STAGE/include" \
+        "MODSECURITY_LIB=$MODSECURITY_STAGE/lib" \
+        "$@"
     run_fail nginx-make "$NGINX_SOURCE_DIR" make "-j$MAKE_JOBS"
     run_fail nginx-make-install "$NGINX_SOURCE_DIR" make install
 
@@ -469,11 +713,13 @@ build_nginx_from_source() {
     if [ ! -f "$NGINX_MODULE" ]; then
         fail "NGINX install completed without dynamic module: $NGINX_MODULE"
     fi
+    verify_nginx_protocol_build
 
     {
         echo "[nginx-build]"
         echo "nginx_binary=$NGINX_BINARY"
-        "$NGINX_BINARY" -v 2>&1 || true
+        echo "nginx_protocol_profile=$NGINX_PROTOCOL_PROFILE"
+        cat "$NGINX_VERSION_LOG"
         echo "nginx_module=$NGINX_MODULE"
         echo "nginx_module_build_copy=$module_candidate"
         echo
@@ -482,6 +728,8 @@ build_nginx_from_source() {
         echo "nginx_binary=$NGINX_BINARY"
         echo "nginx_module=$NGINX_MODULE"
         echo "nginx_prefix=$NGINX_PREFIX"
+        echo "nginx_protocol_profile=$NGINX_PROTOCOL_PROFILE"
+        echo "nginx_protocol_build_cache_key=$NGINX_PROTOCOL_BUILD_CACHE_KEY"
     } >> "$ARTIFACTS_FILE"
 }
 
@@ -494,7 +742,9 @@ echo "nginx_poc: NGINX_SOURCE_MODE=$NGINX_SOURCE_MODE"
 echo "nginx_poc: NGINX_SOURCE_REPO_URL=$NGINX_SOURCE_REPO_URL"
 echo "nginx_poc: NGINX_RELEASE_TAG=$NGINX_RELEASE_TAG"
 echo "nginx_poc: NGINX_SOURCE_GIT_REF=$NGINX_SOURCE_GIT_REF"
+echo "nginx_poc: NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE"
 
+validate_nginx_protocol_profile
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"
 require_absolute_generated_path "$NGINX_SOURCE_DIR" "NGINX_SOURCE_DIR"
@@ -506,6 +756,9 @@ if [ -n "$MODSECURITY_SHARED_PREFIX" ]; then
     require_absolute_generated_path "$MODSECURITY_SHARED_PREFIX" "MODSECURITY_SHARED_PREFIX"
 fi
 require_absolute_generated_path "$DOWNLOAD_DIR" "DOWNLOAD_DIR"
+if nginx_protocol_profile_has_http3 "$NGINX_PROTOCOL_PROFILE"; then
+    require_absolute_generated_path "$NGINX_QUIC_TLS_SOURCE_DIR" "NGINX_QUIC_TLS_SOURCE_DIR"
+fi
 
 ensure_modsecurity_v3_source
 [ -d "$MODSECURITY_NGINX_SOURCE_DIR" ] || blocked "missing MODSECURITY_NGINX_SOURCE_DIR: $MODSECURITY_NGINX_SOURCE_DIR"

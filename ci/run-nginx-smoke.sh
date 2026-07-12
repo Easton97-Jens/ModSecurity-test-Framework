@@ -9,8 +9,28 @@ REPO_ROOT="$CONNECTOR_ROOT"
 . "$SCRIPT_DIR/mrts-common.sh"
 
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
-NGINX_BUILD_DIR="${NGINX_BUILD_DIR:-$BUILD_ROOT/nginx-build}"
-NGINX_PREFIX="${NGINX_PREFIX:-$BUILD_ROOT/nginx-runtime/nginx}"
+# The managed build profile is also part of the runtime path selection.  H1
+# intentionally retains the historical locations; non-H1 profiles receive
+# their own defaults so an H1/H2 module cannot be mistaken for the H3/QUIC
+# module.  Cache-provided paths are explicit and remain authoritative.
+if [ -n "${NGINX_BUILD_DIR+x}" ]; then NGINX_BUILD_DIR_WAS_SET=1; else NGINX_BUILD_DIR_WAS_SET=0; fi
+if [ -n "${NGINX_PREFIX+x}" ]; then NGINX_PREFIX_WAS_SET=1; else NGINX_PREFIX_WAS_SET=0; fi
+if [ -n "${NGINX_BUILD_LOG_DIR+x}" ]; then NGINX_BUILD_LOG_DIR_WAS_SET=1; else NGINX_BUILD_LOG_DIR_WAS_SET=0; fi
+case "$NGINX_PROTOCOL_PROFILE" in
+    h1) NGINX_PROFILE_PATH_SUFFIX="" ;;
+    h1-h2|h1-h2-h3-quic) NGINX_PROFILE_PATH_SUFFIX="-$NGINX_PROTOCOL_PROFILE" ;;
+    *) NGINX_PROFILE_PATH_SUFFIX="-$NGINX_PROTOCOL_PROFILE" ;;
+esac
+if [ "$NGINX_BUILD_DIR_WAS_SET" = "1" ]; then
+    NGINX_BUILD_DIR="$NGINX_BUILD_DIR"
+else
+    NGINX_BUILD_DIR="$BUILD_ROOT/nginx-build$NGINX_PROFILE_PATH_SUFFIX"
+fi
+if [ "$NGINX_PREFIX_WAS_SET" = "1" ]; then
+    NGINX_PREFIX="$NGINX_PREFIX"
+else
+    NGINX_PREFIX="$BUILD_ROOT/nginx-runtime/nginx$NGINX_PROFILE_PATH_SUFFIX"
+fi
 NGINX_BINARY="${NGINX_BINARY:-$NGINX_PREFIX/sbin/nginx}"
 NGINX_MODULE="${NGINX_MODULE:-$NGINX_PREFIX/modules/ngx_http_modsecurity_module.so}"
 MODSECURITY_LIB_DIR="${MODSECURITY_LIB_DIR:-$NGINX_BUILD_DIR/output/modsecurity/lib}"
@@ -28,7 +48,11 @@ SMOKE_CASES="${SMOKE_CASES:-}"
 NO_CRS_SELECTED_CASE_IDS="${NO_CRS_SELECTED_CASE_IDS:-}"
 CASE_SCOPE="${CASE_SCOPE:-all}"
 BUILD_NGINX_FROM_SOURCE="${BUILD_NGINX_FROM_SOURCE:-1}"
-NGINX_BUILD_LOG_DIR="${NGINX_BUILD_LOG_DIR:-$BUILD_ROOT/logs/nginx}"
+if [ "$NGINX_BUILD_LOG_DIR_WAS_SET" = "1" ]; then
+    NGINX_BUILD_LOG_DIR="$NGINX_BUILD_LOG_DIR"
+else
+    NGINX_BUILD_LOG_DIR="$BUILD_ROOT/logs/nginx$NGINX_PROFILE_PATH_SUFFIX"
+fi
 PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-}"
 SMOKE_PREPARE_TIMEOUT_SECONDS="${SMOKE_PREPARE_TIMEOUT_SECONDS:-3600}"
@@ -56,6 +80,14 @@ validate_runtime_paths() {
     assert_safe_runtime_path "$NGINX_BUILD_LOG_DIR" NGINX_BUILD_LOG_DIR || exit 77
     assert_safe_runtime_path "$CRS_RUNTIME_DIR" CRS_RUNTIME_DIR || exit 77
     assert_safe_runtime_path "${MRTS_BUILD_ROOT:-$BUILD_ROOT/mrts}" MRTS_BUILD_ROOT || exit 77
+}
+
+validate_requested_nginx_protocol_profile() {
+    if ! nginx_protocol_profile_valid "$NGINX_PROTOCOL_PROFILE"; then
+        echo "run_nginx_smoke: blocked unsupported NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE; expected h1, h1-h2, or h1-h2-h3-quic"
+        return 77
+    fi
+    return 0
 }
 
 prepare_crs_variant() {
@@ -177,6 +209,7 @@ release_build_root_lock() {
     fi
 }
 
+validate_requested_nginx_protocol_profile || exit 77
 validate_runtime_paths
 prepare_mrts_runtime_variant
 prepare_crs_variant
@@ -275,6 +308,26 @@ for path in required_adapter_owned:
 PY
 }
 
+nginx_protocol_build_current() {
+    provenance="$NGINX_BUILD_DIR/nginx-protocol-build-provenance.txt"
+    [ -f "$provenance" ] || return 1
+    grep -F -x "nginx_protocol_profile=$NGINX_PROTOCOL_PROFILE" "$provenance" >/dev/null 2>&1 || return 1
+    case "$NGINX_PROTOCOL_PROFILE" in
+        h1)
+            ;;
+        h1-h2)
+            grep -F -x 'http2_enabled=true' "$provenance" >/dev/null 2>&1 || return 1
+            grep -F -x 'http3_enabled=false' "$provenance" >/dev/null 2>&1 || return 1
+            ;;
+        h1-h2-h3-quic)
+            grep -F -x 'http2_enabled=true' "$provenance" >/dev/null 2>&1 || return 1
+            grep -F -x 'http3_enabled=true' "$provenance" >/dev/null 2>&1 || return 1
+            grep -F -x "tls_source_sha256=$NGINX_QUIC_TLS_SOURCE_SHA256" "$provenance" >/dev/null 2>&1 || return 1
+            ;;
+    esac
+    return 0
+}
+
 needs_build=0
 prepare_refresh="$REFRESH"
 if [ "$REFRESH" = "1" ]; then
@@ -283,6 +336,10 @@ elif [ ! -x "$NGINX_BINARY" ] || [ ! -f "$NGINX_MODULE" ]; then
     needs_build=1
 elif [ ! -f "$MODSECURITY_LIB_DIR/libmodsecurity.so" ]; then
     needs_build=1
+elif ! nginx_protocol_build_current; then
+    echo "run_nginx_smoke: existing NGINX build does not match requested protocol profile; refreshing build artifacts"
+    needs_build=1
+    prepare_refresh=1
 elif [ "$MODSECURITY_NGINX_SOURCE_DIR" = "$DEFAULT_NGINX_SOURCE_DIR" ] && ! nginx_adapter_build_current; then
     echo "run_nginx_smoke: existing NGINX build predates adapter-owned materialized source; refreshing build artifacts"
     needs_build=1
@@ -300,12 +357,32 @@ if [ "$needs_build" -eq 1 ]; then
     set +e
     if command -v timeout >/dev/null 2>&1; then
         timeout "$SMOKE_PREPARE_TIMEOUT_SECONDS" env REFRESH="$prepare_refresh" \
+        NGINX_PROTOCOL_PROFILE="$NGINX_PROTOCOL_PROFILE" \
+        NGINX_QUIC_TLS_LIBRARY="$NGINX_QUIC_TLS_LIBRARY" \
+        NGINX_QUIC_TLS_VERSION="$NGINX_QUIC_TLS_VERSION" \
+        NGINX_QUIC_TLS_SOURCE_URL="$NGINX_QUIC_TLS_SOURCE_URL" \
+        NGINX_QUIC_TLS_SOURCE_SHA256="$NGINX_QUIC_TLS_SOURCE_SHA256" \
+        NGINX_QUIC_TLS_ARCHIVE="$NGINX_QUIC_TLS_ARCHIVE" \
+        NGINX_BUILD_DIR="$NGINX_BUILD_DIR" \
+        NGINX_PREFIX="$NGINX_PREFIX" \
+        NGINX_BINARY="$NGINX_BINARY" \
+        NGINX_MODULE="$NGINX_MODULE" \
         MODSECURITY_NGINX_SOURCE_DIR="$MODSECURITY_NGINX_SOURCE_DIR" \
         LOG_DIR="$NGINX_BUILD_LOG_DIR" \
         BUILD_NGINX_FROM_SOURCE="$BUILD_NGINX_FROM_SOURCE" \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" sh "$FRAMEWORK_ROOT/ci/prepare-nginx-build.sh"
     else
         REFRESH="$prepare_refresh" \
+            NGINX_PROTOCOL_PROFILE="$NGINX_PROTOCOL_PROFILE" \
+            NGINX_QUIC_TLS_LIBRARY="$NGINX_QUIC_TLS_LIBRARY" \
+            NGINX_QUIC_TLS_VERSION="$NGINX_QUIC_TLS_VERSION" \
+            NGINX_QUIC_TLS_SOURCE_URL="$NGINX_QUIC_TLS_SOURCE_URL" \
+            NGINX_QUIC_TLS_SOURCE_SHA256="$NGINX_QUIC_TLS_SOURCE_SHA256" \
+            NGINX_QUIC_TLS_ARCHIVE="$NGINX_QUIC_TLS_ARCHIVE" \
+            NGINX_BUILD_DIR="$NGINX_BUILD_DIR" \
+            NGINX_PREFIX="$NGINX_PREFIX" \
+            NGINX_BINARY="$NGINX_BINARY" \
+            NGINX_MODULE="$NGINX_MODULE" \
             MODSECURITY_NGINX_SOURCE_DIR="$MODSECURITY_NGINX_SOURCE_DIR" \
             LOG_DIR="$NGINX_BUILD_LOG_DIR" \
             BUILD_NGINX_FROM_SOURCE="$BUILD_NGINX_FROM_SOURCE" \
@@ -339,6 +416,13 @@ LOG_DIR="$NGINX_RUNTIME_LOG_DIR" \
     NGINX_BINARY="$NGINX_BINARY" \
     NGINX_MODULE="$NGINX_MODULE" \
     MODSECURITY_LIB_DIR="$MODSECURITY_LIB_DIR" \
+    NGINX_PROTOCOL_PROFILE="$NGINX_PROTOCOL_PROFILE" \
+    NGINX_QUIC_TLS_LIBRARY="$NGINX_QUIC_TLS_LIBRARY" \
+    NGINX_QUIC_TLS_VERSION="$NGINX_QUIC_TLS_VERSION" \
+    NGINX_QUIC_TLS_SOURCE_URL="$NGINX_QUIC_TLS_SOURCE_URL" \
+    NGINX_QUIC_TLS_SOURCE_SHA256="$NGINX_QUIC_TLS_SOURCE_SHA256" \
+    NGINX_DOWNSTREAM_PROTOCOL="${NGINX_DOWNSTREAM_PROTOCOL:-http1}" \
+    NGINX_UPSTREAM_PROTOCOL="${NGINX_UPSTREAM_PROTOCOL:-http1}" \
     NGINX_HARNESS_PARENT="$NGINX_HARNESS_PARENT" \
     NGINX_HARNESS_WORK_ROOT="$NGINX_HARNESS_WORK_ROOT" \
     RUNTIME_BASE="$NGINX_RUNTIME_BASE" \

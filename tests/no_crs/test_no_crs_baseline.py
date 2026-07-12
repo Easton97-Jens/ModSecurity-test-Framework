@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import io
 import json
 from contextlib import redirect_stderr
@@ -178,6 +179,126 @@ class NoCrsBaselineTest(unittest.TestCase):
                     {"artifacts": {}},
                 )
 
+    def test_protocol_client_artifacts_copy_only_the_payload_free_allowlist(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-protocol-artifacts-") as temporary:
+            root = Path(temporary)
+            source = root / "source-client"
+            source.mkdir()
+            (source / "client-version.txt").write_text("curl 8.1.0\n", encoding="utf-8")
+            (source / "client-features.txt").write_text("features=HTTP2\n", encoding="utf-8")
+            (source / "client-command.txt").write_text(
+                "curl --output /dev/null --http2 https://host/probe\n", encoding="utf-8"
+            )
+            no_crs.write_json(source / "client-protocol-observation.json", {
+                "schema_version": 1,
+                "status": "PASS",
+                "requested_protocol": "h2",
+                "downstream_protocol": "h2",
+                "negotiated_protocol": "h2",
+                "transport": "tls_tcp",
+                "alpn": "h2",
+                "stream_id": 1,
+                "fallback_used": False,
+            })
+            # Arbitrary files must not be copied into a canonical run.
+            (source / "response-body.txt").write_text("not copied", encoding="utf-8")
+            run_dir = root / "run"
+            (run_dir / "inventory").mkdir(parents=True)
+            manifest: dict[str, object] = {"artifacts": {}}
+            destination = no_crs.copy_protocol_client_artifacts(
+                run_dir, str(source), "full_lifecycle", manifest,
+            )
+            self.assertEqual(run_dir / "inventory" / "protocol-client", destination)
+            self.assertTrue((destination / "client-protocol-observation.json").is_file())
+            self.assertFalse((destination / "response-body.txt").exists())
+            artifacts = manifest["artifacts"]
+            self.assertIn("client_protocol_observation", artifacts)  # type: ignore[operator]
+
+    def test_protocol_client_bundle_is_bound_to_the_case_identity(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-protocol-binding-") as temporary:
+            root = Path(temporary)
+            for name, content in {
+                "client-version.txt": "curl 8.1.0\n",
+                "client-features.txt": (
+                    "curl_executable=curl\n"
+                    "curl_version=8.1.0\n"
+                    "protocol=h2\n"
+                    "features=HTTP2\n"
+                    "required_features=HTTP2\n"
+                    "missing_features=\n"
+                    "required_options=--fail-with-body,--header,--http2,--max-time,--output,--request,--show-error,--silent,--write-out\n"
+                    "missing_options=\n"
+                    "preflight_status=READY\n"
+                    "preflight_reason=\n"
+                    "writeout_mode=json\n"
+                ),
+                "client-command.txt": "curl --fail-with-body --output /dev/null --header [redacted] --http2 https://host/probe\n",
+            }.items():
+                (root / name).write_text(content, encoding="utf-8")
+            no_crs.write_json(root / "client-protocol-observation.json", {
+                "schema_version": 1,
+                "status": "PASS",
+                "connector": "nginx",
+                "integration_mode": "native-nginx-http-module",
+                "run_id": "h2-run",
+                "transaction_id": "tx-h2",
+                "transport_case_id": "case-h2-identity",
+                "rule_id": "1100001",
+                "phase": "1",
+                "requested_protocol": "h2",
+                "downstream_protocol": "h2",
+                "negotiated_protocol": "h2",
+                "transport": "tls_tcp",
+                "alpn": "h2",
+                "stream_id": 1,
+                "fallback_used": False,
+            })
+            record: dict[str, object] = {
+                "expected_result": "h2_phase1_deny",
+                "connector": "nginx",
+                "integration_mode": "native-nginx-http-module",
+                "run_id": "h2-run",
+                "transaction_ids": ["tx-h2"],
+                "expected_rule_id": 1100001,
+                "phase": 1,
+                "stream_id": 1,
+                "transport_case_id": "case-h2-identity",
+            }
+            self.assertEqual(
+                [], no_crs.protocol_client_artifact_errors(root, record, "h2"),
+            )
+            record["run_id"] = "other-run"
+            self.assertTrue(no_crs.protocol_client_artifact_errors(root, record, "h2"))
+
+    def test_run_validation_rechecks_a_modern_protocol_pass_bundle(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-protocol-recheck-") as temporary:
+            root = Path(temporary)
+            no_crs.write_json(root / "manifest.json", {"artifacts": {}})
+            no_crs.write_jsonl(root / "results.jsonl", [{
+                "case_id": "protocol_h2_negotiated",
+                "status": "PASS",
+                "expected_result": "protocol_h2_negotiated",
+                "requested_protocol": "h2",
+                "downstream_protocol": "h2",
+                "negotiated_protocol": "h2",
+            }])
+            errors = no_crs.protocol_client_errors(root)
+            self.assertTrue(any("protocol client artifact is missing" in error for error in errors))
+            self.assertTrue(any("artifact directory is missing" in error for error in errors))
+
+    def test_finalizer_validation_includes_protocol_client_evidence(self) -> None:
+        self.assertEqual(
+            no_crs.FINALIZE_VALIDATION_CHECKS,
+            (
+                "schema", "completeness", "capability", "claim-policy", "layout",
+                "body-payload", "protocol-client", "status",
+            ),
+        )
+        self.assertIn(
+            "checks=FINALIZE_VALIDATION_CHECKS",
+            inspect.getsource(no_crs.finalize_run),
+        )
+
     def test_makefile_propagates_connector_root_to_finalize_and_validation(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         validation_recipe = makefile.split("define RUN_NO_CRS_CHECK", 1)[1].split("endef", 1)[0]
@@ -186,6 +307,8 @@ class NoCrsBaselineTest(unittest.TestCase):
         self.assertIn(expected, validation_recipe)
         self.assertIn(expected, finalize_recipe)
         self.assertIn("NO_CRS_ARTIFACT_PROFILE ?= generic", makefile)
+        self.assertIn("NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR ?=", makefile)
+        self.assertIn("--protocol-client-artifact-dir", finalize_recipe)
         self.assertIn('--artifact-profile "$(NO_CRS_ARTIFACT_PROFILE)"', makefile)
         for target in (
             "check-first-byte-before-response-end:",
@@ -428,8 +551,48 @@ class NoCrsBaselineTest(unittest.TestCase):
     def test_catalog_has_complete_mandatory_core_and_native_rule_contract(self) -> None:
         catalog = no_crs.load_catalog()
         self.assertEqual([], no_crs.validate_catalog(catalog))
-        self.assertEqual(104, len(no_crs.catalog_cases(catalog)))
+        # The protocol matrix adds 33 explicit H2/H2C/H3 execution
+        # dimensions and transport hardening adds 29 causal lifecycle cases
+        # while retaining the 104 baseline cases.
+        self.assertEqual(166, len(no_crs.catalog_cases(catalog)))
         by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
+        self.assertTrue(
+            {
+                "protocol_h2_negotiated",
+                "protocol_h2_no_http1_fallback",
+                "protocol_h2c_prior_knowledge",
+                "protocol_h3_negotiated",
+                "protocol_h3_quic_transport",
+                "protocol_h3_no_h2_fallback",
+                "protocol_h3_alt_svc_advertised",
+                "h2_phase1_deny",
+                "h2_phase2_deny",
+                "h2_phase3_deny",
+                "h2_phase4_safe",
+                "h2_phase4_strict",
+                "h3_phase1_deny",
+                "h3_phase2_deny",
+                "h3_phase3_deny",
+                "h3_phase4_safe",
+                "h3_phase4_strict",
+                "h2_parallel_stream_transaction_isolation",
+                "h2_deny_does_not_abort_unrelated_stream",
+                "h2_parallel_cleanup_balanced",
+                "h3_parallel_stream_transaction_isolation",
+                "h3_reset_does_not_abort_unrelated_stream",
+                "h3_parallel_cleanup_balanced",
+                "h2_first_byte_before_response_end",
+                "h2_no_full_response_buffering",
+                "h3_first_byte_before_response_end",
+                "h3_no_full_response_buffering",
+                "h2_client_rst_stream",
+                "h2_server_rst_stream",
+                "h2_upstream_reset",
+                "h3_client_stream_cancel",
+                "h3_server_stream_reset",
+                "h3_upstream_reset",
+            }.issubset(by_id)
+        )
         self.assertTrue(
             {
                 "phase4_rule_observed",
@@ -1164,6 +1327,40 @@ class NoCrsBaselineTest(unittest.TestCase):
         self.assertEqual("content_length", evidence["transfer_encoding"])
         self.assertNotIn("response_body", evidence)
 
+    def test_phase4_log_extraction_projects_bounded_protocol_provenance(self) -> None:
+        evidence = phase4_runtime_evidence({
+            "actual_action": "stream_reset",
+            "observed_transport_result": "stream-reset",
+            "requested_protocol": "HTTP/3",
+            "downstream_protocol": "h3",
+            "upstream_protocol": "HTTP/1.1",
+            "negotiated_protocol": "HTTP/3",
+            "network_transport": "QUIC/UDP",
+            "negotiated_alpn": "h3",
+            "http3_stream_id": "0",
+            "quic_connection_id_present": True,
+            "quic_version": "v1",
+            "fallback_used": False,
+            "stream_reset_observed": True,
+            "stream_reset_code": "H3_REQUEST_CANCELLED",
+            # A raw QUIC CID is deliberately never projected into a canonical
+            # result.  A non-reversible bounded digest is permitted.
+            "connection_id": "raw-quic-connection-id",
+            "response_body": "must-not-be-projected",
+        })
+        self.assertEqual("stream_reset", evidence["actual_action"])
+        self.assertEqual("stream_reset", evidence["transport_result"])
+        self.assertEqual("h3", evidence["requested_protocol"])
+        self.assertEqual("h3", evidence["negotiated_protocol"])
+        self.assertEqual("quic_udp", evidence["transport"])
+        self.assertEqual("h3", evidence["alpn"])
+        self.assertEqual(0, evidence["stream_id"])
+        self.assertTrue(evidence["quic_connection_id_present"])
+        self.assertFalse(evidence["fallback_used"])
+        self.assertTrue(evidence["stream_reset"])
+        self.assertNotIn("connection_id", evidence)
+        self.assertNotIn("response_body", evidence)
+
     def test_phase4_pre_commit_deny_requires_uncommitted_headers(self) -> None:
         event = self.phase4_event(
             http_status=403,
@@ -1642,6 +1839,180 @@ class NoCrsBaselineTest(unittest.TestCase):
         )
         self.assertIsNotNone(record)
         self.assertEqual("FAIL", record["status"])
+
+    def test_protocol_contract_normalizes_h3_without_rewriting_legacy_transport_protocol(self) -> None:
+        self.assertEqual("h3", no_crs.normalize_semantic_value("negotiated_protocol", "HTTP/3"))
+        self.assertEqual("quic_udp", no_crs.normalize_semantic_value("transport", "QUIC/UDP"))
+        self.assertEqual("http2", no_crs.normalize_semantic_value("transport_protocol", "HTTP/2"))
+        self.assertIsNone(no_crs.normalize_semantic_value("transport_protocol", "HTTP/3"))
+
+        event = no_crs.canonicalize_event_protocol_provenance({
+            "connector": "envoy",
+            "requested_protocol": "HTTP/3",
+            "downstream_protocol": "HTTP/3",
+            "negotiated_protocol": "HTTP/3",
+            "transport": "QUIC/UDP",
+            "alpn": "h3",
+            "stream_id": "0",
+            "transport_case_id": "case-h3-normalization",
+            "fallback_used": False,
+            "quic_connection_id_present": True,
+            "quic_version": "v1",
+            # Empty Common defaults remain explicitly non-promoting.
+            "connection_id": "",
+            "upstream_protocol": "",
+        })
+        self.assertEqual("h3", event["requested_protocol"])
+        self.assertEqual("h3", event["negotiated_protocol"])
+        self.assertEqual("quic_udp", event["transport"])
+        self.assertEqual(0, event["stream_id"])
+        self.assertEqual("case-h3-normalization", event["transport_case_id"])
+        self.assertEqual("", event["connection_id"])
+        with self.assertRaises(no_crs.ContractError):
+            no_crs.canonicalize_event_protocol_provenance({
+                "transport_case_id": "contains a request payload",
+            })
+
+    def test_h3_protocol_pass_requires_event_provenance_and_no_fallback(self) -> None:
+        event = {
+            "connector": "envoy",
+            "run_id": "h3-run",
+            "integration_mode": "envoy_ext_proc",
+            "event": "phase4_intervention",
+            "message_id": "h3-reset",
+            "transaction_id": "tx-h3",
+            "rule_id": 1100301,
+            "phase": 4,
+            "status": "intervened",
+            "requested_action": "deny",
+            "actual_action": "stream_reset",
+            "requested_protocol": "h3",
+            "downstream_protocol": "h3",
+            "upstream_protocol": "http1",
+            "negotiated_protocol": "h3",
+            "transport": "quic_udp",
+            "alpn": "h3",
+            "stream_id": 0,
+            "transport_case_id": "case-h3-provenance",
+            "quic_connection_id_present": True,
+            "quic_version": "v1",
+            "fallback_used": False,
+            "stream_reset": True,
+            "stream_reset_code": "H3_REQUEST_CANCELLED",
+            "connection_aborted": False,
+            "transport_result": "stream_reset",
+        }
+        record = {
+            "connector": "envoy",
+            "run_id": "h3-run",
+            "integration_mode": "envoy_ext_proc",
+            "phase": 4,
+            "transaction_ids": ["tx-h3"],
+            "expected_rule_id": 1100301,
+            "observed_rule_ids": [1100301],
+            "expected_result": "connection_aborted_strict",
+            "requested_action": "deny",
+            "actual_action": "stream_reset",
+            "requested_protocol": "h3",
+            "downstream_protocol": "h3",
+            "upstream_protocol": "http1",
+            "negotiated_protocol": "h3",
+            "transport": "quic_udp",
+            "alpn": "h3",
+            "stream_id": 0,
+            "transport_case_id": "case-h3-provenance",
+            "connection_id": None,
+            "connection_reused": None,
+            "quic_connection_id_present": True,
+            "quic_version": "v1",
+            "fallback_used": False,
+            "stream_reset": True,
+            "stream_reset_code": "H3_REQUEST_CANCELLED",
+            "connection_aborted": False,
+            "transport_result": "stream_reset",
+        }
+        self.assertEqual(
+            [],
+            no_crs.protocol_pass_errors(
+                record,
+                event,
+                expected_run_id="h3-run",
+                expected_integration_mode="envoy_ext_proc",
+                required_protocol="h3",
+            ),
+        )
+
+        h2_event = dict(event)
+        h2_event.update({
+            "requested_protocol": "h2",
+            "downstream_protocol": "h2",
+            "negotiated_protocol": "h2",
+            "transport": "tls_tcp",
+            "alpn": "h2",
+            "stream_id": 1,
+            "transport_case_id": "case-h2-provenance",
+        })
+        h2_event.pop("quic_connection_id_present")
+        h2_event.pop("quic_version")
+        h2_record = dict(record)
+        h2_record.update({
+            "requested_protocol": "h2",
+            "downstream_protocol": "h2",
+            "negotiated_protocol": "h2",
+            "transport": "tls_tcp",
+            "alpn": "h2",
+            "stream_id": 1,
+            "transport_case_id": "case-h2-provenance",
+            "quic_connection_id_present": None,
+            "quic_version": None,
+        })
+        self.assertEqual(
+            [],
+            no_crs.protocol_pass_errors(
+                h2_record,
+                h2_event,
+                expected_run_id="h3-run",
+                expected_integration_mode="envoy_ext_proc",
+                required_protocol="h2",
+            ),
+        )
+
+        fallback_record = dict(record)
+        fallback_event = dict(event)
+        fallback_record["fallback_used"] = True
+        fallback_event["fallback_used"] = True
+        errors = no_crs.protocol_pass_errors(
+            fallback_record,
+            fallback_event,
+            expected_run_id="h3-run",
+            expected_integration_mode="envoy_ext_proc",
+            required_protocol="h3",
+        )
+        self.assertTrue(any("fallback_used=false" in error for error in errors))
+
+        # A catalog protocol profile alone is non-promoting: it cannot pass
+        # merely because a source record has a rule/status outcome.
+        missing = no_crs.protocol_pass_errors(
+            {**record, **{field: None for field in no_crs.PROTOCOL_CLAIM_FIELDS}},
+            event,
+            required_protocol="h3",
+        )
+        self.assertTrue(any("protocol_profile" in error for error in missing))
+
+    def test_quic_protocol_events_reject_raw_connection_ids(self) -> None:
+        event = {
+            "connector": "envoy",
+            "downstream_protocol": "h3",
+            "negotiated_protocol": "h3",
+            "transport": "quic_udp",
+            "connection_id": "raw-quic-connection-id",
+        }
+        self.assertTrue(any(
+            "raw QUIC connection identifiers" in error
+            for error in no_crs.canonical_event_errors(event)
+        ))
+        event["connection_id"] = "sha256:" + ("a" * 32)
+        self.assertEqual([], no_crs.canonical_event_errors(event))
 
     def test_zero_exit_without_case_evidence_is_not_pass(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:

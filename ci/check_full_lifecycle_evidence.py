@@ -48,6 +48,7 @@ BASE_CHECKS = (
     "claim-policy",
     "layout",
     "body-payload",
+    "protocol-client",
     "status",
 )
 
