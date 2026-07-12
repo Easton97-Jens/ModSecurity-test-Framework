@@ -41,7 +41,7 @@ NGINX_GITHUB_REPO=https://github.com/nginx/nginx
 NGINX_RELEASE_TAG=latest
 ```
 
-Wenn `NGINX_RELEASE_TAG=latest`, `ci/prepare-nginx-build.sh` den tatsächlichen Wert auflöst
+Wenn `NGINX_RELEASE_TAG=latest`, `ci/provisioning/prepare-nginx-build.sh` den tatsächlichen Wert auflöst
 Release über die GitHub-Releases API und zeichnet das resultierende Tag auf
 `$BUILD_ROOT/logs/nginx/artifacts.txt`. Explizite Tags wie z
 `release-1.31.0` werden ebenfalls unterstützt. Es ist kein Branch-Fallback zulässig.

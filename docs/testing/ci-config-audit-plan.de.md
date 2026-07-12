@@ -27,8 +27,8 @@ rg "<local-paths>|<system-paths>|github.com|MODSECURITY|BUILD_ROOT|SOURCE_ROOT" 
 
 ## Aktueller positiver Zustand
 
-- `modules/ModSecurity-test-Framework/ci/common.sh` existiert und ist passiv: Es definiert nur Variablen und Funktionen.
-- `modules/ModSecurity-test-Framework/ci/common.sh` definiert jetzt canonical/passive Quellaliase
+- `modules/ModSecurity-test-Framework/ci/lib/common.sh` existiert und ist passiv: Es definiert nur Variablen und Funktionen.
+- `modules/ModSecurity-test-Framework/ci/lib/common.sh` definiert jetzt canonical/passive Quellaliase
   (`MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`,
   `MODSECURITY_V3_ROOT`) und optionale Installationsbereitschaftslisten hints/search.
 - `make cloud-quick-check` ist derzeit framework/generator/lint orientiert und
@@ -49,11 +49,11 @@ Arbeitsbereichspfade:
 
 | Bereich | Aktueller Befund | Risiko |
 | --- | --- | --- |
-| `modules/ModSecurity-test-Framework/ci/common.sh` | `DEFAULT_BUILD_ROOT` verwendet jetzt einen portablen lokalen state/output Pfad | `/src` bleibt nur als expliziter `BUILD_ROOT` verwendbar. |
-| `modules/ModSecurity-test-Framework/ci/common.sh` | Legacy-V3-Quellverzeichnis-Fallback-Variable entfernt | Es bleibt kein Fallback für den übergeordneten Arbeitsbereich bestehen. |
+| `modules/ModSecurity-test-Framework/ci/lib/common.sh` | `DEFAULT_BUILD_ROOT` verwendet jetzt einen portablen lokalen state/output Pfad | `/src` bleibt nur als expliziter `BUILD_ROOT` verwendbar. |
+| `modules/ModSecurity-test-Framework/ci/lib/common.sh` | Legacy-V3-Quellverzeichnis-Fallback-Variable entfernt | Es bleibt kein Fallback für den übergeordneten Arbeitsbereich bestehen. |
 | `Makefile` | `BUILD_ROOT` wird jetzt standardmäßig über lokale state/output-Einstellungen festgelegt | Make impliziert nicht mehr `/src`. |
-| `modules/ModSecurity-test-Framework/ci/build-v3-under-src.sh` / `modules/ModSecurity-test-Framework/ci/run-v3-api-smoke.sh` / `modules/ModSecurity-test-Framework/ci/check-v3-api-smoke-prereqs.sh` | `MODSECURITY_V3_DIR` Standardwerte unter `BUILD_ROOT` | v3 API-Helfer verwenden nicht mehr standardmäßig `/src`. |
-| `ci/find-modsecurity-v3.sh` | Überprüft nur explizite Aliase und `$SOURCE_ROOT/ModSecurity_V3` | Es bleibt keine automatische Geschwister-Repo-Erkennung bestehen. |
+| `modules/ModSecurity-test-Framework/ci/provisioning/build-v3-under-src.sh` / `modules/ModSecurity-test-Framework/ci/runtime/run-v3-api-smoke.sh` / `modules/ModSecurity-test-Framework/ci/provisioning/check-v3-api-smoke-prereqs.sh` | `MODSECURITY_V3_DIR` Standardwerte unter `BUILD_ROOT` | v3 API-Helfer verwenden nicht mehr standardmäßig `/src`. |
+| `ci/provisioning/find-modsecurity-v3.sh` | Überprüft nur explizite Aliase und `$SOURCE_ROOT/ModSecurity_V3` | Es bleibt keine automatische Geschwister-Repo-Erkennung bestehen. |
 | Mehrere Skripte | Sicherheitsvorrichtungen schützen immer noch zerstörerische Ziele auf Root-Ebene | Hierbei handelt es sich um Löschsicherheitsüberprüfungen, nicht um Quellen-Fallbacks. |
 
 Empfehlung:
@@ -72,7 +72,7 @@ Risiko:
 
 ### 2. Die Benennung des Quellverzeichnisses ist nicht vollständig zentralisiert
 
-`modules/ModSecurity-test-Framework/ci/common.sh` zentralisiert jetzt das Repo URLs/refs und die angeforderte kanonische Quelle
+`modules/ModSecurity-test-Framework/ci/lib/common.sh` zentralisiert jetzt das Repo URLs/refs und die angeforderte kanonische Quelle
 Aliase. Die verbleibende Folgearbeit besteht darin, die abgerufenen Quellverzeichnisse zu trennen
 Adaptereigene Quellverzeichnisse expliziter anzeigen.
 
@@ -103,13 +103,13 @@ Derzeit referenzierte externe Quellen:
 
 | Quelle | Standort | Status |
 | --- | --- | --- |
-| `https://github.com/owasp-modsecurity/ModSecurity.git` | `modules/ModSecurity-test-Framework/ci/common.sh`, workflow/docs | Kern-Repo, erwartet |
+| `https://github.com/owasp-modsecurity/ModSecurity.git` | `modules/ModSecurity-test-Framework/ci/lib/common.sh`, workflow/docs | Kern-Repo, erwartet |
 | `https://github.com/owasp-modsecurity/ModSecurity-apache` | Nur docs/import Metadaten | Historische Connector-Referenz, kein Standardabruf |
 | `https://github.com/owasp-modsecurity/ModSecurity-nginx` | Nur docs/import Metadaten | Historische Connector-Referenz, kein Standardabruf |
-| `https://github.com/nginx/nginx` | `modules/ModSecurity-test-Framework/ci/common.sh`, NGINX Build-Helfer, manueller Workflow | NGINX Serverquellenabhängigkeit |
-| `https://downloads.apache.org/httpd/...` | `modules/ModSecurity-test-Framework/ci/common.sh` | Apache/httpd Serverquellenabhängigkeit |
-| `https://downloads.apache.org/apr/...` | `modules/ModSecurity-test-Framework/ci/common.sh` | APR/APR-util Serverquellenabhängigkeit |
-| `https://github.com/PCRE2Project/pcre2/...` | `modules/ModSecurity-test-Framework/ci/common.sh` | Abhängigkeit der Bibliotheksquelle |
+| `https://github.com/nginx/nginx` | `modules/ModSecurity-test-Framework/ci/lib/common.sh`, NGINX Build-Helfer, manueller Workflow | NGINX Serverquellenabhängigkeit |
+| `https://downloads.apache.org/httpd/...` | `modules/ModSecurity-test-Framework/ci/lib/common.sh` | Apache/httpd Serverquellenabhängigkeit |
+| `https://downloads.apache.org/apr/...` | `modules/ModSecurity-test-Framework/ci/lib/common.sh` | APR/APR-util Serverquellenabhängigkeit |
+| `https://github.com/PCRE2Project/pcre2/...` | `modules/ModSecurity-test-Framework/ci/lib/common.sh` | Abhängigkeit der Bibliotheksquelle |
 
 Empfehlung:
 
@@ -127,7 +127,7 @@ Risiko:
 
 ### 4. Durch die Wiederverwendung von Fetch werden vorhandene Git-Checkouts nicht validiert
 
-`modules/ModSecurity-test-Framework/ci/fetch-smoke-sources.sh` aktuell:
+`modules/ModSecurity-test-Framework/ci/provisioning/fetch-smoke-sources.sh` aktuell:
 
 - klont konfigurierte URL/ref in das konfigurierte Ziel.
 - verwendet ein vorhandenes `.git`-Verzeichnis ohne Validierung:
@@ -151,7 +151,7 @@ Risiko:
 
 ### 5. Die automatische Erkennung lokaler Quellen ist explizit
 
-`ci/find-modsecurity-v3.sh` sucht jetzt:
+`ci/provisioning/find-modsecurity-v3.sh` sucht jetzt:
 
 1. `MODSECURITY_SOURCE_DIR`
 2. `MODSECURITY_V3_SOURCE_DIR`
@@ -170,12 +170,12 @@ Risiko:
 
 ### 6. Die installierte Bereitschaft ist immer noch mit der Ausgabe des Arztes vermischt
 
-`modules/ModSecurity-test-Framework/ci/doctor.sh` ursprünglich überprüfte Build-Tools, Python-Deps, Quellpfade,
+`modules/ModSecurity-test-Framework/ci/tools/doctor.sh` ursprünglich überprüfte Build-Tools, Python-Deps, Quellpfade,
 GitHub-Erreichbarkeit, generierte Build-Ausgaben und installiert
 Apache/NGINX/libmodsecurity Bereitschaft in einem Fluss. Es meldet installiert
 Komponenten sogar für die Source-Build-Validierung.
 
-`modules/ModSecurity-test-Framework/ci/smoke-installed.sh` ist explizit schreibgeschützt, was gut ist, aber das
+`modules/ModSecurity-test-Framework/ci/runtime/smoke-installed.sh` ist explizit schreibgeschützt, was gut ist, aber das
 Die installierte Erkennungslogik enthält weiterhin fest codierte Systempfade:
 
 - `/lib/x86_64-linux-gnu`
@@ -194,7 +194,7 @@ Empfehlung:
   - `OPTIONAL INSTALLED READINESS`
 - Die Quell-Build-Bereitschaft darf kein System-Apache, NGINX, erfordern oder installiert sein
   libmodsecurity.
-- Verschieben Sie installierte Suchpfadlisten als optionale Bereitschaft nach `modules/ModSecurity-test-Framework/ci/common.sh`
+- Verschieben Sie installierte Suchpfadlisten als optionale Bereitschaft nach `modules/ModSecurity-test-Framework/ci/lib/common.sh`
   Standardwerte.
 - Behalten Sie die installierte Bereitschaft bei und geben Sie `BLOCKED` zurück, wenn sie unvollständig sind, aber dokumentieren Sie sie
   dass dadurch der an der Quelle entstehende Smoke nicht blockiert wird.
@@ -230,7 +230,7 @@ Risiko:
 
 ### 8. Build-Abhängigkeitsversionen sind nicht zentralisiert
 
-`modules/ModSecurity-test-Framework/ci/common.sh` besitzt jetzt:
+`modules/ModSecurity-test-Framework/ci/lib/common.sh` besitzt jetzt:
 
 - `HTTPD_VERSION`
 - `APR_VERSION`
@@ -258,7 +258,7 @@ Risiko:
 Diese können sicher im nächsten kleinen Patch durchgeführt werden. Der erste Durchgang implementierte diese
 Elemente ohne Änderung der Smokesemantik zur Laufzeit:
 
-- Fehlende passive Aliase in `modules/ModSecurity-test-Framework/ci/common.sh` hinzufügen:
+- Fehlende passive Aliase in `modules/ModSecurity-test-Framework/ci/lib/common.sh` hinzufügen:
   `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_ROOT`, `APACHECTL_BIN`,
   `MODSECURITY_PKG_CONFIG`, `MODSECURITY_LIB_DIR`,
   `MODSECURITY_INCLUDE_DIR`.
@@ -269,11 +269,11 @@ Elemente ohne Änderung der Smokesemantik zur Laufzeit:
 
 Umsetzungsstand:
 
-- `modules/ModSecurity-test-Framework/ci/common.sh` definiert jetzt die fehlenden Quellaliase und optional installiert
+- `modules/ModSecurity-test-Framework/ci/lib/common.sh` definiert jetzt die fehlenden Quellaliase und optional installiert
   Hinweise sowie zentralisierte candidate/search-list-Variablen für die Installationsbereitschaft.
-- `modules/ModSecurity-test-Framework/ci/doctor.sh` meldet jetzt `SOURCE-BUILD READINESS` und
+- `modules/ModSecurity-test-Framework/ci/tools/doctor.sh` meldet jetzt `SOURCE-BUILD READINESS` und
   `OPTIONAL INSTALLED READINESS` separat.
-- `modules/ModSecurity-test-Framework/ci/smoke-installed.sh` verbraucht jetzt die zentralisierte Installationsbereitschaft
+- `modules/ModSecurity-test-Framework/ci/runtime/smoke-installed.sh` verbraucht jetzt die zentralisierte Installationsbereitschaft
   candidate/search-list Variablen.
 - Die Dokumentation stellt nun klar, dass es sich bei `/src` um ein austauschbares Build-Artefakt handelt
   Standort, Installationsbereitschaft ist eine optionale Diagnose und `make smoke-all`
@@ -342,7 +342,7 @@ Dies bleiben separate Folgemaßnahmen:
 ## Vorgeschlagene Folge-Implementierungsanordnung
 
 1. Fügen Sie fehlende passive Aliase und Hilfsvariablen für die Installationsbereitschaft hinzu
-   `modules/ModSecurity-test-Framework/ci/common.sh`.
+   `modules/ModSecurity-test-Framework/ci/lib/common.sh`.
 2. Refactor `doctor` Ausgabe in Source-Build- und optional-Installed-Abschnitte;
    bestehende BLOCKED/PASS Ehrlichkeit bewahren.
 3. Git-Checkout-Validierung zu `fetch-smoke-sources.sh` hinzufügen.

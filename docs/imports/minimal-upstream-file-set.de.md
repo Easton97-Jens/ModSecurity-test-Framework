@@ -112,7 +112,7 @@ Materialisierte Build-Eingabe:
   und schreibt `MATERIALIZED_SOURCE.md` plus `materialized-source.json`.
 - Externe NGINX-Quell-Builds verwenden weiterhin eine bereinigte externe Quellkopie; wenn
   dem ausgewählten externen Quellbaum fehlt `src/ddebug.h`,
-  `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` überlagert den Repo-eigenen Header in den generierten
+  `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh` überlagert den Repo-eigenen Header in den generierten
   Externe Build-Kopie.
 
 ## Zukünftige gemeinsame Extraktionskandidaten

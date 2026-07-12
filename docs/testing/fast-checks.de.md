@@ -7,7 +7,7 @@
 Schnelle Prüfungen liefern schnelles Feedback für Codex/developer-Iterationen, ohne den Anspruch einer vollständigen Connector-Validierung vorzutäuschen.
 
 Gemeinsame Standardwerte für Laufzeithilfsskripte sind vorhanden
-`$FRAMEWORK_ROOT/ci/common.sh`; Connector-lokale `ci/`-Skripte führen Connector-spezifische Prüfungen durch. Der Framework-Pfad ist
+`$FRAMEWORK_ROOT/ci/lib/common.sh`; Connector-lokale `ci/`-Skripte führen Connector-spezifische Prüfungen durch. Der Framework-Pfad ist
 konfigurierbar mit `FRAMEWORK_ROOT` und standardmäßig lokal im Modul
 `modules/ModSecurity-test-Framework`.
 
@@ -107,7 +107,7 @@ Workflow: `.github/workflows/quick-framework-check.yml` führt das Lightweight a
 framework/generator Pfad zu `push` und `pull_request`.
 
 Für Versions- und Pfadänderungen bevorzugen Sie Umgebungsüberschreibungen, die durch verbraucht werden
-`$FRAMEWORK_ROOT/ci/common.sh`, zum Beispiel `FRAMEWORK_ROOT`, `CONNECTOR_ROOT`,
+`$FRAMEWORK_ROOT/ci/lib/common.sh`, zum Beispiel `FRAMEWORK_ROOT`, `CONNECTOR_ROOT`,
 `BUILD_ROOT`, `SOURCE_ROOT`,
 `MODSECURITY_GIT_REF`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`,
 `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN` und `NGINX_BIN`. Apache und NGINX

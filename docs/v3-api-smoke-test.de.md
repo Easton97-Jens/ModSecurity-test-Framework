@@ -130,7 +130,7 @@ in der lokalen Referenz-Checkout, aber die Smoke-Probe läuft dagegen
 Standardbefehl:
 
 ```sh
-sh ci/run-v3-api-smoke.sh
+sh ci/runtime/run-v3-api-smoke.sh
 ```
 
 Direkter Makefile-Befehl:
@@ -142,7 +142,7 @@ make -C src/v3-api-smoke run
 Nur Voraussetzungsprüfung:
 
 ```sh
-sh ci/check-v3-api-smoke-prereqs.sh
+sh ci/provisioning/check-v3-api-smoke-prereqs.sh
 ```
 
 Optionale Überschreibungen:
@@ -152,7 +152,7 @@ MODSECURITY_V3_SOURCE_DIR=/path/to/ModSecurity_V3 \
 MODSECURITY_V3_DIR=/tmp/ModSecurity_V3_build \
 BUILD_ROOT=/tmp/ModSecurity-test-Framework-build \
 LOG_DIR=/tmp/ModSecurity-test-Framework-build/logs \
-sh ci/run-v3-api-smoke.sh
+sh ci/runtime/run-v3-api-smoke.sh
 ```
 
 Das Skript und das Makefile prüfen Folgendes:
@@ -172,7 +172,7 @@ GNU Make selbst beendet sich mit seinem eigenen Fehlercode.
 Lokaler Standard-Build unter `/src`:
 
 ```sh
-sh ci/build-v3-under-src.sh
+sh ci/provisioning/build-v3-under-src.sh
 ```
 
 Beispiel für tragbares Linux:
@@ -182,7 +182,7 @@ MODSECURITY_V3_SOURCE_DIR=/work/ModSecurity_V3 \
 MODSECURITY_V3_DIR=/tmp/ModSecurity_V3_build \
 BUILD_ROOT=/tmp/ModSecurity-test-Framework-build \
 LOG_DIR=/tmp/ModSecurity-test-Framework-build/logs \
-sh ci/build-v3-under-src.sh
+sh ci/provisioning/build-v3-under-src.sh
 ```
 
 Beispiel im GitHub Actions-Stil:
@@ -192,7 +192,7 @@ MODSECURITY_V3_SOURCE_DIR=$GITHUB_WORKSPACE/ModSecurity_V3 \
 MODSECURITY_V3_DIR=$RUNNER_TEMP/ModSecurity_V3_build \
 BUILD_ROOT=$RUNNER_TEMP/ModSecurity-test-Framework-build \
 LOG_DIR=$RUNNER_TEMP/ModSecurity-test-Framework-build/logs \
-sh ci/build-v3-under-src.sh
+sh ci/provisioning/build-v3-under-src.sh
 ```
 
 Der Helfer kopiert `MODSECURITY_V3_SOURCE_DIR` in `MODSECURITY_V3_DIR` und wird dann ausgeführt
@@ -215,7 +215,7 @@ vom Helfer gemeldet und behalten den Status `blocked`.
 Beobachteter lokaler Build-Befehl:
 
 ```sh
-sh ci/build-v3-under-src.sh
+sh ci/provisioning/build-v3-under-src.sh
 ```
 
 Beobachtete generierte Artefakte:
@@ -232,7 +232,7 @@ Beobachtete generierte Artefakte:
   - `/src/ModSecurity-test-Framework-build/v3-api-smoke/v3_api_smoke.o`
   - `/src/ModSecurity-test-Framework-build/v3-api-smoke/v3_api_smoke`
 
-Beobachtet in diesem Arbeitsbereich über `sh ci/check-v3-api-smoke-prereqs.sh`:
+Beobachtet in diesem Arbeitsbereich über `sh ci/provisioning/check-v3-api-smoke-prereqs.sh`:
 
 ```text
 v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=<workspace>/ModSecurity_V3
@@ -245,7 +245,7 @@ v3_api_smoke: header present: /src/ModSecurity_V3_build/headers/modsecurity/mods
 v3_api_smoke: library present: /src/ModSecurity_V3_build/src/.libs/libmodsecurity.so
 ```
 
-Beobachtet in diesem Arbeitsbereich über `sh ci/run-v3-api-smoke.sh`:
+Beobachtet in diesem Arbeitsbereich über `sh ci/runtime/run-v3-api-smoke.sh`:
 
 ```text
 v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=<workspace>/ModSecurity_V3
@@ -282,8 +282,8 @@ pass
 
 ## TODO
 
-- Führen Sie `sh ci/build-v3-under-src.sh` aus oder geben Sie ein vorhandenes an
-  `MODSECURITY_V3_DIR` Kopie erstellen, dann `sh ci/run-v3-api-smoke.sh` ausführen.
+- Führen Sie `sh ci/provisioning/build-v3-under-src.sh` aus oder geben Sie ein vorhandenes an
+  `MODSECURITY_V3_DIR` Kopie erstellen, dann `sh ci/runtime/run-v3-api-smoke.sh` ausführen.
 - Wenn `primary_args_phase2` fehlschlägt und `fallback_request_uri_phase1` erfolgreich ist,
   Dokumentieren Sie die genaue Ausgabe, ohne `ARGS:test` Unterstützung in Anspruch zu nehmen.
 - Wenn eine öffentliche C API-Aufrufsequenz angepasst werden muss, geben Sie den v3-Header an.

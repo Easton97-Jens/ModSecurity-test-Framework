@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-11T12:43:31Z`
-> Verified run id: `3e7a08507b7f`
+> Generated at: `2026-07-12T18:43:55Z`
+> Verified run id: `36b8dda731e3`
 > Data source policy: `verified-inputs-only`
-> Generator: `framework:ci/generate-case-matrix.py`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
-> Framework SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
+> Connector SHA: `36b8dda731e3bdaf842449096c4ff20020459c32`
+> Framework SHA: `36b8dda731e3bdaf842449096c4ff20020459c32`
 > Input status: `missing`
 
 # Generated Connector Gap Summary
@@ -62,7 +62,7 @@
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
 | Declared input | `config/testing/import-status.json` | `missing` | `unknown` | missing |
-| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `3e7a08507b7f` | present |
+| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `36b8dda731e3` | present |
 
 ## Data Availability / Missing Information
 

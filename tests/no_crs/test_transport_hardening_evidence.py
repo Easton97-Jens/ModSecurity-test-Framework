@@ -11,13 +11,13 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 NO_CRS_SPEC = importlib.util.spec_from_file_location(
-    "no_crs_baseline_transport_tests", ROOT / "ci/no_crs_baseline.py"
+    "no_crs_baseline_transport_tests", ROOT / "ci/checks/catalog/no_crs_baseline.py"
 )
 assert NO_CRS_SPEC is not None and NO_CRS_SPEC.loader is not None
 no_crs = importlib.util.module_from_spec(NO_CRS_SPEC)
 NO_CRS_SPEC.loader.exec_module(no_crs)
 CHECK_SPEC = importlib.util.spec_from_file_location(
-    "check_transport_hardening_evidence", ROOT / "ci/check_transport_hardening_evidence.py"
+    "check_transport_hardening_evidence", ROOT / "ci/checks/evidence/check_transport_hardening_evidence.py"
 )
 assert CHECK_SPEC is not None and CHECK_SPEC.loader is not None
 transport_check = importlib.util.module_from_spec(CHECK_SPEC)

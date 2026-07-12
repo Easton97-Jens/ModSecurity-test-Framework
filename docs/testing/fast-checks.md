@@ -7,7 +7,7 @@
 Fast checks provide rapid feedback for Codex/developer iterations without pretending to be full connector validation.
 
 Shared defaults for runtime helper scripts live in
-`$FRAMEWORK_ROOT/ci/common.sh`; connector-local `ci/` scripts perform connector-specific checks. The framework path is
+`$FRAMEWORK_ROOT/ci/lib/common.sh`; connector-local `ci/` scripts perform connector-specific checks. The framework path is
 configurable with `FRAMEWORK_ROOT` and defaults locally to the module
 `modules/ModSecurity-test-Framework`.
 
@@ -107,7 +107,7 @@ Workflow: `.github/workflows/quick-framework-check.yml` runs the lightweight
 framework/generator path on `push` and `pull_request`.
 
 For version and path changes, prefer environment overrides consumed through
-`$FRAMEWORK_ROOT/ci/common.sh`, for example `FRAMEWORK_ROOT`, `CONNECTOR_ROOT`,
+`$FRAMEWORK_ROOT/ci/lib/common.sh`, for example `FRAMEWORK_ROOT`, `CONNECTOR_ROOT`,
 `BUILD_ROOT`, `SOURCE_ROOT`,
 `MODSECURITY_GIT_REF`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`,
 `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, and `NGINX_BIN`. Apache and NGINX

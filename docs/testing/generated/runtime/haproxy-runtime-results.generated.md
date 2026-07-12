@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-11T12:43:33Z`
-> Verified run id: `3e7a08507b7f`
+> Generated at: `2026-07-12T18:43:56Z`
+> Verified run id: `36b8dda731e3`
 > Data source policy: `verified-inputs-only`
-> Generator: `framework:ci/generate-case-matrix.py`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
-> Framework SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
+> Connector SHA: `36b8dda731e3bdaf842449096c4ff20020459c32`
+> Framework SHA: `36b8dda731e3bdaf842449096c4ff20020459c32`
 > Input status: `missing`
 
 # Generated HAProxy Runtime Results
@@ -40,7 +40,7 @@
 |---|---:|
 | PASS | 105 |
 | FAIL | 23 |
-| NOT_EXECUTABLE | 429 |
+| NOT_EXECUTABLE | 431 |
 
 ## HAProxy PASS Details
 | Case | Variant | Expected | Actual | Evidence |
@@ -304,6 +304,8 @@
 | xml_namespace_edge_connector_gap | tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml | imported | FAIL | not promoted | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=xml_namespace_edge_connector_gap; status=fail; expected=403; actual=501 |
 | xml_request_body_block | tests/cases/body/xml/xml_request_body_block.yaml | imported | PASS | promotion eligible | runtime summary result; classification=active | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=xml_request_body_block; status=pass; expected=403; actual=403 |
 | xml_request_body_malformed_connector_gap | tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml | imported | FAIL | not promoted | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=xml_request_body_malformed_connector_gap; status=fail; expected=403; actual=501 |
+| phase4_deny_after_commit_abort | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_abort.yaml | pending | NOT_EXECUTABLE | - | apache-specific case is not applicable to haproxy | - |
+| phase4_deny_after_commit_log_only | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_log_only.yaml | pending | NOT_EXECUTABLE | - | apache-specific case is not applicable to haproxy | - |
 | nginx_phase4_content_type_out_of_scope | tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml | imported | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
 | phase4_deny_after_commit_abort | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_abort.yaml | pending | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
 | phase4_deny_after_commit_log_only | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_log_only.yaml | pending | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
@@ -827,7 +829,7 @@
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
 | Declared input | `config/testing/import-status.json` | `missing` | `unknown` | missing |
-| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `3e7a08507b7f` | present |
+| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `36b8dda731e3` | present |
 
 ## Data Availability / Missing Information
 

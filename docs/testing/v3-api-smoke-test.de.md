@@ -29,7 +29,7 @@ Der Baum dupliziert keine Implementierungslogik.
 ## Pfadmodell
 
 Jeder relevante Pfad ist konfigurierbar. Die aktuellen Standardwerte stammen von
-`modules/ModSecurity-test-Framework/ci/common.sh` und verwenden Sie einen portablen lokalen build/output Root plus `SOURCE_ROOT`:
+`modules/ModSecurity-test-Framework/ci/lib/common.sh` und verwenden Sie einen portablen lokalen build/output Root plus `SOURCE_ROOT`:
 
 ```sh
 BUILD_ROOT=$HOME/.local/state/ModSecurity-conector-build
@@ -138,7 +138,7 @@ in der lokalen Referenz-Checkout, aber die Smoke-Probe läuft dagegen
 Standardbefehl:
 
 ```sh
-sh modules/ModSecurity-test-Framework/ci/run-v3-api-smoke.sh
+sh modules/ModSecurity-test-Framework/ci/runtime/run-v3-api-smoke.sh
 ```
 
 Direkter Makefile-Befehl:
@@ -150,7 +150,7 @@ make -C src/v3-api-smoke run
 Nur Voraussetzungsprüfung:
 
 ```sh
-sh modules/ModSecurity-test-Framework/ci/check-v3-api-smoke-prereqs.sh
+sh modules/ModSecurity-test-Framework/ci/provisioning/check-v3-api-smoke-prereqs.sh
 ```
 
 Optionale Überschreibungen:
@@ -160,7 +160,7 @@ MODSECURITY_V3_SOURCE_DIR=/path/to/ModSecurity_V3 \
 MODSECURITY_V3_DIR=/tmp/ModSecurity_V3_build \
 BUILD_ROOT=/tmp/ModSecurity-conector-build \
 LOG_DIR=/tmp/ModSecurity-conector-build/logs \
-sh modules/ModSecurity-test-Framework/ci/run-v3-api-smoke.sh
+sh modules/ModSecurity-test-Framework/ci/runtime/run-v3-api-smoke.sh
 ```
 
 Das Skript und das Makefile prüfen Folgendes:
@@ -180,7 +180,7 @@ GNU Make selbst beendet sich mit seinem eigenen Fehlercode.
 Standardmäßig konfigurierter Build:
 
 ```sh
-sh modules/ModSecurity-test-Framework/ci/build-v3-under-src.sh
+sh modules/ModSecurity-test-Framework/ci/provisioning/build-v3-under-src.sh
 ```
 
 Beispiel für tragbares Linux:
@@ -190,7 +190,7 @@ MODSECURITY_V3_SOURCE_DIR=/work/ModSecurity_V3 \
 MODSECURITY_V3_DIR=/tmp/ModSecurity_V3_build \
 BUILD_ROOT=/tmp/ModSecurity-conector-build \
 LOG_DIR=/tmp/ModSecurity-conector-build/logs \
-sh modules/ModSecurity-test-Framework/ci/build-v3-under-src.sh
+sh modules/ModSecurity-test-Framework/ci/provisioning/build-v3-under-src.sh
 ```
 
 Beispiel im GitHub Actions-Stil:
@@ -200,7 +200,7 @@ MODSECURITY_V3_SOURCE_DIR=$GITHUB_WORKSPACE/ModSecurity_V3 \
 MODSECURITY_V3_DIR=$RUNNER_TEMP/ModSecurity_V3_build \
 BUILD_ROOT=$RUNNER_TEMP/ModSecurity-conector-build \
 LOG_DIR=$RUNNER_TEMP/ModSecurity-conector-build/logs \
-sh modules/ModSecurity-test-Framework/ci/build-v3-under-src.sh
+sh modules/ModSecurity-test-Framework/ci/provisioning/build-v3-under-src.sh
 ```
 
 Der Helfer kopiert `MODSECURITY_V3_SOURCE_DIR` in `MODSECURITY_V3_DIR` und wird dann ausgeführt
@@ -223,7 +223,7 @@ vom Helfer gemeldet und behalten den Status `blocked`.
 Beobachteter lokaler Build-Befehl:
 
 ```sh
-sh modules/ModSecurity-test-Framework/ci/build-v3-under-src.sh
+sh modules/ModSecurity-test-Framework/ci/provisioning/build-v3-under-src.sh
 ```
 
 Beobachtete generierte Artefakte mit Pfaden, die auf die konfigurierten verallgemeinert wurden
@@ -241,7 +241,7 @@ Variablen:
   - `$BUILD_ROOT/v3-api-smoke/v3_api_smoke.o`
   - `$BUILD_ROOT/v3-api-smoke/v3_api_smoke`
 
-Beobachtet in diesem Arbeitsbereich über `sh modules/ModSecurity-test-Framework/ci/check-v3-api-smoke-prereqs.sh`:
+Beobachtet in diesem Arbeitsbereich über `sh modules/ModSecurity-test-Framework/ci/provisioning/check-v3-api-smoke-prereqs.sh`:
 
 ```text
 v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=<configured ModSecurity source>
@@ -254,7 +254,7 @@ v3_api_smoke: header present: <configured build copy>/headers/modsecurity/modsec
 v3_api_smoke: library present: <configured build copy>/src/.libs/libmodsecurity.so
 ```
 
-Beobachtet in diesem Arbeitsbereich über `sh modules/ModSecurity-test-Framework/ci/run-v3-api-smoke.sh`:
+Beobachtet in diesem Arbeitsbereich über `sh modules/ModSecurity-test-Framework/ci/runtime/run-v3-api-smoke.sh`:
 
 ```text
 v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=<configured ModSecurity source>

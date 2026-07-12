@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-11T12:43:32Z`
-> Verified run id: `3e7a08507b7f`
+> Generated at: `2026-07-12T18:43:55Z`
+> Verified run id: `36b8dda731e3`
 > Data source policy: `verified-inputs-only`
-> Generator: `framework:ci/generate-case-matrix.py`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
-> Framework SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
+> Connector SHA: `36b8dda731e3bdaf842449096c4ff20020459c32`
+> Framework SHA: `36b8dda731e3bdaf842449096c4ff20020459c32`
 > Input status: `missing`
 
 # Generated Runtime Matrix
@@ -19,9 +19,9 @@ This matrix joins repository YAML cases with the latest tracked local runtime sn
 Former XFAIL cases are rendered from live runtime evidence like any other YAML case; RESPONSE_BODY remains non-verified/non-promoted.
 
 ## Counts
-- YAML cases: **557**
+- YAML cases: **559**
 - Default runtime-executable YAML cases: **61**
-- Force-all runtime-executable YAML cases: **557**
+- Force-all runtime-executable YAML cases: **559**
 - Apache attempted YAML cases in default runtime snapshot: **54**
 - NGINX attempted YAML cases in default runtime snapshot: **60**
 - HAProxy attempted YAML cases in default runtime snapshot: **134**
@@ -39,7 +39,7 @@ Former XFAIL cases are rendered from live runtime evidence like any other YAML c
 |---|---:|---:|---:|
 | PASS | 54 | 60 | 105 |
 | FAIL | 0 | 0 | 23 |
-| NOT_EXECUTABLE | 503 | 497 | 429 |
+| NOT_EXECUTABLE | 505 | 499 | 431 |
 
 ## Connector Runtime Availability
 | Connector | Status | Build | Per-case results | Attempted cases | Summary evidence | Note |
@@ -91,6 +91,8 @@ Former XFAIL cases are rendered from live runtime evidence like any other YAML c
 | xml_namespace_edge_connector_gap | tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml | common | body-processors | - | connector_gap | imported | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json | FAIL | not promoted | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=xml_namespace_edge_connector_gap; status=fail; expected=403; actual=501 |
 | xml_request_body_block | tests/cases/body/xml/xml_request_body_block.yaml | common | body-processors | - | active | imported | yes | yes | PASS | promotion eligible | pass: xml_request_body_block HTTP 403 observed | /src/ModSecurity-conector-build/results/apache-summary.json; case=xml_request_body_block; status=pass; expected=403; actual=403 | PASS | promotion eligible | pass: xml_request_body_block HTTP 403 observed | /src/ModSecurity-conector-build/results/nginx-summary.json; case=xml_request_body_block; status=pass; expected=403; actual=403 | PASS | promotion eligible | runtime summary result; classification=active | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=xml_request_body_block; status=pass; expected=403; actual=403 |
 | xml_request_body_malformed_connector_gap | tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml | common | body-processors | - | connector_gap | imported | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json | FAIL | not promoted | expected HTTP 403; observed HTTP 501 | /src/ModSecurity-conector-build/results/haproxy-summary.json; case=xml_request_body_malformed_connector_gap; status=fail; expected=403; actual=501 |
+| phase4_deny_after_commit_abort | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_abort.yaml | apache | no-crs-baseline | - | pending | pending | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json | NOT_EXECUTABLE | - | apache-specific case is not applicable to nginx | - | NOT_EXECUTABLE | - | apache-specific case is not applicable to haproxy | - |
+| phase4_deny_after_commit_log_only | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_log_only.yaml | apache | no-crs-baseline | - | pending | pending | no | yes | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json | NOT_EXECUTABLE | - | apache-specific case is not applicable to nginx | - | NOT_EXECUTABLE | - | apache-specific case is not applicable to haproxy | - |
 | nginx_phase4_content_type_out_of_scope | tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml | nginx | response-body | - | active | imported | yes | yes | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - | PASS | RESPONSE_BODY non-verified; non-promotable | Runtime passed, but this does not verify RESPONSE_BODY support. | /src/ModSecurity-conector-build/results/nginx-summary.json; case=nginx_phase4_content_type_out_of_scope; status=pass; expected=200; actual=200 | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
 | phase4_deny_after_commit_abort | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_abort.yaml | nginx | no-crs-baseline | - | pending | pending | no | yes | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
 | phase4_deny_after_commit_log_only | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_log_only.yaml | nginx | no-crs-baseline | - | pending | pending | no | yes | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json | NOT_EXECUTABLE | - | nginx-specific case is not applicable to haproxy | - |
@@ -618,7 +620,7 @@ Former XFAIL cases are rendered from live runtime evidence like any other YAML c
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
 | Declared input | `config/testing/import-status.json` | `missing` | `unknown` | missing |
-| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `3e7a08507b7f` | present |
+| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `36b8dda731e3` | present |
 
 ## Data Availability / Missing Information
 

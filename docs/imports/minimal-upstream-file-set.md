@@ -112,7 +112,7 @@ Materialized build input:
   and writes `MATERIALIZED_SOURCE.md` plus `materialized-source.json`.
 - External NGINX source builds still use a sanitized external-source copy; if
   the selected external source tree lacks `src/ddebug.h`,
-  `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` overlays the repo-owned header into the generated
+  `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh` overlays the repo-owned header into the generated
   external build copy.
 
 ## Future Common Extraction Candidates

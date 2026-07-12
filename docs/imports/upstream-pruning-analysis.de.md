@@ -44,8 +44,8 @@ werden unter `connectors/apache/src/` abgeflacht, Apache-Vorlagen werden darunte
   `connectors/nginx/upstream/config`.
 - NGINX Adaptereigene Modulmetadaten nach Phase 9:
   `connectors/nginx/config`.
-- Aktuelles Smokegeschirrverhalten in `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` und
-  `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh`.
+- Aktuelles Smokegeschirrverhalten in `modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh` und
+  `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh`.
 - Vorhandener realer Smoke-Pfad, der Connector-Quellbäume materialisiert
   gemäß `$BUILD_ROOT` vor dem Bau.
 

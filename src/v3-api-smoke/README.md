@@ -62,8 +62,8 @@ LOG_DIR=$RUNNER_TEMP/ModSecurity-test-Framework-build/logs
 For automation that needs the blocked exit code `77`, use:
 
 ```sh
-sh ci/check-v3-api-smoke-prereqs.sh
-sh ci/run-v3-api-smoke.sh
+sh ci/provisioning/check-v3-api-smoke-prereqs.sh
+sh ci/runtime/run-v3-api-smoke.sh
 ```
 
 GNU Make reports failed recipe commands as a make failure; it will print

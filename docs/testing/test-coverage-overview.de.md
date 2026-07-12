@@ -111,8 +111,8 @@ Generierte Datei – nicht manuell bearbeiten.
 | PASS | 54 | 60 | 105 |
 | FAIL | 0 | 0 | 23 |
 | NOT_EXECUTABLE | 486 | 480 | 412 |
-- Details: `docs/testing/generated/runtime-matrix.generated.md`
-- HAProxy-Ergebnisse pro Fall: `docs/testing/generated/haproxy-runtime-results.generated.md`
+- Details: `docs/testing/generated/runtime/runtime-matrix.generated.md`
+- HAProxy-Ergebnisse pro Fall: `docs/testing/generated/runtime/haproxy-runtime-results.generated.md`
 
 ## MRTS Nachweis der nativen Infrastruktur
 - Apache nativ: `docs/testing/generated/mrts-native-apache.generated.md`
@@ -227,8 +227,8 @@ Es wurden keine NGINX Laufzeit-FAIL Details gemeldet.
 ## Offene Bereiche / Lücken
 - Laufzeitverifiziert bedeutet nur Fälle, die explizit als `runtime_verified=true` klassifiziert sind.
 - Fälle mit `runtime_verified=false` oder `runtime_verified=unknown` sind kein Laufzeit-PASS-Nachweis.
-- Detaillierte Connector-Gap-Einträge finden Sie unter `docs/testing/generated/connector-gap-summary.generated.md`.
-- Phasen-3/4-Fälle sind in `docs/testing/generated/phase-coverage.generated.md` und in der Laufzeitmatrix sichtbar.
+- Detaillierte Connector-Gap-Einträge finden Sie unter `docs/testing/generated/coverage/connector-gap-summary.generated.md`.
+- Phasen-3/4-Fälle sind in `docs/testing/generated/coverage/phase-coverage.generated.md` und in der Laufzeitmatrix sichtbar.
 - RESPONSE_BODY bleibt nicht verifiziert und nicht hochgestuft.
 - GitHub/Codex-Prüfungen sind absichtlich leichtgewichtig.
 - Ausstehende und Lückenthemen erfordern eine lokale Laufzeitvalidierung.
@@ -250,15 +250,15 @@ Es wurden keine NGINX Laufzeit-FAIL Details gemeldet.
 - `make check-test-matrix`
 
 ## Detailberichte
-- `docs/testing/generated/case-matrix.generated.md`
-- `docs/testing/generated/coverage-summary.generated.md`
-- `docs/testing/generated/xfail-summary.generated.md`
-- `docs/testing/generated/connector-gap-summary.generated.md`
-- `docs/testing/generated/phase-coverage.generated.md`
-- `docs/testing/generated/runtime-matrix.generated.md`
-- `docs/testing/generated/apache-runtime-results.generated.md`
-- `docs/testing/generated/nginx-runtime-results.generated.md`
-- `docs/testing/generated/haproxy-runtime-results.generated.md`
+- `docs/testing/generated/coverage/case-matrix.generated.md`
+- `docs/testing/generated/coverage/coverage-summary.generated.md`
+- `docs/testing/generated/coverage/xfail-summary.generated.md`
+- `docs/testing/generated/coverage/connector-gap-summary.generated.md`
+- `docs/testing/generated/coverage/phase-coverage.generated.md`
+- `docs/testing/generated/runtime/runtime-matrix.generated.md`
+- `docs/testing/generated/runtime/apache-runtime-results.generated.md`
+- `docs/testing/generated/runtime/nginx-runtime-results.generated.md`
+- `docs/testing/generated/runtime/haproxy-runtime-results.generated.md`
 - `docs/testing/runtime-validation-snapshot.json`
 
 ## Wichtiger Hinweis

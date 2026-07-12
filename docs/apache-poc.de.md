@@ -6,7 +6,7 @@ Status: eingerüstet
 
 ## Umgesetzt
 
-- `ci/prepare-apache-build.sh` bereitet einen Connector-spezifischen Apache PoC-Build vor
+- `ci/provisioning/prepare-apache-build.sh` bereitet einen Connector-spezifischen Apache PoC-Build vor
   unter `BUILD_ROOT`.
 - Der Helfer kann Apache httpd aus dem Quellcode unter `BUILD_ROOT` erstellen; systemweit
   `apxs` und `httpd` sind nicht erforderlich.
@@ -53,7 +53,7 @@ Der Apache PoC kann httpd ohne Paketinstallation erstellen:
 REFRESH=1 \
 BUILD_HTTPD_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-test-Framework-build \
-sh ci/prepare-apache-build.sh
+sh ci/provisioning/prepare-apache-build.sh
 ```
 
 Standard-Quellversionen:
@@ -182,7 +182,7 @@ In diesem Arbeitsbereich am 15.05.2026 beobachtet:
 - `apxs`, `apxs2`, `apache2`, `httpd`, `apachectl` und `apache2ctl` waren nicht vorhanden
   gefunden in `PATH`.
 - `REFRESH=1 BUILD_HTTPD_FROM_SOURCE=1
-  BUILD_ROOT=/src/ModSecurity-test-Framework-build sh ci/prepare-apache-build.sh`
+  BUILD_ROOT=/src/ModSecurity-test-Framework-build sh ci/provisioning/prepare-apache-build.sh`
   Apache httpd aus dem Quellcode erstellt, libmodsecurity v3 in einer beschreibbaren Kopie erstellt,
   und baute `mod_security3.so`.
 - `BUILD_ROOT=/src/ModSecurity-test-Framework-build make smoke-apache` hat den Pass zurückgegeben

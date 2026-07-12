@@ -160,7 +160,7 @@ GitHub Actions stimmen zu.
 
 Das smoke/lint-Tool hat explizite Voraussetzungen und meldet fehlende Laufzeiteingaben als **BLOCKED**.
 
-Die Standardeinstellungen für Shell-Helfer sind in `modules/ModSecurity-test-Framework/ci/common.sh` zentralisiert. Überschreiben Sie Variablen in
+Die Standardeinstellungen für Shell-Helfer sind in `modules/ModSecurity-test-Framework/ci/lib/common.sh` zentralisiert. Überschreiben Sie Variablen in
 die Umgebung, anstatt Skripte zu bearbeiten:
 
 ```bash
@@ -187,7 +187,7 @@ NGINX_SOURCE_REPO_URL=https://github.com/nginx/nginx
 NGINX_RELEASE_TAG=latest
 ```
 
-`modules/ModSecurity-test-Framework/ci/common.sh` ist passiv und führt keine Prüfungen durch, ruft keine Quellen ab und erstellt keine Dateien
+`modules/ModSecurity-test-Framework/ci/lib/common.sh` ist passiv und führt keine Prüfungen durch, ruft keine Quellen ab und erstellt keine Dateien
 Artefakte für sich. Die Connector-Quelle ist standardmäßig repo-lokal; extern
 Apache/NGINX Connector-Repositorys erfordern eine explizite Zustimmung und sind keine Laufzeit
 Standardwerte.
@@ -202,7 +202,7 @@ python3 -m pip install -r requirements-dev.txt
 
 Derzeit erforderlich für Linthelfer:
 
-- `PyYAML>=6,<7` (verwendet von `modules/ModSecurity-test-Framework/ci/check-workflow-yaml.py`)
+- `PyYAML>=6,<7` (verwendet von `modules/ModSecurity-test-Framework/ci/checks/documentation/check-workflow-yaml.py`)
 
 Wenn es fehlt, gibt Lint anstelle eines Python-Tracebacks eine klare Blockierungsmeldung und einen Installationshinweis aus.
 
@@ -232,7 +232,7 @@ make doctor
 
 Die Doctor-Ausgabe trennt die Quell-Build-Bereitschaft von der optionalen Installation
 Bereitschaft. Die Quell-Build-Bereitschaft verwendet die konfigurierten Quell-Aliase von
-`modules/ModSecurity-test-Framework/ci/common.sh`; Die installierte Apache/NGINX/libmodsecurity-Erkennung ist diagnostisch
+`modules/ModSecurity-test-Framework/ci/lib/common.sh`; Die installierte Apache/NGINX/libmodsecurity-Erkennung ist diagnostisch
 nur und macht Systeminstallationen nicht zur Standardvoraussetzung. Wenn nein
 ModSecurity v3-Quellbaum ist verfügbar, Doctor beendet BLOCKED und druckt den
 genauer Export oder `make fetch-deps` Sanierungsbefehl.
@@ -246,7 +246,7 @@ Um echte externe Laufzeitvoraussetzungen explizit zu booten:
 make fetch-deps
 ```
 
-Dies verwendet `modules/ModSecurity-test-Framework/ci/fetch-smoke-sources.sh` und ruft die ModSecurity-Kern-Engine ab
+Dies verwendet `modules/ModSecurity-test-Framework/ci/provisioning/fetch-smoke-sources.sh` und ruft die ModSecurity-Kern-Engine ab
 Quelle aus den konfigurierten `MODSECURITY_REPO_URL` / `MODSECURITY_GIT_REF` (siehe
 `docs/testing/bootstrap.md`). Die Apache- und NGINX-Connector-Quelle bleibt erhalten
 standardmäßig repo-local.

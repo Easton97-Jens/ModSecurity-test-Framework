@@ -130,7 +130,7 @@ in the local reference checkout, but the smoke probe runs against
 Default command:
 
 ```sh
-sh ci/run-v3-api-smoke.sh
+sh ci/runtime/run-v3-api-smoke.sh
 ```
 
 Direct Makefile command:
@@ -142,7 +142,7 @@ make -C src/v3-api-smoke run
 Prerequisite check only:
 
 ```sh
-sh ci/check-v3-api-smoke-prereqs.sh
+sh ci/provisioning/check-v3-api-smoke-prereqs.sh
 ```
 
 Optional overrides:
@@ -152,7 +152,7 @@ MODSECURITY_V3_SOURCE_DIR=/path/to/ModSecurity_V3 \
 MODSECURITY_V3_DIR=/tmp/ModSecurity_V3_build \
 BUILD_ROOT=/tmp/ModSecurity-test-Framework-build \
 LOG_DIR=/tmp/ModSecurity-test-Framework-build/logs \
-sh ci/run-v3-api-smoke.sh
+sh ci/runtime/run-v3-api-smoke.sh
 ```
 
 The script and Makefile check for:
@@ -172,7 +172,7 @@ GNU Make itself exits with its own failure code.
 Local default build under `/src`:
 
 ```sh
-sh ci/build-v3-under-src.sh
+sh ci/provisioning/build-v3-under-src.sh
 ```
 
 Portable Linux example:
@@ -182,7 +182,7 @@ MODSECURITY_V3_SOURCE_DIR=/work/ModSecurity_V3 \
 MODSECURITY_V3_DIR=/tmp/ModSecurity_V3_build \
 BUILD_ROOT=/tmp/ModSecurity-test-Framework-build \
 LOG_DIR=/tmp/ModSecurity-test-Framework-build/logs \
-sh ci/build-v3-under-src.sh
+sh ci/provisioning/build-v3-under-src.sh
 ```
 
 GitHub Actions-style example:
@@ -192,7 +192,7 @@ MODSECURITY_V3_SOURCE_DIR=$GITHUB_WORKSPACE/ModSecurity_V3 \
 MODSECURITY_V3_DIR=$RUNNER_TEMP/ModSecurity_V3_build \
 BUILD_ROOT=$RUNNER_TEMP/ModSecurity-test-Framework-build \
 LOG_DIR=$RUNNER_TEMP/ModSecurity-test-Framework-build/logs \
-sh ci/build-v3-under-src.sh
+sh ci/provisioning/build-v3-under-src.sh
 ```
 
 The helper copies `MODSECURITY_V3_SOURCE_DIR` to `MODSECURITY_V3_DIR`, then runs
@@ -215,7 +215,7 @@ reported by the helper and keep the status `blocked`.
 Observed local build command:
 
 ```sh
-sh ci/build-v3-under-src.sh
+sh ci/provisioning/build-v3-under-src.sh
 ```
 
 Observed generated artifacts:
@@ -232,7 +232,7 @@ Observed generated artifacts:
   - `/src/ModSecurity-test-Framework-build/v3-api-smoke/v3_api_smoke.o`
   - `/src/ModSecurity-test-Framework-build/v3-api-smoke/v3_api_smoke`
 
-Observed on this workspace via `sh ci/check-v3-api-smoke-prereqs.sh`:
+Observed on this workspace via `sh ci/provisioning/check-v3-api-smoke-prereqs.sh`:
 
 ```text
 v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=<workspace>/ModSecurity_V3
@@ -245,7 +245,7 @@ v3_api_smoke: header present: /src/ModSecurity_V3_build/headers/modsecurity/mods
 v3_api_smoke: library present: /src/ModSecurity_V3_build/src/.libs/libmodsecurity.so
 ```
 
-Observed on this workspace via `sh ci/run-v3-api-smoke.sh`:
+Observed on this workspace via `sh ci/runtime/run-v3-api-smoke.sh`:
 
 ```text
 v3_api_smoke: MODSECURITY_V3_SOURCE_DIR=<workspace>/ModSecurity_V3
@@ -282,8 +282,8 @@ pass
 
 ## TODO
 
-- Run `sh ci/build-v3-under-src.sh` or provide an existing
-  `MODSECURITY_V3_DIR` build copy, then run `sh ci/run-v3-api-smoke.sh`.
+- Run `sh ci/provisioning/build-v3-under-src.sh` or provide an existing
+  `MODSECURITY_V3_DIR` build copy, then run `sh ci/runtime/run-v3-api-smoke.sh`.
 - If `primary_args_phase2` fails and `fallback_request_uri_phase1` passes,
   document the exact output without claiming `ARGS:test` support.
 - If any public C API call sequence needs adjustment, cite the v3 header,

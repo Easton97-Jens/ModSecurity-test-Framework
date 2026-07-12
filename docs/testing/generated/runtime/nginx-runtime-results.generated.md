@@ -1,14 +1,14 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-11T12:43:32Z`
-> Verified run id: `3e7a08507b7f`
+> Generated at: `2026-07-12T18:43:56Z`
+> Verified run id: `36b8dda731e3`
 > Data source policy: `verified-inputs-only`
-> Generator: `framework:ci/generate-case-matrix.py`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
-> Framework SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
+> Connector SHA: `36b8dda731e3bdaf842449096c4ff20020459c32`
+> Framework SHA: `36b8dda731e3bdaf842449096c4ff20020459c32`
 > Input status: `missing`
 
 # Generated NGINX Runtime Results
@@ -39,7 +39,7 @@
 | Status | Count |
 |---|---:|
 | PASS | 60 |
-| NOT_EXECUTABLE | 497 |
+| NOT_EXECUTABLE | 499 |
 
 ## NGINX FAIL Details
 No NGINX runtime FAIL details were reported.
@@ -119,6 +119,8 @@ No NGINX runtime FAIL details were reported.
 | xml_namespace_edge_connector_gap | tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml | imported | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json |
 | xml_request_body_block | tests/cases/body/xml/xml_request_body_block.yaml | imported | PASS | promotion eligible | pass: xml_request_body_block HTTP 403 observed | /src/ModSecurity-conector-build/results/nginx-summary.json; case=xml_request_body_block; status=pass; expected=403; actual=403 |
 | xml_request_body_malformed_connector_gap | tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml | imported | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json |
+| phase4_deny_after_commit_abort | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_abort.yaml | pending | NOT_EXECUTABLE | - | apache-specific case is not applicable to nginx | - |
+| phase4_deny_after_commit_log_only | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_log_only.yaml | pending | NOT_EXECUTABLE | - | apache-specific case is not applicable to nginx | - |
 | nginx_phase4_content_type_out_of_scope | tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml | imported | PASS | RESPONSE_BODY non-verified; non-promotable | Runtime passed, but this does not verify RESPONSE_BODY support. | /src/ModSecurity-conector-build/results/nginx-summary.json; case=nginx_phase4_content_type_out_of_scope; status=pass; expected=200; actual=200 |
 | phase4_deny_after_commit_abort | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_abort.yaml | pending | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json |
 | phase4_deny_after_commit_log_only | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_log_only.yaml | pending | NOT_EXECUTABLE | not promoted | no nginx runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/nginx-summary.json |
@@ -642,7 +644,7 @@ No NGINX runtime FAIL details were reported.
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
 | Declared input | `config/testing/import-status.json` | `missing` | `unknown` | missing |
-| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `3e7a08507b7f` | present |
+| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `36b8dda731e3` | present |
 
 ## Data Availability / Missing Information
 

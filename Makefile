@@ -8,12 +8,15 @@ MRTS_BUILD_ROOT ?= $(BUILD_ROOT)/mrts
 FRAMEWORK_ROOT ?= $(CURDIR)
 CONNECTOR_ROOT ?= $(CURDIR)
 OUTPUT_ROOT ?= $(CONNECTOR_ROOT)
+CI_ROOT ?= $(FRAMEWORK_ROOT)/ci
+CI_SHELL_FILES := $(shell find ci -type f -name '*.sh' -print | sort)
+CI_PYTHON_FILES := $(shell find ci -type f -name '*.py' -print | sort)
 PYTHONDONTWRITEBYTECODE ?= 1
-NO_CRS_TOOL ?= $(FRAMEWORK_ROOT)/ci/no_crs_baseline.py
-FULL_LIFECYCLE_EVIDENCE_TOOL ?= $(FRAMEWORK_ROOT)/ci/check_full_lifecycle_evidence.py
-TRANSPORT_HARDENING_EVIDENCE_TOOL ?= $(FRAMEWORK_ROOT)/ci/check_transport_hardening_evidence.py
-PROTOCOL_CLIENT_TOOL ?= $(FRAMEWORK_ROOT)/ci/protocol_client.py
-PROTOCOL_EVIDENCE_TOOL ?= $(FRAMEWORK_ROOT)/ci/check_protocol_evidence.py
+NO_CRS_TOOL ?= $(CI_ROOT)/checks/catalog/no_crs_baseline.py
+FULL_LIFECYCLE_EVIDENCE_TOOL ?= $(CI_ROOT)/checks/evidence/check_full_lifecycle_evidence.py
+TRANSPORT_HARDENING_EVIDENCE_TOOL ?= $(CI_ROOT)/checks/evidence/check-transport-hardening-evidence.py
+PROTOCOL_CLIENT_TOOL ?= $(CI_ROOT)/checks/protocol/protocol-client.py
+PROTOCOL_EVIDENCE_TOOL ?= $(CI_ROOT)/checks/protocol/check-protocol-evidence.py
 PROTOCOL_URL ?=
 PROTOCOL_PROFILE ?= http1
 PROTOCOL_ARTIFACT_DIR ?= $(BUILD_ROOT)/protocol-client/$(PROTOCOL_PROFILE)
@@ -53,6 +56,7 @@ export SOURCE_ROOT
 export TMP_ROOT
 export LOG_ROOT
 export FRAMEWORK_ROOT
+export CI_ROOT
 export CONNECTOR_ROOT
 export OUTPUT_ROOT
 export PYTHON
@@ -84,7 +88,7 @@ export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
+.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-doc-links check-variable-documentation check-repository-path-references check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
 
 define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 	@set +e; \
@@ -98,27 +102,39 @@ define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 endef
 
 setup-dev install-dev-deps:
-	sh ci/bootstrap-python.sh
+	sh ci/tools/bootstrap-python.sh
 
 lint:
-	sh -n ci/*.sh
-	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh; else echo "bash unavailable"; fi
-	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
-	$(PYTHON) ci/check-python-deps.py
-	$(PYTHON) ci/check-workflow-yaml.py
-	$(PYTHON) ci/check-response-body-promotion.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
-	$(PYTHON) ci/check-security-data-flow-cases.py
-	$(PYTHON) ci/check-security-data-flow-normalizers.py
-	$(PYTHON) ci/no_crs_baseline.py catalog-check
-	sh ci/check-crs-version-pinning.sh
-	sh ci/check-open-runtime-provisioning-contract.sh
+	sh -n $(CI_SHELL_FILES)
+	if command -v bash >/dev/null 2>&1; then bash -n $(CI_SHELL_FILES); else echo "bash unavailable"; fi
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py $(CI_PYTHON_FILES)
+	$(PYTHON) ci/tools/check-python-deps.py
+	$(PYTHON) ci/checks/documentation/check-workflow-yaml.py
+	$(PYTHON) ci/checks/evidence/check-response-body-promotion.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
+	$(PYTHON) ci/checks/security/check-security-data-flow-cases.py
+	$(PYTHON) ci/checks/security/check-security-data-flow-normalizers.py
+	$(PYTHON) ci/checks/catalog/no_crs_baseline.py catalog-check
+	sh ci/checks/catalog/check-crs-version-pinning.sh
+	sh ci/checks/catalog/check-open-runtime-provisioning-contract.sh
+	$(MAKE) check-documentation
 	git diff --check
 
 check-security-data-flow-cases:
-	$(PYTHON) ci/check-security-data-flow-cases.py
+	$(PYTHON) ci/checks/security/check-security-data-flow-cases.py
 
 check-security-data-flow-normalizers:
-	$(PYTHON) ci/check-security-data-flow-normalizers.py
+	$(PYTHON) ci/checks/security/check-security-data-flow-normalizers.py
+
+check-doc-links:
+	$(PYTHON) ci/checks/documentation/check-doc-links.py
+
+check-variable-documentation:
+	$(PYTHON) ci/checks/documentation/check-variable-documentation.py
+
+check-repository-path-references:
+	$(PYTHON) ci/checks/documentation/check-repository-path-references.py
+
+check-documentation: check-doc-links check-variable-documentation check-repository-path-references
 
 test-no-crs-contract:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest discover -s tests/no_crs -v
@@ -220,12 +236,12 @@ test-protocol-client:
 check-no-crs-doc-consistency: check-no-crs-catalog
 
 quick-check codex-check: lint
-	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
-	$(PYTHON) ci/check-mrts-importer.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py $(CI_PYTHON_FILES)
+	$(PYTHON) ci/checks/catalog/check-mrts-importer.py
 	git diff --check
 
 generate-test-matrix:
-	sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; if [ "$$MODSECURITY_MRTS_VARIANT" = "with-mrts" ]; then mrts_import_cases; fi; "$(PYTHON)" ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)" $(if $(SKIP_ROOT_SUMMARY),--skip-root-summary,)'
+	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; if [ "$$MODSECURITY_MRTS_VARIANT" = "with-mrts" ]; then mrts_import_cases; fi; "$(PYTHON)" ci/reporting/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)" $(if $(SKIP_ROOT_SUMMARY),--skip-root-summary,)'
 
 refresh-framework-reports:
 	MODSECURITY_MRTS_VARIANT=with-mrts $(MAKE) generate-test-matrix CONNECTOR_ROOT="$(FRAMEWORK_ROOT)" OUTPUT_ROOT="$(FRAMEWORK_ROOT)"
@@ -241,54 +257,54 @@ check-test-matrix: refresh-framework-reports
 	}
 
 runtime-matrix:
-	sh ci/run-runtime-matrix.sh
+	sh ci/runtime/run-runtime-matrix.sh
 
 runtime-matrix-all:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,FORCE_ALL_CASES=1 sh ci/run-runtime-matrix.sh)
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,FORCE_ALL_CASES=1 sh ci/runtime/run-runtime-matrix.sh)
 
 runtime-matrix-haproxy:
-	sh ci/run-haproxy-runtime-matrix.sh
+	sh ci/runtime/run-haproxy-runtime-matrix.sh
 
 runtime-matrix-haproxy-all:
-	FORCE_ALL_CASES=1 sh ci/run-haproxy-runtime-matrix.sh
+	FORCE_ALL_CASES=1 sh ci/runtime/run-haproxy-runtime-matrix.sh
 
 smoke-apache:
-	CASE_SCOPE=all sh ci/run-apache-smoke.sh
+	CASE_SCOPE=all sh ci/runtime/run-apache-smoke.sh
 
 smoke-nginx:
-	CASE_SCOPE=all sh ci/run-nginx-smoke.sh
+	CASE_SCOPE=all sh ci/runtime/run-nginx-smoke.sh
 
 smoke-haproxy:
-	CASE_SCOPE=all sh ci/run-haproxy-smoke.sh
+	CASE_SCOPE=all sh ci/runtime/run-haproxy-smoke.sh
 
 smoke-all:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,CASE_SCOPE=all sh ci/run-connector-smokes.sh)
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh)
 
 test: test-no-crs test-with-crs
 
 test-no-crs:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. ci/common.sh; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh ci/run-connector-smokes.sh')
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. ci/lib/common.sh; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 test-with-crs:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. ci/common.sh; sh ci/fetch-crs.sh; sh ci/prepare-crs.sh; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh ci/run-connector-smokes.sh')
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. ci/lib/common.sh; sh ci/provisioning/fetch-crs.sh; sh ci/provisioning/prepare-crs.sh; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 mrts-generate:
-	sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; mrts_generate_all_corpora'
+	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; mrts_generate_all_corpora'
 
 mrts-load:
-	sh ci/write-mrts-load.sh
+	sh ci/provisioning/write-mrts-load.sh
 
 mrts-import:
-	sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; mrts_generate_all_corpora; MRTS_RULES_OUT="$$MRTS_UPSTREAM_RULES_OUT" sh ci/write-mrts-load.sh >/dev/null; mrts_import_cases'
+	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; mrts_generate_all_corpora; MRTS_RULES_OUT="$$MRTS_UPSTREAM_RULES_OUT" sh ci/provisioning/write-mrts-load.sh >/dev/null; mrts_import_cases'
 
 test-no-mrts:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=no-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh')
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=no-mrts sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 test-with-mrts:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=with-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh')
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=with-mrts sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 test-with-mrts-feature-demo:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=with-mrts MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1 sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh')
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=with-mrts MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1 sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 test-mrts-matrix:
 	MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_MRTS_VARIANT=no-mrts $(MAKE) test-no-mrts
@@ -309,16 +325,16 @@ mrts-ftw: mrts-generate
 	'
 
 fetch-modsecurity-v3:
-	sh ci/fetch-smoke-sources.sh v3
+	sh ci/provisioning/fetch-smoke-sources.sh v3
 
 fetch-deps:
-	sh ci/fetch-smoke-sources.sh all
+	sh ci/provisioning/fetch-smoke-sources.sh all
 
 fetch-crs:
-	sh ci/fetch-crs.sh
+	sh ci/provisioning/fetch-crs.sh
 
 prepare-crs:
-	sh ci/prepare-crs.sh
+	sh ci/provisioning/prepare-crs.sh
 
 prepare-haproxy-runtime:
-	sh ci/prepare-haproxy-runtime.sh
+	sh ci/provisioning/prepare-haproxy-runtime.sh

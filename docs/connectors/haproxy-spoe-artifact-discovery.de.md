@@ -23,7 +23,7 @@ Es implementiert keine Discovery-Logik, keinen Runner und keine Tests.
 |---|---|---|---|
 | Pfadtrennung Framework/Connector | Explizite Pfade (`FRAMEWORK_ROOT`, `CONNECTOR_ROOT`) sind dokumentiert. | `README.md` | HAProxy-spezifische Discovery-Regeln fehlen. |
 | Adapter-Vertrag | Hook-Vertrag (`prepare/start/send_request/collect_logs/...`) ist dokumentiert. | `docs/connector-adapter-interface.md` | Keine HAProxy-Implementierung. |
-| Laufende Connector-Smokes | Apache/NGINX-Orchestrierung vorhanden. | `ci/run-connector-smokes.sh` | HAProxy nicht orchestriert. |
+| Laufende Connector-Smokes | Apache/NGINX-Orchestrierung vorhanden. | `ci/runtime/run-connector-smokes.sh` | HAProxy nicht orchestriert. |
 | Runner-Connector-Auswahl | `apache`/`nginx` sind auswählbar. | `tests/runners/case_cli.py` | `haproxy` nicht auswählbar. |
 
 ## Vorgeschlagene Discovery-Eingaben (nur geplant)

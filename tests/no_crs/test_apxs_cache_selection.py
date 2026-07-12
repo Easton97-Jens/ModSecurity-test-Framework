@@ -8,7 +8,7 @@ import unittest
 
 
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[2]
-COMMON_SH = FRAMEWORK_ROOT / "ci" / "common.sh"
+COMMON_SH = FRAMEWORK_ROOT / "ci" / "lib" / "common.sh"
 
 
 class ApxsCacheSelectionTest(unittest.TestCase):

@@ -66,7 +66,7 @@ Folgendes wird absichtlich nicht importiert:
 
 ## Verwendung von Harnessesn
 
-`modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` und `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` verwenden das
+`modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh` und `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh` verwenden das
 Adaptereigene Monorepo-Quellen standardmäßig, wenn Connector-Quellumgebungsvariablen vorhanden sind
 nicht gesetzt:
 
@@ -101,7 +101,7 @@ Smokezusammenfassungen verwenden Connector-Ursprungsmetadaten in dieser Reihenfo
 Bei den Adaptermetadaten handelt es sich ausschließlich um report/build-summary-Daten. Es ist nicht verlinkt
 die Apache- oder NGINX-Module und ändert das Laufzeitverhalten des Connectors nicht.
 
-`ci/check-adapter-metadata-drift.sh` hält diese Adapter-eigenen Werte ausgerichtet
+`ci/checks/catalog/check-adapter-metadata-drift.sh` hält diese Adapter-eigenen Werte ausgerichtet
 mit den Ursprungskarten, Lizenzdokumenten und Importdokumentation. Das generierte
 Schattenquellenmanifeste beschreiben die Build-Kopie-Zusammensetzung; zusammenfassende Ursprungsmetadaten
 beschreibt weiterhin die Herkunft der Quelle.

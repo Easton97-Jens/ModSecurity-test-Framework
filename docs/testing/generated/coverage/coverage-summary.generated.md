@@ -1,28 +1,28 @@
 > Generated file - do not edit manually.
 >
-> Generated at: `2026-07-11T12:43:31Z`
-> Verified run id: `3e7a08507b7f`
+> Generated at: `2026-07-12T18:43:55Z`
+> Verified run id: `36b8dda731e3`
 > Data source policy: `verified-inputs-only`
-> Generator: `framework:ci/generate-case-matrix.py`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
 > Make target: `generate-test-matrix`
 > Owner: `runtime`
 > Severity: `informational`
-> Connector SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
-> Framework SHA: `3e7a08507b7fdb48565047470a3164a872fb15b5`
+> Connector SHA: `36b8dda731e3bdaf842449096c4ff20020459c32`
+> Framework SHA: `36b8dda731e3bdaf842449096c4ff20020459c32`
 > Input status: `missing`
 
 # Generated Coverage Summary
 
 **Language:** English | [Deutsch](coverage-summary.generated.de.md)
 
-- Total cases: 557
-- RESPONSE_BODY cases: 35
+- Total cases: 559
+- RESPONSE_BODY cases: 37
 - Verified runtime cases: 0
-- Non-verified runtime cases: 557
+- Non-verified runtime cases: 559
 
 ## By scope
 - common: 548
-- apache: 0
+- apache: 2
 - nginx: 9
 - unknown: 0
 
@@ -30,7 +30,7 @@
 - ModSecurity-apache PR: 4
 - mrts: 399
 - owasp-modsecurity/ModSecurity-apache#78: 3
-- unknown: 151
+- unknown: 153
 
 ## MRTS Source Summary
 - Total MRTS imported cases: **399**
@@ -67,7 +67,7 @@
 - active: 8
 - connector-gap: 15
 - imported: 133
-- pending: 401
+- pending: 403
 
 ## By variable/collection
 - `ARGS`: 76
@@ -132,7 +132,7 @@
 | Value | Source | Source Hash | Verified Run ID | Status |
 |---|---|---|---|---|
 | Declared input | `config/testing/import-status.json` | `missing` | `unknown` | missing |
-| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `3e7a08507b7f` | present |
+| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `36b8dda731e3` | present |
 
 ## Data Availability / Missing Information
 

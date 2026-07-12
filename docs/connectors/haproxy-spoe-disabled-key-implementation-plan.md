@@ -38,7 +38,7 @@ Der erste spätere Code-Schritt soll nur ermöglichen:
 |---|---|---|---|
 | `tests/runners/case_cli.py` | Connector-Argumente sind in relevanten Subcommands auf `apache`/`nginx` begrenzt. | Optional: `haproxy` als bekannter disabled/planned Key in Auswahl und Fehlermeldungspfad ergänzen (ohne Runtime-Pfad). | Falsche Aktivierung eines nicht implementierten Connectors. |
 | `tests/runners/msconnector_models.py` | Summary-Modell enthält kein dediziertes Feld `runtime_verified`; bestehende Struktur fokussiert auf vorhandene Connector-Summaries. | Optional: metadata-only Kennzeichnung für disabled/not_run dokumentieren, ohne Runtime-Evidence-Felder als erfüllt auszugeben. | Missverständliche Reports könnten Support suggerieren. |
-| `ci/run-connector-smokes.sh` | Orchestriert nur Apache/NGINX-Smokes. | Keine Änderung im ersten Schritt; HAProxy bleibt außerhalb der Runtime-Orchestrierung. | Unbeabsichtigte CI/Smoke-Erweiterung ohne Runner. |
+| `ci/runtime/run-connector-smokes.sh` | Orchestriert nur Apache/NGINX-Smokes. | Keine Änderung im ersten Schritt; HAProxy bleibt außerhalb der Runtime-Orchestrierung. | Unbeabsichtigte CI/Smoke-Erweiterung ohne Runner. |
 | `docs/connector-adapter-interface.md` | Hook-Vertrag ist allgemein dokumentiert (`prepare/start/send_request/collect_logs/...`). | Dokumentationsverweis: HAProxy bleibt planned, bis Hook-Implementierungen real vorliegen. | Vertrag könnte fälschlich als Implementierungsnachweis gelesen werden. |
 
 ## Geplantes Verhalten

@@ -15,12 +15,12 @@ from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location("no_crs_baseline", ROOT / "ci/no_crs_baseline.py")
+SPEC = importlib.util.spec_from_file_location("no_crs_baseline", ROOT / "ci/checks/catalog/no_crs_baseline.py")
 assert SPEC is not None and SPEC.loader is not None
 no_crs = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(no_crs)
 CHECK_SPEC = importlib.util.spec_from_file_location(
-    "check_full_lifecycle_evidence", ROOT / "ci/check_full_lifecycle_evidence.py"
+    "check_full_lifecycle_evidence", ROOT / "ci/checks/evidence/check_full_lifecycle_evidence.py"
 )
 assert CHECK_SPEC is not None and CHECK_SPEC.loader is not None
 full_lifecycle_check = importlib.util.module_from_spec(CHECK_SPEC)
@@ -540,7 +540,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             self.assertEqual([], full_lifecycle_check.promotion_errors(run_dir))
 
     def test_post_execution_missing_evidence_is_fail_not_exit_77(self) -> None:
-        source = (ROOT / "ci/connector-smoke-common.sh").read_text(encoding="utf-8")
+        source = (ROOT / "ci/lib/connector-smoke-common.sh").read_text(encoding="utf-8")
         block = source[source.index('if [ "$rc" -eq 0 ] && [ "${RUN_ONE_CASE:-0}" = "1" ]'):]
         block = block[:block.index('    exit "$rc"')]
         self.assertIn('FAIL 1 failed "RUN_ONE_CASE result.json missing after execution"', block)

@@ -44,8 +44,8 @@ are flattened under `connectors/apache/src/`, Apache templates move under
   `connectors/nginx/upstream/config`.
 - NGINX adapter-owned module metadata after phase 9:
   `connectors/nginx/config`.
-- Current smoke harness behavior in `modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` and
-  `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh`.
+- Current smoke harness behavior in `modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh` and
+  `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh`.
 - Existing real-world smoke path, which materializes connector source trees
   under `$BUILD_ROOT` before building.
 

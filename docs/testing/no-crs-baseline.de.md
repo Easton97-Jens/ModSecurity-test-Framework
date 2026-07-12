@@ -127,12 +127,12 @@ Future-Fixture zu ausgeführter Evidence noch erteilt es selbstständig PASS.
 ## Writer- und Validator-Ablauf
 
 ```sh
-python3 ci/no_crs_baseline.py select \
+python3 ci/checks/catalog/no_crs_baseline.py select \
   --connector envoy \
   --capabilities "$CONNECTOR_ROOT/connectors/envoy/capabilities.json" \
   --output "$RUN_DIR/plan.json"
 
-python3 ci/no_crs_baseline.py init \
+python3 ci/checks/catalog/no_crs_baseline.py init \
   --connector envoy \
   --capabilities "$CONNECTOR_ROOT/connectors/envoy/capabilities.json" \
   --plan "$RUN_DIR/plan.json" \
@@ -141,7 +141,7 @@ python3 ci/no_crs_baseline.py init \
   --connector-root "$CONNECTOR_ROOT"
 
 # Hier den echten Host ausführen und danach nur beobachtete Artefakte normalisieren.
-python3 ci/no_crs_baseline.py finalize \
+python3 ci/checks/catalog/no_crs_baseline.py finalize \
   --run-dir "$RUN_DIR" \
   --capabilities "$CONNECTOR_ROOT/connectors/envoy/capabilities.json" \
   --source-result "$RAW_RESULT" \
@@ -152,7 +152,7 @@ python3 ci/no_crs_baseline.py finalize \
   --host-version "$HOST_VERSION" \
   --libmodsecurity-version "$LIBMODSECURITY_VERSION"
 
-python3 ci/no_crs_baseline.py validate \
+python3 ci/checks/catalog/no_crs_baseline.py validate \
   --evidence-root "$RUN_DIR" \
   --connector envoy \
   --capabilities "$CONNECTOR_ROOT/connectors/envoy/capabilities.json" \

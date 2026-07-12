@@ -6,7 +6,7 @@ Status: scaffolded
 
 ## Implemented
 
-- `ci/prepare-nginx-build.sh` prepares a connector-specific NGINX PoC build
+- `ci/provisioning/prepare-nginx-build.sh` prepares a connector-specific NGINX PoC build
   under `BUILD_ROOT`.
 - The helper copies the read-only libmodsecurity v3 and ModSecurity-nginx
   sources into `$BUILD_ROOT/nginx-build/` and builds only inside those copies.
@@ -53,7 +53,7 @@ Run the build helper with:
 REFRESH=1 \
 BUILD_NGINX_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-test-Framework-build \
-sh ci/prepare-nginx-build.sh
+sh ci/provisioning/prepare-nginx-build.sh
 ```
 
 The helper builds libmodsecurity v3 in:
@@ -109,7 +109,7 @@ latest release. The helper does not hardcode this value.
 For a pinned release:
 
 ```sh
-NGINX_RELEASE_TAG=release-1.31.0 sh ci/prepare-nginx-build.sh
+NGINX_RELEASE_TAG=release-1.31.0 sh ci/provisioning/prepare-nginx-build.sh
 ```
 
 The archive URL is:
@@ -163,7 +163,7 @@ make smoke-nginx
 Observed in this workspace on 2026-05-15:
 
 - `REFRESH=1 BUILD_NGINX_FROM_SOURCE=1
-  BUILD_ROOT=/src/ModSecurity-test-Framework-build sh ci/prepare-nginx-build.sh`
+  BUILD_ROOT=/src/ModSecurity-test-Framework-build sh ci/provisioning/prepare-nginx-build.sh`
   built libmodsecurity v3 in a writable copy, resolved the NGINX release
   through GitHub, built NGINX, and produced the ModSecurity dynamic module.
 - `BUILD_ROOT=/src/ModSecurity-test-Framework-build make smoke-nginx` returned pass

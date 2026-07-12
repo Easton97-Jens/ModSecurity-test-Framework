@@ -1,62 +1,77 @@
-# CI
+# Framework-CI-Werkzeuge
 
 **Sprache:** [English](README.md) | Deutsch
 
-Status: eingerüstet
+`ci/` enthält Framework-eigene Validierung, lokale Runtime-Orchestrierung,
+Provisionierung, Reporting und Hilfswerkzeuge. Diese Dateien ordnen bestehende
+Verträge; sie definieren keine Connector-Lifecycle-Semantik, Capability-Zustände,
+Schemas oder Evidence-Promotion-Richtlinien.
 
-CI Hilfsskripte gehören hierher, nachdem sie nachweislich konnektorneutral sind oder
-eindeutig steckerbezogen.
+## Struktur
 
-`ci/common.sh` ist der gemeinsame Shell-config/helper-Einstiegspunkt. Es zentralisiert
-Build-Roots, Source-Roots, ModSecurity-Kern refs/URLs, Repo-Local-Connector
-Quellvorgaben, Serverquelle versions/URLs, Python-Auswahl, optional
-Hinweise zur installierten Laufzeit und Protokollierungshilfen. Es ist passiv: es beschaffen
-definiert nur Variablen und Funktionen.
+| Verzeichnis | Verantwortung |
+|---|---|
+| `checks/catalog/` | Katalog-, Metadaten-, Helfer-, CRS-Pin- und MRTS-Import-Vertragschecks. |
+| `checks/evidence/` | Validierung für Response-Body-, Full-Lifecycle- und Transport-Hardening-Evidence. |
+| `checks/protocol/` | Verwalteter Protokoll-Client und sein Evidence-Checker. |
+| `checks/security/` | Payload-/Datenfluss- und Normalizer-Sicherheitschecks. |
+| `checks/documentation/` | Markdown-Link-, zweisprachige Variablen-/Referenz-, Workflow- und verschobene-Pfad-Checks. |
+| `runtime/` | Einstiegspunkte für Connector-Smokes und Runtime-Matrix. |
+| `provisioning/` | Explizite Vorbereitung von Quellen, CRS, MRTS und lokalen Komponenten. |
+| `reporting/` | Generatoren für Fallmatrizen, Work Queues, Summaries und Runtime-Snapshots. |
+| `tools/` | Entwickler-Bootstrap, Diagnose-, Abhängigkeits- und Fast-Check-Befehle. |
+| `lib/` | Gemeinsame Shell-/Python-Helfer; `common.sh` ist passive Konfiguration und `path.sh` findet Framework-Pfade. |
 
-Wichtige lokale Einstiegspunkte:
+## Einstiegspunkte und Pfadregeln
 
-- `ci/cloud-quick-check.sh`: framework/generator/lint Prüfung auf Lightweight-CI.
-- `ci/quick-all.sh`: lokal bevorzugte schnelle Orchestrierung; kann BLOCKIERT zurückgeben.
-- `ci/fetch-smoke-sources.sh`: expliziter Helfer zum Abrufen der Quelle.
-- `ci/fetch-crs.sh`: explizit OWASP CRS Holt den Helfer mithilfe des zentralen Pins von
-  `ci/common.sh`.
-- `ci/prepare-crs.sh`: generierte CRS setup/preamble Helfer für den `with-crs`
-  Testvariante.
-- `ci/prepare-haproxy-runtime.sh`: lokale HAProxy-Quelle fetch/build Helfer. Es
-  verwendet nur die HAProxy URL/version/checksum-Werte aus `ci/common.sh`,
-  überprüft die offizielle Prüfsumme, prüft `TARGET=linux-glibc` Unterstützung im
-  hat das Quell-Makefile heruntergeladen und stellt die Binärdatei unter `BUILD_ROOT` bereit.
-- `ci/doctor.sh`: lokale prerequisite/readiness Diagnose.
-- `ci/run-connector-smokes.sh`: lokale Apache+NGINX Smoke-Orchestrierung.
-- `ci/run-envoy-smoke.sh`, `ci/run-haproxy-smoke.sh`,
-  `ci/run-lighttpd-smoke.sh` und `ci/run-traefik-smoke.sh`: im Besitz des Frameworks
-Runtime-Smoke-Einstiegspunkte für die neuen Connector-Starter. Sie derzeit
-  Schreiben Sie einen BLOCKED-Nachweis, wenn das Connector-Repository nur über einen Harness verfügt
-  Vertrag und kein ausführbares Laufzeitkabel.
-- `ci/run-connector-starter-checks.sh`: build/self-test Starterbeweis für
-  Envoy, HAProxy, lighttpd und Traefik. Diese Ergebnisse sind kein Laufzeitfehler
-  Nachweise.
+Direkte Shell-Einstiegspunkte ermitteln ihr eigenes Verzeichnis, leiten
+`CI_ROOT` ab und sourcen `ci/lib/path-bootstrap.sh`. Das Bootstrap erkennt oder
+validiert `FRAMEWORK_ROOT`; deshalb bleiben Skripte nach der Gruppierung in
+diese Verantwortungsordner aufrufbar. Python-Werkzeuge verwenden ihren
+Dateiort nur, um die Framework-Wurzel und gemeinsame `ci/lib/`-Imports zu finden.
 
-Der vollständige Laufzeitnachweis bleibt über die Makefile-Smoke-Ziele lokal.
-Apache- und NGINX-Connector-Code stammt aus `connectors/apache` und
-`connectors/nginx` standardmäßig; Externe Connector-Repository-Abrufe erfordern
-explizites Opt-in.
+`ci/lib/common.sh` definiert Standards und Helfer, darf aber nicht allein durch
+das Sourcen Quellen abrufen, installieren, Verzeichnisse anlegen oder Checks
+ausführen. Versionspins, Source-URLs, Prüfsummen und Komponentenstandards
+stehen dort, statt in Workflows oder Einzelskripten dupliziert zu werden.
 
-Envoy-, HAProxy-, lighttpd- und Traefik-Runtime-Smoke-Runner verwenden lokale Roots
-nur: `SOURCE_ROOT=/src`, `BUILD_ROOT=/src/ModSecurity-conector-build`,
-`TMP_ROOT=$BUILD_ROOT/tmp`, `LOG_ROOT=$BUILD_ROOT/logs` und
-`RESULTS_DIR=$BUILD_ROOT/results` sofern nicht ausdrücklich durch einen anderen überschrieben
-erlaubter Pfad unter `/src`. Sie führen keine globalen Installationen durch.
+`FRAMEWORK_ROOT` auf diesen Checkout und `CONNECTOR_ROOT` auf den Connector-
+Checkout setzen, wenn ein Befehl Repository-Grenzen überschreitet. Für einen
+isolierten Lauf `BUILD_ROOT`, `SOURCE_ROOT`, `TMP_ROOT`, `LOG_ROOT` und
+`EVIDENCE_ROOT` auf beschreibbare Runtime-Pfade außerhalb von Git setzen.
+`/var/tmp/modsecurity-framework/build` ist zum Beispiel ein temporärer
+Build-Pfad, kein verpflichtender Host-Speicherort. Formate, Standards,
+Gültigkeit, Beispiele und Hinweise für sensible Werte stehen unter
+[Variablen und Platzhalter](../docs/reference/variables.de.md).
 
-Der HAProxy-Vorbereitungshelfer löst möglicherweise die lokale HAProxy-Binärvoraussetzung.
-aber es führt keinen SPOE/SPOA-Verkehr aus und erzeugt keinen Laufzeitrauch
-PASS Nachweise.
+## Relevante Targets
 
-CRS Laufzeitvalidierung ist variantenbasiert:
+- `make lint` führt Shell-/Python-Syntax, Katalog-/Security-/Evidence-Verträge,
+  Dokumentationschecks und Whitespace-Validierung aus. Es erzeugt keinen
+  Runtime-Beweis.
+- `make check-no-crs-catalog` validiert nur die Katalogstruktur.
+- `make check-documentation` führt Markdown-Link-, Variablen-/Platzhalter- und
+  veraltete-Pfad-Checks aus.
+- `make quick-check` ergänzt die kurzen lokalen Python-/MRTS-Checks nach `lint`.
+- `make refresh-framework-reports` generiert Framework-eigene Berichte über
+  `ci/reporting/`; generiertes Markdown nicht manuell ändern.
 
-- `MODSECURITY_TEST_VARIANT=no-crs` behält das bestehende lokale Fallregelverhalten bei.
-- `MODSECURITY_TEST_VARIANT=with-crs` injiziert `MODSECURITY_RULE_PREAMBLE_FILE`
-  vor generierten lokalen Fallregeln.
+Runtime-Skripte können `BLOCKED` melden, wenn ein Connector-eigenes
+ausführbares Harness oder eine Voraussetzung fehlt. Ein Build-/Self-Test-
+Starter-Ergebnis ist keine Runtime-Smoke-Evidence und bedeutet keine Evidence-
+Promotion. Das [Glossar](../docs/reference/glossary.de.md) definiert diese
+Status- und Evidence-Begriffe.
 
-Es werden nur das CRS-Repository URL, die Git-Referenz, der Quellpfad und der Laufzeitpfad definiert
-in `ci/common.sh`.
+## CI-Datei hinzufügen oder verschieben
+
+Eine neue Datei nach ihrer einen primären Verantwortung einordnen. Wiederverwendbare,
+importierte Helfer in `lib/`, Report-Schreiber in `reporting/` ablegen; keinen
+zweiten Helfer nur zur Platzierung neben einem Aufrufer erstellen. Beim
+Verschieben einer versionierten Datei `git mv` verwenden und danach Make-Targets,
+Workflows, Shell-Sources, Python-Imports, Tests, Dokumentation und Generator-
+Provenienz aktualisieren. Anschließend `make lint` und den betroffenen fokussierten
+Test ausführen.
+
+Keinen Connector-Implementierungscode, keine generierten Berichte, externen
+Source-Trees, Runtime-Logs, privaten Schlüssel, Zugangsdaten oder ad-hoc-
+lokale Skripte in `ci/` ablegen.

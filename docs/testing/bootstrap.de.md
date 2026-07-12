@@ -7,7 +7,7 @@ Die Apache- und NGINX-Connector-Quelle ist standardmäßig repo-lokal; externer 
 Repositorys sind nicht Teil des Standard-Laufzeit-Bootstraps.
 
 Gemeinsam genutzte Shell-Standardwerte für die Framework-Laufzeithelfer sind zentralisiert in
-`$FRAMEWORK_ROOT/ci/common.sh`. Connector-lokale `ci/`-Skripte sind Connector-spezifische Prüfungen. Das Framework `common.sh`
+`$FRAMEWORK_ROOT/ci/lib/common.sh`. Connector-lokale `ci/`-Skripte sind Connector-spezifische Prüfungen. Das Framework `common.sh`
 ist passiv: Es definiert nur Variablen und Hilfsfunktionen, wenn es mit Quellen versehen wird
 ruft, installiert, validiert oder erstellt keine Verzeichnisse.
 
@@ -17,14 +17,14 @@ Legen Sie `FRAMEWORK_ROOT` fest, wenn das Framework-Checkout nicht das Modul ist
 ## Verwendete Repositories
 
 - ModSecurity v3: `https://github.com/owasp-modsecurity/ModSecurity.git` (ref: `v3/master` standardmäßig)
-- OWASP Kernregelsatz: zentral konfiguriert in `$FRAMEWORK_ROOT/ci/common.sh`
+- OWASP Kernregelsatz: zentral konfiguriert in `$FRAMEWORK_ROOT/ci/lib/common.sh`
 - Quelle des Apache-Connectors: `connectors/apache` in diesem Repository
 - NGINX Connector-Quelle: `connectors/nginx` in diesem Repository
 - Gemeinsame YAML-Fälle und runner/generator-Code:
   `$FRAMEWORK_ROOT/docs/imports/common`, `$FRAMEWORK_ROOT/tests/runners`,
   `$FRAMEWORK_ROOT/tests/normalizers` und `$FRAMEWORK_ROOT/ci`
 - Die Serverquellen Apache/httpd, APR/APR-util, PCRE2 und NGINX sind getrennt
-  Laufzeit-Build-Abhängigkeiten, die über `modules/ModSecurity-test-Framework/ci/common.sh` konfiguriert werden.
+  Laufzeit-Build-Abhängigkeiten, die über `modules/ModSecurity-test-Framework/ci/lib/common.sh` konfiguriert werden.
 
 Zentrale Override-Variablen:
 
@@ -81,7 +81,7 @@ make fetch-deps
 - Vorhandene Repositorys werden **nicht überschrieben**; Vorhandene Git-Klone werden wiederverwendet.
 - Wenn `git` fehlt oder das Netzwerk blockiert ist, beendet der Befehl BLOCKED/non-zero mit leerer Ausgabe.
 - Es werden keine gefälschten Laufzeitartefakte erstellt.
-- Die konkrete CRS-Version ist nur in `ci/common.sh` angepinnt; Arbeitsabläufe und
+- Die konkrete CRS-Version ist nur in `ci/lib/common.sh` angepinnt; Arbeitsabläufe und
   Makefiles verbrauchen diesen Wert, anstatt ihn neu zu definieren.
 
 ## Wege

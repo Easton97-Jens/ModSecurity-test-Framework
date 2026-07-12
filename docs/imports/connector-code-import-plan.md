@@ -66,7 +66,7 @@ The following are intentionally not imported:
 
 ## Build Harness Use
 
-`modules/ModSecurity-test-Framework/ci/prepare-apache-build.sh` and `modules/ModSecurity-test-Framework/ci/prepare-nginx-build.sh` use the
+`modules/ModSecurity-test-Framework/ci/provisioning/prepare-apache-build.sh` and `modules/ModSecurity-test-Framework/ci/provisioning/prepare-nginx-build.sh` use the
 adapter-owned monorepo sources by default when connector source env vars are
 not set:
 
@@ -101,7 +101,7 @@ Smoke summaries use connector origin metadata in this order:
 The adapter metadata is report/build-summary data only. It is not linked into
 the Apache or NGINX modules and does not change connector runtime behavior.
 
-`ci/check-adapter-metadata-drift.sh` keeps those adapter-owned values aligned
+`ci/checks/catalog/check-adapter-metadata-drift.sh` keeps those adapter-owned values aligned
 with the origin maps, license docs, and import documentation. The generated
 shadow source manifests describe build-copy composition; summary origin metadata
 continues to describe source provenance.

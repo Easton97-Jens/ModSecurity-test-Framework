@@ -16,7 +16,7 @@ Es erzeugt keine Tests, keine Runner, keine Reports und keine Runtime-Evidence.
 | `docs/connector-adapter-interface.md` | Generischer Hook-Vertrag ist dokumentiert. | stark |
 | `tests/runners/case_cli.py` | Runner-CLI kennt nur `apache`/`nginx` als Connector-Auswahl. | stark |
 | `tests/runners/msconnector_models.py` | Summary-Modell vorhanden, aber nicht mit vollständigem HAProxy-Ziel-Feldset. | stark |
-| `ci/run-connector-smokes.sh` | Runtime-Orchestrierung nur für Apache/NGINX. | stark |
+| `ci/runtime/run-connector-smokes.sh` | Runtime-Orchestrierung nur für Apache/NGINX. | stark |
 | `.github/workflows/test-common.yml` | CI prüft Framework-Materialisierung, nicht HAProxy Runtime-Integration. | mittel |
 | `docs/future-connectors.md` | HAProxy nur als Zukunftspfad beschrieben. | mittel |
 

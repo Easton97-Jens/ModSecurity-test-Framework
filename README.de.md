@@ -11,6 +11,18 @@ Es ist kein Repository für eine Connector-Implementierung. Connector-Projekte s
 Connector-Quellcode, Harness-Einstiegspunkte, Adaptermetadaten und Connector-lokale
 Runtime-Nachweise bereit.
 
+## Befehlsbeispiele verwenden
+
+`/path/to/...` in dieser README ist ein Platzhalter für einen absoluten lokalen
+Checkout- oder Runtime-Pfad. Er muss durch einen kontrollierten Pfad wie
+`/work/ModSecurity-conector` ersetzt werden und ist niemals ein wörtlicher
+Repository-Pfad. `FRAMEWORK_ROOT` und `CONNECTOR_ROOT` setzen, wenn ein Befehl
+Repository-Grenzen überschreitet; für isolierte Läufe beschreibbare
+`BUILD_ROOT`, `SOURCE_ROOT`, `TMP_ROOT`, `LOG_ROOT` und `EVIDENCE_ROOT` außerhalb
+des Git-Worktrees verwenden. Vollständige Angaben zu Format, Standard,
+Gültigkeit und Sicherheit stehen unter
+[Framework-Variablen und Platzhalter](docs/reference/variables.de.md).
+
 ## Runtime Matrix
 
 Die Runtime Matrix verbindet Framework-eigene YAML-Fälle mit Connector-eigenen
@@ -23,6 +35,10 @@ Connector-Projekte führen normalerweise Folgendes aus:
 ```sh
 CONNECTOR_ROOT=/path/to/ModSecurity-conector make runtime-matrix-all
 ```
+
+`CONNECTOR_ROOT` ist die absolute Wurzel des Connector-Repositorys. Der
+Beispielwert ist ein portabler Platzhalter; er wählt Connector-eigene Manifeste
+und Evidence, keinen Connector-Implementierungsmodus.
 
 `runtime-matrix-all` setzt `FORCE_ALL_CASES=1` und versucht alle anwendbaren
 YAML-Fälle auszuführen. Erwartete Fehler bleiben in den generierten Berichten sichtbar.
@@ -42,10 +58,16 @@ CONNECTOR_ROOT=/path/to/ModSecurity-conector make test-with-crs
 CONNECTOR_ROOT=/path/to/ModSecurity-conector make test
 ```
 
+Alle drei Befehle verwenden denselben oben beschriebenen Platzhalter
+`CONNECTOR_ROOT`. `test-no-crs` lädt nur lokale Fallregeln, `test-with-crs`
+lädt zusätzlich den gepinnten CRS, und `test` führt beide Varianten aus; das
+[Glossar](docs/reference/glossary.de.md) erklärt die Begriffe, die
+[Variablenreferenz](docs/reference/variables.de.md) die Eingaben.
+
 `make test` führt beide Varianten aus. `make test-with-crs` ruft CRS automatisch ab und
 bereitet es unter `SOURCE_ROOT`/`BUILD_ROOT` vor; `make fetch-crs` kann verwendet werden,
 wenn CRS explizit vorab abgerufen werden soll. CRS-Version, Repository-URL und generierte
-CRS-Pfade sind zentral in `ci/common.sh` definiert; duplizieren Sie die CRS-Version nicht
+CRS-Pfade sind zentral in `ci/lib/common.sh` definiert; duplizieren Sie die CRS-Version nicht
 in Makefiles, Workflows oder anderen Skripten.
 
 ## MRTS-Integration
@@ -98,8 +120,8 @@ Runtime-Smoke-Runner verwenden standardmäßig zustandslokale Source- und Build-
 `SOURCE_ROOT`, `BUILD_ROOT`, `TMP_ROOT`, `LOG_ROOT` und `RESULTS_DIR` angeben, um lokale
 Läufe zu isolieren.
 
-HAProxy hat einen lokalen Vorbereitungshelfer unter `ci/prepare-haproxy-runtime.sh`. Er
-verwendet nur HAProxy-Quell-URL, Version und Prüfsumme aus `ci/common.sh`, prüft die
+HAProxy hat einen lokalen Vorbereitungshelfer unter `ci/provisioning/prepare-haproxy-runtime.sh`. Er
+verwendet nur HAProxy-Quell-URL, Version und Prüfsumme aus `ci/lib/common.sh`, prüft die
 offizielle Prüfsumme vor dem Entpacken, bestätigt, dass das Quell-Makefile
 `TARGET=linux-glibc` unterstützt, und stellt nur eine lokale Runtime-Binärdatei unter
 `BUILD_ROOT` bereit. Diese Binärdatei ist nur Voraussetzung-Nachweis; sie ist kein
@@ -148,7 +170,7 @@ ist, und Connector-eigene Nachweisberichte, wenn `OUTPUT_ROOT` ein Connector-Rep
 ist:
 
 ```sh
-python3 ci/generate-case-matrix.py \
+python3 ci/reporting/generate-case-matrix.py \
   --framework-root /path/to/ModSecurity-test-Framework \
   --connector-root /path/to/ModSecurity-conector \
   --output-root /path/to/ModSecurity-conector

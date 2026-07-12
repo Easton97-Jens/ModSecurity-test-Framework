@@ -7,7 +7,7 @@ Apache and NGINX connector source is repo-local by default; external connector
 repositories are not part of the default runtime bootstrap.
 
 Shared shell defaults for the framework runtime helpers are centralized in
-`$FRAMEWORK_ROOT/ci/common.sh`. Connector-local `ci/` scripts are connector-specific checks. The framework `common.sh`
+`$FRAMEWORK_ROOT/ci/lib/common.sh`. Connector-local `ci/` scripts are connector-specific checks. The framework `common.sh`
 is passive: it only defines variables and helper functions when sourced, and it
 does not fetch, install, validate, or create directories by itself.
 
@@ -17,14 +17,14 @@ Set `FRAMEWORK_ROOT` when the framework checkout is not the module
 ## Repositories used
 
 - ModSecurity v3: `https://github.com/owasp-modsecurity/ModSecurity.git` (ref: `v3/master` by default)
-- OWASP Core Rule Set: configured centrally in `$FRAMEWORK_ROOT/ci/common.sh`
+- OWASP Core Rule Set: configured centrally in `$FRAMEWORK_ROOT/ci/lib/common.sh`
 - Apache connector source: `connectors/apache` in this repository
 - NGINX connector source: `connectors/nginx` in this repository
 - Shared YAML cases and runner/generator code:
   `$FRAMEWORK_ROOT/docs/imports/common`, `$FRAMEWORK_ROOT/tests/runners`,
   `$FRAMEWORK_ROOT/tests/normalizers`, and `$FRAMEWORK_ROOT/ci`
 - Apache/httpd, APR/APR-util, PCRE2, and NGINX server sources are separate
-  runtime-build dependencies configured through `modules/ModSecurity-test-Framework/ci/common.sh`.
+  runtime-build dependencies configured through `modules/ModSecurity-test-Framework/ci/lib/common.sh`.
 
 Central override variables:
 
@@ -81,7 +81,7 @@ make fetch-deps
 - Existing repositories are **not overwritten**; existing git clones are reused.
 - If `git` is missing or network is blocked, command exits BLOCKED/non-zero with clear output.
 - No fake runtime artifacts are created.
-- The concrete CRS version is pinned only in `ci/common.sh`; workflows and
+- The concrete CRS version is pinned only in `ci/lib/common.sh`; workflows and
   Makefiles consume that value rather than redefining it.
 
 ## Paths

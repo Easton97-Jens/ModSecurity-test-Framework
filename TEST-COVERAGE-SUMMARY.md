@@ -5,18 +5,18 @@ Generated file - do not edit manually.
 # ModSecurity Connector Test Coverage Summary
 
 ## Summary Status
-- Total YAML cases: **557**
+- Total YAML cases: **559**
 - Verified/pass (`runtime_verified=true`): **0**
 - Current XFAIL cases: **0**
 - Former XFAIL cases tracked: **95**
-- Pending runtime verification (`runtime_verified=false`): **412**
+- Pending runtime verification (`runtime_verified=false`): **414**
 - Pending runtime verification (`runtime_verified=unknown`): **145**
 - Connector-gap cases: **26**
 - Runtime-difference cases: **13**
 - Future/experimental cases: **17**
-- RESPONSE_BODY cases: **35**
+- RESPONSE_BODY cases: **37**
 - Default runtime-executable YAML cases: **61**
-- Force-all runtime-executable YAML cases: **557**
+- Force-all runtime-executable YAML cases: **559**
 - Apache attempted YAML cases in default runtime snapshot: **54**
 - NGINX attempted YAML cases in default runtime snapshot: **60**
 - HAProxy attempted YAML cases in default runtime snapshot: **134**
@@ -75,13 +75,13 @@ Generated file - do not edit manually.
 
 ## Case Inventory
 - Common YAML cases: **548**
-- Apache-specific YAML cases: **0**
+- Apache-specific YAML cases: **2**
 - NGINX-specific YAML cases: **9**
 - Current XFAIL cases: **0**
 - Former XFAIL cases tracked: **95**
 - Mapped-only import inventory entries: **0** (not counted as runnable YAML cases)
 - Runtime-blocked import inventory entries: **0** (environment/harness blockers, not PASS promotions)
-- Pending/future compatibility cases: **17** future/experimental; **557** not runtime-verified
+- Pending/future compatibility cases: **17** future/experimental; **559** not runtime-verified
 
 ## Status Classes
 | Status | Count |
@@ -89,13 +89,13 @@ Generated file - do not edit manually.
 | active | 8 |
 | connector-gap | 15 |
 | imported | 133 |
-| pending | 401 |
+| pending | 403 |
 
 ## Scope
 | Scope | Count |
 |---|---:|
 | common | 548 |
-| apache | 0 |
+| apache | 2 |
 | nginx | 9 |
 | unknown | 0 |
 
@@ -145,7 +145,7 @@ Generated file - do not edit manually.
 |---|---:|---:|---:|
 | PASS | 54 | 60 | 105 |
 | FAIL | 0 | 0 | 23 |
-| NOT_EXECUTABLE | 503 | 497 | 429 |
+| NOT_EXECUTABLE | 505 | 499 | 431 |
 
 - Apache attempted YAML cases from default summary: **54**
 - NGINX attempted YAML cases from default summary: **60**
@@ -153,9 +153,9 @@ Generated file - do not edit manually.
 - Apache NOT EXECUTED YAML rows: **0**
 - NGINX NOT EXECUTED YAML rows: **0**
 - HAProxy NOT EXECUTED YAML rows: **0**
-- Apache NOT_EXECUTABLE YAML rows: **503**
-- NGINX NOT_EXECUTABLE YAML rows: **497**
-- HAProxy NOT_EXECUTABLE YAML rows: **429**
+- Apache NOT_EXECUTABLE YAML rows: **505**
+- NGINX NOT_EXECUTABLE YAML rows: **499**
+- HAProxy NOT_EXECUTABLE YAML rows: **431**
 - Mapped-only import inventory entries: **0**
 - Runtime matrix detail: `docs/testing/generated/runtime/runtime-matrix.generated.md`
 - Apache per-case results: `docs/testing/generated/runtime/apache-runtime-results.generated.md`

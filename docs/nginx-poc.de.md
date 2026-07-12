@@ -6,7 +6,7 @@ Status: eingerüstet
 
 ## Umgesetzt
 
-- `ci/prepare-nginx-build.sh` bereitet einen Connector-spezifischen NGINX PoC-Build vor
+- `ci/provisioning/prepare-nginx-build.sh` bereitet einen Connector-spezifischen NGINX PoC-Build vor
   unter `BUILD_ROOT`.
 - Der Helfer kopiert die schreibgeschützten Dateien libmodsecurity v3 und ModSecurity-nginx
   Quellen in `$BUILD_ROOT/nginx-build/` und erstellt nur innerhalb dieser Kopien.
@@ -53,7 +53,7 @@ Führen Sie den Build-Helfer aus mit:
 REFRESH=1 \
 BUILD_NGINX_FROM_SOURCE=1 \
 BUILD_ROOT=/src/ModSecurity-test-Framework-build \
-sh ci/prepare-nginx-build.sh
+sh ci/provisioning/prepare-nginx-build.sh
 ```
 
 Der Helfer erstellt libmodsecurity v3 in:
@@ -109,7 +109,7 @@ neueste Version. Der Helfer codiert diesen Wert nicht fest.
 Für eine angeheftete Veröffentlichung:
 
 ```sh
-NGINX_RELEASE_TAG=release-1.31.0 sh ci/prepare-nginx-build.sh
+NGINX_RELEASE_TAG=release-1.31.0 sh ci/provisioning/prepare-nginx-build.sh
 ```
 
 Das Archiv URL ist:
@@ -163,7 +163,7 @@ make smoke-nginx
 In diesem Arbeitsbereich am 15.05.2026 beobachtet:
 
 - `REFRESH=1 BUILD_NGINX_FROM_SOURCE=1
-  BUILD_ROOT=/src/ModSecurity-test-Framework-build sh ci/prepare-nginx-build.sh`
+  BUILD_ROOT=/src/ModSecurity-test-Framework-build sh ci/provisioning/prepare-nginx-build.sh`
   libmodsecurity v3 in einer beschreibbaren Kopie erstellt, NGINX-Release behoben
   über GitHub, erstellte NGINX und produzierte das dynamische ModSecurity-Modul.
 - `BUILD_ROOT=/src/ModSecurity-test-Framework-build make smoke-nginx` hat den Pass zurückgegeben

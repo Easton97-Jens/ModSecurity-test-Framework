@@ -11,6 +11,17 @@ It is not a connector implementation repository. Connector projects provide
 connector source code, harness entrypoints, adapter metadata, and connector-local
 runtime evidence.
 
+## Using command examples
+
+`/path/to/...` in this README is a placeholder for an absolute, local checkout
+or runtime directory; replace it with a path you control, such as
+`/work/ModSecurity-conector`. It is never a literal repository path. Set
+`FRAMEWORK_ROOT` and `CONNECTOR_ROOT` when a command must cross repository
+boundaries; set writable `BUILD_ROOT`, `SOURCE_ROOT`, `TMP_ROOT`, `LOG_ROOT`,
+and `EVIDENCE_ROOT` outside the Git worktree for isolated runs. The complete
+format, default, scope, and security guidance for these names is in
+[Framework variables and placeholders](docs/reference/variables.md).
+
 ## Runtime Matrix
 
 The runtime matrix joins framework-owned YAML cases with connector-owned runtime
@@ -23,6 +34,10 @@ Connector projects normally run:
 ```sh
 CONNECTOR_ROOT=/path/to/ModSecurity-conector make runtime-matrix-all
 ```
+
+`CONNECTOR_ROOT` is the absolute root of the connector repository. The example
+value is a portable placeholder; it selects connector-owned manifests and
+evidence, not a connector implementation mode.
 
 `runtime-matrix-all` sets `FORCE_ALL_CASES=1` and attempts all applicable YAML
 cases. Expected failures remain visible in generated reports.
@@ -42,10 +57,16 @@ CONNECTOR_ROOT=/path/to/ModSecurity-conector make test-with-crs
 CONNECTOR_ROOT=/path/to/ModSecurity-conector make test
 ```
 
+The three commands use the same `CONNECTOR_ROOT` placeholder described above.
+`test-no-crs` loads only local case rules, `test-with-crs` additionally loads
+the pinned CRS, and `test` runs both variants; see the
+[glossary](docs/reference/glossary.md) for the terms and
+[variables reference](docs/reference/variables.md) for inputs.
+
 `make test` runs both variants. `make test-with-crs` fetches and prepares CRS
 automatically under `SOURCE_ROOT`/`BUILD_ROOT`; `make fetch-crs` can be used
 explicitly when you want to prefetch it. The CRS version pin, repository URL,
-and generated CRS paths are centralized in `ci/common.sh`; do not duplicate the
+and generated CRS paths are centralized in `ci/lib/common.sh`; do not duplicate the
 CRS version in Makefiles, workflows, or other scripts.
 
 
@@ -53,14 +74,14 @@ CRS version in Makefiles, workflows, or other scripts.
 
 The `Check common.sh versions` GitHub Actions workflow runs weekly and can also
 be started manually with `workflow_dispatch`. It validates the version, source
-URL, Git ref, and SHA256 defaults centralized in `ci/common.sh`, applies safe
-upstream updates with `ci/check-common-versions.py --update`, runs Bash syntax
+URL, Git ref, and SHA256 defaults centralized in `ci/lib/common.sh`, applies safe
+upstream updates with `ci/tools/check-common-versions.py --update`, runs Bash syntax
 checks and ShellCheck, and opens a pull request on
 `automation/update-common-sh` using `peter-evans/create-pull-request` when
-`ci/common.sh` changed. If no update is available, the workflow exits
+`ci/lib/common.sh` changed. If no update is available, the workflow exits
 successfully and does not create an empty pull request. Optional empty values,
 such as local connector repository overrides and checksum fields that are not
-used by a Git checkout mode, are documented in `ci/common.sh` and accepted by
+used by a Git checkout mode, are documented in `ci/lib/common.sh` and accepted by
 the checker.
 
 ## MRTS Integration
@@ -113,9 +134,9 @@ Runtime smoke runners default to state-local source and build roots under
 `SOURCE_ROOT`, `BUILD_ROOT`, `TMP_ROOT`, `LOG_ROOT`, and `RESULTS_DIR` values
 for isolated local runs.
 
-HAProxy has a local preparation helper at `ci/prepare-haproxy-runtime.sh`. It
+HAProxy has a local preparation helper at `ci/provisioning/prepare-haproxy-runtime.sh`. It
 uses only the HAProxy source URL, version, and checksum centralized in
-`ci/common.sh`, verifies the official checksum before extraction, confirms the
+`ci/lib/common.sh`, verifies the official checksum before extraction, confirms the
 source Makefile supports `TARGET=linux-glibc`, and stages only a local runtime
 binary under `BUILD_ROOT`. That binary is prerequisite evidence only; it is not
 HAProxy runtime-smoke evidence.
@@ -162,7 +183,7 @@ repository, and connector-owned evidence reports when `OUTPUT_ROOT` is a
 connector repository:
 
 ```sh
-python3 ci/generate-case-matrix.py \
+python3 ci/reporting/generate-case-matrix.py \
   --framework-root /path/to/ModSecurity-test-Framework \
   --connector-root /path/to/ModSecurity-conector \
   --output-root /path/to/ModSecurity-conector
