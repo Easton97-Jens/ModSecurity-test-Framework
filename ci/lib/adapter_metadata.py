@@ -204,7 +204,7 @@ def shared_metadata_values(metadata: AdapterMetadata) -> list[str]:
 def shared_doc_paths() -> list[Path]:
     return [
         FRAMEWORK_ROOT / "docs/connector-integration.md",
-        REPO_ROOT / "docs/licensing/license-and-origin.md",
+        REPO_ROOT / "docs/operations-and-security.md",
     ]
 
 
