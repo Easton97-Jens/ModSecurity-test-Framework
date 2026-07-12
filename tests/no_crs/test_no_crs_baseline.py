@@ -336,6 +336,16 @@ class NoCrsBaselineTest(unittest.TestCase):
                     run_dir, "envoy", capabilities, tuple(no_crs.VALID_CHECKS),
                 ),
             )
+            # A selected full-lifecycle run must keep a payload-free barrier
+            # artifact even if it makes no P4 streaming claim.  The strict
+            # checks must not turn that deliberate NOT_EXECUTED boundary into
+            # a demand for synthetic first-byte promotion.
+            self.assertEqual([], full_lifecycle_check.first_byte_errors(run_dir))
+            self.assertEqual(
+                [],
+                full_lifecycle_check.no_full_response_buffering_errors(run_dir),
+            )
+            self.assertEqual([], full_lifecycle_check.promotion_errors(run_dir))
 
     def test_post_execution_missing_evidence_is_fail_not_exit_77(self) -> None:
         source = (ROOT / "ci/connector-smoke-common.sh").read_text(encoding="utf-8")

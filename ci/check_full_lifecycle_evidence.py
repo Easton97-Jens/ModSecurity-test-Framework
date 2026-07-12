@@ -129,6 +129,31 @@ def _passed_case(records: list[dict[str, Any]], case_id: str) -> bool:
     )
 
 
+def _verified_capabilities(result: Mapping[str, Any]) -> set[str]:
+    values = result.get("capabilities_verified", [])
+    if not isinstance(values, list):
+        return set()
+    return {str(value) for value in values}
+
+
+def _requires_first_byte_proof(
+    result: Mapping[str, Any], records: list[dict[str, Any]],
+) -> bool:
+    return (
+        _passed_case(records, "phase4_first_byte_before_response_end")
+        or "first_byte_before_response_end" in _verified_capabilities(result)
+    )
+
+
+def _requires_no_buffer_proof(
+    result: Mapping[str, Any], records: list[dict[str, Any]],
+) -> bool:
+    return (
+        _passed_case(records, "phase4_no_full_response_buffering")
+        or "no_full_response_buffering" in _verified_capabilities(result)
+    )
+
+
 def _matching_first_byte_event(
     events: list[dict[str, Any]], evidence: Mapping[str, Any]
 ) -> bool:
@@ -142,6 +167,23 @@ def _matching_first_byte_event(
     return False
 
 
+def _strict_first_byte_errors(
+    evidence: Mapping[str, Any],
+    records: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    *,
+    require_case: bool,
+) -> list[str]:
+    errors = first_byte_evidence_errors(
+        evidence, require_real_host=True, require_complete_proof=True
+    )
+    if require_case and not _passed_case(records, "phase4_first_byte_before_response_end"):
+        errors.append("phase4_first_byte_before_response_end lacks a live canonical PASS")
+    if not _matching_first_byte_event(events, evidence):
+        errors.append("no phase-4 rule-1100301 event matches the first-byte barrier evidence")
+    return errors
+
+
 def first_byte_errors(run_dir: Path, *, require_case: bool = True) -> list[str]:
     result, _manifest, evidence, errors = _first_byte_artifact(run_dir)
     if result is None:
@@ -150,38 +192,54 @@ def first_byte_errors(run_dir: Path, *, require_case: bool = True) -> list[str]:
     errors.extend(_canonical_base_errors(run_dir, connector))
     if evidence is None:
         return errors
-    errors.extend(
-        first_byte_evidence_errors(
-            evidence, require_real_host=True, require_complete_proof=True
-        )
-    )
+    # A synthetic barrier is required as a payload-free full-lifecycle
+    # artifact even when a selected native host cannot promote P4 streaming
+    # capability.  Validate that bounded artifact in every run, but require a
+    # real complete proof only when the result actually claims first-byte
+    # evidence through a live case or a verified capability.
+    errors.extend(first_byte_evidence_errors(evidence))
     records, record_errors = _case_records(run_dir)
     events, event_errors = _events(run_dir)
     errors.extend(record_errors)
     errors.extend(event_errors)
-    if require_case and not _passed_case(records, "phase4_first_byte_before_response_end"):
-        errors.append("phase4_first_byte_before_response_end lacks a live canonical PASS")
-    if evidence is not None and not _matching_first_byte_event(events, evidence):
-        errors.append("no phase-4 rule-1100301 event matches the first-byte barrier evidence")
+    if _requires_first_byte_proof(result, records):
+        errors.extend(
+            _strict_first_byte_errors(
+                evidence,
+                records,
+                events,
+                require_case=require_case,
+            )
+        )
     return errors
 
 
 def no_full_response_buffering_errors(run_dir: Path) -> list[str]:
     errors = first_byte_errors(run_dir, require_case=True)
-    _result, _manifest, evidence, artifact_errors = _first_byte_artifact(run_dir)
+    result, _manifest, evidence, artifact_errors = _first_byte_artifact(run_dir)
     # Avoid duplicate diagnostics already returned by first_byte_errors.
-    if artifact_errors or evidence is None:
+    if result is None or artifact_errors or evidence is None:
         return errors
+    records, record_errors = _case_records(run_dir)
+    errors.extend(record_errors)
+    if not _requires_no_buffer_proof(result, records):
+        return errors
+    events, event_errors = _events(run_dir)
+    errors.extend(event_errors)
+    errors.extend(
+        _strict_first_byte_errors(
+            evidence,
+            records,
+            events,
+            require_case=False,
+        )
+    )
     if evidence.get("no_full_response_buffering") is not True:
         errors.append("first-byte evidence must set no_full_response_buffering=true")
     if evidence.get("connector_owned_full_response_buffer") is not False:
         errors.append(
             "first-byte evidence must set connector_owned_full_response_buffer=false"
         )
-    records, record_errors = _case_records(run_dir)
-    events, event_errors = _events(run_dir)
-    errors.extend(record_errors)
-    errors.extend(event_errors)
     if not _passed_case(records, "phase4_no_full_response_buffering"):
         errors.append("phase4_no_full_response_buffering lacks a live canonical PASS")
     if not any(
