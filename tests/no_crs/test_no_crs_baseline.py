@@ -112,6 +112,72 @@ class NoCrsBaselineTest(unittest.TestCase):
             [record["case_id"] for record in records],
         )
 
+    def test_finalize_copies_allowlisted_engine_lifecycle_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-engine-artifacts-") as temporary:
+            root = Path(temporary)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            version = root / "engine-version.txt"
+            library = root / "engine-library-sha256.txt"
+            ruleset = root / "ruleset-sha256.txt"
+            counts = root / "transaction-counts.json"
+            lifecycle = root / "lifecycle-counters.json"
+            version.write_text("git:abc;build:def\n", encoding="utf-8")
+            library.write_text("a" * 64 + "\n", encoding="utf-8")
+            ruleset.write_text("b" * 64 + "\n", encoding="utf-8")
+            no_crs.write_json(counts, {
+                "schema_version": 1,
+                "connector": "envoy",
+                "transactions_observed": 1,
+                "transaction_ids": ["tx-1"],
+            })
+            no_crs.write_json(lifecycle, {
+                "schema_version": 1,
+                "connector": "envoy",
+                "transactions_started": 1,
+                "transactions_finished": 1,
+                "transactions_destroyed": 1,
+                "request_body_finishes": 0,
+                "response_body_finishes": 0,
+                "interventions_seen": 0,
+                "intentional_aborts": 0,
+                "unexpected_engine_errors": 0,
+            })
+            manifest: dict[str, object] = {"artifacts": {}}
+            no_crs.copy_engine_lifecycle_artifacts(
+                run_dir,
+                [
+                    f"engine_version={version}",
+                    f"engine_library_sha256={library}",
+                    f"ruleset_sha256={ruleset}",
+                    f"transaction_counts={counts}",
+                    f"lifecycle_counters={lifecycle}",
+                ],
+                "envoy",
+                "full_lifecycle",
+                manifest,
+            )
+            artifacts = manifest["artifacts"]
+            self.assertEqual(
+                "engine-version.txt",
+                artifacts["engine_version"]["path"],  # type: ignore[index]
+            )
+            self.assertTrue((run_dir / "lifecycle-counters.json").is_file())
+
+    def test_engine_lifecycle_artifacts_reject_non_full_lifecycle_profile(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-engine-artifacts-") as temporary:
+            root = Path(temporary)
+            source = root / "engine-version.txt"
+            source.write_text("git:abc;build:def\n", encoding="utf-8")
+            with self.assertRaises(no_crs.ContractError):
+                no_crs.copy_engine_lifecycle_artifacts(
+                    root,
+                    [f"engine_version={source}"],
+                    "envoy",
+                    "generic",
+                    {"artifacts": {}},
+                )
+
     def test_makefile_propagates_connector_root_to_finalize_and_validation(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         validation_recipe = makefile.split("define RUN_NO_CRS_CHECK", 1)[1].split("endef", 1)[0]

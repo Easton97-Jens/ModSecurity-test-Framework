@@ -147,6 +147,13 @@ FULL_LIFECYCLE_REQUIRED_ARTIFACTS = (
     ("first_byte_evidence", "inventory/first-byte-evidence.json"),
 )
 FIRST_BYTE_EVIDENCE_RELATIVE_PATH = "inventory/first-byte-evidence.json"
+ENGINE_LIFECYCLE_ARTIFACT_PATHS = {
+    "engine_version": "engine-version.txt",
+    "engine_library_sha256": "engine-library-sha256.txt",
+    "ruleset_sha256": "ruleset-sha256.txt",
+    "transaction_counts": "transaction-counts.json",
+    "lifecycle_counters": "lifecycle-counters.json",
+}
 MINIMAL_RUNTIME_CASE_IDS = ("allow_without_marker", "deny_header_marker_403")
 REPORT_STATUSES = (
     "PASS",
@@ -2916,6 +2923,77 @@ def copy_first_byte_evidence(
     return payload
 
 
+def copy_engine_lifecycle_artifacts(
+    run_dir: Path,
+    source_artifacts: Sequence[str],
+    connector: str,
+    artifact_profile: str,
+    manifest: dict[str, Any],
+) -> None:
+    """Copy bounded engine provenance/accounting sidecars into a host run.
+
+    These files are inventory only.  They cannot affect case selection or
+    capability promotion, which continues to require transaction-bound event
+    evidence.  Keeping this allowlist in the Framework prevents arbitrary raw
+    connector files from entering canonical evidence.
+    """
+    if not source_artifacts:
+        return
+    if artifact_profile != FULL_LIFECYCLE_ARTIFACT_PROFILE:
+        raise ContractError("engine lifecycle artifacts require the full_lifecycle profile")
+    seen: set[str] = set()
+    for item in source_artifacts:
+        if "=" not in item:
+            raise ContractError("--source-artifact must be NAME=PATH")
+        name, source_text = item.split("=", 1)
+        if name not in ENGINE_LIFECYCLE_ARTIFACT_PATHS:
+            raise ContractError(f"unsupported engine lifecycle artifact: {name!r}")
+        if name in seen:
+            raise ContractError(f"duplicate engine lifecycle artifact: {name}")
+        seen.add(name)
+        source = Path(source_text)
+        if name in {"engine_version", "engine_library_sha256", "ruleset_sha256"}:
+            try:
+                text = source.read_text(encoding="utf-8").strip()
+            except OSError as exc:
+                raise ContractError(f"cannot read engine lifecycle artifact {name}: {exc}") from exc
+            if not text:
+                raise ContractError(f"engine lifecycle artifact {name} is empty")
+            if name != "engine_version" and re.fullmatch(r"[0-9a-f]{64}", text) is None:
+                raise ContractError(f"engine lifecycle artifact {name} must contain a SHA-256 digest")
+        else:
+            payload = load_json(source)
+            if not isinstance(payload, Mapping):
+                raise ContractError(f"engine lifecycle artifact {name} must be an object")
+            if payload.get("schema_version") != 1 or payload.get("connector") != connector:
+                raise ContractError(f"engine lifecycle artifact {name} has invalid identity")
+            if name == "transaction_counts":
+                observed = payload.get("transactions_observed")
+                identifiers = payload.get("transaction_ids")
+                if not isinstance(observed, int) or observed < 0 or not isinstance(identifiers, list):
+                    raise ContractError(f"engine lifecycle artifact {name} has invalid transaction accounting")
+                if observed != len(identifiers) or not all(isinstance(value, str) and value for value in identifiers):
+                    raise ContractError(f"engine lifecycle artifact {name} has inconsistent transaction accounting")
+            else:
+                counter_names = (
+                    "transactions_started", "transactions_finished", "transactions_destroyed",
+                    "request_body_finishes", "response_body_finishes", "interventions_seen",
+                    "intentional_aborts", "unexpected_engine_errors",
+                )
+                if any(not isinstance(payload.get(field), int) or payload[field] < 0 for field in counter_names):
+                    raise ContractError(f"engine lifecycle artifact {name} has invalid counters")
+                if not (
+                    payload["transactions_started"] >= payload["transactions_finished"]
+                    >= payload["transactions_destroyed"]
+                ):
+                    raise ContractError(f"engine lifecycle artifact {name} has inconsistent transaction lifecycle")
+        destination = run_dir / ENGINE_LIFECYCLE_ARTIFACT_PATHS[name]
+        copy_artifact(source, destination)
+        manifest["artifacts"][name] = artifact_entry(
+            str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
+        )
+
+
 def prevent_synthetic_first_byte_promotion(
     records: Sequence[dict[str, Any]],
     evidence: Mapping[str, Any] | None,
@@ -3131,6 +3209,13 @@ def finalize_run(args: argparse.Namespace) -> int:
         first_byte_evidence = copy_first_byte_evidence(
             run_dir, args.first_byte_evidence, manifest
         )
+    copy_engine_lifecycle_artifacts(
+        run_dir,
+        args.source_artifact,
+        connector,
+        artifact_profile,
+        manifest,
+    )
 
     raw_records: list[dict[str, Any]] = []
     source_payloads: list[Mapping[str, Any]] = []
@@ -4733,6 +4818,12 @@ def build_parser() -> argparse.ArgumentParser:
     finalize_parser.add_argument("--source-results-jsonl", action="append", default=[])
     finalize_parser.add_argument("--source-summary", action="append", default=[])
     finalize_parser.add_argument("--source-events")
+    finalize_parser.add_argument(
+        "--source-artifact",
+        action="append",
+        default=[],
+        help="allowlisted full-lifecycle engine artifact as NAME=PATH",
+    )
     finalize_parser.add_argument(
         "--first-byte-evidence",
         default="",
