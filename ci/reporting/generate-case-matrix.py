@@ -174,8 +174,6 @@ def normalize_localized_overview_report_links() -> None:
     text is retained as generated output, while this generator normalizes only
     report links during the same regeneration transaction.
     """
-    if OUTPUT_ROOT != FRAMEWORK_ROOT:
-        return
     overview_de = REPORT_ROOT / "test-coverage-overview.de.md"
     if not overview_de.is_file():
         return
@@ -186,6 +184,8 @@ def normalize_localized_overview_report_links() -> None:
             f"docs/testing/generated/{name}",
             f"docs/testing/generated/{category}/{name}",
         )
+    if REPORT_UTILS is not None:
+        updated = REPORT_UTILS.portable_markdown_text(updated)
     if updated != text:
         overview_de.write_text(updated, encoding="utf-8")
 
@@ -223,7 +223,8 @@ class ReportLayout:
         if path not in self.allowed_outputs():
             raise ValueError(f"unsupported generated report output path: {path}")
         path.parent.mkdir(parents=True, exist_ok=True)
-        text = "Generated file - do not edit manually.\n\n" + body.rstrip() + "\n"
+        rendered_body = REPORT_UTILS.portable_markdown_text(body) if REPORT_UTILS is not None else body
+        text = "Generated file - do not edit manually.\n\n" + rendered_body.rstrip() + "\n"
         if REPORT_UTILS is not None and path.name in GENERATED_REPORT_NAMES:
             generated_at = REPORT_UTILS.utc_now()
             metadata = REPORT_UTILS.build_metadata(
@@ -235,7 +236,7 @@ class ReportLayout:
                 generated_at=generated_at,
             )
             metadata["output_name"] = path.name
-            text = REPORT_UTILS.generated_markdown_text(body, metadata)
+            text = REPORT_UTILS.generated_markdown_text(rendered_body, metadata)
         if path.exists() and generated_report_equivalent(path.read_text(encoding="utf-8"), text):
             return
         path.write_text(text, encoding="utf-8")
@@ -652,6 +653,8 @@ def display_path(path: Path) -> str:
             return str(resolved.relative_to(root))
         except ValueError:
             continue
+    if REPORT_UTILS is not None:
+        return REPORT_UTILS.portable_path_reference(path)
     return str(path)
 
 

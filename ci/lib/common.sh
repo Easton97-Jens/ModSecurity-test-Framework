@@ -549,7 +549,7 @@ framework_prepare_runtime_components() {
         return 77
     fi
 
-    ci_prepare_script="${CONNECTOR_ROOT:-}/ci/prepare-runtime-components.py"
+    ci_prepare_script="${CONNECTOR_ROOT:-}/ci/provisioning/components/prepare-runtime-components.py"
     if [ ! -f "$ci_prepare_script" ]; then
         echo "FAIL: missing local runtime provisioning helper: $ci_prepare_script" >&2
         return 1

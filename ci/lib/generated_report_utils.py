@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,6 +17,57 @@ from typing import Any, Iterable
 
 GENERATED_NOTICE = "Generated file - do not edit manually."
 DATA_SOURCE_POLICY = "verified-inputs-only"
+
+# Framework generators write committed Markdown into connector repositories.
+# Paths from a runtime workspace must therefore be presentation-only aliases,
+# never host-specific locations.  The connector report index documents these
+# placeholders; raw paths remain available to the executing generator.
+_LOCAL_PATH_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(?P<path>/(?:var/tmp|tmp|root|home|Users)(?:/[^\s`<>()\[\]{}|,;]*)?)"
+)
+_HISTORICAL_RUN_ROOT_RE = re.compile(
+    r"^/var/tmp/(?P<run>ModSecurity-conector-(?!verified(?:/|$))[^/]+)(?P<suffix>/.*)?$"
+)
+
+
+def portable_path_reference(value: str | Path) -> str:
+    """Render local runtime paths as portable documentation references."""
+
+    raw = str(value)
+    for prefix, replacement in (
+        ("/root/.local/state/ModSecurity-conector-build", "<local-state-root>"),
+        ("/var/tmp/ModSecurity-conector-verified", "<verified-run-root>"),
+        ("/tmp/ModSecurity-conector-verified", "<verified-run-root>"),
+    ):
+        if raw == prefix or raw.startswith(prefix + "/"):
+            return replacement + raw[len(prefix) :]
+    historical = _HISTORICAL_RUN_ROOT_RE.match(raw)
+    if historical:
+        return f"<historical-run-root:{historical.group('run')}>{historical.group('suffix') or ''}"
+    if raw == "/var/tmp" or raw.startswith("/var/tmp/"):
+        return "<temporary-work-root>" + raw[len("/var/tmp") :]
+    if raw == "/tmp" or raw.startswith("/tmp/"):
+        return "<temporary-work-root>" + raw[len("/tmp") :]
+    if raw == "/root" or raw.startswith("/root/"):
+        return "<local-home-root>" + raw[len("/root") :]
+    if raw.startswith("/home/") or raw.startswith("/Users/"):
+        parts = raw.split("/", 3)
+        return "<local-home-root>" + ("/" + parts[3] if len(parts) == 4 else "")
+    return raw
+
+
+def portable_markdown_text(markdown: str) -> str:
+    """Replace local filesystem tokens in generated Markdown display text."""
+
+    def replace(match: re.Match[str]) -> str:
+        token = match.group("path")
+        trailing = ""
+        while token and token[-1] in ".,;:!?":
+            trailing = token[-1] + trailing
+            token = token[:-1]
+        return portable_path_reference(token) + trailing
+
+    return _LOCAL_PATH_TOKEN_RE.sub(replace, markdown)
 
 REPORT_OUTPUTS = {
     ("connector_work_queue", "json"): "connector_work_queue.generated.json",
@@ -95,7 +147,7 @@ def relative_label(path: Path, connector_root: Path, framework_root: Path) -> st
             return resolved.relative_to(root.resolve(strict=False)).as_posix()
         except ValueError:
             continue
-    return resolved.as_posix()
+    return portable_path_reference(resolved.as_posix())
 
 
 def read_json_object(path: Path) -> dict[str, Any]:
@@ -191,8 +243,8 @@ def build_metadata(*, generated_by: str, make_target: str, connector_root: Path 
         "make_target": make_target,
         "owner": "runtime",
         "severity": "informational",
-        "connector_root": _as_posix(connector),
-        "framework_root": _as_posix(framework),
+        "connector_root": "<repository-root>",
+        "framework_root": "<framework-root>",
         "connector_sha": git_sha(connector),
         "framework_sha": git_sha(framework),
         "input_status": input_status_summary(records),
@@ -319,6 +371,7 @@ def generated_markdown_text(body: str, metadata: dict[str, Any]) -> str:
     switch = language_switch(str(metadata.get("output_name") or ""))
     if switch is not None:
         text = insert_language_switch(text, switch[1], switch[0])
+    text = portable_markdown_text(text)
     header = [
         f"> {GENERATED_NOTICE}",
         ">",
@@ -372,7 +425,7 @@ def data_sources_section(metadata: dict[str, Any]) -> str:
         lines.append("| Declared inputs | `-` | `unknown` | `unknown` | unknown |")
     else:
         for record in records:
-            source = str(record.get("path", "-")).replace("|", "\\|")
+            source = portable_markdown_text(str(record.get("path", "-"))).replace("|", "\\|")
             source_hash = str(record.get("source_hash") or "unknown")
             run_id = str(record.get("verified_run_id") or metadata.get("verified_run_id") or "unknown")
             status = str(record.get("status") or "unknown")
@@ -392,8 +445,8 @@ def missing_information_section(metadata: dict[str, Any]) -> str:
         lines.append("| `-` | unknown | no input files were declared for this generated report |")
     else:
         for record in records:
-            path = str(record.get("path", "-")).replace("|", "\\|")
+            path = portable_markdown_text(str(record.get("path", "-"))).replace("|", "\\|")
             status = str(record.get("status") or "unknown")
-            notes = str(record.get("notes") or "-").replace("|", "\\|")
+            notes = portable_markdown_text(str(record.get("notes") or "-")).replace("|", "\\|")
             lines.append(f"| `{path}` | {status} | {notes} |")
     return "\n".join(lines)
