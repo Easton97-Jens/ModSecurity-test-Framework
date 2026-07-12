@@ -674,20 +674,30 @@ require_command_or_blocked() {
     return 0
 }
 
+framework_apxs_has_usable_headers() {
+    ci_apxs_candidate=$1
+    [ -n "$ci_apxs_candidate" ] || return 1
+    [ -x "$ci_apxs_candidate" ] || return 1
+    ci_apxs_includedir=$("$ci_apxs_candidate" -q INCLUDEDIR 2>/dev/null || true)
+    [ -n "$ci_apxs_includedir" ] || return 1
+    [ -f "$ci_apxs_includedir/httpd.h" ] || return 1
+    return 0
+}
+
 framework_find_apxs() {
     for ci_apxs_candidate in "${APXS_BIN:-}" "${APXS:-}"; do
         if [ -z "$ci_apxs_candidate" ]; then
             continue
         fi
         ci_apxs_path=$(ci_command_path "$ci_apxs_candidate" 2>/dev/null || true)
-        if [ -n "$ci_apxs_path" ]; then
+        if framework_apxs_has_usable_headers "$ci_apxs_path"; then
             printf '%s\n' "$ci_apxs_path"
             return 0
         fi
     done
 
     ci_apxs_path=$(ci_find_bin_multi $CI_APXS_BIN_CANDIDATES 2>/dev/null || true)
-    if [ -n "$ci_apxs_path" ]; then
+    if framework_apxs_has_usable_headers "$ci_apxs_path"; then
         printf '%s\n' "$ci_apxs_path"
         return 0
     fi
@@ -699,7 +709,7 @@ framework_find_apxs() {
         "$BUILD_ROOT"/apache-build/httpd/bin/apxs \
         "$BUILD_ROOT"/apache-build/build/httpd/support/apxs; do
         ci_apxs_path=$(ci_command_path "$ci_apxs_candidate" 2>/dev/null || true)
-        if [ -n "$ci_apxs_path" ]; then
+        if framework_apxs_has_usable_headers "$ci_apxs_path"; then
             printf '%s\n' "$ci_apxs_path"
             return 0
         fi
