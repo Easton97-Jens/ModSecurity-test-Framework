@@ -4,7 +4,7 @@
 
 Status: umgesetzt
 
-Lokaler Bezug: `/root/conecter/ModSecurity-nginx`
+Lokaler Bezug: `<workspace>/ModSecurity-nginx`
 Upstream-Quelle: https://github.com/owasp-modsecurity/ModSecurity-nginx
 Beobachtete Referenz: `master`, `v1.0.4-14-g9eb44fd`
 

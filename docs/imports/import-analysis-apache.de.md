@@ -4,7 +4,7 @@
 
 Status: umgesetzt
 
-Lokaler Bezug: `/root/conecter/ModSecurity-apache`
+Lokaler Bezug: `<workspace>/ModSecurity-apache`
 Upstream-Quelle: https://github.com/owasp-modsecurity/ModSecurity-apache
 Beobachtete Referenz: `master`, `v0.0.9-beta1-26-g0488c77`
 

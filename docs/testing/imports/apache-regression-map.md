@@ -5,7 +5,7 @@
 Status: scaffolded
 
 Source inventory: 29 relevant files under
-local `/root/conecter/ModSecurity-apache/tests/`, treated as read-only. The
+local `<workspace>/ModSecurity-apache/tests/`, treated as read-only. The
 portable upstream source is
 https://github.com/owasp-modsecurity/ModSecurity-apache.
 

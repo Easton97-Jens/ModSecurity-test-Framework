@@ -5,7 +5,7 @@
 Status: eingerüstet
 
 Quellenverzeichnis: 17 relevante Dateien unter
-lokal `/root/conecter/ModSecurity-nginx/tests/`, wird als schreibgeschützt behandelt. Die
+lokal `<workspace>/ModSecurity-nginx/tests/`, wird als schreibgeschützt behandelt. Die
 Die tragbare Upstream-Quelle ist https://github.com/owasp-modsecurity/ModSecurity-nginx.
 
 | Originalpfad | source_repo | Kategorie | Zweck | tragbar | Zielort | Status | Grund | erforderliche_Kapazitäten | bekannte_Einschränkungen |

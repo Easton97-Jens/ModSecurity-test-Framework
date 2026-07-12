@@ -8,10 +8,10 @@ Status: umgesetzt
 
 | Repository | Lokaler Bezug | Stromaufwärts | Beobachteter Commit | Beobachtet version/tag | Lizenz | Rolle |
 | --- | --- | --- | --- | --- | --- | --- |
-| ModSecurity v3 | `/root/conecter/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 | Primäre libmodsecurity-Architektur und API-Referenz |
-| ModSecurity v2 | `/root/conecter/ModSecurity_V2` | https://github.com/owasp-modsecurity/ModSecurity | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache-2.0 | Regression, Semantik, Kompatibilität, historische Apache-Referenz |
-| ModSecurity-Apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 | Referenz zum Apache v3-Connector; Adaptereigenes Layout befindet sich jetzt in `connectors/apache/` mit produktiver Quelle in `connectors/apache/src/` |
-| ModSecurity-nginx | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 | NGINX v3-Connector-Referenz; Adaptereigenes Layout befindet sich jetzt in `connectors/nginx/` mit produktiver Quelle in `connectors/nginx/src/` |
+| ModSecurity v3 | `<workspace>/ModSecurity_V3` | https://github.com/owasp-modsecurity/ModSecurity | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 | Primäre libmodsecurity-Architektur und API-Referenz |
+| ModSecurity v2 | `<workspace>/ModSecurity_V2` | https://github.com/owasp-modsecurity/ModSecurity | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache-2.0 | Regression, Semantik, Kompatibilität, historische Apache-Referenz |
+| ModSecurity-Apache | `<workspace>/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 | Referenz zum Apache v3-Connector; Adaptereigenes Layout befindet sich jetzt in `connectors/apache/` mit produktiver Quelle in `connectors/apache/src/` |
+| ModSecurity-nginx | `<workspace>/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 | NGINX v3-Connector-Referenz; Adaptereigenes Layout befindet sich jetzt in `connectors/nginx/` mit produktiver Quelle in `connectors/nginx/src/` |
 
 Lokale Pfade sind Beispiele für Arbeitsbereiche. Die Upstream-URLs sind die portable Quelle
 Referenzen für GitHub, CI, Pull Requests und externe Betreuer.

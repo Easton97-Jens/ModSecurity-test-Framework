@@ -139,7 +139,7 @@ promote former expected-failure, mapped-only, future, connector-gap, or RESPONSE
 
 ## Non-Goals
 
-- Do not update `/root/conecter/ModSecurity-conector`.
+- Do not update `<workspace>/ModSecurity-conector`.
 - Do not update submodules or connector source references.
 - Do not change Apache or NGINX runtime configuration globally.
 - Do not copy Apache::Test Perl `.t` files into the common runtime path.

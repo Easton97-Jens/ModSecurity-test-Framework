@@ -4,7 +4,7 @@
 
 Status: implemented
 
-Local reference: `/root/conecter/ModSecurity_V2`
+Local reference: `<workspace>/ModSecurity_V2`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity
 Observed ref: `v2/master`, `v2.9.13`
 

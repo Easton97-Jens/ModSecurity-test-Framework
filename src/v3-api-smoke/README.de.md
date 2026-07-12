@@ -44,7 +44,7 @@ Das Makefile blockiert relative `BUILD_DIR`-Werte, um repo-lokale Artefakte zu v
 Lokale Standardeinstellungen:
 
 ```sh
-MODSECURITY_V3_SOURCE_DIR=/root/conecter/ModSecurity_V3
+MODSECURITY_V3_SOURCE_DIR="<workspace>/ModSecurity_V3"
 MODSECURITY_V3_DIR=/src/ModSecurity_V3_build
 BUILD_ROOT=/src/ModSecurity-test-Framework-build
 LOG_DIR=/src/ModSecurity-test-Framework-build/logs

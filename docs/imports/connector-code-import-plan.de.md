@@ -10,8 +10,8 @@ Pfade sind Beispiele; Upstream-GitHub-Repositorys sind die portablen Referenzen:
 
 | Connector | Lokaler Bezug | Stromaufwärts |
 | --- | --- | --- |
-| Apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache |
-| NGINX | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx |
+| Apache | `<workspace>/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache |
+| NGINX | `<workspace>/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx |
 
 Importierter und migrierter Connector-Code wird in Connector-spezifischen Bereichen gespeichert:
 
@@ -31,8 +31,8 @@ Materialisierter Aufbau und Smokedurchgang vergingen.
 
 | Connector | Lokaler Bezug | Stromaufwärts | Beobachteter Commit | Beobachtet version/tag | Lizenz |
 | --- | --- | --- | --- | --- | --- |
-| Apache | `/root/conecter/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
-| NGINX | `/root/conecter/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
+| Apache | `<workspace>/ModSecurity-apache` | https://github.com/owasp-modsecurity/ModSecurity-apache | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 |
+| NGINX | `<workspace>/ModSecurity-nginx` | https://github.com/owasp-modsecurity/ModSecurity-nginx | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 |
 
 ## Grenze importieren
 

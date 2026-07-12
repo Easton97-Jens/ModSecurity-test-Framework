@@ -4,7 +4,7 @@
 
 Status: umgesetzt
 
-Lokaler Bezug: `/root/conecter/ModSecurity_V3`
+Lokaler Bezug: `<workspace>/ModSecurity_V3`
 Upstream-Quelle: https://github.com/owasp-modsecurity/ModSecurity
 Beobachtete Referenz: `v3/master`, `v3.0.15`
 

@@ -4,7 +4,7 @@
 
 Status: implemented
 
-Local reference: `/root/conecter/ModSecurity-nginx`
+Local reference: `<workspace>/ModSecurity-nginx`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-nginx
 Observed ref: `master`, `v1.0.4-14-g9eb44fd`
 

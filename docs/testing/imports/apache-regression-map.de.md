@@ -5,7 +5,7 @@
 Status: eingerüstet
 
 Quellenverzeichnis: 29 relevante Dateien unter
-lokal `/root/conecter/ModSecurity-apache/tests/`, wird als schreibgeschützt behandelt. Die
+lokal `<workspace>/ModSecurity-apache/tests/`, wird als schreibgeschützt behandelt. Die
 tragbare Upstream-Quelle ist
 https://github.com/owasp-modsecurity/ModSecurity-apache.
 

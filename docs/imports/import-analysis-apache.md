@@ -4,7 +4,7 @@
 
 Status: implemented
 
-Local reference: `/root/conecter/ModSecurity-apache`
+Local reference: `<workspace>/ModSecurity-apache`
 Upstream source: https://github.com/owasp-modsecurity/ModSecurity-apache
 Observed ref: `master`, `v0.0.9-beta1-26-g0488c77`
 

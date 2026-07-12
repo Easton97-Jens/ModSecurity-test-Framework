@@ -139,7 +139,7 @@ Fördern Sie frühere Fälle mit erwartetem Fehler, nur zugeordneten Fällen, zu
 
 ## Nicht-Ziele
 
-- `/root/conecter/ModSecurity-conector` nicht aktualisieren.
+- `<workspace>/ModSecurity-conector` nicht aktualisieren.
 - Aktualisieren Sie keine Submodule oder Connector-Quellenverweise.
 - Ändern Sie die Apache- oder NGINX-Laufzeitkonfiguration nicht global.
 - Kopieren Sie keine Apache::Test Perl-`.t`-Dateien in den gemeinsamen Laufzeitpfad.
