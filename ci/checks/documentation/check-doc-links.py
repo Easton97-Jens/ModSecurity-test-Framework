@@ -12,6 +12,7 @@ from urllib.parse import unquote
 
 REPO_ROOT = Path(os.environ.get("CONNECTOR_ROOT", Path(__file__).resolve().parents[3])).resolve()
 LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
+EXPLICIT_ANCHOR_RE = re.compile(r"<a\b[^>]*\bid=[\"']([^\"']+)[\"'][^>]*>", re.IGNORECASE)
 SKIP_DIR_PARTS = {
     ".git",
     "__pycache__",
@@ -61,6 +62,7 @@ def heading_anchors(path: Path) -> set[str]:
     anchors: set[str] = set()
     duplicates: dict[str, int] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
+        anchors.update(unquote(anchor) for anchor in EXPLICIT_ANCHOR_RE.findall(line))
         match = re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
         if not match:
             continue
