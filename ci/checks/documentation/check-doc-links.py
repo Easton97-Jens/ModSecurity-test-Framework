@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import unquote
@@ -29,25 +30,18 @@ def is_skipped(path: Path) -> bool:
 
 
 def markdown_files() -> list[Path]:
-    roots = [
-        REPO_ROOT / "README.md",
-        REPO_ROOT / "README.de.md",
-        REPO_ROOT / "ci/README.md",
-        REPO_ROOT / "ci/README.de.md",
-        REPO_ROOT / "tests/README.md",
-        REPO_ROOT / "tests/README.de.md",
-        REPO_ROOT / "docs",
-        REPO_ROOT / "connectors",
-        REPO_ROOT / "common",
-        REPO_ROOT / "licenses",
-    ]
-    files: list[Path] = []
-    for root in roots:
-        if root.is_file() and root.suffix == ".md":
-            files.append(root)
-        elif root.is_dir():
-            files.extend(path for path in root.rglob("*.md") if not is_skipped(path))
-    return sorted(files)
+    try:
+        tracked = subprocess.check_output(
+            ["git", "-C", str(REPO_ROOT), "ls-files", "--", "*.md"],
+            text=True,
+        ).splitlines()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError(f"cannot list tracked Markdown files under {REPO_ROOT}: {exc}") from exc
+    return sorted(
+        path
+        for relative in tracked
+        if (path := REPO_ROOT / relative).is_file() and not is_skipped(path)
+    )
 
 
 def normalize_target(raw_target: str) -> tuple[str, str]:

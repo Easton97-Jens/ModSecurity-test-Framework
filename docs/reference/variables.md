@@ -61,7 +61,7 @@ reference for repeated names.
 | Required | optional | optional | optional | optional |
 | Repository default | state-local | state-local | `BUILD_ROOT/tmp` | `BUILD_ROOT/logs` |
 | Set by | Makefile, `ci/lib/common.sh`, or caller | same | same | same |
-| Example | `/var/tmp/modsecurity-framework/build` | `/var/tmp/modsecurity-framework/src` | `/var/tmp/modsecurity-framework/build/tmp` | `/var/tmp/modsecurity-framework/build/logs` |
+| Example | `<temporary-work-root>/build` | `<temporary-work-root>/src` | `<temporary-work-root>/tmp` | `<temporary-work-root>/logs` |
 | Effect | Keeps generated output outside Git | selects source location | isolates transient files | selects log location |
 | Security | Do not use a checkout or unisolated shared path | verify provenance | review before sharing | review before sharing |
 
@@ -80,7 +80,7 @@ required host defaults.
 | Default | `BUILD_ROOT/no-crs-evidence`. |
 | Set by | Makefile or caller. |
 | Scope | One or more evidence runs. |
-| Example | `/var/tmp/modsecurity-framework/evidence` |
+| Example | `<temporary-work-root>/evidence` |
 | Effect | Parents `<connector>/<run-id>/` artifacts. |
 | Security | Do not put secrets, user names, or ticket text in the path. |
 
@@ -188,16 +188,16 @@ review before use.
 | Names | Area and format | Default / setter | Example and safety note |
 |---|---|---|---|
 | `ALLOW_EXTERNAL_CONNECTOR_REPOS` | source acquisition boolean | `0`; caller or CI | `1` opts in to external source fetches; review the repository first. |
-| `BUILD_HTTPD_FROM_SOURCE`, `BUILD_NGINX_FROM_SOURCE`, `BUILD_PCRE2_FROM_SOURCE`, `XDG_STATE_HOME` | build boolean or state-home path | target default or host state home; caller | `1` enables the named source build; `XDG_STATE_HOME=/var/tmp/modsecurity-framework/state` selects a state-home outside Git. |
+| `BUILD_HTTPD_FROM_SOURCE`, `BUILD_NGINX_FROM_SOURCE`, `BUILD_PCRE2_FROM_SOURCE`, `XDG_STATE_HOME` | build boolean or state-home path | target default or host state home; caller | `1` enables the named source build; `XDG_STATE_HOME=<temporary-work-root>/state` selects a state-home outside Git. |
 | `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, `HTTPD_PREFIX`, `HTTPD_VERSION`, `APR_VERSION`, `APR_UTIL_VERSION` | Apache executable/path or version override | central pin or host discovery | `/opt/httpd/bin/httpd`; do not treat a host installation as portable evidence. |
 | `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL` | NGINX executable, URL, tag, or source-mode override | central pin or target default | `NGINX_SOURCE_MODE=source`; verify URL, tag, and checksum provenance. |
 | `PCRE2_VERSION`, `PCRE_CONFIG` | dependency version or executable | central pin or host discovery | `PCRE_CONFIG=/usr/bin/pcre2-config`; a host path is only an example. |
-| `MODSECURITY_APACHE_SOURCE_DIR`, `MODSECURITY_NGINX_SOURCE_DIR`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `MODSECURITY_V3_ROOT` | absolute source/build directory | below `SOURCE_ROOT` or `BUILD_ROOT` | `/var/tmp/modsecurity-framework/src/libmodsecurity`; do not point to an untrusted checkout. |
+| `MODSECURITY_APACHE_SOURCE_DIR`, `MODSECURITY_NGINX_SOURCE_DIR`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `MODSECURITY_V3_ROOT` | absolute source/build directory | below `SOURCE_ROOT` or `BUILD_ROOT` | `<temporary-work-root>/src/libmodsecurity`; do not point to an untrusted checkout. |
 | `MODSECURITY_GIT_REF`, `LIBMODSECURITY_VERSION`, `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INC`, `MODSECURITY_LIB`, `MODSECURITY_PKG_CONFIG` | ref, version, include/lib/pkg-config override | central pin or discovery | `MODSECURITY_GIT_REF=v3/master`; pins must be reviewed with their provenance. |
 | `MODSECURITY_TEST_VARIANT` | test variant enum | `no-crs` or target-selected | `with-crs` loads CRS before local rules; it does not change catalog semantics. |
-| `MRTS_NATIVE_ROOT` | absolute MRTS source path | derived from `MRTS_ROOT` | `/var/tmp/modsecurity-framework/src/MRTS`; generated output remains under `MRTS_BUILD_ROOT`. |
+| `MRTS_NATIVE_ROOT` | absolute MRTS source path | derived from `MRTS_ROOT` | `<temporary-work-root>/src/MRTS`; generated output remains under `MRTS_BUILD_ROOT`. |
 | `FORCE_ALL_CASES`, `REFRESH`, `RESPONSE_BODY_PROBE_REPEAT` | test/report boolean or positive count | target default | `FORCE_ALL_CASES=1`; does not promote evidence automatically. |
-| `RESULTS_DIR`, `LOG_DIR`, `RUN_DIR`, `STDOUT_LOG`, `STDERR_LOG`, `RAW_RESULT` | generated runtime/evidence paths | below `BUILD_ROOT` or the run directory | `/var/tmp/modsecurity-framework/build/results`; logs may contain sensitive diagnostics. |
+| `RESULTS_DIR`, `LOG_DIR`, `RUN_DIR`, `STDOUT_LOG`, `STDERR_LOG`, `RAW_RESULT` | generated runtime/evidence paths | below `BUILD_ROOT` or the run directory | `<temporary-work-root>/build/results`; logs may contain sensitive diagnostics. |
 | `CANONICAL_EVENTS`, `HOST_RC`, `HOST_VERSION`, `NAME`, `NO_CRS_BASELINE`, `RUN_ID` | evidence metadata value or `--source-log NAME=PATH` label | evidence tool or caller | `RUN_ID=six-connectors-core-20260712T164725Z`; do not place secrets in metadata. |
 | `GITHUB_WORKSPACE`, `RUNNER_TEMP` | CI-provided absolute paths | GitHub Actions runner | set by the runner; never assume them on a local host. |
 | `HOME`, `PWD`, `TMPDIR` | host shell paths | host shell | inherited from the shell; use an explicit Framework root for reproducibility. |
@@ -209,8 +209,8 @@ review before use.
 | `<connector>` | Connector catalog key | `apache`, `nginx`, `haproxy`, `envoy`, `traefik`, or `lighttpd`; for example `nginx`. |
 | `<run-id>` | Filesystem-safe evidence-run token | no `/` or `..`; for example `six-connectors-core-20260712T164725Z`. |
 | `<workspace>` | Portable checkout parent or CI workspace | an absolute workspace path, for example `/work/modsecurity`. |
-| `<temporary-work-root>` | Portable alias for a generator's temporary work directory | an absolute, writable directory outside the Git worktree, for example `/var/tmp/modsecurity-framework`; it is a presentation alias, not a literal path to copy into a command. |
+| `<temporary-work-root>` | Portable alias for a generator's temporary work directory | an absolute, writable directory outside the Git worktree, for example a caller-provided `TMP_ROOT`; it is a presentation alias, not a literal path to copy into a command. |
 | `<case>` and `<name>` | Catalog case identifier or metadata name | use an existing YAML `name`, for example `request-headers-basic`. |
 | `<TAG>` | Existing upstream tag | use a reviewed upstream tag, for example `v1.27.0`. |
-| `<local-paths>`, `<system-paths>`, `<local-build-root>`, and `<Location>` | Documentation placeholders for lists or a configuration section | replace with the local paths or section actually used; for example `/var/tmp/modsecurity-framework/build` or `<Location /protected>`. |
+| `<local-paths>`, `<system-paths>`, `<local-build-root>`, and `<Location>` | Documentation placeholders for lists or a configuration section | replace with the local paths or section actually used; for example `<temporary-work-root>/build` or `<Location /protected>`. |
 | `<secret-from-secure-store>` | Non-executable secret placeholder | retrieve it through the approved secret store; it must never become a committed literal. |

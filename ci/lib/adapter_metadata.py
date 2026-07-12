@@ -203,8 +203,7 @@ def shared_metadata_values(metadata: AdapterMetadata) -> list[str]:
 
 def shared_doc_paths() -> list[Path]:
     return [
-        FRAMEWORK_ROOT / "docs/imports/connector-code-import-plan.md",
-        FRAMEWORK_ROOT / "docs/imports/sources.md",
+        FRAMEWORK_ROOT / "docs/connector-integration.md",
         REPO_ROOT / "docs/licensing/license-and-origin.md",
     ]
 
@@ -228,7 +227,7 @@ def drift_errors_for_connector(connector: str, metadata: AdapterMetadata) -> lis
     for path in shared_doc_paths():
         errors.extend(missing_value_errors(path, shared_metadata_values(metadata)))
 
-    analysis_path = FRAMEWORK_ROOT / f"docs/imports/import-analysis-{connector}.md"
+    analysis_path = FRAMEWORK_ROOT / "docs/connector-integration.md"
     errors.extend(missing_value_errors(analysis_path, [metadata.source_url, metadata.source_version]))
     return errors
 

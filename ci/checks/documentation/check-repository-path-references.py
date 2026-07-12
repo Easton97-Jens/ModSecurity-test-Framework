@@ -9,8 +9,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[3]
-SKIPPED_PREFIXES = (".git/", "__pycache__/", "docs/testing/generated/", "tools/MRTS/")
-SKIPPED_NAMES = {"TEST-COVERAGE-SUMMARY.md", "TEST-COVERAGE-SUMMARY.de.md"}
+SKIPPED_PREFIXES = (".git/", "__pycache__/", "tools/MRTS/")
 OLD_CI_FILENAMES = {
     "adapter_metadata.py", "bootstrap-python.sh", "build-v3-under-src.sh", "check-adapter-helpers.sh",
     "check-adapter-metadata-drift.sh", "check-common-helpers.sh", "check-common-versions.py",
@@ -36,6 +35,7 @@ OLD_CI_FILENAMES = {
     "write-haproxy-runtime-matrix.py", "write-mrts-load.sh",
 }
 LOCAL_PATH_RE = re.compile(r"/root" + r"/git/|[A-Za-z]:\\\\Users\\")
+MARKDOWN_LOCAL_PATH_RE = re.compile(r"/root(?:/|$)|/var/tmp(?:/|$)")
 TEXT_SUFFIXES = {".md", ".py", ".sh", ".yml", ".yaml", ".json", ".mk", ".txt"}
 
 
@@ -45,7 +45,7 @@ def relative(path: Path) -> str:
 
 def should_scan(path: Path) -> bool:
     value = relative(path)
-    if path.name in SKIPPED_NAMES or any(value.startswith(prefix) for prefix in SKIPPED_PREFIXES):
+    if any(value.startswith(prefix) for prefix in SKIPPED_PREFIXES):
         return False
     return path.name == "Makefile" or path.suffix in TEXT_SUFFIXES
 
@@ -63,6 +63,8 @@ def main() -> int:
         files_scanned += 1
         value = relative(path)
         if LOCAL_PATH_RE.search(text):
+            errors.append(f"{value}: contains a local developer path")
+        if path.suffix == ".md" and MARKDOWN_LOCAL_PATH_RE.search(text):
             errors.append(f"{value}: contains a local developer path")
         for filename in OLD_CI_FILENAMES:
             old_path = f"ci/{filename}"
