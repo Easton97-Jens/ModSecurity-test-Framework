@@ -1936,9 +1936,18 @@ def phase4_event_matches_outcome(event: Mapping[str, Any], expected_result: str)
     """Identify the right event when one run contains several Phase-4 paths."""
     if normalize_canonical_phase(event.get("phase")) != 4:
         return False
+    if expected_result == "end_of_stream_evaluation":
+        # A host can emit its Common rule decision before it publishes the
+        # causal post-EOS outcome.  Do not let that earlier rule-only event
+        # satisfy the dedicated EOS case merely because it shares phase/rule
+        # metadata with a later verified barrier event.
+        return (
+            event.get("end_of_stream_evaluation") is True
+            and event.get("eos_seen") is True
+        )
     if expected_result in {
         "rule_observed", "event_contains_original_status", "marker_split_across_chunks",
-        "end_of_stream_evaluation", "content_type_in_scope",
+        "content_type_in_scope",
         "content_type_in_scope_with_charset", "content_type_out_of_scope",
         "content_type_missing", "response_body_at_limit",
         "response_body_over_limit", "response_body_process_partial", "response_body_reject",

@@ -906,6 +906,34 @@ class NoCrsBaselineTest(unittest.TestCase):
                 self.assertEqual("PASS", record["status"])
                 self.assertIn("first_byte_before_response_end", record["observed_event_fields"])
 
+    def test_end_of_stream_case_chooses_the_causal_eos_event(self) -> None:
+        catalog = no_crs.load_catalog()
+        case = next(
+            item for item in no_crs.catalog_cases(catalog)
+            if item["case_id"] == "phase4_end_of_stream_evaluation"
+        )
+        early_decision = self.phase4_event(
+            transaction_id="tx-eos",
+            requested_action="deny",
+            actual_action="deny",
+            eos_seen=False,
+        )
+        causal_eos = self.phase4_event(
+            transaction_id="tx-eos",
+            requested_action="deny",
+            actual_action="log_only",
+            late_intervention=True,
+            late_intervention_mode="safe",
+            end_of_stream_evaluation=True,
+            eos_seen=True,
+        )
+        self.assertIs(
+            causal_eos,
+            no_crs.event_for_case(
+                [early_decision, causal_eos], 1100301, case, ["tx-eos"],
+            ),
+        )
+
     def test_synchronized_upstream_emits_payload_free_barrier_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="first-byte-probe-") as temporary:
             output = Path(temporary) / "first-byte-evidence.json"
