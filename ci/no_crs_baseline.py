@@ -4152,6 +4152,33 @@ def validate_run(
     return errors
 
 
+def validation_capabilities_path(
+    connector_root: Path,
+    connector: str,
+    run_dir: Path,
+    explicit_capabilities: str | None,
+) -> Path:
+    """Return the capability contract that was effective for a validation.
+
+    A full-lifecycle connector route is deliberately allowed to materialize a
+    more conservative, profile-specific capability manifest before it writes
+    canonical evidence.  Its inventory copy is therefore the exact contract
+    used to select and finalize the run; comparing it to the generic connector
+    manifest would reject valid non-promoted native-host evidence.  Provenance
+    checks still bind the run to the current connector commit when validation
+    is invoked with ``--check all``.
+    """
+    if explicit_capabilities:
+        return Path(explicit_capabilities)
+    manifest = load_json(run_dir / "manifest.json")
+    if (
+        isinstance(manifest, Mapping)
+        and manifest.get("artifact_profile") == FULL_LIFECYCLE_ARTIFACT_PROFILE
+    ):
+        return run_dir / "inventory/capabilities.json"
+    return connector_root / f"connectors/{connector}/capabilities.json"
+
+
 def validate_command(args: argparse.Namespace) -> int:
     checks = tuple(VALID_CHECKS) if args.check == "all" else (args.check,)
     evidence_root = Path(args.evidence_root)
@@ -4192,7 +4219,12 @@ def validate_command(args: argparse.Namespace) -> int:
     current_framework_commit = git_value(FRAMEWORK_ROOT, "rev-parse", "HEAD")
     check_current_provenance = args.check in {"all", "completeness", "status"}
     for connector, run_dir in run_dirs:
-        capabilities_path = args.capabilities or str(connector_root / f"connectors/{connector}/capabilities.json")
+        capabilities_path = validation_capabilities_path(
+            connector_root,
+            connector,
+            run_dir,
+            args.capabilities,
+        )
         capabilities = load_capability_manifest(capabilities_path, connector)
         errors.extend(f"{connector}: {error}" for error in validate_run(run_dir, connector, capabilities, checks))
         if check_current_provenance:

@@ -129,6 +129,50 @@ class NoCrsBaselineTest(unittest.TestCase):
         ):
             self.assertIn(target, makefile)
 
+    def test_full_lifecycle_validation_uses_run_local_effective_capabilities(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-validation-capabilities-") as temporary:
+            root = Path(temporary)
+            run_dir = root / "evidence" / "lighttpd" / "selected-native"
+            (run_dir / "inventory").mkdir(parents=True)
+            no_crs.write_json(
+                run_dir / "manifest.json",
+                {"artifact_profile": "full_lifecycle"},
+            )
+            self.assertEqual(
+                run_dir / "inventory/capabilities.json",
+                no_crs.validation_capabilities_path(
+                    root,
+                    "lighttpd",
+                    run_dir,
+                    None,
+                ),
+            )
+            explicit = root / "explicit-capabilities.json"
+            self.assertEqual(
+                explicit,
+                no_crs.validation_capabilities_path(
+                    root,
+                    "lighttpd",
+                    run_dir,
+                    str(explicit),
+                ),
+            )
+            generic_run = root / "evidence" / "lighttpd" / "generic"
+            generic_run.mkdir(parents=True)
+            no_crs.write_json(
+                generic_run / "manifest.json",
+                {"artifact_profile": "generic"},
+            )
+            self.assertEqual(
+                root / "connectors/lighttpd/capabilities.json",
+                no_crs.validation_capabilities_path(
+                    root,
+                    "lighttpd",
+                    generic_run,
+                    None,
+                ),
+            )
+
     def test_generic_legacy_plan_is_stamped_with_required_canonical_identity(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
             root = Path(temporary)
