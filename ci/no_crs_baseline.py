@@ -3448,10 +3448,12 @@ def append_derived_phase4_records(
 ) -> None:
     """Reuse a valid Phase-4 outcome event for its narrower evidence claims.
 
-    Each real pre-commit, safe late-intervention, or strict-abort outcome
+    Each real pre-commit or validated log-only late-intervention outcome
     observes rule 1100301.  Its status/action fields may prove the narrower
     facts for that exact transaction.  The inverse is never true: this helper
-    deliberately never derives one disruptive outcome from another.
+    deliberately never derives one disruptive outcome from another.  The
+    strict-mode-specific case remains excluded: its client-visible abort
+    contract must not be backfilled from a narrower fact derivation.
     """
     by_id = {str(record.get("case_id") or ""): record for record in records}
     selections = {
@@ -3462,6 +3464,8 @@ def append_derived_phase4_records(
     for base_case_id in (
         "phase4_deny_before_commit",
         "phase4_deny_after_commit_log_only",
+        "phase4_deny_after_commit_log_only_minimal",
+        "phase4_deny_after_commit_log_only_safe",
         "phase4_deny_after_commit_abort",
     ):
         base = by_id.get(base_case_id)

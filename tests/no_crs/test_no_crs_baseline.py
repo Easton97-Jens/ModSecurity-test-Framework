@@ -1820,6 +1820,96 @@ class NoCrsBaselineTest(unittest.TestCase):
                 self.assertEqual("PASS", by_id["phase4_event_contains_late_intervention_action"]["status"])
                 self.assertTrue(absent_outcomes.isdisjoint(by_id))
 
+    def test_valid_safe_and_minimal_phase4_host_evidence_derives_narrower_facts(self) -> None:
+        catalog = no_crs.load_catalog()
+        case_by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
+        plan = no_crs.select_cases(
+            "apache", manifest("apache", executable=set(no_crs.CAPABILITIES)), catalog,
+        )
+        for base_case_id, mode in (
+            ("phase4_deny_after_commit_log_only_minimal", "minimal"),
+            ("phase4_deny_after_commit_log_only_safe", "safe"),
+        ):
+            with self.subTest(base_case_id=base_case_id):
+                event = self.phase4_event(
+                    http_status=403,
+                    requested_action="deny",
+                    actual_action="log_only",
+                    original_http_status=200,
+                    visible_http_status=200,
+                    late_intervention=True,
+                    late_intervention_mode=mode,
+                    headers_sent=True,
+                    body_started=True,
+                    response_committed=True,
+                    connection_aborted=False,
+                    transport_result="log_only",
+                )
+                base = self.normalize_phase4(
+                    base_case_id, event, raw={"actual_status": 200},
+                )
+                self.assertEqual("PASS", base["status"])
+                self.assertIs(base["live_executed"], True)
+                records = [base]
+                no_crs.append_derived_phase4_records(records, plan, case_by_id, [event])
+                by_id = {record["case_id"]: record for record in records}
+                self.assertEqual("PASS", by_id["phase4_rule_observed"]["status"])
+                self.assertEqual("PASS", by_id["phase4_event_contains_original_status"]["status"])
+                self.assertEqual("PASS", by_id["phase4_event_contains_late_intervention_action"]["status"])
+
+    def test_phase4_derivation_does_not_promote_unexecuted_or_strict_outcomes(self) -> None:
+        catalog = no_crs.load_catalog()
+        case_by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
+        plan = no_crs.select_cases(
+            "apache", manifest("apache", executable=set(no_crs.CAPABILITIES)), catalog,
+        )
+        safe_event = self.phase4_event(
+            http_status=403,
+            requested_action="deny",
+            actual_action="log_only",
+            original_http_status=200,
+            visible_http_status=200,
+            late_intervention=True,
+            late_intervention_mode="safe",
+            headers_sent=True,
+            body_started=True,
+            response_committed=True,
+            connection_aborted=False,
+            transport_result="log_only",
+        )
+        safe = self.normalize_phase4(
+            "phase4_deny_after_commit_log_only_safe", safe_event, raw={"actual_status": 200},
+        )
+        self.assertEqual("PASS", safe["status"])
+        unexecuted = dict(safe, status="NOT_EXECUTED", live_executed=False)
+        records = [unexecuted]
+        no_crs.append_derived_phase4_records(records, plan, case_by_id, [safe_event])
+        self.assertNotIn(
+            "phase4_rule_observed", {record["case_id"] for record in records},
+        )
+
+        strict_event = self.phase4_event(
+            http_status=403,
+            requested_action="deny",
+            actual_action="abort_connection",
+            original_http_status=200,
+            visible_http_status=200,
+            late_intervention=True,
+            late_intervention_mode="strict",
+            headers_sent=True,
+            body_started=True,
+            response_committed=True,
+            connection_aborted=True,
+            transport_result="connection_aborted",
+        )
+        strict = self.normalize_phase4("phase4_deny_after_commit_abort_strict", strict_event)
+        self.assertEqual("PASS", strict["status"])
+        records = [strict]
+        no_crs.append_derived_phase4_records(records, plan, case_by_id, [strict_event])
+        self.assertNotIn(
+            "phase4_rule_observed", {record["case_id"] for record in records},
+        )
+
     def test_phase1_deny_remains_strict(self) -> None:
         catalog = no_crs.load_catalog()
         record = no_crs.normalize_case_record(
