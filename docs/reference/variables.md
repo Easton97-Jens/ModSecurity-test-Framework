@@ -209,6 +209,7 @@ review before use.
 | `<connector>` | Connector catalog key | `apache`, `nginx`, `haproxy`, `envoy`, `traefik`, or `lighttpd`; for example `nginx`. |
 | `<run-id>` | Filesystem-safe evidence-run token | no `/` or `..`; for example `six-connectors-core-20260712T164725Z`. |
 | `<workspace>` | Portable checkout parent or CI workspace | an absolute workspace path, for example `/work/modsecurity`. |
+| `<temporary-work-root>` | Portable alias for a generator's temporary work directory | an absolute, writable directory outside the Git worktree, for example `/var/tmp/modsecurity-framework`; it is a presentation alias, not a literal path to copy into a command. |
 | `<case>` and `<name>` | Catalog case identifier or metadata name | use an existing YAML `name`, for example `request-headers-basic`. |
 | `<TAG>` | Existing upstream tag | use a reviewed upstream tag, for example `v1.27.0`. |
 | `<local-paths>`, `<system-paths>`, `<local-build-root>`, and `<Location>` | Documentation placeholders for lists or a configuration section | replace with the local paths or section actually used; for example `/var/tmp/modsecurity-framework/build` or `<Location /protected>`. |

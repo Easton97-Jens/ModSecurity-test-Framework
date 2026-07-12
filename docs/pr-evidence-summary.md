@@ -69,8 +69,10 @@ Current local evidence:
   reference.
 - A search of that local source found no RAW collection implementation or
   regression files.
-- `sh ci/check-raw-args-support.sh` performs the same read-only check for the
-  configured `MODSECURITY_V3_SOURCE_DIR`.
+- The former `ci/check-raw-args-support.sh` helper performed the same
+  read-only check for the configured `MODSECURITY_V3_SOURCE_DIR`; it is no
+  longer an active repository command.  Before promoting RAW support, inspect
+  the configured source and retain the command and output as run evidence.
 - Therefore RAW collections are classified as `mapped-only` /
   `unsupported-local-source` in this repository.
 

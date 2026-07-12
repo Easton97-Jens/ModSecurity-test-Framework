@@ -69,8 +69,11 @@ Aktuelle lokale Nachweise:
   Referenz.
 - Eine Suche in dieser lokalen Quelle ergab keine RAW-Sammlungsimplementierung oder
   Regressionsdateien.
-- `sh ci/check-raw-args-support.sh` führt die gleiche schreibgeschützte Prüfung für durch
-  konfiguriert `MODSECURITY_V3_SOURCE_DIR`.
+- Der frühere Helfer `ci/check-raw-args-support.sh` führte dieselbe
+  schreibgeschützte Prüfung für das konfigurierte `MODSECURITY_V3_SOURCE_DIR`
+  aus; er ist kein aktiver Repository-Befehl mehr. Vor einer Hochstufung von
+  RAW-Unterstützung muss die konfigurierte Quelle geprüft und Befehl samt
+  Ausgabe als Lauf-Evidenz festgehalten werden.
 - Daher werden RAW-Sammlungen als `mapped-only` / klassifiziert.
 `unsupported-local-source` in diesem Repository.
 

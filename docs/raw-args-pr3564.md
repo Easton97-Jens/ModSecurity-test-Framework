@@ -18,11 +18,10 @@ names and values before libmodsecurity URL decoding:
 
 ## Local Source Check
 
-The helper below performs a read-only search of the configured v3 source:
-
-```sh
-sh ci/check-raw-args-support.sh
-```
+Earlier local evidence used a now-retired helper for a read-only search of the
+configured v3 source.  It is not an active repository command; any future
+check must inspect `MODSECURITY_V3_SOURCE_DIR` directly and retain its command
+and output with the run evidence.
 
 Observed locally on 2026-05-15 against `<workspace>/ModSecurity_V3`:
 

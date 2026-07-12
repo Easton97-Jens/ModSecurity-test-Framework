@@ -215,6 +215,7 @@ eine Herkunftsprüfung.
 | `<connector>` | Connector-Katalogschlüssel | `apache`, `nginx`, `haproxy`, `envoy`, `traefik` oder `lighttpd`; zum Beispiel `nginx`. |
 | `<run-id>` | dateisystemsicheres Evidence-Run-Token | kein `/` oder `..`; zum Beispiel `six-connectors-core-20260712T164725Z`. |
 | `<workspace>` | portable Checkout-Überordnung oder CI-Workspace | absoluter Workspace-Pfad, zum Beispiel `/work/modsecurity`. |
+| `<temporary-work-root>` | portable Alias für ein temporäres Arbeitsverzeichnis eines Generators | absoluter, beschreibbarer Pfad außerhalb des Git-Worktrees, zum Beispiel `/var/tmp/modsecurity-framework`; dies ist ein Darstellungsalias und kein wörtlicher Pfad zum Kopieren in einen Befehl. |
 | `<case>` und `<name>` | Katalog-Fallkennung oder Metadatenname | vorhandenen YAML-`name` verwenden, zum Beispiel `request-headers-basic`. |
 | `<TAG>` | vorhandenes Upstream-Tag | geprüftes Upstream-Tag verwenden, zum Beispiel `v1.27.0`. |
 | `<local-paths>`, `<system-paths>`, `<local-build-root>` und `<Location>` | Dokumentationsplatzhalter für Listen oder Konfigurationsabschnitt | mit lokal verwendeten Pfaden oder Abschnitt ersetzen; zum Beispiel `/var/tmp/modsecurity-framework/build` oder `<Location /protected>`. |

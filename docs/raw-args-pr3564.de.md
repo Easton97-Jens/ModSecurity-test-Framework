@@ -18,11 +18,10 @@ Namen und Werte vor libmodsecurity URL Dekodierung:
 
 ## Lokale Quellenprüfung
 
-Der folgende Helfer führt eine schreibgeschützte Suche der konfigurierten v3-Quelle durch:
-
-```sh
-sh ci/check-raw-args-support.sh
-```
+Frühere lokale Evidenz verwendete einen inzwischen eingestellten Helfer für
+eine schreibgeschützte Suche der konfigurierten v3-Quelle. Er ist kein aktiver
+Repository-Befehl; eine künftige Prüfung muss `MODSECURITY_V3_SOURCE_DIR`
+direkt untersuchen und Befehl sowie Ausgabe mit der Lauf-Evidenz aufbewahren.
 
 Lokal beobachtet am 15.05.2026 gegen `<workspace>/ModSecurity_V3`:
 

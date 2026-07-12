@@ -135,7 +135,7 @@ Diese nativen MRTS-Berichte sind vom Connector-Vollmatrixbeweis getrennt.
 | sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | POSIX Shell-Syntaxprüfung für Connector-Integrations-Shell-Skripte bestanden |
 | bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | Bash-Syntaxprüfung für Connector-Integrations-Shell-Skripte bestanden |
 | git diff --check | PASS | Es wurden keine Leerzeichenfehler gemeldet |
-| diff -u /tmp/pre-connector.diff /tmp/post-connector.diff | PASS | Der Connector-Quell-Diff-Snapshot bleibt unverändert; Es wurden keine neuen Änderungen an der Connector-Quelle eingeführt |
+| diff -u <temporary-work-root>/pre-connector.diff <temporary-work-root>/post-connector.diff | PASS | Der Connector-Quell-Diff-Snapshot bleibt unverändert; Es wurden keine neuen Änderungen an der Connector-Quelle eingeführt |
 | git diff --exit-code -- connectors/apache/src connectors/nginx/src | BLOCKED | Ungleich Null, da connectors/apache/src/mod_security3.c vor diesem Fix bereits eine nicht verwandte lokale Änderung hatte; Der pre/post Connector-Diff-Snapshot bleibt unverändert |
 | git ls-files .venv | PASS | Keine verfolgten .venv-Dateien |
 
