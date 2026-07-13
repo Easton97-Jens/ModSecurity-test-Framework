@@ -49,6 +49,9 @@ Fallverzeichnisse organisieren Discovery und Reporting. Sie kodieren keinen
 PASS-, FAIL- oder Promotion-Zustand. Connector-spezifische Fälle liegen unter
 `tests/cases/connector-specific/<connector>/`; gemeinsame Fälle bleiben nur
 dann portabel, wenn ihre Annahmen tatsächlich geteilt sind.
+Ein Connector ohne connector-spezifische YAML-Fälle hat kein Verzeichnis;
+dessen Fehlen ist beabsichtigt und die Discovery liefert keine
+connector-spezifischen Fälle.
 
 ## Imports und Provenienz
 

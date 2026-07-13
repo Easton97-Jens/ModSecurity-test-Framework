@@ -49,6 +49,8 @@ Case directories organize discovery and reporting. They do not encode a PASS,
 FAIL, or promotion state. Connector-specific cases belong below
 `tests/cases/connector-specific/<connector>/`; common cases remain portable
 only when their assumptions are actually shared.
+A connector with no connector-specific YAML cases has no directory; its
+absence is intentional and discovery contributes no connector-specific cases.
 
 ## Imports and provenance
 
