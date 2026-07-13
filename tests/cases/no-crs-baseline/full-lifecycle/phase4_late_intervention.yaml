@@ -1,0 +1,37 @@
+name: phase4_late_intervention_fixture
+title: Declarative phase-4 late-intervention modes
+category: no-crs-full-lifecycle
+portable: true
+status: future
+no_crs_baseline: true
+phase: 4
+capabilities:
+  response_body: true
+  phase4: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+request:
+  method: GET
+  path: /no-crs/full-lifecycle/late-intervention
+response:
+  body: prefix no-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 200
+  intervention: none
+full_lifecycle:
+  response_committed_before_marker: true
+  modes:
+    minimal: log_only
+    safe: log_only
+    strict: abort_connection
+  required_event_fields:
+    - requested_action
+    - actual_action
+    - original_http_status
+    - visible_http_status
+    - late_intervention_mode
+  evidence_status: not_executed_until_real_host
+known_limitations:
+  - Minimal and safe must not claim a retrospective HTTP 403 after the response has committed.

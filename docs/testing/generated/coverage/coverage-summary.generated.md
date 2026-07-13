@@ -1,25 +1,36 @@
-Generated file - do not edit manually.
+> Generated file - do not edit manually.
+>
+> Generated at: `2026-07-12T19:40:10Z`
+> Verified run id: `2026-06-16T19-12-00Z-614c8049`
+> Data source policy: `verified-inputs-only`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
+> Make target: `generate-test-matrix`
+> Owner: `runtime`
+> Severity: `informational`
+> Connector SHA: `91f51277e96ff9b58e6d6a3a3c737eb103b00331`
+> Framework SHA: `91f51277e96ff9b58e6d6a3a3c737eb103b00331`
+> Input status: `missing`
 
 # Generated Coverage Summary
 
 **Language:** English | [Deutsch](coverage-summary.generated.de.md)
 
-- Total cases: 540
-- RESPONSE_BODY cases: 32
+- Total cases: 559
+- RESPONSE_BODY cases: 37
 - Verified runtime cases: 0
-- Non-verified runtime cases: 540
+- Non-verified runtime cases: 559
 
 ## By scope
-- common: 533
-- apache: 0
-- nginx: 7
+- common: 548
+- apache: 2
+- nginx: 9
 - unknown: 0
 
 ## By source
 - ModSecurity-apache PR: 4
 - mrts: 399
 - owasp-modsecurity/ModSecurity-apache#78: 3
-- unknown: 134
+- unknown: 153
 
 ## MRTS Source Summary
 - Total MRTS imported cases: **399**
@@ -54,8 +65,9 @@ Generated file - do not edit manually.
 
 ## By status
 - active: 8
+- connector-gap: 15
 - imported: 133
-- pending: 399
+- pending: 403
 
 ## By variable/collection
 - `ARGS`: 76
@@ -65,8 +77,8 @@ Generated file - do not edit manually.
 - `RESPONSE_BODY`: 28
 - `ARGS:q`: 18
 - `REQUEST_BODY`: 10
-- `XML`: 7
 - `REQUEST_URI`: 7
+- `XML`: 6
 - `ARGS:test`: 6
 - `REQUEST_HEADERS_NAMES`: 5
 - `ARGS:a`: 4
@@ -77,6 +89,8 @@ Generated file - do not edit manually.
 - `ARGS:chain_a`: 3
 - `ARGS:chain_b`: 3
 - `FILES_NAMES`: 2
+- `REQUEST_HEADERS:Content-Type`: 2
+- `XML:/*`: 2
 - `TX:SCORE`: 2
 - `REQUEST_COOKIES:USER_TOKEN`: 2
 - `RESPONSE_HEADERS:Location`: 2
@@ -89,7 +103,6 @@ Generated file - do not edit manually.
 - `ARGS:name`: 1
 - `FILES_COMBINED_SIZE`: 1
 - `FILES:filedata1`: 1
-- `XML:/*`: 1
 - `REQUEST_HEADERS:X-Missing`: 1
 - `REQUEST_HEADERS:X-Phase`: 1
 - `ARGS_COMBINED_SIZE`: 1
@@ -104,12 +117,26 @@ Generated file - do not edit manually.
 - `RESPONSE_HEADERS:Server`: 1
 
 ## By phase
-- phase 1: 105
-- phase 2: 192
+- phase 1: 107
+- phase 2: 193
 - phase 3: 114
 - phase 4: 126
 
 ## Verification note
 - Generated summaries are reporting only and do not replace full runtime evidence from `make smoke-all`.
 - RESPONSE_BODY remains non-verified/non-promoted until stable full-smoke runtime evidence exists.
-- Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.
+- RESPONSE_BODY remains non-verified/non-promoted; legacy bounded samples and pass-through rows do not prove selected-host support.
+
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `config/testing/import-status.json` | `missing` | `unknown` | missing |
+| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `2026-06-16T19-12-00Z-614c8049` | present |
+
+## Data Availability / Missing Information
+
+| Input | Status | Notes |
+|---|---|---|
+| `config/testing/import-status.json` | missing | input file is missing |
+| `docs/testing/runtime-validation-snapshot.json` | present | input file available |

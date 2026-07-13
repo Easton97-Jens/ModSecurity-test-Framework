@@ -2,59 +2,91 @@
 
 **Sprache:** [English](architecture.md) | Deutsch
 
-Status: eingerüstet
+Das Framework ist eine wiederverwendbare Test-, Normalisierungs- und
+Evidence-Schicht für ModSecurity-Connector-Projekte. Es ist kein Server,
+Proxy oder Connector-Implementierung.
 
-## Richtung
+## Repository-Grenze
 
-Neue Connector-Arbeit zielt auf libmodsecurity v3 ab. Der lokale v3-Checkout macht a verfügbar
-Connector-neutrale Engine mit öffentlichen C- und C++-APIs unter
-`headers/modsecurity/`.
+| Ebene | Verantwortung |
+|---|---|
+| Framework | YAML-Fälle, Runner, Normalizer, Katalogchecks, Report-Generatoren und begrenzte Evidence-Validierung |
+| Gemeinsamer Connector-Code | Connector-neutrale Datenformen, soweit das Connector-Repository sie bereitstellt |
+| Host-Adapter | Host-Hooks, Filter, Plugins, Direktiven, Konfigurations-Merge und Interventionsübersetzung |
+| Connector-Evidence | Capability-Deklaration, beobachtete Artefakte und Promotion-Entscheidung |
 
-Der vorgesehene Adapterfluss ist:
+Gemeinsamer Framework-Code darf keine Host-SDK-Objekte, Serverkonfiguration
+oder ungeprüfte Payload-Daten besitzen. Ein Connector-Adapter übersetzt seinen
+Host-Zustand in die gewählten Test- und Evidence-Verträge und übersetzt
+beobachtete Ergebnisse zurück in host-spezifisches Verhalten.
 
-1. Der Connector-Hook empfängt den Anforderungsstatus server/proxy.
-2. Der Connector-Adapter übersetzt den server/proxy-Status in eine neutrale Anforderungsansicht.
-3. Der Connector-Adapter ruft die öffentlichen APIs von libmodsecurity v3 in der Phasenreihenfolge auf.
-4. Der Connector-Adapter übersetzt Eingriffe zurück in das server/proxy-Verhalten.
-5. Konnektorspezifische Tests beweisen das Hook-Timing und die Artefaktsammlung.
+## Transaktions- und Lifecycle-Modell
 
-## Gemeinsame Grenze
+Das Framework repräsentiert eine Transaktion über Fallmetadaten und begrenzte
+Artefakte. Der Host-Adapter besitzt die tatsächliche Reihenfolge und darf nur
+beobachtete Phasen melden.
 
-`common/` enthält nur neutrale Datenformen. Es besitzt keine server/proxy
-Objekte und enthält keine Connector-SDK-Header.
+| Lifecycle-Bereich | Framework-Anliegen | Connector-Verantwortung |
+|---|---|---|
+| P1 Request-Start | Fallauswahl und Request-Metadaten | Connection-, URI- und Request-Header-Zustellung |
+| P2 Request-Body | Body-Fixture und begrenzte Assertions | Inkrementelle Body-Zustellung, Limits und Interventionsverhalten |
+| P3 Response-Header | Response-Header-Fixture und Assertions | Header-Zustellung und Host-Response-Handling |
+| P4 Response-Body und Logging | Nicht-Promotion- und Privacy-Grenzen | Streaming, Late Intervention, Final-Logging und Host-sicheres Verhalten |
 
-`connectors/<name>/` besitzt alle server/proxy Integrationen:
+P1–P4-Namen machen aus einer deklarierten Phase keinen Implementierungsclaim.
+Insbesondere müssen ein Phase-4-Log, eine Pass-Through-Response oder ein
+Post-Commit-Connection-Ergebnis der konfigurierten Evidence-Policy folgen und
+dürfen nicht als Pre-Commit-Response-Body-Blocking dargestellt werden.
 
-- Hook-Registrierung
-- module/filter/plugin Baukleber
-- Laufzeitkonfiguration
-- server/proxy-specific Anforderungs- und Antwortübersetzung
-- Connector-spezifische Tests
+## Engine- und Host-Trennung
 
-## v3-Transaktionsfluss
+Öffentliche libmodsecurity-APIs, Regeln und Transaktionszustand gehören zur
+Engine-Seite. Der Host-Adapter steuert, wann diese APIs aufgerufen werden und
+ob ein Host eine Intervention sicher anwenden kann. Connector-spezifische
+Konfiguration, Body-Limits, Content-Type-Handling, Logging und
+Connection-Verhalten lassen sich nicht verallgemeinern, nur weil das Framework
+gemeinsame YAML-Dateien verwendet.
 
-Die lokalen v3-Header und -Quellen stellen diese relevanten öffentlichen C-APIs bereit:
+Der connector-freie v3-API-Smoke ist eine begrenzte Engine-Sonde. Er ist keine
+Apache-, NGINX-, HAProxy-, Envoy-, Traefik- oder lighttpd-Runtime-Evidence.
 
-- `msc_init`, `msc_set_connector_info`, `msc_set_log_cb`, `msc_cleanup`
-- `msc_create_rules_set`, `msc_rules_add`, `msc_rules_add_file`,
-`msc_rules_add_remote`, `msc_rules_merge`, `msc_rules_cleanup`
-- `msc_new_transaction`, `msc_new_transaction_with_id`
-- `msc_process_connection`, `msc_process_uri`,
-  `msc_add_n_request_header`, `msc_process_request_headers`,
-  `msc_append_request_body`, `msc_process_request_body`,
-  `msc_add_n_response_header`, `msc_process_response_headers`,
-  `msc_append_response_body`, `msc_process_response_body`,
-  `msc_update_status_code`, `msc_process_logging`
-- `msc_intervention`, `msc_intervention_cleanup`,
-  `msc_transaction_cleanup`
+## Capability- und Statusmodell
 
-Der Konnektor darf nur Phasen aufrufen, die er tatsächlich unterstützen und fehlende dokumentieren kann
-oder Teilphasen als Fähigkeitslücken.
+Capabilities kennzeichnen getestetes Verhalten; sie überspringen, promoten oder
+zertifizieren keinen Fall automatisch. Der Ergebnisstatus unterscheidet
+beobachtete PASS und FAIL von BLOCKED, NOT_EXECUTABLE, mapped-only, pending,
+future, connector-gap und runtime-difference.
 
-## Statusbedingungen
+`RESPONSE_BODY` bleibt nicht verifiziert und nicht hochgestuft, bis der
+anwendbare Connector-Evidence-Vertrag stabile Belege akzeptiert. First-Byte-
+Timing, No-Full-Response-Buffering, Body-Limits, Event-Privacy und
+Evidence-Promotion werden ebenfalls aus expliziten Artefakten validiert, nicht
+aus einem Bericht oder Exit-Status abgeleitet.
 
-- `implemented`: in diesem Gerüst vorhanden und lokal überprüft.
-- `scaffolded`: Struktur oder Schnittstelle vorhanden, Verhalten ist nicht vollständig.
-- `planned`: geplante spätere Arbeit mit bekannter Richtung.
-- `unknown`: Fakten müssen noch durch Quellennachweis oder Dokumentation nachgewiesen werden.
-- `blocked`: Die Arbeit kann nicht ohne eine externe Entscheidung, Quelle oder Prüfung fortgesetzt werden.
+## Daten, Events und Privacy
+
+Kanonische Result- und Event-Eingaben verwenden begrenzte, normalisierte
+Metadaten. Sie dürfen geprüfte Identifikatoren, Phase, Aktion oder Entscheidung,
+Status, HTTP-Status, Version, Größe, Hash, Trunkierung und vom Schema
+zugelassene Redaktionsfakten enthalten. Sie dürfen keine rohen Request- oder
+Response-Bodies, Credentials oder ungeprüfte Host-Logs enthalten.
+
+Hash-Chain-Daten können Tamper-Detection auf Smoke-Ebene unterstützen. Ohne
+Connector-eigene sichere Schlüsselbehandlung und Storage bieten sie keine
+dauerhafte Integrität.
+
+## Build- und Cache-Grenze
+
+Quellkopien, Build-Ausgaben, Logs, temporäre Daten und Evidence liegen unter
+expliziten Pfaden außerhalb des Git-Worktrees. Das Framework verwendet keinen
+Parent-Workspace still wieder und schreibt keine Source-Checkouts um.
+Cache-Reuse ersetzt keine aktuelle Konfigurations-, Start-, Runtime- oder
+Evidence-Validierung.
+
+## Verwandte Dokumente
+
+- [Katalog und Fälle](catalog-and-cases.de.md)
+- [Testing und Evidence](testing-and-evidence.de.md)
+- [Connector-Integration](connector-integration.de.md)
+- [Entwicklung](development.de.md)
+- [Variablen und Platzhalter](reference/variables.de.md)

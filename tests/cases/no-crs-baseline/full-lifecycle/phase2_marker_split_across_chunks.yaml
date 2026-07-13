@@ -1,0 +1,33 @@
+name: phase2_marker_split_across_chunks_fixture
+title: Declarative phase-2 marker split across request chunks
+category: no-crs-full-lifecycle
+portable: true
+status: future
+no_crs_baseline: true
+phase: 2
+capabilities:
+  request_body: true
+  phase2: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+request:
+  method: POST
+  path: /no-crs/full-lifecycle/request-chunks
+  headers:
+    Content-Type: text/plain
+  body: no-crs-request-body-marker
+response:
+  body: ready
+expect:
+  status: 403
+  intervention: deny
+full_lifecycle:
+  request_chunks:
+    - no-crs-request-
+    - body-marker
+  chunk_contract: marker_spans_two_chunks
+  requires_real_host_chunk_driver: true
+  evidence_status: not_executed_until_real_host
+known_limitations:
+  - The shared legacy runner materializes the joined body only; a connector-owned chunk driver must execute this fixture before it can pass.

@@ -1,0 +1,38 @@
+name: deny_response_header_marker_403
+title: Exercise a response-header rule in phase 3
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 3
+required_capabilities:
+  - response_headers
+  - phase3
+capabilities:
+  response_headers: true
+  phase3: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+request:
+  method: GET
+  path: /no-crs/response-header
+response:
+  headers:
+    X-Modsec-Upstream: block
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1100201
+expected_result: deny_or_late_intervention
+expected_status: 403
+expected_rule_id: 1100201
+expected_event_fields:
+  - rule_id
+  - phase
+  - status
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

@@ -21,7 +21,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Compile framework Python
         run: |
-          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
+          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py $(find ci -type f -name '*.py' -print | sort)
       - name: Check shared YAML materialization
         run: |
           set -eu

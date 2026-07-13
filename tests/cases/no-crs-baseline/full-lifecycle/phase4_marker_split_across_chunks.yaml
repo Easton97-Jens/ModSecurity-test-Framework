@@ -1,0 +1,32 @@
+name: phase4_marker_split_across_chunks_fixture
+title: Declarative phase-4 marker split across response chunks
+category: no-crs-full-lifecycle
+portable: true
+status: future
+no_crs_baseline: true
+phase: 4
+capabilities:
+  response_body: true
+  phase4: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+request:
+  method: GET
+  path: /no-crs/full-lifecycle/response-chunks
+response:
+  body: no-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 200
+  intervention: none
+full_lifecycle:
+  response_chunks:
+    - no-crs-response-
+    - body-marker
+  chunk_contract: marker_spans_two_chunks
+  evaluation: end_of_stream
+  requires_real_host_chunk_driver: true
+  evidence_status: not_executed_until_real_host
+known_limitations:
+  - Incremental ingestion and end-of-stream evaluation do not assert per-chunk rule evaluation.

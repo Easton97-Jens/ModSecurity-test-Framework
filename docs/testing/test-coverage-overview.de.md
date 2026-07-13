@@ -111,8 +111,8 @@ Generierte Datei – nicht manuell bearbeiten.
 | PASS | 54 | 60 | 105 |
 | FAIL | 0 | 0 | 23 |
 | NOT_EXECUTABLE | 486 | 480 | 412 |
-- Details: `docs/testing/generated/runtime-matrix.generated.md`
-- HAProxy-Ergebnisse pro Fall: `docs/testing/generated/haproxy-runtime-results.generated.md`
+- Details: `docs/testing/generated/runtime/runtime-matrix.generated.md`
+- HAProxy-Ergebnisse pro Fall: `docs/testing/generated/runtime/haproxy-runtime-results.generated.md`
 
 ## MRTS Nachweis der nativen Infrastruktur
 - Apache nativ: `docs/testing/generated/mrts-native-apache.generated.md`
@@ -135,7 +135,7 @@ Diese nativen MRTS-Berichte sind vom Connector-Vollmatrixbeweis getrennt.
 | sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | POSIX Shell-Syntaxprüfung für Connector-Integrations-Shell-Skripte bestanden |
 | bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | Bash-Syntaxprüfung für Connector-Integrations-Shell-Skripte bestanden |
 | git diff --check | PASS | Es wurden keine Leerzeichenfehler gemeldet |
-| diff -u /tmp/pre-connector.diff /tmp/post-connector.diff | PASS | Der Connector-Quell-Diff-Snapshot bleibt unverändert; Es wurden keine neuen Änderungen an der Connector-Quelle eingeführt |
+| diff -u <temporary-work-root>/pre-connector.diff <temporary-work-root>/post-connector.diff | PASS | Der Connector-Quell-Diff-Snapshot bleibt unverändert; Es wurden keine neuen Änderungen an der Connector-Quelle eingeführt |
 | git diff --exit-code -- connectors/apache/src connectors/nginx/src | BLOCKED | Ungleich Null, da connectors/apache/src/mod_security3.c vor diesem Fix bereits eine nicht verwandte lokale Änderung hatte; Der pre/post Connector-Diff-Snapshot bleibt unverändert |
 | git ls-files .venv | PASS | Keine verfolgten .venv-Dateien |
 
@@ -227,8 +227,8 @@ Es wurden keine NGINX Laufzeit-FAIL Details gemeldet.
 ## Offene Bereiche / Lücken
 - Laufzeitverifiziert bedeutet nur Fälle, die explizit als `runtime_verified=true` klassifiziert sind.
 - Fälle mit `runtime_verified=false` oder `runtime_verified=unknown` sind kein Laufzeit-PASS-Nachweis.
-- Detaillierte Connector-Gap-Einträge finden Sie unter `docs/testing/generated/connector-gap-summary.generated.md`.
-- Phasen-3/4-Fälle sind in `docs/testing/generated/phase-coverage.generated.md` und in der Laufzeitmatrix sichtbar.
+- Detaillierte Connector-Gap-Einträge finden Sie unter `docs/testing/generated/coverage/connector-gap-summary.generated.md`.
+- Phasen-3/4-Fälle sind in `docs/testing/generated/coverage/phase-coverage.generated.md` und in der Laufzeitmatrix sichtbar.
 - RESPONSE_BODY bleibt nicht verifiziert und nicht hochgestuft.
 - GitHub/Codex-Prüfungen sind absichtlich leichtgewichtig.
 - Ausstehende und Lückenthemen erfordern eine lokale Laufzeitvalidierung.
@@ -250,15 +250,15 @@ Es wurden keine NGINX Laufzeit-FAIL Details gemeldet.
 - `make check-test-matrix`
 
 ## Detailberichte
-- `docs/testing/generated/case-matrix.generated.md`
-- `docs/testing/generated/coverage-summary.generated.md`
-- `docs/testing/generated/xfail-summary.generated.md`
-- `docs/testing/generated/connector-gap-summary.generated.md`
-- `docs/testing/generated/phase-coverage.generated.md`
-- `docs/testing/generated/runtime-matrix.generated.md`
-- `docs/testing/generated/apache-runtime-results.generated.md`
-- `docs/testing/generated/nginx-runtime-results.generated.md`
-- `docs/testing/generated/haproxy-runtime-results.generated.md`
+- `docs/testing/generated/coverage/case-matrix.generated.md`
+- `docs/testing/generated/coverage/coverage-summary.generated.md`
+- `docs/testing/generated/coverage/xfail-summary.generated.md`
+- `docs/testing/generated/coverage/connector-gap-summary.generated.md`
+- `docs/testing/generated/coverage/phase-coverage.generated.md`
+- `docs/testing/generated/runtime/runtime-matrix.generated.md`
+- `docs/testing/generated/runtime/apache-runtime-results.generated.md`
+- `docs/testing/generated/runtime/nginx-runtime-results.generated.md`
+- `docs/testing/generated/runtime/haproxy-runtime-results.generated.md`
 - `docs/testing/runtime-validation-snapshot.json`
 
 ## Wichtiger Hinweis

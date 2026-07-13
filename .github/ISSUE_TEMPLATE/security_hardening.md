@@ -4,8 +4,13 @@ about: Propose a hardening improvement for test framework, CI, runtime handling,
 labels: [security]
 ---
 
-## Note
-English is preferred, but German is also accepted.
+## Language / Sprache
+This is the English template. Use the [German template](security_hardening.de.md)
+for German input.
+
+Do not publish secrets, credentials, tokens, raw payloads, or exploitable
+details in an issue. Use an appropriate private maintainer channel for a
+confidential vulnerability report.
 
 ## Affected area
 Identify the affected area (tests, rules, runners, CI, Docker, reporting, docs, or workflows).

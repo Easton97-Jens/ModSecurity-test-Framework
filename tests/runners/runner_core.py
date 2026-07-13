@@ -29,14 +29,34 @@ CAPABILITY_ALIASES = {
     "args_names": "args-names",
     "audit_log_absent": "audit-log-absent",
     "request_body": "request-body",
+    "request_body_incremental_ingest": "request-body-incremental-ingest",
+    "request_body_limits": "request-body-limits",
     "request_cookies": "request-cookies",
     "request_headers": "request-headers",
     "request_uri": "request-uri",
     "response_body": "response-body",
+    "response_body_incremental_ingest": "response-body-incremental-ingest",
+    "response_body_limits": "response-body-limits",
+    "response_body_decompression": "response-body-decompression",
     "response_filters": "response-filters",
     "response_headers": "response-headers",
     "rule_parser": "rule-parser",
     "transaction_lifecycle": "transaction-lifecycle",
+    "transport_metadata": "transport-metadata",
+    "content_type_scope": "content-type-scope",
+    "header_limits": "header-limits",
+    "phase4_end_of_stream_evaluation": "phase4-end-of-stream-evaluation",
+    "no_full_response_buffering": "no-full-response-buffering",
+    "first_byte_before_response_end": "first-byte-before-response-end",
+    "http1_content_length": "http1-content-length",
+    "http1_chunked": "http1-chunked",
+    "keep_alive": "keep-alive",
+    "parallel_requests": "parallel-requests",
+    "client_abort": "client-abort",
+    "upstream_abort": "upstream-abort",
+    "connection_metadata": "connection-metadata",
+    "event_jsonl": "event-jsonl",
+    "transaction_id": "transaction-id",
     "tx": "tx-collection",
 }
 
@@ -51,6 +71,11 @@ KNOWN_CAPABILITIES = {
     "engine-core",
     "files",
     "form-urlencoded",
+    "first-byte-before-response-end",
+    "content-type-scope",
+    "connection-metadata",
+    "client-abort",
+    "event-jsonl",
     "intervention",
     "json",
     "logging",
@@ -61,19 +86,35 @@ KNOWN_CAPABILITIES = {
     "phase2",
     "phase3",
     "phase4",
+    "phase4-end-of-stream-evaluation",
     "query-args",
     "request-cookies",
     "redirect",
     "request-body",
+    "request-body-incremental-ingest",
+    "request-body-limits",
     "request-headers",
     "request-uri",
     "response-body",
+    "response-body-decompression",
+    "response-body-incremental-ingest",
+    "response-body-limits",
     "response-filters",
     "response-headers",
+    "header-limits",
+    "http2",
+    "http1-chunked",
+    "http1-content-length",
+    "keep-alive",
+    "no-full-response-buffering",
+    "parallel-requests",
     "rule-parser",
     "transaction-lifecycle",
+    "transaction-id",
+    "transport-metadata",
     "transformations",
     "tx-collection",
+    "upstream-abort",
     "xml",
 }
 
@@ -410,6 +451,14 @@ def _validate_nginx(case: Mapping[str, Any], where: str) -> None:
     location_directives = nginx.get("location_directives")
     if location_directives is not None and not isinstance(location_directives, str):
         raise ValueError(f"case nginx.location_directives must be a string{where}")
+    phase4_mode = nginx.get("phase4_mode")
+    if phase4_mode is not None and (
+        not isinstance(phase4_mode, str)
+        or phase4_mode not in {"minimal", "safe", "strict"}
+    ):
+        raise ValueError(
+            f"case nginx.phase4_mode must be minimal, safe, or strict{where}"
+        )
     _validate_nginx_files(nginx.get("files", {}), where)
 
 
@@ -509,6 +558,12 @@ def write_rules_file(
     audit_log_dir: str | Path | None = None,
     rules_preamble_file: str | Path | None = None,
 ) -> None:
+    if case.get("no_crs_baseline") is True and rules_preamble_file is None:
+        raise ValueError("canonical No-CRS cases require tests/rules/no-crs-baseline.conf as rules preamble")
+    if case.get("no_crs_baseline") is True:
+        canonical_preamble = Path(__file__).resolve().parents[2] / "tests/rules/no-crs-baseline.conf"
+        if Path(rules_preamble_file).resolve() != canonical_preamble.resolve():
+            raise ValueError(f"canonical No-CRS case requires rules preamble {canonical_preamble}")
     rules = str(case["rules"])
     if audit_log_file is not None:
         rules = rules.replace("@@AUDIT_LOG@@", str(audit_log_file))
@@ -628,6 +683,11 @@ def nginx_location_directives(case: Mapping[str, Any]) -> str:
     if directives in (None, ""):
         return ""
     return str(directives)
+
+
+def nginx_phase4_mode(case: Mapping[str, Any]) -> str:
+    mode = nginx_metadata(case).get("phase4_mode", "")
+    return "" if mode in (None, "") else str(mode)
 
 
 def _replace_nginx_placeholders(
@@ -752,6 +812,10 @@ def write_shell_env(
         "EXPECT_RESPONSE_CONTAINS": expect.get("response_contains", ""),
         "EXPECT_TRANSPORT": expect.get("transport", "http_status"),
         "EXPECT_AUDIT_LOG_REQUIRED": 1 if _bool_value(audit_log.get("required")) else 0,
+        # NGINX alone consumes this optional per-case setting.  Keeping it in
+        # the generated environment lets its host template apply a real mode
+        # without copying expected outcomes into the runner.
+        "NGINX_PHASE4_MODE": nginx_phase4_mode(case),
     }
     lines = ["# Generated from common test case. Do not edit.\n"]
     for key, value in values.items():
@@ -789,6 +853,8 @@ def case_status_group(case: Mapping[str, Any]) -> str:
 
 
 def is_default_runtime_case(case: Mapping[str, Any]) -> bool:
+    if case.get("no_crs_baseline") is True:
+        return os.environ.get("NO_CRS_BASELINE", "").strip().lower() in {"1", "true", "yes", "on"}
     if case.get("former_xfail") is True:
         return False
     return case_status_group(case) in {
@@ -961,6 +1027,15 @@ def _resolve_case_item(item: str, root: Path, connector: str, scope: str, select
             for directory in selected_dirs
             if (directory / candidate).is_file()
         ]
+        # Canonical no-CRS lifecycle fixtures are intentionally grouped below
+        # tests/cases/no-crs-baseline while the shared runner scope begins at
+        # tests/cases.  Accept their catalog-relative fixture path without
+        # widening the caller's scope to an arbitrary directory.
+        scoped_matches.extend(
+            directory / "no-crs-baseline" / candidate
+            for directory in selected_dirs
+            if (directory / "no-crs-baseline" / candidate).is_file()
+        )
         if len(scoped_matches) == 1:
             path = scoped_matches[0]
         else:

@@ -1,0 +1,33 @@
+name: allow_without_marker
+title: Allow a request without a baseline marker
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 1
+required_capabilities:
+  - request_headers
+  - phase1
+capabilities:
+  request_headers: true
+  phase1: true
+  pass_through: true
+rules: |
+  SecRuleEngine On
+request:
+  method: GET
+  path: /no-crs/allow
+  headers:
+    X-Modsec-Smoke: allow
+expect:
+  status: 200
+  intervention: none
+expected_result: allow
+expected_status: 200
+expected_rule_id: null
+expected_event_fields: []
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

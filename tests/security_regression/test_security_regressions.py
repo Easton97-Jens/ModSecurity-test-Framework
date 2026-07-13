@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_check_common():
-    spec = importlib.util.spec_from_file_location("check_common_versions", ROOT / "ci/check-common-versions.py")
+    spec = importlib.util.spec_from_file_location("check_common_versions", ROOT / "ci/tools/check-common-versions.py")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -47,7 +47,7 @@ class SecurityRegressionTests(unittest.TestCase):
             subprocess.run(
                 [
                     sys.executable,
-                    str(ROOT / "ci/generate-connector-work-queue.py"),
+                    str(ROOT / "ci/reporting/generate-connector-work-queue.py"),
                     "--framework-root",
                     str(ROOT),
                     "--connector-root",
@@ -67,7 +67,7 @@ class SecurityRegressionTests(unittest.TestCase):
     def test_common_blocks_shared_tmp_and_var_tmp_runtime_paths(self):
         script = textwrap.dedent(
             f"""
-            . {ROOT}/ci/common.sh
+            . {ROOT}/ci/lib/common.sh
             assert_safe_runtime_path /tmp/ModSecurity-conector-verified/bin poisoned >/dev/null 2>&1 && exit 1
             assert_safe_runtime_path /var/tmp/ModSecurity-conector-verified/bin poisoned >/dev/null 2>&1 && exit 1
             safe_remove_runtime_path /var/tmp poisoned-root test >/dev/null 2>&1 && exit 1
@@ -81,7 +81,7 @@ class SecurityRegressionTests(unittest.TestCase):
             f"""
             CONNECTOR_SMOKE_SCRIPT_DIR={ROOT}/ci
             FRAMEWORK_ROOT={ROOT}
-            . {ROOT}/ci/connector-smoke-common.sh
+            . {ROOT}/ci/lib/connector-smoke-common.sh
             roots=$(connector_smoke_default_verified_roots || true)
             [ -z "$roots" ] || exit 1
             exit 0

@@ -35,13 +35,13 @@ class SecondRemediationTests(unittest.TestCase):
         self.assertEqual(models.verified_variables(entries), [])
 
     def test_with_mrts_and_xml_failures_not_report_only(self):
-        queue = load_module("ci/generate-connector-work-queue.py", "connector_queue_test")
+        queue = load_module("ci/reporting/generate-connector-work-queue.py", "connector_queue_test")
         self.assertFalse(queue.is_with_mrts_detection_only_non_disruptive())
         self.assertEqual(queue.NO_MRTS_NOMATCH_BY_CASE["xml_request_body_malformed_connector_gap"]["work_direction"], "xml_processor")
         self.assertEqual(queue.NO_MRTS_NOMATCH_BY_CASE["xml_request_body_malformed_connector_gap"]["priority"], "P2")
 
     def test_bounded_run_log_reader_rejects_symlink_escape_and_oversize(self):
-        report = load_module("ci/generate-mrts-native-report.py", "mrts_native_report_test")
+        report = load_module("ci/reporting/generate-mrts-native-report.py", "mrts_native_report_test")
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "native"
             root.mkdir()
@@ -65,7 +65,7 @@ class SecondRemediationTests(unittest.TestCase):
         self.assertNotIn("listen [::]:80 default_server;", config)
 
     def test_haproxy_stale_summary_not_reused_without_current_exit_code(self):
-        snap = load_module("ci/update-runtime-snapshot.py", "runtime_snapshot_test")
+        snap = load_module("ci/reporting/update-runtime-snapshot.py", "runtime_snapshot_test")
         with tempfile.TemporaryDirectory() as tmp:
             results = Path(tmp) / "results"
             (results / "with-crs").mkdir(parents=True)
@@ -95,14 +95,14 @@ LOG_DIR={log}
 RUN_ONE_CASE=1
 TEST_CASE=case-a
 mkdir -p "$CONNECTOR_ROOT/connectors/haproxy" "$BUILD_ROOT" "$SOURCE_ROOT" "$TMP_ROOT" "$LOG_ROOT" "$RESULTS_DIR"
-. {ROOT}/ci/connector-smoke-common.sh
+. {ROOT}/ci/lib/connector-smoke-common.sh
 connector_smoke_run haproxy {harness}
 '''
             result = subprocess.run(["sh", "-c", script], cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             self.assertNotEqual(result.returncode, 0)
 
     def test_shared_output_path_confinement_rejects_traversal_and_symlink(self):
-        utils = load_module("ci/generated_report_utils.py", "generated_report_utils_test")
+        utils = load_module("ci/lib/generated_report_utils.py", "generated_report_utils_test")
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "out"
             root.mkdir()
@@ -121,7 +121,7 @@ connector_smoke_run haproxy {harness}
                 utils.require_under(root, symlink_escape, "mrts output")
 
     def test_connector_work_queue_matrix_input_and_output_paths_are_confined(self):
-        utils = load_module("ci/generated_report_utils.py", "generated_report_utils_connector_queue_test")
+        utils = load_module("ci/lib/generated_report_utils.py", "generated_report_utils_connector_queue_test")
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             connector_root = tmp_path / "connector"

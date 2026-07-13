@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modsecurity-connector.invalid/schemas/no-crs-manifest-v1.json",
+  "title": "Canonical No-CRS artifact manifest",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "connector", "run_id", "evidence_stage", "artifact_profile", "ruleset", "status", "started_at", "ended_at", "connector_commit", "framework_commit", "connector_worktree_clean", "framework_worktree_clean", "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize", "host_name", "host_version", "integration_mode", "host_profile", "libmodsecurity_version", "compiler_version", "operating_system", "architecture", "rules", "cases", "executed_targets", "capability_manifest", "artifacts"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "connector": {"enum": ["apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"]},
+    "run_id": {"type": "string", "minLength": 1},
+    "evidence_stage": {"enum": ["minimal_runtime_smoke", "no_crs_baseline"]},
+    "artifact_profile": {"enum": ["generic", "full_lifecycle"]},
+    "ruleset": {"const": "no-crs-baseline"},
+    "status": {"enum": ["PASS", "FAIL", "BLOCKED", "UNSUPPORTED", "NOT_APPLICABLE", "NOT_EXECUTED"]},
+    "started_at": {"type": "string", "minLength": 1},
+    "ended_at": {"type": "string", "minLength": 1},
+    "connector_commit": {"type": "string", "minLength": 1},
+    "framework_commit": {"type": "string", "minLength": 1},
+    "connector_worktree_clean": {"type": "boolean"},
+    "framework_worktree_clean": {"type": "boolean"},
+    "provenance_required": {"type": "boolean"},
+    "connector_commit_at_finalize": {"type": "string", "minLength": 1},
+    "framework_commit_at_finalize": {"type": "string", "minLength": 1},
+    "host_name": {"type": "string", "minLength": 1},
+    "host_version": {"type": "string", "minLength": 1},
+    "integration_mode": {"type": "string", "minLength": 1},
+    "host_profile": {"type": "string", "minLength": 1},
+    "libmodsecurity_version": {"type": "string", "minLength": 1},
+    "compiler_version": {"type": "string", "minLength": 1},
+    "operating_system": {"type": "string", "minLength": 1},
+    "architecture": {"type": "string", "minLength": 1},
+    "rules": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "cases": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "executed_targets": {"type": "array", "items": {"type": "string"}},
+    "capability_manifest": {"type": "string", "minLength": 1},
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["path", "state"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "state": {"enum": ["produced", "not_produced", "not_applicable"]},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

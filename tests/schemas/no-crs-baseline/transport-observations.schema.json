@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modsecurity-connector.invalid/schemas/no-crs-transport-observations-v1.json",
+  "title": "Payload-free transport observations",
+  "description": "Inventory-only client/host transport observations. A sidecar alone never promotes a canonical case result.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "connector", "integration_mode", "run_id", "observations"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "connector": {"enum": ["apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"]},
+    "integration_mode": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "[A-Za-z0-9:._-]{1,64}"},
+    "run_id": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "[A-Za-z0-9:._-]{1,256}"},
+    "observations": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {"$ref": "#/$defs/observation"}
+    }
+  },
+  "$defs": {
+    "token": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "[A-Za-z0-9:._-]{1,128}"},
+    "reset_code": {"type": ["integer", "string", "null"], "minimum": 0, "maximum": 4611686018427387903, "minLength": 1, "maxLength": 64, "pattern": "[A-Za-z0-9:._-]{1,64}"},
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocol", "case_id", "transport_case_id", "transaction_id", "rule_id", "phase", "event", "message_id",
+        "requested_action", "actual_action", "response_committed", "first_byte_received", "eos_received",
+        "client_result", "transport_result", "host_survived", "followup_request_result"
+      ],
+      "properties": {
+        "protocol": {"enum": ["http1", "h2", "h2c", "h3"]},
+        "case_id": {"$ref": "#/$defs/token"},
+        "transport_case_id": {"$ref": "#/$defs/token"},
+        "transaction_id": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "[A-Za-z0-9:._-]{1,256}"},
+        "rule_id": {"type": ["integer", "string", "null"], "minimum": 0, "maximum": 9999999999, "minLength": 1, "maxLength": 10, "pattern": "[0-9]{1,10}"},
+        "phase": {"type": "integer", "minimum": 0, "maximum": 5},
+        "event": {"$ref": "#/$defs/token"},
+        "message_id": {"$ref": "#/$defs/token"},
+        "requested_action": {"type": ["string", "null"], "enum": ["deny", "redirect", "drop", "log_only", "abort_connection", null]},
+        "actual_action": {"type": ["string", "null"], "enum": ["deny", "redirect", "log_only", "abort_connection", "stream_reset", null]},
+        "connection_id": {"type": ["string", "null"], "minLength": 1, "maxLength": 128, "pattern": "[A-Za-z0-9:._-]{1,128}"},
+        "stream_id": {"type": ["integer", "null"], "minimum": 0, "maximum": 4611686018427387903},
+        "barrier_id": {"type": ["string", "null"], "minLength": 1, "maxLength": 128, "pattern": "[A-Za-z0-9:._-]{1,128}"},
+        "connection_reused": {"type": ["boolean", "null"]},
+        "response_committed": {"type": "boolean"},
+        "first_byte_received": {"type": "boolean"},
+        "eos_received": {"type": "boolean"},
+        "eos_seen": {"type": ["boolean", "null"]},
+        "client_result": {"enum": ["completed", "premature_eof", "tcp_reset", "incomplete_content_length", "chunked_response_aborted", "stream_reset", "client_cancelled", "client_disconnected", "timeout", "short_write", "write_would_block", "engine_error", "host_error", "not_observable"]},
+        "transport_result": {"enum": ["completed", "log_only", "connection_aborted", "stream_reset", "client_cancelled", "client_disconnected", "upstream_reset", "upstream_disconnected", "timeout", "short_write", "write_would_block", "engine_error", "host_error", "http_status", "not_observable"]},
+        "host_survived": {"type": "boolean"},
+        "followup_request_result": {"enum": ["completed", "failed", "not_attempted", "not_observable"]},
+        "client_disconnected": {"type": ["boolean", "null"]},
+        "upstream_disconnected": {"type": ["boolean", "null"]},
+        "cancelled": {"type": ["boolean", "null"]},
+        "stream_reset": {"type": ["boolean", "null"]},
+        "reset_by": {"type": ["string", "null"], "enum": ["client", "upstream", "engine", "host", "strict_intervention", "timeout", null]},
+        "reset_code": {"$ref": "#/$defs/reset_code"},
+        "stream_reset_code": {"$ref": "#/$defs/reset_code"},
+        "timeout_stage": {"type": ["string", "null"], "enum": ["engine", "request_body", "response_body", "upstream", "client_idle", "before_commit", "after_commit", null]},
+        "write_result": {"type": ["string", "null"], "enum": ["completed", "short_write", "write_would_block", "engine_error", "host_error", null]},
+        "cleanup_reason": {"type": ["string", "null"], "enum": ["normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort", null]}
+      }
+    }
+  }
+}

@@ -1,0 +1,47 @@
+name: redirect_if_supported
+title: Map a supported phase-1 redirect intervention
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 1
+required_capabilities:
+  - request_headers
+  - phase1
+  - redirect
+capabilities:
+  request_headers: true
+  phase1: true
+  redirect: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+request:
+  method: GET
+  path: /no-crs/redirect
+  headers:
+    X-Modsec-Smoke: redirect
+expect:
+  status: 302
+  intervention: redirect
+  rule_id: 1100401
+  audit_log:
+    required: true
+    rule_id: 1100401
+    message: no-crs redirect
+expected_result: redirect
+expected_status: 302
+expected_rule_id: 1100401
+expected_event_fields:
+  - rule_id
+  - phase
+  - status
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

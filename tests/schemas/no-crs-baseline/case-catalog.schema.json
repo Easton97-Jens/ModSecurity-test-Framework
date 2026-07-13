@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modsecurity-connector.invalid/schemas/no-crs-case-catalog-v1.json",
+  "title": "Canonical No-CRS case catalog",
+  "type": "object",
+  "required": ["schema_version", "catalog", "full_lifecycle_artifact_profile", "ruleset", "defaults", "cases"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "catalog": {"const": "no-crs-baseline"},
+    "full_lifecycle_artifact_profile": {"const": "full_lifecycle"},
+    "ruleset": {"type": "object"},
+    "defaults": {"type": "object"},
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["case_id", "title", "phase", "required_capabilities", "request", "expected_result", "expected_status", "expected_rule_id"],
+        "properties": {
+          "case_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"},
+          "title": {"type": "string", "minLength": 1},
+          "phase": {"type": "integer", "minimum": 0, "maximum": 5},
+          "required_capabilities": {"type": "array", "minItems": 1, "items": {"type": "string"}, "uniqueItems": true},
+          "request": {
+            "type": "object",
+            "properties": {
+              "protocol_profile": {"enum": ["http1", "h2", "h2c", "h3"]},
+              "protocol_operation": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z][a-z0-9_]+$"},
+              "stream_operation": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-z][a-z0-9_]+$"},
+              "parallel_streams": {"type": "integer", "minimum": 2, "maximum": 64}
+            }
+          },
+          "expected_result": {"type": "string", "minLength": 1},
+          "expected_status": {"type": ["integer", "null"]},
+          "expected_rule_id": {"type": ["integer", "null"]},
+          "expected_event_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "forbidden_event_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "transport_hardening": {"type": "boolean"},
+          "evidence_requirement": {
+            "type": "object",
+            "required": ["requires_real_host", "accepts_synthetic_pass"],
+            "properties": {
+              "requires_real_host": {"const": true},
+              "accepts_synthetic_pass": {"const": false}
+            }
+          },
+          "runner_case": {"type": "string", "minLength": 1},
+          "deprecated_alias_for": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"}
+        }
+      }
+    }
+  }
+}

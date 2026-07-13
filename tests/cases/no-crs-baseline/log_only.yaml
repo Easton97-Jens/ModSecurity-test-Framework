@@ -1,0 +1,47 @@
+name: log_only
+title: Emit metadata for a non-disruptive phase-1 match
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 1
+required_capabilities:
+  - request_headers
+  - phase1
+  - log_only
+capabilities:
+  request_headers: true
+  phase1: true
+  logging: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine On
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+request:
+  method: GET
+  path: /no-crs/log-only
+  headers:
+    X-Modsec-Smoke: log-only
+expect:
+  status: 200
+  intervention: none
+  rule_id: 1100402
+  audit_log:
+    required: true
+    rule_id: 1100402
+    message: no-crs log-only
+expected_result: log_only
+expected_status: 200
+expected_rule_id: 1100402
+expected_event_fields:
+  - rule_id
+  - phase
+  - status
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

@@ -1,0 +1,94 @@
+name: phase4_deny_after_commit_abort
+title: Canonical NGINX strict-mode post-commit Phase-4 connection abort
+category: no-crs-baseline
+portable: false
+connector: nginx
+status: pending
+no_crs_baseline: true
+phase: 4
+required_capabilities:
+  - response_body_buffered
+  - phase4
+  - phase4_rule_evaluation
+  - late_intervention
+  - late_intervention_abort
+  - late_intervention_status_metadata
+capabilities:
+  response_body: true
+  phase4: true
+  intervention: true
+  logging: true
+rules: |
+  SecRuleEngine On
+
+nginx:
+  phase4_mode: strict
+  location_directives: |
+    modsecurity_phase4_log "@@NGINX_PHASE4_LOG@@";
+
+request:
+  method: GET
+  path: /no-crs/response-body
+
+response:
+  body: no-crs-response-body-marker
+  content_type: text/html
+
+expect:
+  # A strict body-filter intervention happens after the client has already
+  # seen the original response headers.  The abort transport, not a rewritten
+  # HTTP 403, is the assertion.
+  status: 200
+  transport: connection_aborted
+  intervention: deny
+  rule_id: 1100301
+  phase4_log:
+    required: true
+    contains:
+      - '"event":"phase4_intervention"'
+      - '"message_id":"MSCONN_EVENT_PHASE4_HARD_ABORT_AFTER_200"'
+      - '"connector":"nginx"'
+      - '"phase":"response_body"'
+      - '"rule_id":"1100301"'
+      - '"requested_action":"deny"'
+      - '"actual_action":"abort_connection"'
+      - '"http_status":403'
+      - '"original_http_status":200'
+      - '"visible_http_status":200'
+      - '"late_intervention":true'
+      - '"response_committed":true'
+      - '"headers_sent":true'
+      - '"body_started":true'
+      - '"connection_aborted":true'
+      - '"transport_result":"connection_aborted"'
+    not_contains:
+      - no-crs-response-body-marker
+      - '"intervention_log":'
+      - '"request_body":'
+      - '"response_body":'
+      - '"matched_value":'
+expected_result: connection_aborted
+expected_status: null
+expected_rule_id: 1100301
+expected_event_fields:
+  - event
+  - message_id
+  - rule_id
+  - phase
+  - http_status
+  - requested_action
+  - actual_action
+  - original_http_status
+  - visible_http_status
+  - late_intervention
+  - headers_sent
+  - body_started
+  - response_committed
+  - connection_aborted
+  - transport_result
+forbidden_event_fields:
+  - request_body
+  - response_body
+  - intervention_log
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

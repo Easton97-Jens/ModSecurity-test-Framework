@@ -1,0 +1,30 @@
+name: phase3_deny_before_commit_fixture
+title: Declarative phase-3 denial before headers are committed
+category: no-crs-full-lifecycle
+portable: true
+status: future
+no_crs_baseline: true
+phase: 3
+capabilities:
+  response_headers: true
+  phase3: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+request:
+  method: GET
+  path: /no-crs/full-lifecycle/response-header-deny
+response:
+  headers:
+    X-Modsec-Upstream: block
+  body: phase3 upstream body
+expect:
+  status: 403
+  intervention: deny
+full_lifecycle:
+  response_committed_before_intervention: false
+  required_event_fields:
+    - original_http_status
+    - visible_http_status
+    - headers_sent
+  evidence_status: not_executed_until_real_host

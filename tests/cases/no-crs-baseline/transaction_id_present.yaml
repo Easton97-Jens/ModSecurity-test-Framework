@@ -1,0 +1,45 @@
+name: transaction_id_present
+title: Preserve a supplied transaction identifier in metadata
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 1
+required_capabilities:
+  - transaction_id
+  - phase1
+capabilities:
+  request_headers: true
+  phase1: true
+  logging: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine On
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+request:
+  method: GET
+  path: /no-crs/transaction-id
+  headers:
+    X-Modsec-Transaction-Id: no-crs-tx-0001
+expect:
+  status: 200
+  intervention: none
+  rule_id: 1100003
+  audit_log:
+    required: true
+    rule_id: 1100003
+    message: no-crs transaction-id metadata
+expected_result: allow
+expected_status: 200
+expected_rule_id: 1100003
+expected_event_fields:
+  - transaction_id
+  - rule_id
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

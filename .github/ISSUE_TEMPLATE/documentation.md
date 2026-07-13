@@ -4,8 +4,9 @@ about: Report missing, unclear, or incorrect documentation
 labels: [documentation]
 ---
 
-## Note
-English is preferred, but German is also accepted.
+## Language / Sprache
+This is the English template. Use the [German template](documentation.de.md)
+for German input.
 
 ## Affected document or section
 Provide file path(s), section title(s), or links.
