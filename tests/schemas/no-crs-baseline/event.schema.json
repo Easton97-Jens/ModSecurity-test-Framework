@@ -1,0 +1,392 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modsecurity-connector.invalid/schemas/no-crs-event-v1.json",
+  "title": "Canonical No-CRS event metadata",
+  "description": "Flat, metadata-only event records accepted by the canonical evidence writer, including the bounded Common event-writer vocabulary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connector"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "level": {
+      "type": "string",
+      "maxLength": 32
+    },
+    "message": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "connector": {
+      "enum": [
+        "apache",
+        "nginx",
+        "haproxy",
+        "envoy",
+        "traefik",
+        "lighttpd"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 256,
+      "pattern": "[A-Za-z0-9:._-]{0,256}"
+    },
+    "integration_mode": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9:._-]{0,64}"
+    },
+    "event": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 256,
+      "pattern": "[A-Za-z0-9:._-]{0,256}"
+    },
+    "message_id": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 256,
+      "pattern": "[A-Za-z0-9:._-]{0,256}"
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 256
+    },
+    "transport_case_id": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 128,
+      "pattern": "[A-Za-z0-9:._-]{0,128}"
+    },
+    "barrier_id": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 128,
+      "pattern": "[A-Za-z0-9:._-]{0,128}"
+    },
+    "rule_id": {
+      "type": [
+        "integer",
+        "string"
+      ],
+      "maxLength": 10,
+      "pattern": "[0-9]{0,10}"
+    },
+    "phase": {
+      "type": [
+        "integer",
+        "string"
+      ],
+      "description": "Canonical phase 0..5, or a Common lifecycle label normalized on ingest (connection, uri, request_headers, request_body, response_headers, response_body, logging).",
+      "minimum": 0,
+      "maximum": 5,
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9_-]{1,64}"
+    },
+    "status": {
+      "type": [
+        "integer",
+        "string"
+      ],
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9_-]{1,64}"
+    },
+    "http_status": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999
+    },
+    "requested_action": {
+      "type": "string",
+      "enum": ["", "deny", "redirect", "drop", "log_only", "abort_connection"]
+    },
+    "actual_action": {
+      "type": "string",
+      "enum": ["", "deny", "redirect", "log_only", "abort_connection", "stream_reset"]
+    },
+    "action": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "original_http_status": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999
+    },
+    "visible_http_status": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 999
+    },
+    "http_reason_phrase": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "http_default_message": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "method": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "uri": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "client_ip": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "late_intervention": {
+      "type": "boolean"
+    },
+    "headers_sent": {
+      "type": "boolean"
+    },
+    "response_started": {
+      "type": "boolean"
+    },
+    "body_started": {
+      "type": "boolean"
+    },
+    "body_truncated": {
+      "type": "boolean"
+    },
+    "response_committed": {
+      "type": "boolean"
+    },
+    "connection_aborted": {
+      "type": "boolean"
+    },
+    "transport_result": {
+      "type": "string",
+      "enum": ["", "completed", "log_only", "connection_aborted", "stream_reset", "client_cancelled", "client_disconnected", "upstream_reset", "upstream_disconnected", "timeout", "short_write", "write_would_block", "engine_error", "host_error", "http_status", "not_observable"]
+    },
+    "late_intervention_mode": {
+      "type": "string",
+      "enum": ["minimal", "safe", "strict"]
+    },
+    "content_type_scope": {
+      "type": "string",
+      "enum": ["in_scope", "out_of_scope", "missing"]
+    },
+    "body_limit_outcome": {
+      "type": "string",
+      "enum": ["at_limit", "over_limit", "process_partial", "reject"]
+    },
+    "marker_split_across_chunks": {
+      "type": "boolean"
+    },
+    "end_of_stream_evaluation": {
+      "type": "boolean"
+    },
+    "no_full_response_buffering": {
+      "type": "boolean"
+    },
+    "first_byte_before_response_end": {
+      "type": "boolean"
+    },
+    "client_first_byte_received": {
+      "type": "boolean"
+    },
+    "first_chunk_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "upstream_paused": {
+      "type": "boolean"
+    },
+    "upstream_eos_sent_at_first_byte": {
+      "type": "boolean"
+    },
+    "upstream_response_finished_at_first_byte": {
+      "type": "boolean"
+    },
+    "transport_protocol": {
+      "type": "string",
+      "enum": ["", "http1", "http2"]
+    },
+    "requested_protocol": {
+      "type": "string",
+      "enum": ["", "http1", "h2", "h2c", "h3"]
+    },
+    "downstream_protocol": {
+      "type": "string",
+      "enum": ["", "http1", "h2", "h2c", "h3"]
+    },
+    "upstream_protocol": {
+      "type": "string",
+      "enum": ["", "http1", "h2", "h2c", "h3"]
+    },
+    "negotiated_protocol": {
+      "type": "string",
+      "enum": ["", "http1", "h2", "h2c", "h3"]
+    },
+    "transport": {
+      "type": "string",
+      "enum": ["", "tcp", "tls_tcp", "quic_udp"]
+    },
+    "alpn": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9:._/-]{0,64}"
+    },
+    "stream_id": {
+      "type": ["integer", "string", "null"],
+      "minimum": 0,
+      "maximum": 4611686018427387903,
+      "maxLength": 19,
+      "pattern": "[0-9]{0,19}"
+    },
+    "connection_id": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 128,
+      "pattern": "[A-Za-z0-9:._-]{0,128}"
+    },
+    "quic_connection_id_present": {
+      "type": "boolean"
+    },
+    "quic_version": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9:._-]{0,64}"
+    },
+    "fallback_used": {
+      "type": "boolean"
+    },
+    "stream_reset": {
+      "type": "boolean"
+    },
+    "stream_reset_code": {
+      "type": ["integer", "string", "null"],
+      "minimum": 0,
+      "maximum": 4611686018427387903,
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9:._-]{0,64}"
+    },
+    "transfer_encoding": {
+      "type": "string",
+      "enum": ["content_length", "chunked", "none"]
+    },
+    "connection_reused": {
+      "type": "boolean"
+    },
+    "client_aborted": {
+      "type": "boolean"
+    },
+    "upstream_aborted": {
+      "type": "boolean"
+    },
+    "client_disconnected": {
+      "type": "boolean"
+    },
+    "upstream_disconnected": {
+      "type": "boolean"
+    },
+    "cancelled": {
+      "type": "boolean"
+    },
+    "reset_by": {
+      "type": "string",
+      "enum": ["", "client", "upstream", "engine", "host", "strict_intervention", "timeout"]
+    },
+    "reset_code": {
+      "type": ["integer", "string", "null"],
+      "minimum": 0,
+      "maximum": 4611686018427387903,
+      "maxLength": 64,
+      "pattern": "[A-Za-z0-9:._-]{0,64}"
+    },
+    "timeout_stage": {
+      "type": "string",
+      "enum": ["", "engine", "request_body", "response_body", "upstream", "client_idle", "before_commit", "after_commit"]
+    },
+    "write_result": {
+      "type": "string",
+      "enum": ["", "completed", "short_write", "write_would_block", "engine_error", "host_error"]
+    },
+    "eos_seen": {
+      "type": "boolean"
+    },
+    "cleanup_reason": {
+      "type": "string",
+      "enum": ["", "normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort"]
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "redacted": {
+      "type": "boolean"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
+    "previous_event_hash": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
+    "event_hash": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 18446744073709551615
+    },
+    "content_type": {
+      "type": "string",
+      "minLength": 0,
+      "maxLength": 256
+    },
+    "body_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "body_bytes_seen": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "body_bytes_inspected": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "body_hash": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "[A-Za-z0-9:._-]+"
+    },
+    "body_length": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "body_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "request_body_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "response_body_size": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

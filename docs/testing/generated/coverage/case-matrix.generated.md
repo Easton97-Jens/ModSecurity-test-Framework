@@ -1,4 +1,15 @@
-Generated file - do not edit manually.
+> Generated file - do not edit manually.
+>
+> Generated at: `2026-07-12T19:40:10Z`
+> Verified run id: `2026-06-16T19-12-00Z-614c8049`
+> Data source policy: `verified-inputs-only`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
+> Make target: `generate-test-matrix`
+> Owner: `runtime`
+> Severity: `informational`
+> Connector SHA: `91f51277e96ff9b58e6d6a3a3c737eb103b00331`
+> Framework SHA: `91f51277e96ff9b58e6d6a3a3c737eb103b00331`
+> Input status: `missing`
 
 # Generated Case Matrix
 
@@ -43,10 +54,14 @@ Generated file - do not edit manually.
 | multipart_files_value_block | `tests/cases/body/multipart/multipart_files_value_block.yaml` | common | 2 | FILES:filedata1 | @contains | - | imported | - | active | - | unknown | no | - |
 | multipart_invalid_boundary_future_target | `tests/cases/body/multipart/multipart_invalid_boundary_future_target.yaml` | common | 2 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
 | xml_deep_nesting_future_target | `tests/cases/body/xml/xml_deep_nesting_future_target.yaml` | common | 2 | XML | @contains | - | imported | - | active | - | unknown | no | - |
-| xml_namespace_edge_connector_gap | `tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | common | 2 | XML | @contains | - | imported | - | active | - | unknown | no | - |
+| xml_namespace_edge_connector_gap | `tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml` | common | 1,2 | REQUEST_HEADERS:Content-Type, XML:/* | @contains, @rx | lowercase, none | imported | - | active | - | unknown | no | - |
 | xml_request_body_block | `tests/cases/body/xml/xml_request_body_block.yaml` | common | 1,2 | XML:/* | @contains | lowercase, none | imported | - | active | - | unknown | no | - |
-| xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | common | 2 | XML | @contains | - | imported | - | active | - | unknown | no | - |
+| xml_request_body_malformed_connector_gap | `tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml` | common | 1,2 | REQUEST_HEADERS:Content-Type, XML | @contains, @rx | lowercase, none | imported | - | active | - | unknown | no | - |
+| phase4_deny_after_commit_abort | `tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_abort.yaml` | apache | - | - | - | - | pending | - | active | - | false | yes | - |
+| phase4_deny_after_commit_log_only | `tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_log_only.yaml` | apache | - | - | - | - | pending | - | active | - | false | yes | - |
 | nginx_phase4_content_type_out_of_scope | `tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
+| phase4_deny_after_commit_abort | `tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_abort.yaml` | nginx | - | - | - | - | pending | - | active | - | false | yes | - |
+| phase4_deny_after_commit_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_log_only.yaml` | nginx | - | - | - | - | pending | - | active | - | false | yes | - |
 | nginx_phase4_minimal_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_minimal_log_only.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | nginx_phase4_safe_log_only | `tests/cases/connector-specific/nginx/nginx_phase4_safe_log_only.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | nginx_phase4_strict_connection_abort | `tests/cases/connector-specific/nginx/nginx_phase4_strict_connection_abort.yaml` | nginx | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
@@ -71,7 +86,7 @@ Generated file - do not edit manually.
 | action_allow_phase1_pass | `tests/cases/phases/phase1/action_allow_phase1_pass.yaml` | common | 1 | - | - | - | imported | - | active | - | unknown | no | - |
 | action_deny_phase1 | `tests/cases/phases/phase1/action_deny_phase1.yaml` | common | 1 | - | - | - | imported | - | active | - | unknown | no | - |
 | action_status_401_phase1_block | `tests/cases/phases/phase1/action_status_401_phase1_block.yaml` | common | 1 | ARGS | @streq | - | imported | - | active | - | unknown | no | - |
-| phase1_vs_phase2_request_body_gap | `tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml` | common | 1 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
+| phase1_vs_phase2_request_body_gap | `tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml` | common | 1,2 | REQUEST_BODY | @contains | - | imported | - | active | - | unknown | no | - |
 | action_deny_phase2 | `tests/cases/phases/phase2/action_deny_phase2.yaml` | common | 2 | - | - | - | imported | - | active | - | unknown | no | - |
 | collection_args_combined_size_block | `tests/cases/phases/phase2/collection_args_combined_size_block.yaml` | common | 2 | ARGS_COMBINED_SIZE | @eq | - | imported | - | active | - | unknown | no | - |
 | collection_args_get_block | `tests/cases/phases/phase2/collection_args_get_block.yaml` | common | 2 | ARGS_GET | @streq | - | imported | - | active | - | unknown | no | - |
@@ -97,7 +112,7 @@ Generated file - do not edit manually.
 | unicode_double_encoded_uri_runtime_difference | `tests/cases/request/uri/unicode_double_encoded_uri_runtime_difference.yaml` | common | 1 | REQUEST_URI | @contains | urlDecode, urlDecodeUni | imported | - | active | - | unknown | no | - |
 | v2_transformation_remove_nulls_future_target | `tests/cases/request/uri/v2_transformation_remove_nulls_future_target.yaml` | common | 1 | REQUEST_URI | @contains | removeNulls | imported | - | active | - | unknown | no | - |
 | v2_transformation_url_decode_block | `tests/cases/request/uri/v2_transformation_url_decode_block.yaml` | common | 1 | REQUEST_URI | @contains | urlDecode | imported | - | active | - | unknown | no | - |
-| v2_transformation_url_decode_invalid_sequence_mapped_candidate | `tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml` | common | 1 | REQUEST_URI | @contains | urlDecode | imported | - | active | - | unknown | no | - |
+| v2_transformation_url_decode_invalid_sequence_mapped_candidate | `tests/cases/request/uri/v2_transformation_url_decode_invalid_sequence_mapped_candidate.yaml` | common | 1 | REQUEST_URI | @rx | urlDecode | imported | - | active | - | unknown | no | - |
 | phase4_auditlog_outbound_escaped_value_gap | `tests/cases/response/body/phase4_auditlog_outbound_escaped_value_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_auditlog_outbound_matched_var_future | `tests/cases/response/body/phase4_auditlog_outbound_matched_var_future.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
 | phase4_auditlog_outbound_message_connector_gap | `tests/cases/response/body/phase4_auditlog_outbound_message_connector_gap.yaml` | common | 4 | RESPONSE_BODY | @contains | - | imported | - | active | - | unknown | yes | - |
@@ -132,6 +147,21 @@ Generated file - do not edit manually.
 | sqli_like_quote_encoding_runtime_difference | `tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml` | common | 2 | ARGS:q | @contains | urlDecode | imported | - | active | - | unknown | no | - |
 | xss_like_encoded_angles_normalization_probe | `tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml` | common | 2 | ARGS:q | @contains | htmlEntityDecode | imported | - | active | - | unknown | no | - |
 | xss_like_mixed_case_script_token_gap | `tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml` | common | 2 | ARGS:q | @contains | lowercase | imported | - | active | - | unknown | no | - |
+| request_body_limit_exceeded | `tests/cases/security-data-flow/body-limits/request_body_limit_exceeded.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| response_body_truncation_event | `tests/cases/security-data-flow/body-limits/response_body_truncation_event.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | yes | - |
+| decision_jsonl_no_body_payload | `tests/cases/security-data-flow/events/decision_jsonl_no_body_payload.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| event_jsonl_no_body_payload | `tests/cases/security-data-flow/events/event_jsonl_no_body_payload.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| integrity_event_hash_chain_tamper_detected | `tests/cases/security-data-flow/events/integrity_event_hash_chain_tamper_detected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| integrity_event_hash_chain_valid | `tests/cases/security-data-flow/events/integrity_event_hash_chain_valid.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| conflicting_content_length_rejected | `tests/cases/security-data-flow/headers/conflicting_content_length_rejected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| header_count_limit_exceeded | `tests/cases/security-data-flow/headers/header_count_limit_exceeded.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| header_value_limit_exceeded | `tests/cases/security-data-flow/headers/header_value_limit_exceeded.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| log_control_chars_sanitized | `tests/cases/security-data-flow/log-safety/log_control_chars_sanitized.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| log_secret_like_payload_redacted | `tests/cases/security-data-flow/log-safety/log_secret_like_payload_redacted.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| duplicate_mutating_phase_rejected | `tests/cases/security-data-flow/phase-order/duplicate_mutating_phase_rejected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| phase_skip_rejected | `tests/cases/security-data-flow/phase-order/phase_skip_rejected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| transaction_id_control_char_rejected | `tests/cases/security-data-flow/transaction-id/transaction_id_control_char_rejected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
+| transaction_id_too_long_rejected | `tests/cases/security-data-flow/transaction-id/transaction_id_too_long_rejected.yaml` | common | - | - | - | - | connector-gap | - | active | - | unknown | no | - |
 | tfn_compress_whitespace_runtime_gap | `tests/cases/transformations/tfn_compress_whitespace_runtime_gap.yaml` | common | 2 | ARGS:q | @streq | compressWhitespace | imported | - | active | - | unknown | no | - |
 | tfn_none_exact_block_phase2 | `tests/cases/transformations/tfn_none_exact_block_phase2.yaml` | common | 2 | ARGS:q | @streq | none | imported | - | active | - | unknown | no | - |
 | unicode_whitespace_normalization_gap | `tests/cases/transformations/unicode_whitespace_normalization_gap.yaml` | common | 2 | ARGS:q | @streq | compressWhitespace | imported | - | active | - | unknown | no | - |
@@ -546,3 +576,17 @@ Generated file - do not edit manually.
 | mrts_100015_demo_007_before_after_100015_1 | `$MRTS_BUILD_ROOT/feature-demo/framework-cases/mrts_100015_demo_007_before_after_100015_1.yaml` | common | 2 | ARGS | - | - | pending | feature-demo | unclassified | - | false | no | - |
 | mrts_100018_demo_007_before_after_100018_1 | `$MRTS_BUILD_ROOT/feature-demo/framework-cases/mrts_100018_demo_007_before_after_100018_1.yaml` | common | 2 | ARGS | - | - | pending | feature-demo | unclassified | - | false | no | - |
 | mrts_100021_demo_008_uri_reflect_100021_1 | `$MRTS_BUILD_ROOT/feature-demo/framework-cases/mrts_100021_demo_008_uri_reflect_100021_1.yaml` | common | 2 | ARGS | - | - | pending | feature-demo | unclassified | - | false | no | - |
+
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `config/testing/import-status.json` | `missing` | `unknown` | missing |
+| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `2026-06-16T19-12-00Z-614c8049` | present |
+
+## Data Availability / Missing Information
+
+| Input | Status | Notes |
+|---|---|---|
+| `config/testing/import-status.json` | missing | input file is missing |
+| `docs/testing/runtime-validation-snapshot.json` | present | input file available |

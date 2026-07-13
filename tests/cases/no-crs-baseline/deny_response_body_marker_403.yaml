@@ -1,0 +1,53 @@
+name: phase4_deny_before_commit
+title: Canonical pre-commit phase-4 HTTP 403 denial (legacy fixture filename)
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 4
+required_capabilities:
+  - response_body_buffered
+  - phase4
+capabilities:
+  response_body: true
+  phase4: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+request:
+  method: GET
+  path: /no-crs/response-body
+response:
+  body: no-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 1100301
+  audit_log:
+    required: true
+    rule_id: 1100301
+    message: no-crs phase-4 intervention probe
+expected_result: deny_before_commit
+expected_status: 403
+expected_rule_id: 1100301
+expected_event_fields:
+  - rule_id
+  - phase
+  - http_status
+  - requested_action
+  - actual_action
+  - original_http_status
+  - visible_http_status
+  - headers_sent
+  - connection_aborted
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

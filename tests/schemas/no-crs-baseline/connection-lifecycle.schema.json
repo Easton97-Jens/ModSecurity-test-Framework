@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://modsecurity-connector.invalid/schemas/no-crs-connection-lifecycle-v1.json",
+  "title": "Payload-free transport lifecycle accounting",
+  "description": "One bounded lifecycle record per transport transaction. Singleton counters make duplicate finish, EOS, abort, and destroy calls observable.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "connector", "integration_mode", "run_id", "records"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "connector": {"enum": ["apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd"]},
+    "integration_mode": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "[A-Za-z0-9:._-]{1,64}"},
+    "run_id": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "[A-Za-z0-9:._-]{1,256}"},
+    "records": {"type": "array", "maxItems": 4096, "items": {"$ref": "#/$defs/record"}}
+  },
+  "$defs": {
+    "token": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "[A-Za-z0-9:._-]{1,128}"},
+    "singleton": {"type": "integer", "minimum": 0, "maximum": 1},
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transaction_id", "transport_case_id", "transaction_started", "transaction_finished", "transaction_destroyed",
+        "request_body_finished", "response_body_finished", "eos_seen", "intentional_abort", "client_disconnect",
+        "upstream_disconnect", "stream_reset", "timeout", "cleanup_reason"
+      ],
+      "properties": {
+        "transaction_id": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "[A-Za-z0-9:._-]{1,256}"},
+        "transport_case_id": {"$ref": "#/$defs/token"},
+        "protocol": {"type": ["string", "null"], "enum": ["http1", "h2", "h2c", "h3", null]},
+        "connection_id": {"type": ["string", "null"], "minLength": 1, "maxLength": 128, "pattern": "[A-Za-z0-9:._-]{1,128}"},
+        "stream_id": {"type": ["integer", "null"], "minimum": 0, "maximum": 4611686018427387903},
+        "connection_reused": {"type": ["boolean", "null"]},
+        "transaction_started": {"$ref": "#/$defs/singleton"},
+        "transaction_finished": {"$ref": "#/$defs/singleton"},
+        "transaction_destroyed": {"$ref": "#/$defs/singleton"},
+        "request_body_finished": {"$ref": "#/$defs/singleton"},
+        "response_body_finished": {"$ref": "#/$defs/singleton"},
+        "eos_seen": {"$ref": "#/$defs/singleton"},
+        "intentional_abort": {"$ref": "#/$defs/singleton"},
+        "client_disconnect": {"$ref": "#/$defs/singleton"},
+        "upstream_disconnect": {"$ref": "#/$defs/singleton"},
+        "stream_reset": {"$ref": "#/$defs/singleton"},
+        "timeout": {"$ref": "#/$defs/singleton"},
+        "short_writes": {"type": "integer", "minimum": 0, "maximum": 1048576},
+        "write_would_block": {"type": "integer", "minimum": 0, "maximum": 1048576},
+        "cleanup_reason": {"type": ["string", "null"], "enum": ["normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort", null]}
+      }
+    }
+  }
+}

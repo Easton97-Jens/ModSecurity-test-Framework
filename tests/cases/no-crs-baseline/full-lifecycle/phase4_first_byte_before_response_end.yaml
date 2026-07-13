@@ -1,0 +1,40 @@
+name: phase4_first_byte_before_response_end_fixture
+title: Synchronized upstream first-byte proof fixture
+category: no-crs-full-lifecycle
+portable: true
+status: future
+no_crs_baseline: true
+phase: 4
+capabilities:
+  response_body: true
+  phase4: true
+rules: |
+  SecRuleEngine On
+request:
+  method: GET
+  path: /no-crs/full-lifecycle/first-byte
+response:
+  body: first-byte-prefix no-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 200
+  intervention: none
+full_lifecycle:
+  synchronization:
+    upstream_sends_headers_and_first_chunk: true
+    upstream_waits_for_test_barrier: true
+    client_must_receive_first_chunk_before_release: true
+    later_marker_after_release: true
+  required_event_fields:
+    - client_first_byte_received
+    - first_byte_before_response_end
+    - first_chunk_size
+    - upstream_paused
+    - upstream_response_finished_at_first_byte
+    - response_committed
+    - body_bytes_seen
+    - body_bytes_inspected
+    - no_full_response_buffering
+  evidence_status: not_executed_until_real_host
+known_limitations:
+  - This is a causal barrier proof, not an absolute millisecond threshold.

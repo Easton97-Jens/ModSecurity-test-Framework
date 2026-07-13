@@ -8,13 +8,55 @@ MRTS_BUILD_ROOT ?= $(BUILD_ROOT)/mrts
 FRAMEWORK_ROOT ?= $(CURDIR)
 CONNECTOR_ROOT ?= $(CURDIR)
 OUTPUT_ROOT ?= $(CONNECTOR_ROOT)
+CI_ROOT ?= $(FRAMEWORK_ROOT)/ci
+CI_SHELL_FILES := $(shell find ci -type f -name '*.sh' -print | sort)
+CI_PYTHON_FILES := $(shell find ci -type f -name '*.py' -print | sort)
 PYTHONDONTWRITEBYTECODE ?= 1
+NO_CRS_TOOL ?= $(CI_ROOT)/checks/catalog/no_crs_baseline.py
+FULL_LIFECYCLE_EVIDENCE_TOOL ?= $(CI_ROOT)/checks/evidence/check_full_lifecycle_evidence.py
+TRANSPORT_HARDENING_EVIDENCE_TOOL ?= $(CI_ROOT)/checks/evidence/check-transport-hardening-evidence.py
+PROTOCOL_CLIENT_TOOL ?= $(CI_ROOT)/checks/protocol/protocol-client.py
+PROTOCOL_EVIDENCE_TOOL ?= $(CI_ROOT)/checks/protocol/check-protocol-evidence.py
+PROTOCOL_URL ?=
+PROTOCOL_PROFILE ?= http1
+PROTOCOL_ARTIFACT_DIR ?= $(BUILD_ROOT)/protocol-client/$(PROTOCOL_PROFILE)
+PROTOCOL_STRICT ?= 0
+PROTOCOL_CONNECTOR ?=
+PROTOCOL_INTEGRATION_MODE ?=
+PROTOCOL_RUN_ID ?=
+PROTOCOL_TRANSACTION_ID ?=
+PROTOCOL_TRANSPORT_CASE_ID ?=
+PROTOCOL_RULE_ID ?=
+PROTOCOL_PHASE ?=
+PROTOCOL_FOLLOWUP_URL ?=
+PROTOCOL_INSECURE ?= 0
+PROTOCOL_CACERT ?=
+PROTOCOL_STREAM_ID ?=
+PROTOCOL_UPSTREAM_PROTOCOL ?=
+PROTOCOL_QUIC_UDP_OBSERVED ?= 0
+PROTOCOL_OBSERVATION_SIDECAR ?=
+NO_CRS_RUN_ID ?= local
+CONNECTOR ?=
+CAPABILITIES_FILE ?= $(CONNECTOR_ROOT)/connectors/$(CONNECTOR)/capabilities.json
+EVIDENCE_ROOT ?= $(BUILD_ROOT)/no-crs-evidence
+NO_CRS_RUN_DIR ?= $(EVIDENCE_ROOT)/$(CONNECTOR)/$(NO_CRS_RUN_ID)
+PLAN_FILE ?= $(BUILD_ROOT)/no-crs-plans/$(CONNECTOR)/$(NO_CRS_RUN_ID).json
+NO_CRS_STAGE_RC ?= 0
+NO_CRS_STAGE_REASON ?=
+NO_CRS_FINALIZE_ARGS ?=
+# A managed, payload-free protocol-client bundle can be promoted only through
+# the full-lifecycle finalizer, which copies and binds it to protocol cases.
+NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR ?=
+NO_CRS_ARTIFACT_PROFILE ?= generic
+EVIDENCE_STAGE ?= no_crs_baseline
+NO_CRS_SUMMARY_ROOT ?= $(EVIDENCE_ROOT)/summary/$(NO_CRS_RUN_ID)
 
 export BUILD_ROOT
 export SOURCE_ROOT
 export TMP_ROOT
 export LOG_ROOT
 export FRAMEWORK_ROOT
+export CI_ROOT
 export CONNECTOR_ROOT
 export OUTPUT_ROOT
 export PYTHON
@@ -46,7 +88,7 @@ export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw
+.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-doc-links check-variable-documentation check-repository-path-references check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
 
 define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 	@set +e; \
@@ -60,34 +102,146 @@ define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 endef
 
 setup-dev install-dev-deps:
-	sh ci/bootstrap-python.sh
+	sh ci/tools/bootstrap-python.sh
 
 lint:
-	sh -n ci/*.sh
-	if command -v bash >/dev/null 2>&1; then bash -n ci/*.sh; else echo "bash unavailable"; fi
-	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
-	$(PYTHON) ci/check-python-deps.py
-	$(PYTHON) ci/check-workflow-yaml.py
-	$(PYTHON) ci/check-response-body-promotion.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
-	$(PYTHON) ci/check-security-data-flow-cases.py
-	$(PYTHON) ci/check-security-data-flow-normalizers.py
-	sh ci/check-crs-version-pinning.sh
-	sh ci/check-open-runtime-provisioning-contract.sh
+	sh -n $(CI_SHELL_FILES)
+	if command -v bash >/dev/null 2>&1; then bash -n $(CI_SHELL_FILES); else echo "bash unavailable"; fi
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py $(CI_PYTHON_FILES)
+	$(PYTHON) ci/tools/check-python-deps.py
+	$(PYTHON) ci/checks/documentation/check-workflow-yaml.py
+	$(PYTHON) ci/checks/evidence/check-response-body-promotion.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
+	$(PYTHON) ci/checks/security/check-security-data-flow-cases.py
+	$(PYTHON) ci/checks/security/check-security-data-flow-normalizers.py
+	$(PYTHON) ci/checks/catalog/no_crs_baseline.py catalog-check
+	sh ci/checks/catalog/check-crs-version-pinning.sh
+	sh ci/checks/catalog/check-open-runtime-provisioning-contract.sh
+	$(MAKE) check-documentation
 	git diff --check
 
 check-security-data-flow-cases:
-	$(PYTHON) ci/check-security-data-flow-cases.py
+	$(PYTHON) ci/checks/security/check-security-data-flow-cases.py
 
 check-security-data-flow-normalizers:
-	$(PYTHON) ci/check-security-data-flow-normalizers.py
+	$(PYTHON) ci/checks/security/check-security-data-flow-normalizers.py
+
+check-doc-links:
+	$(PYTHON) ci/checks/documentation/check-doc-links.py
+
+check-variable-documentation:
+	$(PYTHON) ci/checks/documentation/check-variable-documentation.py
+
+check-repository-path-references:
+	$(PYTHON) ci/checks/documentation/check-repository-path-references.py
+
+check-documentation: check-doc-links check-variable-documentation check-repository-path-references
+
+test-no-crs-contract:
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest discover -s tests/no_crs -v
+
+check-no-crs-catalog:
+	$(PYTHON) "$(NO_CRS_TOOL)" catalog-check
+
+no-crs-plan: check-no-crs-catalog
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
+	$(PYTHON) "$(NO_CRS_TOOL)" select --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --evidence-stage "$(EVIDENCE_STAGE)" --artifact-profile "$(NO_CRS_ARTIFACT_PROFILE)" --output "$(PLAN_FILE)"
+
+no-crs-init: no-crs-plan
+	$(PYTHON) "$(NO_CRS_TOOL)" init --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --evidence-stage "$(EVIDENCE_STAGE)" --artifact-profile "$(NO_CRS_ARTIFACT_PROFILE)" --plan "$(PLAN_FILE)" --run-dir "$(NO_CRS_RUN_DIR)" --run-id "$(NO_CRS_RUN_ID)" --connector-root "$(CONNECTOR_ROOT)" --executed-target "$(EVIDENCE_STAGE)-$(CONNECTOR)"
+
+no-crs-finalize:
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
+	$(PYTHON) "$(NO_CRS_TOOL)" finalize --run-dir "$(NO_CRS_RUN_DIR)" --connector-root "$(CONNECTOR_ROOT)" --capabilities "$(CAPABILITIES_FILE)" --stage-rc "$(NO_CRS_STAGE_RC)" --stage-reason "$(NO_CRS_STAGE_REASON)" $(if $(NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR),--protocol-client-artifact-dir "$(NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR)",) $(NO_CRS_FINALIZE_ARGS)
+
+no-crs-summary:
+	mkdir -p "$(NO_CRS_SUMMARY_ROOT)"
+	$(PYTHON) "$(NO_CRS_TOOL)" summarize --evidence-root "$(EVIDENCE_ROOT)" --run-id "$(NO_CRS_RUN_ID)" --output-json "$(NO_CRS_SUMMARY_ROOT)/all-connectors-no-crs-summary.json" --output-md "$(NO_CRS_SUMMARY_ROOT)/all-connectors-no-crs-summary.md" --output-md-de "$(NO_CRS_SUMMARY_ROOT)/all-connectors-no-crs-summary.de.md" $(if $(REPORTS_DIR),--reports-dir "$(REPORTS_DIR)",)
+
+define RUN_NO_CRS_CHECK
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
+	$(PYTHON) "$(NO_CRS_TOOL)" validate --evidence-root "$(NO_CRS_RUN_DIR)" --connector "$(CONNECTOR)" --connector-root "$(CONNECTOR_ROOT)" --capabilities "$(CAPABILITIES_FILE)" --check "$(1)"
+endef
+
+check-no-crs-result-schema:
+	$(call RUN_NO_CRS_CHECK,schema)
+
+check-no-crs-evidence-completeness:
+	$(call RUN_NO_CRS_CHECK,completeness)
+
+check-no-crs-capability-consistency:
+	$(call RUN_NO_CRS_CHECK,capability)
+
+check-no-crs-claim-policy:
+	$(call RUN_NO_CRS_CHECK,claim-policy)
+
+check-no-crs-artifact-layout:
+	$(call RUN_NO_CRS_CHECK,layout)
+
+check-no-crs-body-payload-absence:
+	$(call RUN_NO_CRS_CHECK,body-payload)
+
+check-no-crs-protocol-client:
+	$(call RUN_NO_CRS_CHECK,protocol-client)
+
+check-no-crs-status-consistency:
+	$(call RUN_NO_CRS_CHECK,status)
+
+check-no-crs-evidence:
+	$(call RUN_NO_CRS_CHECK,all)
+
+define RUN_FULL_LIFECYCLE_EVIDENCE_CHECK
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
+	$(PYTHON) "$(FULL_LIFECYCLE_EVIDENCE_TOOL)" --run-dir "$(NO_CRS_RUN_DIR)" --check "$(1)"
+endef
+
+check-first-byte-before-response-end:
+	$(call RUN_FULL_LIFECYCLE_EVIDENCE_CHECK,first-byte)
+
+check-no-full-response-buffering:
+	$(call RUN_FULL_LIFECYCLE_EVIDENCE_CHECK,no-full-response-buffering)
+
+check-full-lifecycle-event-privacy:
+	$(call RUN_FULL_LIFECYCLE_EVIDENCE_CHECK,event-privacy)
+
+check-full-lifecycle-promotion:
+	$(call RUN_FULL_LIFECYCLE_EVIDENCE_CHECK,promotion)
+
+check-transport-hardening-evidence:
+	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
+	$(PYTHON) "$(TRANSPORT_HARDENING_EVIDENCE_TOOL)" --run-dir "$(NO_CRS_RUN_DIR)" --check all
+
+# The managed client is intentionally opt-in: callers name an explicit target
+# and profile, and the emitted artifacts are suitable for a later canonical
+# case/event correlation.  H3 uses only --http3-only inside the helper.
+protocol-client:
+	@test -n "$(PROTOCOL_URL)" || { echo "PROTOCOL_URL is required" >&2; exit 2; }
+	@case "$(PROTOCOL_STRICT)" in 1|true|yes) test -n "$(PROTOCOL_FOLLOWUP_URL)" || { echo "PROTOCOL_FOLLOWUP_URL is required for strict evidence" >&2; exit 2; } ;; esac
+	@set +e; \
+	"$(PYTHON)" "$(PROTOCOL_CLIENT_TOOL)" --url "$(PROTOCOL_URL)" --protocol "$(PROTOCOL_PROFILE)" --artifact-dir "$(PROTOCOL_ARTIFACT_DIR)" $(if $(filter 1 true yes,$(PROTOCOL_STRICT)),--followup-url "$(PROTOCOL_FOLLOWUP_URL)",) $(if $(filter 1 true yes,$(PROTOCOL_INSECURE)),--insecure,) $(if $(PROTOCOL_CACERT),--cacert "$(PROTOCOL_CACERT)",) $(if $(PROTOCOL_CONNECTOR),--connector "$(PROTOCOL_CONNECTOR)",) $(if $(PROTOCOL_INTEGRATION_MODE),--integration-mode "$(PROTOCOL_INTEGRATION_MODE)",) $(if $(PROTOCOL_RUN_ID),--run-id "$(PROTOCOL_RUN_ID)",) $(if $(PROTOCOL_TRANSACTION_ID),--transaction-id "$(PROTOCOL_TRANSACTION_ID)",) $(if $(PROTOCOL_TRANSPORT_CASE_ID),--transport-case-id "$(PROTOCOL_TRANSPORT_CASE_ID)",) $(if $(PROTOCOL_RULE_ID),--rule-id "$(PROTOCOL_RULE_ID)",) $(if $(PROTOCOL_PHASE),--phase "$(PROTOCOL_PHASE)",) $(if $(PROTOCOL_STREAM_ID),--stream-id "$(PROTOCOL_STREAM_ID)",) $(if $(PROTOCOL_UPSTREAM_PROTOCOL),--upstream-protocol "$(PROTOCOL_UPSTREAM_PROTOCOL)",) $(if $(filter 1 true yes,$(PROTOCOL_QUIC_UDP_OBSERVED)),--quic-udp-observed,) $(if $(PROTOCOL_OBSERVATION_SIDECAR),--observation-sidecar "$(PROTOCOL_OBSERVATION_SIDECAR)",); \
+	client_rc=$$?; \
+	case "$(PROTOCOL_STRICT)" in \
+		1|true|yes) "$(PYTHON)" "$(PROTOCOL_EVIDENCE_TOOL)" --artifact-dir "$(PROTOCOL_ARTIFACT_DIR)" --protocol "$(PROTOCOL_PROFILE)" --strict $(if $(PROTOCOL_CONNECTOR),--connector "$(PROTOCOL_CONNECTOR)",) $(if $(PROTOCOL_INTEGRATION_MODE),--integration-mode "$(PROTOCOL_INTEGRATION_MODE)",) $(if $(PROTOCOL_RUN_ID),--run-id "$(PROTOCOL_RUN_ID)",) $(if $(PROTOCOL_TRANSACTION_ID),--transaction-id "$(PROTOCOL_TRANSACTION_ID)",) $(if $(PROTOCOL_TRANSPORT_CASE_ID),--expected-transport-case-id "$(PROTOCOL_TRANSPORT_CASE_ID)",) $(if $(PROTOCOL_RULE_ID),--rule-id "$(PROTOCOL_RULE_ID)",) $(if $(PROTOCOL_PHASE),--phase "$(PROTOCOL_PHASE)",) $(if $(PROTOCOL_STREAM_ID),--expected-stream-id "$(PROTOCOL_STREAM_ID)",) $(if $(PROTOCOL_UPSTREAM_PROTOCOL),--expected-upstream-protocol "$(PROTOCOL_UPSTREAM_PROTOCOL)",); exit $$? ;; \
+		*) exit $$client_rc ;; \
+	esac
+
+check-protocol-evidence:
+	@test -d "$(PROTOCOL_ARTIFACT_DIR)" || { echo "PROTOCOL_ARTIFACT_DIR is required" >&2; exit 2; }
+	$(PYTHON) "$(PROTOCOL_EVIDENCE_TOOL)" --artifact-dir "$(PROTOCOL_ARTIFACT_DIR)" --protocol "$(PROTOCOL_PROFILE)" $(if $(filter 1 true yes,$(PROTOCOL_STRICT)),--strict,) $(if $(PROTOCOL_CONNECTOR),--connector "$(PROTOCOL_CONNECTOR)",) $(if $(PROTOCOL_INTEGRATION_MODE),--integration-mode "$(PROTOCOL_INTEGRATION_MODE)",) $(if $(PROTOCOL_RUN_ID),--run-id "$(PROTOCOL_RUN_ID)",) $(if $(PROTOCOL_TRANSACTION_ID),--transaction-id "$(PROTOCOL_TRANSACTION_ID)",) $(if $(PROTOCOL_TRANSPORT_CASE_ID),--expected-transport-case-id "$(PROTOCOL_TRANSPORT_CASE_ID)",) $(if $(PROTOCOL_RULE_ID),--rule-id "$(PROTOCOL_RULE_ID)",) $(if $(PROTOCOL_PHASE),--phase "$(PROTOCOL_PHASE)",) $(if $(PROTOCOL_STREAM_ID),--expected-stream-id "$(PROTOCOL_STREAM_ID)",) $(if $(PROTOCOL_UPSTREAM_PROTOCOL),--expected-upstream-protocol "$(PROTOCOL_UPSTREAM_PROTOCOL)",)
+
+test-protocol-client:
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest discover -s tests/protocol_client -v
+
+# Repository-owned bilingual reports are checked at the root.  Framework-side
+# document consistency starts by validating the one canonical source catalog.
+check-no-crs-doc-consistency: check-no-crs-catalog
 
 quick-check codex-check: lint
-	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py ci/*.py
-	$(PYTHON) ci/check-mrts-importer.py
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py $(CI_PYTHON_FILES)
+	$(PYTHON) ci/checks/catalog/check-mrts-importer.py
 	git diff --check
 
 generate-test-matrix:
-	sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; if [ "$$MODSECURITY_MRTS_VARIANT" = "with-mrts" ]; then mrts_import_cases; fi; "$(PYTHON)" ci/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)" $(if $(SKIP_ROOT_SUMMARY),--skip-root-summary,)'
+	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; if [ "$$MODSECURITY_MRTS_VARIANT" = "with-mrts" ]; then mrts_import_cases; fi; "$(PYTHON)" ci/reporting/generate-case-matrix.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)" $(if $(SKIP_ROOT_SUMMARY),--skip-root-summary,)'
 
 refresh-framework-reports:
 	MODSECURITY_MRTS_VARIANT=with-mrts $(MAKE) generate-test-matrix CONNECTOR_ROOT="$(FRAMEWORK_ROOT)" OUTPUT_ROOT="$(FRAMEWORK_ROOT)"
@@ -103,54 +257,54 @@ check-test-matrix: refresh-framework-reports
 	}
 
 runtime-matrix:
-	sh ci/run-runtime-matrix.sh
+	sh ci/runtime/run-runtime-matrix.sh
 
 runtime-matrix-all:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,FORCE_ALL_CASES=1 sh ci/run-runtime-matrix.sh)
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,FORCE_ALL_CASES=1 sh ci/runtime/run-runtime-matrix.sh)
 
 runtime-matrix-haproxy:
-	sh ci/run-haproxy-runtime-matrix.sh
+	sh ci/runtime/run-haproxy-runtime-matrix.sh
 
 runtime-matrix-haproxy-all:
-	FORCE_ALL_CASES=1 sh ci/run-haproxy-runtime-matrix.sh
+	FORCE_ALL_CASES=1 sh ci/runtime/run-haproxy-runtime-matrix.sh
 
 smoke-apache:
-	CASE_SCOPE=all sh ci/run-apache-smoke.sh
+	CASE_SCOPE=all sh ci/runtime/run-apache-smoke.sh
 
 smoke-nginx:
-	CASE_SCOPE=all sh ci/run-nginx-smoke.sh
+	CASE_SCOPE=all sh ci/runtime/run-nginx-smoke.sh
 
 smoke-haproxy:
-	CASE_SCOPE=all sh ci/run-haproxy-smoke.sh
+	CASE_SCOPE=all sh ci/runtime/run-haproxy-smoke.sh
 
 smoke-all:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,CASE_SCOPE=all sh ci/run-connector-smokes.sh)
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh)
 
 test: test-no-crs test-with-crs
 
 test-no-crs:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. ci/common.sh; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh ci/run-connector-smokes.sh')
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_RULE_PREAMBLE_FILE= sh -eu -c '. ci/lib/common.sh; RESULTS_DIR="$$BUILD_ROOT/results/no-crs"; export RESULTS_DIR; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 test-with-crs:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. ci/common.sh; sh ci/fetch-crs.sh; sh ci/prepare-crs.sh; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh ci/run-connector-smokes.sh')
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_TEST_VARIANT=with-crs sh -eu -c '. ci/lib/common.sh; sh ci/provisioning/fetch-crs.sh; sh ci/provisioning/prepare-crs.sh; MODSECURITY_RULE_PREAMBLE_FILE="$$CRS_RUNTIME_DIR/modsecurity-crs-preamble.conf"; RESULTS_DIR="$$BUILD_ROOT/results/with-crs"; export MODSECURITY_RULE_PREAMBLE_FILE RESULTS_DIR; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 mrts-generate:
-	sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; mrts_generate_all_corpora'
+	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; mrts_generate_all_corpora'
 
 mrts-load:
-	sh ci/write-mrts-load.sh
+	sh ci/provisioning/write-mrts-load.sh
 
 mrts-import:
-	sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; mrts_generate_all_corpora; MRTS_RULES_OUT="$$MRTS_UPSTREAM_RULES_OUT" sh ci/write-mrts-load.sh >/dev/null; mrts_import_cases'
+	sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; mrts_generate_all_corpora; MRTS_RULES_OUT="$$MRTS_UPSTREAM_RULES_OUT" sh ci/provisioning/write-mrts-load.sh >/dev/null; mrts_import_cases'
 
 test-no-mrts:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=no-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh')
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=no-mrts sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 test-with-mrts:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=with-mrts sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh')
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=with-mrts sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 test-with-mrts-feature-demo:
-	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=with-mrts MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1 sh -eu -c '. ci/common.sh; . ci/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/run-connector-smokes.sh')
+	$(call RUN_WITH_FRAMEWORK_REPORT_REFRESH,MODSECURITY_MRTS_VARIANT=with-mrts MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1 sh -eu -c '. ci/lib/common.sh; . ci/lib/mrts-common.sh; validate_mrts_variant; prepare_mrts_runtime_variant; set_mrts_results_dir; CASE_SCOPE=all sh ci/runtime/run-connector-smokes.sh')
 
 test-mrts-matrix:
 	MODSECURITY_TEST_VARIANT=no-crs MODSECURITY_MRTS_VARIANT=no-mrts $(MAKE) test-no-mrts
@@ -171,16 +325,16 @@ mrts-ftw: mrts-generate
 	'
 
 fetch-modsecurity-v3:
-	sh ci/fetch-smoke-sources.sh v3
+	sh ci/provisioning/fetch-smoke-sources.sh v3
 
 fetch-deps:
-	sh ci/fetch-smoke-sources.sh all
+	sh ci/provisioning/fetch-smoke-sources.sh all
 
 fetch-crs:
-	sh ci/fetch-crs.sh
+	sh ci/provisioning/fetch-crs.sh
 
 prepare-crs:
-	sh ci/prepare-crs.sh
+	sh ci/provisioning/prepare-crs.sh
 
 prepare-haproxy-runtime:
-	sh ci/prepare-haproxy-runtime.sh
+	sh ci/provisioning/prepare-haproxy-runtime.sh

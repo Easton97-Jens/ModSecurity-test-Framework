@@ -1,22 +1,22 @@
-**Language:** English | [Deutsch](TEST-COVERAGE-SUMMARY.de.md)
-
 Generated file - do not edit manually.
+
+**Language:** English | [Deutsch](TEST-COVERAGE-SUMMARY.de.md)
 
 # ModSecurity Connector Test Coverage Summary
 
 ## Summary Status
-- Total YAML cases: **540**
+- Total YAML cases: **559**
 - Verified/pass (`runtime_verified=true`): **0**
 - Current XFAIL cases: **0**
-- Former XFAIL cases tracked: **80**
-- Pending runtime verification (`runtime_verified=false`): **410**
-- Pending runtime verification (`runtime_verified=unknown`): **130**
-- Connector-gap cases: **11**
+- Former XFAIL cases tracked: **95**
+- Pending runtime verification (`runtime_verified=false`): **414**
+- Pending runtime verification (`runtime_verified=unknown`): **145**
+- Connector-gap cases: **26**
 - Runtime-difference cases: **13**
 - Future/experimental cases: **17**
-- RESPONSE_BODY cases: **32**
+- RESPONSE_BODY cases: **37**
 - Default runtime-executable YAML cases: **61**
-- Force-all runtime-executable YAML cases: **540**
+- Force-all runtime-executable YAML cases: **559**
 - Apache attempted YAML cases in default runtime snapshot: **54**
 - NGINX attempted YAML cases in default runtime snapshot: **60**
 - HAProxy attempted YAML cases in default runtime snapshot: **134**
@@ -64,7 +64,7 @@ Generated file - do not edit manually.
 - BLOCKED remains reserved for harness, environment, dependency, build, or runtime blockers.
 - NOT_EXECUTABLE means the case is structurally unmappable for that connector/run mode; it is not a blocker and not a pass.
 - Force-all evidence does not promote YAML feature support.
-- RESPONSE_BODY remains experimental/non-promoted, including bounded phase-4 and strict-abort evidence.
+- RESPONSE_BODY remains non-verified/non-promoted; legacy bounded samples are noncanonical and not current runtime evidence.
 
 ## Framework Integration
 - This framework-owned file is the source of truth for root coverage reporting: `TEST-COVERAGE-SUMMARY.md` in `ModSecurity-test-Framework`.
@@ -74,28 +74,29 @@ Generated file - do not edit manually.
 - `FRAMEWORK_ROOT` and `CONNECTOR_ROOT` are explicit integration paths; there is no absolute workspace fallback.
 
 ## Case Inventory
-- Common YAML cases: **533**
-- Apache-specific YAML cases: **0**
-- NGINX-specific YAML cases: **7**
+- Common YAML cases: **548**
+- Apache-specific YAML cases: **2**
+- NGINX-specific YAML cases: **9**
 - Current XFAIL cases: **0**
-- Former XFAIL cases tracked: **80**
+- Former XFAIL cases tracked: **95**
 - Mapped-only import inventory entries: **0** (not counted as runnable YAML cases)
 - Runtime-blocked import inventory entries: **0** (environment/harness blockers, not PASS promotions)
-- Pending/future compatibility cases: **17** future/experimental; **540** not runtime-verified
+- Pending/future compatibility cases: **17** future/experimental; **559** not runtime-verified
 
 ## Status Classes
 | Status | Count |
 |---|---:|
 | active | 8 |
+| connector-gap | 15 |
 | imported | 133 |
-| pending | 399 |
+| pending | 403 |
 
 ## Scope
 | Scope | Count |
 |---|---:|
-| common | 533 |
-| apache | 0 |
-| nginx | 7 |
+| common | 548 |
+| apache | 2 |
+| nginx | 9 |
 | unknown | 0 |
 
 ## Coverage By Variable / Collection
@@ -103,7 +104,7 @@ Generated file - do not edit manually.
 |---|---:|
 | `ARGS` | 121 |
 | `ARGS_NAMES` | 62 |
-| `REQUEST_HEADERS` | 5 |
+| `REQUEST_HEADERS` | 7 |
 | `REQUEST_HEADERS_NAMES` | 5 |
 | `REQUEST_COOKIES` | 62 |
 | `REQUEST_COOKIES_NAMES` | 64 |
@@ -119,8 +120,8 @@ Generated file - do not edit manually.
 ## Coverage By Phase
 | Phase | Count |
 |---|---:|
-| Phase 1 | 105 |
-| Phase 2 | 192 |
+| Phase 1 | 107 |
+| Phase 2 | 193 |
 | Phase 3 | 114 |
 | Phase 4 | 126 |
 
@@ -128,9 +129,9 @@ Generated file - do not edit manually.
 | Topic | Count |
 |---|---:|
 | Operators | 523 |
-| Transformations | 32 |
+| Transformations | 34 |
 | Multipart / FILES | 11 |
-| JSON | 7 |
+| JSON | 9 |
 | XML | 8 |
 | Unicode / Encoding | 17 |
 | XSS-like compatibility probes | 2 |
@@ -144,7 +145,7 @@ Generated file - do not edit manually.
 |---|---:|---:|---:|
 | PASS | 54 | 60 | 105 |
 | FAIL | 0 | 0 | 23 |
-| NOT_EXECUTABLE | 486 | 480 | 412 |
+| NOT_EXECUTABLE | 505 | 499 | 431 |
 
 - Apache attempted YAML cases from default summary: **54**
 - NGINX attempted YAML cases from default summary: **60**
@@ -152,14 +153,14 @@ Generated file - do not edit manually.
 - Apache NOT EXECUTED YAML rows: **0**
 - NGINX NOT EXECUTED YAML rows: **0**
 - HAProxy NOT EXECUTED YAML rows: **0**
-- Apache NOT_EXECUTABLE YAML rows: **486**
-- NGINX NOT_EXECUTABLE YAML rows: **480**
-- HAProxy NOT_EXECUTABLE YAML rows: **412**
+- Apache NOT_EXECUTABLE YAML rows: **505**
+- NGINX NOT_EXECUTABLE YAML rows: **499**
+- HAProxy NOT_EXECUTABLE YAML rows: **431**
 - Mapped-only import inventory entries: **0**
-- Runtime matrix detail: `docs/testing/generated/runtime-matrix.generated.md`
-- Apache per-case results: `docs/testing/generated/apache-runtime-results.generated.md`
-- NGINX per-case results: `docs/testing/generated/nginx-runtime-results.generated.md`
-- HAProxy per-case results: `docs/testing/generated/haproxy-runtime-results.generated.md`
+- Runtime matrix detail: `docs/testing/generated/runtime/runtime-matrix.generated.md`
+- Apache per-case results: `docs/testing/generated/runtime/apache-runtime-results.generated.md`
+- NGINX per-case results: `docs/testing/generated/runtime/nginx-runtime-results.generated.md`
+- HAProxy per-case results: `docs/testing/generated/runtime/haproxy-runtime-results.generated.md`
 - PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence.
 - RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.
 
@@ -181,7 +182,7 @@ Generated file - do not edit manually.
 | sh -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | POSIX shell syntax check passed for connector integration shell scripts |
 | bash -n ci/*.sh connectors/apache/harness/*.sh connectors/nginx/harness/*.sh | PASS | Bash syntax check passed for connector integration shell scripts |
 | git diff --check | PASS | No whitespace errors reported |
-| diff -u /tmp/pre-connector.diff /tmp/post-connector.diff | PASS | Connector source diff snapshot is unchanged; no new connector source changes were introduced |
+| diff -u <temporary-work-root>/pre-connector.diff <temporary-work-root>/post-connector.diff | PASS | Connector source diff snapshot is unchanged; no new connector source changes were introduced |
 | git diff --exit-code -- connectors/apache/src connectors/nginx/src | BLOCKED | Non-zero because connectors/apache/src/mod_security3.c had a pre-existing unrelated local change before this fix; the pre/post connector diff snapshot is unchanged |
 | git ls-files .venv | PASS | No tracked .venv files |
 
@@ -297,15 +298,15 @@ No NGINX runtime FAIL details were reported.
 
 ## Detail Reports
 - `docs/testing/test-coverage-overview.md`
-- `docs/testing/generated/case-matrix.generated.md`
-- `docs/testing/generated/coverage-summary.generated.md`
-- `docs/testing/generated/xfail-summary.generated.md`
-- `docs/testing/generated/connector-gap-summary.generated.md`
-- `docs/testing/generated/phase-coverage.generated.md`
-- `docs/testing/generated/runtime-matrix.generated.md`
-- `docs/testing/generated/apache-runtime-results.generated.md`
-- `docs/testing/generated/nginx-runtime-results.generated.md`
-- `docs/testing/generated/haproxy-runtime-results.generated.md`
+- `docs/testing/generated/coverage/case-matrix.generated.md`
+- `docs/testing/generated/coverage/coverage-summary.generated.md`
+- `docs/testing/generated/coverage/xfail-summary.generated.md`
+- `docs/testing/generated/coverage/connector-gap-summary.generated.md`
+- `docs/testing/generated/coverage/phase-coverage.generated.md`
+- `docs/testing/generated/runtime/runtime-matrix.generated.md`
+- `docs/testing/generated/runtime/apache-runtime-results.generated.md`
+- `docs/testing/generated/runtime/nginx-runtime-results.generated.md`
+- `docs/testing/generated/runtime/haproxy-runtime-results.generated.md`
 - `docs/testing/runtime-validation-snapshot.json`
 
 ## Important Note
@@ -315,4 +316,4 @@ GitHub/Codex checks are intentionally lightweight.
 Pending, future, and gap topics need local runtime validation before promotion.
 `make smoke-all` is authoritative only if it was actually executed successfully.
 No PASS numbers are inferred from this file when `make smoke-all` was not run successfully.
-Phase 4 / RESPONSE_BODY remains non-promoted; bounded strict-abort evidence is reported as runtime evidence only.
+Phase 4 / RESPONSE_BODY remains non-promoted; historic bounded strict-abort samples are noncanonical and not current runtime evidence.

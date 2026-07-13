@@ -1,4 +1,15 @@
-Generated file - do not edit manually.
+> Generated file - do not edit manually.
+>
+> Generated at: `2026-07-12T19:40:11Z`
+> Verified run id: `2026-06-16T19-12-00Z-614c8049`
+> Data source policy: `verified-inputs-only`
+> Generator: `framework:ci/reporting/generate-case-matrix.py`
+> Make target: `generate-test-matrix`
+> Owner: `runtime`
+> Severity: `informational`
+> Connector SHA: `91f51277e96ff9b58e6d6a3a3c737eb103b00331`
+> Framework SHA: `91f51277e96ff9b58e6d6a3a3c737eb103b00331`
+> Input status: `missing`
 
 # Generated Apache Runtime Results
 
@@ -13,7 +24,7 @@ Generated file - do not edit manually.
 - Attempted YAML cases in default runtime snapshot: **54**
 - Runtime evidence is current local snapshot evidence only.
 - RESPONSE_BODY remains non-verified/non-promoted.
-- Bounded Phase 4 / strict-abort evidence remains experimental/non-promoted; pass-through rows do not prove full RESPONSE_BODY support.
+- RESPONSE_BODY remains non-verified/non-promoted; legacy bounded samples and pass-through rows do not prove selected-host support.
 
 ## Raw Smoke Summary
 | Status | Count |
@@ -28,7 +39,7 @@ Generated file - do not edit manually.
 | Status | Count |
 |---|---:|
 | PASS | 54 |
-| NOT_EXECUTABLE | 486 |
+| NOT_EXECUTABLE | 505 |
 
 ## Apache FAIL Details
 No Apache runtime FAIL details were reported.
@@ -101,7 +112,11 @@ No Apache runtime FAIL details were reported.
 | xml_namespace_edge_connector_gap | tests/cases/body/xml/xml_namespace_edge_connector_gap.yaml | imported | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
 | xml_request_body_block | tests/cases/body/xml/xml_request_body_block.yaml | imported | PASS | promotion eligible | pass: xml_request_body_block HTTP 403 observed | /src/ModSecurity-conector-build/results/apache-summary.json; case=xml_request_body_block; status=pass; expected=403; actual=403 |
 | xml_request_body_malformed_connector_gap | tests/cases/body/xml/xml_request_body_malformed_connector_gap.yaml | imported | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| phase4_deny_after_commit_abort | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_abort.yaml | pending | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| phase4_deny_after_commit_log_only | tests/cases/connector-specific/apache/apache_phase4_deny_after_commit_log_only.yaml | pending | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
 | nginx_phase4_content_type_out_of_scope | tests/cases/connector-specific/nginx/nginx_phase4_content_type_out_of_scope.yaml | imported | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - |
+| phase4_deny_after_commit_abort | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_abort.yaml | pending | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - |
+| phase4_deny_after_commit_log_only | tests/cases/connector-specific/nginx/nginx_phase4_deny_after_commit_log_only.yaml | pending | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - |
 | nginx_phase4_minimal_log_only | tests/cases/connector-specific/nginx/nginx_phase4_minimal_log_only.yaml | imported | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - |
 | nginx_phase4_safe_log_only | tests/cases/connector-specific/nginx/nginx_phase4_safe_log_only.yaml | imported | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - |
 | nginx_phase4_strict_connection_abort | tests/cases/connector-specific/nginx/nginx_phase4_strict_connection_abort.yaml | imported | NOT_EXECUTABLE | - | nginx-specific case is not applicable to apache | - |
@@ -187,6 +202,21 @@ No Apache runtime FAIL details were reported.
 | sqli_like_quote_encoding_runtime_difference | tests/cases/security/sql/sqli_like_quote_encoding_runtime_difference.yaml | imported | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
 | xss_like_encoded_angles_normalization_probe | tests/cases/security/xss/xss_like_encoded_angles_normalization_probe.yaml | imported | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
 | xss_like_mixed_case_script_token_gap | tests/cases/security/xss/xss_like_mixed_case_script_token_gap.yaml | imported | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| request_body_limit_exceeded | tests/cases/security-data-flow/body-limits/request_body_limit_exceeded.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| response_body_truncation_event | tests/cases/security-data-flow/body-limits/response_body_truncation_event.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| decision_jsonl_no_body_payload | tests/cases/security-data-flow/events/decision_jsonl_no_body_payload.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| event_jsonl_no_body_payload | tests/cases/security-data-flow/events/event_jsonl_no_body_payload.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| integrity_event_hash_chain_tamper_detected | tests/cases/security-data-flow/events/integrity_event_hash_chain_tamper_detected.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| integrity_event_hash_chain_valid | tests/cases/security-data-flow/events/integrity_event_hash_chain_valid.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| conflicting_content_length_rejected | tests/cases/security-data-flow/headers/conflicting_content_length_rejected.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| header_count_limit_exceeded | tests/cases/security-data-flow/headers/header_count_limit_exceeded.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| header_value_limit_exceeded | tests/cases/security-data-flow/headers/header_value_limit_exceeded.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| log_control_chars_sanitized | tests/cases/security-data-flow/log-safety/log_control_chars_sanitized.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| log_secret_like_payload_redacted | tests/cases/security-data-flow/log-safety/log_secret_like_payload_redacted.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| duplicate_mutating_phase_rejected | tests/cases/security-data-flow/phase-order/duplicate_mutating_phase_rejected.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| phase_skip_rejected | tests/cases/security-data-flow/phase-order/phase_skip_rejected.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| transaction_id_control_char_rejected | tests/cases/security-data-flow/transaction-id/transaction_id_control_char_rejected.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+| transaction_id_too_long_rejected | tests/cases/security-data-flow/transaction-id/transaction_id_too_long_rejected.yaml | connector-gap | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
 | tfn_compress_whitespace_runtime_gap | tests/cases/transformations/tfn_compress_whitespace_runtime_gap.yaml | imported | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
 | tfn_none_exact_block_phase2 | tests/cases/transformations/tfn_none_exact_block_phase2.yaml | imported | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
 | unicode_whitespace_normalization_gap | tests/cases/transformations/unicode_whitespace_normalization_gap.yaml | imported | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
@@ -601,3 +631,17 @@ No Apache runtime FAIL details were reported.
 | mrts_100015_demo_007_before_after_100015_1 | $MRTS_BUILD_ROOT/feature-demo/framework-cases/mrts_100015_demo_007_before_after_100015_1.yaml | pending | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
 | mrts_100018_demo_007_before_after_100018_1 | $MRTS_BUILD_ROOT/feature-demo/framework-cases/mrts_100018_demo_007_before_after_100018_1.yaml | pending | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
 | mrts_100021_demo_008_uri_reflect_100021_1 | $MRTS_BUILD_ROOT/feature-demo/framework-cases/mrts_100021_demo_008_uri_reflect_100021_1.yaml | pending | NOT_EXECUTABLE | not promoted | no apache runtime evidence recorded for this executable YAML case | /src/ModSecurity-conector-build/results/apache-summary.json |
+
+## Data Sources
+
+| Value | Source | Source Hash | Verified Run ID | Status |
+|---|---|---|---|---|
+| Declared input | `config/testing/import-status.json` | `missing` | `unknown` | missing |
+| Declared input | `docs/testing/runtime-validation-snapshot.json` | `f5594b18041c8146c6ca3adc51414b56777df742eb35ae883f3e1956e7161cbe` | `2026-06-16T19-12-00Z-614c8049` | present |
+
+## Data Availability / Missing Information
+
+| Input | Status | Notes |
+|---|---|---|
+| `config/testing/import-status.json` | missing | input file is missing |
+| `docs/testing/runtime-validation-snapshot.json` | present | input file available |

@@ -37,7 +37,7 @@ jobs:
           export XDG_STATE_HOME="${RUNNER_TEMP}/state"
           export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
           mkdir -p "$BUILD_ROOT"
-          python3 ci/check-common-versions.py --update --markdown --write-files --timeout 20 | tee common-version-check.md
+          python3 ci/tools/check-common-versions.py --update --markdown --write-files --timeout 20 | tee common-version-check.md
           cp "$BUILD_ROOT/results/common-version-check/summary.json" common-version-summary.json
           cat common-version-check.md >> "$GITHUB_STEP_SUMMARY"
 
@@ -50,10 +50,10 @@ jobs:
       - name: Syntax and ShellCheck
         run: |
           set -euo pipefail
-          bash -n ci/common.sh
-          bash -n ci/check-common-helpers.sh
-          shellcheck -x ci/common.sh ci/check-common-helpers.sh
-          python3 -m py_compile ci/check-common-versions.py
+          bash -n ci/lib/common.sh
+          bash -n ci/checks/catalog/check-common-helpers.sh
+          shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh
+          python3 -m py_compile ci/tools/check-common-versions.py
 
       - name: Build pull request body
         run: |
@@ -75,7 +75,7 @@ jobs:
                   lines.append(f"| `{update['variable']}` | `{update['old']}` | `{update['new']}` |")
           else:
               lines.append('No common.sh dependency version changes were generated.')
-          lines.extend(['', '## Validation', '', '- `ci/check-common-versions.py --update --markdown --write-files`', '- `bash -n ci/common.sh ci/check-common-helpers.sh`', '- `shellcheck -x ci/common.sh ci/check-common-helpers.sh`', '- `python3 -m py_compile ci/check-common-versions.py`', ''])
+          lines.extend(['', '## Validation', '', '- `ci/tools/check-common-versions.py --update --markdown --write-files`', '- `bash -n ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh`', '- `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh`', '- `python3 -m py_compile ci/tools/check-common-versions.py`', ''])
           Path('common-version-pr-body.md').write_text('\n'.join(lines), encoding='utf-8')
           PY
 
@@ -89,4 +89,4 @@ jobs:
           branch: automation/update-common-sh
           delete-branch: true
           add-paths: |
-            ci/common.sh
+            ci/lib/common.sh
