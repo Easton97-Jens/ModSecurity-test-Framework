@@ -4,8 +4,9 @@ about: Propose an improvement to the framework, tests, tooling, CI, Docker, or s
 labels: [enhancement]
 ---
 
-## Note
-English is preferred, but German is also accepted.
+## Language / Sprache
+This is the English template. Use the [German template](feature_request.de.md)
+for German input.
 
 ## Problem or motivation
 What problem are you trying to solve?

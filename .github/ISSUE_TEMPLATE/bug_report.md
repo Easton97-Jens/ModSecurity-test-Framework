@@ -4,8 +4,9 @@ about: Report a defect in tests, rules, framework behavior, CI, or reproducibili
 labels: [bug]
 ---
 
-## Note
-English is preferred, but German is also accepted.
+## Language / Sprache
+This is the English template. Use the [German template](bug_report.de.md) for
+German input.
 
 ## Summary
 Describe the problem clearly and concisely.

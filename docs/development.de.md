@@ -43,10 +43,16 @@ darf keinen versteckten Workspace- oder Parent-Directory-Fallback erhalten.
 
 ## Dokumentationspolicy
 
-Die gepflegte manuelle Dokumentation sind die sechs kanonischen Paare in
-`docs/` plus Variablen- und Glossarreferenzen. Englische und deutsche Partner
-müssen dieselben Pfade, Befehle, Identifikatoren, Defaults, Tabellen und
-Sicherheitsgrenzen behalten.
+Die gepflegte manuelle Dokumentation besteht aus den kanonischen Paaren in
+`docs/`, einschließlich der Änderungsnachverfolgbarkeit, sowie den Variablen-
+und Glossarreferenzen. Englische und deutsche Partner müssen dieselben Pfade,
+Befehle, Identifikatoren, Defaults, Tabellen und Sicherheitsgrenzen behalten.
+
+Nicht triviale Framework-Änderungen benötigen außerdem den in der
+[Änderungsnachverfolgbarkeit](change-traceability.de.md) beschriebenen
+gepaarten Record. Der Record gehört in dieses Repository und darf keine
+Framework-Fakten mit Connector-Findings oder Parent-Repository-Änderungen
+vermischen.
 
 Generierte Berichte werden nur über ihren Generator geändert. Die Root-Datei
 `TEST-COVERAGE-SUMMARY.md` ist eine bewusste öffentliche/generierte Ausnahme,
@@ -63,6 +69,7 @@ Dateien und kopierte Berichtssnapshots.
 | Änderungsbereich | Mindestvalidierung |
 |---|---|
 | Markdown-Navigation oder Referenzen | `make check-documentation` und `git diff --check` |
+| Zweisprachige Dokumentation, Records oder Vorlagen | `make check-bilingual-docs` und `make check-doc-links` |
 | Variablen oder Platzhalter | `make check-variable-documentation` |
 | YAML-Katalog oder Runner-Verhalten | `make check-no-crs-catalog` und fokussierte Tests |
 | Generierte Berichte | `make refresh-framework-reports` und `make check-test-matrix` |

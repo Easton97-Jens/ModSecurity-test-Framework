@@ -9,7 +9,20 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[3]
-SKIPPED_PREFIXES = (".git/", "__pycache__/", "tools/MRTS/")
+SKIPPED_PREFIXES = (
+    ".git/",
+    "__pycache__/",
+    "tools/MRTS/",
+    ".codex/",
+    ".rtk/",
+)
+LOCAL_CODEX_RTK_NAMES = {
+    "AGENTS.md",
+    "AGENTS.override.md",
+    "AGENTS.de.md",
+    "RTK.md",
+    "RTK.de.md",
+}
 OLD_CI_FILENAMES = {
     "adapter_metadata.py", "bootstrap-python.sh", "build-v3-under-src.sh", "check-adapter-helpers.sh",
     "check-adapter-metadata-drift.sh", "check-common-helpers.sh", "check-common-versions.py",
@@ -45,6 +58,8 @@ def relative(path: Path) -> str:
 
 def should_scan(path: Path) -> bool:
     value = relative(path)
+    if value in LOCAL_CODEX_RTK_NAMES:
+        return False
     if any(value.startswith(prefix) for prefix in SKIPPED_PREFIXES):
         return False
     return path.name == "Makefile" or path.suffix in TEXT_SUFFIXES

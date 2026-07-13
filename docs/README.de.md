@@ -2,8 +2,8 @@
 
 **Sprache:** [English](README.md) | Deutsch
 
-Das Framework pflegt sechs manuelle Dokumentationspaare. Zusammen mit den
-Referenzen und generierten Ausgaben unten bilden sie die vollständige aktuelle
+Das Framework pflegt gepaarte manuelle Dokumentation. Zusammen mit den
+Referenzen und generierten Ausgaben unten bildet sie die aktuelle
 Dokumentationsmenge.
 
 ## Anleitungen
@@ -15,6 +15,7 @@ Dokumentationsmenge.
 | [Testing und Evidence](testing-and-evidence.de.md) | Validierungsworkflow, No-CRS, Berichte, Promotion und Privacy |
 | [Connector-Integration](connector-integration.de.md) | Adaptervertrag, Ownership und Quellattribution |
 | [Entwicklung](development.de.md) | CI-Layout, Beitragsworkflow und Wartungsregeln |
+| [Änderungsnachverfolgbarkeit](change-traceability.de.md) | Framework-eigene Change Records, sichere Evidenz und Review-Erwartungen |
 | [Variablen und Platzhalter](reference/variables.de.md) | Eingaben, Defaults, Beispiele, Scopes und Sicherheitsnotizen |
 | [Glossar](reference/glossary.de.md) | Framework-Vokabular und Statusbegriffe |
 
@@ -34,5 +35,6 @@ make check-test-matrix
 ```
 
 Füge für ein verschobenes Thema keine reine Redirect-Markdown-Datei hinzu.
-Aktualisiere Links und halte die englischen und deutschen kanonischen Dokumente
-strukturell parallel.
+Aktualisiere Links, halte die englischen und deutschen kanonischen Dokumente
+strukturell parallel und füge den erforderlichen Framework-eigenen Change
+Record hinzu.

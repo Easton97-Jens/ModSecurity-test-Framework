@@ -42,9 +42,15 @@ grow a hidden workspace or parent-directory fallback.
 
 ## Documentation policy
 
-The maintained manual documentation is the six canonical pairs in `docs/` plus
-the variables and glossary references. English and German partners must retain
-the same paths, commands, identifiers, defaults, tables, and safety boundary.
+The maintained manual documentation is the canonical paired content in `docs/`,
+including change traceability, plus the variables and glossary references.
+English and German partners must retain the same paths, commands, identifiers,
+defaults, tables, and safety boundary.
+
+Non-trivial Framework changes also require the paired record described in
+[change traceability](change-traceability.md). The record belongs to this
+repository and must not combine Framework facts with connector findings or
+parent-repository changes.
 
 Generated reports are changed only through their generator. The root
 `TEST-COVERAGE-SUMMARY.md` is a deliberate public/generated exception because
@@ -61,6 +67,7 @@ snapshots.
 | Change area | Minimum validation |
 |---|---|
 | Markdown navigation or references | `make check-documentation` and `git diff --check` |
+| Bilingual documentation, records, or templates | `make check-bilingual-docs` and `make check-doc-links` |
 | Variables or placeholders | `make check-variable-documentation` |
 | YAML catalog or runner behavior | `make check-no-crs-catalog` and focused tests |
 | Generated reports | `make refresh-framework-reports` and `make check-test-matrix` |

@@ -2,9 +2,8 @@
 
 **Language:** English | [Deutsch](README.de.md)
 
-The Framework maintains six manual documentation pairs. Together with the
-reference and generated outputs below, they are the complete current
-documentation set.
+The Framework maintains paired manual documentation. Together with the
+reference and generated outputs below, it forms the current documentation set.
 
 ## Guides
 
@@ -15,6 +14,7 @@ documentation set.
 | [Testing and evidence](testing-and-evidence.md) | Validation workflow, No-CRS, reports, promotion, and privacy |
 | [Connector integration](connector-integration.md) | Adapter contract, ownership, and source attribution |
 | [Development](development.md) | CI layout, contribution workflow, and maintenance rules |
+| [Change traceability](change-traceability.md) | Framework-only change records, safe evidence, and review expectations |
 | [Variables and placeholders](reference/variables.md) | Inputs, defaults, examples, scopes, and safety notes |
 | [Glossary](reference/glossary.md) | Framework vocabulary and status terms |
 
@@ -33,5 +33,6 @@ make check-documentation
 make check-test-matrix
 ```
 
-Do not add a redirect-only Markdown file for a moved topic. Update links and
-keep the English and German canonical documents structurally parallel.
+Do not add a redirect-only Markdown file for a moved topic. Update links,
+keep the English and German canonical documents structurally parallel, and add
+the required Framework-only change record.

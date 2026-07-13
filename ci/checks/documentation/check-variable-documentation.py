@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""Validate the Framework's bilingual variable and placeholder references.
+"""Validate the Framework's bilingual documentation and variable references.
 
 The check deliberately validates documentation inputs rather than shell internals:
 it inventories user-facing shell/Make variables and placeholders in maintained
 Markdown, verifies that the central English and German references cover them,
 and rejects unsafe developer-path and replacement markers. Generated reports and
 the MRTS submodule are separate sources of truth and are not rewritten here.
+
+A distinct, tracked reader-facing inventory verifies required English/German
+partners for maintained documentation, audit records, and issue templates. It
+does not reuse the variable inventory because templates and records may contain
+ordinary prose that resembles a shell variable or documentation placeholder.
 """
 
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -28,6 +34,57 @@ SKIPPED_PREFIXES = (
 SKIPPED_NAMES = {
     "TEST-COVERAGE-SUMMARY.md",
     "TEST-COVERAGE-SUMMARY.de.md",
+}
+BILINGUAL_ROOT_NAMES = {
+    "README.md",
+    "README.de.md",
+}
+BILINGUAL_PREFIXES = (
+    "docs/",
+    "reports/audits/change-records/",
+    ".github/ISSUE_TEMPLATE/",
+)
+LOCAL_CODEX_RTK_NAMES = {
+    "AGENTS.md",
+    "AGENTS.override.md",
+    "AGENTS.de.md",
+    "RTK.md",
+    "RTK.de.md",
+}
+LOCAL_CODEX_RTK_PREFIXES = (
+    ".codex/",
+    ".rtk/",
+)
+PULL_REQUEST_TEMPLATE = ROOT / ".github/pull_request_template.md"
+PULL_REQUEST_REQUIRED_SECTIONS = {
+    "English": (
+        "### Summary",
+        "### Motivation",
+        "### Change ID",
+        "### Acceptance criteria",
+        "### Changes",
+        "### Tests and results",
+        "### Security impact",
+        "### Documentation status",
+        "### Runtime evidence",
+        "### Limitations",
+        "### Checks not run",
+        "### No-secrets confirmation",
+    ),
+    "Deutsch": (
+        "### Zusammenfassung",
+        "### Motivation",
+        "### Change-ID",
+        "### Akzeptanzkriterien",
+        "### Änderungen",
+        "### Tests und Ergebnisse",
+        "### Sicherheitsauswirkung",
+        "### Dokumentationsstatus",
+        "### Runtime-Evidenz",
+        "### Einschränkungen",
+        "### Nicht ausgeführte Prüfungen",
+        "### Bestätigung: keine Secrets",
+    ),
 }
 SHELL_VARIABLE_RE = re.compile(r"\$(?:\{)?([A-Z][A-Z0-9_]+)")
 MAKE_VARIABLE_RE = re.compile(r"\$\(([A-Z][A-Z0-9_]+)\)")
@@ -88,6 +145,46 @@ def markdown_files() -> list[Path]:
     ]
     candidates.extend(path for path in (ROOT / "docs").rglob("*.md"))
     return sorted({path for path in candidates if path.is_file() and not is_skipped(path)})
+
+
+def tracked_markdown_files() -> list[Path]:
+    """Return versioned Markdown files for the reader-facing pairing policy."""
+
+    try:
+        tracked = subprocess.check_output(
+            ["git", "-C", str(ROOT), "ls-files", "--", "*.md"],
+            text=True,
+        ).splitlines()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise RuntimeError(f"cannot list tracked Markdown files: {exc}") from exc
+    return sorted(
+        path
+        for name in tracked
+        if (path := ROOT / name).is_file()
+    )
+
+
+def is_local_codex_or_rtk_path(path: Path) -> bool:
+    value = relative(path)
+    return (
+        value in LOCAL_CODEX_RTK_NAMES
+        or any(value.startswith(prefix) for prefix in LOCAL_CODEX_RTK_PREFIXES)
+    )
+
+
+def requires_bilingual_partner(path: Path) -> bool:
+    """Return whether a tracked human-facing document must have a language peer."""
+
+    value = relative(path)
+    if is_local_codex_or_rtk_path(path):
+        return False
+    if value in BILINGUAL_ROOT_NAMES:
+        return True
+    if value.startswith("docs/testing/generated/"):
+        # These are generator-owned; current generator support is intentionally
+        # outside this manual-document pairing check.
+        return False
+    return any(value.startswith(prefix) for prefix in BILINGUAL_PREFIXES)
 
 
 def counterpart(path: Path) -> Path:
@@ -176,6 +273,36 @@ def main() -> int:
         if EMPTY_PLACEHOLDER_RE.search(text):
             errors.append(f"{relative(path)}: empty placeholder <> is not documented")
 
+    bilingual_pairs_checked = 0
+    for path in tracked_markdown_files():
+        if not requires_bilingual_partner(path):
+            continue
+        peer = counterpart(path)
+        if not peer.is_file():
+            errors.append(f"missing bilingual partner: {relative(path)} -> {relative(peer)}")
+            continue
+        bilingual_pairs_checked += 1
+
+    if not PULL_REQUEST_TEMPLATE.is_file():
+        errors.append(f"missing pull request template: {relative(PULL_REQUEST_TEMPLATE)}")
+    else:
+        template = PULL_REQUEST_TEMPLATE.read_text(encoding="utf-8")
+        for language, headings in PULL_REQUEST_REQUIRED_SECTIONS.items():
+            marker = f"## {language}"
+            if marker not in template:
+                errors.append(
+                    f"{relative(PULL_REQUEST_TEMPLATE)}: missing bilingual section {marker}"
+                )
+                continue
+            start = template.index(marker)
+            end = template.find("\n## ", start + len(marker))
+            section = template[start:] if end == -1 else template[start:end]
+            for heading in headings:
+                if heading not in section:
+                    errors.append(
+                        f"{relative(PULL_REQUEST_TEMPLATE)}: missing {language} section {heading}"
+                    )
+
     undocumented_variables = found_variables - reference_variables_en - reference_variables_de
     undocumented_placeholders = found_placeholders - reference_placeholders_en - reference_placeholders_de
     if undocumented_variables:
@@ -195,7 +322,8 @@ def main() -> int:
         f"placeholders_found={len(found_placeholders)} "
         f"placeholders_documented_centrally={len(reference_placeholders_en)} "
         f"references_found={references_found} "
-        "approved_exceptions=generated-reports,MRTS-submodule"
+        f"bilingual_pairs_checked={bilingual_pairs_checked} "
+        "approved_exceptions=generated-reports,MRTS-submodule,local-Codex-RTK"
     )
     return 0
 

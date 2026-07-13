@@ -14,6 +14,7 @@ Es implementiert keinen Webserver- oder Proxy-Connector.
 - [Testing und Evidence](docs/testing-and-evidence.de.md)
 - [Connector-Integration](docs/connector-integration.de.md)
 - [Entwicklung](docs/development.de.md)
+- [Änderungsnachverfolgbarkeit](docs/change-traceability.de.md)
 - [Variablen und Platzhalter](docs/reference/variables.de.md)
 - [Glossar](docs/reference/glossary.de.md)
 

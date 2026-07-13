@@ -63,20 +63,43 @@ jobs:
           from pathlib import Path
           data = json.loads(Path('common-version-summary.json').read_text())
           updates = data.get('updates_applied', [])
-          lines = [
+          english_lines = [
+              '## English',
+              '',
               'This pull request was created automatically by the `check-common-versions` workflow.',
               '',
-              '## Updated components / variables',
+              '### Updated components / variables',
+              '',
+          ]
+          german_lines = [
+              '## Deutsch',
+              '',
+              'Dieser Pull Request wurde automatisch vom Workflow `check-common-versions` erstellt.',
+              '',
+              '### Aktualisierte Komponenten / Variablen',
               '',
           ]
           if updates:
-              lines.extend(['| Variable | Previous | New |', '| --- | --- | --- |'])
+              english_lines.extend(['| Variable | Previous | New |', '| --- | --- | --- |'])
+              german_lines.extend(['| Variable | Vorheriger Wert | Neuer Wert |', '| --- | --- | --- |'])
               for update in updates:
-                  lines.append(f"| `{update['variable']}` | `{update['old']}` | `{update['new']}` |")
+                  row = f"| `{update['variable']}` | `{update['old']}` | `{update['new']}` |"
+                  english_lines.append(row)
+                  german_lines.append(row)
           else:
-              lines.append('No common.sh dependency version changes were generated.')
-          lines.extend(['', '## Validation', '', '- `ci/tools/check-common-versions.py --update --markdown --write-files`', '- `bash -n ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh`', '- `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh`', '- `python3 -m py_compile ci/tools/check-common-versions.py`', ''])
-          Path('common-version-pr-body.md').write_text('\n'.join(lines), encoding='utf-8')
+              english_lines.append('No common.sh dependency version changes were generated.')
+              german_lines.append('Es wurden keine Änderungen an common.sh-Abhängigkeitsversionen erzeugt.')
+          validation = [
+              '- `ci/tools/check-common-versions.py --update --markdown --write-files`',
+              '- `bash -n ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh`',
+              '- `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh`',
+              '- `python3 -m py_compile ci/tools/check-common-versions.py`',
+          ]
+          english_lines.extend(['', '### Validation', '', *validation])
+          german_lines.extend(['', '### Validierung', '', *validation, ''])
+          Path('common-version-pr-body.md').write_text(
+              '\n'.join([*english_lines, '', *german_lines]), encoding='utf-8'
+          )
           PY
 
       - name: Create pull request

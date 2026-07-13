@@ -4,8 +4,9 @@ about: Request a new or improved ModSecurity test case
 labels: [test]
 ---
 
-## Note
-English is preferred, but German is also accepted.
+## Language / Sprache
+This is the English template. Use the [German template](test_case_request.de.md)
+for German input.
 
 ## Test case goal
 What behavior should the test cover?
