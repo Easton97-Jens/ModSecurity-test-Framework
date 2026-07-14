@@ -141,6 +141,13 @@ fields are `PROTOCOL_CONNECTOR`, `PROTOCOL_INTEGRATION_MODE`,
 `PROTOCOL_OBSERVATION_SIDECAR`. `PROTOCOL_CACERT` is a certificate path; a
 private key is secret and must never be passed or recorded here.
 
+The stable public targets keep their hyphenated names while using maintained
+underscore-named tools: `make protocol-client` runs
+`ci/checks/protocol/protocol_client.py`, `make check-protocol-evidence` runs
+`ci/checks/protocol/check_protocol_evidence.py`, and
+`make check-transport-hardening-evidence` runs
+`ci/checks/evidence/check_transport_hardening_evidence.py`.
+
 `MRTS_ROOT`, `MRTS_BUILD_ROOT`, `MRTS_DEFINITIONS`, `MRTS_RULES_OUT`,
 `MRTS_FTW_OUT`, `MRTS_LOAD_FILE`, and `MRTS_CASE_ROOT` select existing MRTS
 inputs or generated paths. `MODSECURITY_MRTS_VARIANT` accepts `no-mrts` or

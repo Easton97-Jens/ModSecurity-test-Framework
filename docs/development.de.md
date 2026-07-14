@@ -71,6 +71,7 @@ Dateien und kopierte Berichtssnapshots.
 | Markdown-Navigation oder Referenzen | `make check-documentation` und `git diff --check` |
 | Zweisprachige Dokumentation, Records oder Vorlagen | `make check-bilingual-docs` und `make check-doc-links` |
 | Variablen oder Platzhalter | `make check-variable-documentation` |
+| Lokale Makefile-Skriptpfade | `make test-makefile-contract` (auch Teil von `make lint`) |
 | YAML-Katalog oder Runner-Verhalten | `make check-no-crs-catalog` und fokussierte Tests |
 | Generierte Berichte | `make refresh-framework-reports` und `make check-test-matrix` |
 | Runtime- oder Evidence-Helfer | Relevante fokussierte Checks plus Connector-eigener Harness |

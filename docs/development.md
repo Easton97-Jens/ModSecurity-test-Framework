@@ -69,6 +69,7 @@ snapshots.
 | Markdown navigation or references | `make check-documentation` and `git diff --check` |
 | Bilingual documentation, records, or templates | `make check-bilingual-docs` and `make check-doc-links` |
 | Variables or placeholders | `make check-variable-documentation` |
+| Makefile local script paths | `make test-makefile-contract` (also part of `make lint`) |
 | YAML catalog or runner behavior | `make check-no-crs-catalog` and focused tests |
 | Generated reports | `make refresh-framework-reports` and `make check-test-matrix` |
 | Runtime or evidence helpers | Relevant focused checks plus the connector-owned harness |

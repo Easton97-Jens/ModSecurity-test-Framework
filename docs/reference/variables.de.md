@@ -144,6 +144,14 @@ Optionale Bindungsfelder sind `PROTOCOL_CONNECTOR`, `PROTOCOL_INTEGRATION_MODE`,
 ein privater Schlüssel ist geheim und darf hier niemals übergeben oder
 aufgezeichnet werden.
 
+Die stabilen öffentlichen Targets behalten ihre Namen mit Bindestrichen und
+verwenden gepflegte Tools mit Unterstrichen: `make protocol-client` führt
+`ci/checks/protocol/protocol_client.py` aus,
+`make check-protocol-evidence` führt
+`ci/checks/protocol/check_protocol_evidence.py` aus und
+`make check-transport-hardening-evidence` führt
+`ci/checks/evidence/check_transport_hardening_evidence.py` aus.
+
 `MRTS_ROOT`, `MRTS_BUILD_ROOT`, `MRTS_DEFINITIONS`, `MRTS_RULES_OUT`,
 `MRTS_FTW_OUT`, `MRTS_LOAD_FILE` und `MRTS_CASE_ROOT` wählen vorhandene
 MRTS-Eingaben oder generierte Pfade. `MODSECURITY_MRTS_VARIANT` akzeptiert
