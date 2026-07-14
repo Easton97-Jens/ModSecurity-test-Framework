@@ -55,6 +55,27 @@ Quick checks are useful feedback, but they do not replace a real connector
 smoke. A successful source build alone is not a lifecycle, response-body, or
 production-readiness claim.
 
+## Protocol target contract
+
+The public targets `make protocol-client`, `make check-protocol-evidence`, and
+`make check-transport-hardening-evidence` keep their hyphenated compatibility
+names. Their default tools are respectively
+`ci/checks/protocol/protocol_client.py`,
+`ci/checks/protocol/check_protocol_evidence.py`, and
+`ci/checks/evidence/check_transport_hardening_evidence.py`.
+
+`protocol-client` exits `2` when `PROTOCOL_URL` is absent (and strict evidence
+also requires `PROTOCOL_FOLLOWUP_URL`). `check-protocol-evidence` exits `2`
+when `PROTOCOL_ARTIFACT_DIR` is not a directory, and
+`check-transport-hardening-evidence` exits `2` when `CONNECTOR` is absent.
+After those guards, the existing runner or checker reports its own evidence
+result. `make test-makefile-contract`, also run by `make lint`, statically
+requires every Makefile-referenced local Python or shell script to exist.
+
+This contract proves only target-to-tool resolution. H1, H2, and H3 outcomes
+still require the applicable client, host, and artifact prerequisites and are
+reported separately as runtime evidence.
+
 ## No-CRS and full-lifecycle evidence
 
 The canonical No-CRS implementation is
