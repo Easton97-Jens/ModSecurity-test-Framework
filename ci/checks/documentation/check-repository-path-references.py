@@ -14,15 +14,15 @@ SKIPPED_PREFIXES = (
     "__pycache__/",
     "tools/MRTS/",
     ".codex/",
-    ".rtk/",
 )
-LOCAL_CODEX_RTK_NAMES = {
+LOCAL_AGENT_ROOT_NAMES = {
     "AGENTS.md",
     "AGENTS.override.md",
     "AGENTS.de.md",
-    "RTK.md",
-    "RTK.de.md",
 }
+AGENT_ROOT_INCLUDE_RE = re.compile(
+    r"^@(?P<name>[A-Za-z0-9][A-Za-z0-9_.-]*\.md)\s*$", re.MULTILINE
+)
 OLD_CI_FILENAMES = {
     "adapter_metadata.py", "bootstrap-python.sh", "build-v3-under-src.sh", "check-adapter-helpers.sh",
     "check-adapter-metadata-drift.sh", "check-common-helpers.sh", "check-common-versions.py",
@@ -56,9 +56,26 @@ def relative(path: Path) -> str:
     return path.relative_to(ROOT).as_posix()
 
 
+def agent_referenced_root_markdown() -> set[str]:
+    """Return root Markdown files explicitly included by the root agent file."""
+
+    agent = ROOT / "AGENTS.md"
+    if not agent.is_file():
+        return set()
+    return {
+        match.group("name")
+        for match in AGENT_ROOT_INCLUDE_RE.finditer(agent.read_text(encoding="utf-8"))
+    }
+
+
+def is_local_agent_configuration_path(path: Path) -> bool:
+    value = relative(path)
+    return value in LOCAL_AGENT_ROOT_NAMES or value in agent_referenced_root_markdown()
+
+
 def should_scan(path: Path) -> bool:
     value = relative(path)
-    if value in LOCAL_CODEX_RTK_NAMES:
+    if is_local_agent_configuration_path(path):
         return False
     if any(value.startswith(prefix) for prefix in SKIPPED_PREFIXES):
         return False

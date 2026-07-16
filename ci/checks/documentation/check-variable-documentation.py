@@ -44,16 +44,16 @@ BILINGUAL_PREFIXES = (
     "reports/audits/change-records/",
     ".github/ISSUE_TEMPLATE/",
 )
-LOCAL_CODEX_RTK_NAMES = {
+LOCAL_AGENT_ROOT_NAMES = {
     "AGENTS.md",
     "AGENTS.override.md",
     "AGENTS.de.md",
-    "RTK.md",
-    "RTK.de.md",
 }
-LOCAL_CODEX_RTK_PREFIXES = (
+LOCAL_AGENT_PREFIXES = (
     ".codex/",
-    ".rtk/",
+)
+AGENT_ROOT_INCLUDE_RE = re.compile(
+    r"^@(?P<name>[A-Za-z0-9][A-Za-z0-9_.-]*\.md)\s*$", re.MULTILINE
 )
 PULL_REQUEST_TEMPLATE = ROOT / ".github/pull_request_template.md"
 PULL_REQUEST_REQUIRED_SECTIONS = {
@@ -164,11 +164,24 @@ def tracked_markdown_files() -> list[Path]:
     )
 
 
-def is_local_codex_or_rtk_path(path: Path) -> bool:
+def agent_referenced_root_markdown() -> set[str]:
+    """Return root Markdown files explicitly included by the root agent file."""
+
+    agent = ROOT / "AGENTS.md"
+    if not agent.is_file():
+        return set()
+    return {
+        match.group("name")
+        for match in AGENT_ROOT_INCLUDE_RE.finditer(agent.read_text(encoding="utf-8"))
+    }
+
+
+def is_local_agent_configuration_path(path: Path) -> bool:
     value = relative(path)
     return (
-        value in LOCAL_CODEX_RTK_NAMES
-        or any(value.startswith(prefix) for prefix in LOCAL_CODEX_RTK_PREFIXES)
+        value in LOCAL_AGENT_ROOT_NAMES
+        or value in agent_referenced_root_markdown()
+        or any(value.startswith(prefix) for prefix in LOCAL_AGENT_PREFIXES)
     )
 
 
@@ -176,7 +189,7 @@ def requires_bilingual_partner(path: Path) -> bool:
     """Return whether a tracked human-facing document must have a language peer."""
 
     value = relative(path)
-    if is_local_codex_or_rtk_path(path):
+    if is_local_agent_configuration_path(path):
         return False
     if value in BILINGUAL_ROOT_NAMES:
         return True
@@ -323,7 +336,7 @@ def main() -> int:
         f"placeholders_documented_centrally={len(reference_placeholders_en)} "
         f"references_found={references_found} "
         f"bilingual_pairs_checked={bilingual_pairs_checked} "
-        "approved_exceptions=generated-reports,MRTS-submodule,local-Codex-RTK"
+        "approved_exceptions=generated-reports,MRTS-submodule,local-agent-configuration"
     )
     return 0
 
