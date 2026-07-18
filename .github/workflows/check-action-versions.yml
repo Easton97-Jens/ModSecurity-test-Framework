@@ -6,33 +6,47 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/dependabot.yml"
+      - "ci/checks/security/**"
+      - "ci/tooling/security-tools.lock.yml"
+      - "requirements-ci.lock"
 
 permissions:
   contents: read
 
+concurrency:
+  group: check-action-versions-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   check-action-versions:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
 
-      - name: Validate workflow action pins
+      - name: Set up reviewed Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12.13"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          bad = []
-          allowed = re.compile(r'@[vV][0-9]+$|@[0-9a-f]{40}$')
-          for path in sorted(Path('.github/workflows').glob('*.yml')):
-              for line_no, line in enumerate(path.read_text().splitlines(), 1):
-                  match = re.search(r'[u]ses:\s*([^\s#]+)', line)
-                  if match and not allowed.search(match.group(1)):
-                      bad.append(f"{path}:{line_no}: {match.group(1)}")
-          if bad:
-              print('Actions must be pinned to a stable major version (for example @v4) or a full SHA:')
-              print('\n'.join(bad))
-              raise SystemExit(1)
-          print('All workflow actions are pinned to stable major versions or full SHAs.')
-          PY
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Validate immutable Action pins and workflow contract
+        run: |
+          set -euo pipefail
+          python3 ci/checks/security/check-ci-security-contract.py

@@ -7,24 +7,44 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: framework-test-common-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   common-structure:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
       - name: Initialize runner temp paths
         run: |
-          set -eu
+          set -euo pipefail
           {
             echo "VERIFIED_RUN_ROOT=$RUNNER_TEMP/ModSecurity-conector-verified"
             echo "XDG_STATE_HOME=$RUNNER_TEMP/state"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/python-pycache"
           } >> "$GITHUB_ENV"
+
       - name: Compile framework Python
         run: |
-          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py $(find ci -type f -name '*.py' -print | sort)
+          set -euo pipefail
+          mapfile -t ci_python_files < <(find ci -type f -name '*.py' -print | sort)
+          python3 -m py_compile tests/normalizers/*.py tests/runners/*.py "${ci_python_files[@]}"
+
       - name: Check shared YAML materialization
         run: |
-          set -eu
+          set -euo pipefail
           out="$RUNNER_TEMP/case-runner"
           mkdir -p "$out"
           yaml_count=$(find tests/cases -type f -name "*.yaml" | wc -l)

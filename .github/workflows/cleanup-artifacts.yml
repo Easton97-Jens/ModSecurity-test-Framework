@@ -5,17 +5,21 @@ on:
   schedule:
     - cron: '37 3 * * *'
 
-permissions:
-  contents: read
-  actions: write
+permissions: {}
+
+concurrency:
+  group: framework-artifact-maintenance-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   cleanup-artifacts:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      actions: write
     steps:
       - name: Cleanup old artifacts
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const fs = require('fs');

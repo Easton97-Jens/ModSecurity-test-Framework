@@ -1,0 +1,102 @@
+name: CI security Python quality
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "ci/checks/security/**"
+      - "ci/checks/documentation/check-change-records.py"
+      - "ci/tools/fetch-security-tool.py"
+      - "ci/tooling/security-tools.lock.yml"
+      - "tests/ci_security/**"
+      - "pyproject.toml"
+      - "pyrightconfig.json"
+      - "requirements-ci.lock"
+  pull_request:
+    paths:
+      - "ci/checks/security/**"
+      - "ci/checks/documentation/check-change-records.py"
+      - "ci/tools/fetch-security-tool.py"
+      - "ci/tooling/security-tools.lock.yml"
+      - "tests/ci_security/**"
+      - "pyproject.toml"
+      - "pyrightconfig.json"
+      - "requirements-ci.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-security-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  python-ci-security-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12.13"
+          check-latest: false
+
+      - name: Set up reviewed Node.js runtime for Pyright
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24.18.0"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Fetch checksum-verified Ruff and Pyright
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool ruff --output-dir "$TOOLS_DIR"
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool pyright --output-dir "$TOOLS_DIR"
+
+      - name: Run deterministic Ruff lint and format checks
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+          RUFF_CACHE_DIR: ${{ runner.temp }}/ruff-cache
+        run: |
+          set -euo pipefail
+          "$TOOLS_DIR/ruff" check ci/checks/security/check-ci-security-contract.py \
+            ci/checks/security/check-json-result.py \
+            ci/checks/security/compare-osv-results.py \
+            ci/checks/documentation/check-change-records.py \
+            ci/tools/fetch-security-tool.py tests/ci_security
+          "$TOOLS_DIR/ruff" format --check ci/checks/security/check-ci-security-contract.py \
+            ci/checks/security/check-json-result.py \
+            ci/checks/security/compare-osv-results.py \
+            ci/checks/documentation/check-change-records.py \
+            ci/tools/fetch-security-tool.py tests/ci_security
+
+      - name: Run deterministic Pyright type analysis
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          node --version
+          node "$TOOLS_DIR/pyright/index.js" --project pyrightconfig.json

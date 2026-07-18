@@ -22,6 +22,16 @@ environment, dependency, harness, or runtime prerequisite. `NOT_EXECUTABLE`
 means a case does not apply structurally to that connector or run mode. Neither
 state is a PASS.
 
+## CI security evidence boundary
+
+[CI security tooling](security/ci-security-tooling.md) validates workflow
+provenance, permissions, static source quality, dependency metadata, and
+scanner output boundaries. A local pass or a GitHub Actions result is static
+CI evidence only: it does not demonstrate connector runtime behavior, protocol
+handling, lifecycle promotion, or a host smoke. The SonarQube Cloud quality
+gate remains separately observed external evidence for the exact pull-request
+head.
+
 ## Recommended workflow
 
 Run checks from the Framework checkout or through the connector repository with
