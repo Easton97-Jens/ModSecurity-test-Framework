@@ -64,13 +64,14 @@ class LockPathValidationTest(unittest.TestCase):
             framework_root = temporary_root / "framework"
             framework_root.mkdir()
             outside_lock = temporary_root / "outside-lock.yml"
+            traversal_lock = Path("../outside-lock.yml")
             outside_lock.write_text("tools: {}\n", encoding="utf-8")
 
             with patch.object(FETCHER, "framework_root", return_value=framework_root):
                 with self.assertRaisesRegex(FETCHER.ToolError, "Framework root"):
                     FETCHER.confined_lock_path(outside_lock)
                 with self.assertRaisesRegex(FETCHER.ToolError, "traversal"):
-                    FETCHER.confined_lock_path(Path("../outside-lock.yml"))
+                    FETCHER.confined_lock_path(traversal_lock)
 
                 with patch.object(FETCHER, "read_tool_record") as read_record:
                     with patch.object(
