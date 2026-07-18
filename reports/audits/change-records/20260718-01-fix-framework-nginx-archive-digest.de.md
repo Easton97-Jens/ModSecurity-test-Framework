@@ -101,6 +101,7 @@ Verzeichnis; kein echtes NGINX-Release wurde heruntergeladen oder gebaut.
 | `rtk env BUILD_ROOT=<task-run>/build TMPDIR=<task-run>/tmp PYTHONDONTWRITEBYTECODE=1 FRAMEWORK_ROOT=<task-worktree> make lint` | 0 | Native Framework-Shell-, Python-, Security-, Catalog- und Dokumentations-Lintprüfungen bestanden. | `20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1` |
 | `rtk make check-documentation` und `rtk git diff --check` | 0 | Dokumentations- und Whitespace-Prüfungen bestanden. | `20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1` |
 | `rtk shellcheck -x ci/lib/common.sh ci/provisioning/prepare-nginx-build.sh` | 1 | Ausschließlich bereits in der unveränderten Framework-Basis vorhandene Diagnosen; keine task-eigene Diagnose hinzugefügt. | `20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1` |
+| `rtk gh pr checks 25` | 1 | `scaffold-lint` und SonarCloud bestanden; `test-common/common-structure` scheiterte, weil der unveränderte Workflow 141 YAML-Fälle erwartet und 179 findet. Derselbe Check scheitert bereits auf `master`. | `20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1` |
 
 ## Sicherheitsauswirkung
 
@@ -131,9 +132,11 @@ Evidence.
 - Ein echter Release-Download/-Build wurde nicht ausgeführt: Er liegt außerhalb
   des autorisierten lokalen Fixture-Scopes und würde keine überprüfte
   Digest-Herkunft belegen.
-- Current-Head-PR-Checks, Reviews und Sonar-Status bleiben auf Framework-
-  Draft-PR [#25](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/25)
-  ausstehend.
+- Der aktuelle Draft-PR kann in diesem Scope `verified_pr` nicht erreichen:
+  Sein anwendbarer `test-common`-/`common-structure`-Check hat die bereits
+  bestehende Framework-YAML-Case-Baseline-Fehlerbedingung (`expected 141`,
+  `found 179`), die auch auf `master` vorliegt. Die Reparatur des Workflows
+  oder des unabhängigen Case-Counts ist hier nicht autorisiert.
 
 ## Einschränkungen und Restrisiko
 
@@ -146,5 +149,7 @@ Runtime-Evidenz.
 ## Finaler Diff- und Review-Status
 
 Implementierung, fokussierter Test, gestagter Scope sowie finaler Whitespace-/
-Dokumentations-Review sind lokal validiert. Delivery- und Current-Head-PR-
-Reviews bleiben ausstehend und werden vor `verified_pr` dokumentiert.
+Dokumentations-Review sind lokal validiert. Die Exact-Head-Checks des Draft-PR
+zeigen bestehende SonarCloud- und `scaffold-lint`-Ergebnisse ohne Review-
+Threads; die bereits bestehende `test-common`-Baseline blockiert `verified_pr`.
+Kein Merge, Waiver oder unabhängiger CI-Change ist autorisiert.

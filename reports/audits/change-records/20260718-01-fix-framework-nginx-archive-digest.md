@@ -94,6 +94,7 @@ real NGINX release was downloaded or built.
 | `rtk env BUILD_ROOT=<task-run>/build TMPDIR=<task-run>/tmp PYTHONDONTWRITEBYTECODE=1 FRAMEWORK_ROOT=<task-worktree> make lint` | 0 | Native Framework shell, Python, security, catalog, and documentation lint checks passed. | `20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1` |
 | `rtk make check-documentation` and `rtk git diff --check` | 0 | Documentation and whitespace checks passed. | `20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1` |
 | `rtk shellcheck -x ci/lib/common.sh ci/provisioning/prepare-nginx-build.sh` | 1 | Only diagnostics already present in the unchanged Framework base; no task-owned diagnostic was introduced. | `20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1` |
+| `rtk gh pr checks 25` | 1 | `scaffold-lint` and SonarCloud passed; `test-common/common-structure` failed because the unchanged workflow expects 141 YAML cases and finds 179. The same check already fails on `master`. | `20260718T092116Z-fnd-framework-0006-nginx-digest-5251a4f1` |
 
 ## Security impact
 
@@ -122,8 +123,10 @@ connector runtime, CI lifecycle, or production evidence.
   supplied.
 - A real release download/build is not run: it is outside the authorized local
   fixture scope and would not establish reviewed digest provenance.
-- Current-head PR checks, reviews, and Sonar status remain pending on Framework
-  Draft PR [#25](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/25).
+- The current Draft PR cannot reach `verified_pr` in this scope: its applicable
+  `test-common/common-structure` check has the pre-existing Framework YAML-case
+  baseline failure (`expected 141`, `found 179`), also present on `master`.
+  Repairing that workflow or the unrelated case count is not authorized here.
 
 ## Limitations and residual risk
 
@@ -136,5 +139,7 @@ evidence.
 ## Final diff and review status
 
 The implementation, focused test, staged scope, and final whitespace/
-documentation review are locally validated. Delivery and current-head PR
-reviews remain pending and will be recorded before `verified_pr`.
+documentation review are locally validated. The Draft PR's exact-head checks
+show passing SonarCloud and `scaffold-lint` with no review threads; the
+pre-existing `test-common` baseline blocks `verified_pr`. No merge, waiver, or
+out-of-scope CI change is authorized.
