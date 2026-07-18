@@ -9,7 +9,7 @@
 | Change ID | `20260718-01-fix-pcre2-archive-digest` |
 | UTC date | 2026-07-18 |
 | Framework base revision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue or pull request | `FND-FRAMEWORK-0005`; Draft PR pending local verification |
+| Issue or pull request | `FND-FRAMEWORK-0005`; [Draft PR #22](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/22) |
 
 ## Motivation and problem statement
 
@@ -90,6 +90,7 @@ run; no real download or full Apache build is performed.
 | `sh -n` and `bash -n` on the changed shell files | 0 | Syntax passed | Same task run |
 | ShellCheck on the changed shell files | 1 | The unchanged baseline has 17 diagnostics outside the changed PCRE2 control; no new diagnostic is in the modified logic | Compared with clean base `cdc91a3` |
 | `git diff --check` | 0 | No whitespace errors | Framework worktree |
+| `gh pr create --draft` | 0 | Draft PR #22 created for the task branch at `f0619fc75d7e4fb3fe98357759421ad17d2e91ab` | GitHub PR #22 |
 
 ## Security impact
 
@@ -115,8 +116,8 @@ only; it is not a production connector or lifecycle result.
   connector runtime dependencies and is unnecessary for this narrowly scoped
   pre-extraction control: the isolated full-script fixture proves the real
   enforcement boundary without a download or full Apache build.
-- Current-head Draft-PR CI, review, and SonarQube Cloud gates remain pending
-  until the Framework commit is pushed and the Draft PR exists.
+- Current-head Draft-PR CI, review, and SonarQube Cloud gates are being
+  checked after the final documentation handoff commit is pushed.
 
 ## Limitations and residual risk
 
@@ -129,6 +130,8 @@ addressed here.
 ## Final diff and review status
 
 The local Framework diff was reviewed for the named scope, generated artifacts,
-and sensitive content. `git diff --check` passed. No merge, Parent change,
-Parent Gitlink update, or MRTS modification is authorized. Commit, Draft PR,
-and current-head checks will be recorded only after they occur.
+and sensitive content. First task commit
+`f0619fc75d7e4fb3fe98357759421ad17d2e91ab` is on Draft PR #22; `git diff
+--check` passed. No merge, Parent change, Parent Gitlink update, or MRTS
+modification is authorized. The final documentation handoff commit and the
+exact-head checks will be recorded only after they occur.

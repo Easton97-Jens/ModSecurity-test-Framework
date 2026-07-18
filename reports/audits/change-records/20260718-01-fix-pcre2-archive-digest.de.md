@@ -9,7 +9,7 @@
 | Change-ID | `20260718-01-fix-pcre2-archive-digest` |
 | UTC-Datum | 2026-07-18 |
 | Framework-Basisrevision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue oder Pull Request | `FND-FRAMEWORK-0005`; Draft PR nach lokaler Verifikation ausstehend |
+| Issue oder Pull Request | `FND-FRAMEWORK-0005`; [Draft PR #22](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/22) |
 
 ## Motivation und Problemstellung
 
@@ -96,6 +96,7 @@ Apache-Build ausgeführt.
 | `sh -n` und `bash -n` auf den geänderten Shell-Dateien | 0 | Syntax bestanden | Derselbe Task-Run |
 | ShellCheck auf den geänderten Shell-Dateien | 1 | Die unveränderte Baseline hat 17 Diagnosen außerhalb der geänderten PCRE2-Kontrolle; keine neue Diagnose liegt in der modifizierten Logik | Verglichen mit sauberer Basis `cdc91a3` |
 | `git diff --check` | 0 | Keine Whitespace-Fehler | Framework-Worktree |
+| `gh pr create --draft` | 0 | Draft PR #22 für den Task-Branch bei `f0619fc75d7e4fb3fe98357759421ad17d2e91ab` erstellt | GitHub PR #22 |
 
 ## Sicherheitsauswirkung
 
@@ -124,8 +125,8 @@ Lifecycle-Ergebnis.
   begrenzte Pre-Extraction-Kontrolle unnötig: Das isolierte Full-Script-
   Fixture beweist die reale Enforcement-Grenze ohne Download oder vollständigen
   Apache-Build.
-- Current-Head-Draft-PR-CI-, Review- und SonarQube-Cloud-Gates stehen aus, bis
-  der Framework-Commit gepusht ist und der Draft PR existiert.
+- Current-Head-Draft-PR-CI-, Review- und SonarQube-Cloud-Gates werden nach
+  dem Push des finalen Dokumentationsübergabe-Commits geprüft.
 
 ## Einschränkungen und Restrisiko
 
@@ -138,7 +139,8 @@ behandelte optionale Digest-Bypass.
 ## Finaler Diff- und Review-Status
 
 Der lokale Framework-Diff wurde auf den benannten Scope, generierte Artefakte
-und sensible Inhalte geprüft. `git diff --check` bestand. Kein Merge, keine
-Parent-Änderung, kein Parent-Gitlink-Update und keine MRTS-Änderung sind
-autorisiert. Commit, Draft PR und Current-Head-Checks werden erst nach ihrem
-Auftreten dokumentiert.
+und sensible Inhalte geprüft. Der erste Task-Commit
+`f0619fc75d7e4fb3fe98357759421ad17d2e91ab` liegt auf Draft PR #22; `git diff
+--check` bestand. Kein Merge, keine Parent-Änderung, kein Parent-Gitlink-Update
+und keine MRTS-Änderung sind autorisiert. Der finale Dokumentationsübergabe-
+Commit und die Exact-Head-Checks werden erst nach ihrem Auftreten dokumentiert.
