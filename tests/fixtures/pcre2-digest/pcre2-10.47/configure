@@ -1,0 +1,3 @@
+#!/bin/sh
+# Minimal local source fixture for the isolated PCRE2 archive-digest boundary test.
+exit 0

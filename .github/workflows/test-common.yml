@@ -11,7 +11,7 @@ jobs:
   common-structure:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Initialize runner temp paths
         run: |
           set -eu
@@ -28,8 +28,8 @@ jobs:
           out="$RUNNER_TEMP/case-runner"
           mkdir -p "$out"
           yaml_count=$(find tests/cases -type f -name "*.yaml" | wc -l)
-          if [ "$yaml_count" -ne 141 ]; then
-            echo "expected 141 YAML cases, found $yaml_count" >&2
+          if [ "$yaml_count" -eq 0 ]; then
+            echo "expected at least one YAML case, found none" >&2
             exit 1
           fi
           python3 tests/runners/case_cli.py list-cases \
@@ -38,6 +38,10 @@ jobs:
             --connector-root "$GITHUB_WORKSPACE" \
             --connector apache \
             --scope common > "$out/apache-common-cases.txt"
+          if [ ! -s "$out/apache-common-cases.txt" ]; then
+            echo "expected at least one applicable Apache common case, found none" >&2
+            exit 1
+          fi
           while IFS= read -r case_file; do
             [ -n "$case_file" ] || continue
             name=$(basename "$case_file" .yaml)

@@ -22,6 +22,24 @@ environment, dependency, harness, or runtime prerequisite. `NOT_EXECUTABLE`
 means a case does not apply structurally to that connector or run mode. Neither
 state is a PASS.
 
+## Common-structure CI contract
+
+The `test-common` workflow discovers the shared YAML corpus dynamically. It
+requires a non-empty `tests/cases/**/*.yaml` corpus and a non-empty Apache
+`common` selection from `case_cli.py list-cases` before materializing and
+asserting every selected case. It intentionally does not treat a fixed total
+number of YAML files as a contract: case YAML and runner discovery remain the
+sources of truth as the catalog evolves.
+
+Catalog-only cases whose metadata excludes them from the default runtime path
+are filtered before runtime-only schema validation. Their dedicated catalog or
+static checks remain responsible for their own contracts.
+
+`make test-workflow-contract` is the focused local regression check for this
+workflow contract. The workflow itself remains the end-to-end control because
+it exercises discovery, materialization, fixture creation, and status
+assertions with the current catalog.
+
 ## Recommended workflow
 
 Run checks from the Framework checkout or through the connector repository with
