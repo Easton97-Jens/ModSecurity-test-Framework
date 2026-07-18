@@ -158,10 +158,27 @@ MRTS-Eingaben oder generierte Pfade. `MODSECURITY_MRTS_VARIANT` akzeptiert
 `no-mrts` oder `with-mrts`; `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1`
 aktiviert optionale Demo-Inhalte erst nach Kollisionsprüfungen.
 
-`CRS_REPO_URL`, `CRS_GIT_REF`, `CRS_SOURCE_DIR`, `CRS_RUNTIME_DIR` und
-`MODSECURITY_RULE_PREAMBLE_FILE` sind Provisionierungswerte. Pins und
-zugehörige Komponentenvariablen stehen in `ci/lib/common.sh`; sie nicht in
-Workflows duplizieren. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE` und
+`CRS_APPROVED_REPO_URL` und `CRS_APPROVED_COMMIT` sind zentrale literale
+Provenance-Werte in `ci/lib/common.sh`, derzeit
+`https://github.com/coreruleset/coreruleset.git` und
+`55b09f5acfd16413e7b31041100711ceb7adc89c`. Sie sind keine Caller-Eingaben.
+`CRS_GIT_REF=v4.28.0` bleibt zentrale Release-Metadaten für die
+Versionsberichterstattung; es ist niemals ein Git-Selektor. `fetch-crs.sh`
+weist eine abweichende `CRS_REPO_URL` oder `CRS_GIT_REF` vor der
+Git-Ausführung ab, und Umgebungsversuche zum Ersetzen der beiden freigegebenen
+Provenance-Literale werden durch die zentrale Definition überschrieben.
+
+`CRS_SOURCE_DIR` muss ein nicht vorhandener Pfad unter dem zulässigen externen
+`SOURCE_ROOT` sein; ein vorhandenes Verzeichnis oder ein Link wird nicht
+wiederverwendet, sondern abgewiesen. Der Fetch-Pfad initialisiert ein frisches
+Repository, setzt und liest den exakten HTTPS-Origin zurück, lädt nur den
+freigegebenen vollständigen Commit ohne Tags oder rekursive Submodule und
+vergleicht `FETCH_HEAD^{commit}`, das aufgelöste Commit-Objekt und das finale
+`HEAD^{commit}` mit derselben Identität. Ein `.gitmodules`-Manifest wird
+fail-closed abgewiesen, bis eine separat freigegebene
+Submodule-Provenance-Regel existiert. `CRS_RUNTIME_DIR` und
+`MODSECURITY_RULE_PREAMBLE_FILE` bleiben Runtime-Pfadeingaben. CRS-Pins nicht
+in Workflows duplizieren. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE` und
 `CONNECTOR_COMPONENT_CACHE` sind Cache-Pfade und benötigen Herkunftsprüfungen.
 
 ## Werkzeuge, Statuswerte und sensible Daten

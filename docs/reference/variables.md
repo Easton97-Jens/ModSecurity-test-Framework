@@ -154,11 +154,27 @@ inputs or generated paths. `MODSECURITY_MRTS_VARIANT` accepts `no-mrts` or
 `with-mrts`; `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` enables optional demo
 content only after collision checks.
 
-`CRS_REPO_URL`, `CRS_GIT_REF`, `CRS_SOURCE_DIR`, `CRS_RUNTIME_DIR`, and
-`MODSECURITY_RULE_PREAMBLE_FILE` are provisioning inputs. Pins and related
-component variables live in `ci/lib/common.sh`; do not duplicate them in
-workflows. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE`, and
-`CONNECTOR_COMPONENT_CACHE` are cache paths and require provenance checks.
+`CRS_APPROVED_REPO_URL` and `CRS_APPROVED_COMMIT` are central literal
+provenance values in `ci/lib/common.sh`, currently
+`https://github.com/coreruleset/coreruleset.git` and
+`55b09f5acfd16413e7b31041100711ceb7adc89c`. They are not caller inputs.
+`CRS_GIT_REF=v4.28.0` remains central release metadata for version reporting;
+it is never a Git selector. `fetch-crs.sh` rejects a differing
+`CRS_REPO_URL` or `CRS_GIT_REF` before Git runs, and environment attempts to
+replace either approved provenance literal are overwritten by the central
+definition.
+
+`CRS_SOURCE_DIR` must be an absent path below the permitted external
+`SOURCE_ROOT`; an existing directory or link is rejected rather than reused.
+The fetch path initializes a fresh repository, sets and reads back the exact
+HTTPS origin, fetches only the approved full commit without tags or recursive
+submodules, and compares `FETCH_HEAD^{commit}`, the resolved commit object,
+and final `HEAD^{commit}` with that same identity. A `.gitmodules` manifest
+is fail-closed pending a separately approved submodule provenance rule.
+`CRS_RUNTIME_DIR` and `MODSECURITY_RULE_PREAMBLE_FILE` remain runtime-path
+inputs. Do not duplicate CRS pins in workflows. `CACHE_ROOT`,
+`VERIFIED_COMPONENT_CACHE`, and `CONNECTOR_COMPONENT_CACHE` are cache paths
+and require provenance checks.
 
 ## Tooling, status values, and sensitive data
 
