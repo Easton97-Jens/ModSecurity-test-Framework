@@ -315,10 +315,14 @@ def _load_minimal_yaml(path: Path) -> Mapping[str, Any]:
     return case
 
 
+def _load_case_mapping(case_path: Path) -> dict[str, Any]:
+    loaded = _load_yaml_with_pyyaml(case_path)
+    return dict(loaded if loaded is not None else _load_minimal_yaml(case_path))
+
+
 def load_case(path: str | Path) -> Mapping[str, Any]:
     case_path = Path(path)
-    loaded = _load_yaml_with_pyyaml(case_path)
-    case = dict(loaded if loaded is not None else _load_minimal_yaml(case_path))
+    case = _load_case_mapping(case_path)
     validate_case(case, case_path)
     return case
 
@@ -1083,11 +1087,14 @@ def discover_case_files(
     common_root = Path(framework_root).resolve() if framework_root else None
     selected_dirs = _case_dirs(root, connector, scope, common_root)
     candidates = _selected_case_candidates(root, connector, scope, selected_dirs, smoke_cases, test_case)
-    return [
-        path
-        for path in candidates
-        if is_case_applicable(load_case(path), path, connector, scope)
-    ]
+    selected: list[Path] = []
+    for path in candidates:
+        case = _load_case_mapping(path)
+        if not is_case_applicable(case, path, connector, scope):
+            continue
+        validate_case(case, path)
+        selected.append(path)
+    return selected
 
 
 def response_status(response: Any) -> int | None:

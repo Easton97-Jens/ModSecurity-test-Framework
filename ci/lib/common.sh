@@ -194,8 +194,12 @@ APR_UTIL_SHA256="${APR_UTIL_SHA256:-a41076e3710746326c3945042994ad9a4fcac0ce0277
 APR_UTIL_SHA256_URL="${APR_UTIL_SHA256_URL:-$APR_UTIL_SOURCE_URL.sha256}"
 PCRE2_VERSION="${PCRE2_VERSION:-10.47}"
 PCRE2_SOURCE_URL="${PCRE2_SOURCE_URL:-https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-$PCRE2_VERSION.tar.bz2}"
-# PCRE2 release assets do not publish a stable per-asset SHA256 URL.
-PCRE2_SHA256="${PCRE2_SHA256:-}"
+# The literal pin is required before the PCRE2 archive can be extracted.  Use
+# the no-colon expansion so an explicitly empty caller override fails closed.
+PCRE2_SHA256="${PCRE2_SHA256-47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9ca03fd08d7bc7}"
+# PCRE2 release assets do not publish a stable per-asset SHA256 URL.  This
+# metadata variable is retained for version tooling; it is not an extraction
+# verification fallback.
 PCRE2_SHA256_URL="${PCRE2_SHA256_URL:-}"
 
 NGINX_SOURCE_MODE="${NGINX_SOURCE_MODE:-github-release}"

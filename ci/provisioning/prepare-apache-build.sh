@@ -297,6 +297,35 @@ verify_sha256_literal() {
     echo "pass: $label sha256 verified" >> "$STATUS_FILE"
 }
 
+verify_required_pcre2_sha256() {
+    archive=$1
+    expected=$2
+    if [ -z "$expected" ]; then
+        blocked "missing required SHA256 digest for pcre2"
+    fi
+    if [ "${#expected}" -ne 64 ]; then
+        blocked "invalid SHA256 digest for pcre2: expected exactly 64 hexadecimal characters"
+    fi
+    case "$expected" in
+        *[!0123456789abcdefABCDEF]*)
+            blocked "invalid SHA256 digest for pcre2: expected exactly 64 hexadecimal characters"
+            ;;
+    esac
+
+    require_command tr "normalize pcre2 checksum"
+    require_command sha256sum "verify pcre2 checksum"
+    expected=$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')
+    actual=$(sha256sum "$archive" | awk '{print $1}')
+    {
+        echo "pcre2 sha256(expected)=$expected"
+        echo "pcre2 sha256(actual)=$actual"
+    } >> "$ARTIFACTS_FILE"
+    if [ "$actual" != "$expected" ]; then
+        blocked "SHA256 mismatch for pcre2"
+    fi
+    echo "pass: pcre2 sha256 verified" >> "$STATUS_FILE"
+}
+
 extract_tar_strip() {
     label=$1
     archive=$2
@@ -331,12 +360,7 @@ build_pcre2_from_source() {
 
     pcre2_archive="$DOWNLOAD_DIR/pcre2-$PCRE2_VERSION.tar.bz2"
     download_file pcre2 "$PCRE2_SOURCE_URL" "$pcre2_archive"
-    verify_sha256_literal pcre2 "$pcre2_archive" "$PCRE2_SHA256"
-    verify_sha256_url pcre2 "$pcre2_archive" "$PCRE2_SHA256_URL"
-    if [ -z "$PCRE2_SHA256" ] && [ -z "$PCRE2_SHA256_URL" ]; then
-        echo "pcre2 sha256(upstream)=not-configured; local hash recorded only" >> "$ARTIFACTS_FILE"
-    fi
-
+    verify_required_pcre2_sha256 "$pcre2_archive" "$PCRE2_SHA256"
     extract_tar_strip pcre2 "$pcre2_archive" "$PCRE2_SOURCE_DIR"
     run_logged pcre2-configure "$PCRE2_SOURCE_DIR" ./configure "--prefix=$PCRE2_PREFIX"
     run_logged pcre2-make "$PCRE2_SOURCE_DIR" make "-j$MAKE_JOBS"
