@@ -9,7 +9,8 @@
 | Change ID | 20260718-01-expand-framework-ci-security |
 | UTC date | 2026-07-18 |
 | Framework base revision | cdc91a398d6c156eaff927d742b23018a3817fb6 |
-| Issue or pull request | Not created at this record update; Framework Draft PR is pending. |
+| Implementation commit | c897c481025fd005a2908d5124d238784d6182f4 |
+| Issue or pull request | [Framework Draft PR #27](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/27) |
 
 ## Motivation and problem statement
 
@@ -133,9 +134,11 @@ the observed evidence is static CI/source validation.
   provisions exact Node.js 24.18.0 through a pinned Action.
 - CodeQL, Dependency Review, Gitleaks PR range, SonarQube Cloud, and
   GitHub-hosted workflow execution: pending exact Draft PR head and remote CI.
-- Final clean-candidate `make lint`, documentation checks, final diff/security
-  review, commit, push, and PR checks: pending final documentation/record
-  update and delivery.
+- Clean-candidate `make lint`, documentation checks, final whitespace/secret
+  review, focused security-diff review, commit, push, and Draft PR creation:
+  passed. The excluded FND-FRAMEWORK-0004 CRS validator emitted RTK-read-only
+  `/tmp` diagnostics during the full lint and is not claimed as a passing CRS
+  control.
 
 ## Limitations and residual risk
 
@@ -148,8 +151,9 @@ triaged.
 
 ## Final diff and review status
 
-Implementation is in progress in the isolated Framework worktree. At this
-record update there is no Framework commit, push, pull request, merge, Parent
-gitlink update, Parent product/workflow change, or MRTS change. Final staged
-diff, whitespace and secret review, focused security-diff assessment, and
-exact PR-head verification remain required.
+Implementation commit `c897c481025fd005a2908d5124d238784d6182f4` was pushed
+to `agent/expand-framework-ci-security`, and Framework Draft PR #27 is open.
+The staged diff, whitespace/secret review, and focused security-diff assessment
+passed before delivery. There is no merge, Parent gitlink update, Parent
+product/workflow change, or MRTS change. Exact PR-head CI, SonarQube Cloud,
+review, and review-thread verification remain required.

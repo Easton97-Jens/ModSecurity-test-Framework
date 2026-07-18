@@ -9,7 +9,8 @@
 | Change-ID | 20260718-01-expand-framework-ci-security |
 | UTC-Datum | 2026-07-18 |
 | Framework-Basisrevision | cdc91a398d6c156eaff927d742b23018a3817fb6 |
-| Issue oder Pull Request | Bei diesem Record-Update nicht erstellt; Framework-Draft-PR ist ausstehend. |
+| Implementierungs-Commit | c897c481025fd005a2908d5124d238784d6182f4 |
+| Issue oder Pull Request | [Framework-Draft-PR #27](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/27) |
 
 ## Motivation und Problemstellung
 
@@ -139,9 +140,12 @@ statische CI-/Source-Validierung.
 - CodeQL, Dependency Review, Gitleaks-PR-Range, SonarQube Cloud und
   GitHub-hosted Workflow-Ausführung: exakter Draft-PR-Head und Remote-CI stehen
   aus.
-- Finales `make lint` gegen den sauberen Kandidaten, Dokumentationschecks,
-  finaler Diff-/Security-Review, Commit, Push und PR-Checks: nach finaler
-  Dokumentations-/Record-Aktualisierung und Delivery ausstehend.
+- `make lint` gegen den sauberen Kandidaten, Dokumentationschecks,
+  finaler Whitespace-/Secret-Review, fokussierter Security-Diff-Review, Commit,
+  Push und Draft-PR-Erstellung: bestanden. Der ausgeschlossene
+  FND-FRAMEWORK-0004-CRS-Validator meldete während des vollen Lints RTK-
+  Read-only-`/tmp`-Diagnostik und wird nicht als bestandene CRS-Kontrolle
+  behauptet.
 
 ## Einschränkungen und Restrisiko
 
@@ -154,8 +158,10 @@ Findings triagiert sind.
 
 ## Finaler Diff- und Review-Status
 
-Die Implementierung läuft im isolierten Framework-Worktree. Bei diesem
-Record-Update gibt es keinen Framework-Commit, Push, Pull Request, Merge,
+Der Implementierungs-Commit `c897c481025fd005a2908d5124d238784d6182f4` wurde
+auf `agent/expand-framework-ci-security` gepusht, und Framework-Draft-PR #27
+ist offen. Der staged Diff, Whitespace-/Secret-Review und fokussierte
+Security-Diff-Review bestanden vor der Delivery. Es gibt keinen Merge,
 Parent-Gitlink-Update, Parent-Produkt-/Workflow-Change oder MRTS-Change.
-Finaler staged Diff, Whitespace-/Secret-Review, fokussierte Security-Diff-
-Bewertung und exakte PR-Head-Verifikation bleiben erforderlich.
+Exakte PR-Head-CI, SonarQube Cloud, Reviews und Review-Threads müssen noch
+verifiziert werden.
