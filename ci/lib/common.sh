@@ -436,6 +436,8 @@ ci_require_approved_crs_source() {
             ci_blocked "CRS_GIT_COMMIT must be a lowercase full Git commit"
             return 77
             ;;
+        *)
+            ;;
     esac
     if [ "${#CRS_GIT_COMMIT}" -ne 40 ] || [ "$CRS_GIT_COMMIT" != "$CRS_APPROVED_GIT_COMMIT" ]; then
         ci_blocked "CRS_GIT_COMMIT must match the centrally approved immutable commit"
