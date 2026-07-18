@@ -9,7 +9,7 @@
 | Change ID | `20260718-01-fix-framework-nginx-archive-digest` |
 | UTC date | 2026-07-18 |
 | Framework base revision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue or pull request | Framework Draft PR pending; this record is updated before the `verified_pr` delivery state. |
+| Issue or pull request | Framework Draft PR [#25](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/25) against `master`; this record is updated before the `verified_pr` delivery state. |
 
 ## Motivation and problem statement
 
@@ -122,8 +122,8 @@ connector runtime, CI lifecycle, or production evidence.
   supplied.
 - A real release download/build is not run: it is outside the authorized local
   fixture scope and would not establish reviewed digest provenance.
-- Delivery, PR checks, reviews, and Sonar status remain pending until the
-  Framework-only branch is committed and a Draft PR exists.
+- Current-head PR checks, reviews, and Sonar status remain pending on Framework
+  Draft PR [#25](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/25).
 
 ## Limitations and residual risk
 

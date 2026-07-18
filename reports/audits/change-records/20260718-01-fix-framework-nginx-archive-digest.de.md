@@ -9,7 +9,7 @@
 | Change-ID | `20260718-01-fix-framework-nginx-archive-digest` |
 | UTC-Datum | 2026-07-18 |
 | Framework-Basisrevision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue oder Pull Request | Framework-Draft-PR ausstehend; dieser Record wird vor dem Delivery-Status `verified_pr` aktualisiert. |
+| Issue oder Pull Request | Framework-Draft-PR [#25](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/25) gegen `master`; dieser Record wird vor dem Delivery-Status `verified_pr` aktualisiert. |
 
 ## Motivation und Problemstellung
 
@@ -131,9 +131,9 @@ Evidence.
 - Ein echter Release-Download/-Build wurde nicht ausgeführt: Er liegt außerhalb
   des autorisierten lokalen Fixture-Scopes und würde keine überprüfte
   Digest-Herkunft belegen.
-- Delivery-, PR-Checks, Reviews und Sonar-Status bleiben ausstehend, bis der
-  ausschließlich Framework-eigene Branch committed ist und ein Draft-PR
-  existiert.
+- Current-Head-PR-Checks, Reviews und Sonar-Status bleiben auf Framework-
+  Draft-PR [#25](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/25)
+  ausstehend.
 
 ## Einschränkungen und Restrisiko
 
