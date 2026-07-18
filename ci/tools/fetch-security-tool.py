@@ -8,6 +8,7 @@ import hashlib
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import stat
 import sys
 import tarfile
 import tempfile
@@ -37,13 +38,19 @@ TOOL_FIELDS = {
     "platform",
     "update_procedure",
 }
-SUPPORTED_ARCHIVE_TYPES = {"tar.gz", "raw"}
+ARCHIVE_TYPE_TAR_GZ = "tar.gz"
+ARCHIVE_TYPE_RAW = "raw"
+SUPPORTED_ARCHIVE_TYPES = {ARCHIVE_TYPE_TAR_GZ, ARCHIVE_TYPE_RAW}
 ABSOLUTE_PATHS_ERROR = "output directory and RUNNER_TEMP must be absolute paths"
 RUNNER_TEMP_DIRECTORY_ERROR = "RUNNER_TEMP must be an existing non-symlink directory"
 STRICT_CHILD_ERROR = (
     "output directory must be a strict child of the runner-owned RUNNER_TEMP"
 )
 SYMLINK_OUTPUT_ERROR = "output directory must not traverse a symlink"
+LOCK_ROOT_ERROR = "lock must be contained within the Framework root"
+LOCK_TRAVERSAL_ERROR = "lock path must not contain traversal components"
+LOCK_SYMLINK_ERROR = "lock path must not traverse a symlink"
+LOCK_FILE_ERROR = "lock must be a regular non-symlink file"
 
 
 def is_safe_archive_member(name: str) -> bool:
@@ -60,18 +67,57 @@ def is_safe_path_component(name: str) -> bool:
     return is_safe_archive_member(name) and len(path.parts) == 1
 
 
-def read_tool_record(lock_path: Path, tool: str) -> dict[str, Any]:
+def framework_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def confined_lock_path(lock_path: Path) -> Path:
+    """Return a regular lock file beneath the Framework root without symlinks."""
+    root = framework_root()
+    candidate = lock_path if lock_path.is_absolute() else root / lock_path
+    try:
+        relative_lock = candidate.relative_to(root)
+    except ValueError as exc:
+        raise ToolError(LOCK_ROOT_ERROR) from exc
+    if not relative_lock.parts:
+        raise ToolError(LOCK_FILE_ERROR)
+    if any(component == ".." for component in relative_lock.parts):
+        raise ToolError(LOCK_TRAVERSAL_ERROR)
+
+    current = root
+    for component in relative_lock.parts:
+        current = current / component
+        try:
+            mode = current.lstat().st_mode
+        except OSError as exc:
+            raise ToolError(f"{LOCK_FILE_ERROR}: {lock_path}") from exc
+        if stat.S_ISLNK(mode):
+            raise ToolError(LOCK_SYMLINK_ERROR)
+    if not stat.S_ISREG(mode):
+        raise ToolError(f"{LOCK_FILE_ERROR}: {lock_path}")
+    return current
+
+
+def _lock_tools(lock_path: Path) -> dict[str, Any]:
     try:
         loaded = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
         raise ToolError(f"cannot read YAML lock {lock_path}: {exc}") from exc
     if not isinstance(loaded, dict) or not isinstance(loaded.get("tools"), dict):
         raise ToolError("security tool lock must contain a tools mapping")
-    record = loaded["tools"].get(tool)
+    return loaded["tools"]
+
+
+def _tool_record(tools: dict[str, Any], tool: str) -> dict[str, Any]:
+    record = tools.get(tool)
     if not isinstance(record, dict):
         raise ToolError(f"tool {tool!r} is not an allow-listed record")
     if not is_safe_path_component(tool):
         raise ToolError(f"tool {tool!r} is not a safe output path component")
+    return record
+
+
+def _validate_tool_identity(record: dict[str, Any], tool: str) -> None:
     missing = sorted(TOOL_FIELDS.difference(record))
     if missing:
         raise ToolError(
@@ -85,14 +131,9 @@ def read_tool_record(lock_path: Path, tool: str) -> dict[str, Any]:
         raise ToolError(f"tool {tool!r} has no valid SHA-256 digest")
     if any(character not in "0123456789abcdef" for character in record["sha256"]):
         raise ToolError(f"tool {tool!r} has a non-lowercase SHA-256 digest")
-    archive_type = record.get("archive_type")
-    layout = record.get("layout")
-    if archive_type not in SUPPORTED_ARCHIVE_TYPES:
-        raise ToolError(f"tool {tool!r} has unsupported archive type")
-    if layout not in {"executable", "tree"}:
-        raise ToolError(f"tool {tool!r} has unsupported archive layout")
-    if archive_type == "raw" and layout != "executable":
-        raise ToolError(f"tool {tool!r} raw assets must use executable layout")
+
+
+def _validate_release_asset_url(record: dict[str, Any], tool: str) -> None:
     parsed = urlparse(str(record["asset_url"]))
     if (
         parsed.scheme != "https"
@@ -109,25 +150,53 @@ def read_tool_record(lock_path: Path, tool: str) -> dict[str, Any]:
         raise ToolError(
             f"tool {tool!r} asset URL does not match its locked release asset"
         )
-    if (
-        layout == "executable"
-        and archive_type == "tar.gz"
-        and not is_safe_archive_member(str(record.get("archive_member", "")))
+
+
+def _validate_executable_layout(
+    record: dict[str, Any], tool: str, archive_type: str
+) -> None:
+    if archive_type == ARCHIVE_TYPE_TAR_GZ and not is_safe_archive_member(
+        str(record.get("archive_member", ""))
     ):
         raise ToolError(f"tool {tool!r} has an unsafe executable archive member")
-    if layout == "executable" and archive_type == "raw" and "archive_member" in record:
+    if archive_type == ARCHIVE_TYPE_RAW and "archive_member" in record:
         raise ToolError(f"tool {tool!r} raw assets must not declare an archive member")
-    if layout == "executable" and not is_safe_path_component(
-        str(record.get("executable", ""))
-    ):
+    if not is_safe_path_component(str(record.get("executable", ""))):
         raise ToolError(f"tool {tool!r} has an unsafe executable output name")
-    if layout == "tree" and archive_type != "tar.gz":
+
+
+def _validate_tree_layout(record: dict[str, Any], tool: str, archive_type: str) -> None:
+    if archive_type != ARCHIVE_TYPE_TAR_GZ:
         raise ToolError(f"tool {tool!r} tree layout requires a tar.gz asset")
-    if layout == "tree":
-        if not is_safe_path_component(str(record.get("archive_root", ""))):
-            raise ToolError(f"tool {tool!r} has an unsafe tree archive root")
-        if not is_safe_archive_member(str(record.get("entrypoint", ""))):
-            raise ToolError(f"tool {tool!r} has an unsafe tree entrypoint")
+    if not is_safe_path_component(str(record.get("archive_root", ""))):
+        raise ToolError(f"tool {tool!r} has an unsafe tree archive root")
+    if not is_safe_archive_member(str(record.get("entrypoint", ""))):
+        raise ToolError(f"tool {tool!r} has an unsafe tree entrypoint")
+
+
+def _validate_archive_layout(record: dict[str, Any], tool: str) -> None:
+    archive_type = record.get("archive_type")
+    layout = record.get("layout")
+    if archive_type not in SUPPORTED_ARCHIVE_TYPES:
+        raise ToolError(f"tool {tool!r} has unsupported archive type")
+    if layout not in {"executable", "tree"}:
+        raise ToolError(f"tool {tool!r} has unsupported archive layout")
+    if archive_type == ARCHIVE_TYPE_RAW and layout != "executable":
+        raise ToolError(f"tool {tool!r} raw assets must use executable layout")
+
+    if layout == "executable":
+        _validate_executable_layout(record, tool, archive_type)
+    else:
+        _validate_tree_layout(record, tool, archive_type)
+
+
+def read_tool_record(lock_path: Path, tool: str) -> dict[str, Any]:
+    """Read and validate an allow-listed tool record from a trusted lock file."""
+    trusted_lock_path = confined_lock_path(lock_path)
+    record = _tool_record(_lock_tools(trusted_lock_path), tool)
+    _validate_tool_identity(record, tool)
+    _validate_release_asset_url(record, tool)
+    _validate_archive_layout(record, tool)
     return record
 
 
@@ -347,9 +416,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if not args.lock.is_file() or args.lock.is_symlink():
-        raise ToolError(f"lock must be a regular non-symlink file: {args.lock}")
-    record = read_tool_record(args.lock, args.tool)
+    lock_path = confined_lock_path(args.lock)
+    record = read_tool_record(lock_path, args.tool)
     path = fetch(record, args.output_dir)
     print(path)
     return 0

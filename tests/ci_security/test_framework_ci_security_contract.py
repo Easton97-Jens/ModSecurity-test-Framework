@@ -292,8 +292,9 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                 "    update_procedure: fixture\n",
                 encoding="utf-8",
             )
-            with self.assertRaisesRegex(FETCHER.ToolError, "safe output path"):
-                FETCHER.read_tool_record(lock, "../escape")
+            with patch.object(FETCHER, "confined_lock_path", return_value=lock):
+                with self.assertRaisesRegex(FETCHER.ToolError, "safe output path"):
+                    FETCHER.read_tool_record(lock, "../escape")
         self.assertTrue(FETCHER.is_safe_archive_member("package/index.js"))
         self.assertTrue(FETCHER.is_safe_path_component("actionlint"))
         self.assertFalse(FETCHER.is_safe_path_component("package/actionlint"))

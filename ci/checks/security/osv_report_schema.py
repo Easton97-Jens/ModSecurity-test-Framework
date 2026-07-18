@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Iterator
 
 
 class OsvReportError(ValueError):
@@ -25,8 +25,8 @@ def package_version(package: dict[str, Any]) -> str | None:
     return None
 
 
-def grouped_vulnerability_ids(package_result: dict[str, Any]) -> list[list[str]]:
-    """Validate and return the complete, disjoint alias groups for one package."""
+def _vulnerability_ids(package_result: dict[str, Any]) -> set[str]:
+    """Return the unique vulnerability IDs declared for one package result."""
     vulnerabilities = package_result.get("vulnerabilities", [])
     if not isinstance(vulnerabilities, list):
         raise OsvReportError("OSV package vulnerabilities must be a list")
@@ -38,8 +38,11 @@ def grouped_vulnerability_ids(package_result: dict[str, Any]) -> list[list[str]]
     }
     if len(vulnerability_ids) != len(vulnerabilities):
         raise OsvReportError("OSV vulnerability ids must be unique")
+    return vulnerability_ids
 
-    groups = package_result.get("groups", [])
+
+def _required_group_entries(groups: Any, vulnerability_ids: set[str]) -> list[Any]:
+    """Reject absent or unexpected groups before validating their members."""
     if not vulnerability_ids:
         if not isinstance(groups, list) or groups:
             raise OsvReportError(
@@ -50,37 +53,56 @@ def grouped_vulnerability_ids(package_result: dict[str, Any]) -> list[list[str]]
         raise OsvReportError(
             "OSV vulnerable package results must contain non-empty groups"
         )
+    return groups
+
+
+def _normalized_group_ids(
+    group: Any, vulnerability_ids: set[str], covered_ids: set[str]
+) -> list[str]:
+    """Validate one disjoint group and return its deterministically ordered IDs."""
+    if not isinstance(group, dict):
+        raise OsvReportError("OSV vulnerability groups must be objects")
+    identifiers = group.get("ids")
+    if (
+        not isinstance(identifiers, list)
+        or not identifiers
+        or not all(
+            isinstance(identifier, str) and identifier.strip()
+            for identifier in identifiers
+        )
+    ):
+        raise OsvReportError("OSV vulnerability group ids must be a string list")
+    normalized_ids = sorted(set(identifiers))
+    if len(normalized_ids) != len(identifiers):
+        raise OsvReportError("OSV vulnerability group ids must be unique")
+    group_ids = set(normalized_ids)
+    if not group_ids.issubset(vulnerability_ids):
+        raise OsvReportError(
+            "OSV vulnerability group ids must refer to listed vulnerabilities"
+        )
+    overlap = covered_ids.intersection(group_ids)
+    if overlap:
+        raise OsvReportError(
+            "OSV vulnerability groups must not overlap: " + ", ".join(sorted(overlap))
+        )
+    return normalized_ids
+
+
+def grouped_vulnerability_ids(package_result: dict[str, Any]) -> list[list[str]]:
+    """Validate and return the complete, disjoint alias groups for one package."""
+    vulnerability_ids = _vulnerability_ids(package_result)
+    groups = _required_group_entries(
+        package_result.get("groups", []), vulnerability_ids
+    )
+
+    if not vulnerability_ids:
+        return []
 
     covered_ids: set[str] = set()
     grouped_ids: list[list[str]] = []
     for group in groups:
-        if not isinstance(group, dict):
-            raise OsvReportError("OSV vulnerability groups must be objects")
-        identifiers = group.get("ids")
-        if (
-            not isinstance(identifiers, list)
-            or not identifiers
-            or not all(
-                isinstance(identifier, str) and identifier.strip()
-                for identifier in identifiers
-            )
-        ):
-            raise OsvReportError("OSV vulnerability group ids must be a string list")
-        normalized_ids = sorted(set(identifiers))
-        if len(normalized_ids) != len(identifiers):
-            raise OsvReportError("OSV vulnerability group ids must be unique")
-        group_ids = set(normalized_ids)
-        if not group_ids.issubset(vulnerability_ids):
-            raise OsvReportError(
-                "OSV vulnerability group ids must refer to listed vulnerabilities"
-            )
-        overlap = covered_ids.intersection(group_ids)
-        if overlap:
-            raise OsvReportError(
-                "OSV vulnerability groups must not overlap: "
-                + ", ".join(sorted(overlap))
-            )
-        covered_ids.update(group_ids)
+        normalized_ids = _normalized_group_ids(group, vulnerability_ids, covered_ids)
+        covered_ids.update(normalized_ids)
         grouped_ids.append(normalized_ids)
     if covered_ids != vulnerability_ids:
         missing = vulnerability_ids.difference(covered_ids)
@@ -91,14 +113,11 @@ def grouped_vulnerability_ids(package_result: dict[str, Any]) -> list[list[str]]
     return grouped_ids
 
 
-def report_groups(
-    report: dict[str, Any],
-) -> dict[tuple[str, str, tuple[str, ...]], dict[str, Any]]:
-    """Validate an OSV report and return deterministic vulnerability group records."""
+def _package_results(report: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    """Yield only package result mappings from a strictly shaped OSV report."""
     results = report.get("results")
     if not isinstance(results, list):
         raise OsvReportError("OSV JSON report must contain a results list")
-    groups: dict[tuple[str, str, tuple[str, ...]], dict[str, Any]] = {}
     for result in results:
         if not isinstance(result, dict):
             raise OsvReportError("OSV result entries must be objects")
@@ -108,27 +127,53 @@ def report_groups(
         for package_result in packages:
             if not isinstance(package_result, dict):
                 raise OsvReportError("OSV package result entries must be objects")
-            package = package_result.get("package")
-            if not isinstance(package, dict):
-                raise OsvReportError("OSV package result must contain a package object")
-            name = required_string(package.get("name"), "OSV package name")
-            ecosystem = required_string(
-                package.get("ecosystem"), "OSV package ecosystem"
-            )
-            for vulnerability_ids in grouped_vulnerability_ids(package_result):
-                identity = (ecosystem, name, tuple(vulnerability_ids))
-                group = groups.setdefault(
-                    identity,
-                    {
-                        "ecosystem": ecosystem,
-                        "package": name,
-                        "vulnerability_ids": vulnerability_ids,
-                        "versions": set(),
-                    },
-                )
-                version = package_version(package)
-                if version is not None:
-                    group["versions"].add(version)
+            yield package_result
+
+
+def _package_identity(
+    package_result: dict[str, Any],
+) -> tuple[str, str, dict[str, Any]]:
+    """Return the required package identity fields for a package result."""
+    package = package_result.get("package")
+    if not isinstance(package, dict):
+        raise OsvReportError("OSV package result must contain a package object")
+    name = required_string(package.get("name"), "OSV package name")
+    ecosystem = required_string(package.get("ecosystem"), "OSV package ecosystem")
+    return ecosystem, name, package
+
+
+def _record_group(
+    groups: dict[tuple[str, str, tuple[str, ...]], dict[str, Any]],
+    ecosystem: str,
+    name: str,
+    vulnerability_ids: list[str],
+    version: str | None,
+) -> None:
+    """Add one normalized group to the deterministic report aggregation."""
+    identity = (ecosystem, name, tuple(vulnerability_ids))
+    group = groups.setdefault(
+        identity,
+        {
+            "ecosystem": ecosystem,
+            "package": name,
+            "vulnerability_ids": vulnerability_ids,
+            "versions": set(),
+        },
+    )
+    if version is not None:
+        group["versions"].add(version)
+
+
+def report_groups(
+    report: dict[str, Any],
+) -> dict[tuple[str, str, tuple[str, ...]], dict[str, Any]]:
+    """Validate an OSV report and return deterministic vulnerability group records."""
+    groups: dict[tuple[str, str, tuple[str, ...]], dict[str, Any]] = {}
+    for package_result in _package_results(report):
+        ecosystem, name, package = _package_identity(package_result)
+        version = package_version(package)
+        for vulnerability_ids in grouped_vulnerability_ids(package_result):
+            _record_group(groups, ecosystem, name, vulnerability_ids, version)
     return groups
 
 

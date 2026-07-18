@@ -13,8 +13,8 @@ import yaml
 
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
-UNSAFE_TRIGGER = re.compile(r"(?<!\w)['\"]?pull_request_target['\"]?(?!\w)", re.ASCII)
-UNTRUSTED_INTERPOLATION = re.compile(r"github\.event\.pull_request\.(title|body)")
+UNSAFE_TRIGGER = re.compile(r"\bpull_request_target\b", re.ASCII)
+UNTRUSTED_INTERPOLATION = re.compile(r"github\.event\.pull_request\.(?:title|body)\b")
 ID_TOKEN_WRITE = re.compile(r"\bid-token\s*:\s*['\"]?write['\"]?", re.IGNORECASE)
 ARCHIVE_TYPE_TAR_GZ = "tar.gz"
 ARCHIVE_TYPE_RAW = "raw"
@@ -25,6 +25,8 @@ UPLOAD_ARTIFACT = "actions/upload-artifact@"
 RETENTION_DAYS_ONE = "retention-days: 1"
 IF_NO_FILES_FOUND_ERROR = "if-no-files-found: error"
 SECURITY_EVENTS_WRITE = "security-events: write"
+SECURITY_TOOL_DOWNLOADER = "ci/tools/fetch-security-tool.py"
+HASH_LOCKED_CI_REQUIREMENTS = "--require-hashes -r requirements-ci.lock"
 ACTION_FIELDS = {
     "name",
     "version",
@@ -66,6 +68,65 @@ PYTHON_VERSION_DECLARATION = re.compile(
 )
 CHECK_LATEST_FALSE = re.compile(r"^\s*check-latest:\s*false\s*(?:#.*)?$", re.MULTILINE)
 
+OSV_JOB_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    "pull-request-head": (
+        "github.event.pull_request.base.sha",
+        "github.event.pull_request.head.sha",
+        "fetch-depth: 0",
+        'test "$(git rev-parse HEAD)" = "$HEAD_SHA"',
+        'git cat-file -e "$BASE_SHA^{commit}"',
+        "write_osv_input requirements-dev.txt requirements-dev.txt",
+        "write_osv_input requirements-ci.lock requirements-ci.txt",
+        "--format json",
+        '--lockfile "$input_directory/requirements-dev.txt"',
+        '--lockfile "$input_directory/requirements-ci.txt"',
+        "compare-osv-results.py",
+        CHECK_JSON_RESULT,
+        "id: compare_osv",
+        'echo "evidence_valid=true" >> "$GITHUB_OUTPUT"',
+        UPLOAD_ARTIFACT,
+        RETENTION_DAYS_ONE,
+        IF_NO_FILES_FOUND_ERROR,
+        "steps.compare_osv.outputs.evidence_valid == 'true'",
+        "framework-ci-security-results/osv/base.json",
+        "framework-ci-security-results/osv/head.json",
+        "framework-ci-security-results/osv/comparison.json",
+    ),
+    "scheduled-advisory": (
+        "ref: ${{ github.sha }}",
+        "--format json",
+        CHECK_JSON_RESULT,
+        "id: scan_current_osv",
+        'echo "evidence_valid=true" >> "$GITHUB_OUTPUT"',
+        UPLOAD_ARTIFACT,
+        RETENTION_DAYS_ONE,
+        IF_NO_FILES_FOUND_ERROR,
+        "steps.scan_current_osv.outputs.evidence_valid == 'true'",
+        "framework-ci-security-results/osv/current.json",
+    ),
+}
+OSV_PROHIBITED_SNIPPETS = (
+    "--allow-no-lockfiles",
+    "--recursive",
+    SECURITY_EVENTS_WRITE,
+)
+SCORECARD_JOB_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    "pull-request-head": (
+        "github.event.pull_request.head.sha",
+        CHECK_JSON_RESULT,
+        "scorecard-results.json",
+    ),
+    "current-revision-advisory": (
+        "github.event.repository.default_branch",
+        "ref: ${{ github.sha }}",
+        CHECK_JSON_RESULT,
+        UPLOAD_ARTIFACT,
+        "path: ${{ runner.temp }}/scorecard-results.json",
+        RETENTION_DAYS_ONE,
+        IF_NO_FILES_FOUND_ERROR,
+    ),
+}
+
 
 def load_yaml(path: Path) -> Any:
     try:
@@ -74,23 +135,36 @@ def load_yaml(path: Path) -> Any:
         raise ValueError(f"cannot parse YAML: {exc}") from exc
 
 
-def trust_boundary_errors(path: Path, text: str) -> list[str]:
-    errors: list[str] = []
-    if UNSAFE_TRIGGER.search(text):
-        errors.append(f"{path}: pull_request_target is forbidden")
-    if UNSAFE_TRIGGER.search(text) and UNTRUSTED_INTERPOLATION.search(text):
+def pull_request_target_errors(path: Path, text: str) -> list[str]:
+    if not UNSAFE_TRIGGER.search(text):
+        return []
+
+    errors = [f"{path}: pull_request_target is forbidden"]
+    if UNTRUSTED_INTERPOLATION.search(text):
         errors.append(
             f"{path}: pull_request_target must not interpolate PR title or body"
         )
-    if ID_TOKEN_WRITE.search(text):
-        errors.append(
-            f"{path}: id-token: write is not allowed by this Framework CI contract"
-        )
-    if TOKEN_REFERENCE.search(text) and path.name not in TOKEN_REFERENCE_ALLOWLIST:
-        errors.append(
-            f"{path}: GitHub token reference is not allow-listed for this workflow"
-        )
     return errors
+
+
+def id_token_permission_errors(path: Path, text: str) -> list[str]:
+    if ID_TOKEN_WRITE.search(text):
+        return [f"{path}: id-token: write is not allowed by this Framework CI contract"]
+    return []
+
+
+def github_token_reference_errors(path: Path, text: str) -> list[str]:
+    if TOKEN_REFERENCE.search(text) and path.name not in TOKEN_REFERENCE_ALLOWLIST:
+        return [f"{path}: GitHub token reference is not allow-listed for this workflow"]
+    return []
+
+
+def trust_boundary_errors(path: Path, text: str) -> list[str]:
+    return [
+        *pull_request_target_errors(path, text),
+        *id_token_permission_errors(path, text),
+        *github_token_reference_errors(path, text),
+    ]
 
 
 def is_safe_archive_path(value: str) -> bool:
@@ -223,24 +297,35 @@ def record_errors(path: Path, group: str, name: str, record: Any) -> list[str]:
     return errors
 
 
+def valid_lock_records(
+    path: Path, group: str, records: Any
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    if not isinstance(records, dict):
+        return {}, [f"{path}: {group}s must be a mapping"]
+
+    valid_records: dict[str, dict[str, Any]] = {}
+    errors: list[str] = []
+    for raw_name, record in records.items():
+        name = str(raw_name)
+        record_validation_errors = record_errors(path, group, name, record)
+        errors.extend(record_validation_errors)
+        if not record_validation_errors and isinstance(record, dict):
+            valid_records[name] = record
+    return valid_records, errors
+
+
 def load_lock(
     path: Path,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]], list[str]]:
-    errors: list[str] = []
     loaded = load_yaml(path)
     if not isinstance(loaded, dict):
         return {}, {}, [f"{path}: lock must be a mapping"]
-    action_lock = loaded.get("actions")
-    tool_lock = loaded.get("tools")
-    if not isinstance(action_lock, dict):
-        errors.append(f"{path}: actions must be a mapping")
-        action_lock = {}
-    if not isinstance(tool_lock, dict):
-        errors.append(f"{path}: tools must be a mapping")
-        tool_lock = {}
-    for group, records in (("action", action_lock), ("tool", tool_lock)):
-        for name, record in records.items():
-            errors.extend(record_errors(path, group, str(name), record))
+
+    action_lock, action_errors = valid_lock_records(
+        path, "action", loaded.get("actions")
+    )
+    tool_lock, tool_errors = valid_lock_records(path, "tool", loaded.get("tools"))
+    errors = [*action_errors, *tool_errors]
     return action_lock, tool_lock, errors
 
 
@@ -323,16 +408,26 @@ def action_pin_errors(
     return errors
 
 
+def line_pin_errors(
+    path: Path,
+    line_number: int,
+    line: str,
+    actions: dict[str, dict[str, Any]],
+) -> list[str]:
+    parsed = uses_reference_and_comment(line)
+    if parsed is None:
+        return []
+
+    reference, comment = parsed
+    if reference.startswith("./"):
+        return []
+    return action_pin_errors(path, line_number, reference, comment, actions)
+
+
 def pin_errors(path: Path, text: str, actions: dict[str, dict[str, Any]]) -> list[str]:
     errors: list[str] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
-        parsed = uses_reference_and_comment(line)
-        if parsed is None:
-            continue
-        reference, comment = parsed
-        if reference.startswith("./"):
-            continue
-        errors.extend(action_pin_errors(path, line_number, reference, comment, actions))
+        errors.extend(line_pin_errors(path, line_number, line, actions))
     return errors
 
 
@@ -355,28 +450,50 @@ def permission_definitions(data: dict[str, Any]) -> Iterable[tuple[str, Any]]:
                 yield f"job {job_name!r}", job["permissions"]
 
 
-def permission_errors(path: Path, data: dict[str, Any]) -> list[str]:
+def permission_entry_errors(
+    path: Path,
+    scope: str,
+    permission: Any,
+    level: Any,
+    allowed_writes: set[str],
+) -> list[str]:
+    if level not in ALLOWED_PERMISSION_LEVELS:
+        return [
+            f"{path}: {scope} {permission}: {level!r} is not an explicit permission level"
+        ]
+    if level != "write":
+        return []
+    if scope == "top-level":
+        return [
+            f"{path}: top-level write permissions are forbidden; scope them to a job"
+        ]
+    if permission not in allowed_writes:
+        return [f"{path}: {permission}: write is not allow-listed for this workflow"]
+    return []
+
+
+def permission_scope_errors(
+    path: Path,
+    scope: str,
+    permissions: Any,
+    allowed_writes: set[str],
+) -> list[str]:
+    if not isinstance(permissions, dict):
+        return [f"{path}: {scope} permissions must be a mapping"]
+
     errors: list[str] = []
+    for permission, level in permissions.items():
+        errors.extend(
+            permission_entry_errors(path, scope, permission, level, allowed_writes)
+        )
+    return errors
+
+
+def permission_errors(path: Path, data: dict[str, Any]) -> list[str]:
     allowed_writes = WRITE_PERMISSION_ALLOWLIST.get(path.name, set())
+    errors: list[str] = []
     for scope, permissions in permission_definitions(data):
-        if not isinstance(permissions, dict):
-            errors.append(f"{path}: {scope} permissions must be a mapping")
-            continue
-        for permission, level in permissions.items():
-            if level not in ALLOWED_PERMISSION_LEVELS:
-                errors.append(
-                    f"{path}: {scope} {permission}: {level!r} is not an explicit permission level"
-                )
-                continue
-            if level == "write":
-                if scope == "top-level":
-                    errors.append(
-                        f"{path}: top-level write permissions are forbidden; scope them to a job"
-                    )
-                elif permission not in allowed_writes:
-                    errors.append(
-                        f"{path}: {permission}: write is not allow-listed for this workflow"
-                    )
+        errors.extend(permission_scope_errors(path, scope, permissions, allowed_writes))
     return errors
 
 
@@ -397,37 +514,48 @@ def concurrency_errors(path: Path, data: dict[str, Any]) -> list[str]:
     return errors
 
 
-def python_provisioning_errors(path: Path, text: str) -> list[str]:
+def setup_python_errors(path: Path, text: str) -> list[str]:
+    if "actions/setup-python@" not in text:
+        return []
+
     errors: list[str] = []
-    uses_setup_python = "actions/setup-python@" in text
-    if uses_setup_python:
-        versions = PYTHON_VERSION_DECLARATION.findall(text)
-        if not versions or any(
-            version != REVIEWED_PYTHON_VERSION for version in versions
-        ):
-            errors.append(
-                f"{path}: setup-python must use exact reviewed CPython "
-                f"{REVIEWED_PYTHON_VERSION}"
-            )
-        if not CHECK_LATEST_FALSE.search(text):
-            errors.append(f"{path}: setup-python must set check-latest: false")
+    versions = PYTHON_VERSION_DECLARATION.findall(text)
+    if not versions or any(version != REVIEWED_PYTHON_VERSION for version in versions):
+        errors.append(
+            f"{path}: setup-python must use exact reviewed CPython "
+            f"{REVIEWED_PYTHON_VERSION}"
+        )
+    if not CHECK_LATEST_FALSE.search(text):
+        errors.append(f"{path}: setup-python must set check-latest: false")
+    return errors
 
-    if "ci/tools/fetch-security-tool.py" not in text:
-        return errors
 
-    normalized = " ".join(text.split())
-    if not uses_setup_python:
+def security_tool_downloader_errors(path: Path, text: str) -> list[str]:
+    if SECURITY_TOOL_DOWNLOADER not in text:
+        return []
+
+    errors: list[str] = []
+    if "actions/setup-python@" not in text:
         errors.append(
             f"{path}: the security-tool downloader requires reviewed setup-python"
         )
-    if "python3 -m pip install" not in normalized or (
-        "--require-hashes -r requirements-ci.lock" not in normalized
+    normalized = " ".join(text.split())
+    if (
+        "python3 -m pip install" not in normalized
+        or HASH_LOCKED_CI_REQUIREMENTS not in normalized
     ):
         errors.append(
             f"{path}: the security-tool downloader requires hash-locked "
             "requirements-ci.lock installation"
         )
     return errors
+
+
+def python_provisioning_errors(path: Path, text: str) -> list[str]:
+    return [
+        *setup_python_errors(path, text),
+        *security_tool_downloader_errors(path, text),
+    ]
 
 
 def is_job_header(line: str) -> bool:
@@ -465,111 +593,59 @@ def require_workflow_text(
     ]
 
 
-def osv_scanner_evidence_errors(path: Path, text: str) -> list[str]:
+def job_requirement_errors(
+    path: Path, text: str, requirements: dict[str, tuple[str, ...]]
+) -> list[str]:
     errors: list[str] = []
-    pull_request = job_text(text, "pull-request-head")
-    errors.extend(
-        require_workflow_text(
-            path,
-            "pull-request-head",
-            pull_request,
-            (
-                "github.event.pull_request.base.sha",
-                "github.event.pull_request.head.sha",
-                "fetch-depth: 0",
-                'test "$(git rev-parse HEAD)" = "$HEAD_SHA"',
-                'git cat-file -e "$BASE_SHA^{commit}"',
-                "write_osv_input requirements-dev.txt requirements-dev.txt",
-                "write_osv_input requirements-ci.lock requirements-ci.txt",
-                "--format json",
-                '--lockfile "$input_directory/requirements-dev.txt"',
-                '--lockfile "$input_directory/requirements-ci.txt"',
-                "compare-osv-results.py",
-                CHECK_JSON_RESULT,
-                "id: compare_osv",
-                'echo "evidence_valid=true" >> "$GITHUB_OUTPUT"',
-                UPLOAD_ARTIFACT,
-                RETENTION_DAYS_ONE,
-                IF_NO_FILES_FOUND_ERROR,
-                "steps.compare_osv.outputs.evidence_valid == 'true'",
-                "framework-ci-security-results/osv/base.json",
-                "framework-ci-security-results/osv/head.json",
-                "framework-ci-security-results/osv/comparison.json",
-            ),
+    for job_name, snippets in requirements.items():
+        errors.extend(
+            require_workflow_text(path, job_name, job_text(text, job_name), snippets)
         )
-    )
-    scheduled = job_text(text, "scheduled-advisory")
-    errors.extend(
-        require_workflow_text(
-            path,
-            "scheduled-advisory",
-            scheduled,
-            (
-                "ref: ${{ github.sha }}",
-                "--format json",
-                CHECK_JSON_RESULT,
-                "id: scan_current_osv",
-                'echo "evidence_valid=true" >> "$GITHUB_OUTPUT"',
-                UPLOAD_ARTIFACT,
-                RETENTION_DAYS_ONE,
-                IF_NO_FILES_FOUND_ERROR,
-                "steps.scan_current_osv.outputs.evidence_valid == 'true'",
-                "framework-ci-security-results/osv/current.json",
-            ),
-        )
-    )
-    for prohibited in ("--allow-no-lockfiles", "--recursive", SECURITY_EVENTS_WRITE):
-        if prohibited in text:
-            errors.append(f"{path}: OSV workflow must not contain {prohibited!r}")
     return errors
+
+
+def forbidden_workflow_snippet_errors(
+    path: Path, text: str, workflow_name: str, snippets: Iterable[str]
+) -> list[str]:
+    return [
+        f"{path}: {workflow_name} workflow must not contain {snippet!r}"
+        for snippet in snippets
+        if snippet in text
+    ]
+
+
+def osv_scanner_evidence_errors(path: Path, text: str) -> list[str]:
+    return [
+        *job_requirement_errors(path, text, OSV_JOB_REQUIREMENTS),
+        *forbidden_workflow_snippet_errors(path, text, "OSV", OSV_PROHIBITED_SNIPPETS),
+    ]
+
+
+def scorecard_pull_request_artifact_errors(path: Path, text: str) -> list[str]:
+    pull_request = job_text(text, "pull-request-head")
+    if pull_request is not None and UPLOAD_ARTIFACT in pull_request:
+        return [f"{path}: pull-request Scorecard evidence must remain artifact-free"]
+    return []
+
+
+def scorecard_current_revision_errors(path: Path, text: str) -> list[str]:
+    current_revision = job_text(text, "current-revision-advisory")
+    if current_revision is not None and "continue-on-error" in current_revision:
+        return [
+            f"{path}: current-revision Scorecard evidence must fail on scanner errors"
+        ]
+    return []
 
 
 def scorecard_evidence_errors(path: Path, text: str) -> list[str]:
-    errors: list[str] = []
-    pull_request = job_text(text, "pull-request-head")
-    errors.extend(
-        require_workflow_text(
-            path,
-            "pull-request-head",
-            pull_request,
-            (
-                "github.event.pull_request.head.sha",
-                CHECK_JSON_RESULT,
-                "scorecard-results.json",
-            ),
-        )
-    )
-    if pull_request is not None and UPLOAD_ARTIFACT in pull_request:
-        errors.append(
-            f"{path}: pull-request Scorecard evidence must remain artifact-free"
-        )
-
-    current_revision = job_text(text, "current-revision-advisory")
-    errors.extend(
-        require_workflow_text(
-            path,
-            "current-revision-advisory",
-            current_revision,
-            (
-                "github.event.repository.default_branch",
-                "ref: ${{ github.sha }}",
-                CHECK_JSON_RESULT,
-                UPLOAD_ARTIFACT,
-                "path: ${{ runner.temp }}/scorecard-results.json",
-                RETENTION_DAYS_ONE,
-                IF_NO_FILES_FOUND_ERROR,
-            ),
-        )
-    )
-    if current_revision is not None and "continue-on-error" in current_revision:
-        errors.append(
-            f"{path}: current-revision Scorecard evidence must fail on scanner errors"
-        )
-    if SECURITY_EVENTS_WRITE in text:
-        errors.append(
-            f"{path}: Scorecard workflow must not contain {SECURITY_EVENTS_WRITE!r}"
-        )
-    return errors
+    return [
+        *job_requirement_errors(path, text, SCORECARD_JOB_REQUIREMENTS),
+        *scorecard_pull_request_artifact_errors(path, text),
+        *scorecard_current_revision_errors(path, text),
+        *forbidden_workflow_snippet_errors(
+            path, text, "Scorecard", (SECURITY_EVENTS_WRITE,)
+        ),
+    ]
 
 
 def scanner_evidence_errors(path: Path, text: str) -> list[str]:
@@ -580,23 +656,42 @@ def scanner_evidence_errors(path: Path, text: str) -> list[str]:
     return []
 
 
-def workflow_metadata_errors(path: Path, text: str, data: dict[str, Any]) -> list[str]:
-    errors: list[str] = []
+def top_level_permission_errors(path: Path, data: dict[str, Any]) -> list[str]:
     if "permissions" not in data:
-        errors.append(f"{path}: workflow must declare explicit top-level permissions")
-    errors.extend(concurrency_errors(path, data))
-    errors.extend(python_provisioning_errors(path, text))
-    errors.extend(scanner_evidence_errors(path, text))
+        return [f"{path}: workflow must declare explicit top-level permissions"]
+    return []
+
+
+def codeql_tool_bundle_errors(path: Path, text: str) -> list[str]:
     if path.name == "ci-security-codeql.yml" and "tools: linked" not in text:
-        errors.append(f"{path}: CodeQL init must select the linked tool bundle")
+        return [f"{path}: CodeQL init must select the linked tool bundle"]
+    return []
+
+
+def run_shell_default_errors(path: Path, text: str, data: dict[str, Any]) -> list[str]:
     if "run:" in text and not run_shell_default(data):
-        errors.append(
-            f"{path}: shell-running workflow must set defaults.run.shell to bash"
-        )
-    errors.extend(permission_errors(path, data))
-    if isinstance(data.get("env"), dict) and "GITHUB_TOKEN" in data["env"]:
-        errors.append(f"{path}: GITHUB_TOKEN must not be exposed at workflow scope")
-    return errors
+        return [f"{path}: shell-running workflow must set defaults.run.shell to bash"]
+    return []
+
+
+def workflow_token_environment_errors(path: Path, data: dict[str, Any]) -> list[str]:
+    environment = data.get("env")
+    if isinstance(environment, dict) and "GITHUB_TOKEN" in environment:
+        return [f"{path}: GITHUB_TOKEN must not be exposed at workflow scope"]
+    return []
+
+
+def workflow_metadata_errors(path: Path, text: str, data: dict[str, Any]) -> list[str]:
+    return [
+        *top_level_permission_errors(path, data),
+        *concurrency_errors(path, data),
+        *python_provisioning_errors(path, text),
+        *scanner_evidence_errors(path, text),
+        *codeql_tool_bundle_errors(path, text),
+        *run_shell_default_errors(path, text, data),
+        *permission_errors(path, data),
+        *workflow_token_environment_errors(path, data),
+    ]
 
 
 def checkout_safety_errors(path: Path, step: dict[str, Any]) -> list[str]:
@@ -685,18 +780,35 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def resolve_root_path(root: Path) -> Path:
+    try:
+        resolved = root.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(
+            f"{root}: --root must resolve to an existing directory"
+        ) from exc
+    if not resolved.is_dir():
+        raise ValueError(f"{root}: --root must resolve to an existing directory")
+    return resolved
+
+
 def resolve_lock_path(root: Path, lock: Path) -> Path:
     candidate = lock if lock.is_absolute() else root / lock
-    resolved = candidate.resolve()
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f"{lock}: --lock must resolve inside --root") from exc
     if not resolved.is_relative_to(root):
         raise ValueError(f"{lock}: --lock must resolve inside --root")
+    if not resolved.is_file():
+        raise ValueError(f"{lock}: --lock must resolve to a regular file")
     return resolved
 
 
 def main() -> int:
     args = parse_args()
-    root = args.root.resolve()
     try:
+        root = resolve_root_path(args.root)
         lock_path = resolve_lock_path(root, args.lock)
     except ValueError as exc:
         print("CI security contract violations:")

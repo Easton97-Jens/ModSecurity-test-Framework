@@ -203,6 +203,43 @@ class OsvComparisonContractTest(unittest.TestCase):
                 malformed_package, {"results": []}, "a" * 40, "b" * 40
             )
 
+    def test_duplicate_ids_and_invalid_clean_or_group_records_are_rejected(
+        self,
+    ) -> None:
+        duplicate_ids = scan_report(
+            vulnerable_package("example", "1.0.0", ["GHSA-example", "GHSA-example"])
+        )
+        with self.assertRaisesRegex(
+            OSV_COMPARATOR.OsvComparisonError, "vulnerability ids must be unique"
+        ):
+            OSV_COMPARATOR.compare_reports(
+                duplicate_ids, {"results": []}, "a" * 40, "b" * 40
+            )
+
+        unexpected_clean_group = scan_report(
+            {
+                "package": {"name": "example", "version": "1.0.0", "ecosystem": "PyPI"},
+                "vulnerabilities": [],
+                "groups": [{"ids": ["GHSA-example"]}],
+            }
+        )
+        with self.assertRaisesRegex(
+            OSV_COMPARATOR.OsvComparisonError, "clean package results"
+        ):
+            OSV_COMPARATOR.compare_reports(
+                unexpected_clean_group, {"results": []}, "a" * 40, "b" * 40
+            )
+
+        invalid_group_ids = scan_report(
+            vulnerable_package("example", "1.0.0", ["GHSA-example"], [" "])
+        )
+        with self.assertRaisesRegex(
+            OSV_COMPARATOR.OsvComparisonError, "group ids must be a string list"
+        ):
+            OSV_COMPARATOR.compare_reports(
+                invalid_group_ids, {"results": []}, "a" * 40, "b" * 40
+            )
+
     def test_incomplete_or_overlapping_groups_are_rejected(self) -> None:
         incomplete = scan_report(
             vulnerable_package(
