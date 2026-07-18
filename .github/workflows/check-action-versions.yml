@@ -15,24 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Validate workflow action pins
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          bad = []
-          allowed = re.compile(r'@[vV][0-9]+$|@[0-9a-f]{40}$')
-          for path in sorted(Path('.github/workflows').glob('*.yml')):
-              for line_no, line in enumerate(path.read_text().splitlines(), 1):
-                  match = re.search(r'[u]ses:\s*([^\s#]+)', line)
-                  if match and not allowed.search(match.group(1)):
-                      bad.append(f"{path}:{line_no}: {match.group(1)}")
-          if bad:
-              print('Actions must be pinned to a stable major version (for example @v4) or a full SHA:')
-              print('\n'.join(bad))
-              raise SystemExit(1)
-          print('All workflow actions are pinned to stable major versions or full SHAs.')
-          PY
+          python3 ci/checks/security/check-workflow-action-pins.py
