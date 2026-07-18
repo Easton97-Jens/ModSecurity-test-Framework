@@ -154,10 +154,16 @@ inputs or generated paths. `MODSECURITY_MRTS_VARIANT` accepts `no-mrts` or
 `with-mrts`; `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` enables optional demo
 content only after collision checks.
 
-`CRS_REPO_URL`, `CRS_GIT_REF`, `CRS_SOURCE_DIR`, `CRS_RUNTIME_DIR`, and
-`MODSECURITY_RULE_PREAMBLE_FILE` are provisioning inputs. Pins and related
-component variables live in `ci/lib/common.sh`; do not duplicate them in
-workflows. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE`, and
+`CRS_REPO_URL`, `CRS_GIT_REF`, `CRS_GIT_COMMIT`, `CRS_SOURCE_DIR`,
+`CRS_RUNTIME_DIR`, and `MODSECURITY_RULE_PREAMBLE_FILE` are provisioning
+inputs. `CRS_GIT_REF` identifies the reviewed release label, while
+`CRS_GIT_COMMIT` is the centrally reviewed lower-case full commit that CRS
+provisioning fetches and verifies before submodule processing. Different URL,
+release-tag, or commit overrides are rejected. A CRS update must change the
+reviewed tag-and-commit pair together; the common-version checker can report a
+newer release but deliberately does not rewrite that pair automatically. Pins
+and related component variables live in `ci/lib/common.sh`; do not duplicate
+them in workflows. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE`, and
 `CONNECTOR_COMPONENT_CACHE` are cache paths and require provenance checks.
 
 ## Tooling, status values, and sensitive data

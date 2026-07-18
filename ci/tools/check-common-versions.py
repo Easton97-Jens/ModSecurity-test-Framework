@@ -745,6 +745,30 @@ def check_github_release_ref(
     )
 
 
+def check_crs_release_provenance(
+    entries: dict[str, VariableEntry], client: HttpClient
+) -> ComponentResult:
+    result = check_github_release_ref(
+        "OWASP Core Rule Set",
+        entries,
+        client,
+        repo_var="CRS_REPO_URL",
+        ref_var="CRS_GIT_REF",
+    )
+    result.variables = ["CRS_REPO_URL", "CRS_GIT_REF", "CRS_GIT_COMMIT"]
+    if result.status == STATUS_OUTDATED:
+        result.status = STATUS_UNKNOWN
+        result.updates = []
+        result.message = (
+            "A newer CRS release is available, but updating its release tag and immutable "
+            "commit requires a reviewed provenance change."
+        )
+        result.details = {
+            "reason": "update CRS_GIT_REF and CRS_GIT_COMMIT together after commit provenance review"
+        }
+    return result
+
+
 def find_release_asset(release: dict[str, Any], asset_name: str) -> str:
     assets = release.get("assets")
     if not isinstance(assets, list):
@@ -893,13 +917,7 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
     component_calls = [
         (
             "OWASP Core Rule Set",
-            lambda: check_github_release_ref(
-                "OWASP Core Rule Set",
-                entries,
-                client,
-                repo_var="CRS_REPO_URL",
-                ref_var="CRS_GIT_REF",
-            ),
+            lambda: check_crs_release_provenance(entries, client),
         ),
         (
             "ModSecurity v3",

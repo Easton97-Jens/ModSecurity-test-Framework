@@ -158,10 +158,17 @@ MRTS-Eingaben oder generierte Pfade. `MODSECURITY_MRTS_VARIANT` akzeptiert
 `no-mrts` oder `with-mrts`; `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1`
 aktiviert optionale Demo-Inhalte erst nach Kollisionsprüfungen.
 
-`CRS_REPO_URL`, `CRS_GIT_REF`, `CRS_SOURCE_DIR`, `CRS_RUNTIME_DIR` und
-`MODSECURITY_RULE_PREAMBLE_FILE` sind Provisionierungswerte. Pins und
-zugehörige Komponentenvariablen stehen in `ci/lib/common.sh`; sie nicht in
-Workflows duplizieren. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE` und
+`CRS_REPO_URL`, `CRS_GIT_REF`, `CRS_GIT_COMMIT`, `CRS_SOURCE_DIR`,
+`CRS_RUNTIME_DIR` und `MODSECURITY_RULE_PREAMBLE_FILE` sind
+Provisionierungswerte. `CRS_GIT_REF` bezeichnet das geprüfte Release-Label,
+während `CRS_GIT_COMMIT` der zentral geprüfte, kleingeschriebene vollständige
+Commit ist, den die CRS-Provisionierung vor der Submodul-Verarbeitung abruft
+und verifiziert. Abweichende Überschreibungen von URL, Release-Tag oder Commit
+werden abgelehnt. Ein CRS-Update muss das geprüfte Tag-und-Commit-Paar zusammen
+ändern; der Common-Version-Checker kann ein neueres Release melden, schreibt
+dieses Paar aber absichtlich nicht automatisch um. Pins und zugehörige
+Komponentenvariablen stehen in `ci/lib/common.sh`; sie nicht in Workflows
+duplizieren. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE` und
 `CONNECTOR_COMPONENT_CACHE` sind Cache-Pfade und benötigen Herkunftsprüfungen.
 
 ## Werkzeuge, Statuswerte und sensible Daten

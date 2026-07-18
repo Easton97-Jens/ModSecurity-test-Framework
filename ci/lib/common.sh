@@ -141,9 +141,14 @@ MODSECURITY_V3_ROOT="${MODSECURITY_V3_ROOT:-$MODSECURITY_SOURCE_DIR}"
 : "${MODSECURITY_SMOKE_CASE:=targeted}"
 : "${CRS_SMOKE_CASE:=minimal}"
 
-# OWASP Core Rule Set defaults
+# OWASP Core Rule Set provenance. The release tag remains human-readable
+# metadata, while provisioning consumes the reviewed immutable commit only.
+CRS_APPROVED_REPO_URL='https://github.com/coreruleset/coreruleset.git'
+CRS_APPROVED_GIT_REF='v4.28.0'
+CRS_APPROVED_GIT_COMMIT='55b09f5acfd16413e7b31041100711ceb7adc89c'
 : "${CRS_REPO_URL:=https://github.com/coreruleset/coreruleset.git}"
 : "${CRS_GIT_REF:=v4.28.0}"
+: "${CRS_GIT_COMMIT:=55b09f5acfd16413e7b31041100711ceb7adc89c}"
 
 # CRS paths
 : "${CRS_SOURCE_DIR:=${SOURCE_ROOT}/coreruleset}"
@@ -414,6 +419,28 @@ ci_validate_safe_ref_config() {
         ci_ref_value=${ci_ref_pair#*:}
         ci_require_safe_ref "$ci_ref_value" "$ci_ref_label" || return 77
     done
+    return 0
+}
+
+ci_require_approved_crs_source() {
+    if [ "$CRS_REPO_URL" != "$CRS_APPROVED_REPO_URL" ]; then
+        ci_blocked "CRS_REPO_URL must match the centrally approved source"
+        return 77
+    fi
+    if [ "$CRS_GIT_REF" != "$CRS_APPROVED_GIT_REF" ]; then
+        ci_blocked "CRS_GIT_REF must match the centrally approved release tag"
+        return 77
+    fi
+    case "$CRS_GIT_COMMIT" in
+        ''|*[!0-9a-f]*)
+            ci_blocked "CRS_GIT_COMMIT must be a lowercase full Git commit"
+            return 77
+            ;;
+    esac
+    if [ "${#CRS_GIT_COMMIT}" -ne 40 ] || [ "$CRS_GIT_COMMIT" != "$CRS_APPROVED_GIT_COMMIT" ]; then
+        ci_blocked "CRS_GIT_COMMIT must match the centrally approved immutable commit"
+        return 77
+    fi
     return 0
 }
 
@@ -1424,6 +1451,6 @@ ci_git_value() {
 # Export shared defaults for child scripts invoked after sourcing common.sh.
 export DEFAULT_BRANCH FRAMEWORK_ROOT CONNECTOR_ROOT VERIFIED_RUN_ROOT VERIFIED_STATE_ROOT VERIFIED_BUILD_ROOT VERIFIED_SOURCE_ROOT VERIFIED_TMP_ROOT VERIFIED_LOG_ROOT CACHE_ROOT VERIFIED_COMPONENT_CACHE
 export SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE DEFAULT_PYTHON HAPROXY_BIN_WAS_SET
-export CRS_REPO_URL CRS_GIT_REF MODSECURITY_REPO_URL MODSECURITY_GIT_REF MODSECURITY_V3_GIT_URL MODSECURITY_V3_GIT_REF
+export CRS_REPO_URL CRS_GIT_REF CRS_GIT_COMMIT MODSECURITY_REPO_URL MODSECURITY_GIT_REF MODSECURITY_V3_GIT_URL MODSECURITY_V3_GIT_REF
 export HTTPD_VERSION HTTPD_SOURCE_URL HTTPD_SHA256 HTTPD_SHA256_URL APR_VERSION APR_SOURCE_URL APR_SHA256 APR_SHA256_URL APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL PCRE2_VERSION PCRE2_SOURCE_URL PCRE2_SHA256 PCRE2_SHA256_URL
 export NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF NGINX_SHA256 HAPROXY_VERSION HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256
