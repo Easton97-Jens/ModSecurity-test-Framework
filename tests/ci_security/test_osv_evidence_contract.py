@@ -56,29 +56,34 @@ def vulnerable_package(
 class JsonEvidenceContractTest(unittest.TestCase):
     def test_regular_bounded_json_object_is_accepted(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            result = Path(temporary_directory) / "result.json"
+            runner_temp = Path(temporary_directory)
+            result = runner_temp / "result.json"
             result.write_text('{"score": 10}\n', encoding="utf-8")
-            self.assertEqual(JSON_CHECKER.read_json_object(result, 1024), {"score": 10})
+            with mock.patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                self.assertEqual(
+                    JSON_CHECKER.read_json_object(result, 1024), {"score": 10}
+                )
 
     def test_invalid_symlink_and_oversized_evidence_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             invalid = root / "invalid.json"
             invalid.write_text("not-json", encoding="utf-8")
-            with self.assertRaisesRegex(JSON_CHECKER.JsonEvidenceError, "valid UTF-8"):
-                JSON_CHECKER.read_json_object(invalid, 1024)
-
             oversized = root / "oversized.json"
             oversized.write_text('{"payload":"123456"}', encoding="utf-8")
-            with self.assertRaisesRegex(
-                JSON_CHECKER.JsonEvidenceError, "retention limit"
-            ):
-                JSON_CHECKER.read_json_object(oversized, 8)
-
             symlink = root / "symlink.json"
             symlink.symlink_to(invalid)
-            with self.assertRaises(JSON_CHECKER.JsonEvidenceError):
-                JSON_CHECKER.read_json_object(symlink, 1024)
+            with mock.patch.dict(os.environ, {"RUNNER_TEMP": str(root)}):
+                with self.assertRaisesRegex(
+                    JSON_CHECKER.JsonEvidenceError, "valid UTF-8"
+                ):
+                    JSON_CHECKER.read_json_object(invalid, 1024)
+                with self.assertRaisesRegex(
+                    JSON_CHECKER.JsonEvidenceError, "retention limit"
+                ):
+                    JSON_CHECKER.read_json_object(oversized, 8)
+                with self.assertRaises(JSON_CHECKER.JsonEvidenceError):
+                    JSON_CHECKER.read_json_object(symlink, 1024)
 
     def test_osv_schema_mode_rejects_generic_json_and_accepts_clean_results(
         self,
@@ -287,11 +292,13 @@ class OsvComparisonContractTest(unittest.TestCase):
 
     def test_comparator_preserves_validated_nested_output_creation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            output = Path(temporary_directory) / "nested" / "comparison.json"
-            OSV_COMPARATOR.write_report(output, {"results": []})
-            self.assertEqual(
-                json.loads(output.read_text(encoding="utf-8")), {"results": []}
-            )
+            runner_temp = Path(temporary_directory)
+            output = runner_temp / "nested" / "comparison.json"
+            with mock.patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                OSV_COMPARATOR.write_report(output, {"results": []})
+                self.assertEqual(
+                    json.loads(output.read_text(encoding="utf-8")), {"results": []}
+                )
 
     def test_command_writes_comparison_before_returning_new_group_failure(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -326,6 +333,7 @@ class OsvComparisonContractTest(unittest.TestCase):
                 check=False,
                 capture_output=True,
                 encoding="utf-8",
+                env={**os.environ, "RUNNER_TEMP": str(root)},
             )
             self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
             report = json.loads(output.read_text(encoding="utf-8"))
