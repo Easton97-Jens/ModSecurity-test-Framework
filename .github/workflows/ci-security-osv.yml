@@ -110,9 +110,9 @@ jobs:
           scan_osv "$RESULTS_DIR/base-inputs" "$RESULTS_DIR/base.json"
           scan_osv "$RESULTS_DIR/head-inputs" "$RESULTS_DIR/head.json"
           python3 ci/checks/security/check-json-result.py \
-            --input "$RESULTS_DIR/base.json" --max-bytes 1048576
+            --input "$RESULTS_DIR/base.json" --max-bytes 1048576 --osv-report
           python3 ci/checks/security/check-json-result.py \
-            --input "$RESULTS_DIR/head.json" --max-bytes 1048576
+            --input "$RESULTS_DIR/head.json" --max-bytes 1048576 --osv-report
           set +e
           python3 ci/checks/security/compare-osv-results.py \
             --base "$RESULTS_DIR/base.json" --head "$RESULTS_DIR/head.json" \
@@ -217,7 +217,7 @@ jobs:
             *) exit "$scanner_status" ;;
           esac
           python3 ci/checks/security/check-json-result.py \
-            --input "$RESULTS_DIR/current.json" --max-bytes 1048576
+            --input "$RESULTS_DIR/current.json" --max-bytes 1048576 --osv-report
           echo "evidence_valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Retain bounded current-revision OSV evidence

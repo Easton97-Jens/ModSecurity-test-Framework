@@ -47,6 +47,69 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         self.assertIn("osv-scanner", tools)
         self.assertIn("actions/upload-artifact", actions)
 
+    def test_cli_lock_path_is_confined_to_the_framework_root(self) -> None:
+        legitimate = subprocess.run(
+            [
+                sys.executable,
+                str(CHECKER_PATH),
+                "--root",
+                str(ROOT),
+                "--lock",
+                "ci/tooling/security-tools.lock.yml",
+            ],
+            check=False,
+            capture_output=True,
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            legitimate.returncode, 0, legitimate.stdout + legitimate.stderr
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            root = temporary_root / "framework"
+            root.mkdir()
+            outside_lock = temporary_root / "outside-lock.yml"
+            outside_lock.write_text("actions: {}\ntools: {}\n", encoding="utf-8")
+            symlinked_lock = root / "linked-lock.yml"
+            symlinked_lock.symlink_to(outside_lock)
+
+            for unsafe_lock in (outside_lock, Path("linked-lock.yml")):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(CHECKER_PATH),
+                        "--root",
+                        str(root),
+                        "--lock",
+                        str(unsafe_lock),
+                    ],
+                    check=False,
+                    capture_output=True,
+                    encoding="utf-8",
+                )
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("must resolve inside --root", result.stdout)
+
+    def test_uses_parser_preserves_quotes_and_rejects_malformed_quotes(self) -> None:
+        sha = "0" * 40
+        self.assertEqual(
+            CHECKER.uses_reference_and_comment(
+                f'  - uses: "actions/checkout@{sha}" # v5.0.0'
+            ),
+            (f"actions/checkout@{sha}", "v5.0.0"),
+        )
+        actions, _tools, lock_errors = CHECKER.load_lock(LOCK_PATH)
+        self.assertFalse(lock_errors, "\n".join(lock_errors))
+        malformed_errors = CHECKER.pin_errors(
+            Path("malformed.yml"),
+            f'uses: "actions/checkout@{sha} # v5.0.0',
+            actions,
+        )
+        self.assertTrue(
+            any("locked GitHub Action" in error for error in malformed_errors)
+        )
+
     def test_osv_and_scorecard_evidence_contracts_reject_regressions(self) -> None:
         osv_path = ROOT / ".github/workflows/ci-security-osv.yml"
         osv_text = osv_path.read_text(encoding="utf-8")

@@ -8,6 +8,7 @@ import hashlib
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import sys
 import tarfile
 import tempfile
 from typing import Any
@@ -37,6 +38,12 @@ TOOL_FIELDS = {
     "update_procedure",
 }
 SUPPORTED_ARCHIVE_TYPES = {"tar.gz", "raw"}
+ABSOLUTE_PATHS_ERROR = "output directory and RUNNER_TEMP must be absolute paths"
+RUNNER_TEMP_DIRECTORY_ERROR = "RUNNER_TEMP must be an existing non-symlink directory"
+STRICT_CHILD_ERROR = (
+    "output directory must be a strict child of the runner-owned RUNNER_TEMP"
+)
+SYMLINK_OUTPUT_ERROR = "output directory must not traverse a symlink"
 
 
 def is_safe_archive_member(name: str) -> bool:
@@ -251,38 +258,62 @@ def extract_tree(record: dict[str, Any], archive_path: Path, output_dir: Path) -
         raise
 
 
+def require_absolute_output_paths(output_dir: Path, runner_temp: Path) -> None:
+    if output_dir.is_absolute() and runner_temp.is_absolute():
+        return
+    raise ToolError(ABSOLUTE_PATHS_ERROR)
+
+
+def resolve_runner_temp_root(runner_temp: Path) -> Path:
+    if runner_temp.is_symlink() or not runner_temp.is_dir():
+        raise ToolError(RUNNER_TEMP_DIRECTORY_ERROR)
+    try:
+        runner_root = runner_temp.resolve(strict=True)
+    except OSError as exc:
+        raise ToolError(STRICT_CHILD_ERROR) from exc
+    return runner_root
+
+
+def require_current_runner_owner(runner_root: Path) -> None:
+    if runner_root.stat().st_uid != os.geteuid():
+        raise ToolError("RUNNER_TEMP is not owned by the current runner user")
+
+
+def resolve_strict_child(output_dir: Path, runner_root: Path) -> tuple[Path, Path]:
+    try:
+        relative_output = output_dir.relative_to(runner_root)
+        resolved_output = output_dir.resolve(strict=False)
+    except (OSError, ValueError) as exc:
+        raise ToolError(STRICT_CHILD_ERROR) from exc
+    if not relative_output.parts or resolved_output == runner_root:
+        raise ToolError(STRICT_CHILD_ERROR)
+    return relative_output, resolved_output
+
+
+def reject_symlink_path_components(runner_root: Path, relative_output: Path) -> None:
+    current = runner_root
+    for component in relative_output.parts:
+        current = current / component
+        if current.is_symlink():
+            raise ToolError(SYMLINK_OUTPUT_ERROR)
+
+
+def require_resolved_strict_child(runner_root: Path, resolved_output: Path) -> None:
+    if runner_root not in resolved_output.parents:
+        raise ToolError(STRICT_CHILD_ERROR)
+
+
 def runner_owned_output_dir(output_dir: Path) -> Path:
     runner_temp_value = os.environ.get("RUNNER_TEMP")
     if not runner_temp_value:
         raise ToolError("RUNNER_TEMP must name an existing runner-owned directory")
     runner_temp = Path(runner_temp_value)
-    if not output_dir.is_absolute() or not runner_temp.is_absolute():
-        raise ToolError("output directory and RUNNER_TEMP must be absolute paths")
-    if runner_temp.is_symlink() or not runner_temp.is_dir():
-        raise ToolError("RUNNER_TEMP must be an existing non-symlink directory")
-    try:
-        runner_root = runner_temp.resolve(strict=True)
-        relative_output = output_dir.relative_to(runner_root)
-        resolved_output = output_dir.resolve(strict=False)
-    except (OSError, ValueError) as exc:
-        raise ToolError(
-            "output directory must be a strict child of the runner-owned RUNNER_TEMP"
-        ) from exc
-    if not relative_output.parts or resolved_output == runner_root:
-        raise ToolError(
-            "output directory must be a strict child of the runner-owned RUNNER_TEMP"
-        )
-    current = runner_root
-    for component in relative_output.parts:
-        current = current / component
-        if current.is_symlink():
-            raise ToolError("output directory must not traverse a symlink")
-    if runner_root not in resolved_output.parents:
-        raise ToolError(
-            "output directory must be a strict child of the runner-owned RUNNER_TEMP"
-        )
-    if runner_root.stat().st_uid != os.geteuid():
-        raise ToolError("RUNNER_TEMP is not owned by the current runner user")
+    require_absolute_output_paths(output_dir, runner_temp)
+    runner_root = resolve_runner_temp_root(runner_temp)
+    relative_output, resolved_output = resolve_strict_child(output_dir, runner_root)
+    reject_symlink_path_components(runner_root, relative_output)
+    require_resolved_strict_child(runner_root, resolved_output)
+    require_current_runner_owner(runner_root)
     return resolved_output
 
 
@@ -328,5 +359,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except ToolError as exc:
-        print(f"security-tool error: {exc}", file=os.sys.stderr)
+        print(f"security-tool error: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc

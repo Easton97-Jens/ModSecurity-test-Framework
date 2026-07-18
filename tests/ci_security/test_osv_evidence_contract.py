@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,7 +21,11 @@ def load_module(name: str, path: Path):
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load {path}")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    sys.path.insert(0, str(path.parent))
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.pop(0)
     return module
 
 
@@ -74,6 +80,50 @@ class JsonEvidenceContractTest(unittest.TestCase):
             with self.assertRaises(JSON_CHECKER.JsonEvidenceError):
                 JSON_CHECKER.read_json_object(symlink, 1024)
 
+    def test_osv_schema_mode_rejects_generic_json_and_accepts_clean_results(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            JSON_CHECKER.JsonEvidenceError, "not an OSV report"
+        ):
+            JSON_CHECKER.validate_osv_evidence({})
+        JSON_CHECKER.validate_osv_evidence({"results": []})
+
+    def test_evidence_outside_a_trusted_temporary_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            trusted_root = root / "trusted"
+            trusted_root.mkdir()
+            untrusted = root / "untrusted.json"
+            untrusted.write_text('{"score": 10}\n', encoding="utf-8")
+            with mock.patch.object(
+                JSON_CHECKER,
+                "trusted_evidence_roots",
+                return_value=(trusted_root.resolve(),),
+            ):
+                with self.assertRaisesRegex(
+                    JSON_CHECKER.JsonEvidenceError,
+                    "trusted temporary directory",
+                ):
+                    JSON_CHECKER.read_json_object(untrusted, 1024)
+
+    def test_runner_temp_excludes_the_general_system_temporary_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            runner_temp = root / "runner-temp"
+            runner_temp.mkdir()
+            untrusted = root / "untrusted.json"
+            untrusted.write_text('{"score": 10}\n', encoding="utf-8")
+            with mock.patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                self.assertEqual(
+                    JSON_CHECKER.trusted_evidence_roots(), (runner_temp.resolve(),)
+                )
+                with self.assertRaisesRegex(
+                    JSON_CHECKER.JsonEvidenceError,
+                    "trusted temporary directory",
+                ):
+                    JSON_CHECKER.read_json_object(untrusted, 1024)
+
 
 class OsvComparisonContractTest(unittest.TestCase):
     def test_alias_equivalent_vulnerability_is_not_new_after_version_change(
@@ -84,6 +134,20 @@ class OsvComparisonContractTest(unittest.TestCase):
         )
         head = scan_report(
             vulnerable_package("example", "1.1.0", ["GHSA-example", "CVE-2026-0001"])
+        )
+        comparison = OSV_COMPARATOR.compare_reports(base, head, "a" * 40, "b" * 40)
+        self.assertEqual(comparison["status"], "no_new_vulnerabilities")
+        self.assertEqual(comparison["new_vulnerability_groups"], [])
+
+    def test_alias_enrichment_is_not_a_new_vulnerability_group(self) -> None:
+        base = scan_report(vulnerable_package("example", "1.0.0", ["GHSA-example"]))
+        head = scan_report(
+            vulnerable_package(
+                "example",
+                "1.1.0",
+                ["GHSA-example", "CVE-2026-0001"],
+                ["GHSA-example", "CVE-2026-0001"],
+            )
         )
         comparison = OSV_COMPARATOR.compare_reports(base, head, "a" * 40, "b" * 40)
         self.assertEqual(comparison["status"], "no_new_vulnerabilities")
@@ -132,6 +196,101 @@ class OsvComparisonContractTest(unittest.TestCase):
         with self.assertRaisesRegex(OSV_COMPARATOR.OsvComparisonError, "groups"):
             OSV_COMPARATOR.compare_reports(
                 malformed_package, {"results": []}, "a" * 40, "b" * 40
+            )
+
+    def test_incomplete_or_overlapping_groups_are_rejected(self) -> None:
+        incomplete = scan_report(
+            vulnerable_package(
+                "example",
+                "1.0.0",
+                ["GHSA-example", "CVE-2026-0001"],
+                ["GHSA-example"],
+            )
+        )
+        with self.assertRaisesRegex(
+            OSV_COMPARATOR.OsvComparisonError, "cover every listed"
+        ):
+            OSV_COMPARATOR.compare_reports(
+                incomplete, {"results": []}, "a" * 40, "b" * 40
+            )
+
+        overlapping = scan_report(
+            {
+                "package": {
+                    "name": "example",
+                    "version": "1.0.0",
+                    "ecosystem": "PyPI",
+                },
+                "vulnerabilities": [
+                    {"id": "GHSA-example", "aliases": []},
+                    {"id": "CVE-2026-0001", "aliases": []},
+                ],
+                "groups": [
+                    {"ids": ["GHSA-example"]},
+                    {"ids": ["GHSA-example", "CVE-2026-0001"]},
+                ],
+            }
+        )
+        with self.assertRaisesRegex(
+            OSV_COMPARATOR.OsvComparisonError, "must not overlap"
+        ):
+            OSV_COMPARATOR.compare_reports(
+                overlapping, {"results": []}, "a" * 40, "b" * 40
+            )
+
+    def test_comparator_rejects_untrusted_and_symlinked_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            trusted_root = root / "trusted"
+            trusted_root.mkdir()
+            untrusted = root / "untrusted.json"
+            untrusted.write_text('{"results": []}\n', encoding="utf-8")
+            with mock.patch.object(
+                OSV_COMPARATOR,
+                "trusted_evidence_roots",
+                return_value=(trusted_root.resolve(),),
+            ):
+                with self.assertRaisesRegex(
+                    OSV_COMPARATOR.OsvComparisonError,
+                    "trusted temporary directory",
+                ):
+                    OSV_COMPARATOR.read_report(untrusted)
+                with self.assertRaisesRegex(
+                    OSV_COMPARATOR.OsvComparisonError,
+                    "trusted temporary directory",
+                ):
+                    OSV_COMPARATOR.write_report(untrusted, {"results": []})
+
+            report = trusted_root / "report.json"
+            report.write_text('{"results": []}\n', encoding="utf-8")
+            symlink = trusted_root / "report-link.json"
+            symlink.symlink_to(report)
+            with self.assertRaises(OSV_COMPARATOR.OsvComparisonError):
+                OSV_COMPARATOR.read_report(symlink)
+
+    def test_comparator_uses_runner_temp_exclusively_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            runner_temp = root / "runner-temp"
+            runner_temp.mkdir()
+            untrusted = root / "untrusted.json"
+            untrusted.write_text('{"results": []}\n', encoding="utf-8")
+            with mock.patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                self.assertEqual(
+                    OSV_COMPARATOR.trusted_evidence_roots(), (runner_temp.resolve(),)
+                )
+                with self.assertRaisesRegex(
+                    OSV_COMPARATOR.OsvComparisonError,
+                    "trusted temporary directory",
+                ):
+                    OSV_COMPARATOR.read_report(untrusted)
+
+    def test_comparator_preserves_validated_nested_output_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output = Path(temporary_directory) / "nested" / "comparison.json"
+            OSV_COMPARATOR.write_report(output, {"results": []})
+            self.assertEqual(
+                json.loads(output.read_text(encoding="utf-8")), {"results": []}
             )
 
     def test_command_writes_comparison_before_returning_new_group_failure(self) -> None:
