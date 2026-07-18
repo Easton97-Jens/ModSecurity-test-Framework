@@ -192,8 +192,8 @@ class FetchCrsProvenanceTests(unittest.TestCase):
     def test_crs_git_sanitizes_untrusted_git_environment(self):
         result, commands, _ = self.invoke_fetch(
             overrides={
-                "GIT_DIR": "/tmp/attacker-git-dir",
-                "GIT_CONFIG_PARAMETERS": "'core.hooksPath=/tmp/attacker-hooks'",
+                "GIT_DIR": "untrusted-git-dir",
+                "GIT_CONFIG_PARAMETERS": "'core.hooksPath=untrusted-hooks'",
                 "GIT_SSL_NO_VERIFY": "1",
                 "GIT_ASKPASS": "/bin/false",
             }

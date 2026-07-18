@@ -1272,12 +1272,14 @@ ci_require_full_git_commit() {
             ci_blocked "$ci_label must be a lowercase hexadecimal Git commit: $ci_commit"
             return 77
             ;;
+        *)
+            if [ "${#ci_commit}" -ne 40 ]; then
+                ci_blocked "$ci_label must be a full 40-character Git commit: $ci_commit"
+                return 77
+            fi
+            return 0
+            ;;
     esac
-    if [ "${#ci_commit}" -ne 40 ]; then
-        ci_blocked "$ci_label must be a full 40-character Git commit: $ci_commit"
-        return 77
-    fi
-    return 0
 }
 
 assert_safe_runtime_path() {
