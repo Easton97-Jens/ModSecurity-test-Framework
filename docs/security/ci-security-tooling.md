@@ -15,6 +15,14 @@ immutable Action SHAs with reviewed version comments, and check out with
 `persist-credentials: false` and `submodules: false`. They do not restore or
 save caches and do not upload arbitrary artifacts.
 
+Every CI-security pull-request checkout explicitly selects the immutable PR
+head rather than GitHub's synthetic merge ref. Workflows that also run outside
+PRs use `github.event.pull_request.head.sha || github.sha`; the Gitleaks
+PR-range job uses the PR head directly and proves the checked-out SHA before
+scanning. The local semantic evidence contract validates these mappings and the
+executable scanner commands after discarding shell comments and excluding
+control-flow bodies, unreachable post-`exit` commands, and uncalled helpers.
+
 Every workflow has an explicit timeout and concurrency behavior. PR and normal
 CI jobs cancel superseded runs for the same workflow/ref. The two scheduled
 maintenance jobs deliberately do not cancel an active run: the common-version
@@ -32,11 +40,11 @@ write`.
 
 | Workflow | Trigger and trust boundary | Control |
 | --- | --- | --- |
-| `ci-security-workflow-lint.yml` | PR, default-branch push, manual | Checksum-verified actionlint with ShellCheck, offline zizmor, immutable-pin/permission/checkout contract, and safe/unsafe fixtures. |
+| `ci-security-workflow-lint.yml` | PR, default-branch push, manual | Checksum-verified actionlint with ShellCheck, offline zizmor, immutable-pin/permission/checkout contracts, parsed semantic evidence validation, and safe/unsafe fixtures. |
 | `ci-security-quality.yml` | PR and default-branch changes to the CI-security Python scope | Checksum-verified Ruff lint/format and Pyright using an exact Node.js runtime. The scope is the CI-security and Change Record checkers, downloader, and their tests. |
-| `ci-security-secrets.yml` | PR, schedule, manual | Gitleaks scans the exact merge-base-to-PR-head range with `--redact=100`; full history is scheduled/manual advisory until findings are triaged. |
-| `ci-security-osv.yml` | PR; scheduled and manual default branch | A checksum-verified OSV Scanner binary compares exact PR base and head dependency-contract blobs without remediation and fails only for newly introduced OSV vulnerability groups. Every revision must provide `requirements-dev.txt`; `requirements-ci.lock` is scanned when it exists. Base, head, and comparison JSON are retained for one day only after regular-file, size, and JSON validation. The named inputs never traverse `tools/MRTS`; scheduled/manual default-branch scans are advisory. |
-| `ci-security-codeql.yml` | PR, default-branch push, schedule, manual | CodeQL analyzes actual Framework languages: GitHub Actions, Python, and C/C++. It selects the `linked` tool bundle packaged with the pinned Action and ignores `tools/MRTS/**`; no Go or JavaScript/TypeScript scope is claimed because those Framework source languages are not present. C/C++ uses CodeQL `build-mode: none` because this bounded source scan must not provision connector or MRTS dependencies. |
+| `ci-security-secrets.yml` | PR, schedule, manual | Gitleaks checks out and proves the exact PR head, then scans the exact merge-base-to-head range with `--redact=100`; full history is scheduled/manual advisory until findings are triaged. |
+| `ci-security-osv.yml` | PR; scheduled and manual default branch | A checksum-verified OSV Scanner binary compares exact PR base and head dependency-contract blobs without remediation and fails only for newly introduced OSV vulnerability groups. Every revision must provide `requirements-dev.txt`; the PR head must provide `requirements-ci.lock`, while a pre-introduction base revision receives a bounded empty optional input. Base, head, and comparison JSON are retained for one day only after regular-file, size, and JSON validation. The named inputs never traverse `tools/MRTS`; scheduled/manual default-branch scans are advisory. |
+| `ci-security-codeql.yml` | PR, default-branch push, schedule, manual | CodeQL uses the exact PR head (and `github.sha` outside PRs), analyzes actual Framework languages—GitHub Actions, Python, and C/C++—selects the pinned Action's `linked` tool bundle, and ignores `tools/MRTS/**`. No Go or JavaScript/TypeScript scope is claimed because those Framework source languages are not present. C/C++ uses CodeQL `build-mode: none` because this bounded source scan must not provision connector or MRTS dependencies. |
 | `ci-security-scorecard.yml` | PR; default-branch push, schedule, manual on the default branch | A checksum-verified OpenSSF Scorecard binary assesses the exact local PR checkout without a GitHub token. The PR result is JSON-validated but artifact-free. Trusted default-branch jobs use the exact `github.sha`, retain one validated bounded JSON file for one day, and remain advisory because no score threshold is imposed; scanner and JSON-validation failures are not advisory. No SARIF is uploaded. |
 | `ci-security-dependency-review.yml` | Dependency-changing PRs | Dependency Review checks high-severity vulnerabilities and runtime/development scopes without automatic remediation or PR comments. |
 
@@ -92,7 +100,8 @@ The security workflows intentionally publish no arbitrary scanner artifacts.
 Gitleaks redacts findings. CodeQL alone uses the GitHub code-scanning SARIF
 channel. OSV validates that its exact-base, exact-head, and comparison files
 are regular bounded JSON objects before retaining that comparison evidence for
-one day. Scorecard validates its PR result without an artifact and retains its
+one day; OSV input reports must additionally satisfy the expected
+result/package/group schema. Scorecard validates its PR result without an artifact and retains its
 bounded current-revision JSON evidence for one day. Neither scanner uploads
 SARIF. GitHub retention and access controls therefore apply separately to
 CodeQL platform records, bounded OSV and Scorecard artifacts, and workflow
@@ -126,6 +135,12 @@ include:
 make test-ci-security-contract
 make check-documentation
 make lint
+```
+
+The dedicated semantic workflow-evidence check is also available as:
+
+```sh
+python3 ci/checks/security/check-ci-security-evidence-contract.py
 ```
 
 The CI workflow additionally exercises the pinned actionlint, zizmor, Ruff,

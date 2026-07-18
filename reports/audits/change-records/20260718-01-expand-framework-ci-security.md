@@ -9,8 +9,11 @@
 | Change ID | 20260718-01-expand-framework-ci-security |
 | UTC date | 2026-07-18 |
 | Framework base revision | cdc91a398d6c156eaff927d742b23018a3817fb6 |
-| Implementation commit | c897c481025fd005a2908d5124d238784d6182f4 |
+| Committed PR history through remote head | `c897c481025fd005a2908d5124d238784d6182f4`; `5b17add799aac8c1c40f31264a5a4e8400740660`; `ec6448660f9e10cc633caed95f9b590c5d3bff1f`; `464c5a8d7292f017f14cbea5d32301205c9524e7`; `a63fa9963153c5aa56f4477713f02e689ee8f7fa`; `5b2a26a41e7621e7b246aa1a060149252cfe3062` |
 | Issue or pull request | [Framework Draft PR #27](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/27) |
+| Current remote Draft PR head | `5b2a26a41e7621e7b246aa1a060149252cfe3062` |
+| Task-owned security follow-up commit | `768a06b5b734547f8213cc6918c26ef4a8ef9f67` (locally committed; not yet covered by remote PR checks) |
+| Delivery state | Draft PR only; final documentation commit, normal push, and exact-head evidence remain required; `verified_pr` has not been reached. |
 
 ## Motivation and problem statement
 
@@ -47,8 +50,10 @@ submodules false; CodeQL additionally ignores tools/MRTS.
    Action pinning, permission declarations, triggers, checkout, timeouts,
    concurrency, and tool-lock structure without changing the common-structure
    product assertion.
-5. Documentation, this record, focused checks, security diff review, and exact
-   PR-head evidence are complete before delivery.
+5. Before this work can be reported as `verified_pr`, documentation, this
+   record, focused checks, a finalized source-diff security review, a committed
+   candidate, and exact remote PR-head evidence must be complete. An open Draft
+   PR may predate the final candidate and is not that evidence.
 
 ## Alternatives considered
 
@@ -74,6 +79,18 @@ non-exact Python selection, unprovisioned downloader dependencies, and missing
 timeouts/concurrency. CI dependency installation is limited to the hash-locked
 PyYAML wheel; standalone security CLIs remain outside the checkout.
 
+The task-owned security follow-up commit adds a semantic workflow-evidence checker rather
+than relying only on textual matches. It verifies executable PR checkout
+references, CodeQL's exact PR head and language/build configuration, and
+Gitleaks' exact PR head, Git-object/range checks, and mandatory redaction. It
+also rejects cache use and unapproved artifact/SARIF channels in the affected
+workflows. The OSV report schema now rejects structurally incomplete or
+overlapping vulnerability groups and requires every listed vulnerability ID to
+be represented by exactly one group. Evidence readers and comparator outputs
+are contained under the runner-temporary root. The CRS version-pinning helper
+uses private `mktemp` files under a validated runner-temporary root rather
+than a predictable `/tmp` path.
+
 The scheduled common-version and artifact-cleanup workflows retain their
 necessary write capabilities but use non-persisted checkout, narrow
 permissions, exact Action pins, explicit timeouts, and non-cancelling
@@ -81,31 +98,40 @@ maintenance concurrency.
 
 ## Changed files and tests
 
-- Hardened all existing tracked workflows; added CI security, quality, secrets,
-  OSV, CodeQL, Scorecard, and dependency-review workflows.
+- Hardened the tracked Framework workflows in the CI-security scope; added CI
+  security, quality, secrets, OSV, CodeQL, Scorecard, and dependency-review
+  workflows.
 - Added a CI dependency lock, tool lock/downloader, security and bounded-JSON
-  evidence checkers, seventeen focused unit tests, positive/negative zizmor
-  fixtures, Ruff config, and Pyright config.
+  evidence checkers, positive/negative zizmor fixtures, Ruff configuration,
+  and Pyright configuration.
+- The task-owned security follow-up adds the semantic workflow-evidence
+  checker, strict OSV group-schema validation, runner-root containment,
+  exact-head CodeQL and Gitleaks controls, and the CRS private-`mktemp` repair.
 - Replaced task-owned mutable-container OSV/Scorecard Action internals with
   checksum-verified release CLIs; selected exact CPython 3.12.13 with
   `check-latest: false`; and bound CodeQL to its linked tool bundle.
 - Added English/German CI-security documentation and documentation-index links.
 - Hardened the `test-common.yml` execution envelope without changing its
   independently governed catalog-count assertion or materialization behavior.
+- The current local CI-security suite contains sixty-four positive and negative
+  tests. They cover the original contracts plus semantic workflow controls,
+  strict OSV evidence/group coverage, downloader containment, and the CRS
+  temporary-path regression.
 
 ## Commands and results
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
-| Focused Framework CI-security and Change-Record tests | 0 | Seventeen task-owned positive/negative contract, runner-containment, OSV/Scorecard-evidence, and Change-Record tests passed. | `20260718T083435Z-expand-framework-ci-security-32892be1` |
-| CI-security contract and workflow-YAML checker | 0 | Contract passed and all 12 tracked workflow files parsed. | Same run |
-| Locked tool downloader | 0 | Eight release assets, including raw OSV Scanner and Scorecard, matched their locked SHA-256 values. | Same run |
+| Focused Framework CI-security suite | 0 | All sixty-four local positive/negative contract, semantic-workflow, strict-OSV-evidence, downloader-containment, lock-path, and CRS-temp-path tests passed. | `20260718T084030Z-expand-framework-ci-security-be8fb24d` |
+| `make test-ci-security-contract` | 0 | The same sixty-four CI-security tests passed through the Framework target. | Same task run |
+| Semantic workflow-evidence checker | 0 | The task-owned source commit satisfies exact-head, artifact/channel, cache, reachability, and OSV evidence constraints. | Same run |
+| `make check-documentation` | 0 | Documentation links, variable docs, path references, and Change-Record contract passed for the local candidate at that point. | Same run |
+| `make lint` | 0 | Framework lint completed, including Python compilation, CI-security tests, workflow YAML, security data-flow, CRS, and documentation checks. | Same run |
 | actionlint with locked ShellCheck | 0 | All 12 tracked workflows passed. | Same run |
-| zizmor over `.github` | 0 | No reportable findings; zizmor reported 19 offline tool suppressions. | Same run |
+| zizmor over `.github` | 0 | No reportable findings; zizmor reported 19 offline-tool suppressions. | Same run |
 | zizmor unsafe fixture | 14 expected | Rejected dangerous trigger and PR-title interpolation. | Same run |
-| Ruff lint and format check | 0 | Task-owned CI-security Python scope passed with cache disabled locally. | Same run |
-| OSV manifest coverage | 0 | OSV recognized one package in each bounded `requirements-dev.txt` and normalized CI lock manifest, then the JSON-evidence checker passed. | Same run |
-| OSV Scanner and Scorecard CLI smoke controls | 0 | Checksum-verified CLIs scanned the current Framework tree without writing inside the checkout. | Same run |
+| Ruff lint and format check | 0 | Task-owned CI-security Python scope passed with a task-owned cache directory. | Same run |
+| Locked tool downloader and scanner smoke controls | 0 | Locked release assets and the OSV/Scorecard smoke controls passed without checkout writes. | Earlier retained task evidence; not a substitute for final-head remote evidence. |
 
 ## Security impact
 
@@ -119,8 +145,11 @@ control proves that a dangerous trigger plus untrusted interpolation is
 rejected. Direct download validation covered raw-binary and archive policies.
 The PR OSV control compares exact-base and exact-head reports and fails only
 for newly introduced vulnerability groups; its retained evidence is size-,
-regular-file-, and JSON-validated. The focused source-diff assessment remains
-pending until the implementation diff is finalized.
+regular-file-, and JSON-validated. The local follow-up adds semantic
+exact-head enforcement for CodeQL and Gitleaks, strict OSV group coverage, and
+runner-root evidence containment. The finalized focused source-diff assessment
+confirmed no High or Critical finding; it remediated three Medium/P2 semantic
+reachability and OSV-base-availability defects with regression coverage.
 
 ## Documentation and runtime evidence
 
@@ -130,15 +159,19 @@ the observed evidence is static CI/source validation.
 
 ## Checks not run
 
-- Local Pyright: blocked because no local Node.js runtime is installed. CI
-  provisions exact Node.js 24.18.0 through a pinned Action.
-- CodeQL, Dependency Review, Gitleaks PR range, SonarQube Cloud, and
-  GitHub-hosted workflow execution: pending exact Draft PR head and remote CI.
-- Clean-candidate `make lint`, documentation checks, final whitespace/secret
-  review, focused security-diff review, commit, push, and Draft PR creation:
-  passed. The excluded FND-FRAMEWORK-0004 CRS validator emitted RTK-read-only
-  `/tmp` diagnostics during the full lint and is not claimed as a passing CRS
-  control.
+- Local Pyright: pending remediation or an available local Node.js runtime; the
+  observed local `node --version` result was unavailable. Declaring pinned CI
+  setup does not substitute for observing the final remote check.
+- Final-candidate remote evidence: task-owned source commit
+  `768a06b5b734547f8213cc6918c26ef4a8ef9f67` and this documentation
+  reconciliation require an intentional normal task-branch push, after which
+  GitHub-hosted PR workflows (including CodeQL, Dependency Review, Gitleaks,
+  OSV, Scorecard, and workflow/quality checks) must be tied to that exact head.
+  Current remote PR evidence applies only to `5b2a26a...`.
+- External governance: the applicable dependency graph/Dependabot result and
+  SonarQube Cloud quality gate require their normal external evidence on the
+  final PR head. The separately tracked SonarQube limitation is not resolved
+  by these local documentation or source checks.
 
 ## Limitations and residual risk
 
@@ -151,9 +184,11 @@ triaged.
 
 ## Final diff and review status
 
-Implementation commit `c897c481025fd005a2908d5124d238784d6182f4` was pushed
-to `agent/expand-framework-ci-security`, and Framework Draft PR #27 is open.
-The staged diff, whitespace/secret review, and focused security-diff assessment
-passed before delivery. There is no merge, Parent gitlink update, Parent
-product/workflow change, or MRTS change. Exact PR-head CI, SonarQube Cloud,
-review, and review-thread verification remain required.
+The committed remote history on `agent/expand-framework-ci-security` currently
+ends at `5b2a26a41e7621e7b246aa1a060149252cfe3062`. The local task-owned
+security follow-up commit is `768a06b5b734547f8213cc6918c26ef4a8ef9f67`; this
+paired documentation reconciliation remains uncommitted. Its final
+whitespace/secret review, exact-head remote CI, SonarQube Cloud, reviews, and
+review-thread verification remain required. There is no merge, Parent gitlink
+update, Parent product/workflow change, or MRTS change. This is a Draft PR, not
+a `verified_pr` delivery state.
