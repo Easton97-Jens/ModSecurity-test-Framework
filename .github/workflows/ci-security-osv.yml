@@ -68,6 +68,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git cat-file -e "$BASE_SHA^{commit}"
           git cat-file -e "$HEAD_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA:requirements-ci.lock"
           prepare_osv_inputs() {
             local revision="$1"
             local input_directory="$2"
@@ -76,15 +77,19 @@ jobs:
             write_osv_input() {
               local input_file="$1"
               local output_file="$2"
+              local optional="$3"
+              if ! git cat-file -e "$revision:$input_file"; then
+                [ "$optional" = "true" ]
+                : > "$input_directory/$output_file"
+                return 0
+              fi
               input_size="$(git cat-file -s "$revision:$input_file")"
               [[ "$input_size" =~ ^[0-9]+$ ]]
               [ "$input_size" -le 1048576 ]
               git show "$revision:$input_file" > "$input_directory/$output_file"
             }
-            write_osv_input requirements-dev.txt requirements-dev.txt
-            if git cat-file -e "$revision:requirements-ci.lock"; then
-              write_osv_input requirements-ci.lock requirements-ci.txt
-            fi
+            write_osv_input requirements-dev.txt requirements-dev.txt false
+            write_osv_input requirements-ci.lock requirements-ci.txt true
           }
           mkdir -p "$RESULTS_DIR"
           scan_osv() {
@@ -92,9 +97,7 @@ jobs:
             local result_file="$2"
             local scanner_status=0
             local -a lockfiles=(--lockfile "$input_directory/requirements-dev.txt")
-            if [ -f "$input_directory/requirements-ci.txt" ]; then
-              lockfiles+=(--lockfile "$input_directory/requirements-ci.txt")
-            fi
+            lockfiles+=(--lockfile "$input_directory/requirements-ci.txt")
             set +e
             "$TOOLS_DIR/osv-scanner" scan source --format json --output-file "$result_file" \
               "${lockfiles[@]}"
@@ -186,6 +189,7 @@ jobs:
           [[ "$REVISION" =~ ^[0-9a-f]{40}$ ]]
           test "$(git rev-parse HEAD)" = "$REVISION"
           git cat-file -e "$REVISION^{commit}"
+          git cat-file -e "$REVISION:requirements-ci.lock"
           mkdir -p "$RESULTS_DIR"
           input_directory="$RESULTS_DIR/current-inputs"
           mkdir -p "$input_directory"
@@ -198,13 +202,9 @@ jobs:
             git show "$REVISION:$input_file" > "$input_directory/$output_file"
           }
           write_osv_input requirements-dev.txt requirements-dev.txt
-          if git cat-file -e "$REVISION:requirements-ci.lock"; then
-            write_osv_input requirements-ci.lock requirements-ci.txt
-          fi
+          write_osv_input requirements-ci.lock requirements-ci.txt
           lockfiles=(--lockfile "$input_directory/requirements-dev.txt")
-          if [ -f "$input_directory/requirements-ci.txt" ]; then
-            lockfiles+=(--lockfile "$input_directory/requirements-ci.txt")
-          fi
+          lockfiles+=(--lockfile "$input_directory/requirements-ci.txt")
           set +e
           "$TOOLS_DIR/osv-scanner" scan source --format json \
             --output-file "$RESULTS_DIR/current.json" \

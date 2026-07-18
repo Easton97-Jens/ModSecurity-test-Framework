@@ -43,6 +43,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           persist-credentials: false
           submodules: false
@@ -83,12 +84,14 @@ jobs:
         run: |
           set -euo pipefail
           "$TOOLS_DIR/ruff" check ci/checks/security/check-ci-security-contract.py \
+            ci/checks/security/check-ci-security-evidence-contract.py \
             ci/checks/security/check-json-result.py \
             ci/checks/security/compare-osv-results.py \
             ci/checks/security/osv_report_schema.py \
             ci/checks/documentation/check-change-records.py \
             ci/tools/fetch-security-tool.py tests/ci_security
           "$TOOLS_DIR/ruff" format --check ci/checks/security/check-ci-security-contract.py \
+            ci/checks/security/check-ci-security-evidence-contract.py \
             ci/checks/security/check-json-result.py \
             ci/checks/security/compare-osv-results.py \
             ci/checks/security/osv_report_schema.py \
