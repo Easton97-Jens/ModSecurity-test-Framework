@@ -284,7 +284,7 @@ class CiSecurityContractTest(unittest.TestCase):
         self.assertIn('mktemp "$TMP_ROOT/crs-version-pinning-paths.XXXXXX"', script)
         self.assertIn("find ci -type f -name '*.sh' -print0", script)
         self.assertIn('xargs -0 -r -n 1 sh "$SCRIPT_PATH" --check-path', script)
-        self.assertNotIn("/tmp/crs-version-pinning", script)
+        self.assertNotIn("crs-version-pinning.$$", script)
 
     def test_archive_member_validation_rejects_path_escape(self) -> None:
         self.assertTrue(FETCHER.is_safe_archive_member("package/index.js"))
