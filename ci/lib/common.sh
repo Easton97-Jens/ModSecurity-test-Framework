@@ -203,7 +203,10 @@ NGINX_SOURCE_REPO_URL="${NGINX_SOURCE_REPO_URL:-${NGINX_GITHUB_REPO:-https://git
 NGINX_GITHUB_REPO="${NGINX_GITHUB_REPO:-$NGINX_SOURCE_REPO_URL}"
 NGINX_RELEASE_TAG="${NGINX_RELEASE_TAG:-release-1.31.2}"
 NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF:-$NGINX_RELEASE_TAG}"
-# NGINX Git checkout mode does not use a tarball checksum.
+# No unchecked NGINX release archive is permitted. Keep the default empty
+# rather than inventing an unverified upstream value; prepare-nginx-build.sh
+# rejects an unset, malformed, or mismatching caller-supplied digest before it
+# selects, downloads, caches, or extracts an archive.
 NGINX_SHA256="${NGINX_SHA256:-}"
 
 # Managed NGINX protocol builds are deliberately explicit.  The default keeps

@@ -87,7 +87,9 @@ ARTIFACTS_FILE="$LOG_DIR/artifacts.txt"
 RESOLVED_NGINX_RELEASE_TAG=
 NGINX_ARCHIVE_URL=
 NGINX_ARCHIVE=
+NGINX_VERIFIED_ARCHIVE=
 NGINX_ARCHIVE_SHA256_LOCAL=
+NGINX_SHA256_CANONICAL=
 NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL=
 NGINX_PROTOCOL_BUILD_CACHE_KEY=
 
@@ -129,9 +131,45 @@ validate_nginx_protocol_profile() {
 validate_pinned_sha256() {
     value=$1
     label=$2
-    if ! printf '%s\n' "$value" | grep -Eq '^[[:xdigit:]]{64}$'; then
+    if [ "${#value}" -ne 64 ] || \
+        ! printf '%s' "$value" | LC_ALL=C grep -Eq '^[0-9A-Fa-f]{64}$'; then
         blocked "$label must be a pinned 64-character SHA-256 value"
     fi
+}
+
+validate_nginx_archive_configuration() {
+    validate_pinned_sha256 "$NGINX_SHA256" NGINX_SHA256
+    NGINX_SHA256_CANONICAL=$(printf '%s' "$NGINX_SHA256" | tr '[:upper:]' '[:lower:]')
+    ci_require_safe_ref "$NGINX_RELEASE_TAG" NGINX_RELEASE_TAG || \
+        blocked "NGINX_RELEASE_TAG must be a safe release reference"
+    ci_require_safe_ref "$NGINX_SOURCE_GIT_REF" NGINX_SOURCE_GIT_REF || \
+        blocked "NGINX_SOURCE_GIT_REF must be a safe source reference"
+}
+
+verify_nginx_archive_digest() {
+    archive=$1
+    label=$2
+    [ -f "$archive" ] || blocked "$label is not a regular NGINX archive: $archive"
+    NGINX_ARCHIVE_SHA256_LOCAL=$(sha256sum "$archive" | awk '{print $1}')
+    validate_pinned_sha256 "$NGINX_ARCHIVE_SHA256_LOCAL" "$label local SHA-256"
+    if [ "$NGINX_ARCHIVE_SHA256_LOCAL" != "$NGINX_SHA256_CANONICAL" ]; then
+        blocked "NGINX_SHA256 mismatch for $archive"
+    fi
+}
+
+stage_verified_nginx_archive() {
+    verified_dir="$NGINX_BUILD_DIR/verified-archives"
+    NGINX_VERIFIED_ARCHIVE="$verified_dir/nginx-$RESOLVED_NGINX_RELEASE_TAG.tar.gz"
+    verified_tmp="$verified_dir/.nginx-$RESOLVED_NGINX_RELEASE_TAG.tar.gz.$$"
+
+    mkdir -p "$verified_dir"
+    run_blocked nginx-source-stage-verified "$DOWNLOAD_DIR" \
+        cp "$NGINX_ARCHIVE" "$verified_tmp"
+    verify_nginx_archive_digest "$verified_tmp" "staged NGINX archive"
+    if ! mv "$verified_tmp" "$NGINX_VERIFIED_ARCHIVE"; then
+        blocked "could not finalize verified NGINX archive: $NGINX_VERIFIED_ARCHIVE"
+    fi
+    verify_nginx_archive_digest "$NGINX_VERIFIED_ARCHIVE" "verified NGINX extraction archive"
 }
 
 nginx_connector_patchset_sha256() {
@@ -496,6 +534,8 @@ resolve_nginx_release_tag() {
     repo_path=$(github_repo_path)
     if [ "$NGINX_RELEASE_TAG" != "latest" ]; then
         RESOLVED_NGINX_RELEASE_TAG="$NGINX_RELEASE_TAG"
+        ci_require_safe_ref "$RESOLVED_NGINX_RELEASE_TAG" RESOLVED_NGINX_RELEASE_TAG || \
+            blocked "resolved NGINX release tag must be safe"
         NGINX_ARCHIVE_URL="https://github.com/$repo_path/archive/refs/tags/$RESOLVED_NGINX_RELEASE_TAG.tar.gz"
         return 0
     fi
@@ -540,22 +580,37 @@ PY
         blocked "failed to parse GitHub latest release response; see $LOG_DIR/nginx-latest-release-parse.log"
     fi
     [ -n "$RESOLVED_NGINX_RELEASE_TAG" ] || blocked "GitHub latest release response did not include tag_name"
+    ci_require_safe_ref "$RESOLVED_NGINX_RELEASE_TAG" RESOLVED_NGINX_RELEASE_TAG || \
+        blocked "resolved NGINX release tag must be safe"
     NGINX_ARCHIVE_URL="https://github.com/$repo_path/archive/refs/tags/$RESOLVED_NGINX_RELEASE_TAG.tar.gz"
 }
 
 download_nginx_source() {
+    # Defend the archive trust boundary again at the point of use.  This must
+    # happen before a latest lookup, cache selection, or archive download.
+    validate_nginx_archive_configuration
     require_command curl "download NGINX GitHub archive"
     require_command tar "extract NGINX GitHub archive"
-    require_command sha256sum "record NGINX archive checksum"
+    require_command sha256sum "verify NGINX archive checksum"
     mkdir -p "$DOWNLOAD_DIR"
     resolve_nginx_release_tag
     NGINX_ARCHIVE="$DOWNLOAD_DIR/nginx-$RESOLVED_NGINX_RELEASE_TAG.tar.gz"
     echo "nginx_poc: resolved nginx release tag=$RESOLVED_NGINX_RELEASE_TAG"
     echo "nginx_poc: nginx archive url=$NGINX_ARCHIVE_URL"
-    run_blocked nginx-source-download "$DOWNLOAD_DIR" curl -L --fail --retry 3 --retry-delay 2 -o "$NGINX_ARCHIVE" "$NGINX_ARCHIVE_URL"
-    local_sha=$(sha256sum "$NGINX_ARCHIVE" | awk '{print $1}')
-    NGINX_ARCHIVE_SHA256_LOCAL=$local_sha
-    echo "nginx_poc: nginx archive sha256(local)=$local_sha"
+    if [ -f "$NGINX_ARCHIVE" ] && [ "$REFRESH" != "1" ]; then
+        echo "nginx_poc: reusing cached nginx archive=$NGINX_ARCHIVE"
+    else
+        download_tmp="$NGINX_ARCHIVE.download.$$"
+        run_blocked nginx-source-download "$DOWNLOAD_DIR" \
+            curl -L --fail --retry 3 --retry-delay 2 -o "$download_tmp" "$NGINX_ARCHIVE_URL"
+        if ! mv "$download_tmp" "$NGINX_ARCHIVE"; then
+            blocked "could not place downloaded NGINX archive: $NGINX_ARCHIVE"
+        fi
+    fi
+
+    verify_nginx_archive_digest "$NGINX_ARCHIVE" "selected NGINX archive"
+    stage_verified_nginx_archive
+    echo "nginx_poc: nginx archive sha256(verified)=$NGINX_ARCHIVE_SHA256_LOCAL"
     {
         echo "nginx_source_mode=$NGINX_SOURCE_MODE"
         echo "nginx_source_repo_url=$NGINX_SOURCE_REPO_URL"
@@ -564,20 +619,15 @@ download_nginx_source() {
         echo "nginx_source_git_ref=$NGINX_SOURCE_GIT_REF"
         echo "nginx_release_tag_resolved=$RESOLVED_NGINX_RELEASE_TAG"
         echo "nginx_archive_url=$NGINX_ARCHIVE_URL"
-        echo "nginx_archive=$NGINX_ARCHIVE"
-        echo "nginx_archive_sha256_local=$local_sha"
+        echo "nginx_archive_candidate=$NGINX_ARCHIVE"
+        echo "nginx_archive=$NGINX_VERIFIED_ARCHIVE"
+        echo "nginx_archive_sha256_expected=$NGINX_SHA256_CANONICAL"
+        echo "nginx_archive_sha256_local=$NGINX_ARCHIVE_SHA256_LOCAL"
+        echo "nginx_archive_sha256_verified=1"
     } >> "$ARTIFACTS_FILE"
-    if [ -n "$NGINX_SHA256" ]; then
-        if [ "$local_sha" != "$NGINX_SHA256" ]; then
-            blocked "NGINX_SHA256 mismatch for $NGINX_ARCHIVE"
-        fi
-        echo "nginx_archive_sha256_verified=1" >> "$ARTIFACTS_FILE"
-        echo "pass: nginx archive sha256 verified" >> "$STATUS_FILE"
-    else
-        echo "nginx_archive_sha256_verified=0; local hash recorded only" >> "$ARTIFACTS_FILE"
-    fi
+    echo "pass: nginx archive sha256 verified" >> "$STATUS_FILE"
     mkdir -p "$NGINX_SOURCE_DIR"
-    run_blocked nginx-source-extract "$DOWNLOAD_DIR" tar -xf "$NGINX_ARCHIVE" -C "$NGINX_SOURCE_DIR" --strip-components=1
+    run_blocked nginx-source-extract "$DOWNLOAD_DIR" tar -xf "$NGINX_VERIFIED_ARCHIVE" -C "$NGINX_SOURCE_DIR" --strip-components=1
 }
 
 write_git_info() {
@@ -746,6 +796,7 @@ echo "nginx_poc: NGINX_SOURCE_GIT_REF=$NGINX_SOURCE_GIT_REF"
 echo "nginx_poc: NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE"
 
 validate_nginx_protocol_profile
+validate_nginx_archive_configuration
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
 require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"
 require_absolute_generated_path "$NGINX_SOURCE_DIR" "NGINX_SOURCE_DIR"
