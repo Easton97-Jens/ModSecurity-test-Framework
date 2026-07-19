@@ -8,9 +8,10 @@
 | --- | --- |
 | Change ID | `20260718-01-fix-framework-crs-ref-provenance` |
 | UTC date | `2026-07-18` |
-| Framework base revision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue or pull request | Framework Draft PR #26; current-task integration remains subject to exact-head checks and the authorized merge gates. |
-| Reconciliation base revision | `e3b9903ddd2607d131e419ff780acbcee14ace3c`; local synchronization merge `60b8a4c49ca57f74ea4a0d8dec6e3f8c3fd5174a` is not yet pushed. |
+| Original Framework base revision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
+| Reconciled Framework base revision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| Issue or pull request | Framework Draft PR #26 (`codex/fix-framework-crs-ref-provenance`), requiring a new exact-head non-force-push verification cycle. |
+| Earlier reconciliation evidence | `e3b9903ddd2607d131e419ff780acbcee14ace3c`; the current normal master reconciliation supersedes the unpublished local synchronization state. |
 
 ## Motivation and problem statement
 
@@ -32,6 +33,17 @@ before a Git operation.
 The security boundary is Framework CRS source provenance only. Parent code and
 the Parent gitlink are not changed; MRTS remains untouched and uninitialized in
 this task worktree.
+
+## 2026-07-19 master reconciliation
+
+The published #26 head predated Framework master
+`9954b99a31fab0006cdf903ab477c8158c50fea8`. A normal non-rewriting merge was
+resolved additively in the version updater: the CRS reviewed-release/immutable-
+commit guard remains while current-master NGINX release-tag/exact-release-
+asset/required-SHA-256 provenance, its updater check and regressions, PCRE2
+digest enforcement, workflow full-SHA controls, and common-structure controls
+remain inherited unchanged. The reconciled direct diff contains only the
+twelve intended CRS-provenance paths.
 
 ## Acceptance criteria
 
@@ -108,6 +120,10 @@ generate an unreviewed tag-to-commit update.
 | `rtk make lint` with repository-root `OUTPUT_ROOT` and task-owned cache/temp paths | `0` | Framework lint passed. An earlier external `OUTPUT_ROOT` attempt was rejected by the lint harness before source analysis. | Task run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
 | `rtk sh ci/checks/catalog/check-crs-version-pinning.sh` | `0` | Direct pinning check passed after sandboxed lint exposed its fixed-`/tmp` temporary-file limitation. | Task run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
 | `rtk git diff --check` | `0` | Current Framework diff has no whitespace errors. | Task worktree |
+| `rtk env … make test-crs-provenance-contract test-workflow-action-pins test-workflow-contract` | `0` | 10 CRS, 21 workflow-action-pin, and 2 common-structure contract tests passed on the reconciled worktree. | `20260719T081017Z-framework-pr-resolution-20260719-840082e0/build/pr26-reconciliation.7k83wI` |
+| `rtk env … python3 -m unittest -v tests.security_regression.test_nginx_archive_digest tests.security_regression.test_nginx_release_provenance tests.security_regression.test_pcre2_archive_digest` | `0` | 15 NGINX/PCRE2 archive-integrity and provenance regressions passed on the reconciled worktree. | `20260719T081017Z-framework-pr-resolution-20260719-840082e0/build/pr26-reconciliation.7k83wI` |
+| `rtk env … sh -n …; sh ci/checks/catalog/check-crs-version-pinning.sh` | `0` | Changed shell paths parse and the approved CRS control passes; `CRS_GIT_REF=main` independently blocks with exit `77`. | task-owned temporary path |
+| `rtk env FRAMEWORK_ROOT=<PR #26 worktree> … make lint` | `0` | Final repository-native lint passed with the reconciled Framework root and external bytecode/temp paths. | task-owned build path |
 | Framework Draft-PR CI and SonarQube Cloud | Pending | Recorded only after observed exact-head completion. | Pending |
 
 ## Security impact
@@ -131,8 +147,9 @@ mocked Git provenance testing and does not download CRS content.
 
 ## Checks not run
 
-- Framework Draft-PR CI and SonarQube Cloud are pending the requested
-  Framework Draft PR and exact-head check completion.
+- Framework Draft-PR CI, SonarQube Cloud, review, and review-thread checks
+  require the new exact-head non-force-push cycle. Older head results do not
+  count as evidence for the reconciled head.
 - A real network CRS fetch and dynamic upstream tag mutation are not run:
   both exceed the scoped mocked-proof/non-download contract.
 
@@ -147,8 +164,12 @@ identity, not a signed release-attestation chain.
 
 ## Final diff and review status
 
-The local source/test/documentation review and whitespace check passed.
-Independent Codex Security revalidation reported no blocking source-control
-bypass under the documented trust limits. The task will record exact Framework
-commit/push/Draft-PR facts, current-head CI and SonarQube results, and the
-required no-merge/Parent/MRTS integrity evidence before delivery.
+The reconciled local source/test/documentation review, final lint, and
+whitespace check passed. Independent Codex Security revalidation reported no
+blocking source-control bypass under the documented trust limits. The direct
+diff against Framework master is limited to the twelve intended CRS paths;
+master-only NGINX, PCRE2, workflow, runner, fixture, and Change-Record
+controls remain inherited unchanged. A normal follow-up merge commit and
+non-force push establish the exact head for new PR CI, SonarQube, review, and
+thread evidence. No Framework-master merge, Parent gitlink update, or MRTS
+change is authorized.
