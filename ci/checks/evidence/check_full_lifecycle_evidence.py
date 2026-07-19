@@ -42,6 +42,7 @@ FIRST_BYTE_EVENT_FIELDS = (
     "body_bytes_seen",
     "body_bytes_inspected",
 )
+WORKLOAD_IDENTITY_FIELDS = ("connector", "run_id", "integration_mode")
 BASE_CHECKS = (
     "schema",
     "completeness",
@@ -156,10 +157,58 @@ def _requires_no_buffer_proof(
     )
 
 
+def _selected_workload_identity(
+    result: Mapping[str, Any], manifest: Mapping[str, Any]
+) -> dict[str, str] | None:
+    identity: dict[str, str] = {}
+    for field in WORKLOAD_IDENTITY_FIELDS:
+        result_value = result.get(field)
+        manifest_value = manifest.get(field)
+        if (
+            not isinstance(result_value, str)
+            or not result_value
+            or result_value != manifest_value
+        ):
+            return None
+        identity[field] = result_value
+    return identity
+
+
+def _selected_phase4_transaction_ids(
+    records: list[dict[str, Any]], identity: Mapping[str, str], case_id: str
+) -> set[str]:
+    transaction_ids: set[str] = set()
+    for record in records:
+        if (
+            record.get("case_id") != case_id
+            or record.get("status") != "PASS"
+            or record.get("live_executed") is not True
+            or any(record.get(field) != value for field, value in identity.items())
+        ):
+            continue
+        transaction_ids.update(no_crs.supplied_transaction_ids(record))
+    return transaction_ids
+
+
 def _matching_first_byte_event(
-    events: list[dict[str, Any]], evidence: Mapping[str, Any]
+    events: list[dict[str, Any]],
+    evidence: Mapping[str, Any],
+    result: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    records: list[dict[str, Any]],
+    case_id: str,
 ) -> bool:
+    identity = _selected_workload_identity(result, manifest)
+    if identity is None:
+        return False
+    transaction_ids = _selected_phase4_transaction_ids(records, identity, case_id)
+    if not transaction_ids:
+        return False
     for event in events:
+        if any(event.get(field) != value for field, value in identity.items()):
+            continue
+        if not transaction_ids.intersection(no_crs.event_transaction_ids(event)):
+            continue
         if no_crs.normalize_canonical_phase(event.get("phase")) != 4:
             continue
         if event.get("rule_id") not in {1100301, "1100301"}:
@@ -171,24 +220,30 @@ def _matching_first_byte_event(
 
 def _strict_first_byte_errors(
     evidence: Mapping[str, Any],
+    result: Mapping[str, Any],
+    manifest: Mapping[str, Any],
     records: list[dict[str, Any]],
     events: list[dict[str, Any]],
     *,
+    case_id: str,
     require_case: bool,
 ) -> list[str]:
     errors = first_byte_evidence_errors(
         evidence, require_real_host=True, require_complete_proof=True
     )
-    if require_case and not _passed_case(records, "phase4_first_byte_before_response_end"):
-        errors.append("phase4_first_byte_before_response_end lacks a live canonical PASS")
-    if not _matching_first_byte_event(events, evidence):
-        errors.append("no phase-4 rule-1100301 event matches the first-byte barrier evidence")
+    if require_case and not _passed_case(records, case_id):
+        errors.append(f"{case_id} lacks a live canonical PASS")
+    if not _matching_first_byte_event(events, evidence, result, manifest, records, case_id):
+        errors.append(
+            "no phase-4 rule-1100301 event matches the selected workload identity "
+            "and first-byte barrier evidence"
+        )
     return errors
 
 
 def first_byte_errors(run_dir: Path, *, require_case: bool = True) -> list[str]:
-    result, _manifest, evidence, errors = _first_byte_artifact(run_dir)
-    if result is None:
+    result, manifest, evidence, errors = _first_byte_artifact(run_dir)
+    if result is None or manifest is None:
         return errors
     connector = str(result.get("connector") or "")
     errors.extend(_canonical_base_errors(run_dir, connector))
@@ -208,8 +263,11 @@ def first_byte_errors(run_dir: Path, *, require_case: bool = True) -> list[str]:
         errors.extend(
             _strict_first_byte_errors(
                 evidence,
+                result,
+                manifest,
                 records,
                 events,
+                case_id="phase4_first_byte_before_response_end",
                 require_case=require_case,
             )
         )
@@ -218,9 +276,9 @@ def first_byte_errors(run_dir: Path, *, require_case: bool = True) -> list[str]:
 
 def no_full_response_buffering_errors(run_dir: Path) -> list[str]:
     errors = first_byte_errors(run_dir, require_case=True)
-    result, _manifest, evidence, artifact_errors = _first_byte_artifact(run_dir)
+    result, manifest, evidence, artifact_errors = _first_byte_artifact(run_dir)
     # Avoid duplicate diagnostics already returned by first_byte_errors.
-    if result is None or artifact_errors or evidence is None:
+    if result is None or manifest is None or artifact_errors or evidence is None:
         return errors
     records, record_errors = _case_records(run_dir)
     errors.extend(record_errors)
@@ -231,8 +289,11 @@ def no_full_response_buffering_errors(run_dir: Path) -> list[str]:
     errors.extend(
         _strict_first_byte_errors(
             evidence,
+            result,
+            manifest,
             records,
             events,
+            case_id="phase4_no_full_response_buffering",
             require_case=False,
         )
     )
