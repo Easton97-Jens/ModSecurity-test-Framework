@@ -10,6 +10,10 @@ import textwrap
 import unittest
 from unittest.mock import patch
 
+from tests.ci_security.workflow_contract_test_support import (
+    assert_rejects_unsafe_workflow_controls,
+)
+
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER_PATH = ROOT / "ci/checks/security/check-ci-security-contract.py"
@@ -198,28 +202,7 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         self.assertTrue(any("full immutable commit SHA" in error for error in errors))
 
     def test_contract_rejects_broad_controls_and_unlocked_container(self) -> None:
-        data = {
-            "permissions": "write-all",
-            "concurrency": {"group": "", "cancel-in-progress": "true"},
-            "jobs": {
-                "check": {
-                    "timeout-minutes": True,
-                    "env": {"GITHUB_TOKEN": "${{ github.token }}"},
-                }
-            },
-        }
-        errors = CHECKER.workflow_contract_errors(Path("unsafe-controls.yml"), "", data)
-        self.assertTrue(
-            any("permissions must be a mapping" in error for error in errors)
-        )
-        self.assertTrue(any("non-empty group" in error for error in errors))
-        self.assertTrue(any("cancel-in-progress" in error for error in errors))
-        self.assertTrue(
-            any("positive integer timeout-minutes" in error for error in errors)
-        )
-        self.assertTrue(
-            any("must not expose GITHUB_TOKEN" in error for error in errors)
-        )
+        assert_rejects_unsafe_workflow_controls(self, CHECKER.workflow_contract_errors)
         actions, _tools, lock_errors = CHECKER.load_lock(LOCK_PATH)
         self.assertFalse(lock_errors, "\n".join(lock_errors))
         container_errors = CHECKER.pin_errors(
