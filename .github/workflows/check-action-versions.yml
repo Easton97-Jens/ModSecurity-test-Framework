@@ -9,6 +9,10 @@ on:
       - "ci/checks/security/**"
       - "ci/tooling/security-tools.lock.yml"
       - "requirements-ci.lock"
+      - "tests/security_regression/test_workflow_action_pins.py"
+      - "tests/security_regression/test_workflow_security_contract.py"
+      - "tests/fixtures/workflow_security_contract/**"
+      - "Makefile"
 
 permissions:
   contents: read
@@ -49,6 +53,7 @@ jobs:
       - name: Validate immutable Action pins and CI security contracts
         run: |
           set -euo pipefail
+          python3 ci/checks/security/check-github-actions-workflows.py --check pins
           python3 ci/checks/security/check-workflow-action-pins.py
           python3 ci/checks/security/check-ci-security-contract.py
           python3 ci/checks/security/check-ci-security-evidence-contract.py

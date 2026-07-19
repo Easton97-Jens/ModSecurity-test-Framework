@@ -175,9 +175,9 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
         self.assertFalse(errors, "\n".join(errors))
 
     def test_codeql_checkout_and_gitleaks_redaction_are_fail_closed(self) -> None:
-        codeql_path = ROOT / ".github/workflows/ci-security-codeql.yml"
+        codeql_path = ROOT / ".github/workflows/ci-security-codeql-pr.yml"
         codeql = codeql_path.read_text(encoding="utf-8").replace(
-            "${{ github.event.pull_request.head.sha || github.sha }}",
+            "${{ github.event.pull_request.head.sha }}",
             "${{ github.sha }}",
             1,
         )
@@ -196,6 +196,40 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
             secrets_path, CHECKER.yaml.safe_load(secrets)
         )
         self.assertTrue(any("--redact=100" in error for error in secrets_errors))
+
+    def test_codeql_security_events_write_is_trusted_only(self) -> None:
+        pull_request_path = ROOT / ".github/workflows/ci-security-codeql-pr.yml"
+        pull_request = pull_request_path.read_text(encoding="utf-8").replace(
+            "    permissions:\n      contents: read\n",
+            "    permissions:\n      contents: read\n      security-events: write\n",
+            1,
+        )
+        pull_request_errors = CHECKER.workflow_errors(
+            pull_request_path, CHECKER.yaml.safe_load(pull_request)
+        )
+        self.assertTrue(
+            any(
+                "must not grant security-events: write" in error
+                for error in pull_request_errors
+            ),
+            "\n".join(pull_request_errors),
+        )
+
+        trusted_path = ROOT / ".github/workflows/ci-security-codeql.yml"
+        trusted = trusted_path.read_text(encoding="utf-8").replace(
+            "on:\n  push:\n",
+            "on:\n  pull_request:\n    branches:\n      - master\n  push:\n",
+            1,
+        )
+        trusted_errors = CHECKER.workflow_errors(
+            trusted_path, CHECKER.yaml.safe_load(trusted)
+        )
+        self.assertTrue(
+            any(
+                "must not run on pull_request" in error for error in trusted_errors
+            ),
+            "\n".join(trusted_errors),
+        )
 
     def test_workflow_lint_requires_a_pr_head_checkout(self) -> None:
         path = ROOT / ".github/workflows/ci-security-workflow-lint.yml"

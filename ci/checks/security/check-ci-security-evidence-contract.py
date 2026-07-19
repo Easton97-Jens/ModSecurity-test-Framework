@@ -12,6 +12,7 @@ import yaml
 
 
 WORKFLOW_NAMES = (
+    "ci-security-codeql-pr.yml",
     "ci-security-codeql.yml",
     "ci-security-osv.yml",
     "ci-security-quality.yml",
@@ -19,6 +20,9 @@ WORKFLOW_NAMES = (
     "ci-security-secrets.yml",
     "ci-security-workflow-lint.yml",
 )
+CODEQL_PR_WORKFLOW = "ci-security-codeql-pr.yml"
+CODEQL_TRUSTED_WORKFLOW = "ci-security-codeql.yml"
+CODEQL_LANGUAGES = ["actions", "python", "c-cpp"]
 CHECKOUT = "actions/checkout@"
 UPLOAD_ARTIFACT = "actions/upload-artifact@"
 PR_HEAD = "${{ github.event.pull_request.head.sha }}"
@@ -416,6 +420,17 @@ def has_write_permission(data: dict[str, Any], permission: str) -> bool:
     )
 
 
+def workflow_events(data: dict[str, Any]) -> set[str]:
+    raw_events = data.get("on", data.get(True))
+    if isinstance(raw_events, str):
+        return {raw_events}
+    if isinstance(raw_events, dict):
+        return {str(event) for event in raw_events}
+    if isinstance(raw_events, list):
+        return {str(event) for event in raw_events}
+    return set()
+
+
 def osv_errors(path: Path, data: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     pull_request, job_errors = required_job(path, data, "pull-request-head")
@@ -648,36 +663,51 @@ def scorecard_errors(path: Path, data: dict[str, Any]) -> list[str]:
     return errors
 
 
-def codeql_errors(path: Path, data: dict[str, Any]) -> list[str]:
+def codeql_analysis_errors(
+    path: Path,
+    data: dict[str, Any],
+    *,
+    job_name: str,
+    expected_ref: str,
+    expected_condition: str | None,
+    analyze_step_name: str,
+    expected_upload: str,
+    requires_security_events_write: bool,
+) -> list[str]:
     errors: list[str] = []
-    analyze, job_errors = required_job(path, data, "analyze")
+    analyze, job_errors = required_job(path, data, job_name)
     errors.extend(job_errors)
     if analyze is None:
         return errors
+    if expected_condition is not None:
+        errors.extend(require_condition(path, job_name, analyze, expected_condition))
     permissions = analyze.get("permissions")
     if not isinstance(permissions, dict) or permissions.get("contents") != "read":
         errors.append(f"{path}: CodeQL must retain contents: read")
-    if (
-        not isinstance(permissions, dict)
-        or permissions.get("security-events") != "write"
-    ):
-        errors.append(f"{path}: CodeQL must retain scoped security-events: write")
+    if requires_security_events_write:
+        if (
+            not isinstance(permissions, dict)
+            or permissions.get("security-events") != "write"
+        ):
+            errors.append(
+                f"{path}: trusted CodeQL upload must retain scoped security-events: write"
+            )
+    elif has_write_permission(data, "security-events"):
+        errors.append(
+            f"{path}: pull-request CodeQL must not grant security-events: write"
+        )
     strategy = analyze.get("strategy")
     matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
-    if not isinstance(matrix, dict) or matrix.get("language") != [
-        "actions",
-        "python",
-        "c-cpp",
-    ]:
+    if not isinstance(matrix, dict) or matrix.get("language") != CODEQL_LANGUAGES:
         errors.append(f"{path}: CodeQL must scan actions, python, and c-cpp")
-    steps, step_errors = job_steps(path, "analyze", analyze)
+    steps, step_errors = job_steps(path, job_name, analyze)
     errors.extend(step_errors)
     if step_errors:
         return errors
-    errors.extend(require_checkout(path, "analyze", steps, DEFAULT_OR_PR_HEAD, 1))
+    errors.extend(require_checkout(path, job_name, steps, expected_ref, 1))
     init, init_errors = step_by_field(
         path,
-        "analyze",
+        job_name,
         steps,
         "name",
         "Initialize CodeQL for actual Framework languages",
@@ -709,9 +739,68 @@ def codeql_errors(path: Path, data: dict[str, Any]) -> list[str]:
             if not isinstance(ignored, list) or "tools/MRTS/**" not in ignored:
                 errors.append(f"{path}: CodeQL must exclude tools/MRTS/**")
     _analyze, analyze_errors = step_by_field(
-        path, "analyze", steps, "name", "Analyze bounded Framework source"
+        path, job_name, steps, "name", analyze_step_name
     )
     errors.extend(analyze_errors)
+    if _analyze is not None:
+        settings = _analyze.get("with")
+        if not isinstance(settings, dict):
+            errors.append(f"{path}: CodeQL analyze step must declare a with mapping")
+        elif settings.get("upload") != expected_upload:
+            errors.append(
+                f"{path}: CodeQL analyze step must set upload: {expected_upload}"
+            )
+        elif expected_upload == "never" and settings.get("upload-database") is not False:
+            errors.append(
+                f"{path}: pull-request CodeQL must set upload-database: false"
+            )
+    return errors
+
+
+def codeql_pull_request_errors(path: Path, data: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    events = workflow_events(data)
+    if events != {"pull_request"}:
+        errors.append(
+            f"{path}: pull-request CodeQL must be triggered only by pull_request"
+        )
+    errors.extend(
+        codeql_analysis_errors(
+            path,
+            data,
+            job_name="analyze-pull-request",
+            expected_ref=PR_HEAD,
+            expected_condition="github.event_name == 'pull_request'",
+            analyze_step_name="Analyze bounded pull-request source without upload",
+            expected_upload="never",
+            requires_security_events_write=False,
+        )
+    )
+    return errors
+
+
+def codeql_trusted_errors(path: Path, data: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    events = workflow_events(data)
+    if "pull_request" in events:
+        errors.append(f"{path}: trusted CodeQL upload must not run on pull_request")
+    required_events = {"push", "schedule", "workflow_dispatch"}
+    if not required_events.issubset(events):
+        errors.append(
+            f"{path}: trusted CodeQL upload must retain push, schedule, and workflow_dispatch triggers"
+        )
+    errors.extend(
+        codeql_analysis_errors(
+            path,
+            data,
+            job_name="analyze-trusted",
+            expected_ref="${{ github.sha }}",
+            expected_condition=None,
+            analyze_step_name="Analyze bounded Framework source",
+            expected_upload="always",
+            requires_security_events_write=True,
+        )
+    )
     return errors
 
 
@@ -852,7 +941,8 @@ def boundary_errors(path: Path, data: dict[str, Any]) -> list[str]:
             if (
                 path.name
                 in {
-                    "ci-security-codeql.yml",
+                    CODEQL_PR_WORKFLOW,
+                    CODEQL_TRUSTED_WORKFLOW,
                     "ci-security-quality.yml",
                     "ci-security-secrets.yml",
                     "ci-security-workflow-lint.yml",
@@ -901,8 +991,10 @@ def workflow_errors(path: Path, data: dict[str, Any]) -> list[str]:
         return [*osv_errors(path, data), *boundary_errors(path, data)]
     if path.name == "ci-security-scorecard.yml":
         return [*scorecard_errors(path, data), *boundary_errors(path, data)]
-    if path.name == "ci-security-codeql.yml":
-        return [*codeql_errors(path, data), *boundary_errors(path, data)]
+    if path.name == CODEQL_PR_WORKFLOW:
+        return [*codeql_pull_request_errors(path, data), *boundary_errors(path, data)]
+    if path.name == CODEQL_TRUSTED_WORKFLOW:
+        return [*codeql_trusted_errors(path, data), *boundary_errors(path, data)]
     if path.name == "ci-security-secrets.yml":
         return [*gitleaks_errors(path, data), *boundary_errors(path, data)]
     if path.name in {"ci-security-quality.yml", "ci-security-workflow-lint.yml"}:

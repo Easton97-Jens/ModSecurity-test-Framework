@@ -2,7 +2,8 @@ name: CI security Python quality
 
 on:
   push:
-    branches: [master]
+    branches:
+      - master
     paths:
       - "ci/checks/security/**"
       - "ci/checks/documentation/check-change-records.py"

@@ -13,6 +13,7 @@ status=0
 tmp_file=
 path_list=
 
+ci_require_absolute_path "$TMP_ROOT" TMP_ROOT || exit 77
 assert_safe_runtime_path "$TMP_ROOT" "CRS version-pinning temporary directory" || exit 77
 if ! mkdir -p "$TMP_ROOT"; then
     ci_error "cannot create CRS version-pinning temporary directory: $TMP_ROOT"
@@ -28,32 +29,41 @@ path_list=$(mktemp "$TMP_ROOT/crs-version-pinning-paths.XXXXXX") || {
     exit 2
 }
 
+check_literal() {
+    path=$1
+    literal=$2
+    variable=$3
+    if [ -n "$literal" ]; then
+        if grep -nF "$literal" "$path" >"$tmp_file" 2>/dev/null; then
+            cat "$tmp_file"
+            ci_error "$variable literal must be defined only in ci/lib/common.sh: $path"
+            status=1
+        else
+            grep_status=$?
+            if [ "$grep_status" -gt 1 ]; then
+                ci_error "cannot scan $variable literal in: $path"
+                status=1
+            fi
+        fi
+    fi
+}
+
 check_path() {
     path=$1
     case "$path" in
         ci/lib/common.sh) return 0 ;;
     esac
-    if [ -n "$CRS_GIT_REF" ]; then
-        if grep -nF "$CRS_GIT_REF" "$path" >"$tmp_file" 2>/dev/null; then
-            cat "$tmp_file"
-            ci_error "CRS version literal must be defined only in ci/lib/common.sh: $path"
-            status=1
-        else
-            grep_status=$?
-            if [ "$grep_status" -gt 1 ]; then
-                ci_error "cannot scan CRS version literals in: $path"
-                status=1
-            fi
-        fi
-    fi
-    if grep -nE 'CRS_GIT_REF[[:space:]]*[:?+]?=' "$path" >"$tmp_file" 2>/dev/null; then
+    check_literal "$path" "$CRS_APPROVED_REPO_URL" CRS_APPROVED_REPO_URL
+    check_literal "$path" "$CRS_APPROVED_COMMIT" CRS_APPROVED_COMMIT
+    check_literal "$path" "$CRS_RELEASE_TAG" CRS_RELEASE_TAG
+    if grep -nE 'CRS_(APPROVED_REPO_URL|APPROVED_COMMIT|RELEASE_TAG|REPO_URL|GIT_REF)[[:space:]]*[:?+]?=' "$path" >"$tmp_file" 2>/dev/null; then
         cat "$tmp_file"
-        ci_error "CRS_GIT_REF assignment must be defined only in ci/lib/common.sh: $path"
+        ci_error "CRS provenance assignments must be defined only in ci/lib/common.sh: $path"
         status=1
     else
         grep_status=$?
         if [ "$grep_status" -gt 1 ]; then
-            ci_error "cannot scan CRS_GIT_REF assignments in: $path"
+            ci_error "cannot scan CRS provenance assignments in: $path"
             status=1
         fi
     fi
@@ -73,6 +83,17 @@ fi
 if [ "$#" -ne 0 ]; then
     ci_error "usage: $0"
     exit 2
+fi
+
+ci_require_https_github_repo_url "$CRS_APPROVED_REPO_URL" CRS_APPROVED_REPO_URL || exit 77
+ci_require_full_git_commit "$CRS_APPROVED_COMMIT" CRS_APPROVED_COMMIT || exit 77
+if [ "$CRS_REPO_URL" != "$CRS_APPROVED_REPO_URL" ]; then
+    ci_error "CRS_REPO_URL must equal the approved CRS origin"
+    exit 77
+fi
+if [ "$CRS_GIT_REF" != "$CRS_RELEASE_TAG" ]; then
+    ci_error "CRS_GIT_REF must remain release metadata and equal CRS_RELEASE_TAG"
+    exit 77
 fi
 
 if [ -f Makefile ]; then

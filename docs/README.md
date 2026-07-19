@@ -15,6 +15,7 @@ reference and generated outputs below, it forms the current documentation set.
 | [Connector integration](connector-integration.md) | Adapter contract, ownership, and source attribution |
 | [Development](development.md) | CI layout, contribution workflow, and maintenance rules |
 | [CI security tooling](security/ci-security-tooling.md) | Workflow trust model, provenance, scanners, quality checks, and retention |
+| [GitHub Actions workflow security](github-actions-workflow-security.md) | Immutable Action provenance, least privilege, and pull-request trust boundaries |
 | [Change traceability](change-traceability.md) | Framework-only change records, safe evidence, and review expectations |
 | [Variables and placeholders](reference/variables.md) | Inputs, defaults, examples, scopes, and safety notes |
 | [Glossary](reference/glossary.md) | Framework vocabulary and status terms |

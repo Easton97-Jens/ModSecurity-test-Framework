@@ -14,6 +14,7 @@ CI_SHELL_FILES := $(shell find ci -type f -name '*.sh' -print | sort)
 CI_PYTHON_FILES := $(shell find ci -type f -name '*.py' -print | sort)
 PYTHONDONTWRITEBYTECODE ?= 1
 NO_CRS_TOOL ?= $(CI_ROOT)/checks/catalog/no_crs_baseline.py
+WORKFLOW_SECURITY_TOOL ?= $(CURDIR)/ci/checks/security/check-github-actions-workflows.py
 FULL_LIFECYCLE_EVIDENCE_TOOL ?= $(CI_ROOT)/checks/evidence/check_full_lifecycle_evidence.py
 TRANSPORT_HARDENING_EVIDENCE_TOOL ?= $(CI_ROOT)/checks/evidence/check_transport_hardening_evidence.py
 PROTOCOL_CLIENT_TOOL ?= $(CI_ROOT)/checks/protocol/protocol_client.py
@@ -90,7 +91,7 @@ export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
 
-.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-doc-links check-bilingual-docs check-variable-documentation check-repository-path-references check-change-records check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-makefile-contract test-ci-security-contract test-change-record-contract test-workflow-action-pins test-workflow-contract test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
+.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-github-actions-workflows check-github-actions-pins check-github-actions-permissions test-workflow-security-contract check-doc-links check-bilingual-docs check-variable-documentation check-repository-path-references check-change-records check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-makefile-contract test-ci-security-contract test-change-record-contract test-crs-provenance-contract test-workflow-action-pins test-workflow-contract test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
 
 define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 	@set +e; \
@@ -113,10 +114,13 @@ lint:
 	$(MAKE) test-makefile-contract
 	$(MAKE) test-ci-security-contract
 	$(MAKE) test-change-record-contract
+	$(MAKE) test-crs-provenance-contract
 	$(MAKE) test-workflow-action-pins
 	$(MAKE) test-workflow-contract
 	$(PYTHON) ci/tools/check-python-deps.py
 	$(PYTHON) ci/checks/documentation/check-workflow-yaml.py
+	$(MAKE) check-github-actions-workflows
+	$(MAKE) test-workflow-security-contract
 	$(PYTHON) ci/checks/security/check-workflow-action-pins.py
 	$(PYTHON) ci/checks/evidence/check-response-body-promotion.py --framework-root "$(FRAMEWORK_ROOT)" --connector-root "$(CONNECTOR_ROOT)" --output-root "$(OUTPUT_ROOT)"
 	$(PYTHON) ci/checks/security/check-security-data-flow-cases.py
@@ -132,6 +136,17 @@ check-security-data-flow-cases:
 
 check-security-data-flow-normalizers:
 	$(PYTHON) ci/checks/security/check-security-data-flow-normalizers.py
+
+check-github-actions-workflows: check-github-actions-pins check-github-actions-permissions
+
+check-github-actions-pins:
+	$(PYTHON) "$(WORKFLOW_SECURITY_TOOL)" --check pins
+
+check-github-actions-permissions:
+	$(PYTHON) "$(WORKFLOW_SECURITY_TOOL)" --check permissions
+
+test-workflow-security-contract:
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest discover -s tests/security_regression -p 'test_workflow_security_contract.py' -v
 
 check-doc-links:
 	$(PYTHON) ci/checks/documentation/check-doc-links.py
@@ -157,6 +172,10 @@ test-ci-security-contract:
 
 test-change-record-contract:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest tests.ci_security.test_change_record_contract -v
+
+test-crs-provenance-contract:
+	mkdir -p "$(TMP_ROOT)"
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" TMPDIR="$(TMP_ROOT)" $(PYTHON) -m unittest discover -s tests/security_regression -p 'test_crs_git_ref_provenance.py' -v
 
 test-workflow-action-pins:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest discover -s tests/security_regression -p test_workflow_action_pins.py -v

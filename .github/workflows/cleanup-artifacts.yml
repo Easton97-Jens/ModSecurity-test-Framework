@@ -5,7 +5,8 @@ on:
   schedule:
     - cron: '37 3 * * *'
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: framework-artifact-maintenance-${{ github.repository }}

@@ -16,6 +16,7 @@ Dokumentationsmenge.
 | [Connector-Integration](connector-integration.de.md) | Adaptervertrag, Ownership und Quellattribution |
 | [Entwicklung](development.de.md) | CI-Layout, Beitragsworkflow und Wartungsregeln |
 | [CI-Security-Tooling](security/ci-security-tooling.de.md) | Workflow-Vertrauensmodell, Provenienz, Scanner, Qualitätschecks und Aufbewahrung |
+| [GitHub-Actions-Workflow-Sicherheit](github-actions-workflow-security.de.md) | Unveränderliche Action-Provenienz, minimale Rechte und Pull-Request-Vertrauensgrenzen |
 | [Änderungsnachverfolgbarkeit](change-traceability.de.md) | Framework-eigene Change Records, sichere Evidenz und Review-Erwartungen |
 | [Variablen und Platzhalter](reference/variables.de.md) | Eingaben, Defaults, Beispiele, Scopes und Sicherheitsnotizen |
 | [Glossar](reference/glossary.de.md) | Framework-Vokabular und Statusbegriffe |

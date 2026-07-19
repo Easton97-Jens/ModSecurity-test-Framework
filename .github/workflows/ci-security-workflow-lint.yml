@@ -2,7 +2,8 @@ name: CI security workflow lint
 
 on:
   push:
-    branches: [master]
+    branches:
+      - master
     paths:
       - ".github/workflows/**"
       - ".github/dependabot.yml"

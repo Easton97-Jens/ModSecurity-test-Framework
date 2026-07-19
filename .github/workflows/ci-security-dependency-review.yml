@@ -2,7 +2,8 @@ name: Dependency review
 
 on:
   pull_request:
-    branches: [master]
+    branches:
+      - master
     paths:
       - "requirements-dev.txt"
       - "requirements-ci.lock"

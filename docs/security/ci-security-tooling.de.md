@@ -17,13 +17,14 @@ stellen keine Caches wieder her oder speichern sie und laden keine beliebigen
 Artefakte hoch.
 
 Jeder CI-Security-Pull-Request-Checkout wählt explizit den unveränderlichen
-PR-Head statt des synthetischen GitHub-Merge-Refs. Workflows, die auch außerhalb
-von PRs laufen, verwenden `github.event.pull_request.head.sha || github.sha`;
-der Gitleaks-PR-Range-Job verwendet den PR-Head direkt und beweist die
-ausgecheckte SHA vor dem Scan. Der lokale semantische Evidence-Contract prüft
-diese Mappings und die ausführbaren Scanner-Kommandos nach dem Entfernen von
-Shell-Kommentaren; Bodies von Kontrollfluss, nach `exit` nicht erreichbare
-Befehle und nicht aufgerufene Helper werden ausgeschlossen.
+PR-Head statt des synthetischen GitHub-Merge-Refs. Jobs, die PR- und Nicht-PR-
+Events bedienen, verwenden `github.event.pull_request.head.sha || github.sha`;
+vertrauenswürdige Default-Branch-Jobs verwenden `github.sha`. Der Gitleaks-PR-
+Range-Job verwendet den PR-Head direkt und beweist die ausgecheckte SHA vor
+dem Scan. Der lokale semantische Evidence-Contract prüft diese Mappings und
+die ausführbaren Scanner-Kommandos nach dem Entfernen von Shell-Kommentaren;
+Bodies von Kontrollfluss, nach `exit` nicht erreichbare Befehle und nicht
+aufgerufene Helper werden ausgeschlossen.
 
 Jeder Workflow hat ein explizites Timeout und ein Concurrency-Verhalten. PR-
 und normale CI-Jobs brechen überholte Runs desselben Workflow/Ref ab. Die zwei
@@ -32,12 +33,16 @@ Common-Version-Job kann einen begrenzten Update-PR erstellen, und der
 Artefakt-Cleanup-Job löscht nur Artefakte nach seiner dokumentierten
 Aufbewahrungsrichtlinie.
 
-`security-events: write` ist auf CodeQL beschränkt. OSV und Scorecard verwenden
-prüfsummenverifizierte Release-CLIs außerhalb des Checkouts, erhalten kein
-GitHub-Token und veröffentlichen kein SARIF. Ihre PR-Jobs können daher
-Fork-Heads mit ausschließlich `contents: read` analysieren. Kein Workflow
-verwendet `id-token: write`. OSV bewahrt nur validierte JSON-Vergleichsevidenz
-an festen Pfaden auf; Scorecard-PR-Jobs bleiben artefaktfrei.
+`security-events: write` ist auf den vertrauenswürdigen Nicht-PR-Upload-Job
+in `ci-security-codeql.yml` beschränkt. Sein read-only PR-Pendant
+`ci-security-codeql-pr.yml` analysiert den exakten PR-Head mit `upload: never`
+und `upload-database: false`; es erhält nie `security-events: write`. OSV und
+Scorecard verwenden prüfsummenverifizierte Release-CLIs außerhalb des
+Checkouts, erhalten kein GitHub-Token und veröffentlichen kein SARIF. Ihre
+PR-Jobs können daher Fork-Heads mit ausschließlich `contents: read`
+analysieren. Kein Workflow verwendet `id-token: write`. OSV bewahrt nur
+validierte JSON-Vergleichsevidenz an festen Pfaden auf; Scorecard-PR-Jobs
+bleiben artefaktfrei.
 
 ## Workflows und Scope
 
@@ -47,7 +52,8 @@ an festen Pfaden auf; Scorecard-PR-Jobs bleiben artefaktfrei.
 | `ci-security-quality.yml` | PR- und Default-Branch-Änderungen am CI-Security-Python-Scope | Prüfsummenverifiziertes Ruff-Lint/-Format und Pyright mit exakt festgelegter Node.js-Runtime. Der Scope umfasst CI-Security- und Change-Record-Checker, Downloader und deren Tests. |
 | `ci-security-secrets.yml` | PR, Zeitplan, manuell | Gitleaks checkt den exakten PR-Head aus und beweist ihn; danach scannt es exakt den Bereich Merge-Base bis Head mit `--redact=100`. Die gesamte Historie ist geplant/manuell advisory, bis Findings triagiert sind. |
 | `ci-security-osv.yml` | PR; Zeitplan und manuell auf dem Default-Branch | Ein prüfsummenverifiziertes OSV-Scanner-Binary vergleicht ohne Remediation exakte PR-Basis- und Head-Abhängigkeitsblobs und scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
-| `ci-security-codeql.yml` | PR, Default-Branch-Push, Zeitplan, manuell | CodeQL verwendet den exakten PR-Head (außerhalb von PRs `github.sha`), analysiert tatsächliche Framework-Sprachen—GitHub Actions, Python und C/C++—, wählt das mit der gepinnten Action ausgelieferte `linked`-Tool-Bundle und ignoriert `tools/MRTS/**`. Go oder JavaScript/TypeScript werden nicht behauptet, weil diese Framework-Quellsprachen nicht vorhanden sind. C/C++ nutzt CodeQL `build-mode: none`, weil dieser begrenzte Quellscan keine Connector- oder MRTS-Abhängigkeiten provisionieren darf. |
+| `ci-security-codeql-pr.yml` | PR | CodeQL analysiert den exakten PR-Head mit ausschließlich `contents: read`, dem `linked`-Tool-Bundle der gepinnten Action, `upload: never` und `upload-database: false`. Es analysiert GitHub Actions, Python und C/C++ und ignoriert `tools/MRTS/**`; es erhält nie eine Code-Scanning-Write-Berechtigung. |
+| `ci-security-codeql.yml` | Default-Branch-Push, Zeitplan, manuell | Vertrauenswürdiges CodeQL analysiert die exakte `github.sha` mit demselben begrenzten Sprach-Scope und `linked`-Tool-Bundle. Seine eine Job-spezifische `security-events: write`-Berechtigung wird ausschließlich nach Nicht-PR-Ausführung zum Upload von Code-Scanning-SARIF verwendet. Go oder JavaScript/TypeScript werden nicht behauptet; C/C++ verwendet `build-mode: none`, damit der Scan keine Connector- oder MRTS-Abhängigkeiten provisioniert. |
 | `ci-security-scorecard.yml` | PR; Default-Branch-Push, Zeitplan, manuell auf dem Default-Branch | Ein prüfsummenverifiziertes OpenSSF-Scorecard-Binary bewertet den exakten lokalen PR-Checkout ohne GitHub-Token. Das PR-Ergebnis wird JSON-validiert, bleibt aber artefaktfrei. Vertrauenswürdige Default-Branch-Jobs verwenden die exakte `github.sha`, bewahren eine validierte begrenzte JSON-Datei einen Tag auf und bleiben advisory, weil kein Score-Schwellenwert gesetzt ist; Scanner- und JSON-Validierungsfehler sind nicht advisory. SARIF wird nicht hochgeladen. |
 | `ci-security-dependency-review.yml` | PRs mit Abhängigkeitsänderungen | Dependency Review prüft hochschwere Schwachstellen und Runtime-/Development-Scopes ohne automatische Remediation oder PR-Kommentare. |
 
@@ -104,15 +110,17 @@ Tag.
 ## Evidence, Aufbewahrung und SonarQube Cloud
 
 Die Security-Workflows veröffentlichen absichtlich keine beliebigen
-Scanner-Artefakte. Gitleaks redigiert Findings. Nur CodeQL verwendet den
-GitHub-Code-Scanning-SARIF-Kanal. OSV validiert seine exakte-Basis-, exakte-
-Head- und Vergleichsdateien vor der Aufbewahrung der Vergleichsevidenz für
-einen Tag als reguläre begrenzte JSON-Objekte; die OSV-Eingabereports müssen
-zusätzlich das erwartete Result-/Package-/Group-Schema erfüllen. Scorecard validiert sein PR-
-Ergebnis ohne Artefakt und bewahrt seine begrenzte Current-Revision-JSON-
-Evidenz einen Tag auf. Keiner der Scanner lädt SARIF hoch. Für CodeQL-
-Plattform-Records, begrenzte OSV- und Scorecard-Artefakte und Workflow-Logs
-gelten deshalb getrennte GitHub-Aufbewahrung und Zugriffskontrollen.
+Scanner-Artefakte. Gitleaks redigiert Findings. Nur vertrauenswürdige
+Nicht-PR-CodeQL-Ausführung verwendet den GitHub-Code-Scanning-SARIF-Kanal; das
+PR-Pendant führt absichtlich keinen SARIF- oder Datenbank-Upload aus. OSV
+validiert seine exakte-Basis-, exakte-Head- und Vergleichsdateien vor der
+Aufbewahrung der Vergleichsevidenz für einen Tag als reguläre begrenzte JSON-
+Objekte; die OSV-Eingabereports müssen zusätzlich das erwartete
+Result-/Package-/Group-Schema erfüllen. Scorecard validiert sein PR-Ergebnis
+ohne Artefakt und bewahrt seine begrenzte Current-Revision-JSON-Evidenz einen
+Tag auf. Keiner der Scanner lädt SARIF hoch. Für CodeQL-Plattform-Records,
+begrenzte OSV- und Scorecard-Artefakte und Workflow-Logs gelten deshalb
+getrennte GitHub-Aufbewahrung und Zugriffskontrollen.
 
 Die Artefaktausnahme bleibt absichtlich eng: OSV lädt nur die drei festen
 PR-JSON-Pfade hoch, und OSV-/Scorecard-Default-Branch-Jobs laden nur eine

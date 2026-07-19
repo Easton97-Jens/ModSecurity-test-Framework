@@ -2,9 +2,8 @@ name: CodeQL analysis
 
 on:
   push:
-    branches: [master]
-  pull_request:
-    branches: [master]
+    branches:
+      - master
   schedule:
     - cron: '19 4 * * 4'
   workflow_dispatch:
@@ -17,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  analyze:
+  analyze-trusted:
     name: CodeQL (${{ matrix.language }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -27,12 +26,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [actions, python, c-cpp]
+        language:
+          - actions
+          - python
+          - c-cpp
     steps:
-      - name: Checkout repository
+      - name: Checkout trusted Framework revision
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 1
           persist-credentials: false
           submodules: false
@@ -51,3 +53,4 @@ jobs:
         uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
         with:
           category: /language:${{ matrix.language }}
+          upload: always

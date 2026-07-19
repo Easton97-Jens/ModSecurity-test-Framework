@@ -664,7 +664,10 @@ def top_level_permission_errors(path: Path, data: dict[str, Any]) -> list[str]:
 
 
 def codeql_tool_bundle_errors(path: Path, text: str) -> list[str]:
-    if path.name == "ci-security-codeql.yml" and "tools: linked" not in text:
+    if (
+        path.name in {"ci-security-codeql.yml", "ci-security-codeql-pr.yml"}
+        and "tools: linked" not in text
+    ):
         return [f"{path}: CodeQL init must select the linked tool bundle"]
     return []
 
