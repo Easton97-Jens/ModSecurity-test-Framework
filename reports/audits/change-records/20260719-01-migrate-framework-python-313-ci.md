@@ -9,7 +9,7 @@
 | Change ID | `20260719-01-migrate-framework-python-313-ci` |
 | UTC date | `2026-07-19` |
 | Framework base revision | `047c11140ba7f2bd170b6f313d0223d0cd37f1be` |
-| Issue or pull request | [Framework PR #33](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/33) — task branch `agent/framework-python-313-master-migration`; final exact-head validation remains pending |
+| Issue or pull request | [Framework PR #33](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/33) — ready for review against `master`; this record's traceability-only follow-up requires a new exact-head validation round |
 
 ## Motivation and problem statement
 
@@ -126,8 +126,12 @@ it makes no connector-runtime, lifecycle, or hosted CPython-runtime claim.
   CRS-provenance, action-pin, documentation, data-flow, catalog, and shell
   contract checks. It is therefore recorded as `not_run_to_terminal`, not as a
   full aggregate pass.
-- Exact PR-head GitHub Actions, review, SonarQube Cloud, and resulting-master
-  verification: pending normal PR creation and protected merge.
+- Before this traceability-only status update, ready-for-review PR #33 at exact
+  head `823d66ac049ba6fcd5d459682610687fc388f809` had passed GitHub Actions and
+  SonarQube Cloud Quality Gate evidence, with no reviews or review threads.
+  This status update changes the PR head, so the new exact-head Actions,
+  SonarQube Cloud, review, merge, and resulting-master validation remain
+  mandatory and pending.
 - Local CPython 3.13.14 runtime: unavailable on this host. CP313 target-wheel
   resolution is artifact-selection evidence, not hosted runtime proof.
 
@@ -142,6 +146,9 @@ findings are neither changed nor waived.
 ## Final diff and review status
 
 The scoped diff has been reviewed and `git diff --check` passed. No credential,
-token, raw log, or sensitive payload is recorded. Framework PR #33 is a Draft;
-the final exact-head GitHub Actions, SonarQube Cloud, review, and merge evidence
-remain pending and will be recorded only after observation.
+token, raw log, or sensitive payload is recorded. PR #33 is ready for review;
+before this status-only update, its exact head was clean and mergeable with
+passed GitHub Actions, a passed SonarQube Cloud Quality Gate, and no review
+feedback. The post-update exact-head and merge/master evidence remain pending
+and are retained in task completion evidence without a self-referential commit
+loop.
