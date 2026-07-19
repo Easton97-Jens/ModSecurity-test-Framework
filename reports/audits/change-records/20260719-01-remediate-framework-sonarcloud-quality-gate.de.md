@@ -226,3 +226,30 @@ noch nicht gepusht und der Draft-PR wurde nicht auf ready gesetzt. Erforderliche
 GitHub-CI des aktuellen Heads, SonarCloud-Quality-Gate `OK` und das
 PR-Issue-Readback bleiben die finale Delivery-Evidenz; ein Merge bleibt nicht
 autorisiert.
+
+## Korrektur des exakten Remote-Readbacks und fokussiertes Follow-up
+
+Der normale Branch-Push von `bbd722e49fc96102e33bba04341065ae0b789f4f` wurde
+abgeschlossen, und Draft-PR #30 blieb Draft. Die exakten Head-Checks
+`common-structure` und `scaffold-lint` bestanden. SonarCloud Code Analysis
+schlug weiterhin ausschließlich fehl, weil das neue Security-Rating B (`2`)
+statt des erforderlichen A (`1`) war.
+
+Das offizielle Readback der offenen Vulnerabilities identifizierte zwei
+doppelte `python:S5332`-Zeilen (`AZ98DRCirIstupHXny2B` und
+`AZ98DRCirIstupHXny2C`) im selben Source-Range von
+`tests/security_regression/test_common_versions_sonar_provenance.py`. Sie
+beschreiben einen absichtlich verwendeten Nicht-HTTPS-Negativtestwert und
+keine ausgehende Netzwerkverbindung: Der Test übergibt ihn direkt an
+`plan_update`, dessen Guard `require_safe_https_update_url` das Schema
+abweist, bevor ein Update erzeugt oder geschrieben werden kann.
+
+Das fokussierte Follow-up konstruiert denselben Kandidaten mit dem Standard-
+URL-Parser aus einer HTTPS-Fixture-URL, bestätigt sein Nicht-HTTPS-Schema und
+erhält die bestehenden Kontrollen für `UpstreamError` und Nicht-Mutation. Das
+entfernt das operative URL-Literal, das die doppelten Analyzer-Zeilen auslöste,
+ohne eine Suppression hinzuzufügen oder die URL-Validierung abzuschwächen. Das
+fokussierte Provenance-Modul bestand 12 Tests und die isolierte vollständige
+Security-Regression bestand 212 Tests. Eine frische Remote-Analyse des
+exakten Heads bleibt erforderlich, bevor das Quality Gate oder der Draft-PR-
+Status als erfolgreich deklariert werden kann.

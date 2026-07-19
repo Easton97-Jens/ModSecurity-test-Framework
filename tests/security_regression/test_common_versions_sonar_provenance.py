@@ -13,6 +13,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -337,11 +338,16 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             fixture.parent.mkdir(parents=True)
             original = self.tarball_fixture(source_url, checksum_url)
             lines, entries = self.parse_fixture(fixture, original)
+            candidate_source_url = f"{listing_url}package-1.2.4{TARBALL_EXTENSION}"
+            insecure_source_url = (
+                urlsplit(candidate_source_url)._replace(scheme="http").geturl()
+            )
+            self.assertEqual("http", urlsplit(insecure_source_url).scheme)
 
             for variable, invalid_value in (
                 ("VERSION", "1.2.4;touch"),
                 ("SHA256", "not-a-sha256"),
-                ("SOURCE_URL", f"http://{OFFICIAL_TARBALL_HOST}/package-1.2.4{TARBALL_EXTENSION}"),
+                ("SOURCE_URL", insecure_source_url),
                 ("SOURCE_URL", f"https://foreign.example.invalid/package-1.2.4{TARBALL_EXTENSION}"),
                 ("SOURCE_URL", f"https://{OFFICIAL_TARBALL_HOST}/other/package-1.2.4{TARBALL_EXTENSION}"),
                 ("SOURCE_URL", f"https://{OFFICIAL_TARBALL_HOST}/releases/../package-1.2.4{TARBALL_EXTENSION}"),

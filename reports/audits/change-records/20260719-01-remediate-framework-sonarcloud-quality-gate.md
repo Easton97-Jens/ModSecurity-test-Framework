@@ -215,3 +215,28 @@ At this update, the exact new commit has not yet been pushed and the Draft PR
 has not been marked ready. Required current-head GitHub CI, SonarCloud Quality
 Gate `OK`, and PR issue readback remain the final delivery evidence; merge
 continues to be unauthorized.
+
+## Exact-head remote-readback correction and focused follow-up
+
+The normal branch push of `bbd722e49fc96102e33bba04341065ae0b789f4f` completed
+and Draft PR #30 remained Draft. The exact-head `common-structure` and
+`scaffold-lint` checks passed. SonarCloud Code Analysis still failed solely
+because the new security rating was B (`2`) rather than the required A (`1`).
+
+The official open-vulnerability readback identified two duplicate
+`python:S5332` rows (`AZ98DRCirIstupHXny2B` and `AZ98DRCirIstupHXny2C`) at the
+same source range in
+`tests/security_regression/test_common_versions_sonar_provenance.py`. They
+describe an intentional non-HTTPS negative test value, not an outbound network
+connection: the test passes it directly to `plan_update`, whose
+`require_safe_https_update_url` guard rejects the scheme before an update can
+be produced or written.
+
+The focused follow-up constructs that same candidate using the standard URL
+parser from an HTTPS fixture URL, asserts its non-HTTPS scheme, and retains the
+existing `UpstreamError` rejection and no-mutation controls. This removes the
+operational URL literal that triggered the duplicate analyzer rows without
+adding a suppression or weakening the URL validation. The focused provenance
+module passed 12 tests and the isolated complete security-regression suite
+passed 212 tests. A fresh exact-head remote analysis remains required before
+the Quality Gate or Draft-PR status can be declared successful.
