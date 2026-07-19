@@ -76,10 +76,10 @@ paths, links, and devices, extracts only the locked executable or package tree,
 and publishes the result atomically. It never installs a package into the
 Framework checkout.
 
-`requirements-ci.lock` pins the CI PyYAML wheel for reviewed CPython 3.12.13 on
-Linux x86_64 and requires its official PyPI SHA-256. Workflows select that
-exact patch with `check-latest: false`, then install it with `--require-hashes`,
-`--only-binary=:all:`, and `pip check`. Dependabot monitors both
+`requirements-ci.lock` pins the CI PyYAML CP313 wheel for reviewed CPython
+3.13.14 on Linux x86_64 and requires its official PyPI SHA-256. Workflows
+select that exact patch with `check-latest: false`, then install it with
+`--require-hashes`, `--only-binary=:all:`, and `pip check`. Dependabot monitors both
 `github-actions` and `pip`, but a proposed update remains subject to the
 lock/provenance review and immutable-pin contract; no workflow auto-fixes a
 dependency.

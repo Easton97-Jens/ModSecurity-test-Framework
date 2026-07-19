@@ -29,9 +29,9 @@ actions:
     update_procedure: Verify the upstream tag-to-commit identity, exact Node.js runtime version, and MIT license, then update this record, every matching version comment, and the contract test together.
   actions/upload-artifact:
     name: actions/upload-artifact
-    version: v5.0.0
-    immutable_commit: 330a01c490aca151604b8cf639adc76d48f6c5d4
-    upstream_release: https://github.com/actions/upload-artifact/releases/tag/v5.0.0
+    version: v7.0.1
+    immutable_commit: 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+    upstream_release: https://github.com/actions/upload-artifact/releases/tag/v7.0.1
     license: MIT
     purpose: Retain only bounded JSON security-governance evidence for the documented minimum period.
     platform: GitHub Actions
