@@ -41,8 +41,16 @@ RUNTIME_CONNECTORS = ("apache", "nginx", "haproxy")
 
 
 def default_build_root() -> Path:
-    run_root = Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified")))
-    return Path(os.environ.get("BUILD_ROOT", run_root / "build"))
+    """Return the explicitly configured private build root, never shared TMP."""
+    configured_run_root = os.environ.get("VERIFIED_RUN_ROOT", "")
+    configured_build_root = os.environ.get("BUILD_ROOT", "")
+    if not configured_build_root and not configured_run_root:
+        raise ValueError("BUILD_ROOT or VERIFIED_RUN_ROOT is required; shared temporary directories are forbidden")
+    run_root = resolve_root(configured_run_root, label="verified run root") if configured_run_root else None
+    build_root = resolve_root(configured_build_root, label="build root") if configured_build_root else run_root / "build"
+    if run_root is not None:
+        return resolve_under_root(run_root, build_root, label="build root")
+    return build_root
 
 
 @dataclass(frozen=True)
@@ -181,7 +189,7 @@ def load_case_metadata(case_path: Path) -> dict:
             return {}
 
 
-def classify_case(relative: str, status: str, case: dict, group: str) -> str:
+def classify_case(relative: str, status: str, case: dict) -> str:
     text = " ".join(
         [
             relative,
@@ -208,7 +216,7 @@ def case_metadata(path: str) -> dict[str, object]:
     case = load_case_metadata(case_path)
     status = str(case.get("status", "active") or "active").strip().lower()
     group = case_group(case_path, case)
-    classification = classify_case(relative, status, case, group)
+    classification = classify_case(relative, status, case)
     return {
         "yaml_status": status,
         "case_group": group,
@@ -232,7 +240,6 @@ def matrix_status(result_status: str, classification: str, response_body_related
         return "NOT_EXECUTABLE"
     return matrix_status_for_result(
         result_status,
-        classification,
         response_body_related=response_body_related,
     )
 
@@ -246,100 +253,238 @@ def response_body_pass_is_pass_through(expected: object, actual: object, transpo
         return False
 
 
+CASE_ROW_OBSERVATION_FIELDS = (
+    "phase",
+    "response_headers_seen",
+    "response_body_seen",
+    "response_body_truncated",
+    "response_committed",
+    "intervention",
+    "strict_abort",
+    "observed_status",
+    "observed_transport_result",
+    "connector_phase4_log_path",
+    "nginx_access_log_path",
+    "nginx_error_log_path",
+    "apache_access_log_path",
+    "apache_error_log_path",
+    "response_body_path",
+    "body_bytes_seen",
+    "body_bytes_inspected",
+)
+
+
+def case_evidence(summary_path: Path, name: object, status: str, expected: object, actual: object) -> str:
+    evidence = f"{summary_path}; case={name}; status={status}"
+    if expected is not None or actual is not None:
+        evidence += f"; expected={expected}; actual={actual}"
+    return evidence
+
+
+def case_matrix_status(item: dict, metadata: dict[str, object], status: str, expected: object, actual: object) -> str:
+    response_body_related = bool(metadata["response_body_related"])
+    computed = matrix_status(
+        status,
+        str(metadata["classification"]),
+        response_body_related,
+        strict_abort=item.get("strict_abort") is True,
+    )
+    if response_body_related and status.strip().lower() == "pass":
+        if not response_body_pass_is_pass_through(expected, actual, item.get("observed_transport_result")):
+            computed = matrix_status(
+                status,
+                str(metadata["classification"]),
+                False,
+                strict_abort=item.get("strict_abort") is True,
+            )
+    supplied = str(item.get("matrix_status") or "")
+    return computed if supplied.startswith("XFAIL_") or not supplied else supplied
+
+
+def case_reason(item: dict, status: str) -> object:
+    reason = item.get("reason", "")
+    if not reason and status.strip().lower() == "not_executable":
+        return "structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path"
+    return reason
+
+
+def base_case_row(
+    name: object,
+    item: dict,
+    metadata: dict[str, object],
+    status: str,
+    expected: object,
+    actual: object,
+    evidence: str,
+) -> dict:
+    return {
+        "case": str(name),
+        "path": normalize_case(str(item.get("path", ""))),
+        "status": status,
+        "matrix_status": case_matrix_status(item, metadata, status, expected, actual),
+        "runtime_attempted": True,
+        "live_executed": item.get("live_executed") is True,
+        "operation_status": item.get("operation_status", "unknown"),
+        "expected_status": expected,
+        "actual_status": actual,
+        "variant": item.get("variant", "-"),
+        "scope": item.get("scope", "unknown"),
+        "group": item.get("group", "unknown"),
+        "yaml_status": metadata["yaml_status"],
+        "runtime_classification": metadata["classification"],
+        "capabilities": item.get("capabilities", []),
+        "requires_crs": item.get("requires_crs") is True,
+        "crs_verified": item.get("crs_verified") is True,
+        "reason": case_reason(item, status),
+        "promotion": item.get("promotion", ""),
+        "source_evidence": item.get("evidence", ""),
+        "response_body_non_verified": item.get("response_body_non_verified") is True,
+        "evidence": evidence,
+        "expected": item.get("expected", expected),
+        "observed": item.get("observed", actual),
+        "evidence_path": item.get("evidence_path", ""),
+        "decision_log_path": item.get("decision_log_path", item.get("decision_log", "")),
+    }
+
+
+def add_case_observation_fields(row: dict, item: dict) -> None:
+    for key in CASE_ROW_OBSERVATION_FIELDS:
+        if key in item:
+            row[key] = item.get(key)
+    if item.get("audit_log_path"):
+        row["audit_log_path"] = item.get("audit_log_path")
+
+
+def apply_case_non_promotion(row: dict, metadata: dict[str, object], status: str) -> None:
+    response_body_related = bool(metadata["response_body_related"])
+    row.update(response_body_non_promotion_fields(response_body_related, str(metadata["classification"])))
+    if response_body_related:
+        row["response_body_related"] = True
+        if status.strip().lower() == "pass":
+            row["reason"] = RESPONSE_BODY_RUNTIME_NOTE
+    if row.get("strict_abort") is True and status.strip().lower() == "pass":
+        row["promotion_allowed"] = False
+        row["runtime_verified"] = False
+        row["reason"] = row.get("reason") or "strict abort evidence is non-promotable"
+
+
+def case_row(name: object, item: dict, summary_path: Path) -> dict:
+    status = str(item.get("status", "unknown"))
+    metadata = case_metadata(str(item.get("path", "")))
+    expected = item.get("expected_status")
+    actual = item.get("actual_status")
+    row = base_case_row(
+        name,
+        item,
+        metadata,
+        status,
+        expected,
+        actual,
+        case_evidence(summary_path, name, status, expected, actual),
+    )
+    add_case_observation_fields(row, item)
+    apply_case_non_promotion(row, metadata, status)
+    return row
+
+
 def case_rows(summary: dict, connector: str, summary_path: Path) -> list[dict]:
     connector_summary = summary.get(connector)
-    if not isinstance(connector_summary, dict):
-        return []
-    cases = connector_summary.get("cases", {})
+    cases = connector_summary.get("cases", {}) if isinstance(connector_summary, dict) else {}
     if not isinstance(cases, dict):
         return []
-    rows = []
-    for name, item in sorted(cases.items()):
-        if not isinstance(item, dict):
-            continue
-        status = str(item.get("status", "unknown"))
-        metadata = case_metadata(str(item.get("path", "")))
-        expected = item.get("expected_status")
-        actual = item.get("actual_status")
-        evidence = f"{summary_path}; case={name}; status={status}"
-        if expected is not None or actual is not None:
-            evidence += f"; expected={expected}; actual={actual}"
-        response_body_related = bool(metadata["response_body_related"])
-        computed_matrix_status = matrix_status(status, metadata["classification"], response_body_related, strict_abort=item.get("strict_abort") is True)
-        if (
-            response_body_related
-            and status.strip().lower() == "pass"
-            and not response_body_pass_is_pass_through(expected, actual, item.get("observed_transport_result"))
-        ):
-            computed_matrix_status = matrix_status(status, metadata["classification"], False, strict_abort=item.get("strict_abort") is True)
-        reason = item.get("reason", "")
-        if not reason and status.strip().lower() == "not_executable":
-            reason = "structurally not executable for this connector/runtime mode; see evidence_path and decision_log_path"
-        supplied_matrix_status = str(item.get("matrix_status") or "")
-        if supplied_matrix_status.startswith("XFAIL_"):
-            supplied_matrix_status = ""
-        row = {
-            "case": str(name),
-            "path": normalize_case(str(item.get("path", ""))),
-            "status": status,
-            "matrix_status": supplied_matrix_status or computed_matrix_status,
-            "runtime_attempted": True,
-            "live_executed": item.get("live_executed") is True,
-            "operation_status": item.get("operation_status", "unknown"),
-            "expected_status": expected,
-            "actual_status": actual,
-            "variant": item.get("variant", "-"),
-            "scope": item.get("scope", "unknown"),
-            "group": item.get("group", "unknown"),
-            "yaml_status": metadata["yaml_status"],
-            "runtime_classification": metadata["classification"],
-            "capabilities": item.get("capabilities", []),
-            "requires_crs": item.get("requires_crs") is True,
-            "crs_verified": item.get("crs_verified") is True,
-            "reason": reason,
-            "promotion": item.get("promotion", ""),
-            "source_evidence": item.get("evidence", ""),
-            "response_body_non_verified": item.get("response_body_non_verified") is True,
-            "evidence": evidence,
-            "expected": item.get("expected", expected),
-            "observed": item.get("observed", actual),
-            "evidence_path": item.get("evidence_path", ""),
-            "decision_log_path": item.get("decision_log_path", item.get("decision_log", "")),
+    return [case_row(name, item, summary_path) for name, item in sorted(cases.items()) if isinstance(item, dict)]
+
+
+def connector_summary_for(summary_data: dict, connector: str) -> dict:
+    summary = summary_data.get(connector, {})
+    return summary if isinstance(summary, dict) else {}
+
+
+def connector_counts(connector_summary: dict) -> dict:
+    counts = connector_summary.get("summary", {})
+    return counts if isinstance(counts, dict) else {}
+
+
+def current_run_data(
+    summary_data: dict,
+    connector_summary: dict,
+    rows: list[dict],
+    exit_code: str,
+    require_current_run: bool,
+) -> tuple[dict, dict, list[dict]]:
+    if require_current_run and exit_code in {"not_run", ""}:
+        return {}, {}, []
+    return summary_data, connector_summary, rows
+
+
+def effective_exit_code_for(
+    exit_code: str,
+    connector_summary: dict,
+    rows: list[dict],
+    require_current_run: bool,
+) -> str:
+    effective_exit_code = str(exit_code)
+    metadata_exit_status = connector_summary.get("exit_status")
+    if effective_exit_code in {"not_run", ""} and metadata_exit_status is not None and rows and not require_current_run:
+        return str(metadata_exit_status)
+    return effective_exit_code
+
+
+def connector_status(effective_exit_code: str, counts: dict) -> str:
+    if effective_exit_code in {"not_run", ""}:
+        return "NOT_RUN"
+    try:
+        status = "PASS" if int(effective_exit_code) == 0 else "FAIL"
+    except ValueError:
+        status = "UNKNOWN"
+    return "BLOCKED" if counts.get("blocked", 0) and status == "PASS" else status
+
+
+def connector_build_status(connector_summary: dict) -> str:
+    build_status = connector_summary.get("build")
+    return str(build_status).strip() if build_status is not None else ""
+
+
+def unavailable_case_evidence(
+    connector: str,
+    rows: list[dict],
+    status: str,
+    build_status: str,
+    effective_exit_code: str,
+    evidence_note: str,
+    summary_path: Path,
+    text_summary_path: Path,
+) -> tuple[str, dict[str, object]]:
+    if rows or status not in {"FAIL", "BLOCKED", "UNKNOWN"}:
+        return "", {}
+    parts = [f"{connector.upper()} did not complete per-case runtime execution"]
+    if build_status:
+        parts.append(f"build={build_status}")
+    if effective_exit_code not in {"", "not_run"}:
+        parts.append(f"exit_code={effective_exit_code}")
+    if evidence_note:
+        parts.append(evidence_note)
+    reason = "; ".join(parts)
+    return reason, {
+        "reason": reason,
+        "summary_path": str(summary_path),
+        "text_summary_path": str(text_summary_path),
+        "evidence_note": evidence_note,
+    }
+
+
+def failed_case_rows(rows: list[dict], summary_path: Path) -> list[dict]:
+    return [
+        {
+            "case": row["case"],
+            "expected": row.get("expected_status"),
+            "actual": row.get("actual_status"),
+            "assessment": "runtime summary reported non-pass",
+            "evidence": row.get("evidence", str(summary_path)),
         }
-        for key in (
-            "phase",
-            "response_headers_seen",
-            "response_body_seen",
-            "response_body_truncated",
-            "response_committed",
-            "intervention",
-            "strict_abort",
-            "observed_status",
-            "observed_transport_result",
-            "connector_phase4_log_path",
-            "nginx_access_log_path",
-            "nginx_error_log_path",
-            "apache_access_log_path",
-            "apache_error_log_path",
-            "response_body_path",
-            "body_bytes_seen",
-            "body_bytes_inspected",
-        ):
-            if key in item:
-                row[key] = item.get(key)
-        if item.get("audit_log_path"):
-            row["audit_log_path"] = item.get("audit_log_path")
-        row.update(response_body_non_promotion_fields(response_body_related, metadata["classification"]))
-        if response_body_related:
-            row["response_body_related"] = True
-            if status.strip().lower() == "pass":
-                row["reason"] = RESPONSE_BODY_RUNTIME_NOTE
-        if row.get("strict_abort") is True and status.strip().lower() == "pass":
-            row["promotion_allowed"] = False
-            row["runtime_verified"] = False
-            row["reason"] = row.get("reason") or "strict abort evidence is non-promotable"
-        rows.append(row)
-    return rows
+        for row in rows
+        if row.get("status") == "fail" or row.get("matrix_status") == "FAIL"
+    ]
 
 
 def connector_smoke(
@@ -353,66 +498,38 @@ def connector_smoke(
     require_current_run: bool = False,
 ) -> dict:
     summary_data = load_json(summary_path)
-    connector_summary = summary_data.get(connector, {}) if isinstance(summary_data, dict) else {}
-    counts = connector_summary.get("summary", {}) if isinstance(connector_summary, dict) else {}
-    if not isinstance(counts, dict):
-        counts = {}
+    connector_summary = connector_summary_for(summary_data, connector)
+    counts = connector_counts(connector_summary)
     rows = case_rows(summary_data, connector, summary_path)
-    if require_current_run and exit_code in {"not_run", ""}:
-        rows = []
-        summary_data = {}
-        connector_summary = {}
-    if isinstance(connector_summary, dict):
-        runtime_mode = str(connector_summary.get("runtime_mode") or runtime_mode)
-    effective_exit_code = str(exit_code)
-    metadata_exit_status = connector_summary.get("exit_status") if isinstance(connector_summary, dict) else None
-    if effective_exit_code in {"not_run", ""} and metadata_exit_status is not None and rows and not require_current_run:
-        effective_exit_code = str(metadata_exit_status)
-    status = "NOT_RUN"
-    if effective_exit_code not in {"not_run", ""}:
-        try:
-            status = "PASS" if int(effective_exit_code) == 0 else "FAIL"
-        except ValueError:
-            status = "UNKNOWN"
-    if counts.get("blocked", 0):
-        status = "BLOCKED" if status == "PASS" else status
-    build_status = (
-        str(connector_summary.get("build", "")).strip()
-        if isinstance(connector_summary, dict) and connector_summary.get("build") is not None
-        else ""
+    summary_data, connector_summary, rows = current_run_data(
+        summary_data,
+        connector_summary,
+        rows,
+        exit_code,
+        require_current_run,
     )
-    per_case_results = "available" if rows else "unavailable"
+    runtime_mode = str(connector_summary.get("runtime_mode") or runtime_mode)
+    effective_exit_code = effective_exit_code_for(
+        exit_code,
+        connector_summary,
+        rows,
+        require_current_run,
+    )
+    status = connector_status(effective_exit_code, counts)
+    build_status = connector_build_status(connector_summary)
     evidence_note = first_text_summary_line(text_summary_path)
-    unavailable_reason = ""
-    blocker: dict[str, object] = {}
-    if not rows and status in {"FAIL", "BLOCKED", "UNKNOWN"}:
-        reason_parts = [f"{connector.upper()} did not complete per-case runtime execution"]
-        if build_status:
-            reason_parts.append(f"build={build_status}")
-        if effective_exit_code not in {"", "not_run"}:
-            reason_parts.append(f"exit_code={effective_exit_code}")
-        if evidence_note:
-            reason_parts.append(evidence_note)
-        unavailable_reason = "; ".join(reason_parts)
-        blocker = {
-            "reason": unavailable_reason,
-            "summary_path": str(summary_path),
-            "text_summary_path": str(text_summary_path),
-            "evidence_note": evidence_note,
-        }
-    failed_cases = [
-        {
-            "case": row["case"],
-            "expected": row.get("expected_status"),
-            "actual": row.get("actual_status"),
-            "assessment": "runtime summary reported non-pass",
-            "evidence": row.get("evidence", str(summary_path)),
-        }
-        for row in rows
-        if row.get("status") == "fail" or row.get("matrix_status") == "FAIL"
-    ]
+    unavailable_reason, blocker = unavailable_case_evidence(
+        connector,
+        rows,
+        status,
+        build_status,
+        effective_exit_code,
+        evidence_note,
+        summary_path,
+        text_summary_path,
+    )
     return {
-        "command": connector_summary.get("command", command) if isinstance(connector_summary, dict) else command,
+        "command": connector_summary.get("command", command),
         "connector": connector,
         "runtime_mode": runtime_mode,
         "status": status,
@@ -420,7 +537,7 @@ def connector_smoke(
         "summary_path": str(summary_path),
         "text_summary_path": str(text_summary_path),
         "build_status": build_status or "unknown",
-        "per_case_results": per_case_results,
+        "per_case_results": "available" if rows else "unavailable",
         "per_case_unavailable_reason": unavailable_reason,
         "per_case_unavailable_evidence": evidence_note,
         "blocker": blocker,
@@ -431,14 +548,14 @@ def connector_smoke(
             "not_executable": counts.get("not_executable", 0),
             "skipped": counts.get("skipped", 0),
         },
-        "attempted": connector_summary.get("attempted", len(rows)) if isinstance(connector_summary, dict) else len(rows),
-        "total_cases": connector_summary.get("total_cases", len(rows)) if isinstance(connector_summary, dict) else len(rows),
-        "evidence_root": connector_summary.get("evidence_root", str(summary_path.parent)) if isinstance(connector_summary, dict) else str(summary_path.parent),
-        "jsonl_path": connector_summary.get("jsonl_path", str(summary_path.with_name(f"{connector}-results.jsonl"))) if isinstance(connector_summary, dict) else str(summary_path.with_name(f"{connector}-results.jsonl")),
-        "per_case_result_root": connector_summary.get("per_case_result_root", "") if isinstance(connector_summary, dict) else "",
-        "failed_due_to_live_mismatches": bool(connector_summary.get("failed_due_to_live_mismatches", False)) if isinstance(connector_summary, dict) else False,
-        "verified_variables": connector_summary.get("verified_variables", []) if isinstance(connector_summary, dict) else [],
-        "variant": summary_data.get("variant", connector_summary.get("variant", "")) if isinstance(connector_summary, dict) else "",
+        "attempted": connector_summary.get("attempted", len(rows)),
+        "total_cases": connector_summary.get("total_cases", len(rows)),
+        "evidence_root": connector_summary.get("evidence_root", str(summary_path.parent)),
+        "jsonl_path": connector_summary.get("jsonl_path", str(summary_path.with_name(f"{connector}-results.jsonl"))),
+        "per_case_result_root": connector_summary.get("per_case_result_root", ""),
+        "failed_due_to_live_mismatches": bool(connector_summary.get("failed_due_to_live_mismatches", False)),
+        "verified_variables": connector_summary.get("verified_variables", []),
+        "variant": summary_data.get("variant", connector_summary.get("variant", "")),
         "runtime_status": summary_data.get("runtime_status", ""),
         "matrix_counts": summary_data.get("counts", connector_summary.get("matrix_counts", {})) if isinstance(connector_summary, dict) else {},
         "verified_cases": summary_data.get("verified_cases", []),
@@ -446,8 +563,8 @@ def connector_smoke(
         "crs_verified_scope": summary_data.get("crs_verified_scope", []),
         "response_body_verified": summary_data.get("response_body_verified", False) is True,
         "full_matrix_verified": bool(summary_data.get("full_matrix_verified") or summary_data.get("matrix_full")),
-        "mapped_only": summary_data.get("mapped_only", connector_summary.get("mapped_only", [])) if isinstance(connector_summary, dict) else [],
-        "failed_cases": failed_cases,
+        "mapped_only": summary_data.get("mapped_only", connector_summary.get("mapped_only", [])),
+        "failed_cases": failed_case_rows(rows, summary_path),
         "cases": rows,
         "details": "Per-case results are copied from the local smoke summary JSON; they are runtime evidence only.",
     }

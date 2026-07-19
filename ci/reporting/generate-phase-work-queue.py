@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import secrets
+import stat
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
@@ -30,7 +33,9 @@ NO_MRTS_NOMATCH_SEMANTIC_DIRECTION = {
     "collection_name_normalization_semantics": "collection_semantics",
     "phase1_request_body_unavailable": "request_body_processor",
 }
-PHASE_ROW_RE = re.compile(r"^\|\s*([1-4])\s*\|\s*(\d+)\s*\|\s*(.*?)\s*\|\s*(.*?)\s*\|\s*$")
+PHASE_ROW_RE = re.compile(
+    r"^\|[ \t]*([1-4])[ \t]*\|[ \t]*(\d+)[ \t]*\|([^|]*)\|([^|]*)\|[ \t]*$"
+)
 COUNT_TOKEN_RE = re.compile(r"([^,()]+)\((\d+)\)")
 
 PHASE_DESCRIPTIONS = {
@@ -136,7 +141,7 @@ def as_list(value: Any) -> list[str]:
 
 def status_value(entry: dict[str, Any]) -> str:
     value = str(entry.get("runtime_status") or "UNKNOWN").upper().replace("-", "_")
-    if value in {"NOT_EXECUTED", "NOT_EXECUTABLE", "NOT_EXECUTABLE"}:
+    if value in {"NOT_EXECUTED", "NOT_EXECUTABLE"}:
         return "NOT_EXECUTABLE"
     if value in {"PASS", "FAIL", "BLOCKED"}:
         return value
@@ -174,7 +179,9 @@ def parse_phase_coverage(path: Path | None) -> dict[str, dict[str, Any]]:
         match = PHASE_ROW_RE.match(line)
         if not match:
             continue
-        phase, count, top_variables, status_distribution = match.groups()
+        phase, count, top_variables, status_distribution = (
+            value.strip() for value in match.groups()
+        )
         coverage[phase] = {
             "case_count": int(count),
             "top_variables": parse_count_list(top_variables),
@@ -198,6 +205,74 @@ def variable_or_collection(entry: dict[str, Any]) -> list[str]:
     return labels or ["UNKNOWN"]
 
 
+def _classification_work_direction(classification: str, directions: set[str]) -> str | None:
+    if classification in REPORT_ONLY_CLASSIFICATIONS or "classification_only" in directions:
+        return "classification_only"
+    return NO_MRTS_NOMATCH_SEMANTIC_DIRECTION.get(classification)
+
+
+def _phase_one_work_direction(
+    areas: set[str], directions: set[str], patterns: set[str]
+) -> str | None:
+    if "expected_block_got_200" in patterns or "intervention_blocking" in directions:
+        return "intervention_blocking"
+    if {"request_headers", "request_headers_names"} & areas:
+        return "request_header_mapping"
+    if "request_uri" in areas or "request_routing" in directions:
+        return "request_uri_mapping"
+    if {"request_cookies", "request_cookies_names", "args", "args_names"} & areas:
+        return "collection_mapping"
+    if "audit_log" in areas:
+        return "audit_log_evidence"
+    return None
+
+
+def _phase_two_work_direction(
+    areas: set[str], directions: set[str], patterns: set[str]
+) -> str | None:
+    if "request_body_json" in areas:
+        return "json_processor"
+    if "request_body_xml" in areas:
+        return "xml_processor"
+    if "multipart_files" in areas:
+        return "multipart_files"
+    if "operators" in areas or "operator_semantics" in directions:
+        return "operator_semantics"
+    if "transformations" in areas or "transformation_semantics" in directions:
+        return "transformation_semantics"
+    if "request_routing" in directions:
+        return "request_routing"
+    if "expected_block_got_200" in patterns or "intervention_blocking" in directions:
+        return "intervention_blocking"
+    if "request_body_urlencoded" in areas:
+        return "request_body_processor"
+    return None
+
+
+def _phase_three_work_direction(
+    areas: set[str], directions: set[str], patterns: set[str]
+) -> str | None:
+    if "response_headers" in areas:
+        return "response_header_hook"
+    if "audit_log" in areas:
+        return "audit_log_evidence"
+    if "expected_block_got_200" in patterns or "intervention_blocking" in directions:
+        return "intervention_blocking"
+    return None
+
+
+def _phase_specific_work_direction(
+    phase: str, areas: set[str], directions: set[str], patterns: set[str]
+) -> str | None:
+    handlers = {
+        "1": _phase_one_work_direction,
+        "2": _phase_two_work_direction,
+        "3": _phase_three_work_direction,
+    }
+    handler = handlers.get(phase)
+    return handler(areas, directions, patterns) if handler else None
+
+
 def phase_work_direction(entry: dict[str, Any]) -> list[str]:
     phase = str(entry.get("phase") or "unknown")
     areas = set(as_list(entry.get("functional_area")))
@@ -205,49 +280,13 @@ def phase_work_direction(entry: dict[str, Any]) -> list[str]:
     patterns = set(as_list(entry.get("failure_pattern")))
     classification = str(entry.get("classification") or "")
 
-    if classification in REPORT_ONLY_CLASSIFICATIONS or "classification_only" in directions:
-        return ["classification_only"]
-    if classification in NO_MRTS_NOMATCH_SEMANTIC_DIRECTION:
-        return [NO_MRTS_NOMATCH_SEMANTIC_DIRECTION[classification]]
-
+    classification_direction = _classification_work_direction(classification, directions)
+    if classification_direction is not None:
+        return [classification_direction]
     if is_phase4_or_response_body(entry):
         return ["response_body_non_promoted"]
-    if phase == "1":
-        if "expected_block_got_200" in patterns or "intervention_blocking" in directions:
-            return ["intervention_blocking"]
-        if {"request_headers", "request_headers_names"} & areas:
-            return ["request_header_mapping"]
-        if "request_uri" in areas or "request_routing" in directions:
-            return ["request_uri_mapping"]
-        if {"request_cookies", "request_cookies_names", "args", "args_names"} & areas:
-            return ["collection_mapping"]
-        if "audit_log" in areas:
-            return ["audit_log_evidence"]
-    if phase == "2":
-        if "request_body_json" in areas:
-            return ["json_processor"]
-        if "request_body_xml" in areas:
-            return ["xml_processor"]
-        if "multipart_files" in areas:
-            return ["multipart_files"]
-        if "operators" in areas or "operator_semantics" in directions:
-            return ["operator_semantics"]
-        if "transformations" in areas or "transformation_semantics" in directions:
-            return ["transformation_semantics"]
-        if "request_routing" in directions:
-            return ["request_routing"]
-        if "expected_block_got_200" in patterns or "intervention_blocking" in directions:
-            return ["intervention_blocking"]
-        if "request_body_urlencoded" in areas:
-            return ["request_body_processor"]
-    if phase == "3":
-        if "response_headers" in areas:
-            return ["response_header_hook"]
-        if "audit_log" in areas:
-            return ["audit_log_evidence"]
-        if "expected_block_got_200" in patterns or "intervention_blocking" in directions:
-            return ["intervention_blocking"]
-    return sorted(directions) or ["runtime_difference"]
+    direction = _phase_specific_work_direction(phase, areas, directions, patterns)
+    return [direction] if direction is not None else sorted(directions) or ["runtime_difference"]
 
 
 def simple_blocking_cluster_key(entry: dict[str, Any]) -> tuple[str, str, str] | None:
@@ -290,80 +329,147 @@ def high_volume_patterns(entries: list[dict[str, Any]]) -> set[tuple[str, str]]:
     return {key for key, count in counts.items() if count >= 10}
 
 
-def choose_priority(entry: dict[str, Any], p0_clusters: set[tuple[str, str, str]], high_volume: set[tuple[str, str]]) -> str:
-    status = status_value(entry)
-    phase = str(entry.get("phase") or "unknown")
-    areas = set(as_list(entry.get("functional_area")))
-    patterns = set(as_list(entry.get("failure_pattern")))
-    source_kind = str(entry.get("source_kind") or "")
-    connector = str(entry.get("connector") or "")
+def _classification_priority(entry: dict[str, Any]) -> str | None:
     classification = str(entry.get("classification") or "")
     directions = set(as_list(entry.get("work_direction")))
-
     if classification in REPORT_ONLY_CLASSIFICATIONS or "classification_only" in directions:
         return REPORT_ONLY_PRIORITY
-    if classification in NO_MRTS_NOMATCH_SEMANTIC_PRIORITY:
-        return NO_MRTS_NOMATCH_SEMANTIC_PRIORITY[classification]
+    return NO_MRTS_NOMATCH_SEMANTIC_PRIORITY.get(classification)
+
+
+def _low_priority_source(entry: dict[str, Any]) -> str | None:
+    source_kind = str(entry.get("source_kind") or "")
     if is_phase4_or_response_body(entry):
         return "P3"
-    if source_kind in {"golden-only", "feature-demo-report-only"} or status == "NOT_EXECUTABLE":
+    if source_kind in {"golden-only", "feature-demo-report-only"}:
         return "P3"
+    return "P3" if status_value(entry) == "NOT_EXECUTABLE" else None
+
+
+def _p0_cluster_priority(
+    entry: dict[str, Any], p0_clusters: set[tuple[str, str, str]]
+) -> str | None:
     key = simple_blocking_cluster_key(entry)
-    if key and key in p0_clusters:
-        return "P0"
-    if source_kind == "runtime-job" and status == "BLOCKED":
-        return "P1"
-    if any((connector, pattern) in high_volume for pattern in patterns):
-        return "P1"
-    if connector == "nginx" and {"expected_200_got_404", "expected_200_got_405", "expected_block_got_404", "expected_block_got_405"} & patterns:
+    return "P0" if key is not None and key in p0_clusters else None
+
+
+def _blocked_runtime_priority(entry: dict[str, Any]) -> str | None:
+    if str(entry.get("source_kind") or "") != "runtime-job":
+        return None
+    return "P1" if status_value(entry) == "BLOCKED" else None
+
+
+def _high_volume_priority(
+    entry: dict[str, Any], high_volume: set[tuple[str, str]]
+) -> str | None:
+    connector = str(entry.get("connector") or "")
+    patterns = as_list(entry.get("failure_pattern"))
+    return "P1" if any((connector, pattern) in high_volume for pattern in patterns) else None
+
+
+def _connector_pattern_priority(entry: dict[str, Any]) -> str | None:
+    connector = str(entry.get("connector") or "")
+    patterns = set(as_list(entry.get("failure_pattern")))
+    if connector == "nginx" and {
+        "expected_200_got_404",
+        "expected_200_got_405",
+        "expected_block_got_404",
+        "expected_block_got_405",
+    } & patterns:
         return "P1"
     if connector == "haproxy" and any(pattern.endswith("_got_501") for pattern in patterns):
         return "P1"
-    if "expected_block_got_200" in patterns:
-        return "P1"
-    if phase == "3" or {"request_body_json", "request_body_xml", "multipart_files", "operators", "transformations", "response_headers"} & areas:
-        return "P2"
+    return "P1" if "expected_block_got_200" in patterns else None
+
+
+def _complex_area_priority(entry: dict[str, Any]) -> str | None:
+    phase = str(entry.get("phase") or "unknown")
+    areas = set(as_list(entry.get("functional_area")))
+    complex_areas = {
+        "request_body_json",
+        "request_body_xml",
+        "multipart_files",
+        "operators",
+        "transformations",
+        "response_headers",
+    }
+    return "P2" if phase == "3" or complex_areas & areas else None
+
+
+def choose_priority(
+    entry: dict[str, Any],
+    p0_clusters: set[tuple[str, str, str]],
+    high_volume: set[tuple[str, str]],
+) -> str:
+    for priority in (
+        _classification_priority(entry),
+        _low_priority_source(entry),
+        _p0_cluster_priority(entry, p0_clusters),
+        _blocked_runtime_priority(entry),
+        _high_volume_priority(entry, high_volume),
+        _connector_pattern_priority(entry),
+        _complex_area_priority(entry),
+    ):
+        if priority is not None:
+            return priority
     return "P3"
+
+
+def _p0_blocking_clusters(
+    entries: list[dict[str, Any]],
+) -> set[tuple[str, str, str]]:
+    clustered_connectors: defaultdict[tuple[str, str, str], set[str]] = defaultdict(set)
+    for entry in entries:
+        key = simple_blocking_cluster_key(entry)
+        if key is not None:
+            clustered_connectors[key].add(str(entry.get("connector") or ""))
+    return {
+        key
+        for key, connectors in clustered_connectors.items()
+        if len(connectors - {""}) >= 2
+    }
+
+
+def _normalized_phase(entry: dict[str, Any]) -> str:
+    phase = str(entry.get("phase") or "unknown")
+    return phase if phase in PHASES else "unknown"
+
+
+def _normalize_entry(
+    entry: dict[str, Any],
+    p0_clusters: set[tuple[str, str, str]],
+    high_volume: set[tuple[str, str]],
+) -> dict[str, Any]:
+    return {
+        "case_id": str(entry.get("case_id") or ""),
+        "connector": str(entry.get("connector") or ""),
+        "test_variant": str(entry.get("test_variant") or ""),
+        "mrts_variant": str(entry.get("mrts_variant") or ""),
+        "source_kind": str(entry.get("source_kind") or ""),
+        "mrts_corpus": str(entry.get("mrts_corpus") or "none"),
+        "phase": _normalized_phase(entry),
+        "variable_or_collection": variable_or_collection(entry),
+        "category": str(entry.get("category") or "unknown"),
+        "functional_area": as_list(entry.get("functional_area")),
+        "failure_pattern": as_list(entry.get("failure_pattern")),
+        "classification": str(entry.get("classification") or "unclassified"),
+        "work_direction": phase_work_direction(entry),
+        "priority": choose_priority(entry, p0_clusters, high_volume),
+        "expected_status": entry.get("expected_status"),
+        "actual_status": entry.get("actual_status"),
+        "runtime_status": status_value(entry),
+        "evidence": str(entry.get("evidence") or entry.get("summary_path") or ""),
+        "reason": str(entry.get("reason") or ""),
+    }
 
 
 def normalize_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     raw_entries = [entry for entry in entries if isinstance(entry, dict)]
-    clustered_connectors: defaultdict[tuple[str, str, str], set[str]] = defaultdict(set)
-    for entry in raw_entries:
-        key = simple_blocking_cluster_key(entry)
-        if key:
-            clustered_connectors[key].add(str(entry.get("connector") or ""))
-    p0_clusters = {key for key, connectors in clustered_connectors.items() if len(connectors - {""}) >= 2}
+    p0_clusters = _p0_blocking_clusters(raw_entries)
     high_volume = high_volume_patterns(raw_entries)
-
-    normalized: list[dict[str, Any]] = []
-    for entry in raw_entries:
-        phase = str(entry.get("phase") or "unknown")
-        directions = phase_work_direction(entry)
-        normalized.append(
-            {
-                "case_id": str(entry.get("case_id") or ""),
-                "connector": str(entry.get("connector") or ""),
-                "test_variant": str(entry.get("test_variant") or ""),
-                "mrts_variant": str(entry.get("mrts_variant") or ""),
-                "source_kind": str(entry.get("source_kind") or ""),
-                "mrts_corpus": str(entry.get("mrts_corpus") or "none"),
-                "phase": phase if phase in PHASES else "unknown",
-                "variable_or_collection": variable_or_collection(entry),
-                "category": str(entry.get("category") or "unknown"),
-                "functional_area": as_list(entry.get("functional_area")),
-                "failure_pattern": as_list(entry.get("failure_pattern")),
-                "classification": str(entry.get("classification") or "unclassified"),
-                "work_direction": directions,
-                "priority": choose_priority(entry, p0_clusters, high_volume),
-                "expected_status": entry.get("expected_status"),
-                "actual_status": entry.get("actual_status"),
-                "runtime_status": status_value(entry),
-                "evidence": str(entry.get("evidence") or entry.get("summary_path") or ""),
-                "reason": str(entry.get("reason") or ""),
-            }
-        )
-    return normalized
+    return [
+        _normalize_entry(entry, p0_clusters, high_volume) for entry in raw_entries
+    ]
 
 
 def is_queue_entry(entry: dict[str, Any]) -> bool:
@@ -739,6 +845,112 @@ def render_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _absolute_path_without_traversal(value: Path | str, label: str) -> Path:
+    candidate = Path(value)
+    if not candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError(f"{label} must be an absolute path without traversal: {value}")
+    return candidate
+
+
+def _has_symlink_component(path: Path) -> bool:
+    current = Path(path.anchor)
+    for component in path.parts[1:]:
+        current /= component
+        if current.is_symlink():
+            return True
+    return False
+
+
+def existing_private_root(value: Path | str, label: str) -> Path:
+    root = _absolute_path_without_traversal(value, label)
+    if _has_symlink_component(root):
+        raise ValueError(f"{label} must not contain a symlink component: {root}")
+    if not root.is_dir():
+        raise ValueError(f"{label} must be an existing directory: {root}")
+    mode = stat.S_IMODE(os.lstat(root).st_mode)
+    if mode & stat.S_IWOTH:
+        raise ValueError(f"{label} must not be publicly writable: {root}")
+    return root.resolve(strict=True)
+
+
+def configured_framework_root(value: Path | str) -> Path:
+    framework_root = existing_private_root(value, "framework root")
+    expected_root = Path(__file__).resolve().parents[2]
+    if framework_root != expected_root:
+        raise ValueError(
+            f"framework root must be the generator's framework root: {expected_root}"
+        )
+    return framework_root
+
+
+def configured_output_root(
+    value: Path | str,
+    connector_root: Path,
+    framework_root: Path,
+) -> Path:
+    output_root = existing_private_root(value, "output root")
+    if output_root not in {connector_root, framework_root}:
+        raise ValueError(
+            "output root must resolve exactly to the connector root or framework root"
+        )
+    return output_root
+
+
+def _secure_directory_fd(directory: Path) -> int:
+    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+        raise RuntimeError("secure report output requires directory descriptor support")
+    return os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+
+
+def _open_secure_temporary_file(directory_fd: int, filename: str) -> tuple[str, int]:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    for _ in range(8):
+        temporary_name = f".{filename}.{secrets.token_hex(16)}.tmp"
+        try:
+            return temporary_name, os.open(temporary_name, flags, 0o600, dir_fd=directory_fd)
+        except FileExistsError:
+            continue
+    raise RuntimeError("could not allocate a unique temporary report file")
+
+
+def _write_file_descriptor(file_descriptor: int, contents: str) -> None:
+    with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
+        handle.write(contents)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def write_generated_report_file(directory: Path, filename: str, contents: str) -> None:
+    """Atomically replace a fixed report filename without following links."""
+
+    if not filename or Path(filename).name != filename:
+        raise ValueError(f"generated report filename must be a basename: {filename}")
+    directory_fd = _secure_directory_fd(directory)
+    temporary_name = ""
+    try:
+        temporary_name, temporary_fd = _open_secure_temporary_file(directory_fd, filename)
+        _write_file_descriptor(temporary_fd, contents)
+        os.replace(temporary_name, filename, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
+        temporary_name = ""
+    finally:
+        if temporary_name:
+            try:
+                os.unlink(temporary_name, dir_fd=directory_fd)
+            except FileNotFoundError:
+                pass
+        os.close(directory_fd)
+
+
+def _prepare_report_output_directory(
+    output_root: Path,
+    report_path: Path,
+    require_under: Any,
+) -> Path:
+    directory = report_path.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    return require_under(output_root, directory, "generated report output directory")
+
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -750,15 +962,26 @@ def main() -> int:
     parser.add_argument("--full-runtime-matrix", default=None)
     args = parser.parse_args()
 
-    framework_root = Path(args.framework_root).resolve()
-    connector_root = Path(args.connector_root).resolve()
+    framework_root = configured_framework_root(args.framework_root)
+    connector_root = existing_private_root(args.connector_root, "connector root")
     framework_lib = framework_root / "ci" / "lib"
     if str(framework_lib) not in sys.path:
         sys.path.insert(0, str(framework_lib))
-    from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root, require_under
+    from generated_report_utils import (
+        build_metadata,
+        generated_json_text,
+        generated_markdown_text,
+        generated_report_dir,
+        report_path_from_root,
+        require_under,
+    )
 
-    output_root = Path(args.output_root).resolve() if args.output_root else connector_root
-    output_dir = require_under(output_root, output_root / "reports/testing/generated", "generated report directory")
+    output_root = configured_output_root(
+        args.output_root if args.output_root else connector_root,
+        connector_root,
+        framework_root,
+    )
+    output_dir = generated_report_dir(output_root)
     connector_work_queue_path = require_under(output_root, Path(args.connector_work_queue), "connector work queue") if args.connector_work_queue else report_path_from_root(output_dir, "connector_work_queue", "json")
     phase_coverage_path = require_under(output_root, Path(args.phase_coverage), "phase coverage") if args.phase_coverage else report_path_from_root(output_dir, "phase_coverage", "md")
     full_runtime_matrix_path = require_under(output_root, Path(args.full_runtime_matrix), "full runtime matrix") if args.full_runtime_matrix else report_path_from_root(output_dir, "full_runtime_matrix", "json")
@@ -792,9 +1015,22 @@ def main() -> int:
     )
     json_path = report_path_from_root(output_dir, "phase_work_queue", "json")
     md_path = report_path_from_root(output_dir, "phase_work_queue", "md")
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
-    md_path.write_text(generated_markdown_text(render_markdown(payload), metadata), encoding="utf-8")
+    json_directory = _prepare_report_output_directory(
+        output_root, json_path, require_under
+    )
+    markdown_directory = _prepare_report_output_directory(
+        output_root, md_path, require_under
+    )
+    write_generated_report_file(
+        json_directory,
+        json_path.name,
+        generated_json_text(payload, metadata),
+    )
+    write_generated_report_file(
+        markdown_directory,
+        md_path.name,
+        generated_markdown_text(render_markdown(payload), metadata),
+    )
     return 0
 
 

@@ -1,3 +1,50 @@
+# A command-line or inherited recursive Make variable is automatically exposed
+# to early $(shell ...) calls. Escape dollars before the first such call so
+# finalizer inputs can become only wrapper argv data, never Make functions.
+no_crs_literal_dollar := $$
+ifneq ($(origin NO_CRS_TOOL),undefined)
+override NO_CRS_TOOL := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value NO_CRS_TOOL))
+endif
+ifneq ($(origin CONNECTOR),undefined)
+override CONNECTOR := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value CONNECTOR))
+endif
+ifneq ($(origin NO_CRS_RUN_DIR),undefined)
+override NO_CRS_RUN_DIR := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value NO_CRS_RUN_DIR))
+endif
+ifneq ($(origin CONNECTOR_ROOT),undefined)
+override CONNECTOR_ROOT := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value CONNECTOR_ROOT))
+endif
+ifneq ($(origin CAPABILITIES_FILE),undefined)
+override CAPABILITIES_FILE := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value CAPABILITIES_FILE))
+endif
+ifneq ($(origin NO_CRS_STAGE_RC),undefined)
+override NO_CRS_STAGE_RC := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value NO_CRS_STAGE_RC))
+endif
+ifneq ($(origin NO_CRS_STAGE_REASON),undefined)
+override NO_CRS_STAGE_REASON := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value NO_CRS_STAGE_REASON))
+endif
+ifneq ($(origin NO_CRS_FINALIZE_ARGS),undefined)
+override NO_CRS_FINALIZE_ARGS := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value NO_CRS_FINALIZE_ARGS))
+endif
+ifneq ($(origin NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR),undefined)
+override NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR))
+endif
+ifneq ($(origin STATE_HOME),undefined)
+override STATE_HOME := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value STATE_HOME))
+endif
+ifneq ($(origin BUILD_ROOT),undefined)
+override BUILD_ROOT := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value BUILD_ROOT))
+endif
+ifneq ($(origin EVIDENCE_ROOT),undefined)
+override EVIDENCE_ROOT := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value EVIDENCE_ROOT))
+endif
+ifneq ($(origin NO_CRS_RUN_ID),undefined)
+override NO_CRS_RUN_ID := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value NO_CRS_RUN_ID))
+endif
+ifneq ($(origin CI_ROOT),undefined)
+override CI_ROOT := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value CI_ROOT))
+endif
+
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 STATE_HOME ?= $(if $(XDG_STATE_HOME),$(XDG_STATE_HOME),$(HOME)/.local/state)
 SOURCE_ROOT ?= $(STATE_HOME)/ModSecurity-conector-src
@@ -88,10 +135,21 @@ export CRS_GIT_REF
 export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
+# Finalizer inputs cross the Make-to-Python boundary through the environment.
+# ci/tools/run-no-crs-finalize.py turns them into an argv vector without
+# reinterpreting any caller-controlled value as shell syntax.
+export NO_CRS_TOOL
+export CONNECTOR
+export NO_CRS_RUN_DIR
+export CAPABILITIES_FILE
+export NO_CRS_STAGE_RC
+export NO_CRS_STAGE_REASON
+export NO_CRS_FINALIZE_ARGS
+export NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR
 
 .PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-github-actions-workflows check-github-actions-pins check-github-actions-permissions test-workflow-security-contract check-doc-links check-bilingual-docs check-variable-documentation check-repository-path-references check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-makefile-contract test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
 .PHONY: test-workflow-action-pins test-workflow-contract
-.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-doc-links check-bilingual-docs check-variable-documentation check-repository-path-references check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-makefile-contract test-crs-provenance-contract test-workflow-action-pins test-workflow-contract test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
+.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-doc-links check-bilingual-docs check-variable-documentation check-repository-path-references check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-makefile-contract test-crs-provenance-contract test-modsecurity-v3-provenance-contract test-workflow-action-pins test-workflow-contract test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
 
 define RUN_WITH_FRAMEWORK_REPORT_REFRESH
 	@set +e; \
@@ -113,6 +171,7 @@ lint:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py $(CI_PYTHON_FILES)
 	$(MAKE) test-makefile-contract
 	$(MAKE) test-crs-provenance-contract
+	$(MAKE) test-modsecurity-v3-provenance-contract
 	$(MAKE) test-workflow-action-pins
 	$(MAKE) test-workflow-contract
 	$(PYTHON) ci/tools/check-python-deps.py
@@ -166,6 +225,10 @@ test-crs-provenance-contract:
 	mkdir -p "$(TMP_ROOT)"
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" TMPDIR="$(TMP_ROOT)" $(PYTHON) -m unittest discover -s tests/security_regression -p 'test_crs_git_ref_provenance.py' -v
 
+test-modsecurity-v3-provenance-contract:
+	mkdir -p "$(TMP_ROOT)"
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" TMPDIR="$(TMP_ROOT)" $(PYTHON) -m unittest discover -s tests/security_regression -p 'test_modsecurity_v3_git_ref_provenance.py' -v
+
 test-workflow-action-pins:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest discover -s tests/security_regression -p test_workflow_action_pins.py -v
 
@@ -186,8 +249,7 @@ no-crs-init: no-crs-plan
 	$(PYTHON) "$(NO_CRS_TOOL)" init --connector "$(CONNECTOR)" --capabilities "$(CAPABILITIES_FILE)" --evidence-stage "$(EVIDENCE_STAGE)" --artifact-profile "$(NO_CRS_ARTIFACT_PROFILE)" --plan "$(PLAN_FILE)" --run-dir "$(NO_CRS_RUN_DIR)" --run-id "$(NO_CRS_RUN_ID)" --connector-root "$(CONNECTOR_ROOT)" --executed-target "$(EVIDENCE_STAGE)-$(CONNECTOR)"
 
 no-crs-finalize:
-	@test -n "$(CONNECTOR)" || { echo "CONNECTOR is required" >&2; exit 2; }
-	$(PYTHON) "$(NO_CRS_TOOL)" finalize --run-dir "$(NO_CRS_RUN_DIR)" --connector-root "$(CONNECTOR_ROOT)" --capabilities "$(CAPABILITIES_FILE)" --stage-rc "$(NO_CRS_STAGE_RC)" --stage-reason "$(NO_CRS_STAGE_REASON)" $(if $(NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR),--protocol-client-artifact-dir "$(NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR)",) $(NO_CRS_FINALIZE_ARGS)
+	$(PYTHON) "$(dir $(abspath $(lastword $(MAKEFILE_LIST))))ci/tools/run-no-crs-finalize.py"
 
 no-crs-summary:
 	mkdir -p "$(NO_CRS_SUMMARY_ROOT)"

@@ -19,14 +19,17 @@ from urllib.request import Request, urlopen
 DEFAULT_BUILD_ROOT = Path("/src/ModSecurity-conector-build")
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_COMMON_SH = SCRIPT_DIR.parent / "lib" / "common.sh"
-FRAMEWORK_ROOT = SCRIPT_DIR.parents[1]
+NO_SAFE_UPDATER_MESSAGE = "No safe updater implemented for this source yet."
+SHA256_SUFFIX = ".sha256"
+ARCHIVE_BZ2_EXTENSION = ".tar.bz2"
+APACHE_DOWNLOAD_HOST = "downloads.apache.org"
 
 TRACKED_NAME_RE = re.compile(
     r"VERSION|RELEASE|TAG|SOURCE_URL|GIT_URL|SHA256|CHECKSUM|REF|BRANCH|COMMIT|URL"
 )
-PARAM_EXPANSION_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*):[-=]([^{}]*)\}")
-BRACED_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
-PLAIN_VAR_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
+PARAM_EXPANSION_RE = re.compile(r"\$\{((?!\d)\w+):[-=]([^{}]*)\}", re.ASCII)
+BRACED_VAR_RE = re.compile(r"\$\{((?!\d)\w+)\}", re.ASCII)
+PLAIN_VAR_RE = re.compile(r"\$((?!\d)\w+)", re.ASCII)
 SHA256_RE = re.compile(r"\b([A-Fa-f0-9]{64})\b")
 SAFE_REF_RE = re.compile(r"^(?!.*\.\.)(?!/)(?!.*//)[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
 NGINX_RELEASE_ASSET_RE = re.compile(r"^nginx-([A-Za-z0-9][A-Za-z0-9._-]*)\.tar\.gz$")
@@ -119,13 +122,25 @@ def is_under(path: Path, root: Path) -> bool:
     return True
 
 
-def require_safe_write_target(path: Path) -> None:
+def require_safe_build_write_target(path: Path) -> Path:
     target = path.resolve()
-    allowed_roots = [FRAMEWORK_ROOT.resolve(), build_root()]
-    if any(is_under(target, root) for root in allowed_roots):
-        return
-    roots = ", ".join(str(root) for root in allowed_roots)
-    raise UpstreamError(f"refusing to write outside allowed roots ({roots}): {target}")
+    root = build_root()
+    if is_under(target, root):
+        return target
+    raise UpstreamError(f"refusing to write outside BUILD_ROOT ({root}): {target}")
+
+
+def require_safe_common_sh_update_target(path: Path) -> Path:
+    target = path.resolve()
+    canonical_common_sh = DEFAULT_COMMON_SH.resolve()
+    if target == canonical_common_sh:
+        return target
+    if target.name == canonical_common_sh.name:
+        return require_safe_build_write_target(target)
+    raise UpstreamError(
+        "refusing to update a file other than the canonical common.sh or a "
+        f"BUILD_ROOT test fixture: {target}"
+    )
 
 
 def resolve_value(raw_value: str, resolved: dict[str, str]) -> str:
@@ -147,40 +162,35 @@ def resolve_value(raw_value: str, resolved: dict[str, str]) -> str:
     return value
 
 
-def parse_common(common_sh: Path) -> tuple[list[str], dict[str, VariableEntry]]:
-    lines = common_sh.read_text(encoding="utf-8").splitlines()
-    entries: dict[str, VariableEntry] = {}
-    resolved: dict[str, str] = {}
+def parse_common_assignment(line: str) -> tuple[str, str, str] | None:
     assign_re = re.compile(r'^([A-Z][A-Z0-9_]*)="\$\{\1:-(.*)\}"\s*$')
     colon_re = re.compile(r'^:\s+"\$\{([A-Z][A-Z0-9_]*):=(.*)\}"\s*$')
     literal_re = re.compile(r'^([A-Z][A-Z0-9_]*)="([^"$`]*)"\s*$')
 
-    for line_no, line in enumerate(lines, start=1):
-        style = ""
-        name = ""
-        default = ""
-        match = colon_re.match(line)
+    for style, pattern in (("colon-default", colon_re), ("assignment-default", assign_re)):
+        match = pattern.match(line)
         if match:
-            style = "colon-default"
-            name = match.group(1)
-            default = match.group(2)
-        else:
-            match = assign_re.match(line)
-            if match:
-                style = "assignment-default"
-                name = match.group(1)
-                default = match.group(2)
-            else:
-                match = literal_re.match(line)
-                if match and (
-                    match.group(1).startswith("CRS_APPROVED_")
-                    or match.group(1) == "CRS_RELEASE_TAG"
-                ):
-                    style = "literal-assignment"
-                    name = match.group(1)
-                    default = match.group(2)
-        if not name:
+            return style, match.group(1), match.group(2)
+
+    match = literal_re.match(line)
+    if not match:
+        return None
+    name = match.group(1)
+    if not name.startswith("CRS_APPROVED_") and name != "CRS_RELEASE_TAG":
+        return None
+    return "literal-assignment", name, match.group(2)
+
+
+def parse_common(common_sh: Path) -> tuple[list[str], dict[str, VariableEntry]]:
+    lines = common_sh.read_text(encoding="utf-8").splitlines()
+    entries: dict[str, VariableEntry] = {}
+    resolved: dict[str, str] = {}
+
+    for line_no, line in enumerate(lines, start=1):
+        assignment = parse_common_assignment(line)
+        if assignment is None:
             continue
+        style, name, default = assignment
         value = resolve_value(default, resolved)
         resolved[name] = value
         tracked = bool(TRACKED_NAME_RE.search(name) or TRACKED_NAME_RE.search(default))
@@ -243,7 +253,7 @@ def replace_default_line(line: str, variable: str, new_default: str) -> str:
 def apply_updates(common_sh: Path, lines: list[str], updates: list[UpdateChange]) -> None:
     if not updates:
         return
-    require_safe_write_target(common_sh)
+    target = require_safe_common_sh_update_target(common_sh)
     seen: set[str] = set()
     for update in updates:
         if update.variable in seen:
@@ -251,14 +261,39 @@ def apply_updates(common_sh: Path, lines: list[str], updates: list[UpdateChange]
         seen.add(update.variable)
         index = update.line - 1
         lines[index] = replace_default_line(lines[index], update.variable, update.new)
-    common_sh.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def consume_decimal_digits(text: str, start: int) -> int:
+    end = start
+    while end < len(text) and text[end].isdecimal():
+        end += 1
+    return end
+
+
+def dotted_version_text(text: str) -> str:
+    start = 0
+    while start < len(text):
+        if not text[start].isdecimal():
+            start += 1
+            continue
+        end = consume_decimal_digits(text, start)
+        dotted_end = end
+        while dotted_end < len(text) and text[dotted_end] == ".":
+            next_start = dotted_end + 1
+            next_end = consume_decimal_digits(text, next_start)
+            if next_end == next_start:
+                break
+            dotted_end = next_end
+        if dotted_end != end:
+            return text[start:dotted_end]
+        start = end
+    raise UpstreamUnknown(f"no dotted numeric version in {text!r}")
 
 
 def version_tuple(text: str) -> tuple[int, ...]:
-    match = re.search(r"\d+(?:\.\d+)+", text)
-    if not match:
-        raise UpstreamUnknown(f"no dotted numeric version in {text!r}")
-    return tuple(int(part) for part in match.group(0).split("."))
+    version = dotted_version_text(text)
+    return tuple(int(part) for part in version.split("."))
 
 
 def compare_versions(left: str, right: str) -> int:
@@ -376,6 +411,70 @@ def latest_from_listing(
     return versions[-1]
 
 
+def missing_variables_result(
+    component: str,
+    entries: dict[str, VariableEntry],
+    variables: list[str],
+) -> ComponentResult | None:
+    missing = [name for name in variables if name not in entries]
+    if not missing:
+        return None
+    return ComponentResult(
+        component=component,
+        status=STATUS_UNKNOWN,
+        message=f"missing variables: {', '.join(missing)}",
+        variables=variables,
+    )
+
+
+def is_expected_tarball_url(
+    current_url: str,
+    allowed_host: str,
+    filename: str,
+) -> bool:
+    parsed = urlparse(current_url)
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc == allowed_host
+        and parsed.path.endswith("/" + filename)
+    )
+
+
+def append_planned_update(
+    updates: list[UpdateChange],
+    entries: dict[str, VariableEntry],
+    variable: str,
+    new_default: str,
+) -> None:
+    update = plan_update(entries, variable, new_default)
+    if update is not None:
+        updates.append(update)
+
+
+def collect_tarball_updates(
+    entries: dict[str, VariableEntry],
+    *,
+    version_var: str,
+    source_url_var: str,
+    sha_var: str,
+    sha_url_var: str,
+    current_sha: str,
+    latest_version: str,
+    latest_url: str,
+    latest_sha_url: str,
+    latest_sha: str,
+) -> list[UpdateChange]:
+    updates: list[UpdateChange] = []
+    append_planned_update(updates, entries, version_var, latest_version)
+    if not is_template_value(entries[source_url_var].default, version_var):
+        append_planned_update(updates, entries, source_url_var, latest_url)
+    if not is_template_value(entries[sha_url_var].default, source_url_var):
+        append_planned_update(updates, entries, sha_url_var, latest_sha_url)
+    if current_sha:
+        append_planned_update(updates, entries, sha_var, latest_sha)
+    return updates
+
+
 def official_tarball_check(
     component: str,
     entries: dict[str, VariableEntry],
@@ -391,26 +490,20 @@ def official_tarball_check(
     restrict_to_current_series: bool,
 ) -> ComponentResult:
     variables = [version_var, source_url_var, sha_var, sha_url_var]
-    missing = [name for name in variables if name not in entries]
-    if missing:
-        return ComponentResult(
-            component=component,
-            status=STATUS_UNKNOWN,
-            message=f"missing variables: {', '.join(missing)}",
-            variables=variables,
-        )
+    missing_result = missing_variables_result(component, entries, variables)
+    if missing_result is not None:
+        return missing_result
 
     current_version = value(entries, version_var)
     current_url = value(entries, source_url_var)
     current_sha = value(entries, sha_var)
     current_sha_url = value(entries, sha_url_var)
-    parsed = urlparse(current_url)
     filename = f"{filename_prefix}-{current_version}{extension}"
-    if parsed.scheme != "https" or parsed.netloc != allowed_host or not parsed.path.endswith("/" + filename):
+    if not is_expected_tarball_url(current_url, allowed_host, filename):
         return ComponentResult(
             component=component,
             status=STATUS_UNKNOWN,
-            message="No safe updater implemented for this source yet.",
+            message=NO_SAFE_UPDATER_MESSAGE,
             variables=variables,
             current=current_version,
             source=current_url,
@@ -427,9 +520,8 @@ def official_tarball_check(
     )
     latest_filename = f"{filename_prefix}-{latest_version}{extension}"
     latest_url = listing_url + latest_filename
-    latest_sha_url = latest_url + ".sha256"
+    latest_sha_url = latest_url + SHA256_SUFFIX
     latest_sha = fetch_sha256(client, latest_sha_url, latest_filename)
-    updates: list[UpdateChange] = []
     comparison = compare_versions(current_version, latest_version)
 
     if comparison > 0:
@@ -444,23 +536,18 @@ def official_tarball_check(
         )
 
     if comparison < 0:
-        update = plan_update(entries, version_var, latest_version)
-        if update:
-            updates.append(update)
-        source_entry = entries[source_url_var]
-        if not is_template_value(source_entry.default, version_var):
-            update = plan_update(entries, source_url_var, latest_url)
-            if update:
-                updates.append(update)
-        sha_url_entry = entries[sha_url_var]
-        if not is_template_value(sha_url_entry.default, source_url_var):
-            update = plan_update(entries, sha_url_var, latest_sha_url)
-            if update:
-                updates.append(update)
-        if current_sha:
-            update = plan_update(entries, sha_var, latest_sha)
-            if update:
-                updates.append(update)
+        updates = collect_tarball_updates(
+            entries,
+            version_var=version_var,
+            source_url_var=source_url_var,
+            sha_var=sha_var,
+            sha_url_var=sha_url_var,
+            current_sha=current_sha,
+            latest_version=latest_version,
+            latest_url=latest_url,
+            latest_sha_url=latest_sha_url,
+            latest_sha=latest_sha,
+        )
         return ComponentResult(
             component=component,
             status=STATUS_OUTDATED,
@@ -483,9 +570,8 @@ def official_tarball_check(
         filename,
     )
     if current_sha and current_sha.lower() != official_current_sha:
-        update = plan_update(entries, sha_var, official_current_sha)
-        if update:
-            updates.append(update)
+        updates: list[UpdateChange] = []
+        append_planned_update(updates, entries, sha_var, official_current_sha)
         return ComponentResult(
             component=component,
             status=STATUS_OUTDATED,
@@ -516,29 +602,31 @@ def official_tarball_check(
     )
 
 
-def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> ComponentResult:
-    variables = ["HAPROXY_VERSION", "HAPROXY_SOURCE_URL", "HAPROXY_SHA256_URL", "HAPROXY_SHA256"]
-    missing = [name for name in variables if name not in entries]
-    if missing:
-        return ComponentResult(
-            component="HAProxy",
-            status=STATUS_UNKNOWN,
-            message=f"missing variables: {', '.join(missing)}",
-            variables=variables,
-        )
-    current_version = value(entries, "HAPROXY_VERSION")
-    current_url = value(entries, "HAPROXY_SOURCE_URL")
-    configured_sha = value(entries, "HAPROXY_SHA256").lower()
-    current_sha_url = value(entries, "HAPROXY_SHA256_URL") or current_url + ".sha256"
+def haproxy_source_series(current_url: str, current_version: str) -> str | None:
     match = re.fullmatch(
         r"https://www\.haproxy\.org/download/(\d+\.\d+)/src/haproxy-(\d+\.\d+\.\d+)\.tar\.gz",
         current_url,
     )
-    if not match or match.group(2) != current_version:
+    if match is None or match.group(2) != current_version:
+        return None
+    return match.group(1)
+
+
+def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> ComponentResult:
+    variables = ["HAPROXY_VERSION", "HAPROXY_SOURCE_URL", "HAPROXY_SHA256_URL", "HAPROXY_SHA256"]
+    missing_result = missing_variables_result("HAProxy", entries, variables)
+    if missing_result is not None:
+        return missing_result
+    current_version = value(entries, "HAPROXY_VERSION")
+    current_url = value(entries, "HAPROXY_SOURCE_URL")
+    configured_sha = value(entries, "HAPROXY_SHA256").lower()
+    current_sha_url = value(entries, "HAPROXY_SHA256_URL") or current_url + SHA256_SUFFIX
+    series = haproxy_source_series(current_url, current_version)
+    if series is None:
         return ComponentResult(
             component="HAProxy",
             status=STATUS_UNKNOWN,
-            message="No safe updater implemented for this source yet.",
+            message=NO_SAFE_UPDATER_MESSAGE,
             variables=variables,
             current=current_version,
             source=current_url,
@@ -554,7 +642,6 @@ def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> Comp
             source=current_url,
         )
 
-    series = match.group(1)
     listing_url = f"https://www.haproxy.org/download/{series}/src/"
     latest_version = latest_from_listing(
         client.get_text(listing_url),
@@ -565,10 +652,9 @@ def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> Comp
     )
     latest_filename = f"haproxy-{latest_version}.tar.gz"
     latest_url = f"{listing_url}{latest_filename}"
-    latest_sha_url = latest_url + ".sha256"
+    latest_sha_url = latest_url + SHA256_SUFFIX
     latest_sha = fetch_sha256(client, latest_sha_url, latest_filename)
     comparison = compare_versions(current_version, latest_version)
-    updates: list[UpdateChange] = []
 
     if comparison > 0:
         return ComponentResult(
@@ -582,22 +668,18 @@ def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> Comp
         )
 
     if comparison < 0:
-        update = plan_update(entries, "HAPROXY_VERSION", latest_version)
-        if update:
-            updates.append(update)
-        source_entry = entries["HAPROXY_SOURCE_URL"]
-        if not is_template_value(source_entry.default, "HAPROXY_VERSION"):
-            update = plan_update(entries, "HAPROXY_SOURCE_URL", latest_url)
-            if update:
-                updates.append(update)
-        sha_url_entry = entries["HAPROXY_SHA256_URL"]
-        if not is_template_value(sha_url_entry.default, "HAPROXY_SOURCE_URL"):
-            update = plan_update(entries, "HAPROXY_SHA256_URL", latest_sha_url)
-            if update:
-                updates.append(update)
-        update = plan_update(entries, "HAPROXY_SHA256", latest_sha)
-        if update:
-            updates.append(update)
+        updates = collect_tarball_updates(
+            entries,
+            version_var="HAPROXY_VERSION",
+            source_url_var="HAPROXY_SOURCE_URL",
+            sha_var="HAPROXY_SHA256",
+            sha_url_var="HAPROXY_SHA256_URL",
+            current_sha=configured_sha,
+            latest_version=latest_version,
+            latest_url=latest_url,
+            latest_sha_url=latest_sha_url,
+            latest_sha=latest_sha,
+        )
         return ComponentResult(
             component="HAProxy",
             status=STATUS_OUTDATED,
@@ -616,9 +698,8 @@ def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> Comp
 
     official_current_sha = fetch_sha256(client, current_sha_url, f"haproxy-{current_version}.tar.gz")
     if configured_sha != official_current_sha:
-        update = plan_update(entries, "HAPROXY_SHA256", official_current_sha)
-        if update:
-            updates.append(update)
+        updates: list[UpdateChange] = []
+        append_planned_update(updates, entries, "HAPROXY_SHA256", official_current_sha)
         return ComponentResult(
             component="HAProxy",
             status=STATUS_OUTDATED,
@@ -690,7 +771,7 @@ def check_github_release_ref(
         return ComponentResult(
             component=component,
             status=STATUS_UNKNOWN,
-            message="No safe updater implemented for this source yet.",
+            message=NO_SAFE_UPDATER_MESSAGE,
             variables=variables,
             current=current_ref,
             source=repo_url,
@@ -700,7 +781,7 @@ def check_github_release_ref(
         return ComponentResult(
             component=component,
             status=STATUS_UNKNOWN,
-            message="No safe updater implemented for this source yet.",
+            message=NO_SAFE_UPDATER_MESSAGE,
             variables=variables,
             current=current_ref,
             source=repo_url,
@@ -711,7 +792,7 @@ def check_github_release_ref(
         return ComponentResult(
             component=component,
             status=STATUS_UNKNOWN,
-            message="No safe updater implemented for this source yet.",
+            message=NO_SAFE_UPDATER_MESSAGE,
             variables=variables,
             current=current_ref,
             source=repo_url,
@@ -992,7 +1073,7 @@ def check_pcre2(entries: dict[str, VariableEntry], client: HttpClient) -> Compon
         return ComponentResult(
             component="PCRE2",
             status=STATUS_UNKNOWN,
-            message="No safe updater implemented for this source yet.",
+            message=NO_SAFE_UPDATER_MESSAGE,
             variables=variables,
             current=current_version,
             source=current_url,
@@ -1003,7 +1084,7 @@ def check_pcre2(entries: dict[str, VariableEntry], client: HttpClient) -> Compon
     latest_tag = release_tag_name(latest_release, repo_path)
     latest_version = re.sub(r"^pcre2-", "", latest_tag)
     version_tuple(latest_version)
-    latest_asset_name = f"pcre2-{latest_version}.tar.bz2"
+    latest_asset_name = f"pcre2-{latest_version}{ARCHIVE_BZ2_EXTENSION}"
     latest_asset_url = find_release_asset(latest_release, latest_asset_name)
     comparison = compare_versions(current_version, latest_version)
 
@@ -1040,7 +1121,7 @@ def check_pcre2(entries: dict[str, VariableEntry], client: HttpClient) -> Compon
         )
 
     current_release = github_release_by_tag(client, repo_path, f"pcre2-{current_version}")
-    current_asset_url = find_release_asset(current_release, f"pcre2-{current_version}.tar.bz2")
+    current_asset_url = find_release_asset(current_release, f"pcre2-{current_version}{ARCHIVE_BZ2_EXTENSION}")
     if current_asset_url != current_url:
         update = plan_update(entries, "PCRE2_SOURCE_URL", current_asset_url)
         updates = [update] if update else []
@@ -1075,7 +1156,7 @@ def unknown_component(
     return ComponentResult(
         component=component,
         status=STATUS_UNKNOWN,
-        message="No safe updater implemented for this source yet.",
+        message=NO_SAFE_UPDATER_MESSAGE,
         variables=variables,
         current=", ".join(f"{name}={value(entries, name)}" for name in variables if name in entries),
         details={"reason": reason},
@@ -1129,8 +1210,8 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
                 sha_var="HTTPD_SHA256",
                 sha_url_var="HTTPD_SHA256_URL",
                 filename_prefix="httpd",
-                extension=".tar.bz2",
-                allowed_host="downloads.apache.org",
+                extension=ARCHIVE_BZ2_EXTENSION,
+                allowed_host=APACHE_DOWNLOAD_HOST,
                 restrict_to_current_series=True,
             ),
         ),
@@ -1145,8 +1226,8 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
                 sha_var="APR_SHA256",
                 sha_url_var="APR_SHA256_URL",
                 filename_prefix="apr",
-                extension=".tar.bz2",
-                allowed_host="downloads.apache.org",
+                extension=ARCHIVE_BZ2_EXTENSION,
+                allowed_host=APACHE_DOWNLOAD_HOST,
                 restrict_to_current_series=True,
             ),
         ),
@@ -1161,8 +1242,8 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
                 sha_var="APR_UTIL_SHA256",
                 sha_url_var="APR_UTIL_SHA256_URL",
                 filename_prefix="apr-util",
-                extension=".tar.bz2",
-                allowed_host="downloads.apache.org",
+                extension=ARCHIVE_BZ2_EXTENSION,
+                allowed_host=APACHE_DOWNLOAD_HOST,
                 restrict_to_current_series=True,
             ),
         ),
@@ -1365,7 +1446,7 @@ def exit_code(results: list[ComponentResult]) -> int:
 def write_summary_files(summary: dict[str, Any], markdown: str) -> None:
     root = build_root()
     output_dir = root / "results" / "common-version-check"
-    require_safe_write_target(output_dir)
+    require_safe_build_write_target(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
@@ -1380,7 +1461,7 @@ def common_path_from_args(path_text: str | None) -> Path:
     return DEFAULT_COMMON_SH.resolve()
 
 
-def main(argv: list[str] | None = None) -> int:
+def parse_arguments(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="check common.sh without modifying it")
@@ -1391,49 +1472,93 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write-files", action="store_true", help="write summary files under BUILD_ROOT")
     parser.add_argument("--common-sh", help=argparse.SUPPRESS)
     parser.add_argument("--timeout", type=float, default=20.0, help="network timeout in seconds")
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
+
+
+def append_missing_required_result(
+    results: list[ComponentResult], entries: dict[str, VariableEntry]
+) -> None:
+    missing_required = validate_entries(entries)
+    if not missing_required:
+        return
+    results.append(
+        ComponentResult(
+            component="common.sh required values",
+            status=STATUS_ERROR,
+            message="Required tracked variables resolved to empty: "
+            + ", ".join(missing_required),
+            variables=missing_required,
+            details={"action": "define a value or add the variable to OPTIONAL_EMPTY_VARIABLES"},
+        )
+    )
+
+
+def apply_requested_updates(
+    update_requested: bool,
+    rc: int,
+    common_sh: Path,
+    lines: list[str],
+    entries: dict[str, VariableEntry],
+    results: list[ComponentResult],
+) -> tuple[int, list[UpdateChange], list[str], dict[str, VariableEntry]] | None:
+    if not update_requested:
+        return rc, [], lines, entries
+    if rc == 2:
+        print("blocked: refusing to update while one or more upstream checks failed", file=sys.stderr)
+        return rc, [], lines, entries
+
+    updates = flatten_updates(results)
+    if not updates:
+        if rc == 1:
+            print("outdated values found, but no safe update could be planned", file=sys.stderr)
+        return rc, [], lines, entries
+    try:
+        apply_updates(common_sh, lines, updates)
+    except UpstreamError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return None
+
+    updated_lines, updated_entries = parse_common(common_sh)
+    print("applied updates:", file=sys.stderr)
+    for update in updates:
+        print(
+            f" - {update.variable} line {update.line}: {update.old} -> {update.new}",
+            file=sys.stderr,
+        )
+    return 0, updates, updated_lines, updated_entries
+
+
+def emit_summary(
+    summary: dict[str, Any], markdown: str, json_requested: bool, markdown_requested: bool
+) -> None:
+    if json_requested:
+        print(json.dumps(summary, indent=2, sort_keys=True))
+    elif markdown_requested:
+        print(markdown)
+    else:
+        print(plain_summary(summary), end="")
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_arguments(argv)
 
     common_sh = common_path_from_args(args.common_sh)
     lines, entries = parse_common(common_sh)
     client = HttpClient(timeout=args.timeout)
     results = check_all(entries, client)
-    missing_required = validate_entries(entries)
-    if missing_required:
-        results.append(
-            ComponentResult(
-                component="common.sh required values",
-                status=STATUS_ERROR,
-                message="Required tracked variables resolved to empty: "
-                + ", ".join(missing_required),
-                variables=missing_required,
-                details={"action": "define a value or add the variable to OPTIONAL_EMPTY_VARIABLES"},
-            )
-        )
+    append_missing_required_result(results, entries)
     rc = exit_code(results)
-    updates_applied: list[UpdateChange] = []
-
-    if args.update:
-        if rc == 2:
-            print("blocked: refusing to update while one or more upstream checks failed", file=sys.stderr)
-        else:
-            updates = flatten_updates(results)
-            if updates:
-                try:
-                    apply_updates(common_sh, lines, updates)
-                except UpstreamError as exc:
-                    print(f"error: {exc}", file=sys.stderr)
-                    return 2
-                updates_applied = updates
-                lines, entries = parse_common(common_sh)
-                print("applied updates:", file=sys.stderr)
-                for update in updates_applied:
-                    print(
-                        f" - {update.variable} line {update.line}: {update.old} -> {update.new}",
-                        file=sys.stderr,
-                    )
-                rc = 0
-            elif rc == 1:
-                print("outdated values found, but no safe update could be planned", file=sys.stderr)
+    update_result = apply_requested_updates(
+        args.update,
+        rc,
+        common_sh,
+        lines,
+        entries,
+        results,
+    )
+    if update_result is None:
+        return 2
+    rc, updates_applied, lines, entries = update_result
 
     summary = make_summary(common_sh, entries, results, updates_applied)
     markdown = markdown_summary(summary)
@@ -1443,12 +1568,7 @@ def main(argv: list[str] | None = None) -> int:
         except UpstreamError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
-    if args.json:
-        print(json.dumps(summary, indent=2, sort_keys=True))
-    elif args.markdown:
-        print(markdown)
-    else:
-        print(plain_summary(summary), end="")
+    emit_summary(summary, markdown, args.json, args.markdown)
     return rc
 
 

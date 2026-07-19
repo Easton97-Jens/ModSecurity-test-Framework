@@ -12,7 +12,7 @@ import os
 import re
 import subprocess
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
 GENERATED_NOTICE = "Generated file - do not edit manually."
@@ -22,38 +22,106 @@ DATA_SOURCE_POLICY = "verified-inputs-only"
 # Paths from a runtime workspace must therefore be presentation-only aliases,
 # never host-specific locations.  The connector report index documents these
 # placeholders; raw paths remain available to the executing generator.
+#
+# Keep public temporary roots as path components rather than absolute path
+# strings.  Redaction is deliberately lexical: report formatting must not
+# resolve, stat, or otherwise follow an untrusted path from generator input.
+_VAR_TEMPORARY_ROOT_PARTS = ("var", "tmp")
+_TEMPORARY_ROOT_PARTS = ("tmp",)
+_TEMPORARY_WORK_ROOT_PARTS = (_VAR_TEMPORARY_ROOT_PARTS, _TEMPORARY_ROOT_PARTS)
+_LOCAL_STATE_ROOT_PARTS = ("root", ".local", "state", "ModSecurity-conector-build")
+_VERIFIED_RUN_DIRECTORY = "ModSecurity-conector-verified"
+_VERIFIED_RUN_ROOT_PARTS = tuple(
+    (*root, _VERIFIED_RUN_DIRECTORY) for root in _TEMPORARY_WORK_ROOT_PARTS
+)
+_HISTORICAL_RUN_PREFIX = "ModSecurity-conector-"
+_PORTABLE_PATH_ROOT_PARTS = (
+    *_TEMPORARY_WORK_ROOT_PARTS,
+    ("root",),
+    ("home",),
+    ("Users",),
+)
+_PORTABLE_PATH_ROOT_PATTERN = "|".join(
+    "/".join(parts) for parts in _PORTABLE_PATH_ROOT_PARTS
+)
 _LOCAL_PATH_TOKEN_RE = re.compile(
-    r"(?<![A-Za-z0-9_])(?P<path>/(?:var/tmp|tmp|root|home|Users)(?:/[^\s`<>()\[\]{}|,;]*)?)"
+    r"(?<!(?a:\w))(?P<path>/(?:"
+    + _PORTABLE_PATH_ROOT_PATTERN
+    + r")(?:/[^\s`<>()\[\]{}|,;]*)?)"
 )
-_HISTORICAL_RUN_ROOT_RE = re.compile(
-    r"^/var/tmp/(?P<run>ModSecurity-conector-(?!verified(?:/|$))[^/]+)(?P<suffix>/.*)?$"
-)
+GERMAN_MARKDOWN_SUFFIX = ".de.md"
+
+
+def _absolute_posix_path_parts(raw: str) -> tuple[str, ...] | None:
+    """Return lexical path components without accessing the filesystem."""
+
+    path = PurePosixPath(raw)
+    return path.parts[1:] if path.is_absolute() else None
+
+
+def _path_suffix(parts: tuple[str, ...], root_parts: tuple[str, ...]) -> tuple[str, ...] | None:
+    if parts[: len(root_parts)] != root_parts:
+        return None
+    return parts[len(root_parts) :]
+
+
+def _portable_root_reference(reference: str, suffix: tuple[str, ...], trailing_separator: bool) -> str:
+    rendered = reference + (f"/{'/'.join(suffix)}" if suffix else "")
+    return rendered + "/" if trailing_separator and not suffix else rendered
+
+
+def _historical_run_reference(parts: tuple[str, ...], trailing_separator: bool) -> str | None:
+    if len(parts) < 3 or parts[:2] != _VAR_TEMPORARY_ROOT_PARTS:
+        return None
+    run = parts[2]
+    if (
+        not run.startswith(_HISTORICAL_RUN_PREFIX)
+        or len(run) == len(_HISTORICAL_RUN_PREFIX)
+        or run == _VERIFIED_RUN_DIRECTORY
+    ):
+        return None
+    return _portable_root_reference(
+        f"<historical-run-root:{run}>", parts[3:], trailing_separator
+    )
+
+
+def _redacted_path_reference(parts: tuple[str, ...], trailing_separator: bool) -> str | None:
+    for root_parts in _VERIFIED_RUN_ROOT_PARTS:
+        suffix = _path_suffix(parts, root_parts)
+        if suffix is not None:
+            return _portable_root_reference("<verified-run-root>", suffix, trailing_separator)
+
+    historical = _historical_run_reference(parts, trailing_separator)
+    if historical is not None:
+        return historical
+
+    for root_parts in _TEMPORARY_WORK_ROOT_PARTS:
+        suffix = _path_suffix(parts, root_parts)
+        if suffix is not None:
+            return _portable_root_reference("<temporary-work-root>", suffix, trailing_separator)
+
+    local_state_suffix = _path_suffix(parts, _LOCAL_STATE_ROOT_PARTS)
+    if local_state_suffix is not None:
+        return _portable_root_reference("<local-state-root>", local_state_suffix, trailing_separator)
+
+    if parts and parts[0] == "root":
+        return _portable_root_reference("<local-home-root>", parts[1:], trailing_separator)
+    if parts and parts[0] in {"home", "Users"}:
+        if len(parts) > 1:
+            return _portable_root_reference("<local-home-root>", parts[2:], trailing_separator)
+        if trailing_separator:
+            return "<local-home-root>"
+    return None
 
 
 def portable_path_reference(value: str | Path) -> str:
     """Render local runtime paths as portable documentation references."""
 
     raw = str(value)
-    for prefix, replacement in (
-        ("/root/.local/state/ModSecurity-conector-build", "<local-state-root>"),
-        ("/var/tmp/ModSecurity-conector-verified", "<verified-run-root>"),
-        ("/tmp/ModSecurity-conector-verified", "<verified-run-root>"),
-    ):
-        if raw == prefix or raw.startswith(prefix + "/"):
-            return replacement + raw[len(prefix) :]
-    historical = _HISTORICAL_RUN_ROOT_RE.match(raw)
-    if historical:
-        return f"<historical-run-root:{historical.group('run')}>{historical.group('suffix') or ''}"
-    if raw == "/var/tmp" or raw.startswith("/var/tmp/"):
-        return "<temporary-work-root>" + raw[len("/var/tmp") :]
-    if raw == "/tmp" or raw.startswith("/tmp/"):
-        return "<temporary-work-root>" + raw[len("/tmp") :]
-    if raw == "/root" or raw.startswith("/root/"):
-        return "<local-home-root>" + raw[len("/root") :]
-    if raw.startswith("/home/") or raw.startswith("/Users/"):
-        parts = raw.split("/", 3)
-        return "<local-home-root>" + ("/" + parts[3] if len(parts) == 4 else "")
-    return raw
+    parts = _absolute_posix_path_parts(raw)
+    if parts is None:
+        return raw
+    return _redacted_path_reference(parts, raw.endswith("/")) or raw
 
 
 def portable_markdown_text(markdown: str) -> str:
@@ -393,10 +461,10 @@ def generated_markdown_text(body: str, metadata: dict[str, Any]) -> str:
 def language_switch(output_name: str) -> tuple[str, str] | None:
     if not output_name.endswith(".md"):
         return None
-    if output_name.endswith(".de.md"):
-        english_name = output_name.removesuffix(".de.md") + ".md"
+    if output_name.endswith(GERMAN_MARKDOWN_SUFFIX):
+        english_name = output_name.removesuffix(GERMAN_MARKDOWN_SUFFIX) + ".md"
         return "**Sprache:**", f"**Sprache:** [English]({english_name}) | Deutsch"
-    german_name = output_name.removesuffix(".md") + ".de.md"
+    german_name = output_name.removesuffix(".md") + GERMAN_MARKDOWN_SUFFIX
     return "**Language:**", f"**Language:** English | [Deutsch]({german_name})"
 
 

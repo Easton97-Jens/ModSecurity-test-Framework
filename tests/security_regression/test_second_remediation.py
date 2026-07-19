@@ -7,6 +7,7 @@ import tempfile
 import unittest
 import types
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -47,6 +48,7 @@ class SecondRemediationTests(unittest.TestCase):
             root.mkdir()
             outside = Path(tmp) / "outside.log"
             outside.write_text("run 1 total tests\n", encoding="utf-8")
+            self.assertEqual(report.read_bounded_run_log(outside, [root]), "")
             symlink = root / "escape.log"
             symlink.symlink_to(outside)
             self.assertEqual(report.read_bounded_run_log(symlink, [root]), "")
@@ -56,6 +58,106 @@ class SecondRemediationTests(unittest.TestCase):
             ok = root / "ok.log"
             ok.write_text("run 1 total tests\npassed in 1s\n", encoding="utf-8")
             self.assertIn("run 1", report.read_bounded_run_log(ok, [root]))
+
+    def test_default_state_home_uses_a_private_temporary_directory(self):
+        report = load_module("ci/reporting/generate-mrts-native-report.py", "mrts_native_report_state_home_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            temporary_root = Path(tmp)
+            temporary_root.chmod(0o777)
+            for variable_name in ("RUNNER_TEMP", "TMPDIR"):
+                with self.subTest(variable_name=variable_name):
+                    with mock.patch.dict(os.environ, {variable_name: str(temporary_root)}, clear=True):
+                        state_home = report.default_state_home()
+                    self.assertTrue(state_home.is_dir())
+                    self.assertEqual(state_home.parent, temporary_root)
+                    self.assertTrue(state_home.name.startswith(report.DEFAULT_STATE_HOME_PREFIX))
+                    self.assertEqual(state_home.stat().st_mode & 0o077, 0)
+
+    def test_native_report_paths_redact_external_and_symlink_escapes(self):
+        report = load_module("ci/reporting/generate-mrts-native-report.py", "mrts_native_report_paths_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            temporary_root = Path(tmp)
+            native_root = temporary_root / "native"
+            native_root.mkdir()
+            inside = native_root / "apache2_ubuntu" / report.RUN_LOG_FILENAME
+            inside.parent.mkdir()
+            inside.write_text("run 1 total tests\n", encoding="utf-8")
+            outside = temporary_root / "outside" / "secret.log"
+            outside.parent.mkdir()
+            outside.write_text("sensitive", encoding="utf-8")
+            escape = native_root / "escape"
+            escape.symlink_to(outside.parent, target_is_directory=True)
+
+            self.assertEqual(report.display_native_path(inside, native_root), "$MRTS_NATIVE_ROOT/apache2_ubuntu/run.log")
+            self.assertEqual(report.display_native_path(outside, native_root), "<external-path-redacted>")
+            self.assertEqual(report.display_native_path(escape / outside.name, native_root), "<external-path-redacted>")
+            self.assertEqual(
+                report.display_component_value(str(outside), [("BUILD_ROOT", native_root)]),
+                "<system-path-redacted>/secret.log",
+            )
+
+    def test_native_report_output_root_and_symlink_escape_are_rejected(self):
+        report = load_module("ci/reporting/generate-mrts-native-report.py", "mrts_native_report_output_test")
+        framework_lib = ROOT / "ci/lib"
+        if str(framework_lib) not in sys.path:
+            sys.path.insert(0, str(framework_lib))
+        with tempfile.TemporaryDirectory() as tmp:
+            temporary_root = Path(tmp)
+            framework_root = temporary_root / "framework"
+            connector_root = temporary_root / "connector"
+            native_root = temporary_root / "native"
+            outside_root = temporary_root / "outside"
+            for root in (framework_root, connector_root, native_root, outside_root):
+                root.mkdir()
+            base_argv = [
+                "generate-mrts-native-report.py",
+                "--framework-root",
+                str(framework_root),
+                "--connector-root",
+                str(connector_root),
+                "--native-root",
+                str(native_root),
+            ]
+            with mock.patch.object(sys, "argv", base_argv):
+                self.assertEqual(report.main(), 0)
+
+            output_directory = connector_root / "reports/testing/generated/canonical"
+            expected_outputs = {
+                "mrts_native_full.generated.json",
+                "mrts_native_full.generated.md",
+                "mrts_native_apache.generated.json",
+                "mrts_native_apache.generated.md",
+                "mrts_native_nginx.generated.json",
+                "mrts_native_nginx.generated.md",
+                "mrts_native_summary.generated.json",
+                "mrts_native_summary.generated.md",
+            }
+            self.assertEqual({path.name for path in output_directory.iterdir()}, expected_outputs)
+
+            output_directory.chmod(0o777)
+            protected_full_report = output_directory / "mrts_native_full.generated.json"
+            protected_full_report.unlink()
+            outside_file = outside_root / "outside.json"
+            outside_file.write_text("unchanged", encoding="utf-8")
+            protected_full_report.symlink_to(outside_file)
+            report.write_generated_report_file(output_directory, protected_full_report.name, "safe replacement\n")
+            self.assertFalse(protected_full_report.is_symlink())
+            self.assertEqual(protected_full_report.read_text(encoding="utf-8"), "safe replacement\n")
+            self.assertEqual(protected_full_report.stat().st_mode & 0o077, 0)
+            self.assertEqual(outside_file.read_text(encoding="utf-8"), "unchanged")
+
+            with mock.patch.object(sys, "argv", [*base_argv, "--output-root", str(outside_root)]):
+                with self.assertRaises(ValueError):
+                    report.main()
+            self.assertFalse((outside_root / "reports").exists())
+
+            protected_output = output_directory / "mrts_native_summary.generated.json"
+            protected_output.unlink()
+            protected_output.symlink_to(outside_file)
+            with mock.patch.object(sys, "argv", base_argv):
+                with self.assertRaises(ValueError):
+                    report.main()
+            self.assertEqual(outside_file.read_text(encoding="utf-8"), "unchanged")
 
     def test_nginx_overlay_listens_on_loopback_only(self):
         config = (ROOT / "tests/mrts/infra-overlays/nginx-pr24/infra/sites-available/default").read_text(encoding="utf-8")

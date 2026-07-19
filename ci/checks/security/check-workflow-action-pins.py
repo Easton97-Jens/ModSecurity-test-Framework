@@ -43,6 +43,22 @@ def workflow_files(workflow_root: Path) -> list[Path]:
     )
 
 
+def decode_double_quote_escape(value: str, index: int) -> tuple[str, int] | None:
+    """Decode the escape at ``index`` without accepting malformed YAML."""
+    if index + 1 >= len(value):
+        return None
+    escape = value[index + 1]
+    if escape in YAML_DOUBLE_QUOTE_ESCAPES:
+        return YAML_DOUBLE_QUOTE_ESCAPES[escape], index + 2
+    hex_length = {"x": 2, "u": 4, "U": 8}.get(escape)
+    if hex_length is None:
+        return None
+    digits = value[index + 2:index + 2 + hex_length]
+    if len(digits) != hex_length or not re.fullmatch(r"[0-9a-fA-F]+", digits):
+        return None
+    return chr(int(digits, 16)), index + 2 + hex_length
+
+
 def consume_double_quoted_scalar(value: str, start: int) -> tuple[str, int] | None:
     """Decode one YAML double-quoted scalar and return its closing index."""
 
@@ -59,24 +75,11 @@ def consume_double_quoted_scalar(value: str, start: int) -> tuple[str, int] | No
             characters.append(character)
             index += 1
             continue
-        if index + 1 >= len(value):
+        decoded = decode_double_quote_escape(value, index)
+        if decoded is None:
             return None
-
-        escape = value[index + 1]
-        if escape in YAML_DOUBLE_QUOTE_ESCAPES:
-            characters.append(YAML_DOUBLE_QUOTE_ESCAPES[escape])
-            index += 2
-            continue
-        hex_length = {"x": 2, "u": 4, "U": 8}.get(escape)
-        if hex_length is None:
-            return None
-        hex_start = index + 2
-        hex_end = hex_start + hex_length
-        digits = value[hex_start:hex_end]
-        if len(digits) != hex_length or not re.fullmatch(r"[0-9a-fA-F]+", digits):
-            return None
-        characters.append(chr(int(digits, 16)))
-        index = hex_end
+        character, index = decoded
+        characters.append(character)
     return None
 
 
@@ -111,18 +114,22 @@ def skip_whitespace(value: str, start: int) -> int:
     return index
 
 
+def consume_quoted_scalar(value: str, start: int) -> tuple[str, int] | None:
+    if start >= len(value):
+        return None
+    if value[start] == '"':
+        return consume_double_quoted_scalar(value, start)
+    if value[start] == "'":
+        return consume_single_quoted_scalar(value, start)
+    return None
+
+
 def consume_uses_key(value: str, start: int) -> int | None:
     """Return the end index when a YAML scalar decodes exactly to ``uses``."""
 
     if value.startswith("uses", start):
         return start + len("uses")
-    scalar = (
-        consume_double_quoted_scalar(value, start)
-        if start < len(value) and value[start] == '"'
-        else consume_single_quoted_scalar(value, start)
-        if start < len(value) and value[start] == "'"
-        else None
-    )
+    scalar = consume_quoted_scalar(value, start)
     if scalar is not None and scalar[0] == "uses":
         return scalar[1]
     return None
@@ -134,19 +141,8 @@ def strip_inline_comment(value: str) -> str:
     quote: str | None = None
     escaped = False
     for index, character in enumerate(value):
-        if quote == '"':
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == quote:
-                quote = None
-        elif quote == "'":
-            if character == quote:
-                quote = None
-        elif character in {"'", '"'}:
-            quote = character
-        elif character == "#" and (index == 0 or value[index - 1].isspace()):
+        quote, escaped, consumed = advance_yaml_quote(quote, escaped, character)
+        if not consumed and character == "#" and (index == 0 or value[index - 1].isspace()):
             return value[:index].rstrip()
     return value.strip()
 
@@ -154,16 +150,27 @@ def strip_inline_comment(value: str) -> str:
 def unquote_scalar(value: str) -> str:
     """Decode one complete quoted YAML scalar, or preserve an unquoted value."""
 
-    scalar = (
-        consume_double_quoted_scalar(value, 0)
-        if value.startswith('"')
-        else consume_single_quoted_scalar(value, 0)
-        if value.startswith("'")
-        else None
-    )
+    scalar = consume_quoted_scalar(value, 0)
     if scalar is not None and scalar[1] == len(value):
         return scalar[0]
     return value
+
+
+def advance_yaml_quote(
+    quote: str | None, escaped: bool, character: str
+) -> tuple[str | None, bool, bool]:
+    """Advance a quote lexer state and say whether syntax was consumed."""
+    if quote == '"':
+        if escaped:
+            return quote, False, True
+        if character == "\\":
+            return quote, True, True
+        return (None, False, True) if character == quote else (quote, False, True)
+    if quote == "'":
+        return (None, False, True) if character == quote else (quote, False, True)
+    if character in {"'", '"'}:
+        return character, False, True
+    return None, False, False
 
 
 def block_uses_value(line: str) -> str | None:
@@ -233,29 +240,17 @@ def flow_mapping_unsupported_key_syntax(line: str) -> str | None:
     index = 0
     while index < len(line):
         character = line[index]
-        if quote == '"':
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == quote:
-                quote = None
+        quote, escaped, consumed = advance_yaml_quote(quote, escaped, character)
+        if consumed:
             index += 1
             continue
-        if quote == "'":
-            if character == quote:
-                quote = None
-            index += 1
-            continue
-        if character in {"'", '"'}:
-            quote = character
-        elif line.startswith("${{", index):
+        if line.startswith("${{", index):
             expression_end = line.find("}}", index + 3)
             if expression_end == -1:
                 return None
             index = expression_end + 2
             continue
-        elif character == "{":
+        if character == "{":
             flow_depth += 1
             error = unsupported_mapping_key_syntax(line, index + 1)
             if error:
@@ -277,21 +272,10 @@ def unsupported_multiline_yaml_syntax(line: str) -> str | None:
     quote: str | None = None
     escaped = False
     for character in line:
-        if quote == '"':
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == quote:
-                quote = None
+        quote, escaped, consumed = advance_yaml_quote(quote, escaped, character)
+        if consumed:
             continue
-        if quote == "'":
-            if character == quote:
-                quote = None
-            continue
-        if character in {"'", '"'}:
-            quote = character
-        elif character in "[{":
+        if character in "[{":
             flow_depth += 1
         elif character in "]}":
             if flow_depth == 0:
@@ -324,19 +308,11 @@ def flow_uses_value(line: str, start: int) -> tuple[str, int] | None:
     escaped = False
     while index < len(line):
         character = line[index]
-        if quote == '"':
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == quote:
-                quote = None
-        elif quote == "'":
-            if character == quote:
-                quote = None
-        elif character in {"'", '"'}:
-            quote = character
-        elif character in "[{":
+        quote, escaped, consumed = advance_yaml_quote(quote, escaped, character)
+        if consumed:
+            index += 1
+            continue
+        if character in "[{":
             nested_flow += 1
         elif character in "]}":
             if nested_flow == 0:
@@ -356,20 +332,8 @@ def flow_mapping_uses_values(line: str) -> list[str]:
     quote: str | None = None
     escaped = False
     for index, character in enumerate(line):
-        if quote == '"':
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == quote:
-                quote = None
-            continue
-        if quote == "'":
-            if character == quote:
-                quote = None
-            continue
-        if character in {"'", '"'}:
-            quote = character
+        quote, escaped, consumed = advance_yaml_quote(quote, escaped, character)
+        if consumed:
             continue
         if character == "{":
             flow_depth += 1
@@ -424,45 +388,54 @@ def pin_error(reference: str) -> str | None:
     return None
 
 
+def validate_workflow_line(
+    path: Path, line_no: int, line: str
+) -> tuple[list[str], bool]:
+    """Validate one non-block-scalar YAML line and report scalar entry."""
+    if line.lstrip().startswith("#"):
+        return [], False
+    content = strip_inline_comment(line)
+    checks = (
+        (has_yaml_node_property_or_alias_mapping_key(content), "unsupported YAML node property or alias as mapping key"),
+        (is_explicit_yaml_mapping_key(content), "unsupported explicit uses key syntax"),
+    )
+    for failed, message in checks:
+        if failed:
+            return [f"{path}:{line_no}: {message}"], False
+    flow_key_error = flow_mapping_unsupported_key_syntax(content)
+    if flow_key_error:
+        return [f"{path}:{line_no}: {flow_key_error}"], False
+    syntax_error = unsupported_multiline_yaml_syntax(content)
+    if syntax_error:
+        return [f"{path}:{line_no}: {syntax_error}"], False
+    errors = [
+        f"{path}:{line_no}: {reference or '<empty>'}: {error}"
+        for reference in action_references(content)
+        if (error := pin_error(reference))
+    ]
+    return errors, is_block_scalar_header(content)
+
+
+def validate_workflow_file(path: Path) -> list[str]:
+    """Validate one YAML workflow while skipping literal/folded scalar bodies."""
+    errors: list[str] = []
+    block_scalar_indent: int | None = None
+    for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if block_scalar_indent is not None:
+            if not line.strip() or leading_indentation(line) > block_scalar_indent:
+                continue
+            block_scalar_indent = None
+        line_errors, starts_block_scalar = validate_workflow_line(path, line_no, line)
+        errors.extend(line_errors)
+        if starts_block_scalar:
+            block_scalar_indent = leading_indentation(line)
+    return errors
+
+
 def validate_workflow_directory(workflow_root: Path) -> list[str]:
     """Return pinning violations for all supported workflow YAML files."""
 
-    errors: list[str] = []
-    for path in workflow_files(workflow_root):
-        block_scalar_indent: int | None = None
-        for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if block_scalar_indent is not None:
-                if not line.strip() or leading_indentation(line) > block_scalar_indent:
-                    continue
-                block_scalar_indent = None
-            if line.lstrip().startswith("#"):
-                continue
-            content = strip_inline_comment(line)
-            if has_yaml_node_property_or_alias_mapping_key(content):
-                errors.append(
-                    f"{path}:{line_no}: unsupported YAML node property or alias as mapping key"
-                )
-                continue
-            if is_explicit_yaml_mapping_key(content):
-                errors.append(
-                    f"{path}:{line_no}: unsupported explicit uses key syntax"
-                )
-                continue
-            flow_key_error = flow_mapping_unsupported_key_syntax(content)
-            if flow_key_error:
-                errors.append(f"{path}:{line_no}: {flow_key_error}")
-                continue
-            syntax_error = unsupported_multiline_yaml_syntax(content)
-            if syntax_error:
-                errors.append(f"{path}:{line_no}: {syntax_error}")
-                continue
-            for reference in action_references(content):
-                error = pin_error(reference)
-                if error:
-                    errors.append(f"{path}:{line_no}: {reference or '<empty>'}: {error}")
-            if is_block_scalar_header(content):
-                block_scalar_indent = leading_indentation(line)
-    return errors
+    return [error for path in workflow_files(workflow_root) for error in validate_workflow_file(path)]
 
 
 def main() -> int:

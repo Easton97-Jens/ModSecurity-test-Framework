@@ -2,8 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-${REPO_ROOT:-$(pwd)}}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
@@ -42,6 +41,22 @@ check_path() {
 
 trap 'rm -f "$CHECK_OUTPUT"' EXIT INT TERM
 
+if [ "${1:-}" = "--check-paths" ]; then
+    check_status=${2:-}
+    if [ -z "$check_status" ]; then
+        ci_error "internal CRS path-check status file is required"
+        exit 77
+    fi
+    shift 2
+    for path do
+        check_path "$path"
+    done
+    if [ "$status" -ne 0 ]; then
+        printf '%s\n' failure >"$check_status"
+    fi
+    exit "$status"
+fi
+
 ci_require_https_github_repo_url "$CRS_APPROVED_REPO_URL" CRS_APPROVED_REPO_URL || exit 77
 ci_require_full_git_commit "$CRS_APPROVED_COMMIT" CRS_APPROVED_COMMIT || exit 77
 if [ "$CRS_REPO_URL" != "$CRS_APPROVED_REPO_URL" ]; then
@@ -56,7 +71,14 @@ fi
 if [ -f Makefile ]; then
     check_path Makefile
 fi
-for path in $(find ci -type f -name '*.sh' -print | sort) .github/workflows/*.yml .github/workflows/*.yaml; do
+: >"$CHECK_OUTPUT"
+if ! find ci -type f -name '*.sh' -exec sh "$0" --check-paths "$CHECK_OUTPUT" {} +; then
+    status=1
+fi
+if [ -s "$CHECK_OUTPUT" ]; then
+    status=1
+fi
+for path in .github/workflows/*.yml .github/workflows/*.yaml; do
     [ -e "$path" ] || continue
     check_path "$path"
 done

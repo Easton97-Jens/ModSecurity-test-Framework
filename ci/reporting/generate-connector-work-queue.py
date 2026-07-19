@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import re
+import stat
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -82,12 +83,70 @@ NO_MRTS_NOMATCH_BY_CASE = {
 }
 RULE_TARGET_RE = re.compile(r"^\s*SecRule\s+([^\s]+)\s+")
 PHASE_RE = re.compile(r"phase:(\d)")
-DEFAULT_RUN_ROOT = Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified")))
-DEFAULT_BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_RUN_ROOT / "build"))).resolve()
-MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(DEFAULT_BUILD_ROOT / "mrts"))).resolve()
-MRTS_ROOT = Path(os.environ.get("MRTS_ROOT", "")).resolve() if os.environ.get("MRTS_ROOT") else None
-MRTS_UPSTREAM_CASE_ROOT = MRTS_BUILD_ROOT / "upstream-config-tests/framework-cases"
-MRTS_FEATURE_DEMO_CASE_ROOT = MRTS_BUILD_ROOT / "feature-demo/framework-cases"
+
+
+def absolute_path_without_traversal(value: Path | str, label: str) -> Path:
+    candidate = Path(value)
+    if not candidate.is_absolute() or ".." in candidate.parts:
+        raise ValueError(f"{label} must be an absolute path without traversal: {value}")
+    return candidate
+
+
+def nearest_existing_directory(path: Path) -> Path:
+    current = path
+    while not current.exists() and current != current.parent:
+        current = current.parent
+    return current
+
+
+def has_symlink_component(path: Path) -> bool:
+    current = Path(path.anchor)
+    for component in path.parts[1:]:
+        current /= component
+        if current.is_symlink():
+            return True
+        if not current.exists():
+            return False
+    return False
+
+
+def private_runtime_root(value: Path | str, label: str) -> Path:
+    candidate = absolute_path_without_traversal(value, label)
+    if has_symlink_component(candidate):
+        raise ValueError(f"{label} must not contain a symlink component: {candidate}")
+    existing = nearest_existing_directory(candidate)
+    mode = os.lstat(existing).st_mode
+    if not stat.S_ISDIR(mode):
+        raise ValueError(f"{label} must have an existing directory parent: {candidate}")
+    if stat.S_IMODE(mode) & stat.S_IWOTH:
+        raise ValueError(f"{label} must not use a publicly writable directory: {existing}")
+    return candidate.resolve(strict=False)
+
+
+def configured_private_root(name: str) -> Path | None:
+    value = os.environ.get(name)
+    if not value:
+        return None
+    try:
+        return private_runtime_root(value, name.lower().replace("_", " "))
+    except ValueError:
+        return None
+
+
+DEFAULT_RUN_ROOT = configured_private_root("VERIFIED_RUN_ROOT")
+DEFAULT_BUILD_ROOT = configured_private_root("BUILD_ROOT") or (
+    DEFAULT_RUN_ROOT / "build" if DEFAULT_RUN_ROOT else None
+)
+MRTS_BUILD_ROOT = configured_private_root("MRTS_BUILD_ROOT") or (
+    DEFAULT_BUILD_ROOT / "mrts" if DEFAULT_BUILD_ROOT else None
+)
+MRTS_ROOT = configured_private_root("MRTS_ROOT")
+MRTS_UPSTREAM_CASE_ROOT = (
+    MRTS_BUILD_ROOT / "upstream-config-tests/framework-cases" if MRTS_BUILD_ROOT else None
+)
+MRTS_FEATURE_DEMO_CASE_ROOT = (
+    MRTS_BUILD_ROOT / "feature-demo/framework-cases" if MRTS_BUILD_ROOT else None
+)
 
 
 @dataclass
@@ -102,11 +161,6 @@ class CaseMeta:
     capabilities: list[str] = field(default_factory=list)
     classification: str = "active"
     connector_observations: dict[str, Any] = field(default_factory=dict)
-
-
-def read_json(path: Path) -> Any:
-    with path.open(encoding="utf-8") as handle:
-        return json.load(handle)
 
 
 def read_yaml(path: Path) -> dict[str, Any]:
@@ -180,15 +234,15 @@ def metadata_phase(data: dict[str, Any], capabilities: list[str], rules: str) ->
     return "unknown"
 
 
-def source_kind_for(path: Path, framework_root: Path, metadata: dict[str, Any]) -> tuple[str, str]:
+def source_kind_for(path: Path, metadata: dict[str, Any]) -> tuple[str, str]:
     mrts_corpus = norm(metadata.get("mrts_corpus")) or "none"
     if mrts_corpus and mrts_corpus != "none":
         if mrts_corpus == "feature-demo":
             return "feature-demo-report-only", mrts_corpus
         return "mrts-imported", mrts_corpus
-    if path_under(path, MRTS_UPSTREAM_CASE_ROOT):
+    if MRTS_UPSTREAM_CASE_ROOT and path_under(path, MRTS_UPSTREAM_CASE_ROOT):
         return "mrts-imported", "upstream-config-tests"
-    if path_under(path, MRTS_FEATURE_DEMO_CASE_ROOT):
+    if MRTS_FEATURE_DEMO_CASE_ROOT and path_under(path, MRTS_FEATURE_DEMO_CASE_ROOT):
         return "feature-demo-report-only", "feature-demo"
     if MRTS_ROOT and (
         path_under(path, MRTS_ROOT / "generated")
@@ -198,52 +252,78 @@ def source_kind_for(path: Path, framework_root: Path, metadata: dict[str, Any]) 
     return "framework-owned", "none"
 
 
+def case_roots(framework_root: Path) -> list[Path]:
+    return [
+        root
+        for root in (
+            framework_root / "tests/cases",
+            MRTS_UPSTREAM_CASE_ROOT,
+            MRTS_FEATURE_DEMO_CASE_ROOT,
+        )
+        if root is not None
+    ]
+
+
+def case_meta_for_path(path: Path, framework_root: Path) -> CaseMeta:
+    data = read_yaml(path)
+    metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    rules = str(data.get("rules") or "")
+    capabilities = listify(data.get("capabilities"))
+    source_kind, mrts_corpus = source_kind_for(path, metadata)
+    classification = norm(metadata.get("classification"))
+    if not classification:
+        classification = "unclassified" if source_kind in {
+            "mrts-imported", "feature-demo-report-only",
+        } else "active"
+    return CaseMeta(
+        case_id=norm(data.get("name")) or path.stem,
+        path=rel_path(path, framework_root),
+        source_kind=source_kind,
+        category=norm(data.get("category")) or "unknown",
+        mrts_corpus=mrts_corpus,
+        phase=metadata_phase(data, capabilities, rules),
+        variables=metadata_variables(data, rules),
+        capabilities=capabilities,
+        classification=classification,
+        connector_observations=(
+            metadata.get("connector_observations", {})
+            if isinstance(metadata.get("connector_observations"), dict)
+            else {}
+        ),
+    )
+
+
+def index_case(
+    meta: CaseMeta,
+    path: Path,
+    by_id: dict[str, CaseMeta],
+    by_path: dict[str, CaseMeta],
+    counts: Counter[str],
+) -> None:
+    counts[meta.source_kind] += 1
+    if meta.source_kind == "golden-only":
+        return
+    by_id[meta.case_id] = meta
+    by_path[str(path.resolve(strict=False))] = meta
+    by_path[meta.path] = meta
+
+
 def load_cases(framework_root: Path) -> tuple[dict[str, CaseMeta], dict[str, CaseMeta], Counter[str]]:
     by_id: dict[str, CaseMeta] = {}
     by_path: dict[str, CaseMeta] = {}
     counts: Counter[str] = Counter()
-    roots = [
-        framework_root / "tests/cases",
-        MRTS_UPSTREAM_CASE_ROOT,
-        MRTS_FEATURE_DEMO_CASE_ROOT,
-    ]
-    for root in roots:
-        if not root.is_dir():
-            continue
-        for path in sorted(root.rglob("*.yaml")):
-            data = read_yaml(path)
-            metadata = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
-            rules = str(data.get("rules") or "")
-            capabilities = listify(data.get("capabilities"))
-            source_kind, mrts_corpus = source_kind_for(path, framework_root, metadata)
-            case_id = norm(data.get("name")) or path.stem
-            classification = norm(metadata.get("classification"))
-            if not classification:
-                classification = "unclassified" if source_kind in {"mrts-imported", "feature-demo-report-only"} else "active"
-            meta = CaseMeta(
-                case_id=case_id,
-                path=rel_path(path, framework_root),
-                source_kind=source_kind,
-                category=norm(data.get("category")) or "unknown",
-                mrts_corpus=mrts_corpus,
-                phase=metadata_phase(data, capabilities, rules),
-                variables=metadata_variables(data, rules),
-                capabilities=capabilities,
-                classification=classification,
-                connector_observations=metadata.get("connector_observations", {}) if isinstance(metadata.get("connector_observations"), dict) else {},
-            )
-            counts[source_kind] += 1
-            if source_kind != "golden-only":
-                by_id[case_id] = meta
-                by_path[str(path.resolve(strict=False))] = meta
-                by_path[meta.path] = meta
+    for root in case_roots(framework_root):
+        if root.is_dir():
+            for path in sorted(root.rglob("*.yaml")):
+                index_case(case_meta_for_path(path, framework_root), path, by_id, by_path, counts)
     return by_id, by_path, counts
 
 
 def load_full_matrix(matrix_path: Path) -> dict[str, Any]:
     if not matrix_path.is_file():
         return {"runs": [], "missing_full_matrix": str(matrix_path)}
-    data = read_json(matrix_path)
+    with matrix_path.open(encoding="utf-8") as handle:
+        data = json.load(handle)
     return data if isinstance(data, dict) else {"runs": []}
 
 
@@ -278,7 +358,7 @@ def lookup_meta(case_id: str, case: dict[str, Any], by_id: dict[str, CaseMeta], 
         return by_id[case_id]
     metadata = case.get("metadata") if isinstance(case.get("metadata"), dict) else {}
     path_obj = Path(path) if path else Path("/__missing_case__")
-    source_kind, mrts_corpus = source_kind_for(path_obj, Path("/__missing_framework_root__"), metadata)
+    source_kind, mrts_corpus = source_kind_for(path_obj, metadata)
     if source_kind == "framework-owned" and "/upstream-config-tests/framework-cases/" in path:
         source_kind, mrts_corpus = "mrts-imported", "upstream-config-tests"
     elif source_kind == "framework-owned" and "/feature-demo/framework-cases/" in path:
@@ -298,9 +378,7 @@ def lookup_meta(case_id: str, case: dict[str, Any], by_id: dict[str, CaseMeta], 
     )
 
 
-def functional_areas(meta: CaseMeta, case: dict[str, Any]) -> list[str]:
-    values = {token(item) for item in [meta.category, *meta.variables, *meta.capabilities, meta.case_id]}
-    areas: set[str] = set()
+def mapped_functional_areas(values: set[str]) -> set[str]:
     variable_map = {
         "args": "args",
         "args-names": "args_names",
@@ -316,10 +394,10 @@ def functional_areas(meta: CaseMeta, case: dict[str, Any]) -> list[str]:
         "response-headers": "response_headers",
         "response-body": "response_body",
     }
-    for value, area in variable_map.items():
-        if value in values:
-            areas.add(area)
-    text = " ".join(values)
+    return {area for value, area in variable_map.items() if value in values}
+
+
+def inferred_functional_areas(text: str) -> set[str]:
     substring_variable_map = {
         "args-names": "args_names",
         "args": "args",
@@ -332,24 +410,36 @@ def functional_areas(meta: CaseMeta, case: dict[str, Any]) -> list[str]:
         "response-headers": "response_headers",
         "response-body": "response_body",
     }
-    for value, area in substring_variable_map.items():
-        if value in text:
-            areas.add(area)
-    if "json" in text:
-        areas.add("request_body_json")
+    areas = {area for value, area in substring_variable_map.items() if value in text}
+    keyword_areas = {
+        "json": "request_body_json",
+        "audit": "audit_log",
+        "chain": "rule_chain",
+        "secaction": "secaction",
+    }
+    areas.update(area for keyword, area in keyword_areas.items() if keyword in text)
     if "multipart" in text or "filename" in text:
         areas.add("multipart_files")
-    if "audit" in text:
-        areas.add("audit_log")
     if "operator" in text or "operators" in text:
         areas.add("operators")
     if "transformation" in text or "transformations" in text:
         areas.add("transformations")
-    if "chain" in text:
-        areas.add("rule_chain")
-    if "secaction" in text:
-        areas.add("secaction")
-    if "intervention" in text or "actions" in text or case.get("expected_intervention") in {"deny", "block", "redirect"}:
+    return areas
+
+
+def has_intervention_area(case: dict[str, Any], text: str) -> bool:
+    return (
+        "intervention" in text
+        or "actions" in text
+        or case.get("expected_intervention") in {"deny", "block", "redirect"}
+    )
+
+
+def functional_areas(meta: CaseMeta, case: dict[str, Any]) -> list[str]:
+    values = {token(item) for item in [meta.category, *meta.variables, *meta.capabilities, meta.case_id]}
+    text = " ".join(values)
+    areas = mapped_functional_areas(values) | inferred_functional_areas(text)
+    if has_intervention_area(case, text):
         areas.add("action_intervention")
     return sorted(areas) or ["unknown"]
 
@@ -403,52 +493,57 @@ def no_mrts_nomatch_semantic_classification(
     return NO_MRTS_NOMATCH_BY_CASE.get(case_id)
 
 
+def request_body_failure_direction(areas: set[str], connector: str) -> str:
+    if "request_body_xml" in areas:
+        return "xml_processor"
+    if "multipart_files" in areas:
+        return "multipart_files"
+    if {"request_body_json", "request_body_urlencoded"}.intersection(areas):
+        return "request_body_processor"
+    return "connector_gap" if connector == "haproxy" else "harness_incompatibility"
+
+
+def failure_work_direction(
+    connector: str, patterns: set[str], areas: set[str],
+) -> str | None:
+    if "expected_200_got_0" in patterns:
+        return "harness_incompatibility"
+    if {"expected_200_got_404", "expected_200_got_405"}.intersection(patterns):
+        return "request_routing"
+    if "expected_200_got_501" in patterns:
+        return request_body_failure_direction(areas, connector)
+    if "expected_block_got_200" in patterns:
+        return "intervention_blocking"
+    if {"expected_block_got_404", "expected_block_got_405"}.intersection(patterns):
+        return "request_routing"
+    if "expected_block_got_501" in patterns:
+        return request_body_failure_direction(areas, connector)
+    if "expected_pass_but_evidence_missing" in patterns:
+        return "audit_log_evidence" if "audit_log" in areas else "harness_incompatibility"
+    if {"not_executable", "no_runtime_evidence"}.intersection(patterns):
+        return "harness_incompatibility"
+    return None
+
+
+def area_work_direction(areas: set[str]) -> str:
+    for area, direction in (
+        ("operators", "operator_semantics"),
+        ("transformations", "transformation_semantics"),
+        ("response_headers", "response_header_hook"),
+        ("multipart_files", "multipart_files"),
+        ("request_body_json", "json_processor"),
+        ("request_body_xml", "xml_processor"),
+    ):
+        if area in areas:
+            return direction
+    return "runtime_difference"
+
+
 def choose_work_direction(connector: str, patterns: list[str], areas: list[str], phase4_response: bool) -> str:
-    pattern_set = set(patterns)
-    area_set = set(areas)
     if phase4_response:
         return "response_body_non_promoted"
-    if "expected_200_got_0" in pattern_set:
-        return "harness_incompatibility"
-    if "expected_200_got_404" in pattern_set or "expected_200_got_405" in pattern_set:
-        return "request_routing"
-    if "expected_200_got_501" in pattern_set:
-        if "request_body_xml" in area_set:
-            return "xml_processor"
-        if "multipart_files" in area_set:
-            return "multipart_files"
-        if "request_body_json" in area_set or "request_body_urlencoded" in area_set:
-            return "request_body_processor"
-        return "connector_gap" if connector == "haproxy" else "harness_incompatibility"
-    if "expected_block_got_200" in pattern_set:
-        return "intervention_blocking"
-    if "expected_block_got_404" in pattern_set or "expected_block_got_405" in pattern_set:
-        return "request_routing"
-    if "expected_block_got_501" in pattern_set:
-        if "request_body_xml" in area_set:
-            return "xml_processor"
-        if "multipart_files" in area_set:
-            return "multipart_files"
-        if "request_body_json" in area_set or "request_body_urlencoded" in area_set:
-            return "request_body_processor"
-        return "connector_gap" if connector == "haproxy" else "harness_incompatibility"
-    if "expected_pass_but_evidence_missing" in pattern_set:
-        return "audit_log_evidence" if "audit_log" in area_set else "harness_incompatibility"
-    if "not_executable" in pattern_set or "no_runtime_evidence" in pattern_set:
-        return "harness_incompatibility"
-    if "operators" in area_set:
-        return "operator_semantics"
-    if "transformations" in area_set:
-        return "transformation_semantics"
-    if "response_headers" in area_set:
-        return "response_header_hook"
-    if "multipart_files" in area_set:
-        return "multipart_files"
-    if "request_body_json" in area_set:
-        return "json_processor"
-    if "request_body_xml" in area_set:
-        return "xml_processor"
-    return "runtime_difference"
+    direction = failure_work_direction(connector, set(patterns), set(areas))
+    return direction if direction else area_work_direction(set(areas))
 
 
 def overlay_classification(meta: CaseMeta, connector: str) -> str:
@@ -483,7 +578,7 @@ def choose_classification(connector: str, status: str, patterns: list[str], meta
 
 def initial_priority(status: str, patterns: list[str], areas: list[str], phase4_response: bool) -> str:
     if status == "PASS":
-        return "P3" if phase4_response else "P3"
+        return "P3"
     if phase4_response or status == "NOT_EXECUTABLE":
         return "P3"
     if {"request_body_json", "request_body_xml", "multipart_files", "response_headers"}.intersection(areas):
@@ -493,12 +588,39 @@ def initial_priority(status: str, patterns: list[str], areas: list[str], phase4_
     return "P3"
 
 
-def run_summary_path(run: dict[str, Any]) -> Path:
-    return Path(norm(run.get("runtime_summary_path") or run.get("summary_path")))
+def approved_summary_roots(connector_root: Path) -> list[Path]:
+    roots = [connector_root]
+    if DEFAULT_BUILD_ROOT is not None:
+        roots.append(DEFAULT_BUILD_ROOT)
+    return roots
+
+
+def summary_path_from_run(
+    run: dict[str, Any], approved_roots: list[Path],
+) -> tuple[Path | None, str | None]:
+    raw_path = norm(run.get("runtime_summary_path") or run.get("summary_path"))
+    if not raw_path:
+        return None, "runtime summary path is missing"
+    try:
+        candidate = absolute_path_without_traversal(raw_path, "runtime summary path")
+    except ValueError:
+        return None, "runtime summary path is not an absolute traversal-free path"
+    for root in approved_roots:
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            continue
+        if has_symlink_component(candidate):
+            return None, "runtime summary path must not contain a symlink"
+        if candidate.is_file():
+            return candidate, None
+        return None, "runtime summary file is missing or not a regular file"
+    return None, "runtime summary path is outside approved roots"
 
 
 def read_cases_from_summary(summary_path: Path, connector: str) -> dict[str, dict[str, Any]]:
-    raw = read_json(summary_path)
+    with summary_path.open(encoding="utf-8") as handle:
+        raw = json.load(handle)
     data = raw.get(connector, raw) if isinstance(raw, dict) else {}
     cases = data.get("cases") if isinstance(data, dict) else {}
     return cases if isinstance(cases, dict) else {}
@@ -532,81 +654,131 @@ def run_blocked_entry(run: dict[str, Any], summary_path: Path, reason: str | Non
     }
 
 
-def collect_entries(full_matrix: dict[str, Any], by_id: dict[str, CaseMeta], by_path: dict[str, CaseMeta]) -> list[dict[str, Any]]:
-    entries: list[dict[str, Any]] = []
-    for run in full_matrix.get("runs", []):
-        if not isinstance(run, dict):
-            continue
-        connector = norm(run.get("connector"))
-        if connector not in CONNECTORS:
-            continue
-        summary_path = run_summary_path(run)
-        if not summary_path.is_file():
-            entries.append(run_blocked_entry(run, summary_path))
-            continue
-        try:
-            cases = read_cases_from_summary(summary_path, connector)
-        except Exception:
-            entries.append(run_blocked_entry(run, summary_path))
-            continue
-        if not cases and (norm(run.get("outcome")).upper() == "BLOCKED" or int(run.get("blocked") or 0) > 0):
-            entries.append(run_blocked_entry(run, summary_path, f"runtime summary contains no cases and reports BLOCKED: {summary_path}"))
-            continue
-        for case_id, case in cases.items():
-            if not isinstance(case, dict):
-                continue
-            meta = lookup_meta(str(case_id), case, by_id, by_path)
-            status = runtime_status(case)
-            expected = status_int(case, "expected_status", "expected")
-            actual = status_int(case, "actual_status", "observed_status", "observed")
-            areas = functional_areas(meta, case)
-            patterns = failure_patterns(status, expected, actual)
-            phase4_response = response_body_or_phase4(meta, areas)
-            mrts_variant = norm(run.get("mrts_variant"))
-            work_direction = choose_work_direction(connector, patterns, areas, phase4_response)
-            classification = choose_classification(connector, status, patterns, meta, phase4_response)
-            priority = initial_priority(status, patterns, areas, phase4_response)
-            detection_only_overlay = is_with_mrts_detection_only_non_disruptive()
-            if detection_only_overlay:
-                work_direction = WITH_MRTS_DETECTION_ONLY_WORK_DIRECTION
-                classification = WITH_MRTS_DETECTION_ONLY_CLASSIFICATION
-                priority = WITH_MRTS_DETECTION_ONLY_PRIORITY
-            semantic_nomatch = no_mrts_nomatch_semantic_classification(
-                str(case_id),
-                mrts_variant,
-                status,
-                expected,
-                actual,
-                work_direction,
-            )
-            if semantic_nomatch:
-                work_direction = semantic_nomatch["work_direction"]
-                classification = semantic_nomatch["classification"]
-                priority = semantic_nomatch["priority"]
-            entries.append(
-                {
-                    "case_id": str(case_id),
-                    "connector": connector,
-                    "test_variant": norm(run.get("test_variant")),
-                    "mrts_variant": mrts_variant,
-                    "source_kind": meta.source_kind,
-                    "mrts_corpus": meta.mrts_corpus,
-                    "category": meta.category,
-                    "functional_area": areas,
-                    "phase": meta.phase,
-                    "expected_status": expected,
-                    "actual_status": actual,
-                    "runtime_status": status,
-                    "failure_pattern": patterns,
-                    "connector_pattern": [],
-                    "classification": classification,
-                    "work_direction": [work_direction],
-                    "priority": priority,
-                    "reason": norm(case.get("reason")),
-                    "evidence": norm(case.get("evidence_path") or case.get("evidence") or summary_path),
-                    "summary_path": str(summary_path),
-                }
-            )
+def case_work_classification(
+    case_id: str,
+    mrts_variant: str,
+    connector: str,
+    status: str,
+    expected: int | None,
+    actual: int | None,
+    patterns: list[str],
+    meta: CaseMeta,
+    areas: list[str],
+    phase4_response: bool,
+) -> tuple[str, str, str]:
+    work_direction = choose_work_direction(connector, patterns, areas, phase4_response)
+    classification = choose_classification(connector, status, patterns, meta, phase4_response)
+    priority = initial_priority(status, patterns, areas, phase4_response)
+    if is_with_mrts_detection_only_non_disruptive():
+        return (
+            WITH_MRTS_DETECTION_ONLY_WORK_DIRECTION,
+            WITH_MRTS_DETECTION_ONLY_CLASSIFICATION,
+            WITH_MRTS_DETECTION_ONLY_PRIORITY,
+        )
+    semantic_nomatch = no_mrts_nomatch_semantic_classification(
+        case_id, mrts_variant, status, expected, actual, work_direction,
+    )
+    if semantic_nomatch:
+        return (
+            semantic_nomatch["work_direction"],
+            semantic_nomatch["classification"],
+            semantic_nomatch["priority"],
+        )
+    return work_direction, classification, priority
+
+
+def entry_from_case(
+    case_id: str,
+    case: dict[str, Any],
+    run: dict[str, Any],
+    connector: str,
+    summary_path: Path,
+    by_id: dict[str, CaseMeta],
+    by_path: dict[str, CaseMeta],
+) -> dict[str, Any]:
+    meta = lookup_meta(case_id, case, by_id, by_path)
+    status = runtime_status(case)
+    expected = status_int(case, "expected_status", "expected")
+    actual = status_int(case, "actual_status", "observed_status", "observed")
+    areas = functional_areas(meta, case)
+    patterns = failure_patterns(status, expected, actual)
+    phase4_response = response_body_or_phase4(meta, areas)
+    mrts_variant = norm(run.get("mrts_variant"))
+    work_direction, classification, priority = case_work_classification(
+        case_id, mrts_variant, connector, status, expected, actual, patterns,
+        meta, areas, phase4_response,
+    )
+    return {
+        "case_id": case_id,
+        "connector": connector,
+        "test_variant": norm(run.get("test_variant")),
+        "mrts_variant": mrts_variant,
+        "source_kind": meta.source_kind,
+        "mrts_corpus": meta.mrts_corpus,
+        "category": meta.category,
+        "functional_area": areas,
+        "phase": meta.phase,
+        "expected_status": expected,
+        "actual_status": actual,
+        "runtime_status": status,
+        "failure_pattern": patterns,
+        "connector_pattern": [],
+        "classification": classification,
+        "work_direction": [work_direction],
+        "priority": priority,
+        "reason": norm(case.get("reason")),
+        "evidence": norm(case.get("evidence_path") or case.get("evidence") or summary_path),
+        "summary_path": str(summary_path),
+    }
+
+
+def blocked_run_entries(run: dict[str, Any], summary_path: Path, cases: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    if cases or not (
+        norm(run.get("outcome")).upper() == "BLOCKED" or int(run.get("blocked") or 0) > 0
+    ):
+        return []
+    reason = f"runtime summary contains no cases and reports BLOCKED: {summary_path}"
+    return [run_blocked_entry(run, summary_path, reason)]
+
+
+def entries_for_run(
+    run: dict[str, Any],
+    by_id: dict[str, CaseMeta],
+    by_path: dict[str, CaseMeta],
+    summary_roots: list[Path],
+) -> list[dict[str, Any]]:
+    connector = norm(run.get("connector"))
+    if connector not in CONNECTORS:
+        return []
+    summary_path, path_error = summary_path_from_run(run, summary_roots)
+    if summary_path is None:
+        return [run_blocked_entry(run, Path("<unavailable>"), path_error)]
+    try:
+        cases = read_cases_from_summary(summary_path, connector)
+    except Exception:
+        return [run_blocked_entry(run, summary_path)]
+    blocked_entries = blocked_run_entries(run, summary_path, cases)
+    if blocked_entries:
+        return blocked_entries
+    return [
+        entry_from_case(str(case_id), case, run, connector, summary_path, by_id, by_path)
+        for case_id, case in cases.items()
+        if isinstance(case, dict)
+    ]
+
+
+def collect_entries(
+    full_matrix: dict[str, Any],
+    by_id: dict[str, CaseMeta],
+    by_path: dict[str, CaseMeta],
+    summary_roots: list[Path],
+) -> list[dict[str, Any]]:
+    entries = [
+        entry
+        for run in full_matrix.get("runs", [])
+        if isinstance(run, dict)
+        for entry in entries_for_run(run, by_id, by_path, summary_roots)
+    ]
     apply_connector_patterns(entries)
     apply_priority_rules(entries)
     return entries
@@ -647,40 +819,45 @@ def apply_connector_patterns(entries: list[dict[str, Any]]) -> None:
                     row["connector_pattern"].append("different_actual_statuses")
 
 
-def apply_priority_rules(entries: list[dict[str, Any]]) -> None:
-    high_volume: set[tuple[str, str]] = set()
+def high_volume_failures(entries: list[dict[str, Any]]) -> set[tuple[str, str]]:
     counts: Counter[tuple[str, str]] = Counter()
     for entry in entries:
         for pattern in entry["failure_pattern"]:
             if entry["runtime_status"] == "FAIL":
                 counts[(entry["connector"], pattern)] += 1
-    for key, count in counts.items():
-        if count >= 10:
-            high_volume.add(key)
+    return {key for key, count in counts.items() if count >= 10}
+
+
+def priority_for_entry(entry: dict[str, Any], high_volume: set[tuple[str, str]]) -> str:
+    if entry.get("classification") == WITH_MRTS_DETECTION_ONLY_CLASSIFICATION:
+        return WITH_MRTS_DETECTION_ONLY_PRIORITY
+    semantic = NO_MRTS_NOMATCH_SEMANTIC_GROUPS.get(str(entry.get("classification") or ""))
+    if semantic:
+        return semantic["priority"]
+    patterns = set(entry["failure_pattern"])
+    connectors = set(entry["connector_pattern"])
+    areas = set(entry["functional_area"])
+    if entry.get("phase") == "4" or "response_body" in areas:
+        return "P3"
+    if (
+        "all_connectors_fail" in connectors
+        and "expected_block_got_200" in patterns
+        and {"action_intervention", "secaction"}.intersection(areas)
+    ):
+        return "P0"
+    if (
+        entry["runtime_status"] == "FAIL"
+        and any((entry["connector"], pattern) in high_volume for pattern in patterns)
+        and entry["priority"] != "P0"
+    ):
+        return "P1"
+    return str(entry["priority"])
+
+
+def apply_priority_rules(entries: list[dict[str, Any]]) -> None:
+    high_volume = high_volume_failures(entries)
     for entry in entries:
-        if entry.get("classification") == WITH_MRTS_DETECTION_ONLY_CLASSIFICATION:
-            entry["priority"] = WITH_MRTS_DETECTION_ONLY_PRIORITY
-            continue
-        semantic = NO_MRTS_NOMATCH_SEMANTIC_GROUPS.get(str(entry.get("classification") or ""))
-        if semantic:
-            entry["priority"] = semantic["priority"]
-            continue
-        patterns = set(entry["failure_pattern"])
-        connectors = set(entry["connector_pattern"])
-        areas = set(entry["functional_area"])
-        phase4_response = entry.get("phase") == "4" or "response_body" in areas
-        if phase4_response:
-            entry["priority"] = "P3"
-            continue
-        if (
-            "all_connectors_fail" in connectors
-            and "expected_block_got_200" in patterns
-            and ("action_intervention" in areas or "secaction" in areas)
-        ):
-            entry["priority"] = "P0"
-        elif any((entry["connector"], pattern) in high_volume for pattern in patterns) and entry["runtime_status"] == "FAIL":
-            if entry["priority"] != "P0":
-                entry["priority"] = "P1"
+        entry["priority"] = priority_for_entry(entry, high_volume)
 
 
 def count_by(entries: list[dict[str, Any]], key: str, *, connector: str | None = None) -> Counter[str]:
@@ -818,6 +995,38 @@ def render_markdown(entries: list[dict[str, Any]], source_counts: Counter[str], 
     return "\n".join(lines) + "\n"
 
 
+def existing_private_root(value: Path | str, label: str) -> Path:
+    root = private_runtime_root(value, label)
+    if not root.is_dir():
+        raise ValueError(f"{label} must be an existing directory: {root}")
+    return root
+
+
+def configured_framework_root(value: Path | str) -> Path:
+    framework_root = existing_private_root(value, "framework root")
+    expected_root = Path(__file__).resolve().parents[2]
+    if framework_root != expected_root:
+        raise ValueError(f"framework root must be the generator's framework root: {expected_root}")
+    return framework_root
+
+
+def configured_output_root(
+    value: Path | str,
+    connector_root: Path,
+    framework_root: Path,
+) -> Path:
+    output_root = existing_private_root(value, "output root")
+    if output_root not in {connector_root, framework_root}:
+        raise ValueError(
+            "output root must resolve exactly to the connector root or framework root"
+        )
+    return output_root
+
+
+def write_generated_report(path: Path, content: str) -> None:
+    with path.open("w", encoding="utf-8") as report_file:
+        report_file.write(content)
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -827,7 +1036,7 @@ def main() -> int:
     parser.add_argument("--full-runtime-matrix", default=None)
     args = parser.parse_args()
 
-    framework_root = Path(args.framework_root).resolve()
+    framework_root = configured_framework_root(args.framework_root)
     framework_lib = framework_root / "ci" / "lib"
     if str(framework_lib) not in sys.path:
         sys.path.insert(0, str(framework_lib))
@@ -839,19 +1048,24 @@ def main() -> int:
         generated_report_dir,
         metadata_path_label,
         resolve_full_runtime_matrix_input,
-        trusted_root,
     )
 
-    connector_root = trusted_root(args.connector_root, "connector root")
-    output_root = trusted_root(args.output_root, "output root") if args.output_root else connector_root
+    connector_root = existing_private_root(args.connector_root, "connector root")
+    output_root = configured_output_root(
+        args.output_root if args.output_root else connector_root,
+        connector_root,
+        framework_root,
+    )
     output_dir = generated_report_dir(output_root)
-    explicit_full_matrix = trusted_root(args.full_runtime_matrix, "full runtime matrix") if args.full_runtime_matrix else None
+    explicit_full_matrix = Path(args.full_runtime_matrix) if args.full_runtime_matrix else None
     full_matrix_path = resolve_full_runtime_matrix_input(connector_root, explicit_full_matrix)
     full_matrix_input = metadata_path_label(full_matrix_path, connector_root, "$CONNECTOR_ROOT")
 
     by_id, by_path, source_counts = load_cases(framework_root)
     full_matrix = load_full_matrix(full_matrix_path)
-    entries = collect_entries(full_matrix, by_id, by_path)
+    entries = collect_entries(
+        full_matrix, by_id, by_path, approved_summary_roots(connector_root),
+    )
     runtime_source_counts = count_by(entries, "source_kind")
 
     generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -884,8 +1098,12 @@ def main() -> int:
     json_path = connector_work_queue_output_path(output_dir, "json")
     md_path = connector_work_queue_output_path(output_dir, "md")
     json_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(generated_json_text(payload, metadata), encoding="utf-8")
-    md_path.write_text(generated_markdown_text(render_markdown(entries, source_counts, runtime_source_counts, generated_at), metadata), encoding="utf-8")
+    json_content = generated_json_text(payload, metadata)
+    markdown_content = generated_markdown_text(
+        render_markdown(entries, source_counts, runtime_source_counts, generated_at), metadata,
+    )
+    write_generated_report(json_path, json_content)
+    write_generated_report(md_path, markdown_content)
     return 0
 
 

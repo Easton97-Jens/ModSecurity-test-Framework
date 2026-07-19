@@ -301,14 +301,25 @@ class NoCrsBaselineTest(unittest.TestCase):
 
     def test_makefile_propagates_connector_root_to_finalize_and_validation(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        finalizer_wrapper = (ROOT / "ci" / "tools" / "run-no-crs-finalize.py").read_text(
+            encoding="utf-8",
+        )
         validation_recipe = makefile.split("define RUN_NO_CRS_CHECK", 1)[1].split("endef", 1)[0]
         finalize_recipe = makefile.split("no-crs-finalize:", 1)[1].split("no-crs-summary:", 1)[0]
         expected = '--connector-root "$(CONNECTOR_ROOT)"'
         self.assertIn(expected, validation_recipe)
-        self.assertIn(expected, finalize_recipe)
+        self.assertIn("export CONNECTOR_ROOT", makefile)
+        self.assertIn(
+            '$(PYTHON) "$(dir $(abspath $(lastword $(MAKEFILE_LIST))))ci/tools/run-no-crs-finalize.py"',
+            finalize_recipe,
+        )
+        self.assertNotIn(expected, finalize_recipe)
+        self.assertIn('required_environment_value("CONNECTOR_ROOT")', finalizer_wrapper)
+        self.assertIn('"--connector-root",', finalizer_wrapper)
+        self.assertIn("subprocess.run(command, check=False, shell=False)", finalizer_wrapper)
         self.assertIn("NO_CRS_ARTIFACT_PROFILE ?= generic", makefile)
         self.assertIn("NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR ?=", makefile)
-        self.assertIn("--protocol-client-artifact-dir", finalize_recipe)
+        self.assertIn("NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR", finalizer_wrapper)
         self.assertIn('--artifact-profile "$(NO_CRS_ARTIFACT_PROFILE)"', makefile)
         for target in (
             "check-first-byte-before-response-end:",
@@ -505,7 +516,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "transport_protocol": "http1",
                 "body_payload_persisted": False,
                 "outcome": "PASS",
-            })
+            }, control_root=root)
             self.assertEqual(0, no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--source-events", str(events_path), "--stdout-log", str(stdout_path),
@@ -542,7 +553,7 @@ class NoCrsBaselineTest(unittest.TestCase):
     def test_post_execution_missing_evidence_is_fail_not_exit_77(self) -> None:
         source = (ROOT / "ci/lib/connector-smoke-common.sh").read_text(encoding="utf-8")
         block = source[source.index('if [ "$rc" -eq 0 ] && [ "${RUN_ONE_CASE:-0}" = "1" ]'):]
-        block = block[:block.index('    exit "$rc"')]
+        block = block[:block.index('\n    return "$rc"\n}')]
         self.assertIn('FAIL 1 failed "RUN_ONE_CASE result.json missing after execution"', block)
         self.assertIn("<<'PY_RUN_ONE_CASE' || exit 1", block)
         self.assertIn('FAIL 1 failed "runtime harness produced no case evidence after execution"', block)
@@ -683,8 +694,12 @@ class NoCrsBaselineTest(unittest.TestCase):
                 case = load_case(no_crs.CATALOG_PATH.parent / str(runner_case))
                 output = root / f"{catalog_case['case_id']}.conf"
                 write_rules_file(
-                    case, output, root / "audit.log", root / "audit",
-                    no_crs.RULES_PATH,
+                    case,
+                    output,
+                    output_root=root,
+                    audit_log_file=root / "audit.log",
+                    audit_log_dir=root / "audit",
+                    rules_preamble_file=no_crs.RULES_PATH,
                 )
                 content = output.read_text(encoding="utf-8")
                 self.assertEqual(1, content.count("id:1100001,"))
@@ -936,7 +951,8 @@ class NoCrsBaselineTest(unittest.TestCase):
 
     def test_synchronized_upstream_emits_payload_free_barrier_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="first-byte-probe-") as temporary:
-            output = Path(temporary) / "first-byte-evidence.json"
+            root = Path(temporary)
+            output = root / "first-byte-evidence.json"
             with SynchronizedStreamingUpstream() as upstream:
                 address = upstream.address
                 evidence = run_client_barrier(
@@ -958,7 +974,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             self.assertTrue(evidence["upstream_paused"])
             self.assertFalse(evidence["upstream_eos_sent_at_first_byte"])
             self.assertGreater(evidence["first_chunk_size"], 0)
-            write_evidence(output, evidence)
+            write_evidence(output, evidence, control_root=root)
             serialized = output.read_text(encoding="utf-8")
             self.assertNotIn("first-byte-prefix", serialized)
             self.assertNotIn("no-crs-response-body-marker", serialized)
@@ -991,18 +1007,19 @@ class NoCrsBaselineTest(unittest.TestCase):
             paused = root / "paused.json"
             release = root / "release"
             server_evidence = root / "server-evidence.json"
-            failures: list[BaseException] = []
+            failures: list[Exception] = []
 
             def serve() -> None:
                 try:
                     serve_with_control_files(
+                        control_root=root,
                         ready_file=ready,
                         paused_file=paused,
                         release_file=release,
                         server_evidence_file=server_evidence,
                         timeout=5.0,
                     )
-                except BaseException as exc:  # capture daemon-thread failures for assertions
+                except Exception as exc:  # capture daemon-thread failures for assertions
                     failures.append(exc)
 
             thread = threading.Thread(target=serve, daemon=True)
@@ -1012,9 +1029,9 @@ class NoCrsBaselineTest(unittest.TestCase):
                 time.sleep(0.01)
             self.assertTrue(ready.is_file())
             address = json.loads(ready.read_text(encoding="utf-8"))
-            with socket.create_connection(
-                (address["upstream_host"], address["upstream_port"]), timeout=2.0
-            ) as client:
+            self.assertEqual("127.0.0.1", address["upstream_host"])
+            self.assertIsInstance(address["upstream_port"], int)
+            with socket.create_connection(("127.0.0.1", address["upstream_port"]), timeout=2.0) as client:
                 client.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
                 received = bytearray()
                 while b"\r\n\r\n" not in received or not received.split(b"\r\n\r\n", 1)[1]:
@@ -1046,7 +1063,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 )
                 release.touch()
                 while client.recv(4096):
-                    pass
+                    continue
             thread.join(timeout=3.0)
             self.assertFalse(thread.is_alive())
             self.assertEqual([], failures)
@@ -1078,7 +1095,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "connector_owned_full_response_buffer": False,
             }), encoding="utf-8")
             self.assertEqual(0, streaming_main([
-                "--merge-evidence", "--paused-file", str(paused),
+                "--merge-evidence", "--control-root", str(root), "--paused-file", str(paused),
                 "--client-first-byte-file", str(client_output),
                 "--host-metadata-json", str(metadata), "--evidence-origin", "real_host",
                 "--output", str(output),
@@ -1164,7 +1181,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "transport_protocol": "http1",
                 "body_payload_persisted": False,
                 "outcome": "PASS",
-            })
+            }, control_root=root)
             self.assertEqual(0, no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--source-result", str(source_path), "--source-events", str(events_path),
@@ -2111,7 +2128,7 @@ class NoCrsBaselineTest(unittest.TestCase):
         # A catalog protocol profile alone is non-promoting: it cannot pass
         # merely because a source record has a rule/status outcome.
         missing = no_crs.protocol_pass_errors(
-            {**record, **{field: None for field in no_crs.PROTOCOL_CLAIM_FIELDS}},
+            {**record, **dict.fromkeys(no_crs.PROTOCOL_CLAIM_FIELDS)},
             event,
             required_protocol="h3",
         )
@@ -2276,6 +2293,22 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "--run-dir", str(run_dir), "--run-id", "run-parent-link",
             ]))
             self.assertFalse((real_parent / "envoy/run-parent-link").exists())
+
+    def test_run_directory_parent_must_be_private(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-run-parent-") as temporary:
+            root = Path(temporary)
+            private_parent = root / "private"
+            private_parent.mkdir(mode=0o700)
+            no_crs.safe_run_dir(private_parent / "legitimate-run")
+
+            public_parent = root / "public"
+            public_parent.mkdir(mode=0o777)
+            public_parent.chmod(0o777)
+            with self.assertRaisesRegex(
+                no_crs.ContractError,
+                "run-dir parent must not be publicly writable",
+            ):
+                no_crs.safe_run_dir(public_parent / "rejected-run")
 
     def test_init_rejects_tampered_same_connector_plan(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:

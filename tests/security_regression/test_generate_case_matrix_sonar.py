@@ -1,0 +1,224 @@
+import importlib.util
+import json
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+
+ROOT = Path(__file__).resolve().parents[2]
+MODULE_PATH = ROOT / "ci/reporting/generate-case-matrix.py"
+
+
+def load_case_matrix_module():
+    name = "generate_case_matrix_sonar_test"
+    sys.modules.pop(name, None)
+    spec = importlib.util.spec_from_file_location(name, MODULE_PATH)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+class GenerateCaseMatrixSonarTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.module = load_case_matrix_module()
+
+    def test_default_build_root_requires_an_explicit_verified_run_root(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(self.module.default_build_root(), self.module.DEFAULT_BUILD_ROOT)
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            verified_run_root = Path(temporary_directory) / "verified-run"
+            with mock.patch.dict(os.environ, {"VERIFIED_RUN_ROOT": str(verified_run_root)}, clear=True):
+                self.assertEqual(self.module.default_build_root(), verified_run_root.resolve() / "build")
+
+    def test_report_layout_writes_only_allowlisted_output_paths(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            generated = root / "generated" / "report.md"
+            overview = root / "overview.md"
+            layout = self.module.ReportLayout(
+                output_root=root,
+                report_root=root,
+                generated_root=generated.parent,
+                runtime_snapshot=root / "snapshot.json",
+                overview=overview,
+                root_summary=None,
+                generated_reports={"report.md": generated},
+            )
+            with mock.patch.object(self.module, "REPORT_UTILS", None):
+                layout.write_generated("report.md", "../../untrusted runtime value")
+                self.assertEqual(
+                    generated.read_text(encoding="utf-8"),
+                    "Generated file - do not edit manually.\n\n../../untrusted runtime value\n",
+                )
+                with self.assertRaises(ValueError):
+                    layout._write_known(root.parent / "escape.md", "must not be written")
+            self.assertFalse((root.parent / "escape.md").exists())
+
+    def test_haproxy_summary_keeps_verified_and_crs_case_semantics(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            results_dir = Path(temporary_directory) / "results"
+            results_dir.mkdir()
+            summary_path = results_dir / "haproxy-summary.json"
+            summary_path.write_text(
+                json.dumps(
+                    {
+                        "haproxy": {
+                            "cases": {
+                                "no-crs-pass": {"status": "pass", "requires_crs": False},
+                                "with-crs-pass": {"status": "PASS", "requires_crs": True},
+                                "blocked": {"status": "blocked", "requires_crs": True},
+                            },
+                            "summary": {"blocked": 1},
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            summary = self.module.load_haproxy_connector_summary(results_dir, summary_path)
+            self.assertEqual(summary["status"], "PARTIAL")
+            self.assertEqual(summary["verified_cases"], ["no-crs-pass", "with-crs-pass"])
+            self.assertEqual(summary["crs_verified_scope"], ["with-crs-pass"])
+            self.assertTrue(summary["runtime_verified"])
+            self.assertTrue(summary["crs_verified"])
+            self.assertEqual(summary["evidence_path"], str(summary_path))
+
+    def test_haproxy_variant_summary_remains_deduplicated(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            results_dir = Path(temporary_directory) / "results"
+            no_crs_path = results_dir / "no-crs" / "haproxy-summary.json"
+            with_crs_path = results_dir / "with-crs" / "haproxy-summary.json"
+            no_crs_path.parent.mkdir(parents=True)
+            with_crs_path.parent.mkdir(parents=True)
+            no_crs_path.write_text(
+                json.dumps({"verified_cases": ["shared", "no-crs"], "counts": {"pass": 2}}),
+                encoding="utf-8",
+            )
+            with_crs_path.write_text(
+                json.dumps(
+                    {"verified_cases": ["shared", "with-crs"], "counts": {"pass": 2}, "crs_verified": True}
+                ),
+                encoding="utf-8",
+            )
+            summary = self.module.load_haproxy_connector_summary(results_dir, results_dir / "haproxy-summary.json")
+            self.assertEqual(summary["status"], "PARTIAL")
+            self.assertEqual(summary["verified_cases"], ["shared", "no-crs", "with-crs"])
+            self.assertEqual(summary["crs_verified_scope"], ["crs_sqli_anomaly_block"])
+            self.assertEqual(summary["counts"], {"pass": 2})
+
+    def test_connector_smoke_row_preserves_snapshot_details(self):
+        row = self.module.new_connector_smoke_evidence_row(
+            "haproxy",
+            {
+                "status": "PARTIAL",
+                "runtime_status": "live-yaml-runtime",
+                "runtime_verified": True,
+                "crs_verified": True,
+                "response_body_verified": False,
+                "verified_cases": ["case-a", "case-b"],
+                "with_crs": {
+                    "status": "pass",
+                    "crs_loaded": True,
+                    "block_probe_status": "pass",
+                    "pass_probe_status": "pass",
+                    "blocked_reason": "none",
+                },
+                "evidence_path": "/safe/results/haproxy.json",
+            },
+        )
+        self.assertEqual(
+            row,
+            "| haproxy | PARTIAL | live-yaml-runtime | yes | yes | no | `case-a, case-b` | "
+            "pass crs_loaded=true block=pass pass=pass reason=none | `/safe/results/haproxy.json` |",
+        )
+
+    def test_connector_summary_loading_keeps_snapshot_fallbacks(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            build_root = Path(temporary_directory) / "build"
+            results_dir = build_root / "results"
+            results_dir.mkdir(parents=True)
+            envoy_path = results_dir / "envoy-summary.json"
+            envoy_path.write_text(json.dumps({"status": "PASS", "runtime_verified": True}), encoding="utf-8")
+            snapshot = {
+                "runtime_smokes": [
+                    {
+                        "connector": "haproxy",
+                        "status": "pass",
+                        "cases": [{"case": "case-a", "status": "pass"}],
+                        "summary_path": "/safe/results/haproxy.json",
+                    }
+                ]
+            }
+            with mock.patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=True):
+                summaries = self.module.load_new_connector_smoke_summaries(snapshot)
+        self.assertEqual(summaries["envoy"]["status"], "PASS")
+        self.assertEqual(summaries["envoy"]["evidence_path"], str(envoy_path))
+        self.assertEqual(summaries["haproxy"]["status"], "PARTIAL")
+        self.assertEqual(summaries["haproxy"]["verified_cases"], ["case-a"])
+        self.assertEqual(summaries["haproxy"]["evidence_path"], "/safe/results/haproxy.json")
+
+    def test_case_metadata_scope_and_tags_are_preserved(self):
+        data = {
+            "name": "case-id",
+            "rules": 'SecRule ARGS "@contains test" "phase:2,t:lowercase"',
+            "status": "active",
+            "metadata": {
+                "connector_scope": ["apache"],
+                "classification": "pending",
+                "report_labels": ["Security Review"],
+                "mrts_corpus": "feature-demo",
+            },
+        }
+        with mock.patch.object(self.module, "read_yaml", return_value=data):
+            with mock.patch.object(self.module, "infer_scope", return_value="common"):
+                with mock.patch.object(self.module, "is_response_body_related", return_value=False):
+                    parsed = self.module.parse_case(Path("/synthetic/case.yaml"))
+        self.assertEqual(parsed["scope"], "apache")
+        self.assertEqual(parsed["metadata_classification"], "pending")
+        self.assertEqual(parsed["report_labels"], ["Security Review"])
+        self.assertIn("security review", parsed["tags"])
+        self.assertIn("feature-demo", parsed["tags"])
+        self.assertIn("pending", parsed["tags"])
+
+    def test_rule_identifier_parser_is_bounded_and_preserves_delimiters(self):
+        self.assertEqual(self.module.mrts_rule_id_from_text("mrts_rule_id = 1234"), "1234")
+        self.assertEqual(self.module.mrts_rule_id_from_text("rule_id:\t42"), "42")
+        self.assertEqual(self.module.mrts_rule_id_from_text("rule_id\n  99"), "99")
+        self.assertEqual(self.module.mrts_rule_id_from_text("rule_id:=123"), "")
+        self.assertEqual(self.module.mrts_rule_id_from_text("rule_id=123x"), "")
+        self.assertEqual(self.module.mrts_rule_id_from_text("rule_id" + " " * 20000 + "= 77"), "77")
+
+    def test_observed_runtime_cell_keeps_non_promotable_control(self):
+        case = {
+            "id": "case-id",
+            "scope": "common",
+            "status": "active",
+            "category": "synthetic",
+            "source": "test",
+            "notes": "-",
+            "tags": [],
+            "variables": [],
+            "metadata_classification": "active",
+            "path": "synthetic/case.yaml",
+            "capabilities": [],
+        }
+        observed = {
+            "status": "pass",
+            "matrix_status": "BLOCKED",
+            "live_executed": True,
+            "expected_status": 200,
+            "actual_status": 200,
+        }
+        with mock.patch.object(self.module, "is_response_body_related", return_value=False):
+            cell = self.module.runtime_cell_from_observed(case, observed, "apache")
+        self.assertEqual(cell["status"], "BLOCKED")
+        self.assertEqual(cell["promotion"], self.module.NOT_PROMOTED)
+        self.assertEqual(cell["evidence"], "expected=200; actual=200")
+
+
+if __name__ == "__main__":
+    unittest.main()

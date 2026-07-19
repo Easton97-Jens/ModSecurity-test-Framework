@@ -10,6 +10,7 @@ runtime_component_sha_status() {
     else
         printf '%s\n' missing
     fi
+    return 0
 }
 
 write_prepare_blocked_message() {

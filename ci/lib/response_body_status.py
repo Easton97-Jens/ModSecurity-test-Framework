@@ -118,13 +118,12 @@ def is_response_body_related(case: Mapping[str, Any] | None, path: str | Path | 
     return _contains_marker(metadata_parts)
 
 
-def response_body_pass_through_status(classification: str) -> str:
+def response_body_pass_through_status() -> str:
     return RESPONSE_BODY_PASS_THROUGH_STATUS
 
 
 def matrix_status_for_result(
     result_status: str,
-    classification: str,
     *,
     response_body_related: bool = False,
 ) -> str:
@@ -138,7 +137,7 @@ def matrix_status_for_result(
     if status not in {"pass", "fail"}:
         return status.upper() if status else "UNKNOWN"
     if status == "pass" and response_body_related:
-        return response_body_pass_through_status(classification)
+        return response_body_pass_through_status()
 
     return "PASS" if status == "pass" else "FAIL"
 

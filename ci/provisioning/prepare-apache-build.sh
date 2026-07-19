@@ -2,8 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
@@ -90,6 +89,7 @@ safe_remove_dir() {
 
 ensure_modsecurity_v3_source() {
     if [ -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
+        ci_require_approved_modsecurity_v3_checkout "$MODSECURITY_V3_SOURCE_DIR" || blocked "unapproved ModSecurity v3 source: $MODSECURITY_V3_SOURCE_DIR"
         return 0
     fi
     if [ "$AUTO_FETCH_SMOKE_SOURCES" != "1" ]; then
@@ -107,6 +107,7 @@ ensure_modsecurity_v3_source() {
     if [ "$rc" -ne 0 ] || [ ! -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
         blocked "missing MODSECURITY_V3_SOURCE_DIR after auto-fetch: $MODSECURITY_V3_SOURCE_DIR"
     fi
+    ci_require_approved_modsecurity_v3_checkout "$MODSECURITY_V3_SOURCE_DIR" || blocked "unapproved ModSecurity v3 source after auto-fetch: $MODSECURITY_V3_SOURCE_DIR"
 }
 
 require_command() {
@@ -300,16 +301,18 @@ verify_sha256_literal() {
 verify_required_pcre2_sha256() {
     archive=$1
     expected=$2
+    invalid_sha256_message="invalid SHA256 digest for pcre2: expected exactly 64 hexadecimal characters"
     if [ -z "$expected" ]; then
         blocked "missing required SHA256 digest for pcre2"
     fi
     if [ "${#expected}" -ne 64 ]; then
-        blocked "invalid SHA256 digest for pcre2: expected exactly 64 hexadecimal characters"
+        blocked "$invalid_sha256_message"
     fi
     case "$expected" in
         *[!0123456789abcdefABCDEF]*)
-            blocked "invalid SHA256 digest for pcre2: expected exactly 64 hexadecimal characters"
+            blocked "$invalid_sha256_message"
             ;;
+        *) : ;;
     esac
 
     require_command tr "normalize pcre2 checksum"
@@ -623,7 +626,6 @@ resolve_apache_tools
 record_apache_tools
 
 if [ -z "$MODSECURITY_SHARED_PREFIX" ]; then
-    run_logged v3-git-submodule-update "$V3_BUILD_DIR" git submodule update --init --recursive
     run_logged v3-build-sh "$V3_BUILD_DIR" ./build.sh
     run_logged v3-configure "$V3_BUILD_DIR" ./configure
     run_logged v3-make "$V3_BUILD_DIR" make "-j$MAKE_JOBS"

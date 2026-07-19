@@ -68,6 +68,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         build_root = root / "build-root"
         v3 = build_root / "v3"
         v3.mkdir(parents=True)
+        (v3 / ".git").mkdir()
         cache = build_root / "cache"
         cache.mkdir()
         shared_prefix = build_root / "shared"
@@ -158,6 +159,42 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             """
             #!/bin/sh
             exit 0
+            """,
+        )
+        self.write_executable(
+            tools_dir / "git",
+            """
+            #!/bin/sh
+            set -eu
+            while [ "$#" -gt 0 ]; do
+                case "$1" in
+                    -c|-C)
+                        shift 2
+                        ;;
+                    *)
+                        break
+                        ;;
+                esac
+            done
+            command=${1:-}
+            shift || true
+            case "$command" in
+                config)
+                    printf '%s\n' 'https://github.com/owasp-modsecurity/ModSecurity.git'
+                    ;;
+                rev-parse)
+                    case "$*" in
+                        *--is-inside-work-tree*) printf '%s\n' true ;;
+                        *--abbrev-ref\\ HEAD*) printf '%s\n' HEAD ;;
+                        *) printf '%s\n' '0fb4aff98b4980cf6426697d5605c424e3d5bb60' ;;
+                    esac
+                    ;;
+                describe)
+                    printf '%s\n' v3.0.15
+                    ;;
+                ls-files)
+                    ;;
+            esac
             """,
         )
 

@@ -9,6 +9,7 @@ import argparse
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -29,8 +30,20 @@ from response_body_status import (
 
 CONNECTOR_ROOT = Path.cwd()
 OUTPUT_ROOT = CONNECTOR_ROOT
-DEFAULT_RUN_ROOT = Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified")))
-BUILD_ROOT = Path(os.environ.get("BUILD_ROOT", str(DEFAULT_RUN_ROOT / "build"))).resolve()
+# Report generation only consumes runtime evidence.  CI supplies BUILD_ROOT (or
+# VERIFIED_RUN_ROOT) after creating a task-owned directory; do not implicitly
+# derive an evidence location below a shared temporary directory.
+DEFAULT_BUILD_ROOT = Path("/src/ModSecurity-conector-build")
+
+
+def default_build_root() -> Path:
+    verified_run_root = os.environ.get("VERIFIED_RUN_ROOT")
+    if verified_run_root:
+        return Path(verified_run_root).expanduser().resolve() / "build"
+    return DEFAULT_BUILD_ROOT
+
+
+BUILD_ROOT = Path(os.environ.get("BUILD_ROOT") or default_build_root()).resolve()
 MRTS_ROOT = Path(os.environ.get("MRTS_ROOT", str(FRAMEWORK_ROOT / "tools/MRTS"))).resolve()
 MRTS_BUILD_ROOT = Path(os.environ.get("MRTS_BUILD_ROOT", str(BUILD_ROOT / "mrts"))).resolve()
 MRTS_UPSTREAM_BUILD_ROOT = MRTS_BUILD_ROOT / "upstream-config-tests"
@@ -58,6 +71,7 @@ PHASE_RE = re.compile(r"phase:(\d)")
 # \w keeps transformation tokens concise; current test corpus uses ASCII-style names.
 TRANS_RE = re.compile(r"t:(\w+)")
 GAP_TAG_RE = re.compile(r"(connector[_-]?gap|runtime[_-]?difference|future|experimental|pending|mapped[_-]?only)", re.I)
+MRTS_RULE_ID_TOKEN_RE = re.compile(r"\b(?:mrts_)?rule_id\b")
 TABLE_SEPARATOR_2COL = "|---|---|"
 TABLE_STATUS_COUNT_HEADER = "| Status | Count |"
 TABLE_STATUS_COUNT_SEPARATOR = "|---|---:|"
@@ -118,28 +132,58 @@ ACTIVE_RUNTIME_STATUSES = {
 }
 
 NON_EXECUTABLE_STATUSES = {"blocked", "mapped-only", "skipped", "todo"}
-GENERATED_REPORT_NAMES = {
-    "apache-runtime-results.generated.md",
-    "case-matrix.generated.md",
-    "connector-gap-summary.generated.md",
-    "coverage-summary.generated.md",
-    "haproxy-runtime-results.generated.md",
-    "nginx-runtime-results.generated.md",
-    "phase-coverage.generated.md",
-    "runtime-matrix.generated.md",
-    "xfail-summary.generated.md",
-}
+APACHE_RUNTIME_RESULTS_REPORT = "apache-runtime-results.generated.md"
+CASE_MATRIX_REPORT = "case-matrix.generated.md"
+CONNECTOR_GAP_SUMMARY_REPORT = "connector-gap-summary.generated.md"
+COVERAGE_SUMMARY_REPORT = "coverage-summary.generated.md"
+HAPROXY_RUNTIME_RESULTS_REPORT = "haproxy-runtime-results.generated.md"
+NGINX_RUNTIME_RESULTS_REPORT = "nginx-runtime-results.generated.md"
+PHASE_COVERAGE_REPORT = "phase-coverage.generated.md"
+RUNTIME_MATRIX_REPORT = "runtime-matrix.generated.md"
+XFAIL_SUMMARY_REPORT = "xfail-summary.generated.md"
+CASE_MATRIX_REPORT_DOC = f"{GENERATED_DIR}/{CASE_MATRIX_REPORT}"
+CONNECTOR_GAP_SUMMARY_REPORT_DOC = f"{GENERATED_DIR}/{CONNECTOR_GAP_SUMMARY_REPORT}"
+COVERAGE_SUMMARY_REPORT_DOC = f"{GENERATED_DIR}/{COVERAGE_SUMMARY_REPORT}"
+HAPROXY_RUNTIME_RESULTS_REPORT_DOC = f"{GENERATED_DIR}/{HAPROXY_RUNTIME_RESULTS_REPORT}"
+NGINX_RUNTIME_RESULTS_REPORT_DOC = f"{GENERATED_DIR}/{NGINX_RUNTIME_RESULTS_REPORT}"
+APACHE_RUNTIME_RESULTS_REPORT_DOC = f"{GENERATED_DIR}/{APACHE_RUNTIME_RESULTS_REPORT}"
+PHASE_COVERAGE_REPORT_DOC = f"{GENERATED_DIR}/{PHASE_COVERAGE_REPORT}"
+RUNTIME_MATRIX_REPORT_DOC = f"{GENERATED_DIR}/{RUNTIME_MATRIX_REPORT}"
+XFAIL_SUMMARY_REPORT_DOC = f"{GENERATED_DIR}/{XFAIL_SUMMARY_REPORT}"
+DETAIL_REPORT_DOCS = (
+    CASE_MATRIX_REPORT_DOC,
+    COVERAGE_SUMMARY_REPORT_DOC,
+    XFAIL_SUMMARY_REPORT_DOC,
+    CONNECTOR_GAP_SUMMARY_REPORT_DOC,
+    PHASE_COVERAGE_REPORT_DOC,
+    RUNTIME_MATRIX_REPORT_DOC,
+    APACHE_RUNTIME_RESULTS_REPORT_DOC,
+    NGINX_RUNTIME_RESULTS_REPORT_DOC,
+    HAPROXY_RUNTIME_RESULTS_REPORT_DOC,
+)
 GENERATED_REPORT_CATEGORIES = {
-    "apache-runtime-results.generated.md": "runtime",
-    "case-matrix.generated.md": "coverage",
-    "connector-gap-summary.generated.md": "coverage",
-    "coverage-summary.generated.md": "coverage",
-    "haproxy-runtime-results.generated.md": "runtime",
-    "nginx-runtime-results.generated.md": "runtime",
-    "phase-coverage.generated.md": "coverage",
-    "runtime-matrix.generated.md": "runtime",
-    "xfail-summary.generated.md": "coverage",
+    APACHE_RUNTIME_RESULTS_REPORT: "runtime",
+    CASE_MATRIX_REPORT: "coverage",
+    CONNECTOR_GAP_SUMMARY_REPORT: "coverage",
+    COVERAGE_SUMMARY_REPORT: "coverage",
+    HAPROXY_RUNTIME_RESULTS_REPORT: "runtime",
+    NGINX_RUNTIME_RESULTS_REPORT: "runtime",
+    PHASE_COVERAGE_REPORT: "coverage",
+    RUNTIME_MATRIX_REPORT: "runtime",
+    XFAIL_SUMMARY_REPORT: "coverage",
 }
+GENERATED_REPORT_NAMES = set(GENERATED_REPORT_CATEGORIES)
+MRTS_UNCLASSIFIED_TOPIC = "MRTS generated / unclassified"
+YAML_FILE_PATTERN = "*.yaml"
+CONF_FILE_PATTERN = "*.conf"
+NOT_PROMOTED = "not promoted"
+FRAMEWORK_CHECK_STATUS_TITLE = "Framework Check Status"
+READINESS_FETCH_STATUS_TITLE = "Readiness / Fetch Status"
+DEFAULT_RUNTIME_SMOKE_STATUS_TITLE = "Default Runtime Smoke Status"
+FORCE_ALL_RUNTIME_SMOKE_STATUS_TITLE = "Force-All Runtime Smoke Status"
+RUNTIME_FAIL_DETAILS_TITLE = "## Runtime FAIL Details"
+RUNTIME_VERIFIED_STATUS_TITLE = "## Runtime Verified Status"
+OPEN_RUNTIME_ISSUES_TITLE = "## Open Runtime Issues"
 
 
 def generated_de_filename(name: str) -> str:
@@ -239,7 +283,8 @@ class ReportLayout:
             text = REPORT_UTILS.generated_markdown_text(rendered_body, metadata)
         if path.exists() and generated_report_equivalent(path.read_text(encoding="utf-8"), text):
             return
-        path.write_text(text, encoding="utf-8")
+        with path.open("w", encoding="utf-8") as report_file:
+            report_file.write(text)
 
     def allowed_outputs(self) -> set[Path]:
         outputs = set(self.generated_reports.values()) | {self.overview}
@@ -385,28 +430,37 @@ def load_json_dict(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def load_haproxy_connector_summary(results_dir: Path, root_path: Path) -> dict:
-    root_data = load_json_dict(root_path)
-    if isinstance(root_data.get("haproxy"), dict):
-        summary = dict(root_data["haproxy"])
+def haproxy_verified_cases(cases: dict, *, require_crs: bool = False) -> list[str]:
+    verified: list[str] = []
+    for name, row in cases.items():
+        if not isinstance(row, dict) or str(row.get("status", "")).lower() != "pass":
+            continue
+        if require_crs and row.get("requires_crs") is not True:
+            continue
+        verified.append(str(name))
+    return verified
+
+
+def haproxy_root_status(verified_cases: list[str], counts: dict) -> str:
+    if verified_cases:
+        return "PARTIAL"
+    if counts.get("blocked", 0):
+        return "BLOCKED"
+    return "NOT_RUN"
+
+
+def haproxy_summary_from_root_data(root_data: dict, root_path: Path) -> dict | None:
+    haproxy = root_data.get("haproxy")
+    if isinstance(haproxy, dict):
+        summary = dict(haproxy)
         cases = summary.get("cases") if isinstance(summary.get("cases"), dict) else {}
         counts = summary.get("summary") if isinstance(summary.get("summary"), dict) else {}
-        verified_cases = [
-            str(name)
-            for name, row in cases.items()
-            if isinstance(row, dict) and str(row.get("status", "")).lower() == "pass"
-        ]
-        crs_verified_scope = [
-            str(name)
-            for name, row in cases.items()
-            if isinstance(row, dict)
-            and row.get("requires_crs") is True
-            and str(row.get("status", "")).lower() == "pass"
-        ]
+        verified_cases = haproxy_verified_cases(cases)
+        crs_verified_scope = haproxy_verified_cases(cases, require_crs=True)
         summary.update(
             {
                 "connector": "haproxy",
-                "status": "PARTIAL" if verified_cases else ("BLOCKED" if counts.get("blocked", 0) else "NOT_RUN"),
+                "status": haproxy_root_status(verified_cases, counts),
                 "runtime_status": "live-yaml-runtime",
                 "runtime_verified": bool(verified_cases),
                 "response_body_verified": False,
@@ -421,28 +475,35 @@ def load_haproxy_connector_summary(results_dir: Path, root_path: Path) -> dict:
         )
         return summary
     if root_data.get("validation_mode") == "haproxy-runtime-matrix":
-        root_data = dict(root_data)
-        root_data["evidence_path"] = str(root_path)
-        return root_data
+        summary = dict(root_data)
+        summary["evidence_path"] = str(root_path)
+        return summary
+    return None
 
+
+def haproxy_summary_without_variant_data(root_data: dict, root_path: Path) -> dict:
+    if root_data:
+        summary = dict(root_data)
+        summary["evidence_path"] = str(root_path)
+        return summary
+    return {
+        "connector": "haproxy",
+        "status": "NOT_RUN",
+        "runtime_verified": False,
+        "runtime_status": "not-verified",
+        "response_body_verified": False,
+        "crs_verified": False,
+        "evidence_path": str(root_path),
+    }
+
+
+def haproxy_summary_from_variant_data(results_dir: Path, root_path: Path, root_data: dict) -> dict:
     no_crs_path = results_dir / "no-crs" / "haproxy-summary.json"
     with_crs_path = results_dir / "with-crs" / "haproxy-summary.json"
     no_crs_data = load_json_dict(no_crs_path)
     with_crs_data = load_json_dict(with_crs_path)
     if not no_crs_data and not with_crs_data:
-        if root_data:
-            root_data = dict(root_data)
-            root_data["evidence_path"] = str(root_path)
-            return root_data
-        return {
-            "connector": "haproxy",
-            "status": "NOT_RUN",
-            "runtime_verified": False,
-            "runtime_status": "not-verified",
-            "response_body_verified": False,
-            "crs_verified": False,
-            "evidence_path": str(root_path),
-        }
+        return haproxy_summary_without_variant_data(root_data, root_path)
 
     verified_cases: list[str] = []
     for data in (no_crs_data, with_crs_data):
@@ -450,7 +511,11 @@ def load_haproxy_connector_summary(results_dir: Path, root_path: Path) -> dict:
         verified_cases.extend(str(value) for value in values)
     verified_cases = list(dict.fromkeys(verified_cases))
     crs_verified = with_crs_data.get("crs_verified") is True
-    matrix_counts = with_crs_data.get("counts") if isinstance(with_crs_data.get("counts"), dict) else no_crs_data.get("counts", {})
+    matrix_counts = (
+        with_crs_data.get("counts")
+        if isinstance(with_crs_data.get("counts"), dict)
+        else no_crs_data.get("counts", {})
+    )
     return {
         "connector": "haproxy",
         "status": "PARTIAL" if verified_cases else "BLOCKED",
@@ -467,7 +532,12 @@ def load_haproxy_connector_summary(results_dir: Path, root_path: Path) -> dict:
     }
 
 
-DEFAULT_BUILD_ROOT = Path("/src/ModSecurity-conector-build")
+def load_haproxy_connector_summary(results_dir: Path, root_path: Path) -> dict:
+    root_data = load_json_dict(root_path)
+    root_summary = haproxy_summary_from_root_data(root_data, root_path)
+    if root_summary is not None:
+        return root_summary
+    return haproxy_summary_from_variant_data(results_dir, root_path, root_data)
 
 
 def new_connector_default_evidence_path(connector: str) -> Path:
@@ -486,6 +556,31 @@ def blocked_new_connector_summary(connector: str) -> dict:
     }
 
 
+def haproxy_summary_from_snapshot(summary: dict, smoke: dict) -> dict:
+    verified_cases = smoke.get("verified_cases") if isinstance(smoke.get("verified_cases"), list) else []
+    if not verified_cases and isinstance(smoke.get("cases"), list):
+        verified_cases = [
+            str(row.get("case"))
+            for row in smoke.get("cases", [])
+            if isinstance(row, dict) and str(row.get("status", "")).lower() == "pass"
+        ]
+    summary["status"] = "PARTIAL" if verified_cases else str(smoke.get("status", "BLOCKED"))
+    summary["runtime_verified"] = bool(verified_cases)
+    default_runtime_status = "live-yaml-runtime" if verified_cases else "not-verified"
+    summary["runtime_status"] = str(smoke.get("runtime_status", default_runtime_status))
+    summary["verified_cases"] = verified_cases
+    summary["full_matrix_verified"] = False
+    summary["matrix_full"] = False
+    summary["counts"] = (
+        smoke.get("matrix_counts")
+        if isinstance(smoke.get("matrix_counts"), dict)
+        else smoke.get("counts", {})
+    )
+    summary_path = Path(str(smoke.get("summary_path") or new_connector_default_evidence_path("haproxy")))
+    summary["evidence_path"] = str(summary_path)
+    return summary
+
+
 def new_connector_summary_from_snapshot(connector: str, runtime_snapshot: dict) -> dict:
     smoke = runtime_summary_by_connector(runtime_snapshot).get(connector, {})
     if not isinstance(smoke, dict) or not smoke:
@@ -497,76 +592,107 @@ def new_connector_summary_from_snapshot(connector: str, runtime_snapshot: dict) 
     summary["crs_verified"] = smoke.get("crs_verified") is True
     summary["evidence_path"] = str(smoke.get("summary_path") or new_connector_default_evidence_path(connector))
 
-    if connector == "haproxy":
-        verified_cases = smoke.get("verified_cases") if isinstance(smoke.get("verified_cases"), list) else []
-        if not verified_cases and isinstance(smoke.get("cases"), list):
-            verified_cases = [
-                str(row.get("case"))
-                for row in smoke.get("cases", [])
-                if isinstance(row, dict) and str(row.get("status", "")).lower() == "pass"
-            ]
-        summary["status"] = "PARTIAL" if verified_cases else str(smoke.get("status", "BLOCKED"))
-        summary["runtime_verified"] = bool(verified_cases)
-        summary["runtime_status"] = str(smoke.get("runtime_status", "live-yaml-runtime" if verified_cases else "not-verified"))
-        summary["verified_cases"] = verified_cases
-        summary["full_matrix_verified"] = False
-        summary["matrix_full"] = False
-        summary["counts"] = smoke.get("matrix_counts") if isinstance(smoke.get("matrix_counts"), dict) else smoke.get("counts", {})
-        summary_path = Path(str(smoke.get("summary_path") or new_connector_default_evidence_path(connector)))
-        summary["evidence_path"] = str(summary_path)
+    if connector != "haproxy":
+        return summary
+    return haproxy_summary_from_snapshot(summary, smoke)
+
+
+def new_connector_summary_path(results_dir: Path, connector: str, test_variant: str, mrts_variant: str) -> Path:
+    variant_path = results_dir / test_variant / mrts_variant / connector / f"{connector}-summary.json"
+    if variant_path.exists():
+        return variant_path
+    return results_dir / f"{connector}-summary.json"
+
+
+def blocked_connector_summary(connector: str, path: Path, reason: str | None = None) -> dict:
+    summary = {
+        "connector": connector,
+        "status": "BLOCKED",
+        "runtime_verified": False,
+        "runtime_status": "not-verified",
+        "response_body_verified": False,
+        "crs_verified": False,
+        "evidence_path": str(path),
+    }
+    if reason is not None:
+        summary["reason"] = reason
     return summary
+
+
+def load_non_haproxy_connector_summary(connector: str, path: Path, runtime_snapshot: dict) -> dict:
+    if not path.exists():
+        return (
+            new_connector_summary_from_snapshot(connector, runtime_snapshot)
+            or blocked_new_connector_summary(connector)
+        )
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError) as exc:
+        return blocked_connector_summary(connector, path, f"could not read smoke summary: {exc}")
+    if isinstance(data, dict):
+        summary = dict(data)
+        summary["evidence_path"] = str(path)
+        return summary
+    return blocked_connector_summary(connector, path, "smoke summary did not contain a JSON object")
 
 
 def load_new_connector_smoke_summaries(runtime_snapshot: dict | None = None) -> dict[str, dict]:
     runtime_snapshot = runtime_snapshot if isinstance(runtime_snapshot, dict) else {}
     build_root = Path(os.environ.get("BUILD_ROOT", "/src/ModSecurity-conector-build"))
     results_dir = build_root / "results"
+    test_variant = os.environ.get("MODSECURITY_TEST_VARIANT", "no-crs")
+    mrts_variant = os.environ.get("MODSECURITY_MRTS_VARIANT", "no-mrts")
     summaries: dict[str, dict] = {}
     for connector in NEW_CONNECTOR_SMOKE_CONNECTORS:
-        test_variant = os.environ.get("MODSECURITY_TEST_VARIANT", "no-crs")
-        mrts_variant = os.environ.get("MODSECURITY_MRTS_VARIANT", "no-mrts")
-        variant_path = results_dir / test_variant / mrts_variant / connector / f"{connector}-summary.json"
-        path = variant_path if variant_path.exists() else results_dir / f"{connector}-summary.json"
+        path = new_connector_summary_path(results_dir, connector, test_variant, mrts_variant)
         if connector == "haproxy":
             summary = load_haproxy_connector_summary(results_dir, path)
             if summary.get("status") == "NOT_RUN":
                 summary = new_connector_summary_from_snapshot(connector, runtime_snapshot) or summary
             summaries[connector] = summary
             continue
-        if not path.exists():
-            summaries[connector] = new_connector_summary_from_snapshot(connector, runtime_snapshot) or blocked_new_connector_summary(connector)
-            continue
-        try:
-            with path.open("r", encoding="utf-8") as handle:
-                data = json.load(handle)
-        except (OSError, json.JSONDecodeError) as exc:
-            summaries[connector] = {
-                "connector": connector,
-                "status": "BLOCKED",
-                "runtime_verified": False,
-                "runtime_status": "not-verified",
-                "response_body_verified": False,
-                "crs_verified": False,
-                "reason": f"could not read smoke summary: {exc}",
-                "evidence_path": str(path),
-            }
-            continue
-        if isinstance(data, dict):
-            data = dict(data)
-            data["evidence_path"] = str(path)
-            summaries[connector] = data
-        else:
-            summaries[connector] = {
-                "connector": connector,
-                "status": "BLOCKED",
-                "runtime_verified": False,
-                "runtime_status": "not-verified",
-                "response_body_verified": False,
-                "crs_verified": False,
-                "reason": "smoke summary did not contain a JSON object",
-                "evidence_path": str(path),
-            }
+        summaries[connector] = load_non_haproxy_connector_summary(connector, path, runtime_snapshot)
     return summaries
+
+
+def new_connector_verified_cases(data: dict) -> str:
+    verified_cases_value = data.get("verified_cases") or data.get("verified_case") or "-"
+    if isinstance(verified_cases_value, list):
+        return ", ".join(str(item) for item in verified_cases_value) or "-"
+    return str(verified_cases_value) if verified_cases_value else "-"
+
+
+def new_connector_with_crs_detail(data: dict) -> str:
+    with_crs_data = data.get("with_crs")
+    if not isinstance(with_crs_data, dict):
+        return "-"
+    with_crs = str(with_crs_data.get("status", "not-run"))
+    if with_crs_data.get("crs_loaded") is True:
+        with_crs += " crs_loaded=true"
+    if with_crs_data.get("block_probe_status") not in (None, "not-run"):
+        with_crs += f" block={with_crs_data.get('block_probe_status')}"
+    if with_crs_data.get("pass_probe_status") not in (None, "not-run"):
+        with_crs += f" pass={with_crs_data.get('pass_probe_status')}"
+    if with_crs_data.get("blocked_reason"):
+        with_crs += f" reason={with_crs_data.get('blocked_reason')}"
+    return with_crs
+
+
+def new_connector_smoke_evidence_row(connector: str, data: dict) -> str:
+    status = str(data.get("status", "NOT_RUN"))
+    runtime_status = str(data.get("runtime_status", "not-verified"))
+    runtime_verified = "yes" if data.get("runtime_verified") is True else "no"
+    crs_verified = "yes" if data.get("crs_verified") is True else "no"
+    response_body_verified = "yes" if data.get("response_body_verified") is True else "no"
+    verified_cases = new_connector_verified_cases(data)
+    with_crs = new_connector_with_crs_detail(data)
+    evidence = data.get("evidence_path", "-")
+    return (
+        f"| {connector} | {status} | {runtime_status} | {runtime_verified} | {crs_verified} | "
+        f"{response_body_verified} | "
+        f"`{verified_cases}` | {with_crs} | `{evidence}` |"
+    )
 
 
 def render_new_connector_smoke_evidence(runtime_snapshot: dict) -> list[str]:
@@ -581,34 +707,7 @@ def render_new_connector_smoke_evidence(runtime_snapshot: dict) -> list[str]:
         "|---|---|---|---:|---:|---:|---|---|---|",
     ]
     for connector in NEW_CONNECTOR_SMOKE_CONNECTORS:
-        data = summaries.get(connector, {})
-        status = str(data.get("status", "NOT_RUN"))
-        runtime_status = str(data.get("runtime_status", "not-verified"))
-        runtime_verified = "yes" if data.get("runtime_verified") is True else "no"
-        crs_verified = "yes" if data.get("crs_verified") is True else "no"
-        response_body_verified = "yes" if data.get("response_body_verified") is True else "no"
-        verified_cases_value = data.get("verified_cases") or data.get("verified_case") or "-"
-        if isinstance(verified_cases_value, list):
-            verified_cases = ", ".join(str(item) for item in verified_cases_value) or "-"
-        else:
-            verified_cases = str(verified_cases_value) if verified_cases_value else "-"
-        with_crs_data = data.get("with_crs")
-        if isinstance(with_crs_data, dict):
-            with_crs = str(with_crs_data.get("status", "not-run"))
-            if with_crs_data.get("crs_loaded") is True:
-                with_crs += " crs_loaded=true"
-            if with_crs_data.get("block_probe_status") not in (None, "not-run"):
-                with_crs += f" block={with_crs_data.get('block_probe_status')}"
-            if with_crs_data.get("pass_probe_status") not in (None, "not-run"):
-                with_crs += f" pass={with_crs_data.get('pass_probe_status')}"
-            if with_crs_data.get("blocked_reason"):
-                with_crs += f" reason={with_crs_data.get('blocked_reason')}"
-        else:
-            with_crs = "-"
-        evidence = data.get("evidence_path", "-")
-        lines.append(
-            f"| {connector} | {status} | {runtime_status} | {runtime_verified} | {crs_verified} | {response_body_verified} | `{verified_cases}` | {with_crs} | `{evidence}` |"
-        )
+        lines.append(new_connector_smoke_evidence_row(connector, summaries.get(connector, {})))
     lines.extend(
         [
             "",
@@ -756,6 +855,36 @@ def extract_gap_tags(path: Path, status: str, category: str, notes: str, source:
     return sorted(tags)
 
 
+def case_report_tags(
+    path: Path,
+    status: str,
+    category: str,
+    notes: str,
+    source: str,
+    classification: str,
+    report_labels: list[str],
+    mrts_corpus: str,
+) -> set[str]:
+    tags = set(extract_gap_tags(path, status, category, notes, source))
+    tags.update(normalized_report_token(label) for label in report_labels)
+    if mrts_corpus:
+        tags.add(normalized_report_token(mrts_corpus))
+    if classification and normalized_report_token(classification) != "active":
+        tags.add(normalized_report_token(classification))
+    return tags
+
+
+def case_scope_from_metadata(path: Path, metadata: dict) -> str:
+    scope = infer_scope(path)
+    connector_scope = metadata.get("connector_scope")
+    if scope != "common" or not isinstance(connector_scope, list):
+        return scope
+    specific_scopes = [str(item) for item in connector_scope if str(item) in {"apache", "nginx"}]
+    if len(specific_scopes) == 1:
+        return specific_scopes[0]
+    return scope
+
+
 def parse_case(path: Path) -> dict:
     data = read_yaml(path)
     rules = str(data.get("rules", "") or "")
@@ -772,12 +901,16 @@ def parse_case(path: Path) -> dict:
     traceability = metadata_mapping_field(metadata, "traceability")
     mrts_corpus = str(metadata.get("mrts_corpus") or "")
     mrts_rule_id = str(metadata.get("mrts_rule_id") or "")
-    tags = set(extract_gap_tags(path, status, category, notes, source))
-    tags.update(normalized_report_token(label) for label in report_labels)
-    if mrts_corpus:
-        tags.add(normalized_report_token(mrts_corpus))
-    if classification and normalized_report_token(classification) != "active":
-        tags.add(normalized_report_token(classification))
+    tags = case_report_tags(
+        path,
+        status,
+        category,
+        notes,
+        source,
+        classification,
+        report_labels,
+        mrts_corpus,
+    )
     case_id = str(data.get("name", path.stem) or path.stem)
     case_for_detection = dict(data)
     case_for_detection.update(
@@ -803,12 +936,7 @@ def parse_case(path: Path) -> dict:
     if not phases:
         warn(f"no phase metadata found in {path}")
 
-    scope = infer_scope(path)
-    connector_scope = metadata.get("connector_scope")
-    if scope == "common" and isinstance(connector_scope, list):
-        specific_scopes = [str(item) for item in connector_scope if str(item) in {"apache", "nginx"}]
-        if len(specific_scopes) == 1:
-            scope = specific_scopes[0]
+    scope = case_scope_from_metadata(path, metadata)
 
     return {
         "id": case_id,
@@ -1091,9 +1219,9 @@ def topic_counts(cases: list[dict]) -> dict[str, int]:
             if case["response_body"] and ("experimental" in case["tags"] or "experimental" in case_text(case))
         ),
     }
-    mrts_unclassified = explicit_topics.get("MRTS generated / unclassified", 0)
+    mrts_unclassified = explicit_topics.get(MRTS_UNCLASSIFIED_TOPIC, 0)
     if mrts_unclassified:
-        counts["MRTS generated / unclassified"] = mrts_unclassified
+        counts[MRTS_UNCLASSIFIED_TOPIC] = mrts_unclassified
     return counts
 
 
@@ -1117,7 +1245,7 @@ def mrts_source_summary(rows: list[dict]) -> dict[str, int]:
         "unclassified": sum(
             1
             for case in rows
-            if case.get("topic") == "MRTS generated / unclassified"
+            if case.get("topic") == MRTS_UNCLASSIFIED_TOPIC
             or normalized_report_token(case.get("metadata_classification", "")) == "unclassified"
         ),
         "response_body_phase4": sum(1 for case in rows if case["response_body"] or 4 in case["phases"]),
@@ -1162,16 +1290,16 @@ def drift_summary(generated_dir: Path, golden_dir: Path, pattern: str) -> dict[s
 
 def mrts_reference_counts() -> dict[str, int]:
     return {
-        "upstream_config_definitions": count_files(MRTS_ROOT / "config_tests", "*.yaml"),
-        "feature_demo_definitions": count_files(MRTS_ROOT / "feature_demo/config_tests", "*.yaml"),
-        "upstream_generated_tests": count_files(MRTS_ROOT / "generated/tests/regression/tests", "*.yaml"),
-        "upstream_generated_rules": count_files(MRTS_ROOT / "generated/rules", "*.conf"),
-        "feature_demo_generated_tests": count_files(MRTS_ROOT / "feature_demo/generated/tests", "*.yaml"),
-        "feature_demo_generated_rules": count_files(MRTS_ROOT / "feature_demo/generated/rules", "*.conf"),
+        "upstream_config_definitions": count_files(MRTS_ROOT / "config_tests", YAML_FILE_PATTERN),
+        "feature_demo_definitions": count_files(MRTS_ROOT / "feature_demo/config_tests", YAML_FILE_PATTERN),
+        "upstream_generated_tests": count_files(MRTS_ROOT / "generated/tests/regression/tests", YAML_FILE_PATTERN),
+        "upstream_generated_rules": count_files(MRTS_ROOT / "generated/rules", CONF_FILE_PATTERN),
+        "feature_demo_generated_tests": count_files(MRTS_ROOT / "feature_demo/generated/tests", YAML_FILE_PATTERN),
+        "feature_demo_generated_rules": count_files(MRTS_ROOT / "feature_demo/generated/rules", CONF_FILE_PATTERN),
         "framework_curated_definitions": len(
             [
                 path
-                for path in (FRAMEWORK_ROOT / "tests/fixtures/mrts/framework-curated-definitions").glob("*.yaml")
+                for path in (FRAMEWORK_ROOT / "tests/fixtures/mrts/framework-curated-definitions").glob(YAML_FILE_PATTERN)
                 if path.name != ".gitkeep"
             ]
         ),
@@ -1183,24 +1311,44 @@ def mrts_golden_drift_counts() -> dict[str, dict[str, int]]:
         "upstream_tests": drift_summary(
             MRTS_UPSTREAM_BUILD_ROOT / "ftw",
             MRTS_ROOT / "generated/tests/regression/tests",
-            "*.yaml",
+            YAML_FILE_PATTERN,
         ),
         "upstream_rules": drift_summary(
             MRTS_UPSTREAM_BUILD_ROOT / "rules",
             MRTS_ROOT / "generated/rules",
-            "*.conf",
+            CONF_FILE_PATTERN,
         ),
         "feature_demo_tests": drift_summary(
             MRTS_FEATURE_DEMO_BUILD_ROOT / "ftw",
             MRTS_ROOT / "feature_demo/generated/tests",
-            "*.yaml",
+            YAML_FILE_PATTERN,
         ),
         "feature_demo_rules": drift_summary(
             MRTS_FEATURE_DEMO_BUILD_ROOT / "rules",
             MRTS_ROOT / "feature_demo/generated/rules",
-            "*.conf",
+            CONF_FILE_PATTERN,
         ),
     }
+
+
+def mrts_rule_id_from_text(text: str) -> str:
+    """Extract the first rule identifier without a backtracking-heavy pattern."""
+    for match in MRTS_RULE_ID_TOKEN_RE.finditer(text):
+        suffix = text[match.end() :].lstrip()
+        if suffix.startswith((":", "=")):
+            suffix = suffix[1:].lstrip()
+        digits = []
+        for character in suffix:
+            if character.isdigit():
+                digits.append(character)
+                continue
+            break
+        if not digits:
+            continue
+        next_character = suffix[len(digits) : len(digits) + 1]
+        if not next_character or not (next_character.isalnum() or next_character == "_"):
+            return "".join(digits)
+    return ""
 
 
 def mrts_duplicate_rule_ids(cases: list[dict]) -> dict[str, list[str]]:
@@ -1213,8 +1361,7 @@ def mrts_duplicate_rule_ids(cases: list[dict]) -> dict[str, list[str]]:
         rule_id = metadata_rule or str(case.get("mrts_rule_id") or "")
         if not rule_id:
             text = case_text(case)
-            match = re.search(r"\b(?:rule_id|mrts_rule_id)\s*[:=]?\s*(\d+)\b", text)
-            rule_id = match.group(1) if match else ""
+            rule_id = mrts_rule_id_from_text(text)
         if not rule_id:
             continue
         corpus = str(case.get("mrts_corpus") or "unknown")
@@ -1555,17 +1702,16 @@ def normalized_matrix_status_value(row: dict) -> str:
     supplied = str(row.get("matrix_status", "") or "").strip()
     if supplied in {"PASS", "FAIL", "BLOCKED", "NOT_EXECUTABLE"}:
         return supplied
-    if supplied.endswith("_PASS") or supplied.endswith("_RESPONSE_BODY_PASS_THROUGH"):
+    if supplied.endswith(("_PASS", "_RESPONSE_BODY_PASS_THROUGH")):
         return "PASS"
     if supplied.endswith("_FAIL"):
         return "FAIL"
     return status_label(row.get("status"))
 
 
-def semantic_matrix_status(raw_status: str, classification: str, response_body_related: bool = False) -> str:
+def semantic_matrix_status(raw_status: str, response_body_related: bool = False) -> str:
     return matrix_status_for_result(
         raw_status,
-        classification,
         response_body_related=response_body_related,
     )
 
@@ -1603,7 +1749,7 @@ def runtime_cell_inventory_only(case: dict) -> dict[str, str]:
         "status": NOT_EXECUTED,
         "reason": f"YAML status `{case_group(case)}` is metadata inventory and is not part of default runtime smoke discovery",
         "evidence": "metadata only; no PASS promotion",
-        "promotion": "not promoted",
+        "promotion": NOT_PROMOTED,
     }
 
 
@@ -1612,13 +1758,11 @@ def runtime_cell_outside_snapshot(case: dict) -> dict[str, str]:
         "status": "NOT_EXECUTABLE",
         "reason": f"YAML status `{case_group(case)}` is outside active runtime smoke discovery",
         "evidence": "-",
-        "promotion": "not promoted",
+        "promotion": NOT_PROMOTED,
     }
 
 
-def runtime_cell_from_observed(case: dict, observed: dict, connector: str) -> dict[str, str]:
-    classification = str(observed.get("runtime_classification", runtime_classification(case, connector)))
-    overlay_reason = connector_observed_reason(case, connector)
+def observed_case_with_runtime_values(case: dict, observed: dict) -> dict:
     observed_case = dict(case)
     observed_case.update(
         {
@@ -1626,41 +1770,91 @@ def runtime_cell_from_observed(case: dict, observed: dict, connector: str) -> di
             "path": observed.get("path", case.get("path", "")),
         }
     )
-    response_body_related = bool(observed.get("response_body_non_verified")) or is_response_body_related(
+    return observed_case
+
+
+def observed_response_body_related(case: dict, observed: dict) -> bool:
+    observed_case = observed_case_with_runtime_values(case, observed)
+    return bool(observed.get("response_body_non_verified")) or is_response_body_related(
         observed_case,
         observed_case.get("path", ""),
     )
+
+
+def observed_runtime_status(observed: dict, classification: str, response_body_related: bool) -> tuple[str, bool]:
     raw_status = str(observed.get("status", ""))
-    response_body_pass_through = response_body_related and raw_status.strip().lower() == "pass" and response_body_pass_is_pass_through(observed)
-    computed_status = semantic_matrix_status(raw_status, classification, response_body_pass_through)
+    response_body_pass_through = (
+        response_body_related
+        and raw_status.strip().lower() == "pass"
+        and response_body_pass_is_pass_through(observed)
+    )
+    computed_status = semantic_matrix_status(raw_status, response_body_pass_through)
     supplied_status = str(observed.get("matrix_status") or "").strip()
     if supplied_status not in {"PASS", "FAIL", "BLOCKED", "NOT_EXECUTABLE"}:
         supplied_status = ""
     non_promotable_runtime = (
         response_body_related
-        or str(classification).strip().lower() in {"pending", "future", "connector_gap", "runtime_difference", "non-promoted", "non_promoted"}
+        or str(classification).strip().lower()
+        in {"pending", "future", "connector_gap", "runtime_difference", "non-promoted", "non_promoted"}
         or observed.get("strict_abort") is True
     )
-    status = computed_status if non_promotable_runtime else (supplied_status or computed_status)
+    if non_promotable_runtime:
+        return computed_status, response_body_pass_through
+    return supplied_status or computed_status, response_body_pass_through
+
+
+def observed_runtime_reason(
+    observed: dict,
+    classification: str,
+    overlay_reason: str,
+    raw_status: str,
+    status: str,
+    response_body_related: bool,
+    response_body_pass_through: bool,
+) -> str:
     if status in {NOT_EXECUTED, "NOT_EXECUTABLE"}:
         reason = str(observed.get("reason") or observed.get("details") or "skipped by runtime smoke")
     elif response_body_pass_through:
         reason = str(observed.get("reason") or f"{RESPONSE_BODY_RUNTIME_NOTE}; classification={classification}")
     elif response_body_related and raw_status.strip().lower() == "pass":
-        reason = str(observed.get("reason") or f"RESPONSE_BODY disruptive evidence remains non-promoted; classification={classification}")
+        reason = str(
+            observed.get("reason")
+            or f"RESPONSE_BODY disruptive evidence remains non-promoted; classification={classification}"
+        )
     else:
         reason = str(observed.get("reason") or f"runtime summary result; classification={classification}")
     if overlay_reason:
         reason = f"{reason}; overlay={overlay_reason}"
+    return reason
+
+
+def observed_runtime_promotion(observed: dict, classification: str, status: str, response_body_related: bool) -> str:
+    if response_body_related:
+        return "RESPONSE_BODY non-verified; non-promotable"
+    if classification == "active" and status == "PASS" and observed.get("live_executed") is True:
+        return "promotion eligible"
+    return NOT_PROMOTED
+
+
+def runtime_cell_from_observed(case: dict, observed: dict, connector: str) -> dict[str, str]:
+    classification = str(observed.get("runtime_classification", runtime_classification(case, connector)))
+    overlay_reason = connector_observed_reason(case, connector)
+    response_body_related = observed_response_body_related(case, observed)
+    raw_status = str(observed.get("status", ""))
+    status, response_body_pass_through = observed_runtime_status(observed, classification, response_body_related)
+    reason = observed_runtime_reason(
+        observed,
+        classification,
+        overlay_reason,
+        raw_status,
+        status,
+        response_body_related,
+        response_body_pass_through,
+    )
     expected = observed.get("expected_status", observed.get("expected", "unknown"))
     actual = observed.get("actual_status", observed.get("actual", "unknown"))
     evidence = str(observed.get("evidence") or f"expected={expected}; actual={actual}")
-    if response_body_related:
-        promotion = "RESPONSE_BODY non-verified; non-promotable"
-    elif classification == "active" and status == "PASS" and observed.get("live_executed") is True:
-        promotion = "promotion eligible"
-    else:
-        promotion = "not promoted"
+    promotion = observed_runtime_promotion(observed, classification, status, response_body_related)
     return {"status": status, "reason": reason, "evidence": evidence, "promotion": promotion}
 
 
@@ -1672,13 +1866,13 @@ def runtime_cell_without_case_evidence(smoke: dict, connector: str, snapshot: di
             "reason": smoke_unavailable_reason(smoke, connector)
             or f"{connector_display_name(connector)} smoke did not produce per-case results",
             "evidence": str(smoke.get("summary_path", "-")),
-            "promotion": "not promoted",
+            "promotion": NOT_PROMOTED,
         }
     return {
         "status": "NOT_EXECUTABLE" if is_force_all_snapshot(snapshot) else NOT_EXECUTED,
         "reason": f"no {connector} runtime evidence recorded for this executable YAML case",
         "evidence": str(smoke.get("summary_path", "no summary path recorded")),
-        "promotion": "not promoted",
+        "promotion": NOT_PROMOTED,
     }
 
 
@@ -2324,7 +2518,7 @@ def render_haproxy_non_pass_summary(snapshot: dict, heading_level: int) -> list[
     lines.extend(
         [
             "",
-            f"- Detailed BLOCKED, NOT_EXECUTABLE, and MAPPED_ONLY rows are reported in `{report_doc('generated/haproxy-runtime-results.generated.md')}`.",
+            f"- Detailed BLOCKED, NOT_EXECUTABLE, and MAPPED_ONLY rows are reported in `{report_doc(HAPROXY_RUNTIME_RESULTS_REPORT_DOC)}`.",
             "- BLOCKED, NOT_EXECUTABLE, and MAPPED_ONLY rows are not runtime FAIL rows.",
         ]
     )
@@ -2564,21 +2758,21 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
     lines.extend(f"- {note}" for note in snapshot_named_rows(snapshot, "notes"))
     lines.extend(
         render_status_table(
-            "Framework Check Status",
+            FRAMEWORK_CHECK_STATUS_TITLE,
             snapshot_named_rows(snapshot, "framework_checks"),
             [("Command", "command"), ("Status", "status"), ("Details", "details")],
         )
     )
     lines.extend(
         render_status_table(
-            "Readiness / Fetch Status",
+            READINESS_FETCH_STATUS_TITLE,
             snapshot_named_rows(snapshot, "readiness_checks"),
             [("Command", "command"), ("Status", "status"), ("Details", "details")],
         )
     )
     lines.extend(
         render_status_table(
-            "Default Runtime Smoke Status",
+            DEFAULT_RUNTIME_SMOKE_STATUS_TITLE,
             runtime_smoke_rows(snapshot),
             [
                 ("Connector", "connector"),
@@ -2596,7 +2790,7 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
     )
     lines.extend(
         render_status_table(
-            "Force-All Runtime Smoke Status",
+            FORCE_ALL_RUNTIME_SMOKE_STATUS_TITLE,
             force_all_runtime_smoke_rows(snapshot),
             [
                 ("Connector", "connector"),
@@ -2613,11 +2807,11 @@ def render_runtime_snapshot(snapshot: dict) -> list[str]:
         )
     )
     lines.extend(render_connector_runtime_availability(snapshot))
-    lines.extend(["", "## Runtime FAIL Details"])
+    lines.extend(["", RUNTIME_FAIL_DETAILS_TITLE])
     lines.extend(render_connector_runtime_fail_details(snapshot, "apache", heading_level=3))
     lines.extend(render_connector_runtime_fail_details(snapshot, "nginx", heading_level=3))
-    append_snapshot_list(lines, "## Runtime Verified Status", snapshot.get("runtime_verified_status", []))
-    append_snapshot_list(lines, "## Open Runtime Issues", snapshot.get("open_issues", []))
+    append_snapshot_list(lines, RUNTIME_VERIFIED_STATUS_TITLE, snapshot.get("runtime_verified_status", []))
+    append_snapshot_list(lines, OPEN_RUNTIME_ISSUES_TITLE, snapshot.get("open_issues", []))
     return lines
 
 
@@ -2664,36 +2858,7 @@ def render_root_summary(
     haproxy_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "haproxy")
     runtime_executable_count = sum(1 for row in rt_rows if row["runtime_executable"] == "yes")
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
-    detail_docs = [
-        "generated/case-matrix.generated.md",
-        "generated/coverage-summary.generated.md",
-        "generated/xfail-summary.generated.md",
-        "generated/connector-gap-summary.generated.md",
-        "generated/phase-coverage.generated.md",
-        "generated/runtime-matrix.generated.md",
-        "generated/apache-runtime-results.generated.md",
-        "generated/nginx-runtime-results.generated.md",
-        "generated/haproxy-runtime-results.generated.md",
-        "generated/mrts-native-apache.generated.md",
-        "generated/mrts-native-nginx.generated.md",
-        "generated/mrts-native-summary.generated.md",
-        "generated/mrts-native-full.generated.md",
-        RUNTIME_SNAPSHOT_FILENAME,
-    ]
-
-    detail_docs = [
-        OVERVIEW_FILENAME,
-        "generated/case-matrix.generated.md",
-        "generated/coverage-summary.generated.md",
-        "generated/xfail-summary.generated.md",
-        "generated/connector-gap-summary.generated.md",
-        "generated/phase-coverage.generated.md",
-        "generated/runtime-matrix.generated.md",
-        "generated/apache-runtime-results.generated.md",
-        "generated/nginx-runtime-results.generated.md",
-        "generated/haproxy-runtime-results.generated.md",
-        RUNTIME_SNAPSHOT_FILENAME,
-    ]
+    detail_docs = [OVERVIEW_FILENAME, *DETAIL_REPORT_DOCS, RUNTIME_SNAPSHOT_FILENAME]
 
     lines = [
         "**Language:** English | [Deutsch](TEST-COVERAGE-SUMMARY.de.md)",
@@ -2778,10 +2943,10 @@ def render_root_summary(
             f"- NGINX NOT_EXECUTABLE YAML rows: **{nginx_runtime_counts.get('NOT_EXECUTABLE', 0)}**",
             f"- HAProxy NOT_EXECUTABLE YAML rows: **{haproxy_runtime_counts.get('NOT_EXECUTABLE', 0)}**",
             f"- Mapped-only import inventory entries: **{mapped_only_count}**",
-            f"- Runtime matrix detail: `{report_doc('generated/runtime-matrix.generated.md')}`",
-            f"- Apache per-case results: `{report_doc('generated/apache-runtime-results.generated.md')}`",
-            f"- NGINX per-case results: `{report_doc('generated/nginx-runtime-results.generated.md')}`",
-            f"- HAProxy per-case results: `{report_doc('generated/haproxy-runtime-results.generated.md')}`",
+            f"- Runtime matrix detail: `{report_doc(RUNTIME_MATRIX_REPORT_DOC)}`",
+            f"- Apache per-case results: `{report_doc(APACHE_RUNTIME_RESULTS_REPORT_DOC)}`",
+            f"- NGINX per-case results: `{report_doc(NGINX_RUNTIME_RESULTS_REPORT_DOC)}`",
+            f"- HAProxy per-case results: `{report_doc(HAPROXY_RUNTIME_RESULTS_REPORT_DOC)}`",
             "- PASS/BLOCKED/FAIL counts here come only from tracked runtime snapshot evidence.",
             "- RESPONSE_BODY remains non-verified even when a pass-through runtime case returns HTTP 200.",
             "",
@@ -2793,14 +2958,14 @@ def render_root_summary(
     )
     lines.extend(
         render_status_table(
-            "Framework Check Status",
+            FRAMEWORK_CHECK_STATUS_TITLE,
             snapshot_named_rows(runtime_snapshot, "framework_checks"),
             [("Command", "command"), ("Status", "status"), ("Details", "details")],
         )
     )
     lines.extend(
         render_status_table(
-            "Readiness / Fetch Status",
+            READINESS_FETCH_STATUS_TITLE,
             snapshot_named_rows(runtime_snapshot, "readiness_checks"),
             [("Command", "command"), ("Status", "status"), ("Details", "details")],
         )
@@ -2817,7 +2982,7 @@ def render_root_summary(
     )
     lines.extend(
         render_status_table(
-            "Default Runtime Smoke Status",
+            DEFAULT_RUNTIME_SMOKE_STATUS_TITLE,
             runtime_smoke_rows(runtime_snapshot),
             [
                 ("Connector", "connector"),
@@ -2836,7 +3001,7 @@ def render_root_summary(
     )
     lines.extend(
         render_status_table(
-            "Force-All Runtime Smoke Status",
+            FORCE_ALL_RUNTIME_SMOKE_STATUS_TITLE,
             force_all_runtime_smoke_rows(runtime_snapshot),
             [
                 ("Connector", "connector"),
@@ -2854,12 +3019,12 @@ def render_root_summary(
         )
     )
     lines.extend(render_connector_runtime_availability(runtime_snapshot))
-    lines.extend(["", "## Runtime FAIL Details"])
+    lines.extend(["", RUNTIME_FAIL_DETAILS_TITLE])
     lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "apache", heading_level=3))
     lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "nginx", heading_level=3))
     lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "haproxy", heading_level=3))
-    append_snapshot_list(lines, "## Runtime Verified Status", runtime_snapshot.get("runtime_verified_status", []))
-    append_snapshot_list(lines, "## Open Runtime Issues", runtime_snapshot.get("open_issues", []))
+    append_snapshot_list(lines, RUNTIME_VERIFIED_STATUS_TITLE, runtime_snapshot.get("runtime_verified_status", []))
+    append_snapshot_list(lines, OPEN_RUNTIME_ISSUES_TITLE, runtime_snapshot.get("open_issues", []))
     lines.extend(
         [
             "",
@@ -2927,18 +3092,7 @@ def render_overview(
     haproxy_force_all_attempted = force_all_runtime_attempted_count(runtime_snapshot, "haproxy")
     runtime_executable_count = sum(1 for row in rt_rows if row["runtime_executable"] == "yes")
     force_all_executable_count = sum(1 for row in rt_rows if row["force_all_executable"] == "yes")
-    detail_docs = [
-        "generated/case-matrix.generated.md",
-        "generated/coverage-summary.generated.md",
-        "generated/xfail-summary.generated.md",
-        "generated/connector-gap-summary.generated.md",
-        "generated/phase-coverage.generated.md",
-        "generated/runtime-matrix.generated.md",
-        "generated/apache-runtime-results.generated.md",
-        "generated/nginx-runtime-results.generated.md",
-        "generated/haproxy-runtime-results.generated.md",
-        RUNTIME_SNAPSHOT_FILENAME,
-    ]
+    detail_docs = [*DETAIL_REPORT_DOCS, RUNTIME_SNAPSHOT_FILENAME]
 
     lines = [
         "**Language:** English | [Deutsch](test-coverage-overview.de.md)",
@@ -2985,8 +3139,8 @@ def render_overview(
             f"- NGINX force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{count_value(force_all_nginx_counts.get('pass', 0))}** / **{count_value(force_all_nginx_counts.get('fail', 0))}** / **{count_value(force_all_nginx_counts.get('blocked', 0))}** / **{count_value(force_all_nginx_counts.get('not_executable', 0))}**",
             f"- HAProxy force-all raw runtime PASS/FAIL/BLOCKED/NOT_EXECUTABLE: **{count_value(force_all_haproxy_counts.get('pass', 0))}** / **{count_value(force_all_haproxy_counts.get('fail', 0))}** / **{count_value(force_all_haproxy_counts.get('blocked', 0))}** / **{count_value(force_all_haproxy_counts.get('not_executable', 0))}**",
             *render_runtime_status_count_table(apache_runtime_counts, nginx_runtime_counts, haproxy_runtime_counts, mapped_only_count),
-            f"- Details: `{report_doc('generated/runtime-matrix.generated.md')}`",
-            f"- HAProxy per-case results: `{report_doc('generated/haproxy-runtime-results.generated.md')}`",
+            f"- Details: `{report_doc(RUNTIME_MATRIX_REPORT_DOC)}`",
+            f"- HAProxy per-case results: `{report_doc(HAPROXY_RUNTIME_RESULTS_REPORT_DOC)}`",
         ]
     )
     lines.extend(
@@ -3003,14 +3157,14 @@ def render_overview(
     )
     lines.extend(
         render_status_table(
-            "Framework Check Status",
+            FRAMEWORK_CHECK_STATUS_TITLE,
             snapshot_named_rows(runtime_snapshot, "framework_checks"),
             [("Command", "command"), ("Status", "status"), ("Details", "details")],
         )
     )
     lines.extend(
         render_status_table(
-            "Readiness / Fetch Status",
+            READINESS_FETCH_STATUS_TITLE,
             snapshot_named_rows(runtime_snapshot, "readiness_checks"),
             [("Command", "command"), ("Status", "status"), ("Details", "details")],
         )
@@ -3027,7 +3181,7 @@ def render_overview(
     )
     lines.extend(
         render_status_table(
-            "Default Runtime Smoke Status",
+            DEFAULT_RUNTIME_SMOKE_STATUS_TITLE,
             runtime_smoke_rows(runtime_snapshot),
             [
                 ("Connector", "connector"),
@@ -3046,7 +3200,7 @@ def render_overview(
     )
     lines.extend(
         render_status_table(
-            "Force-All Runtime Smoke Status",
+            FORCE_ALL_RUNTIME_SMOKE_STATUS_TITLE,
             force_all_runtime_smoke_rows(runtime_snapshot),
             [
                 ("Connector", "connector"),
@@ -3064,20 +3218,20 @@ def render_overview(
         )
     )
     lines.extend(render_connector_runtime_availability(runtime_snapshot))
-    lines.extend(["", "## Runtime FAIL Details"])
+    lines.extend(["", RUNTIME_FAIL_DETAILS_TITLE])
     lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "apache", heading_level=3))
     lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "nginx", heading_level=3))
     lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "haproxy", heading_level=3))
-    append_snapshot_list(lines, "## Runtime Verified Status", runtime_snapshot.get("runtime_verified_status", []))
-    append_snapshot_list(lines, "## Open Runtime Issues", runtime_snapshot.get("open_issues", []))
+    append_snapshot_list(lines, RUNTIME_VERIFIED_STATUS_TITLE, runtime_snapshot.get("runtime_verified_status", []))
+    append_snapshot_list(lines, OPEN_RUNTIME_ISSUES_TITLE, runtime_snapshot.get("open_issues", []))
     lines.extend(
         [
             "",
             "## Open Areas / Gaps",
             "- Runtime-verified means only cases explicitly classified as `runtime_verified=true`.",
             "- Cases with `runtime_verified=false` or `runtime_verified=unknown` are not runtime PASS proof.",
-            f"- See `{report_doc('generated/connector-gap-summary.generated.md')}` for detailed connector-gap entries.",
-            f"- Phase 3/4 cases are visible in `{report_doc('generated/phase-coverage.generated.md')}` and in the runtime matrix.",
+            f"- See `{report_doc(CONNECTOR_GAP_SUMMARY_REPORT_DOC)}` for detailed connector-gap entries.",
+            f"- Phase 3/4 cases are visible in `{report_doc(PHASE_COVERAGE_REPORT_DOC)}` and in the runtime matrix.",
             "- RESPONSE_BODY remains not verified and not promoted.",
             "- GitHub/Codex checks are intentionally lightweight.",
             "- Pending and gap topics need local runtime validation.",
@@ -3126,15 +3280,15 @@ def main(argv: list[str] | None = None) -> int:
     by_var = Counter(var for case in cases for var in case["variables"])
     response_body_count = sum(1 for case in cases if case["response_body"])
 
-    report_layout.write_generated("case-matrix.generated.md", render_case_matrix(cases))
-    report_layout.write_generated("coverage-summary.generated.md", render_summary(cases, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count))
-    report_layout.write_generated("xfail-summary.generated.md", render_xfail(cases, import_status))
-    report_layout.write_generated("connector-gap-summary.generated.md", render_gap_summary(cases, import_status))
-    report_layout.write_generated("phase-coverage.generated.md", render_phase_coverage(cases))
-    report_layout.write_generated("runtime-matrix.generated.md", render_runtime_matrix(cases, import_status, runtime_snapshot))
-    report_layout.write_generated("apache-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "apache"))
-    report_layout.write_generated("nginx-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "nginx"))
-    report_layout.write_generated("haproxy-runtime-results.generated.md", render_connector_runtime_results(cases, runtime_snapshot, "haproxy"))
+    report_layout.write_generated(CASE_MATRIX_REPORT, render_case_matrix(cases))
+    report_layout.write_generated(COVERAGE_SUMMARY_REPORT, render_summary(cases, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count))
+    report_layout.write_generated(XFAIL_SUMMARY_REPORT, render_xfail(cases, import_status))
+    report_layout.write_generated(CONNECTOR_GAP_SUMMARY_REPORT, render_gap_summary(cases, import_status))
+    report_layout.write_generated(PHASE_COVERAGE_REPORT, render_phase_coverage(cases))
+    report_layout.write_generated(RUNTIME_MATRIX_REPORT, render_runtime_matrix(cases, import_status, runtime_snapshot))
+    report_layout.write_generated(APACHE_RUNTIME_RESULTS_REPORT, render_connector_runtime_results(cases, runtime_snapshot, "apache"))
+    report_layout.write_generated(NGINX_RUNTIME_RESULTS_REPORT, render_connector_runtime_results(cases, runtime_snapshot, "nginx"))
+    report_layout.write_generated(HAPROXY_RUNTIME_RESULTS_REPORT, render_connector_runtime_results(cases, runtime_snapshot, "haproxy"))
     report_layout.write_overview(
         render_overview(cases, import_status, runtime_snapshot, by_scope, by_status, by_runtime, by_phase, by_var, response_body_count),
     )

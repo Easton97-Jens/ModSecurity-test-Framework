@@ -28,14 +28,11 @@ USES_LINE_RE = re.compile(
     r"(?P<reference>(?:'[^']*'|\"[^\"]*\"|[^\s#]+))"
     r"(?P<comment>\s+#.*)?\s*$"
 )
-BLOCK_SCALAR_START_RE = re.compile(
-    r"^(?P<indent>\s*)(?:-\s*)?[^#:\n][^:\n]*:\s*[>|][+-]?(?:\s*#.*)?$"
-)
 FLOW_COLLECTION_RE = re.compile(r"(?:^|[:\-,\[]\s*)[\[{]")
 EXPLICIT_MAPPING_KEY_RE = re.compile(r"^\s*(?:-\s*)?\?")
 ADVANCED_YAML_NODE_RE = re.compile(r"^\s*(?:-\s*)?(?:!|&|\*|<<\s*:)")
 ADVANCED_YAML_MAPPING_VALUE_RE = re.compile(
-    r"^\s*(?:-\s*)?[^#:\n][^:\n]*:\s*(?:!|&|\*)"
+    r"^\s*(?:-\s*)?[^#:\n][^:\n]*:\s*[!&*]"
 )
 YAML_DOCUMENT_MARKER_RE = re.compile(r"^\s*(?:---|\.\.\.)(?:\s|$)")
 DOUBLE_QUOTED_MAPPING_KEY_RE = re.compile(
@@ -45,11 +42,11 @@ REMOTE_ACTION_RE = re.compile(
     r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*@[0-9a-f]{40}$"
 )
 RELEASE_COMMENT_RE = re.compile(
-    r"^\s+#\s*v[0-9]+(?:\.[0-9]+){0,2}(?:[-+][A-Za-z0-9._-]+)?\s*$"
+    r"^\s+#\s*v\d+(?:\.\d+){0,2}(?:[-+][A-Za-z0-9._-]+)?\s*$", re.ASCII
 )
 WRITE_PERMISSION_VALUES = {"write", "admin", "write-all"}
 WORKFLOW_SUFFIXES = {".yaml", ".yml"}
-SECRET_REFERENCE_RE = re.compile(r"\bsecrets\s*(?:\.|\[)", re.IGNORECASE)
+SECRET_REFERENCE_RE = re.compile(r"\bsecrets\s*[\[.]", re.IGNORECASE)
 GITHUB_TOKEN_REFERENCE_RE = re.compile(
     r"\bgithub\s*(?:\.\s*token|\[\s*['\"]token['\"]\s*\])",
     re.IGNORECASE,
@@ -193,15 +190,39 @@ def source_syntax_error(path: Path, line_number: int, line: str) -> str | None:
     return None
 
 
+def block_scalar_start_indentation(line: str) -> int | None:
+    """Recognize one simple YAML block-scalar mapping without backtracking."""
+
+    indentation = len(line) - len(line.lstrip())
+    content = line[indentation:]
+    if content.startswith("-"):
+        content = content[1:].lstrip()
+    if not content or content.startswith("#"):
+        return None
+    key, separator, value = content.partition(":")
+    if not separator or not key:
+        return None
+    value = value.lstrip()
+    if not value or value[0] not in {"|", ">"}:
+        return None
+    tail = value[1:]
+    if tail[:1] in {"+", "-"}:
+        tail = tail[1:]
+    tail = tail.lstrip()
+    if tail and not tail.startswith("#"):
+        return None
+    return indentation
+
+
 def uses_entry(
-    path: Path, line_number: int, line: str, block_scalar_match: re.Match[str] | None
+    path: Path, line_number: int, line: str, block_scalar_indent: int | None
 ) -> tuple[tuple[int, str, str | None] | None, int | None, str | None]:
     if not USES_KEY_RE.match(line):
         return None, None, None
-    if block_scalar_match is not None:
+    if block_scalar_indent is not None:
         return (
             None,
-            len(block_scalar_match.group("indent")),
+            block_scalar_indent,
             f"{path}:{line_number}: uses entries must not use YAML block scalars; "
             "use a single action reference",
         )
@@ -246,9 +267,9 @@ def source_uses(path: Path) -> tuple[list[tuple[int, str, str | None]], list[str
         if syntax_error is not None:
             errors.append(syntax_error)
             continue
-        block_scalar_match = BLOCK_SCALAR_START_RE.match(line)
+        block_scalar_indent = block_scalar_start_indentation(line)
         entry, next_block_indent, entry_error = uses_entry(
-            path, line_number, line, block_scalar_match
+            path, line_number, line, block_scalar_indent
         )
         if entry_error is not None:
             errors.append(entry_error)
@@ -257,8 +278,7 @@ def source_uses(path: Path) -> tuple[list[tuple[int, str, str | None]], list[str
         if entry is not None:
             action_uses.append(entry)
             continue
-        if block_scalar_match is not None:
-            block_scalar_indent = len(block_scalar_match.group("indent"))
+        if block_scalar_indent is not None:
             continue
         if FLOW_COLLECTION_RE.search(line) is not None:
             errors.append(
