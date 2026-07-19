@@ -26,6 +26,13 @@ CHECKER = load_module("framework_ci_security_evidence_contract", CHECKER_PATH)
 
 
 class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
+    @staticmethod
+    def scorecard_command() -> str:
+        return (
+            '"$TOOLS_DIR/scorecard" --local . --format json '
+            '--output "$SCORECARD_RESULTS"'
+        )
+
     def test_current_workflows_pass_the_semantic_evidence_contract(self) -> None:
         result = subprocess.run(
             [sys.executable, str(CHECKER_PATH), "--root", str(ROOT)],
@@ -53,10 +60,7 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
 
     def test_control_branch_cannot_satisfy_scorecard_scan_contract(self) -> None:
         path = ROOT / ".github/workflows/ci-security-scorecard.yml"
-        command = (
-            '"$TOOLS_DIR/scorecard" --local . --format json '
-            '--output "$SCORECARD_RESULTS"'
-        )
+        command = self.scorecard_command()
         for header in (
             "if false; then",
             "if true; then",
@@ -75,10 +79,7 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
 
     def test_uninvoked_function_cannot_satisfy_scorecard_scan_contract(self) -> None:
         path = ROOT / ".github/workflows/ci-security-scorecard.yml"
-        command = (
-            '"$TOOLS_DIR/scorecard" --local . --format json '
-            '--output "$SCORECARD_RESULTS"'
-        )
+        command = self.scorecard_command()
         for definition in (
             "unused_scorecard_scan() {",
             "function unused_scorecard_scan {",
@@ -98,6 +99,78 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
                 self.assertTrue(
                     any(command in error for error in errors), "\n".join(errors)
                 )
+
+    def test_assignment_only_cannot_invoke_a_scorecard_helper(self) -> None:
+        path = ROOT / ".github/workflows/ci-security-scorecard.yml"
+        command = self.scorecard_command()
+        for assignment in (
+            "unused_scorecard_scan=disabled",
+            "unused_scorecard_scan[0]=disabled",
+            'unused_scorecard_scan["mode"]=disabled',
+        ):
+            with self.subTest(assignment=assignment):
+                assignment_only = path.read_text(encoding="utf-8").replace(
+                    command,
+                    "unused_scorecard_scan() {\n"
+                    f"            {command}\n"
+                    "          }\n"
+                    f"          {assignment}",
+                    1,
+                )
+                assignment_errors = CHECKER.workflow_errors(
+                    path, CHECKER.yaml.safe_load(assignment_only)
+                )
+                self.assertTrue(
+                    any(command in error for error in assignment_errors),
+                    "\n".join(assignment_errors),
+                )
+
+        assignment_prefixed_call = path.read_text(encoding="utf-8").replace(
+            command,
+            "unused_scorecard_scan() {\n"
+            f"            {command}\n"
+            "          }\n"
+            "          SCAN_MODE=local unused_scorecard_scan",
+            1,
+        )
+        call_errors = CHECKER.workflow_errors(
+            path, CHECKER.yaml.safe_load(assignment_prefixed_call)
+        )
+        self.assertFalse(call_errors, "\n".join(call_errors))
+
+    def test_exec_command_terminates_scorecard_reachability(self) -> None:
+        path = ROOT / ".github/workflows/ci-security-scorecard.yml"
+        command = self.scorecard_command()
+        terminated = path.read_text(encoding="utf-8").replace(
+            command, f"exec /usr/bin/true\n          {command}", 1
+        )
+        terminated_errors = CHECKER.workflow_errors(
+            path, CHECKER.yaml.safe_load(terminated)
+        )
+        self.assertTrue(
+            any(command in error for error in terminated_errors),
+            "\n".join(terminated_errors),
+        )
+
+        json_check = (
+            "python3 ci/checks/security/check-json-result.py "
+            '--input "$SCORECARD_RESULTS" --max-bytes 1048576'
+        )
+        after_commands = path.read_text(encoding="utf-8").replace(
+            json_check, f"{json_check}\n          exec /usr/bin/true", 1
+        )
+        after_errors = CHECKER.workflow_errors(
+            path, CHECKER.yaml.safe_load(after_commands)
+        )
+        self.assertFalse(after_errors, "\n".join(after_errors))
+
+        redirect_only = path.read_text(encoding="utf-8").replace(
+            command, f'exec > "$SCORECARD_RESULTS"\n          {command}', 1
+        )
+        redirect_errors = CHECKER.workflow_errors(
+            path, CHECKER.yaml.safe_load(redirect_only)
+        )
+        self.assertFalse(redirect_errors, "\n".join(redirect_errors))
 
     def test_pr_osv_base_without_ci_lock_uses_an_empty_optional_input(self) -> None:
         path = ROOT / ".github/workflows/ci-security-osv.yml"
