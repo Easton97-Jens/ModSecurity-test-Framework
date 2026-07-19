@@ -10,6 +10,7 @@
 | UTC-Datum | `2026-07-18` |
 | Ursprüngliche Framework-Basisrevision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
 | Abgeglichene Framework-Basisrevision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| Reconciliation-Merge-Commit | `cae1f9deae756766ef7eb54fa3e6a808411f242f` |
 | Issue oder Pull Request | Framework-Draft-PR #26 (`codex/fix-framework-crs-ref-provenance`) mit erforderlichem neuem exakten Non-Force-Push-Head-Verifikationszyklus. |
 | Frühere Reconciliation-Evidenz | `e3b9903ddd2607d131e419ff780acbcee14ace3c`; die aktuelle normale Master-Reconciliation ersetzt den nicht veröffentlichten lokalen Synchronisationszustand. |
 
@@ -182,7 +183,7 @@ meldete unter den dokumentierten Trust-Grenzen keinen blockierenden
 Source-Control-Bypass. Der direkte Diff gegen Framework-master ist auf die
 zwölf beabsichtigten CRS-Pfade beschränkt; Master-only-NGINX-, PCRE2-,
 Workflow-, Runner-, Fixture- und Change-Record-Controls bleiben unverändert
-geerbt. Ein normaler Follow-up-Merge-Commit und Non-Force-Push stellen den
-exakten Head für neue PR-CI-, SonarQube-, Review- und Thread-Evidenz her. Kein
-Framework-master-Merge, Parent-Gitlink-Update oder MRTS-Änderung ist
-autorisiert.
+geerbt. Merge-Commit `cae1f9deae756766ef7eb54fa3e6a808411f242f` stellt den
+abgeglichenen lokalen Head her; der Non-Force-Push stellt den PR-Head für neue
+PR-CI-, SonarQube-, Review- und Thread-Evidenz her. Kein Framework-master-Merge,
+Parent-Gitlink-Update oder MRTS-Änderung ist autorisiert.

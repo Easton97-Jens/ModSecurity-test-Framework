@@ -10,6 +10,7 @@
 | UTC date | `2026-07-18` |
 | Original Framework base revision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
 | Reconciled Framework base revision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| Reconciliation merge commit | `cae1f9deae756766ef7eb54fa3e6a808411f242f` |
 | Issue or pull request | Framework Draft PR #26 (`codex/fix-framework-crs-ref-provenance`), requiring a new exact-head non-force-push verification cycle. |
 | Earlier reconciliation evidence | `e3b9903ddd2607d131e419ff780acbcee14ace3c`; the current normal master reconciliation supersedes the unpublished local synchronization state. |
 
@@ -169,7 +170,8 @@ whitespace check passed. Independent Codex Security revalidation reported no
 blocking source-control bypass under the documented trust limits. The direct
 diff against Framework master is limited to the twelve intended CRS paths;
 master-only NGINX, PCRE2, workflow, runner, fixture, and Change-Record
-controls remain inherited unchanged. A normal follow-up merge commit and
-non-force push establish the exact head for new PR CI, SonarQube, review, and
-thread evidence. No Framework-master merge, Parent gitlink update, or MRTS
-change is authorized.
+controls remain inherited unchanged. Merge commit
+`cae1f9deae756766ef7eb54fa3e6a808411f242f` establishes the reconciled local
+head; the non-force push establishes the PR head for new PR CI, SonarQube,
+review, and thread evidence. No Framework-master merge, Parent gitlink update,
+or MRTS change is authorized.
