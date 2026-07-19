@@ -58,6 +58,16 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
             "\n".join(errors),
         )
 
+    def test_shell_comment_stripping_preserves_quoted_and_escaped_hashes(self) -> None:
+        for source, expected in (
+            ("echo '# quoted' # comment", "echo '# quoted'"),
+            ('echo "# quoted" # comment', 'echo "# quoted"'),
+            ("echo \\# escaped # comment", "echo \\# escaped"),
+            ("echo value#suffix # comment", "echo value#suffix"),
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(CHECKER.strip_shell_comment_line(source), expected)
+
     def test_control_branch_cannot_satisfy_scorecard_scan_contract(self) -> None:
         path = ROOT / ".github/workflows/ci-security-scorecard.yml"
         command = self.scorecard_command()

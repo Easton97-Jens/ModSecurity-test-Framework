@@ -162,6 +162,23 @@ def require_run_step(
     return None, [f"{path}: job {job_name!r} step {expected!r} must run a script"]
 
 
+SHELL_QUOTES = frozenset({"'", '"'})
+
+
+def shell_quote_state(quote: str | None, character: str) -> str | None:
+    """Return the active quote after a quote character."""
+    if quote is None:
+        return character
+    if quote == character:
+        return None
+    return quote
+
+
+def shell_comment_starts(line: str, index: int, quote: str | None) -> bool:
+    """Return whether the hash at index begins an unquoted shell comment."""
+    return quote is None and (index == 0 or line[index - 1].isspace())
+
+
 def strip_shell_comment_line(line: str) -> str:
     """Return one shell line without an unquoted comment."""
     quote: str | None = None
@@ -176,18 +193,11 @@ def strip_shell_comment_line(line: str) -> str:
             retained.append(character)
             escaped = True
             continue
-        if character in {"'", '"'}:
-            if quote is None:
-                quote = character
-            elif quote == character:
-                quote = None
+        if character in SHELL_QUOTES:
+            quote = shell_quote_state(quote, character)
             retained.append(character)
             continue
-        if (
-            character == "#"
-            and quote is None
-            and (index == 0 or line[index - 1].isspace())
-        ):
+        if character == "#" and shell_comment_starts(line, index, quote):
             break
         retained.append(character)
     return "".join(retained).rstrip()
