@@ -153,6 +153,7 @@ def parse_common(common_sh: Path) -> tuple[list[str], dict[str, VariableEntry]]:
     resolved: dict[str, str] = {}
     assign_re = re.compile(r'^([A-Z][A-Z0-9_]*)="\$\{\1:-(.*)\}"\s*$')
     colon_re = re.compile(r'^:\s+"\$\{([A-Z][A-Z0-9_]*):=(.*)\}"\s*$')
+    literal_re = re.compile(r'^([A-Z][A-Z0-9_]*)="([^"$`]*)"\s*$')
 
     for line_no, line in enumerate(lines, start=1):
         style = ""
@@ -169,6 +170,15 @@ def parse_common(common_sh: Path) -> tuple[list[str], dict[str, VariableEntry]]:
                 style = "assignment-default"
                 name = match.group(1)
                 default = match.group(2)
+            else:
+                match = literal_re.match(line)
+                if match and (
+                    match.group(1).startswith("CRS_APPROVED_")
+                    or match.group(1) == "CRS_RELEASE_TAG"
+                ):
+                    style = "literal-assignment"
+                    name = match.group(1)
+                    default = match.group(2)
         if not name:
             continue
         value = resolve_value(default, resolved)
@@ -745,6 +755,35 @@ def check_github_release_ref(
     )
 
 
+def check_crs_release_provenance(
+    entries: dict[str, VariableEntry], client: HttpClient
+) -> ComponentResult:
+    """Refuse to synthesize a CRS release-tag-to-commit provenance update."""
+    result = check_github_release_ref(
+        "OWASP Core Rule Set",
+        entries,
+        client,
+        repo_var="CRS_APPROVED_REPO_URL",
+        ref_var="CRS_RELEASE_TAG",
+    )
+    result.variables = [
+        "CRS_APPROVED_REPO_URL",
+        "CRS_RELEASE_TAG",
+        "CRS_APPROVED_COMMIT",
+    ]
+    if result.status == STATUS_OUTDATED:
+        result.status = STATUS_UNKNOWN
+        result.updates = []
+        result.message = (
+            "A newer CRS release is available, but updating its release tag and immutable "
+            "commit requires a reviewed provenance change."
+        )
+        result.details = {
+            "reason": "update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after commit provenance review"
+        }
+    return result
+
+
 def release_asset_metadata(release: dict[str, Any], asset_name: str) -> dict[str, Any]:
     assets = release.get("assets")
     if not isinstance(assets, list):
@@ -1049,13 +1088,7 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
     component_calls = [
         (
             "OWASP Core Rule Set",
-            lambda: check_github_release_ref(
-                "OWASP Core Rule Set",
-                entries,
-                client,
-                repo_var="CRS_REPO_URL",
-                ref_var="CRS_GIT_REF",
-            ),
+            lambda: check_crs_release_provenance(entries, client),
         ),
         (
             "ModSecurity v3",

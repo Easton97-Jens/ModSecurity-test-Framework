@@ -141,9 +141,16 @@ MODSECURITY_V3_ROOT="${MODSECURITY_V3_ROOT:-$MODSECURITY_SOURCE_DIR}"
 : "${MODSECURITY_SMOKE_CASE:=targeted}"
 : "${CRS_SMOKE_CASE:=minimal}"
 
-# OWASP Core Rule Set defaults
-: "${CRS_REPO_URL:=https://github.com/coreruleset/coreruleset.git}"
-: "${CRS_GIT_REF:=v4.28.0}"
+# OWASP Core Rule Set provenance and release metadata.
+#
+# CRS_APPROVED_* is deliberately assigned literally rather than derived from
+# the environment. CRS_GIT_REF remains release metadata for version reporting;
+# fetch-crs.sh must never use it to select a Git object.
+CRS_APPROVED_REPO_URL="https://github.com/coreruleset/coreruleset.git"
+CRS_APPROVED_COMMIT="55b09f5acfd16413e7b31041100711ceb7adc89c"
+CRS_RELEASE_TAG="v4.28.0"
+: "${CRS_REPO_URL:=$CRS_APPROVED_REPO_URL}"
+: "${CRS_GIT_REF:=$CRS_RELEASE_TAG}"
 
 # CRS paths
 : "${CRS_SOURCE_DIR:=${SOURCE_ROOT}/coreruleset}"
@@ -1267,6 +1274,25 @@ ci_require_safe_ref() {
         return 77
     fi
     return 0
+}
+
+ci_require_full_git_commit() {
+    ci_commit=$1
+    ci_label=${2:-git commit}
+
+    case "$ci_commit" in
+        ""|*[!0123456789abcdef]*)
+            ci_blocked "$ci_label must be a lowercase hexadecimal Git commit: $ci_commit"
+            return 77
+            ;;
+        *)
+            if [ "${#ci_commit}" -ne 40 ]; then
+                ci_blocked "$ci_label must be a full 40-character Git commit: $ci_commit"
+                return 77
+            fi
+            return 0
+            ;;
+    esac
 }
 
 assert_safe_runtime_path() {
