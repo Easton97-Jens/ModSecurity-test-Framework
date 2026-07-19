@@ -82,6 +82,12 @@ semantics without allowing a blocked prerequisite to become success. Every
 affected command/header wrapper propagates `77` or `1`, and CI returns before
 any local provisioning attempt after a block.
 
+The initial Draft-PR `common-structure` run correctly rejected a legitimate
+case-materialization output outside its declared verified root. The follow-up
+keeps that containment fail-closed and changes only the workflow layout: shared
+case output is now `$VERIFIED_RUN_ROOT/case-runner`, not a sibling temporary
+directory. No output-root allowlist or runner validation is widened.
+
 ## Changed files and tests
 
 The change spans Framework CI/checker, runner, reporting, provisioning, shell
@@ -105,6 +111,7 @@ new Framework contracts where readers need them.
 | --- | --- | --- | --- |
 | Focused worker test/compile/diff commands | 0 | All reported focused controls passed; no MRTS access | `20260719T131321Z-sonarcloud-quality-gate-f4bb3370` |
 | Common-shell prerequisite regression | 0 | Blocked, failed-local, success, and sourced-library controls passed | external finding `FND-FRAMEWORK-SHELL-BLOCK-RETURN` |
+| Common-workflow verified-root regression | 0 | Legitimate materialization below the verified root passes; sibling-root rejection remains active | external finding `FND-FRAMEWORK-CI-VERIFIED-ROOT` |
 | `python -m unittest discover -s tests/security_regression` | 0 | Complete Framework security-regression suite passed after the final shell correction | task validation `full-security-after-shell/` |
 | `make lint` with task-owned roots and verified Framework Python | 0 | Shell syntax, compilation, contracts, security/documentation checks, and diff check passed after the final shell correction | task validation `lint-after-shell/` |
 | `git diff --check` | 0 | No whitespace errors | Framework task worktree |
@@ -123,6 +130,8 @@ authorization, isolation, validation, logging, tests, CI, or quality gates.
 The final common-shell regression specifically confirms that an unavailable
 prerequisite cannot be reported as success and cannot trigger local
 provisioning from CI.
+The CI workflow correction consumes the existing verified root rather than
+adding a second trusted temporary location.
 
 ## Documentation and runtime evidence
 
@@ -156,5 +165,7 @@ Before delivery, the whole unstaged Framework diff received whitespace and
 suppression review. A focused independent security review found no validated
 regression in the protocol evidence refactor. A second independent review
 found no remaining status-overwrite bypass after the common-shell correction.
-Staging, commit, normal push, and Draft PR creation are pending at the time of
-this record; merge is not authorized.
+Initial staging, commit, normal push, and Draft PR creation completed; the
+first current-head common-structure run found the verified-root layout defect
+above. A normal follow-up commit and current-head CI/SonarCloud readback are
+pending; merge remains unauthorized.

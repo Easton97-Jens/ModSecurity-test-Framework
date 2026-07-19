@@ -28,6 +28,8 @@ class CommonStructureWorkflowTest(unittest.TestCase):
         )
         self.assertNotRegex(workflow, r'\[ "\$yaml_count" -ne [0-9]+ \]')
         self.assertNotIn("expected 141 YAML cases", workflow)
+        self.assertIn('out="$VERIFIED_RUN_ROOT/case-runner"', workflow)
+        self.assertNotIn('out="$RUNNER_TEMP/case-runner"', workflow)
 
         list_cases = '            --scope common > "$out/apache-common-cases.txt"'
         non_empty_selection = 'if [ ! -s "$out/apache-common-cases.txt" ]; then'

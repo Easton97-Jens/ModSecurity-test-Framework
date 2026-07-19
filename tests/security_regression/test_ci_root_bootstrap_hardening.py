@@ -1,6 +1,7 @@
 import os
 import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -104,6 +105,56 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
                 source = (ROOT / relative_path).read_text(encoding="utf-8")
                 self.assertIn(expected_source, source)
                 self.assertNotIn('. "$CI_ROOT/lib/path-bootstrap.sh"', source)
+
+    def test_common_workflow_materializes_inside_the_verified_run_root(self) -> None:
+        workflow = (ROOT / ".github/workflows/test-common.yml").read_text(encoding="utf-8")
+        self.assertIn('out="$VERIFIED_RUN_ROOT/case-runner"', workflow)
+        self.assertNotIn('out="$RUNNER_TEMP/case-runner"', workflow)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            verified_root = temporary_root / "verified"
+            case_output = verified_root / "case-runner" / "audit-log"
+            case_output.mkdir(parents=True)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "BUILD_ROOT": "",
+                    "MODSECURITY_RULE_PREAMBLE_FILE": "",
+                    "VERIFIED_RUN_ROOT": str(verified_root),
+                }
+            )
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROOT / "tests/runners/case_cli.py"),
+                    "materialize",
+                    "--case",
+                    str(ROOT / "tests/cases/audit-log/audit_log_phase1_block.yaml"),
+                    "--rules-file",
+                    str(case_output / "rules.conf"),
+                    "--env-file",
+                    str(case_output / "case.env"),
+                    "--headers-file",
+                    str(case_output / "request-headers.txt"),
+                    "--body-file",
+                    str(case_output / "request-body.bin"),
+                    "--docroot",
+                    str(case_output / "htdocs"),
+                    "--audit-log-file",
+                    str(case_output / "audit.log"),
+                    "--audit-log-dir",
+                    str(case_output / "audit"),
+                ],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertTrue((case_output / "rules.conf").is_file())
 
     def test_nested_catalog_bootstrap_ignores_foreign_root_environment(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

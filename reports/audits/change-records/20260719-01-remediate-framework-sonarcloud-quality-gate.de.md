@@ -84,6 +84,13 @@ Return-Semantik, ohne dass eine blockierte Voraussetzung zum Erfolg werden
 kann. Jeder betroffene Kommando-/Header-Wrapper reicht `77` oder `1` weiter,
 und CI kehrt nach einem Block vor jedem lokalen Provisionierungsversuch zurück.
 
+Der anfängliche Draft-PR-Lauf `common-structure` wies eine legitime
+Case-Materialisierungs-Ausgabe außerhalb seines deklarierten Verified-Roots
+korrekt ab. Das Follow-up erhält dieses fail-closed Containment und ändert nur
+das Workflow-Layout: Gemeinsame Case-Ausgabe liegt nun unter
+`$VERIFIED_RUN_ROOT/case-runner`, nicht in einem benachbarten Temp-Verzeichnis.
+Weder Output-Root-Allowlist noch Runner-Validierung werden erweitert.
+
 ## Geänderte Dateien und Tests
 
 Die Änderung umfasst Framework-CI/Checker, Runner, Reporting, Provisioning,
@@ -108,6 +115,7 @@ neuen Framework-Verträge dort, wo Leser sie benötigen.
 | --- | --- | --- | --- |
 | Fokussierte Worker-Test-/Compile-/Diff-Befehle | 0 | Alle berichteten fokussierten Kontrollen bestanden; kein MRTS-Zugriff | `20260719T131321Z-sonarcloud-quality-gate-f4bb3370` |
 | Common-Shell-Voraussetzungsregression | 0 | Blockiert-, Lokalfehler-, Erfolgs- und Bibliothekskontrollen bestanden | externes Finding `FND-FRAMEWORK-SHELL-BLOCK-RETURN` |
+| Common-Workflow-Verified-Root-Regression | 0 | Legitime Materialisierung unter dem Verified-Root besteht; die Abweisung des benachbarten Roots bleibt aktiv | externes Finding `FND-FRAMEWORK-CI-VERIFIED-ROOT` |
 | `python -m unittest discover -s tests/security_regression` | 0 | Vollständige Framework-Security-Regression nach der finalen Shell-Korrektur bestanden | Task-Validierung `full-security-after-shell/` |
 | `make lint` mit task-eigenen Roots und verifiziertem Framework-Python | 0 | Shell-Syntax, Compile, Verträge, Security-/Dokumentationsprüfungen und Diff-Check nach der finalen Shell-Korrektur bestanden | Task-Validierung `lint-after-shell/` |
 | `git diff --check` | 0 | Keine Whitespace-Fehler | Framework-Task-Worktree |
@@ -127,6 +135,8 @@ Tests, CI oder Quality Gates.
 Die finale Common-Shell-Regression bestätigt insbesondere, dass eine fehlende
 Voraussetzung nicht als Erfolg gemeldet wird und aus CI keine lokale
 Provisionierung auslösen kann.
+Die CI-Workflow-Korrektur nutzt den bestehenden Verified-Root, statt einen
+zweiten vertrauenswürdigen Temp-Ort hinzuzufügen.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -161,6 +171,8 @@ Vor der Delivery erhielt der gesamte unstaged Framework-Diff einen
 Whitespace- und Suppression-Review. Ein fokussierter unabhängiger
 Security-Review fand keine validierte Regression im Protocol-Evidence-
 Refactoring. Ein zweiter unabhängiger Review fand nach der Common-Shell-
-Korrektur keinen verbleibenden Statusüberschreibungs-Bypass. Staging, Commit,
-normaler Push und Draft-PR-Erstellung stehen zum Zeitpunkt dieses Records noch
-aus; ein Merge ist nicht autorisiert.
+Korrektur keinen verbleibenden Statusüberschreibungs-Bypass. Initiales Staging,
+Commit, normaler Push und Draft-PR-Erstellung sind abgeschlossen; der erste
+aktuelle Head-Lauf `common-structure` fand den oben beschriebenen
+Verified-Root-Layout-Fehler. Ein normaler Follow-up-Commit sowie aktuelles
+Head-CI-/SonarCloud-Readback stehen aus; ein Merge bleibt nicht autorisiert.
