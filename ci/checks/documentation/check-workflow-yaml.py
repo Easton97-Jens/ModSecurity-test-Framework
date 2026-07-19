@@ -15,11 +15,12 @@ except ModuleNotFoundError as exc:
 
 
 def main() -> int:
-    workflow_root = pathlib.Path(".github/workflows")
-    workflow_paths = sorted(
-        [*workflow_root.glob("*.yml"), *workflow_root.glob("*.yaml")]
-    )
-    for path in workflow_paths:
+    workflow_dir = pathlib.Path(".github/workflows")
+    for path in sorted(
+        candidate
+        for candidate in workflow_dir.iterdir()
+        if candidate.is_file() and candidate.suffix in {".yml", ".yaml"}
+    ):
         yaml.safe_load(path.read_text(encoding="utf-8"))
         print("ok", path)
     return 0

@@ -12,9 +12,12 @@ The contract covers every `.yml` and `.yaml` file in `.github/workflows/`,
 including nested directories. The validator resolves a requested workflow file
 or directory below the current repository root before reading it, and skips a
 resolved path that escapes that root (for example through a symlink).
-There are no Framework-owned `pull_request_target` workflows, submodule
-checkouts, artifact uploads, SARIF uploads, or CodeQL upload steps in this
-inventory. No such behavior was removed by this hardening work.
+There are no Framework-owned `pull_request_target` workflows or PR submodule
+checkouts in this inventory. The separately documented CI-security suite has
+bounded OSV/Scorecard artifact exceptions; its only SARIF/CodeQL upload is the
+trusted, non-PR `ci-security-codeql.yml` job. Its read-only
+`ci-security-codeql-pr.yml` companion analyzes PR heads without an upload or a
+write permission. No such behavior was removed by this hardening work.
 
 | Workflow | Triggers | External Actions | Effective permissions | Trust disposition |
 | --- | --- | --- | --- | --- |
@@ -58,8 +61,9 @@ permissions:
 Only a trusted job may replace that baseline with a smaller purpose-specific
 permission map. `check-common-versions` needs repository-content and
 pull-request writes to create its maintenance PR; `cleanup-artifacts` needs
-only `actions: write` to delete artifacts. No PR-triggered job may grant a
-write permission.
+only `actions: write` to delete artifacts; the trusted non-PR CodeQL upload
+job needs `security-events: write`. No PR-triggered job may grant a write
+permission.
 
 Each direct `actions/checkout` use sets:
 
@@ -132,7 +136,7 @@ CodeQL, Scorecard, or SonarQube Cloud. Those controls must be evaluated on the
 actual pull-request head. Tool availability is recorded truthfully in the
 Change Record; an unavailable local tool is not treated as a passed check.
 
-If a future workflow uploads artifacts or SARIF, consumes artifacts across a
-trust boundary, uses OIDC, invokes a reusable workflow, or needs a new write
-permission, extend the checker, fixtures, inventory, and Change Record before
-relying on the new behavior.
+If a future workflow changes the documented artifact/SARIF exception, consumes
+artifacts across a trust boundary, uses OIDC, invokes a reusable workflow, or
+needs a new write permission, extend the checker, fixtures, inventory, and
+Change Record before relying on the new behavior.

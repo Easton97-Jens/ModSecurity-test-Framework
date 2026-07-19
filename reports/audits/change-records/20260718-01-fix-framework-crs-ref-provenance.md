@@ -35,8 +35,6 @@ The security boundary is Framework CRS source provenance only. Parent code and
 the Parent gitlink are not changed; MRTS remains untouched and uninitialized in
 this task worktree.
 
-## 2026-07-19 master reconciliation
-
 The published #26 head predated Framework master
 `9954b99a31fab0006cdf903ab477c8158c50fea8`. A normal non-rewriting merge was
 resolved additively in the version updater: the CRS reviewed-release/immutable-

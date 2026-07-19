@@ -22,6 +22,16 @@ eine fehlende Umgebung, Abhängigkeit, Harness oder Runtime-Voraussetzung.
 `NOT_EXECUTABLE` bedeutet, dass ein Fall strukturell nicht auf diesen Connector
 oder Run-Modus anwendbar ist. Keiner dieser Zustände ist ein PASS.
 
+## Evidenzgrenze für CI-Security
+
+Das [CI-Security-Tooling](security/ci-security-tooling.de.md) validiert
+Workflow-Provenienz, Berechtigungen, statische Quellqualität,
+Abhängigkeitsmetadaten und Grenzen der Scanner-Ausgabe. Ein lokaler PASS oder
+ein GitHub-Actions-Ergebnis ist nur statische CI-Evidenz: Es belegt weder
+Connector-Runtime-Verhalten noch Protocol-Handling, Lifecycle-Promotion oder
+einen Host-Smoke. Das SonarQube-Cloud-Quality-Gate bleibt separat beobachtete
+externe Evidenz für den exakten Pull-Request-Head.
+
 ## Common-Structure-CI-Vertrag
 
 Der Workflow `test-common` entdeckt den gemeinsamen YAML-Bestand dynamisch. Er

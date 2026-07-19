@@ -54,6 +54,10 @@ gepaarten Record. Der Record gehört in dieses Repository und darf keine
 Framework-Fakten mit Connector-Findings oder Parent-Repository-Änderungen
 vermischen.
 
+Workflow-Provenienz, Scanner-Grenzen und der lokale CI-Security-
+Validierungscontract werden im [CI-Security-Tooling](security/ci-security-tooling.de.md)
+gepflegt.
+
 Generierte Berichte werden nur über ihren Generator geändert. Die Root-Datei
 `TEST-COVERAGE-SUMMARY.md` ist eine bewusste öffentliche/generierte Ausnahme,
 weil Framework- und Connector-Checks sie verwenden. Sie ist kein zweites
@@ -70,6 +74,7 @@ Dateien und kopierte Berichtssnapshots.
 |---|---|
 | Markdown-Navigation oder Referenzen | `make check-documentation` und `git diff --check` |
 | Zweisprachige Dokumentation, Records oder Vorlagen | `make check-bilingual-docs` und `make check-doc-links` |
+| Framework-CI-Security-Workflows oder Tooling | `make test-ci-security-contract` und `make check-change-records` |
 | Variablen oder Platzhalter | `make check-variable-documentation` |
 | Lokale Makefile-Skriptpfade | `make test-makefile-contract` (auch Teil von `make lint`) |
 | YAML-Katalog oder Runner-Verhalten | `make check-no-crs-catalog` und fokussierte Tests |

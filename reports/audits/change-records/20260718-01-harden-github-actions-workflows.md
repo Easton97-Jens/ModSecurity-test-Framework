@@ -91,6 +91,30 @@ to the update step; GitHub permissions remain job-scoped, so this reduces
 direct shell exposure rather than creating an unavailable per-step permission
 primitive. `cleanup-artifacts` retains only job-local `actions: write`.
 
+### 2026-07-19 CI-security compatibility reconciliation
+
+Synchronizing PR #27 with Framework master
+`7a12073c28e62a67492dd501b6513b9914fe5df8` exposed previously unvalidated
+CI-security workflows that the canonical checker correctly rejected
+fail-closed: flow-style event collections were not accepted as reviewable
+workflow syntax, and a `pull_request` CodeQL job held
+`security-events: write`. The validator was not relaxed.
+
+The repair uses a read-only, exact-PR-head workflow
+`ci-security-codeql-pr.yml` for untrusted pull requests. It disables both
+CodeQL result upload and database upload. The existing
+`ci-security-codeql.yml` is now a trusted uploader only (`push` to `master`,
+schedule, and manual dispatch) and is the sole workflow with its narrowly
+scoped `security-events: write` permission. All affected event collections
+use canonical block YAML. `cleanup-artifacts` declares the canonical
+top-level `contents: read` baseline and keeps `actions: write` limited to its
+necessary job. CI-security evidence and contract regressions reject both a
+PR-triggered trusted uploader and a PR write permission; the legitimate
+read-only PR and trusted-writer controls remain covered. This reconciliation
+is tracked as the reopened least-privilege finding `FND-FRAMEWORK-0013` and
+the separate strict-YAML-contract finding `FND-FRAMEWORK-0019` until local and
+fresh exact-head verification complete.
+
 ## Changed files and tests
 
 Versioned Framework changes:

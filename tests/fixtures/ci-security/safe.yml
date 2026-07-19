@@ -1,0 +1,12 @@
+name: safe-zizmor-fixture
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  static-message:
+    runs-on: ubuntu-latest
+    steps:
+      - run: printf '%s\n' 'static fixture'

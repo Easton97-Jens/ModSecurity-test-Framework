@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: framework-artifact-maintenance-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   cleanup-artifacts:
     runs-on: ubuntu-latest

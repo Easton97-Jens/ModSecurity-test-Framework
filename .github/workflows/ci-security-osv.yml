@@ -1,0 +1,231 @@
+name: OSV dependency scanning
+
+on:
+  pull_request:
+    branches:
+      - master
+  schedule:
+    - cron: '7 2 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-security-osv-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  pull-request-head:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact pull-request head revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12.13"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Fetch checksum-verified OSV Scanner
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool osv-scanner --output-dir "$TOOLS_DIR"
+
+      - name: Compare exact base and head dependency manifests without remediation
+        id: compare_osv
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RESULTS_DIR: ${{ runner.temp }}/framework-ci-security-results/osv
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA:requirements-ci.lock"
+          prepare_osv_inputs() {
+            local revision="$1"
+            local input_directory="$2"
+            local input_size=""
+            mkdir -p "$input_directory"
+            write_osv_input() {
+              local input_file="$1"
+              local output_file="$2"
+              local optional="$3"
+              if ! git cat-file -e "$revision:$input_file"; then
+                [ "$optional" = "true" ]
+                : > "$input_directory/$output_file"
+                return 0
+              fi
+              input_size="$(git cat-file -s "$revision:$input_file")"
+              [[ "$input_size" =~ ^[0-9]+$ ]]
+              [ "$input_size" -le 1048576 ]
+              git show "$revision:$input_file" > "$input_directory/$output_file"
+            }
+            write_osv_input requirements-dev.txt requirements-dev.txt false
+            write_osv_input requirements-ci.lock requirements-ci.txt true
+          }
+          mkdir -p "$RESULTS_DIR"
+          scan_osv() {
+            local input_directory="$1"
+            local result_file="$2"
+            local scanner_status=0
+            local -a lockfiles=(--lockfile "$input_directory/requirements-dev.txt")
+            lockfiles+=(--lockfile "$input_directory/requirements-ci.txt")
+            set +e
+            "$TOOLS_DIR/osv-scanner" scan source --format json --output-file "$result_file" \
+              "${lockfiles[@]}"
+            scanner_status=$?
+            set -e
+            case "$scanner_status" in
+              0|1) return 0 ;;
+              *) return "$scanner_status" ;;
+            esac
+          }
+          prepare_osv_inputs "$BASE_SHA" "$RESULTS_DIR/base-inputs"
+          prepare_osv_inputs "$HEAD_SHA" "$RESULTS_DIR/head-inputs"
+          scan_osv "$RESULTS_DIR/base-inputs" "$RESULTS_DIR/base.json"
+          scan_osv "$RESULTS_DIR/head-inputs" "$RESULTS_DIR/head.json"
+          python3 ci/checks/security/check-json-result.py \
+            --input "$RESULTS_DIR/base.json" --max-bytes 1048576 --osv-report
+          python3 ci/checks/security/check-json-result.py \
+            --input "$RESULTS_DIR/head.json" --max-bytes 1048576 --osv-report
+          set +e
+          python3 ci/checks/security/compare-osv-results.py \
+            --base "$RESULTS_DIR/base.json" --head "$RESULTS_DIR/head.json" \
+            --base-revision "$BASE_SHA" --head-revision "$HEAD_SHA" \
+            --output "$RESULTS_DIR/comparison.json"
+          comparison_status=$?
+          set -e
+          if [ "$comparison_status" -ne 0 ] && [ "$comparison_status" -ne 1 ]; then
+            exit "$comparison_status"
+          fi
+          python3 ci/checks/security/check-json-result.py \
+            --input "$RESULTS_DIR/comparison.json" --max-bytes 1048576
+          echo "evidence_valid=true" >> "$GITHUB_OUTPUT"
+          exit "$comparison_status"
+
+      - name: Retain bounded pull-request comparison evidence
+        if: always() && steps.compare_osv.outputs.evidence_valid == 'true'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: osv-pr-comparison-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/framework-ci-security-results/osv/base.json
+            ${{ runner.temp }}/framework-ci-security-results/osv/head.json
+            ${{ runner.temp }}/framework-ci-security-results/osv/comparison.json
+          if-no-files-found: error
+          retention-days: 1
+
+  scheduled-advisory:
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact current default-branch revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12.13"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Fetch checksum-verified OSV Scanner
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool osv-scanner --output-dir "$TOOLS_DIR"
+
+      - name: Scan current dependency manifests without remediation (advisory)
+        id: scan_current_osv
+        env:
+          REVISION: ${{ github.sha }}
+          RESULTS_DIR: ${{ runner.temp }}/framework-ci-security-results/osv
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$REVISION" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$REVISION"
+          git cat-file -e "$REVISION^{commit}"
+          git cat-file -e "$REVISION:requirements-ci.lock"
+          mkdir -p "$RESULTS_DIR"
+          input_directory="$RESULTS_DIR/current-inputs"
+          mkdir -p "$input_directory"
+          write_osv_input() {
+            local input_file="$1"
+            local output_file="$2"
+            input_size="$(git cat-file -s "$REVISION:$input_file")"
+            [[ "$input_size" =~ ^[0-9]+$ ]]
+            [ "$input_size" -le 1048576 ]
+            git show "$REVISION:$input_file" > "$input_directory/$output_file"
+          }
+          write_osv_input requirements-dev.txt requirements-dev.txt
+          write_osv_input requirements-ci.lock requirements-ci.txt
+          lockfiles=(--lockfile "$input_directory/requirements-dev.txt")
+          lockfiles+=(--lockfile "$input_directory/requirements-ci.txt")
+          set +e
+          "$TOOLS_DIR/osv-scanner" scan source --format json \
+            --output-file "$RESULTS_DIR/current.json" \
+            "${lockfiles[@]}"
+          scanner_status=$?
+          set -e
+          case "$scanner_status" in
+            0) ;;
+            1) echo "OSV findings are retained as scheduled advisory evidence." ;;
+            *) exit "$scanner_status" ;;
+          esac
+          python3 ci/checks/security/check-json-result.py \
+            --input "$RESULTS_DIR/current.json" --max-bytes 1048576 --osv-report
+          echo "evidence_valid=true" >> "$GITHUB_OUTPUT"
+
+      - name: Retain bounded current-revision OSV evidence
+        if: always() && steps.scan_current_osv.outputs.evidence_valid == 'true'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: osv-current-revision-${{ github.run_id }}
+          path: ${{ runner.temp }}/framework-ci-security-results/osv/current.json
+          if-no-files-found: error
+          retention-days: 1

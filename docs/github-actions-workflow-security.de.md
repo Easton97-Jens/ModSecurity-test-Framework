@@ -14,8 +14,12 @@ angeforderte Workflow-Datei oder ein Verzeichnis vor dem Lesen unterhalb der
 aktuellen Repository-Wurzel auf und überspringt einen aufgelösten Pfad, der
 diese Wurzel verlässt (zum Beispiel über einen Symlink).
 In diesem Inventar gibt es keine Framework-eigenen `pull_request_target`-
-Workflows, Submodule-Checkouts, Artifact-Uploads, SARIF-Uploads oder CodeQL-
-Upload-Schritte. Durch diese Härtung wurde kein solches Verhalten entfernt.
+Workflows oder PR-Submodule-Checkouts. Die separat dokumentierte CI-Security-
+Suite besitzt begrenzte OSV-/Scorecard-Artefaktausnahmen; ihr einziger
+SARIF-/CodeQL-Upload ist der vertrauenswürdige Nicht-PR-Job in
+`ci-security-codeql.yml`. Sein read-only-Pendant
+`ci-security-codeql-pr.yml` analysiert PR-Heads ohne Upload oder Write-
+Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 
 | Workflow | Trigger | Externe Actions | Effektive Berechtigungen | Vertrauensentscheidung |
 | --- | --- | --- | --- | --- |
@@ -61,7 +65,9 @@ Nur ein vertrauenswürdiger Job darf diese Baseline durch eine kleinere,
 zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions`
 benötigt Repository-Content- und Pull-Request-Write-Rechte zum Erstellen seines
 Wartungs-PRs; `cleanup-artifacts` benötigt nur `actions: write`, um Artefakte
-zu löschen. Kein PR-ausgelöster Job darf eine Write-Berechtigung vergeben.
+zu löschen; der vertrauenswürdige Nicht-PR-CodeQL-Upload-Job benötigt
+`security-events: write`. Kein PR-ausgelöster Job darf eine Write-Berechtigung
+vergeben.
 
 Jede direkte Verwendung von `actions/checkout` setzt:
 
@@ -140,8 +146,8 @@ tatsächlichen Pull-Request-Head bewertet werden. Tool-Verfügbarkeit wird im
 Change Record wahrheitsgemäß festgehalten; ein lokal nicht verfügbares Tool
 gilt nicht als bestandene Prüfung.
 
-Wenn ein künftiger Workflow Artefakte oder SARIF hochlädt, Artefakte über eine
-Vertrauensgrenze hinweg konsumiert, OIDC nutzt, einen wiederverwendbaren
-Workflow aufruft oder eine neue Write-Berechtigung benötigt, müssen Checker,
-Fixtures, Inventar und Change Record erweitert werden, bevor sich auf das neue
-Verhalten verlassen wird.
+Wenn ein künftiger Workflow die dokumentierte Artefakt-/SARIF-Ausnahme ändert,
+Artefakte über eine Vertrauensgrenze hinweg konsumiert, OIDC nutzt, einen
+wiederverwendbaren Workflow aufruft oder eine neue Write-Berechtigung benötigt,
+müssen Checker, Fixtures, Inventar und Change Record erweitert werden, bevor
+sich auf das neue Verhalten verlassen wird.

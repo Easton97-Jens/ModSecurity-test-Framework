@@ -1,0 +1,120 @@
+name: OpenSSF Scorecard
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+  schedule:
+    - cron: '43 4 * * 5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-security-scorecard-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  pull-request-head:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact pull-request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12.13"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Fetch checksum-verified Scorecard
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool scorecard --output-dir "$TOOLS_DIR"
+
+      - name: Run Scorecard against the exact pull-request checkout
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+          SCORECARD_RESULTS: ${{ runner.temp }}/scorecard-results.json
+        run: |
+          set -euo pipefail
+          "$TOOLS_DIR/scorecard" --local . --format json --output "$SCORECARD_RESULTS"
+          python3 ci/checks/security/check-json-result.py \
+            --input "$SCORECARD_RESULTS" --max-bytes 1048576
+
+  current-revision-advisory:
+    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout default-branch revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12.13"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Fetch checksum-verified Scorecard
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool scorecard --output-dir "$TOOLS_DIR"
+
+      - name: Run Scorecard against the current Framework checkout (advisory)
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+          SCORECARD_RESULTS: ${{ runner.temp }}/scorecard-results.json
+        run: |
+          set -euo pipefail
+          "$TOOLS_DIR/scorecard" --local . --format json --output "$SCORECARD_RESULTS"
+          python3 ci/checks/security/check-json-result.py \
+            --input "$SCORECARD_RESULTS" --max-bytes 1048576
+
+      - name: Retain bounded current-revision Scorecard evidence
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: scorecard-current-revision-${{ github.run_id }}
+          path: ${{ runner.temp }}/scorecard-results.json
+          if-no-files-found: error
+          retention-days: 1
