@@ -10,6 +10,7 @@
 | UTC-Datum | `2026-07-18` |
 | Ursprüngliche Framework-Basisrevision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
 | Abgeglichene Framework-Basisrevision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| Reconciliation-Merge-Commit | `af38bfee15951330842dda8b89ec95f0fb8f4fdb` |
 | Issue oder Pull Request | `FND-FRAMEWORK-0004`; Framework-Draft-PR #24 (`agent/fix-framework-fnd-0004`), mit erforderlichem neuem exakten Non-Force-Push-Head-Verifikationszyklus |
 
 ## Motivation und Problemstellung
@@ -161,7 +162,9 @@ Changed-Region-Security-Review ist auf dem isolierten Framework-Branch
 abgeschlossen. Der aktuelle direkte Diff gegen Framework-master ist auf die
 zwölf beabsichtigten CRS-Pfade beschränkt; Master-only-NGINX-, PCRE2-,
 Workflow-, Runner-, Fixture- und Change-Record-Controls bleiben unverändert
-geerbt. Ein Framework-Follow-up-Merge-Commit und Non-Force-Push stellen den
-exakten Head für einen neuen PR-/CI-/Review-Zyklus her. Es gab keinen
-Parent-Commit, kein Parent-Gitlink-Update, keinen Framework-master-Merge,
-keine MRTS-Quelländerung und keinen Force-Push.
+geerbt. Der Framework-Follow-up-Merge-Commit
+`af38bfee15951330842dda8b89ec95f0fb8f4fdb` stellt den abgeglichenen lokalen
+Head her; der Non-Force-Push stellt den PR-Head für einen neuen
+PR-/CI-/Review-Zyklus her. Es gab keinen Parent-Commit, kein
+Parent-Gitlink-Update, keinen Framework-master-Merge, keine MRTS-Quelländerung
+und keinen Force-Push.

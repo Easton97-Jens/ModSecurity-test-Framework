@@ -10,6 +10,7 @@
 | UTC date | `2026-07-18` |
 | Original Framework base revision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
 | Reconciled Framework base revision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| Reconciliation merge commit | `af38bfee15951330842dda8b89ec95f0fb8f4fdb` |
 | Issue or pull request | `FND-FRAMEWORK-0004`; Framework Draft PR #24 (`agent/fix-framework-fnd-0004`), requiring a new exact-head non-force-push verification cycle |
 
 ## Motivation and problem statement
@@ -149,6 +150,7 @@ region security review are complete on the isolated Framework branch. The
 current direct diff against Framework master is limited to the twelve intended
 CRS paths; master-only NGINX, PCRE2, workflow, runner, fixture, and Change
 Record controls remain inherited unchanged. A Framework follow-up merge commit
-and non-force push establish the exact head for a new PR/CI/review cycle. No
-Parent commit, Parent gitlink update, Framework master merge, MRTS source
+`af38bfee15951330842dda8b89ec95f0fb8f4fdb` establishes the reconciled local
+head; the non-force push establishes the PR head for a new PR/CI/review cycle.
+No Parent commit, Parent gitlink update, Framework master merge, MRTS source
 change, or force push has occurred.
