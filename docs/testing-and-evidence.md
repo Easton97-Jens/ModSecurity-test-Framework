@@ -100,9 +100,10 @@ reported separately as runtime evidence.
 the real CRS provisioning boundary against a temporary fake Git executable and
 exercises the update decision with a fake GitHub release client. It verifies
 that mutable tags, branches, ref namespaces, short hashes, and an unrelated
-full hash are rejected before Git use; that the reviewed full commit works for
-both new and existing checkouts; and that a mismatched checked-out `HEAD` stops
-before submodule processing. A newer upstream tag is reported as `unknown`
+full hash are rejected before Git use; that the reviewed full commit provisions
+only a fresh checkout and a pre-existing source path is rejected before Git
+use; and that a mismatch in the fetched, resolved, or final `HEAD` stops before
+submodule processing. A newer upstream tag is reported as `unknown`
 with no automatic update: changing the release tag and immutable commit remains
 a reviewed provenance change. It requires no network or connector runtime and
 proves the provisioning identity control only, not a CRS runtime support claim.

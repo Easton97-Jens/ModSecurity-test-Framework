@@ -105,9 +105,10 @@ ist, führt die echte CRS-Provisionierungsgrenze mit einem temporären
 Fake-Git-Programm aus und prüft die Update-Entscheidung mit einem Fake-GitHub-
 Release-Client. Es verifiziert, dass mutable Tags, Branches, Ref-Namespaces,
 kurze Hashes und ein nicht zugehöriger vollständiger Hash vor einer Git-Nutzung
-abgelehnt werden; dass der geprüfte vollständige Commit für neue und vorhandene
-Checkouts funktioniert; und dass ein abweichendes ausgechecktes `HEAD` vor der
-Submodul-Verarbeitung stoppt. Ein neueres Upstream-Tag wird als `unknown` ohne
+abgelehnt werden; dass der geprüfte vollständige Commit nur einen frischen
+Checkout bereitstellt und ein bereits vorhandener Source-Pfad vor der Git-
+Nutzung abgelehnt wird; und dass eine Abweichung im gefetchten, aufgelösten oder
+finalen `HEAD` vor der Submodul-Verarbeitung stoppt. Ein neueres Upstream-Tag wird als `unknown` ohne
 automatische Änderung gemeldet: Die Änderung von Release-Tag und
 unveränderlichem Commit bleibt eine geprüfte Provenance-Änderung. Der Test
 benötigt weder Netzwerk noch Connector-Runtime und beweist nur die
