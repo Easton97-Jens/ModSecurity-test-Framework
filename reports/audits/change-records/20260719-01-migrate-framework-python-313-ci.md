@@ -9,7 +9,7 @@
 | Change ID | `20260719-01-migrate-framework-python-313-ci` |
 | UTC date | `2026-07-19` |
 | Framework base revision | `047c11140ba7f2bd170b6f313d0223d0cd37f1be` |
-| Issue or pull request | Pending — task branch `agent/framework-python-313-master-migration`; normal Framework PR is not yet created |
+| Issue or pull request | [Framework PR #33](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/33) — task branch `agent/framework-python-313-master-migration`; final exact-head validation remains pending |
 
 ## Motivation and problem statement
 
@@ -141,7 +141,7 @@ findings are neither changed nor waived.
 
 ## Final diff and review status
 
-The pre-commit scoped diff has been reviewed and `git diff --check` passed. No
-credential, token, raw log, or sensitive payload is recorded. Commit, push,
-PR review, and exact-head hosted validation remain pending; this record will be
-updated with their actual identifiers and results when they exist.
+The scoped diff has been reviewed and `git diff --check` passed. No credential,
+token, raw log, or sensitive payload is recorded. Framework PR #33 is a Draft;
+the final exact-head GitHub Actions, SonarQube Cloud, review, and merge evidence
+remain pending and will be recorded only after observation.
