@@ -54,7 +54,8 @@ def render_known_legacy_record(change_id: str, german: bool) -> str:
     label = "Change-ID" if german else "Change ID"
     header = "Feld | Wert" if german else "Field | Value"
     sections = "\n\n".join(
-        f"## {heading}\n\nConcrete historic record evidence." for heading in headings[1:]
+        f"## {heading}\n\nConcrete historic record evidence."
+        for heading in headings[1:]
     )
     return (
         f"# Change record\n\n{link}\n\n## {headings[0]}\n\n"
