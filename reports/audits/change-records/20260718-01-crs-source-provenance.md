@@ -8,8 +8,9 @@
 | --- | --- |
 | Change ID | `20260718-01-crs-source-provenance` |
 | UTC date | `2026-07-18` |
-| Framework base revision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue or pull request | `FND-FRAMEWORK-0004`; Framework Draft PR pending authorized delivery |
+| Original Framework base revision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
+| Reconciled Framework base revision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| Issue or pull request | `FND-FRAMEWORK-0004`; Framework Draft PR #24 (`agent/fix-framework-fnd-0004`), requiring a new exact-head non-force-push verification cycle |
 
 ## Motivation and problem statement
 
@@ -29,6 +30,16 @@ source consumed by Framework CRS provisioning. A detached checkout of
 
 The boundary is Framework-owned supply-chain provenance. Parent product source
 and gitlink are unchanged; MRTS source is neither initialized nor modified.
+
+## 2026-07-19 master reconciliation
+
+The published PR #24 head predated current Framework `master`. A normal
+non-rewriting merge of `9954b99a31fab0006cdf903ab477c8158c50fea8` was resolved
+additively. The direct reconciled diff against that master contains only the
+twelve CRS-provenance paths listed below. In particular, it neither changes
+nor removes the current-master NGINX release-tag/exact-release-asset/required
+SHA-256 tuple, its updater guard and regressions, the PCRE2 mandatory digest
+gate, the workflow full-SHA controls, or the common-structure control.
 
 ## Acceptance criteria
 
@@ -89,6 +100,11 @@ commit control, and updater behavior.
 | `rtk make … lint` with task-owned `PYTHONPYCACHEPREFIX` | `0` | Static, unit, contract, documentation, and whitespace checks passed | task run `build/pycache` |
 | `rtk make … quick-check` with task-owned `PYTHONPYCACHEPREFIX` | `0` | Broader Framework quick check passed | task run `build/pycache` |
 | `rtk shellcheck -S error -x …` | `0` | No ShellCheck errors in changed shell files | Framework worktree |
+| `rtk env … make test-crs-provenance-contract test-workflow-action-pins test-workflow-contract` | `0` | 4 CRS, 21 workflow-action-pin, and 2 common-structure contract tests passed on the reconciled worktree | `20260719T081017Z-framework-pr-resolution-20260719-840082e0/build/pr24-reconciliation.XrQWDW` |
+| `rtk env … python3 -m unittest -v tests.security_regression.test_nginx_archive_digest tests.security_regression.test_nginx_release_provenance tests.security_regression.test_pcre2_archive_digest` | `0` | 15 NGINX/PCRE2 archive-integrity and provenance regressions passed on the reconciled worktree | `20260719T081017Z-framework-pr-resolution-20260719-840082e0/build/pr24-reconciliation.XrQWDW` |
+| `rtk env … sh -n …; sh ci/checks/catalog/check-crs-version-pinning.sh` | `0` | Changed shell paths parse and the approved CRS control passes; `CRS_GIT_REF=main` independently blocks with exit `77` | task-owned temporary path |
+| `rtk env … make check-documentation` | `0` | Links, variable documentation, bilingual companions, and path references passed | task-owned build path |
+| `rtk env FRAMEWORK_ROOT=<PR #24 worktree> … make lint` | `0` | Full repository-native lint passed with external bytecode/temp paths and the reconciled Framework root | task-owned build path |
 
 ## Security impact
 
@@ -111,8 +127,9 @@ boundary under a registered private task directory.
 - Full connector smoke and `test-with-crs` were not run because this finding's
   regression is the provisioning boundary, and those commands require wider
   connector/runtime prerequisites.
-- Framework CI, SonarQube Cloud, PR review, and review-thread checks are
-  pending Framework commit, push, and Draft PR creation.
+- Framework CI, SonarQube Cloud, PR review, and review-thread checks require a
+  new exact-head non-force-push cycle; older PR-head results will not be
+  treated as evidence for the reconciled head.
 - `ruff`, `pyright`, and `gitleaks` are unavailable in the authorized
   environment; no tool installation was performed. Manual changed-region
   secret/diff review found only the reviewed public commit identity, existing
@@ -127,7 +144,11 @@ tag-and-commit pair; this is deliberate rather than an automatic updater path.
 
 ## Final diff and review status
 
-Local source, test, documentation, whitespace, and changed-region secret
-review are complete on the isolated Framework branch. A Framework Draft PR is
-pending the authorized commit and non-force push. No Parent commit, Parent
-gitlink update, MRTS source change, merge, or force push has occurred.
+The reconciled local source, test, documentation, whitespace, and changed-
+region security review are complete on the isolated Framework branch. The
+current direct diff against Framework master is limited to the twelve intended
+CRS paths; master-only NGINX, PCRE2, workflow, runner, fixture, and Change
+Record controls remain inherited unchanged. A Framework follow-up merge commit
+and non-force push establish the exact head for a new PR/CI/review cycle. No
+Parent commit, Parent gitlink update, Framework master merge, MRTS source
+change, or force push has occurred.

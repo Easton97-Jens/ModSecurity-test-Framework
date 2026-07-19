@@ -8,8 +8,9 @@
 | --- | --- |
 | Change-ID | `20260718-01-crs-source-provenance` |
 | UTC-Datum | `2026-07-18` |
-| Framework-Basisrevision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue oder Pull Request | `FND-FRAMEWORK-0004`; Framework-Draft-PR nach autorisierter Auslieferung ausstehend |
+| Ursprüngliche Framework-Basisrevision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
+| Abgeglichene Framework-Basisrevision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| Issue oder Pull Request | `FND-FRAMEWORK-0004`; Framework-Draft-PR #24 (`agent/fix-framework-fnd-0004`), mit erforderlichem neuem exakten Non-Force-Push-Head-Verifikationszyklus |
 
 ## Motivation und Problemstellung
 
@@ -31,6 +32,18 @@ unveränderlichen Commit.
 Die Grenze ist Framework-eigene Supply-Chain-Herkunft. Parent-Produktsource
 und Gitlink bleiben unverändert; MRTS-Quelle wurde weder initialisiert noch
 verändert.
+
+## Master-Reconciliation vom 2026-07-19
+
+Der veröffentlichte PR-#24-Head lag vor dem aktuellen Framework-`master`. Ein
+normaler, nicht umschreibender Merge von
+`9954b99a31fab0006cdf903ab477c8158c50fea8` wurde additiv aufgelöst. Der direkte
+Diff des Abgleichs gegen diesen Master enthält nur die unten aufgeführten zwölf
+CRS-Provenance-Pfade. Insbesondere ändert oder entfernt er weder das
+NGINX-Release-Tag/exakte-Release-Asset/verpflichtliche-SHA-256-Tupel des
+aktuellen Masters, dessen Updater-Guard und Regressionen, noch das
+verpflichtende PCRE2-Digest-Gate, die Workflow-Full-SHA-Controls oder den
+common-structure-Control.
 
 ## Akzeptanzkriterien
 
@@ -94,6 +107,11 @@ Voll-Hash-Bypässe, URL-Override, neue und vorhandene Checkouts, abweichendes
 | `rtk make … lint` mit task-eigenem `PYTHONPYCACHEPREFIX` | `0` | Statische, Unit-, Vertrags-, Doku- und Whitespace-Checks bestanden | Task-Run `build/pycache` |
 | `rtk make … quick-check` mit task-eigenem `PYTHONPYCACHEPREFIX` | `0` | Breiterer Framework-Quick-Check bestanden | Task-Run `build/pycache` |
 | `rtk shellcheck -S error -x …` | `0` | Keine ShellCheck-Fehler in geänderten Shell-Dateien | Framework-Worktree |
+| `rtk env … make test-crs-provenance-contract test-workflow-action-pins test-workflow-contract` | `0` | 4 CRS-, 21 Workflow-Action-Pin- und 2 Common-Structure-Vertragstests bestanden im abgeglichenen Worktree | `20260719T081017Z-framework-pr-resolution-20260719-840082e0/build/pr24-reconciliation.XrQWDW` |
+| `rtk env … python3 -m unittest -v tests.security_regression.test_nginx_archive_digest tests.security_regression.test_nginx_release_provenance tests.security_regression.test_pcre2_archive_digest` | `0` | 15 NGINX-/PCRE2-Archivintegritäts- und Provenance-Regressionen bestanden im abgeglichenen Worktree | `20260719T081017Z-framework-pr-resolution-20260719-840082e0/build/pr24-reconciliation.XrQWDW` |
+| `rtk env … sh -n …; sh ci/checks/catalog/check-crs-version-pinning.sh` | `0` | Geänderte Shell-Pfade parsen, der genehmigte CRS-Kontrollfall besteht; `CRS_GIT_REF=main` blockiert unabhängig mit Exit `77` | task-eigener temporärer Pfad |
+| `rtk env … make check-documentation` | `0` | Links, Variablendokumentation, zweisprachige Begleiter und Pfadreferenzen bestanden | task-eigener Build-Pfad |
+| `rtk env FRAMEWORK_ROOT=<PR-#24-Worktree> … make lint` | `0` | Vollständiges repository-natives Lint bestand mit externen Bytecode-/Temp-Pfaden und der abgeglichenen Framework-Wurzel | task-eigener Build-Pfad |
 
 ## Sicherheitsauswirkung
 
@@ -118,8 +136,10 @@ Task-Verzeichnis aus.
 - Vollständiger Connector-Smoke und `test-with-crs` wurden nicht ausgeführt,
   weil die Regression dieses Findings die Provisionierungsgrenze betrifft und
   diese Befehle weitergehende Connector-/Runtime-Voraussetzungen benötigen.
-- Framework-CI, SonarQube Cloud, PR-Review und Review-Thread-Prüfungen sind
-  bis Framework-Commit, Push und Erstellung des Draft-PR ausstehend.
+- Framework-CI, SonarQube Cloud, PR-Review und Review-Thread-Prüfungen
+  benötigen einen neuen exakten Non-Force-Push-Head-Zyklus; ältere
+  PR-Head-Ergebnisse werden nicht als Evidenz für den abgeglichenen Head
+  behandelt.
 - `ruff`, `pyright` und `gitleaks` sind in der autorisierten Umgebung nicht
   verfügbar; es wurde keine Tool-Installation vorgenommen. Der manuelle
   Secret-/Diff-Review der geänderten Bereiche fand nur die geprüfte öffentliche
@@ -136,8 +156,12 @@ kein automatischer Updater-Pfad.
 
 ## Finaler Diff- und Review-Status
 
-Lokaler Source-, Test-, Doku-, Whitespace- und Secret-/Diff-Review ist auf dem
-isolierten Framework-Branch abgeschlossen. Ein Framework-Draft-PR steht nach
-dem autorisierten Commit und Non-Force-Push aus. Es gab keinen Parent-Commit,
-kein Parent-Gitlink-Update, keine MRTS-Quelländerung, keinen Merge und keinen
-Force-Push.
+Der abgeglichene lokale Source-, Test-, Doku-, Whitespace- und
+Changed-Region-Security-Review ist auf dem isolierten Framework-Branch
+abgeschlossen. Der aktuelle direkte Diff gegen Framework-master ist auf die
+zwölf beabsichtigten CRS-Pfade beschränkt; Master-only-NGINX-, PCRE2-,
+Workflow-, Runner-, Fixture- und Change-Record-Controls bleiben unverändert
+geerbt. Ein Framework-Follow-up-Merge-Commit und Non-Force-Push stellen den
+exakten Head für einen neuen PR-/CI-/Review-Zyklus her. Es gab keinen
+Parent-Commit, kein Parent-Gitlink-Update, keinen Framework-master-Merge,
+keine MRTS-Quelländerung und keinen Force-Push.

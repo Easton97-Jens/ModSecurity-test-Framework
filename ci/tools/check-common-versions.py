@@ -29,6 +29,7 @@ BRACED_VAR_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 PLAIN_VAR_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 SHA256_RE = re.compile(r"\b([A-Fa-f0-9]{64})\b")
 SAFE_REF_RE = re.compile(r"^(?!.*\.\.)(?!/)(?!.*//)[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
+NGINX_RELEASE_ASSET_RE = re.compile(r"^nginx-([A-Za-z0-9][A-Za-z0-9._-]*)\.tar\.gz$")
 OPTIONAL_EMPTY_VARIABLES = {
     "APACHE_BIN",
     "APACHECTL_BIN",
@@ -42,7 +43,6 @@ OPTIONAL_EMPTY_VARIABLES = {
     "MODSECURITY_INCLUDE_DIR",
     "MODSECURITY_RULE_PREAMBLE_FILE",
     "NGINX_BIN",
-    "NGINX_SHA256",
     "PCRE2_SHA256",
     "PCRE2_SHA256_URL",
 }
@@ -769,22 +769,192 @@ def check_crs_release_provenance(
     return result
 
 
-def find_release_asset(release: dict[str, Any], asset_name: str) -> str:
+def release_asset_metadata(release: dict[str, Any], asset_name: str) -> dict[str, Any]:
     assets = release.get("assets")
     if not isinstance(assets, list):
         raise UpstreamUnknown("GitHub release response did not include an assets list")
-    matches: list[str] = []
+    matches: list[dict[str, Any]] = []
     for asset in assets:
         if not isinstance(asset, dict):
             continue
-        if asset.get("name") == asset_name and isinstance(asset.get("browser_download_url"), str):
-            matches.append(asset["browser_download_url"])
-    unique = sorted(set(matches))
-    if not unique:
+        if asset.get("name") == asset_name:
+            matches.append(asset)
+    if not matches:
         raise UpstreamUnknown(f"GitHub release did not include asset {asset_name}")
-    if len(unique) != 1:
+    if len(matches) != 1:
         raise UpstreamUnknown(f"GitHub release asset {asset_name} is ambiguous")
-    return unique[0]
+    return matches[0]
+
+
+def find_release_asset(release: dict[str, Any], asset_name: str) -> str:
+    asset = release_asset_metadata(release, asset_name)
+    url = asset.get("browser_download_url")
+    if not isinstance(url, str) or not url:
+        raise UpstreamUnknown(f"GitHub release asset {asset_name} has no browser download URL")
+    return url
+
+
+def release_asset_sha256(release: dict[str, Any], asset_name: str) -> str:
+    asset = release_asset_metadata(release, asset_name)
+    digest = asset.get("digest")
+    if not isinstance(digest, str):
+        raise UpstreamUnknown(f"GitHub release asset {asset_name} has no published digest")
+    match = re.fullmatch(r"sha256:([A-Fa-f0-9]{64})", digest.strip())
+    if not match:
+        raise UpstreamUnknown(f"GitHub release asset {asset_name} has no usable SHA-256 digest")
+    return match.group(1).lower()
+
+
+def nginx_release_asset_name(release_tag: str) -> str:
+    version = release_tag.removeprefix("release-")
+    asset_name = f"nginx-{version}.tar.gz"
+    if ".." in asset_name or not NGINX_RELEASE_ASSET_RE.fullmatch(asset_name):
+        raise UpstreamError(f"NGINX release tag cannot form a safe release asset name: {release_tag!r}")
+    return asset_name
+
+
+def check_nginx_release_provenance(
+    entries: dict[str, VariableEntry], client: HttpClient
+) -> ComponentResult:
+    """Verify the reviewed NGINX tag, official release asset, and SHA-256 tuple.
+
+    This check intentionally never produces update edits. A new upstream tag
+    changes both the asset identity and its digest, so it must be reviewed and
+    changed as one provenance tuple rather than mechanically updating a tag.
+    """
+
+    variables = [
+        "NGINX_SOURCE_REPO_URL",
+        "NGINX_RELEASE_TAG",
+        "NGINX_SOURCE_GIT_REF",
+        "NGINX_RELEASE_ASSET_NAME",
+        "NGINX_SHA256",
+    ]
+    missing = [name for name in variables if name not in entries]
+    if missing:
+        return ComponentResult(
+            component="NGINX",
+            status=STATUS_UNKNOWN,
+            message=f"missing variables: {', '.join(missing)}",
+            variables=variables,
+        )
+
+    repo_url = value(entries, "NGINX_SOURCE_REPO_URL")
+    release_tag = value(entries, "NGINX_RELEASE_TAG")
+    source_ref = value(entries, "NGINX_SOURCE_GIT_REF")
+    asset_name = value(entries, "NGINX_RELEASE_ASSET_NAME")
+    configured_sha256 = value(entries, "NGINX_SHA256").lower()
+    current = f"{release_tag} / {asset_name} / {configured_sha256}"
+    repo_path = github_repo_path(repo_url)
+    if not repo_path:
+        return ComponentResult(
+            component="NGINX",
+            status=STATUS_UNKNOWN,
+            message="NGINX source is not an official HTTPS GitHub owner/repo URL.",
+            variables=variables,
+            current=current,
+            source=repo_url,
+        )
+    if release_tag == "latest" or not SAFE_REF_RE.fullmatch(release_tag) or "/" in release_tag:
+        return ComponentResult(
+            component="NGINX",
+            status=STATUS_UNKNOWN,
+            message="NGINX_RELEASE_TAG must be a fixed release tag for provenance verification.",
+            variables=variables,
+            current=current,
+            source=repo_url,
+        )
+    if source_ref != release_tag:
+        return ComponentResult(
+            component="NGINX",
+            status=STATUS_UNKNOWN,
+            message="NGINX_SOURCE_GIT_REF must equal NGINX_RELEASE_TAG for a fixed release asset.",
+            variables=variables,
+            current=current,
+            source=repo_url,
+        )
+    expected_asset_name = nginx_release_asset_name(release_tag)
+    if asset_name != expected_asset_name:
+        return ComponentResult(
+            component="NGINX",
+            status=STATUS_UNKNOWN,
+            message="NGINX release tag and release asset name are not an atomic expected pair.",
+            variables=variables,
+            current=current,
+            source=repo_url,
+            details={"expected_asset_name": expected_asset_name},
+        )
+    if not re.fullmatch(r"[a-f0-9]{64}", configured_sha256):
+        return ComponentResult(
+            component="NGINX",
+            status=STATUS_UNKNOWN,
+            message="NGINX_SHA256 must be a non-empty 64-character SHA-256 value.",
+            variables=variables,
+            current=current,
+            source=repo_url,
+        )
+
+    current_release = github_release_by_tag(client, repo_path, release_tag)
+    resolved_tag = release_tag_name(current_release, repo_path)
+    if resolved_tag != release_tag:
+        return ComponentResult(
+            component="NGINX",
+            status=STATUS_UNKNOWN,
+            message="GitHub release metadata did not resolve to the configured NGINX release tag.",
+            variables=variables,
+            current=current,
+            source=f"https://github.com/{repo_path}/releases/tag/{release_tag}",
+            details={"resolved_release_tag": resolved_tag},
+        )
+    official_asset_url = find_release_asset(current_release, asset_name)
+    expected_asset_url = f"https://github.com/{repo_path}/releases/download/{release_tag}/{asset_name}"
+    if official_asset_url != expected_asset_url:
+        return ComponentResult(
+            component="NGINX",
+            status=STATUS_UNKNOWN,
+            message="GitHub release asset URL does not match the configured tag/asset download endpoint.",
+            variables=variables,
+            current=current,
+            source=f"https://github.com/{repo_path}/releases/tag/{release_tag}",
+            details={"official_asset_url": official_asset_url, "expected_asset_url": expected_asset_url},
+        )
+    official_sha256 = release_asset_sha256(current_release, asset_name)
+    if configured_sha256 != official_sha256:
+        return ComponentResult(
+            component="NGINX",
+            status=STATUS_UNKNOWN,
+            message="Configured NGINX_SHA256 does not match the official GitHub release asset digest.",
+            variables=variables,
+            current=current,
+            source=f"https://github.com/{repo_path}/releases/tag/{release_tag}",
+            details={"official_asset_sha256": official_sha256},
+        )
+
+    latest_tag = release_tag_name(latest_github_release(client, repo_path), repo_path)
+    if latest_tag != release_tag:
+        return ComponentResult(
+            component="NGINX",
+            status=STATUS_UNKNOWN,
+            message=(
+                "A different official NGINX release tag is available; review and update "
+                "the tag, asset name, and SHA-256 digest atomically."
+            ),
+            variables=variables,
+            current=current,
+            latest=latest_tag,
+            source=f"https://github.com/{repo_path}/releases/latest",
+            details={"official_asset_url": official_asset_url, "official_asset_sha256": official_sha256},
+        )
+    return ComponentResult(
+        component="NGINX",
+        status=STATUS_CURRENT,
+        message="Release tag, official release asset, and published SHA-256 digest are current.",
+        variables=variables,
+        current=current,
+        latest=latest_tag,
+        source=f"https://github.com/{repo_path}/releases/latest",
+        details={"official_asset_url": official_asset_url, "official_asset_sha256": official_sha256},
+    )
 
 
 def check_pcre2(entries: dict[str, VariableEntry], client: HttpClient) -> ComponentResult:
@@ -899,21 +1069,7 @@ def unknown_component(
 
 def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[ComponentResult]:
     checks: list[ComponentResult] = []
-    if value(entries, "NGINX_RELEASE_TAG") == "latest":
-        nginx_check = lambda: unknown_component(
-            "NGINX",
-            entries,
-            ["NGINX_SOURCE_REPO_URL", "NGINX_RELEASE_TAG", "NGINX_SOURCE_GIT_REF", "NGINX_SHA256"],
-            "NGINX_RELEASE_TAG is dynamic or release resolution is not pinned in common.sh",
-        )
-    else:
-        nginx_check = lambda: check_github_release_ref(
-            "NGINX",
-            entries,
-            client,
-            repo_var="NGINX_SOURCE_REPO_URL",
-            ref_var="NGINX_RELEASE_TAG",
-        )
+    nginx_check = lambda: check_nginx_release_provenance(entries, client)
     component_calls = [
         (
             "OWASP Core Rule Set",
