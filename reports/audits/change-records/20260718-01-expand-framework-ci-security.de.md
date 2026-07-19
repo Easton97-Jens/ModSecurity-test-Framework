@@ -11,9 +11,9 @@
 | Framework-Basisrevision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
 | PR-Historie vor der Abstimmung | `66d90872cfc0125536267d574b776d2e88d26b23`; die weiter unten genannten älteren Commits bleiben nur historischer Kontext. |
 | Issue oder Pull Request | [Framework-Draft-PR #27](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/27) |
-| Aktueller Remote-Draft-PR-Head | `66d90872cfc0125536267d574b776d2e88d26b23` vor Commit und normalem Push des abgestimmten Master-Kandidaten. |
-| Abstimmungsstatus | Der aktuelle Framework-`master` wurde normal und ohne History-Rewrite in den Task-Worktree gemergt; der Kandidat bleibt lokal bis zu finalem Scope-Review, Commit, normalem Push und Exact-Head-Verifikation. |
-| Delivery-Status | Nur Draft-PR; lokale Abstimmungsvalidierung ist unten dokumentiert, während frische Remote-Checks, SonarCloud, Reviews, Threads und Exact-Head-Gleichheit weiter erforderlich sind. `verified_pr` ist nicht erreicht. |
+| Aktueller Remote-Draft-PR-Head | `66d90872cfc0125536267d574b776d2e88d26b23`; er bleibt der Remote-Head, bis die lokalen Abstimmungscommits normal gepusht sind. |
+| Abstimmungsstatus | Der normale Merge ohne History-Rewrite `6bd98fdfb96f65d924d5eaed8d5deb4e7faced91` verbindet diesen PR-Head mit Framework-`master` `9954b99a31fab0006cdf903ab477c8158c50fea8`; dieses gepaarte Traceability-Follow-up vervollständigt den lokalen Kandidaten. |
+| Delivery-Status | Nur Draft-PR; lokale Abstimmungsvalidierung ist unten dokumentiert, während normaler Push, frische Remote-Checks, SonarCloud, Reviews, Threads und Exact-Head-Gleichheit weiter erforderlich sind. `verified_pr` ist nicht erreicht. |
 
 ## Motivation und Problemstellung
 
@@ -203,15 +203,16 @@ Findings triagiert sind.
 ## Finaler Diff- und Review-Status
 
 Die veröffentlichte Remote-Historie auf `agent/expand-framework-ci-security`
-endet derzeit bei `66d90872cfc0125536267d574b776d2e88d26b23`. Ein normaler
-Merge ohne History-Rewrite von Framework-`master`
-`9954b99a31fab0006cdf903ab477c8158c50fea8` befindet sich in lokaler
-Abstimmung. Seine additive Auflösung erhält das aktuelle NGINX-Release-Tag- /
+endet derzeit bei `66d90872cfc0125536267d574b776d2e88d26b23`; der lokale
+normale Merge-Kandidat ohne History-Rewrite ist
+`6bd98fdfb96f65d924d5eaed8d5deb4e7faced91` mit Framework-`master`
+`9954b99a31fab0006cdf903ab477c8158c50fea8` als zweitem Parent. Seine additive
+Auflösung erhält das aktuelle NGINX-Release-Tag- /
 Asset- / erforderliche-SHA-256-Tupel, die PCRE2-Digest-Erzwingung, den
 unabhängigen Full-SHA-Action-Pin-Checker und den dynamischen
 Common-Structure-Vertrag; #27 ergänzt Scanner-/Evidence-Kontrollen statt sie
-zu ersetzen. Der Kandidat benötigt weiterhin einen expliziten Scoped-Diff-
-Review, normalen Commit und Push, Gleichheit von lokalem/Remote-/PR-Head,
+zu ersetzen. Dieses gepaarte Traceability-Follow-up und sein finaler Scoped-
+Diff-Review benötigen weiterhin normalen Push, Gleichheit von lokalem/Remote-/PR-Head,
 frische Remote-CI- und SonarCloud-Evidence, Reviews und Review-Thread-
 Verifikation. Es gibt keinen Framework-Merge, Parent-Gitlink-Update,
 Parent-Produkt-/Workflow-Change oder MRTS-Change. Dies bleibt ein Draft-PR und

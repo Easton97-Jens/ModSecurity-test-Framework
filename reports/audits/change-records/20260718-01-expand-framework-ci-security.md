@@ -11,9 +11,9 @@
 | Framework base revision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
 | Pre-reconciliation PR history | `66d90872cfc0125536267d574b776d2e88d26b23`; earlier commits listed below are retained as historical context only. |
 | Issue or pull request | [Framework Draft PR #27](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/27) |
-| Current remote Draft PR head | `66d90872cfc0125536267d574b776d2e88d26b23` before the normal master reconciliation candidate is committed and pushed. |
-| Reconciliation state | Current Framework `master` was merged normally and non-rewriting into the task worktree; the resulting candidate remains local until its final scope review, commit, normal push, and exact-head verification. |
-| Delivery state | Draft PR only; local reconciliation validation is recorded below, while fresh remote checks, SonarCloud, reviews, threads, and exact-head equality remain required. `verified_pr` has not been reached. |
+| Current remote Draft PR head | `66d90872cfc0125536267d574b776d2e88d26b23`; it remains the remote head until the local reconciliation commits are pushed normally. |
+| Reconciliation state | Normal non-rewriting merge `6bd98fdfb96f65d924d5eaed8d5deb4e7faced91` joins that PR head and Framework master `9954b99a31fab0006cdf903ab477c8158c50fea8`; this paired traceability follow-up completes its local candidate. |
+| Delivery state | Draft PR only; local reconciliation validation is recorded below, while normal push, fresh remote checks, SonarCloud, reviews, threads, and exact-head equality remain required. `verified_pr` has not been reached. |
 
 ## Motivation and problem statement
 
@@ -192,14 +192,16 @@ triaged.
 ## Final diff and review status
 
 The published remote history on `agent/expand-framework-ci-security` currently
-ends at `66d90872cfc0125536267d574b776d2e88d26b23`. A normal, non-rewriting
-merge of Framework master `9954b99a31fab0006cdf903ab477c8158c50fea8` is under
-local reconciliation. Its additive resolution retains the current NGINX
+ends at `66d90872cfc0125536267d574b776d2e88d26b23`; the local normal,
+non-rewriting merge candidate is
+`6bd98fdfb96f65d924d5eaed8d5deb4e7faced91` with Framework master
+`9954b99a31fab0006cdf903ab477c8158c50fea8` as its second parent. Its additive
+resolution retains the current NGINX
 release-tag/asset/required-SHA-256 tuple, PCRE2 digest enforcement, the
 independent full-SHA Action-pin checker, and the dynamic common-structure
 contract; #27 adds its scanner/evidence controls rather than replacing them.
-The candidate still requires an explicit scoped diff review, normal commit and
-push, local/remote/PR-head equality, fresh remote CI and SonarCloud evidence,
+This paired traceability follow-up and its final scoped diff review still
+require a normal push, local/remote/PR-head equality, fresh remote CI and SonarCloud evidence,
 reviews, and review-thread verification. There is no Framework merge, Parent
 gitlink update, Parent product/workflow change, or MRTS change. This remains a
 Draft PR and is not a `verified_pr` delivery state.
