@@ -52,6 +52,9 @@ Non-trivial Framework changes also require the paired record described in
 repository and must not combine Framework facts with connector findings or
 parent-repository changes.
 
+Workflow provenance, scanner boundaries, and the local CI-security validation
+contract are maintained in [CI security tooling](security/ci-security-tooling.md).
+
 Generated reports are changed only through their generator. The root
 `TEST-COVERAGE-SUMMARY.md` is a deliberate public/generated exception because
 Framework and connector checks consume it. It is not a second manual status
@@ -68,6 +71,7 @@ snapshots.
 |---|---|
 | Markdown navigation or references | `make check-documentation` and `git diff --check` |
 | Bilingual documentation, records, or templates | `make check-bilingual-docs` and `make check-doc-links` |
+| Framework CI-security workflows or tooling | `make test-ci-security-contract` and `make check-change-records` |
 | Variables or placeholders | `make check-variable-documentation` |
 | Makefile local script paths | `make test-makefile-contract` (also part of `make lint`) |
 | YAML catalog or runner behavior | `make check-no-crs-catalog` and focused tests |

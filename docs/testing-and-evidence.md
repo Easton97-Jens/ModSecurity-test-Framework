@@ -22,6 +22,16 @@ environment, dependency, harness, or runtime prerequisite. `NOT_EXECUTABLE`
 means a case does not apply structurally to that connector or run mode. Neither
 state is a PASS.
 
+## CI security evidence boundary
+
+[CI security tooling](security/ci-security-tooling.md) validates workflow
+provenance, permissions, static source quality, dependency metadata, and
+scanner output boundaries. A local pass or a GitHub Actions result is static
+CI evidence only: it does not demonstrate connector runtime behavior, protocol
+handling, lifecycle promotion, or a host smoke. The SonarQube Cloud quality
+gate remains separately observed external evidence for the exact pull-request
+head.
+
 ## Common-structure CI contract
 
 The `test-common` workflow discovers the shared YAML corpus dynamically. It
@@ -93,6 +103,20 @@ requires every Makefile-referenced local Python or shell script to exist.
 This contract proves only target-to-tool resolution. H1, H2, and H3 outcomes
 still require the applicable client, host, and artifact prerequisites and are
 reported separately as runtime evidence.
+
+## CRS source provenance contract
+
+`make test-crs-provenance-contract`, which is also part of `make lint`, runs
+the real CRS provisioning boundary against a temporary fake Git executable and
+exercises the update decision with a fake GitHub release client. It verifies
+that mutable tags, branches, ref namespaces, short hashes, and an unrelated
+full hash are rejected before Git use; that the reviewed full commit provisions
+only a fresh checkout and a pre-existing source path is rejected before Git
+use; and that a mismatch in the fetched, resolved, or final `HEAD` stops before
+submodule processing. A newer upstream tag is reported as `unknown`
+with no automatic update: changing the release tag and immutable commit remains
+a reviewed provenance change. It requires no network or connector runtime and
+proves the provisioning identity control only, not a CRS runtime support claim.
 
 ## No-CRS and full-lifecycle evidence
 

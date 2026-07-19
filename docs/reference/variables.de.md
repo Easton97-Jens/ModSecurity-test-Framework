@@ -158,10 +158,27 @@ MRTS-Eingaben oder generierte Pfade. `MODSECURITY_MRTS_VARIANT` akzeptiert
 `no-mrts` oder `with-mrts`; `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1`
 aktiviert optionale Demo-Inhalte erst nach Kollisionsprüfungen.
 
-`CRS_REPO_URL`, `CRS_GIT_REF`, `CRS_SOURCE_DIR`, `CRS_RUNTIME_DIR` und
-`MODSECURITY_RULE_PREAMBLE_FILE` sind Provisionierungswerte. Pins und
-zugehörige Komponentenvariablen stehen in `ci/lib/common.sh`; sie nicht in
-Workflows duplizieren. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE` und
+`CRS_APPROVED_REPO_URL` und `CRS_APPROVED_COMMIT` sind zentrale literale
+Provenance-Werte in `ci/lib/common.sh`, derzeit
+`https://github.com/coreruleset/coreruleset.git` und
+`55b09f5acfd16413e7b31041100711ceb7adc89c`. Sie sind keine Caller-Eingaben.
+`CRS_GIT_REF=v4.28.0` bleibt zentrale Release-Metadaten für die
+Versionsberichterstattung; es ist niemals ein Git-Selektor. `fetch-crs.sh`
+weist eine abweichende `CRS_REPO_URL` oder `CRS_GIT_REF` vor der
+Git-Ausführung ab, und Umgebungsversuche zum Ersetzen der beiden freigegebenen
+Provenance-Literale werden durch die zentrale Definition überschrieben.
+
+`CRS_SOURCE_DIR` muss ein nicht vorhandener Pfad unter dem zulässigen externen
+`SOURCE_ROOT` sein; ein vorhandenes Verzeichnis oder ein Link wird nicht
+wiederverwendet, sondern abgewiesen. Der Fetch-Pfad initialisiert ein frisches
+Repository, setzt und liest den exakten HTTPS-Origin zurück, lädt nur den
+freigegebenen vollständigen Commit ohne Tags oder rekursive Submodule und
+vergleicht `FETCH_HEAD^{commit}`, das aufgelöste Commit-Objekt und das finale
+`HEAD^{commit}` mit derselben Identität. Ein `.gitmodules`-Manifest wird
+fail-closed abgewiesen, bis eine separat freigegebene
+Submodule-Provenance-Regel existiert. `CRS_RUNTIME_DIR` und
+`MODSECURITY_RULE_PREAMBLE_FILE` bleiben Runtime-Pfadeingaben. CRS-Pins nicht
+in Workflows duplizieren. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE` und
 `CONNECTOR_COMPONENT_CACHE` sind Cache-Pfade und benötigen Herkunftsprüfungen.
 
 ## Werkzeuge, Statuswerte und sensible Daten
@@ -204,7 +221,8 @@ eine Herkunftsprüfung.
 | `ALLOW_EXTERNAL_CONNECTOR_REPOS` | Boolean zur Quellenbeschaffung | `0`; Aufrufer oder CI | `1` stimmt externen Source-Fetches zu; Repository vorher prüfen. |
 | `BUILD_HTTPD_FROM_SOURCE`, `BUILD_NGINX_FROM_SOURCE`, `BUILD_PCRE2_FROM_SOURCE`, `XDG_STATE_HOME` | Build-Boolean oder State-Home-Pfad | Target-Standard oder Host-State-Home; Aufrufer | `1` aktiviert den benannten Source-Build; `XDG_STATE_HOME=<temporary-work-root>/state` wählt ein State-Home außerhalb von Git. |
 | `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, `HTTPD_PREFIX`, `HTTPD_VERSION`, `APR_VERSION`, `APR_UTIL_VERSION` | Apache-Programm-, Pfad- oder Versionsüberschreibung | zentraler Pin oder Host-Erkennung | `/opt/httpd/bin/httpd`; eine Host-Installation ist keine portable Evidence. |
-| `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL` | NGINX-Programm-, URL-, Tag- oder Source-Mode-Überschreibung | zentraler Pin oder Target-Standard | `NGINX_SOURCE_MODE=source`; URL-, Tag- und Prüfsummenherkunft prüfen. |
+| `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SHA256` | NGINX-Programm-, GitHub-URL-, Release-Tag/-Ref-, Release-Asset-Name-, Source-Mode- oder SHA-256-Digest-Überschreibung | überprüftes Release-Tupel: `release-1.31.2`, passender Ref, `nginx-1.31.2.tar.gz` und `af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c` | Der unterstützte Mode `github-release` lädt das exakte offizielle GitHub-Release-Asset. Bei einem festen Release muss `NGINX_SOURCE_GIT_REF` gleich `NGINX_RELEASE_TAG` sein; Tag, Asset-Name und Digest sind ein atomar zu prüfendes Provenance-Tupel. Das Provisioning blockiert explizit leere, Whitespace enthaltende, fehlerhafte, abweichende oder tupel-inkonsistente Werte vor Lookup, Cache-Nutzung, Download oder Extraction; der Versionsprüfer aktualisiert dieses Tupel nie automatisch. |
+| `PCRE2_VERSION`, `PCRE_CONFIG` | Abhängigkeitsversion oder Programm | zentraler Pin oder Host-Erkennung | `PCRE_CONFIG=/usr/bin/pcre2-config`; ein Host-Pfad ist nur ein Beispiel. |
 | `PCRE2_VERSION`, `PCRE2_SOURCE_URL`, `PCRE2_SHA256`, `PCRE2_SHA256_URL`, `PCRE_CONFIG` | Abhängigkeitsversion, HTTPS-Quell-URL, 64-hex SHA-256, Versionswerkzeug-Metadaten oder Programm | zentraler Pin oder Host-Erkennung | `PCRE2_SHA256=<64-hex>` muss nicht leer, syntaktisch gültig und exakt passend zum Archiv sein, bevor die Extraktion erfolgt. Leere, nur aus Whitespace bestehende, fehlerhafte oder nicht passende Werte blockieren vor `tar`; `PCRE2_SHA256_URL` ist kein Fallback. |
 | `MODSECURITY_APACHE_SOURCE_DIR`, `MODSECURITY_NGINX_SOURCE_DIR`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `MODSECURITY_V3_ROOT` | absoluter Source-/Build-Pfad | unter `SOURCE_ROOT` oder `BUILD_ROOT` | `<temporary-work-root>/src/libmodsecurity`; nicht auf einen nicht vertrauenswürdigen Checkout zeigen. |
 | `MODSECURITY_GIT_REF`, `LIBMODSECURITY_VERSION`, `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INC`, `MODSECURITY_LIB`, `MODSECURITY_PKG_CONFIG` | Ref-, Versions-, Include-/Lib-/pkg-config-Überschreibung | zentraler Pin oder Erkennung | `MODSECURITY_GIT_REF=v3/master`; Pins mit ihrer Herkunft prüfen. |

@@ -69,7 +69,7 @@ Der fokussierte Test führt dynamisch `case_cli.py list-cases` aus und beweist, 
 
 Keine Security-Remediation wurde durchgeführt. Die fokussierte Prüfung fand keine neue RCE-, Path-Traversal-, YAML-, `case.env`-, Subprocess- oder Temporary-Output-Schwachstelle im geänderten Discovery-Pfad. Ein separater Protocol-URL-Evidence-Redaktionskandidat wurde für spätere fokussierte Validierung erfasst und ist nicht Teil dieser Änderung.
 
-## Dokumentation und Runtime-Evidence
+## Dokumentation und Runtime-Evidenz
 
 `docs/testing-and-evidence.md` und das deutsche Gegenstück dokumentieren den dynamischen common-structure-Vertrag und sein fokussiertes lokales Test-Target. Die wörtliche Workflow-Kontrolle erzeugte nur lokale Struktur-/Materialisierungs-Evidence; sie behauptet keine Connector-Runtime-Unterstützung oder Sonar-Quality-Gate-Erfolg.
 

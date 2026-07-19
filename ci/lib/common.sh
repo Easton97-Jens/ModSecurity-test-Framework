@@ -141,9 +141,16 @@ MODSECURITY_V3_ROOT="${MODSECURITY_V3_ROOT:-$MODSECURITY_SOURCE_DIR}"
 : "${MODSECURITY_SMOKE_CASE:=targeted}"
 : "${CRS_SMOKE_CASE:=minimal}"
 
-# OWASP Core Rule Set defaults
-: "${CRS_REPO_URL:=https://github.com/coreruleset/coreruleset.git}"
-: "${CRS_GIT_REF:=v4.28.0}"
+# OWASP Core Rule Set provenance and release metadata.
+#
+# CRS_APPROVED_* is deliberately assigned literally rather than derived from
+# the environment. CRS_GIT_REF remains release metadata for version reporting;
+# fetch-crs.sh must never use it to select a Git object.
+CRS_APPROVED_REPO_URL="https://github.com/coreruleset/coreruleset.git"
+CRS_APPROVED_COMMIT="55b09f5acfd16413e7b31041100711ceb7adc89c"
+CRS_RELEASE_TAG="v4.28.0"
+: "${CRS_REPO_URL:=$CRS_APPROVED_REPO_URL}"
+: "${CRS_GIT_REF:=$CRS_RELEASE_TAG}"
 
 # CRS paths
 : "${CRS_SOURCE_DIR:=${SOURCE_ROOT}/coreruleset}"
@@ -207,8 +214,17 @@ NGINX_SOURCE_REPO_URL="${NGINX_SOURCE_REPO_URL:-${NGINX_GITHUB_REPO:-https://git
 NGINX_GITHUB_REPO="${NGINX_GITHUB_REPO:-$NGINX_SOURCE_REPO_URL}"
 NGINX_RELEASE_TAG="${NGINX_RELEASE_TAG:-release-1.31.2}"
 NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF:-$NGINX_RELEASE_TAG}"
-# NGINX Git checkout mode does not use a tarball checksum.
-NGINX_SHA256="${NGINX_SHA256:-}"
+# NGINX source provenance is an atomic binding: the official GitHub release
+# tag, its exact release asset, and the digest GitHub publishes for that asset
+# are reviewed together.  Do not update one member of this tuple alone.
+NGINX_RELEASE_ASSET_NAME="${NGINX_RELEASE_ASSET_NAME:-nginx-1.31.2.tar.gz}"
+if [ "${NGINX_SHA256+x}" = x ]; then
+    NGINX_SHA256_WAS_SET=1
+else
+    NGINX_SHA256_WAS_SET=0
+fi
+NGINX_SHA256_REQUESTED="${NGINX_SHA256-}"
+NGINX_SHA256="${NGINX_SHA256:-af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c}"
 
 # Managed NGINX protocol builds are deliberately explicit.  The default keeps
 # the established clear-text HTTP/1.1 smoke path unchanged; H2/H3 are opted in
@@ -1260,6 +1276,25 @@ ci_require_safe_ref() {
     return 0
 }
 
+ci_require_full_git_commit() {
+    ci_commit=$1
+    ci_label=${2:-git commit}
+
+    case "$ci_commit" in
+        ""|*[!0123456789abcdef]*)
+            ci_blocked "$ci_label must be a lowercase hexadecimal Git commit: $ci_commit"
+            return 77
+            ;;
+        *)
+            if [ "${#ci_commit}" -ne 40 ]; then
+                ci_blocked "$ci_label must be a full 40-character Git commit: $ci_commit"
+                return 77
+            fi
+            return 0
+            ;;
+    esac
+}
+
 assert_safe_runtime_path() {
     ci_safe_path=$1
     ci_safe_label=${2:-path}
@@ -1430,4 +1465,4 @@ export DEFAULT_BRANCH FRAMEWORK_ROOT CONNECTOR_ROOT VERIFIED_RUN_ROOT VERIFIED_S
 export SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE DEFAULT_PYTHON HAPROXY_BIN_WAS_SET
 export CRS_REPO_URL CRS_GIT_REF MODSECURITY_REPO_URL MODSECURITY_GIT_REF MODSECURITY_V3_GIT_URL MODSECURITY_V3_GIT_REF
 export HTTPD_VERSION HTTPD_SOURCE_URL HTTPD_SHA256 HTTPD_SHA256_URL APR_VERSION APR_SOURCE_URL APR_SHA256 APR_SHA256_URL APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL PCRE2_VERSION PCRE2_SOURCE_URL PCRE2_SHA256 PCRE2_SHA256_URL
-export NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF NGINX_SHA256 HAPROXY_VERSION HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256
+export NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF NGINX_RELEASE_ASSET_NAME NGINX_SHA256 NGINX_SHA256_WAS_SET NGINX_SHA256_REQUESTED HAPROXY_VERSION HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256

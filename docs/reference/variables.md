@@ -154,11 +154,27 @@ inputs or generated paths. `MODSECURITY_MRTS_VARIANT` accepts `no-mrts` or
 `with-mrts`; `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` enables optional demo
 content only after collision checks.
 
-`CRS_REPO_URL`, `CRS_GIT_REF`, `CRS_SOURCE_DIR`, `CRS_RUNTIME_DIR`, and
-`MODSECURITY_RULE_PREAMBLE_FILE` are provisioning inputs. Pins and related
-component variables live in `ci/lib/common.sh`; do not duplicate them in
-workflows. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE`, and
-`CONNECTOR_COMPONENT_CACHE` are cache paths and require provenance checks.
+`CRS_APPROVED_REPO_URL` and `CRS_APPROVED_COMMIT` are central literal
+provenance values in `ci/lib/common.sh`, currently
+`https://github.com/coreruleset/coreruleset.git` and
+`55b09f5acfd16413e7b31041100711ceb7adc89c`. They are not caller inputs.
+`CRS_GIT_REF=v4.28.0` remains central release metadata for version reporting;
+it is never a Git selector. `fetch-crs.sh` rejects a differing
+`CRS_REPO_URL` or `CRS_GIT_REF` before Git runs, and environment attempts to
+replace either approved provenance literal are overwritten by the central
+definition.
+
+`CRS_SOURCE_DIR` must be an absent path below the permitted external
+`SOURCE_ROOT`; an existing directory or link is rejected rather than reused.
+The fetch path initializes a fresh repository, sets and reads back the exact
+HTTPS origin, fetches only the approved full commit without tags or recursive
+submodules, and compares `FETCH_HEAD^{commit}`, the resolved commit object,
+and final `HEAD^{commit}` with that same identity. A `.gitmodules` manifest
+is fail-closed pending a separately approved submodule provenance rule.
+`CRS_RUNTIME_DIR` and `MODSECURITY_RULE_PREAMBLE_FILE` remain runtime-path
+inputs. Do not duplicate CRS pins in workflows. `CACHE_ROOT`,
+`VERIFIED_COMPONENT_CACHE`, and `CONNECTOR_COMPONENT_CACHE` are cache paths
+and require provenance checks.
 
 ## Tooling, status values, and sensitive data
 
@@ -197,7 +213,8 @@ review before use.
 | `ALLOW_EXTERNAL_CONNECTOR_REPOS` | source acquisition boolean | `0`; caller or CI | `1` opts in to external source fetches; review the repository first. |
 | `BUILD_HTTPD_FROM_SOURCE`, `BUILD_NGINX_FROM_SOURCE`, `BUILD_PCRE2_FROM_SOURCE`, `XDG_STATE_HOME` | build boolean or state-home path | target default or host state home; caller | `1` enables the named source build; `XDG_STATE_HOME=<temporary-work-root>/state` selects a state-home outside Git. |
 | `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, `HTTPD_PREFIX`, `HTTPD_VERSION`, `APR_VERSION`, `APR_UTIL_VERSION` | Apache executable/path or version override | central pin or host discovery | `/opt/httpd/bin/httpd`; do not treat a host installation as portable evidence. |
-| `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL` | NGINX executable, URL, tag, or source-mode override | central pin or target default | `NGINX_SOURCE_MODE=source`; verify URL, tag, and checksum provenance. |
+| `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SHA256` | NGINX executable, GitHub URL, release tag/ref, release-asset name, source-mode, or SHA-256 digest override | reviewed release tuple: `release-1.31.2`, matching ref, `nginx-1.31.2.tar.gz`, and `af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c` | The supported `github-release` mode downloads the exact official GitHub release asset. For a fixed release, `NGINX_SOURCE_GIT_REF` must equal `NGINX_RELEASE_TAG`, and tag, asset name, and digest are one atomic reviewed provenance tuple. Provisioning blocks explicitly empty, whitespace-containing, malformed, mismatching, or tuple-inconsistent values before lookup, cache use, download, or extraction; the version checker never auto-updates this tuple. |
+| `PCRE2_VERSION`, `PCRE_CONFIG` | dependency version or executable | central pin or host discovery | `PCRE_CONFIG=/usr/bin/pcre2-config`; a host path is only an example. |
 | `PCRE2_VERSION`, `PCRE2_SOURCE_URL`, `PCRE2_SHA256`, `PCRE2_SHA256_URL`, `PCRE_CONFIG` | dependency version, HTTPS source URL, 64-hex SHA-256, version-tooling metadata, or executable | central pin or host discovery | `PCRE2_SHA256=<64-hex>` must be non-empty, syntactically valid, and exactly match the archive before extraction. Empty, whitespace-only, malformed, or mismatching values block before `tar`; `PCRE2_SHA256_URL` is not a fallback. |
 | `MODSECURITY_APACHE_SOURCE_DIR`, `MODSECURITY_NGINX_SOURCE_DIR`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `MODSECURITY_V3_ROOT` | absolute source/build directory | below `SOURCE_ROOT` or `BUILD_ROOT` | `<temporary-work-root>/src/libmodsecurity`; do not point to an untrusted checkout. |
 | `MODSECURITY_GIT_REF`, `LIBMODSECURITY_VERSION`, `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INC`, `MODSECURITY_LIB`, `MODSECURITY_PKG_CONFIG` | ref, version, include/lib/pkg-config override | central pin or discovery | `MODSECURITY_GIT_REF=v3/master`; pins must be reviewed with their provenance. |

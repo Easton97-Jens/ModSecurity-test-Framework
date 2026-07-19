@@ -1,0 +1,202 @@
+schema_version: 1
+actions:
+  actions/checkout:
+    name: actions/checkout
+    version: v7.0.0
+    immutable_commit: 9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+    upstream_release: https://github.com/actions/checkout/releases/tag/v7.0.0
+    license: MIT
+    purpose: Checkout the Framework without persisting credentials or initializing MRTS.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
+  actions/setup-python:
+    name: actions/setup-python
+    version: v6.3.0
+    immutable_commit: ece7cb06caefa5fff74198d8649806c4678c61a1
+    upstream_release: https://github.com/actions/setup-python/releases/tag/v6.3.0
+    license: MIT
+    purpose: Select the reviewed CPython lane for deterministic CI dependency checks.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
+  actions/setup-node:
+    name: actions/setup-node
+    version: v7.0.0
+    immutable_commit: 820762786026740c76f36085b0efc47a31fe5020
+    upstream_release: https://github.com/actions/setup-node/releases/tag/v7.0.0
+    license: MIT
+    purpose: Select the exact Node.js runtime used to execute the checksum-verified Pyright package.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity, exact Node.js runtime version, and MIT license, then update this record, every matching version comment, and the contract test together.
+  actions/upload-artifact:
+    name: actions/upload-artifact
+    version: v5.0.0
+    immutable_commit: 330a01c490aca151604b8cf639adc76d48f6c5d4
+    upstream_release: https://github.com/actions/upload-artifact/releases/tag/v5.0.0
+    license: MIT
+    purpose: Retain only bounded JSON security-governance evidence for the documented minimum period.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity, Node runtime compatibility, MIT license, artifact path, and one-day retention before updating this record, every matching version comment, and the contract test together.
+  actions/github-script:
+    name: actions/github-script
+    version: v9.0.0
+    immutable_commit: 3a2844b7e9c422d3c10d287c895573f7108da1b3
+    upstream_release: https://github.com/actions/github-script/releases/tag/v9.0.0
+    license: MIT
+    purpose: Run the existing scheduled artifact-retention maintenance script.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
+  peter-evans/create-pull-request:
+    name: peter-evans/create-pull-request
+    version: v8.1.1
+    immutable_commit: 5f6978faf089d4d20b00c7766989d076bb2fc7f1
+    upstream_release: https://github.com/peter-evans/create-pull-request/releases/tag/v8.1.1
+    license: MIT
+    purpose: Create the constrained scheduled common.sh update pull request.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
+  github/codeql-action:
+    name: github/codeql-action
+    version: v4.37.1
+    immutable_commit: 7188fc363630916deb702c7fdcf4e481b751f97a
+    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.1
+    license: MIT
+    purpose: Initialize, analyze, and upload SARIF for bounded CodeQL jobs.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity, action release notes, and MIT license; preserve the bounded language scope and update the record, comments, and tests together.
+  actions/dependency-review-action:
+    name: actions/dependency-review-action
+    version: v5.0.0
+    immutable_commit: a1d282b36b6f3519aa1f3fc636f609c47dddb294
+    upstream_release: https://github.com/actions/dependency-review-action/releases/tag/v5.0.0
+    license: MIT
+    purpose: Review pull-request dependency changes without automatic remediation.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
+tools:
+  scorecard:
+    name: scorecard
+    version: v5.5.0
+    immutable_commit: c395761df6afe1a69e476bc60a013a94bcbc153f
+    upstream_release: https://github.com/ossf/scorecard/releases/tag/v5.5.0
+    asset: scorecard_5.5.0_linux_amd64.tar.gz
+    asset_url: https://github.com/ossf/scorecard/releases/download/v5.5.0/scorecard_5.5.0_linux_amd64.tar.gz
+    sha256: 83b90a05c1540ef1390db1cd5711e5fd04be9c1d8537fb84d39d02092d6a8dff
+    archive_type: tar.gz
+    layout: executable
+    archive_member: scorecard
+    executable: scorecard
+    license: Apache-2.0
+    purpose: Produce Framework Scorecard evidence with a checksum-verified release binary instead of a mutable container-backed Action.
+    platform: linux-x86_64 GitHub-hosted runner
+    update_procedure: Verify the annotated release tag-to-commit identity, official release checksum, archive member, and Apache-2.0 license before updating this record and its validation evidence.
+  osv-scanner:
+    name: osv-scanner
+    version: v2.4.0
+    immutable_commit: b56b5191101d5f27d4787d5583d8d01e9518a7af
+    upstream_release: https://github.com/google/osv-scanner/releases/tag/v2.4.0
+    asset: osv-scanner_linux_amd64
+    asset_url: https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_linux_amd64
+    sha256: 15314940c10d26af9c6649f150b8a47c1262e8fc7e17b1d1029b0e479e8ed8a0
+    archive_type: raw
+    layout: executable
+    executable: osv-scanner
+    license: Apache-2.0
+    purpose: Scan Framework dependency manifests with a checksum-verified release binary instead of a mutable container-backed Action.
+    platform: linux-x86_64 GitHub-hosted runner
+    update_procedure: Verify the release tag-to-commit identity, official release checksum, raw executable asset name, and Apache-2.0 license before updating this record and its validation evidence.
+  actionlint:
+    name: actionlint
+    version: v1.7.12
+    immutable_commit: 914e7df21a07ef503a81201c76d2b11c789d3fca
+    upstream_release: https://github.com/rhysd/actionlint/releases/tag/v1.7.12
+    asset: actionlint_1.7.12_linux_amd64.tar.gz
+    asset_url: https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+    sha256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    archive_type: tar.gz
+    layout: executable
+    archive_member: actionlint
+    executable: actionlint
+    license: MIT
+    purpose: Lint checked-in GitHub Actions workflows, with ShellCheck integration when available.
+    platform: linux-x86_64 GitHub-hosted runner
+    update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and MIT license before updating this record and its validation evidence.
+  shellcheck:
+    name: shellcheck
+    version: v0.11.0
+    immutable_commit: aac0823e6b58f8a499e856e93738082691cbf212
+    upstream_release: https://github.com/koalaman/shellcheck/releases/tag/v0.11.0
+    asset: shellcheck-v0.11.0.linux.x86_64.tar.gz
+    asset_url: https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.gz
+    sha256: b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6
+    archive_type: tar.gz
+    layout: executable
+    archive_member: shellcheck-v0.11.0/shellcheck
+    executable: shellcheck
+    license: GPL-3.0
+    purpose: Supply the exact ShellCheck binary used by Framework workflow and common.sh checks.
+    platform: linux-x86_64 GitHub-hosted runner
+    update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and GPL-3.0 license before updating this record and its validation evidence.
+  zizmor:
+    name: zizmor
+    version: v1.27.0
+    immutable_commit: e2627367eb7c917a90503ce05a66872fd91da6fb
+    upstream_release: https://github.com/zizmorcore/zizmor/releases/tag/v1.27.0
+    asset: zizmor-x86_64-unknown-linux-gnu.tar.gz
+    asset_url: https://github.com/zizmorcore/zizmor/releases/download/v1.27.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
+    sha256: 277f2bd8fd37cf60c42ab7afca6faa884e65440fa31e02b44bdaae60f62a358f
+    archive_type: tar.gz
+    layout: executable
+    archive_member: zizmor
+    executable: zizmor
+    license: MIT
+    purpose: Detect GitHub Actions trust, permission, and expression hazards offline.
+    platform: linux-x86_64 GitHub-hosted runner
+    update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and MIT license before updating this record and its validation evidence.
+  gitleaks:
+    name: gitleaks
+    version: v8.30.1
+    immutable_commit: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e
+    upstream_release: https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1
+    asset: gitleaks_8.30.1_linux_x64.tar.gz
+    asset_url: https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+    sha256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    archive_type: tar.gz
+    layout: executable
+    archive_member: gitleaks
+    executable: gitleaks
+    license: MIT
+    purpose: Scan the exact pull-request commit range and advisory full history with redaction.
+    platform: linux-x86_64 GitHub-hosted runner
+    update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and MIT license before updating this record and its validation evidence.
+  ruff:
+    name: ruff
+    version: 0.15.22
+    immutable_commit: 0177a7e0d2c4a3805afa1960f106d72878766cbc
+    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.15.22
+    asset: ruff-x86_64-unknown-linux-gnu.tar.gz
+    asset_url: https://github.com/astral-sh/ruff/releases/download/0.15.22/ruff-x86_64-unknown-linux-gnu.tar.gz
+    sha256: d535a4be6504146e757eff67b992f11a293a7a108be22e2a5898b32c32565996
+    archive_type: tar.gz
+    layout: executable
+    archive_member: ruff-x86_64-unknown-linux-gnu/ruff
+    executable: ruff
+    license: MIT
+    purpose: Run deterministic lint and format checks over the Framework CI-security Python scope.
+    platform: linux-x86_64 GitHub-hosted runner
+    update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and MIT license before updating this record and its validation evidence.
+  pyright:
+    name: pyright
+    version: 1.1.411
+    immutable_commit: 9a9205fc32a2685767f38f348f5d9232701d4b0b
+    upstream_release: https://github.com/microsoft/pyright/releases/tag/1.1.411
+    asset: pyright.tgz
+    asset_url: https://github.com/microsoft/pyright/releases/download/1.1.411/pyright.tgz
+    sha256: bd5c488fc20fa237a944279bf32cae2f986cf10d5d5d9e8705819859daeb2f4a
+    archive_type: tar.gz
+    layout: tree
+    archive_root: package
+    entrypoint: index.js
+    license: MIT
+    purpose: Run a deterministic basic type-analysis scope without a Node package install.
+    platform: linux-x86_64 GitHub-hosted runner with Node.js
+    update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, package tree root, entrypoint, and MIT license before updating this record and its validation evidence.

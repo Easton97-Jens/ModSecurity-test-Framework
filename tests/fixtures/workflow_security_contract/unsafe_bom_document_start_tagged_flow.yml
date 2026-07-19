@@ -1,0 +1,1 @@
+﻿--- !!map {name: BOM tagged root flow candidate, on: workflow_dispatch, permissions: !!map {contents: read}, jobs: !!map {validate: !!map {runs-on: ubuntu-latest, steps: !!seq [!!map {uses: actions/checkout@v7, with: !!map {persist-credentials: false}}]}}}

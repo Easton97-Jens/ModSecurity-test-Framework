@@ -1,0 +1,17 @@
+{
+  "include": [
+    "ci/checks/security/check-ci-security-contract.py",
+    "ci/checks/security/check-ci-security-evidence-contract.py",
+    "ci/checks/security/check-json-result.py",
+    "ci/checks/security/compare-osv-results.py",
+    "ci/checks/security/osv_report_schema.py",
+    "ci/checks/documentation/check-change-records.py",
+    "ci/tools/fetch-security-tool.py",
+    "tests/ci_security"
+  ],
+  "exclude": ["tools/MRTS"],
+  "pythonVersion": "3.13",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "none",
+  "reportMissingTypeStubs": "none"
+}
