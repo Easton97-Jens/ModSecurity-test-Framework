@@ -32,13 +32,34 @@ def render_record(change_id: str, german: bool) -> str:
         else f"**Language:** English | [Deutsch]({change_id}.de.md)"
     )
     label = "Change-ID" if german else "Change ID"
+    header = "Feld | Wert" if german else "Field | Value"
     section_text = "\n\n".join(
         f"## {heading}\n\nConcrete record evidence." for heading in headings[1:]
     )
     return (
         f"# Change record\n\n{language}\n\n## {headings[0]}\n\n"
-        f"| {label} | Value |\n| --- | --- |\n| {label} | {change_id} |\n\n"
+        f"| {header} |\n| --- | --- |\n| {label} | {change_id} |\n\n"
         f"{section_text}\n"
+    )
+
+
+def render_known_legacy_record(change_id: str, german: bool) -> str:
+    language = "german" if german else "english"
+    headings = CHECKER.LEGACY_HEADINGS_BY_CHANGE_ID[change_id][language]
+    link = (
+        f"**Sprache:** [English]({change_id}.md) | Deutsch"
+        if german
+        else f"**Language:** English | [Deutsch]({change_id}.de.md)"
+    )
+    label = "Change-ID" if german else "Change ID"
+    header = "Feld | Wert" if german else "Field | Value"
+    sections = "\n\n".join(
+        f"## {heading}\n\nConcrete historic record evidence." for heading in headings[1:]
+    )
+    return (
+        f"# Change record\n\n{link}\n\n## {headings[0]}\n\n"
+        f"| {header} |\n| --- | --- |\n| {label} | {change_id} |\n\n"
+        f"{sections}\n"
     )
 
 
@@ -66,6 +87,41 @@ class ChangeRecordContractTest(unittest.TestCase):
         self.assertTrue(
             any("Change-ID must match filename" in error for error in errors)
         )
+        self.assertTrue(any("headings do not match" in error for error in errors))
+
+    def test_accepts_only_the_known_legacy_change_record_headings(self) -> None:
+        change_id = "20260718-01-fix-framework-actions-sha-pins"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            records = root / "reports/audits/change-records"
+            records.mkdir(parents=True)
+            (records / f"{change_id}.md").write_text(
+                render_known_legacy_record(change_id, german=False), encoding="utf-8"
+            )
+            (records / f"{change_id}.de.md").write_text(
+                render_known_legacy_record(change_id, german=True), encoding="utf-8"
+            )
+            errors = CHECKER.validate(root, Path("reports/audits/change-records"))
+        self.assertFalse(errors, "\n".join(errors))
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            records = root / "reports/audits/change-records"
+            records.mkdir(parents=True)
+            other_id = "20260718-99-fixture"
+            (records / f"{other_id}.md").write_text(
+                render_known_legacy_record(change_id, german=False).replace(
+                    change_id, other_id
+                ),
+                encoding="utf-8",
+            )
+            (records / f"{other_id}.de.md").write_text(
+                render_known_legacy_record(change_id, german=True).replace(
+                    change_id, other_id
+                ),
+                encoding="utf-8",
+            )
+            errors = CHECKER.validate(root, Path("reports/audits/change-records"))
         self.assertTrue(any("headings do not match" in error for error in errors))
 
     def test_missing_or_empty_record_directory_is_rejected(self) -> None:

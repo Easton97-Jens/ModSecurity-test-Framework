@@ -32,6 +32,24 @@ Connector-Runtime-Verhalten noch Protocol-Handling, Lifecycle-Promotion oder
 einen Host-Smoke. Das SonarQube-Cloud-Quality-Gate bleibt separat beobachtete
 externe Evidenz für den exakten Pull-Request-Head.
 
+## Common-Structure-CI-Vertrag
+
+Der Workflow `test-common` entdeckt den gemeinsamen YAML-Bestand dynamisch. Er
+verlangt einen nichtleeren Bestand `tests/cases/**/*.yaml` und eine nichtleere
+Apache-Auswahl mit Scope `common` aus `case_cli.py list-cases`, bevor er jeden
+ausgewählten Fall materialisiert und prüft. Er behandelt bewusst keine feste
+Gesamtzahl von YAML-Dateien als Vertrag: Fall-YAML und Runner-Discovery bleiben
+bei der Weiterentwicklung des Katalogs die Quellen der Wahrheit.
+
+Nur-Katalog-Fälle, deren Metadaten sie vom Standard-Runtime-Pfad ausschließen,
+werden vor der Runtime-spezifischen Schemavalidierung gefiltert. Ihre eigenen
+Katalog- oder statischen Checks bleiben für ihre Verträge zuständig.
+
+`make test-workflow-contract` ist der fokussierte lokale Regressionstest für
+diesen Workflow-Vertrag. Der Workflow selbst bleibt die Ende-zu-Ende-Kontrolle,
+weil er Discovery, Materialisierung, Fixture-Erzeugung und Status-Assertions
+mit dem aktuellen Katalog ausführt.
+
 ## Empfohlener Workflow
 
 Führe Checks aus dem Framework-Checkout oder über das Connector-Repository mit

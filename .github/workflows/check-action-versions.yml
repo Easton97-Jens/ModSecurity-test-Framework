@@ -46,8 +46,9 @@ jobs:
             --require-hashes -r requirements-ci.lock
           python3 -m pip check
 
-      - name: Validate immutable Action pins and workflow contract
+      - name: Validate immutable Action pins and CI security contracts
         run: |
           set -euo pipefail
+          python3 ci/checks/security/check-workflow-action-pins.py
           python3 ci/checks/security/check-ci-security-contract.py
           python3 ci/checks/security/check-ci-security-evidence-contract.py

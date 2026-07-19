@@ -8,12 +8,12 @@
 | --- | --- |
 | Change-ID | 20260718-01-expand-framework-ci-security |
 | UTC-Datum | 2026-07-18 |
-| Framework-Basisrevision | cdc91a398d6c156eaff927d742b23018a3817fb6 |
-| Commit-Historie bis zum Remote-Head des PR | `c897c481025fd005a2908d5124d238784d6182f4`; `5b17add799aac8c1c40f31264a5a4e8400740660`; `ec6448660f9e10cc633caed95f9b590c5d3bff1f`; `464c5a8d7292f017f14cbea5d32301205c9524e7`; `a63fa9963153c5aa56f4477713f02e689ee8f7fa`; `5b2a26a41e7621e7b246aa1a060149252cfe3062` |
+| Framework-Basisrevision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| PR-Historie vor der Abstimmung | `66d90872cfc0125536267d574b776d2e88d26b23`; die weiter unten genannten älteren Commits bleiben nur historischer Kontext. |
 | Issue oder Pull Request | [Framework-Draft-PR #27](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/27) |
-| Aktueller Remote-Draft-PR-Head | `5b2a26a41e7621e7b246aa1a060149252cfe3062` |
-| Task-owned Security-Follow-up-Commit | `768a06b5b734547f8213cc6918c26ef4a8ef9f67` (lokal committet; noch nicht durch Remote-PR-Checks abgedeckt) |
-| Delivery-Status | Nur Draft-PR; finaler Dokumentationscommit, normaler Push und Exact-Head-Evidence stehen noch aus; `verified_pr` ist nicht erreicht. |
+| Aktueller Remote-Draft-PR-Head | `66d90872cfc0125536267d574b776d2e88d26b23` vor Commit und normalem Push des abgestimmten Master-Kandidaten. |
+| Abstimmungsstatus | Der aktuelle Framework-`master` wurde normal und ohne History-Rewrite in den Task-Worktree gemergt; der Kandidat bleibt lokal bis zu finalem Scope-Review, Commit, normalem Push und Exact-Head-Verifikation. |
+| Delivery-Status | Nur Draft-PR; lokale Abstimmungsvalidierung ist unten dokumentiert, während frische Remote-Checks, SonarCloud, Reviews, Threads und Exact-Head-Gleichheit weiter erforderlich sind. `verified_pr` ist nicht erreicht. |
 
 ## Motivation und Problemstellung
 
@@ -22,8 +22,9 @@ CI-Security-Scanner-/Provenienzvertrag. Das anfängliche Scanner-Action-Design
 enthielt außerdem einen task-owned transitive-mutable-Container-Pfad. Diese
 Änderung ersetzt ihn durch prüfsummenverifizierte CLIs und ergänzt
 Framework-Kontrollen, ohne Parent-Repository, dessen Gitlink oder MRTS zu
-ändern. Eigenständig geregeltes Common-Structure-Verhalten bleibt außerhalb
-dieses Scopes.
+ändern. Die eigenständig geregelten Common-Structure- und Action-Pin-
+Kontrollen aus Framework-`master` bleiben additiv erhalten; diese Abstimmung
+ersetzt sie nicht.
 
 ## Betroffene Komponenten und Sicherheitsgrenzen
 
@@ -117,8 +118,9 @@ Wartungs-Concurrency.
   `mktemp`-Reparatur im CRS-Helper.
 - Englische/deutsche CI-Security-Dokumentation und Dokumentationsindex-Links
   ergänzt.
-- Die `test-common.yml`-Ausführungsumgebung gehärtet, ohne deren eigenständig
-  geregelte Katalog-Count-Assertion oder Materialisierungsverhalten zu ändern.
+- Die `test-common.yml`-Ausführungsumgebung gehärtet und dabei den bereits auf
+  `master` vorhandenen dynamischen nichtleeren Korpus- und Apache-Common-
+  Auswahlvertrag erhalten; keine feste Katalogzahl wird wieder eingeführt.
 - Die aktuelle lokale CI-Security-Suite enthält vierundsechzig positive und negative
   Tests. Sie deckt die ursprünglichen Contracts sowie semantische Workflow-
   Kontrollen, strikte OSV-Evidence-/Gruppenabdeckung, Downloader-Containment
@@ -128,6 +130,11 @@ Wartungs-Concurrency.
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- | --- |
+| Aktuelle Abstimmung: `make test-ci-security-contract test-change-record-contract test-workflow-action-pins test-workflow-contract` mit externen Roots | 0 | 65 CI-Security-Tests, 4 Change-Record-Tests, 21 immutable Action-Pin-Tests und 2 dynamische Common-Structure-Tests bestanden auf dem abgestimmten Kandidaten. | `20260719T081017Z-framework-pr-resolution-20260719-840082e0/build/pr27-reconciliation.iwDakV` |
+| Aktuelle Abstimmung: NGINX- und PCRE2-Archiv-/Provenance-Regressionsmodule | 0 | Alle 15 Tests für fehlende, fehlerhafte, nicht passende und legitime Archive bestanden; Release-Tag, exaktes Asset und erforderlicher SHA-256-Contract von `master` bleiben intakt. | Gleicher zulässiger Run |
+| Aktuelle Abstimmung: direkter Action-Pin-, CI-Security-, CI-Security-Evidence-, Change-Record-Check und Python-Compile | 0 | Alle vier Verträge bestanden; der Compile nutzte den registrierten externen Pycache, nachdem ein Schreibversuch im geschützten Worktree von der Umgebung abgewiesen wurde. | Gleicher zulässiger Run |
+| Aktuelle Abstimmung: `make lint` mit expliziten Framework- und externen Roots | 0 | Shell-/Python-Checks, 65 CI-Security-, Action-Pin-, dynamische Workflow-, Dokumentations-, Katalog- und Diff-Checks bestanden. | Gleicher zulässiger Run |
+| Historische Kandidaten-Evidenz unten | n/a | Die folgenden älteren Zeilen bleiben nur zur Traceability erhalten und sind keine Exact-Head-Merge-Evidence für den abgestimmten Kandidaten. | Früher aufbewahrte Task-Evidence |
 | Fokussierte Framework-CI-Security-Suite | 0 | Alle vierundsechzig lokalen positiven/negativen Contract-, Semantic-Workflow-, Strict-OSV-Evidence-, Downloader-Containment-, Lock-Path- und CRS-Temp-Path-Tests bestanden. | `20260718T084030Z-expand-framework-ci-security-be8fb24d` |
 | `make test-ci-security-contract` | 0 | Dieselben vierundsechzig CI-Security-Tests bestanden über das Framework-Target. | Gleicher Task-Run |
 | Semantischer Workflow-Evidence-Checker | 0 | Der task-owned Source-Commit erfüllt Exact-Head-, Artefakt-/Kanal-, Cache-, Erreichbarkeits- und OSV-Evidence-Constraints. | Gleicher Run |
@@ -195,11 +202,17 @@ Findings triagiert sind.
 
 ## Finaler Diff- und Review-Status
 
-Die committete Remote-Historie auf `agent/expand-framework-ci-security` endet
-derzeit bei `5b2a26a41e7621e7b246aa1a060149252cfe3062`. Der lokale task-owned
-Security-Follow-up-Commit ist `768a06b5b734547f8213cc6918c26ef4a8ef9f67`; diese
-gepaarte Dokumentationsabstimmung ist noch uncommittet. Ihr finaler
-Whitespace-/Secret-Review, Exact-Head-Remote-CI, SonarQube Cloud, Reviews und
-Review-Thread-Verifikation stehen noch aus. Es gibt keinen Merge,
-Parent-Gitlink-Update, Parent-Produkt-/Workflow-Change oder MRTS-Change. Dies
-ist ein Draft-PR und kein `verified_pr`-Delivery-Status.
+Die veröffentlichte Remote-Historie auf `agent/expand-framework-ci-security`
+endet derzeit bei `66d90872cfc0125536267d574b776d2e88d26b23`. Ein normaler
+Merge ohne History-Rewrite von Framework-`master`
+`9954b99a31fab0006cdf903ab477c8158c50fea8` befindet sich in lokaler
+Abstimmung. Seine additive Auflösung erhält das aktuelle NGINX-Release-Tag- /
+Asset- / erforderliche-SHA-256-Tupel, die PCRE2-Digest-Erzwingung, den
+unabhängigen Full-SHA-Action-Pin-Checker und den dynamischen
+Common-Structure-Vertrag; #27 ergänzt Scanner-/Evidence-Kontrollen statt sie
+zu ersetzen. Der Kandidat benötigt weiterhin einen expliziten Scoped-Diff-
+Review, normalen Commit und Push, Gleichheit von lokalem/Remote-/PR-Head,
+frische Remote-CI- und SonarCloud-Evidence, Reviews und Review-Thread-
+Verifikation. Es gibt keinen Framework-Merge, Parent-Gitlink-Update,
+Parent-Produkt-/Workflow-Change oder MRTS-Change. Dies bleibt ein Draft-PR und
+ist kein `verified_pr`-Delivery-Status.

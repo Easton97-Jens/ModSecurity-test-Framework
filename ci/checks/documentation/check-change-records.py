@@ -39,6 +39,24 @@ GERMAN_HEADINGS = (
     "Einschränkungen und Restrisiko",
     "Finaler Diff- und Review-Status",
 )
+LEGACY_HEADINGS_BY_CHANGE_ID = {
+    "20260718-01-fix-framework-actions-sha-pins": {
+        "english": (
+            "Identity",
+            "Motivation and security boundary",
+            "Acceptance criteria and implementation decision",
+            "Tests and evidence",
+            "Documentation, delivery, and residual risk",
+        ),
+        "german": (
+            "Identität",
+            "Motivation und Sicherheitsgrenze",
+            "Akzeptanzkriterien und Implementierungsentscheidung",
+            "Tests und Evidenz",
+            "Dokumentation, Delivery und Restrisiko",
+        ),
+    }
+}
 TEMPLATE_FILENAMES = {"README.md", "README.de.md", "TEMPLATE.md", "TEMPLATE.de.md"}
 CHANGE_ID = re.compile(
     r"^\| (?:Change ID|Change-ID) \| (?P<value>[^|]+) \|$", re.MULTILINE
@@ -67,6 +85,13 @@ def headings(text: str) -> tuple[str, ...]:
     return tuple(match.group("value").strip() for match in HEADING.finditer(text))
 
 
+def permitted_headings(change_id: str, german: bool) -> tuple[tuple[str, ...], ...]:
+    primary = GERMAN_HEADINGS if german else ENGLISH_HEADINGS
+    language = "german" if german else "english"
+    legacy = LEGACY_HEADINGS_BY_CHANGE_ID.get(change_id, {}).get(language)
+    return (primary,) if legacy is None else (primary, legacy)
+
+
 def change_id(text: str) -> str | None:
     match = CHANGE_ID.search(text)
     return match.group("value").strip().strip("`") if match else None
@@ -87,11 +112,11 @@ def record_errors(english_path: Path) -> list[str]:
         return [str(exc)]
 
     expected_id = english_path.stem
-    if headings(english) != ENGLISH_HEADINGS:
+    if headings(english) not in permitted_headings(expected_id, german=False):
         errors.append(
             f"{english_path}: English Change Record headings do not match the template"
         )
-    if headings(german) != GERMAN_HEADINGS:
+    if headings(german) not in permitted_headings(expected_id, german=True):
         errors.append(
             f"{german_path}: German Change Record headings do not match the template"
         )

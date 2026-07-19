@@ -8,12 +8,12 @@
 | --- | --- |
 | Change ID | 20260718-01-expand-framework-ci-security |
 | UTC date | 2026-07-18 |
-| Framework base revision | cdc91a398d6c156eaff927d742b23018a3817fb6 |
-| Committed PR history through remote head | `c897c481025fd005a2908d5124d238784d6182f4`; `5b17add799aac8c1c40f31264a5a4e8400740660`; `ec6448660f9e10cc633caed95f9b590c5d3bff1f`; `464c5a8d7292f017f14cbea5d32301205c9524e7`; `a63fa9963153c5aa56f4477713f02e689ee8f7fa`; `5b2a26a41e7621e7b246aa1a060149252cfe3062` |
+| Framework base revision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| Pre-reconciliation PR history | `66d90872cfc0125536267d574b776d2e88d26b23`; earlier commits listed below are retained as historical context only. |
 | Issue or pull request | [Framework Draft PR #27](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/27) |
-| Current remote Draft PR head | `5b2a26a41e7621e7b246aa1a060149252cfe3062` |
-| Task-owned security follow-up commit | `768a06b5b734547f8213cc6918c26ef4a8ef9f67` (locally committed; not yet covered by remote PR checks) |
-| Delivery state | Draft PR only; final documentation commit, normal push, and exact-head evidence remain required; `verified_pr` has not been reached. |
+| Current remote Draft PR head | `66d90872cfc0125536267d574b776d2e88d26b23` before the normal master reconciliation candidate is committed and pushed. |
+| Reconciliation state | Current Framework `master` was merged normally and non-rewriting into the task worktree; the resulting candidate remains local until its final scope review, commit, normal push, and exact-head verification. |
+| Delivery state | Draft PR only; local reconciliation validation is recorded below, while fresh remote checks, SonarCloud, reviews, threads, and exact-head equality remain required. `verified_pr` has not been reached. |
 
 ## Motivation and problem statement
 
@@ -22,7 +22,8 @@ scanner/provenance contract. The initial scanner-action design also exposed a
 task-owned transitive mutable-container path. This change replaces that path
 with checksum-verified CLIs and adds Framework controls without changing the
 Parent repository, its gitlink, or MRTS. Independently governed common-
-structure behavior remains outside this scope.
+structure and Action-pin controls from Framework `master` are retained
+additively; this reconciliation does not replace them.
 
 ## Affected components and security boundaries
 
@@ -111,8 +112,9 @@ maintenance concurrency.
   checksum-verified release CLIs; selected exact CPython 3.12.13 with
   `check-latest: false`; and bound CodeQL to its linked tool bundle.
 - Added English/German CI-security documentation and documentation-index links.
-- Hardened the `test-common.yml` execution envelope without changing its
-  independently governed catalog-count assertion or materialization behavior.
+- Hardened the `test-common.yml` execution envelope while retaining the
+  dynamic, non-empty corpus and Apache-common-selection contract already on
+  `master`; no fixed catalog count is reintroduced.
 - The current local CI-security suite contains sixty-four positive and negative
   tests. They cover the original contracts plus semantic workflow controls,
   strict OSV evidence/group coverage, downloader containment, and the CRS
@@ -122,6 +124,11 @@ maintenance concurrency.
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
+| Current reconciliation: `make test-ci-security-contract test-change-record-contract test-workflow-action-pins test-workflow-contract` with external roots | 0 | 65 CI-security tests, 4 Change-Record tests, 21 immutable Action-pin tests, and 2 dynamic common-structure tests passed against the reconciled candidate. | `20260719T081017Z-framework-pr-resolution-20260719-840082e0/build/pr27-reconciliation.iwDakV` |
+| Current reconciliation: NGINX and PCRE2 archive/provenance regression modules | 0 | All 15 missing/malformed/mismatch/legitimate-control archive tests passed; the master release tag, exact asset, and required SHA-256 contract remains intact. | Same approved run |
+| Current reconciliation: direct Action-pin, CI-security, CI-security-evidence, Change-Record checks and Python compile | 0 | All four contracts passed; compile used the registered external pycache after a protected-worktree write attempt was rejected by the environment. | Same approved run |
+| Current reconciliation: `make lint` with explicit Framework and external roots | 0 | Shell/Python checks, 65 CI-security, Action-pin, dynamic workflow, documentation, catalog, and diff checks passed. | Same approved run |
+| Historical candidate evidence below | n/a | The following earlier rows are retained for traceability only and are not exact-head merge evidence for the reconciled candidate. | Earlier retained task evidence |
 | Focused Framework CI-security suite | 0 | All sixty-four local positive/negative contract, semantic-workflow, strict-OSV-evidence, downloader-containment, lock-path, and CRS-temp-path tests passed. | `20260718T084030Z-expand-framework-ci-security-be8fb24d` |
 | `make test-ci-security-contract` | 0 | The same sixty-four CI-security tests passed through the Framework target. | Same task run |
 | Semantic workflow-evidence checker | 0 | The task-owned source commit satisfies exact-head, artifact/channel, cache, reachability, and OSV evidence constraints. | Same run |
@@ -184,11 +191,15 @@ triaged.
 
 ## Final diff and review status
 
-The committed remote history on `agent/expand-framework-ci-security` currently
-ends at `5b2a26a41e7621e7b246aa1a060149252cfe3062`. The local task-owned
-security follow-up commit is `768a06b5b734547f8213cc6918c26ef4a8ef9f67`; this
-paired documentation reconciliation remains uncommitted. Its final
-whitespace/secret review, exact-head remote CI, SonarQube Cloud, reviews, and
-review-thread verification remain required. There is no merge, Parent gitlink
-update, Parent product/workflow change, or MRTS change. This is a Draft PR, not
-a `verified_pr` delivery state.
+The published remote history on `agent/expand-framework-ci-security` currently
+ends at `66d90872cfc0125536267d574b776d2e88d26b23`. A normal, non-rewriting
+merge of Framework master `9954b99a31fab0006cdf903ab477c8158c50fea8` is under
+local reconciliation. Its additive resolution retains the current NGINX
+release-tag/asset/required-SHA-256 tuple, PCRE2 digest enforcement, the
+independent full-SHA Action-pin checker, and the dynamic common-structure
+contract; #27 adds its scanner/evidence controls rather than replacing them.
+The candidate still requires an explicit scoped diff review, normal commit and
+push, local/remote/PR-head equality, fresh remote CI and SonarCloud evidence,
+reviews, and review-thread verification. There is no Framework merge, Parent
+gitlink update, Parent product/workflow change, or MRTS change. This remains a
+Draft PR and is not a `verified_pr` delivery state.
