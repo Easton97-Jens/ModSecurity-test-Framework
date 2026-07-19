@@ -6,6 +6,12 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/dependabot.yml"
+      - "ci/checks/security/check-workflow-action-pins.py"
+      - "ci/checks/security/check-github-actions-workflows.py"
+      - "tests/security_regression/test_workflow_action_pins.py"
+      - "tests/security_regression/test_workflow_security_contract.py"
+      - "tests/fixtures/workflow_security_contract/**"
+      - "Makefile"
 
 permissions:
   contents: read
@@ -15,9 +21,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
-      - name: Validate workflow action pins
+      - name: Validate immutable action pins
         run: |
           set -euo pipefail
+          python3 ci/checks/security/check-github-actions-workflows.py --check pins
           python3 ci/checks/security/check-workflow-action-pins.py
