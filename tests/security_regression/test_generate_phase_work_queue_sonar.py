@@ -178,9 +178,10 @@ class GeneratePhaseWorkQueueSonarTests(unittest.TestCase):
             connector_root.mkdir()
             outside_root.mkdir()
             outside_canonical = self.write_default_inputs(outside_root)
+            outside_root_text = str(outside_root)
 
             with self.assertRaises(ValueError):
-                self.call_main(connector_root, "--output-root", str(outside_root))
+                self.call_main(connector_root, "--output-root", outside_root_text)
 
             self.assertFalse((outside_canonical / "phase_work_queue.generated.json").exists())
 

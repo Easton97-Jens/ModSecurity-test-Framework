@@ -9,7 +9,7 @@
 | Change ID | `20260719-01-remediate-framework-sonarcloud-quality-gate` |
 | UTC date | 2026-07-19 |
 | Framework base revision | `7a12073c28e62a67492dd501b6513b9914fe5df8` |
-| Issue or pull request | Draft PR pending; no merge authorization |
+| Issue or pull request | Draft PR #30; no merge authorization |
 
 ## Motivation and problem statement
 
@@ -169,3 +169,49 @@ Initial staging, commit, normal push, and Draft PR creation completed; the
 first current-head common-structure run found the verified-root layout defect
 above. A normal follow-up commit and current-head CI/SonarCloud readback are
 pending; merge remains unauthorized.
+
+## Current local reconciliation update
+
+The follow-up remediation is now locally validated. The NGINX archive-digest
+fixture creates the minimal external adapter header required by the existing
+production guard; the guard itself was not relaxed. Its tar observation now
+also records direct use of the expected cached candidate archive, so a future
+unverified extraction cannot be hidden by unrelated adapter-materialization
+tar calls. The focused module completed 10 tests successfully.
+
+The report-state regression now measures the real interpreter behavior instead
+of mocking it: `RUNNER_TEMP` is not selected, `TMPDIR` remains a `mkdtemp`
+parent, and the resulting child directory is private (`0700`). The focused
+module completed 12 tests successfully. The bounded candidate was rejected as
+a reportable vulnerability because no lower-privileged or remote actor can
+read or replace that private child through the evidenced path, and generated
+reports remain constrained under the connector root.
+
+The tracked `find` command-lookup finding
+`FND-FRAMEWORK-MRTS-COMMON-PATH-SHADOW` is fixed with `command -p find` at all
+three classifier calls. The regression exercises a shadowing shell function,
+an unusable caller `PATH`, missing paths, valid regular/directory paths, and
+the prepared-path `77` control. The test-harness finding
+`FND-FRAMEWORK-NGINX-ARCHIVE-HARNESS` is fixed by the narrowly scoped fixture
+repair above.
+
+Current local evidence:
+
+| Command or evidence | Exit code | Result |
+| --- | --- | --- |
+| `python -m unittest discover -s tests/security_regression -q` with isolated task roots | 0 | 212 tests passed. Expected negative-control diagnostics were emitted without failure. |
+| `make lint` | 0 | Shell syntax, Python compile, contracts, workflow checks, security checks, documentation checks, and its diff check passed. |
+| Focused NGINX archive regression | 0 | 10 tests passed. |
+| Focused report-state regression | 0 | 12 tests passed. |
+| Codex Security diff scan finalization and report-format validation | 0 | All 20 diff-scoped files received receipts; both candidates were rejected; no reportable security finding survived. |
+
+The complete external security-scan artifact is retained under task run
+`20260719T131321Z-sonarcloud-quality-gate-f4bb3370`; its canonical report
+records the manual recovery of the scan worklist after the plugin incorrectly
+excluded every `ci/` and `tests/` file. No `tools/MRTS` content was accessed.
+
+The local Sonar scanner remains intentionally unavailable and uninstalled.
+At this update, the exact new commit has not yet been pushed and the Draft PR
+has not been marked ready. Required current-head GitHub CI, SonarCloud Quality
+Gate `OK`, and PR issue readback remain the final delivery evidence; merge
+continues to be unauthorized.

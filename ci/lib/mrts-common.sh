@@ -63,11 +63,14 @@ mrts_append_extra_case_root() {
         *:"$new_root":*)
             ;;
         *)
-            if test -n "${EXTRA_CASE_ROOTS:-}"; then
-                EXTRA_CASE_ROOTS="${EXTRA_CASE_ROOTS}:$new_root"
-            else
-                EXTRA_CASE_ROOTS="$new_root"
-            fi
+            case "${EXTRA_CASE_ROOTS:-}" in
+                "")
+                    EXTRA_CASE_ROOTS="$new_root"
+                    ;;
+                *)
+                    EXTRA_CASE_ROOTS="${EXTRA_CASE_ROOTS}:$new_root"
+                    ;;
+            esac
             ;;
     esac
     export EXTRA_CASE_ROOTS
@@ -88,11 +91,14 @@ mrts_append_reference_case_root() {
         *:"$new_root":*)
             ;;
         *)
-            if test -n "${REFERENCE_CASE_ROOTS:-}"; then
-                REFERENCE_CASE_ROOTS="${REFERENCE_CASE_ROOTS}:$new_root"
-            else
-                REFERENCE_CASE_ROOTS="$new_root"
-            fi
+            case "${REFERENCE_CASE_ROOTS:-}" in
+                "")
+                    REFERENCE_CASE_ROOTS="$new_root"
+                    ;;
+                *)
+                    REFERENCE_CASE_ROOTS="${REFERENCE_CASE_ROOTS}:$new_root"
+                    ;;
+            esac
             ;;
     esac
     export REFERENCE_CASE_ROOTS
@@ -131,6 +137,45 @@ mrts_rule_ids() {
     return $?
 }
 
+mrts_path_matches() (
+    mrts_path_matches_path=$1
+    case "$mrts_path_matches_path" in
+        -*)
+            mrts_path_matches_path="./$mrts_path_matches_path"
+            ;;
+    esac
+    case "$2" in
+        regular)
+            mrts_path_matches_result=$(command -p find -H "$mrts_path_matches_path" -prune -type f -print 2>/dev/null)
+            ;;
+        directory)
+            mrts_path_matches_result=$(command -p find -H "$mrts_path_matches_path" -prune -type d -print 2>/dev/null)
+            ;;
+        nonempty)
+            mrts_path_matches_result=$(command -p find -H "$mrts_path_matches_path" -prune -size +0c -print 2>/dev/null)
+            ;;
+        *)
+            exit 2
+            ;;
+    esac
+    mrts_path_matches_status=$?
+    case "$mrts_path_matches_status" in
+        0)
+            case "$mrts_path_matches_result" in
+                "")
+                    exit 1
+                    ;;
+                *)
+                    exit 0
+                    ;;
+            esac
+            ;;
+        *)
+            exit 2
+            ;;
+    esac
+)
+
 mrts_check_feature_demo_runtime_safe() {
     tmp_dir="${TMP_ROOT:-$BUILD_ROOT/tmp}"
     assert_safe_runtime_path "$tmp_dir" MRTS_TMP_ROOT || exit 77
@@ -141,10 +186,21 @@ mrts_check_feature_demo_runtime_safe() {
     mrts_rule_ids "$MRTS_UPSTREAM_RULES_OUT" > "$upstream_ids"
     mrts_rule_ids "$MRTS_FEATURE_DEMO_RULES_OUT" > "$feature_ids"
     comm -12 "$upstream_ids" "$feature_ids" > "$duplicate_ids" || true
-    if test -s "$duplicate_ids"; then
+    if mrts_path_matches "$duplicate_ids" nonempty; then
         echo "BLOCKED: feature-demo MRTS runtime has duplicate rule IDs with upstream-config-tests: $(tr '\n' ' ' < "$duplicate_ids")" >&2
         rm -f "$upstream_ids" "$feature_ids" "$duplicate_ids"
         exit 77
+    else
+        duplicate_status=$?
+        case "$duplicate_status" in
+            1)
+                ;;
+            *)
+                echo "BLOCKED: cannot inspect feature-demo MRTS duplicate rule IDs: $duplicate_ids" >&2
+                rm -f "$upstream_ids" "$feature_ids" "$duplicate_ids"
+                exit 77
+                ;;
+        esac
     fi
     rm -f "$upstream_ids" "$feature_ids" "$duplicate_ids"
     return $?
@@ -153,11 +209,18 @@ mrts_check_feature_demo_runtime_safe() {
 mrts_append_rule_preamble() {
     new_preamble=$1
     existing_preamble="${MODSECURITY_RULE_PREAMBLE_FILE:-}"
-    if test -z "$existing_preamble" || test "$existing_preamble" = "$new_preamble"; then
-        MODSECURITY_RULE_PREAMBLE_FILE="$new_preamble"
-        export MODSECURITY_RULE_PREAMBLE_FILE
-        return 0
-    fi
+    case "$existing_preamble" in
+        "")
+            MODSECURITY_RULE_PREAMBLE_FILE="$new_preamble"
+            export MODSECURITY_RULE_PREAMBLE_FILE
+            return 0
+            ;;
+        "$new_preamble")
+            MODSECURITY_RULE_PREAMBLE_FILE="$new_preamble"
+            export MODSECURITY_RULE_PREAMBLE_FILE
+            return 0
+            ;;
+    esac
 
     combined="$BUILD_ROOT/preambles/mrts-combined.load"
     assert_safe_runtime_path "$BUILD_ROOT/preambles" MRTS_PREAMBLE_DIR || exit 77
@@ -187,11 +250,13 @@ mrts_import_cases() {
         --output-dir "$MRTS_UPSTREAM_CASE_ROOT"
     feature_status=pending
     feature_reason="MRTS feature-demo corpus is optional/demo and not part of default runtime."
-    if test "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" = "1"; then
-        mrts_check_feature_demo_runtime_safe
-        feature_status=computed
-        feature_reason=""
-    fi
+    case "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" in
+        1)
+            mrts_check_feature_demo_runtime_safe
+            feature_status=computed
+            feature_reason=""
+            ;;
+    esac
     "${PYTHON:-python3}" "$FRAMEWORK_ROOT/ci/provisioning/import-mrts-cases.py" \
         --framework-root "$FRAMEWORK_ROOT" \
         --mrts-corpus feature-demo \
@@ -207,68 +272,90 @@ mrts_import_cases() {
 
 prepare_mrts_variant() {
     validate_mrts_variant
-    if test "$MODSECURITY_MRTS_VARIANT" = "no-mrts"; then
-        if test -n "${EXTRA_CASE_ROOTS:-}"; then
-            export EXTRA_CASE_ROOTS
-        fi
-        return 0
-    fi
+    case "$MODSECURITY_MRTS_VARIANT" in
+        no-mrts)
+            case "${EXTRA_CASE_ROOTS:-}" in
+                "")
+                    ;;
+                *)
+                    export EXTRA_CASE_ROOTS
+                    ;;
+            esac
+            return 0
+            ;;
+    esac
 
-    if test "$MODSECURITY_MRTS_PREPARED" = "1"; then
-        MRTS_LOAD_FILE="${MRTS_LOAD_FILE:-$MRTS_UPSTREAM_LOAD_FILE}"
-        if test ! -f "$MRTS_LOAD_FILE"; then
-            echo "BLOCKED: prepared MRTS load file missing: $MRTS_LOAD_FILE" >&2
-            exit 77
-        fi
-        if test ! -d "$MRTS_UPSTREAM_CASE_ROOT"; then
-            echo "BLOCKED: prepared MRTS case root missing: $MRTS_UPSTREAM_CASE_ROOT" >&2
-            exit 77
-        fi
-        mrts_append_rule_preamble "$MRTS_LOAD_FILE"
-        mrts_append_extra_case_root "$MRTS_UPSTREAM_CASE_ROOT"
-        mrts_append_reference_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
-        if test "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" = "1"; then
-            if test ! -f "$MRTS_FEATURE_DEMO_LOAD_FILE"; then
-                echo "BLOCKED: prepared feature-demo MRTS load file missing: $MRTS_FEATURE_DEMO_LOAD_FILE" >&2
+    case "$MODSECURITY_MRTS_PREPARED" in
+        1)
+            MRTS_LOAD_FILE="${MRTS_LOAD_FILE:-$MRTS_UPSTREAM_LOAD_FILE}"
+            if ! mrts_path_matches "$MRTS_LOAD_FILE" regular; then
+                echo "BLOCKED: prepared MRTS load file missing: $MRTS_LOAD_FILE" >&2
                 exit 77
             fi
-            mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE"
-            mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
-        fi
-        return 0
-    fi
+            if ! mrts_path_matches "$MRTS_UPSTREAM_CASE_ROOT" directory; then
+                echo "BLOCKED: prepared MRTS case root missing: $MRTS_UPSTREAM_CASE_ROOT" >&2
+                exit 77
+            fi
+            mrts_append_rule_preamble "$MRTS_LOAD_FILE"
+            mrts_append_extra_case_root "$MRTS_UPSTREAM_CASE_ROOT"
+            mrts_append_reference_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
+            case "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" in
+                1)
+                    if ! mrts_path_matches "$MRTS_FEATURE_DEMO_LOAD_FILE" regular; then
+                        echo "BLOCKED: prepared feature-demo MRTS load file missing: $MRTS_FEATURE_DEMO_LOAD_FILE" >&2
+                        exit 77
+                    fi
+                    mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE"
+                    mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
+                    ;;
+            esac
+            return 0
+            ;;
+    esac
 
     mrts_generate_all_corpora
     MRTS_LOAD_FILE=$(MRTS_RULES_OUT="$MRTS_UPSTREAM_RULES_OUT" MRTS_LOAD_FILE="$MRTS_UPSTREAM_LOAD_FILE" sh "$FRAMEWORK_ROOT/ci/provisioning/write-mrts-load.sh")
     mrts_append_rule_preamble "$MRTS_LOAD_FILE"
-    if test "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" = "1"; then
-        mrts_check_feature_demo_runtime_safe
-        MRTS_FEATURE_DEMO_LOAD_FILE=$(MRTS_RULES_OUT="$MRTS_FEATURE_DEMO_RULES_OUT" MRTS_LOAD_FILE="$MRTS_FEATURE_DEMO_LOAD_FILE" sh "$FRAMEWORK_ROOT/ci/provisioning/write-mrts-load.sh")
-        mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE"
-    fi
+    case "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" in
+        1)
+            mrts_check_feature_demo_runtime_safe
+            MRTS_FEATURE_DEMO_LOAD_FILE=$(MRTS_RULES_OUT="$MRTS_FEATURE_DEMO_RULES_OUT" MRTS_LOAD_FILE="$MRTS_FEATURE_DEMO_LOAD_FILE" sh "$FRAMEWORK_ROOT/ci/provisioning/write-mrts-load.sh")
+            mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE"
+            ;;
+    esac
     mrts_append_extra_case_root "$MRTS_UPSTREAM_CASE_ROOT"
     mrts_append_reference_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
-    if test "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" = "1"; then
-        mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
-        return $?
-    fi
+    case "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" in
+        1)
+            mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
+            return $?
+            ;;
+    esac
     return 0
 }
 
 prepare_mrts_runtime_variant() {
     prepare_mrts_variant
-    if test "$MODSECURITY_MRTS_VARIANT" = "with-mrts" && test "$MODSECURITY_MRTS_PREPARED" != "1"; then
-        mrts_import_cases
-        return $?
-    fi
+    case "$MODSECURITY_MRTS_VARIANT:$MODSECURITY_MRTS_PREPARED" in
+        with-mrts:1)
+            ;;
+        with-mrts:*)
+            mrts_import_cases
+            return $?
+            ;;
+    esac
     return 0
 }
 
 set_mrts_results_dir() {
-    if test -n "${RESULTS_DIR:-}"; then
-        export RESULTS_DIR
-        return 0
-    fi
+    case "${RESULTS_DIR:-}" in
+        "")
+            ;;
+        *)
+            export RESULTS_DIR
+            return 0
+            ;;
+    esac
 
     MODSECURITY_TEST_VARIANT="${MODSECURITY_TEST_VARIANT:-no-crs}"
     MODSECURITY_MRTS_VARIANT="${MODSECURITY_MRTS_VARIANT:-no-mrts}"

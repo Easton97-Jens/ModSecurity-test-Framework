@@ -31,9 +31,6 @@ USES_LINE_RE = re.compile(
 FLOW_COLLECTION_RE = re.compile(r"(?:^|[:\-,\[]\s*)[\[{]")
 EXPLICIT_MAPPING_KEY_RE = re.compile(r"^\s*(?:-\s*)?\?")
 ADVANCED_YAML_NODE_RE = re.compile(r"^\s*(?:-\s*)?(?:!|&|\*|<<\s*:)")
-ADVANCED_YAML_MAPPING_VALUE_RE = re.compile(
-    r"^\s*(?:-\s*)?[^#:\n][^:\n]*:\s*[!&*]"
-)
 YAML_DOCUMENT_MARKER_RE = re.compile(r"^\s*(?:---|\.\.\.)(?:\s|$)")
 DOUBLE_QUOTED_MAPPING_KEY_RE = re.compile(
     r'^\s*(?:-\s*)?"(?P<key>(?:[^"\\]|\\.)*)"\s*:'
@@ -163,6 +160,16 @@ def normalized_reference(reference: str) -> str:
     return reference.strip().strip("'\"")
 
 
+def has_advanced_yaml_mapping_value(line: str) -> bool:
+    content = line.lstrip()
+    if content.startswith("-"):
+        content = content[1:].lstrip()
+    if not content or content[0] in {"#", ":"}:
+        return False
+    _, separator, value = content.partition(":")
+    return bool(separator) and value.lstrip().startswith(("!", "&", "*"))
+
+
 def source_syntax_error(path: Path, line_number: int, line: str) -> str | None:
     if YAML_DOCUMENT_MARKER_RE.match(line):
         return (
@@ -174,7 +181,7 @@ def source_syntax_error(path: Path, line_number: int, line: str) -> str | None:
             f"{path}:{line_number}: YAML explicit mapping keys are prohibited in "
             "workflows; use simple block mappings for reviewable action pins"
         )
-    if ADVANCED_YAML_NODE_RE.match(line) or ADVANCED_YAML_MAPPING_VALUE_RE.match(line):
+    if ADVANCED_YAML_NODE_RE.match(line) or has_advanced_yaml_mapping_value(line):
         return (
             f"{path}:{line_number}: YAML tags, anchors, aliases, and merge keys are "
             "prohibited in workflows; use simple block mappings for reviewable action pins"

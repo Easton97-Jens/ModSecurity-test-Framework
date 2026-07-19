@@ -32,14 +32,29 @@ def load_doc_link_checker():
 
 
 class FallbackYamlParserHardeningTests(unittest.TestCase):
-    def parse_header(self, header: str) -> dict[str, object]:
+    def parse_content(self, content: str) -> dict[str, object]:
         with tempfile.TemporaryDirectory() as temporary_directory:
             case_path = Path(temporary_directory) / "case.yaml"
-            case_path.write_text(
-                f"rules: {header}\n  SecRuleEngine On\n",
-                encoding="utf-8",
-            )
+            case_path.write_text(content, encoding="utf-8")
             return dict(runner_core._load_minimal_yaml(case_path))
+
+    def parse_header(self, header: str) -> dict[str, object]:
+        return self.parse_content(f"rules: {header}\n  SecRuleEngine On\n")
+
+    def test_preserves_inline_sequence_mapping_and_rejects_overindentation(self) -> None:
+        parsed = self.parse_content(
+            "headers:\n"
+            "  - name: Content-Type\n"
+            "    value: application/json\n"
+            "  - Accept\n"
+        )
+        self.assertEqual(
+            {"headers": [{"name": "Content-Type", "value": "application/json"}, "Accept"]},
+            parsed,
+        )
+
+        with self.assertRaisesRegex(ValueError, "unexpected indentation"):
+            self.parse_content("headers:\n  - name: Content-Type\n      value: json\n")
 
     def test_accepts_documented_block_scalar_header_forms(self) -> None:
         headers: list[str] = []

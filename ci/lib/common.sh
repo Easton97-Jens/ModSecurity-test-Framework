@@ -1334,6 +1334,7 @@ ci_modsecurity_v3_git() (
         git -c core.hooksPath=/dev/null -c protocol.file.allow=never \
             -c fetch.recurseSubmodules=false -c submodule.recurse=false \
             -c http.sslVerify=true "$@"
+    return $?
 )
 
 ci_require_approved_modsecurity_v3_provenance() {

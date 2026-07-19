@@ -31,7 +31,14 @@ PARAM_EXPANSION_RE = re.compile(r"\$\{((?!\d)\w+):[-=]([^{}]*)\}", re.ASCII)
 BRACED_VAR_RE = re.compile(r"\$\{((?!\d)\w+)\}", re.ASCII)
 PLAIN_VAR_RE = re.compile(r"\$((?!\d)\w+)", re.ASCII)
 SHA256_RE = re.compile(r"\b([A-Fa-f0-9]{64})\b")
+SHA256_VALUE_RE = re.compile(r"^[a-f0-9]{64}$")
 SAFE_REF_RE = re.compile(r"^(?!.*\.\.)(?!/)(?!.*//)[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
+SAFE_VERSION_RE = re.compile(r"^\d+(?:\.\d+)+$")
+SAFE_HTTPS_HOST_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$")
+SAFE_HTTPS_PATH_RE = re.compile(r"^/[A-Za-z0-9._~/-]*$")
+URL_PATH_DYNAMIC_VALUE_RE = re.compile(
+    r"\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)|\d+(?:\.\d+)+"
+)
 NGINX_RELEASE_ASSET_RE = re.compile(r"^nginx-([A-Za-z0-9][A-Za-z0-9._-]*)\.tar\.gz$")
 OPTIONAL_EMPTY_VARIABLES = {
     "APACHE_BIN",
@@ -215,9 +222,91 @@ def value(entries: dict[str, VariableEntry], name: str) -> str:
     return current.resolved if current else ""
 
 
-def require_shell_safe_default(variable: str, new_default: str) -> None:
+def trusted_https_path_prefix(path: str) -> str:
+    dynamic_value = URL_PATH_DYNAMIC_VALUE_RE.search(path)
+    if dynamic_value is not None:
+        return path[: dynamic_value.start()]
+    return path.rsplit("/", 1)[0] + "/"
+
+
+def require_safe_https_update_url(
+    variable: str,
+    new_default: str,
+    trusted_default: str | None = None,
+) -> None:
+    parsed = urlparse(new_default)
+    try:
+        port = parsed.port
+        hostname = parsed.hostname
+    except ValueError as exc:
+        raise UpstreamError(f"refusing invalid HTTPS URL for {variable}: {new_default!r}") from exc
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or not hostname
+        or not SAFE_HTTPS_HOST_RE.fullmatch(hostname)
+        or ".." in hostname
+        or (port is not None and not 1 <= port <= 65535)
+        or not SAFE_HTTPS_PATH_RE.fullmatch(parsed.path or "/")
+        or ".." in parsed.path
+        or "//" in parsed.path
+    ):
+        raise UpstreamError(f"refusing invalid HTTPS URL for {variable}: {new_default!r}")
+    if trusted_default is None:
+        return
+    trusted = urlparse(trusted_default)
+    try:
+        trusted_port = trusted.port
+        trusted_hostname = trusted.hostname
+    except ValueError as exc:
+        raise UpstreamError(
+            f"refusing URL update without a trusted HTTPS authority for {variable}: "
+            f"{trusted_default!r}"
+        ) from exc
+    if (
+        trusted.scheme != "https"
+        or not trusted.netloc
+        or trusted.username is not None
+        or trusted.password is not None
+        or not trusted_hostname
+        or not SAFE_HTTPS_HOST_RE.fullmatch(trusted_hostname)
+        or ".." in trusted_hostname
+        or (trusted_port is not None and not 1 <= trusted_port <= 65535)
+        or ".." in trusted.path
+        or "//" in trusted.path
+        or hostname != trusted_hostname
+        or port != trusted_port
+        or not parsed.path.startswith(trusted_https_path_prefix(trusted.path or "/"))
+    ):
+        raise UpstreamError(
+            f"refusing HTTPS authority change for {variable}: {new_default!r}"
+        )
+
+
+def require_shell_safe_default(
+    variable: str,
+    new_default: str,
+    trusted_default: str | None = None,
+) -> None:
+    if not isinstance(new_default, str) or not new_default:
+        raise UpstreamError(f"refusing empty or non-text shell default for {variable}")
     if any(ch in new_default for ch in (" ", "\t", "\n", "$", "`", "\"", "'", ";", "{", "}", "(", ")", "#", "&", "|", "<", ">", "\\")):
         raise UpstreamError(f"refusing unsafe shell default for {variable}: {new_default!r}")
+    if variable == "VERSION" or variable.endswith("_VERSION"):
+        if not SAFE_VERSION_RE.fullmatch(new_default):
+            raise UpstreamError(f"refusing invalid version for {variable}: {new_default!r}")
+        return
+    if variable == "SHA256" or variable.endswith("_SHA256"):
+        if not SHA256_VALUE_RE.fullmatch(new_default):
+            raise UpstreamError(f"refusing invalid SHA-256 value for {variable}: {new_default!r}")
+        return
+    if variable == "URL" or variable.endswith("_URL"):
+        require_safe_https_update_url(variable, new_default, trusted_default)
+        return
     if ".." in new_default or new_default.startswith("/") or "//" in new_default:
         raise UpstreamError(f"refusing traversal-like shell default for {variable}: {new_default!r}")
 
@@ -225,8 +314,12 @@ def require_shell_safe_default(variable: str, new_default: str) -> None:
 def plan_update(
     entries: dict[str, VariableEntry], variable: str, new_default: str
 ) -> UpdateChange | None:
-    require_shell_safe_default(variable, new_default)
     current = entry(entries, variable)
+    require_shell_safe_default(
+        variable,
+        new_default,
+        current.default if current is not None else None,
+    )
     if current is None:
         return None
     if current.default == new_default:
@@ -255,13 +348,27 @@ def apply_updates(common_sh: Path, lines: list[str], updates: list[UpdateChange]
         return
     target = require_safe_common_sh_update_target(common_sh)
     seen: set[str] = set()
+    replacements: list[tuple[int, str]] = []
     for update in updates:
         if update.variable in seen:
             raise UpstreamError(f"duplicate update for {update.variable}")
         seen.add(update.variable)
+        if update.line < 1:
+            raise UpstreamError(f"invalid update line for {update.variable}: {update.line}")
         index = update.line - 1
-        lines[index] = replace_default_line(lines[index], update.variable, update.new)
-    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        try:
+            current_line = lines[index]
+        except IndexError as exc:
+            raise UpstreamError(f"invalid update line for {update.variable}: {update.line}") from exc
+        assignment = parse_common_assignment(current_line)
+        if assignment is None or assignment[1] != update.variable or assignment[2] != update.old:
+            raise UpstreamError(f"update no longer matches {update.variable} at line {update.line}")
+        require_shell_safe_default(update.variable, update.new, assignment[2])
+        replacements.append((index, replace_default_line(current_line, update.variable, update.new)))
+    updated_lines = list(lines)
+    for index, replacement in replacements:
+        updated_lines[index] = replacement
+    target.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
 
 
 def consume_decimal_digits(text: str, start: int) -> int:

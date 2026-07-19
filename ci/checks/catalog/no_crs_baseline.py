@@ -22,7 +22,7 @@ import secrets
 import stat
 import subprocess
 import sys
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence, TypedDict
 
 
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[3]
@@ -1562,11 +1562,10 @@ def validate_plan_against_capabilities(
     expected = select_cases(
         connector, manifest, catalog, evidence_stage, artifact_profile
     )
-    if plan_semantics(plan) == plan_semantics(expected):
-        return
-    raise ContractError(
-        "plan does not match a fresh capability-driven selection; regenerate it with the select command"
-    )
+    if plan_semantics(plan) != plan_semantics(expected):
+        raise ContractError(
+            "plan does not match a fresh capability-driven selection; regenerate it with the select command"
+        )
 
 
 def nearest_existing_directory(path: Path) -> Path:
@@ -3742,30 +3741,34 @@ def normalized_case_operation_status(status: str) -> str:
     }[status])
 
 
+class NormalizedCaseRecordDetails(TypedDict):
+    run_id: str | None
+    integration_mode: str | None
+    observed_result: object
+    expected_status: int | None
+    actual_status: int | None
+    expected_rule_id: int | None
+    observed_rule_ids: Sequence[int]
+    transaction_ids: Sequence[str]
+    expected_fields: Sequence[str]
+    observed_event_fields: Sequence[str]
+    event_metadata_verified: bool
+    semantic_values: Mapping[str, object]
+
+
 def build_normalized_case_record(
     raw: Mapping[str, Any],
     case: Mapping[str, Any],
     connector: str,
     case_id: str,
     status: str,
-    run_id: str | None,
-    record_integration_mode: str | None,
-    observed_result: object,
-    expected_status: int | None,
-    actual_status: int | None,
-    expected_rule_id: int | None,
-    observed_rule_ids: Sequence[int],
-    transaction_ids: Sequence[str],
-    expected_fields: Sequence[str],
-    observed_event_fields: Sequence[str],
-    event_metadata_verified: bool,
-    semantic_values: Mapping[str, object],
+    details: NormalizedCaseRecordDetails,
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "connector": connector,
-        "run_id": run_id,
-        "integration_mode": record_integration_mode,
+        "run_id": details["run_id"],
+        "integration_mode": details["integration_mode"],
         "case_id": case_id,
         "group": case.get("group", ""),
         "phase": case.get("phase"),
@@ -3774,16 +3777,16 @@ def build_normalized_case_record(
         "operation_status": normalized_case_operation_status(status),
         "live_executed": raw.get("live_executed") is True,
         "expected_result": case.get("expected_result"),
-        "observed_result": observed_result,
-        "expected_status": expected_status,
-        "actual_status": actual_status,
-        "expected_rule_id": expected_rule_id,
-        "observed_rule_ids": list(observed_rule_ids),
-        "transaction_ids": list(transaction_ids),
-        "expected_event_fields": list(expected_fields),
-        "observed_event_fields": list(observed_event_fields),
-        "event_metadata_verified": event_metadata_verified,
-        **semantic_values,
+        "observed_result": details["observed_result"],
+        "expected_status": details["expected_status"],
+        "actual_status": details["actual_status"],
+        "expected_rule_id": details["expected_rule_id"],
+        "observed_rule_ids": list(details["observed_rule_ids"]),
+        "transaction_ids": list(details["transaction_ids"]),
+        "expected_event_fields": list(details["expected_fields"]),
+        "observed_event_fields": list(details["observed_event_fields"]),
+        "event_metadata_verified": details["event_metadata_verified"],
+        **details["semantic_values"],
         "reason": str(raw.get("reason") or raw.get("skipped_reason") or ""),
         "exit_code": optional_int(raw.get("exit_code")),
         "artifacts": raw.get("artifacts") if isinstance(raw.get("artifacts"), Mapping) else {},
@@ -3912,24 +3915,27 @@ def normalize_case_record(
     event_metadata_verified = case_event_metadata_verified(
         raw, matching_event, event_errors, expected_fields, observed_event_fields,
     )
+    details: NormalizedCaseRecordDetails = {
+        "run_id": raw_run_id,
+        "integration_mode": raw_integration_mode,
+        "observed_result": observed_result,
+        "expected_status": expected_status,
+        "actual_status": actual_status,
+        "expected_rule_id": expected_rule_id,
+        "observed_rule_ids": observed_rule_ids,
+        "transaction_ids": transaction_ids,
+        "expected_fields": expected_fields,
+        "observed_event_fields": observed_event_fields,
+        "event_metadata_verified": event_metadata_verified,
+        "semantic_values": semantic_values,
+    }
     record = build_normalized_case_record(
         raw,
         case,
         connector,
         case_id,
         status,
-        raw_run_id,
-        raw_integration_mode,
-        observed_result,
-        expected_status,
-        actual_status,
-        expected_rule_id,
-        observed_rule_ids,
-        transaction_ids,
-        expected_fields,
-        observed_event_fields,
-        event_metadata_verified,
-        semantic_values,
+        details,
     )
     if status == "PASS":
         validation_errors = normalized_case_pass_errors(
@@ -5289,54 +5295,55 @@ class FinalizeContext:
         self.case_by_id = case_by_id
 
 
+class FinalizeSummaryValues(TypedDict):
+    status: str
+    blocked_before_execution: bool
+    source_statuses: list[str]
+    source_failure: bool
+    counts: Counter[str]
+    observed_rule_ids: list[int]
+    transaction_ids: list[str]
+    pass_ids: set[str]
+    verified_capabilities: list[str]
+    unsupported_capabilities: list[str]
+    not_exercised_capabilities: list[str]
+    requests_sent: bool
+    started: bool
+    event_metadata_verified: bool
+    body_payload_absent_from_events: bool
+    host_version: object
+    libmodsecurity_version: object
+    minimal_runtime_verified: bool
+    pass_gate_failures: list[str]
+    allowed_record: Mapping[str, Any]
+    blocked_record: Mapping[str, Any]
+    evidence_stages: dict[str, Any]
+
+
 class FinalizeSummary:
-    def __init__(
-        self,
-        status: str,
-        blocked_before_execution: bool,
-        source_statuses: list[str],
-        source_failure: bool,
-        counts: Counter[str],
-        observed_rule_ids: list[int],
-        transaction_ids: list[str],
-        pass_ids: set[str],
-        verified_capabilities: list[str],
-        unsupported_capabilities: list[str],
-        not_exercised_capabilities: list[str],
-        requests_sent: bool,
-        started: bool,
-        event_metadata_verified: bool,
-        body_payload_absent_from_events: bool,
-        host_version: object,
-        libmodsecurity_version: object,
-        minimal_runtime_verified: bool,
-        pass_gate_failures: list[str],
-        allowed_record: Mapping[str, Any],
-        blocked_record: Mapping[str, Any],
-        evidence_stages: dict[str, Any],
-    ) -> None:
-        self.status = status
-        self.blocked_before_execution = blocked_before_execution
-        self.source_statuses = source_statuses
-        self.source_failure = source_failure
-        self.counts = counts
-        self.observed_rule_ids = observed_rule_ids
-        self.transaction_ids = transaction_ids
-        self.pass_ids = pass_ids
-        self.verified_capabilities = verified_capabilities
-        self.unsupported_capabilities = unsupported_capabilities
-        self.not_exercised_capabilities = not_exercised_capabilities
-        self.requests_sent = requests_sent
-        self.started = started
-        self.event_metadata_verified = event_metadata_verified
-        self.body_payload_absent_from_events = body_payload_absent_from_events
-        self.host_version = host_version
-        self.libmodsecurity_version = libmodsecurity_version
-        self.minimal_runtime_verified = minimal_runtime_verified
-        self.pass_gate_failures = pass_gate_failures
-        self.allowed_record = allowed_record
-        self.blocked_record = blocked_record
-        self.evidence_stages = evidence_stages
+    def __init__(self, values: FinalizeSummaryValues) -> None:
+        self.status = values["status"]
+        self.blocked_before_execution = values["blocked_before_execution"]
+        self.source_statuses = values["source_statuses"]
+        self.source_failure = values["source_failure"]
+        self.counts = values["counts"]
+        self.observed_rule_ids = values["observed_rule_ids"]
+        self.transaction_ids = values["transaction_ids"]
+        self.pass_ids = values["pass_ids"]
+        self.verified_capabilities = values["verified_capabilities"]
+        self.unsupported_capabilities = values["unsupported_capabilities"]
+        self.not_exercised_capabilities = values["not_exercised_capabilities"]
+        self.requests_sent = values["requests_sent"]
+        self.started = values["started"]
+        self.event_metadata_verified = values["event_metadata_verified"]
+        self.body_payload_absent_from_events = values["body_payload_absent_from_events"]
+        self.host_version = values["host_version"]
+        self.libmodsecurity_version = values["libmodsecurity_version"]
+        self.minimal_runtime_verified = values["minimal_runtime_verified"]
+        self.pass_gate_failures = values["pass_gate_failures"]
+        self.allowed_record = values["allowed_record"]
+        self.blocked_record = values["blocked_record"]
+        self.evidence_stages = values["evidence_stages"]
 
 
 def load_initialized_finalize_documents(run_dir: Path) -> tuple[Path, dict[str, Any], dict[str, Any]]:
@@ -5979,30 +5986,33 @@ def build_finalize_summary(
         libmodsecurity_version,
         first_byte_evidence,
     )
-    return FinalizeSummary(
-        status,
-        blocked_before_execution,
-        source_statuses,
-        source_failure,
-        counts,
-        observed_rule_ids,
-        transaction_ids,
-        pass_ids,
-        verified,
-        unsupported,
-        not_exercised,
-        requests_sent,
-        source_started or requests_sent,
-        event_metadata_verified,
-        body_payload_absent,
-        host_version,
-        libmodsecurity_version,
-        minimal_runtime_verified,
-        pass_gate_failures,
-        deduplicated.get("allow_without_marker", {}),
-        deduplicated.get("deny_header_marker_403", {}),
-        finalized_evidence_stages(context, status, minimal_runtime_verified),
-    )
+    values: FinalizeSummaryValues = {
+        "status": status,
+        "blocked_before_execution": blocked_before_execution,
+        "source_statuses": source_statuses,
+        "source_failure": source_failure,
+        "counts": counts,
+        "observed_rule_ids": observed_rule_ids,
+        "transaction_ids": transaction_ids,
+        "pass_ids": pass_ids,
+        "verified_capabilities": verified,
+        "unsupported_capabilities": unsupported,
+        "not_exercised_capabilities": not_exercised,
+        "requests_sent": requests_sent,
+        "started": source_started or requests_sent,
+        "event_metadata_verified": event_metadata_verified,
+        "body_payload_absent_from_events": body_payload_absent,
+        "host_version": host_version,
+        "libmodsecurity_version": libmodsecurity_version,
+        "minimal_runtime_verified": minimal_runtime_verified,
+        "pass_gate_failures": pass_gate_failures,
+        "allowed_record": deduplicated.get("allow_without_marker", {}),
+        "blocked_record": deduplicated.get("deny_header_marker_403", {}),
+        "evidence_stages": finalized_evidence_stages(
+            context, status, minimal_runtime_verified,
+        ),
+    }
+    return FinalizeSummary(values)
 
 
 def write_finalize_inventory(
@@ -6416,7 +6426,9 @@ def canonical_event_errors(
     return errors
 
 
-def canonical_event_protocol_errors(event: Mapping[str, Any], location: str) -> list[str]:
+def normalized_event_protocol_values(
+    event: Mapping[str, Any], location: str,
+) -> tuple[dict[str, object], list[str]]:
     errors: list[str] = []
     protocol_values: dict[str, object] = {}
     for field in EVENT_PROTOCOL_NORMALIZATION_FIELDS:
@@ -6433,6 +6445,13 @@ def canonical_event_protocol_errors(event: Mapping[str, Any], location: str) -> 
             and protocol_values[field] is None
         ):
             errors.append(f"{location}.{field}: unsupported transport provenance")
+    return protocol_values, errors
+
+
+def canonical_event_transport_errors(
+    protocol_values: Mapping[str, object], location: str,
+) -> list[str]:
+    errors: list[str] = []
     effective_downstream = (
         protocol_values.get("negotiated_protocol")
         or protocol_values.get("downstream_protocol")
@@ -6447,6 +6466,12 @@ def canonical_event_protocol_errors(event: Mapping[str, Any], location: str) -> 
         and effective_downstream not in {"h2", "h2c", "h3"}
     ):
         errors.append(f"{location}.stream_reset: requires h2, h2c, or h3 downstream protocol")
+    return errors
+
+
+def canonical_event_protocol_errors(event: Mapping[str, Any], location: str) -> list[str]:
+    protocol_values, errors = normalized_event_protocol_values(event, location)
+    errors.extend(canonical_event_transport_errors(protocol_values, location))
     return errors
 
 
@@ -7110,19 +7135,30 @@ def body_payload_json_artifact_errors(
     for path in sorted(json_artifacts):
         if not path.is_file():
             continue
-        if path.suffix == ".jsonl":
-            records = read_jsonl(path)
-            if path.name == EVENTS_FILE_NAME:
-                events = records
-            for index, record in enumerate(records):
-                if path.name == EVENTS_FILE_NAME:
-                    errors.extend(canonical_event_errors(record, f"{path.name}[{index}]"))
-                else:
-                    errors.extend(forbidden_payload_errors(record, f"{path.name}[{index}]"))
-        else:
-            payload = load_json(path)
-            errors.extend(forbidden_payload_errors(payload, path.name))
+        artifact_events, artifact_errors = body_payload_artifact_errors(path)
+        if artifact_events is not None:
+            events = artifact_events
+        errors.extend(artifact_errors)
     return events, errors
+
+
+def body_payload_artifact_errors(
+    path: Path,
+) -> tuple[list[dict[str, Any]] | None, list[str]]:
+    if path.suffix != ".jsonl":
+        return None, forbidden_payload_errors(load_json(path), path.name)
+    records = read_jsonl(path)
+    if path.name != EVENTS_FILE_NAME:
+        return None, [
+            error
+            for index, record in enumerate(records)
+            for error in forbidden_payload_errors(record, f"{path.name}[{index}]")
+        ]
+    return records, [
+        error
+        for index, record in enumerate(records)
+        for error in canonical_event_errors(record, f"{path.name}[{index}]")
+    ]
 
 
 def body_payload_log_errors(run_dir: Path, actual_files: Sequence[Path]) -> list[str]:

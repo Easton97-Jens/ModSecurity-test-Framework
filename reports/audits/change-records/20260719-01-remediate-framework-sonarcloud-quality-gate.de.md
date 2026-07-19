@@ -9,7 +9,7 @@
 | Change-ID | `20260719-01-remediate-framework-sonarcloud-quality-gate` |
 | UTC-Datum | 2026-07-19 |
 | Framework-Basisrevision | `7a12073c28e62a67492dd501b6513b9914fe5df8` |
-| Issue oder Pull Request | Draft-PR ausstehend; keine Merge-Autorisierung |
+| Issue oder Pull Request | Draft-PR #30; keine Merge-Autorisierung |
 
 ## Motivation und Problemstellung
 
@@ -176,3 +176,53 @@ Commit, normaler Push und Draft-PR-Erstellung sind abgeschlossen; der erste
 aktuelle Head-Lauf `common-structure` fand den oben beschriebenen
 Verified-Root-Layout-Fehler. Ein normaler Follow-up-Commit sowie aktuelles
 Head-CI-/SonarCloud-Readback stehen aus; ein Merge bleibt nicht autorisiert.
+
+## Aktuelle lokale Abgleichaktualisierung
+
+Die Follow-up-Remediation ist nun lokal validiert. Die NGINX-Archive-Digest-
+Fixture erzeugt den minimalen externen Adapter-Header, den der bestehende
+Produktions-Guard benötigt; der Guard selbst wurde nicht gelockert. Ihre
+Tar-Beobachtung protokolliert nun auch die direkte Nutzung des erwarteten
+gecachten Kandidatenarchivs, sodass eine zukünftige unbestätigte Extraktion
+nicht durch nicht zugehörige Tar-Aufrufe der Adapter-Materialisierung verdeckt
+werden kann. Das fokussierte Modul schloss 10 Tests erfolgreich ab.
+
+Die Report-State-Regression misst jetzt das tatsächliche Interpreterverhalten,
+statt es zu mocken: `RUNNER_TEMP` wird nicht gewählt, `TMPDIR` bleibt ein
+`mkdtemp`-Parent, und das resultierende Kindverzeichnis ist privat (`0700`).
+Das fokussierte Modul schloss 12 Tests erfolgreich ab. Der begrenzte Kandidat
+wurde als berichtspflichtige Schwachstelle verworfen, weil kein weniger
+privilegierter oder entfernter Akteur dieses private Kind über den belegten
+Pfad lesen oder ersetzen kann und generierte Reports weiterhin unter dem
+Connector-Root begrenzt bleiben.
+
+Der getrackte `find`-Command-Lookup-Befund
+`FND-FRAMEWORK-MRTS-COMMON-PATH-SHADOW` ist mit `command -p find` an allen
+drei Klassifizierer-Aufrufen behoben. Die Regression prüft eine shadowende
+Shell-Funktion, einen unbrauchbaren aufrufenden `PATH`, fehlende Pfade,
+gültige Regular-/Directory-Pfade und die Prepared-Path-`77`-Kontrolle. Der
+Test-Harness-Befund `FND-FRAMEWORK-NGINX-ARCHIVE-HARNESS` ist durch die oben
+beschriebene eng begrenzte Fixture-Reparatur behoben.
+
+Aktuelle lokale Evidenz:
+
+| Befehl oder Evidenz | Exit-Code | Ergebnis |
+| --- | --- | --- |
+| `python -m unittest discover -s tests/security_regression -q` mit isolierten Task-Roots | 0 | 212 Tests bestanden. Erwartete Negative-Control-Diagnosen wurden ohne Fehler ausgegeben. |
+| `make lint` | 0 | Shell-Syntax, Python-Compile, Verträge, Workflow-Prüfungen, Security-Prüfungen, Dokumentationsprüfungen und der enthaltene Diff-Check bestanden. |
+| Fokussierte NGINX-Archive-Regression | 0 | 10 Tests bestanden. |
+| Fokussierte Report-State-Regression | 0 | 12 Tests bestanden. |
+| Codex-Security-Diff-Scan-Finalisierung und Report-Format-Validierung | 0 | Alle 20 diff-begrenzten Dateien erhielten Receipts; beide Kandidaten wurden verworfen; kein berichtspflichtiger Security-Befund überlebte. |
+
+Das vollständige externe Security-Scan-Artefakt wird unter dem Task-Run
+`20260719T131321Z-sonarcloud-quality-gate-f4bb3370` aufbewahrt; sein
+kanonischer Report dokumentiert die manuelle Wiederaufnahme der Scan-Worklist,
+nachdem das Plugin fälschlich jede Datei unter `ci/` und `tests/` ausgeschlossen
+hatte. Es wurde kein `tools/MRTS`-Inhalt aufgerufen.
+
+Der lokale Sonar-Scanner bleibt absichtlich nicht verfügbar und wurde nicht
+installiert. Zum Zeitpunkt dieser Aktualisierung ist der exakte neue Commit
+noch nicht gepusht und der Draft-PR wurde nicht auf ready gesetzt. Erforderliche
+GitHub-CI des aktuellen Heads, SonarCloud-Quality-Gate `OK` und das
+PR-Issue-Readback bleiben die finale Delivery-Evidenz; ein Merge bleibt nicht
+autorisiert.

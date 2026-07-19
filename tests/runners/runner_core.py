@@ -254,18 +254,18 @@ class MinimalYamlParser:
             parsed.append(value)
         return parsed, index
 
-    def _sequence_item(self, index: int, indent: int) -> tuple[Any, int] | None:
+    def _sequence_line(self, index: int, indent: int) -> str | None:
         line = self.lines[index]
-        if _indent_of(line) < indent or not line.strip().startswith("- "):
+        line_indent = _indent_of(line)
+        if line_indent < indent or not line.strip().startswith("- "):
             return None
-        if _indent_of(line) > indent:
+        if line_indent > indent:
             raise ValueError(f"unexpected indentation in {self.path}: {line}")
-        raw_value = line.strip()[2:].strip()
-        index += 1
-        if not raw_value:
-            return self.parse_node(index, indent + 2)
-        if ":" not in raw_value or raw_value.startswith(("'", '"')):
-            return _parse_scalar(raw_value), index
+        return line
+
+    def _inline_sequence_mapping(
+        self, raw_value: str, index: int, indent: int
+    ) -> tuple[dict[str, Any], int]:
         key, value = raw_value.split(":", 1)
         item: dict[str, Any] = {key.strip(): _parse_scalar(value.strip())}
         candidate = self.next_significant(index)
@@ -273,6 +273,23 @@ class MinimalYamlParser:
             nested, index = self.parse_mapping(index, indent + 2)
             item.update(nested)
         return item, index
+
+    def _sequence_value(
+        self, raw_value: str, index: int, indent: int
+    ) -> tuple[Any, int]:
+        if ":" not in raw_value or raw_value.startswith(("'", '"')):
+            return _parse_scalar(raw_value), index
+        return self._inline_sequence_mapping(raw_value, index, indent)
+
+    def _sequence_item(self, index: int, indent: int) -> tuple[Any, int] | None:
+        line = self._sequence_line(index, indent)
+        if line is None:
+            return None
+        raw_value = line.strip()[2:].strip()
+        index += 1
+        if not raw_value:
+            return self.parse_node(index, indent + 2)
+        return self._sequence_value(raw_value, index, indent)
 
     def parse_mapping(self, index: int, indent: int) -> tuple[dict[str, Any], int]:
         parsed: dict[str, Any] = {}

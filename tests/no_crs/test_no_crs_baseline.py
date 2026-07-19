@@ -38,6 +38,17 @@ from synchronized_upstream import (  # noqa: E402
 )
 
 
+def require_control_file_port(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 65535:
+        raise ValueError("control-file upstream_port must be an integer in the range 1..65535")
+    return value
+
+
+def connect_control_file_loopback(address: dict[str, object], timeout: float) -> socket.socket:
+    port = require_control_file_port(address.get("upstream_port"))
+    return socket.create_connection(("127.0.0.1", port), timeout=timeout)
+
+
 def manifest(connector: str = "envoy", executable: set[str] | None = None) -> dict[str, object]:
     executable = executable or {"request_headers", "phase1", "deny"}
     capabilities = {
@@ -1000,6 +1011,19 @@ class NoCrsBaselineTest(unittest.TestCase):
         self.assertEqual(["FAIL", "FAIL"], [record["status"] for record in records])
         self.assertTrue(all("cannot promote" in record["reason"] for record in records))
 
+    def test_control_file_port_validation_prevents_invalid_loopback_connections(self) -> None:
+        for invalid_port in (True, False, 0, -1, 65536, "8080", 1.5, None):
+            with self.subTest(invalid_port=invalid_port):
+                with mock.patch.object(socket, "create_connection") as create_connection:
+                    with self.assertRaises(ValueError):
+                        connect_control_file_loopback({"upstream_port": invalid_port}, timeout=2.0)
+                create_connection.assert_not_called()
+
+        with mock.patch.object(socket, "create_connection", return_value=mock.sentinel.connection) as create_connection:
+            connection = connect_control_file_loopback({"upstream_port": 8080}, timeout=2.0)
+        self.assertIs(mock.sentinel.connection, connection)
+        create_connection.assert_called_once_with(("127.0.0.1", 8080), timeout=2.0)
+
     def test_control_file_daemon_pauses_until_the_harness_releases_it(self) -> None:
         with tempfile.TemporaryDirectory(prefix="first-byte-daemon-") as temporary:
             root = Path(temporary)
@@ -1031,7 +1055,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             address = json.loads(ready.read_text(encoding="utf-8"))
             self.assertEqual("127.0.0.1", address["upstream_host"])
             self.assertIsInstance(address["upstream_port"], int)
-            with socket.create_connection(("127.0.0.1", address["upstream_port"]), timeout=2.0) as client:
+            with connect_control_file_loopback(address, timeout=2.0) as client:
                 client.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
                 received = bytearray()
                 while b"\r\n\r\n" not in received or not received.split(b"\r\n\r\n", 1)[1]:

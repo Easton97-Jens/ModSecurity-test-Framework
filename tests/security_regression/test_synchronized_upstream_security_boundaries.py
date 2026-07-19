@@ -110,10 +110,11 @@ class SynchronizedUpstreamSecurityBoundaryTests(unittest.TestCase):
                 root = Path(root_name)
                 outside = Path(outside_name)
                 outside_output = outside / "evidence.json"
+                evidence = valid_evidence()
                 with self.assertRaisesRegex(ValueError, "evidence output path"):
                     self.upstream_module.write_evidence(
                         outside_output,
-                        valid_evidence(),
+                        evidence,
                         control_root=root,
                     )
                 self.assertFalse(outside_output.exists())
@@ -123,7 +124,7 @@ class SynchronizedUpstreamSecurityBoundaryTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "evidence output path"):
                     self.upstream_module.write_evidence(
                         escape / "evidence.json",
-                        valid_evidence(),
+                        evidence,
                         control_root=root,
                     )
 
@@ -186,21 +187,20 @@ class SynchronizedUpstreamSecurityBoundaryTests(unittest.TestCase):
                 paused.write_text(json.dumps(paused_record()), encoding="utf-8")
                 client_output.write_bytes(b"first-byte-only")
                 outside_output = Path(outside_name) / "evidence.json"
+                arguments = [
+                    "--control-root",
+                    str(root),
+                    "--merge-evidence",
+                    "--paused-file",
+                    str(paused),
+                    "--client-first-byte-file",
+                    str(client_output),
+                    "--output",
+                    str(outside_output),
+                ]
 
                 with self.assertRaisesRegex(ValueError, "evidence output path"):
-                    self.upstream_module.main(
-                        [
-                            "--control-root",
-                            str(root),
-                            "--merge-evidence",
-                            "--paused-file",
-                            str(paused),
-                            "--client-first-byte-file",
-                            str(client_output),
-                            "--output",
-                            str(outside_output),
-                        ]
-                    )
+                    self.upstream_module.main(arguments)
                 self.assertFalse(outside_output.exists())
 
     def test_loopback_upstream_remains_a_supported_local_test_target(self) -> None:

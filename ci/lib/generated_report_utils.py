@@ -35,6 +35,7 @@ _VERIFIED_RUN_ROOT_PARTS = tuple(
     (*root, _VERIFIED_RUN_DIRECTORY) for root in _TEMPORARY_WORK_ROOT_PARTS
 )
 _HISTORICAL_RUN_PREFIX = "ModSecurity-conector-"
+_LOCAL_HOME_ROOT_REFERENCE = "<local-home-root>"
 _PORTABLE_PATH_ROOT_PARTS = (
     *_TEMPORARY_WORK_ROOT_PARTS,
     ("root",),
@@ -85,33 +86,68 @@ def _historical_run_reference(parts: tuple[str, ...], trailing_separator: bool) 
     )
 
 
-def _redacted_path_reference(parts: tuple[str, ...], trailing_separator: bool) -> str | None:
-    for root_parts in _VERIFIED_RUN_ROOT_PARTS:
+def _known_root_reference(
+    parts: tuple[str, ...],
+    roots: tuple[tuple[str, ...], ...],
+    reference: str,
+    trailing_separator: bool,
+) -> str | None:
+    for root_parts in roots:
         suffix = _path_suffix(parts, root_parts)
         if suffix is not None:
-            return _portable_root_reference("<verified-run-root>", suffix, trailing_separator)
+            return _portable_root_reference(reference, suffix, trailing_separator)
+    return None
+
+
+def _local_home_root_reference(
+    parts: tuple[str, ...], trailing_separator: bool
+) -> str | None:
+    if parts[:1] == ("root",):
+        return _portable_root_reference(
+            _LOCAL_HOME_ROOT_REFERENCE, parts[1:], trailing_separator
+        )
+    if parts[:1] not in {("home",), ("Users",)}:
+        return None
+    if len(parts) == 1:
+        return _LOCAL_HOME_ROOT_REFERENCE if trailing_separator else None
+    return _portable_root_reference(
+        _LOCAL_HOME_ROOT_REFERENCE, parts[2:], trailing_separator
+    )
+
+
+def _redacted_path_reference(parts: tuple[str, ...], trailing_separator: bool) -> str | None:
+    verified = _known_root_reference(
+        parts,
+        _VERIFIED_RUN_ROOT_PARTS,
+        "<verified-run-root>",
+        trailing_separator,
+    )
+    if verified is not None:
+        return verified
 
     historical = _historical_run_reference(parts, trailing_separator)
     if historical is not None:
         return historical
 
-    for root_parts in _TEMPORARY_WORK_ROOT_PARTS:
-        suffix = _path_suffix(parts, root_parts)
-        if suffix is not None:
-            return _portable_root_reference("<temporary-work-root>", suffix, trailing_separator)
+    temporary = _known_root_reference(
+        parts,
+        _TEMPORARY_WORK_ROOT_PARTS,
+        "<temporary-work-root>",
+        trailing_separator,
+    )
+    if temporary is not None:
+        return temporary
 
-    local_state_suffix = _path_suffix(parts, _LOCAL_STATE_ROOT_PARTS)
-    if local_state_suffix is not None:
-        return _portable_root_reference("<local-state-root>", local_state_suffix, trailing_separator)
+    local_state = _known_root_reference(
+        parts,
+        (_LOCAL_STATE_ROOT_PARTS,),
+        "<local-state-root>",
+        trailing_separator,
+    )
+    if local_state is not None:
+        return local_state
 
-    if parts and parts[0] == "root":
-        return _portable_root_reference("<local-home-root>", parts[1:], trailing_separator)
-    if parts and parts[0] in {"home", "Users"}:
-        if len(parts) > 1:
-            return _portable_root_reference("<local-home-root>", parts[2:], trailing_separator)
-        if trailing_separator:
-            return "<local-home-root>"
-    return None
+    return _local_home_root_reference(parts, trailing_separator)
 
 
 def portable_path_reference(value: str | Path) -> str:

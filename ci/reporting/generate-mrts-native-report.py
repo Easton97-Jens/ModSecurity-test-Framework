@@ -75,12 +75,7 @@ def default_state_home() -> Path:
     explicit_run_root = os.environ.get("VERIFIED_RUN_ROOT")
     if explicit_run_root:
         return Path(explicit_run_root) / "state"
-    return Path(
-        tempfile.mkdtemp(
-            prefix=DEFAULT_STATE_HOME_PREFIX,
-            dir=os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR"),
-        )
-    )
+    return Path(tempfile.mkdtemp(prefix=DEFAULT_STATE_HOME_PREFIX))
 
 
 def read_json(path: Path) -> dict[str, Any]:

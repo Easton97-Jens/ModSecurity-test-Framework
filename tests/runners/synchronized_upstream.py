@@ -31,6 +31,7 @@ from typing import Any, Mapping
 
 EVIDENCE_SCHEMA_VERSION = 1
 EVIDENCE_TYPE = "synchronized_first_byte"
+EVIDENCE_OUTPUT_PATH_LABEL = "evidence output path"
 EVIDENCE_ORIGINS = frozenset({"synthetic_harness", "real_host"})
 LOOPBACK_HOST = "127.0.0.1"
 MAXIMUM_TCP_PORT = 65535
@@ -678,7 +679,7 @@ def write_evidence(
         raise ValueError("; ".join(errors))
     root = _require_control_root(control_root)
     destination = _resolve_control_path(
-        path, control_root=root, label="evidence output path"
+        path, control_root=root, label=EVIDENCE_OUTPUT_PATH_LABEL
     )
     _write_json_atomically(destination, evidence)
 
@@ -1045,7 +1046,7 @@ def _run_merge_evidence_mode(
             "client observation is file-backed"
         )
     output = _resolve_control_path(
-        args.output, control_root=control_root, label="evidence output path"
+        args.output, control_root=control_root, label=EVIDENCE_OUTPUT_PATH_LABEL
     )
     evidence = merge_first_byte_evidence(
         _load_json_object(
@@ -1075,7 +1076,7 @@ def _run_direct_mode(
     if args.target_port is None and args.evidence_origin != "synthetic_harness":
         parser.error("a direct probe without --target-port is always synthetic_harness")
     output = _resolve_control_path(
-        args.output, control_root=control_root, label="evidence output path"
+        args.output, control_root=control_root, label=EVIDENCE_OUTPUT_PATH_LABEL
     )
     metadata = _load_host_metadata(args.host_metadata_json, control_root=control_root)
 

@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -59,7 +60,7 @@ class SecondRemediationTests(unittest.TestCase):
             ok.write_text("run 1 total tests\npassed in 1s\n", encoding="utf-8")
             self.assertIn("run 1", report.read_bounded_run_log(ok, [root]))
 
-    def test_default_state_home_uses_a_private_temporary_directory(self):
+    def test_default_state_home_creates_a_private_child_in_the_supplied_temp_directory(self):
         report = load_module("ci/reporting/generate-mrts-native-report.py", "mrts_native_report_state_home_test")
         with tempfile.TemporaryDirectory() as tmp:
             temporary_root = Path(tmp)
@@ -67,11 +68,17 @@ class SecondRemediationTests(unittest.TestCase):
             for variable_name in ("RUNNER_TEMP", "TMPDIR"):
                 with self.subTest(variable_name=variable_name):
                     with mock.patch.dict(os.environ, {variable_name: str(temporary_root)}, clear=True):
-                        state_home = report.default_state_home()
-                    self.assertTrue(state_home.is_dir())
-                    self.assertEqual(state_home.parent, temporary_root)
-                    self.assertTrue(state_home.name.startswith(report.DEFAULT_STATE_HOME_PREFIX))
-                    self.assertEqual(state_home.stat().st_mode & 0o077, 0)
+                        with mock.patch.object(report.tempfile, "tempdir", None):
+                            resolved_state_home = report.default_state_home()
+                    try:
+                        self.assertTrue(resolved_state_home.is_dir())
+                        if variable_name == "TMPDIR":
+                            self.assertEqual(resolved_state_home.parent, temporary_root)
+                        else:
+                            self.assertNotEqual(resolved_state_home.parent, temporary_root)
+                        self.assertEqual(resolved_state_home.stat().st_mode & 0o077, 0)
+                    finally:
+                        shutil.rmtree(resolved_state_home)
 
     def test_native_report_paths_redact_external_and_symlink_escapes(self):
         report = load_module("ci/reporting/generate-mrts-native-report.py", "mrts_native_report_paths_test")

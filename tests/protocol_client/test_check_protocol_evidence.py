@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
+import stat
 import sys
 import tempfile
 import unittest
@@ -27,35 +29,89 @@ def temporary_artifact_directory() -> tempfile.TemporaryDirectory[str]:
     return tempfile.TemporaryDirectory(prefix=TEMPORARY_ROOT_PREFIX)
 
 
-def task_owned_artifact_path(root: Path, artifact_name: str) -> Path:
-    """Return a non-symlink artifact path below one direct temporary child."""
-
+def task_owned_artifact_directory_fd(root: Path) -> int:
     temporary_parent = Path(tempfile.gettempdir()).resolve()
-    resolved_root = root.resolve()
+    try:
+        root_status = root.lstat()
+        resolved_root = root.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("artifact root is not a direct task-owned TemporaryDirectory") from exc
     if (
-        root.is_symlink()
-        or not root.is_dir()
+        stat.S_ISLNK(root_status.st_mode)
+        or not stat.S_ISDIR(root_status.st_mode)
         or not resolved_root.name.startswith(TEMPORARY_ROOT_PREFIX)
         or resolved_root.parent != temporary_parent
     ):
         raise ValueError("artifact root is not a direct task-owned TemporaryDirectory")
+    try:
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    except AttributeError as exc:
+        raise ValueError("artifact descriptor I/O requires no-follow support") from exc
+    try:
+        directory_fd = os.open(root, directory_flags)
+    except OSError as exc:
+        raise ValueError("artifact root cannot be opened safely") from exc
+    try:
+        directory_status = os.fstat(directory_fd)
+    except OSError as exc:
+        os.close(directory_fd)
+        raise ValueError("artifact root cannot be opened safely") from exc
+    if (
+        not stat.S_ISDIR(directory_status.st_mode)
+        or (directory_status.st_dev, directory_status.st_ino)
+        != (root_status.st_dev, root_status.st_ino)
+    ):
+        os.close(directory_fd)
+        raise ValueError("artifact root changed while opening it")
+    return directory_fd
+
+
+def open_task_owned_artifact(root: Path, artifact_name: str, *, writable: bool) -> int:
     if artifact_name not in TEST_ARTIFACTS:
         raise ValueError("artifact name is not a test-owned protocol artifact")
-    unresolved_target = resolved_root / artifact_name
-    if unresolved_target.is_symlink():
-        raise ValueError("artifact target must not be a symlink")
-    target = unresolved_target.resolve()
-    if target.parent != resolved_root or target.name != artifact_name:
-        raise ValueError("artifact target escapes its task-owned TemporaryDirectory")
-    return target
+    directory_fd = task_owned_artifact_directory_fd(root)
+    try:
+        try:
+            flags = (os.O_WRONLY if writable else os.O_RDONLY) | os.O_NOFOLLOW | os.O_NONBLOCK
+        except AttributeError as exc:
+            raise ValueError("artifact descriptor I/O requires no-follow support") from exc
+        if writable:
+            flags |= os.O_CREAT
+        try:
+            artifact_fd = os.open(artifact_name, flags, 0o600, dir_fd=directory_fd)
+            try:
+                if not stat.S_ISREG(os.fstat(artifact_fd).st_mode):
+                    raise ValueError("artifact must be a regular file")
+                if writable:
+                    os.fchmod(artifact_fd, 0o600)
+                    os.ftruncate(artifact_fd, 0)
+                    os.lseek(artifact_fd, 0, os.SEEK_SET)
+                return artifact_fd
+            except Exception:
+                os.close(artifact_fd)
+                raise
+        except OSError as exc:
+            raise ValueError("artifact cannot be opened safely") from exc
+    finally:
+        os.close(directory_fd)
 
 
 def write_text_artifact(root: Path, artifact_name: str, value: str) -> None:
-    task_owned_artifact_path(root, artifact_name).write_text(value, encoding="utf-8")
+    with os.fdopen(
+        open_task_owned_artifact(root, artifact_name, writable=True),
+        "w",
+        encoding="utf-8",
+    ) as artifact:
+        artifact.write(value)
 
 
 def read_json_artifact(root: Path, artifact_name: str) -> dict[str, object]:
-    value = json.loads(task_owned_artifact_path(root, artifact_name).read_text(encoding="utf-8"))
+    with os.fdopen(
+        open_task_owned_artifact(root, artifact_name, writable=False),
+        "r",
+        encoding="utf-8",
+    ) as artifact:
+        value = json.load(artifact)
     assert isinstance(value, dict)
     return value
 
@@ -449,6 +505,23 @@ class ProtocolEvidenceTest(unittest.TestCase):
                 write_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT, {})
 
             self.assertFalse(rejected_target.exists())
+
+    def test_artifact_io_rejects_an_allowlisted_symlink_without_touching_its_target(self) -> None:
+        with temporary_artifact_directory() as temporary:
+            with tempfile.TemporaryDirectory(prefix="protocol-evidence-outside-") as outside_temporary:
+                root = Path(temporary)
+                outside = Path(outside_temporary) / "outside.json"
+                outside.write_text('{"outside": true}', encoding="utf-8")
+                artifact = root / check_protocol_evidence.FOLLOWUP_ARTIFACT
+                artifact.symlink_to(outside)
+
+                with self.assertRaises(ValueError):
+                    write_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT, {})
+                with self.assertRaises(ValueError):
+                    read_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT)
+
+                self.assertTrue(artifact.is_symlink())
+                self.assertEqual('{"outside": true}', outside.read_text(encoding="utf-8"))
 
     def test_oversized_version_artifact_is_rejected_before_validation(self) -> None:
         with temporary_artifact_directory() as temporary:

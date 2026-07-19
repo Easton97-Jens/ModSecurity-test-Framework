@@ -182,7 +182,6 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
     def test_outdated_tarball_only_plans_an_update_until_update_mode_is_requested(self):
         listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"
-        source_url = f"{listing_url}package-1.2.3{TARBALL_EXTENSION}"
         latest_checksum_url = f"{listing_url}package-1.2.4{TARBALL_EXTENSION}{SHA256_SUFFIX}"
         source_template = f"{listing_url}package-$VERSION{TARBALL_EXTENSION}"
         listing_text = f"package-1.2.3{TARBALL_EXTENSION} package-1.2.4{TARBALL_EXTENSION}"
@@ -209,6 +208,8 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
             self.assertEqual(CHECKER.STATUS_OUTDATED, result.status)
             self.assertTrue(result.updates)
+            self.assertNotIn("SOURCE_URL", [update.variable for update in result.updates])
+            self.assertNotIn("SHA_URL", [update.variable for update in result.updates])
             self.assertEqual(original, fixture.read_text(encoding="utf-8"))
 
     def test_haproxy_rejects_mismatched_pin_before_any_http_lookup(self):
@@ -293,6 +294,82 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                 CHECKER.apply_updates(fixture, lines, [update])
 
             self.assertEqual('VERSION="${VERSION:-2.0}"\n', fixture.read_text(encoding="utf-8"))
+
+    def test_update_accepts_strict_version_sha_and_https_url_values(self):
+        listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"
+        source_url = f"{listing_url}package-1.2.3{TARBALL_EXTENSION}"
+        checksum_url = source_url + SHA256_SUFFIX
+        updated_source_url = f"{listing_url}package-1.2.4{TARBALL_EXTENSION}"
+        updated_checksum_url = updated_source_url + SHA256_SUFFIX
+        updated_checksum = "b" * 64
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            temporary_path = Path(temporary)
+            build_root = temporary_path / "build"
+            fixture = build_root / "fixtures" / COMMON_SH_NAME
+            fixture.parent.mkdir(parents=True)
+            lines, entries = self.parse_fixture(fixture, self.tarball_fixture(source_url, checksum_url))
+            updates = [
+                CHECKER.plan_update(entries, "VERSION", "1.2.4"),
+                CHECKER.plan_update(entries, "SOURCE_URL", updated_source_url),
+                CHECKER.plan_update(entries, "SHA256", updated_checksum),
+                CHECKER.plan_update(entries, "SHA_URL", updated_checksum_url),
+            ]
+            valid_updates = [update for update in updates if update is not None]
+
+            self.assertEqual(4, len(valid_updates))
+            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                CHECKER.apply_updates(fixture, lines, valid_updates)
+
+            updated = fixture.read_text(encoding="utf-8")
+        self.assertIn('VERSION="${VERSION:-1.2.4}"', updated)
+        self.assertIn(f'SOURCE_URL="${{SOURCE_URL:-{updated_source_url}}}"', updated)
+        self.assertIn(f'SHA256="${{SHA256:-{updated_checksum}}}"', updated)
+        self.assertIn(f'SHA_URL="${{SHA_URL:-{updated_checksum_url}}}"', updated)
+
+    def test_update_rejects_invalid_network_values_without_mutating_target(self):
+        listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"
+        source_url = f"{listing_url}package-1.2.3{TARBALL_EXTENSION}"
+        checksum_url = source_url + SHA256_SUFFIX
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            temporary_path = Path(temporary)
+            build_root = temporary_path / "build"
+            fixture = build_root / "fixtures" / COMMON_SH_NAME
+            fixture.parent.mkdir(parents=True)
+            original = self.tarball_fixture(source_url, checksum_url)
+            lines, entries = self.parse_fixture(fixture, original)
+
+            for variable, invalid_value in (
+                ("VERSION", "1.2.4;touch"),
+                ("SHA256", "not-a-sha256"),
+                ("SOURCE_URL", f"http://{OFFICIAL_TARBALL_HOST}/package-1.2.4{TARBALL_EXTENSION}"),
+                ("SOURCE_URL", f"https://foreign.example.invalid/package-1.2.4{TARBALL_EXTENSION}"),
+                ("SOURCE_URL", f"https://{OFFICIAL_TARBALL_HOST}/other/package-1.2.4{TARBALL_EXTENSION}"),
+                ("SOURCE_URL", f"https://{OFFICIAL_TARBALL_HOST}/releases/../package-1.2.4{TARBALL_EXTENSION}"),
+                ("SHA_URL", f"https://{OFFICIAL_TARBALL_HOST}/package-1.2.4{TARBALL_EXTENSION}?redirect=1"),
+            ):
+                with self.subTest(variable=variable):
+                    with self.assertRaises(CHECKER.UpstreamError):
+                        CHECKER.plan_update(entries, variable, invalid_value)
+
+            for invalid_source_url in (
+                f"https://foreign.example.invalid/package-1.2.4{TARBALL_EXTENSION}",
+                f"https://{OFFICIAL_TARBALL_HOST}/other/package-1.2.4{TARBALL_EXTENSION}",
+            ):
+                with self.subTest(write_sink=invalid_source_url):
+                    updates = [
+                        CHECKER.UpdateChange("VERSION", entries["VERSION"].line, "1.2.3", "1.2.4"),
+                        CHECKER.UpdateChange(
+                            "SOURCE_URL",
+                            entries["SOURCE_URL"].line,
+                            source_url,
+                            invalid_source_url,
+                        ),
+                    ]
+                    with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                        with self.assertRaises(CHECKER.UpstreamError):
+                            CHECKER.apply_updates(fixture, lines, updates)
+
+                    self.assertEqual(original, fixture.read_text(encoding="utf-8"))
 
     def test_update_rejects_a_common_sh_path_outside_build_root_without_writing(self):
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
