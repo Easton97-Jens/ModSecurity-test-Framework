@@ -98,6 +98,22 @@ Dieser Vertrag beweist nur die Auflösung von Target zu Tool. H1-, H2- und
 H3-Ergebnisse benötigen weiterhin die jeweiligen Client-, Host- und
 Artefaktvoraussetzungen und werden getrennt als Runtime-Evidence berichtet.
 
+## CRS-Quellherkunftsvertrag
+
+`make test-crs-provenance-contract`, das ebenfalls Bestandteil von `make lint`
+ist, führt die echte CRS-Provisionierungsgrenze mit einem temporären
+Fake-Git-Programm aus und prüft die Update-Entscheidung mit einem Fake-GitHub-
+Release-Client. Es verifiziert, dass mutable Tags, Branches, Ref-Namespaces,
+kurze Hashes und ein nicht zugehöriger vollständiger Hash vor einer Git-Nutzung
+abgelehnt werden; dass der geprüfte vollständige Commit nur einen frischen
+Checkout bereitstellt und ein bereits vorhandener Source-Pfad vor der Git-
+Nutzung abgelehnt wird; und dass eine Abweichung im gefetchten, aufgelösten oder
+finalen `HEAD` vor der Submodul-Verarbeitung stoppt. Ein neueres Upstream-Tag wird als `unknown` ohne
+automatische Änderung gemeldet: Die Änderung von Release-Tag und
+unveränderlichem Commit bleibt eine geprüfte Provenance-Änderung. Der Test
+benötigt weder Netzwerk noch Connector-Runtime und beweist nur die
+Provisionierungs-Identitätskontrolle, keinen CRS-Runtime-Support-Claim.
+
 ## No-CRS- und Full-Lifecycle-Evidence
 
 Die kanonische No-CRS-Implementierung ist
