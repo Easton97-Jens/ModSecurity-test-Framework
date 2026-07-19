@@ -420,7 +420,7 @@ def has_write_permission(data: dict[str, Any], permission: str) -> bool:
     )
 
 
-def workflow_events(data: dict[str, Any]) -> set[str]:
+def workflow_events(data: dict[Any, Any]) -> set[str]:
     raw_events = data.get("on", data.get(True))
     if isinstance(raw_events, str):
         return {raw_events}
