@@ -87,12 +87,13 @@ def load_workflow(path: pathlib.Path) -> None:
 
 
 def main() -> int:
-    workflow_root = pathlib.Path(".github/workflows")
-    workflow_paths = sorted(
-        [*workflow_root.glob("*.yml"), *workflow_root.glob("*.yaml")]
-    )
+    workflow_dir = pathlib.Path(".github/workflows")
     status = 0
-    for path in workflow_paths:
+    for path in sorted(
+        candidate
+        for candidate in workflow_dir.iterdir()
+        if candidate.is_file() and candidate.suffix in {".yml", ".yaml"}
+    ):
         try:
             load_workflow(path)
         except WorkflowYamlInputError as exc:

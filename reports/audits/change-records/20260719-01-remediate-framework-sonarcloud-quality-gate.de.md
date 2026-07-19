@@ -177,7 +177,7 @@ aktuelle Head-Lauf `common-structure` fand den oben beschriebenen
 Verified-Root-Layout-Fehler. Ein normaler Follow-up-Commit sowie aktuelles
 Head-CI-/SonarCloud-Readback stehen aus; ein Merge bleibt nicht autorisiert.
 
-## Aktuelle lokale Abgleichaktualisierung
+### Aktuelle lokale Abgleichaktualisierung
 
 Die Follow-up-Remediation ist nun lokal validiert. Die NGINX-Archive-Digest-
 Fixture erzeugt den minimalen externen Adapter-Header, den der bestehende
@@ -227,7 +227,7 @@ GitHub-CI des aktuellen Heads, SonarCloud-Quality-Gate `OK` und das
 PR-Issue-Readback bleiben die finale Delivery-Evidenz; ein Merge bleibt nicht
 autorisiert.
 
-## Korrektur des exakten Remote-Readbacks und fokussiertes Follow-up
+### Korrektur des exakten Remote-Readbacks und fokussiertes Follow-up
 
 Der normale Branch-Push von `bbd722e49fc96102e33bba04341065ae0b789f4f` wurde
 abgeschlossen, und Draft-PR #30 blieb Draft. Die exakten Head-Checks
@@ -254,7 +254,7 @@ Security-Regression bestand 212 Tests. Eine frische Remote-Analyse des
 exakten Heads bleibt erforderlich, bevor das Quality Gate oder der Draft-PR-
 Status als erfolgreich deklariert werden kann.
 
-## Remediation verbleibender Issues nach grünem Quality Gate
+### Remediation verbleibender Issues nach grünem Quality Gate
 
 Das Remote-Ergebnis des exakten Heads
 `4307d591f52a760d93c5662f183144cbae26e25e` besitzt ein grünes SonarCloud-
@@ -286,7 +286,7 @@ und deaktivierte Feature-Demo-Werte bleiben fail-closed. Ein neuer normaler
 Commit, Push und frisches Remote-Readback des exakten Heads sind erforderlich;
 PR #30 bleibt Draft und ein Merge bleibt nicht autorisiert.
 
-## Korrektur des verbleibenden Regex-Befunds am exakten Head
+### Korrektur des verbleibenden Regex-Befunds am exakten Head
 
 Ein frisches offizielles Readback für den exakten Head
 `3a17b220da4d87e3a9447feada2cc1ce241de9b6` bestätigte, dass die vorherige

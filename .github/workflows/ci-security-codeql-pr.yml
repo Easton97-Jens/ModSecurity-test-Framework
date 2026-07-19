@@ -1,0 +1,54 @@
+name: CodeQL pull-request analysis
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-security-codeql-pr-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-pull-request:
+    if: github.event_name == 'pull_request'
+    name: CodeQL PR (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language:
+          - actions
+          - python
+          - c-cpp
+    steps:
+      - name: Checkout exact pull-request head revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Initialize CodeQL for actual Framework languages
+        uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          tools: linked
+          config: |
+            paths-ignore:
+              - tools/MRTS/**
+
+      - name: Analyze bounded pull-request source without upload
+        uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
+        with:
+          category: /pr-language:${{ matrix.language }}
+          upload: never
+          upload-database: false

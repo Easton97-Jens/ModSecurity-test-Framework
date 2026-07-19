@@ -1,0 +1,138 @@
+name: CI security workflow lint
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/**"
+      - ".github/dependabot.yml"
+      - "ci/checks/security/**"
+      - "ci/tooling/**"
+      - "ci/tools/fetch-security-tool.py"
+      - "tests/ci_security/**"
+      - "tests/fixtures/ci-security/**"
+      - "requirements-ci.lock"
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".github/dependabot.yml"
+      - "ci/checks/security/**"
+      - "ci/tooling/**"
+      - "ci/tools/fetch-security-tool.py"
+      - "tests/ci_security/**"
+      - "tests/fixtures/ci-security/**"
+      - "requirements-ci.lock"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-security-workflow-lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  actionlint-and-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13.14"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Fetch checksum-verified actionlint and ShellCheck
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool actionlint --output-dir "$TOOLS_DIR"
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool shellcheck --output-dir "$TOOLS_DIR"
+
+      - name: Lint workflows with actionlint and ShellCheck
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          mapfile -t workflow_files < <(find .github/workflows -type f \( -name '*.yml' -o -name '*.yaml' \) -print | sort)
+          [ "${#workflow_files[@]}" -gt 0 ]
+          "$TOOLS_DIR/actionlint" -shellcheck="$TOOLS_DIR/shellcheck" "${workflow_files[@]}"
+
+      - name: Validate Framework workflow security contract
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests/ci_security -v
+
+  zizmor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13.14"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Fetch checksum-verified zizmor
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool zizmor --output-dir "$TOOLS_DIR"
+
+      - name: Lint checked-in GitHub configuration offline
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          "$TOOLS_DIR/zizmor" --offline .github
+
+      - name: Prove safe and unsafe fixture behavior
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          "$TOOLS_DIR/zizmor" --offline tests/fixtures/ci-security/safe.yml
+          if "$TOOLS_DIR/zizmor" --offline tests/fixtures/ci-security/unsafe.yml; then
+            echo "unsafe zizmor fixture unexpectedly passed" >&2
+            exit 1
+          fi

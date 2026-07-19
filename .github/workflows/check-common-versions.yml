@@ -8,9 +8,18 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: framework-common-version-maintenance-${{ github.repository }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   check-common-versions:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
@@ -18,18 +27,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          fetch-depth: 1
           persist-credentials: false
+          submodules: false
 
-      - name: Set up Python
+      - name: Set up reviewed Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
-          python-version: "3.x"
+          python-version: "3.13.14"
+          check-latest: false
 
-      - name: Install tools
+      - name: Install hash-locked CI dependency
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Fetch checksum-verified ShellCheck
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool shellcheck --output-dir "$TOOLS_DIR"
 
       - name: Validate and update common.sh
         env:
@@ -51,11 +72,13 @@ jobs:
           mv common-version-summary.pretty.json common-version-summary.json
 
       - name: Syntax and ShellCheck
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
         run: |
           set -euo pipefail
           bash -n ci/lib/common.sh
           bash -n ci/checks/catalog/check-common-helpers.sh
-          shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh
+          "$TOOLS_DIR/shellcheck" -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh
           python3 -m py_compile ci/tools/check-common-versions.py
 
       - name: Build pull request body
@@ -64,6 +87,7 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
+
           data = json.loads(Path('common-version-summary.json').read_text())
           updates = data.get('updates_applied', [])
           english_lines = [

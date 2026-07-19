@@ -170,7 +170,7 @@ first current-head common-structure run found the verified-root layout defect
 above. A normal follow-up commit and current-head CI/SonarCloud readback are
 pending; merge remains unauthorized.
 
-## Current local reconciliation update
+### Current local reconciliation update
 
 The follow-up remediation is now locally validated. The NGINX archive-digest
 fixture creates the minimal external adapter header required by the existing
@@ -216,7 +216,7 @@ has not been marked ready. Required current-head GitHub CI, SonarCloud Quality
 Gate `OK`, and PR issue readback remain the final delivery evidence; merge
 continues to be unauthorized.
 
-## Exact-head remote-readback correction and focused follow-up
+### Exact-head remote-readback correction and focused follow-up
 
 The normal branch push of `bbd722e49fc96102e33bba04341065ae0b789f4f` completed
 and Draft PR #30 remained Draft. The exact-head `common-structure` and
@@ -241,7 +241,7 @@ module passed 12 tests and the isolated complete security-regression suite
 passed 212 tests. A fresh exact-head remote analysis remains required before
 the Quality Gate or Draft-PR status can be declared successful.
 
-## Residual-issue remediation after a green Quality Gate
+### Residual-issue remediation after a green Quality Gate
 
 The exact-head remote result for
 `4307d591f52a760d93c5662f183144cbae26e25e` has a green SonarCloud Quality
@@ -272,7 +272,7 @@ literal and option-like paths, invalid kinds, and disabled feature-demo values
 remain fail-closed. A new normal commit, push, and fresh exact-head remote
 readback are required; PR #30 remains Draft and merge remains unauthorized.
 
-## Exact-head residual-regex scope correction
+### Exact-head residual-regex scope correction
 
 Fresh official readback for exact head
 `3a17b220da4d87e3a9447feada2cc1ce241de9b6` confirmed that the preceding

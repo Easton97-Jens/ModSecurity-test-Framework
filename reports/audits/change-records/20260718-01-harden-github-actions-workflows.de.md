@@ -106,6 +106,32 @@ Exposition reduziert, aber keine nicht vorhandene Schritt-
 Berechtigungsprimitive erzeugt. `cleanup-artifacts` behält nur Job-lokales
 `actions: write`.
 
+### 2026-07-19 CI-Security-Kompatibilitätsabgleich
+
+Die Synchronisierung von PR #27 mit Framework-Master
+`7a12073c28e62a67492dd501b6513b9914fe5df8` machte zuvor nicht validierte
+CI-Security-Workflows sichtbar, die der kanonische Checker zu Recht
+fail-closed zurückwies: Flow-Style-Event-Collections sind keine akzeptierte,
+reviewbare Workflow-Syntax und ein CodeQL-`pull_request`-Job besaß
+`security-events: write`. Der Validator wurde nicht gelockert.
+
+Die Korrektur verwendet für nicht vertrauenswürdige Pull Requests den
+read-only-Workflow `ci-security-codeql-pr.yml` mit exaktem PR-Head. Er
+deaktiviert sowohl den CodeQL-Ergebnis- als auch den Datenbank-Upload. Der
+bestehende Workflow `ci-security-codeql.yml` ist nun ausschließlich ein
+vertrauenswürdiger Uploader (`push` auf `master`, Zeitplan und manueller
+Dispatch) und der einzige Workflow mit der eng begrenzten
+`security-events: write`-Berechtigung. Alle betroffenen Event-Collections
+verwenden kanonisches Block-YAML. `cleanup-artifacts` deklariert die
+kanonische Top-Level-Baseline `contents: read` und behält `actions: write`
+auf seinen notwendigen Job begrenzt. CI-Security-Evidence- und Contract-
+Regressionen weisen sowohl einen PR-ausgelösten vertrauenswürdigen Uploader
+als auch eine PR-Write-Berechtigung zurück; die legitimen read-only-PR- und
+Trusted-Writer-Controls bleiben abgedeckt. Dieser Abgleich wird als erneut
+geöffnetes Least-Privilege-Finding `FND-FRAMEWORK-0013` und als separates
+Strict-YAML-Contract-Finding `FND-FRAMEWORK-0019` verfolgt, bis lokale und
+frische Exact-Head-Verifikation abgeschlossen sind.
+
 ## Geänderte Dateien und Tests
 
 Versionierte Framework-Änderungen:

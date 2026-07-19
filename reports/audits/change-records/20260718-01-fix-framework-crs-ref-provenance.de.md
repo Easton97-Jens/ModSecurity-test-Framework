@@ -36,8 +36,6 @@ Die Sicherheitsgrenze betrifft ausschließlich die Framework-CRS-Quellprovenance
 Parent-Code und Parent-Gitlink werden nicht geändert; MRTS bleibt in diesem
 Task-Worktree unberührt und nicht initialisiert.
 
-## Master-Reconciliation vom 2026-07-19
-
 Der veröffentlichte #26-Head lag vor Framework-master
 `9954b99a31fab0006cdf903ab477c8158c50fea8`. Ein normaler, nicht
 umschreibender Merge wurde im Versionsprüfer additiv aufgelöst: Der
