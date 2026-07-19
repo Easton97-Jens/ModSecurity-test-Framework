@@ -285,3 +285,34 @@ Command-/PATH-Shadowing, literale und option-ähnliche Pfade, ungültige Kinds
 und deaktivierte Feature-Demo-Werte bleiben fail-closed. Ein neuer normaler
 Commit, Push und frisches Remote-Readback des exakten Heads sind erforderlich;
 PR #30 bleibt Draft und ein Merge bleibt nicht autorisiert.
+
+## Korrektur des verbleibenden Regex-Befunds am exakten Head
+
+Ein frisches offizielles Readback für den exakten Head
+`3a17b220da4d87e3a9447feada2cc1ce241de9b6` bestätigte, dass die vorherige
+Rest-Remediation 12 der 15 offenen Code Smells geschlossen hat, aber drei
+verbleiben. Es handelt sich um eine `python:S8786`-Zeile und zwei
+`python:S6353`-Zeilen in `ci/tools/check-common-versions.py:40`, alle auf
+`URL_PATH_DYNAMIC_VALUE_RE`; sie beziehen sich nicht auf die NGINX-
+Release-Asset-Tokenprüfung. Der nicht zugehörige NGINX-Helfer-/Test-Refactor
+wurde deshalb auf die exakte Implementierung und Regression-Deckung vor der
+Rest-Remediation zurückgeführt.
+
+Die verbleibende lokale Korrektur erhält die dynamische URL-Pfad-Sprache:
+Die Variablenalternativen behalten ihre ASCII-Identifiergrenzen über eine
+scoped ASCII-Word-Class, und die Alternative für punktierte Versionen bleibt
+Unicode-Dezimalzahl-kompatibel, während sie durch Trennzeichen begrenzte
+Zifferngruppen fordert. Eine fokussierte Regression deckt geklammerte und
+nicht geklammerte Variablen, ein Unterstrich-Suffix, ASCII- und Unicode-
+punktierte Versionen sowie einen statischen Pfad ab. Ein unabhängiger
+Security-Review bestätigte außerdem, dass `trusted_https_path_prefix` nur den
+erlaubten Pfadpräfix ableitet und der nachgelagerte HTTPS-Authority-Guard
+fail-closed bleibt.
+
+Das fokussierte Provenance-Modul bestand 13 Tests, und der Whitespace-Check
+bestand. Die isolierte vollständige Security-Regression bestand 215 Tests,
+und das repository-native Ziel `make lint` bestand mit task-eigenen State-,
+Build- und Temp-Roots. Normale Delivery und ein frisches GitHub-/SonarCloud-
+Readback des exakten Heads sind weiterhin erforderlich. PR #30 bleibt Draft,
+und ein Merge bleibt nicht autorisiert, bis das vollständige offene Issue-
+Inventar null ist.

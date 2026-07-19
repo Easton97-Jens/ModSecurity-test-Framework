@@ -37,8 +37,9 @@ SAFE_VERSION_RE = re.compile(r"^\d+(?:\.\d+)+$")
 SAFE_HTTPS_HOST_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$")
 SAFE_HTTPS_PATH_RE = re.compile(r"^/[A-Za-z0-9._~/-]*$")
 URL_PATH_DYNAMIC_VALUE_RE = re.compile(
-    r"\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)|\d+(?:\.\d+)+"
+    r"\$(?:\{[A-Za-z_](?a:\w)*\}|[A-Za-z_](?a:\w)*)|\d+\.\d+(?:\.\d+)*"
 )
+NGINX_RELEASE_ASSET_RE = re.compile(r"^nginx-([A-Za-z0-9][A-Za-z0-9._-]*)\.tar\.gz$")
 OPTIONAL_EMPTY_VARIABLES = {
     "APACHE_BIN",
     "APACHECTL_BIN",
@@ -1007,23 +1008,10 @@ def release_asset_sha256(release: dict[str, Any], asset_name: str) -> str:
     return match.group(1).lower()
 
 
-def is_safe_nginx_release_version(version: str) -> bool:
-    return (
-        bool(version)
-        and version[0].isascii()
-        and version[0].isalnum()
-        and all(
-            character.isascii()
-            and (character.isalnum() or character in "._-")
-            for character in version
-        )
-    )
-
-
 def nginx_release_asset_name(release_tag: str) -> str:
     version = release_tag.removeprefix("release-")
     asset_name = f"nginx-{version}.tar.gz"
-    if ".." in asset_name or not is_safe_nginx_release_version(version):
+    if ".." in asset_name or not NGINX_RELEASE_ASSET_RE.fullmatch(asset_name):
         raise UpstreamError(f"NGINX release tag cannot form a safe release asset name: {release_tag!r}")
     return asset_name
 

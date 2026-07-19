@@ -271,3 +271,30 @@ received a focused independent security review: command/PATH shadowing,
 literal and option-like paths, invalid kinds, and disabled feature-demo values
 remain fail-closed. A new normal commit, push, and fresh exact-head remote
 readback are required; PR #30 remains Draft and merge remains unauthorized.
+
+## Exact-head residual-regex scope correction
+
+Fresh official readback for exact head
+`3a17b220da4d87e3a9447feada2cc1ce241de9b6` confirmed that the preceding
+residual wave closed 12 of the 15 open Code Smells, but three remain. They are
+one `python:S8786` row and two `python:S6353` rows at
+`ci/tools/check-common-versions.py:40`, all on
+`URL_PATH_DYNAMIC_VALUE_RE`; they do not apply to the NGINX release-asset
+token check. The unrelated NGINX helper/test refactor was therefore reverted
+to the exact pre-wave implementation and regression coverage.
+
+The remaining local correction keeps the dynamic URL-path language unchanged:
+the variable alternatives retain their ASCII identifier boundaries through a
+scoped ASCII word class, and the dotted-version alternative remains Unicode
+decimal-aware while requiring separator-bounded digit groups. A focused
+regression covers braced and unbraced variables, an underscore suffix, ASCII
+and Unicode dotted versions, and a static path. An independent security review
+also confirmed that `trusted_https_path_prefix` only derives the allowed path
+prefix and that the downstream HTTPS authority guard remains fail-closed.
+
+The focused provenance module passed 13 tests and the whitespace check passed.
+The isolated complete security-regression suite passed 215 tests, and the
+repository-native `make lint` target passed with task-owned state, build, and
+temporary roots. Normal delivery and fresh exact-head GitHub/SonarCloud
+readback are still required. PR #30 remains Draft and merge remains
+unauthorized until the complete open-issue inventory is zero.
