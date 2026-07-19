@@ -750,7 +750,9 @@ def codeql_analysis_errors(
             errors.append(
                 f"{path}: CodeQL analyze step must set upload: {expected_upload}"
             )
-        elif expected_upload == "never" and settings.get("upload-database") is not False:
+        elif (
+            expected_upload == "never" and settings.get("upload-database") is not False
+        ):
             errors.append(
                 f"{path}: pull-request CodeQL must set upload-database: false"
             )

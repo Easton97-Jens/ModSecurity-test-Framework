@@ -225,9 +225,7 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
             trusted_path, CHECKER.yaml.safe_load(trusted)
         )
         self.assertTrue(
-            any(
-                "must not run on pull_request" in error for error in trusted_errors
-            ),
+            any("must not run on pull_request" in error for error in trusted_errors),
             "\n".join(trusted_errors),
         )
 
