@@ -8,8 +8,8 @@
 | --- | --- |
 | Change-ID | `20260718-01-harden-github-actions-workflows` |
 | UTC-Datum | 2026-07-18 |
-| Framework-Basisrevision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue oder Pull Request | Draft PR bei Erstellung des Records ausstehend; kein Merge ist autorisiert. |
+| Framework-Basisrevision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| Issue oder Pull Request | Framework-PR #29; Master-Integration ist erst nach frischen Exact-Head-Checks und Review autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -48,8 +48,9 @@ Branch.
 5. Englische/deutsche Anleitung und dieser Change Record beschreiben
    identische Action-Provenienz, Vertrauensgrenzen, Validierung,
    Einschränkungen und Scope.
-6. Es dürfen nur ein Framework-Commit, Push und Draft PR erstellt werden;
-   Merge, Parent-Gitlink-Update oder MRTS-Änderung sind nicht erlaubt.
+6. Es dürfen nur der autorisierte normale Framework-Commit, Push, PR-Integration
+   und die Exact-Head-Gate-Sequenz verwendet werden; Parent-Gitlink-Update oder
+   MRTS-Änderung sind nicht erlaubt.
 
 ## Untersuchte Alternativen
 
@@ -89,6 +90,14 @@ und PR-Submodule zurück. Das Makefile exportiert unabhängige Pin- und
 Berechtigungs-Targets und der vorhandene Workflow-Self-Check läuft bei
 Änderungen seines Checkers, seiner Fixtures, seines Tests oder des Makefiles.
 
+Die aktuelle Abgleichung basiert auf `9954b99a31fab0006cdf903ab477c8158c50fea8`.
+Sie behält den bereits gemergten Action-Pin-Checker und seine Regression-Suite
+bei, während der kanonische Checker verschachtelte `.yml`- und `.yaml`-
+Workflow-Pfade rekursiv abdeckt. Vor dem Lesen einer Datei muss ihr aufgelöster
+Pfad unterhalb der aktuellen Repository-Wurzel bleiben; ein über einen Symlink
+ausbrechender Pfad wird übersprungen. Fokussierte Regressionen beweisen sowohl
+verschachtelte Discovery als auch die Containment-Ablehnung.
+
 `check-common-versions` bleibt trusted-only und besitzt Job-lokale
 Repository-Content- und Pull-Request-Write-Berechtigungen. Seine Shell-
 Umgebung `GITHUB_TOKEN` ist auf den Update-Schritt begrenzt; GitHub-
@@ -122,7 +131,9 @@ Position, escapte doppelt zitierte Mapping-Keys, YAML-Dokumentmarker auch nach
 einem UTF-8-BOM und doppelte YAML,
 `pull_request_target`, Berechtigungs-, Credential-, Workflow-/Job-Token-
 Exposition unter üblichen oder umbenannten Variablen, Submodule-, Secret-
-Referenz- und Secret-Weitergabe-Fälle.
+Referenz- und Secret-Weitergabe-Fälle, verschachtelte Workflow-Discovery sowie
+Symlink- oder explizite Root-Pfade, die die aktuelle Repository-Wurzel
+verlassen.
 
 ## Befehle und Ergebnisse
 
@@ -203,6 +214,8 @@ Der Pre-Commit-Framework-Diff wurde auf Scope, unveränderliche Pins,
 Berechtigungszuordnungen, Credential-Persistenz, Testabdeckung,
 Vermeidung generierter Dateien, Whitespace und sensible Inhalte geprüft. Der
 Parent und sein Gitlink, MRTS und sein Gitlink sowie jeder Default-Branch
-bleiben außerhalb des Scopes. Framework-Commit, Push, Draft PR,
-Exact-SHA-Gleichheit und Current-Head-Review-/CI-Status stehen noch aus; kein
-Merge ist autorisiert.
+bleiben außerhalb des Scopes. Framework-Commit, Push, Exact-SHA-Gleichheit
+und Current-Head-Review-/CI-Status stehen noch aus. Der aktuelle Benutzer
+autorisiert die Framework-Master-Integration erst, nachdem diese Gates als
+bestanden beobachtet wurden; kein Parent-Gitlink- oder MRTS-Change ist
+autorisiert.

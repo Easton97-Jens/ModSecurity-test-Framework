@@ -8,7 +8,11 @@ ohne Aussagen über das Laufzeitverhalten eines Connectors zu treffen.
 
 ## Geltungsbereich und Inventar
 
-Der Vertrag umfasst jede `.yml`- und `.yaml`-Datei in `.github/workflows/`.
+Der Vertrag umfasst jede `.yml`- und `.yaml`-Datei in `.github/workflows/`,
+einschließlich verschachtelter Verzeichnisse. Der Validator löst eine
+angeforderte Workflow-Datei oder ein Verzeichnis vor dem Lesen unterhalb der
+aktuellen Repository-Wurzel auf und überspringt einen aufgelösten Pfad, der
+diese Wurzel verlässt (zum Beispiel über einen Symlink).
 In diesem Inventar gibt es keine Framework-eigenen `pull_request_target`-
 Workflows, Submodule-Checkouts, Artifact-Uploads, SARIF-Uploads oder CodeQL-
 Upload-Schritte. Durch diese Härtung wurde kein solches Verhalten entfernt.

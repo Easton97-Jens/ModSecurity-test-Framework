@@ -6,7 +6,9 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/dependabot.yml"
+      - "ci/checks/security/check-workflow-action-pins.py"
       - "ci/checks/security/check-github-actions-workflows.py"
+      - "tests/security_regression/test_workflow_action_pins.py"
       - "tests/security_regression/test_workflow_security_contract.py"
       - "tests/fixtures/workflow_security_contract/**"
       - "Makefile"
@@ -24,4 +26,7 @@ jobs:
           persist-credentials: false
 
       - name: Validate immutable action pins
-        run: python3 ci/checks/security/check-github-actions-workflows.py --check pins
+        run: |
+          set -euo pipefail
+          python3 ci/checks/security/check-github-actions-workflows.py --check pins
+          python3 ci/checks/security/check-workflow-action-pins.py

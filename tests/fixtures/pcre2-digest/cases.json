@@ -1,0 +1,10 @@
+{
+  "archive_file": "pcre2-10.47.tar.bz2",
+  "archive_root": "pcre2-10.47",
+  "negative_digests": {
+    "empty": "",
+    "whitespace": " \t ",
+    "invalid": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdeg",
+    "wrong": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

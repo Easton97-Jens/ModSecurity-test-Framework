@@ -8,8 +8,8 @@
 | --- | --- |
 | Change ID | `20260718-01-harden-github-actions-workflows` |
 | UTC date | 2026-07-18 |
-| Framework base revision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue or pull request | Draft PR pending at record creation; no merge is authorized. |
+| Framework base revision | `9954b99a31fab0006cdf903ab477c8158c50fea8` |
+| Issue or pull request | Framework PR #29; master integration is authorized only after fresh exact-head checks and review. |
 
 ## Motivation and problem statement
 
@@ -42,8 +42,9 @@ SARIF upload, CodeQL upload, or a default branch.
    has real-workflow, safe-fixture, and unsafe-fixture regression evidence.
 5. English/German guidance and this Change Record describe identical action
    provenance, trust boundaries, validation, limitations, and scope.
-6. Only a Framework commit, push, and Draft PR may be created; no merge,
-   Parent Gitlink update, or MRTS change is allowed.
+6. Only the authorized normal Framework commit, push, PR integration, and
+   exact-head gate sequence may be used; no Parent Gitlink update or MRTS
+   change is allowed.
 
 ## Alternatives considered
 
@@ -77,6 +78,13 @@ any name, credential persistence, and PR submodules. The Makefile exports
 independent pin and permission targets and the existing workflow self-check
 runs when the checker, fixtures, test, or Makefile changes.
 
+The current reconciliation is based on `9954b99a31fab0006cdf903ab477c8158c50fea8`.
+It retains the merged action-pin checker and its regression suite while the
+canonical checker recursively covers nested `.yml` and `.yaml` workflow paths.
+Before a file is read, its resolved path must remain below the current
+repository root; a path that escapes through a symlink is skipped. Focused
+regression cases prove both nested discovery and containment rejection.
+
 `check-common-versions` remains trusted-only and has job-local repository and
 pull-request write permissions. Its shell `GITHUB_TOKEN` environment is limited
 to the update step; GitHub permissions remain job-scoped, so this reduces
@@ -107,7 +115,8 @@ mapping keys, YAML document markers including after a UTF-8 BOM, and duplicate Y
 `pull_request_target`, permission,
 credential, workflow/job token exposure under conventional or renamed
 variables, submodule, secret-reference, and reusable-workflow-secret-
-forwarding cases.
+forwarding cases, nested workflow discovery, and symlink or explicit-root
+paths that escape the current repository.
 
 ## Commands and results
 
@@ -182,5 +191,7 @@ The pre-commit Framework diff has been reviewed for scope, immutable pins,
 permission maps, credential persistence, test coverage, generated-file
 avoidance, whitespace, and sensitive content. The Parent and its Gitlink,
 MRTS and its Gitlink, and every default branch remain outside scope. Framework
-commit, push, Draft PR, exact-SHA equality, and current-head review/CI status
-remain pending; no merge is authorized.
+commit, push, exact-SHA equality, and current-head review/CI status remain
+pending. The current user authorizes Framework master integration only after
+those gates are observed as passing; no Parent Gitlink or MRTS change is
+authorized.

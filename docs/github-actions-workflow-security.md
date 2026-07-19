@@ -8,7 +8,10 @@ claims about connector runtime behavior.
 
 ## Scope and inventory
 
-The contract covers every `.yml` and `.yaml` file in `.github/workflows/`.
+The contract covers every `.yml` and `.yaml` file in `.github/workflows/`,
+including nested directories. The validator resolves a requested workflow file
+or directory below the current repository root before reading it, and skips a
+resolved path that escapes that root (for example through a symlink).
 There are no Framework-owned `pull_request_target` workflows, submodule
 checkouts, artifact uploads, SARIF uploads, or CodeQL upload steps in this
 inventory. No such behavior was removed by this hardening work.

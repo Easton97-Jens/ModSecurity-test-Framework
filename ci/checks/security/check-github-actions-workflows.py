@@ -48,6 +48,7 @@ RELEASE_COMMENT_RE = re.compile(
     r"^\s+#\s*v[0-9]+(?:\.[0-9]+){0,2}(?:[-+][A-Za-z0-9._-]+)?\s*$"
 )
 WRITE_PERMISSION_VALUES = {"write", "admin", "write-all"}
+WORKFLOW_SUFFIXES = {".yaml", ".yml"}
 SECRET_REFERENCE_RE = re.compile(r"\bsecrets\s*(?:\.|\[)", re.IGNORECASE)
 GITHUB_TOKEN_REFERENCE_RE = re.compile(
     r"\bgithub\s*(?:\.\s*token|\[\s*['\"]token['\"]\s*\])",
@@ -59,7 +60,6 @@ if yaml is not None:
 
     class UniqueKeySafeLoader(yaml.SafeLoader):
         """Safe YAML loader that rejects duplicate and merge keys."""
-
 
     def construct_unique_mapping(
         loader: Any, node: Any, deep: bool = False
@@ -83,7 +83,6 @@ if yaml is not None:
                 )
             mapping[key] = loader.construct_object(value_node, deep=deep)
         return mapping
-
 
     UniqueKeySafeLoader.add_constructor(
         yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_unique_mapping
@@ -109,83 +108,154 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def resolve_repository_path(path: Path) -> Path | None:
+    """Resolve a path only when it remains below the current repository."""
+    try:
+        repository_root = Path.cwd().resolve(strict=True)
+        resolved_path = path.resolve(strict=True)
+        resolved_path.relative_to(repository_root)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return resolved_path
+
+
+def contained_workflow_path(candidate: Path, workflow_root: Path) -> Path | None:
+    """Return a regular supported workflow file contained by ``workflow_root``."""
+    resolved_candidate = resolve_repository_path(candidate)
+    if resolved_candidate is None:
+        return None
+    try:
+        resolved_candidate.relative_to(workflow_root)
+    except ValueError:
+        return None
+    if (
+        not resolved_candidate.is_file()
+        or resolved_candidate.suffix.lower() not in WORKFLOW_SUFFIXES
+    ):
+        return None
+    return resolved_candidate
+
+
 def workflow_paths(workflow_root: Path) -> list[Path]:
-    if workflow_root.is_file():
-        return [workflow_root] if workflow_root.suffix in {".yml", ".yaml"} else []
-    return sorted([*workflow_root.glob("*.yml"), *workflow_root.glob("*.yaml")])
+    resolved_root = resolve_repository_path(workflow_root)
+    if resolved_root is None:
+        return []
+    if resolved_root.is_file():
+        return (
+            [resolved_root] if resolved_root.suffix.lower() in WORKFLOW_SUFFIXES else []
+        )
+    if not resolved_root.is_dir():
+        return []
+    paths: list[Path] = []
+    for candidate in resolved_root.rglob("*"):
+        resolved_candidate = contained_workflow_path(candidate, resolved_root)
+        if resolved_candidate is not None:
+            paths.append(resolved_candidate)
+    return sorted(set(paths))
+
+
+def read_workflow_text(path: Path, encoding: str) -> str:
+    """Read an already constrained workflow path without following an escape."""
+    safe_path = resolve_repository_path(path)
+    if safe_path is None:
+        raise ValueError("workflow path escapes the current repository")
+    return safe_path.read_text(encoding=encoding)
 
 
 def normalized_reference(reference: str) -> str:
     return reference.strip().strip("'\"")
 
 
+def source_syntax_error(path: Path, line_number: int, line: str) -> str | None:
+    if YAML_DOCUMENT_MARKER_RE.match(line):
+        return (
+            f"{path}:{line_number}: YAML document markers are prohibited in workflows; "
+            "use one simple block-mapping document for reviewable action pins"
+        )
+    if EXPLICIT_MAPPING_KEY_RE.match(line):
+        return (
+            f"{path}:{line_number}: YAML explicit mapping keys are prohibited in "
+            "workflows; use simple block mappings for reviewable action pins"
+        )
+    if ADVANCED_YAML_NODE_RE.match(line) or ADVANCED_YAML_MAPPING_VALUE_RE.match(line):
+        return (
+            f"{path}:{line_number}: YAML tags, anchors, aliases, and merge keys are "
+            "prohibited in workflows; use simple block mappings for reviewable action pins"
+        )
+    double_quoted_key_match = DOUBLE_QUOTED_MAPPING_KEY_RE.match(line)
+    if double_quoted_key_match is not None and "\\" in double_quoted_key_match.group(
+        "key"
+    ):
+        return (
+            f"{path}:{line_number}: escaped double-quoted mapping keys are prohibited "
+            "in workflows; use simple block mappings for reviewable action pins"
+        )
+    return None
+
+
+def uses_entry(
+    path: Path, line_number: int, line: str, block_scalar_match: re.Match[str] | None
+) -> tuple[tuple[int, str, str | None] | None, int | None, str | None]:
+    if not USES_KEY_RE.match(line):
+        return None, None, None
+    if block_scalar_match is not None:
+        return (
+            None,
+            len(block_scalar_match.group("indent")),
+            f"{path}:{line_number}: uses entries must not use YAML block scalars; "
+            "use a single action reference",
+        )
+    match = USES_LINE_RE.match(line)
+    if match is None:
+        return (
+            None,
+            None,
+            f"{path}:{line_number}: uses entries must be a single action reference",
+        )
+    return (
+        (
+            line_number,
+            normalized_reference(match.group("reference")),
+            match.group("comment"),
+        ),
+        None,
+        None,
+    )
+
+
+def continues_block_scalar(line: str, block_scalar_indent: int) -> bool:
+    indentation = len(line) - len(line.lstrip())
+    return not line.strip() or indentation > block_scalar_indent
+
+
 def source_uses(path: Path) -> tuple[list[tuple[int, str, str | None]], list[str]]:
     action_uses: list[tuple[int, str, str | None]] = []
     errors: list[str] = []
     block_scalar_indent: int | None = None
-    for line_number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
-        indentation = len(line) - len(line.lstrip())
-        if block_scalar_indent is not None:
-            if line.strip() and indentation <= block_scalar_indent:
-                block_scalar_indent = None
-            else:
-                continue
+    try:
+        lines = read_workflow_text(path, encoding="utf-8-sig").splitlines()
+    except (OSError, ValueError) as exc:
+        return action_uses, [f"{path}: cannot read workflow safely: {exc}"]
+    for line_number, line in enumerate(lines, 1):
+        if block_scalar_indent is not None and continues_block_scalar(
+            line, block_scalar_indent
+        ):
+            continue
+        block_scalar_indent = None
+        syntax_error = source_syntax_error(path, line_number, line)
+        if syntax_error is not None:
+            errors.append(syntax_error)
+            continue
         block_scalar_match = BLOCK_SCALAR_START_RE.match(line)
-        if YAML_DOCUMENT_MARKER_RE.match(line):
-            errors.append(
-                f"{path}:{line_number}: YAML document markers are prohibited in "
-                "workflows; use one simple block-mapping document for reviewable "
-                "action pins"
-            )
+        entry, next_block_indent, entry_error = uses_entry(
+            path, line_number, line, block_scalar_match
+        )
+        if entry_error is not None:
+            errors.append(entry_error)
+            block_scalar_indent = next_block_indent
             continue
-        if EXPLICIT_MAPPING_KEY_RE.match(line):
-            errors.append(
-                f"{path}:{line_number}: YAML explicit mapping keys are prohibited "
-                "in workflows; use simple block mappings for reviewable action pins"
-            )
-            continue
-        if (
-            ADVANCED_YAML_NODE_RE.match(line)
-            or ADVANCED_YAML_MAPPING_VALUE_RE.match(line)
-        ):
-            errors.append(
-                f"{path}:{line_number}: YAML tags, anchors, aliases, and merge keys "
-                "are prohibited in workflows; use simple block mappings for "
-                "reviewable action pins"
-            )
-            continue
-        double_quoted_key_match = DOUBLE_QUOTED_MAPPING_KEY_RE.match(line)
-        if (
-            double_quoted_key_match is not None
-            and "\\" in double_quoted_key_match.group("key")
-        ):
-            errors.append(
-                f"{path}:{line_number}: escaped double-quoted mapping keys are "
-                "prohibited in workflows; use simple block mappings for reviewable "
-                "action pins"
-            )
-            continue
-        if USES_KEY_RE.match(line):
-            if block_scalar_match is not None:
-                errors.append(
-                    f"{path}:{line_number}: uses entries must not use YAML block "
-                    "scalars; use a single action reference"
-                )
-                block_scalar_indent = len(block_scalar_match.group("indent"))
-                continue
-            match = USES_LINE_RE.match(line)
-            if match is None:
-                errors.append(
-                    f"{path}:{line_number}: uses entries must be a single action reference"
-                )
-                continue
-            action_uses.append(
-                (
-                    line_number,
-                    normalized_reference(match.group("reference")),
-                    match.group("comment"),
-                )
-            )
+        if entry is not None:
+            action_uses.append(entry)
             continue
         if block_scalar_match is not None:
             block_scalar_indent = len(block_scalar_match.group("indent"))
@@ -195,7 +265,6 @@ def source_uses(path: Path) -> tuple[list[tuple[int, str, str | None]], list[str
                 f"{path}:{line_number}: flow-style YAML collections are prohibited in "
                 "workflows; use block mappings for reviewable action pins"
             )
-            continue
     return action_uses, errors
 
 
@@ -281,7 +350,10 @@ def load_workflow(path: Path) -> tuple[Mapping[str, Any] | None, list[str]]:
             "blocked: missing dependency PyYAML; install with: "
             "python3 -m pip install -r requirements-dev.txt"
         ]
-    text = path.read_text(encoding="utf-8")
+    try:
+        text = read_workflow_text(path, encoding="utf-8")
+    except (OSError, ValueError) as exc:
+        return None, [f"{path}: cannot read workflow safely: {exc}"]
     try:
         for event in yaml.parse(text):
             if isinstance(event, yaml.events.AliasEvent):
@@ -310,16 +382,23 @@ def checkout_steps(job: Mapping[str, Any]) -> Iterator[tuple[int, Mapping[str, A
             yield index, mapping
 
 
-def validate_permissions(path: Path, document: Mapping[str, Any]) -> list[str]:
+def validate_top_level_permissions(
+    path: Path, document: Mapping[str, Any]
+) -> list[str]:
     errors: list[str] = []
     top_permissions = as_mapping(document.get("permissions"))
     if dict(top_permissions or {}) != {"contents": "read"}:
         errors.append(
             f"{path}: top-level permissions must be exactly '{{contents: read}}'"
         )
+    return errors
 
+
+def validate_workflow_trust_boundary(
+    path: Path, document: Mapping[str, Any], is_pull_request_workflow: bool
+) -> list[str]:
+    errors: list[str] = []
     events = workflow_events(document)
-    is_pull_request_workflow = "pull_request" in events
     if "pull_request_target" in events:
         errors.append(f"{path}: pull_request_target is prohibited")
     if is_pull_request_workflow and contains_secret_reference(document):
@@ -337,7 +416,80 @@ def validate_permissions(path: Path, document: Mapping[str, Any]) -> list[str]:
             f"{path}: workflow-level env must not expose github.token under any "
             "variable name; scope it to the one step that needs it"
         )
+    return errors
 
+
+def validate_job_environment(
+    path: Path, job_name: str, job: Mapping[str, Any]
+) -> list[str]:
+    errors: list[str] = []
+    job_env = as_mapping(job.get("env"))
+    if job_env is None:
+        return errors
+    if "GITHUB_TOKEN" in job_env:
+        errors.append(
+            f"{path}: job '{job_name}' must not define a job-level GITHUB_TOKEN; "
+            "scope it to the one step that needs it"
+        )
+    if contains_github_token_reference(job_env):
+        errors.append(
+            f"{path}: job '{job_name}' env must not expose github.token under any "
+            "variable name; scope it to the one step that needs it"
+        )
+    return errors
+
+
+def validate_job_checkouts(
+    path: Path, job_name: str, job: Mapping[str, Any], is_pull_request_workflow: bool
+) -> list[str]:
+    errors: list[str] = []
+    for step_index, checkout in checkout_steps(job):
+        checkout_with = as_mapping(checkout.get("with"))
+        if (
+            checkout_with is None
+            or checkout_with.get("persist-credentials") is not False
+        ):
+            errors.append(
+                f"{path}: job '{job_name}' checkout step {step_index} must set "
+                "persist-credentials: false"
+            )
+        if (
+            is_pull_request_workflow
+            and checkout_with is not None
+            and enabled_submodules(checkout_with.get("submodules"))
+        ):
+            errors.append(
+                f"{path}: job '{job_name}' checkout step {step_index} enables "
+                "submodules in a pull_request workflow"
+            )
+    return errors
+
+
+def validate_job(
+    path: Path, job_name: str, job: Mapping[str, Any], is_pull_request_workflow: bool
+) -> list[str]:
+    errors: list[str] = []
+    if is_pull_request_workflow and permission_allows_write(job.get("permissions")):
+        errors.append(
+            f"{path}: job '{job_name}' grants a write permission in a pull_request workflow"
+        )
+    errors.extend(validate_job_environment(path, job_name, job))
+    if is_pull_request_workflow and "secrets" in job:
+        errors.append(
+            f"{path}: job '{job_name}' must not forward reusable-workflow secrets "
+            "in a pull_request workflow"
+        )
+    errors.extend(validate_job_checkouts(path, job_name, job, is_pull_request_workflow))
+    return errors
+
+
+def validate_permissions(path: Path, document: Mapping[str, Any]) -> list[str]:
+    errors = validate_top_level_permissions(path, document)
+    events = workflow_events(document)
+    is_pull_request_workflow = "pull_request" in events
+    errors.extend(
+        validate_workflow_trust_boundary(path, document, is_pull_request_workflow)
+    )
     jobs = as_mapping(document.get("jobs"))
     if jobs is None:
         return [*errors, f"{path}: workflow must define jobs"]
@@ -346,41 +498,7 @@ def validate_permissions(path: Path, document: Mapping[str, Any]) -> list[str]:
         if job is None:
             errors.append(f"{path}: job '{job_name}' must be a mapping")
             continue
-        if permission_allows_write(job.get("permissions")) and is_pull_request_workflow:
-            errors.append(
-                f"{path}: job '{job_name}' grants a write permission in a pull_request "
-                "workflow"
-            )
-        job_env = as_mapping(job.get("env"))
-        if job_env is not None and "GITHUB_TOKEN" in job_env:
-            errors.append(
-                f"{path}: job '{job_name}' must not define a job-level GITHUB_TOKEN; "
-                "scope it to the one step that needs it"
-            )
-        if job_env is not None and contains_github_token_reference(job_env):
-            errors.append(
-                f"{path}: job '{job_name}' env must not expose github.token under "
-                "any variable name; scope it to the one step that needs it"
-            )
-        if is_pull_request_workflow and "secrets" in job:
-            errors.append(
-                f"{path}: job '{job_name}' must not forward reusable-workflow "
-                "secrets in a pull_request workflow"
-            )
-        for step_index, checkout in checkout_steps(job):
-            checkout_with = as_mapping(checkout.get("with"))
-            if checkout_with is None or checkout_with.get("persist-credentials") is not False:
-                errors.append(
-                    f"{path}: job '{job_name}' checkout step {step_index} must set "
-                    "persist-credentials: false"
-                )
-            if is_pull_request_workflow and checkout_with is not None and enabled_submodules(
-                checkout_with.get("submodules")
-            ):
-                errors.append(
-                    f"{path}: job '{job_name}' checkout step {step_index} enables "
-                    "submodules in a pull_request workflow"
-                )
+        errors.extend(validate_job(path, str(job_name), job, is_pull_request_workflow))
     return errors
 
 
@@ -388,7 +506,10 @@ def main() -> int:
     args = parse_args()
     paths = workflow_paths(args.workflow_root)
     if not paths:
-        print(f"{args.workflow_root}: no .yml or .yaml workflow files found", file=sys.stderr)
+        print(
+            f"{args.workflow_root}: no .yml or .yaml workflow files found",
+            file=sys.stderr,
+        )
         return 1
 
     include_pins = args.check in {"all", "pins"}

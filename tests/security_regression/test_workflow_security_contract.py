@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 
@@ -19,7 +20,9 @@ class WorkflowSecurityContractTests(unittest.TestCase):
         directory = FIXTURES / name
         return directory if directory.is_dir() else directory.with_suffix(".yml")
 
-    def run_checker(self, workflow_root: Path, check: str = "all") -> subprocess.CompletedProcess[str]:
+    def run_checker(
+        self, workflow_root: Path, check: str = "all", working_directory: Path = ROOT
+    ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["PYTHONDONTWRITEBYTECODE"] = "1"
         return subprocess.run(
@@ -31,7 +34,7 @@ class WorkflowSecurityContractTests(unittest.TestCase):
                 "--check",
                 check,
             ],
-            cwd=ROOT,
+            cwd=working_directory,
             check=False,
             capture_output=True,
             text=True,
@@ -47,6 +50,56 @@ class WorkflowSecurityContractTests(unittest.TestCase):
             with self.subTest(name=name):
                 result = self.run_checker(FIXTURES / name)
                 self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_validator_recurses_into_nested_workflow_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_root:
+            workflow_root = Path(temporary_root)
+            nested_directory = workflow_root / "nested"
+            nested_directory.mkdir()
+            (nested_directory / "workflow.yaml").write_text(
+                """\
+name: nested workflow
+on: pull_request
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+""",
+                encoding="utf-8",
+            )
+            result = self.run_checker(
+                workflow_root, check="pins", working_directory=workflow_root
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("immutable full SHA", result.stderr)
+
+    def test_validator_rejects_workflow_roots_outside_the_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_root:
+            workflow = Path(temporary_root) / "workflow.yml"
+            workflow.write_text("name: external\n", encoding="utf-8")
+            result = self.run_checker(workflow, check="pins")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no .yml or .yaml workflow files found", result.stderr)
+
+    def test_validator_does_not_follow_a_workflow_symlink_outside_repository(
+        self,
+    ) -> None:
+        with (
+            tempfile.TemporaryDirectory() as repository,
+            tempfile.TemporaryDirectory() as external,
+        ):
+            repository_root = Path(repository)
+            external_workflow = Path(external) / "workflow.yml"
+            external_workflow.write_text("name: external\n", encoding="utf-8")
+            (repository_root / "escaped.yml").symlink_to(external_workflow)
+            result = self.run_checker(
+                repository_root, check="pins", working_directory=repository_root
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no .yml or .yaml workflow files found", result.stderr)
 
     def test_pin_validator_rejects_mutable_tags_in_both_extensions(self) -> None:
         cases = {
@@ -72,7 +125,9 @@ class WorkflowSecurityContractTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(expected_message, result.stderr)
 
-    def test_permission_and_trust_boundary_validator_rejects_unsafe_fixtures(self) -> None:
+    def test_permission_and_trust_boundary_validator_rejects_unsafe_fixtures(
+        self,
+    ) -> None:
         cases = {
             "unsafe_pull_request_target": "pull_request_target",
             "unsafe_pr_write_permission": "write permission",
@@ -92,7 +147,11 @@ class WorkflowSecurityContractTests(unittest.TestCase):
         }
         for name, expected_message in cases.items():
             with self.subTest(name=name):
-                check = "pins" if name == "unsafe_missing_version_comment" else "permissions"
+                check = (
+                    "pins"
+                    if name == "unsafe_missing_version_comment"
+                    else "permissions"
+                )
                 result = self.run_checker(self.fixture_path(name), check=check)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(expected_message, result.stderr)
