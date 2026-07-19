@@ -94,6 +94,19 @@ This contract proves only target-to-tool resolution. H1, H2, and H3 outcomes
 still require the applicable client, host, and artifact prerequisites and are
 reported separately as runtime evidence.
 
+## CRS source provenance contract
+
+`make test-crs-provenance-contract`, which is also part of `make lint`, runs
+the real CRS provisioning boundary against a temporary fake Git executable and
+exercises the update decision with a fake GitHub release client. It verifies
+that mutable tags, branches, ref namespaces, short hashes, and an unrelated
+full hash are rejected before Git use; that the reviewed full commit works for
+both new and existing checkouts; and that a mismatched checked-out `HEAD` stops
+before submodule processing. A newer upstream tag is reported as `unknown`
+with no automatic update: changing the release tag and immutable commit remains
+a reviewed provenance change. It requires no network or connector runtime and
+proves the provisioning identity control only, not a CRS runtime support claim.
+
 ## No-CRS and full-lifecycle evidence
 
 The canonical No-CRS implementation is

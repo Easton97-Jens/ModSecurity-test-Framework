@@ -9,7 +9,8 @@
 | Change ID | `20260718-01-fix-framework-crs-ref-provenance` |
 | UTC date | `2026-07-18` |
 | Framework base revision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue or pull request | Pending Framework Draft PR; no merge is authorized. |
+| Issue or pull request | Framework Draft PR #26; current-task integration remains subject to exact-head checks and the authorized merge gates. |
+| Reconciliation base revision | `e3b9903ddd2607d131e419ff780acbcee14ace3c`; local synchronization merge `60b8a4c49ca57f74ea4a0d8dec6e3f8c3fd5174a` is not yet pushed. |
 
 ## Motivation and problem statement
 
@@ -41,6 +42,8 @@ this task worktree.
 - Origin, `FETCH_HEAD^{commit}`, the resolved commit object, and final
   `HEAD^{commit}` all match the same approved commit.
 - Pre-existing source paths and any `.gitmodules` manifest are fail closed.
+- A newer CRS release is reported without an automatic update; a reviewed
+  release-tag and immutable-commit pair is required for any provenance change.
 - The focused negative, control, and bypass tests pass without a real CRS
   download or MRTS mutation.
 
@@ -74,6 +77,8 @@ and rejects `.gitmodules` after the parent proof. It never uses `--branch`,
 
 - `ci/lib/common.sh`
 - `ci/provisioning/fetch-crs.sh`
+- `Makefile` and `ci/checks/catalog/check-crs-version-pinning.sh`
+- `ci/tools/check-common-versions.py`
 - `tests/security_regression/test_crs_git_ref_provenance.py`
 - `docs/reference/variables.md` and `docs/reference/variables.de.md`
 - this paired Change Record
@@ -83,14 +88,18 @@ and rejects `.gitmodules` after the parent proof. It never uses `--branch`,
 The focused test has a legitimate fresh-checkout control and negative coverage
 for tag/branch/namespace/short-or-unrelated-ID, runtime override, existing
 checkout, unexpected origin, fetched/resolved/final-HEAD mismatch, submodule
-manifest, and unsafe Git environment inputs.
+manifest, unsafe Git environment inputs, and a newer release that must not
+generate an unreviewed tag-to-commit update.
 
 ## Commands and results
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
 | `rtk env … python -m unittest discover -s tests/security_regression -p test_crs_git_ref_provenance.py -v` (baseline) | `1` | 8 tests / 13 expected failures proved the vulnerable flow before the source fix. | Task run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
-| Same focused command (current) | `0` | 9 mock Git provenance tests passed. | Task run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
+| Same focused command (initial #26 implementation) | `0` | 9 mock Git provenance tests passed. | Task run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
+| `rtk make BUILD_ROOT=… TMP_ROOT=… test-crs-provenance-contract` (2026-07-19 reconciliation) | `0` | 10 mock-Git provenance tests passed, including the reviewed-release-pair updater regression. | Current task run `20260719T081017Z-framework-pr-resolution-20260719-840082e0` |
+| `rtk proxy env TMP_ROOT=… BUILD_ROOT=… sh ci/checks/catalog/check-crs-version-pinning.sh` | `0` | The approved literal origin, commit, and release metadata guard passed. | Current task run `20260719T081017Z-framework-pr-resolution-20260719-840082e0` |
+| Same catalog guard with `CRS_GIT_REF=main` | `77` (expected negative control) | Runtime release-metadata override was rejected before catalog scanning. | Current task run `20260719T081017Z-framework-pr-resolution-20260719-840082e0` |
 | `rtk sh -n ci/lib/common.sh` | `0` | POSIX shell syntax passed. | Task run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
 | `rtk sh -n ci/provisioning/fetch-crs.sh` | `0` | POSIX shell syntax passed. | Task run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
 | `rtk env … python -m unittest discover -s tests/security_regression -v` | `0` | Full security-regression discovery: 22 tests passed. | Task run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |

@@ -4,9 +4,11 @@ The fixture replaces Git only at the process boundary used by fetch-crs.sh.
 It never contacts a remote or creates a real CRS checkout.
 """
 
+import importlib.util
 import os
 import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,11 +16,25 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 FETCH_CRS = ROOT / "ci/provisioning/fetch-crs.sh"
+CHECK_COMMON_VERSIONS = ROOT / "ci/tools/check-common-versions.py"
 APPROVED_REPO = "https://github.com/coreruleset/coreruleset.git"
 APPROVED_COMMIT = "55b09f5acfd16413e7b31041100711ceb7adc89c"
 APPROVED_RELEASE_TAG = "v4.28.0"
 ALTERNATE_COMMIT = "a" * 40
 ANNOTATED_TAG_OBJECT = "5d2bd9a1ad7e607813f9e19cc73fa44dd5dd2ceb"
+
+
+def load_common_version_checker():
+    spec = importlib.util.spec_from_file_location("check_common_versions", CHECK_COMMON_VERSIONS)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("could not load the common-version checker")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+COMMON_VERSION_CHECKER = load_common_version_checker()
 
 
 FAKE_GIT = """#!/usr/bin/env python3
@@ -262,6 +278,37 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         self.assertEqual(77, result.returncode, result.stdout + result.stderr)
         self.assertIn("rev-parse --verify HEAD^{commit}", command_text)
         self.assertNotIn("submodule", self.git_verbs(commands))
+
+    def test_version_checker_requires_reviewed_release_tag_and_commit_pair(self):
+        class FakeGithubClient:
+            def __init__(self):
+                self.urls = []
+
+            def get_json(self, url):
+                self.urls.append(url)
+                return {"tag_name": "v4.29.0"}
+
+        _, entries = COMMON_VERSION_CHECKER.parse_common(ROOT / "ci/lib/common.sh")
+        client = FakeGithubClient()
+        result = COMMON_VERSION_CHECKER.check_crs_release_provenance(entries, client)
+
+        self.assertEqual(APPROVED_REPO, COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_REPO_URL"))
+        self.assertEqual(APPROVED_COMMIT, COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_COMMIT"))
+        self.assertEqual(APPROVED_RELEASE_TAG, COMMON_VERSION_CHECKER.value(entries, "CRS_RELEASE_TAG"))
+        self.assertEqual(COMMON_VERSION_CHECKER.STATUS_UNKNOWN, result.status)
+        self.assertEqual([], result.updates)
+        self.assertEqual(
+            ["CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"],
+            result.variables,
+        )
+        self.assertEqual(
+            "update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after commit provenance review",
+            result.details["reason"],
+        )
+        self.assertEqual(
+            ["https://api.github.com/repos/coreruleset/coreruleset/releases/latest"],
+            client.urls,
+        )
 
 
 if __name__ == "__main__":

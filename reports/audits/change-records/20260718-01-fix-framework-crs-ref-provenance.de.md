@@ -9,7 +9,8 @@
 | Change-ID | `20260718-01-fix-framework-crs-ref-provenance` |
 | UTC-Datum | `2026-07-18` |
 | Framework-Basisrevision | `cdc91a398d6c156eaff927d742b23018a3817fb6` |
-| Issue oder Pull Request | Framework-Draft-PR ausstehend; kein Merge ist autorisiert. |
+| Issue oder Pull Request | Framework-Draft-PR #26; die aktuelle Task-Integration bleibt an Exact-Head-Checks und die autorisierten Merge-Gates gebunden. |
+| Reconciliation-Basisrevision | `e3b9903ddd2607d131e419ff780acbcee14ace3c`; der lokale Synchronisations-Merge `60b8a4c49ca57f74ea4a0d8dec6e3f8c3fd5174a` ist noch nicht gepusht. |
 
 ## Motivation und Problemstellung
 
@@ -44,6 +45,9 @@ Task-Worktree unberührt und nicht initialisiert.
   `HEAD^{commit}` entsprechen demselben freigegebenen Commit.
 - Vorhandene Quellpfade und jedes `.gitmodules`-Manifest schlagen fail-closed
   fehl.
+- Ein neueres CRS-Release wird ohne automatische Änderung gemeldet; für jede
+  Provenance-Änderung ist ein geprüftes Paar aus Release-Tag und unveränderlichem
+  Commit erforderlich.
 - Die fokussierten Negativ-, Kontroll- und Bypass-Tests bestehen ohne echten
   CRS-Download oder MRTS-Mutation.
 
@@ -79,6 +83,8 @@ oder `checkout --detach FETCH_HEAD`.
 
 - `ci/lib/common.sh`
 - `ci/provisioning/fetch-crs.sh`
+- `Makefile` und `ci/checks/catalog/check-crs-version-pinning.sh`
+- `ci/tools/check-common-versions.py`
 - `tests/security_regression/test_crs_git_ref_provenance.py`
 - `docs/reference/variables.md` und `docs/reference/variables.de.md`
 - dieses gepaarte Change Record
@@ -89,14 +95,18 @@ Der fokussierte Test enthält eine legitime Frisch-Checkout-Kontrolle und
 Negativabdeckung für Tag/Branch/Namespace/kurze-oder-nicht-zugehörige-ID,
 Runtime-Override, bestehenden Checkout, unerwarteten Origin,
 Fetched-/Objekt-/HEAD-Mismatch, Submodule-Manifest und unsichere
-Git-Umgebungseingaben.
+Git-Umgebungseingaben sowie ein neueres Release, das keine ungeprüfte
+Tag-zu-Commit-Aktualisierung erzeugen darf.
 
 ## Befehle und Ergebnisse
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- | --- |
 | `rtk env … python -m unittest discover -s tests/security_regression -p test_crs_git_ref_provenance.py -v` (Baseline) | `1` | 8 Tests / 13 erwartete Fehler belegten den verwundbaren Pfad vor dem Source-Fix. | Task-Run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
-| Derselbe fokussierte Befehl (aktuell) | `0` | 9 Mock-Git-Provenance-Tests bestanden. | Task-Run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
+| Derselbe fokussierte Befehl (initiale #26-Implementierung) | `0` | 9 Mock-Git-Provenance-Tests bestanden. | Task-Run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
+| `rtk make BUILD_ROOT=… TMP_ROOT=… test-crs-provenance-contract` (Reconciliation 2026-07-19) | `0` | 10 Mock-Git-Provenance-Tests bestanden, einschließlich der Updater-Regression für das geprüfte Release-Paar. | Aktueller Task-Run `20260719T081017Z-framework-pr-resolution-20260719-840082e0` |
+| `rtk proxy env TMP_ROOT=… BUILD_ROOT=… sh ci/checks/catalog/check-crs-version-pinning.sh` | `0` | Der Guard für freigegebenen literalen Origin, Commit und Release-Metadaten bestand. | Aktueller Task-Run `20260719T081017Z-framework-pr-resolution-20260719-840082e0` |
+| Derselbe Katalog-Guard mit `CRS_GIT_REF=main` | `77` (erwartete Negativkontrolle) | Der Runtime-Override der Release-Metadaten wurde vor dem Catalog-Scan abgewiesen. | Aktueller Task-Run `20260719T081017Z-framework-pr-resolution-20260719-840082e0` |
 | `rtk sh -n ci/lib/common.sh` | `0` | POSIX-Shell-Syntax bestanden. | Task-Run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
 | `rtk sh -n ci/provisioning/fetch-crs.sh` | `0` | POSIX-Shell-Syntax bestanden. | Task-Run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
 | `rtk env … python -m unittest discover -s tests/security_regression -v` | `0` | Vollständige Security-Regression-Discovery: 22 Tests bestanden. | Task-Run `20260718T092708Z-fnd-framework-0004-crs-ref-provenance-05f04893` |
