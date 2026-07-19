@@ -81,8 +81,8 @@ Archivpfade, Links und Devices ab, extrahiert nur die gelockte Executable oder
 den gelockten Package-Tree und veröffentlicht das Ergebnis atomar. Es
 installiert kein Paket in den Framework-Checkout.
 
-`requirements-ci.lock` pinnt das CI-PyYAML-Wheel für überprüftes CPython
-3.12.13 auf Linux x86_64 und verlangt dessen offiziellen PyPI-SHA-256.
+`requirements-ci.lock` pinnt das CI-PyYAML-CP313-Wheel für überprüftes
+CPython 3.13.14 auf Linux x86_64 und verlangt dessen offiziellen PyPI-SHA-256.
 Workflows wählen diesen exakten Patch mit `check-latest: false` und
 installieren ihn anschließend mit `--require-hashes`, `--only-binary=:all:`
 und `pip check`. Dependabot überwacht sowohl `github-actions` als auch `pip`;

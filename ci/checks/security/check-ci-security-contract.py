@@ -61,7 +61,7 @@ TOKEN_REFERENCE_ALLOWLIST = {
 TOKEN_REFERENCE = re.compile(
     r"(?:github\.token|secrets\.GITHUB_TOKEN|\$\{?GITHUB_TOKEN\}?)"
 )
-REVIEWED_PYTHON_VERSION = "3.12.13"
+REVIEWED_PYTHON_VERSION = "3.13.14"
 PYTHON_VERSION_DECLARATION = re.compile(
     r"^\s*python-version:\s*['\"]?([^\s'\"#]+)['\"]?\s*(?:#.*)?$",
     re.MULTILINE,
