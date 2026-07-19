@@ -85,6 +85,7 @@ COMMANDS_FILE="$LOG_DIR/commands.txt"
 SOURCE_INFO_FILE="$LOG_DIR/source-info.txt"
 ARTIFACTS_FILE="$LOG_DIR/artifacts.txt"
 RESOLVED_NGINX_RELEASE_TAG=
+RESOLVED_NGINX_RELEASE_ASSET_NAME=
 NGINX_ARCHIVE_URL=
 NGINX_ARCHIVE=
 NGINX_VERIFIED_ARCHIVE=
@@ -137,13 +138,45 @@ validate_pinned_sha256() {
     fi
 }
 
+nginx_release_asset_name_for_tag() {
+    release_tag=$1
+    case "$release_tag" in
+        release-*) release_version=${release_tag#release-} ;;
+        *) release_version=$release_tag ;;
+    esac
+    printf 'nginx-%s.tar.gz\n' "$release_version"
+}
+
+validate_nginx_release_asset_name() {
+    asset_name=$1
+    case "$asset_name" in
+        *..*) blocked "NGINX_RELEASE_ASSET_NAME must not contain traversal segments" ;;
+    esac
+    if ! printf '%s' "$asset_name" | LC_ALL=C grep -Eq '^nginx-[A-Za-z0-9][A-Za-z0-9._-]*\.tar\.gz$'; then
+        blocked "NGINX_RELEASE_ASSET_NAME must be a safe nginx release archive name"
+    fi
+}
+
 validate_nginx_archive_configuration() {
+    if [ "$NGINX_SHA256_WAS_SET" = "1" ] && [ -z "$NGINX_SHA256_REQUESTED" ]; then
+        blocked "NGINX_SHA256 must not be explicitly empty"
+    fi
     validate_pinned_sha256 "$NGINX_SHA256" NGINX_SHA256
     NGINX_SHA256_CANONICAL=$(printf '%s' "$NGINX_SHA256" | tr '[:upper:]' '[:lower:]')
     ci_require_safe_ref "$NGINX_RELEASE_TAG" NGINX_RELEASE_TAG || \
         blocked "NGINX_RELEASE_TAG must be a safe release reference"
     ci_require_safe_ref "$NGINX_SOURCE_GIT_REF" NGINX_SOURCE_GIT_REF || \
         blocked "NGINX_SOURCE_GIT_REF must be a safe source reference"
+    if [ "$NGINX_RELEASE_TAG" != "latest" ]; then
+        if [ "$NGINX_SOURCE_GIT_REF" != "$NGINX_RELEASE_TAG" ]; then
+            blocked "NGINX_SOURCE_GIT_REF must equal NGINX_RELEASE_TAG for a fixed release asset"
+        fi
+        validate_nginx_release_asset_name "$NGINX_RELEASE_ASSET_NAME"
+        expected_asset_name=$(nginx_release_asset_name_for_tag "$NGINX_RELEASE_TAG")
+        if [ "$NGINX_RELEASE_ASSET_NAME" != "$expected_asset_name" ]; then
+            blocked "NGINX_RELEASE_ASSET_NAME must bind NGINX_RELEASE_TAG to $expected_asset_name"
+        fi
+    fi
 }
 
 verify_nginx_archive_digest() {
@@ -159,8 +192,8 @@ verify_nginx_archive_digest() {
 
 stage_verified_nginx_archive() {
     verified_dir="$NGINX_BUILD_DIR/verified-archives"
-    NGINX_VERIFIED_ARCHIVE="$verified_dir/nginx-$RESOLVED_NGINX_RELEASE_TAG.tar.gz"
-    verified_tmp="$verified_dir/.nginx-$RESOLVED_NGINX_RELEASE_TAG.tar.gz.$$"
+    NGINX_VERIFIED_ARCHIVE="$verified_dir/$RESOLVED_NGINX_RELEASE_ASSET_NAME"
+    verified_tmp="$verified_dir/.$RESOLVED_NGINX_RELEASE_ASSET_NAME.$$"
 
     mkdir -p "$verified_dir"
     run_blocked nginx-source-stage-verified "$DOWNLOAD_DIR" \
@@ -536,7 +569,9 @@ resolve_nginx_release_tag() {
         RESOLVED_NGINX_RELEASE_TAG="$NGINX_RELEASE_TAG"
         ci_require_safe_ref "$RESOLVED_NGINX_RELEASE_TAG" RESOLVED_NGINX_RELEASE_TAG || \
             blocked "resolved NGINX release tag must be safe"
-        NGINX_ARCHIVE_URL="https://github.com/$repo_path/archive/refs/tags/$RESOLVED_NGINX_RELEASE_TAG.tar.gz"
+        RESOLVED_NGINX_RELEASE_ASSET_NAME="$NGINX_RELEASE_ASSET_NAME"
+        validate_nginx_release_asset_name "$RESOLVED_NGINX_RELEASE_ASSET_NAME"
+        NGINX_ARCHIVE_URL="https://github.com/$repo_path/releases/download/$RESOLVED_NGINX_RELEASE_TAG/$RESOLVED_NGINX_RELEASE_ASSET_NAME"
         return 0
     fi
 
@@ -582,7 +617,9 @@ PY
     [ -n "$RESOLVED_NGINX_RELEASE_TAG" ] || blocked "GitHub latest release response did not include tag_name"
     ci_require_safe_ref "$RESOLVED_NGINX_RELEASE_TAG" RESOLVED_NGINX_RELEASE_TAG || \
         blocked "resolved NGINX release tag must be safe"
-    NGINX_ARCHIVE_URL="https://github.com/$repo_path/archive/refs/tags/$RESOLVED_NGINX_RELEASE_TAG.tar.gz"
+    RESOLVED_NGINX_RELEASE_ASSET_NAME=$(nginx_release_asset_name_for_tag "$RESOLVED_NGINX_RELEASE_TAG")
+    validate_nginx_release_asset_name "$RESOLVED_NGINX_RELEASE_ASSET_NAME"
+    NGINX_ARCHIVE_URL="https://github.com/$repo_path/releases/download/$RESOLVED_NGINX_RELEASE_TAG/$RESOLVED_NGINX_RELEASE_ASSET_NAME"
 }
 
 download_nginx_source() {
@@ -594,8 +631,9 @@ download_nginx_source() {
     require_command sha256sum "verify NGINX archive checksum"
     mkdir -p "$DOWNLOAD_DIR"
     resolve_nginx_release_tag
-    NGINX_ARCHIVE="$DOWNLOAD_DIR/nginx-$RESOLVED_NGINX_RELEASE_TAG.tar.gz"
+    NGINX_ARCHIVE="$DOWNLOAD_DIR/$RESOLVED_NGINX_RELEASE_ASSET_NAME"
     echo "nginx_poc: resolved nginx release tag=$RESOLVED_NGINX_RELEASE_TAG"
+    echo "nginx_poc: resolved nginx release asset=$RESOLVED_NGINX_RELEASE_ASSET_NAME"
     echo "nginx_poc: nginx archive url=$NGINX_ARCHIVE_URL"
     if [ -f "$NGINX_ARCHIVE" ] && [ "$REFRESH" != "1" ]; then
         echo "nginx_poc: reusing cached nginx archive=$NGINX_ARCHIVE"
@@ -618,6 +656,8 @@ download_nginx_source() {
         echo "nginx_release_tag_requested=$NGINX_RELEASE_TAG"
         echo "nginx_source_git_ref=$NGINX_SOURCE_GIT_REF"
         echo "nginx_release_tag_resolved=$RESOLVED_NGINX_RELEASE_TAG"
+        echo "nginx_release_asset_requested=$NGINX_RELEASE_ASSET_NAME"
+        echo "nginx_release_asset_resolved=$RESOLVED_NGINX_RELEASE_ASSET_NAME"
         echo "nginx_archive_url=$NGINX_ARCHIVE_URL"
         echo "nginx_archive_candidate=$NGINX_ARCHIVE"
         echo "nginx_archive=$NGINX_VERIFIED_ARCHIVE"

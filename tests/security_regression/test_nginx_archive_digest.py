@@ -175,6 +175,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             "NGINX_PREFIX": str(nginx_prefix),
             "NGINX_DOWNLOAD_DIR": str(cache),
             "NGINX_RELEASE_TAG": tag,
+            "NGINX_RELEASE_ASSET_NAME": f"nginx-{tag}.tar.gz",
             "NGINX_SOURCE_MODE": "github-release",
             "NGINX_PROTOCOL_PROFILE": "h1",
             "FIXTURE_ARCHIVE": str(archive),
@@ -233,19 +234,63 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
     def archive_digest(self, harness: dict[str, Path | dict[str, str]]) -> str:
         return hashlib.sha256(harness["archive"].read_bytes()).hexdigest()
 
+    def test_default_release_provenance_is_a_complete_release_asset_sha_tuple(self):
+        environment = os.environ.copy()
+        for name in (
+            "NGINX_RELEASE_TAG",
+            "NGINX_SOURCE_GIT_REF",
+            "NGINX_RELEASE_ASSET_NAME",
+            "NGINX_SHA256",
+        ):
+            environment.pop(name, None)
+        result = subprocess.run(
+            [
+                "sh",
+                "-c",
+                '. "$1"; printf "%s\\n%s\\n%s\\n%s\\n" "$NGINX_RELEASE_TAG" "$NGINX_SOURCE_GIT_REF" "$NGINX_RELEASE_ASSET_NAME" "$NGINX_SHA256"',
+                "sh",
+                str(ROOT / "ci/lib/common.sh"),
+            ],
+            cwd=ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=environment,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            result.stdout.splitlines(),
+            [
+                "release-1.31.2",
+                "release-1.31.2",
+                "nginx-1.31.2.tar.gz",
+                "af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c",
+            ],
+        )
+
     def test_empty_whitespace_and_invalid_digests_stop_before_network_or_tar(self):
         cases = {
-            "empty": self.fixture_text("digest-empty.txt"),
-            "whitespace": self.fixture_text("digest-whitespace.txt").rstrip("\n").encode("ascii").decode("unicode_escape"),
-            "invalid": self.fixture_text("digest-invalid.txt"),
+            "empty": (
+                self.fixture_text("digest-empty.txt").strip(),
+                "NGINX_SHA256 must not be explicitly empty",
+            ),
+            "whitespace": (
+                self.fixture_text("digest-whitespace.txt").rstrip("\n").encode("ascii").decode("unicode_escape"),
+                "NGINX_SHA256 must be a pinned 64-character SHA-256 value",
+            ),
+            "invalid": (
+                self.fixture_text("digest-invalid.txt"),
+                "NGINX_SHA256 must be a pinned 64-character SHA-256 value",
+            ),
         }
-        for label, digest in cases.items():
+        for label, (digest, expected_message) in cases.items():
             with self.subTest(label=label):
                 harness = self.make_harness()
                 try:
                     result = self.run_prepare(harness, digest)
                     self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
-                    self.assertIn("NGINX_SHA256 must be a pinned 64-character SHA-256 value", result.stdout)
+                    self.assertIn(expected_message, result.stdout)
                     self.assertEqual(self.tar_invocations(harness), [])
                     self.assertFalse(harness["curl_log"].exists(), "invalid digest reached curl")
                 finally:
@@ -260,6 +305,30 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             self.assertFalse(harness["curl_log"].exists(), "trailing whitespace reached curl")
         finally:
             self.remove_harness(harness)
+
+    def test_fixed_release_tuple_mismatches_stop_before_network_or_tar(self):
+        for label, overrides, message in (
+            (
+                "source-ref",
+                {"NGINX_SOURCE_GIT_REF": "fixture-other-ref"},
+                "NGINX_SOURCE_GIT_REF must equal NGINX_RELEASE_TAG",
+            ),
+            (
+                "asset-name",
+                {"NGINX_RELEASE_ASSET_NAME": "nginx-fixture-other.tar.gz"},
+                "NGINX_RELEASE_ASSET_NAME must bind NGINX_RELEASE_TAG",
+            ),
+        ):
+            with self.subTest(label=label):
+                harness = self.make_harness()
+                try:
+                    result = self.run_prepare(harness, self.archive_digest(harness), **overrides)
+                    self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                    self.assertIn(message, result.stdout)
+                    self.assertEqual(self.tar_invocations(harness), [])
+                    self.assertFalse(harness["curl_log"].exists(), "tuple mismatch reached curl")
+                finally:
+                    self.remove_harness(harness)
 
     def test_mismatch_is_blocked_before_tar(self):
         harness = self.make_harness()
@@ -319,7 +388,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             urls = harness["curl_log"].read_text(encoding="utf-8")
             self.assertIn("https://api.github.com/repos/nginx/nginx/releases/latest", urls)
-            self.assertIn("https://github.com/nginx/nginx/archive/refs/tags/fixture-latest.tar.gz", urls)
+            self.assertIn(
+                "https://github.com/nginx/nginx/releases/download/fixture-latest/nginx-fixture-latest.tar.gz",
+                urls,
+            )
             self.assertEqual(len(self.tar_invocations(harness)), 1)
         finally:
             self.remove_harness(harness)
@@ -332,13 +404,14 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 self.archive_digest(harness),
                 NGINX_RELEASE_TAG="fixture-override",
                 NGINX_SOURCE_GIT_REF="fixture-override",
+                NGINX_RELEASE_ASSET_NAME="nginx-fixture-override.tar.gz",
                 NGINX_SOURCE_REPO_URL="https://github.com/fixture-owner/fixture-nginx",
                 NGINX_ARCHIVE_EXPECTED=str(harness["cache"] / "nginx-fixture-override.tar.gz"),
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             urls = harness["curl_log"].read_text(encoding="utf-8")
             self.assertIn(
-                "https://github.com/fixture-owner/fixture-nginx/archive/refs/tags/fixture-override.tar.gz",
+                "https://github.com/fixture-owner/fixture-nginx/releases/download/fixture-override/nginx-fixture-override.tar.gz",
                 urls,
             )
             self.assertEqual(len(self.tar_invocations(harness)), 1)
@@ -352,6 +425,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 self.archive_digest(compatibility),
                 NGINX_RELEASE_TAG="fixture-compat",
                 NGINX_SOURCE_GIT_REF="fixture-compat",
+                NGINX_RELEASE_ASSET_NAME="nginx-fixture-compat.tar.gz",
                 NGINX_SOURCE_REPO_URL="",
                 NGINX_GITHUB_REPO="https://github.com/fixture-owner/compat-nginx",
                 NGINX_ARCHIVE_EXPECTED=str(compatibility["cache"] / "nginx-fixture-compat.tar.gz"),
@@ -359,7 +433,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             urls = compatibility["curl_log"].read_text(encoding="utf-8")
             self.assertIn(
-                "https://github.com/fixture-owner/compat-nginx/archive/refs/tags/fixture-compat.tar.gz",
+                "https://github.com/fixture-owner/compat-nginx/releases/download/fixture-compat/nginx-fixture-compat.tar.gz",
                 urls,
             )
             self.assertEqual(len(self.tar_invocations(compatibility)), 1)
@@ -384,7 +458,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             result = self.run_prepare(refreshed, self.archive_digest(refreshed), REFRESH="1")
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             urls = refreshed["curl_log"].read_text(encoding="utf-8")
-            self.assertIn("https://github.com/nginx/nginx/archive/refs/tags/fixture-release.tar.gz", urls)
+            self.assertIn(
+                "https://github.com/nginx/nginx/releases/download/fixture-release/nginx-fixture-release.tar.gz",
+                urls,
+            )
             self.assertEqual(len(self.tar_invocations(refreshed)), 1)
         finally:
             self.remove_harness(refreshed)
