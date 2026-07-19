@@ -137,6 +137,31 @@ class CommonVersionProvenanceTests(unittest.TestCase):
         with self.assertRaises(CHECKER.UpstreamUnknown):
             CHECKER.version_tuple("release-without-a-dotted-version")
 
+    def test_nginx_release_asset_name_preserves_strict_ascii_token_validation(self):
+        for release_tag, expected_name in (
+            ("release-1.2.3", "nginx-1.2.3.tar.gz"),
+            ("release-A_1-rc.2", "nginx-A_1-rc.2.tar.gz"),
+            ("1.2.3", "nginx-1.2.3.tar.gz"),
+            ("release-1.2.3.tar.gz", "nginx-1.2.3.tar.gz.tar.gz"),
+        ):
+            with self.subTest(release_tag=release_tag):
+                self.assertEqual(expected_name, CHECKER.nginx_release_asset_name(release_tag))
+
+        for release_tag in (
+            "release-",
+            "release-.1",
+            "release-_1",
+            "release--1",
+            "release-1/2",
+            "release-1 2",
+            "release-1..2",
+            "release-1\u00e9",
+            "release-1\n",
+        ):
+            with self.subTest(rejected_release_tag=release_tag):
+                with self.assertRaises(CHECKER.UpstreamError):
+                    CHECKER.nginx_release_asset_name(release_tag)
+
     def test_unofficial_tarball_host_is_rejected_before_any_http_lookup(self):
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
             fixture = Path(temporary) / FIXTURE_NAME

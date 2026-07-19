@@ -56,6 +56,24 @@ class FallbackYamlParserHardeningTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unexpected indentation"):
             self.parse_content("headers:\n  - name: Content-Type\n      value: json\n")
 
+    def test_preserves_mapping_value_forms(self) -> None:
+        parsed = self.parse_content(
+            "name: parser-hardening\n"
+            "rules: |-\n"
+            "  SecRuleEngine On\n"
+            "metadata:\n"
+            "  enabled: true\n"
+        )
+
+        self.assertEqual(
+            {
+                "name": "parser-hardening",
+                "rules": "SecRuleEngine On\n",
+                "metadata": {"enabled": True},
+            },
+            parsed,
+        )
+
     def test_accepts_documented_block_scalar_header_forms(self) -> None:
         headers: list[str] = []
         for style in "|>":

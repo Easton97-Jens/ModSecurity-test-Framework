@@ -84,7 +84,39 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
         self.assertNotRegex(source, r"(?m)\btest\b")
         self.assertNotIn("[[", source)
         self.assertIn("mrts_path_matches() (", source)
+        self.assertIn("mrts_path_matches_kind=$2", source)
+        self.assertNotIn('case "$2" in', source)
+        self.assertIn('return "$mrts_path_matches_status"', source)
         self.assertEqual(3, source.count("command -p find -H"))
+
+    def test_path_classifier_rejects_unknown_match_kind(self) -> None:
+        unknown_kind_script = "\n".join(
+            (
+                '. "$HELPER_PATH"',
+                'if mrts_path_matches "$NORMAL_PATH" unexpected; then',
+                '    printf "bypass\\n"',
+                "    exit 0",
+                "else",
+                "status=$?",
+                'printf "rejected:%s\\n" "$status"',
+                'exit "$status"',
+                "fi",
+            )
+        )
+
+        with tempfile.TemporaryDirectory(prefix="mrts-common-posix-") as temporary:
+            temporary_root = Path(temporary)
+            normal_file = temporary_root / "normal file"
+            normal_file.write_text("fixture\n", encoding="utf-8")
+            result = self.run_shell(
+                unknown_kind_script,
+                temporary_root,
+                NORMAL_PATH=str(normal_file),
+            )
+
+            self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+            self.assertEqual("rejected:2\n", result.stdout)
+            self.assertEqual("", result.stderr)
 
     def test_path_classifier_rejects_function_and_path_shadowing(self) -> None:
         missing_path_script = "\n".join(

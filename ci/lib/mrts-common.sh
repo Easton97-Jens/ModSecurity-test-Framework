@@ -139,12 +139,16 @@ mrts_rule_ids() {
 
 mrts_path_matches() (
     mrts_path_matches_path=$1
+    mrts_path_matches_kind=$2
     case "$mrts_path_matches_path" in
         -*)
             mrts_path_matches_path="./$mrts_path_matches_path"
             ;;
+        *)
+            :
+            ;;
     esac
-    case "$2" in
+    case "$mrts_path_matches_kind" in
         regular)
             mrts_path_matches_result=$(command -p find -H "$mrts_path_matches_path" -prune -type f -print 2>/dev/null)
             ;;
@@ -155,7 +159,7 @@ mrts_path_matches() (
             mrts_path_matches_result=$(command -p find -H "$mrts_path_matches_path" -prune -size +0c -print 2>/dev/null)
             ;;
         *)
-            exit 2
+            return 2
             ;;
     esac
     mrts_path_matches_status=$?
@@ -163,17 +167,18 @@ mrts_path_matches() (
         0)
             case "$mrts_path_matches_result" in
                 "")
-                    exit 1
+                    mrts_path_matches_status=1
                     ;;
                 *)
-                    exit 0
+                    mrts_path_matches_status=0
                     ;;
             esac
             ;;
         *)
-            exit 2
+            mrts_path_matches_status=2
             ;;
     esac
+    return "$mrts_path_matches_status"
 )
 
 mrts_check_feature_demo_runtime_safe() {
@@ -220,6 +225,9 @@ mrts_append_rule_preamble() {
             export MODSECURITY_RULE_PREAMBLE_FILE
             return 0
             ;;
+        *)
+            :
+            ;;
     esac
 
     combined="$BUILD_ROOT/preambles/mrts-combined.load"
@@ -256,6 +264,9 @@ mrts_import_cases() {
             feature_status=computed
             feature_reason=""
             ;;
+        *)
+            :
+            ;;
     esac
     "${PYTHON:-python3}" "$FRAMEWORK_ROOT/ci/provisioning/import-mrts-cases.py" \
         --framework-root "$FRAMEWORK_ROOT" \
@@ -283,6 +294,9 @@ prepare_mrts_variant() {
             esac
             return 0
             ;;
+        *)
+            :
+            ;;
     esac
 
     case "$MODSECURITY_MRTS_PREPARED" in
@@ -308,8 +322,14 @@ prepare_mrts_variant() {
                     mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE"
                     mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
                     ;;
+                *)
+                    :
+                    ;;
             esac
             return 0
+            ;;
+        *)
+            :
             ;;
     esac
 
@@ -322,6 +342,9 @@ prepare_mrts_variant() {
             MRTS_FEATURE_DEMO_LOAD_FILE=$(MRTS_RULES_OUT="$MRTS_FEATURE_DEMO_RULES_OUT" MRTS_LOAD_FILE="$MRTS_FEATURE_DEMO_LOAD_FILE" sh "$FRAMEWORK_ROOT/ci/provisioning/write-mrts-load.sh")
             mrts_append_rule_preamble "$MRTS_FEATURE_DEMO_LOAD_FILE"
             ;;
+        *)
+            :
+            ;;
     esac
     mrts_append_extra_case_root "$MRTS_UPSTREAM_CASE_ROOT"
     mrts_append_reference_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
@@ -329,6 +352,9 @@ prepare_mrts_variant() {
         1)
             mrts_append_extra_case_root "$MRTS_FEATURE_DEMO_CASE_ROOT"
             return $?
+            ;;
+        *)
+            :
             ;;
     esac
     return 0
@@ -342,6 +368,9 @@ prepare_mrts_runtime_variant() {
         with-mrts:*)
             mrts_import_cases
             return $?
+            ;;
+        *)
+            :
             ;;
     esac
     return 0

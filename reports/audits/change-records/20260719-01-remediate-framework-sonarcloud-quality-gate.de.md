@@ -253,3 +253,35 @@ fokussierte Provenance-Modul bestand 12 Tests und die isolierte vollständige
 Security-Regression bestand 212 Tests. Eine frische Remote-Analyse des
 exakten Heads bleibt erforderlich, bevor das Quality Gate oder der Draft-PR-
 Status als erfolgreich deklariert werden kann.
+
+## Remediation verbleibender Issues nach grünem Quality Gate
+
+Das Remote-Ergebnis des exakten Heads
+`4307d591f52a760d93c5662f183144cbae26e25e` besitzt ein grünes SonarCloud-
+Quality Gate, erfolgreiche Checks SonarCloud Code Analysis,
+`common-structure` und `scaffold-lint` sowie null offene Vulnerabilities. Die
+vollständige PR-Issue-API meldete dennoch 15 reproduzierbare
+Framework-eigene Code Smells. Dieses Inventar ist für die Änderung in scope
+und blockiert daher den Übergang von Draft auf ready trotz grünem Gate.
+
+Die Rest-Remediation ist bewusst eng und verhaltenserhaltend:
+
+- `mrts_path_matches` hat nun einen expliziten POSIX-Return-Pfad und einen
+  benannten Kind-Input, erhält `command -p find -H`, weist unbekannte Kinds mit
+  Status `2` ab und ergänzt explizite No-op-Defaults für die selektiven Shell-
+  Cases, ohne deren aktivierte Branches zu erweitern.
+- Die NGINX-Release-Asset-Tokenprüfung ersetzt die gemeldete Backtracking-
+  RegEx durch eine exakte lineare ASCII-Tokenvalidierung und behält Traversal-
+  Abweisung sowie akzeptierte Legacy-Formen bei.
+- Der Fallback-YAML-Mapping-Parser delegiert unabhängige Parsing-Schritte an
+  kleine Helfer und erhält Scalar-, Block-Scalar-, verschachtelte Mapping-,
+  Indentierungs- und Fehlersemantik bei geringerer kognitiver Komplexität.
+
+Die kombinierte fokussierte Menge bestand 40 Tests. Die isolierte vollständige
+Security-Regression und das repository-native Ziel `make lint` wurden beide
+erfolgreich mit task-eigenen temporären Roots abgeschlossen. Die Shell-
+Änderung erhielt außerdem einen fokussierten unabhängigen Security-Review:
+Command-/PATH-Shadowing, literale und option-ähnliche Pfade, ungültige Kinds
+und deaktivierte Feature-Demo-Werte bleiben fail-closed. Ein neuer normaler
+Commit, Push und frisches Remote-Readback des exakten Heads sind erforderlich;
+PR #30 bleibt Draft und ein Merge bleibt nicht autorisiert.

@@ -240,3 +240,34 @@ adding a suppression or weakening the URL validation. The focused provenance
 module passed 12 tests and the isolated complete security-regression suite
 passed 212 tests. A fresh exact-head remote analysis remains required before
 the Quality Gate or Draft-PR status can be declared successful.
+
+## Residual-issue remediation after a green Quality Gate
+
+The exact-head remote result for
+`4307d591f52a760d93c5662f183144cbae26e25e` has a green SonarCloud Quality
+Gate, successful SonarCloud Code Analysis, `common-structure`, and
+`scaffold-lint`, plus zero open Vulnerabilities. The complete PR issue API
+still reported 15 reproducible Framework-owned Code Smells. That inventory is
+in scope for this change and therefore blocks the Draft-to-ready transition
+despite the green gate.
+
+The residual remediation is deliberately narrow and behavior-preserving:
+
+- `mrts_path_matches` now has an explicit POSIX return path and named kind
+  input, retains `command -p find -H`, rejects unknown kinds with status `2`,
+  and supplies explicit no-op defaults for the selective shell cases without
+  widening their enabled branches.
+- The NGINX release-asset token check replaces the reported backtracking regex
+  with an exact linear ASCII-token validation while retaining traversal
+  rejection and legacy accepted forms.
+- The fallback YAML mapping parser delegates independent parsing steps to small
+  helpers, preserving scalar, block-scalar, nested mapping, indentation, and
+  error behavior while lowering cognitive complexity.
+
+The combined focused set passed 40 tests. The isolated complete
+security-regression suite and the repository-native `make lint` target both
+completed successfully with task-owned temporary roots. The shell change also
+received a focused independent security review: command/PATH shadowing,
+literal and option-like paths, invalid kinds, and disabled feature-demo values
+remain fail-closed. A new normal commit, push, and fresh exact-head remote
+readback are required; PR #30 remains Draft and merge remains unauthorized.

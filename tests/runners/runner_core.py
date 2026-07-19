@@ -291,37 +291,63 @@ class MinimalYamlParser:
             return self.parse_node(index, indent + 2)
         return self._sequence_value(raw_value, index, indent)
 
+    def _next_mapping_index(self, index: int) -> int:
+        while index < len(self.lines):
+            line = self.lines[index]
+            if line.strip() and not line.lstrip().startswith("#"):
+                return index
+            index += 1
+        return index
+
+    def _mapping_line(self, index: int, indent: int) -> tuple[str, int] | None:
+        line = self.lines[index]
+        current_indent = _indent_of(line)
+        if current_indent < indent:
+            return None
+        if current_indent > indent:
+            raise ValueError(f"unexpected indentation in {self.path}: {line}")
+        stripped = line.strip()
+        if ":" not in stripped:
+            raise ValueError(f"expected key/value line in {self.path}: {line}")
+        return stripped, current_indent
+
+    def _mapping_value(
+        self, raw_value: str, index: int, current_indent: int
+    ) -> tuple[Any, int]:
+        if raw_value.startswith(("|", ">")):
+            if not _is_block_scalar_header(raw_value):
+                raise ValueError(
+                    f"unsupported block scalar header in {self.path}: {raw_value}"
+                )
+            return self.parse_block(index, current_indent)
+        if raw_value:
+            return _parse_scalar(raw_value), index
+        return self.parse_node(index, current_indent + 2)
+
+    def _mapping_item(
+        self, index: int, indent: int
+    ) -> tuple[str, Any, int] | None:
+        mapping_line = self._mapping_line(index, indent)
+        if mapping_line is None:
+            return None
+        stripped, current_indent = mapping_line
+        key, raw_value = stripped.split(":", 1)
+        value, next_index = self._mapping_value(
+            raw_value.strip(), index + 1, current_indent
+        )
+        return key.strip(), value, next_index
+
     def parse_mapping(self, index: int, indent: int) -> tuple[dict[str, Any], int]:
         parsed: dict[str, Any] = {}
         while index < len(self.lines):
-            line = self.lines[index]
-            if not line.strip() or line.lstrip().startswith("#"):
-                index += 1
-                continue
-            current_indent = _indent_of(line)
-            if current_indent < indent:
+            index = self._next_mapping_index(index)
+            if index >= len(self.lines):
                 break
-            if current_indent > indent:
-                raise ValueError(f"unexpected indentation in {self.path}: {line}")
-            stripped = line.strip()
-            if ":" not in stripped:
-                raise ValueError(f"expected key/value line in {self.path}: {line}")
-            key, raw_value = stripped.split(":", 1)
-            key = key.strip()
-            raw_value = raw_value.strip()
-            index += 1
-            if raw_value.startswith(("|", ">")):
-                if not _is_block_scalar_header(raw_value):
-                    raise ValueError(
-                        f"unsupported block scalar header in {self.path}: {raw_value}"
-                    )
-                parsed[key], index = self.parse_block(index, current_indent)
-                continue
-            if raw_value:
-                parsed[key] = _parse_scalar(raw_value)
-                continue
-            nested, index = self.parse_node(index, current_indent + 2)
-            parsed[key] = nested
+            item = self._mapping_item(index, indent)
+            if item is None:
+                break
+            key, value, index = item
+            parsed[key] = value
         return parsed, index
 
     def parse_block(self, index: int, parent_indent: int) -> tuple[str, int]:
