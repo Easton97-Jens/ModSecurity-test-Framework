@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import importlib
 from pathlib import Path
 import sys
@@ -16,6 +17,7 @@ if str(RUNNERS) not in sys.path:
     sys.path.insert(0, str(RUNNERS))
 
 runner_core = importlib.import_module("runner_core")
+case_cli = importlib.import_module("case_cli")
 
 
 class RunnerCoreOutputContainmentTests(unittest.TestCase):
@@ -59,3 +61,12 @@ class RunnerCoreOutputContainmentTests(unittest.TestCase):
                 "location / {}\n",
                 (root / "nginx" / "includes" / "test.conf").read_text(encoding="utf-8"),
             )
+
+    def test_case_info_rejects_an_output_outside_the_trusted_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory) / "output"
+            outside = Path(temporary_directory) / "outside.json"
+            args = argparse.Namespace(output=str(outside), output_root=str(root))
+            with self.assertRaisesRegex(ValueError, "escapes output root"):
+                case_cli._write_or_print_case_info({"untrusted": "content"}, args)
+            self.assertFalse(outside.exists())

@@ -2417,6 +2417,10 @@ class NoCrsBaselineTest(unittest.TestCase):
             ):
                 no_crs.safe_run_dir(public_parent / "rejected-run")
 
+    def test_run_directory_rejects_shared_tmp_root(self) -> None:
+        with self.assertRaisesRegex(no_crs.ContractError, "unsafe run-dir: /tmp"):
+            no_crs.safe_run_dir(Path("/tmp"))
+
     def test_init_rejects_tampered_same_connector_plan(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
             root = Path(temporary)

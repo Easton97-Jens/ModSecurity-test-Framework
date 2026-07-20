@@ -102,3 +102,29 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
         self.assertIn("build=blocked", row["per_case_unavailable_reason"])
         self.assertIn("first failing detail", row["per_case_unavailable_reason"])
         self.assertEqual(row["per_case_unavailable_reason"], row["blocker"]["reason"])
+
+    def test_snapshot_layout_writes_only_the_expected_contained_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            framework_root = root / "framework"
+            connector_root = root / "connector"
+            framework_root.mkdir()
+            connector_root.mkdir()
+            self.snapshot.configure_paths(framework_root, connector_root, framework_root)
+            expected = self.snapshot.build_safe_snapshot_path(framework_root)
+
+            self.snapshot.active_snapshot_layout().write({"untrusted": "../outside.json"})
+            self.assertEqual(
+                {"untrusted": "../outside.json"},
+                json.loads(expected.read_text(encoding="utf-8")),
+            )
+
+            outside = root / "outside.json"
+            unexpected = self.snapshot.SnapshotLayout(
+                output_root=framework_root,
+                report_root=expected.parent,
+                snapshot=outside,
+            )
+            with self.assertRaisesRegex(ValueError, "configured report snapshot"):
+                unexpected.write({"untrusted": "../outside.json"})
+            self.assertFalse(outside.exists())
