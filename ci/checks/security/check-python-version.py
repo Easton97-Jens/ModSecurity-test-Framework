@@ -7,7 +7,6 @@ import argparse
 from pathlib import Path, PurePosixPath
 import re
 import stat
-import sys
 from typing import Any
 
 try:
@@ -29,7 +28,9 @@ SETUP_PYTHON_LINE = re.compile(
     r"(?P<sha>[0-9a-f]{40})['\"]?\s+#\s*(?P<release>v[0-9]+(?:\.[0-9]+){1,3})\s*$"
 )
 PYTHON_VERSION_KEY = re.compile(r"^\s*python-version\s*:", re.MULTILINE)
-HARDCODED_313 = re.compile(r"(?<![0-9A-Za-z_.-])3\.13\.(?:[0-9]+|x|\*)(?![0-9A-Za-z_.-])")
+HARDCODED_313 = re.compile(
+    r"(?<![0-9A-Za-z_.-])3\.13\.(?:[0-9]+|x|\*)(?![0-9A-Za-z_.-])"
+)
 PYTHON_COMMAND = re.compile(
     r"(?<![0-9A-Za-z_.-])(?:python(?:3(?:\.[0-9]+)?)?|pytest|ruff|pyright|mypy|tox|nox)(?![0-9A-Za-z_.-])"
 )
@@ -45,8 +46,9 @@ if yaml is not None:
     class UniqueKeySafeLoader(yaml.SafeLoader):
         """Safe YAML loader that fails closed on duplicate mapping keys."""
 
-
-    def _construct_mapping(loader: Any, node: Any, deep: bool = False) -> dict[Any, Any]:
+    def _construct_mapping(
+        loader: Any, node: Any, deep: bool = False
+    ) -> dict[Any, Any]:
         mapping: dict[Any, Any] = {}
         for key_node, value_node in node.value:
             key = loader.construct_object(key_node, deep=deep)
@@ -54,7 +56,6 @@ if yaml is not None:
                 raise yaml.YAMLError(f"duplicate key {key!r}")
             mapping[key] = loader.construct_object(value_node, deep=deep)
         return mapping
-
 
     UniqueKeySafeLoader.add_constructor(
         yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_mapping
@@ -246,12 +247,16 @@ def matrix_errors(path: Path, job_name: str, job: dict[str, Any]) -> list[str]:
     return errors
 
 
-def local_reusable_errors(root: Path, path: Path, job_name: str, job: dict[str, Any]) -> list[str]:
+def local_reusable_errors(
+    root: Path, path: Path, job_name: str, job: dict[str, Any]
+) -> list[str]:
     reusable = job.get("uses")
     if reusable is None:
         return []
     if not isinstance(reusable, str):
-        return [f"{path}: job {job_name!r} reusable workflow reference must be a string"]
+        return [
+            f"{path}: job {job_name!r} reusable workflow reference must be a string"
+        ]
     if not reusable.startswith("./.github/workflows/"):
         return [
             f"{path}: job {job_name!r} external reusable workflow cannot establish "
@@ -282,7 +287,9 @@ def job_errors(
     if "uses" in job:
         errors.extend(local_reusable_errors(root, path, job_name, job))
         if "steps" in job:
-            errors.append(f"{path}: job {job_name!r} must not mix reusable uses and steps")
+            errors.append(
+                f"{path}: job {job_name!r} must not mix reusable uses and steps"
+            )
         return errors
 
     steps = job.get("steps")
@@ -293,7 +300,9 @@ def job_errors(
     candidate_setup_seen = False
     for step_number, raw_step in enumerate(steps, start=1):
         if not isinstance(raw_step, dict):
-            errors.append(f"{path}: job {job_name!r} step {step_number} must be a mapping")
+            errors.append(
+                f"{path}: job {job_name!r} step {step_number} must be a mapping"
+            )
             continue
         if is_setup_python(raw_step):
             kind, setup_errors = setup_kind(root, path, job_name, raw_step)
@@ -314,7 +323,10 @@ def job_errors(
         if not isinstance(run, str):
             continue
         errors.extend(bare_pip_errors(path, job_name, step_number, run))
-        if run_uses_python(run, indirect_make_python=indirect_make_python) and not canonical_setup_seen:
+        if (
+            run_uses_python(run, indirect_make_python=indirect_make_python)
+            and not canonical_setup_seen
+        ):
             errors.append(
                 f"{path}: job {job_name!r} step {step_number} invokes Python before reviewed setup-python"
             )
@@ -363,13 +375,17 @@ def validate(root: Path) -> list[str]:
     errors.extend(path_errors)
     indirect_make_python = makefile_uses_python(root)
     for path in paths:
-        errors.extend(workflow_errors(root, path, indirect_make_python=indirect_make_python))
+        errors.extend(
+            workflow_errors(root, path, indirect_make_python=indirect_make_python)
+        )
     return errors
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[3])
+    parser.add_argument(
+        "--root", type=Path, default=Path(__file__).resolve().parents[3]
+    )
     return parser.parse_args()
 
 

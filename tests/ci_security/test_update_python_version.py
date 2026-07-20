@@ -17,7 +17,9 @@ UPDATER_PATH = ROOT / "ci/tools/update-python-version.py"
 
 
 def load_updater():
-    spec = importlib.util.spec_from_file_location("python_version_updater", UPDATER_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "python_version_updater", UPDATER_PATH
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load {UPDATER_PATH}")
     module = importlib.util.module_from_spec(spec)
@@ -80,28 +82,33 @@ class UpdatePythonVersionTest(unittest.TestCase):
     def test_check_resolves_update_without_mutating_the_canonical_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory))
-            opener = lambda _request, _timeout: response_for(
-                [stable_record(14), stable_record(15)]
-            )
+
+            def opener(_request: object, _timeout: float) -> FakeResponse:
+                return response_for([stable_record(14), stable_record(15)])
+
             result = UPDATER.resolve_update(root, opener=opener)
 
             self.assertEqual(result.status, "update_available")
             self.assertEqual(result.current, "3.13.14")
             self.assertEqual(result.candidate, "3.13.15")
-            self.assertEqual((root / ".python-version").read_text(encoding="utf-8"), "3.13.14\n")
+            self.assertEqual(
+                (root / ".python-version").read_text(encoding="utf-8"), "3.13.14\n"
+            )
 
     def test_equal_downgrade_and_missing_stable_results_are_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory))
             self.assertEqual(
                 UPDATER.resolve_update(
-                    root, opener=lambda _request, _timeout: response_for([stable_record(14)])
+                    root,
+                    opener=lambda _request, _timeout: response_for([stable_record(14)]),
                 ).status,
                 "current",
             )
             self.assertEqual(
                 UPDATER.resolve_update(
-                    root, opener=lambda _request, _timeout: response_for([stable_record(13)])
+                    root,
+                    opener=lambda _request, _timeout: response_for([stable_record(13)]),
                 ).status,
                 "downgrade_detected",
             )
@@ -127,7 +134,8 @@ class UpdatePythonVersionTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory), "3.13.014\n")
             result = UPDATER.resolve_update(
-                root, opener=lambda _request, _timeout: response_for([stable_record(15)])
+                root,
+                opener=lambda _request, _timeout: response_for([stable_record(15)]),
             )
             self.assertEqual(result.status, "invalid_current_version")
 
@@ -140,9 +148,13 @@ class UpdatePythonVersionTest(unittest.TestCase):
                 ),
             )
             self.assertEqual(result.status, "unsupported_response")
-            self.assertEqual((root / ".python-version").read_text(encoding="utf-8"), "3.13.14\n")
+            self.assertEqual(
+                (root / ".python-version").read_text(encoding="utf-8"), "3.13.14\n"
+            )
 
-    def test_redirect_network_failure_and_leading_zero_metadata_are_rejected(self) -> None:
+    def test_redirect_network_failure_and_leading_zero_metadata_are_rejected(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory))
             redirected = FakeResponse(b"[]", url="https://example.invalid/releases")
@@ -156,7 +168,9 @@ class UpdatePythonVersionTest(unittest.TestCase):
             def blocked(_request, _timeout):
                 raise error.URLError("offline")
 
-            self.assertEqual(UPDATER.resolve_update(root, opener=blocked).status, "blocked_network")
+            self.assertEqual(
+                UPDATER.resolve_update(root, opener=blocked).status, "blocked_network"
+            )
             leading_zero = {
                 "name": "Python 3.13.015",
                 "slug": "python-313015",
@@ -179,7 +193,9 @@ class UpdatePythonVersionTest(unittest.TestCase):
             UPDATER.atomic_write_canonical_version(
                 root, UPDATER.PythonVersion(14), UPDATER.PythonVersion(15)
             )
-            self.assertEqual((root / ".python-version").read_text(encoding="utf-8"), "3.13.15\n")
+            self.assertEqual(
+                (root / ".python-version").read_text(encoding="utf-8"), "3.13.15\n"
+            )
             self.assertEqual(unrelated.read_text(encoding="utf-8"), "unchanged\n")
 
         with tempfile.TemporaryDirectory() as temporary_directory:

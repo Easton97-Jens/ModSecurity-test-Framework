@@ -90,8 +90,8 @@ such as `ARGS:foo.` and existing `name: Content-Type` mappings.
 | Framework-owned Python 3.14 focused updater/contract/common-workflow unittest selection | 0 | 27 version-neutral tests passed. | Isolated Framework worktree |
 | `check-ci-security-contract.py --root <task-worktree>` | 0 | Current workflows and the three-job writer contract passed. | Isolated Framework worktree |
 | `check-python-version.py --root <task-worktree>` | 0 | Canonical source and recursive Python workflow contract passed. | Isolated Framework worktree |
-| Focused updater, CI-security-contract, Python-version-contract, and parser-hardening tests | 0 | 35 version-neutral regressions passed after the exact-head remediation. | Isolated Framework worktree |
-| `make test-ci-security-contract` | 0 | 84 CI-security tests passed after the exact-head remediation. | Isolated Framework worktree |
+| Focused updater, CI-security-contract, Python-version-contract, and parser-hardening tests | 0 | 36 version-neutral regressions passed after the exact-head remediation. | Isolated Framework worktree |
+| `make test-ci-security-contract` | 0 | 85 CI-security tests passed after the exact-head remediation. | Isolated Framework worktree |
 | `make test-workflow-contract`, `make check-github-actions-workflows`, `make check-documentation`, and `make lint` | 0 | Workflow, documentation, and final local lint gates passed. | `20260720T180337Z-framework-python-313-updater-f3349a7e` task storage |
 
 ## Security impact
@@ -111,6 +111,19 @@ The exact-head remediation also tracks `FND-FRAMEWORK-0037` (workflow-context
 and literal-body lint), `FND-FRAMEWORK-0038` (fallback YAML scalar parsing),
 and release-blocking `FND-FRAMEWORK-0039` (candidate output path). No control
 was weakened to clear those checks.
+The current quality follow-up additionally tracks `FND-FRAMEWORK-0040`: it
+removes the task-owned Ruff F401/E731 failures without suppressing a quality
+rule. A fresh complete source review then reproduced
+`FND-FRAMEWORK-0041`, a low-likelihood policy bypass where a future
+workflow-level token environment could inherit into the write-capable publisher
+without the maintenance contract rejecting it. The contract now traverses the
+entire parsed maintenance workflow and permits exactly the reviewed
+`create-pull-request.with.token` path; its focused regression preserves the
+real workflow and existing reader-job diagnostics as legitimate controls.
+The final documentation review also corrected `FND-FRAMEWORK-0042`: the German
+guide now identifies the automatic checkout token as job-scoped, and explains
+that `persist-credentials: false` limits credential persistence rather than the
+GitHub permission scope available to the action.
 
 ## Documentation and runtime evidence
 
@@ -140,7 +153,8 @@ merging.
 
 Draft PR #39 is open. Its first published head
 `4a31df044ea2c2c7526828e54978238639b57dd4` exposed the tracked lint, parser,
-and candidate-output findings; the remediation described here requires a new
-exact-head GitHub Actions, SonarQube Cloud, and review/thread assessment before
-the task may stop at `verified_pr`. No merge, Parent gitlink change, or MRTS
-change is in scope.
+and candidate-output findings. The current task-owned source set also includes
+the quality and inherited-token-policy repairs described above; it requires a
+new exact-head GitHub Actions, SonarQube Cloud, and review/thread assessment
+before the task may stop at `verified_pr`. No merge, Parent gitlink change, or
+MRTS change is in scope.

@@ -231,11 +231,20 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         self.assertTrue(any("check-latest" in error for error in errors))
         self.assertTrue(any("hash-locked" in error for error in errors))
 
-    def test_python_maintenance_writer_is_scheduled_draft_only_and_fail_closed(self) -> None:
+    def test_python_maintenance_writer_is_scheduled_draft_only_and_fail_closed(
+        self,
+    ) -> None:
         workflow = ROOT / ".github/workflows/check-python-version.yml"
         data = CHECKER.load_yaml(workflow)
         self.assertIsInstance(data, dict)
         self.assertEqual(CHECKER.python_version_maintenance_errors(workflow, data), [])
+
+        workflow_level_token = copy.deepcopy(data)
+        workflow_level_token["env"] = {"TOKEN": "${{ github.token }}"}
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, workflow_level_token
+        )
+        self.assertTrue(any("only declare github.token" in error for error in errors))
 
         untrusted_trigger = copy.deepcopy(data)
         untrusted_trigger[True]["pull_request"] = None
@@ -258,14 +267,22 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
             "TOKEN": "${{ secrets.GITHUB_TOKEN }}"
         }
         errors = CHECKER.python_version_maintenance_errors(workflow, reader_secret)
-        self.assertTrue(any("must not declare a GitHub token or secret" in error for error in errors))
+        self.assertTrue(
+            any(
+                "must not declare a GitHub token or secret" in error for error in errors
+            )
+        )
 
         candidate_secret = copy.deepcopy(data)
         candidate_secret["jobs"]["candidate-validate"]["steps"][-1]["env"] = {
             "TEST_SECRET": "${{ secrets.FRAMEWORK_TEST_SECRET }}"
         }
         errors = CHECKER.python_version_maintenance_errors(workflow, candidate_secret)
-        self.assertTrue(any("must not declare a GitHub token or secret" in error for error in errors))
+        self.assertTrue(
+            any(
+                "must not declare a GitHub token or secret" in error for error in errors
+            )
+        )
 
         reader_serialized_secrets = copy.deepcopy(data)
         reader_serialized_secrets["jobs"]["candidate-validate"]["steps"][-1]["run"] += (
@@ -274,12 +291,18 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         errors = CHECKER.python_version_maintenance_errors(
             workflow, reader_serialized_secrets
         )
-        self.assertTrue(any("must not declare a GitHub token or secret" in error for error in errors))
+        self.assertTrue(
+            any(
+                "must not declare a GitHub token or secret" in error for error in errors
+            )
+        )
 
         caller_selected_candidate_path = copy.deepcopy(data)
         candidate_materialization = next(
             step
-            for step in caller_selected_candidate_path["jobs"]["candidate-validate"]["steps"]
+            for step in caller_selected_candidate_path["jobs"]["candidate-validate"][
+                "steps"
+            ]
             if step["name"] == "Independently validate and materialize the candidate"
         )
         candidate_materialization["run"] = candidate_materialization["run"].replace(
@@ -296,7 +319,11 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
             "\nprintf '%s\\n' \"$GITHUB_TOKEN\""
         )
         errors = CHECKER.python_version_maintenance_errors(workflow, reader_shell_token)
-        self.assertTrue(any("must not declare a GitHub token or secret" in error for error in errors))
+        self.assertTrue(
+            any(
+                "must not declare a GitHub token or secret" in error for error in errors
+            )
+        )
 
         publisher_secret = copy.deepcopy(data)
         publisher_secret["jobs"]["publish"]["steps"][-2]["env"] = {
@@ -336,20 +363,22 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         duplicate_pr_action["jobs"]["publish"]["steps"].append(
             copy.deepcopy(duplicate_pr_action["jobs"]["publish"]["steps"][-1])
         )
-        errors = CHECKER.python_version_maintenance_errors(workflow, duplicate_pr_action)
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, duplicate_pr_action
+        )
         self.assertTrue(any("exactly one" in error for error in errors))
 
         publisher_body = copy.deepcopy(data)
-        publisher_body["jobs"]["publish"]["steps"][-1]["with"][
-            "body-path"
-        ] = "python-version-pr-body.md"
+        publisher_body["jobs"]["publish"]["steps"][-1]["with"]["body-path"] = (
+            "python-version-pr-body.md"
+        )
         errors = CHECKER.python_version_maintenance_errors(workflow, publisher_body)
         self.assertTrue(any("body-path" in error for error in errors))
 
     def test_sensitive_reference_detection_rejects_serialized_contexts(self) -> None:
         for value in (
-            '${{ toJSON(secrets) }}',
-            '${{ toJSON(github) }}',
+            "${{ toJSON(secrets) }}",
+            "${{ toJSON(github) }}",
             "${{ github[format('token')] }}",
             "${{ github.token }}",
             "${{ secrets['FRAMEWORK_TEST_SECRET'] }}",

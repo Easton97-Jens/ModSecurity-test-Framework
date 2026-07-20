@@ -105,7 +105,9 @@ class NoRedirectHandler(request.HTTPRedirectHandler):
         headers: Any,
         newurl: str,
     ) -> request.Request:
-        raise error.HTTPError(req.full_url, code, "redirects are forbidden", headers, fp)
+        raise error.HTTPError(
+            req.full_url, code, "redirects are forbidden", headers, fp
+        )
 
 
 def framework_root() -> Path:
@@ -120,10 +122,13 @@ def require_regular_file(path: Path, description: str) -> os.stat_result:
     try:
         details = path.lstat()
     except OSError as exc:
-        raise UpdaterFailure("invalid_current_version", f"{description} is unavailable") from exc
+        raise UpdaterFailure(
+            "invalid_current_version", f"{description} is unavailable"
+        ) from exc
     if stat.S_ISLNK(details.st_mode) or not stat.S_ISREG(details.st_mode):
         raise UpdaterFailure(
-            "invalid_current_version", f"{description} must be a regular non-symlink file"
+            "invalid_current_version",
+            f"{description} must be a regular non-symlink file",
         )
     return details
 
@@ -150,7 +155,9 @@ def validate_metadata_url(url: str) -> None:
         parsed = urlsplit(url)
         port = parsed.port
     except ValueError as exc:
-        raise UpdaterFailure("blocked_metadata", "metadata URL has an invalid port") from exc
+        raise UpdaterFailure(
+            "blocked_metadata", "metadata URL has an invalid port"
+        ) from exc
     if (
         parsed.scheme != "https"
         or parsed.hostname != METADATA_HOST
@@ -161,7 +168,9 @@ def validate_metadata_url(url: str) -> None:
         or parsed.query
         or parsed.fragment
     ):
-        raise UpdaterFailure("blocked_metadata", "metadata URL is outside the trusted endpoint")
+        raise UpdaterFailure(
+            "blocked_metadata", "metadata URL is outside the trusted endpoint"
+        )
 
 
 def default_open_url(http_request: request.Request, timeout: float) -> ResponseLike:
@@ -201,32 +210,52 @@ def fetch_release_metadata(
                 "blocked_metadata", f"metadata endpoint returned HTTP {response.status}"
             )
         if response.geturl() != METADATA_URL:
-            raise UpdaterFailure("blocked_metadata", "metadata endpoint attempted a redirect")
+            raise UpdaterFailure(
+                "blocked_metadata", "metadata endpoint attempted a redirect"
+            )
         if response_content_type(response) != "application/json":
-            raise UpdaterFailure("unsupported_response", "metadata response is not JSON")
+            raise UpdaterFailure(
+                "unsupported_response", "metadata response is not JSON"
+            )
         payload = response.read(MAX_METADATA_BYTES + 1)
     except UpdaterFailure:
         raise
     except error.HTTPError as exc:
-        status = "blocked_network" if exc.code in {408, 429, 500, 502, 503, 504} else "blocked_metadata"
-        raise UpdaterFailure(status, f"metadata request returned HTTP {exc.code}") from exc
+        status = (
+            "blocked_network"
+            if exc.code in {408, 429, 500, 502, 503, 504}
+            else "blocked_metadata"
+        )
+        raise UpdaterFailure(
+            status, f"metadata request returned HTTP {exc.code}"
+        ) from exc
     except (error.URLError, TimeoutError, OSError) as exc:
-        raise UpdaterFailure("blocked_network", "metadata request could not be completed") from exc
+        raise UpdaterFailure(
+            "blocked_network", "metadata request could not be completed"
+        ) from exc
     finally:
         if response is not None:
             response.close()
 
     if not isinstance(payload, bytes) or len(payload) > MAX_METADATA_BYTES:
-        raise UpdaterFailure("unsupported_response", "metadata response exceeds its byte limit")
+        raise UpdaterFailure(
+            "unsupported_response", "metadata response exceeds its byte limit"
+        )
     try:
         decoded = payload.decode("utf-8")
         parsed = json.loads(decoded)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise UpdaterFailure("unsupported_response", "metadata response is not valid UTF-8 JSON") from exc
+        raise UpdaterFailure(
+            "unsupported_response", "metadata response is not valid UTF-8 JSON"
+        ) from exc
     if not isinstance(parsed, list):
-        raise UpdaterFailure("unsupported_response", "metadata response must be a JSON array")
+        raise UpdaterFailure(
+            "unsupported_response", "metadata response must be a JSON array"
+        )
     if not all(isinstance(record, dict) for record in parsed):
-        raise UpdaterFailure("unsupported_response", "metadata response contains a non-object record")
+        raise UpdaterFailure(
+            "unsupported_response", "metadata response contains a non-object record"
+        )
     return [dict(record) for record in parsed]
 
 
@@ -237,33 +266,50 @@ def stable_313_releases(records: list[dict[str, object]]) -> dict[int, PythonVer
     for record in records:
         name = record.get("name")
         if not isinstance(name, str):
-            raise UpdaterFailure("unsupported_response", "metadata release name is missing")
+            raise UpdaterFailure(
+                "unsupported_response", "metadata release name is missing"
+            )
         if LEADING_ZERO_RELEASE_PATTERN.fullmatch(name):
-            raise UpdaterFailure("unsupported_response", "metadata release uses a leading-zero patch")
+            raise UpdaterFailure(
+                "unsupported_response", "metadata release uses a leading-zero patch"
+            )
         match = RELEASE_NAME_PATTERN.fullmatch(name)
         if match is None:
             continue
         is_published = record.get("is_published")
         is_prerelease = record.get("pre_release")
         if type(is_published) is not bool or type(is_prerelease) is not bool:
-            raise UpdaterFailure("unsupported_response", "metadata release flags are invalid")
+            raise UpdaterFailure(
+                "unsupported_response", "metadata release flags are invalid"
+            )
         if not is_published or is_prerelease:
             continue
         patch = int(match.group(1))
         expected_slug = f"python-313{patch}"
         if record.get("slug") != expected_slug:
-            raise UpdaterFailure("unsupported_response", "metadata release slug is inconsistent")
+            raise UpdaterFailure(
+                "unsupported_response", "metadata release slug is inconsistent"
+            )
         release_date = record.get("release_date")
-        if not isinstance(release_date, str) or not RELEASE_DATE_PATTERN.fullmatch(release_date):
-            raise UpdaterFailure("unsupported_response", "metadata release date is invalid")
+        if not isinstance(release_date, str) or not RELEASE_DATE_PATTERN.fullmatch(
+            release_date
+        ):
+            raise UpdaterFailure(
+                "unsupported_response", "metadata release date is invalid"
+            )
         if patch in releases:
-            raise UpdaterFailure("unsupported_response", "metadata contains duplicate stable releases")
+            raise UpdaterFailure(
+                "unsupported_response", "metadata contains duplicate stable releases"
+            )
         releases[patch] = PythonVersion(patch=patch)
     return releases
 
 
 def resolve_update(
-    root: Path, *, timeout: float = DEFAULT_TIMEOUT_SECONDS, opener: OpenUrl | None = None
+    root: Path,
+    *,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    opener: OpenUrl | None = None,
 ) -> UpdateResult:
     """Return a no-write status for the local canonical version and official metadata."""
 
@@ -272,7 +318,9 @@ def resolve_update(
     except UpdaterFailure as exc:
         return UpdateResult(exc.status, None, None, exc.message)
     try:
-        releases = stable_313_releases(fetch_release_metadata(timeout=timeout, opener=opener))
+        releases = stable_313_releases(
+            fetch_release_metadata(timeout=timeout, opener=opener)
+        )
     except UpdaterFailure as exc:
         return UpdateResult(exc.status, current.text, None, exc.message)
     if not releases:
@@ -291,7 +339,9 @@ def resolve_update(
             "official metadata would downgrade the reviewed Python version",
         )
     if latest == current:
-        return UpdateResult("current", current.text, None, "the reviewed Python version is current")
+        return UpdateResult(
+            "current", current.text, None, "the reviewed Python version is current"
+        )
     return UpdateResult(
         "update_available",
         current.text,
@@ -300,7 +350,9 @@ def resolve_update(
     )
 
 
-def require_expected_candidate(result: UpdateResult, expected: str | None) -> UpdateResult:
+def require_expected_candidate(
+    result: UpdateResult, expected: str | None
+) -> UpdateResult:
     if expected is None:
         return result
     try:
@@ -322,23 +374,33 @@ def require_expected_candidate(result: UpdateResult, expected: str | None) -> Up
     return result
 
 
-def atomic_write_canonical_version(root: Path, expected: PythonVersion, candidate: PythonVersion) -> None:
+def atomic_write_canonical_version(
+    root: Path, expected: PythonVersion, candidate: PythonVersion
+) -> None:
     """Atomically replace only the canonical non-symlink file after a stale check."""
 
     path = canonical_version_path(root)
-    original_mode = stat.S_IMODE(require_regular_file(path, CANONICAL_VERSION_FILE).st_mode)
+    original_mode = stat.S_IMODE(
+        require_regular_file(path, CANONICAL_VERSION_FILE).st_mode
+    )
     try:
         observed = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
-        raise UpdaterFailure("blocked_metadata", "cannot re-read the canonical version") from exc
+        raise UpdaterFailure(
+            "blocked_metadata", "cannot re-read the canonical version"
+        ) from exc
     if observed != f"{expected.text}\n":
-        raise UpdaterFailure("blocked_metadata", "the canonical version changed during update")
+        raise UpdaterFailure(
+            "blocked_metadata", "the canonical version changed during update"
+        )
     try:
         descriptor, temporary_name = tempfile.mkstemp(
             dir=root, prefix=".python-version.", suffix=".tmp", text=False
         )
     except OSError as exc:
-        raise UpdaterFailure("blocked_metadata", "cannot create a local update file") from exc
+        raise UpdaterFailure(
+            "blocked_metadata", "cannot create a local update file"
+        ) from exc
     temporary_path = Path(temporary_name)
     try:
         os.fchmod(descriptor, original_mode)
@@ -348,12 +410,16 @@ def atomic_write_canonical_version(root: Path, expected: PythonVersion, candidat
             os.fsync(stream.fileno())
         require_regular_file(path, CANONICAL_VERSION_FILE)
         if path.read_text(encoding="utf-8") != f"{expected.text}\n":
-            raise UpdaterFailure("blocked_metadata", "the canonical version changed during update")
+            raise UpdaterFailure(
+                "blocked_metadata", "the canonical version changed during update"
+            )
         os.replace(temporary_path, path)
     except UpdaterFailure:
         raise
     except OSError as exc:
-        raise UpdaterFailure("blocked_metadata", "cannot atomically update the canonical version") from exc
+        raise UpdaterFailure(
+            "blocked_metadata", "cannot atomically update the canonical version"
+        ) from exc
     finally:
         if temporary_path.exists():
             temporary_path.unlink()
@@ -362,11 +428,15 @@ def atomic_write_canonical_version(root: Path, expected: PythonVersion, candidat
 def runner_temp_directory() -> Path:
     runner_temp_value = os.environ.get("RUNNER_TEMP")
     if not runner_temp_value:
-        raise UpdaterFailure("blocked_metadata", "RUNNER_TEMP is required for runner-owned output")
+        raise UpdaterFailure(
+            "blocked_metadata", "RUNNER_TEMP is required for runner-owned output"
+        )
     try:
         runner_temp = Path(runner_temp_value).resolve(strict=True)
     except OSError as exc:
-        raise UpdaterFailure("blocked_metadata", "runner-owned output path cannot be resolved") from exc
+        raise UpdaterFailure(
+            "blocked_metadata", "runner-owned output path cannot be resolved"
+        ) from exc
     if not runner_temp.is_dir():
         raise UpdaterFailure("blocked_metadata", "RUNNER_TEMP must be a directory")
     return runner_temp
@@ -377,20 +447,34 @@ def runner_temp_child(path: Path, *, allow_existing: bool) -> Path:
     try:
         resolved_parent = path.parent.resolve(strict=True)
     except OSError as exc:
-        raise UpdaterFailure("blocked_metadata", "runner-owned output path cannot be resolved") from exc
+        raise UpdaterFailure(
+            "blocked_metadata", "runner-owned output path cannot be resolved"
+        ) from exc
     if not resolved_parent.is_relative_to(runner_temp):
-        raise UpdaterFailure("blocked_metadata", "output must be a strict child of RUNNER_TEMP")
+        raise UpdaterFailure(
+            "blocked_metadata", "output must be a strict child of RUNNER_TEMP"
+        )
     if not path.is_absolute() or path.name in {"", ".", ".."}:
-        raise UpdaterFailure("blocked_metadata", "output path must be an absolute file path")
+        raise UpdaterFailure(
+            "blocked_metadata", "output path must be an absolute file path"
+        )
     try:
         details = path.lstat()
     except FileNotFoundError:
         details = None
     except OSError as exc:
-        raise UpdaterFailure("blocked_metadata", "output path cannot be inspected") from exc
+        raise UpdaterFailure(
+            "blocked_metadata", "output path cannot be inspected"
+        ) from exc
     if details is not None:
-        if not allow_existing or stat.S_ISLNK(details.st_mode) or not stat.S_ISREG(details.st_mode):
-            raise UpdaterFailure("blocked_metadata", "output path is not a safe regular file")
+        if (
+            not allow_existing
+            or stat.S_ISLNK(details.st_mode)
+            or not stat.S_ISREG(details.st_mode)
+        ):
+            raise UpdaterFailure(
+                "blocked_metadata", "output path is not a safe regular file"
+            )
     return path
 
 
@@ -412,13 +496,17 @@ def write_candidate_file(candidate: PythonVersion) -> None:
             stream.flush()
             os.fsync(stream.fileno())
     except OSError as exc:
-        raise UpdaterFailure("blocked_metadata", "cannot write the runner candidate file") from exc
+        raise UpdaterFailure(
+            "blocked_metadata", "cannot write the runner candidate file"
+        ) from exc
 
 
 def write_github_outputs(result: UpdateResult) -> None:
     output_value = os.environ.get("GITHUB_OUTPUT")
     if not output_value:
-        raise UpdaterFailure("blocked_metadata", "GITHUB_OUTPUT is required for requested output")
+        raise UpdaterFailure(
+            "blocked_metadata", "GITHUB_OUTPUT is required for requested output"
+        )
     output_path = runner_temp_child(Path(output_value), allow_existing=True)
     update_available = "true" if result.status == "update_available" else "false"
     candidate = result.candidate or ""
@@ -431,7 +519,9 @@ def write_github_outputs(result: UpdateResult) -> None:
         with output_path.open("a", encoding="ascii", newline="\n") as stream:
             stream.write("\n".join(lines) + "\n")
     except OSError as exc:
-        raise UpdaterFailure("blocked_metadata", "cannot write GitHub step output") from exc
+        raise UpdaterFailure(
+            "blocked_metadata", "cannot write GitHub step output"
+        ) from exc
 
 
 def render_result(result: UpdateResult, *, as_json: bool) -> None:
@@ -448,8 +538,12 @@ def render_result(result: UpdateResult, *, as_json: bool) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     operation = parser.add_mutually_exclusive_group(required=True)
-    operation.add_argument("--check", action="store_true", help="Resolve without source-tree writes.")
-    operation.add_argument("--update", action="store_true", help="Atomically update .python-version.")
+    operation.add_argument(
+        "--check", action="store_true", help="Resolve without source-tree writes."
+    )
+    operation.add_argument(
+        "--update", action="store_true", help="Atomically update .python-version."
+    )
     parser.add_argument(
         "--expected-candidate",
         help="Require freshly resolved metadata to match this exact candidate before proceeding.",
@@ -464,7 +558,9 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write safe scalar status outputs to the runner-provided GITHUB_OUTPUT file.",
     )
-    parser.add_argument("--json", action="store_true", help="Emit a one-line JSON result.")
+    parser.add_argument(
+        "--json", action="store_true", help="Emit a one-line JSON result."
+    )
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
     return parser.parse_args()
 
@@ -473,13 +569,19 @@ def main() -> int:
     args = parse_args()
     if args.timeout <= 0 or args.timeout > MAX_TIMEOUT_SECONDS:
         result = UpdateResult(
-            "blocked_metadata", None, None, "timeout must be greater than zero and at most 60 seconds"
+            "blocked_metadata",
+            None,
+            None,
+            "timeout must be greater than zero and at most 60 seconds",
         )
         render_result(result, as_json=args.json)
         return 2
     if args.write_candidate_file and not args.check:
         result = UpdateResult(
-            "blocked_metadata", None, None, "candidate files are allowed only in --check mode"
+            "blocked_metadata",
+            None,
+            None,
+            "candidate files are allowed only in --check mode",
         )
         render_result(result, as_json=args.json)
         return 2
@@ -491,10 +593,15 @@ def main() -> int:
         if args.write_candidate_file:
             if result.status != "update_available" or result.candidate is None:
                 raise UpdaterFailure(
-                    "blocked_metadata", "a candidate file requires a validated available update"
+                    "blocked_metadata",
+                    "a candidate file requires a validated available update",
                 )
             write_candidate_file(PythonVersion.parse(result.candidate))
-        if args.update and result.status == "update_available" and result.candidate is not None:
+        if (
+            args.update
+            and result.status == "update_available"
+            and result.candidate is not None
+        ):
             current = PythonVersion.parse(str(result.current))
             candidate = PythonVersion.parse(result.candidate)
             atomic_write_canonical_version(framework_root(), current, candidate)
