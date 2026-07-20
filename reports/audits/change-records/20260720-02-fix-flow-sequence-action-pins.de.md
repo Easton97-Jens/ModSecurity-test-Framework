@@ -9,7 +9,7 @@
 | Change-ID | `20260720-02-fix-flow-sequence-action-pins` |
 | UTC-Datum | 2026-07-20 |
 | Framework-Basisrevision | `784977615acfc55567e37b863309abc4a38ac877` |
-| Issue oder Pull Request | `FND-FRAMEWORK-0031`; Task-Branch `agent/codex-cloud-action-pin-flow-sequence` |
+| Issue oder Pull Request | `FND-FRAMEWORK-0031`; [Framework-Draft-PR #38](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/38) auf `agent/codex-cloud-action-pin-flow-sequence` |
 
 ## Motivation und Problemstellung
 
@@ -76,6 +76,6 @@ Cloud-Schließung benötigt einen frischen authentifizierten Final-master-Scan.
 ## Finaler Diff- und Review-Status
 
 Fokussierter Diff- und Whitespace-Review sind abgeschlossen. Keine Secrets,
-Parent-Änderungen oder MRTS-Änderungen sind enthalten. Der eng begrenzte
-lokale Commit existiert; Push und Draft-PR stehen bis zum Exact-SHA-Pre-Push-
-Check noch aus.
+Parent-Änderungen oder MRTS-Änderungen sind enthalten. Draft-PR #38 existiert;
+jeder weitere Push benötigt einen frischen Zyklus aus lokaler, Remote- und
+PR-Head-SHA sowie CI-/Review-Verifikation.

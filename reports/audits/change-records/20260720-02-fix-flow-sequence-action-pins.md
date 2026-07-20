@@ -9,7 +9,7 @@
 | Change ID | `20260720-02-fix-flow-sequence-action-pins` |
 | UTC date | 2026-07-20 |
 | Framework base revision | `784977615acfc55567e37b863309abc4a38ac877` |
-| Issue or pull request | `FND-FRAMEWORK-0031`; task branch `agent/codex-cloud-action-pin-flow-sequence` |
+| Issue or pull request | `FND-FRAMEWORK-0031`; [Framework Draft PR #38](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/38) on `agent/codex-cloud-action-pin-flow-sequence` |
 
 ## Motivation and problem statement
 
@@ -75,5 +75,5 @@ authenticated scan of final Framework master.
 ## Final diff and review status
 
 Focused diff and whitespace review are complete. No secrets, Parent changes,
-or MRTS changes are included. The scoped local commit exists; push and Draft
-PR remain pending the pre-push exact-SHA check.
+or MRTS changes are included. Draft PR #38 exists; every later push requires a
+fresh local/remote/PR-head SHA and CI/review verification cycle.
