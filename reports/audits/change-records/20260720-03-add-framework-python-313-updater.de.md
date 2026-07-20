@@ -135,6 +135,12 @@ deutsche Leitfaden bezeichnet das automatische Checkout-Token jetzt korrekt als
 job-scoped und erklärt, dass `persist-credentials: false` die Persistenz des
 Credentials begrenzt, nicht aber den für die Action verfügbaren GitHub-
 Berechtigungsumfang.
+Der nächste Exact-Head erreichte Pyright und machte `FND-FRAMEWORK-0043`
+sichtbar: Der Checker unterstützt absichtlich einen von YAML geparsten
+booleschen `True`-Workflow-Event-Key, hatte jedoch ein String-only-Mapping
+deklariert. Die schmale Annotationskorrektur erhält Lookup-Reihenfolge und alle
+Runtime-Sicherheitskontrollen; es wurde weder eine Pyright-Unterdrückung noch
+eine Workflow-Änderung verwendet.
 
 ## Dokumentation und Runtime-Evidenz
 
