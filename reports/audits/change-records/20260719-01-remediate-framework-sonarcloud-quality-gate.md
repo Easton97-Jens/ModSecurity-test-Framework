@@ -298,3 +298,34 @@ repository-native `make lint` target passed with task-owned state, build, and
 temporary roots. Normal delivery and fresh exact-head GitHub/SonarCloud
 readback are still required. PR #30 remains Draft and merge remains
 unauthorized until the complete open-issue inventory is zero.
+
+### Current master update and duplication remediation
+
+The current PR #30 branch now contains the non-rewriting normal merge commit
+504c8f164d4dab4bc857718af0233557ad48f727, with prior PR head
+b6af3ec83011b2070f6bbe4b3f471478b373f055 and Framework master
+9a729226d2e040d07d7e7a4acebf201faf06ab37 as its parents. The conflict
+resolution retained both master CI/security controls and the PR's verified
+run-root, literal Make-input, script-relative bootstrap, and bounded YAML
+parser controls. The paired record heading repair demoted only four historical
+supplement headings to level 3 so the current Change Record contract can
+evaluate the unchanged content.
+
+FND-FRAMEWORK-0023 tracks the confirmed current-head SonarQube Cloud
+duplication (182 new duplicated lines, 1.1771554233232002 percent before this
+remediation). The focused implementation moves identical secure
+descriptor-relative report replacement to ci/lib/generated_report_utils.py,
+private runtime-root validation to ci/lib/runtime_path_safety.py, and shared
+output-root resolution to ci/lib/report_output_paths.py. Existing producer
+symbols and error ordering remain available to their direct regression tests.
+The two test-only reductions retain the immutable ModSecurity v3 fake-Git
+controls and the strict HTTP/3 reset/follow-up cases without suppression.
+
+FND-FRAMEWORK-0024 records the separate Change Record contract failure and its
+narrow repair. Targeted Python compilation, the 69-test CI-security contract,
+the 10-test ModSecurity v3 provenance contract, the 24 merge-control
+regressions, all seven Sonar-implicated security-regression modules, and the
+23-test protocol-client target pass with task-owned state/build/temp roots.
+The local Sonar scanner remains unavailable by design; a normal push, exact
+head SHA equality, current GitHub checks, a fresh SonarCloud zero-duplication
+readback, and a final exact-head security review remain required before merge.

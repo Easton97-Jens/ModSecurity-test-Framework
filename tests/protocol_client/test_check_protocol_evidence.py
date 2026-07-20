@@ -199,32 +199,39 @@ def write_bundle(root: Path, observation: dict[str, object], *, followup: bool =
         )
 
 
+def strict_h3_failure_observation(**details: object) -> dict[str, object]:
+    observation: dict[str, object] = {
+        "schema_version": 1,
+        "status": "FAIL",
+        "requested_protocol": "h3",
+        "downstream_protocol": "h3",
+        "negotiated_protocol": "h3",
+        "transport": "quic_udp",
+        "alpn": "h3",
+        "stream_id": 4,
+        "fallback_used": False,
+        "quic_udp_observed": True,
+        "quic_connection_id_present": True,
+        "quic_version": "v1",
+        "stream_reset": True,
+        "stream_reset_code": "H3_REQUEST_CANCELLED",
+        "response_committed": True,
+        "client_first_body_byte_visible": True,
+        "response_complete": False,
+    }
+    observation.update(details)
+    return observation
+
+
 class ProtocolEvidenceTest(unittest.TestCase):
     def test_strict_h3_requires_client_visible_reset_and_followup(self) -> None:
         with temporary_artifact_directory() as temporary:
             root = Path(temporary)
-            observation: dict[str, object] = {
-                "schema_version": 1,
-                "status": "FAIL",
-                "requested_protocol": "h3",
-                "downstream_protocol": "h3",
-                "negotiated_protocol": "h3",
-                "transport": "quic_udp",
-                "alpn": "h3",
-                "stream_id": 4,
-                "fallback_used": False,
-                "quic_udp_observed": True,
-                "quic_connection_id_present": True,
-                "quic_version": "v1",
-                "stream_reset": True,
-                "stream_reset_code": "H3_REQUEST_CANCELLED",
-                "response_committed": True,
-                "client_first_body_byte_visible": True,
-                "response_complete": False,
-                "http_status": 200,
-                "curl_exit_code": 95,
-                "transport_error": "h3_failure",
-            }
+            observation = strict_h3_failure_observation(
+                http_status=200,
+                curl_exit_code=95,
+                transport_error="h3_failure",
+            )
             write_bundle(root, observation)
             self.assertEqual(
                 [], check_protocol_evidence.validate_protocol_artifacts(
@@ -235,26 +242,7 @@ class ProtocolEvidenceTest(unittest.TestCase):
     def test_strict_evidence_rejects_missing_followup_and_raw_connection_id(self) -> None:
         with temporary_artifact_directory() as temporary:
             root = Path(temporary)
-            observation: dict[str, object] = {
-                "schema_version": 1,
-                "status": "FAIL",
-                "requested_protocol": "h3",
-                "downstream_protocol": "h3",
-                "negotiated_protocol": "h3",
-                "transport": "quic_udp",
-                "alpn": "h3",
-                "stream_id": 4,
-                "fallback_used": False,
-                "quic_udp_observed": True,
-                "quic_connection_id_present": True,
-                "quic_version": "v1",
-                "stream_reset": True,
-                "stream_reset_code": "H3_REQUEST_CANCELLED",
-                "response_committed": True,
-                "client_first_body_byte_visible": True,
-                "response_complete": False,
-                "connection_id": "raw-cid",
-            }
+            observation = strict_h3_failure_observation(connection_id="raw-cid")
             write_bundle(root, observation, followup=False)
             errors = check_protocol_evidence.validate_protocol_artifacts(
                 root, protocol="h3", strict=True
@@ -265,28 +253,11 @@ class ProtocolEvidenceTest(unittest.TestCase):
     def test_strict_followup_requires_a_distinct_bound_correlation(self) -> None:
         with temporary_artifact_directory() as temporary:
             root = Path(temporary)
-            observation: dict[str, object] = {
-                "schema_version": 1,
-                "status": "FAIL",
-                "requested_protocol": "h3",
-                "downstream_protocol": "h3",
-                "negotiated_protocol": "h3",
-                "transport": "quic_udp",
-                "alpn": "h3",
-                "stream_id": 4,
-                "fallback_used": False,
-                "quic_udp_observed": True,
-                "quic_connection_id_present": True,
-                "quic_version": "v1",
-                "stream_reset": True,
-                "stream_reset_code": "H3_REQUEST_CANCELLED",
-                "response_committed": True,
-                "client_first_body_byte_visible": True,
-                "response_complete": False,
-                "http_status": 200,
-                "curl_exit_code": 95,
-                "transport_error": "h3_failure",
-            }
+            observation = strict_h3_failure_observation(
+                http_status=200,
+                curl_exit_code=95,
+                transport_error="h3_failure",
+            )
             write_bundle(root, observation)
             followup = read_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT)
             followup["transport_case_id"] = observation["transport_case_id"]
@@ -427,28 +398,11 @@ class ProtocolEvidenceTest(unittest.TestCase):
     def test_followup_rejects_payload_fields_and_mismatched_provenance(self) -> None:
         with temporary_artifact_directory() as temporary:
             root = Path(temporary)
-            observation: dict[str, object] = {
-                "schema_version": 1,
-                "status": "FAIL",
-                "requested_protocol": "h3",
-                "downstream_protocol": "h3",
-                "negotiated_protocol": "h3",
-                "transport": "quic_udp",
-                "alpn": "h3",
-                "stream_id": 4,
-                "fallback_used": False,
-                "quic_udp_observed": True,
-                "quic_connection_id_present": True,
-                "quic_version": "v1",
-                "stream_reset": True,
-                "stream_reset_code": "H3_REQUEST_CANCELLED",
-                "response_committed": True,
-                "client_first_body_byte_visible": True,
-                "response_complete": False,
-                "http_status": 200,
-                "curl_exit_code": 95,
-                "transport_error": "h3_failure",
-            }
+            observation = strict_h3_failure_observation(
+                http_status=200,
+                curl_exit_code=95,
+                transport_error="h3_failure",
+            )
             write_bundle(root, observation)
             followup = read_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT)
             followup["transport"] = "tls_tcp"

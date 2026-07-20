@@ -5,13 +5,19 @@ import argparse
 import json
 import os
 import re
-import secrets
 import stat
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+FRAMEWORK_LIB = Path(__file__).resolve().parents[1] / "lib"
+if str(FRAMEWORK_LIB) not in sys.path:
+    sys.path.insert(0, str(FRAMEWORK_LIB))
+
+from generated_report_utils import write_generated_report_file
 
 
 CONNECTORS = ("apache", "nginx", "haproxy")
@@ -894,51 +900,6 @@ def configured_output_root(
             "output root must resolve exactly to the connector root or framework root"
         )
     return output_root
-
-
-def _secure_directory_fd(directory: Path) -> int:
-    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
-        raise RuntimeError("secure report output requires directory descriptor support")
-    return os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-
-
-def _open_secure_temporary_file(directory_fd: int, filename: str) -> tuple[str, int]:
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
-    for _ in range(8):
-        temporary_name = f".{filename}.{secrets.token_hex(16)}.tmp"
-        try:
-            return temporary_name, os.open(temporary_name, flags, 0o600, dir_fd=directory_fd)
-        except FileExistsError:
-            continue
-    raise RuntimeError("could not allocate a unique temporary report file")
-
-
-def _write_file_descriptor(file_descriptor: int, contents: str) -> None:
-    with os.fdopen(file_descriptor, "w", encoding="utf-8") as handle:
-        handle.write(contents)
-        handle.flush()
-        os.fsync(handle.fileno())
-
-
-def write_generated_report_file(directory: Path, filename: str, contents: str) -> None:
-    """Atomically replace a fixed report filename without following links."""
-
-    if not filename or Path(filename).name != filename:
-        raise ValueError(f"generated report filename must be a basename: {filename}")
-    directory_fd = _secure_directory_fd(directory)
-    temporary_name = ""
-    try:
-        temporary_name, temporary_fd = _open_secure_temporary_file(directory_fd, filename)
-        _write_file_descriptor(temporary_fd, contents)
-        os.replace(temporary_name, filename, src_dir_fd=directory_fd, dst_dir_fd=directory_fd)
-        temporary_name = ""
-    finally:
-        if temporary_name:
-            try:
-                os.unlink(temporary_name, dir_fd=directory_fd)
-            except FileNotFoundError:
-                pass
-        os.close(directory_fd)
 
 
 def _prepare_report_output_directory(

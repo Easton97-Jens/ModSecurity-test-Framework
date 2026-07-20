@@ -316,3 +316,38 @@ Build- und Temp-Roots. Normale Delivery und ein frisches GitHub-/SonarCloud-
 Readback des exakten Heads sind weiterhin erforderlich. PR #30 bleibt Draft,
 und ein Merge bleibt nicht autorisiert, bis das vollständige offene Issue-
 Inventar null ist.
+
+### Aktuelles Master-Update und Duplication-Remediation
+
+Der aktuelle PR-#30-Branch enthält nun den nicht umschreibenden normalen
+Merge-Commit 504c8f164d4dab4bc857718af0233557ad48f727 mit dem vorherigen
+PR-Head b6af3ec83011b2070f6bbe4b3f471478b373f055 und Framework-Master
+9a729226d2e040d07d7e7a4acebf201faf06ab37 als Parents. Die
+Konfliktauflösung erhält sowohl die Master-CI-/Security-Controls als auch die
+PR-Controls für verifizierten Run-Root, literale Make-Inputs,
+script-relativen Bootstrap und den begrenzten YAML-Parser. Die gepaarte
+Heading-Reparatur stufte ausschließlich vier historische Zusatzüberschriften
+auf Ebene 3 herab, damit der aktuelle Change-Record-Vertrag den unveränderten
+Inhalt auswerten kann.
+
+FND-FRAMEWORK-0023 verfolgt die bestätigte SonarQube-Cloud-Duplikation des
+aktuellen Heads (182 neue duplizierte Zeilen, vor der Remediation
+1.1771554233232002 Prozent). Die fokussierte Implementierung verschiebt den
+identischen sicheren descriptor-relativen Report-Ersatz nach
+ci/lib/generated_report_utils.py, die private Runtime-Root-Validierung nach
+ci/lib/runtime_path_safety.py und die gemeinsame Output-Root-Auflösung nach
+ci/lib/report_output_paths.py. Bestehende Producer-Symbole und die
+Reihenfolge der Fehlerbehandlung bleiben für ihre direkten Regressionstests
+erhalten. Die zwei test-only Reduktionen behalten die unveränderlichen
+ModSecurity-v3-Fake-Git-Controls und die strikten HTTP/3-Reset-/Follow-up-
+Fälle ohne Suppression bei.
+
+FND-FRAMEWORK-0024 erfasst den getrennten Change-Record-Vertragsfehler und
+seine enge Reparatur. Gezielte Python-Kompilierung, der CI-Security-Vertrag
+mit 69 Tests, der ModSecurity-v3-Provenance-Vertrag mit 10 Tests, die 24
+Merge-Control-Regressionen, alle sieben Sonar-betroffenen
+Security-Regression-Module und das Protocol-Client-Ziel mit 23 Tests bestehen
+mit task-eigenen State-/Build-/Temp-Roots. Der lokale Sonar-Scanner bleibt
+absichtlich nicht verfügbar; normaler Push, Exact-Head-SHA-Gleichheit,
+aktuelle GitHub-Checks, frisches SonarCloud-Zero-Duplication-Readback und ein
+abschließender Exact-Head-Security-Review bleiben vor dem Merge erforderlich.

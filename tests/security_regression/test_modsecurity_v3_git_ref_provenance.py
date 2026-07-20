@@ -7,9 +7,17 @@ They never contact upstream or build a real ModSecurity checkout.
 import os
 import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+
+TEST_SUPPORT_ROOT = Path(__file__).resolve().parent
+if str(TEST_SUPPORT_ROOT) not in sys.path:
+    sys.path.insert(0, str(TEST_SUPPORT_ROOT))
+
+from git_provenance_test_support import fake_git_script
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,60 +31,7 @@ APPROVED_RELEASE_TAG = "v3.0.15"
 ALTERNATE_COMMIT = "a" * 40
 
 
-FAKE_GIT = """#!/usr/bin/env python3
-import os
-from pathlib import Path
-import sys
-
-approved_repo = "https://github.com/owasp-modsecurity/ModSecurity.git"
-approved_commit = "0fb4aff98b4980cf6426697d5605c424e3d5bb60"
-log = Path(os.environ["FAKE_GIT_LOG"])
-with log.open("a", encoding="utf-8") as handle:
-    handle.write(" ".join(sys.argv[1:]) + "\\n")
-
-for untrusted_environment_name in (
-    "GIT_DIR",
-    "GIT_WORK_TREE",
-    "GIT_CONFIG_PARAMETERS",
-    "GIT_SSL_NO_VERIFY",
-    "GIT_ASKPASS",
-):
-    if untrusted_environment_name in os.environ:
-        sys.exit(91)
-
-arguments = sys.argv[1:]
-repository = None
-while arguments:
-    if arguments[0] == "-c":
-        arguments = arguments[2:]
-    elif arguments[0] == "-C":
-        repository = arguments[1]
-        arguments = arguments[2:]
-    else:
-        break
-
-command = arguments[0] if arguments else ""
-arguments = arguments[1:]
-if command == "init":
-    Path(arguments[-1], ".git").mkdir(parents=True, exist_ok=True)
-elif command == "config":
-    print(os.environ.get("FAKE_GIT_ORIGIN", approved_repo))
-elif command == "fetch":
-    sys.exit(int(os.environ.get("FAKE_GIT_FETCH_RC", "0")))
-elif command == "checkout":
-    if os.environ.get("FAKE_GIT_CREATE_GITMODULES") == "1" and repository:
-        Path(repository, ".gitmodules").touch()
-elif command == "rev-parse":
-    if any(argument.startswith("FETCH_HEAD") for argument in arguments):
-        print(os.environ.get("FAKE_GIT_FETCH_HEAD_COMMIT", approved_commit))
-    elif any(argument.startswith("HEAD") for argument in arguments):
-        print(os.environ.get("FAKE_GIT_HEAD_COMMIT", approved_commit))
-    else:
-        print(os.environ.get("FAKE_GIT_RESOLVED_COMMIT", approved_commit))
-elif command == "ls-files":
-    if os.environ.get("FAKE_GIT_GITLINK") == "1":
-        print("160000 " + ("f" * 40) + " 0\\tthird-party")
-"""
+FAKE_GIT = fake_git_script(APPROVED_REPO, APPROVED_COMMIT)
 
 
 BUILD_TRAP = """#!/bin/sh

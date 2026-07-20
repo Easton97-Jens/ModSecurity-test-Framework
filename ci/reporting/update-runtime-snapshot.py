@@ -36,6 +36,12 @@ from response_body_status import (  # noqa: E402
     matrix_status_for_result,
     response_body_non_promotion_fields,
 )
+from report_output_paths import (  # noqa: E402
+    report_root_for as shared_report_root_for,
+    resolve_allowed_output_root as shared_resolve_allowed_output_root,
+    resolve_root,
+    resolve_under_root,
+)
 
 RUNTIME_CONNECTORS = ("apache", "nginx", "haproxy")
 
@@ -66,38 +72,22 @@ class SnapshotLayout:
         self.snapshot.write_text(json.dumps(snapshot_data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
 
 
-def resolve_root(root: str | Path, *, label: str) -> Path:
-    try:
-        return Path(root).expanduser().resolve()
-    except Exception as exc:
-        raise ValueError(f"{label} is not a valid path: {root}") from exc
-
-
-def resolve_under_root(root: Path, candidate: Path, *, label: str) -> Path:
-    root = root.resolve()
-    candidate = candidate.resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
-        raise ValueError(f"{label} must stay under {root}: {candidate}") from exc
-    return candidate
-
-
 def resolve_allowed_output_root(output_root: str | Path | None) -> Path:
-    requested = resolve_root(output_root, label="output root") if output_root is not None else CONNECTOR_ROOT
-    if requested == FRAMEWORK_ROOT:
-        return FRAMEWORK_ROOT
-    if requested == CONNECTOR_ROOT:
-        return CONNECTOR_ROOT
-    raise ValueError(f"output root must resolve exactly to the framework root ({FRAMEWORK_ROOT}) or connector root ({CONNECTOR_ROOT}): {requested}")
+    return shared_resolve_allowed_output_root(
+        output_root,
+        framework_root=FRAMEWORK_ROOT,
+        connector_root=CONNECTOR_ROOT,
+    )
 
 
 def report_root_for(output_root: Path) -> Path:
-    if output_root == FRAMEWORK_ROOT:
-        return resolve_under_root(FRAMEWORK_ROOT, FRAMEWORK_ROOT / FRAMEWORK_REPORT_DIR, label="framework report root")
-    if output_root == CONNECTOR_ROOT:
-        return resolve_under_root(CONNECTOR_ROOT, CONNECTOR_ROOT / CONNECTOR_REPORT_DIR, label="connector report root")
-    raise ValueError(f"unsupported output root: {output_root}")
+    return shared_report_root_for(
+        output_root,
+        framework_root=FRAMEWORK_ROOT,
+        connector_root=CONNECTOR_ROOT,
+        framework_report_dir=FRAMEWORK_REPORT_DIR,
+        connector_report_dir=CONNECTOR_REPORT_DIR,
+    )
 
 
 def build_safe_snapshot_path(output_root: Path) -> Path:
