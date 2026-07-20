@@ -51,6 +51,7 @@ check_path() {
     path=$1
     case "$path" in
         ci/lib/common.sh) return 0 ;;
+        *) : ;;
     esac
     check_literal "$path" "$CRS_APPROVED_REPO_URL" CRS_APPROVED_REPO_URL
     check_literal "$path" "$CRS_APPROVED_COMMIT" CRS_APPROVED_COMMIT
