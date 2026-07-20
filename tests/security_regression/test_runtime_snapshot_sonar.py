@@ -152,9 +152,10 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
             outside = root / "outside.json"
             outside.write_text("unchanged\n", encoding="utf-8")
             expected.symlink_to(outside)
+            layout = self.snapshot.active_snapshot_layout()
 
             with self.assertRaisesRegex(ValueError, "runtime snapshot path must stay under"):
-                self.snapshot.active_snapshot_layout().write({"untrusted": "content"})
+                layout.write({"untrusted": "content"})
 
             self.assertTrue(expected.is_symlink())
             self.assertEqual("unchanged\n", outside.read_text(encoding="utf-8"))

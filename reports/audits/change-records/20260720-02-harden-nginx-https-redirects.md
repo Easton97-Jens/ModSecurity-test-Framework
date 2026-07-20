@@ -84,6 +84,11 @@ case-information outputs use the same writer only after revalidating their
 resolved target below the caller's required output root. The implementation
 does not accept an analyzer finding, suppress a rule, or relax path checks.
 
+The final snapshot-link rejection control obtains its configured layout before
+the exception assertion, so `layout.write(...)` is the assertion's only
+potentially throwing operation. This preserves the escaping-link rejection
+and avoids introducing a test-only S5778 SonarCloud regression.
+
 ## Changed files and tests
 
 - ci/provisioning/prepare-nginx-build.sh
@@ -128,6 +133,7 @@ C13 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="
 C14 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="$task_run_root/build/doc-final/pycache" TMPDIR="$task_run_root/tmp/doc-final" BUILD_ROOT="$task_run_root/build/doc-final" TMP_ROOT="$task_run_root/tmp/doc-final" LOG_ROOT="$task_run_root/logs/doc-final" FRAMEWORK_ROOT="$task_worktree" CONNECTOR_ROOT="$task_worktree" OUTPUT_ROOT="$task_worktree" CI_ROOT="$task_worktree/ci" make test-change-record-contract'
 C15 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="$task_run_root/build/doc-final/pycache" TMPDIR="$task_run_root/tmp/doc-final" BUILD_ROOT="$task_run_root/build/doc-final" TMP_ROOT="$task_run_root/tmp/doc-final" LOG_ROOT="$task_run_root/logs/doc-final" FRAMEWORK_ROOT="$task_worktree" CONNECTOR_ROOT="$task_worktree" OUTPUT_ROOT="$task_worktree" CI_ROOT="$task_worktree/ci" make check-documentation'
 C16 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="$task_run_root/build/lint-final/pycache" TMPDIR="$task_run_root/tmp/lint-final" BUILD_ROOT="$task_run_root/build/lint-final" TMP_ROOT="$task_run_root/tmp/lint-final" LOG_ROOT="$task_run_root/logs/lint-final" FRAMEWORK_ROOT="$task_worktree" CONNECTOR_ROOT="$task_worktree" OUTPUT_ROOT="$task_worktree" CI_ROOT="$task_worktree/ci" make lint'
+C17 rtk env PYTHONNOUSERSITE=1 PYTHONPYCACHEPREFIX="$task_run_root/build/followup-s5778/pycache" TMPDIR="$task_run_root/tmp/followup-s5778" "$framework_python" -m unittest tests.security_regression.test_runtime_snapshot_sonar -v
 ~~~
 
 | Command ID | Exit code | Concise result | Run ID |
@@ -148,6 +154,7 @@ C16 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="
 | C14 | 0 | Final Change Record contract passed all four tests with explicit isolated project and storage roots. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
 | C15 | 0 | Final documentation checks passed links, variables, repository paths, and Change Record validation with explicit isolated project and storage roots. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
 | C16 | 0 | Final full lint passed after the escaping-snapshot-link regression and final documentation edits, with every project and storage root explicitly isolated; its `git diff --check` passed. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
+| C17 | 0 | All five snapshot controls passed after keeping only `layout.write(...)` inside the escaping-link exception assertion. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
 
 ## Security impact
 
@@ -210,17 +217,17 @@ No connector runtime matrix, external archive download, MRTS source inspection,
 MRTS test, default-branch integration, or merge was run. An earlier lint
 attempt inherited Parent root variables and was deliberately interrupted; it is
 recorded as `FND-CROSS-0002` and is not treated as passing validation. C10 is
-the replacement result with explicit isolated roots. A new exact-head SonarCloud
-analysis is pending normal task-branch delivery; current master analysis cannot
-evaluate this unmerged change.
+the replacement result with explicit isolated roots. A fresh exact-head
+SonarCloud analysis remains pending after the test-only S5778 follow-up;
+current master analysis cannot evaluate this unmerged change.
 
 ## Limitations and residual risk
 
 Current master remains red until the unmerged Framework changes are integrated
 and analyzed; the 17 externally owned MRTS metadata rows remain documentation-
-only. A current-head PR analysis is still required to verify the five source
-remediations, and a post-delivery master verification needs separate
-integration authorization; this task has no merge authority. The recorded
+only. A current-head PR analysis is still required after the S5778 follow-up to
+verify the final source and test set, and a post-delivery master verification
+needs separate integration authorization; this task has no merge authority. The recorded
 interrupted lint boundary incident cannot be retroactively erased, although its
 explicit-root replacement passed; the overarching task therefore cannot claim a
 fully clean cross-repository boundary history.
@@ -228,7 +235,8 @@ fully clean cross-repository boundary history.
 ## Final diff and review status
 
 Focused post-remediation tests, Python compilation, the isolated full lint,
-and `git diff --check` have passed. Pending are final scoped/security review,
-normal follow-up commit and push to the existing Draft PR, and exact-head
-remote readback. No Parent, gitlink, MRTS source, or analyzer-configuration
-change is included.
+and `git diff --check` have passed; C17 adds the focused final snapshot
+control. Pending are refreshed documentation checks, final scoped/security
+review, a normal follow-up commit and push to the existing Draft PR, and
+exact-head remote readback. No Parent, gitlink, MRTS source, or
+analyzer-configuration change is included.
