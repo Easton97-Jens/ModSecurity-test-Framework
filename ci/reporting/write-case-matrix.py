@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import sys
 from pathlib import Path
 
@@ -21,7 +22,7 @@ from runner_core import case_info, load_case  # noqa: E402
 from response_body_status import is_response_body_related  # noqa: E402
 
 
-def result_status(results: dict[str, object], connector: str, name: str, case: dict[str, object], path: Path) -> str:
+def result_status(results: dict[str, object], connector: str, name: str) -> str:
     summary = results.get(connector, {})
     if not isinstance(summary, dict):
         return "unknown"
@@ -92,23 +93,79 @@ def row(path: Path, results: dict[str, object]) -> str:
         case_source(info, path),
         category,
         capabilities,
-        result_status(results, "apache", name, dict(case), path),
-        result_status(results, "nginx", name, dict(case), path),
+        result_status(results, "apache", name),
+        result_status(results, "nginx", name),
         case_kind(info),
         notes,
     ]
     return "| " + " | ".join(value.replace("|", "\\|") for value in values) + " |"
 
 
+def configured_build_root() -> Path:
+    configured_build_root = os.environ.get("BUILD_ROOT")
+    configured_run_root = os.environ.get("VERIFIED_RUN_ROOT")
+    if configured_build_root:
+        root = Path(configured_build_root)
+    elif configured_run_root:
+        root = Path(configured_run_root) / "build"
+    else:
+        raise ValueError("BUILD_ROOT or VERIFIED_RUN_ROOT must be set")
+    if root.exists() and root.is_symlink():
+        raise ValueError(f"build root must not be a symlink: {root}")
+    root.mkdir(parents=True, mode=0o700, exist_ok=True)
+    resolved = root.resolve(strict=True)
+    metadata = resolved.stat()
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError(f"build root must be a directory: {resolved}")
+    if metadata.st_uid != os.getuid() or metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+        raise ValueError(f"build root must be private and owned by this user: {resolved}")
+    return resolved
+
+
+def path_under_build_root(raw_path: str | Path, build_root: Path, label: str) -> Path:
+    candidate = Path(raw_path)
+    if not candidate.is_absolute():
+        candidate = build_root / candidate
+    resolved = candidate.resolve(strict=False)
+    try:
+        resolved.relative_to(build_root)
+    except ValueError as exc:
+        raise ValueError(f"{label} must stay under {build_root}: {resolved}") from exc
+    return resolved
+
+
+def write_matrix(path: Path, content: str, build_root: Path) -> None:
+    output = path_under_build_root(path, build_root, "case matrix output")
+    output.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
+    parent = output.parent.resolve(strict=True)
+    try:
+        parent.relative_to(build_root)
+    except ValueError as exc:
+        raise ValueError(f"case matrix output parent must stay under {build_root}: {parent}") from exc
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(output, flags, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(content)
+
+
 def main(argv: list[str]) -> int:
-    default_build_root = Path(
-        os.environ.get(
-            "BUILD_ROOT",
-            str(Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified"))) / "build"),
+    try:
+        build_root = configured_build_root()
+        results_path = path_under_build_root(
+            argv[1] if len(argv) > 1 else "results/connector-summary.json",
+            build_root,
+            "connector summary input",
         )
-    )
-    results_path = Path(argv[1]) if len(argv) > 1 else default_build_root / "results" / "connector-summary.json"
-    output_path = Path(argv[2]) if len(argv) > 2 else default_build_root / "case-matrix.md"
+        output_path = path_under_build_root(
+            argv[2] if len(argv) > 2 else "case-matrix.md",
+            build_root,
+            "case matrix output",
+        )
+    except ValueError as exc:
+        print(f"invalid case-matrix path: {exc}", file=sys.stderr)
+        return 2
     results = load_results(results_path)
     lines = [
         "# Case Matrix",
@@ -119,7 +176,11 @@ def main(argv: list[str]) -> int:
         "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     lines.extend(row(path, results) for path in all_case_paths())
-    output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        write_matrix(output_path, "\n".join(lines) + "\n", build_root)
+    except ValueError as exc:
+        print(f"invalid case-matrix output: {exc}", file=sys.stderr)
+        return 2
     return 0
 
 

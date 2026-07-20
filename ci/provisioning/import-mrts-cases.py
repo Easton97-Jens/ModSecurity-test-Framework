@@ -12,6 +12,18 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 from urllib.parse import parse_qsl, quote, urlencode
 
+
+FRAMEWORK_LIB = Path(__file__).resolve().parents[1] / "lib"
+if str(FRAMEWORK_LIB) not in sys.path:
+    sys.path.insert(0, str(FRAMEWORK_LIB))
+
+from runtime_path_safety import (
+    absolute_path_without_traversal,
+    has_symlink_component,
+    nearest_existing_directory,
+    private_runtime_root,
+)
+
 INCOMPLETE_REASON = "MRTS classification incomplete"
 ROOT_COLLECTIONS = [
     "ARGS",
@@ -38,6 +50,7 @@ RULE_START_RE = re.compile(r"^\s*(?:SecRule|SecAction)\b")
 SCALAR_TRUE = {"true", "yes", "on"}
 SCALAR_FALSE = {"false", "no", "off"}
 DEFAULT_CLASSIFICATIONS_FILE = Path("tests/mrts/classifications.yaml")
+YAML_FILE_GLOB = "*.yaml"
 ROOT_OVERLAY_KEYS = {"version", "cases"}
 CASE_OVERLAY_KEYS = {
     "classification",
@@ -79,6 +92,26 @@ FORBIDDEN_OVERLAY_KEYS = {
     "uri",
     "variables",
 }
+
+
+def safe_corpus_component(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", value):
+        raise ValueError(f"MRTS corpus must be a single safe path component: {value}")
+    return value
+
+
+def configured_mrts_build_root(
+    build_root_value: str,
+    mrts_build_root_value: str,
+) -> Path | None:
+    if mrts_build_root_value:
+        return private_runtime_root(mrts_build_root_value, "MRTS build root")
+    if build_root_value:
+        return private_runtime_root(build_root_value, "build root") / "mrts"
+    verified_run_root = os.environ.get("VERIFIED_RUN_ROOT")
+    if verified_run_root:
+        return private_runtime_root(verified_run_root, "verified run root") / "build" / "mrts"
+    return None
 
 
 def parse_scalar(value: str) -> Any:
@@ -360,37 +393,51 @@ def yaml_scalar(value: Any) -> str:
     return text
 
 
-def render_yaml(value: Any, indent: int = 0) -> list[str]:
+def render_yaml_mapping_item(key: Any, item: Any, indent: int) -> list[str]:
     prefix = " " * indent
+    if isinstance(item, str) and "\n" in item:
+        block_lines = [
+            f"{prefix}  {line}" if line else prefix
+            for line in item.rstrip("\n").split("\n")
+        ]
+        return [f"{prefix}{key}: |", *block_lines]
+    if isinstance(item, (Mapping, list)):
+        return [f"{prefix}{key}:", *render_yaml(item, indent + 2)]
+    return [f"{prefix}{key}: {yaml_scalar(item)}"]
+
+
+def render_yaml_mapping(value: Mapping[str, Any], indent: int) -> list[str]:
+    lines: list[str] = []
+    for key, item in value.items():
+        lines.extend(render_yaml_mapping_item(key, item, indent))
+    return lines
+
+
+def render_yaml_list_item(item: Any, indent: int) -> list[str]:
+    prefix = " " * indent
+    if isinstance(item, Mapping):
+        rendered = render_yaml(item, indent + 2)
+        if rendered:
+            return [f"{prefix}- {rendered[0].lstrip()}", *rendered[1:]]
+        return [f"{prefix}- {{}}"]
+    if isinstance(item, list):
+        return [f"{prefix}-", *render_yaml(item, indent + 2)]
+    return [f"{prefix}- {yaml_scalar(item)}"]
+
+
+def render_yaml_list(value: list[Any], indent: int) -> list[str]:
+    lines: list[str] = []
+    for item in value:
+        lines.extend(render_yaml_list_item(item, indent))
+    return lines
+
+
+def render_yaml(value: Any, indent: int = 0) -> list[str]:
     if isinstance(value, Mapping):
-        lines: list[str] = []
-        for key, item in value.items():
-            if isinstance(item, str) and "\n" in item:
-                lines.append(f"{prefix}{key}: |")
-                lines.extend(f"{prefix}  {line}" if line else f"{prefix}" for line in item.rstrip("\n").split("\n"))
-            elif isinstance(item, (Mapping, list)):
-                lines.append(f"{prefix}{key}:")
-                lines.extend(render_yaml(item, indent + 2))
-            else:
-                lines.append(f"{prefix}{key}: {yaml_scalar(item)}")
-        return lines
+        return render_yaml_mapping(value, indent)
     if isinstance(value, list):
-        lines = []
-        for item in value:
-            if isinstance(item, Mapping):
-                rendered = render_yaml(item, indent + 2)
-                if rendered:
-                    lines.append(f"{prefix}- {rendered[0].lstrip()}")
-                    lines.extend(rendered[1:])
-                else:
-                    lines.append(f"{prefix}- {{}}")
-            elif isinstance(item, list):
-                lines.append(f"{prefix}-")
-                lines.extend(render_yaml(item, indent + 2))
-            else:
-                lines.append(f"{prefix}- {yaml_scalar(item)}")
-        return lines
-    return [f"{prefix}{yaml_scalar(value)}"]
+        return render_yaml_list(value, indent)
+    return [f"{' ' * indent}{yaml_scalar(value)}"]
 
 
 def write_case(path: Path, case: Mapping[str, Any]) -> None:
@@ -489,25 +536,37 @@ def matching_rule(
     return "", None
 
 
+def yaml_files(directory: Path) -> list[Path]:
+    if not directory.is_dir():
+        return []
+    return sorted(directory.glob(YAML_FILE_GLOB))
+
+
+def definition_aliases(path: Path) -> list[str]:
+    aliases = [path.name, path.stem]
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return aliases
+    for line in lines:
+        if line.startswith(("testfile:", "rulefile:")):
+            _, value = line.split(":", 1)
+            token = value.strip().strip("'\"")
+            if token:
+                aliases.extend([token, Path(token).stem])
+    return aliases
+
+
+def add_definition_aliases(index: dict[str, Path], path: Path) -> None:
+    for alias in definition_aliases(path):
+        index[alias] = path
+
+
 def source_definition_index(definition_dirs: Iterable[Path]) -> dict[str, Path]:
     index: dict[str, Path] = {}
     for definition_dir in definition_dirs:
-        if not definition_dir.is_dir():
-            continue
-        for path in sorted(definition_dir.glob("*.yaml")):
-            index[path.name] = path
-            index[path.stem] = path
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()
-            except OSError:
-                continue
-            for line in lines:
-                if line.startswith(("testfile:", "rulefile:")):
-                    _, value = line.split(":", 1)
-                    token = value.strip().strip("'\"")
-                    if token:
-                        index[token] = path
-                        index[Path(token).stem] = path
+        for path in yaml_files(definition_dir):
+            add_definition_aliases(index, path)
     return index
 
 
@@ -635,75 +694,136 @@ def normalize_header_map(headers: Any) -> dict[str, str]:
     return {}
 
 
-def request_from_encoded(raw: str) -> tuple[dict[str, Any], bool]:
+def empty_request() -> dict[str, Any]:
+    return {"method": "GET", "path": "/"}
+
+
+def decode_encoded_request(raw: str) -> str | None:
     try:
-        decoded = base64.b64decode(raw, validate=True).decode("utf-8", "replace")
+        return base64.b64decode(raw, validate=True).decode("utf-8", "replace")
     except Exception:
-        return {"method": "GET", "path": "/"}, False
+        return None
+
+
+def split_http_message(decoded: str) -> tuple[str, str]:
     head, separator, body = decoded.partition("\r\n\r\n")
     if not separator:
-        head, separator, body = decoded.partition("\n\n")
+        head, _, body = decoded.partition("\n\n")
+    return head, body
+
+
+def encoded_request_start(head: str) -> tuple[str, str, list[str]] | None:
     lines = head.replace("\r\n", "\n").split("\n")
     if not lines:
-        return {"method": "GET", "path": "/"}, False
+        return None
     parts = lines[0].split()
     if len(parts) < 2:
-        return {"method": "GET", "path": "/"}, False
+        return None
     method = parts[0].upper()
     path = parts[1]
     if method not in {"GET", "POST"} or not path.startswith("/"):
-        return {"method": "GET", "path": "/"}, False
+        return None
+    return method, path, lines[1:]
+
+
+def encoded_request_headers(lines: Iterable[str]) -> dict[str, str]:
     headers: dict[str, str] = {}
-    for line in lines[1:]:
+    for line in lines:
         if ":" not in line:
             continue
         name, value = line.split(":", 1)
         if name.strip().lower() not in {"host", "user-agent", "accept", "content-length"}:
             headers[name.strip()] = value.strip()
-    request: dict[str, Any] = {"method": method, "path": path}
-    content_type = next((value for key, value in headers.items() if key.lower() == "content-type"), "")
-    if content_type.lower().startswith("multipart/form-data") and "boundary=" in content_type:
-        boundary = content_type.split("boundary=", 1)[1].split(";", 1)[0].strip().strip('"')
-        parts_out: list[dict[str, Any]] = []
-        marker = f"--{boundary}"
-        for raw_part in body.split(marker):
-            raw_part = raw_part.strip("\r\n")
-            if not raw_part or raw_part == "--":
-                continue
-            raw_part = raw_part.removesuffix("--").strip("\r\n")
-            part_head, _, part_body = raw_part.partition("\r\n\r\n")
-            if not part_head:
-                part_head, _, part_body = raw_part.partition("\n\n")
-            disposition = ""
-            part_content_type = ""
-            for part_line in part_head.replace("\r\n", "\n").split("\n"):
-                if ":" not in part_line:
-                    continue
-                key, value = part_line.split(":", 1)
-                if key.strip().lower() == "content-disposition":
-                    disposition = value.strip()
-                elif key.strip().lower() == "content-type":
-                    part_content_type = value.strip()
-            name_match = re.search(r'\bname="([^"]+)"', disposition)
-            if not name_match:
-                continue
-            part: dict[str, Any] = {"name": name_match.group(1), "body": part_body.rstrip("\r\n")}
-            filename_match = re.search(r'\bfilename="([^"]*)"', disposition)
-            if filename_match:
-                part["filename"] = filename_match.group(1)
-            if part_content_type:
-                part["content_type"] = part_content_type
-            parts_out.append(part)
-        if boundary and parts_out:
-            request["multipart"] = {"boundary": boundary, "parts": parts_out}
-            return request, True
-        return request, False
+    return headers
+
+
+def multipart_boundary(headers: Mapping[str, str]) -> str | None:
+    content_type = next(
+        (value for key, value in headers.items() if key.lower() == "content-type"),
+        "",
+    )
+    if not content_type.lower().startswith("multipart/form-data") or "boundary=" not in content_type:
+        return None
+    return content_type.split("boundary=", 1)[1].split(";", 1)[0].strip().strip('"')
+
+
+def multipart_part_headers(part_head: str) -> tuple[str, str]:
+    disposition = ""
+    content_type = ""
+    for part_line in part_head.replace("\r\n", "\n").split("\n"):
+        if ":" not in part_line:
+            continue
+        key, value = part_line.split(":", 1)
+        if key.strip().lower() == "content-disposition":
+            disposition = value.strip()
+        elif key.strip().lower() == "content-type":
+            content_type = value.strip()
+    return disposition, content_type
+
+
+def multipart_part(raw_part: str) -> dict[str, Any] | None:
+    raw_part = raw_part.strip("\r\n")
+    if not raw_part or raw_part == "--":
+        return None
+    raw_part = raw_part.removesuffix("--").strip("\r\n")
+    part_head, _, part_body = raw_part.partition("\r\n\r\n")
+    if not part_head:
+        part_head, _, part_body = raw_part.partition("\n\n")
+    disposition, content_type = multipart_part_headers(part_head)
+    name_match = re.search(r'\bname="([^"]+)"', disposition)
+    if not name_match:
+        return None
+    part: dict[str, Any] = {
+        "name": name_match.group(1),
+        "body": part_body.rstrip("\r\n"),
+    }
+    filename_match = re.search(r'\bfilename="([^"]*)"', disposition)
+    if filename_match:
+        part["filename"] = filename_match.group(1)
+    if content_type:
+        part["content_type"] = content_type
+    return part
+
+
+def multipart_parts(body: str, boundary: str) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = []
+    for raw_part in body.split(f"--{boundary}"):
+        parsed = multipart_part(raw_part)
+        if parsed is not None:
+            parts.append(parsed)
+    return parts
+
+
+def attach_body_and_headers(
+    request: dict[str, Any],
+    body: str,
+    headers: Mapping[str, str],
+) -> None:
     if body:
         request["body"] = body
-        if headers:
-            request["headers"] = dict(sorted(headers.items()))
-    elif headers:
+    if headers:
         request["headers"] = dict(sorted(headers.items()))
+
+
+def request_from_encoded(raw: str) -> tuple[dict[str, Any], bool]:
+    decoded = decode_encoded_request(raw)
+    if decoded is None:
+        return empty_request(), False
+    head, body = split_http_message(decoded)
+    start = encoded_request_start(head)
+    if start is None:
+        return empty_request(), False
+    method, path, header_lines = start
+    headers = encoded_request_headers(header_lines)
+    request: dict[str, Any] = {"method": method, "path": path}
+    boundary = multipart_boundary(headers)
+    if boundary is not None:
+        parts = multipart_parts(body, boundary)
+        if boundary and parts:
+            request["multipart"] = {"boundary": boundary, "parts": parts}
+            return request, True
+        return request, False
+    attach_body_and_headers(request, body, headers)
     return request, True
 
 
@@ -715,30 +835,45 @@ def query_path_from_form_body(path: str, body: str) -> str:
     return f"{path}{separator}{urlencode(pairs, quote_via=quote)}"
 
 
-def request_from_stage(stage: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
-    input_data = stage.get("input")
-    if not isinstance(input_data, Mapping):
-        return {"method": "GET", "path": "/"}, False
-    if "encoded_request" in input_data:
-        return request_from_encoded(str(input_data.get("encoded_request") or ""))
+def add_stage_data(
+    request: dict[str, Any],
+    method: str,
+    uri: str,
+    input_data: Mapping[str, Any],
+) -> None:
+    data_value = input_data.get("data")
+    if data_value in (None, ""):
+        return
+    data = str(data_value)
+    if method == "GET":
+        request["path"] = query_path_from_form_body(uri, data)
+        return
+    request["body"] = data
+    request.setdefault("headers", {}).setdefault(
+        "Content-Type", "application/x-www-form-urlencoded",
+    )
+
+
+def request_from_mapping_input(input_data: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
     method = str(input_data.get("method") or "GET").upper()
     uri = str(input_data.get("uri") or "/")
     if method not in {"GET", "POST"} or not uri.startswith("/"):
-        return {"method": "GET", "path": "/"}, False
+        return empty_request(), False
     request: dict[str, Any] = {"method": method, "path": uri}
     kept_headers = normalize_header_map(input_data.get("headers"))
     if kept_headers:
         request["headers"] = dict(sorted(kept_headers.items()))
-    if "data" in input_data and input_data.get("data") not in (None, ""):
-        data = str(input_data.get("data"))
-        if method == "GET":
-            request["path"] = query_path_from_form_body(uri, data)
-        else:
-            request["body"] = data
-            if "headers" not in request:
-                request["headers"] = {}
-            request["headers"].setdefault("Content-Type", "application/x-www-form-urlencoded")
+    add_stage_data(request, method, uri, input_data)
     return request, True
+
+
+def request_from_stage(stage: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
+    input_data = stage.get("input")
+    if not isinstance(input_data, Mapping):
+        return empty_request(), False
+    if "encoded_request" in input_data:
+        return request_from_encoded(str(input_data.get("encoded_request") or ""))
+    return request_from_mapping_input(input_data)
 
 
 def output_log(stage: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -804,6 +939,113 @@ def apply_classification_overlay(case: dict[str, Any], overlay: Mapping[str, Any
             metadata[key] = overlay[key]
 
 
+def resolved_case_status(active: bool, case_status: str) -> str:
+    if case_status != "computed":
+        return case_status
+    return "active" if active else "pending"
+
+
+def case_limitations(active: bool, status: str, pending_reason: str) -> list[str]:
+    limitations = [
+        "Generated from MRTS go-ftw output.",
+        "MRTS evidence is optional and variant-specific.",
+    ]
+    if not active:
+        limitations.append(INCOMPLETE_REASON)
+    if status == "pending" and pending_reason and pending_reason not in limitations:
+        limitations.append(pending_reason)
+    return limitations
+
+
+def case_metadata(
+    framework_root: Path,
+    mrts_corpus: str,
+    source_definition: Path | None,
+    upstream_file: Path | None,
+    generated_ftw_file: Path,
+    rule_path: Path | None,
+    phase: int | str,
+    topic: str,
+    variables: list[str],
+    connector_scope: list[str],
+    status: str,
+) -> dict[str, Any]:
+    return {
+        "source": "mrts",
+        "generated": True,
+        "mrts_corpus": mrts_corpus,
+        "source_definition": relative_path(source_definition, framework_root),
+        "upstream_file": relative_path(upstream_file, framework_root),
+        "generated_ftw_file": relative_path(generated_ftw_file, framework_root),
+        "generated_rule_file": relative_path(rule_path, framework_root),
+        "phase": phase,
+        "topic": topic,
+        "variables": variables,
+        "connector_scope": connector_scope,
+        "status": status,
+        "runtime_verified": False,
+    }
+
+
+def initialized_case(
+    name: str,
+    source_path: Path,
+    connector_scope: list[str],
+    status: str,
+    limitations: list[str],
+    metadata: dict[str, Any],
+    capabilities: dict[str, bool],
+    request: dict[str, Any],
+    expect: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "origin": [
+            {
+                "repo": "owasp-modsecurity/MRTS",
+                "path": str(source_path),
+                "reason": "Generated MRTS go-ftw test imported into framework YAML schema.",
+            }
+        ],
+        "category": "mrts",
+        "portable": connector_scope == ["common"],
+        "status": status,
+        "known_limitations": limitations,
+        "metadata": metadata,
+        "capabilities": capabilities,
+        "rules": "SecRuleEngine On\n",
+        "request": request,
+        "expect": expect,
+    }
+
+
+def apply_case_reasons(
+    case: dict[str, Any],
+    active: bool,
+    status: str,
+    pending_reason: str,
+) -> None:
+    if not active:
+        case["reason"] = INCOMPLETE_REASON
+        case["metadata"]["reason"] = INCOMPLETE_REASON
+    if status == "pending" and pending_reason:
+        case["reason"] = pending_reason
+        case["metadata"]["reason"] = pending_reason
+
+
+def apply_case_connector_scope(case: dict[str, Any], connector_scope: list[str]) -> None:
+    if connector_scope != ["common"]:
+        case["connector"] = connector_scope[0]
+
+
+def apply_case_rule_id(case: dict[str, Any], rule_id: Any) -> None:
+    if rule_id in (None, ""):
+        return
+    normalized = int(rule_id) if str(rule_id).isdigit() else str(rule_id)
+    case["expect"]["rule_id"] = normalized
+    case["metadata"]["mrts_rule_id"] = normalized
+
+
 def build_case(
     source_path: Path,
     test: Mapping[str, Any],
@@ -830,63 +1072,20 @@ def build_case(
     supported_phase = isinstance(phase, int) and 1 <= phase <= 4
     classification_reliable = bool(rule_text and supported_phase and variables)
     active = request_reliable and expect_reliable and classification_reliable
-    status = "active" if active else "pending"
-    if case_status != "computed":
-        status = case_status
+    status = resolved_case_status(active, case_status)
     name = stable_case_name(case_seed(source_path, test), used_names)
-    limitations = [
-        "Generated from MRTS go-ftw output.",
-        "MRTS evidence is optional and variant-specific.",
-    ]
-    if not active:
-        limitations.append(INCOMPLETE_REASON)
-    if status == "pending" and pending_reason and pending_reason not in limitations:
-        limitations.append(pending_reason)
-    case: dict[str, Any] = {
-        "name": name,
-        "origin": [
-            {
-                "repo": "owasp-modsecurity/MRTS",
-                "path": str(source_path),
-                "reason": "Generated MRTS go-ftw test imported into framework YAML schema.",
-            }
-        ],
-        "category": "mrts",
-        "portable": connector_scope == ["common"],
-        "status": status,
-        "known_limitations": limitations,
-        "metadata": {
-            "source": "mrts",
-            "generated": True,
-            "mrts_corpus": mrts_corpus,
-            "source_definition": relative_path(source_definition, framework_root),
-            "upstream_file": relative_path(upstream_file, framework_root),
-            "generated_ftw_file": relative_path(generated_ftw_file, framework_root),
-            "generated_rule_file": relative_path(rule_path, framework_root),
-            "phase": phase,
-            "topic": topic,
-            "variables": variables,
-            "connector_scope": connector_scope,
-            "status": status,
-            "runtime_verified": False,
-        },
-        "capabilities": capability_flags(phase, variables, topic),
-        "rules": "SecRuleEngine On\n",
-        "request": request,
-        "expect": expect,
-    }
-    if not active:
-        case["reason"] = INCOMPLETE_REASON
-        case["metadata"]["reason"] = INCOMPLETE_REASON
-    if status == "pending" and pending_reason:
-        case["reason"] = pending_reason
-        case["metadata"]["reason"] = pending_reason
-    if connector_scope != ["common"]:
-        case["connector"] = connector_scope[0]
-    rule_id = test.get("ruleid")
-    if rule_id not in (None, ""):
-        case["expect"]["rule_id"] = int(rule_id) if str(rule_id).isdigit() else str(rule_id)
-        case["metadata"]["mrts_rule_id"] = int(rule_id) if str(rule_id).isdigit() else str(rule_id)
+    metadata = case_metadata(
+        framework_root, mrts_corpus, source_definition, upstream_file,
+        generated_ftw_file, rule_path, phase, topic, variables, connector_scope, status,
+    )
+    case = initialized_case(
+        name, source_path, connector_scope, status,
+        case_limitations(active, status, pending_reason), metadata,
+        capability_flags(phase, variables, topic), request, expect,
+    )
+    apply_case_reasons(case, active, status, pending_reason)
+    apply_case_connector_scope(case, connector_scope)
+    apply_case_rule_id(case, test.get("ruleid"))
     apply_classification_overlay(case, matching_overlay(name, source_path, test, overlays))
     return case
 
@@ -915,6 +1114,7 @@ def import_cases(
     case_status: str,
     pending_reason: str,
 ) -> int:
+    output_dir = private_runtime_root(output_dir, "output directory")
     runner_dir = framework_root / "tests" / "runners"
     if str(runner_dir) not in sys.path:
         sys.path.insert(0, str(runner_dir))
@@ -924,12 +1124,12 @@ def import_cases(
     overlays = load_classification_overlays(classifications_file)
     definition_index = source_definition_index(source_definition_dirs)
     output_dir.mkdir(parents=True, exist_ok=True)
-    for old in output_dir.glob("*.yaml"):
+    for old in yaml_files(output_dir):
         old.unlink()
 
     used_names: dict[str, int] = {}
     count = 0
-    for ftw_file in sorted(ftw_dir.glob("*.yaml")):
+    for ftw_file in yaml_files(ftw_dir):
         for test in iter_ftw_tests(ftw_file):
             try:
                 source_path = ftw_file.relative_to(framework_root)
@@ -963,6 +1163,16 @@ def import_cases(
     return 0
 
 
+def required_mrts_build_root(args: argparse.Namespace) -> Path:
+    root = configured_mrts_build_root(args.build_root, args.mrts_build_root)
+    if root is None:
+        raise ValueError(
+            "MRTS build root is required when an input or output directory is omitted; "
+            "pass --mrts-build-root, --build-root, or set VERIFIED_RUN_ROOT"
+        )
+    return root
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--framework-root", default=str(Path.cwd()))
@@ -980,12 +1190,30 @@ def main() -> int:
     args = parser.parse_args()
 
     framework_root = Path(args.framework_root).resolve()
-    default_run_root = Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified")))
-    build_root = Path(args.build_root).resolve() if args.build_root else default_run_root / "build"
-    mrts_build_root = Path(args.mrts_build_root).resolve() if args.mrts_build_root else build_root / "mrts"
-    ftw_dir = Path(args.mrts_ftw_dir).resolve() if args.mrts_ftw_dir else mrts_build_root / args.mrts_corpus / "ftw"
-    rules_dir = Path(args.mrts_rules_dir).resolve() if args.mrts_rules_dir else mrts_build_root / args.mrts_corpus / "rules"
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else mrts_build_root / args.mrts_corpus / "framework-cases"
+    needs_mrts_build_root = not all(
+        (args.mrts_ftw_dir, args.mrts_rules_dir, args.output_dir)
+    )
+    mrts_build_root = required_mrts_build_root(args) if needs_mrts_build_root else None
+    mrts_corpus = (
+        safe_corpus_component(args.mrts_corpus)
+        if mrts_build_root is not None
+        else args.mrts_corpus
+    )
+    ftw_dir = (
+        Path(args.mrts_ftw_dir).resolve()
+        if args.mrts_ftw_dir
+        else mrts_build_root / mrts_corpus / "ftw"
+    )
+    rules_dir = (
+        Path(args.mrts_rules_dir).resolve()
+        if args.mrts_rules_dir
+        else mrts_build_root / mrts_corpus / "rules"
+    )
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else mrts_build_root / mrts_corpus / "framework-cases"
+    )
     classifications_file = (
         Path(args.classifications_file).resolve()
         if args.classifications_file
@@ -1002,7 +1230,7 @@ def main() -> int:
         rules_dir,
         output_dir,
         classifications_file,
-        mrts_corpus=args.mrts_corpus,
+        mrts_corpus=mrts_corpus,
         source_definition_dirs=source_definition_dirs,
         upstream_ftw_dir=upstream_ftw_dir,
         case_status=args.case_status,

@@ -340,7 +340,7 @@ def promotion_errors(run_dir: Path) -> list[str]:
     }
     raw_capabilities = result.get("capabilities_verified", [])
     claimed_capabilities = (
-        set(str(value) for value in raw_capabilities)
+        {str(value) for value in raw_capabilities}
         if isinstance(raw_capabilities, list)
         else set()
     )

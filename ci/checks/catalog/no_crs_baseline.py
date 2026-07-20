@@ -22,7 +22,7 @@ import secrets
 import stat
 import subprocess
 import sys
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence, TypedDict
 
 
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[3]
@@ -40,6 +40,19 @@ from synchronized_upstream import first_byte_evidence_errors  # noqa: E402
 CATALOG_PATH = FRAMEWORK_ROOT / "tests/cases/no-crs-baseline/catalog.json"
 RULES_PATH = FRAMEWORK_ROOT / "tests/rules/no-crs-baseline.conf"
 EVENT_SCHEMA_PATH = FRAMEWORK_ROOT / "tests/schemas/no-crs-baseline/event.schema.json"
+MANIFEST_FILE_NAME = "manifest.json"
+RESULT_FILE_NAME = "result.json"
+CASE_RESULTS_FILE_NAME = "results.jsonl"
+EVENTS_FILE_NAME = "events.jsonl"
+RUN_INVENTORY_FILE_PATH = "inventory/run.json"
+RULES_ARTIFACT_FILE_PATH = "config/no-crs-baseline.conf"
+CAPABILITIES_INVENTORY_FILE_PATH = "inventory/capabilities.json"
+PLAN_FILE_NAME = "plan.json"
+NO_CRS_SCHEMA_DIRECTORY = "tests/schemas/no-crs-baseline"
+RESULT_GLOB_PATTERN = "*/result.json"
+REPORT_STATUS_NOT_IMPLEMENTED = "NOT IMPLEMENTED"
+REPORT_STATUS_NOT_EXECUTED = "NOT EXECUTED"
+REPORT_STATUS_IMPLEMENTED_NOT_ASSERTED = "IMPLEMENTED, NOT ASSERTED"
 CONNECTORS = ("apache", "nginx", "haproxy", "envoy", "traefik", "lighttpd")
 EVIDENCE_STAGES = (
     "source_contract",
@@ -155,11 +168,11 @@ ARTIFACT_PROFILES = (
     FULL_LIFECYCLE_ARTIFACT_PROFILE,
 )
 FULL_LIFECYCLE_REQUIRED_ARTIFACTS = (
-    ("manifest", "manifest.json"),
-    ("result", "result.json"),
-    ("case_results", "results.jsonl"),
-    ("events", "events.jsonl"),
-    ("inventory", "inventory/run.json"),
+    ("manifest", MANIFEST_FILE_NAME),
+    ("result", RESULT_FILE_NAME),
+    ("case_results", CASE_RESULTS_FILE_NAME),
+    ("events", EVENTS_FILE_NAME),
+    ("inventory", RUN_INVENTORY_FILE_PATH),
     ("stdout", "logs/stdout.log"),
     ("stderr", "logs/stderr.log"),
     ("host_log", "logs/host.log"),
@@ -236,9 +249,9 @@ REPORT_STATUSES = (
     "FAIL",
     "BLOCKED",
     "UNSUPPORTED",
-    "NOT IMPLEMENTED",
-    "NOT EXECUTED",
-    "IMPLEMENTED, NOT ASSERTED",
+    REPORT_STATUS_NOT_IMPLEMENTED,
+    REPORT_STATUS_NOT_EXECUTED,
+    REPORT_STATUS_IMPLEMENTED_NOT_ASSERTED,
 )
 CLAIMS_NOT_ALLOWED = (
     "production-ready",
@@ -593,6 +606,44 @@ def _directory_flags() -> int:
     return os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
 
 
+def _require_safe_directory_component(part: str, absolute: Path) -> None:
+    if part in {"", ".", ".."}:
+        raise ContractError(f"unsafe directory component in {absolute}: {part!r}")
+
+
+def _create_directory_component(
+    parent_descriptor: int,
+    part: str,
+    absolute: Path,
+    flags: int,
+) -> int:
+    try:
+        os.mkdir(part, mode=0o700, dir_fd=parent_descriptor)
+    except FileExistsError:
+        pass
+    try:
+        return os.open(part, flags, dir_fd=parent_descriptor)
+    except OSError as exc:
+        raise ContractError(f"directory component is unsafe: {absolute}: {exc}") from exc
+
+
+def _open_directory_component(
+    parent_descriptor: int,
+    part: str,
+    absolute: Path,
+    flags: int,
+    create: bool,
+) -> int:
+    try:
+        return os.open(part, flags, dir_fd=parent_descriptor)
+    except FileNotFoundError:
+        if not create:
+            raise ContractError(f"directory is missing: {absolute}") from None
+    except OSError as exc:
+        raise ContractError(f"directory component is unsafe or a symlink: {absolute}: {exc}") from exc
+    return _create_directory_component(parent_descriptor, part, absolute, flags)
+
+
 def open_directory_chain(path: str | Path, *, create: bool = False) -> int:
     """Open an absolute directory one no-follow component at a time."""
     absolute = lexical_absolute(path)
@@ -601,23 +652,10 @@ def open_directory_chain(path: str | Path, *, create: bool = False) -> int:
     try:
         parts = absolute.parts[1:] if absolute.is_absolute() else absolute.parts
         for part in parts:
-            if part in {"", ".", ".."}:
-                raise ContractError(f"unsafe directory component in {absolute}: {part!r}")
-            try:
-                next_descriptor = os.open(part, flags, dir_fd=descriptor)
-            except FileNotFoundError:
-                if not create:
-                    raise ContractError(f"directory is missing: {absolute}") from None
-                try:
-                    os.mkdir(part, mode=0o700, dir_fd=descriptor)
-                except FileExistsError:
-                    pass
-                try:
-                    next_descriptor = os.open(part, flags, dir_fd=descriptor)
-                except OSError as exc:
-                    raise ContractError(f"directory component is unsafe: {absolute}: {exc}") from exc
-            except OSError as exc:
-                raise ContractError(f"directory component is unsafe or a symlink: {absolute}: {exc}") from exc
+            _require_safe_directory_component(part, absolute)
+            next_descriptor = _open_directory_component(
+                descriptor, part, absolute, flags, create,
+            )
             os.close(descriptor)
             descriptor = next_descriptor
         return descriptor
@@ -740,7 +778,7 @@ def load_json(path: str | Path) -> Any:
     source = Path(path)
     try:
         return json.loads(secure_read_text(source), object_pairs_hook=reject_duplicate_json_keys)
-    except (OSError, UnicodeError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         raise ContractError(f"{source}: invalid JSON: {exc}") from exc
 
 
@@ -769,7 +807,7 @@ def read_jsonl(path: str | Path, *, required: bool = True) -> list[dict[str, Any
             continue
         try:
             record = json.loads(line, object_pairs_hook=reject_duplicate_json_keys)
-        except (ValueError, json.JSONDecodeError) as exc:
+        except ValueError as exc:
             raise ContractError(f"{source}:{line_number}: invalid JSON: {exc}") from exc
         if not isinstance(record, dict):
             raise ContractError(f"{source}:{line_number}: JSONL record must be an object")
@@ -1329,7 +1367,9 @@ def capability_state(value: object) -> str:
     return str(value or "")
 
 
-def validate_capability_manifest(payload: Mapping[str, Any], connector: str | None = None) -> list[str]:
+def capability_manifest_header_errors(
+    payload: Mapping[str, Any], connector: str | None,
+) -> list[str]:
     errors: list[str] = []
     if payload.get("schema_version") != 1:
         errors.append("capability manifest schema_version must be 1")
@@ -1341,14 +1381,16 @@ def validate_capability_manifest(payload: Mapping[str, Any], connector: str | No
     for field in ("host_name", "integration_mode"):
         if not str(payload.get(field) or "").strip():
             errors.append(f"capability manifest missing {field}")
-    capabilities = payload.get("capabilities")
-    if not isinstance(capabilities, Mapping):
-        errors.append("capability manifest capabilities must be an object")
-        return errors
-    missing = sorted(set(CAPABILITIES) - set(str(key) for key in capabilities))
+    return errors
+
+
+def capability_manifest_capability_errors(capabilities: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    capability_names = {str(key) for key in capabilities}
+    missing = sorted(set(CAPABILITIES) - capability_names)
     if missing:
         errors.append(f"capability manifest missing capabilities: {', '.join(missing)}")
-    unknown = sorted(set(str(key) for key in capabilities) - set(CAPABILITIES))
+    unknown = sorted(capability_names - set(CAPABILITIES))
     if unknown:
         errors.append(f"capability manifest has unknown capabilities: {', '.join(unknown)}")
     for name in CAPABILITIES:
@@ -1358,20 +1400,37 @@ def validate_capability_manifest(payload: Mapping[str, Any], connector: str | No
         value = capabilities.get(name)
         if isinstance(value, Mapping) and not str(value.get("reason") or "").strip():
             errors.append(f"capability {name} requires a non-empty reason")
+    return errors
+
+
+def capability_manifest_stage_errors(stages: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    stage_names = {str(key) for key in stages}
+    missing_stages = sorted(set(EVIDENCE_STAGES) - stage_names)
+    if missing_stages:
+        errors.append(f"capability manifest missing evidence stages: {', '.join(missing_stages)}")
+    for stage in EVIDENCE_STAGES:
+        value = stages.get(stage)
+        status = str(value.get("status") or "") if isinstance(value, Mapping) else str(value or "")
+        if status not in EVIDENCE_STAGE_STATUSES:
+            errors.append(f"evidence stage {stage} has invalid status: {status!r}")
+        if isinstance(value, Mapping) and not str(value.get("reason") or "").strip():
+            errors.append(f"evidence stage {stage} requires a non-empty reason")
+    return errors
+
+
+def validate_capability_manifest(payload: Mapping[str, Any], connector: str | None = None) -> list[str]:
+    errors = capability_manifest_header_errors(payload, connector)
+    capabilities = payload.get("capabilities")
+    if not isinstance(capabilities, Mapping):
+        errors.append("capability manifest capabilities must be an object")
+        return errors
+    errors.extend(capability_manifest_capability_errors(capabilities))
     stages = payload.get("evidence_stages")
     if not isinstance(stages, Mapping):
         errors.append("capability manifest evidence_stages must be an object")
     else:
-        missing_stages = sorted(set(EVIDENCE_STAGES) - set(str(key) for key in stages))
-        if missing_stages:
-            errors.append(f"capability manifest missing evidence stages: {', '.join(missing_stages)}")
-        for stage in EVIDENCE_STAGES:
-            value = stages.get(stage)
-            status = str(value.get("status") or "") if isinstance(value, Mapping) else str(value or "")
-            if status not in EVIDENCE_STAGE_STATUSES:
-                errors.append(f"evidence stage {stage} has invalid status: {status!r}")
-            if isinstance(value, Mapping) and not str(value.get("reason") or "").strip():
-                errors.append(f"evidence stage {stage} requires a non-empty reason")
+        errors.extend(capability_manifest_stage_errors(stages))
     constraints = payload.get("host_model_constraints")
     if constraints is not None and not isinstance(constraints, list):
         errors.append("host_model_constraints must be a list")
@@ -1388,6 +1447,68 @@ def load_capability_manifest(path: str | Path, connector: str | None = None) -> 
     return payload
 
 
+def validate_selection_profile(
+    catalog: Mapping[str, Any], evidence_stage: str, artifact_profile: str,
+) -> None:
+    if artifact_profile != FULL_LIFECYCLE_ARTIFACT_PROFILE:
+        return
+    if evidence_stage != "no_crs_baseline":
+        raise ContractError(
+            "full_lifecycle artifact profile requires the no_crs_baseline evidence stage"
+        )
+    if catalog.get("full_lifecycle_artifact_profile") != artifact_profile:
+        raise ContractError(
+            "catalog does not declare the requested full_lifecycle artifact profile"
+        )
+
+
+def selected_catalog_cases(catalog: Mapping[str, Any], evidence_stage: str) -> list[dict[str, Any]]:
+    cases = catalog_cases(catalog)
+    if evidence_stage == "minimal_runtime_smoke":
+        return [case for case in cases if case["case_id"] in MINIMAL_RUNTIME_CASE_IDS]
+    return cases
+
+
+def selection_status_for_states(states: Mapping[str, str]) -> str:
+    if any(state == "unsupported_by_host_model" for state in states.values()):
+        return "UNSUPPORTED"
+    if any(state == "not_applicable" for state in states.values()):
+        return "NOT_APPLICABLE"
+    if any(state == "not_implemented" for state in states.values()):
+        # A missing implementation is materially different from a host model
+        # boundary. Keep the case visible without claiming it is executable.
+        return "NOT_EXECUTED"
+    return "SELECTED"
+
+
+def selection_reason(
+    states: Mapping[str, str], capabilities: Mapping[str, Any],
+) -> str:
+    reasons = []
+    for name, state in states.items():
+        value = capabilities[name]
+        reason = str(value.get("reason") or "") if isinstance(value, Mapping) else ""
+        reasons.append(f"{name}={state}" + (f" ({reason})" if reason else ""))
+    return "; ".join(reasons)
+
+
+def select_catalog_case(
+    case: Mapping[str, Any], capabilities: Mapping[str, Any],
+) -> dict[str, Any]:
+    required = [str(item) for item in case["required_capabilities"]]
+    states = {name: capability_state(capabilities[name]) for name in required}
+    return {
+        "case_id": case["case_id"],
+        "group": case.get("group", ""),
+        "phase": case["phase"],
+        "required_capabilities": required,
+        "required_capability_states": states,
+        "selection_status": selection_status_for_states(states),
+        "selection_reason": selection_reason(states, capabilities),
+        "runner_case": case.get("runner_case"),
+    }
+
+
 def select_cases(
     connector: str,
     manifest: Mapping[str, Any],
@@ -1396,51 +1517,10 @@ def select_cases(
     artifact_profile: str = DEFAULT_ARTIFACT_PROFILE,
 ) -> dict[str, Any]:
     artifact_profile = normalize_artifact_profile(artifact_profile)
-    if artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE:
-        if evidence_stage != "no_crs_baseline":
-            raise ContractError(
-                "full_lifecycle artifact profile requires the no_crs_baseline evidence stage"
-            )
-        if catalog.get("full_lifecycle_artifact_profile") != artifact_profile:
-            raise ContractError(
-                "catalog does not declare the requested full_lifecycle artifact profile"
-            )
+    validate_selection_profile(catalog, evidence_stage, artifact_profile)
     capabilities = manifest["capabilities"]
-    selections: list[dict[str, Any]] = []
-    cases = catalog_cases(catalog)
-    if evidence_stage == "minimal_runtime_smoke":
-        cases = [case for case in cases if case["case_id"] in MINIMAL_RUNTIME_CASE_IDS]
-    for case in cases:
-        required = [str(item) for item in case["required_capabilities"]]
-        states = {name: capability_state(capabilities[name]) for name in required}
-        if any(state == "unsupported_by_host_model" for state in states.values()):
-            selection = "UNSUPPORTED"
-        elif any(state == "not_applicable" for state in states.values()):
-            selection = "NOT_APPLICABLE"
-        elif any(state == "not_implemented" for state in states.values()):
-            # A missing implementation is materially different from a host
-            # model boundary.  Keep the case visible, but do not pretend it
-            # was executable or classify it as host-model unsupported.
-            selection = "NOT_EXECUTED"
-        else:
-            selection = "SELECTED"
-        reasons = []
-        for name, state in states.items():
-            value = capabilities[name]
-            reason = str(value.get("reason") or "") if isinstance(value, Mapping) else ""
-            reasons.append(f"{name}={state}" + (f" ({reason})" if reason else ""))
-        selections.append(
-            {
-                "case_id": case["case_id"],
-                "group": case.get("group", ""),
-                "phase": case["phase"],
-                "required_capabilities": required,
-                "required_capability_states": states,
-                "selection_status": selection,
-                "selection_reason": "; ".join(reasons),
-                "runner_case": case.get("runner_case"),
-            }
-        )
+    cases = selected_catalog_cases(catalog, evidence_stage)
+    selections = [select_catalog_case(case, capabilities) for case in cases]
     counts = Counter(item["selection_status"] for item in selections)
     return {
         "schema_version": 1,
@@ -1488,11 +1568,30 @@ def validate_plan_against_capabilities(
         )
 
 
+def nearest_existing_directory(path: Path) -> Path:
+    candidate = path
+    while not candidate.exists():
+        if candidate == candidate.parent:
+            raise ContractError(f"no existing parent directory for run-dir: {path}")
+        candidate = candidate.parent
+    if not candidate.is_dir():
+        raise ContractError(f"run-dir parent is not a directory: {candidate}")
+    return candidate
+
+
+def assert_private_run_parent(run_dir: Path) -> None:
+    parent = nearest_existing_directory(run_dir.parent)
+    metadata = parent.stat(follow_symlinks=False)
+    if metadata.st_mode & stat.S_IWOTH:
+        raise ContractError(f"run-dir parent must not be publicly writable: {parent}")
+
+
 def safe_run_dir(run_dir: Path, connector_root: Path | None = None) -> None:
     if not run_dir.is_absolute():
         raise ContractError(f"run-dir must be absolute: {run_dir}")
     absolute = lexical_absolute(run_dir)
     assert_no_symlink_components(absolute)
+    assert_private_run_parent(absolute)
     if str(absolute) in {"/", "/tmp", "/src"}:
         raise ContractError(f"unsafe run-dir: {absolute}")
     protected = [FRAMEWORK_ROOT.resolve(strict=False)]
@@ -1517,19 +1616,19 @@ def artifact_entry(path: str, state: str, *, sha256: str | None = None, note: st
 
 def initial_artifacts() -> dict[str, dict[str, Any]]:
     artifacts = {
-        "manifest": artifact_entry("manifest.json", "produced"),
-        "result": artifact_entry("result.json", "not_produced"),
-        "case_results": artifact_entry("results.jsonl", "not_produced"),
-        "events": artifact_entry("events.jsonl", "not_produced"),
+        "manifest": artifact_entry(MANIFEST_FILE_NAME, "produced"),
+        "result": artifact_entry(RESULT_FILE_NAME, "not_produced"),
+        "case_results": artifact_entry(CASE_RESULTS_FILE_NAME, "not_produced"),
+        "events": artifact_entry(EVENTS_FILE_NAME, "not_produced"),
         "stdout": artifact_entry("logs/stdout.log", "not_produced"),
         "stderr": artifact_entry("logs/stderr.log", "not_produced"),
         "host_log": artifact_entry("logs/host.log", "not_produced"),
         "first_byte_evidence": artifact_entry(FIRST_BYTE_EVIDENCE_RELATIVE_PATH, "not_produced"),
         "rule_load_log": artifact_entry("logs/rule-load.log", "not_produced"),
-        "rules": artifact_entry("config/no-crs-baseline.conf", "produced"),
-        "inventory": artifact_entry("inventory/run.json", "produced"),
-        "capability_manifest": artifact_entry("inventory/capabilities.json", "produced"),
-        "plan": artifact_entry("plan.json", "produced"),
+        "rules": artifact_entry(RULES_ARTIFACT_FILE_PATH, "produced"),
+        "inventory": artifact_entry(RUN_INVENTORY_FILE_PATH, "produced"),
+        "capability_manifest": artifact_entry(CAPABILITIES_INVENTORY_FILE_PATH, "produced"),
+        "plan": artifact_entry(PLAN_FILE_NAME, "produced"),
     }
     # Inventory-only transport sidecars are initialized for every run so the
     # manifest has stable canonical paths.  They become mandatory only when a
@@ -1541,40 +1640,62 @@ def initial_artifacts() -> dict[str, dict[str, Any]]:
     return artifacts
 
 
-def init_run(args: argparse.Namespace) -> int:
-    connector_root = Path(args.connector_root).resolve() if args.connector_root else None
-    run_dir = Path(args.run_dir)
-    artifact_profile = normalize_artifact_profile(args.artifact_profile)
-    host_profile = normalize_host_profile(args.host_profile)
+def require_fresh_run_dir(run_dir: Path, connector_root: Path | None) -> None:
     safe_run_dir(run_dir, connector_root)
-    if run_dir.exists() or run_dir.is_symlink():
+    if os.path.lexists(run_dir):
         raise ContractError(f"init requires a fresh, nonexistent run-dir: {run_dir}")
-    manifest_capabilities = load_capability_manifest(args.capabilities, args.connector)
-    catalog = load_catalog()
+
+
+def init_plan(
+    args: argparse.Namespace,
+    capabilities: Mapping[str, Any],
+    catalog: Mapping[str, Any],
+    artifact_profile: str,
+    host_profile: str,
+) -> dict[str, Any]:
     if args.plan:
         plan = load_json(args.plan)
         if not isinstance(plan, dict) or plan.get("connector") != args.connector:
             raise ContractError("plan is invalid or belongs to another connector")
         validate_plan_against_capabilities(
-            plan, args.connector, manifest_capabilities, catalog, args.evidence_stage,
+            plan, args.connector, capabilities, catalog, args.evidence_stage,
             artifact_profile,
         )
     else:
         plan = select_cases(
-            args.connector, manifest_capabilities, catalog, args.evidence_stage,
+            args.connector, capabilities, catalog, args.evidence_stage,
             artifact_profile,
         )
-    # A legacy external plan may predate artifact profiles.  It is valid only
-    # as an input to init; every persisted canonical run artifact carries the
-    # explicit selected profile and host profile from this point onward.
+    # A legacy external plan may predate artifact profiles. It is valid only
+    # as an input to init; every persisted canonical artifact is explicit.
     plan["artifact_profile"] = artifact_profile
     plan["host_profile"] = host_profile
+    return plan
+
+
+def materialize_init_artifacts(
+    run_dir: Path, capabilities_path: str, plan: Mapping[str, Any],
+) -> None:
     for directory in (run_dir, run_dir / "logs", run_dir / "config", run_dir / "inventory"):
         descriptor = open_directory_chain(directory, create=True)
         os.close(descriptor)
-    write_json(run_dir / "plan.json", plan)
-    copy_artifact(RULES_PATH, run_dir / "config/no-crs-baseline.conf")
-    copy_artifact(Path(args.capabilities), run_dir / "inventory/capabilities.json")
+    write_json(run_dir / PLAN_FILE_NAME, plan)
+    copy_artifact(RULES_PATH, run_dir / RULES_ARTIFACT_FILE_PATH)
+    copy_artifact(Path(capabilities_path), run_dir / CAPABILITIES_INVENTORY_FILE_PATH)
+
+
+def init_run(args: argparse.Namespace) -> int:
+    connector_root = Path(args.connector_root).resolve() if args.connector_root else None
+    run_dir = Path(args.run_dir)
+    artifact_profile = normalize_artifact_profile(args.artifact_profile)
+    host_profile = normalize_host_profile(args.host_profile)
+    require_fresh_run_dir(run_dir, connector_root)
+    manifest_capabilities = load_capability_manifest(args.capabilities, args.connector)
+    catalog = load_catalog()
+    plan = init_plan(
+        args, manifest_capabilities, catalog, artifact_profile, host_profile,
+    )
+    materialize_init_artifacts(run_dir, args.capabilities, plan)
     framework_commit = args.framework_commit or git_value(FRAMEWORK_ROOT, "rev-parse", "HEAD")
     connector_commit = args.connector_commit or (
         git_value(connector_root, "rev-parse", "HEAD") if connector_root else "unknown"
@@ -1616,16 +1737,16 @@ def init_run(args: argparse.Namespace) -> int:
         "ruleset": "no-crs-baseline",
         "rules_sha256": sha256_file(RULES_PATH),
         "catalog_sha256": sha256_file(CATALOG_PATH),
-        "capability_manifest_sha256": sha256_file(run_dir / "inventory/capabilities.json"),
+        "capability_manifest_sha256": sha256_file(run_dir / CAPABILITIES_INVENTORY_FILE_PATH),
         "executed_targets": executed_targets,
         "created_at": utc_now(),
     }
-    write_json(run_dir / "inventory/run.json", inventory)
+    write_json(run_dir / RUN_INVENTORY_FILE_PATH, inventory)
     artifacts = initial_artifacts()
     artifacts["rules"]["sha256"] = inventory["rules_sha256"]
-    artifacts["inventory"]["sha256"] = sha256_file(run_dir / "inventory/run.json")
+    artifacts["inventory"]["sha256"] = sha256_file(run_dir / RUN_INVENTORY_FILE_PATH)
     artifacts["capability_manifest"]["sha256"] = inventory["capability_manifest_sha256"]
-    artifacts["plan"]["sha256"] = sha256_file(run_dir / "plan.json")
+    artifacts["plan"]["sha256"] = sha256_file(run_dir / PLAN_FILE_NAME)
     manifest = {
         "schema_version": 1,
         "connector": args.connector,
@@ -1651,13 +1772,13 @@ def init_run(args: argparse.Namespace) -> int:
         "compiler_version": inventory["compiler_version"],
         "operating_system": inventory["operating_system"],
         "architecture": inventory["architecture"],
-        "rules": ["config/no-crs-baseline.conf"],
+        "rules": [RULES_ARTIFACT_FILE_PATH],
         "cases": [item["case_id"] for item in plan.get("cases", [])],
         "executed_targets": executed_targets,
-        "capability_manifest": "inventory/capabilities.json",
+        "capability_manifest": CAPABILITIES_INVENTORY_FILE_PATH,
         "artifacts": artifacts,
     }
-    write_json(run_dir / "manifest.json", manifest)
+    write_json(run_dir / MANIFEST_FILE_NAME, manifest)
     print(run_dir)
     return 0
 
@@ -1897,16 +2018,7 @@ def canonicalize_event_protocol_provenance(
     return normalized
 
 
-def phase4_first_byte_barrier_matches(
-    event: Mapping[str, Any], *, require_no_full_response_buffering: bool,
-) -> bool:
-    """Return whether a Phase-4 event is the complete streaming barrier proof.
-
-    A single host run can emit ordinary Phase-4 events before the synchronized
-    streaming event.  Rule ID alone is therefore not enough to associate a
-    first-byte case with its evidence: choose only the event that carries the
-    complete causal barrier, then let the normal Phase-4 checks validate it.
-    """
+def has_valid_first_byte_measurements(event: Mapping[str, Any]) -> bool:
     first_chunk_size = event.get("first_chunk_size")
     body_bytes_seen = event.get("body_bytes_seen")
     body_bytes_inspected = event.get("body_bytes_inspected")
@@ -1915,22 +2027,64 @@ def phase4_first_byte_barrier_matches(
         return False
     if first_chunk_size < 1 or body_bytes_seen < 0 or body_bytes_inspected < 0:
         return False
-    if body_bytes_inspected > body_bytes_seen:
+    return body_bytes_inspected <= body_bytes_seen
+
+
+def has_first_byte_barrier_flags(event: Mapping[str, Any]) -> bool:
+    expected_flags = {
+        "client_first_byte_received": True,
+        "first_byte_before_response_end": True,
+        "upstream_paused": True,
+        "upstream_eos_sent_at_first_byte": False,
+        "upstream_response_finished_at_first_byte": False,
+        "response_committed": True,
+    }
+    return all(event.get(field) is expected for field, expected in expected_flags.items())
+
+
+def phase4_first_byte_barrier_matches(
+    event: Mapping[str, Any], *, require_no_full_response_buffering: bool,
+) -> bool:
+    """Return whether a Phase-4 event is the complete streaming barrier proof.
+
+    A single host run can emit ordinary Phase-4 events before the synchronized
+    streaming event. Rule ID alone is therefore insufficient to associate a
+    first-byte case with its complete causal barrier.
+    """
+    if not has_valid_first_byte_measurements(event):
         return False
-    if (
-        event.get("client_first_byte_received") is not True
-        or event.get("first_byte_before_response_end") is not True
-        or event.get("upstream_paused") is not True
-        or event.get("upstream_eos_sent_at_first_byte") is not False
-        or event.get("upstream_response_finished_at_first_byte") is not False
-        or event.get("response_committed") is not True
-    ):
+    if not has_first_byte_barrier_flags(event):
         return False
-    return (
-        event.get("no_full_response_buffering") is True
-        if require_no_full_response_buffering
-        else True
+    return not require_no_full_response_buffering or event.get("no_full_response_buffering") is True
+
+
+def phase4_end_of_stream_matches(event: Mapping[str, Any]) -> bool:
+    return event.get("end_of_stream_evaluation") is True and event.get("eos_seen") is True
+
+
+def phase4_action_outcome_matches(event: Mapping[str, Any], expected_result: str) -> bool:
+    requested = str(event.get("requested_action") or "").strip().lower().replace("-", "_")
+    actual = str(event.get("actual_action") or "").strip().lower().replace("-", "_")
+    actual = {"connection_abort": "abort_connection"}.get(actual, actual)
+    denied_before_commit = requested == "deny" and actual == "deny" and event.get("headers_sent") is False
+    log_only = requested == "deny" and actual == "log_only" and event.get("late_intervention") is True
+    connection_aborted = (
+        requested == "deny"
+        and actual in {"abort_connection", "stream_reset"}
+        and (event.get("connection_aborted") is True or event.get("stream_reset") is True)
     )
+    return {
+        "deny_before_commit": denied_before_commit,
+        "legacy_phase4_deny_before_commit": denied_before_commit,
+        "late_intervention_log_only": log_only,
+        "late_intervention_log_only_minimal": log_only and event.get("late_intervention_mode") == "minimal",
+        "late_intervention_log_only_safe": log_only and event.get("late_intervention_mode") == "safe",
+        "connection_aborted": connection_aborted,
+        "connection_aborted_strict": connection_aborted and event.get("late_intervention_mode") == "strict",
+        "event_contains_late_intervention_action": (
+            requested == "deny" and actual in {"deny", "log_only", "abort_connection"}
+        ),
+    }.get(expected_result, False)
 
 
 def phase4_event_matches_outcome(event: Mapping[str, Any], expected_result: str) -> bool:
@@ -1942,10 +2096,7 @@ def phase4_event_matches_outcome(event: Mapping[str, Any], expected_result: str)
         # causal post-EOS outcome.  Do not let that earlier rule-only event
         # satisfy the dedicated EOS case merely because it shares phase/rule
         # metadata with a later verified barrier event.
-        return (
-            event.get("end_of_stream_evaluation") is True
-            and event.get("eos_seen") is True
-        )
+        return phase4_end_of_stream_matches(event)
     if expected_result in {
         "rule_observed", "event_contains_original_status", "marker_split_across_chunks",
         "content_type_in_scope",
@@ -1962,95 +2113,61 @@ def phase4_event_matches_outcome(event: Mapping[str, Any], expected_result: str)
         return phase4_first_byte_barrier_matches(
             event, require_no_full_response_buffering=False,
         )
-    requested = str(event.get("requested_action") or "").strip().lower().replace("-", "_")
-    actual = str(event.get("actual_action") or "").strip().lower().replace("-", "_")
-    if actual == "connection_abort":
-        actual = "abort_connection"
-    if expected_result in {"deny_before_commit", "legacy_phase4_deny_before_commit"}:
-        return requested == "deny" and actual == "deny" and event.get("headers_sent") is False
-    if expected_result == "late_intervention_log_only":
-        return (
-            requested == "deny"
-            and actual == "log_only"
-            and event.get("late_intervention") is True
-        )
-    if expected_result == "late_intervention_log_only_minimal":
-        return (
-            requested == "deny"
-            and actual == "log_only"
-            and event.get("late_intervention") is True
-            and event.get("late_intervention_mode") == "minimal"
-        )
-    if expected_result == "late_intervention_log_only_safe":
-        return (
-            requested == "deny"
-            and actual == "log_only"
-            and event.get("late_intervention") is True
-            and event.get("late_intervention_mode") == "safe"
-        )
-    if expected_result == "connection_aborted":
-        return (
-            requested == "deny"
-            and actual in {"abort_connection", "stream_reset"}
-            and (
-                event.get("connection_aborted") is True
-                or event.get("stream_reset") is True
-            )
-        )
-    if expected_result == "connection_aborted_strict":
-        return (
-            requested == "deny"
-            and actual in {"abort_connection", "stream_reset"}
-            and (
-                event.get("connection_aborted") is True
-                or event.get("stream_reset") is True
-            )
-            and event.get("late_intervention_mode") == "strict"
-        )
-    if expected_result == "event_contains_late_intervention_action":
-        return requested == "deny" and actual in {"deny", "log_only", "abort_connection"}
-    return False
+    return phase4_action_outcome_matches(event, expected_result)
 
 
-def event_for_case(
-    events: Sequence[Mapping[str, Any]],
-    rule_id: int | None,
-    case: Mapping[str, Any],
-    transaction_ids: Sequence[str] = (),
-    integration_mode: str | None = None,
-) -> Mapping[str, Any] | None:
+def events_for_rule(
+    events: Sequence[Mapping[str, Any]], rule_id: int | None,
+) -> list[Mapping[str, Any]]:
     if rule_id is None:
-        candidates = list(events)
-    else:
-        candidates = [event for event in events if rule_id in event_rule_ids(event)]
+        return list(events)
+    return [event for event in events if rule_id in event_rule_ids(event)]
+
+
+def events_for_transactions(
+    candidates: Sequence[Mapping[str, Any]], transaction_ids: Sequence[str],
+) -> list[Mapping[str, Any]]:
     supplied = {str(value) for value in transaction_ids if str(value).strip()}
-    if supplied:
-        candidates = [
-            event for event in candidates
-            if supplied.intersection(event_transaction_ids(event))
-        ]
-        if not candidates:
-            return None
-    if not candidates:
+    if not supplied:
+        return list(candidates)
+    return [
+        event for event in candidates
+        if supplied.intersection(event_transaction_ids(event))
+    ]
+
+
+def preferred_integration_mode_events(
+    candidates: Sequence[Mapping[str, Any]], integration_mode: str | None,
+) -> list[Mapping[str, Any]]:
+    if not integration_mode:
+        return list(candidates)
+    # A raw event from a compatibility path must not satisfy a selected native
+    # host profile simply because connector, rule, and transaction IDs overlap.
+    # Retain unmatched candidates for the caller's specific mismatch diagnostic.
+    matched_mode = [
+        event for event in candidates if event.get("integration_mode") == integration_mode
+    ]
+    return matched_mode or list(candidates)
+
+
+def phase4_outcome_event(
+    candidates: Sequence[Mapping[str, Any]], case: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    if not is_phase4_semantic_case(case):
         return None
-    if integration_mode:
-        # A raw event from a compatibility path must not satisfy a selected
-        # native host profile merely because connector, rule, and transaction
-        # identifiers happen to overlap. Prefer the exact selected mode. Keep
-        # an unmatched candidate only so the caller can produce the specific
-        # mismatch diagnostic instead of silently dropping causal evidence.
-        matched_mode = [
-            event
-            for event in candidates
-            if event.get("integration_mode") == integration_mode
-        ]
-        if matched_mode:
-            candidates = matched_mode
-    if is_phase4_semantic_case(case):
-        expected_result = str(case.get("expected_result") or "")
-        for event in candidates:
-            if phase4_event_matches_outcome(event, expected_result):
-                return event
+    expected_result = str(case.get("expected_result") or "")
+    return next(
+        (
+            event for event in candidates
+            if phase4_event_matches_outcome(event, expected_result)
+        ),
+        None,
+    )
+
+
+def confirmed_event_for_case(
+    candidates: Sequence[Mapping[str, Any]], case: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
     # A Common rule-decision event can precede the host action.  When the same
     # transaction later publishes a bounded, host-confirmed outcome, prefer
     # that outcome for a non-Phase-4 case.  Do not manufacture a match: the
@@ -2069,7 +2186,24 @@ def event_for_case(
     ]
     if confirmed:
         return confirmed[-1]
-    return candidates[0]
+    return None
+
+
+def event_for_case(
+    events: Sequence[Mapping[str, Any]],
+    rule_id: int | None,
+    case: Mapping[str, Any],
+    transaction_ids: Sequence[str] = (),
+    integration_mode: str | None = None,
+) -> Mapping[str, Any] | None:
+    candidates = events_for_transactions(events_for_rule(events, rule_id), transaction_ids)
+    if not candidates:
+        return None
+    candidates = preferred_integration_mode_events(candidates, integration_mode)
+    phase4_event = phase4_outcome_event(candidates, case)
+    if phase4_event is not None:
+        return phase4_event
+    return confirmed_event_for_case(candidates, case) or candidates[0]
 
 
 def canonical_core_event_contract(
@@ -2341,70 +2475,122 @@ def is_hashed_connection_id(value: object) -> bool:
     return isinstance(value, str) and re.fullmatch(r"sha256:[0-9a-f]{16,64}", value) is not None
 
 
+def normalize_enum_semantic_value(value: object, allowed: set[str]) -> str | None:
+    normalized = str(value or "").strip().lower().replace("-", "_")
+    return normalized if normalized in allowed else None
+
+
+def normalize_requested_action(value: object) -> str | None:
+    return normalize_action(value, REQUESTED_ACTIONS)
+
+
+def normalize_actual_action(value: object) -> str | None:
+    return normalize_action(value, ACTUAL_ACTIONS)
+
+
+def normalize_late_intervention_mode(value: object) -> str | None:
+    return normalize_enum_semantic_value(value, LATE_INTERVENTION_MODES)
+
+
+def normalize_content_type_scope(value: object) -> str | None:
+    return normalize_enum_semantic_value(value, CONTENT_TYPE_SCOPES)
+
+
+def normalize_body_limit_outcome(value: object) -> str | None:
+    return normalize_enum_semantic_value(value, BODY_LIMIT_OUTCOMES)
+
+
+def normalize_transfer_encoding(value: object) -> str | None:
+    return normalize_enum_semantic_value(value, TRANSFER_ENCODINGS)
+
+
+def normalize_alpn(value: object) -> str | None:
+    return normalize_bounded_token(value, maximum=64, field="alpn", allow_slash=True)
+
+
+def normalize_transport_case_id(value: object) -> str | None:
+    return normalize_bounded_token(value, maximum=128, field="transport_case_id")
+
+
+def normalize_barrier_id(value: object) -> str | None:
+    return normalize_bounded_token(value, maximum=128, field="barrier_id")
+
+
+def normalize_connection_id(value: object) -> str | None:
+    return normalize_bounded_token(value, maximum=128, field="connection_id")
+
+
+def normalize_quic_version(value: object) -> str | None:
+    return normalize_bounded_token(value, maximum=64, field="quic_version")
+
+
+def normalize_reset_by(value: object) -> str | None:
+    return normalize_transport_enum(value, allowed=RESET_BY_VALUES, field="reset_by")
+
+
+def normalize_timeout_stage(value: object) -> str | None:
+    return normalize_transport_enum(value, allowed=TIMEOUT_STAGES, field="timeout_stage")
+
+
+def normalize_write_result(value: object) -> str | None:
+    return normalize_transport_enum(value, allowed=WRITE_RESULTS, field="write_result")
+
+
+def normalize_cleanup_reason(value: object) -> str | None:
+    return normalize_transport_enum(value, allowed=CLEANUP_REASONS, field="cleanup_reason")
+
+
+SEMANTIC_VALUE_NORMALIZERS: dict[str, Callable[[object], object]] = {
+    **dict.fromkeys(
+        {"http_status", "original_http_status", "visible_http_status", "first_chunk_size"},
+        optional_int,
+    ),
+    "stream_id": normalize_stream_id,
+    **dict.fromkeys(
+        {
+            "late_intervention", "headers_sent", "response_started", "body_started", "body_truncated",
+            "response_committed", "connection_aborted", "marker_split_across_chunks",
+            "end_of_stream_evaluation", "no_full_response_buffering",
+            "first_byte_before_response_end", "upstream_response_finished_at_first_byte",
+            "client_first_byte_received", "upstream_paused", "upstream_eos_sent_at_first_byte",
+            "connection_reused", "quic_connection_id_present", "fallback_used", "stream_reset",
+            "client_aborted", "upstream_aborted", "client_disconnected", "upstream_disconnected",
+            "cancelled", "eos_seen",
+        },
+        optional_bool,
+    ),
+    "requested_action": normalize_requested_action,
+    "actual_action": normalize_actual_action,
+    "transport_result": normalize_transport_result,
+    "late_intervention_mode": normalize_late_intervention_mode,
+    "content_type_scope": normalize_content_type_scope,
+    "body_limit_outcome": normalize_body_limit_outcome,
+    "transport_protocol": normalize_legacy_transport_protocol,
+    **dict.fromkeys(
+        {"requested_protocol", "downstream_protocol", "upstream_protocol", "negotiated_protocol"},
+        normalize_protocol,
+    ),
+    "transport": normalize_transport,
+    "alpn": normalize_alpn,
+    "transport_case_id": normalize_transport_case_id,
+    "barrier_id": normalize_barrier_id,
+    "connection_id": normalize_connection_id,
+    "quic_version": normalize_quic_version,
+    "stream_reset_code": normalize_stream_reset_code,
+    "reset_code": normalize_stream_reset_code,
+    "reset_by": normalize_reset_by,
+    "timeout_stage": normalize_timeout_stage,
+    "write_result": normalize_write_result,
+    "cleanup_reason": normalize_cleanup_reason,
+    "transfer_encoding": normalize_transfer_encoding,
+}
+
+
 def normalize_semantic_value(field: str, value: object) -> object:
-    if field in {"http_status", "original_http_status", "visible_http_status", "first_chunk_size"}:
-        return optional_int(value)
-    if field == "stream_id":
-        return normalize_stream_id(value)
-    if field in {
-        "late_intervention", "headers_sent", "response_started", "body_started", "body_truncated",
-        "response_committed",
-        "connection_aborted", "marker_split_across_chunks",
-        "end_of_stream_evaluation", "no_full_response_buffering",
-        "first_byte_before_response_end", "upstream_response_finished_at_first_byte",
-        "client_first_byte_received", "upstream_paused", "upstream_eos_sent_at_first_byte",
-        "connection_reused", "quic_connection_id_present", "fallback_used", "stream_reset",
-        "client_aborted", "upstream_aborted",
-        "client_disconnected", "upstream_disconnected", "cancelled", "eos_seen",
-    }:
-        return optional_bool(value)
-    if field == "requested_action":
-        return normalize_action(value, REQUESTED_ACTIONS)
-    if field == "actual_action":
-        return normalize_action(value, ACTUAL_ACTIONS)
-    if field == "transport_result":
-        return normalize_transport_result(value)
-    if field == "late_intervention_mode":
-        normalized = str(value or "").strip().lower()
-        return normalized if normalized in LATE_INTERVENTION_MODES else None
-    if field == "content_type_scope":
-        normalized = str(value or "").strip().lower().replace("-", "_")
-        return normalized if normalized in CONTENT_TYPE_SCOPES else None
-    if field == "body_limit_outcome":
-        normalized = str(value or "").strip().lower().replace("-", "_")
-        return normalized if normalized in BODY_LIMIT_OUTCOMES else None
-    if field == "transport_protocol":
-        return normalize_legacy_transport_protocol(value)
-    if field in {"requested_protocol", "downstream_protocol", "upstream_protocol", "negotiated_protocol"}:
-        return normalize_protocol(value)
-    if field == "transport":
-        return normalize_transport(value)
-    if field == "alpn":
-        return normalize_bounded_token(value, maximum=64, field="alpn", allow_slash=True)
-    if field == "transport_case_id":
-        return normalize_bounded_token(value, maximum=128, field="transport_case_id")
-    if field == "barrier_id":
-        return normalize_bounded_token(value, maximum=128, field="barrier_id")
-    if field == "connection_id":
-        return normalize_bounded_token(value, maximum=128, field="connection_id")
-    if field == "quic_version":
-        return normalize_bounded_token(value, maximum=64, field="quic_version")
-    if field == "stream_reset_code":
-        return normalize_stream_reset_code(value)
-    if field == "reset_code":
-        return normalize_stream_reset_code(value)
-    if field == "reset_by":
-        return normalize_transport_enum(value, allowed=RESET_BY_VALUES, field=field)
-    if field == "timeout_stage":
-        return normalize_transport_enum(value, allowed=TIMEOUT_STAGES, field=field)
-    if field == "write_result":
-        return normalize_transport_enum(value, allowed=WRITE_RESULTS, field=field)
-    if field == "cleanup_reason":
-        return normalize_transport_enum(value, allowed=CLEANUP_REASONS, field=field)
-    if field == "transfer_encoding":
-        normalized = str(value or "").strip().lower().replace("-", "_")
-        return normalized if normalized in TRANSFER_ENCODINGS else None
-    raise ContractError(f"unsupported semantic field: {field}")
+    normalizer = SEMANTIC_VALUE_NORMALIZERS.get(field)
+    if normalizer is None:
+        raise ContractError(f"unsupported semantic field: {field}")
+    return normalizer(value)
 
 
 def raw_semantic_value(raw: Mapping[str, Any], field: str) -> object:
@@ -2412,6 +2598,62 @@ def raw_semantic_value(raw: Mapping[str, Any], field: str) -> object:
         if name in raw:
             return raw[name]
     return _MISSING
+
+
+def normalized_runtime_value(
+    field: str, value: object, source: str,
+) -> tuple[object, list[str]]:
+    if value is _MISSING:
+        return _MISSING, []
+    try:
+        return normalize_semantic_value(field, value), []
+    except ContractError:
+        return _MISSING, [f"{field}: invalid {source} runtime value"]
+
+
+def invalid_transport_claim_error(
+    field: str, source: str, raw_value: object, normalized: object,
+) -> list[str]:
+    if field not in TRANSPORT_CLAIM_FIELDS:
+        return []
+    if raw_value is _MISSING or _empty_runtime_value(raw_value) or normalized is not None:
+        return []
+    return [f"{field}: invalid {source} runtime value"]
+
+
+def semantic_field_value(
+    raw: Mapping[str, Any], matching_event: Mapping[str, Any] | None, field: str,
+) -> tuple[object, list[str]]:
+    raw_value = raw_semantic_value(raw, field)
+    event_value = matching_event.get(field, _MISSING) if matching_event else _MISSING
+    raw_normalized, errors = normalized_runtime_value(field, raw_value, "raw")
+    event_normalized, event_errors = normalized_runtime_value(field, event_value, "event")
+    errors.extend(event_errors)
+    errors.extend(invalid_transport_claim_error(field, "raw", raw_value, raw_normalized))
+    errors.extend(invalid_transport_claim_error(field, "event", event_value, event_normalized))
+    if (
+        raw_normalized is not _MISSING
+        and event_normalized is not _MISSING
+        and raw_normalized != event_normalized
+    ):
+        errors.append(f"{field}: raw and event runtime evidence disagree")
+    if raw_normalized is not _MISSING:
+        return raw_normalized, errors
+    if event_normalized is not _MISSING:
+        return event_normalized, errors
+    return None, errors
+
+
+def reject_raw_quic_connection_id(values: dict[str, object], errors: list[str]) -> None:
+    effective_downstream = values.get("negotiated_protocol") or values.get("downstream_protocol")
+    if effective_downstream != "h3" and values.get("transport") != "quic_udp":
+        return
+    connection_id = values.get("connection_id")
+    if connection_id is not None and not is_hashed_connection_id(connection_id):
+        # Do not let a failed/non-promoting source record persist a raw QUIC
+        # CID in canonical case JSONL either.
+        values["connection_id"] = None
+        errors.append("connection_id: raw QUIC connection identifiers are forbidden")
 
 
 def semantic_runtime_fields(
@@ -2426,50 +2668,10 @@ def semantic_runtime_fields(
     values: dict[str, object] = {}
     errors: list[str] = []
     for field in PHASE4_SEMANTIC_FIELDS:
-        raw_value = raw_semantic_value(raw, field)
-        event_value = matching_event.get(field, _MISSING) if matching_event else _MISSING
-        raw_normalized: object = _MISSING
-        event_normalized: object = _MISSING
-        if raw_value is not _MISSING:
-            try:
-                raw_normalized = normalize_semantic_value(field, raw_value)
-            except ContractError:
-                errors.append(f"{field}: invalid raw runtime value")
-        if event_value is not _MISSING:
-            try:
-                event_normalized = normalize_semantic_value(field, event_value)
-            except ContractError:
-                errors.append(f"{field}: invalid event runtime value")
-        # New protocol and transport fields must never quietly turn an
-        # unknown spelling into an absent value.  That would let an invalid
-        # reset/cancel/fallback claim evade the evidence gates below.  Older
-        # unrelated semantic fields retain their historical permissive
-        # behavior.
-        if field in TRANSPORT_CLAIM_FIELDS:
-            if raw_value is not _MISSING and not _empty_runtime_value(raw_value) and raw_normalized is None:
-                errors.append(f"{field}: invalid raw runtime value")
-            if event_value is not _MISSING and not _empty_runtime_value(event_value) and event_normalized is None:
-                errors.append(f"{field}: invalid event runtime value")
-        if (
-            raw_normalized is not _MISSING
-            and event_normalized is not _MISSING
-            and raw_normalized != event_normalized
-        ):
-            errors.append(f"{field}: raw and event runtime evidence disagree")
-        if raw_normalized is not _MISSING:
-            values[field] = raw_normalized
-        elif event_normalized is not _MISSING:
-            values[field] = event_normalized
-        else:
-            values[field] = None
-    effective_downstream = values.get("negotiated_protocol") or values.get("downstream_protocol")
-    if effective_downstream == "h3" or values.get("transport") == "quic_udp":
-        connection_id = values.get("connection_id")
-        if connection_id is not None and not is_hashed_connection_id(connection_id):
-            # Do not let a failed/non-promoting source record persist a raw
-            # QUIC CID in canonical case JSONL either.
-            values["connection_id"] = None
-            errors.append("connection_id: raw QUIC connection identifiers are forbidden")
+        value, field_errors = semantic_field_value(raw, matching_event, field)
+        values[field] = value
+        errors.extend(field_errors)
+    reject_raw_quic_connection_id(values, errors)
     return values, errors
 
 
@@ -2520,6 +2722,226 @@ def normalized_event_semantic_value(
     return normalize_semantic_value(field, event[field])
 
 
+def require_protocol_event(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    field: str,
+    expected: object = _MISSING,
+) -> None:
+    try:
+        value = normalized_event_semantic_value(event, field)
+    except ContractError:
+        errors.append(f"canonical event has invalid {field}")
+        return
+    if value is _MISSING or value is None:
+        errors.append(f"canonical event is missing protocol provenance {field}")
+        return
+    if record.get(field) != value:
+        errors.append(f"case result {field} does not match canonical event")
+    if expected is not _MISSING and value != expected:
+        errors.append(f"canonical event {field}={value!r}, expected {expected!r}")
+
+
+def append_protocol_causal_errors(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    if event.get("connector") != record.get("connector"):
+        errors.append("protocol event connector does not match case result")
+    record_phase = normalize_canonical_phase(record.get("phase"))
+    event_phase = normalize_canonical_phase(event.get("phase"))
+    if record_phase is None or event_phase != record_phase:
+        errors.append("protocol event phase does not match case result")
+    transaction_ids = {
+        str(value) for value in record.get("transaction_ids", []) if str(value).strip()
+    }
+    if not transaction_ids:
+        errors.append("protocol PASS requires a transaction_id")
+    elif not transaction_ids.intersection(event_transaction_ids(event)):
+        errors.append("protocol event transaction_id does not match case result")
+    expected_rule_id = optional_int(record.get("expected_rule_id"))
+    observed_rule_ids = {
+        int(value) for value in record.get("observed_rule_ids", [])
+        if not isinstance(value, bool) and str(value).strip().lstrip("-").isdigit()
+    }
+    event_rule_values = set(event_rule_ids(event))
+    if expected_rule_id is not None and expected_rule_id not in event_rule_values:
+        errors.append("protocol event does not report the expected rule")
+    elif expected_rule_id is None and observed_rule_ids and not observed_rule_ids.intersection(event_rule_values):
+        errors.append("protocol event rule_id does not match case result")
+
+
+def append_protocol_action_errors(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    for field, allowed in (
+        ("requested_action", REQUESTED_ACTIONS),
+        ("actual_action", ACTUAL_ACTIONS),
+    ):
+        event_action = normalize_action(event.get(field), allowed)
+        if record.get(field) != event_action:
+            errors.append(f"protocol event {field} does not match case result")
+
+
+def append_protocol_identity_error(
+    event: Mapping[str, Any], errors: list[str], field: str, value: object,
+) -> None:
+    if value is None:
+        return
+    if not isinstance(value, str) or not value.strip():
+        errors.append(f"protocol PASS requires a non-empty {field}")
+    elif event.get(field) != value:
+        errors.append(f"protocol event {field} does not match case result")
+
+
+def selected_protocol_identity(
+    record: Mapping[str, Any], supplied_value: str | None, field: str,
+) -> object:
+    return supplied_value if supplied_value is not None else record.get(field)
+
+
+def protocol_record_values(record: Mapping[str, Any]) -> dict[str, object]:
+    return {
+        "requested": record.get("requested_protocol"),
+        "downstream": record.get("downstream_protocol"),
+        "negotiated": record.get("negotiated_protocol"),
+        "transport": record.get("transport"),
+        "fallback_used": record.get("fallback_used"),
+    }
+
+
+def append_required_protocol_profile_errors(
+    values: dict[str, object], required_protocol: str | None, errors: list[str],
+) -> str | None:
+    downstream_protocol = values["negotiated"] or values["downstream"]
+    if required_protocol is None:
+        return downstream_protocol if isinstance(downstream_protocol, str) else None
+    for field in ("requested", "downstream", "negotiated"):
+        if values[field] != required_protocol:
+            errors.append(f"case protocol_profile does not match {field}_protocol")
+    return required_protocol
+
+
+def require_declared_protocol_evidence(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    for field in (
+        "requested_protocol", "downstream_protocol", "upstream_protocol",
+        "negotiated_protocol", "transport", "alpn", "stream_id",
+        "transport_case_id", "connection_id", "quic_connection_id_present",
+        "quic_version", "fallback_used", "stream_reset", "stream_reset_code",
+    ):
+        if record.get(field) is not None:
+            require_protocol_event(record, event, errors, field)
+
+
+def append_requested_protocol_errors(
+    values: Mapping[str, object], errors: list[str],
+) -> None:
+    requested = values["requested"]
+    negotiated = values["negotiated"]
+    downstream = values["downstream"]
+    if requested in {"h2", "h2c", "h3"}:
+        if negotiated is None:
+            errors.append("protocol PASS requires negotiated_protocol")
+        elif requested != negotiated:
+            errors.append("requested_protocol does not match negotiated_protocol")
+        if values["fallback_used"] is not False:
+            errors.append("protocol PASS requires fallback_used=false")
+    if downstream is not None and negotiated is not None and downstream != negotiated:
+        errors.append("downstream_protocol does not match negotiated_protocol")
+
+
+def append_modern_protocol_errors(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    downstream_protocol: str | None,
+    values: Mapping[str, object],
+) -> None:
+    if downstream_protocol not in {"h2", "h2c", "h3"}:
+        return
+    for field in (
+        "requested_protocol", "downstream_protocol", "negotiated_protocol",
+        "transport", "fallback_used", "stream_id", "transport_case_id",
+    ):
+        require_protocol_event(record, event, errors, field)
+    if values["requested"] != downstream_protocol:
+        errors.append("protocol PASS requested_protocol does not match downstream protocol")
+    if values["downstream"] != downstream_protocol:
+        errors.append("protocol PASS downstream_protocol does not match negotiated_protocol")
+    if values["fallback_used"] is not False:
+        errors.append("protocol PASS requires fallback_used=false")
+    stream_id = record.get("stream_id")
+    if not isinstance(stream_id, int) or isinstance(stream_id, bool):
+        errors.append("H2/H3 protocol PASS requires a stream_id")
+    transport_case_id = record.get("transport_case_id")
+    if not isinstance(transport_case_id, str) or not transport_case_id:
+        errors.append("H2/H3 protocol PASS requires a transport_case_id")
+
+
+def append_h3_protocol_errors(record: Mapping[str, Any], errors: list[str]) -> None:
+    if str(record.get("alpn") or "").lower() != "h3":
+        errors.append("h3 protocol PASS requires alpn=h3")
+    if record.get("quic_connection_id_present") is not True:
+        errors.append("h3 protocol PASS requires quic_connection_id_present=true")
+    if not isinstance(record.get("quic_version"), str) or not record.get("quic_version"):
+        errors.append("h3 protocol PASS requires quic_version")
+    connection_id = record.get("connection_id")
+    if connection_id is not None and not is_hashed_connection_id(connection_id):
+        errors.append("h3 protocol evidence may not persist a raw connection_id")
+
+
+def append_protocol_transport_errors(
+    record: Mapping[str, Any],
+    errors: list[str],
+    downstream_protocol: str | None,
+    transport: object,
+) -> None:
+    expected_transport = {
+        "h2": "tls_tcp",
+        "h2c": "tcp",
+        "h3": "quic_udp",
+    }.get(downstream_protocol)
+    if expected_transport is not None and transport != expected_transport:
+        errors.append(
+            f"{downstream_protocol} protocol PASS requires transport={expected_transport}"
+        )
+    if downstream_protocol == "h2" and str(record.get("alpn") or "").lower() != "h2":
+        errors.append("h2 protocol PASS requires alpn=h2")
+    if downstream_protocol == "h2c" and record.get("alpn") not in (None, ""):
+        errors.append("h2c protocol PASS must not claim TLS ALPN")
+    if downstream_protocol == "h3":
+        append_h3_protocol_errors(record, errors)
+
+
+def append_strict_stream_reset_errors(
+    record: Mapping[str, Any], errors: list[str], downstream_protocol: str | None,
+) -> None:
+    stream_reset = record.get("stream_reset")
+    if stream_reset is True and downstream_protocol not in {"h2", "h2c", "h3"}:
+        errors.append("stream_reset is valid only for an H2/H3 downstream protocol")
+    if (
+        str(record.get("expected_result") or "") != "connection_aborted_strict"
+        or downstream_protocol not in {"h2", "h2c", "h3"}
+    ):
+        return
+    expected_values = {
+        "requested_action": "deny",
+        "actual_action": "stream_reset",
+        "transport_result": "stream_reset",
+    }
+    for field, expected in expected_values.items():
+        if record.get(field) != expected:
+            errors.append(f"H2/H3 strict PASS requires {field}={expected}")
+    if stream_reset is not True:
+        errors.append("H2/H3 strict PASS requires a client-observed stream_reset")
+    if record.get("stream_reset_code") is None:
+        errors.append("H2/H3 strict PASS requires stream_reset_code")
+    if record.get("connection_aborted") is True:
+        errors.append("H2/H3 strict stream reset must not claim connection_aborted")
+
+
 def protocol_pass_errors(
     record: Mapping[str, Any],
     matching_event: Mapping[str, Any] | None,
@@ -2542,200 +2964,419 @@ def protocol_pass_errors(
     errors: list[str] = []
     if matching_event is None:
         return ["protocol provenance requires a matching canonical event"]
+    append_protocol_causal_errors(record, matching_event, errors)
+    append_protocol_action_errors(record, matching_event, errors)
 
-    def event_value(field: str) -> object:
-        try:
-            return normalized_event_semantic_value(matching_event, field)
-        except ContractError:
-            errors.append(f"canonical event has invalid {field}")
-            return _MISSING
-
-    def require_event(field: str, expected: object = _MISSING) -> object:
-        value = event_value(field)
-        if value is _MISSING or value is None:
-            errors.append(f"canonical event is missing protocol provenance {field}")
-            return None
-        if record.get(field) != value:
-            errors.append(f"case result {field} does not match canonical event")
-        if expected is not _MISSING and value != expected:
-            errors.append(f"canonical event {field}={value!r}, expected {expected!r}")
-        return value
-
-    # Bind the event to the same causal operation, not merely to a host that
-    # happened to negotiate the desired protocol elsewhere in the run.
-    if matching_event.get("connector") != record.get("connector"):
-        errors.append("protocol event connector does not match case result")
-    record_phase = normalize_canonical_phase(record.get("phase"))
-    event_phase = normalize_canonical_phase(matching_event.get("phase"))
-    if record_phase is None or event_phase != record_phase:
-        errors.append("protocol event phase does not match case result")
-    transaction_ids = {
-        str(value) for value in record.get("transaction_ids", []) if str(value).strip()
-    }
-    if not transaction_ids:
-        errors.append("protocol PASS requires a transaction_id")
-    elif not transaction_ids.intersection(event_transaction_ids(matching_event)):
-        errors.append("protocol event transaction_id does not match case result")
-    expected_rule_id = optional_int(record.get("expected_rule_id"))
-    observed_rule_ids = {
-        int(value) for value in record.get("observed_rule_ids", [])
-        if not isinstance(value, bool) and str(value).strip().lstrip("-").isdigit()
-    }
-    event_rule_values = set(event_rule_ids(matching_event))
-    if expected_rule_id is not None and expected_rule_id not in event_rule_values:
-        errors.append("protocol event does not report the expected rule")
-    elif expected_rule_id is None and observed_rule_ids and not observed_rule_ids.intersection(event_rule_values):
-        errors.append("protocol event rule_id does not match case result")
-
-    for field, allowed in (
-        ("requested_action", REQUESTED_ACTIONS),
-        ("actual_action", ACTUAL_ACTIONS),
-    ):
-        try:
-            event_action = normalize_action(matching_event.get(field), allowed)
-        except ContractError:
-            event_action = None
-        if record.get(field) != event_action:
-            errors.append(f"protocol event {field} does not match case result")
-
-    run_id = expected_run_id if expected_run_id is not None else record.get("run_id")
-    if run_id is not None:
-        if not isinstance(run_id, str) or not run_id.strip():
-            errors.append("protocol PASS requires a non-empty run_id")
-        elif matching_event.get("run_id") != run_id:
-            errors.append("protocol event run_id does not match case result")
-    integration_mode = (
-        expected_integration_mode
-        if expected_integration_mode is not None
-        else record.get("integration_mode")
+    run_id = selected_protocol_identity(record, expected_run_id, "run_id")
+    append_protocol_identity_error(matching_event, errors, "run_id", run_id)
+    integration_mode = selected_protocol_identity(
+        record, expected_integration_mode, "integration_mode",
     )
-    if integration_mode is not None:
-        if not isinstance(integration_mode, str) or not integration_mode.strip():
-            errors.append("protocol PASS requires a non-empty integration_mode")
-        elif matching_event.get("integration_mode") != integration_mode:
-            errors.append("protocol event integration_mode does not match case result")
-
-    requested = record.get("requested_protocol")
-    downstream = record.get("downstream_protocol")
-    negotiated = record.get("negotiated_protocol")
-    transport = record.get("transport")
-    fallback_used = record.get("fallback_used")
-    downstream_protocol = negotiated or downstream
-
-    if required_protocol is not None:
-        if requested != required_protocol:
-            errors.append("case protocol_profile does not match requested_protocol")
-        if downstream != required_protocol:
-            errors.append("case protocol_profile does not match downstream_protocol")
-        if negotiated != required_protocol:
-            errors.append("case protocol_profile does not match negotiated_protocol")
-        downstream_protocol = required_protocol
-
-    if requested is not None:
-        require_event("requested_protocol")
-    if downstream is not None:
-        require_event("downstream_protocol")
-    if record.get("upstream_protocol") is not None:
-        require_event("upstream_protocol")
-    if negotiated is not None:
-        require_event("negotiated_protocol")
-    if transport is not None:
-        require_event("transport")
-    if record.get("alpn") is not None:
-        require_event("alpn")
-    if record.get("stream_id") is not None:
-        require_event("stream_id")
-    if record.get("transport_case_id") is not None:
-        require_event("transport_case_id")
-    if record.get("connection_id") is not None:
-        require_event("connection_id")
-    if record.get("quic_connection_id_present") is not None:
-        require_event("quic_connection_id_present")
-    if record.get("quic_version") is not None:
-        require_event("quic_version")
-    if fallback_used is not None:
-        require_event("fallback_used")
-    if record.get("stream_reset") is not None:
-        require_event("stream_reset")
-    if record.get("stream_reset_code") is not None:
-        require_event("stream_reset_code")
-
-    if requested in {"h2", "h2c", "h3"}:
-        if negotiated is None:
-            errors.append("protocol PASS requires negotiated_protocol")
-        elif requested != negotiated:
-            errors.append("requested_protocol does not match negotiated_protocol")
-        if fallback_used is not False:
-            errors.append("protocol PASS requires fallback_used=false")
-    if downstream is not None and negotiated is not None and downstream != negotiated:
-        errors.append("downstream_protocol does not match negotiated_protocol")
-
-    if downstream_protocol in {"h2", "h2c", "h3"}:
-        for field in (
-            "requested_protocol", "downstream_protocol", "negotiated_protocol",
-            "transport", "fallback_used", "stream_id", "transport_case_id",
-        ):
-            require_event(field)
-        if requested != downstream_protocol:
-            errors.append("protocol PASS requested_protocol does not match downstream protocol")
-        if downstream != downstream_protocol:
-            errors.append("protocol PASS downstream_protocol does not match negotiated_protocol")
-        if fallback_used is not False:
-            errors.append("protocol PASS requires fallback_used=false")
-        if not isinstance(record.get("stream_id"), int) or isinstance(record.get("stream_id"), bool):
-            errors.append("H2/H3 protocol PASS requires a stream_id")
-        if not isinstance(record.get("transport_case_id"), str) or not record.get("transport_case_id"):
-            errors.append("H2/H3 protocol PASS requires a transport_case_id")
-
-    expected_transport = {
-        "h2": "tls_tcp",
-        "h2c": "tcp",
-        "h3": "quic_udp",
-    }.get(downstream_protocol)
-    if expected_transport is not None and transport != expected_transport:
-        errors.append(
-            f"{downstream_protocol} protocol PASS requires transport={expected_transport}"
-        )
-    if downstream_protocol == "h2":
-        if str(record.get("alpn") or "").lower() != "h2":
-            errors.append("h2 protocol PASS requires alpn=h2")
-    if downstream_protocol == "h2c" and record.get("alpn") not in (None, ""):
-        errors.append("h2c protocol PASS must not claim TLS ALPN")
-    if downstream_protocol == "h3":
-        if str(record.get("alpn") or "").lower() != "h3":
-            errors.append("h3 protocol PASS requires alpn=h3")
-        if record.get("quic_connection_id_present") is not True:
-            errors.append("h3 protocol PASS requires quic_connection_id_present=true")
-        if not isinstance(record.get("quic_version"), str) or not record.get("quic_version"):
-            errors.append("h3 protocol PASS requires quic_version")
-        connection_id = record.get("connection_id")
-        if connection_id is not None and not is_hashed_connection_id(connection_id):
-            errors.append("h3 protocol evidence may not persist a raw connection_id")
-
-    stream_reset = record.get("stream_reset")
-    if stream_reset is True and downstream_protocol not in {"h2", "h2c", "h3"}:
-        errors.append("stream_reset is valid only for an H2/H3 downstream protocol")
-    if (
-        str(record.get("expected_result") or "") == "connection_aborted_strict"
-        and downstream_protocol in {"h2", "h2c", "h3"}
-    ):
-        if record.get("requested_action") != "deny":
-            errors.append("H2/H3 strict PASS requires requested_action=deny")
-        if record.get("actual_action") != "stream_reset":
-            errors.append("H2/H3 strict PASS requires actual_action=stream_reset")
-        if stream_reset is not True:
-            errors.append("H2/H3 strict PASS requires a client-observed stream_reset")
-        if record.get("stream_reset_code") is None:
-            errors.append("H2/H3 strict PASS requires stream_reset_code")
-        if record.get("transport_result") != "stream_reset":
-            errors.append("H2/H3 strict PASS requires transport_result=stream_reset")
-        if record.get("connection_aborted") is True:
-            errors.append("H2/H3 strict stream reset must not claim connection_aborted")
+    append_protocol_identity_error(
+        matching_event, errors, "integration_mode", integration_mode,
+    )
+    values = protocol_record_values(record)
+    downstream_protocol = append_required_protocol_profile_errors(
+        values, required_protocol, errors,
+    )
+    require_declared_protocol_evidence(record, matching_event, errors)
+    append_requested_protocol_errors(values, errors)
+    append_modern_protocol_errors(
+        record, matching_event, errors, downstream_protocol, values,
+    )
+    append_protocol_transport_errors(
+        record, errors, downstream_protocol, values["transport"],
+    )
+    append_strict_stream_reset_errors(record, errors, downstream_protocol)
     return errors
 
 
 def phase_is_four(value: object) -> bool:
     return normalize_canonical_phase(value) == 4
+
+
+def require_phase4_event_value(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    field: str,
+    expected: object = _MISSING,
+) -> None:
+    if field not in event:
+        errors.append(f"canonical event is missing {field}")
+        return
+    try:
+        event_value = normalize_semantic_value(field, event[field])
+    except ContractError:
+        errors.append(f"canonical event has invalid {field}")
+        return
+    if record.get(field) != event_value:
+        errors.append(f"case result {field} does not match canonical event")
+    if expected is not _MISSING and event_value != expected:
+        errors.append(f"canonical event {field}={event_value!r}, expected {expected!r}")
+
+
+def require_phase4_status_triplet(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_phase4_event_value(record, event, errors, "http_status", 403)
+    require_phase4_event_value(record, event, errors, "original_http_status")
+    require_phase4_event_value(record, event, errors, "visible_http_status")
+
+
+def append_observable_client_status_errors(
+    record: Mapping[str, Any], errors: list[str],
+) -> None:
+    transport = record.get("transport_result")
+    if transport in {"connection_aborted", "not_observable"}:
+        errors.append("HTTP outcome cannot use a non-observable transport result")
+        return
+    actual_status = record.get("actual_status")
+    visible_status = record.get("visible_http_status")
+    if actual_status is None:
+        errors.append("HTTP outcome is missing an observed client status")
+    elif actual_status != visible_status:
+        errors.append("observed client status does not match visible_http_status")
+
+
+def append_abort_client_status_errors(
+    record: Mapping[str, Any], errors: list[str],
+) -> None:
+    transport = record.get("transport_result")
+    if transport in {"connection_aborted", "not_observable"}:
+        return
+    actual_status = record.get("actual_status")
+    visible_status = record.get("visible_http_status")
+    if actual_status is None:
+        if transport in {"http_status", "log_only"}:
+            errors.append("observable abort transport is missing an observed client status")
+        return
+    if actual_status != visible_status:
+        errors.append("observed abort status does not match visible_http_status")
+
+
+def phase4_abort_action(record: Mapping[str, Any]) -> str:
+    if record.get("negotiated_protocol") in {"h2", "h2c", "h3"}:
+        return "stream_reset"
+    return "abort_connection"
+
+
+def phase4_uses_stream_reset(record: Mapping[str, Any]) -> bool:
+    return record.get("negotiated_protocol") in {"h2", "h2c", "h3"}
+
+
+def validate_phase4_pre_commit_deny(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_phase4_status_triplet(record, event, errors)
+    require_phase4_event_value(record, event, errors, "requested_action", "deny")
+    require_phase4_event_value(record, event, errors, "actual_action", "deny")
+    require_phase4_event_value(record, event, errors, "visible_http_status", 403)
+    require_phase4_event_value(record, event, errors, "headers_sent", False)
+    require_phase4_event_value(record, event, errors, "connection_aborted", False)
+    if event.get("late_intervention") is True:
+        errors.append("pre-commit deny cannot be marked as a late intervention")
+    if event.get("response_committed") is True:
+        errors.append("pre-commit deny cannot have response_committed=true")
+    append_observable_client_status_errors(record, errors)
+
+
+def validate_phase4_late_log_only(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    expected_mode: str | None,
+    preservation_error: str,
+) -> None:
+    require_phase4_status_triplet(record, event, errors)
+    require_phase4_event_value(record, event, errors, "requested_action", "deny")
+    require_phase4_event_value(record, event, errors, "actual_action", "log_only")
+    require_phase4_event_value(record, event, errors, "late_intervention", True)
+    if expected_mode is not None:
+        require_phase4_event_value(record, event, errors, "late_intervention_mode", expected_mode)
+    require_phase4_event_value(record, event, errors, "headers_sent", True)
+    require_phase4_event_value(record, event, errors, "connection_aborted", False)
+    if record.get("visible_http_status") != record.get("original_http_status"):
+        errors.append(preservation_error)
+    append_observable_client_status_errors(record, errors)
+
+
+def validate_phase4_late_log_only_default(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_late_log_only(
+        record,
+        event,
+        errors,
+        None,
+        "log-only late intervention must preserve the visible HTTP status",
+    )
+
+
+def validate_phase4_late_log_only_minimal(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_late_log_only(
+        record,
+        event,
+        errors,
+        "minimal",
+        "late log-only intervention must preserve the visible HTTP status",
+    )
+
+
+def validate_phase4_late_log_only_safe(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_late_log_only(
+        record,
+        event,
+        errors,
+        "safe",
+        "late log-only intervention must preserve the visible HTTP status",
+    )
+
+
+def validate_phase4_abort(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    *,
+    strict: bool,
+) -> None:
+    require_phase4_status_triplet(record, event, errors)
+    require_phase4_event_value(record, event, errors, "requested_action", "deny")
+    require_phase4_event_value(record, event, errors, "actual_action", phase4_abort_action(record))
+    require_phase4_event_value(record, event, errors, "late_intervention", True)
+    if strict:
+        require_phase4_event_value(record, event, errors, "late_intervention_mode", "strict")
+    require_phase4_event_value(record, event, errors, "headers_sent", True)
+    if phase4_uses_stream_reset(record):
+        require_phase4_event_value(record, event, errors, "stream_reset", True)
+        if strict:
+            require_phase4_event_value(record, event, errors, "stream_reset_code")
+            require_phase4_event_value(record, event, errors, "connection_aborted", False)
+            require_phase4_event_value(record, event, errors, "transport_result", "stream_reset")
+    else:
+        require_phase4_event_value(record, event, errors, "connection_aborted", True)
+    if record.get("visible_http_status") != record.get("original_http_status"):
+        errors.append(
+            "strict post-commit abort must preserve the already visible HTTP status"
+            if strict
+            else "post-commit abort must preserve the already visible HTTP status"
+        )
+    append_abort_client_status_errors(record, errors)
+
+
+def validate_phase4_connection_aborted(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_abort(record, event, errors, strict=False)
+
+
+def validate_phase4_connection_aborted_strict(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_abort(record, event, errors, strict=True)
+
+
+def validate_phase4_marker_split(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_phase4_event_value(record, event, errors, "marker_split_across_chunks", True)
+    require_phase4_event_value(record, event, errors, "end_of_stream_evaluation", True)
+
+
+def validate_phase4_end_of_stream(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_phase4_event_value(record, event, errors, "end_of_stream_evaluation", True)
+    require_phase4_event_value(record, event, errors, "body_started", True)
+
+
+def validate_phase4_content_type_in_scope(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    *,
+    charset_required: bool,
+) -> None:
+    require_phase4_event_value(record, event, errors, "content_type_scope", "in_scope")
+    content_type = str(event.get("content_type") or "")
+    if not content_type:
+        errors.append("in-scope response evidence is missing content_type")
+    if charset_required and "charset=" not in content_type.lower():
+        errors.append("charset content-type case requires a charset parameter")
+
+
+def validate_phase4_content_type_in_scope_default(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_content_type_in_scope(record, event, errors, charset_required=False)
+
+
+def validate_phase4_content_type_in_scope_charset(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_content_type_in_scope(record, event, errors, charset_required=True)
+
+
+def validate_phase4_content_type_out_of_scope(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_phase4_event_value(record, event, errors, "content_type_scope", "out_of_scope")
+    if not str(event.get("content_type") or ""):
+        errors.append("out-of-scope response evidence is missing content_type")
+    append_observable_client_status_errors(record, errors)
+
+
+def validate_phase4_content_type_missing(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_phase4_event_value(record, event, errors, "content_type_scope", "missing")
+    if event.get("content_type") not in (None, ""):
+        errors.append("missing-content-type evidence must not invent content_type")
+    append_observable_client_status_errors(record, errors)
+
+
+def append_phase4_first_byte_errors(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    label: str,
+) -> None:
+    require_phase4_event_value(record, event, errors, "client_first_byte_received", True)
+    require_phase4_event_value(record, event, errors, "first_byte_before_response_end", True)
+    require_phase4_event_value(record, event, errors, "first_chunk_size")
+    first_chunk_size = event.get("first_chunk_size")
+    if not isinstance(first_chunk_size, int) or first_chunk_size < 1:
+        errors.append(f"{label} evidence requires first_chunk_size > 0")
+    require_phase4_event_value(record, event, errors, "upstream_paused", True)
+    require_phase4_event_value(record, event, errors, "upstream_eos_sent_at_first_byte", False)
+    require_phase4_event_value(record, event, errors, "upstream_response_finished_at_first_byte", False)
+    require_phase4_event_value(record, event, errors, "response_committed", True)
+    for field in ("body_bytes_seen", "body_bytes_inspected"):
+        if not isinstance(event.get(field), int):
+            errors.append(f"{label} evidence requires {field}")
+    body_bytes_seen = event.get("body_bytes_seen")
+    body_bytes_inspected = event.get("body_bytes_inspected")
+    if (
+        isinstance(body_bytes_seen, int)
+        and isinstance(body_bytes_inspected, int)
+        and body_bytes_inspected > body_bytes_seen
+    ):
+        errors.append(f"{label} evidence has inspected bytes above seen bytes")
+
+
+def validate_phase4_no_full_response_buffering(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_phase4_event_value(record, event, errors, "no_full_response_buffering", True)
+    append_phase4_first_byte_errors(record, event, errors, "no-full-buffer")
+
+
+def validate_phase4_first_byte_before_response_end(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    append_phase4_first_byte_errors(record, event, errors, "first-byte")
+
+
+def validate_phase4_body_limit(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    outcome: str,
+) -> None:
+    require_phase4_event_value(record, event, errors, "body_limit_outcome", outcome)
+    for field in ("body_bytes_seen", "body_bytes_inspected", "truncated"):
+        if field not in event:
+            errors.append(f"canonical event is missing {field}")
+    if outcome == "process_partial" and event.get("truncated") is not True:
+        errors.append("ProcessPartial evidence must set truncated=true")
+    if outcome == "reject" and event.get("truncated") is not False:
+        errors.append("Reject evidence must set truncated=false")
+
+
+def validate_phase4_body_limit_at_limit(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_body_limit(record, event, errors, "at_limit")
+
+
+def validate_phase4_body_limit_over_limit(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_body_limit(record, event, errors, "over_limit")
+
+
+def validate_phase4_body_limit_process_partial(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_body_limit(record, event, errors, "process_partial")
+
+
+def validate_phase4_body_limit_reject(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_phase4_body_limit(record, event, errors, "reject")
+
+
+def validate_phase4_event_contains_original_status(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_phase4_status_triplet(record, event, errors)
+    visible_status = record.get("visible_http_status")
+    if event.get("late_intervention") is True and visible_status != record.get("original_http_status"):
+        errors.append("late-intervention status metadata must preserve the visible status")
+    if event.get("headers_sent") is False and visible_status != record.get("http_status"):
+        errors.append("uncommitted response metadata must expose the WAF status")
+
+
+def validate_phase4_event_contains_late_intervention_action(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_phase4_event_value(record, event, errors, "requested_action", "deny")
+    require_phase4_event_value(record, event, errors, "actual_action")
+    require_phase4_event_value(record, event, errors, "late_intervention")
+    actual_action = record.get("actual_action")
+    late_intervention = record.get("late_intervention")
+    if actual_action not in {"deny", "log_only", "abort_connection", "stream_reset"}:
+        errors.append("phase-4 deny must resolve to deny, log_only, abort_connection, or stream_reset")
+    if actual_action == "deny" and late_intervention is not False:
+        errors.append("deny action must not be marked as a late intervention")
+    if actual_action in {"log_only", "abort_connection", "stream_reset"} and late_intervention is not True:
+        errors.append("post-commit action must be marked as a late intervention")
+    if actual_action == "abort_connection" and event.get("connection_aborted") is False:
+        errors.append("abort action conflicts with connection_aborted=false")
+    if actual_action == "stream_reset" and event.get("stream_reset") is False:
+        errors.append("stream-reset action conflicts with stream_reset=false")
+    if actual_action in {"deny", "log_only"} and event.get("connection_aborted") is True:
+        errors.append("non-abort action conflicts with connection_aborted=true")
+
+
+PHASE4_PASS_VALIDATORS: dict[str, Callable[[Mapping[str, Any], Mapping[str, Any], list[str]], None]] = {
+    "deny_before_commit": validate_phase4_pre_commit_deny,
+    "legacy_phase4_deny_before_commit": validate_phase4_pre_commit_deny,
+    "late_intervention_log_only": validate_phase4_late_log_only_default,
+    "late_intervention_log_only_minimal": validate_phase4_late_log_only_minimal,
+    "late_intervention_log_only_safe": validate_phase4_late_log_only_safe,
+    "connection_aborted": validate_phase4_connection_aborted,
+    "connection_aborted_strict": validate_phase4_connection_aborted_strict,
+    "marker_split_across_chunks": validate_phase4_marker_split,
+    "end_of_stream_evaluation": validate_phase4_end_of_stream,
+    "content_type_in_scope": validate_phase4_content_type_in_scope_default,
+    "content_type_in_scope_with_charset": validate_phase4_content_type_in_scope_charset,
+    "content_type_out_of_scope": validate_phase4_content_type_out_of_scope,
+    "content_type_missing": validate_phase4_content_type_missing,
+    "no_full_response_buffering": validate_phase4_no_full_response_buffering,
+    "first_byte_before_response_end": validate_phase4_first_byte_before_response_end,
+    "response_body_at_limit": validate_phase4_body_limit_at_limit,
+    "response_body_over_limit": validate_phase4_body_limit_over_limit,
+    "response_body_process_partial": validate_phase4_body_limit_process_partial,
+    "response_body_reject": validate_phase4_body_limit_reject,
+    "event_contains_original_status": validate_phase4_event_contains_original_status,
+    "event_contains_late_intervention_action": validate_phase4_event_contains_late_intervention_action,
+}
 
 
 def phase4_pass_errors(
@@ -2773,263 +3414,200 @@ def phase4_pass_errors(
         errors.append("canonical event does not report phase 4")
     if expected_rule_id is not None and expected_rule_id not in event_rule_ids(matching_event):
         errors.append("canonical event does not report the expected rule")
-    def require_event_value(field: str, expected: object = _MISSING) -> None:
-        if field not in matching_event:
-            errors.append(f"canonical event is missing {field}")
-            return
+    validator = PHASE4_PASS_VALIDATORS.get(expected_result)
+    if validator is not None:
+        validator(record, matching_event, errors)
+    return errors
+
+
+def require_full_lifecycle_event_value(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    field: str,
+    expected: object = _MISSING,
+) -> None:
+    if field not in event:
+        errors.append(f"canonical event is missing {field}")
+        return
+    value = event[field]
+    if field in PHASE4_SEMANTIC_FIELDS:
         try:
-            event_value = normalize_semantic_value(field, matching_event[field])
+            value = normalize_semantic_value(field, value)
         except ContractError:
             errors.append(f"canonical event has invalid {field}")
             return
-        if record.get(field) != event_value:
+        if record.get(field) != value:
             errors.append(f"case result {field} does not match canonical event")
-        if expected is not _MISSING and event_value != expected:
-            errors.append(f"canonical event {field}={event_value!r}, expected {expected!r}")
+    if expected is not _MISSING and value != expected:
+        errors.append(f"canonical event {field}={value!r}, expected {expected!r}")
 
-    def require_status_triplet() -> None:
-        require_event_value("http_status", 403)
-        require_event_value("original_http_status")
-        require_event_value("visible_http_status")
 
-    def require_observable_client_status() -> None:
-        """Bind a host-observed HTTP status to the event's visible status."""
-        transport = record.get("transport_result")
-        if transport in {"connection_aborted", "not_observable"}:
-            errors.append("HTTP outcome cannot use a non-observable transport result")
-            return
-        actual_status = record.get("actual_status")
-        visible_status = record.get("visible_http_status")
-        if actual_status is None:
-            errors.append("HTTP outcome is missing an observed client status")
-        elif actual_status != visible_status:
-            errors.append("observed client status does not match visible_http_status")
+def require_full_lifecycle_limit(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str], expected: str,
+) -> None:
+    require_full_lifecycle_event_value(record, event, errors, "body_limit_outcome", expected)
+    for field in ("body_bytes_seen", "body_bytes_inspected", "truncated"):
+        require_full_lifecycle_event_value(record, event, errors, field)
 
-    def validate_abort_client_status() -> None:
-        """Compare abort status only when an HTTP status was observable."""
-        transport = record.get("transport_result")
-        if transport in {"connection_aborted", "not_observable"}:
-            return
-        actual_status = record.get("actual_status")
-        visible_status = record.get("visible_http_status")
-        if actual_status is None:
-            if transport in {"http_status", "log_only"}:
-                errors.append("observable abort transport is missing an observed client status")
-            return
-        if actual_status != visible_status:
-            errors.append("observed abort status does not match visible_http_status")
 
-    if expected_result == "rule_observed":
-        return errors
+def validate_full_lifecycle_request_marker_split(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_full_lifecycle_event_value(record, event, errors, "marker_split_across_chunks", True)
+    for field in ("body_bytes_seen", "body_bytes_inspected"):
+        require_full_lifecycle_event_value(record, event, errors, field)
 
-    if expected_result in {"deny_before_commit", "legacy_phase4_deny_before_commit"}:
-        require_status_triplet()
-        require_event_value("requested_action", "deny")
-        require_event_value("actual_action", "deny")
-        require_event_value("visible_http_status", 403)
-        require_event_value("headers_sent", False)
-        require_event_value("connection_aborted", False)
-        if matching_event.get("late_intervention") is True:
-            errors.append("pre-commit deny cannot be marked as a late intervention")
-        if matching_event.get("response_committed") is True:
-            errors.append("pre-commit deny cannot have response_committed=true")
-        require_observable_client_status()
-        return errors
 
-    if expected_result == "late_intervention_log_only":
-        require_status_triplet()
-        require_event_value("requested_action", "deny")
-        require_event_value("actual_action", "log_only")
-        require_event_value("late_intervention", True)
-        require_event_value("headers_sent", True)
-        require_event_value("connection_aborted", False)
-        if record.get("visible_http_status") != record.get("original_http_status"):
-            errors.append("log-only late intervention must preserve the visible HTTP status")
-        require_observable_client_status()
-        return errors
+def validate_full_lifecycle_request_body_at_limit(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_full_lifecycle_limit(record, event, errors, "at_limit")
 
-    if expected_result == "connection_aborted":
-        require_status_triplet()
-        require_event_value("requested_action", "deny")
-        require_event_value(
-            "actual_action",
-            "stream_reset" if record.get("negotiated_protocol") in {"h2", "h2c", "h3"}
-            else "abort_connection",
-        )
-        require_event_value("late_intervention", True)
-        require_event_value("headers_sent", True)
-        if record.get("negotiated_protocol") in {"h2", "h2c", "h3"}:
-            require_event_value("stream_reset", True)
-        else:
-            require_event_value("connection_aborted", True)
-        if record.get("visible_http_status") != record.get("original_http_status"):
-            errors.append("post-commit abort must preserve the already visible HTTP status")
-        validate_abort_client_status()
-        return errors
 
-    if expected_result in {
-        "late_intervention_log_only_minimal", "late_intervention_log_only_safe",
-    }:
-        expected_mode = "minimal" if expected_result.endswith("_minimal") else "safe"
-        require_status_triplet()
-        require_event_value("requested_action", "deny")
-        require_event_value("actual_action", "log_only")
-        require_event_value("late_intervention", True)
-        require_event_value("late_intervention_mode", expected_mode)
-        require_event_value("headers_sent", True)
-        require_event_value("connection_aborted", False)
-        if record.get("visible_http_status") != record.get("original_http_status"):
-            errors.append("late log-only intervention must preserve the visible HTTP status")
-        require_observable_client_status()
-        return errors
+def validate_full_lifecycle_request_body_over_limit(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_full_lifecycle_limit(record, event, errors, "over_limit")
 
-    if expected_result == "connection_aborted_strict":
-        require_status_triplet()
-        require_event_value("requested_action", "deny")
-        require_event_value(
-            "actual_action",
-            "stream_reset" if record.get("negotiated_protocol") in {"h2", "h2c", "h3"}
-            else "abort_connection",
-        )
-        require_event_value("late_intervention", True)
-        require_event_value("late_intervention_mode", "strict")
-        require_event_value("headers_sent", True)
-        if record.get("negotiated_protocol") in {"h2", "h2c", "h3"}:
-            require_event_value("stream_reset", True)
-            require_event_value("stream_reset_code")
-            require_event_value("connection_aborted", False)
-            require_event_value("transport_result", "stream_reset")
-        else:
-            require_event_value("connection_aborted", True)
-        if record.get("visible_http_status") != record.get("original_http_status"):
-            errors.append("strict post-commit abort must preserve the already visible HTTP status")
-        validate_abort_client_status()
-        return errors
 
-    if expected_result == "marker_split_across_chunks":
-        require_event_value("marker_split_across_chunks", True)
-        require_event_value("end_of_stream_evaluation", True)
-        return errors
+def validate_full_lifecycle_request_body_process_partial(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_full_lifecycle_limit(record, event, errors, "process_partial")
+    require_full_lifecycle_event_value(record, event, errors, "truncated", True)
 
-    if expected_result == "end_of_stream_evaluation":
-        require_event_value("end_of_stream_evaluation", True)
-        require_event_value("body_started", True)
-        return errors
 
-    if expected_result in {"content_type_in_scope", "content_type_in_scope_with_charset"}:
-        require_event_value("content_type_scope", "in_scope")
-        content_type = str(matching_event.get("content_type") or "")
-        if not content_type:
-            errors.append("in-scope response evidence is missing content_type")
-        if expected_result == "content_type_in_scope_with_charset" and "charset=" not in content_type.lower():
-            errors.append("charset content-type case requires a charset parameter")
-        return errors
+def validate_full_lifecycle_phase3_pre_commit(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    action: str,
+    visible_status: int,
+    late_intervention_error: str,
+) -> None:
+    require_full_lifecycle_event_value(record, event, errors, "requested_action", action)
+    require_full_lifecycle_event_value(record, event, errors, "actual_action", action)
+    require_full_lifecycle_event_value(record, event, errors, "headers_sent", False)
+    require_full_lifecycle_event_value(record, event, errors, "visible_http_status", visible_status)
+    if event.get("late_intervention") is True:
+        errors.append(late_intervention_error)
 
-    if expected_result == "content_type_out_of_scope":
-        require_event_value("content_type_scope", "out_of_scope")
-        if not str(matching_event.get("content_type") or ""):
-            errors.append("out-of-scope response evidence is missing content_type")
-        require_observable_client_status()
-        return errors
 
-    if expected_result == "content_type_missing":
-        require_event_value("content_type_scope", "missing")
-        if matching_event.get("content_type") not in (None, ""):
-            errors.append("missing-content-type evidence must not invent content_type")
-        require_observable_client_status()
-        return errors
+def validate_full_lifecycle_phase3_deny(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_full_lifecycle_phase3_pre_commit(
+        record, event, errors, "deny", 403,
+        "phase-3 pre-commit deny cannot be a late intervention",
+    )
 
-    if expected_result == "no_full_response_buffering":
-        require_event_value("no_full_response_buffering", True)
-        require_event_value("client_first_byte_received", True)
-        require_event_value("first_byte_before_response_end", True)
-        require_event_value("first_chunk_size")
-        if not isinstance(matching_event.get("first_chunk_size"), int) or matching_event["first_chunk_size"] < 1:
-            errors.append("no-full-buffer evidence requires first_chunk_size > 0")
-        require_event_value("upstream_paused", True)
-        require_event_value("upstream_eos_sent_at_first_byte", False)
-        require_event_value("upstream_response_finished_at_first_byte", False)
-        require_event_value("response_committed", True)
-        for field in ("body_bytes_seen", "body_bytes_inspected"):
-            if not isinstance(matching_event.get(field), int):
-                errors.append(f"no-full-buffer evidence requires {field}")
-        if (
-            isinstance(matching_event.get("body_bytes_seen"), int)
-            and isinstance(matching_event.get("body_bytes_inspected"), int)
-            and matching_event["body_bytes_inspected"] > matching_event["body_bytes_seen"]
-        ):
-            errors.append("no-full-buffer evidence has inspected bytes above seen bytes")
-        return errors
 
-    if expected_result == "first_byte_before_response_end":
-        require_event_value("client_first_byte_received", True)
-        require_event_value("first_byte_before_response_end", True)
-        require_event_value("first_chunk_size")
-        if not isinstance(matching_event.get("first_chunk_size"), int) or matching_event["first_chunk_size"] < 1:
-            errors.append("first-byte evidence requires first_chunk_size > 0")
-        require_event_value("upstream_paused", True)
-        require_event_value("upstream_eos_sent_at_first_byte", False)
-        require_event_value("upstream_response_finished_at_first_byte", False)
-        require_event_value("response_committed", True)
-        for field in ("body_bytes_seen", "body_bytes_inspected"):
-            if not isinstance(matching_event.get(field), int):
-                errors.append(f"first-byte evidence requires {field}")
-        if (
-            isinstance(matching_event.get("body_bytes_seen"), int)
-            and isinstance(matching_event.get("body_bytes_inspected"), int)
-            and matching_event["body_bytes_inspected"] > matching_event["body_bytes_seen"]
-        ):
-            errors.append("first-byte evidence has inspected bytes above seen bytes")
-        return errors
+def validate_full_lifecycle_phase3_redirect(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_full_lifecycle_phase3_pre_commit(
+        record, event, errors, "redirect", 302,
+        "phase-3 pre-commit redirect cannot be a late intervention",
+    )
 
-    limit_outcomes = {
-        "response_body_at_limit": "at_limit",
-        "response_body_over_limit": "over_limit",
-        "response_body_process_partial": "process_partial",
-        "response_body_reject": "reject",
-    }
-    if expected_result in limit_outcomes:
-        require_event_value("body_limit_outcome", limit_outcomes[expected_result])
-        for field in ("body_bytes_seen", "body_bytes_inspected", "truncated"):
-            if field not in matching_event:
-                errors.append(f"canonical event is missing {field}")
-        if expected_result == "response_body_process_partial" and matching_event.get("truncated") is not True:
-            errors.append("ProcessPartial evidence must set truncated=true")
-        if expected_result == "response_body_reject" and matching_event.get("truncated") is not False:
-            errors.append("Reject evidence must set truncated=false")
-        return errors
 
-    if expected_result == "event_contains_original_status":
-        require_status_triplet()
-        if matching_event.get("late_intervention") is True and (
-            record.get("visible_http_status") != record.get("original_http_status")
-        ):
-            errors.append("late-intervention status metadata must preserve the visible status")
-        if matching_event.get("headers_sent") is False and (
-            record.get("visible_http_status") != record.get("http_status")
-        ):
-            errors.append("uncommitted response metadata must expose the WAF status")
-        return errors
+def validate_full_lifecycle_response_status_metadata(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    for field in ("http_status", "original_http_status", "visible_http_status", "headers_sent"):
+        require_full_lifecycle_event_value(record, event, errors, field)
+    if (
+        event.get("headers_sent") is False
+        and event.get("visible_http_status") != event.get("http_status")
+    ):
+        errors.append("uncommitted response metadata must expose the WAF status")
 
-    if expected_result == "event_contains_late_intervention_action":
-        require_event_value("requested_action", "deny")
-        require_event_value("actual_action")
-        require_event_value("late_intervention")
-        actual_action = record.get("actual_action")
-        late_intervention = record.get("late_intervention")
-        if actual_action not in {"deny", "log_only", "abort_connection", "stream_reset"}:
-            errors.append("phase-4 deny must resolve to deny, log_only, abort_connection, or stream_reset")
-        if actual_action == "deny" and late_intervention is not False:
-            errors.append("deny action must not be marked as a late intervention")
-        if actual_action in {"log_only", "abort_connection", "stream_reset"} and late_intervention is not True:
-            errors.append("post-commit action must be marked as a late intervention")
-        if actual_action == "abort_connection" and matching_event.get("connection_aborted") is False:
-            errors.append("abort action conflicts with connection_aborted=false")
-        if actual_action == "stream_reset" and matching_event.get("stream_reset") is False:
-            errors.append("stream-reset action conflicts with stream_reset=false")
-        if actual_action in {"deny", "log_only"} and matching_event.get("connection_aborted") is True:
-            errors.append("non-abort action conflicts with connection_aborted=true")
-    return errors
+
+def validate_full_lifecycle_http11_transport(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    errors: list[str],
+    transfer_encoding: str,
+) -> None:
+    require_full_lifecycle_event_value(record, event, errors, "transport_protocol", "http1")
+    require_full_lifecycle_event_value(record, event, errors, "transfer_encoding", transfer_encoding)
+    require_full_lifecycle_event_value(record, event, errors, "transport_result", "http_status")
+
+
+def validate_full_lifecycle_http11_content_length(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_full_lifecycle_http11_transport(record, event, errors, "content_length")
+
+
+def validate_full_lifecycle_http11_chunked(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    validate_full_lifecycle_http11_transport(record, event, errors, "chunked")
+
+
+def validate_full_lifecycle_connection_reuse(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_full_lifecycle_event_value(record, event, errors, "connection_reused", True)
+    require_full_lifecycle_event_value(record, event, errors, "transport_protocol")
+
+
+def validate_full_lifecycle_parallel_transport(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_full_lifecycle_event_value(record, event, errors, "transport_protocol")
+    if len(record.get("transaction_ids", [])) < 2:
+        errors.append("parallel transport evidence requires at least two transaction IDs")
+
+
+def validate_full_lifecycle_http2_transport(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_full_lifecycle_event_value(record, event, errors, "transport_protocol", "http2")
+    require_full_lifecycle_event_value(record, event, errors, "transport_result", "http_status")
+
+
+def validate_full_lifecycle_client_abort(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_full_lifecycle_event_value(record, event, errors, "client_aborted", True)
+    require_full_lifecycle_event_value(record, event, errors, "transport_result")
+
+
+def validate_full_lifecycle_upstream_abort(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    require_full_lifecycle_event_value(record, event, errors, "upstream_aborted", True)
+    require_full_lifecycle_event_value(record, event, errors, "transport_result")
+
+
+def validate_full_lifecycle_bounded_or_truncated(
+    record: Mapping[str, Any], event: Mapping[str, Any], errors: list[str],
+) -> None:
+    for field in ("truncated", "body_bytes_seen", "body_bytes_inspected"):
+        require_full_lifecycle_event_value(record, event, errors, field)
+
+
+FULL_LIFECYCLE_PASS_VALIDATORS: dict[str, Callable[[Mapping[str, Any], Mapping[str, Any], list[str]], None]] = {
+    "request_marker_split_across_chunks": validate_full_lifecycle_request_marker_split,
+    "request_body_at_limit": validate_full_lifecycle_request_body_at_limit,
+    "request_body_over_limit": validate_full_lifecycle_request_body_over_limit,
+    "request_body_process_partial": validate_full_lifecycle_request_body_process_partial,
+    "phase3_deny_before_commit": validate_full_lifecycle_phase3_deny,
+    "phase3_redirect_before_commit": validate_full_lifecycle_phase3_redirect,
+    "response_status_metadata": validate_full_lifecycle_response_status_metadata,
+    "transport_http11_content_length": validate_full_lifecycle_http11_content_length,
+    "transport_http11_chunked": validate_full_lifecycle_http11_chunked,
+    "transport_keep_alive": validate_full_lifecycle_connection_reuse,
+    "transport_sequential_requests": validate_full_lifecycle_connection_reuse,
+    "transport_parallel_requests": validate_full_lifecycle_parallel_transport,
+    "transport_http2": validate_full_lifecycle_http2_transport,
+    "transport_client_abort": validate_full_lifecycle_client_abort,
+    "transport_upstream_abort": validate_full_lifecycle_upstream_abort,
+    "event_bounded_or_truncated": validate_full_lifecycle_bounded_or_truncated,
+}
 
 
 def full_lifecycle_pass_errors(
@@ -3041,26 +3619,8 @@ def full_lifecycle_pass_errors(
     PASS.  A host result with only an HTTP status cannot establish chunk
     boundaries, limit policy, transport mode, or a commit boundary.
     """
-    expected_result = str(record.get("expected_result") or "")
-    outcomes = {
-        "request_marker_split_across_chunks",
-        "request_body_at_limit",
-        "request_body_over_limit",
-        "request_body_process_partial",
-        "phase3_deny_before_commit",
-        "phase3_redirect_before_commit",
-        "response_status_metadata",
-        "transport_http11_content_length",
-        "transport_http11_chunked",
-        "transport_keep_alive",
-        "transport_sequential_requests",
-        "transport_parallel_requests",
-        "transport_http2",
-        "transport_client_abort",
-        "transport_upstream_abort",
-        "event_bounded_or_truncated",
-    }
-    if expected_result not in outcomes:
+    validator = FULL_LIFECYCLE_PASS_VALIDATORS.get(str(record.get("expected_result") or ""))
+    if validator is None:
         return []
     errors: list[str] = []
     if matching_event is None:
@@ -3068,101 +3628,7 @@ def full_lifecycle_pass_errors(
     errors.extend(canonical_event_errors(
         matching_event, connector=str(record.get("connector") or "") or None,
     ))
-
-    def require(field: str, expected: object = _MISSING) -> None:
-        if field not in matching_event:
-            errors.append(f"canonical event is missing {field}")
-            return
-        value = matching_event[field]
-        if field in PHASE4_SEMANTIC_FIELDS:
-            try:
-                value = normalize_semantic_value(field, value)
-            except ContractError:
-                errors.append(f"canonical event has invalid {field}")
-                return
-            if record.get(field) != value:
-                errors.append(f"case result {field} does not match canonical event")
-        if expected is not _MISSING and value != expected:
-            errors.append(f"canonical event {field}={value!r}, expected {expected!r}")
-
-    def require_limit(expected: str) -> None:
-        require("body_limit_outcome", expected)
-        for field in ("body_bytes_seen", "body_bytes_inspected", "truncated"):
-            require(field)
-
-    if expected_result == "request_marker_split_across_chunks":
-        require("marker_split_across_chunks", True)
-        for field in ("body_bytes_seen", "body_bytes_inspected"):
-            require(field)
-        return errors
-    if expected_result == "request_body_at_limit":
-        require_limit("at_limit")
-        return errors
-    if expected_result == "request_body_over_limit":
-        require_limit("over_limit")
-        return errors
-    if expected_result == "request_body_process_partial":
-        require_limit("process_partial")
-        require("truncated", True)
-        return errors
-    if expected_result == "phase3_deny_before_commit":
-        require("requested_action", "deny")
-        require("actual_action", "deny")
-        require("headers_sent", False)
-        require("visible_http_status", 403)
-        if matching_event.get("late_intervention") is True:
-            errors.append("phase-3 pre-commit deny cannot be a late intervention")
-        return errors
-    if expected_result == "phase3_redirect_before_commit":
-        require("requested_action", "redirect")
-        require("actual_action", "redirect")
-        require("headers_sent", False)
-        require("visible_http_status", 302)
-        if matching_event.get("late_intervention") is True:
-            errors.append("phase-3 pre-commit redirect cannot be a late intervention")
-        return errors
-    if expected_result == "response_status_metadata":
-        for field in ("http_status", "original_http_status", "visible_http_status", "headers_sent"):
-            require(field)
-        if matching_event.get("headers_sent") is False and (
-            matching_event.get("visible_http_status") != matching_event.get("http_status")
-        ):
-            errors.append("uncommitted response metadata must expose the WAF status")
-        return errors
-    if expected_result == "transport_http11_content_length":
-        require("transport_protocol", "http1")
-        require("transfer_encoding", "content_length")
-        require("transport_result", "http_status")
-        return errors
-    if expected_result == "transport_http11_chunked":
-        require("transport_protocol", "http1")
-        require("transfer_encoding", "chunked")
-        require("transport_result", "http_status")
-        return errors
-    if expected_result in {"transport_keep_alive", "transport_sequential_requests"}:
-        require("connection_reused", True)
-        require("transport_protocol")
-        return errors
-    if expected_result == "transport_parallel_requests":
-        require("transport_protocol")
-        if len(record.get("transaction_ids", [])) < 2:
-            errors.append("parallel transport evidence requires at least two transaction IDs")
-        return errors
-    if expected_result == "transport_http2":
-        require("transport_protocol", "http2")
-        require("transport_result", "http_status")
-        return errors
-    if expected_result == "transport_client_abort":
-        require("client_aborted", True)
-        require("transport_result")
-        return errors
-    if expected_result == "transport_upstream_abort":
-        require("upstream_aborted", True)
-        require("transport_result")
-        return errors
-    if expected_result == "event_bounded_or_truncated":
-        for field in ("truncated", "body_bytes_seen", "body_bytes_inspected"):
-            require(field)
+    validator(record, matching_event, errors)
     return errors
 
 
@@ -3177,6 +3643,238 @@ def optional_case_provenance(value: object, *, maximum: int, field: str) -> str 
     return normalized
 
 
+def case_identifier(raw: Mapping[str, Any]) -> str:
+    return str(raw.get("case_id") or raw.get("case") or raw.get("name") or "").strip()
+
+
+def normalized_case_provenance(
+    raw: Mapping[str, Any],
+) -> tuple[str | None, str | None, list[str]]:
+    values: dict[str, str | None] = {}
+    errors: list[str] = []
+    for field, maximum in (("run_id", 256), ("integration_mode", 64)):
+        try:
+            values[field] = optional_case_provenance(raw.get(field), maximum=maximum, field=field)
+        except ContractError:
+            values[field] = None
+            errors.append(f"{field}: invalid raw runtime value")
+    return values["run_id"], values["integration_mode"], errors
+
+
+def normalized_observed_rule_ids(raw: Mapping[str, Any]) -> list[int]:
+    candidates: list[object] = []
+    if isinstance(raw.get("observed_rule_ids"), list):
+        candidates.extend(raw["observed_rule_ids"])
+    for key in ("observed_rule_id", "rule_id", "modsecurity_rule_id"):
+        if raw.get(key) not in (None, ""):
+            candidates.append(raw[key])
+    rule_ids: list[int] = []
+    for candidate in candidates:
+        try:
+            rule_id = int(candidate)
+        except (TypeError, ValueError):
+            continue
+        if rule_id not in rule_ids:
+            rule_ids.append(rule_id)
+    return rule_ids
+
+
+def normalized_actual_status_value(
+    raw: Mapping[str, Any],
+    case: Mapping[str, Any],
+    semantic_values: Mapping[str, object],
+) -> object:
+    for field in ("actual_status", "observed_status", "visible_http_status", "client_status"):
+        if field in raw:
+            return raw[field]
+    if is_phase4_semantic_case(case):
+        return _MISSING
+    visible_status = semantic_values["visible_http_status"]
+    if visible_status is not None:
+        return visible_status
+    if "intervention_status" in raw:
+        return raw["intervention_status"]
+    return _MISSING
+
+
+def bind_case_event_evidence(
+    matching_event: Mapping[str, Any] | None,
+    observed_rule_ids: Sequence[int],
+    transaction_ids: Sequence[str],
+) -> tuple[list[str], list[int], list[str]]:
+    observed_event_fields = sorted(event_field_names(matching_event)) if matching_event else []
+    bound_rule_ids = list(observed_rule_ids)
+    bound_transaction_ids = list(transaction_ids)
+    if matching_event:
+        for rule_id in event_rule_ids(matching_event):
+            if rule_id not in bound_rule_ids:
+                bound_rule_ids.append(rule_id)
+        bound_transaction_ids.extend(event_transaction_ids(matching_event))
+    return (
+        observed_event_fields,
+        sorted(bound_rule_ids),
+        sorted(dict.fromkeys(bound_transaction_ids)),
+    )
+
+
+def case_event_metadata_verified(
+    raw: Mapping[str, Any],
+    matching_event: Mapping[str, Any] | None,
+    event_errors: Sequence[str],
+    expected_fields: Sequence[str],
+    observed_event_fields: Sequence[str],
+) -> bool:
+    if expected_fields:
+        return bool(
+            matching_event
+            and not event_errors
+            and all(field in observed_event_fields for field in expected_fields)
+        )
+    return bool(matching_event and not event_errors and raw.get("event_metadata_verified"))
+
+
+def normalized_case_operation_status(status: str) -> str:
+    return operation_status({
+        "PASS": "pass", "FAIL": "fail", "BLOCKED": "blocked",
+        "UNSUPPORTED": "not_executable", "NOT_APPLICABLE": "skipped",
+        "NOT_EXECUTED": "skipped",
+    }[status])
+
+
+class NormalizedCaseRecordDetails(TypedDict):
+    run_id: str | None
+    integration_mode: str | None
+    observed_result: object
+    expected_status: int | None
+    actual_status: int | None
+    expected_rule_id: int | None
+    observed_rule_ids: Sequence[int]
+    transaction_ids: Sequence[str]
+    expected_fields: Sequence[str]
+    observed_event_fields: Sequence[str]
+    event_metadata_verified: bool
+    semantic_values: Mapping[str, object]
+
+
+def build_normalized_case_record(
+    raw: Mapping[str, Any],
+    case: Mapping[str, Any],
+    connector: str,
+    case_id: str,
+    status: str,
+    details: NormalizedCaseRecordDetails,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "connector": connector,
+        "run_id": details["run_id"],
+        "integration_mode": details["integration_mode"],
+        "case_id": case_id,
+        "group": case.get("group", ""),
+        "phase": case.get("phase"),
+        "required_capabilities": list(case.get("required_capabilities", [])),
+        "status": status,
+        "operation_status": normalized_case_operation_status(status),
+        "live_executed": raw.get("live_executed") is True,
+        "expected_result": case.get("expected_result"),
+        "observed_result": details["observed_result"],
+        "expected_status": details["expected_status"],
+        "actual_status": details["actual_status"],
+        "expected_rule_id": details["expected_rule_id"],
+        "observed_rule_ids": list(details["observed_rule_ids"]),
+        "transaction_ids": list(details["transaction_ids"]),
+        "expected_event_fields": list(details["expected_fields"]),
+        "observed_event_fields": list(details["observed_event_fields"]),
+        "event_metadata_verified": details["event_metadata_verified"],
+        **details["semantic_values"],
+        "reason": str(raw.get("reason") or raw.get("skipped_reason") or ""),
+        "exit_code": optional_int(raw.get("exit_code")),
+        "artifacts": raw.get("artifacts") if isinstance(raw.get("artifacts"), Mapping) else {},
+    }
+
+
+def non_phase4_case_pass_errors(
+    record: Mapping[str, Any],
+    matching_event: Mapping[str, Any] | None,
+    expected_status: int | None,
+    actual_status: int | None,
+    expected_rule_id: int | None,
+    observed_rule_ids: Sequence[int],
+    expected_fields: Sequence[str],
+    observed_event_fields: Sequence[str],
+    event_errors: Sequence[str],
+    required_protocol: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if expected_status is not None and actual_status != expected_status:
+        errors.append("actual status does not match expected status")
+    if expected_rule_id is not None and expected_rule_id not in observed_rule_ids:
+        errors.append("expected rule was not observed")
+    if expected_fields and not set(expected_fields).issubset(observed_event_fields):
+        errors.append("canonical event is missing expected fields")
+    if matching_event and event_errors:
+        errors.extend(event_errors)
+    errors.extend(protocol_pass_errors(
+        record, matching_event, required_protocol=required_protocol,
+    ))
+    return errors
+
+
+def case_required_protocol_errors(case: Mapping[str, Any]) -> tuple[str | None, list[str]]:
+    try:
+        return case_protocol_profile(case), []
+    except ContractError as exc:
+        return None, [str(exc)]
+
+
+def normalized_case_pass_errors(
+    record: Mapping[str, Any],
+    case: Mapping[str, Any],
+    matching_event: Mapping[str, Any] | None,
+    provenance_errors: Sequence[str],
+    runtime_evidence_errors: Sequence[str],
+    expected_status: int | None,
+    actual_status: int | None,
+    expected_rule_id: int | None,
+    observed_rule_ids: Sequence[int],
+    expected_fields: Sequence[str],
+    observed_event_fields: Sequence[str],
+    event_errors: Sequence[str],
+) -> list[str]:
+    required_protocol, protocol_errors = case_required_protocol_errors(case)
+    errors = [*provenance_errors, *protocol_errors]
+    if is_phase4_semantic_case(case):
+        errors.extend(phase4_pass_errors(
+            record, matching_event, runtime_evidence_errors, required_protocol,
+        ))
+    else:
+        errors.extend(non_phase4_case_pass_errors(
+            record,
+            matching_event,
+            expected_status,
+            actual_status,
+            expected_rule_id,
+            observed_rule_ids,
+            expected_fields,
+            observed_event_fields,
+            event_errors,
+            required_protocol,
+        ))
+    errors.extend(full_lifecycle_pass_errors(record, matching_event))
+    return errors
+
+
+def mark_case_record_invalid(record: dict[str, Any], validation_errors: Sequence[str]) -> None:
+    if not validation_errors:
+        return
+    record["status"] = "FAIL"
+    record["operation_status"] = operation_status("fail")
+    detail = "; ".join(dict.fromkeys(validation_errors))
+    record["reason"] = "; ".join(
+        part for part in (str(record["reason"]), f"runtime evidence invalid: {detail}") if part
+    )
+
+
 def normalize_case_record(
     raw: Mapping[str, Any],
     connector: str,
@@ -3184,70 +3882,27 @@ def normalize_case_record(
     events: Sequence[Mapping[str, Any]],
     integration_mode: str | None = None,
 ) -> dict[str, Any] | None:
-    case_id = str(raw.get("case_id") or raw.get("case") or raw.get("name") or "").strip()
+    case_id = case_identifier(raw)
     if not case_id or case_id not in case_by_id:
         return None
     case = case_by_id[case_id]
     status = normalize_status(raw.get("status"))
-    live_executed = raw.get("live_executed") is True
-    provenance_errors: list[str] = []
-    try:
-        raw_run_id = optional_case_provenance(raw.get("run_id"), maximum=256, field="run_id")
-    except ContractError:
-        raw_run_id = None
-        provenance_errors.append("run_id: invalid raw runtime value")
-    try:
-        raw_integration_mode = optional_case_provenance(
-            raw.get("integration_mode"), maximum=64, field="integration_mode",
-        )
-    except ContractError:
-        raw_integration_mode = None
-        provenance_errors.append("integration_mode: invalid raw runtime value")
     observed_result = raw.get("observed_result") or raw.get("outcome")
     if str(observed_result or "") == "rejected_by_host_before_connector":
         status = "NOT_APPLICABLE"
-    observed_rule_ids: list[int] = []
-    candidates: list[object] = []
-    if isinstance(raw.get("observed_rule_ids"), list):
-        candidates.extend(raw["observed_rule_ids"])
-    for key in ("observed_rule_id", "rule_id", "modsecurity_rule_id"):
-        if raw.get(key) not in (None, ""):
-            candidates.append(raw[key])
-    for candidate in candidates:
-        try:
-            rule_id = int(candidate)
-        except (TypeError, ValueError):
-            continue
-        if rule_id not in observed_rule_ids:
-            observed_rule_ids.append(rule_id)
+    raw_run_id, raw_integration_mode, provenance_errors = normalized_case_provenance(raw)
+    observed_rule_ids = normalized_observed_rule_ids(raw)
     expected_rule_id = optional_int(case.get("expected_rule_id"))
     transaction_ids = supplied_transaction_ids(raw)
     matching_event = event_for_case(
         events, expected_rule_id, case, transaction_ids, integration_mode,
     )
     semantic_values, runtime_evidence_errors = semantic_runtime_fields(raw, matching_event)
-    actual_status_value: object = _MISSING
-    for field in ("actual_status", "observed_status", "visible_http_status", "client_status"):
-        if field in raw:
-            actual_status_value = raw[field]
-            break
-    if not is_phase4_semantic_case(case):
-        if actual_status_value is _MISSING and semantic_values["visible_http_status"] is not None:
-            actual_status_value = semantic_values["visible_http_status"]
-        # Keep the historical intervention_status fallback only for legacy
-        # non-Phase-4 records.  It is a requested WAF status, not proof of the
-        # client-visible status in a late intervention.
-        if actual_status_value is _MISSING and "intervention_status" in raw:
-            actual_status_value = raw["intervention_status"]
+    actual_status_value = normalized_actual_status_value(raw, case, semantic_values)
     actual_status = optional_int(actual_status_value) if actual_status_value is not _MISSING else None
-    observed_event_fields = sorted(event_field_names(matching_event)) if matching_event else []
-    if matching_event:
-        for rule_id in event_rule_ids(matching_event):
-            if rule_id not in observed_rule_ids:
-                observed_rule_ids.append(rule_id)
-    if matching_event:
-        transaction_ids.extend(event_transaction_ids(matching_event))
-    transaction_ids = sorted(dict.fromkeys(transaction_ids))
+    observed_event_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
+        matching_event, observed_rule_ids, transaction_ids,
+    )
     expected_fields = [str(item) for item in case.get("expected_event_fields", [])]
     expected_status = optional_int(case.get("expected_status"))
     event_errors = (
@@ -3257,73 +3912,47 @@ def normalize_case_record(
             integration_mode=integration_mode,
         ) if matching_event else []
     )
-    event_metadata_verified = bool(
-        matching_event
-        and not event_errors
-        and all(field in observed_event_fields for field in expected_fields)
-    ) if expected_fields else bool(matching_event and not event_errors and raw.get("event_metadata_verified"))
-    record = {
-        "schema_version": 1,
-        "connector": connector,
+    event_metadata_verified = case_event_metadata_verified(
+        raw, matching_event, event_errors, expected_fields, observed_event_fields,
+    )
+    details: NormalizedCaseRecordDetails = {
         "run_id": raw_run_id,
         "integration_mode": raw_integration_mode,
-        "case_id": case_id,
-        "group": case.get("group", ""),
-        "phase": case.get("phase"),
-        "required_capabilities": list(case.get("required_capabilities", [])),
-        "status": status,
-        "operation_status": operation_status({
-            "PASS": "pass", "FAIL": "fail", "BLOCKED": "blocked",
-            "UNSUPPORTED": "not_executable", "NOT_APPLICABLE": "skipped",
-            "NOT_EXECUTED": "skipped",
-        }[status]),
-        "live_executed": live_executed,
-        "expected_result": case.get("expected_result"),
         "observed_result": observed_result,
         "expected_status": expected_status,
         "actual_status": actual_status,
         "expected_rule_id": expected_rule_id,
-        "observed_rule_ids": sorted(observed_rule_ids),
+        "observed_rule_ids": observed_rule_ids,
         "transaction_ids": transaction_ids,
-        "expected_event_fields": expected_fields,
+        "expected_fields": expected_fields,
         "observed_event_fields": observed_event_fields,
         "event_metadata_verified": event_metadata_verified,
-        **semantic_values,
-        "reason": str(raw.get("reason") or raw.get("skipped_reason") or ""),
-        "exit_code": optional_int(raw.get("exit_code")),
-        "artifacts": raw.get("artifacts") if isinstance(raw.get("artifacts"), Mapping) else {},
+        "semantic_values": semantic_values,
     }
+    record = build_normalized_case_record(
+        raw,
+        case,
+        connector,
+        case_id,
+        status,
+        details,
+    )
     if status == "PASS":
-        validation_errors: list[str] = list(provenance_errors)
-        try:
-            required_protocol = case_protocol_profile(case)
-        except ContractError as exc:
-            required_protocol = None
-            validation_errors.append(str(exc))
-        if is_phase4_semantic_case(case):
-            validation_errors.extend(phase4_pass_errors(
-                record, matching_event, runtime_evidence_errors, required_protocol,
-            ))
-        else:
-            if expected_status is not None and actual_status != expected_status:
-                validation_errors.append("actual status does not match expected status")
-            if expected_rule_id is not None and expected_rule_id not in observed_rule_ids:
-                validation_errors.append("expected rule was not observed")
-            if expected_fields and not set(expected_fields).issubset(observed_event_fields):
-                validation_errors.append("canonical event is missing expected fields")
-            if matching_event and event_errors:
-                validation_errors.extend(event_errors)
-            validation_errors.extend(protocol_pass_errors(
-                record, matching_event, required_protocol=required_protocol,
-            ))
-        validation_errors.extend(full_lifecycle_pass_errors(record, matching_event))
-        if validation_errors:
-            record["status"] = "FAIL"
-            record["operation_status"] = operation_status("fail")
-            detail = "; ".join(dict.fromkeys(validation_errors))
-            record["reason"] = "; ".join(
-                part for part in (str(record["reason"]), f"runtime evidence invalid: {detail}") if part
-            )
+        validation_errors = normalized_case_pass_errors(
+            record,
+            case,
+            matching_event,
+            provenance_errors,
+            runtime_evidence_errors,
+            expected_status,
+            actual_status,
+            expected_rule_id,
+            observed_rule_ids,
+            expected_fields,
+            observed_event_fields,
+            event_errors,
+        )
+        mark_case_record_invalid(record, validation_errors)
     return record
 
 
@@ -3334,68 +3963,132 @@ def derive_core_records(
     events: Sequence[Mapping[str, Any]],
     integration_mode: str | None = None,
 ) -> list[dict[str, Any]]:
+    if source.get("requests_sent") is not True and source.get("runtime_verified") is not True:
+        return []
     records: list[dict[str, Any]] = []
-    explicitly_executed = source.get("requests_sent") is True or source.get("runtime_verified") is True
-    if not explicitly_executed:
-        return records
-    allowed_status = optional_int(source.get("allowed_request_status"))
-    if allowed_status is not None:
-        record = normalize_case_record(
-            {
-                "case_id": "allow_without_marker",
-                "status": "PASS" if allowed_status == 200 else "FAIL",
-                "actual_status": allowed_status,
-                "live_executed": True,
-                "reason": "normalized from explicit source allowed_request_status",
-            }, connector, case_by_id, events, integration_mode,
-        )
-        if record:
-            records.append(record)
-    blocked_status = optional_int(source.get("blocked_request_status"))
-    source_rule_ids: list[int] = []
-    for key in ("observed_rule_ids", "modsecurity_rule_id", "rule_id"):
-        value = source.get(key)
-        values = value if isinstance(value, list) else [value]
-        for candidate in values:
-            try:
-                source_rule_ids.append(int(candidate))
-            except (TypeError, ValueError):
-                continue
-    if blocked_status is not None:
-        denied = blocked_status == 403 and 1100001 in source_rule_ids
-        record = normalize_case_record(
-            {
-                "case_id": "deny_header_marker_403",
-                "status": "PASS" if denied else "FAIL",
-                "actual_status": blocked_status,
-                "observed_rule_ids": source_rule_ids,
-                "live_executed": True,
-                "reason": "normalized from explicit source blocked_request_status and rule ID",
-            }, connector, case_by_id, events, integration_mode,
-        )
-        if record:
-            records.append(record)
+    append_derived_allow_record(records, source, connector, case_by_id, events, integration_mode)
+    append_derived_blocked_record(records, source, connector, case_by_id, events, integration_mode)
     return records
 
 
+def append_normalized_record(
+    records: list[dict[str, Any]],
+    raw: Mapping[str, Any],
+    connector: str,
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None,
+) -> None:
+    record = normalize_case_record(raw, connector, case_by_id, events, integration_mode)
+    if record:
+        records.append(record)
+
+
+def append_derived_allow_record(
+    records: list[dict[str, Any]],
+    source: Mapping[str, Any],
+    connector: str,
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None,
+) -> None:
+    allowed_status = optional_int(source.get("allowed_request_status"))
+    if allowed_status is None:
+        return
+    append_normalized_record(
+        records,
+        {
+            "case_id": "allow_without_marker",
+            "status": "PASS" if allowed_status == 200 else "FAIL",
+            "actual_status": allowed_status,
+            "live_executed": True,
+            "reason": "normalized from explicit source allowed_request_status",
+        },
+        connector,
+        case_by_id,
+        events,
+        integration_mode,
+    )
+
+
+def source_observed_rule_ids(source: Mapping[str, Any]) -> list[int]:
+    rule_ids: list[int] = []
+    for key in ("observed_rule_ids", "modsecurity_rule_id", "rule_id"):
+        value = source.get(key)
+        candidates = value if isinstance(value, list) else [value]
+        for candidate in candidates:
+            try:
+                rule_ids.append(int(candidate))
+            except (TypeError, ValueError):
+                continue
+    return rule_ids
+
+
+def append_derived_blocked_record(
+    records: list[dict[str, Any]],
+    source: Mapping[str, Any],
+    connector: str,
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None,
+) -> None:
+    blocked_status = optional_int(source.get("blocked_request_status"))
+    if blocked_status is None:
+        return
+    source_rule_ids = source_observed_rule_ids(source)
+    denied = blocked_status == 403 and 1100001 in source_rule_ids
+    append_normalized_record(
+        records,
+        {
+            "case_id": "deny_header_marker_403",
+            "status": "PASS" if denied else "FAIL",
+            "actual_status": blocked_status,
+            "observed_rule_ids": source_rule_ids,
+            "live_executed": True,
+            "reason": "normalized from explicit source blocked_request_status and rule ID",
+        },
+        connector,
+        case_by_id,
+        events,
+        integration_mode,
+    )
+
+
 def forbidden_payload_errors(value: object, location: str = "event") -> list[str]:
-    errors: list[str] = []
     if isinstance(value, Mapping):
-        for key, nested in value.items():
-            normalized = str(key).strip().lower().replace("-", "_")
-            child = f"{location}.{key}"
-            if normalized in FORBIDDEN_EVENT_KEYS and normalized not in BODY_METADATA_KEYS:
-                errors.append(f"{child}: forbidden payload/secret field")
-            errors.extend(forbidden_payload_errors(nested, child))
-    elif isinstance(value, list):
-        for index, item in enumerate(value):
-            errors.extend(forbidden_payload_errors(item, f"{location}[{index}]"))
-    elif isinstance(value, str):
-        lowered = value.lower()
-        for sentinel in BODY_SENTINELS:
-            if sentinel in lowered:
-                errors.append(f"{location}: body payload sentinel is present")
+        return forbidden_mapping_payload_errors(value, location)
+    if isinstance(value, list):
+        return forbidden_list_payload_errors(value, location)
+    if isinstance(value, str):
+        return forbidden_string_payload_errors(value, location)
+    return []
+
+
+def forbidden_mapping_payload_errors(value: Mapping[object, object], location: str) -> list[str]:
+    errors: list[str] = []
+    for key, nested in value.items():
+        normalized = str(key).strip().lower().replace("-", "_")
+        child = f"{location}.{key}"
+        if normalized in FORBIDDEN_EVENT_KEYS and normalized not in BODY_METADATA_KEYS:
+            errors.append(f"{child}: forbidden payload/secret field")
+        errors.extend(forbidden_payload_errors(nested, child))
     return errors
+
+
+def forbidden_list_payload_errors(value: Sequence[object], location: str) -> list[str]:
+    errors: list[str] = []
+    for index, item in enumerate(value):
+        errors.extend(forbidden_payload_errors(item, f"{location}[{index}]"))
+    return errors
+
+
+def forbidden_string_payload_errors(value: str, location: str) -> list[str]:
+    lowered = value.lower()
+    return [
+        f"{location}: body payload sentinel is present"
+        for sentinel in BODY_SENTINELS
+        if sentinel in lowered
+    ]
 
 
 def append_derived_event_records(
@@ -3406,47 +4099,128 @@ def append_derived_event_records(
     integration_mode: str | None = None,
 ) -> None:
     by_id = {record["case_id"]: record for record in records}
-    selections = {item["case_id"]: item for item in plan.get("cases", []) if isinstance(item, Mapping)}
+    selections = selected_plan_cases(plan)
     base = by_id.get("deny_header_marker_403")
     event = event_for_rule(events, 1100001)
     if not base or base.get("status") != "PASS" or not event:
         return
+    append_event_field_derivations(
+        records, by_id, selections, plan, case_by_id, events, event, integration_mode,
+    )
+    append_body_payload_derivation(
+        records, by_id, selections, plan, case_by_id, events, event, integration_mode,
+    )
+
+
+def selected_plan_cases(plan: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
+    return {
+        str(item.get("case_id") or ""): item
+        for item in plan.get("cases", [])
+        if isinstance(item, Mapping)
+    }
+
+
+def selected_plan_case(
+    selections: Mapping[str, Mapping[str, Any]], case_id: str,
+) -> bool:
+    return selections.get(case_id, {}).get("selection_status") == "SELECTED"
+
+
+def append_event_field_derivations(
+    records: list[dict[str, Any]],
+    by_id: dict[str, dict[str, Any]],
+    selections: Mapping[str, Mapping[str, Any]],
+    plan: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    event: Mapping[str, Any],
+    integration_mode: str | None,
+) -> None:
     fields = event_field_names(event)
-    payload_clean = not canonical_event_errors(event, integration_mode=integration_mode)
     for case_id in (
         "event_contains_connector", "event_contains_transaction_id", "event_contains_rule_id",
         "event_contains_phase", "event_contains_status",
     ):
-        if case_id in by_id or selections.get(case_id, {}).get("selection_status") != "SELECTED":
+        if case_id in by_id or not selected_plan_case(selections, case_id):
             continue
         case = case_by_id[case_id]
         expected = [str(item) for item in case["expected_event_fields"]]
-        passed = all(item in fields for item in expected)
-        record = normalize_case_record(
-            {
-                "case_id": case_id,
-                "status": "PASS" if passed else "FAIL",
-                "actual_status": 403,
-                "observed_rule_ids": [1100001],
-                "live_executed": True,
-                "reason": "derived from the observed rule-1100001 event",
-            }, str(plan["connector"]), case_by_id, events, integration_mode,
+        append_derived_event_field_record(
+            records,
+            by_id,
+            case_id,
+            all(item in fields for item in expected),
+            str(plan["connector"]),
+            case_by_id,
+            events,
+            integration_mode,
         )
-        if record:
-            records.append(record)
-            by_id[case_id] = record
-    if payload_clean and selections.get("event_has_no_request_body_payload", {}).get("selection_status") == "SELECTED":
-        body_base = by_id.get("deny_request_body_marker_403")
-        body_event = event_for_rule(events, 1100101)
-        if body_base and body_base.get("status") == "PASS" and body_event:
-            record = normalize_case_record(
-                {"case_id": "event_has_no_request_body_payload", "status": "PASS", "actual_status": 403,
-                 "observed_rule_ids": [1100101], "live_executed": True,
-                 "reason": "observed phase-2 event contains no forbidden body payload"},
-                str(plan["connector"]), case_by_id, events, integration_mode,
-            )
-            if record:
-                records.append(record)
+
+
+def append_derived_event_field_record(
+    records: list[dict[str, Any]],
+    by_id: dict[str, dict[str, Any]],
+    case_id: str,
+    passed: bool,
+    connector: str,
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None,
+) -> None:
+    record = normalize_case_record(
+        {
+            "case_id": case_id,
+            "status": "PASS" if passed else "FAIL",
+            "actual_status": 403,
+            "observed_rule_ids": [1100001],
+            "live_executed": True,
+            "reason": "derived from the observed rule-1100001 event",
+        },
+        connector,
+        case_by_id,
+        events,
+        integration_mode,
+    )
+    if record:
+        records.append(record)
+        by_id[case_id] = record
+
+
+def append_body_payload_derivation(
+    records: list[dict[str, Any]],
+    by_id: Mapping[str, Mapping[str, Any]],
+    selections: Mapping[str, Mapping[str, Any]],
+    plan: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    event: Mapping[str, Any],
+    integration_mode: str | None,
+) -> None:
+    if canonical_event_errors(event, integration_mode=integration_mode):
+        return
+    case_id = "event_has_no_request_body_payload"
+    if not selected_plan_case(selections, case_id):
+        return
+    body_base = by_id.get("deny_request_body_marker_403")
+    body_event = event_for_rule(events, 1100101)
+    if not body_base or body_base.get("status") != "PASS" or not body_event:
+        return
+    record = normalize_case_record(
+        {
+            "case_id": case_id,
+            "status": "PASS",
+            "actual_status": 403,
+            "observed_rule_ids": [1100101],
+            "live_executed": True,
+            "reason": "observed phase-2 event contains no forbidden body payload",
+        },
+        str(plan["connector"]),
+        case_by_id,
+        events,
+        integration_mode,
+    )
+    if record:
+        records.append(record)
 
 
 def append_derived_phase4_records(
@@ -3466,11 +4240,7 @@ def append_derived_phase4_records(
     contract must not be backfilled from a narrower fact derivation.
     """
     by_id = {str(record.get("case_id") or ""): record for record in records}
-    selections = {
-        str(item.get("case_id") or ""): item
-        for item in plan.get("cases", [])
-        if isinstance(item, Mapping)
-    }
+    selections = selected_plan_cases(plan)
     for base_case_id in (
         "phase4_deny_before_commit",
         "phase4_deny_after_commit_log_only",
@@ -3478,32 +4248,74 @@ def append_derived_phase4_records(
         "phase4_deny_after_commit_log_only_safe",
         "phase4_deny_after_commit_abort",
     ):
-        base = by_id.get(base_case_id)
-        if not base or base.get("status") != "PASS":
+        append_phase4_derivations_for_base(
+            records,
+            by_id,
+            selections,
+            plan,
+            case_by_id,
+            events,
+            base_case_id,
+            integration_mode,
+        )
+
+
+def append_phase4_derivations_for_base(
+    records: list[dict[str, Any]],
+    by_id: dict[str, dict[str, Any]],
+    selections: Mapping[str, Mapping[str, Any]],
+    plan: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    base_case_id: str,
+    integration_mode: str | None,
+) -> None:
+    base = by_id.get(base_case_id)
+    if not base or base.get("status") != "PASS":
+        return
+    for case_id in (
+        "phase4_rule_observed",
+        "phase4_event_contains_original_status",
+        "phase4_event_contains_late_intervention_action",
+    ):
+        if case_id in by_id or not selected_plan_case(selections, case_id):
             continue
-        for case_id in (
-            "phase4_rule_observed",
-            "phase4_event_contains_original_status",
-            "phase4_event_contains_late_intervention_action",
-        ):
-            if case_id in by_id or selections.get(case_id, {}).get("selection_status") != "SELECTED":
-                continue
-            derived_raw = dict(base)
-            derived_raw.update({
-                "case_id": case_id,
-                "status": "PASS",
-                "reason": f"derived from the validated {base_case_id} runtime event",
-            })
-            record = normalize_case_record(
-                derived_raw,
-                str(plan.get("connector") or base.get("connector") or ""),
-                case_by_id,
-                events,
-                integration_mode,
-            )
-            if record is not None and record.get("status") == "PASS":
-                records.append(record)
-                by_id[case_id] = record
+        append_phase4_derived_record(
+            records,
+            by_id,
+            base,
+            base_case_id,
+            case_id,
+            str(plan.get("connector") or base.get("connector") or ""),
+            case_by_id,
+            events,
+            integration_mode,
+        )
+
+
+def append_phase4_derived_record(
+    records: list[dict[str, Any]],
+    by_id: dict[str, dict[str, Any]],
+    base: Mapping[str, Any],
+    base_case_id: str,
+    case_id: str,
+    connector: str,
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None,
+) -> None:
+    derived_raw = dict(base)
+    derived_raw.update({
+        "case_id": case_id,
+        "status": "PASS",
+        "reason": f"derived from the validated {base_case_id} runtime event",
+    })
+    record = normalize_case_record(
+        derived_raw, connector, case_by_id, events, integration_mode,
+    )
+    if record is not None and record.get("status") == "PASS":
+        records.append(record)
+        by_id[case_id] = record
 
 
 def selection_record(
@@ -3536,7 +4348,7 @@ def selection_record(
         "expected_event_fields": list(case.get("expected_event_fields", [])),
         "observed_event_fields": [],
         "event_metadata_verified": False,
-        **{field: None for field in PHASE4_SEMANTIC_FIELDS},
+        **dict.fromkeys(PHASE4_SEMANTIC_FIELDS),
         "reason": reason,
         "exit_code": exit_code,
         "artifacts": {},
@@ -3599,39 +4411,83 @@ def resolve_deprecated_aliases(
     """Make deprecated aliases a view of the canonical replacement outcome."""
     positions = {str(record.get("case_id") or ""): index for index, record in enumerate(records)}
     for alias_id, case in case_by_id.items():
-        if selected_case_ids is not None and alias_id not in selected_case_ids:
-            continue
-        target_id = str(case.get("deprecated_alias_for") or "")
-        if not target_id:
-            continue
-        target = records[positions[target_id]] if target_id in positions else None
-        alias_index = positions.get(alias_id)
-        alias = records[alias_index] if alias_index is not None else None
-        if target is not None and target.get("status") == "PASS":
-            replacement = dict(target)
-            replacement.update({
-                "case_id": alias_id,
-                "group": case.get("group", ""),
-                "phase": case.get("phase"),
-                "required_capabilities": list(case.get("required_capabilities", [])),
-                "expected_result": case.get("expected_result"),
-                "expected_status": optional_int(case.get("expected_status")),
-                "expected_rule_id": optional_int(case.get("expected_rule_id")),
-                "expected_event_fields": list(case.get("expected_event_fields", [])),
-                "reason": f"deprecated alias for {target_id}; canonical replacement passed",
-            })
-            if alias_index is None:
-                positions[alias_id] = len(records)
-                records.append(replacement)
-            else:
-                records[alias_index] = replacement
-            continue
-        if alias is not None and alias.get("status") == "PASS":
-            alias["status"] = "FAIL"
-            alias["operation_status"] = operation_status("fail")
-            alias["reason"] = (
-                f"deprecated alias requires {target_id}=PASS; canonical replacement did not pass"
-            )
+        resolve_deprecated_alias(
+            records, positions, alias_id, case, selected_case_ids,
+        )
+
+
+def resolve_deprecated_alias(
+    records: list[dict[str, Any]],
+    positions: dict[str, int],
+    alias_id: str,
+    case: Mapping[str, Any],
+    selected_case_ids: set[str] | None,
+) -> None:
+    if selected_case_ids is not None and alias_id not in selected_case_ids:
+        return
+    target_id = str(case.get("deprecated_alias_for") or "")
+    if not target_id:
+        return
+    target = deprecated_alias_record(records, positions, target_id)
+    alias_index = positions.get(alias_id)
+    alias = records[alias_index] if alias_index is not None else None
+    if target is not None and target.get("status") == "PASS":
+        replacement = deprecated_alias_replacement(target, alias_id, case, target_id)
+        replace_deprecated_alias_record(records, positions, alias_id, alias_index, replacement)
+        return
+    fail_deprecated_alias(alias, target_id)
+
+
+def deprecated_alias_record(
+    records: Sequence[dict[str, Any]], positions: Mapping[str, int], case_id: str,
+) -> dict[str, Any] | None:
+    index = positions.get(case_id)
+    return records[index] if index is not None else None
+
+
+def deprecated_alias_replacement(
+    target: Mapping[str, Any],
+    alias_id: str,
+    case: Mapping[str, Any],
+    target_id: str,
+) -> dict[str, Any]:
+    replacement = dict(target)
+    replacement.update({
+        "case_id": alias_id,
+        "group": case.get("group", ""),
+        "phase": case.get("phase"),
+        "required_capabilities": list(case.get("required_capabilities", [])),
+        "expected_result": case.get("expected_result"),
+        "expected_status": optional_int(case.get("expected_status")),
+        "expected_rule_id": optional_int(case.get("expected_rule_id")),
+        "expected_event_fields": list(case.get("expected_event_fields", [])),
+        "reason": f"deprecated alias for {target_id}; canonical replacement passed",
+    })
+    return replacement
+
+
+def replace_deprecated_alias_record(
+    records: list[dict[str, Any]],
+    positions: dict[str, int],
+    alias_id: str,
+    alias_index: int | None,
+    replacement: dict[str, Any],
+) -> None:
+    if alias_index is None:
+        positions[alias_id] = len(records)
+        records.append(replacement)
+        return
+    records[alias_index] = replacement
+
+
+def fail_deprecated_alias(alias: dict[str, Any] | None, target_id: str) -> None:
+    if alias is None or alias.get("status") != "PASS":
+        return
+    alias["status"] = "FAIL"
+    alias["operation_status"] = operation_status("fail")
+    alias["reason"] = (
+        f"deprecated alias requires {target_id}=PASS; canonical replacement did not pass"
+    )
 
 
 def load_source_json(path: Path) -> object:
@@ -3726,48 +4582,82 @@ def _supplemental_sidecar_errors(
     schema_name = schema_names.get(name)
     if schema_name is None:
         return []
-    schema = load_json(FRAMEWORK_ROOT / "tests/schemas/no-crs-baseline" / schema_name)
+    schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / schema_name)
     if not isinstance(schema, Mapping):
         return [f"{name}: checked-in schema is invalid"]
     errors = json_schema_errors(payload, schema, root_schema=schema, location=name)
     errors.extend(forbidden_payload_errors(payload, name))
     if not isinstance(payload, Mapping):
         return errors
+    errors.extend(supplemental_sidecar_identity_errors(
+        name, payload, connector, run_id, integration_mode,
+    ))
+    errors.extend(effective_config_sidecar_errors(name, payload))
+    errors.extend(protocol_sidecar_connection_id_errors(name, payload))
+    return errors
+
+
+def supplemental_sidecar_identity_errors(
+    name: str,
+    payload: Mapping[str, Any],
+    connector: str,
+    run_id: str | None,
+    integration_mode: str | None,
+) -> list[str]:
+    errors: list[str] = []
     if payload.get("connector") != connector:
         errors.append(f"{name}: connector does not match canonical run")
     if run_id is not None and payload.get("run_id") != run_id:
         errors.append(f"{name}: run_id does not match canonical run")
     if integration_mode is not None and payload.get("integration_mode") != integration_mode:
         errors.append(f"{name}: integration_mode does not match canonical run")
-    if name == "effective_config":
-        files = payload.get("files")
-        if isinstance(files, list):
-            seen: set[str] = set()
-            for index, entry in enumerate(files):
-                if not isinstance(entry, Mapping):
-                    continue
-                raw_path = str(entry.get("path") or "")
-                path = Path(raw_path)
-                if path.is_absolute() or ".." in path.parts or raw_path in {"", "."}:
-                    errors.append(f"effective_config.files[{index}].path is unsafe")
-                    continue
-                if raw_path in seen:
-                    errors.append(f"effective_config.files has duplicate path {raw_path!r}")
-                seen.add(raw_path)
-    if name in {"transport_observations", "connection_lifecycle"}:
-        records_key = "observations" if name == "transport_observations" else "records"
-        records = payload.get(records_key)
-        if isinstance(records, list):
-            for index, record in enumerate(records):
-                if not isinstance(record, Mapping):
-                    continue
-                if record.get("protocol") == "h3":
-                    connection_id = record.get("connection_id")
-                    if connection_id is not None and not is_hashed_connection_id(connection_id):
-                        errors.append(
-                            f"{name}.{records_key}[{index}].connection_id: "
-                            "raw H3 connection identifiers are forbidden"
-                        )
+    return errors
+
+
+def effective_config_sidecar_errors(name: str, payload: Mapping[str, Any]) -> list[str]:
+    if name != "effective_config":
+        return []
+    files = payload.get("files")
+    if not isinstance(files, list):
+        return []
+    errors: list[str] = []
+    seen: set[str] = set()
+    for index, entry in enumerate(files):
+        if not isinstance(entry, Mapping):
+            continue
+        raw_path = str(entry.get("path") or "")
+        path = Path(raw_path)
+        if path.is_absolute() or ".." in path.parts or raw_path in {"", "."}:
+            errors.append(f"effective_config.files[{index}].path is unsafe")
+            continue
+        if raw_path in seen:
+            errors.append(f"effective_config.files has duplicate path {raw_path!r}")
+        seen.add(raw_path)
+    return errors
+
+
+def protocol_sidecar_connection_id_errors(
+    name: str, payload: Mapping[str, Any],
+) -> list[str]:
+    records_key = {
+        "transport_observations": "observations",
+        "connection_lifecycle": "records",
+    }.get(name)
+    if records_key is None:
+        return []
+    records = payload.get(records_key)
+    if not isinstance(records, list):
+        return []
+    errors: list[str] = []
+    for index, record in enumerate(records):
+        if not isinstance(record, Mapping) or record.get("protocol") != "h3":
+            continue
+        connection_id = record.get("connection_id")
+        if connection_id is not None and not is_hashed_connection_id(connection_id):
+            errors.append(
+                f"{name}.{records_key}[{index}].connection_id: "
+                "raw H3 connection identifiers are forbidden"
+            )
     return errors
 
 
@@ -3832,125 +4722,185 @@ def copy_engine_lifecycle_artifacts(
         raise ContractError("engine lifecycle artifacts require the full_lifecycle profile")
     seen: set[str] = set()
     for item in source_artifacts:
-        if "=" not in item:
-            raise ContractError("--source-artifact must be NAME=PATH")
-        name, source_text = item.split("=", 1)
-        if name not in {
-            *ENGINE_LIFECYCLE_ARTIFACT_PATHS,
-            *TRANSPORT_HARDENING_ARTIFACT_PATHS,
-        }:
-            raise ContractError(f"unsupported engine lifecycle artifact: {name!r}")
-        if name in seen:
-            raise ContractError(f"duplicate engine lifecycle artifact: {name}")
-        seen.add(name)
-        source = Path(source_text)
-        if name == "barrier_events":
-            _copy_barrier_events_artifact(
-                run_dir,
-                source_text,
-                connector,
-                manifest,
-                run_id=run_id,
-                integration_mode=integration_mode,
-            )
-            continue
-        if name == "effective_config" and source.is_dir():
-            if source.is_symlink():
-                raise ContractError("effective_config source directory must not be a symlink")
-            source = source / "manifest.json"
-        if name in {"client_log", "upstream_log", "transport_log", "cleanup_log"}:
-            destination = run_dir / TRANSPORT_HARDENING_ARTIFACT_PATHS[name]
-            copy_artifact(source, destination)
-            manifest["artifacts"][name] = artifact_entry(
-                str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
-            )
-            continue
-        if name in {"engine_version", "engine_library_sha256", "ruleset_sha256"}:
-            try:
-                text = source.read_text(encoding="utf-8").strip()
-            except OSError as exc:
-                raise ContractError(f"cannot read engine lifecycle artifact {name}: {exc}") from exc
-            if not text:
-                raise ContractError(f"engine lifecycle artifact {name} is empty")
-            if name != "engine_version" and re.fullmatch(r"[0-9a-f]{64}", text) is None:
-                raise ContractError(f"engine lifecycle artifact {name} must contain a SHA-256 digest")
-        else:
-            payload = load_json(source)
-            if not isinstance(payload, Mapping):
-                raise ContractError(f"engine lifecycle artifact {name} must be an object")
-            supplemental_errors = _supplemental_sidecar_errors(
-                name,
-                payload,
-                connector=connector,
-                run_id=run_id,
-                integration_mode=integration_mode,
-            )
-            if supplemental_errors:
-                raise ContractError("; ".join(supplemental_errors))
-            if name in {"transport_observations", "connection_lifecycle", "effective_config"}:
-                destination = run_dir / TRANSPORT_HARDENING_ARTIFACT_PATHS[name]
-                # JSON is reserialized after strict parsing, so duplicate
-                # keys and non-canonical formatting cannot survive into
-                # canonical inventory.
-                write_json(destination, payload)
-                manifest["artifacts"][name] = artifact_entry(
-                    str(destination.relative_to(run_dir)), "produced",
-                    sha256=sha256_file(destination),
-                )
-                continue
-            if payload.get("schema_version") != 1 or payload.get("connector") != connector:
-                raise ContractError(f"engine lifecycle artifact {name} has invalid identity")
-            if name == "transaction_counts":
-                observed = payload.get("transactions_observed")
-                identifiers = payload.get("transaction_ids")
-                if not isinstance(observed, int) or observed < 0 or not isinstance(identifiers, list):
-                    raise ContractError(f"engine lifecycle artifact {name} has invalid transaction accounting")
-                if (
-                    observed != len(identifiers)
-                    or not all(isinstance(value, str) and value for value in identifiers)
-                    or len(set(identifiers)) != len(identifiers)
-                ):
-                    raise ContractError(f"engine lifecycle artifact {name} has inconsistent transaction accounting")
-            else:
-                counter_names = (
-                    "transactions_started", "transactions_finished", "transactions_destroyed",
-                    "request_body_finishes", "response_body_finishes", "interventions_seen",
-                    "intentional_aborts", "unexpected_engine_errors",
-                )
-                if any(not isinstance(payload.get(field), int) or payload[field] < 0 for field in counter_names):
-                    raise ContractError(f"engine lifecycle artifact {name} has invalid counters")
-                optional_counter_names = (
-                    "client_disconnects", "upstream_disconnects", "stream_resets", "timeouts",
-                    "short_writes", "write_would_block", "cleanup_normal", "cleanup_cancel",
-                    "cleanup_abort",
-                )
-                if any(
-                    field in payload
-                    and (not isinstance(payload[field], int) or payload[field] < 0)
-                    for field in optional_counter_names
-                ):
-                    raise ContractError(f"engine lifecycle artifact {name} has invalid transport counters")
-                if (
-                    "transport_counters_bound" in payload
-                    and not isinstance(payload["transport_counters_bound"], bool)
-                ):
-                    raise ContractError(
-                        f"engine lifecycle artifact {name} has invalid transport_counters_bound"
-                    )
-                if not (
-                    payload["transactions_started"] >= payload["transactions_finished"]
-                    >= payload["transactions_destroyed"]
-                ):
-                    raise ContractError(f"engine lifecycle artifact {name} has inconsistent transaction lifecycle")
-        destination_path = (
-            TRANSPORT_HARDENING_ARTIFACT_PATHS.get(name)
-            or ENGINE_LIFECYCLE_ARTIFACT_PATHS[name]
+        name, source_text = parse_engine_lifecycle_artifact(item, seen)
+        copy_engine_lifecycle_artifact(
+            run_dir,
+            name,
+            source_text,
+            connector,
+            manifest,
+            run_id=run_id,
+            integration_mode=integration_mode,
         )
-        destination = run_dir / destination_path
-        copy_artifact(source, destination)
-        manifest["artifacts"][name] = artifact_entry(
-            str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
+
+
+def parse_engine_lifecycle_artifact(item: str, seen: set[str]) -> tuple[str, str]:
+    if "=" not in item:
+        raise ContractError("--source-artifact must be NAME=PATH")
+    name, source_text = item.split("=", 1)
+    allowed_names = {
+        *ENGINE_LIFECYCLE_ARTIFACT_PATHS,
+        *TRANSPORT_HARDENING_ARTIFACT_PATHS,
+    }
+    if name not in allowed_names:
+        raise ContractError(f"unsupported engine lifecycle artifact: {name!r}")
+    if name in seen:
+        raise ContractError(f"duplicate engine lifecycle artifact: {name}")
+    seen.add(name)
+    return name, source_text
+
+
+def copy_engine_lifecycle_artifact(
+    run_dir: Path,
+    name: str,
+    source_text: str,
+    connector: str,
+    manifest: dict[str, Any],
+    *,
+    run_id: str | None,
+    integration_mode: str | None,
+) -> None:
+    if name == "barrier_events":
+        _copy_barrier_events_artifact(
+            run_dir,
+            source_text,
+            connector,
+            manifest,
+            run_id=run_id,
+            integration_mode=integration_mode,
         )
+        return
+    source = engine_lifecycle_source(name, source_text)
+    if name in {"client_log", "upstream_log", "transport_log", "cleanup_log"}:
+        copy_engine_lifecycle_artifact_file(run_dir, name, source, manifest)
+        return
+    if name in {"engine_version", "engine_library_sha256", "ruleset_sha256"}:
+        validate_engine_lifecycle_text_artifact(name, source)
+    else:
+        payload = load_json(source)
+        validate_engine_lifecycle_json_artifact(
+            name, payload, connector, run_id, integration_mode,
+        )
+        if copy_engine_lifecycle_json_sidecar(run_dir, name, payload, manifest):
+            return
+    copy_engine_lifecycle_artifact_file(run_dir, name, source, manifest)
+
+
+def engine_lifecycle_source(name: str, source_text: str) -> Path:
+    source = Path(source_text)
+    if name != "effective_config" or not source.is_dir():
+        return source
+    if source.is_symlink():
+        raise ContractError("effective_config source directory must not be a symlink")
+    return source / MANIFEST_FILE_NAME
+
+
+def copy_engine_lifecycle_artifact_file(
+    run_dir: Path, name: str, source: Path, manifest: dict[str, Any],
+) -> None:
+    destination_path = (
+        TRANSPORT_HARDENING_ARTIFACT_PATHS.get(name)
+        or ENGINE_LIFECYCLE_ARTIFACT_PATHS[name]
+    )
+    destination = run_dir / destination_path
+    copy_artifact(source, destination)
+    manifest["artifacts"][name] = artifact_entry(
+        str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
+    )
+
+
+def validate_engine_lifecycle_text_artifact(name: str, source: Path) -> None:
+    try:
+        text = source.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise ContractError(f"cannot read engine lifecycle artifact {name}: {exc}") from exc
+    if not text:
+        raise ContractError(f"engine lifecycle artifact {name} is empty")
+    if name != "engine_version" and re.fullmatch(r"[0-9a-f]{64}", text) is None:
+        raise ContractError(f"engine lifecycle artifact {name} must contain a SHA-256 digest")
+
+
+def validate_engine_lifecycle_json_artifact(
+    name: str,
+    payload: object,
+    connector: str,
+    run_id: str | None,
+    integration_mode: str | None,
+) -> None:
+    if not isinstance(payload, Mapping):
+        raise ContractError(f"engine lifecycle artifact {name} must be an object")
+    supplemental_errors = _supplemental_sidecar_errors(
+        name,
+        payload,
+        connector=connector,
+        run_id=run_id,
+        integration_mode=integration_mode,
+    )
+    if supplemental_errors:
+        raise ContractError("; ".join(supplemental_errors))
+    if name in {"transport_observations", "connection_lifecycle", "effective_config"}:
+        return
+    if payload.get("schema_version") != 1 or payload.get("connector") != connector:
+        raise ContractError(f"engine lifecycle artifact {name} has invalid identity")
+    if name == "transaction_counts":
+        validate_transaction_count_artifact(name, payload)
+        return
+    validate_lifecycle_count_artifact(name, payload)
+
+
+def copy_engine_lifecycle_json_sidecar(
+    run_dir: Path, name: str, payload: object, manifest: dict[str, Any],
+) -> bool:
+    if name not in {"transport_observations", "connection_lifecycle", "effective_config"}:
+        return False
+    destination = run_dir / TRANSPORT_HARDENING_ARTIFACT_PATHS[name]
+    # JSON is reserialized after strict parsing, so duplicate keys and
+    # non-canonical formatting cannot survive into canonical inventory.
+    write_json(destination, payload)
+    manifest["artifacts"][name] = artifact_entry(
+        str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination),
+    )
+    return True
+
+
+def validate_transaction_count_artifact(name: str, payload: Mapping[str, Any]) -> None:
+    observed = payload.get("transactions_observed")
+    identifiers = payload.get("transaction_ids")
+    if not isinstance(observed, int) or observed < 0 or not isinstance(identifiers, list):
+        raise ContractError(f"engine lifecycle artifact {name} has invalid transaction accounting")
+    if (
+        observed != len(identifiers)
+        or not all(isinstance(value, str) and value for value in identifiers)
+        or len(set(identifiers)) != len(identifiers)
+    ):
+        raise ContractError(f"engine lifecycle artifact {name} has inconsistent transaction accounting")
+
+
+def validate_lifecycle_count_artifact(name: str, payload: Mapping[str, Any]) -> None:
+    counter_names = (
+        "transactions_started", "transactions_finished", "transactions_destroyed",
+        "request_body_finishes", "response_body_finishes", "interventions_seen",
+        "intentional_aborts", "unexpected_engine_errors",
+    )
+    if any(not isinstance(payload.get(field), int) or payload[field] < 0 for field in counter_names):
+        raise ContractError(f"engine lifecycle artifact {name} has invalid counters")
+    optional_counter_names = (
+        "client_disconnects", "upstream_disconnects", "stream_resets", "timeouts",
+        "short_writes", "write_would_block", "cleanup_normal", "cleanup_cancel",
+        "cleanup_abort",
+    )
+    if any(
+        field in payload and (not isinstance(payload[field], int) or payload[field] < 0)
+        for field in optional_counter_names
+    ):
+        raise ContractError(f"engine lifecycle artifact {name} has invalid transport counters")
+    if "transport_counters_bound" in payload and not isinstance(payload["transport_counters_bound"], bool):
+        raise ContractError(f"engine lifecycle artifact {name} has invalid transport_counters_bound")
+    if not (
+        payload["transactions_started"] >= payload["transactions_finished"]
+        >= payload["transactions_destroyed"]
+    ):
+        raise ContractError(f"engine lifecycle artifact {name} has inconsistent transaction lifecycle")
 
 
 def copy_protocol_client_artifacts(
@@ -4240,543 +5190,1015 @@ def bind_case_protocol_provenance(
     run_id = str(manifest.get("run_id") or "")
     integration_mode = str(manifest.get("integration_mode") or "")
     for record in records:
-        supplied_run_id = record.get("run_id")
-        supplied_mode = record.get("integration_mode")
-        context_errors: list[str] = []
-        if supplied_run_id is not None and supplied_run_id != run_id:
-            context_errors.append("source case run_id does not match canonical run")
-        if supplied_mode is not None and supplied_mode != integration_mode:
-            context_errors.append("source case integration_mode does not match canonical run")
+        context_errors = case_protocol_context_errors(record, run_id, integration_mode)
         record["run_id"] = run_id
         record["integration_mode"] = integration_mode
         if record.get("status") != "PASS":
             continue
         case = case_by_id.get(str(record.get("case_id") or ""))
-        matching_event = (
-            event_for_case(
-                events,
-                optional_int(record.get("expected_rule_id")),
-                case,
-                [str(value) for value in record.get("transaction_ids", [])],
-                event_integration_mode,
-            )
-            if case is not None
-            else None
+        matching_event = matching_protocol_event(
+            record, case, events, event_integration_mode,
         )
-        context_errors.extend(protocol_pass_errors(
-            record,
-            matching_event,
-            expected_run_id=run_id,
-            expected_integration_mode=integration_mode,
-            required_protocol=case_protocol_profile(case) if case is not None else None,
+        context_errors.extend(case_protocol_pass_errors(
+            record, matching_event, case, run_id, integration_mode,
         ))
-        if context_errors:
-            record["status"] = "FAIL"
-            record["operation_status"] = operation_status("fail")
-            detail = "; ".join(dict.fromkeys(context_errors))
-            record["reason"] = "; ".join(
-                part for part in (str(record.get("reason") or ""), f"protocol provenance invalid: {detail}")
-                if part
-            )
+        mark_protocol_provenance_invalid(record, context_errors)
 
 
-def finalize_run(args: argparse.Namespace) -> int:
-    connector_root = Path(args.connector_root).resolve() if args.connector_root else None
-    run_dir = Path(args.run_dir)
-    safe_run_dir(run_dir, connector_root)
-    manifest_path = run_dir / "manifest.json"
-    plan_path = run_dir / "plan.json"
+def case_protocol_context_errors(
+    record: Mapping[str, Any], run_id: str, integration_mode: str,
+) -> list[str]:
+    errors: list[str] = []
+    if record.get("run_id") is not None and record.get("run_id") != run_id:
+        errors.append("source case run_id does not match canonical run")
+    if record.get("integration_mode") is not None and record.get("integration_mode") != integration_mode:
+        errors.append("source case integration_mode does not match canonical run")
+    return errors
+
+
+def matching_protocol_event(
+    record: Mapping[str, Any],
+    case: Mapping[str, Any] | None,
+    events: Sequence[Mapping[str, Any]],
+    event_integration_mode: str | None,
+) -> Mapping[str, Any] | None:
+    if case is None:
+        return None
+    transaction_ids = [str(value) for value in record.get("transaction_ids", [])]
+    return event_for_case(
+        events,
+        optional_int(record.get("expected_rule_id")),
+        case,
+        transaction_ids,
+        event_integration_mode,
+    )
+
+
+def case_protocol_pass_errors(
+    record: Mapping[str, Any],
+    matching_event: Mapping[str, Any] | None,
+    case: Mapping[str, Any] | None,
+    run_id: str,
+    integration_mode: str,
+) -> list[str]:
+    required_protocol = case_protocol_profile(case) if case is not None else None
+    return protocol_pass_errors(
+        record,
+        matching_event,
+        expected_run_id=run_id,
+        expected_integration_mode=integration_mode,
+        required_protocol=required_protocol,
+    )
+
+
+def mark_protocol_provenance_invalid(record: dict[str, Any], errors: Sequence[str]) -> None:
+    if not errors:
+        return
+    record["status"] = "FAIL"
+    record["operation_status"] = operation_status("fail")
+    detail = "; ".join(dict.fromkeys(errors))
+    record["reason"] = "; ".join(
+        part for part in (str(record.get("reason") or ""), f"protocol provenance invalid: {detail}")
+        if part
+    )
+
+
+class FinalizeContext:
+    def __init__(
+        self,
+        connector_root: Path | None,
+        run_dir: Path,
+        manifest_path: Path,
+        manifest: dict[str, Any],
+        plan: dict[str, Any],
+        artifact_profile: str,
+        host_profile: str,
+        provenance_required: bool,
+        connector: str,
+        evidence_stage: str,
+        event_integration_mode: str | None,
+        capabilities: Mapping[str, Any],
+        case_by_id: dict[str, Mapping[str, Any]],
+    ) -> None:
+        self.connector_root = connector_root
+        self.run_dir = run_dir
+        self.manifest_path = manifest_path
+        self.manifest = manifest
+        self.plan = plan
+        self.artifact_profile = artifact_profile
+        self.host_profile = host_profile
+        self.provenance_required = provenance_required
+        self.connector = connector
+        self.evidence_stage = evidence_stage
+        self.event_integration_mode = event_integration_mode
+        self.capabilities = capabilities
+        self.case_by_id = case_by_id
+
+
+class FinalizeSummaryValues(TypedDict):
+    status: str
+    blocked_before_execution: bool
+    source_statuses: list[str]
+    source_failure: bool
+    counts: Counter[str]
+    observed_rule_ids: list[int]
+    transaction_ids: list[str]
+    pass_ids: set[str]
+    verified_capabilities: list[str]
+    unsupported_capabilities: list[str]
+    not_exercised_capabilities: list[str]
+    requests_sent: bool
+    started: bool
+    event_metadata_verified: bool
+    body_payload_absent_from_events: bool
+    host_version: object
+    libmodsecurity_version: object
+    minimal_runtime_verified: bool
+    pass_gate_failures: list[str]
+    allowed_record: Mapping[str, Any]
+    blocked_record: Mapping[str, Any]
+    evidence_stages: dict[str, Any]
+
+
+class FinalizeSummary:
+    def __init__(self, values: FinalizeSummaryValues) -> None:
+        self.status = values["status"]
+        self.blocked_before_execution = values["blocked_before_execution"]
+        self.source_statuses = values["source_statuses"]
+        self.source_failure = values["source_failure"]
+        self.counts = values["counts"]
+        self.observed_rule_ids = values["observed_rule_ids"]
+        self.transaction_ids = values["transaction_ids"]
+        self.pass_ids = values["pass_ids"]
+        self.verified_capabilities = values["verified_capabilities"]
+        self.unsupported_capabilities = values["unsupported_capabilities"]
+        self.not_exercised_capabilities = values["not_exercised_capabilities"]
+        self.requests_sent = values["requests_sent"]
+        self.started = values["started"]
+        self.event_metadata_verified = values["event_metadata_verified"]
+        self.body_payload_absent_from_events = values["body_payload_absent_from_events"]
+        self.host_version = values["host_version"]
+        self.libmodsecurity_version = values["libmodsecurity_version"]
+        self.minimal_runtime_verified = values["minimal_runtime_verified"]
+        self.pass_gate_failures = values["pass_gate_failures"]
+        self.allowed_record = values["allowed_record"]
+        self.blocked_record = values["blocked_record"]
+        self.evidence_stages = values["evidence_stages"]
+
+
+def load_initialized_finalize_documents(run_dir: Path) -> tuple[Path, dict[str, Any], dict[str, Any]]:
+    manifest_path = run_dir / MANIFEST_FILE_NAME
+    plan_path = run_dir / PLAN_FILE_NAME
     if not manifest_path.is_file() or not plan_path.is_file():
         raise ContractError("finalize requires an initialized run-dir with manifest.json and plan.json")
     manifest = load_json(manifest_path)
     plan = load_json(plan_path)
     if not isinstance(manifest, dict) or not isinstance(plan, dict):
         raise ContractError("manifest and plan must be JSON objects")
-    artifact_profile = canonical_artifact_profile(manifest, "manifest.json")
-    host_profile = canonical_host_profile(manifest, "manifest.json")
-    plan_artifact_profile = canonical_artifact_profile(plan, "plan.json")
-    if plan_artifact_profile != artifact_profile:
+    return manifest_path, manifest, plan
+
+
+def validate_finalize_profiles(
+    run_dir: Path, manifest: Mapping[str, Any], plan: Mapping[str, Any],
+) -> tuple[str, str]:
+    artifact_profile = canonical_artifact_profile(manifest, MANIFEST_FILE_NAME)
+    host_profile = canonical_host_profile(manifest, MANIFEST_FILE_NAME)
+    if canonical_artifact_profile(plan, PLAN_FILE_NAME) != artifact_profile:
         raise ContractError("manifest and plan artifact profiles differ")
-    if canonical_host_profile(plan, "plan.json") != host_profile:
+    if canonical_host_profile(plan, PLAN_FILE_NAME) != host_profile:
         raise ContractError("manifest and plan host profiles differ")
-    initial_inventory = load_json(run_dir / "inventory/run.json")
-    if not isinstance(initial_inventory, Mapping):
+    inventory = load_json(run_dir / RUN_INVENTORY_FILE_PATH)
+    if not isinstance(inventory, Mapping):
         raise ContractError("inventory/run.json must contain an object")
-    if canonical_artifact_profile(initial_inventory, "inventory/run.json") != artifact_profile:
+    if canonical_artifact_profile(inventory, RUN_INVENTORY_FILE_PATH) != artifact_profile:
         raise ContractError("manifest and inventory artifact profiles differ")
-    if canonical_host_profile(initial_inventory, "inventory/run.json") != host_profile:
+    if canonical_host_profile(inventory, RUN_INVENTORY_FILE_PATH) != host_profile:
         raise ContractError("manifest and inventory host profiles differ")
-    if artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE:
-        require_full_lifecycle_artifact_inputs(args)
-    first_byte_evidence: dict[str, Any] | None = None
-    provenance_required = bool(
+    return artifact_profile, host_profile
+
+
+def finalize_provenance_required(manifest: Mapping[str, Any]) -> bool:
+    return bool(
         manifest.get("provenance_required") is True
         or manifest.get("connector_commit") not in {None, "", "unknown"}
     )
+
+
+def load_finalize_context(args: argparse.Namespace) -> FinalizeContext:
+    connector_root = Path(args.connector_root).resolve() if args.connector_root else None
+    run_dir = Path(args.run_dir)
+    safe_run_dir(run_dir, connector_root)
+    manifest_path, manifest, plan = load_initialized_finalize_documents(run_dir)
+    artifact_profile, host_profile = validate_finalize_profiles(run_dir, manifest, plan)
+    if artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE:
+        require_full_lifecycle_artifact_inputs(args)
+    provenance_required = finalize_provenance_required(manifest)
     if provenance_required and connector_root is None:
         raise ContractError("finalize requires --connector-root for repository provenance")
     connector = str(manifest.get("connector") or "")
     evidence_stage = str(manifest.get("evidence_stage") or "")
-    selected_event_integration_mode = required_event_integration_mode(manifest)
     if evidence_stage not in WRITABLE_EVIDENCE_STAGES:
         raise ContractError(f"unsupported writable evidence stage: {evidence_stage!r}")
-    capabilities = load_capability_manifest(run_dir / "inventory/capabilities.json", connector)
+    capabilities = load_capability_manifest(run_dir / CAPABILITIES_INVENTORY_FILE_PATH, connector)
     supplied_capabilities = load_capability_manifest(args.capabilities, connector)
     if capabilities != supplied_capabilities:
         raise ContractError("capability manifest changed between init and finalize")
     catalog = load_catalog()
     case_by_id = {case["case_id"]: case for case in catalog_cases(catalog)}
-
-    events: list[dict[str, Any]] = []
-    if args.source_events:
-        source_events = read_jsonl(args.source_events)
-        for index, source_event in enumerate(source_events):
-            event = canonicalize_event_phase(
-                source_event, location=f"events[{index}]",
-            )
-            event = canonicalize_event_protocol_provenance(
-                event, location=f"events[{index}]",
-            )
-            errors = canonical_event_errors(event, f"events[{index}]", connector)
-            if errors:
-                raise ContractError("; ".join(errors))
-            events.append(event)
-        # Serialize the reviewed parsed records rather than copying raw JSONL
-        # text, so duplicate keys, Common lifecycle labels, and other parser
-        # ambiguities cannot enter the canonical artifact after validation.
-        write_jsonl(run_dir / "events.jsonl", events)
-        manifest["artifacts"]["events"] = artifact_entry(
-            "events.jsonl", "produced", sha256=sha256_file(run_dir / "events.jsonl")
-        )
-
-    if args.first_byte_evidence:
-        first_byte_evidence = copy_first_byte_evidence(
-            run_dir, args.first_byte_evidence, manifest
-        )
-    copy_engine_lifecycle_artifacts(
+    return FinalizeContext(
+        connector_root,
         run_dir,
-        args.source_artifact,
-        connector,
-        artifact_profile,
+        manifest_path,
         manifest,
-        run_id=str(manifest.get("run_id") or "") or None,
-        integration_mode=str(manifest.get("integration_mode") or "") or None,
+        plan,
+        artifact_profile,
+        host_profile,
+        provenance_required,
+        connector,
+        evidence_stage,
+        required_event_integration_mode(manifest),
+        capabilities,
+        case_by_id,
     )
-    protocol_client_artifact_dir: Path | None = None
-    if str(getattr(args, "protocol_client_artifact_dir", "") or "").strip():
-        protocol_client_artifact_dir = copy_protocol_client_artifacts(
-            run_dir,
-            str(args.protocol_client_artifact_dir),
-            artifact_profile,
-            manifest,
-        )
 
-    raw_records: list[dict[str, Any]] = []
-    source_payloads: list[Mapping[str, Any]] = []
-    source_index = 0
-    for source_text in args.source_result or []:
+
+def canonical_finalize_event(
+    source_event: Mapping[str, Any], index: int, connector: str,
+) -> dict[str, Any]:
+    location = f"events[{index}]"
+    event = canonicalize_event_phase(source_event, location=location)
+    event = canonicalize_event_protocol_provenance(event, location=location)
+    errors = canonical_event_errors(event, location, connector)
+    if errors:
+        raise ContractError("; ".join(errors))
+    return event
+
+
+def copy_finalize_events(context: FinalizeContext, args: argparse.Namespace) -> list[dict[str, Any]]:
+    if not args.source_events:
+        return []
+    events = [
+        canonical_finalize_event(source_event, index, context.connector)
+        for index, source_event in enumerate(read_jsonl(args.source_events))
+    ]
+    # Serialize reviewed parsed records rather than copying raw JSONL text, so
+    # duplicate keys and parser ambiguities cannot enter canonical evidence.
+    destination = context.run_dir / EVENTS_FILE_NAME
+    write_jsonl(destination, events)
+    context.manifest["artifacts"]["events"] = artifact_entry(
+        EVENTS_FILE_NAME, "produced", sha256=sha256_file(destination),
+    )
+    return events
+
+
+def copy_finalize_supporting_artifacts(
+    context: FinalizeContext, args: argparse.Namespace,
+) -> tuple[dict[str, Any] | None, Path | None]:
+    first_byte_evidence = copy_optional_first_byte_evidence(context, args)
+    copy_engine_lifecycle_artifacts(
+        context.run_dir,
+        args.source_artifact,
+        context.connector,
+        context.artifact_profile,
+        context.manifest,
+        run_id=str(context.manifest.get("run_id") or "") or None,
+        integration_mode=str(context.manifest.get("integration_mode") or "") or None,
+    )
+    return first_byte_evidence, copy_optional_protocol_client_artifacts(context, args)
+
+
+def copy_optional_first_byte_evidence(
+    context: FinalizeContext, args: argparse.Namespace,
+) -> dict[str, Any] | None:
+    if not args.first_byte_evidence:
+        return None
+    return copy_first_byte_evidence(
+        context.run_dir, args.first_byte_evidence, context.manifest,
+    )
+
+
+def copy_optional_protocol_client_artifacts(
+    context: FinalizeContext, args: argparse.Namespace,
+) -> Path | None:
+    source_text = str(getattr(args, "protocol_client_artifact_dir", "") or "").strip()
+    if not source_text:
+        return None
+    return copy_protocol_client_artifacts(
+        context.run_dir,
+        source_text,
+        context.artifact_profile,
+        context.manifest,
+    )
+
+
+def validate_source_records(
+    records: Sequence[Mapping[str, Any]], manifest: Mapping[str, Any], source: Path,
+) -> None:
+    for index, record in enumerate(records):
+        validate_source_payload(record, manifest, f"{source}[{index}]")
+
+
+def retain_finalize_source_artifact(
+    context: FinalizeContext,
+    source: Path,
+    artifact_key: str,
+    filename: str,
+) -> None:
+    destination = context.run_dir / "inventory" / filename
+    copy_artifact(source, destination)
+    context.manifest["artifacts"][artifact_key] = artifact_entry(
+        str(destination.relative_to(context.run_dir)), "produced", sha256=sha256_file(destination),
+    )
+
+
+def collect_finalize_result_sources(
+    context: FinalizeContext,
+    source_texts: Sequence[str],
+    raw_records: list[dict[str, Any]],
+    source_payloads: list[Mapping[str, Any]],
+    source_index: int,
+) -> int:
+    for source_text in source_texts:
         source = Path(source_text)
         payload = load_source_json(source)
         if isinstance(payload, Mapping):
-            validate_source_payload(payload, manifest, str(source))
+            validate_source_payload(payload, context.manifest, str(source))
             source_payloads.append(payload)
         payload_records = source_records(payload)
-        for index, record in enumerate(payload_records):
-            validate_source_payload(record, manifest, f"{source}[{index}]")
+        validate_source_records(payload_records, context.manifest, source)
         raw_records.extend(payload_records)
-        destination = run_dir / "inventory" / f"source-result-{source_index}.json"
-        copy_artifact(source, destination)
-        manifest["artifacts"][f"source_result_{source_index}"] = artifact_entry(
-            str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
+        retain_finalize_source_artifact(
+            context,
+            source,
+            f"source_result_{source_index}",
+            f"source-result-{source_index}.json",
         )
         source_index += 1
-    for source_text in args.source_results_jsonl or []:
+    return source_index
+
+
+def collect_finalize_jsonl_sources(
+    context: FinalizeContext,
+    source_texts: Sequence[str],
+    raw_records: list[dict[str, Any]],
+    source_index: int,
+) -> int:
+    for source_text in source_texts:
         source = Path(source_text)
         payload_records = read_jsonl(source)
-        for index, record in enumerate(payload_records):
-            validate_source_payload(record, manifest, f"{source}[{index}]")
+        validate_source_records(payload_records, context.manifest, source)
         raw_records.extend(payload_records)
-        destination = run_dir / "inventory" / f"source-results-{source_index}.jsonl"
-        copy_artifact(source, destination)
-        manifest["artifacts"][f"source_results_{source_index}"] = artifact_entry(
-            str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
+        retain_finalize_source_artifact(
+            context,
+            source,
+            f"source_results_{source_index}",
+            f"source-results-{source_index}.jsonl",
         )
         source_index += 1
-    for source_text in args.source_summary or []:
-        source = Path(source_text)
-        payload = load_json(source)
-        if isinstance(payload, Mapping):
-            connector_payload = payload.get(connector)
-            if isinstance(connector_payload, Mapping):
-                validate_source_payload(connector_payload, manifest, str(source))
-                source_payloads.append(connector_payload)
-                payload_records = source_records(connector_payload)
-            else:
-                validate_source_payload(payload, manifest, str(source))
-                source_payloads.append(payload)
-                payload_records = source_records(payload)
-            for index, record in enumerate(payload_records):
-                validate_source_payload(record, manifest, f"{source}[{index}]")
-            raw_records.extend(payload_records)
-        destination = run_dir / "inventory" / f"source-summary-{source_index}.json"
-        copy_artifact(source, destination)
-        manifest["artifacts"][f"source_summary_{source_index}"] = artifact_entry(
-            str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
-        )
-        source_index += 1
+    return source_index
 
+
+def summary_connector_payload(
+    payload: object, connector: str,
+) -> Mapping[str, Any] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    connector_payload = payload.get(connector)
+    if isinstance(connector_payload, Mapping):
+        return connector_payload
+    return payload
+
+
+def collect_finalize_summary_sources(
+    context: FinalizeContext,
+    source_texts: Sequence[str],
+    raw_records: list[dict[str, Any]],
+    source_payloads: list[Mapping[str, Any]],
+    source_index: int,
+) -> int:
+    for source_text in source_texts:
+        source = Path(source_text)
+        selected_payload = summary_connector_payload(load_json(source), context.connector)
+        if selected_payload is not None:
+            validate_source_payload(selected_payload, context.manifest, str(source))
+            source_payloads.append(selected_payload)
+            payload_records = source_records(selected_payload)
+            validate_source_records(payload_records, context.manifest, source)
+            raw_records.extend(payload_records)
+        retain_finalize_source_artifact(
+            context,
+            source,
+            f"source_summary_{source_index}",
+            f"source-summary-{source_index}.json",
+        )
+        source_index += 1
+    return source_index
+
+
+def collect_finalize_sources(
+    context: FinalizeContext, args: argparse.Namespace,
+) -> tuple[list[dict[str, Any]], list[Mapping[str, Any]]]:
+    raw_records: list[dict[str, Any]] = []
+    source_payloads: list[Mapping[str, Any]] = []
+    source_index = collect_finalize_result_sources(
+        context, args.source_result or [], raw_records, source_payloads, 0,
+    )
+    source_index = collect_finalize_jsonl_sources(
+        context, args.source_results_jsonl or [], raw_records, source_index,
+    )
+    collect_finalize_summary_sources(
+        context, args.source_summary or [], raw_records, source_payloads, source_index,
+    )
+    return raw_records, source_payloads
+
+
+def normalize_finalize_records(
+    context: FinalizeContext,
+    raw_records: Sequence[Mapping[str, Any]],
+    source_payloads: Sequence[Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    first_byte_evidence: Mapping[str, Any] | None,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    records = normalized_finalize_case_records(context, raw_records, events)
+    for payload in source_payloads:
+        records.extend(derive_core_records(
+            payload,
+            context.connector,
+            context.case_by_id,
+            events,
+            context.event_integration_mode,
+        ))
+    append_derived_event_records(
+        records, context.plan, context.case_by_id, events, context.event_integration_mode,
+    )
+    derive_deprecated_alias_targets(
+        records, context.plan, context.case_by_id, events, context.event_integration_mode,
+    )
+    append_derived_phase4_records(
+        records, context.plan, context.case_by_id, events, context.event_integration_mode,
+    )
+    prevent_synthetic_first_byte_promotion(records, first_byte_evidence)
+    return records, deduplicated_case_records(records)
+
+
+def normalized_finalize_case_records(
+    context: FinalizeContext,
+    raw_records: Sequence[Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for raw in raw_records:
         record = normalize_case_record(
             raw,
-            connector,
-            case_by_id,
+            context.connector,
+            context.case_by_id,
             events,
-            selected_event_integration_mode,
+            context.event_integration_mode,
         )
         if record:
             records.append(record)
-    for payload in source_payloads:
-        records.extend(
-            derive_core_records(
-                payload,
-                connector,
-                case_by_id,
-                events,
-                selected_event_integration_mode,
-            )
-        )
-    append_derived_event_records(
-        records, plan, case_by_id, events, selected_event_integration_mode,
-    )
-    derive_deprecated_alias_targets(
-        records, plan, case_by_id, events, selected_event_integration_mode,
-    )
-    append_derived_phase4_records(
-        records, plan, case_by_id, events, selected_event_integration_mode,
-    )
-    prevent_synthetic_first_byte_promotion(records, first_byte_evidence)
-    deduplicated: dict[str, dict[str, Any]] = {}
-    for record in records:
-        deduplicated[record["case_id"]] = record
-    records = list(deduplicated.values())
+    return records
 
-    stage_rc = int(args.stage_rc)
+
+def deduplicated_case_records(records: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {record["case_id"]: record for record in records}
+
+
+def selection_status_reason(
+    selection: Mapping[str, Any], stage_rc: int, any_live: bool, stage_reason: str,
+) -> tuple[str, str]:
+    selection_status = str(selection.get("selection_status") or "")
+    selection_reason = str(selection.get("selection_reason") or "")
+    declared_statuses = {
+        "UNSUPPORTED": ("UNSUPPORTED", "unsupported by capability manifest"),
+        "NOT_APPLICABLE": ("NOT_APPLICABLE", "not applicable to host model"),
+        "NOT_EXECUTED": ("NOT_EXECUTED", "capability is not implemented"),
+    }
+    if selection_status in declared_statuses:
+        status, default_reason = declared_statuses[selection_status]
+        return status, selection_reason or default_reason
+    if stage_rc == 77 and not any_live:
+        return "BLOCKED", stage_reason or "blocked before execution"
+    return "NOT_EXECUTED", stage_reason or "selected case produced no runtime evidence"
+
+
+def append_missing_selected_records(
+    context: FinalizeContext,
+    records: list[dict[str, Any]],
+    deduplicated: dict[str, dict[str, Any]],
+    stage_rc: int,
+    stage_reason: str,
+) -> None:
     any_live = any(record.get("live_executed") is True for record in records)
-    for selection in plan.get("cases", []):
+    for selection in context.plan.get("cases", []):
         if not isinstance(selection, Mapping):
             continue
         case_id = str(selection.get("case_id") or "")
-        if case_id in deduplicated or case_id not in case_by_id:
+        if case_id in deduplicated or case_id not in context.case_by_id:
             continue
-        selected = str(selection.get("selection_status") or "")
-        if selected == "UNSUPPORTED":
-            status = "UNSUPPORTED"
-            reason = str(selection.get("selection_reason") or "unsupported by capability manifest")
-        elif selected == "NOT_APPLICABLE":
-            status = "NOT_APPLICABLE"
-            reason = str(selection.get("selection_reason") or "not applicable to host model")
-        elif selected == "NOT_EXECUTED":
-            status = "NOT_EXECUTED"
-            reason = str(selection.get("selection_reason") or "capability is not implemented")
-        elif stage_rc == 77 and not any_live:
-            status = "BLOCKED"
-            reason = args.stage_reason or "blocked before execution"
-        else:
-            status = "NOT_EXECUTED"
-            reason = args.stage_reason or "selected case produced no runtime evidence"
-        record = selection_record(selection, case_by_id[case_id], connector, status, reason, stage_rc)
+        status, reason = selection_status_reason(selection, stage_rc, any_live, stage_reason)
+        record = selection_record(
+            selection, context.case_by_id[case_id], context.connector, status, reason, stage_rc,
+        )
         records.append(record)
         deduplicated[case_id] = record
-    selected_case_ids = {
+
+
+def selected_finalize_case_ids(plan: Mapping[str, Any]) -> set[str]:
+    return {
         str(item.get("case_id") or "")
         for item in plan.get("cases", [])
         if isinstance(item, Mapping)
     }
-    resolve_deprecated_aliases(records, case_by_id, selected_case_ids)
+
+
+def complete_finalize_records(
+    context: FinalizeContext,
+    records: list[dict[str, Any]],
+    deduplicated: dict[str, dict[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    stage_rc: int,
+    stage_reason: str,
+) -> None:
+    append_missing_selected_records(context, records, deduplicated, stage_rc, stage_reason)
+    resolve_deprecated_aliases(records, context.case_by_id, selected_finalize_case_ids(context.plan))
     bind_case_protocol_provenance(
         records,
-        manifest,
-        case_by_id,
+        context.manifest,
+        context.case_by_id,
         events,
-        selected_event_integration_mode,
+        context.event_integration_mode,
     )
-    for record in records:
-        if record.get("status") != "PASS":
-            continue
-        case = case_by_id.get(str(record.get("case_id") or ""))
-        try:
-            protocol = record_protocol_profile(record, case)
-        except ContractError as exc:
-            protocol = None
-            errors = [str(exc)]
-        else:
-            errors = []
-        if protocol not in {"h2", "h2c", "h3"}:
-            continue
-        if str(record.get("expected_result") or "") in DEDICATED_STREAM_CONTROL_RESULTS:
-            errors.append(
-                "protocol reset/cancel or multiplexing PASS requires a dedicated "
-                "stream-control client; the managed curl probe is negotiation-only"
-            )
-        elif protocol_client_artifact_dir is None:
-            errors.append("protocol PASS requires a managed client artifact bundle")
-        else:
-            artifacts = record.get("artifacts")
-            if not isinstance(artifacts, Mapping):
-                artifacts = {}
-            record["artifacts"] = {
-                **dict(artifacts),
-                "protocol_client_dir": PROTOCOL_CLIENT_ARTIFACT_DIR,
-            }
-            errors.extend(protocol_client_artifact_errors(
-                protocol_client_artifact_dir, record, protocol,
-            ))
-        if errors:
-            record["status"] = "FAIL"
-            record["operation_status"] = operation_status("fail")
-            detail = "; ".join(dict.fromkeys(errors))
-            record["reason"] = "; ".join(
-                part for part in (
-                    str(record.get("reason") or ""),
-                    f"protocol client evidence invalid: {detail}",
-                ) if part
-            )
-    deduplicated = {record["case_id"]: record for record in records}
-    order = {item["case_id"]: index for index, item in enumerate(plan.get("cases", [])) if isinstance(item, Mapping)}
-    records.sort(key=lambda item: order.get(item["case_id"], len(order)))
 
+
+def validate_protocol_client_records(
+    records: Sequence[dict[str, Any]],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    artifact_dir: Path | None,
+) -> None:
+    for record in records:
+        validate_protocol_client_record(record, case_by_id, artifact_dir)
+
+
+def validate_protocol_client_record(
+    record: dict[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    artifact_dir: Path | None,
+) -> None:
+    if record.get("status") != "PASS":
+        return
+    case = case_by_id.get(str(record.get("case_id") or ""))
+    try:
+        protocol = record_protocol_profile(record, case)
+    except ContractError as exc:
+        protocol = None
+        errors = [str(exc)]
+    else:
+        errors = []
+    if protocol not in {"h2", "h2c", "h3"}:
+        return
+    errors.extend(protocol_client_record_errors(record, protocol, artifact_dir))
+    mark_protocol_client_evidence_invalid(record, errors)
+
+
+def protocol_client_record_errors(
+    record: dict[str, Any], protocol: str, artifact_dir: Path | None,
+) -> list[str]:
+    if str(record.get("expected_result") or "") in DEDICATED_STREAM_CONTROL_RESULTS:
+        return [
+            "protocol reset/cancel or multiplexing PASS requires a dedicated "
+            "stream-control client; the managed curl probe is negotiation-only"
+        ]
+    if artifact_dir is None:
+        return ["protocol PASS requires a managed client artifact bundle"]
+    artifacts = record.get("artifacts")
+    if not isinstance(artifacts, Mapping):
+        artifacts = {}
+    record["artifacts"] = {
+        **dict(artifacts),
+        "protocol_client_dir": PROTOCOL_CLIENT_ARTIFACT_DIR,
+    }
+    return protocol_client_artifact_errors(artifact_dir, record, protocol)
+
+
+def mark_protocol_client_evidence_invalid(record: dict[str, Any], errors: Sequence[str]) -> None:
+    if not errors:
+        return
+    record["status"] = "FAIL"
+    record["operation_status"] = operation_status("fail")
+    detail = "; ".join(dict.fromkeys(errors))
+    record["reason"] = "; ".join(
+        part for part in (
+            str(record.get("reason") or ""),
+            f"protocol client evidence invalid: {detail}",
+        ) if part
+    )
+
+
+def write_finalize_case_results(
+    context: FinalizeContext, records: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    deduplicated = deduplicated_case_records(records)
+    order = {
+        item["case_id"]: index
+        for index, item in enumerate(context.plan.get("cases", []))
+        if isinstance(item, Mapping)
+    }
+    records.sort(key=lambda item: order.get(item["case_id"], len(order)))
     for record in records:
         if record["status"] == "PASS" and record.get("live_executed") is not True:
             raise ContractError(f"{record['case_id']}: PASS requires live_executed=true")
-    write_jsonl(run_dir / "results.jsonl", records)
-    manifest["artifacts"]["case_results"] = artifact_entry(
-        "results.jsonl", "produced", sha256=sha256_file(run_dir / "results.jsonl")
+    destination = context.run_dir / CASE_RESULTS_FILE_NAME
+    write_jsonl(destination, records)
+    context.manifest["artifacts"]["case_results"] = artifact_entry(
+        CASE_RESULTS_FILE_NAME, "produced", sha256=sha256_file(destination),
     )
+    return deduplicated
+
+
+def copy_finalize_logs(context: FinalizeContext, args: argparse.Namespace) -> None:
     for key, source_text in (
         ("stdout", args.stdout_log), ("stderr", args.stderr_log),
         ("host_log", args.host_log), ("rule_load_log", args.rule_load_log),
     ):
-        copy_named_log(run_dir, key, source_text, manifest)
+        copy_named_log(context.run_dir, key, source_text, context.manifest)
     for item in args.source_log or []:
-        if "=" not in item:
-            raise ContractError("--source-log must be NAME=PATH")
-        name, source_text = item.split("=", 1)
-        copy_named_log(run_dir, name, source_text, manifest)
+        copy_finalize_source_log(context, item)
 
-    # Recheck provenance after the connector-owned runtime work and artifact
-    # collection.  A clean init snapshot is insufficient: either checkout may
-    # have changed while the run was in progress.
-    if provenance_required:
-        assert connector_root is not None
-        connector_commit_at_finalize = git_value(connector_root, "rev-parse", "HEAD")
-        framework_commit_at_finalize = git_value(FRAMEWORK_ROOT, "rev-parse", "HEAD")
-        connector_clean_at_finalize = git_worktree_clean(connector_root)
-        framework_clean_at_finalize = git_worktree_clean(FRAMEWORK_ROOT)
-        manifest["connector_worktree_clean"] = bool(
-            manifest.get("connector_worktree_clean") is True and connector_clean_at_finalize
+
+def copy_finalize_source_log(context: FinalizeContext, item: str) -> None:
+    if "=" not in item:
+        raise ContractError("--source-log must be NAME=PATH")
+    name, source_text = item.split("=", 1)
+    copy_named_log(context.run_dir, name, source_text, context.manifest)
+
+
+def capture_finalize_provenance(context: FinalizeContext) -> None:
+    if context.provenance_required:
+        assert context.connector_root is not None
+        connector_commit = git_value(context.connector_root, "rev-parse", "HEAD")
+        framework_commit = git_value(FRAMEWORK_ROOT, "rev-parse", "HEAD")
+        connector_clean = git_worktree_clean(context.connector_root)
+        framework_clean = git_worktree_clean(FRAMEWORK_ROOT)
+        context.manifest["connector_worktree_clean"] = bool(
+            context.manifest.get("connector_worktree_clean") is True and connector_clean
         )
-        manifest["framework_worktree_clean"] = bool(
-            manifest.get("framework_worktree_clean") is True and framework_clean_at_finalize
+        context.manifest["framework_worktree_clean"] = bool(
+            context.manifest.get("framework_worktree_clean") is True and framework_clean
         )
     else:
-        connector_commit_at_finalize = str(manifest.get("connector_commit") or "unknown")
-        framework_commit_at_finalize = str(manifest.get("framework_commit") or "unknown")
-    manifest["provenance_required"] = provenance_required
-    manifest["connector_commit_at_finalize"] = connector_commit_at_finalize
-    manifest["framework_commit_at_finalize"] = framework_commit_at_finalize
+        connector_commit = str(context.manifest.get("connector_commit") or "unknown")
+        framework_commit = str(context.manifest.get("framework_commit") or "unknown")
+    context.manifest["provenance_required"] = context.provenance_required
+    context.manifest["connector_commit_at_finalize"] = connector_commit
+    context.manifest["framework_commit_at_finalize"] = framework_commit
 
-    source_statuses = [str(payload.get("status") or "").upper() for payload in source_payloads]
-    source_failure = "FAIL" in source_statuses
-    status, blocked_before_execution = aggregate_status(records, stage_rc, source_failure=source_failure)
-    counts = Counter(record["status"] for record in records)
-    observed_rule_ids = sorted({rule_id for record in records for rule_id in record["observed_rule_ids"]})
-    transaction_ids = sorted({tx for record in records for tx in record["transaction_ids"]})
-    pass_ids = {record["case_id"] for record in records if record["status"] == "PASS"}
-    verified_capabilities = sorted({
+
+def finalize_capability_sets(
+    records: Sequence[Mapping[str, Any]], capabilities: Mapping[str, Any],
+) -> tuple[list[str], list[str], list[str]]:
+    verified = sorted({
         capability for record in records if record["status"] == "PASS"
         for capability in record["required_capabilities"]
     })
-    declared_capabilities = capabilities.get("capabilities", {})
-    unsupported_capabilities = sorted({
+    declared = capabilities.get("capabilities", {})
+    unsupported = sorted({
         name for name in CAPABILITIES
-        if capability_state(declared_capabilities.get(name)) in {
+        if capability_state(declared.get(name)) in {
             "unsupported_by_host_model", "not_applicable"
         }
-    } - set(verified_capabilities))
-    not_exercised_capabilities = sorted(set(CAPABILITIES) - set(verified_capabilities) - set(unsupported_capabilities))
-    allowed_record = deduplicated.get("allow_without_marker", {})
-    blocked_record = deduplicated.get("deny_header_marker_403", {})
-    requests_sent = any(record.get("live_executed") is True for record in records)
-    source_started = any(payload.get("started") is True for payload in source_payloads)
-    started = source_started or requests_sent
-    event_metadata_verified, body_payload_absent_from_events = canonical_core_event_contract(
-        events, connector, selected_event_integration_mode
+    } - set(verified))
+    not_exercised = sorted(set(CAPABILITIES) - set(verified) - set(unsupported))
+    return verified, unsupported, not_exercised
+
+
+def finalize_pass_gate(
+    context: FinalizeContext,
+    status: str,
+    blocked_before_execution: bool,
+    pass_ids: set[str],
+    event_metadata_verified: bool,
+    body_payload_absent_from_events: bool,
+    host_version: object,
+    libmodsecurity_version: object,
+    first_byte_evidence: Mapping[str, Any] | None,
+) -> tuple[str, bool, list[str]]:
+    if status != "PASS":
+        return status, blocked_before_execution, []
+    failures = canonical_pass_gate_failures(
+        context.evidence_stage,
+        pass_ids,
+        event_metadata_verified,
+        body_payload_absent_from_events,
+        host_version,
+        libmodsecurity_version,
     )
-    host_version = args.host_version or manifest["host_version"]
-    libmodsecurity_version = args.libmodsecurity_version or manifest["libmodsecurity_version"]
-    minimal_runtime_verified = bool(
-        {"allow_without_marker", "deny_header_marker_403"}.issubset(pass_ids)
-        and event_metadata_verified
-        and body_payload_absent_from_events
-        and concrete_version(host_version)
-        and concrete_version(libmodsecurity_version)
-    )
-    pass_gate_failures: list[str] = []
-    if status == "PASS":
-        pass_gate_failures = canonical_pass_gate_failures(
-            evidence_stage, pass_ids, event_metadata_verified,
-            body_payload_absent_from_events, host_version, libmodsecurity_version,
-        )
-        if manifest.get("connector_worktree_clean") is not True:
-            pass_gate_failures.append("PASS requires a clean connector worktree")
-        if manifest.get("framework_worktree_clean") is not True:
-            pass_gate_failures.append("PASS requires a clean framework worktree")
-        pass_gate_failures.extend(provenance_pass_gate_failures(manifest))
-        if (
-            artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE
-            and first_byte_evidence is not None
-            and first_byte_evidence.get("evidence_origin") != "real_host"
-        ):
-            pass_gate_failures.append(
-                "PASS requires real-host first-byte evidence; synthetic harness output is non-promoting"
-            )
-        if pass_gate_failures:
-            status = "FAIL"
-            blocked_before_execution = False
-    inventory_path = run_dir / "inventory/run.json"
-    inventory = load_json(inventory_path)
-    if not isinstance(inventory, dict):
-        raise ContractError("inventory/run.json must contain an object")
-    inventory["host_version"] = host_version
-    inventory["libmodsecurity_version"] = libmodsecurity_version
-    for field in (
-        "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize",
-        "connector_worktree_clean", "framework_worktree_clean",
+    if context.manifest.get("connector_worktree_clean") is not True:
+        failures.append("PASS requires a clean connector worktree")
+    if context.manifest.get("framework_worktree_clean") is not True:
+        failures.append("PASS requires a clean framework worktree")
+    failures.extend(provenance_pass_gate_failures(context.manifest))
+    if (
+        context.artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE
+        and first_byte_evidence is not None
+        and first_byte_evidence.get("evidence_origin") != "real_host"
     ):
-        inventory[field] = manifest[field]
-    inventory["finalized_at"] = args.ended_at or utc_now()
-    write_json(inventory_path, inventory)
-    manifest["artifacts"]["inventory"]["sha256"] = sha256_file(inventory_path)
-    evidence_stages = json.loads(json.dumps(capabilities.get("evidence_stages", {})))
+        failures.append(
+            "PASS requires real-host first-byte evidence; synthetic harness output is non-promoting"
+        )
+    if failures:
+        return "FAIL", False, failures
+    return status, blocked_before_execution, failures
+
+
+def finalized_evidence_stages(
+    context: FinalizeContext, summary_status: str, minimal_runtime_verified: bool,
+) -> dict[str, Any]:
+    evidence_stages = json.loads(json.dumps(context.capabilities.get("evidence_stages", {})))
     if isinstance(evidence_stages.get("minimal_runtime_smoke"), Mapping) and minimal_runtime_verified:
         evidence_stages["minimal_runtime_smoke"] = {
             "status": "supported_and_verified",
             "reason": "Current canonical run observed allow, rule-1100001 deny, and required metadata event fields.",
-            "evidence": ["result.json", "results.jsonl", "events.jsonl"],
+            "evidence": [RESULT_FILE_NAME, CASE_RESULTS_FILE_NAME, EVENTS_FILE_NAME],
         }
-    current_stage_status = {
+    stage_status = {
         "PASS": "supported_and_verified",
         "FAIL": "failed",
         "BLOCKED": "blocked_before_execution",
         "UNSUPPORTED": "unsupported_by_host_model",
         "NOT_APPLICABLE": "unsupported_by_host_model",
         "NOT_EXECUTED": "supported_not_verified",
-    }[status]
-    evidence_stages[evidence_stage] = {
-        "status": current_stage_status,
-        "reason": f"Current canonical result status is {status}; unsupported and unexecuted cases are not PASS.",
-        "evidence": ["result.json", "results.jsonl"],
+    }[summary_status]
+    evidence_stages[context.evidence_stage] = {
+        "status": stage_status,
+        "reason": f"Current canonical result status is {summary_status}; unsupported and unexecuted cases are not PASS.",
+        "evidence": [RESULT_FILE_NAME, CASE_RESULTS_FILE_NAME],
     }
-    result = {
-        "schema_version": 1,
-        "status_model": STATUS_MODEL,
-        "connector": connector,
-        "connector_commit": manifest["connector_commit"],
-        "framework_commit": manifest["framework_commit"],
-        "connector_worktree_clean": manifest.get("connector_worktree_clean", False),
-        "framework_worktree_clean": manifest.get("framework_worktree_clean", False),
-        "provenance_required": manifest.get("provenance_required", False),
-        "connector_commit_at_finalize": manifest.get("connector_commit_at_finalize", "unknown"),
-        "framework_commit_at_finalize": manifest.get("framework_commit_at_finalize", "unknown"),
-        "run_id": manifest["run_id"],
-        "host_name": manifest["host_name"],
-        "host_version": host_version,
-        "integration_mode": manifest["integration_mode"],
-        "host_profile": host_profile,
-        "executed_targets": list(manifest.get("executed_targets", [])),
-        "libmodsecurity_version": libmodsecurity_version,
-        "evidence_stage": evidence_stage,
-        "artifact_profile": artifact_profile,
-        "ruleset": "no-crs-baseline",
+    return evidence_stages
+
+
+def build_finalize_summary(
+    context: FinalizeContext,
+    args: argparse.Namespace,
+    records: Sequence[Mapping[str, Any]],
+    deduplicated: Mapping[str, Mapping[str, Any]],
+    source_payloads: Sequence[Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    first_byte_evidence: Mapping[str, Any] | None,
+) -> FinalizeSummary:
+    stage_rc = int(args.stage_rc)
+    source_statuses = [str(payload.get("status") or "").upper() for payload in source_payloads]
+    source_failure = "FAIL" in source_statuses
+    status, blocked_before_execution = aggregate_status(
+        records, stage_rc, source_failure=source_failure,
+    )
+    counts = Counter(record["status"] for record in records)
+    observed_rule_ids = sorted({
+        rule_id for record in records for rule_id in record["observed_rule_ids"]
+    })
+    transaction_ids = sorted({
+        transaction_id for record in records for transaction_id in record["transaction_ids"]
+    })
+    pass_ids = {record["case_id"] for record in records if record["status"] == "PASS"}
+    verified, unsupported, not_exercised = finalize_capability_sets(records, context.capabilities)
+    requests_sent = any(record.get("live_executed") is True for record in records)
+    source_started = any(payload.get("started") is True for payload in source_payloads)
+    event_metadata_verified, body_payload_absent = canonical_core_event_contract(
+        events, context.connector, context.event_integration_mode,
+    )
+    host_version = args.host_version or context.manifest["host_version"]
+    libmodsecurity_version = args.libmodsecurity_version or context.manifest["libmodsecurity_version"]
+    minimal_runtime_verified = bool(
+        {"allow_without_marker", "deny_header_marker_403"}.issubset(pass_ids)
+        and event_metadata_verified
+        and body_payload_absent
+        and concrete_version(host_version)
+        and concrete_version(libmodsecurity_version)
+    )
+    status, blocked_before_execution, pass_gate_failures = finalize_pass_gate(
+        context,
+        status,
+        blocked_before_execution,
+        pass_ids,
+        event_metadata_verified,
+        body_payload_absent,
+        host_version,
+        libmodsecurity_version,
+        first_byte_evidence,
+    )
+    values: FinalizeSummaryValues = {
         "status": status,
-        "exit_code": stage_rc,
+        "blocked_before_execution": blocked_before_execution,
         "source_statuses": source_statuses,
         "source_failure": source_failure,
-        "blocked_before_execution": blocked_before_execution,
-        "started": started,
-        "requests_sent": requests_sent,
-        "allowed_request_status": allowed_record.get("actual_status"),
-        "blocked_request_status": blocked_record.get("actual_status"),
+        "counts": counts,
         "observed_rule_ids": observed_rule_ids,
         "transaction_ids": transaction_ids,
-        "request_headers_verified": {"allow_without_marker", "deny_header_marker_403"}.issubset(pass_ids),
-        "request_body_verified": "deny_request_body_marker_403" in pass_ids,
-        "response_headers_verified": "deny_response_header_marker_403" in pass_ids,
-        "response_body_verified": "phase4_rule_observed" in pass_ids,
+        "pass_ids": pass_ids,
+        "verified_capabilities": verified,
+        "unsupported_capabilities": unsupported,
+        "not_exercised_capabilities": not_exercised,
+        "requests_sent": requests_sent,
+        "started": source_started or requests_sent,
+        "event_metadata_verified": event_metadata_verified,
+        "body_payload_absent_from_events": body_payload_absent,
+        "host_version": host_version,
+        "libmodsecurity_version": libmodsecurity_version,
+        "minimal_runtime_verified": minimal_runtime_verified,
+        "pass_gate_failures": pass_gate_failures,
+        "allowed_record": deduplicated.get("allow_without_marker", {}),
+        "blocked_record": deduplicated.get("deny_header_marker_403", {}),
+        "evidence_stages": finalized_evidence_stages(
+            context, status, minimal_runtime_verified,
+        ),
+    }
+    return FinalizeSummary(values)
+
+
+def write_finalize_inventory(
+    context: FinalizeContext, args: argparse.Namespace, summary: FinalizeSummary,
+) -> None:
+    inventory_path = context.run_dir / RUN_INVENTORY_FILE_PATH
+    inventory = load_json(inventory_path)
+    if not isinstance(inventory, dict):
+        raise ContractError("inventory/run.json must contain an object")
+    inventory["host_version"] = summary.host_version
+    inventory["libmodsecurity_version"] = summary.libmodsecurity_version
+    for field in (
+        "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize",
+        "connector_worktree_clean", "framework_worktree_clean",
+    ):
+        inventory[field] = context.manifest[field]
+    inventory["finalized_at"] = args.ended_at or utc_now()
+    write_json(inventory_path, inventory)
+    context.manifest["artifacts"]["inventory"]["sha256"] = sha256_file(inventory_path)
+
+
+def finalize_group_statuses(records: Sequence[Mapping[str, Any]]) -> dict[str, str]:
+    groups = sorted({
+        str(record.get("group") or "") for record in records if record.get("group")
+    })
+    return {
+        group: aggregate_case_status([
+            record for record in records if record.get("group") == group
+        ])
+        for group in groups
+    }
+
+
+def finalized_artifact_paths(manifest: Mapping[str, Any]) -> dict[str, str]:
+    return {
+        name: entry["path"]
+        for name, entry in manifest["artifacts"].items()
+        if entry["state"] == "produced"
+    }
+
+
+def build_finalize_result(
+    context: FinalizeContext,
+    args: argparse.Namespace,
+    summary: FinalizeSummary,
+    records: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    declared_capabilities = context.capabilities.get("capabilities", {})
+    return {
+        "schema_version": 1,
+        "status_model": STATUS_MODEL,
+        "connector": context.connector,
+        "connector_commit": context.manifest["connector_commit"],
+        "framework_commit": context.manifest["framework_commit"],
+        "connector_worktree_clean": context.manifest.get("connector_worktree_clean", False),
+        "framework_worktree_clean": context.manifest.get("framework_worktree_clean", False),
+        "provenance_required": context.manifest.get("provenance_required", False),
+        "connector_commit_at_finalize": context.manifest.get("connector_commit_at_finalize", "unknown"),
+        "framework_commit_at_finalize": context.manifest.get("framework_commit_at_finalize", "unknown"),
+        "run_id": context.manifest["run_id"],
+        "host_name": context.manifest["host_name"],
+        "host_version": summary.host_version,
+        "integration_mode": context.manifest["integration_mode"],
+        "host_profile": context.host_profile,
+        "executed_targets": list(context.manifest.get("executed_targets", [])),
+        "libmodsecurity_version": summary.libmodsecurity_version,
+        "evidence_stage": context.evidence_stage,
+        "artifact_profile": context.artifact_profile,
+        "ruleset": "no-crs-baseline",
+        "status": summary.status,
+        "exit_code": int(args.stage_rc),
+        "source_statuses": summary.source_statuses,
+        "source_failure": summary.source_failure,
+        "blocked_before_execution": summary.blocked_before_execution,
+        "started": summary.started,
+        "requests_sent": summary.requests_sent,
+        "allowed_request_status": summary.allowed_record.get("actual_status"),
+        "blocked_request_status": summary.blocked_record.get("actual_status"),
+        "observed_rule_ids": summary.observed_rule_ids,
+        "transaction_ids": summary.transaction_ids,
+        "request_headers_verified": {"allow_without_marker", "deny_header_marker_403"}.issubset(summary.pass_ids),
+        "request_body_verified": "deny_request_body_marker_403" in summary.pass_ids,
+        "response_headers_verified": "deny_response_header_marker_403" in summary.pass_ids,
+        "response_body_verified": "phase4_rule_observed" in summary.pass_ids,
         "late_intervention_verified": bool(
             {
                 "phase4_deny_after_commit_log_only",
                 "phase4_deny_after_commit_abort",
-            }.intersection(pass_ids)
-            and "late_intervention" in verified_capabilities
+            }.intersection(summary.pass_ids)
+            and "late_intervention" in summary.verified_capabilities
         ),
         "phase4_case_results": [
             phase4_case_result_projection(record)
             for record in records
             if record.get("case_id") in PHASE4_CASE_IDS
         ],
-        "event_metadata_verified": event_metadata_verified,
-        "body_payload_absent_from_events": body_payload_absent_from_events,
-        "pass_gate_failures": pass_gate_failures,
+        "event_metadata_verified": summary.event_metadata_verified,
+        "body_payload_absent_from_events": summary.body_payload_absent_from_events,
+        "pass_gate_failures": summary.pass_gate_failures,
         "cases_total": len(records),
-        "cases_passed": counts["PASS"],
-        "cases_failed": counts["FAIL"],
-        "cases_blocked": counts["BLOCKED"],
-        "cases_unsupported": counts["UNSUPPORTED"],
-        "cases_not_applicable": counts["NOT_APPLICABLE"],
-        "cases_not_executed": counts["NOT_EXECUTED"],
-        "status_counts": {name: counts[name] for name in CASE_STATUSES},
-        "group_statuses": {
-            group: aggregate_case_status([record for record in records if record.get("group") == group])
-            for group in sorted({str(record.get("group") or "") for record in records if record.get("group")})
-        },
-        "capabilities_verified": verified_capabilities,
-        "capabilities_unsupported": unsupported_capabilities,
-        "capabilities_not_exercised": not_exercised_capabilities,
+        "cases_passed": summary.counts["PASS"],
+        "cases_failed": summary.counts["FAIL"],
+        "cases_blocked": summary.counts["BLOCKED"],
+        "cases_unsupported": summary.counts["UNSUPPORTED"],
+        "cases_not_applicable": summary.counts["NOT_APPLICABLE"],
+        "cases_not_executed": summary.counts["NOT_EXECUTED"],
+        "status_counts": {name: summary.counts[name] for name in CASE_STATUSES},
+        "group_statuses": finalize_group_statuses(records),
+        "capabilities_verified": summary.verified_capabilities,
+        "capabilities_unsupported": summary.unsupported_capabilities,
+        "capabilities_not_exercised": summary.not_exercised_capabilities,
         "capability_states": {
             name: capability_state(declared_capabilities.get(name)) for name in CAPABILITIES
         },
-        "evidence_stages": evidence_stages,
-        "artifacts": {name: entry["path"] for name, entry in manifest["artifacts"].items() if entry["state"] == "produced"},
+        "evidence_stages": summary.evidence_stages,
+        "artifacts": finalized_artifact_paths(context.manifest),
         "claims_not_allowed": list(CLAIMS_NOT_ALLOWED),
         "production_ready": False,
         "security_verified": False,
         "crs_verified": False,
         "crs_complete": False,
         "full_matrix_ready": False,
-        "started_at": args.started_at or manifest["started_at"],
+        "started_at": args.started_at or context.manifest["started_at"],
         "ended_at": args.ended_at or utc_now(),
     }
-    manifest["host_version"] = result["host_version"]
-    manifest["libmodsecurity_version"] = result["libmodsecurity_version"]
-    manifest["started_at"] = result["started_at"]
-    manifest["status"] = status
-    manifest["ended_at"] = result["ended_at"]
-    manifest["artifacts"]["result"] = artifact_entry("result.json", "produced")
-    result["artifacts"]["result"] = "result.json"
-    write_json(run_dir / "result.json", result)
-    manifest["artifacts"]["result"]["sha256"] = sha256_file(run_dir / "result.json")
-    write_json(manifest_path, manifest)
+
+
+def write_finalize_result(
+    context: FinalizeContext, result: dict[str, Any],
+) -> Path:
+    context.manifest["host_version"] = result["host_version"]
+    context.manifest["libmodsecurity_version"] = result["libmodsecurity_version"]
+    context.manifest["started_at"] = result["started_at"]
+    context.manifest["status"] = result["status"]
+    context.manifest["ended_at"] = result["ended_at"]
+    context.manifest["artifacts"]["result"] = artifact_entry(RESULT_FILE_NAME, "produced")
+    result["artifacts"]["result"] = RESULT_FILE_NAME
+    result_path = context.run_dir / RESULT_FILE_NAME
+    write_json(result_path, result)
+    context.manifest["artifacts"]["result"]["sha256"] = sha256_file(result_path)
+    write_json(context.manifest_path, context.manifest)
+    return result_path
+
+
+def finalize_run(args: argparse.Namespace) -> int:
+    context = load_finalize_context(args)
+    events = copy_finalize_events(context, args)
+    first_byte_evidence, protocol_client_artifact_dir = copy_finalize_supporting_artifacts(
+        context, args,
+    )
+    raw_records, source_payloads = collect_finalize_sources(context, args)
+    records, deduplicated = normalize_finalize_records(
+        context, raw_records, source_payloads, events, first_byte_evidence,
+    )
+    stage_rc = int(args.stage_rc)
+    complete_finalize_records(
+        context, records, deduplicated, events, stage_rc, args.stage_reason,
+    )
+    validate_protocol_client_records(
+        records, context.case_by_id, protocol_client_artifact_dir,
+    )
+    deduplicated = write_finalize_case_results(context, records)
+    copy_finalize_logs(context, args)
+    capture_finalize_provenance(context)
+    summary = build_finalize_summary(
+        context,
+        args,
+        records,
+        deduplicated,
+        source_payloads,
+        events,
+        first_byte_evidence,
+    )
+    write_finalize_inventory(context, args, summary)
+    result_path = write_finalize_result(
+        context, build_finalize_result(context, args, summary, records),
+    )
     errors = validate_run(
-        run_dir, connector, capabilities, checks=FINALIZE_VALIDATION_CHECKS,
+        context.run_dir, context.connector, context.capabilities, checks=FINALIZE_VALIDATION_CHECKS,
     )
     if errors:
         for error in errors:
             print(f"no-crs-finalize: {error}", file=sys.stderr)
         return 1
-    print(run_dir / "result.json")
-    return 1 if status == "FAIL" else 0
+    print(result_path)
+    return 1 if summary.status == "FAIL" else 0
 
 
 def required_keys(payload: Mapping[str, Any], keys: Sequence[str], label: str) -> list[str]:
@@ -4795,6 +6217,156 @@ def _json_type_matches(value: object, expected: str) -> bool:
     }.get(expected, True)
 
 
+def resolved_json_schema_reference(
+    schema: Mapping[str, Any], root: Mapping[str, Any], location: str,
+) -> tuple[Mapping[str, Any] | None, list[str]]:
+    reference = schema.get("$ref")
+    if not isinstance(reference, str):
+        return schema, []
+    if not reference.startswith("#/"):
+        return None, [f"{location}: unsupported external schema reference {reference}"]
+    target: object = root
+    for component in reference[2:].split("/"):
+        if not isinstance(target, Mapping) or component not in target:
+            return None, [f"{location}: unresolved schema reference {reference}"]
+        target = target[component]
+    if not isinstance(target, Mapping):
+        return None, [f"{location}: schema reference is not an object: {reference}"]
+    return target, []
+
+
+def json_schema_type_errors(value: object, schema: Mapping[str, Any], location: str) -> list[str]:
+    expected_type = schema.get("type")
+    expected_types = [expected_type] if isinstance(expected_type, str) else expected_type
+    if isinstance(expected_types, list) and not any(
+        _json_type_matches(value, str(item)) for item in expected_types
+    ):
+        return [f"{location}: expected type {expected_types}, got {type(value).__name__}"]
+    return []
+
+
+def json_schema_common_value_errors(
+    value: object, schema: Mapping[str, Any], location: str,
+) -> list[str]:
+    errors: list[str] = []
+    if "const" in schema and value != schema["const"]:
+        errors.append(f"{location}: expected constant {schema['const']!r}, got {value!r}")
+    if isinstance(schema.get("enum"), list) and value not in schema["enum"]:
+        errors.append(f"{location}: value {value!r} is outside enum {schema['enum']!r}")
+    return errors
+
+
+def json_schema_string_errors(value: str, schema: Mapping[str, Any], location: str) -> list[str]:
+    errors: list[str] = []
+    if isinstance(schema.get("minLength"), int) and len(value) < schema["minLength"]:
+        errors.append(f"{location}: string is shorter than minLength")
+    if isinstance(schema.get("maxLength"), int) and len(value) > schema["maxLength"]:
+        errors.append(f"{location}: string is longer than maxLength")
+    if isinstance(schema.get("pattern"), str) and re.fullmatch(schema["pattern"], value) is None:
+        errors.append(f"{location}: string does not match {schema['pattern']!r}")
+    return errors
+
+
+def json_schema_number_errors(
+    value: int | float, schema: Mapping[str, Any], location: str,
+) -> list[str]:
+    errors: list[str] = []
+    if isinstance(schema.get("minimum"), (int, float)) and value < schema["minimum"]:
+        errors.append(f"{location}: value is below minimum")
+    if isinstance(schema.get("maximum"), (int, float)) and value > schema["maximum"]:
+        errors.append(f"{location}: value is above maximum")
+    return errors
+
+
+def json_schema_array_errors(
+    value: list[object], schema: Mapping[str, Any], root: Mapping[str, Any], location: str,
+) -> list[str]:
+    errors: list[str] = []
+    if isinstance(schema.get("minItems"), int) and len(value) < schema["minItems"]:
+        errors.append(f"{location}: array is shorter than minItems")
+    if schema.get("uniqueItems") is True:
+        serialized = [json.dumps(item, sort_keys=True) for item in value]
+        if len(serialized) != len(set(serialized)):
+            errors.append(f"{location}: array items are not unique")
+    item_schema = schema.get("items")
+    if isinstance(item_schema, Mapping):
+        for index, item in enumerate(value):
+            errors.extend(json_schema_errors(
+                item, item_schema, root_schema=root, location=f"{location}[{index}]",
+            ))
+    return errors
+
+
+def json_schema_object_property_errors(
+    value: Mapping[object, object],
+    property_map: Mapping[object, object],
+    pattern_map: Mapping[object, object],
+    root: Mapping[str, Any],
+    location: str,
+) -> tuple[set[str], list[str]]:
+    matched: set[str] = set()
+    errors: list[str] = []
+    for key, nested in value.items():
+        key_text = str(key)
+        property_schema = property_map.get(key_text)
+        if isinstance(property_schema, Mapping):
+            matched.add(key_text)
+            errors.extend(json_schema_errors(
+                nested, property_schema, root_schema=root, location=f"{location}.{key_text}",
+            ))
+        for pattern, nested_schema in pattern_map.items():
+            if re.fullmatch(str(pattern), key_text) and isinstance(nested_schema, Mapping):
+                matched.add(key_text)
+                errors.extend(json_schema_errors(
+                    nested, nested_schema, root_schema=root, location=f"{location}.{key_text}",
+                ))
+    return matched, errors
+
+
+def json_schema_additional_property_errors(
+    value: Mapping[object, object],
+    matched: set[str],
+    additional: object,
+    root: Mapping[str, Any],
+    location: str,
+) -> list[str]:
+    errors: list[str] = []
+    for key, nested in value.items():
+        key_text = str(key)
+        if key_text in matched:
+            continue
+        if additional is False:
+            errors.append(f"{location}: unexpected property {key_text}")
+        elif isinstance(additional, Mapping):
+            errors.extend(json_schema_errors(
+                nested, additional, root_schema=root, location=f"{location}.{key_text}",
+            ))
+    return errors
+
+
+def json_schema_object_errors(
+    value: Mapping[object, object], schema: Mapping[str, Any], root: Mapping[str, Any], location: str,
+) -> list[str]:
+    errors: list[str] = []
+    required = schema.get("required", [])
+    if isinstance(required, list):
+        for key in required:
+            if key not in value:
+                errors.append(f"{location}: missing required property {key}")
+    properties = schema.get("properties", {})
+    property_map = properties if isinstance(properties, Mapping) else {}
+    pattern_properties = schema.get("patternProperties", {})
+    pattern_map = pattern_properties if isinstance(pattern_properties, Mapping) else {}
+    matched, property_errors = json_schema_object_property_errors(
+        value, property_map, pattern_map, root, location,
+    )
+    errors.extend(property_errors)
+    errors.extend(json_schema_additional_property_errors(
+        value, matched, schema.get("additionalProperties", True), root, location,
+    ))
+    return errors
+
+
 def json_schema_errors(
     value: object,
     schema: Mapping[str, Any],
@@ -4804,79 +6376,24 @@ def json_schema_errors(
 ) -> list[str]:
     """Validate the JSON-Schema subset used by the checked-in contracts."""
     root = root_schema or schema
-    reference = schema.get("$ref")
-    if isinstance(reference, str):
-        if not reference.startswith("#/"):
-            return [f"{location}: unsupported external schema reference {reference}"]
-        target: object = root
-        for component in reference[2:].split("/"):
-            if not isinstance(target, Mapping) or component not in target:
-                return [f"{location}: unresolved schema reference {reference}"]
-            target = target[component]
-        if not isinstance(target, Mapping):
-            return [f"{location}: schema reference is not an object: {reference}"]
-        return json_schema_errors(value, target, root_schema=root, location=location)
-    errors: list[str] = []
-    expected_type = schema.get("type")
-    expected_types = [expected_type] if isinstance(expected_type, str) else expected_type
-    if isinstance(expected_types, list) and not any(_json_type_matches(value, str(item)) for item in expected_types):
-        return [f"{location}: expected type {expected_types}, got {type(value).__name__}"]
-    if "const" in schema and value != schema["const"]:
-        errors.append(f"{location}: expected constant {schema['const']!r}, got {value!r}")
-    if isinstance(schema.get("enum"), list) and value not in schema["enum"]:
-        errors.append(f"{location}: value {value!r} is outside enum {schema['enum']!r}")
+    resolved_schema, reference_errors = resolved_json_schema_reference(schema, root, location)
+    if reference_errors:
+        return reference_errors
+    if resolved_schema is not schema:
+        assert resolved_schema is not None
+        return json_schema_errors(value, resolved_schema, root_schema=root, location=location)
+    type_errors = json_schema_type_errors(value, schema, location)
+    if type_errors:
+        return type_errors
+    errors = json_schema_common_value_errors(value, schema, location)
     if isinstance(value, str):
-        if isinstance(schema.get("minLength"), int) and len(value) < schema["minLength"]:
-            errors.append(f"{location}: string is shorter than minLength")
-        if isinstance(schema.get("maxLength"), int) and len(value) > schema["maxLength"]:
-            errors.append(f"{location}: string is longer than maxLength")
-        if isinstance(schema.get("pattern"), str) and re.fullmatch(schema["pattern"], value) is None:
-            errors.append(f"{location}: string does not match {schema['pattern']!r}")
+        errors.extend(json_schema_string_errors(value, schema, location))
     if isinstance(value, (int, float)) and not isinstance(value, bool):
-        if isinstance(schema.get("minimum"), (int, float)) and value < schema["minimum"]:
-            errors.append(f"{location}: value is below minimum")
-        if isinstance(schema.get("maximum"), (int, float)) and value > schema["maximum"]:
-            errors.append(f"{location}: value is above maximum")
+        errors.extend(json_schema_number_errors(value, schema, location))
     if isinstance(value, list):
-        if isinstance(schema.get("minItems"), int) and len(value) < schema["minItems"]:
-            errors.append(f"{location}: array is shorter than minItems")
-        if schema.get("uniqueItems") is True:
-            serialized = [json.dumps(item, sort_keys=True) for item in value]
-            if len(serialized) != len(set(serialized)):
-                errors.append(f"{location}: array items are not unique")
-        item_schema = schema.get("items")
-        if isinstance(item_schema, Mapping):
-            for index, item in enumerate(value):
-                errors.extend(json_schema_errors(item, item_schema, root_schema=root, location=f"{location}[{index}]"))
+        errors.extend(json_schema_array_errors(value, schema, root, location))
     if isinstance(value, Mapping):
-        required = schema.get("required", [])
-        if isinstance(required, list):
-            for key in required:
-                if key not in value:
-                    errors.append(f"{location}: missing required property {key}")
-        properties = schema.get("properties", {})
-        property_map = properties if isinstance(properties, Mapping) else {}
-        pattern_properties = schema.get("patternProperties", {})
-        pattern_map = pattern_properties if isinstance(pattern_properties, Mapping) else {}
-        matched: set[str] = set()
-        for key, nested in value.items():
-            key_text = str(key)
-            if key_text in property_map and isinstance(property_map[key_text], Mapping):
-                matched.add(key_text)
-                errors.extend(json_schema_errors(nested, property_map[key_text], root_schema=root, location=f"{location}.{key_text}"))
-            for pattern, nested_schema in pattern_map.items():
-                if re.fullmatch(str(pattern), key_text) and isinstance(nested_schema, Mapping):
-                    matched.add(key_text)
-                    errors.extend(json_schema_errors(nested, nested_schema, root_schema=root, location=f"{location}.{key_text}"))
-        additional = schema.get("additionalProperties", True)
-        for key, nested in value.items():
-            key_text = str(key)
-            if key_text in matched:
-                continue
-            if additional is False:
-                errors.append(f"{location}: unexpected property {key_text}")
-            elif isinstance(additional, Mapping):
-                errors.extend(json_schema_errors(nested, additional, root_schema=root, location=f"{location}.{key_text}"))
+        errors.extend(json_schema_object_errors(value, schema, root, location))
     return errors
 
 
@@ -4898,51 +6415,96 @@ def canonical_event_errors(
         return [f"{location}: checked-in event schema must contain an object"]
     errors = json_schema_errors(event, schema, root_schema=schema, location=location)
     errors.extend(forbidden_payload_errors(event, location))
-    if isinstance(event, Mapping):
-        protocol_values: dict[str, object] = {}
-        for field in EVENT_PROTOCOL_NORMALIZATION_FIELDS:
-            if field not in event:
-                continue
-            try:
-                protocol_values[field] = normalize_semantic_value(field, event[field])
-            except ContractError:
-                errors.append(f"{location}.{field}: invalid transport provenance")
-                continue
-            if (
-                field in TRANSPORT_CLAIM_FIELDS
-                and not _empty_runtime_value(event[field])
-                and protocol_values[field] is None
-            ):
-                errors.append(f"{location}.{field}: unsupported transport provenance")
-        negotiated = protocol_values.get("negotiated_protocol")
-        downstream = protocol_values.get("downstream_protocol")
-        transport = protocol_values.get("transport")
-        stream_reset = protocol_values.get("stream_reset")
-        effective_downstream = negotiated or downstream
-        if effective_downstream == "h3" or transport == "quic_udp":
-            connection_id = protocol_values.get("connection_id")
-            if connection_id is not None and not is_hashed_connection_id(connection_id):
-                errors.append(
-                    f"{location}.connection_id: raw QUIC connection identifiers are forbidden"
-                )
-        if stream_reset is True and effective_downstream not in {"h2", "h2c", "h3"}:
-            errors.append(f"{location}.stream_reset: requires h2, h2c, or h3 downstream protocol")
-    if isinstance(event, Mapping) and "phase" in event:
-        if normalize_canonical_phase(event.get("phase")) is None:
-            errors.append(f"{location}.phase: unsupported Common/canonical phase")
-    # Core request events predate these correlation fields, so the schema
-    # keeps them optional.  Every Phase-4 record must nevertheless identify
-    # its producer event and message before it becomes canonical evidence.
-    if isinstance(event, Mapping) and phase_is_four(event.get("phase")):
-        for field in ("event", "message_id"):
-            value = event.get(field)
-            if not isinstance(value, str) or not value.strip():
-                errors.append(f"{location}.{field}: phase-4 events require a non-empty string")
-    if connector and isinstance(event, Mapping) and event.get("connector") != connector:
+    if not isinstance(event, Mapping):
+        return errors
+    errors.extend(canonical_event_protocol_errors(event, location))
+    errors.extend(canonical_event_phase_errors(event, location))
+    errors.extend(canonical_event_phase4_identity_errors(event, location))
+    errors.extend(canonical_event_context_errors(
+        event, location, connector, integration_mode,
+    ))
+    return errors
+
+
+def normalized_event_protocol_values(
+    event: Mapping[str, Any], location: str,
+) -> tuple[dict[str, object], list[str]]:
+    errors: list[str] = []
+    protocol_values: dict[str, object] = {}
+    for field in EVENT_PROTOCOL_NORMALIZATION_FIELDS:
+        if field not in event:
+            continue
+        try:
+            protocol_values[field] = normalize_semantic_value(field, event[field])
+        except ContractError:
+            errors.append(f"{location}.{field}: invalid transport provenance")
+            continue
+        if (
+            field in TRANSPORT_CLAIM_FIELDS
+            and not _empty_runtime_value(event[field])
+            and protocol_values[field] is None
+        ):
+            errors.append(f"{location}.{field}: unsupported transport provenance")
+    return protocol_values, errors
+
+
+def canonical_event_transport_errors(
+    protocol_values: Mapping[str, object], location: str,
+) -> list[str]:
+    errors: list[str] = []
+    effective_downstream = (
+        protocol_values.get("negotiated_protocol")
+        or protocol_values.get("downstream_protocol")
+    )
+    transport = protocol_values.get("transport")
+    if effective_downstream == "h3" or transport == "quic_udp":
+        connection_id = protocol_values.get("connection_id")
+        if connection_id is not None and not is_hashed_connection_id(connection_id):
+            errors.append(f"{location}.connection_id: raw QUIC connection identifiers are forbidden")
+    if (
+        protocol_values.get("stream_reset") is True
+        and effective_downstream not in {"h2", "h2c", "h3"}
+    ):
+        errors.append(f"{location}.stream_reset: requires h2, h2c, or h3 downstream protocol")
+    return errors
+
+
+def canonical_event_protocol_errors(event: Mapping[str, Any], location: str) -> list[str]:
+    protocol_values, errors = normalized_event_protocol_values(event, location)
+    errors.extend(canonical_event_transport_errors(protocol_values, location))
+    return errors
+
+
+def canonical_event_phase_errors(event: Mapping[str, Any], location: str) -> list[str]:
+    if "phase" in event and normalize_canonical_phase(event.get("phase")) is None:
+        return [f"{location}.phase: unsupported Common/canonical phase"]
+    return []
+
+
+def canonical_event_phase4_identity_errors(
+    event: Mapping[str, Any], location: str,
+) -> list[str]:
+    if not phase_is_four(event.get("phase")):
+        return []
+    return [
+        f"{location}.{field}: phase-4 events require a non-empty string"
+        for field in ("event", "message_id")
+        if not isinstance(event.get(field), str) or not event[field].strip()
+    ]
+
+
+def canonical_event_context_errors(
+    event: Mapping[str, Any],
+    location: str,
+    connector: str | None,
+    integration_mode: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    if connector and event.get("connector") != connector:
         errors.append(
             f"{location}.connector: {event.get('connector')!r} does not match {connector!r}"
         )
-    if integration_mode and isinstance(event, Mapping) and event.get("integration_mode") != integration_mode:
+    if integration_mode and event.get("integration_mode") != integration_mode:
         errors.append(
             f"{location}.integration_mode: {event.get('integration_mode')!r} does not match selected {integration_mode!r}"
         )
@@ -4967,9 +6529,16 @@ def canonical_case_protocol_errors(record: Mapping[str, Any], location: str) -> 
 
 def result_evidence_stage_errors(value: object, location: str = "result.json.evidence_stages") -> list[str]:
     """Validate the complete shared evidence-stage vocabulary in a result."""
-    errors: list[str] = []
     if not isinstance(value, Mapping):
         return [f"{location}: must be an object"]
+    errors = result_evidence_stage_set_errors(value, location)
+    for stage in EVIDENCE_STAGES:
+        errors.extend(result_evidence_stage_entry_errors(value.get(stage), stage, location))
+    return errors
+
+
+def result_evidence_stage_set_errors(value: Mapping[str, Any], location: str) -> list[str]:
+    errors: list[str] = []
     keys = {str(key) for key in value}
     missing = sorted(set(EVIDENCE_STAGES) - keys)
     unknown = sorted(keys - set(EVIDENCE_STAGES))
@@ -4977,49 +6546,71 @@ def result_evidence_stage_errors(value: object, location: str = "result.json.evi
         errors.append(f"{location}: missing stages: {', '.join(missing)}")
     if unknown:
         errors.append(f"{location}: unknown stages: {', '.join(unknown)}")
-    for stage in EVIDENCE_STAGES:
-        entry = value.get(stage)
-        if not isinstance(entry, Mapping):
-            errors.append(f"{location}.{stage}: must be an object")
-            continue
-        status = str(entry.get("status") or "")
-        if status not in EVIDENCE_STAGE_STATUSES:
-            errors.append(f"{location}.{stage}: invalid status {status!r}")
-        if not str(entry.get("reason") or "").strip():
-            errors.append(f"{location}.{stage}: missing non-empty reason")
-        evidence = entry.get("evidence")
-        if evidence is not None and (
-            not isinstance(evidence, list)
-            or any(not isinstance(item, str) or not item for item in evidence)
-        ):
-            errors.append(f"{location}.{stage}: evidence must be a list of non-empty strings")
     return errors
 
 
-def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]) -> list[str]:
+def result_evidence_stage_entry_errors(
+    entry: object, stage: str, location: str,
+) -> list[str]:
+    if not isinstance(entry, Mapping):
+        return [f"{location}.{stage}: must be an object"]
     errors: list[str] = []
-    result = load_json(run_dir / "result.json")
-    manifest = load_json(run_dir / "manifest.json")
-    inventory = load_json(run_dir / "inventory/run.json")
-    if not all(isinstance(item, Mapping) for item in (result, manifest, inventory)):
-        return ["result.json, manifest.json, and inventory/run.json must contain objects"]
-    schema_root = FRAMEWORK_ROOT / "tests/schemas/no-crs-baseline"
-    result_schema = load_json(schema_root / "result.schema.json")
-    manifest_schema = load_json(schema_root / "manifest.schema.json")
-    inventory_schema = load_json(schema_root / "inventory.schema.json")
-    case_result_schema = load_json(schema_root / "case-result.schema.json")
-    event_schema = load_json(schema_root / "event.schema.json")
-    if not all(isinstance(item, Mapping) for item in (
-        result_schema, manifest_schema, inventory_schema, case_result_schema, event_schema,
-    )):
-        return ["checked-in JSON schemas must contain objects"]
-    errors.extend(f"result.json schema: {error}" for error in json_schema_errors(result, result_schema))
-    errors.extend(f"manifest.json schema: {error}" for error in json_schema_errors(manifest, manifest_schema))
-    errors.extend(
-        f"inventory/run.json schema: {error}"
-        for error in json_schema_errors(inventory, inventory_schema)
-    )
-    errors.extend(required_keys(result, (
+    status = str(entry.get("status") or "")
+    if status not in EVIDENCE_STAGE_STATUSES:
+        errors.append(f"{location}.{stage}: invalid status {status!r}")
+    if not str(entry.get("reason") or "").strip():
+        errors.append(f"{location}.{stage}: missing non-empty reason")
+    evidence = entry.get("evidence")
+    if evidence is not None and (
+        not isinstance(evidence, list)
+        or any(not isinstance(item, str) or not item for item in evidence)
+    ):
+        errors.append(f"{location}.{stage}: evidence must be a list of non-empty strings")
+    return errors
+
+
+def load_schema_documents(run_dir: Path) -> dict[str, Mapping[str, Any]] | None:
+    documents = {
+        RESULT_FILE_NAME: load_json(run_dir / RESULT_FILE_NAME),
+        MANIFEST_FILE_NAME: load_json(run_dir / MANIFEST_FILE_NAME),
+        RUN_INVENTORY_FILE_PATH: load_json(run_dir / RUN_INVENTORY_FILE_PATH),
+    }
+    if not all(isinstance(document, Mapping) for document in documents.values()):
+        return None
+    return documents
+
+
+def load_no_crs_schemas() -> dict[str, Mapping[str, Any]] | None:
+    schema_root = FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY
+    schemas = {
+        RESULT_FILE_NAME: load_json(schema_root / "result.schema.json"),
+        MANIFEST_FILE_NAME: load_json(schema_root / "manifest.schema.json"),
+        RUN_INVENTORY_FILE_PATH: load_json(schema_root / "inventory.schema.json"),
+        CASE_RESULTS_FILE_NAME: load_json(schema_root / "case-result.schema.json"),
+        EVENTS_FILE_NAME: load_json(schema_root / "event.schema.json"),
+    }
+    if not all(isinstance(schema, Mapping) for schema in schemas.values()):
+        return None
+    return schemas
+
+
+def schema_document_validation_errors(
+    documents: Mapping[str, Mapping[str, Any]], schemas: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
+    for name in (RESULT_FILE_NAME, MANIFEST_FILE_NAME, RUN_INVENTORY_FILE_PATH):
+        errors.extend(
+            f"{name} schema: {error}"
+            for error in json_schema_errors(documents[name], schemas[name])
+        )
+    return errors
+
+
+def schema_required_key_errors(documents: Mapping[str, Mapping[str, Any]]) -> list[str]:
+    result = documents[RESULT_FILE_NAME]
+    manifest = documents[MANIFEST_FILE_NAME]
+    inventory = documents[RUN_INVENTORY_FILE_PATH]
+    errors = required_keys(result, (
         "schema_version", "status_model", "connector", "connector_commit", "framework_commit", "host_name",
         "host_version", "integration_mode", "artifact_profile", "host_profile", "executed_targets", "libmodsecurity_version", "run_id",
         "connector_worktree_clean", "framework_worktree_clean", "provenance_required",
@@ -5036,7 +6627,7 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         "capabilities_not_exercised", "capability_states", "artifacts", "claims_not_allowed",
         "evidence_stages", "production_ready", "security_verified", "crs_verified", "crs_complete",
         "full_matrix_ready", "started_at", "ended_at",
-    ), "result.json"))
+    ), RESULT_FILE_NAME)
     errors.extend(required_keys(manifest, (
         "schema_version", "connector", "run_id", "evidence_stage", "ruleset", "status",
         "started_at", "ended_at", "connector_commit", "framework_commit", "host_name",
@@ -5044,7 +6635,7 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         "operating_system", "architecture", "rules", "cases", "executed_targets", "artifacts",
         "capability_manifest", "connector_worktree_clean", "framework_worktree_clean",
         "provenance_required", "connector_commit_at_finalize", "framework_commit_at_finalize",
-    ), "manifest.json"))
+    ), MANIFEST_FILE_NAME))
     errors.extend(required_keys(inventory, (
         "schema_version", "connector", "run_id", "evidence_stage", "ruleset",
         "connector_commit", "framework_commit", "host_name", "host_version",
@@ -5053,7 +6644,17 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         "catalog_sha256", "capability_manifest_sha256", "executed_targets", "created_at",
         "connector_worktree_clean", "framework_worktree_clean", "provenance_required",
         "connector_commit_at_finalize", "framework_commit_at_finalize",
-    ), "inventory/run.json"))
+    ), RUN_INVENTORY_FILE_PATH))
+    return errors
+
+
+def schema_result_consistency_errors(
+    documents: Mapping[str, Mapping[str, Any]], connector: str,
+) -> list[str]:
+    result = documents[RESULT_FILE_NAME]
+    manifest = documents[MANIFEST_FILE_NAME]
+    inventory = documents[RUN_INVENTORY_FILE_PATH]
+    errors: list[str] = []
     if result.get("schema_version") != 1 or manifest.get("schema_version") != 1:
         errors.append("schema_version must be 1")
     if result.get("status_model") != STATUS_MODEL:
@@ -5077,25 +6678,39 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
         == inventory.get("integration_mode")
     ):
         errors.append("manifest/result/inventory integration_mode mismatch")
-    if any(
-        payload.get("ruleset") != "no-crs-baseline"
-        for payload in (result, manifest, inventory)
-    ):
+    if any(payload.get("ruleset") != "no-crs-baseline" for payload in documents.values()):
         errors.append("ruleset must be no-crs-baseline")
     if not isinstance(result.get("observed_rule_ids"), list) or not isinstance(result.get("transaction_ids"), list):
         errors.append("observed_rule_ids and transaction_ids must be lists")
-    for field in (
+    errors.extend(result_boolean_field_errors(result))
+    return errors
+
+
+def result_boolean_field_errors(result: Mapping[str, Any]) -> list[str]:
+    fields = (
         "started", "requests_sent", "request_headers_verified", "request_body_verified",
         "response_headers_verified", "response_body_verified", "late_intervention_verified",
         "event_metadata_verified", "body_payload_absent_from_events", "source_failure",
-    ):
-        if not isinstance(result.get(field), bool):
-            errors.append(f"result.json: {field} must be Boolean")
-    records = read_jsonl(run_dir / "results.jsonl")
+    )
+    return [
+        f"result.json: {field} must be Boolean"
+        for field in fields
+        if not isinstance(result.get(field), bool)
+    ]
+
+
+def case_result_schema_errors(
+    records: Sequence[Mapping[str, Any]],
+    schema: Mapping[str, Any],
+    connector: str,
+) -> list[str]:
+    errors: list[str] = []
     seen: set[str] = set()
     for index, record in enumerate(records):
-        label = f"results.jsonl[{index}]"
-        errors.extend(f"{label} schema: {error}" for error in json_schema_errors(record, case_result_schema))
+        label = f"{CASE_RESULTS_FILE_NAME}[{index}]"
+        errors.extend(
+            f"{label} schema: {error}" for error in json_schema_errors(record, schema)
+        )
         errors.extend(required_keys(record, (
             "schema_version", "connector", "run_id", "integration_mode", "case_id", "group", "phase", "status",
             "operation_status", "live_executed", "required_capabilities", "expected_result",
@@ -5104,125 +6719,204 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
             "observed_event_fields", "event_metadata_verified", *PHASE4_SEMANTIC_FIELDS,
             "reason", "exit_code", "artifacts",
         ), label))
-        if isinstance(record, Mapping):
-            errors.extend(canonical_case_protocol_errors(record, label))
-        if record.get("status") not in CASE_STATUSES:
-            errors.append(f"{label}: invalid status")
-        if record.get("connector") != connector:
-            errors.append(f"{label}: connector mismatch")
-        case_id = str(record.get("case_id") or "")
-        if case_id in seen:
-            errors.append(f"{label}: duplicate case_id {case_id}")
-        seen.add(case_id)
-    event_integration_mode = required_event_integration_mode(manifest)
-    for index, event in enumerate(read_jsonl(run_dir / "events.jsonl", required=False)):
-        errors.extend(
-            canonical_event_errors(
-                event,
-                f"events.jsonl[{index}]",
-                connector,
-                event_integration_mode,
-            )
-        )
+        errors.extend(case_result_identity_errors(record, label, connector, seen))
+    return errors
+
+
+def case_result_identity_errors(
+    record: Mapping[str, Any], label: str, connector: str, seen: set[str],
+) -> list[str]:
+    errors = canonical_case_protocol_errors(record, label)
+    if record.get("status") not in CASE_STATUSES:
+        errors.append(f"{label}: invalid status")
+    if record.get("connector") != connector:
+        errors.append(f"{label}: connector mismatch")
+    case_id = str(record.get("case_id") or "")
+    if case_id in seen:
+        errors.append(f"{label}: duplicate case_id {case_id}")
+    seen.add(case_id)
+    return errors
+
+
+def event_schema_validation_errors(
+    run_dir: Path, connector: str, integration_mode: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    for index, event in enumerate(read_jsonl(run_dir / EVENTS_FILE_NAME, required=False)):
+        errors.extend(canonical_event_errors(
+            event, f"{EVENTS_FILE_NAME}[{index}]", connector, integration_mode,
+        ))
+    return errors
+
+
+def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]) -> list[str]:
+    documents = load_schema_documents(run_dir)
+    if documents is None:
+        return ["result.json, manifest.json, and inventory/run.json must contain objects"]
+    schemas = load_no_crs_schemas()
+    if schemas is None:
+        return ["checked-in JSON schemas must contain objects"]
+    errors = schema_document_validation_errors(documents, schemas)
+    errors.extend(schema_required_key_errors(documents))
+    errors.extend(schema_result_consistency_errors(documents, connector))
+    records = read_jsonl(run_dir / CASE_RESULTS_FILE_NAME)
+    errors.extend(case_result_schema_errors(records, schemas[CASE_RESULTS_FILE_NAME], connector))
+    errors.extend(event_schema_validation_errors(
+        run_dir,
+        connector,
+        required_event_integration_mode(documents[MANIFEST_FILE_NAME]),
+    ))
     errors.extend(validate_capability_manifest(capabilities, connector))
     return errors
 
 
 def completeness_errors(run_dir: Path) -> list[str]:
-    result = load_json(run_dir / "result.json")
-    records = read_jsonl(run_dir / "results.jsonl")
+    result = load_json(run_dir / RESULT_FILE_NAME)
+    records = read_jsonl(run_dir / CASE_RESULTS_FILE_NAME)
     errors: list[str] = []
     if not isinstance(result, Mapping):
         return ["result.json must be an object"]
     connector = str(result.get("connector") or "")
     integration_mode = required_event_integration_mode(result)
-    events = read_jsonl(run_dir / "events.jsonl", required=False)
+    events = read_jsonl(run_dir / EVENTS_FILE_NAME, required=False)
     event_metadata_verified, body_payload_absent = canonical_core_event_contract(
         events, connector, integration_mode
     )
     if result.get("event_metadata_verified") is not event_metadata_verified:
         errors.append("event_metadata_verified is inconsistent with the canonical rule-1100001 event")
-    if result.get("status") == "PASS":
-        if result.get("started") is not True or result.get("requests_sent") is not True:
-            errors.append("PASS requires started=true and requests_sent=true")
-        if not concrete_version(result.get("host_version")):
-            errors.append("PASS requires a concrete host_version")
-        if not concrete_version(result.get("libmodsecurity_version")):
-            errors.append("PASS requires a concrete libmodsecurity_version")
-        if result.get("cases_passed", 0) < 1:
-            errors.append("PASS requires at least one passed case")
-        if any(result.get(key, 0) for key in ("cases_failed", "cases_blocked", "cases_not_executed")):
-            errors.append("PASS cannot contain failed, blocked, or not-executed cases")
-        if result.get("evidence_stage") == "minimal_runtime_smoke":
-            pass_ids = {
-                str(record.get("case_id")) for record in records if record.get("status") == "PASS"
-            }
-            if not {"allow_without_marker", "deny_header_marker_403"}.issubset(pass_ids):
-                errors.append("minimal runtime PASS requires both canonical core request cases")
-            if not event_metadata_verified:
-                errors.append("minimal runtime PASS requires all canonical event metadata fields")
-            if not body_payload_absent:
-                errors.append("minimal runtime PASS requires evidence of body-payload absence")
+    errors.extend(result_pass_completeness_errors(
+        result, records, event_metadata_verified, body_payload_absent,
+    ))
     for record in records:
-        if record.get("status") != "PASS":
-            continue
-        case_id = record.get("case_id")
-        if record.get("live_executed") is not True:
-            errors.append(f"{case_id}: PASS requires live_executed=true")
-        expected_status = record.get("expected_status")
-        if (
-            not is_phase4_semantic_case(record)
-            and expected_status is not None
-            and record.get("actual_status") != expected_status
-        ):
-            errors.append(f"{case_id}: PASS status mismatch")
-        expected_rule = record.get("expected_rule_id")
-        if expected_rule is not None and expected_rule not in record.get("observed_rule_ids", []):
-            errors.append(f"{case_id}: PASS missing expected rule ID {expected_rule}")
-        expected_fields = set(record.get("expected_event_fields", []))
-        observed_fields = set(record.get("observed_event_fields", []))
-        if expected_fields and not expected_fields.issubset(observed_fields):
-            errors.append(f"{case_id}: PASS missing expected event fields")
-        if is_phase4_semantic_case(record):
-            matching_event = event_for_case(
-                events,
-                optional_int(record.get("expected_rule_id")),
-                record,
-                [str(value) for value in record.get("transaction_ids", [])],
-                integration_mode,
-            )
-            for error in phase4_pass_errors(record, matching_event):
-                errors.append(f"{case_id}: {error}")
-        matching_event = event_for_case(
-            events,
-            optional_int(record.get("expected_rule_id")),
-            record,
-            [str(value) for value in record.get("transaction_ids", [])],
-            integration_mode,
-        )
-        for error in canonical_event_errors(
-            matching_event,
-            connector=connector,
-            integration_mode=integration_mode,
-        ):
-            errors.append(f"{case_id}: {error}")
-        for error in full_lifecycle_pass_errors(record, matching_event):
-            errors.append(f"{case_id}: {error}")
+        errors.extend(pass_case_completeness_errors(
+            record, events, connector, integration_mode,
+        ))
+    return errors
+
+
+def result_pass_completeness_errors(
+    result: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
+    event_metadata_verified: bool,
+    body_payload_absent: bool,
+) -> list[str]:
+    if result.get("status") != "PASS":
+        return []
+    errors: list[str] = []
+    if result.get("started") is not True or result.get("requests_sent") is not True:
+        errors.append("PASS requires started=true and requests_sent=true")
+    if not concrete_version(result.get("host_version")):
+        errors.append("PASS requires a concrete host_version")
+    if not concrete_version(result.get("libmodsecurity_version")):
+        errors.append("PASS requires a concrete libmodsecurity_version")
+    if result.get("cases_passed", 0) < 1:
+        errors.append("PASS requires at least one passed case")
+    if any(result.get(key, 0) for key in ("cases_failed", "cases_blocked", "cases_not_executed")):
+        errors.append("PASS cannot contain failed, blocked, or not-executed cases")
+    if result.get("evidence_stage") == "minimal_runtime_smoke":
+        errors.extend(minimal_runtime_completeness_errors(
+            records, event_metadata_verified, body_payload_absent,
+        ))
+    return errors
+
+
+def minimal_runtime_completeness_errors(
+    records: Sequence[Mapping[str, Any]],
+    event_metadata_verified: bool,
+    body_payload_absent: bool,
+) -> list[str]:
+    errors: list[str] = []
+    pass_ids = {
+        str(record.get("case_id")) for record in records if record.get("status") == "PASS"
+    }
+    if not {"allow_without_marker", "deny_header_marker_403"}.issubset(pass_ids):
+        errors.append("minimal runtime PASS requires both canonical core request cases")
+    if not event_metadata_verified:
+        errors.append("minimal runtime PASS requires all canonical event metadata fields")
+    if not body_payload_absent:
+        errors.append("minimal runtime PASS requires evidence of body-payload absence")
+    return errors
+
+
+def matching_case_event_for_validation(
+    record: Mapping[str, Any],
+    events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None,
+) -> Mapping[str, Any] | None:
+    return event_for_case(
+        events,
+        optional_int(record.get("expected_rule_id")),
+        record,
+        [str(value) for value in record.get("transaction_ids", [])],
+        integration_mode,
+    )
+
+
+def pass_case_completeness_errors(
+    record: Mapping[str, Any],
+    events: Sequence[Mapping[str, Any]],
+    connector: str,
+    integration_mode: str | None,
+) -> list[str]:
+    if record.get("status") != "PASS":
+        return []
+    case_id = record.get("case_id")
+    errors: list[str] = []
+    if record.get("live_executed") is not True:
+        errors.append(f"{case_id}: PASS requires live_executed=true")
+    expected_status = record.get("expected_status")
+    if (
+        not is_phase4_semantic_case(record)
+        and expected_status is not None
+        and record.get("actual_status") != expected_status
+    ):
+        errors.append(f"{case_id}: PASS status mismatch")
+    expected_rule = record.get("expected_rule_id")
+    if expected_rule is not None and expected_rule not in record.get("observed_rule_ids", []):
+        errors.append(f"{case_id}: PASS missing expected rule ID {expected_rule}")
+    expected_fields = set(record.get("expected_event_fields", []))
+    observed_fields = set(record.get("observed_event_fields", []))
+    if expected_fields and not expected_fields.issubset(observed_fields):
+        errors.append(f"{case_id}: PASS missing expected event fields")
+    matching_event = matching_case_event_for_validation(record, events, integration_mode)
+    if is_phase4_semantic_case(record):
+        errors.extend(f"{case_id}: {error}" for error in phase4_pass_errors(record, matching_event))
+    errors.extend(f"{case_id}: {error}" for error in canonical_event_errors(
+        matching_event, connector=connector, integration_mode=integration_mode,
+    ))
+    errors.extend(f"{case_id}: {error}" for error in full_lifecycle_pass_errors(record, matching_event))
     return errors
 
 
 def capability_errors(run_dir: Path, capabilities: Mapping[str, Any]) -> list[str]:
-    result = load_json(run_dir / "result.json")
-    records = read_jsonl(run_dir / "results.jsonl")
-    errors: list[str] = []
+    result = load_json(run_dir / RESULT_FILE_NAME)
+    records = read_jsonl(run_dir / CASE_RESULTS_FILE_NAME)
     declared = capabilities.get("capabilities", {})
     if not isinstance(result, Mapping) or not isinstance(declared, Mapping):
         return ["invalid result or capability manifest"]
-    canonical_capabilities = load_json(run_dir / "inventory/capabilities.json")
+    errors = capability_inventory_errors(run_dir, capabilities)
+    errors.extend(pass_case_capability_errors(records, declared))
+    errors.extend(verified_capability_boundary_errors(result, declared))
+    errors.extend(capability_partition_errors(result))
+    expected_states = {name: capability_state(declared.get(name)) for name in CAPABILITIES}
+    if result.get("capability_states") != expected_states:
+        errors.append("result capability_states differ from the canonical manifest")
+    return errors
+
+
+def capability_inventory_errors(run_dir: Path, capabilities: Mapping[str, Any]) -> list[str]:
+    canonical_capabilities = load_json(run_dir / CAPABILITIES_INVENTORY_FILE_PATH)
     if not isinstance(canonical_capabilities, Mapping):
-        errors.append("inventory/capabilities.json must contain an object")
-    elif canonical_capabilities != capabilities:
-        errors.append("current capability manifest differs from the run inventory copy")
+        return ["inventory/capabilities.json must contain an object"]
+    if canonical_capabilities != capabilities:
+        return ["current capability manifest differs from the run inventory copy"]
+    return []
+
+
+def pass_case_capability_errors(
+    records: Sequence[Mapping[str, Any]], declared: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
     for record in records:
         if record.get("status") != "PASS":
             continue
@@ -5230,6 +6924,13 @@ def capability_errors(run_dir: Path, capabilities: Mapping[str, Any]) -> list[st
             state = capability_state(declared.get(capability))
             if state not in EXECUTABLE_CAPABILITY_STATES:
                 errors.append(f"{record.get('case_id')}: PASS conflicts with {capability}={state}")
+    return errors
+
+
+def verified_capability_boundary_errors(
+    result: Mapping[str, Any], declared: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
     boundary_fields = {
         "request_body_verified": (
             "request_body_buffered", "request_body_streaming", "request_body_incremental_ingest",
@@ -5246,9 +6947,14 @@ def capability_errors(run_dir: Path, capabilities: Mapping[str, Any]) -> list[st
         states = {capability_state(declared.get(name)) for name in names}
         if not states.intersection(EXECUTABLE_CAPABILITY_STATES):
             errors.append(f"{field}=true conflicts with host-model capability states")
-    verified = set(str(item) for item in result.get("capabilities_verified", []))
-    unsupported = set(str(item) for item in result.get("capabilities_unsupported", []))
-    not_exercised = set(str(item) for item in result.get("capabilities_not_exercised", []))
+    return errors
+
+
+def capability_partition_errors(result: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    verified = {str(item) for item in result.get("capabilities_verified", [])}
+    unsupported = {str(item) for item in result.get("capabilities_unsupported", [])}
+    not_exercised = {str(item) for item in result.get("capabilities_not_exercised", [])}
     if verified.intersection(unsupported):
         errors.append("capabilities_verified and capabilities_unsupported must be disjoint")
     if verified.intersection(not_exercised):
@@ -5257,14 +6963,11 @@ def capability_errors(run_dir: Path, capabilities: Mapping[str, Any]) -> list[st
         errors.append("capabilities_unsupported and capabilities_not_exercised must be disjoint")
     if verified.union(unsupported, not_exercised) != set(CAPABILITIES):
         errors.append("capability result partitions must cover the canonical capability set exactly")
-    expected_states = {name: capability_state(declared.get(name)) for name in CAPABILITIES}
-    if result.get("capability_states") != expected_states:
-        errors.append("result capability_states differ from the canonical manifest")
     return errors
 
 
 def claim_policy_errors(run_dir: Path) -> list[str]:
-    result = load_json(run_dir / "result.json")
+    result = load_json(run_dir / RESULT_FILE_NAME)
     errors: list[str] = []
     if not isinstance(result, Mapping):
         return ["result.json must be an object"]
@@ -5284,96 +6987,147 @@ def claim_policy_errors(run_dir: Path) -> list[str]:
     return errors
 
 
-def layout_errors(run_dir: Path) -> list[str]:
-    errors: list[str] = []
-    actual_file_paths, symlinks = walk_files_no_symlinks(run_dir)
-    for symlink in symlinks:
-        errors.append(f"symlink is forbidden in canonical run: {symlink.relative_to(lexical_absolute(run_dir))}")
+def base_layout_errors(run_dir: Path, symlinks: Sequence[Path]) -> list[str]:
+    errors = [
+        f"symlink is forbidden in canonical run: {symlink.relative_to(lexical_absolute(run_dir))}"
+        for symlink in symlinks
+    ]
     for directory in ("logs", "config", "inventory"):
         if not (run_dir / directory).is_dir():
             errors.append(f"artifact directory missing: {directory}/")
-    for filename in ("manifest.json", "result.json", "results.jsonl", "plan.json"):
+    for filename in (MANIFEST_FILE_NAME, RESULT_FILE_NAME, CASE_RESULTS_FILE_NAME, PLAN_FILE_NAME):
         if not (run_dir / filename).is_file():
             errors.append(f"required artifact missing: {filename}")
-    manifest = load_json(run_dir / "manifest.json")
-    if not isinstance(manifest, Mapping) or not isinstance(manifest.get("artifacts"), Mapping):
-        return errors + ["manifest artifacts must be an object"]
-    plan = load_json(run_dir / "plan.json")
-    if not isinstance(plan, Mapping):
-        return errors + ["plan.json must contain an object"]
+    return errors
+
+
+def layout_artifact_profile(
+    payload: Mapping[str, Any], label: str, errors: list[str],
+) -> str:
     try:
-        artifact_profile = canonical_artifact_profile(manifest, "manifest.json")
+        return canonical_artifact_profile(payload, label)
     except ContractError as exc:
-        errors.append(str(exc))
-        artifact_profile = DEFAULT_ARTIFACT_PROFILE
-    try:
-        plan_artifact_profile = canonical_artifact_profile(plan, "plan.json")
-    except ContractError as exc:
-        errors.append(f"plan: {exc}")
-        plan_artifact_profile = DEFAULT_ARTIFACT_PROFILE
-    if plan_artifact_profile != artifact_profile:
-        errors.append("plan and manifest artifact profiles differ")
-    for name, entry in manifest["artifacts"].items():
+        prefix = "" if label == MANIFEST_FILE_NAME else "plan: "
+        errors.append(f"{prefix}{exc}")
+        return DEFAULT_ARTIFACT_PROFILE
+
+
+def manifest_artifact_entry_errors(
+    run_dir: Path, name: str, entry: object,
+) -> list[str]:
+    if not isinstance(entry, Mapping):
+        return [f"manifest artifact {name} must be an object"]
+    errors: list[str] = []
+    state = entry.get("state")
+    if state not in {"produced", "not_produced", "not_applicable"}:
+        return [f"manifest artifact {name} has invalid state"]
+    relative_path = Path(str(entry.get("path") or ""))
+    if relative_path.is_absolute() or ".." in relative_path.parts or relative_path in {Path(""), Path(".")}:
+        return [f"manifest artifact {name} has unsafe path: {relative_path}"]
+    path = run_dir / relative_path
+    if path.is_symlink():
+        return [f"manifest artifact {name} is a symlink: {relative_path}"]
+    if state == "produced" and not path.is_file():
+        errors.append(f"manifest produced artifact is missing: {name} -> {path}")
+    if state != "produced" and path.exists():
+        errors.append(f"manifest says {state} but artifact exists: {name} -> {path}")
+    if state == "produced" and entry.get("sha256") and sha256_file(path) != entry["sha256"]:
+        errors.append(f"artifact checksum mismatch: {name}")
+    return errors
+
+
+def manifest_artifact_layout_errors(
+    run_dir: Path, artifacts: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    for name, entry in artifacts.items():
+        errors.extend(manifest_artifact_entry_errors(run_dir, str(name), entry))
+    return errors
+
+
+def full_lifecycle_layout_errors(
+    run_dir: Path,
+    artifacts: Mapping[str, Any],
+    artifact_profile: str,
+    plan_artifact_profile: str,
+) -> list[str]:
+    if FULL_LIFECYCLE_ARTIFACT_PROFILE not in {artifact_profile, plan_artifact_profile}:
+        return []
+    errors: list[str] = []
+    for name, expected_path in FULL_LIFECYCLE_REQUIRED_ARTIFACTS:
+        entry = artifacts.get(name)
         if not isinstance(entry, Mapping):
-            errors.append(f"manifest artifact {name} must be an object")
+            errors.append(f"full_lifecycle artifact is missing from manifest: {name}")
             continue
-        state = entry.get("state")
-        if state not in {"produced", "not_produced", "not_applicable"}:
-            errors.append(f"manifest artifact {name} has invalid state")
+        if entry.get("path") != expected_path:
+            errors.append(f"full_lifecycle artifact {name} must use {expected_path}")
+        if entry.get("state") != "produced":
+            errors.append(f"full_lifecycle artifact {name} must be produced")
             continue
-        relative_path = Path(str(entry.get("path") or ""))
-        if relative_path.is_absolute() or ".." in relative_path.parts or relative_path in {Path(""), Path(".")}:
-            errors.append(f"manifest artifact {name} has unsafe path: {relative_path}")
-            continue
-        path = run_dir / relative_path
-        if path.is_symlink():
-            errors.append(f"manifest artifact {name} is a symlink: {relative_path}")
-            continue
-        if state == "produced" and not path.is_file():
-            errors.append(f"manifest produced artifact is missing: {name} -> {path}")
-        if state != "produced" and path.exists():
-            errors.append(f"manifest says {state} but artifact exists: {name} -> {path}")
-        if state == "produced" and entry.get("sha256") and sha256_file(path) != entry["sha256"]:
-            errors.append(f"artifact checksum mismatch: {name}")
-    if FULL_LIFECYCLE_ARTIFACT_PROFILE in {
-        artifact_profile,
-        plan_artifact_profile,
-    }:
-        for name, expected_path in FULL_LIFECYCLE_REQUIRED_ARTIFACTS:
-            entry = manifest["artifacts"].get(name)
-            if not isinstance(entry, Mapping):
-                errors.append(f"full_lifecycle artifact is missing from manifest: {name}")
-                continue
-            if entry.get("path") != expected_path:
-                errors.append(
-                    f"full_lifecycle artifact {name} must use {expected_path}"
-                )
-            if entry.get("state") != "produced":
-                errors.append(
-                    f"full_lifecycle artifact {name} must be produced"
-                )
-                continue
-            if not (run_dir / expected_path).is_file():
-                errors.append(
-                    f"full_lifecycle artifact is missing: {expected_path}"
-                )
+        if not (run_dir / expected_path).is_file():
+            errors.append(f"full_lifecycle artifact is missing: {expected_path}")
+    return errors
+
+
+def unmanifested_layout_errors(
+    run_dir: Path,
+    actual_file_paths: Sequence[Path],
+    artifacts: Mapping[str, Any],
+) -> list[str]:
     declared_paths = {
         str(Path(str(entry.get("path"))))
-        for entry in manifest["artifacts"].values()
+        for entry in artifacts.values()
         if isinstance(entry, Mapping) and entry.get("state") == "produced"
     }
-    actual_paths = {str(path.relative_to(lexical_absolute(run_dir))) for path in actual_file_paths}
-    for undeclared in sorted(actual_paths - declared_paths):
-        errors.append(f"unmanifested artifact in canonical run: {undeclared}")
+    actual_paths = {
+        str(path.relative_to(lexical_absolute(run_dir))) for path in actual_file_paths
+    }
+    return [
+        f"unmanifested artifact in canonical run: {path}"
+        for path in sorted(actual_paths - declared_paths)
+    ]
+
+
+def layout_errors(run_dir: Path) -> list[str]:
+    actual_file_paths, symlinks = walk_files_no_symlinks(run_dir)
+    errors = base_layout_errors(run_dir, symlinks)
+    manifest = load_json(run_dir / MANIFEST_FILE_NAME)
+    if not isinstance(manifest, Mapping) or not isinstance(manifest.get("artifacts"), Mapping):
+        return errors + ["manifest artifacts must be an object"]
+    plan = load_json(run_dir / PLAN_FILE_NAME)
+    if not isinstance(plan, Mapping):
+        return errors + ["plan.json must contain an object"]
+    artifact_profile = layout_artifact_profile(manifest, MANIFEST_FILE_NAME, errors)
+    plan_artifact_profile = layout_artifact_profile(plan, PLAN_FILE_NAME, errors)
+    if plan_artifact_profile != artifact_profile:
+        errors.append("plan and manifest artifact profiles differ")
+    artifacts = manifest["artifacts"]
+    errors.extend(manifest_artifact_layout_errors(run_dir, artifacts))
+    errors.extend(full_lifecycle_layout_errors(
+        run_dir, artifacts, artifact_profile, plan_artifact_profile,
+    ))
+    errors.extend(unmanifested_layout_errors(run_dir, actual_file_paths, artifacts))
     return errors
 
 
 def body_payload_errors(run_dir: Path) -> list[str]:
-    errors: list[str] = []
-    events: list[dict[str, Any]] = []
     actual_files, symlinks = walk_files_no_symlinks(run_dir)
-    for symlink in symlinks:
-        errors.append(f"symlink is forbidden in canonical run: {symlink.relative_to(lexical_absolute(run_dir))}")
+    errors = [
+        f"symlink is forbidden in canonical run: {symlink.relative_to(lexical_absolute(run_dir))}"
+        for symlink in symlinks
+    ]
+    events, json_errors = body_payload_json_artifact_errors(run_dir, actual_files)
+    errors.extend(json_errors)
+    errors.extend(body_payload_log_errors(run_dir, actual_files))
+    errors.extend(body_payload_result_consistency_errors(run_dir, events))
+    return errors
+
+
+def body_payload_json_artifact_errors(
+    run_dir: Path, actual_files: Sequence[Path],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    events: list[dict[str, Any]] = []
+    errors: list[str] = []
     json_artifacts = {
         path for path in actual_files
         if path.suffix in {".json", ".jsonl"} and "config" not in path.relative_to(lexical_absolute(run_dir)).parts
@@ -5381,26 +7135,52 @@ def body_payload_errors(run_dir: Path) -> list[str]:
     for path in sorted(json_artifacts):
         if not path.is_file():
             continue
-        if path.suffix == ".jsonl":
-            records = read_jsonl(path)
-            if path.name == "events.jsonl":
-                events = records
-            for index, record in enumerate(records):
-                if path.name == "events.jsonl":
-                    errors.extend(canonical_event_errors(record, f"{path.name}[{index}]"))
-                else:
-                    errors.extend(forbidden_payload_errors(record, f"{path.name}[{index}]"))
-        else:
-            payload = load_json(path)
-            errors.extend(forbidden_payload_errors(payload, path.name))
-    for path in [item for item in actual_files if item.parent == lexical_absolute(run_dir) / "logs" and item.suffix == ".log"]:
+        artifact_events, artifact_errors = body_payload_artifact_errors(path)
+        if artifact_events is not None:
+            events = artifact_events
+        errors.extend(artifact_errors)
+    return events, errors
+
+
+def body_payload_artifact_errors(
+    path: Path,
+) -> tuple[list[dict[str, Any]] | None, list[str]]:
+    if path.suffix != ".jsonl":
+        return None, forbidden_payload_errors(load_json(path), path.name)
+    records = read_jsonl(path)
+    if path.name != EVENTS_FILE_NAME:
+        return None, [
+            error
+            for index, record in enumerate(records)
+            for error in forbidden_payload_errors(record, f"{path.name}[{index}]")
+        ]
+    return records, [
+        error
+        for index, record in enumerate(records)
+        for error in canonical_event_errors(record, f"{path.name}[{index}]")
+    ]
+
+
+def body_payload_log_errors(run_dir: Path, actual_files: Sequence[Path]) -> list[str]:
+    errors: list[str] = []
+    for path in [
+        item for item in actual_files
+        if item.parent == lexical_absolute(run_dir) / "logs" and item.suffix == ".log"
+    ]:
         text = secure_read_text(path, errors="replace").lower()
         for sentinel in BODY_SENTINELS:
             if sentinel in text:
                 errors.append(f"{path}: body payload sentinel is present")
         if re.search(r"(?im)^(authorization|cookie|set-cookie)\s*:", text):
             errors.append(f"{path}: sensitive HTTP header is present")
-    result = load_json(run_dir / "result.json")
+    return errors
+
+
+def body_payload_result_consistency_errors(
+    run_dir: Path, events: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
+    result = load_json(run_dir / RESULT_FILE_NAME)
     if isinstance(result, Mapping):
         expected_absence = bool(events) and not any(canonical_event_errors(event) for event in events)
         if result.get("body_payload_absent_from_events") is not expected_absence:
@@ -5408,37 +7188,33 @@ def body_payload_errors(run_dir: Path) -> list[str]:
     return errors
 
 
-def status_errors(run_dir: Path) -> list[str]:
-    result = load_json(run_dir / "result.json")
-    manifest = load_json(run_dir / "manifest.json")
-    inventory = load_json(run_dir / "inventory/run.json")
-    plan = load_json(run_dir / "plan.json")
-    records = read_jsonl(run_dir / "results.jsonl")
+def status_profile_errors(documents: Mapping[str, Mapping[str, Any]]) -> list[str]:
     errors: list[str] = []
-    if not all(isinstance(payload, Mapping) for payload in (result, manifest, inventory, plan)):
-        return ["result, manifest, inventory, and plan must be objects"]
-    profiles: dict[str, str] = {}
-    for label, payload in (
-        ("result", result), ("manifest", manifest), ("inventory", inventory), ("plan", plan),
-    ):
-        try:
-            profiles[label] = canonical_artifact_profile(payload, f"{label}.json")
-        except ContractError as exc:
-            errors.append(f"{label}: {exc}")
-    if profiles and len(set(profiles.values())) != 1:
+    artifact_profiles = status_document_profiles(documents, canonical_artifact_profile, errors)
+    if artifact_profiles and len(set(artifact_profiles.values())) != 1:
         errors.append("plan, result, manifest, and inventory artifact profiles differ")
-    host_profiles: dict[str, str] = {}
-    for label, payload in (
-        ("result", result), ("manifest", manifest), ("inventory", inventory), ("plan", plan),
-    ):
-        try:
-            host_profiles[label] = canonical_host_profile(payload, f"{label}.json")
-        except ContractError as exc:
-            errors.append(f"{label}: {exc}")
+    host_profiles = status_document_profiles(documents, canonical_host_profile, errors)
     if host_profiles and len(set(host_profiles.values())) != 1:
         errors.append("plan, result, manifest, and inventory host profiles differ")
+    return errors
+
+
+def status_document_profiles(
+    documents: Mapping[str, Mapping[str, Any]],
+    normalizer: Callable[[Mapping[str, Any], str], str],
+    errors: list[str],
+) -> dict[str, str]:
+    profiles: dict[str, str] = {}
+    for label, payload in documents.items():
+        try:
+            profiles[label] = normalizer(payload, f"{label}.json")
+        except ContractError as exc:
+            errors.append(f"{label}: {exc}")
+    return profiles
+
+
+def status_count_errors(result: Mapping[str, Any], records: Sequence[Mapping[str, Any]]) -> list[str]:
     counts = Counter(record.get("status") for record in records)
-    expected_status_counts = {name: counts[name] for name in CASE_STATUSES}
     expected_fields = {
         "cases_total": len(records), "cases_passed": counts["PASS"],
         "cases_failed": counts["FAIL"], "cases_blocked": counts["BLOCKED"],
@@ -5446,14 +7222,22 @@ def status_errors(run_dir: Path) -> list[str]:
         "cases_not_applicable": counts["NOT_APPLICABLE"],
         "cases_not_executed": counts["NOT_EXECUTED"],
     }
-    for field, expected in expected_fields.items():
-        if result.get(field) != expected:
-            errors.append(f"{field}={result.get(field)!r}, expected {expected}")
+    errors = [
+        f"{field}={result.get(field)!r}, expected {expected}"
+        for field, expected in expected_fields.items()
+        if result.get(field) != expected
+    ]
+    expected_status_counts = {name: counts[name] for name in CASE_STATUSES}
     if result.get("status_counts") != expected_status_counts:
         errors.append(
             f"status_counts={result.get('status_counts')!r}, expected {expected_status_counts!r}"
         )
+    return errors
 
+
+def status_record_facts(
+    records: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, object], set[str]]:
     records_by_id = {
         str(record.get("case_id") or ""): record
         for record in records
@@ -5470,7 +7254,7 @@ def status_errors(run_dir: Path) -> list[str]:
         if record.get("status") == "PASS"
         for capability in record.get("required_capabilities", [])
     })
-    expected_record_fields: dict[str, object] = {
+    return {
         "allowed_request_status": records_by_id.get("allow_without_marker", {}).get("actual_status"),
         "blocked_request_status": records_by_id.get("deny_header_marker_403", {}).get("actual_status"),
         "observed_rule_ids": sorted({
@@ -5501,66 +7285,101 @@ def status_errors(run_dir: Path) -> list[str]:
             if record.get("case_id") in PHASE4_CASE_IDS
         ],
         "capabilities_verified": verified_capabilities,
-    }
-    for field, expected in expected_record_fields.items():
-        if result.get(field) != expected:
-            errors.append(f"{field} is inconsistent with canonical case records")
+    }, pass_ids
 
-    expected_group_statuses = {
-        group: aggregate_case_status([
-            record for record in records if record.get("group") == group
-        ])
-        for group in sorted({
-            str(record.get("group") or "") for record in records if record.get("group")
-        })
-    }
+
+def status_record_consistency_errors(
+    result: Mapping[str, Any], records: Sequence[Mapping[str, Any]],
+) -> tuple[list[str], set[str]]:
+    expected_fields, pass_ids = status_record_facts(records)
+    return [
+        f"{field} is inconsistent with canonical case records"
+        for field, expected in expected_fields.items()
+        if result.get(field) != expected
+    ], pass_ids
+
+
+def status_group_errors(result: Mapping[str, Any], records: Sequence[Mapping[str, Any]]) -> list[str]:
+    expected_group_statuses = finalize_group_statuses(records)
     if result.get("group_statuses") != expected_group_statuses:
-        errors.append("group_statuses is inconsistent with canonical case records")
+        return ["group_statuses is inconsistent with canonical case records"]
+    return []
+
+
+def status_source_failure_errors(result: Mapping[str, Any]) -> list[str]:
     expected_source_failure = "FAIL" in {
         str(status).upper() for status in result.get("source_statuses", [])
     }
     if result.get("source_failure") is not expected_source_failure:
-        errors.append("source_failure is inconsistent with source_statuses")
-    if result.get("status") != manifest.get("status"):
-        errors.append("manifest/result status mismatch")
-    expected_status, expected_blocked_before_execution = aggregate_status(
+        return ["source_failure is inconsistent with source_statuses"]
+    return []
+
+
+def status_event_and_gate_errors(
+    run_dir: Path,
+    result: Mapping[str, Any],
+    records: Sequence[Mapping[str, Any]],
+    pass_ids: set[str],
+) -> list[str]:
+    expected_status, expected_blocked = aggregate_status(
         records,
         int(result.get("exit_code") or 0),
         source_failure=result.get("source_failure") is True,
     )
-    events = read_jsonl(run_dir / "events.jsonl", required=False)
+    events = read_jsonl(run_dir / EVENTS_FILE_NAME, required=False)
     event_metadata_verified, body_payload_absent = canonical_core_event_contract(
         events,
         str(result.get("connector") or ""),
         required_event_integration_mode(result),
     )
+    errors: list[str] = []
     if result.get("event_metadata_verified") is not event_metadata_verified:
         errors.append("event_metadata_verified is inconsistent with the canonical rule-1100001 event")
     if result.get("body_payload_absent_from_events") is not body_payload_absent:
         errors.append("body_payload_absent_from_events is inconsistent with canonical events")
-    expected_gate_failures: list[str] = []
-    if expected_status == "PASS":
-        expected_gate_failures = canonical_pass_gate_failures(
-            str(result.get("evidence_stage") or ""),
-            pass_ids,
-            event_metadata_verified,
-            body_payload_absent,
-            result.get("host_version"),
-            result.get("libmodsecurity_version"),
-        )
-        if result.get("connector_worktree_clean") is not True:
-            expected_gate_failures.append("PASS requires a clean connector worktree")
-        if result.get("framework_worktree_clean") is not True:
-            expected_gate_failures.append("PASS requires a clean framework worktree")
-        expected_gate_failures.extend(provenance_pass_gate_failures(result))
-        if expected_gate_failures:
-            expected_status = "FAIL"
+    expected_status, gate_errors = status_pass_gate(
+        result, expected_status, pass_ids, event_metadata_verified, body_payload_absent,
+    )
     if result.get("status") != expected_status:
         errors.append(f"aggregate status mismatch: {result.get('status')!r} != {expected_status!r}")
-    if result.get("pass_gate_failures") != expected_gate_failures:
+    if result.get("pass_gate_failures") != gate_errors:
         errors.append("pass_gate_failures is inconsistent with canonical PASS gates")
-    if result.get("blocked_before_execution") is not expected_blocked_before_execution:
+    if result.get("blocked_before_execution") is not expected_blocked:
         errors.append("blocked_before_execution is inconsistent with case evidence and exit code")
+    return errors
+
+
+def status_pass_gate(
+    result: Mapping[str, Any],
+    expected_status: str,
+    pass_ids: set[str],
+    event_metadata_verified: bool,
+    body_payload_absent: bool,
+) -> tuple[str, list[str]]:
+    if expected_status != "PASS":
+        return expected_status, []
+    errors = canonical_pass_gate_failures(
+        str(result.get("evidence_stage") or ""),
+        pass_ids,
+        event_metadata_verified,
+        body_payload_absent,
+        result.get("host_version"),
+        result.get("libmodsecurity_version"),
+    )
+    if result.get("connector_worktree_clean") is not True:
+        errors.append("PASS requires a clean connector worktree")
+    if result.get("framework_worktree_clean") is not True:
+        errors.append("PASS requires a clean framework worktree")
+    errors.extend(provenance_pass_gate_failures(result))
+    return ("FAIL" if errors else expected_status), errors
+
+
+def status_document_identity_errors(
+    result: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    inventory: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
     for field in (
         "connector", "run_id", "connector_commit", "framework_commit", "host_name",
         "host_version", "integration_mode", "artifact_profile", "host_profile", "executed_targets", "libmodsecurity_version", "evidence_stage", "ruleset",
@@ -5574,6 +7393,11 @@ def status_errors(run_dir: Path) -> list[str]:
     for field in ("compiler_version", "operating_system", "architecture"):
         if manifest.get(field) != inventory.get(field):
             errors.append(f"manifest/inventory {field} mismatch")
+    return errors
+
+
+def status_exit_state_errors(result: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
     exit_code = result.get("exit_code")
     if exit_code == 77 and not (
         result.get("status") == "BLOCKED" and result.get("blocked_before_execution") is True
@@ -5585,20 +7409,38 @@ def status_errors(run_dir: Path) -> list[str]:
     return errors
 
 
-def protocol_client_errors(run_dir: Path) -> list[str]:
-    """Re-evaluate run-local client evidence for every modern protocol PASS.
+def status_errors(run_dir: Path) -> list[str]:
+    result = load_json(run_dir / RESULT_FILE_NAME)
+    manifest = load_json(run_dir / MANIFEST_FILE_NAME)
+    inventory = load_json(run_dir / RUN_INVENTORY_FILE_PATH)
+    plan = load_json(run_dir / PLAN_FILE_NAME)
+    records = read_jsonl(run_dir / CASE_RESULTS_FILE_NAME)
+    if not all(isinstance(payload, Mapping) for payload in (result, manifest, inventory, plan)):
+        return ["result, manifest, inventory, and plan must be objects"]
+    documents = {
+        "result": result,
+        "manifest": manifest,
+        "inventory": inventory,
+        "plan": plan,
+    }
+    errors = status_profile_errors(documents)
+    errors.extend(status_count_errors(result, records))
+    record_errors, pass_ids = status_record_consistency_errors(result, records)
+    errors.extend(record_errors)
+    errors.extend(status_group_errors(result, records))
+    errors.extend(status_source_failure_errors(result))
+    if result.get("status") != manifest.get("status"):
+        errors.append("manifest/result status mismatch")
+    errors.extend(status_event_and_gate_errors(run_dir, result, records, pass_ids))
+    errors.extend(status_document_identity_errors(result, manifest, inventory))
+    errors.extend(status_exit_state_errors(result))
+    return errors
 
-    Finalization is not the only trust boundary: a later validation must
-    detect a deleted, substituted, or hand-edited bundle in
-    ``inventory/protocol-client``.  A managed curl invocation describes one
-    request only, so separate promoted protocol cases must use separate
-    canonical runs until a dedicated multiplexing client contract exists.
-    """
 
+def modern_protocol_pass_records(
+    records: Sequence[Mapping[str, Any]], case_by_id: Mapping[str, Mapping[str, Any]],
+) -> tuple[list[str], list[tuple[Mapping[str, Any], str]]]:
     errors: list[str] = []
-    records = read_jsonl(run_dir / "results.jsonl")
-    catalog = load_catalog()
-    case_by_id = {case["case_id"]: case for case in catalog_cases(catalog)}
     modern_records: list[tuple[Mapping[str, Any], str]] = []
     for record in records:
         if record.get("status") != "PASS":
@@ -5611,23 +7453,35 @@ def protocol_client_errors(run_dir: Path) -> list[str]:
             continue
         if protocol in {"h2", "h2c", "h3"}:
             modern_records.append((record, protocol))
+    return errors, modern_records
 
-    if not modern_records:
-        return errors
-    if len(modern_records) > 1:
-        case_ids = ", ".join(str(record.get("case_id") or "") for record, _ in modern_records)
-        errors.append(
-            "managed protocol client represents one request; modern protocol PASSes "
-            f"must be finalized in separate canonical runs: {case_ids}"
-        )
 
-    manifest = load_json(run_dir / "manifest.json")
+def multiple_modern_protocol_errors(
+    modern_records: Sequence[tuple[Mapping[str, Any], str]],
+) -> list[str]:
+    if len(modern_records) <= 1:
+        return []
+    case_ids = ", ".join(str(record.get("case_id") or "") for record, _ in modern_records)
+    return [
+        "managed protocol client represents one request; modern protocol PASSes "
+        f"must be finalized in separate canonical runs: {case_ids}"
+    ]
+
+
+def protocol_client_manifest_artifacts(
+    run_dir: Path,
+) -> tuple[Mapping[str, Any] | None, str | None]:
+    manifest = load_json(run_dir / MANIFEST_FILE_NAME)
     if not isinstance(manifest, Mapping):
-        return [*errors, "manifest.json must be an object"]
+        return None, "manifest.json must be an object"
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, Mapping):
-        return [*errors, "manifest.json artifacts must be an object"]
-    artifact_dir = run_dir / PROTOCOL_CLIENT_ARTIFACT_DIR
+        return None, "manifest.json artifacts must be an object"
+    return artifacts, None
+
+
+def protocol_client_manifest_errors(run_dir: Path, artifacts: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
     for name in PROTOCOL_CLIENT_REQUIRED_ARTIFACT_NAMES:
         expected_path = PROTOCOL_CLIENT_ARTIFACT_PATHS[name]
         entry = artifacts.get(name)
@@ -5643,7 +7497,13 @@ def protocol_client_errors(run_dir: Path) -> list[str]:
             continue
         if entry.get("sha256") != sha256_file(path):
             errors.append(f"protocol client artifact checksum mismatch: {name}")
+    return errors
 
+
+def protocol_client_case_errors(
+    artifact_dir: Path, modern_records: Sequence[tuple[Mapping[str, Any], str]],
+) -> list[str]:
+    errors: list[str] = []
     for record, protocol in modern_records:
         case_id = str(record.get("case_id") or "")
         if str(record.get("expected_result") or "") in DEDICATED_STREAM_CONTROL_RESULTS:
@@ -5657,8 +7517,29 @@ def protocol_client_errors(run_dir: Path) -> list[str]:
             record_artifacts.get("protocol_client_dir") != PROTOCOL_CLIENT_ARTIFACT_DIR
         ):
             errors.append(f"{case_id}: protocol client bundle is not declared by the case result")
-        for error in protocol_client_artifact_errors(artifact_dir, record, protocol):
-            errors.append(f"{case_id}: {error}")
+        errors.extend(
+            f"{case_id}: {error}"
+            for error in protocol_client_artifact_errors(artifact_dir, record, protocol)
+        )
+    return errors
+
+
+def protocol_client_errors(run_dir: Path) -> list[str]:
+    """Re-evaluate run-local client evidence for every modern protocol PASS."""
+    records = read_jsonl(run_dir / CASE_RESULTS_FILE_NAME)
+    catalog = load_catalog()
+    case_by_id = {case["case_id"]: case for case in catalog_cases(catalog)}
+    errors, modern_records = modern_protocol_pass_records(records, case_by_id)
+    if not modern_records:
+        return errors
+    errors.extend(multiple_modern_protocol_errors(modern_records))
+    artifacts, manifest_error = protocol_client_manifest_artifacts(run_dir)
+    if manifest_error:
+        return [*errors, manifest_error]
+    if artifacts is None:
+        return errors
+    errors.extend(protocol_client_manifest_errors(run_dir, artifacts))
+    errors.extend(protocol_client_case_errors(run_dir / PROTOCOL_CLIENT_ARTIFACT_DIR, modern_records))
     return errors
 
 
@@ -5709,86 +7590,136 @@ def validation_capabilities_path(
     """
     if explicit_capabilities:
         return Path(explicit_capabilities)
-    manifest = load_json(run_dir / "manifest.json")
+    manifest = load_json(run_dir / MANIFEST_FILE_NAME)
     if (
         isinstance(manifest, Mapping)
         and manifest.get("artifact_profile") == FULL_LIFECYCLE_ARTIFACT_PROFILE
     ):
-        return run_dir / "inventory/capabilities.json"
+        return run_dir / CAPABILITIES_INVENTORY_FILE_PATH
     return connector_root / f"connectors/{connector}/capabilities.json"
+
+
+def validation_run_dir_for_connector(
+    evidence_root: Path,
+    connector: str,
+    run_id: str | None,
+    fallback_to_connector_root: bool,
+) -> list[tuple[str, Path]]:
+    candidate = evidence_root / connector / run_id if run_id else evidence_root / connector
+    if run_id and (candidate / RESULT_FILE_NAME).is_file():
+        return [(connector, candidate)]
+    search_root = evidence_root / connector if fallback_to_connector_root else candidate
+    matches = sorted(search_root.glob(RESULT_GLOB_PATTERN)) if search_root.is_dir() else []
+    if len(matches) == 1:
+        return [(connector, matches[0].parent)]
+    if len(matches) > 1:
+        raise ContractError(f"multiple results for {connector}; pass --run-id")
+    return []
+
+
+def validation_run_dirs(
+    evidence_root: Path, connector: str | None, run_id: str | None,
+) -> list[tuple[str, Path]]:
+    if (evidence_root / RESULT_FILE_NAME).is_file():
+        result = load_json(evidence_root / RESULT_FILE_NAME)
+        connector = connector or (str(result.get("connector") or "") if isinstance(result, Mapping) else "")
+        return [(connector, evidence_root)]
+    if connector:
+        return validation_run_dir_for_connector(
+            evidence_root, connector, run_id, fallback_to_connector_root=False,
+        )
+    return [
+        run_dir
+        for connector_name in CONNECTORS
+        for run_dir in validation_run_dir_for_connector(
+            evidence_root, connector_name, run_id, fallback_to_connector_root=True,
+        )
+    ]
+
+
+def missing_validation_connector_errors(
+    run_dirs: Sequence[tuple[str, Path]], connector: str | None,
+) -> list[str]:
+    expected_connectors = {connector} if connector else set(CONNECTORS)
+    found_connectors = {connector for connector, _ in run_dirs}
+    return [
+        f"{missing_connector}: canonical result.json missing"
+        for missing_connector in sorted(expected_connectors - found_connectors)
+    ]
+
+
+def validation_provenance_errors(
+    connector: str,
+    run_dir: Path,
+    connector_root: Path,
+    current_connector_commit: str,
+    current_framework_commit: str,
+) -> list[str]:
+    result = load_json(run_dir / RESULT_FILE_NAME)
+    if not isinstance(result, Mapping):
+        return [f"{connector}: provenance: result.json must be an object"]
+    errors: list[str] = []
+    if current_connector_commit == "unknown":
+        errors.append(f"{connector}: provenance: current connector commit cannot be resolved")
+    elif result.get("connector_commit") != current_connector_commit:
+        errors.append(
+            f"{connector}: provenance: evidence connector_commit {result.get('connector_commit')!r} "
+            f"does not match current {current_connector_commit!r}"
+        )
+    if current_framework_commit == "unknown":
+        errors.append(f"{connector}: provenance: current framework commit cannot be resolved")
+    elif result.get("framework_commit") != current_framework_commit:
+        errors.append(
+            f"{connector}: provenance: evidence framework_commit {result.get('framework_commit')!r} "
+            f"does not match current {current_framework_commit!r}"
+        )
+    if not git_worktree_clean(connector_root):
+        errors.append(f"{connector}: provenance: current connector worktree is dirty")
+    if not git_worktree_clean(FRAMEWORK_ROOT):
+        errors.append(f"{connector}: provenance: current framework worktree is dirty")
+    return errors
+
+
+def validation_run_errors(
+    connector: str,
+    run_dir: Path,
+    connector_root: Path,
+    explicit_capabilities: str | None,
+    checks: Sequence[str],
+    check_current_provenance: bool,
+    current_connector_commit: str,
+    current_framework_commit: str,
+) -> list[str]:
+    capabilities_path = validation_capabilities_path(
+        connector_root, connector, run_dir, explicit_capabilities,
+    )
+    capabilities = load_capability_manifest(capabilities_path, connector)
+    errors = [
+        f"{connector}: {error}"
+        for error in validate_run(run_dir, connector, capabilities, checks)
+    ]
+    if check_current_provenance:
+        errors.extend(validation_provenance_errors(
+            connector, run_dir, connector_root,
+            current_connector_commit, current_framework_commit,
+        ))
+    return errors
 
 
 def validate_command(args: argparse.Namespace) -> int:
     checks = tuple(VALID_CHECKS) if args.check == "all" else (args.check,)
     evidence_root = Path(args.evidence_root)
-    run_dirs: list[tuple[str, Path]] = []
-    if (evidence_root / "result.json").is_file():
-        result = load_json(evidence_root / "result.json")
-        connector = args.connector or (str(result.get("connector") or "") if isinstance(result, Mapping) else "")
-        run_dirs.append((connector, evidence_root))
-    else:
-        if args.connector:
-            candidate = evidence_root / args.connector / args.run_id if args.run_id else evidence_root / args.connector
-            if args.run_id and (candidate / "result.json").is_file():
-                run_dirs.append((args.connector, candidate))
-            else:
-                matches = sorted(candidate.glob("*/result.json")) if candidate.is_dir() else []
-                if len(matches) == 1:
-                    run_dirs.append((args.connector, matches[0].parent))
-                elif len(matches) > 1:
-                    raise ContractError(f"multiple results for {args.connector}; pass --run-id")
-        else:
-            for connector in CONNECTORS:
-                candidate = evidence_root / connector / args.run_id / "result.json" if args.run_id else None
-                if candidate is not None and candidate.is_file():
-                    run_dirs.append((connector, candidate.parent))
-                    continue
-                matches = sorted((evidence_root / connector).glob("*/result.json"))
-                if len(matches) == 1:
-                    run_dirs.append((connector, matches[0].parent))
-                elif len(matches) > 1:
-                    raise ContractError(f"multiple results for {connector}; pass --run-id")
-    errors: list[str] = []
-    expected_connectors = {args.connector} if args.connector else set(CONNECTORS)
-    found_connectors = {connector for connector, _ in run_dirs}
-    for connector in sorted(expected_connectors - found_connectors):
-        errors.append(f"{connector}: canonical result.json missing")
+    run_dirs = validation_run_dirs(evidence_root, args.connector, args.run_id)
+    errors = missing_validation_connector_errors(run_dirs, args.connector)
     connector_root = Path(args.connector_root or ".")
     current_connector_commit = git_value(connector_root, "rev-parse", "HEAD")
     current_framework_commit = git_value(FRAMEWORK_ROOT, "rev-parse", "HEAD")
     check_current_provenance = args.check in {"all", "completeness", "status"}
     for connector, run_dir in run_dirs:
-        capabilities_path = validation_capabilities_path(
-            connector_root,
-            connector,
-            run_dir,
-            args.capabilities,
-        )
-        capabilities = load_capability_manifest(capabilities_path, connector)
-        errors.extend(f"{connector}: {error}" for error in validate_run(run_dir, connector, capabilities, checks))
-        if check_current_provenance:
-            result = load_json(run_dir / "result.json")
-            if not isinstance(result, Mapping):
-                errors.append(f"{connector}: provenance: result.json must be an object")
-                continue
-            if current_connector_commit == "unknown":
-                errors.append(f"{connector}: provenance: current connector commit cannot be resolved")
-            elif result.get("connector_commit") != current_connector_commit:
-                errors.append(
-                    f"{connector}: provenance: evidence connector_commit {result.get('connector_commit')!r} "
-                    f"does not match current {current_connector_commit!r}"
-                )
-            if current_framework_commit == "unknown":
-                errors.append(f"{connector}: provenance: current framework commit cannot be resolved")
-            elif result.get("framework_commit") != current_framework_commit:
-                errors.append(
-                    f"{connector}: provenance: evidence framework_commit {result.get('framework_commit')!r} "
-                    f"does not match current {current_framework_commit!r}"
-                )
-            if not git_worktree_clean(connector_root):
-                errors.append(f"{connector}: provenance: current connector worktree is dirty")
-            if not git_worktree_clean(FRAMEWORK_ROOT):
-                errors.append(f"{connector}: provenance: current framework worktree is dirty")
+        errors.extend(validation_run_errors(
+            connector, run_dir, connector_root, args.capabilities, checks,
+            check_current_provenance, current_connector_commit, current_framework_commit,
+        ))
     if errors:
         for error in errors:
             print(f"no-crs-evidence: {error}", file=sys.stderr)
@@ -5810,79 +7741,82 @@ def stage_report_status(value: object) -> str:
     if normalized in {"unsupported", "unsupported_by_host_model", "not_applicable"}:
         return "UNSUPPORTED"
     if normalized == "not_implemented":
-        return "NOT IMPLEMENTED"
+        return REPORT_STATUS_NOT_IMPLEMENTED
     if normalized in {"implemented_not_asserted", "supported_not_verified"}:
-        return "IMPLEMENTED, NOT ASSERTED"
-    return "NOT EXECUTED"
+        return REPORT_STATUS_IMPLEMENTED_NOT_ASSERTED
+    return REPORT_STATUS_NOT_EXECUTED
 
 
 def result_cell(result: Mapping[str, Any] | None, field: str) -> str:
     if result is None:
-        return "NOT EXECUTED"
+        return REPORT_STATUS_NOT_EXECUTED
     if field == "no_crs_baseline" and result.get("evidence_stage") == "no_crs_baseline":
         return report_status(str(result.get("status") or "NOT_EXECUTED"))
     stages = result.get("evidence_stages", {})
     if isinstance(stages, Mapping) and field in stages:
         return stage_report_status(stages[field])
-    return "NOT EXECUTED"
+    return REPORT_STATUS_NOT_EXECUTED
 
 
 def combined_stage_cell(result: Mapping[str, Any] | None, *fields: str) -> str:
     values = [result_cell(result, field) for field in fields]
     priority = (
-        "FAIL", "BLOCKED", "NOT EXECUTED", "UNSUPPORTED", "NOT IMPLEMENTED",
-        "IMPLEMENTED, NOT ASSERTED", "PASS",
+        "FAIL", "BLOCKED", REPORT_STATUS_NOT_EXECUTED, "UNSUPPORTED", REPORT_STATUS_NOT_IMPLEMENTED,
+        REPORT_STATUS_IMPLEMENTED_NOT_ASSERTED, "PASS",
     )
-    return next((status for status in priority if status in values), "NOT EXECUTED")
+    return next((status for status in priority if status in values), REPORT_STATUS_NOT_EXECUTED)
 
 
 def capability_cell(result: Mapping[str, Any] | None, capability: str) -> str:
     if result is None:
-        return "NOT EXECUTED"
+        return REPORT_STATUS_NOT_EXECUTED
     if capability in result.get("capabilities_verified", []):
         return "PASS"
     states = result.get("capability_states", {})
     state = str(states.get(capability) or "") if isinstance(states, Mapping) else ""
     if state == "not_implemented":
-        return "NOT IMPLEMENTED"
+        return REPORT_STATUS_NOT_IMPLEMENTED
     if state in {"unsupported_by_host_model", "not_applicable"}:
         return "UNSUPPORTED"
     if state == "implemented_not_asserted":
-        return "IMPLEMENTED, NOT ASSERTED"
-    return "NOT EXECUTED"
+        return REPORT_STATUS_IMPLEMENTED_NOT_ASSERTED
+    return REPORT_STATUS_NOT_EXECUTED
 
 
 def report_status(status: str) -> str:
     if status == "NOT_EXECUTED":
-        return "NOT EXECUTED"
+        return REPORT_STATUS_NOT_EXECUTED
     if status == "NOT_APPLICABLE":
         return "UNSUPPORTED"
-    return status if status in REPORT_STATUSES else "NOT EXECUTED"
+    return status if status in REPORT_STATUSES else REPORT_STATUS_NOT_EXECUTED
 
 
 def aggregate_report_status(statuses: Sequence[str]) -> str:
-    for status in ("FAIL", "BLOCKED", "NOT EXECUTED", "UNSUPPORTED", "NOT IMPLEMENTED", "IMPLEMENTED, NOT ASSERTED"):
+    for status in (
+        "FAIL", "BLOCKED", REPORT_STATUS_NOT_EXECUTED, "UNSUPPORTED",
+        REPORT_STATUS_NOT_IMPLEMENTED, REPORT_STATUS_IMPLEMENTED_NOT_ASSERTED,
+    ):
         if status in statuses:
             return status
-    return "PASS" if statuses and all(status == "PASS" for status in statuses) else "NOT EXECUTED"
+    return "PASS" if statuses and all(status == "PASS" for status in statuses) else REPORT_STATUS_NOT_EXECUTED
 
 
 def group_cell(result: Mapping[str, Any] | None, group: str) -> str:
     if result is None or not isinstance(result.get("group_statuses"), Mapping):
-        return "NOT EXECUTED"
+        return REPORT_STATUS_NOT_EXECUTED
     return report_status(str(result["group_statuses"].get(group) or "NOT_EXECUTED"))
 
 
 def find_result(evidence_root: Path, connector: str, run_id: str) -> Mapping[str, Any] | None:
     if run_id:
-        path = evidence_root / connector / run_id / "result.json"
+        path = evidence_root / connector / run_id / RESULT_FILE_NAME
         if not path.is_file():
             return None
         payload = load_json(path)
         if not isinstance(payload, Mapping):
             raise ContractError(f"{path}: result.json must contain an object")
         return payload
-    paths = sorted((evidence_root / connector).glob("*/result.json"))
+    paths = sorted((evidence_root / connector).glob(RESULT_GLOB_PATTERN))
     if not paths:
         return None
     if len(paths) > 1:
@@ -5901,16 +7835,16 @@ def result_only_summary_errors(result: Mapping[str, Any], connector: str) -> lis
     forged object cannot become a rendered PASS simply because it contains a
     status field.
     """
-    schema = load_json(FRAMEWORK_ROOT / "tests/schemas/no-crs-baseline/result.schema.json")
+    schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "result.schema.json")
     if not isinstance(schema, Mapping):
         return ["checked-in result schema must contain an object"]
-    errors = json_schema_errors(result, schema, root_schema=schema, location="result.json")
+    errors = json_schema_errors(result, schema, root_schema=schema, location=RESULT_FILE_NAME)
     try:
-        canonical_artifact_profile(result, "result.json")
+        canonical_artifact_profile(result, RESULT_FILE_NAME)
     except ContractError as exc:
         errors.append(str(exc))
     try:
-        canonical_host_profile(result, "result.json")
+        canonical_host_profile(result, RESULT_FILE_NAME)
     except ContractError as exc:
         errors.append(str(exc))
     if result.get("connector") != connector:
@@ -5934,7 +7868,7 @@ def render_summary(results: Mapping[str, Mapping[str, Any] | None], *, german: b
         "Missing results are reported as NOT EXECUTED; UNSUPPORTED is never counted as PASS."
     )
     overall_status = aggregate_report_status([
-        report_status(str(result.get("status") or "NOT_EXECUTED")) if result else "NOT EXECUTED"
+        report_status(str(result.get("status") or "NOT_EXECUTED")) if result else REPORT_STATUS_NOT_EXECUTED
         for result in results.values()
     ])
     language = (
@@ -5950,7 +7884,7 @@ def render_summary(results: Mapping[str, Mapping[str, Any] | None], *, german: b
     lines = [f"# {title}", "", language, "", status_marker, "", note, "", "| Connector | Build | Config | Start | Minimal runtime | No-CRS baseline | P1 | P2 | P3 | P4 | Events | Lifecycle | Status |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for connector in CONNECTORS:
         result = results.get(connector)
-        status = report_status(str(result.get("status") or "NOT_EXECUTED")) if result else "NOT EXECUTED"
+        status = report_status(str(result.get("status") or "NOT_EXECUTED")) if result else REPORT_STATUS_NOT_EXECUTED
         lines.append(
             "| " + " | ".join((
                 connector,
@@ -5975,8 +7909,8 @@ def render_summary(results: Mapping[str, Mapping[str, Any] | None], *, german: b
 def render_connector_report(connector: str, result: Mapping[str, Any] | None, *, german: bool = False) -> str:
     title = f"{connector}: No-CRS-Baseline"
     if result is None:
-        status = "NOT EXECUTED"
-        counts = {name: 0 for name in CASE_STATUSES}
+        status = REPORT_STATUS_NOT_EXECUTED
+        counts = dict.fromkeys(CASE_STATUSES, 0)
         gaps = "Kein kanonisches result.json vorhanden." if german else "No canonical result.json is available."
     else:
         status = report_status(str(result.get("status") or "NOT_EXECUTED"))
@@ -6021,7 +7955,7 @@ def summarize_command(args: argparse.Namespace) -> int:
     if errors:
         raise ContractError("refusing to summarize invalid canonical result(s): " + "; ".join(errors))
     rendered_statuses = [
-        report_status(str(result.get("status") or "NOT_EXECUTED")) if result else "NOT EXECUTED"
+        report_status(str(result.get("status") or "NOT_EXECUTED")) if result else REPORT_STATUS_NOT_EXECUTED
         for result in results.values()
     ]
     payload = {
@@ -6061,12 +7995,12 @@ def catalog_check_command(_args: argparse.Namespace) -> int:
         print("catalog root must be an object", file=sys.stderr)
         return 1
     errors = validate_catalog(catalog)
-    catalog_schema = load_json(FRAMEWORK_ROOT / "tests/schemas/no-crs-baseline/case-catalog.schema.json")
+    catalog_schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "case-catalog.schema.json")
     if isinstance(catalog_schema, Mapping):
         errors.extend(f"catalog schema: {error}" for error in json_schema_errors(catalog, catalog_schema))
     else:
         errors.append("case catalog schema must contain an object")
-    for schema_path in sorted((FRAMEWORK_ROOT / "tests/schemas/no-crs-baseline").glob("*.json")):
+    for schema_path in sorted((FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY).glob("*.json")):
         try:
             schema = load_json(schema_path)
         except ContractError as exc:

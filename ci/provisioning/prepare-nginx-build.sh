@@ -2,8 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
@@ -151,6 +150,7 @@ validate_nginx_release_asset_name() {
     asset_name=$1
     case "$asset_name" in
         *..*) blocked "NGINX_RELEASE_ASSET_NAME must not contain traversal segments" ;;
+        *) : ;;
     esac
     if ! printf '%s' "$asset_name" | LC_ALL=C grep -Eq '^nginx-[A-Za-z0-9][A-Za-z0-9._-]*\.tar\.gz$'; then
         blocked "NGINX_RELEASE_ASSET_NAME must be a safe nginx release archive name"
@@ -298,6 +298,9 @@ write_protocol_build_provenance() {
             tls_source_sha256=$NGINX_QUIC_TLS_SOURCE_SHA256
             tls_source_sha256_local=$NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL
             ;;
+        *)
+            blocked "unsupported NGINX_PROTOCOL_PROFILE: $NGINX_PROTOCOL_PROFILE"
+            ;;
     esac
     NGINX_PROTOCOL_BUILD_CACHE_KEY=$(
         {
@@ -382,6 +385,7 @@ verify_nginx_protocol_build() {
 
 ensure_modsecurity_v3_source() {
     if [ -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
+        ci_require_approved_modsecurity_v3_checkout "$MODSECURITY_V3_SOURCE_DIR" || blocked "unapproved ModSecurity v3 source: $MODSECURITY_V3_SOURCE_DIR"
         return 0
     fi
     if [ "$AUTO_FETCH_SMOKE_SOURCES" != "1" ]; then
@@ -399,6 +403,7 @@ ensure_modsecurity_v3_source() {
     if [ "$rc" -ne 0 ] || [ ! -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
         blocked "missing MODSECURITY_V3_SOURCE_DIR after auto-fetch: $MODSECURITY_V3_SOURCE_DIR"
     fi
+    ci_require_approved_modsecurity_v3_checkout "$MODSECURITY_V3_SOURCE_DIR" || blocked "unapproved ModSecurity v3 source after auto-fetch: $MODSECURITY_V3_SOURCE_DIR"
 }
 
 require_command() {
@@ -869,7 +874,7 @@ if [ -e "$NGINX_PREFIX" ]; then
     safe_remove_dir "$NGINX_PREFIX"
 fi
 
-require_command git "copy-build libmodsecurity submodules"
+require_command git "verify and record ModSecurity v3 provenance"
 require_command make "build libmodsecurity and NGINX"
 require_command cc "build NGINX"
 
@@ -905,7 +910,6 @@ fi
 write_git_info "modsecurity-nginx-build-copy" "$NGINX_CONNECTOR_BUILD_DIR"
 
 if [ -z "$MODSECURITY_SHARED_PREFIX" ]; then
-    run_blocked v3-git-submodule-update "$V3_BUILD_DIR" git submodule update --init --recursive
     run_blocked v3-build-sh "$V3_BUILD_DIR" ./build.sh
     run_blocked v3-configure "$V3_BUILD_DIR" ./configure
     run_blocked v3-make "$V3_BUILD_DIR" make "-j$MAKE_JOBS"

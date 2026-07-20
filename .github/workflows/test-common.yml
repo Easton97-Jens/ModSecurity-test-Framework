@@ -45,7 +45,7 @@ jobs:
       - name: Check shared YAML materialization
         run: |
           set -euo pipefail
-          out="$RUNNER_TEMP/case-runner"
+          out="$VERIFIED_RUN_ROOT/case-runner"
           mkdir -p "$out"
           yaml_count=$(find tests/cases -type f -name "*.yaml" | wc -l)
           if [ "$yaml_count" -eq 0 ]; then

@@ -124,6 +124,21 @@ unveränderlichem Commit bleibt eine geprüfte Provenance-Änderung. Der Test
 benötigt weder Netzwerk noch Connector-Runtime und beweist nur die
 Provisionierungs-Identitätskontrolle, keinen CRS-Runtime-Support-Claim.
 
+## ModSecurity-v3-Quellherkunftsvertrag
+
+`make test-modsecurity-v3-provenance-contract`, ebenfalls von `make lint`
+ausgeführt, führt die echte V3-Fetch- und Direct-Build-Grenze mit einem
+temporären Fake-Git-Programm aus. Der Test verifiziert, dass mutable Refs und
+abweichende nichtleere Legacy-Aliase abgewiesen werden, während leere Aliase
+zu geprüften Metadaten normalisieren; außerdem weist er einen fremden Origin,
+abweichende gefetchte/aufgelöste/ausgecheckte Commits und vorhandene Fetch-Pfade,
+`.gitmodules` und Gitlinks abgewiesen werden. Er beweist außerdem, dass
+Apache, NGINX und der eigenständige V3-Builder einen vorhandenen nicht
+freigegebenen Checkout vor Copy- oder Build-Kommandos stoppen. Die legitime
+Kontrolle verwendet einen freigegebenen Fake-Checkout und ein minimales lokales
+Build-Fixture; sie hat keinen Netzwerkzugriff, initialisiert keine Submodule
+und behauptet keinen Connector-Runtime-Support.
+
 ## No-CRS- und Full-Lifecycle-Evidence
 
 Die kanonische No-CRS-Implementierung ist

@@ -2,8 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
@@ -325,6 +324,7 @@ nginx_protocol_build_current() {
             grep -F -x 'http3_enabled=true' "$provenance" >/dev/null 2>&1 || return 1
             grep -F -x "tls_source_sha256=$NGINX_QUIC_TLS_SOURCE_SHA256" "$provenance" >/dev/null 2>&1 || return 1
             ;;
+        *) return 1 ;;
     esac
     return 0
 }

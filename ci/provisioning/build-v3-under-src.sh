@@ -2,8 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 REPO_ROOT="${REPO_ROOT:-$FRAMEWORK_ROOT}"
 . "$CI_ROOT/lib/common.sh"
 
@@ -49,6 +48,7 @@ if [ ! -d "$MODSECURITY_V3_SOURCE_DIR" ]; then
     echo "v3_build: blocked missing source directory: $MODSECURITY_V3_SOURCE_DIR"
     exit 77
 fi
+ci_require_approved_modsecurity_v3_checkout "$MODSECURITY_V3_SOURCE_DIR" || exit 77
 
 source_real=$(ci_canonical_existing "$MODSECURITY_V3_SOURCE_DIR")
 
@@ -78,7 +78,6 @@ fi
 
 (
     cd "$MODSECURITY_V3_DIR"
-    run_logged git-submodule-update git submodule update --init --recursive
     run_logged build-sh ./build.sh
     run_logged configure ./configure
     run_logged make make

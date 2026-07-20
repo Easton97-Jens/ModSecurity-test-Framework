@@ -198,7 +198,7 @@ def _transport_record_identity_errors(record: Mapping[str, Any]) -> list[str]:
         _nonempty_token(value) for value in transaction_ids
     ):
         errors.append("transport PASS requires one or more non-empty transaction_ids")
-    elif len(set(str(value) for value in transaction_ids)) != len(transaction_ids):
+    elif len({str(value) for value in transaction_ids}) != len(transaction_ids):
         errors.append("transport PASS transaction_ids must be unique")
     for field in ("requested_action", "actual_action", "transport_result"):
         if record.get(field) is None:
@@ -219,24 +219,32 @@ def _record_run_context_errors(
     return errors
 
 
-def _event_errors(
-    record: Mapping[str, Any],
-    event: Mapping[str, Any],
-    manifest: Mapping[str, Any],
-    *,
-    transaction_id: str,
-) -> list[str]:
-    case_id = str(record.get("case_id") or "")
-    errors: list[str] = []
+def _event_run_context_errors(case_id: str, event: Mapping[str, Any], manifest: Mapping[str, Any]) -> list[str]:
+    errors = []
     for field in ("connector", "integration_mode", "run_id"):
         if event.get(field) != manifest.get(field):
             errors.append(f"{case_id}: event {field} does not match canonical run")
+    return errors
+
+
+def _event_correlation_errors(
+    case_id: str,
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    transaction_id: str,
+) -> list[str]:
+    errors = []
     if event.get("transaction_id") != transaction_id:
         errors.append(f"{case_id}: event transaction_id does not match case result")
     if event.get("transport_case_id") != record.get("transport_case_id"):
         errors.append(f"{case_id}: event transport_case_id does not match case result")
     if event.get("phase") != record.get("phase"):
         errors.append(f"{case_id}: event phase does not match case result")
+    return errors
+
+
+def _event_identity_errors(case_id: str, record: Mapping[str, Any], event: Mapping[str, Any]) -> list[str]:
+    errors = []
     for field in ("event", "message_id"):
         if not _nonempty_token(event.get(field)):
             errors.append(f"{case_id}: event requires a non-empty {field}")
@@ -258,15 +266,29 @@ def _event_errors(
     return errors
 
 
-def _observation_errors(
+def _event_errors(
     record: Mapping[str, Any],
     event: Mapping[str, Any],
-    observation: Mapping[str, Any],
+    manifest: Mapping[str, Any],
     *,
     transaction_id: str,
 ) -> list[str]:
     case_id = str(record.get("case_id") or "")
-    errors: list[str] = []
+    return (
+        _event_run_context_errors(case_id, event, manifest)
+        + _event_correlation_errors(case_id, record, event, transaction_id)
+        + _event_identity_errors(case_id, record, event)
+    )
+
+
+def _observation_canonical_errors(
+    case_id: str,
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    observation: Mapping[str, Any],
+    transaction_id: str,
+) -> list[str]:
+    errors = []
     for field, expected in (
         ("case_id", case_id),
         ("transport_case_id", record.get("transport_case_id")),
@@ -285,6 +307,16 @@ def _observation_errors(
     record_protocol = record.get("negotiated_protocol") or record.get("downstream_protocol")
     if record_protocol is not None and observation.get("protocol") != record_protocol:
         errors.append(f"{case_id}: observation protocol does not match case result")
+    return errors
+
+
+def _observation_identity_errors(
+    case_id: str,
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    observation: Mapping[str, Any],
+) -> list[str]:
+    errors = []
     identity_pairs = (
         ("connection_id", record.get("connection_id")),
         ("stream_id", record.get("stream_id")),
@@ -297,6 +329,11 @@ def _observation_errors(
             errors.append(f"{case_id}: observation {field} does not match event")
     if observation.get("connection_id") is None and observation.get("stream_id") is None:
         errors.append(f"{case_id}: observation requires connection_id or stream_id")
+    return errors
+
+
+def _observation_privacy_errors(case_id: str, observation: Mapping[str, Any]) -> list[str]:
+    errors = []
     if observation.get("protocol") == "h3":
         connection_id = observation.get("connection_id")
         if connection_id is not None and not no_crs.is_hashed_connection_id(connection_id):
@@ -310,11 +347,23 @@ def _observation_errors(
     return errors
 
 
-def _strict_errors(record: Mapping[str, Any], observation: Mapping[str, Any]) -> list[str]:
-    if not _strict_case(record):
-        return []
+def _observation_errors(
+    record: Mapping[str, Any],
+    event: Mapping[str, Any],
+    observation: Mapping[str, Any],
+    *,
+    transaction_id: str,
+) -> list[str]:
     case_id = str(record.get("case_id") or "")
-    errors: list[str] = []
+    return (
+        _observation_canonical_errors(case_id, record, event, observation, transaction_id)
+        + _observation_identity_errors(case_id, record, event, observation)
+        + _observation_privacy_errors(case_id, observation)
+    )
+
+
+def _strict_common_errors(case_id: str, record: Mapping[str, Any], observation: Mapping[str, Any]) -> list[str]:
+    errors = []
     if observation.get("response_committed") is not True:
         errors.append(f"{case_id}: strict evidence requires response_committed=true")
     if observation.get("first_byte_received") is not True:
@@ -327,25 +376,45 @@ def _strict_errors(record: Mapping[str, Any], observation: Mapping[str, Any]) ->
         errors.append(f"{case_id}: strict evidence requires a completed independent follow-up")
     if record.get("actual_status") == 403 or record.get("visible_http_status") == 403:
         errors.append(f"{case_id}: strict evidence must not claim a post-commit HTTP 403")
+    return errors
+
+
+def _strict_http1_errors(case_id: str, record: Mapping[str, Any], observation: Mapping[str, Any]) -> list[str]:
+    errors = []
+    if record.get("actual_action") != "abort_connection":
+        errors.append(f"{case_id}: HTTP/1 strict evidence requires actual_action=abort_connection")
+    if record.get("transport_result") != "connection_aborted":
+        errors.append(f"{case_id}: HTTP/1 strict evidence requires transport_result=connection_aborted")
+    if observation.get("client_result") not in STRICT_CLIENT_RESULTS_HTTP1:
+        errors.append(f"{case_id}: HTTP/1 strict evidence lacks a client-observed abort")
+    return errors
+
+
+def _strict_h2_or_h3_errors(case_id: str, record: Mapping[str, Any], observation: Mapping[str, Any]) -> list[str]:
+    errors = []
+    if record.get("actual_action") != "stream_reset":
+        errors.append(f"{case_id}: H2/H3 strict evidence requires actual_action=stream_reset")
+    if record.get("transport_result") != "stream_reset":
+        errors.append(f"{case_id}: H2/H3 strict evidence requires transport_result=stream_reset")
+    if observation.get("client_result") != "stream_reset":
+        errors.append(f"{case_id}: H2/H3 strict evidence requires client_result=stream_reset")
+    if observation.get("stream_reset") is not True:
+        errors.append(f"{case_id}: H2/H3 strict evidence requires stream_reset=true")
+    if observation.get("reset_code") is None and observation.get("stream_reset_code") is None:
+        errors.append(f"{case_id}: H2/H3 strict evidence requires a reset code")
+    return errors
+
+
+def _strict_errors(record: Mapping[str, Any], observation: Mapping[str, Any]) -> list[str]:
+    if not _strict_case(record):
+        return []
+    case_id = str(record.get("case_id") or "")
+    errors = _strict_common_errors(case_id, record, observation)
     protocol = observation.get("protocol")
     if protocol == "http1":
-        if record.get("actual_action") != "abort_connection":
-            errors.append(f"{case_id}: HTTP/1 strict evidence requires actual_action=abort_connection")
-        if record.get("transport_result") != "connection_aborted":
-            errors.append(f"{case_id}: HTTP/1 strict evidence requires transport_result=connection_aborted")
-        if observation.get("client_result") not in STRICT_CLIENT_RESULTS_HTTP1:
-            errors.append(f"{case_id}: HTTP/1 strict evidence lacks a client-observed abort")
+        errors.extend(_strict_http1_errors(case_id, record, observation))
     elif protocol in {"h2", "h2c", "h3"}:
-        if record.get("actual_action") != "stream_reset":
-            errors.append(f"{case_id}: H2/H3 strict evidence requires actual_action=stream_reset")
-        if record.get("transport_result") != "stream_reset":
-            errors.append(f"{case_id}: H2/H3 strict evidence requires transport_result=stream_reset")
-        if observation.get("client_result") != "stream_reset":
-            errors.append(f"{case_id}: H2/H3 strict evidence requires client_result=stream_reset")
-        if observation.get("stream_reset") is not True:
-            errors.append(f"{case_id}: H2/H3 strict evidence requires stream_reset=true")
-        if observation.get("reset_code") is None and observation.get("stream_reset_code") is None:
-            errors.append(f"{case_id}: H2/H3 strict evidence requires a reset code")
+        errors.extend(_strict_h2_or_h3_errors(case_id, record, observation))
     else:
         errors.append(f"{case_id}: strict evidence uses unsupported protocol {protocol!r}")
     return errors
@@ -372,21 +441,59 @@ def _lifecycle_record_errors(record: Mapping[str, Any], *, label: str) -> list[s
     return errors
 
 
+REQUIRED_LIFECYCLE_COUNTERS = (
+    "transactions_started", "transactions_finished", "transactions_destroyed",
+    "request_body_finishes", "response_body_finishes", "interventions_seen",
+    "intentional_aborts", "unexpected_engine_errors",
+)
+
+
+def _required_counter_errors(counters: Mapping[str, Any]) -> list[str]:
+    errors = []
+    for field in REQUIRED_LIFECYCLE_COUNTERS:
+        if not isinstance(counters.get(field), int) or counters[field] < 0:
+            errors.append(f"lifecycle_counters.{field} must be a non-negative integer")
+    return errors
+
+
+def _counter_value(record: Mapping[str, Any], field: str) -> int:
+    value = record.get(field, 0)
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
+def _bound_counter_expectations(lifecycle_records: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    return {
+        "client_disconnects": sum(_counter_value(record, "client_disconnect") for record in lifecycle_records),
+        "upstream_disconnects": sum(_counter_value(record, "upstream_disconnect") for record in lifecycle_records),
+        "stream_resets": sum(_counter_value(record, "stream_reset") for record in lifecycle_records),
+        "timeouts": sum(_counter_value(record, "timeout") for record in lifecycle_records),
+        "short_writes": sum(_counter_value(record, "short_writes") for record in lifecycle_records),
+        "write_would_block": sum(_counter_value(record, "write_would_block") for record in lifecycle_records),
+        "cleanup_normal": sum(record.get("cleanup_reason") == "normal" for record in lifecycle_records),
+        "cleanup_cancel": sum(record.get("cleanup_reason") in {"cancelled", "client_disconnected", "upstream_disconnected"} for record in lifecycle_records),
+        "cleanup_abort": sum(record.get("cleanup_reason") in {"strict_abort", "stream_reset"} for record in lifecycle_records),
+        "intentional_aborts": sum(_counter_value(record, "intentional_abort") for record in lifecycle_records),
+    }
+
+
+def _counter_lower_bounds(lifecycle_records: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    return {
+        "transactions_started": sum(_counter_value(record, "transaction_started") for record in lifecycle_records),
+        "transactions_finished": sum(_counter_value(record, "transaction_finished") for record in lifecycle_records),
+        "transactions_destroyed": sum(_counter_value(record, "transaction_destroyed") for record in lifecycle_records),
+        "request_body_finishes": sum(_counter_value(record, "request_body_finished") for record in lifecycle_records),
+        "response_body_finishes": sum(_counter_value(record, "response_body_finished") for record in lifecycle_records),
+        "intentional_aborts": sum(_counter_value(record, "intentional_abort") for record in lifecycle_records),
+    }
+
+
 def _counter_errors(
     counters: Mapping[str, Any],
     lifecycle_records: Sequence[Mapping[str, Any]],
     *,
     require_bound_counts: bool,
 ) -> list[str]:
-    errors: list[str] = []
-    required = (
-        "transactions_started", "transactions_finished", "transactions_destroyed",
-        "request_body_finishes", "response_body_finishes", "interventions_seen",
-        "intentional_aborts", "unexpected_engine_errors",
-    )
-    for field in required:
-        if not isinstance(counters.get(field), int) or counters[field] < 0:
-            errors.append(f"lifecycle_counters.{field} must be a non-negative integer")
+    errors = _required_counter_errors(counters)
     if errors:
         return errors
     if not (
@@ -399,48 +506,97 @@ def _counter_errors(
     if counters.get("transport_counters_bound") is not True:
         errors.append("transport PASS requires lifecycle_counters.transport_counters_bound=true")
         return errors
-    def counter(record: Mapping[str, Any], field: str) -> int:
-        value = record.get(field, 0)
-        return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
-
-    expected = {
-        "client_disconnects": sum(counter(record, "client_disconnect") for record in lifecycle_records),
-        "upstream_disconnects": sum(counter(record, "upstream_disconnect") for record in lifecycle_records),
-        "stream_resets": sum(counter(record, "stream_reset") for record in lifecycle_records),
-        "timeouts": sum(counter(record, "timeout") for record in lifecycle_records),
-        "short_writes": sum(counter(record, "short_writes") for record in lifecycle_records),
-        "write_would_block": sum(counter(record, "write_would_block") for record in lifecycle_records),
-        "cleanup_normal": sum(record.get("cleanup_reason") == "normal" for record in lifecycle_records),
-        "cleanup_cancel": sum(
-            record.get("cleanup_reason")
-            in {"cancelled", "client_disconnected", "upstream_disconnected"}
-            for record in lifecycle_records
-        ),
-        "cleanup_abort": sum(
-            record.get("cleanup_reason") in {"strict_abort", "stream_reset"}
-            for record in lifecycle_records
-        ),
-        "intentional_aborts": sum(counter(record, "intentional_abort") for record in lifecycle_records),
-    }
-    for field, expected_value in expected.items():
+    for field, expected_value in _bound_counter_expectations(lifecycle_records).items():
         if counters.get(field) != expected_value:
             errors.append(
                 f"lifecycle_counters.{field}={counters.get(field)!r}, expected {expected_value} from connection-lifecycle"
             )
     # The global lifecycle counters may include non-transport transactions,
     # but they can never be lower than the concrete transport records.
-    lower_bounds = {
-        "transactions_started": sum(counter(record, "transaction_started") for record in lifecycle_records),
-        "transactions_finished": sum(counter(record, "transaction_finished") for record in lifecycle_records),
-        "transactions_destroyed": sum(counter(record, "transaction_destroyed") for record in lifecycle_records),
-        "request_body_finishes": sum(counter(record, "request_body_finished") for record in lifecycle_records),
-        "response_body_finishes": sum(counter(record, "response_body_finished") for record in lifecycle_records),
-        "intentional_aborts": sum(counter(record, "intentional_abort") for record in lifecycle_records),
-    }
-    for field, lower_bound in lower_bounds.items():
+    for field, lower_bound in _counter_lower_bounds(lifecycle_records).items():
         if counters.get(field, -1) < lower_bound:
             errors.append(f"lifecycle_counters.{field} is below connection-lifecycle accounting")
     return errors
+
+
+def _inventory_paths(
+    run_dir: Path,
+    manifest: Mapping[str, Any],
+    required: bool,
+) -> tuple[dict[str, Path | None], list[str]]:
+    paths: dict[str, Path | None] = {}
+    errors = []
+    for name in REQUIRED_TRANSPORT_ARTIFACTS + REQUIRED_ENGINE_ARTIFACTS:
+        path, artifact_errors = _artifact_path(run_dir, manifest, name, required=required)
+        paths[name] = path
+        errors.extend(artifact_errors)
+    return paths, errors
+
+
+def _h3_connection_id_errors(payload: Mapping[str, Any], records_key: str, label: str) -> list[str]:
+    records = payload.get(records_key)
+    if not isinstance(records, list):
+        return []
+    errors = []
+    for index, record in enumerate(records):
+        if isinstance(record, Mapping) and record.get("protocol") == "h3":
+            connection_id = record.get("connection_id")
+            if connection_id is not None and not no_crs.is_hashed_connection_id(connection_id):
+                errors.append(
+                    f"{label}.{records_key}[{index}].connection_id: raw H3 connection identifiers are forbidden"
+                )
+    return errors
+
+
+def _validated_inventory_object(
+    path: Path | None,
+    label: str,
+    schema_name: str,
+    manifest: Mapping[str, Any],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    if path is None:
+        return None, []
+    payload, errors = _load_object(path, label)
+    if payload is not None:
+        errors.extend(_schema_errors(payload, schema_name, label=label))
+        errors.extend(_identity_errors(payload, manifest, label=label))
+    return payload, errors
+
+
+def _validated_barrier_events(
+    path: Path | None,
+    manifest: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    if path is None:
+        return [], []
+    events, errors = _load_jsonl(path, "barrier-events")
+    for index, event in enumerate(events):
+        label = f"barrier-events[{index}]"
+        errors.extend(no_crs.canonical_event_errors(
+            event,
+            label,
+            str(manifest.get("connector") or ""),
+            str(manifest.get("integration_mode") or ""),
+        ))
+        for field in ("connector", "integration_mode", "run_id"):
+            if event.get(field) != manifest.get(field):
+                errors.append(f"{label}.{field} does not match canonical run")
+    return events, errors
+
+
+def _engine_inventory_payload(
+    path: Path | None,
+    name: str,
+    manifest: Mapping[str, Any],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    if path is None:
+        return None, []
+    payload, errors = _load_object(path, name)
+    if payload is not None and (
+        payload.get("schema_version") != 1 or payload.get("connector") != manifest.get("connector")
+    ):
+        errors.append(f"{name} has invalid identity")
+    return payload, errors
 
 
 def _inventory_errors(
@@ -457,84 +613,324 @@ def _inventory_errors(
     list[str],
 ]:
     """Read and validate supplemental inventory, returning payloads and errors."""
-    errors: list[str] = []
-    paths: dict[str, Path | None] = {}
-    for name in REQUIRED_TRANSPORT_ARTIFACTS + REQUIRED_ENGINE_ARTIFACTS:
-        path, artifact_errors = _artifact_path(run_dir, manifest, name, required=required)
-        paths[name] = path
-        errors.extend(artifact_errors)
+    paths, errors = _inventory_paths(run_dir, manifest, required)
 
-    observations: dict[str, Any] | None = None
-    lifecycle: dict[str, Any] | None = None
-    counters: dict[str, Any] | None = None
-    transaction_counts: dict[str, Any] | None = None
-    barrier_events: list[dict[str, Any]] = []
-    if paths.get("transport_observations") is not None:
-        observations, load_errors = _load_object(paths["transport_observations"], "transport-observations")
-        errors.extend(load_errors)
-        if observations is not None:
-            errors.extend(_schema_errors(observations, "transport-observations.schema.json", label="transport-observations"))
-            errors.extend(_identity_errors(observations, manifest, label="transport-observations"))
-            observation_items = observations.get("observations")
-            if isinstance(observation_items, list):
-                for index, record in enumerate(observation_items):
-                    if isinstance(record, Mapping) and record.get("protocol") == "h3":
-                        connection_id = record.get("connection_id")
-                        if connection_id is not None and not no_crs.is_hashed_connection_id(connection_id):
-                            errors.append(
-                                f"transport-observations.observations[{index}].connection_id: "
-                                "raw H3 connection identifiers are forbidden"
-                            )
-    if paths.get("connection_lifecycle") is not None:
-        lifecycle, load_errors = _load_object(paths["connection_lifecycle"], "connection-lifecycle")
-        errors.extend(load_errors)
-        if lifecycle is not None:
-            errors.extend(_schema_errors(lifecycle, "connection-lifecycle.schema.json", label="connection-lifecycle"))
-            errors.extend(_identity_errors(lifecycle, manifest, label="connection-lifecycle"))
-            lifecycle_items = lifecycle.get("records")
-            if isinstance(lifecycle_items, list):
-                for index, record in enumerate(lifecycle_items):
-                    if isinstance(record, Mapping) and record.get("protocol") == "h3":
-                        connection_id = record.get("connection_id")
-                        if connection_id is not None and not no_crs.is_hashed_connection_id(connection_id):
-                            errors.append(
-                                f"connection-lifecycle.records[{index}].connection_id: "
-                                "raw H3 connection identifiers are forbidden"
-                            )
-    if paths.get("effective_config") is not None:
-        config, load_errors = _load_object(paths["effective_config"], "effective-config")
-        errors.extend(load_errors)
-        if config is not None:
-            errors.extend(_schema_errors(config, "effective-config.schema.json", label="effective-config"))
-            errors.extend(_identity_errors(config, manifest, label="effective-config"))
-    if paths.get("barrier_events") is not None:
-        barrier_events, load_errors = _load_jsonl(paths["barrier_events"], "barrier-events")
-        errors.extend(load_errors)
-        for index, event in enumerate(barrier_events):
-            label = f"barrier-events[{index}]"
-            errors.extend(no_crs.canonical_event_errors(
-                event,
-                label,
-                str(manifest.get("connector") or ""),
-                str(manifest.get("integration_mode") or ""),
-            ))
-            for field in ("connector", "integration_mode", "run_id"):
-                if event.get(field) != manifest.get(field):
-                    errors.append(f"{label}.{field} does not match canonical run")
-    for name, target in (("lifecycle_counters", "counters"), ("transaction_counts", "transactions")):
-        path = paths.get(name)
-        if path is None:
-            continue
-        payload, load_errors = _load_object(path, name)
-        errors.extend(load_errors)
-        if payload is not None:
-            if payload.get("schema_version") != 1 or payload.get("connector") != manifest.get("connector"):
-                errors.append(f"{name} has invalid identity")
-            if target == "counters":
-                counters = payload
-            else:
-                transaction_counts = payload
+    observations, observation_errors = _validated_inventory_object(
+        paths.get("transport_observations"),
+        "transport-observations",
+        "transport-observations.schema.json",
+        manifest,
+    )
+    errors.extend(observation_errors)
+    if observations is not None:
+        errors.extend(_h3_connection_id_errors(observations, "observations", "transport-observations"))
+
+    lifecycle, lifecycle_errors = _validated_inventory_object(
+        paths.get("connection_lifecycle"),
+        "connection-lifecycle",
+        "connection-lifecycle.schema.json",
+        manifest,
+    )
+    errors.extend(lifecycle_errors)
+    if lifecycle is not None:
+        errors.extend(_h3_connection_id_errors(lifecycle, "records", "connection-lifecycle"))
+
+    _config, config_errors = _validated_inventory_object(
+        paths.get("effective_config"),
+        "effective-config",
+        "effective-config.schema.json",
+        manifest,
+    )
+    errors.extend(config_errors)
+
+    barrier_events, barrier_errors = _validated_barrier_events(paths.get("barrier_events"), manifest)
+    errors.extend(barrier_errors)
+
+    counters, counter_errors = _engine_inventory_payload(paths.get("lifecycle_counters"), "lifecycle_counters", manifest)
+    errors.extend(counter_errors)
+    transaction_counts, transaction_errors = _engine_inventory_payload(
+        paths.get("transaction_counts"), "transaction_counts", manifest
+    )
+    errors.extend(transaction_errors)
     return observations, lifecycle, barrier_events, counters, transaction_counts, errors
+
+
+def _sidecar_mapping_records(payload: Mapping[str, Any] | None, field: str) -> list[Mapping[str, Any]]:
+    records = payload.get(field) if payload else []
+    return [item for item in records if isinstance(item, Mapping)] if isinstance(records, list) else []
+
+
+def _diagnostic_sidecar_errors(
+    observations: Mapping[str, Any] | None,
+    lifecycle: Mapping[str, Any] | None,
+    counters: Mapping[str, Any] | None,
+) -> list[str]:
+    observation_records = _sidecar_mapping_records(observations, "observations")
+    lifecycle_records = _sidecar_mapping_records(lifecycle, "records")
+    errors = _counter_errors(
+        counters,
+        lifecycle_records,
+        require_bound_counts=counters.get("transport_counters_bound") is True,
+    ) if counters is not None else []
+    seen_observation_keys: set[tuple[str, str]] = set()
+    for index, observation in enumerate(observation_records):
+        label = f"transport-observations[{index}]"
+        key = (str(observation.get("case_id") or ""), str(observation.get("transaction_id") or ""))
+        if key in seen_observation_keys:
+            errors.append(f"{label} duplicates case/transaction correlation {key!r}")
+        seen_observation_keys.add(key)
+    seen_lifecycle_keys: set[tuple[str, str]] = set()
+    for index, lifecycle_record in enumerate(lifecycle_records):
+        label = f"connection-lifecycle[{index}]"
+        errors.extend(_lifecycle_record_errors(lifecycle_record, label=label))
+        key = (
+            str(lifecycle_record.get("transport_case_id") or ""),
+            str(lifecycle_record.get("transaction_id") or ""),
+        )
+        if key in seen_lifecycle_keys:
+            errors.append(f"{label} duplicates transport/transaction correlation {key!r}")
+        seen_lifecycle_keys.add(key)
+    return errors
+
+
+def _transaction_count_ids(transaction_counts: Mapping[str, Any]) -> tuple[set[str], list[str]]:
+    count_ids = transaction_counts.get("transaction_ids")
+    if not isinstance(count_ids, list) or not all(_nonempty_token(value) for value in count_ids):
+        return set(), ["transaction_counts.transaction_ids must contain bounded identifiers"]
+    count_id_set = {str(value) for value in count_ids}
+    errors = []
+    if transaction_counts.get("transactions_observed") != len(count_ids):
+        errors.append("transaction_counts does not match its transaction_ids")
+    if len(count_id_set) != len(count_ids):
+        errors.append("transaction_counts.transaction_ids must be unique")
+    return count_id_set, errors
+
+
+def _indexed_sidecar_errors(
+    observation_records: Sequence[Mapping[str, Any]],
+    lifecycle_records: Sequence[Mapping[str, Any]],
+    count_id_set: set[str],
+) -> tuple[dict[tuple[str, str], Mapping[str, Any]], list[str]]:
+    errors: list[str] = []
+    observation_keys: set[tuple[str, str]] = set()
+    for index, observation in enumerate(observation_records):
+        key = (str(observation.get("case_id") or ""), str(observation.get("transaction_id") or ""))
+        if key in observation_keys:
+            errors.append(f"transport-observations[{index}] duplicates case/transaction correlation {key!r}")
+        observation_keys.add(key)
+    lifecycle_by_key: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for index, lifecycle_record in enumerate(lifecycle_records):
+        label = f"connection-lifecycle[{index}]"
+        errors.extend(_lifecycle_record_errors(lifecycle_record, label=label))
+        key = (
+            str(lifecycle_record.get("transport_case_id") or ""),
+            str(lifecycle_record.get("transaction_id") or ""),
+        )
+        if key in lifecycle_by_key:
+            errors.append(f"{label} duplicates transport/transaction correlation {key!r}")
+        lifecycle_by_key[key] = lifecycle_record
+        if key[1] not in count_id_set:
+            errors.append(f"{label}: transaction_id is absent from transaction_counts")
+    return lifecycle_by_key, errors
+
+
+def _matching_transport_events(
+    events: Sequence[Mapping[str, Any]],
+    transport_case_id: str,
+    transaction_id: str,
+) -> list[tuple[int, Mapping[str, Any]]]:
+    return [
+        (index, event)
+        for index, event in enumerate(events)
+        if event.get("transport_case_id") == transport_case_id and event.get("transaction_id") == transaction_id
+    ]
+
+
+def _matching_transport_observations(
+    observations: Sequence[Mapping[str, Any]],
+    case_id: str,
+    transport_case_id: str,
+    transaction_id: str,
+) -> list[Mapping[str, Any]]:
+    return [
+        observation
+        for observation in observations
+        if observation.get("case_id") == case_id
+        and observation.get("transport_case_id") == transport_case_id
+        and observation.get("transaction_id") == transaction_id
+    ]
+
+
+def _lifecycle_observation_errors(
+    case_id: str,
+    record: Mapping[str, Any],
+    observation: Mapping[str, Any],
+    lifecycle_record: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    if observation.get("eos_received") != bool(lifecycle_record.get("eos_seen")):
+        errors.append(f"{case_id}: lifecycle eos_seen does not match transport observation")
+    for observation_field, lifecycle_field in (
+        ("client_disconnected", "client_disconnect"),
+        ("upstream_disconnected", "upstream_disconnect"),
+        ("stream_reset", "stream_reset"),
+    ):
+        if observation.get(observation_field) is True and lifecycle_record.get(lifecycle_field) != 1:
+            errors.append(f"{case_id}: lifecycle {lifecycle_field} does not match transport observation")
+    if observation.get("write_result") == "short_write" and lifecycle_record.get("short_writes", 0) < 1:
+        errors.append(f"{case_id}: lifecycle short_writes does not match transport observation")
+    if observation.get("write_result") == "write_would_block" and lifecycle_record.get("write_would_block", 0) < 1:
+        errors.append(f"{case_id}: lifecycle write_would_block does not match transport observation")
+    if _strict_case(record) and lifecycle_record.get("intentional_abort") != 1:
+        errors.append(f"{case_id}: strict transport evidence requires intentional_abort=1")
+    return errors
+
+
+def _transaction_correlation_errors(
+    record: Mapping[str, Any],
+    transaction_id: str,
+    events: Sequence[Mapping[str, Any]],
+    observations: Sequence[Mapping[str, Any]],
+    lifecycle_by_key: Mapping[tuple[str, str], Mapping[str, Any]],
+    count_id_set: set[str],
+    manifest: Mapping[str, Any],
+    used_event_indexes: set[int],
+    used_observations: set[tuple[str, str]],
+    strict_lifecycle_keys: set[tuple[str, str]],
+) -> list[str]:
+    case_id = str(record.get("case_id") or "")
+    transport_case_id = str(record.get("transport_case_id") or "")
+    errors = []
+    if transaction_id not in count_id_set:
+        errors.append(f"{case_id}: transaction_id is absent from transaction_counts")
+    matching_events = _matching_transport_events(events, transport_case_id, transaction_id)
+    if len(matching_events) != 1:
+        return errors + [f"{case_id}: requires exactly one event for transport_case_id/transaction_id"]
+    event_index, event = matching_events[0]
+    if event_index in used_event_indexes:
+        errors.append(f"{case_id}: reuses an event claimed by another transport case")
+    used_event_indexes.add(event_index)
+    errors.extend(_event_errors(record, event, manifest, transaction_id=transaction_id))
+    matching_observations = _matching_transport_observations(observations, case_id, transport_case_id, transaction_id)
+    if len(matching_observations) != 1:
+        return errors + [f"{case_id}: requires exactly one matching transport observation"]
+    observation = matching_observations[0]
+    observation_key = (case_id, transaction_id)
+    if observation_key in used_observations:
+        errors.append(f"{case_id}: reuses a transport observation")
+    used_observations.add(observation_key)
+    errors.extend(_observation_errors(record, event, observation, transaction_id=transaction_id))
+    errors.extend(_strict_errors(record, observation))
+    lifecycle_key = (transport_case_id, transaction_id)
+    lifecycle_record = lifecycle_by_key.get(lifecycle_key)
+    if lifecycle_record is None:
+        return errors + [f"{case_id}: requires a matching connection-lifecycle record"]
+    errors.extend(_lifecycle_observation_errors(case_id, record, observation, lifecycle_record))
+    if _strict_case(record):
+        strict_lifecycle_keys.add(lifecycle_key)
+    return errors
+
+
+def _pass_correlation_errors(
+    passes: Sequence[tuple[Mapping[str, Any], Mapping[str, Any] | None]],
+    events: Sequence[Mapping[str, Any]],
+    observations: Sequence[Mapping[str, Any]],
+    lifecycle_by_key: Mapping[tuple[str, str], Mapping[str, Any]],
+    count_id_set: set[str],
+    manifest: Mapping[str, Any],
+) -> tuple[set[tuple[str, str]], list[str]]:
+    errors: list[str] = []
+    used_event_indexes: set[int] = set()
+    used_observations: set[tuple[str, str]] = set()
+    strict_lifecycle_keys: set[tuple[str, str]] = set()
+    for record, _case in passes:
+        case_id = str(record.get("case_id") or "")
+        errors.extend(_record_run_context_errors(record, manifest))
+        errors.extend(f"{case_id}: {error}" for error in _transport_record_identity_errors(record))
+        transaction_ids = record.get("transaction_ids") if isinstance(record.get("transaction_ids"), list) else []
+        for raw_transaction_id in transaction_ids:
+            errors.extend(_transaction_correlation_errors(
+                record,
+                str(raw_transaction_id),
+                events,
+                observations,
+                lifecycle_by_key,
+                count_id_set,
+                manifest,
+                used_event_indexes,
+                used_observations,
+                strict_lifecycle_keys,
+            ))
+    return strict_lifecycle_keys, errors
+
+
+def _unbound_lifecycle_errors(
+    lifecycle_by_key: Mapping[tuple[str, str], Mapping[str, Any]],
+    passes: Sequence[tuple[Mapping[str, Any], Mapping[str, Any] | None]],
+    observations: Sequence[Mapping[str, Any]],
+    strict_lifecycle_keys: set[tuple[str, str]],
+) -> list[str]:
+    pass_lifecycle_keys = {
+        (str(record.get("transport_case_id") or ""), str(transaction_id))
+        for record, _case in passes
+        for transaction_id in (record.get("transaction_ids", []) if isinstance(record.get("transaction_ids"), list) else [])
+    }
+    observations_by_lifecycle_key = {
+        (str(observation.get("transport_case_id") or ""), str(observation.get("transaction_id") or "")): observation
+        for observation in observations
+    }
+    errors = []
+    for key, lifecycle_record in lifecycle_by_key.items():
+        if lifecycle_record.get("intentional_abort") == 1 and key not in strict_lifecycle_keys:
+            errors.append("connection-lifecycle intentional_abort lacks a matching strict transport event")
+        if lifecycle_record.get("stream_reset") == 1:
+            observation = observations_by_lifecycle_key.get(key)
+            if key not in pass_lifecycle_keys or observation is None or observation.get("transport_result") != "stream_reset":
+                errors.append("connection-lifecycle stream_reset lacks a matching transport case")
+    return errors
+
+
+def _barrier_event_errors(
+    record: Mapping[str, Any],
+    transaction_id: object,
+    barrier_events: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    case_id = str(record.get("case_id") or "")
+    transport_case_id = record.get("transport_case_id")
+    candidates = [
+        event for event in barrier_events
+        if event.get("transport_case_id") == transport_case_id and event.get("transaction_id") == transaction_id
+    ]
+    if len(candidates) != 1:
+        return [f"{case_id}: requires exactly one matching barrier event"]
+    barrier_event = candidates[0]
+    errors = []
+    if record.get("barrier_id") is not None and barrier_event.get("barrier_id") != record.get("barrier_id"):
+        errors.append(f"{case_id}: barrier event barrier_id does not match case result")
+    for field in ("client_first_byte_received", "first_byte_before_response_end", "response_committed"):
+        if barrier_event.get(field) is not True:
+            errors.append(f"{case_id}: barrier event requires {field}=true")
+    if barrier_event.get("upstream_eos_sent_at_first_byte") is not False:
+        errors.append(f"{case_id}: barrier event requires upstream_eos_sent_at_first_byte=false")
+    return errors
+
+
+def _barrier_binding_errors(
+    passes: Sequence[tuple[Mapping[str, Any], Mapping[str, Any] | None]],
+    barrier_events: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
+    for record, _case in passes:
+        expected_result = str(record.get("expected_result") or "")
+        requires_barrier = record.get("barrier_id") is not None or expected_result in {
+            "first_byte_before_response_end", "no_full_response_buffering"
+        }
+        if not requires_barrier:
+            continue
+        transaction_ids = record.get("transaction_ids", []) if isinstance(record.get("transaction_ids"), list) else []
+        for transaction_id in transaction_ids:
+            errors.extend(_barrier_event_errors(record, transaction_id, barrier_events))
+    return errors
 
 
 def transport_hardening_errors(run_dir: Path) -> list[str]:
@@ -566,37 +962,7 @@ def transport_hardening_errors(run_dir: Path) -> list[str]:
     # non-promoting because ``passes`` is empty and the corresponding result
     # stays NOT_EXECUTED.
     if not passes:
-        raw_observations = observations.get("observations") if observations else []
-        raw_lifecycle = lifecycle.get("records") if lifecycle else []
-        observation_records = [item for item in raw_observations if isinstance(item, Mapping)] if isinstance(raw_observations, list) else []
-        lifecycle_records = [item for item in raw_lifecycle if isinstance(item, Mapping)] if isinstance(raw_lifecycle, list) else []
-        if counters is not None:
-            errors.extend(_counter_errors(
-                counters,
-                lifecycle_records,
-                require_bound_counts=counters.get("transport_counters_bound") is True,
-            ))
-        seen_observation_keys: set[tuple[str, str]] = set()
-        for index, observation in enumerate(observation_records):
-            label = f"transport-observations[{index}]"
-            key = (
-                str(observation.get("case_id") or ""),
-                str(observation.get("transaction_id") or ""),
-            )
-            if key in seen_observation_keys:
-                errors.append(f"{label} duplicates case/transaction correlation {key!r}")
-            seen_observation_keys.add(key)
-        seen_lifecycle_keys: set[tuple[str, str]] = set()
-        for index, lifecycle_record in enumerate(lifecycle_records):
-            label = f"connection-lifecycle[{index}]"
-            errors.extend(_lifecycle_record_errors(lifecycle_record, label=label))
-            key = (
-                str(lifecycle_record.get("transport_case_id") or ""),
-                str(lifecycle_record.get("transaction_id") or ""),
-            )
-            if key in seen_lifecycle_keys:
-                errors.append(f"{label} duplicates transport/transaction correlation {key!r}")
-            seen_lifecycle_keys.add(key)
+        errors.extend(_diagnostic_sidecar_errors(observations, lifecycle, counters))
         return errors
     if observations is None or lifecycle is None or counters is None or transaction_counts is None:
         return errors
@@ -609,168 +975,28 @@ def transport_hardening_errors(run_dir: Path) -> list[str]:
     lifecycle_records = [item for item in raw_lifecycle if isinstance(item, Mapping)]
     errors.extend(_counter_errors(counters, lifecycle_records, require_bound_counts=True))
 
-    count_ids = transaction_counts.get("transaction_ids")
-    if not isinstance(count_ids, list) or not all(_nonempty_token(value) for value in count_ids):
-        errors.append("transaction_counts.transaction_ids must contain bounded identifiers")
-        count_id_set: set[str] = set()
-    else:
-        count_id_set = {str(value) for value in count_ids}
-        if transaction_counts.get("transactions_observed") != len(count_ids):
-            errors.append("transaction_counts does not match its transaction_ids")
-        if len(count_id_set) != len(count_ids):
-            errors.append("transaction_counts.transaction_ids must be unique")
-
-    obs_keys: set[tuple[str, str]] = set()
-    for index, observation in enumerate(observation_records):
-        key = (str(observation.get("case_id") or ""), str(observation.get("transaction_id") or ""))
-        if key in obs_keys:
-            errors.append(f"transport-observations[{index}] duplicates case/transaction correlation {key!r}")
-        obs_keys.add(key)
-    lifecycle_by_key: dict[tuple[str, str], Mapping[str, Any]] = {}
-    for index, lifecycle_record in enumerate(lifecycle_records):
-        label = f"connection-lifecycle[{index}]"
-        errors.extend(_lifecycle_record_errors(lifecycle_record, label=label))
-        key = (
-            str(lifecycle_record.get("transport_case_id") or ""),
-            str(lifecycle_record.get("transaction_id") or ""),
-        )
-        if key in lifecycle_by_key:
-            errors.append(f"{label} duplicates transport/transaction correlation {key!r}")
-        lifecycle_by_key[key] = lifecycle_record
-        if key[1] not in count_id_set:
-            errors.append(f"{label}: transaction_id is absent from transaction_counts")
-
-    used_event_indexes: set[int] = set()
-    used_observations: set[tuple[str, str]] = set()
-    strict_lifecycle_keys: set[tuple[str, str]] = set()
-    for record, _case in passes:
-        case_id = str(record.get("case_id") or "")
-        errors.extend(_record_run_context_errors(record, manifest))
-        errors.extend(f"{case_id}: {error}" for error in _transport_record_identity_errors(record))
-        transport_case_id = str(record.get("transport_case_id") or "")
-        transaction_ids = record.get("transaction_ids") if isinstance(record.get("transaction_ids"), list) else []
-        for raw_transaction_id in transaction_ids:
-            transaction_id = str(raw_transaction_id)
-            if transaction_id not in count_id_set:
-                errors.append(f"{case_id}: transaction_id is absent from transaction_counts")
-            matching_events = [
-                (index, event) for index, event in enumerate(events)
-                if event.get("transport_case_id") == transport_case_id
-                and event.get("transaction_id") == transaction_id
-            ]
-            if len(matching_events) != 1:
-                errors.append(
-                    f"{case_id}: requires exactly one event for transport_case_id/transaction_id"
-                )
-                continue
-            event_index, event = matching_events[0]
-            if event_index in used_event_indexes:
-                errors.append(f"{case_id}: reuses an event claimed by another transport case")
-            used_event_indexes.add(event_index)
-            errors.extend(_event_errors(record, event, manifest, transaction_id=transaction_id))
-            matching_observations = [
-                observation for observation in observation_records
-                if observation.get("case_id") == case_id
-                and observation.get("transport_case_id") == transport_case_id
-                and observation.get("transaction_id") == transaction_id
-            ]
-            if len(matching_observations) != 1:
-                errors.append(f"{case_id}: requires exactly one matching transport observation")
-                continue
-            observation = matching_observations[0]
-            observation_key = (case_id, transaction_id)
-            if observation_key in used_observations:
-                errors.append(f"{case_id}: reuses a transport observation")
-            used_observations.add(observation_key)
-            errors.extend(_observation_errors(record, event, observation, transaction_id=transaction_id))
-            errors.extend(_strict_errors(record, observation))
-            lifecycle_key = (transport_case_id, transaction_id)
-            lifecycle_record = lifecycle_by_key.get(lifecycle_key)
-            if lifecycle_record is None:
-                errors.append(f"{case_id}: requires a matching connection-lifecycle record")
-                continue
-            if observation.get("eos_received") != bool(lifecycle_record.get("eos_seen")):
-                errors.append(f"{case_id}: lifecycle eos_seen does not match transport observation")
-            for observation_field, lifecycle_field in (
-                ("client_disconnected", "client_disconnect"),
-                ("upstream_disconnected", "upstream_disconnect"),
-                ("stream_reset", "stream_reset"),
-            ):
-                if observation.get(observation_field) is True and lifecycle_record.get(lifecycle_field) != 1:
-                    errors.append(f"{case_id}: lifecycle {lifecycle_field} does not match transport observation")
-            if (
-                observation.get("write_result") == "short_write"
-                and lifecycle_record.get("short_writes", 0) < 1
-            ):
-                errors.append(f"{case_id}: lifecycle short_writes does not match transport observation")
-            if (
-                observation.get("write_result") == "write_would_block"
-                and lifecycle_record.get("write_would_block", 0) < 1
-            ):
-                errors.append(f"{case_id}: lifecycle write_would_block does not match transport observation")
-            if _strict_case(record):
-                strict_lifecycle_keys.add(lifecycle_key)
-                if lifecycle_record.get("intentional_abort") != 1:
-                    errors.append(f"{case_id}: strict transport evidence requires intentional_abort=1")
-
-    # A lifecycle abort/reset may not appear without a matching, causally bound
-    # transport case.  This closes the common failure mode where an internal
-    # callback error is relabelled as a client-visible reset.
-    pass_lifecycle_keys = {
-        (str(record.get("transport_case_id") or ""), str(transaction_id))
-        for record, _case in passes
-        for transaction_id in (
-            record.get("transaction_ids", [])
-            if isinstance(record.get("transaction_ids"), list)
-            else []
-        )
-    }
-    observations_by_lifecycle_key = {
-        (str(observation.get("transport_case_id") or ""), str(observation.get("transaction_id") or "")): observation
-        for observation in observation_records
-    }
-    for key, lifecycle_record in lifecycle_by_key.items():
-        if lifecycle_record.get("intentional_abort") == 1 and key not in strict_lifecycle_keys:
-            errors.append("connection-lifecycle intentional_abort lacks a matching strict transport event")
-        if lifecycle_record.get("stream_reset") == 1:
-            observation = observations_by_lifecycle_key.get(key)
-            if key not in pass_lifecycle_keys or observation is None or observation.get("transport_result") != "stream_reset":
-                errors.append("connection-lifecycle stream_reset lacks a matching transport case")
-    # First-byte transport cases must have their own canonical barrier event;
-    # an empty sidecar is valid for disconnect/reset/timeout cases only.  A
-    # mere non-empty file cannot be borrowed from an unrelated transaction.
-    for record, _case in passes:
-        expected_result = str(record.get("expected_result") or "")
-        requires_barrier = (
-            record.get("barrier_id") is not None
-            or expected_result in {"first_byte_before_response_end", "no_full_response_buffering"}
-        )
-        if not requires_barrier:
-            continue
-        case_id = str(record.get("case_id") or "")
-        transport_case_id = record.get("transport_case_id")
-        transaction_ids = (
-            record.get("transaction_ids", [])
-            if isinstance(record.get("transaction_ids"), list)
-            else []
-        )
-        for transaction_id in transaction_ids:
-            candidates = [
-                event for event in barrier_events
-                if event.get("transport_case_id") == transport_case_id
-                and event.get("transaction_id") == transaction_id
-            ]
-            if len(candidates) != 1:
-                errors.append(f"{case_id}: requires exactly one matching barrier event")
-                continue
-            barrier_event = candidates[0]
-            if record.get("barrier_id") is not None and barrier_event.get("barrier_id") != record.get("barrier_id"):
-                errors.append(f"{case_id}: barrier event barrier_id does not match case result")
-            for field in ("client_first_byte_received", "first_byte_before_response_end", "response_committed"):
-                if barrier_event.get(field) is not True:
-                    errors.append(f"{case_id}: barrier event requires {field}=true")
-            if barrier_event.get("upstream_eos_sent_at_first_byte") is not False:
-                errors.append(f"{case_id}: barrier event requires upstream_eos_sent_at_first_byte=false")
+    count_id_set, count_errors = _transaction_count_ids(transaction_counts)
+    errors.extend(count_errors)
+    lifecycle_by_key, sidecar_errors = _indexed_sidecar_errors(
+        observation_records, lifecycle_records, count_id_set
+    )
+    errors.extend(sidecar_errors)
+    strict_lifecycle_keys, correlation_errors = _pass_correlation_errors(
+        passes,
+        events,
+        observation_records,
+        lifecycle_by_key,
+        count_id_set,
+        manifest,
+    )
+    errors.extend(correlation_errors)
+    errors.extend(_unbound_lifecycle_errors(
+        lifecycle_by_key,
+        passes,
+        observation_records,
+        strict_lifecycle_keys,
+    ))
+    errors.extend(_barrier_binding_errors(passes, barrier_events))
     return errors
 
 

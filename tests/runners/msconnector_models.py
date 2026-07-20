@@ -158,7 +158,7 @@ def import_status_counts(path: str | None) -> dict[str, int]:
     }
 
 
-def audit_behavior(entries: list[dict[str, object]], import_status: dict[str, int]) -> str:
+def audit_behavior(entries: list[dict[str, object]]) -> str:
     for entry in entries:
         capabilities = entry.get("capabilities", [])
         if str(entry.get("status", "")) == "fail" and isinstance(capabilities, list):
@@ -234,7 +234,7 @@ def connector_summary(
         "connector_path": summary_context.connector_path,
         "validation_mode": summary_context.validation_mode,
         "environment": summary_context.resolved_environment(),
-        "audit_behavior": audit_behavior(normalized_entries, import_status),
+        "audit_behavior": audit_behavior(normalized_entries),
         "server": summary_context.resolved_server(connector),
         "server_binary": summary_context.server_binary,
         "module": summary_context.module,

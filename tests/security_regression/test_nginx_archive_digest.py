@@ -68,6 +68,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         build_root = root / "build-root"
         v3 = build_root / "v3"
         v3.mkdir(parents=True)
+        (v3 / ".git").mkdir()
+        nginx_adapter = root / "nginx-adapter"
+        (nginx_adapter / "src").mkdir(parents=True)
+        (nginx_adapter / "src/ddebug.h").write_text("fixture\n", encoding="utf-8")
         cache = build_root / "cache"
         cache.mkdir()
         shared_prefix = build_root / "shared"
@@ -160,6 +164,42 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             exit 0
             """,
         )
+        self.write_executable(
+            tools_dir / "git",
+            """
+            #!/bin/sh
+            set -eu
+            while [ "$#" -gt 0 ]; do
+                case "$1" in
+                    -c|-C)
+                        shift 2
+                        ;;
+                    *)
+                        break
+                        ;;
+                esac
+            done
+            command=${1:-}
+            shift || true
+            case "$command" in
+                config)
+                    printf '%s\n' 'https://github.com/owasp-modsecurity/ModSecurity.git'
+                    ;;
+                rev-parse)
+                    case "$*" in
+                        *--is-inside-work-tree*) printf '%s\n' true ;;
+                        *--abbrev-ref\\ HEAD*) printf '%s\n' HEAD ;;
+                        *) printf '%s\n' '0fb4aff98b4980cf6426697d5605c424e3d5bb60' ;;
+                    esac
+                    ;;
+                describe)
+                    printf '%s\n' v3.0.15
+                    ;;
+                ls-files)
+                    ;;
+            esac
+            """,
+        )
 
         nginx_build = build_root / "nginx-build"
         nginx_prefix = build_root / "nginx-prefix"
@@ -170,6 +210,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             "AUTO_FETCH_SMOKE_SOURCES": "0",
             "BUILD_ROOT": str(build_root),
             "MODSECURITY_V3_SOURCE_DIR": str(v3),
+            "MODSECURITY_NGINX_SOURCE_DIR": str(nginx_adapter),
             "MODSECURITY_SHARED_PREFIX": str(shared_prefix),
             "NGINX_BUILD_DIR": str(nginx_build),
             "NGINX_PREFIX": str(nginx_prefix),
@@ -229,7 +270,12 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         log = harness["tar_log"]
         if not log.exists():
             return []
-        return [line for line in log.read_text(encoding="utf-8").splitlines() if line]
+        expected_candidate = str(harness["candidate"])
+        return [
+            line
+            for line in log.read_text(encoding="utf-8").splitlines()
+            if "verified-archives/" in line or expected_candidate in line
+        ]
 
     def archive_digest(self, harness: dict[str, Path | dict[str, str]]) -> str:
         return hashlib.sha256(harness["archive"].read_bytes()).hexdigest()
@@ -337,6 +383,15 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
             self.assertIn("NGINX_SHA256 mismatch", result.stdout)
             self.assertEqual(self.tar_invocations(harness), [])
+        finally:
+            self.remove_harness(harness)
+
+    def test_tar_observation_identifies_direct_use_of_candidate_archive(self):
+        harness = self.make_harness()
+        try:
+            direct_candidate_invocation = f"-xf {harness['candidate']} -C {harness['root']}"
+            harness["tar_log"].write_text(f"{direct_candidate_invocation}\n", encoding="utf-8")
+            self.assertEqual(self.tar_invocations(harness), [direct_candidate_invocation])
         finally:
             self.remove_harness(harness)
 

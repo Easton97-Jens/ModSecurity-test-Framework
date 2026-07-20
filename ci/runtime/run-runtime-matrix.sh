@@ -2,8 +2,7 @@
 set -u
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"

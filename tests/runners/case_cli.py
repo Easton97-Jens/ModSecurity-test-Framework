@@ -18,6 +18,7 @@ from msconnector_models import (
 from runner_core import (
     CONNECTORS,
     assert_case_artifacts,
+    contained_write_path,
     case_info as build_case_info,
     discover_case_files,
     effective_expect,
@@ -111,245 +112,192 @@ def _bounded_token(value: object, *, maximum: int, allow_slash: bool = False) ->
     return normalized
 
 
-def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
-    """Project only reviewed, payload-free late-intervention log fields.
+def _first_metadata_value(metadata: dict[str, object], *names: str) -> object | None:
+    return next((metadata[name] for name in names if name in metadata), None)
 
-    Missing values intentionally remain absent.  In particular, a case default
-    such as ``response_committed=false`` is not runtime evidence for an
-    uncommitted pre-commit deny.
-    """
-    output: dict[str, object] = {}
 
-    def first(*names: str) -> object | None:
-        for name in names:
-            if name in metadata:
-                return metadata[name]
+def _project_values(
+    output: dict[str, object], metadata: dict[str, object], aliases: dict[str, tuple[str, ...]], normalize
+) -> None:
+    for canonical, names in aliases.items():
+        value = normalize(_first_metadata_value(metadata, *names))
+        if value is not None:
+            output[canonical] = value
+
+
+def _identity(value: object | None) -> object | None:
+    return value
+
+
+def _allowed_value(value: object | None, allowed: set[str], *, spaces: bool = False) -> str | None:
+    if value is None:
         return None
+    normalized = str(value).strip().lower().replace("-", "_")
+    if spaces:
+        normalized = normalized.replace(" ", "_")
+    return normalized if normalized in allowed else None
 
-    requested = _phase4_action(
-        first("requested_action", "wanted_action"),
-        {"deny", "redirect", "drop", "log_only", "abort_connection"},
-    )
-    actual = _phase4_action(
-        first("actual_action"),
-        {"deny", "redirect", "log_only", "abort_connection", "stream_reset"},
-    )
-    if requested is not None:
-        output["requested_action"] = requested
-    if actual is not None:
-        output["actual_action"] = actual
-    for canonical, aliases in {
-        "http_status": ("http_status", "waf_status", "intervention_status"),
-        "original_http_status": ("original_http_status", "upstream_status"),
-        "visible_http_status": ("visible_http_status", "client_status"),
-    }.items():
-        value = first(*aliases)
+
+def _lowercase_allowed_value(value: object | None, allowed: set[str]) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    return normalized if normalized in allowed else None
+
+
+def _project_phase4_actions(output: dict[str, object], metadata: dict[str, object]) -> None:
+    actions = {
+        "requested_action": (("requested_action", "wanted_action"), {"deny", "redirect", "drop", "log_only", "abort_connection"}),
+        "actual_action": (("actual_action",), {"deny", "redirect", "log_only", "abort_connection", "stream_reset"}),
+    }
+    for canonical, (aliases, allowed) in actions.items():
+        value = _phase4_action(_first_metadata_value(metadata, *aliases), allowed)
         if value is not None:
             output[canonical] = value
-    for canonical, aliases in {
-        "late_intervention": ("late_intervention", "intervention"),
-        "headers_sent": ("headers_sent", "header_sent"),
-        "response_started": ("response_started",),
-        "body_started": ("body_started", "response_body_seen"),
-        "body_truncated": ("body_truncated", "response_body_truncated"),
-        "response_committed": ("response_committed",),
-        "connection_aborted": ("connection_aborted", "strict_abort"),
-    }.items():
-        value = _phase4_bool(first(*aliases))
+
+
+def _project_phase4_enums(output: dict[str, object], metadata: dict[str, object]) -> None:
+    fields = (
+        ("transport_result", ("transport_result", "observed_transport_result"), {"aborted", "completed", "log_only", "connection_aborted", "stream_reset", "client_cancelled", "client_disconnected", "upstream_reset", "upstream_disconnected", "timeout", "short_write", "write_would_block", "engine_error", "host_error", "http_status", "not_observable"}),
+        ("late_intervention_mode", ("late_intervention_mode", "phase4_mode"), {"minimal", "safe", "strict"}),
+        ("content_type_scope", ("content_type_scope", "scope_result"), {"in_scope", "out_of_scope", "missing"}),
+        ("body_limit_outcome", ("body_limit_outcome", "limit_outcome"), {"at_limit", "over_limit", "process_partial", "reject"}),
+        ("transfer_encoding", ("transfer_encoding",), {"content_length", "chunked", "none"}),
+    )
+    for canonical, aliases, allowed in fields:
+        raw_value = _first_metadata_value(metadata, *aliases)
+        value = (
+            _lowercase_allowed_value(raw_value, allowed)
+            if canonical == "late_intervention_mode"
+            else _allowed_value(raw_value, allowed)
+        )
+        if canonical == "transport_result" and value == "aborted":
+            value = "connection_aborted"
         if value is not None:
             output[canonical] = value
-    transport = first("transport_result", "observed_transport_result")
+
+
+def _project_phase4_protocols(output: dict[str, object], metadata: dict[str, object]) -> None:
+    legacy = _first_metadata_value(metadata, "transport_protocol", "protocol")
+    normalized_legacy = (
+        str(legacy).strip().lower().replace("/", "").replace(".", "")
+        if legacy is not None
+        else None
+    )
+    if normalized_legacy not in {"http1", "http11", "http2"}:
+        normalized_legacy = None
+    if normalized_legacy is not None:
+        output["transport_protocol"] = "http1" if normalized_legacy == "http11" else normalized_legacy
+    _project_values(output, metadata, {name: (name,) for name in ("requested_protocol", "downstream_protocol", "upstream_protocol", "negotiated_protocol")}, _protocol)
+    transport = _transport(_first_metadata_value(metadata, "transport", "network_transport"))
     if transport is not None:
-        normalized_transport = str(transport).strip().lower().replace("-", "_")
-        if normalized_transport == "aborted":
-            normalized_transport = "connection_aborted"
-        if normalized_transport in {
-            "completed", "log_only", "connection_aborted", "stream_reset",
-            "client_cancelled", "client_disconnected", "upstream_reset",
-            "upstream_disconnected", "timeout", "short_write", "write_would_block",
-            "engine_error", "host_error", "http_status", "not_observable",
-        }:
-            output["transport_result"] = normalized_transport
-    mode = first("late_intervention_mode", "phase4_mode")
-    if mode is not None:
-        normalized_mode = str(mode).strip().lower()
-        if normalized_mode in {"minimal", "safe", "strict"}:
-            output["late_intervention_mode"] = normalized_mode
-    scope = first("content_type_scope", "scope_result")
-    if scope is not None:
-        normalized_scope = str(scope).strip().lower().replace("-", "_")
-        if normalized_scope in {"in_scope", "out_of_scope", "missing"}:
-            output["content_type_scope"] = normalized_scope
-    limit_outcome = first("body_limit_outcome", "limit_outcome")
-    if limit_outcome is not None:
-        normalized_limit = str(limit_outcome).strip().lower().replace("-", "_")
-        if normalized_limit in {"at_limit", "over_limit", "process_partial", "reject"}:
-            output["body_limit_outcome"] = normalized_limit
-    for canonical, aliases in {
-        "marker_split_across_chunks": ("marker_split_across_chunks",),
-        "end_of_stream_evaluation": ("end_of_stream_evaluation",),
-        "no_full_response_buffering": ("no_full_response_buffering",),
-        "first_byte_before_response_end": ("first_byte_before_response_end",),
-        "upstream_response_finished_at_first_byte": (
-            "upstream_response_finished_at_first_byte",
-            "upstream_response_complete_at_first_byte",
-        ),
-        "client_first_byte_received": ("client_first_byte_received",),
-        "upstream_paused": ("upstream_paused",),
-        "upstream_eos_sent_at_first_byte": ("upstream_eos_sent_at_first_byte",),
-        "connection_reused": ("connection_reused", "keep_alive_reused"),
-        "quic_connection_id_present": ("quic_connection_id_present",),
-        "fallback_used": ("fallback_used",),
-        "stream_reset": ("stream_reset", "stream_reset_observed"),
-        "client_aborted": ("client_aborted",),
-        "upstream_aborted": ("upstream_aborted",),
-        "client_disconnected": ("client_disconnected", "client_disconnect"),
-        "upstream_disconnected": ("upstream_disconnected", "upstream_disconnect"),
-        "cancelled": ("cancelled", "client_cancelled"),
-        "eos_seen": ("eos_seen", "eos_received"),
-    }.items():
-        value = _phase4_bool(first(*aliases))
+        output["transport"] = transport
+
+
+def _nonnegative_integer(value: object | None, *, maximum: int | None = None, reject_bool: bool = False) -> int | None:
+    if value is None or (reject_bool and isinstance(value, bool)):
+        return None
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        return None
+    return normalized if normalized >= 0 and (maximum is None or normalized <= maximum) else None
+
+
+def _project_phase4_identifiers(output: dict[str, object], metadata: dict[str, object]) -> None:
+    _project_values(output, metadata, {"alpn": ("alpn", "negotiated_alpn")}, lambda value: _bounded_token(value, maximum=64, allow_slash=True))
+    _project_values(output, metadata, {"transport_case_id": ("transport_case_id", "protocol_case_id"), "barrier_id": ("barrier_id",)}, lambda value: _bounded_token(value, maximum=128))
+    _project_values(output, metadata, {"quic_version": ("quic_version",)}, lambda value: _bounded_token(value, maximum=64))
+    stream_id = _nonnegative_integer(_first_metadata_value(metadata, "stream_id", "http2_stream_id", "http3_stream_id"), maximum=4_611_686_018_427_387_903, reject_bool=True)
+    if stream_id is not None:
+        output["stream_id"] = stream_id
+    for name in ("stream_reset_code", "reset_code"):
+        value = _first_metadata_value(metadata, name)
+        output_value = _nonnegative_integer(value, reject_bool=True)
+        if output_value is None:
+            output_value = _bounded_token(value, maximum=64)
+        if output_value is not None:
+            output[name] = output_value
+
+
+def _project_phase4_connection(output: dict[str, object], metadata: dict[str, object]) -> None:
+    connection_id = _bounded_token(_first_metadata_value(metadata, "connection_id"), maximum=128)
+    is_quic = output.get("negotiated_protocol") == "h3" or output.get("downstream_protocol") == "h3" or output.get("transport") == "quic_udp"
+    if connection_id is not None and (not is_quic or re.fullmatch(r"sha256:[0-9a-f]{16,64}", connection_id) is not None):
+        output["connection_id"] = connection_id
+
+
+def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
+    """Project only reviewed, payload-free late-intervention log fields."""
+    output: dict[str, object] = {}
+    _project_phase4_actions(output, metadata)
+    _project_values(output, metadata, {"http_status": ("http_status", "waf_status", "intervention_status"), "original_http_status": ("original_http_status", "upstream_status"), "visible_http_status": ("visible_http_status", "client_status")}, _identity)
+    _project_values(output, metadata, {"late_intervention": ("late_intervention", "intervention"), "headers_sent": ("headers_sent", "header_sent"), "response_started": ("response_started",), "body_started": ("body_started", "response_body_seen"), "body_truncated": ("body_truncated", "response_body_truncated"), "response_committed": ("response_committed",), "connection_aborted": ("connection_aborted", "strict_abort"), "marker_split_across_chunks": ("marker_split_across_chunks",), "end_of_stream_evaluation": ("end_of_stream_evaluation",), "no_full_response_buffering": ("no_full_response_buffering",), "first_byte_before_response_end": ("first_byte_before_response_end",), "upstream_response_finished_at_first_byte": ("upstream_response_finished_at_first_byte", "upstream_response_complete_at_first_byte"), "client_first_byte_received": ("client_first_byte_received",), "upstream_paused": ("upstream_paused",), "upstream_eos_sent_at_first_byte": ("upstream_eos_sent_at_first_byte",), "connection_reused": ("connection_reused", "keep_alive_reused"), "quic_connection_id_present": ("quic_connection_id_present",), "fallback_used": ("fallback_used",), "stream_reset": ("stream_reset", "stream_reset_observed"), "client_aborted": ("client_aborted",), "upstream_aborted": ("upstream_aborted",), "client_disconnected": ("client_disconnected", "client_disconnect"), "upstream_disconnected": ("upstream_disconnected", "upstream_disconnect"), "cancelled": ("cancelled", "client_cancelled"), "eos_seen": ("eos_seen", "eos_received")}, _phase4_bool)
+    _project_phase4_enums(output, metadata)
+    first_chunk_size = _nonnegative_integer(_first_metadata_value(metadata, "first_chunk_size"))
+    if first_chunk_size is not None:
+        output["first_chunk_size"] = first_chunk_size
+    _project_phase4_protocols(output, metadata)
+    _project_phase4_identifiers(output, metadata)
+    for canonical, aliases, allowed in (("reset_by", ("reset_by",), {"client", "upstream", "engine", "host", "strict_intervention", "timeout"}), ("timeout_stage", ("timeout_stage",), {"engine", "request_body", "response_body", "upstream", "client_idle", "before_commit", "after_commit"}), ("write_result", ("write_result",), {"completed", "short_write", "write_would_block", "engine_error", "host_error"}), ("cleanup_reason", ("cleanup_reason",), {"normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort"})):
+        value = _allowed_value(_first_metadata_value(metadata, *aliases), allowed, spaces=True)
         if value is not None:
             output[canonical] = value
-    first_chunk_size = first("first_chunk_size")
-    if first_chunk_size is not None:
-        try:
-            normalized_first_chunk_size = int(first_chunk_size)
-        except (TypeError, ValueError):
-            normalized_first_chunk_size = -1
-        if normalized_first_chunk_size >= 0:
-            output["first_chunk_size"] = normalized_first_chunk_size
-    protocol = first("transport_protocol", "protocol")
-    if protocol is not None:
-        normalized_protocol = str(protocol).strip().lower().replace("/", "").replace(".", "")
-        if normalized_protocol in {"http1", "http11"}:
-            output["transport_protocol"] = "http1"
-        elif normalized_protocol == "http2":
-            output["transport_protocol"] = "http2"
-
-    # Explicit protocol provenance is deliberately separate from the legacy
-    # ``transport_protocol`` field above.  Only these explicit values may
-    # later satisfy the framework's H2/H3 evidence gate.
-    for canonical, aliases in {
-        "requested_protocol": ("requested_protocol",),
-        "downstream_protocol": ("downstream_protocol",),
-        "upstream_protocol": ("upstream_protocol",),
-        "negotiated_protocol": ("negotiated_protocol",),
-    }.items():
-        normalized = _protocol(first(*aliases))
-        if normalized is not None:
-            output[canonical] = normalized
-    normalized_transport = _transport(first("transport", "network_transport"))
-    if normalized_transport is not None:
-        output["transport"] = normalized_transport
-    alpn = _bounded_token(first("alpn", "negotiated_alpn"), maximum=64, allow_slash=True)
-    if alpn is not None:
-        output["alpn"] = alpn
-    stream_id = first("stream_id", "http2_stream_id", "http3_stream_id")
-    if stream_id is not None and not isinstance(stream_id, bool):
-        try:
-            normalized_stream_id = int(stream_id)
-        except (TypeError, ValueError):
-            normalized_stream_id = -1
-        if 0 <= normalized_stream_id <= 4_611_686_018_427_387_903:
-            output["stream_id"] = normalized_stream_id
-    transport_case_id = _bounded_token(
-        first("transport_case_id", "protocol_case_id"), maximum=128,
-    )
-    if transport_case_id is not None:
-        output["transport_case_id"] = transport_case_id
-    barrier_id = _bounded_token(first("barrier_id"), maximum=128)
-    if barrier_id is not None:
-        output["barrier_id"] = barrier_id
-    quic_version = _bounded_token(first("quic_version",), maximum=64)
-    if quic_version is not None:
-        output["quic_version"] = quic_version
-    reset_code = first("stream_reset_code",)
-    if isinstance(reset_code, int) and not isinstance(reset_code, bool) and reset_code >= 0:
-        output["stream_reset_code"] = reset_code
-    else:
-        normalized_reset_code = _bounded_token(reset_code, maximum=64)
-        if normalized_reset_code is not None:
-            output["stream_reset_code"] = normalized_reset_code
-    reset_code = first("reset_code",)
-    if isinstance(reset_code, int) and not isinstance(reset_code, bool) and reset_code >= 0:
-        output["reset_code"] = reset_code
-    else:
-        normalized_reset_code = _bounded_token(reset_code, maximum=64)
-        if normalized_reset_code is not None:
-            output["reset_code"] = normalized_reset_code
-    for canonical, aliases, allowed in (
-        (
-            "reset_by", ("reset_by",),
-            {"client", "upstream", "engine", "host", "strict_intervention", "timeout"},
-        ),
-        (
-            "timeout_stage", ("timeout_stage",),
-            {"engine", "request_body", "response_body", "upstream", "client_idle", "before_commit", "after_commit"},
-        ),
-        (
-            "write_result", ("write_result",),
-            {"completed", "short_write", "write_would_block", "engine_error", "host_error"},
-        ),
-        (
-            "cleanup_reason", ("cleanup_reason",),
-            {"normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort"},
-        ),
-    ):
-        value = first(*aliases)
-        if value is None:
-            continue
-        normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
-        if normalized in allowed:
-            output[canonical] = normalized
-    connection_id = _bounded_token(first("connection_id",), maximum=128)
-    is_quic = (
-        output.get("negotiated_protocol") == "h3"
-        or output.get("downstream_protocol") == "h3"
-        or output.get("transport") == "quic_udp"
-    )
-    if connection_id is not None and (
-        not is_quic or re.fullmatch(r"sha256:[0-9a-f]{16,64}", connection_id) is not None
-    ):
-        output["connection_id"] = connection_id
-    transfer_encoding = first("transfer_encoding",)
-    if transfer_encoding is not None:
-        normalized_encoding = str(transfer_encoding).strip().lower().replace("-", "_")
-        if normalized_encoding in {"content_length", "chunked", "none"}:
-            output["transfer_encoding"] = normalized_encoding
+    _project_phase4_connection(output, metadata)
     return output
 
 
 def materialize(args: argparse.Namespace) -> int:
     case = load_case(args.case)
+    output_root = _materialize_output_root(args)
     write_rules_file(
         case,
         args.rules_file,
-        args.audit_log_file,
-        args.audit_log_dir,
-        args.rules_preamble_file or None,
+        output_root=output_root,
+        audit_log_file=args.audit_log_file,
+        audit_log_dir=args.audit_log_dir,
+        rules_preamble_file=args.rules_preamble_file or None,
     )
     if args.headers_file:
-        write_headers_file(case, args.headers_file)
+        write_headers_file(case, args.headers_file, output_root=output_root)
     if args.body_file:
-        write_body_file(case, args.body_file)
+        write_body_file(case, args.body_file, output_root=output_root)
     if args.docroot:
-        write_response_fixture(case, args.docroot)
+        write_response_fixture(case, args.docroot, output_root=output_root)
     write_nginx_runtime_files(
         case,
         args.nginx_location_directives_file,
         args.nginx_runtime_config_dir,
-        args.nginx_phase4_log_file,
+        output_root=output_root,
+        phase4_log_file=args.nginx_phase4_log_file,
     )
     write_shell_env(
         case,
         args.env_file,
-        args.headers_file,
-        args.body_file,
-        args.audit_log_file,
-        args.audit_log_dir,
+        output_root=output_root,
+        headers_file=args.headers_file,
+        body_file=args.body_file,
+        audit_log_file=args.audit_log_file,
+        audit_log_dir=args.audit_log_dir,
     )
     return 0
+
+
+def _materialize_output_root(args: argparse.Namespace) -> Path:
+    return _required_output_root(args, "materialize")
+
+
+def _required_output_root(args: argparse.Namespace, operation: str) -> Path:
+    configured_root = (
+        getattr(args, "output_root", "")
+        or os.environ.get("BUILD_ROOT", "")
+        or os.environ.get("VERIFIED_RUN_ROOT", "")
+    )
+    if not configured_root:
+        raise ValueError(
+            f"{operation} requires --output-root or BUILD_ROOT or VERIFIED_RUN_ROOT"
+        )
+    return Path(configured_root).resolve()
 
 
 def assert_status(args: argparse.Namespace) -> int:
@@ -409,18 +357,8 @@ def list_cases(args: argparse.Namespace) -> int:
     return 0
 
 
-def case_info(args: argparse.Namespace) -> int:
-    case = load_case(args.case)
-    actual_status = int(args.actual_status) if args.actual_status not in (None, "") else None
-    phase4_log_file = args.phase4_log_file or args.nginx_phase4_log_file
-    info = build_case_info(
-        case,
-        args.case,
-        args.connector,
-        args.status,
-        actual_status,
-    )
-    capabilities = set(str(value) for value in info.get("capabilities", []))
+def _add_case_info_context(info: dict[str, object], args: argparse.Namespace, actual_status: int | None) -> None:
+    capabilities = {str(value) for value in info.get("capabilities", [])}
     phase4_related = (
         str(info.get("category", "")).strip() == "response-body"
         or "phase4" in capabilities
@@ -444,27 +382,38 @@ def case_info(args: argparse.Namespace) -> int:
     if args.error_log_file:
         key = f"{args.connector}_error_log_path" if args.connector else "error_log_path"
         info[key] = args.error_log_file
-    if phase4_log_file:
-        info["connector_phase4_log_path"] = phase4_log_file
-        metadata = phase4_log_metadata(phase4_log_file)
-        for key in (
-            "phase",
-            "response_headers_seen",
-            "response_started",
-            "response_body_seen",
-            "response_body_truncated",
-            "body_truncated",
-            "observed_transport_result",
-            "rule_id",
-            "body_bytes_seen",
-            "body_bytes_inspected",
-            "truncated",
-            "content_type",
-        ):
-            if key in metadata:
-                info[key] = metadata[key]
-        info.update(phase4_runtime_evidence(metadata))
-    output = Path(args.output) if args.output else None
+
+
+def _add_phase4_log_evidence(info: dict[str, object], phase4_log_file: str | None) -> None:
+    if not phase4_log_file:
+        return
+    info["connector_phase4_log_path"] = phase4_log_file
+    metadata = phase4_log_metadata(phase4_log_file)
+    for key in (
+        "phase",
+        "response_headers_seen",
+        "response_started",
+        "response_body_seen",
+        "response_body_truncated",
+        "body_truncated",
+        "observed_transport_result",
+        "rule_id",
+        "body_bytes_seen",
+        "body_bytes_inspected",
+        "truncated",
+        "content_type",
+    ):
+        if key in metadata:
+            info[key] = metadata[key]
+    info.update(phase4_runtime_evidence(metadata))
+
+
+def _write_or_print_case_info(info: dict[str, object], args: argparse.Namespace) -> None:
+    output = (
+        contained_write_path(args.output, _required_output_root(args, "case-info"))
+        if args.output
+        else None
+    )
     content = (
         json.dumps(info, sort_keys=True) + "\n"
         if output is not None
@@ -475,6 +424,15 @@ def case_info(args: argparse.Namespace) -> int:
         output.write_text(content, encoding="utf-8")
     else:
         print(content, end="")
+
+
+def case_info(args: argparse.Namespace) -> int:
+    case = load_case(args.case)
+    actual_status = int(args.actual_status) if args.actual_status not in (None, "") else None
+    info = build_case_info(case, args.case, args.connector, args.status, actual_status)
+    _add_case_info_context(info, args, actual_status)
+    _add_phase4_log_evidence(info, args.phase4_log_file or args.nginx_phase4_log_file)
+    _write_or_print_case_info(info, args)
     return 0
 
 
@@ -630,6 +588,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="write connector runtime files from a shared YAML case",
     )
     materialize_parser.add_argument("--case", required=True)
+    materialize_parser.add_argument("--output-root")
     materialize_parser.add_argument("--rules-file", required=True)
     materialize_parser.add_argument("--env-file", required=True)
     materialize_parser.add_argument("--headers-file")
@@ -698,6 +657,7 @@ def build_parser() -> argparse.ArgumentParser:
     info_parser.add_argument("--phase4-log-file")
     info_parser.add_argument("--nginx-phase4-log-file")
     info_parser.add_argument("--output")
+    info_parser.add_argument("--output-root")
     info_parser.set_defaults(func=case_info)
 
     summarize_parser = subparsers.add_parser(
