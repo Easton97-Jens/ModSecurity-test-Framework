@@ -595,7 +595,7 @@ def python_provisioning_errors(path: Path, text: str) -> list[str]:
     ]
 
 
-def workflow_events(data: dict[str, Any]) -> dict[str, Any] | None:
+def workflow_events(data: dict[Any, Any]) -> dict[str, Any] | None:
     raw_events = data.get("on", data.get(True))
     return raw_events if isinstance(raw_events, dict) else None
 
