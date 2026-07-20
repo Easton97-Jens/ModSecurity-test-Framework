@@ -9,7 +9,7 @@
 | Change ID | 20260720-01-fix-common-version-provenance-parser |
 | UTC date | 2026-07-20 |
 | Framework base revision | efdbcbd98afeed0f39f8912ce1140aaa5742f507 |
-| Issue or pull request | FND-FRAMEWORK-0027 and FND-FRAMEWORK-0028; Framework Draft PR not yet created. |
+| Issue or pull request | FND-FRAMEWORK-0027 and FND-FRAMEWORK-0028; Framework PR #36 was opened as a Draft. |
 
 ## Motivation and problem statement
 
@@ -95,13 +95,16 @@ limited to a Framework static provenance parser.
 
 ## Checks not run
 
-Hosted exact-head CI, CodeQL, SonarCloud, review, and conversation checks are
-pending the Framework Draft PR. The observed non-writing `--check --json`
-command exits zero with a review-required unknown component state, no missing
-ModSecurity provenance variables, and no partial ModSecurity v3 update plan.
-The scheduled writing `--update --markdown --write-files` variant was not run
-against canonical common.sh; its exact-head workflow evidence remains pending.
-MRTS tests are not applicable and MRTS was not touched.
+PR-triggered CI, CodeQL, SonarCloud, review, and conversation state is read
+live from Framework PR #36 immediately before delivery; this versioned record
+does not claim check results for its own later correction head. The observed
+non-writing `--check --json` command exits zero with a review-required unknown
+component state, no missing ModSecurity provenance variables, and no partial
+ModSecurity v3 update plan. The scheduled/manual `check-common-versions`
+workflow does not run for pull requests, so no exact-head CI result is claimed
+for `--update --markdown --write-files`. That writing variant was not run
+against canonical common.sh. MRTS tests are not applicable and MRTS was not
+touched.
 
 ## Limitations and residual risk
 
@@ -115,6 +118,7 @@ Framework-master Sonar gate remains FND-SONAR-0002.
 The task diff is limited to the parser allowlist, its focused regression, and
 this paired record. Whitespace review passed. Independent source-security review
 and its follow-up completed without a bypass, permission expansion, or MRTS
-change. Exact-head hosted CI, CodeQL, SonarCloud, review, and conversation
-evidence remain pending after the Draft PR is opened. No secrets or raw
-sensitive material are recorded.
+change. This correction records that PR #36 exists; its current exact-head
+CI, CodeQL, SonarCloud, review, and conversation evidence must be verified
+live after this correction is pushed and immediately before authorized delivery.
+No secrets or raw sensitive material are recorded.

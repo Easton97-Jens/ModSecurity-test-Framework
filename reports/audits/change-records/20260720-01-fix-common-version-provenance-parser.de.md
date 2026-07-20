@@ -9,7 +9,7 @@
 | Change-ID | 20260720-01-fix-common-version-provenance-parser |
 | UTC-Datum | 2026-07-20 |
 | Framework-Basisrevision | efdbcbd98afeed0f39f8912ce1140aaa5742f507 |
-| Issue oder Pull Request | FND-FRAMEWORK-0027 und FND-FRAMEWORK-0028; Framework-Draft-PR noch nicht erstellt. |
+| Issue oder Pull Request | FND-FRAMEWORK-0027 und FND-FRAMEWORK-0028; Framework-PR #36 wurde als Draft geöffnet. |
 
 ## Motivation und Problemstellung
 
@@ -102,14 +102,17 @@ Framework-Provenance-Parser begrenzt ist.
 
 ## Nicht ausgeführte Prüfungen
 
-Gehostete Exact-Head-CI, CodeQL, SonarCloud, Review und Konversations-Checks
-warten auf den Framework-Draft-PR. Der beobachtete nicht schreibende
-`--check --json`-Befehl endet bei Exit zero mit einem review-pflichtigen
-Unknown-Zustand, ohne fehlende ModSecurity-Provenance-Variablen und ohne
-partiellen ModSecurity-v3-Update-Plan. Die schreibende geplante Variante
-`--update --markdown --write-files` wurde nicht gegen kanonisches common.sh
-ausgeführt; ihre Exact-Head-Workflow-Evidence bleibt ausstehend. MRTS-Tests
-sind nicht anwendbar und MRTS wurde nicht berührt.
+PR-getriggerter CI-, CodeQL-, SonarCloud-, Review- und Konversationsstatus wird
+unmittelbar vor der Delivery live aus Framework-PR #36 gelesen; dieser
+versionierte Record behauptet keine Check-Ergebnisse für seinen eigenen
+späteren Korrektur-Head. Der beobachtete nicht schreibende `--check --json`-
+Befehl endet bei Exit zero mit einem review-pflichtigen Unknown-Zustand, ohne
+fehlende ModSecurity-Provenance-Variablen und ohne partiellen ModSecurity-v3-
+Update-Plan. Der geplante/manuelle `check-common-versions`-Workflow läuft nicht
+für Pull Requests, daher wird für `--update --markdown --write-files` kein
+Exact-Head-CI-Ergebnis behauptet. Diese schreibende Variante wurde nicht gegen
+kanonisches common.sh ausgeführt. MRTS-Tests sind nicht anwendbar und MRTS
+wurde nicht berührt.
 
 ## Einschränkungen und Restrisiko
 
@@ -123,7 +126,8 @@ Framework-Master-Sonar-Gate bleibt FND-SONAR-0002.
 Der Task-Diff ist auf Parser-Allowlist, fokussierte Regression und dieses
 gepaarte Record beschränkt. Whitespace-Review bestand. Unabhängige
 Source-Security-Review und ihre Folgeprüfung sind ohne Bypass,
-Berechtigungserweiterung oder MRTS-Änderung abgeschlossen. Exact-Head-gehostete
-CI, CodeQL, SonarCloud, Review- und Konversations-Evidence bleiben nach dem
-Öffnen des Draft-PR ausstehend. Keine Secrets oder rohen sensiblen Materialien
-sind dokumentiert.
+Berechtigungserweiterung oder MRTS-Änderung abgeschlossen. Diese Korrektur
+erfasst, dass PR #36 existiert; aktuelle Exact-Head-CI, CodeQL, SonarCloud,
+Review- und Konversations-Evidence müssen nach dem Push dieser Korrektur und
+unmittelbar vor der autorisierten Delivery live verifiziert werden. Keine
+Secrets oder rohen sensiblen Materialien sind dokumentiert.
