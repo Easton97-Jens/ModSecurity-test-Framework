@@ -118,6 +118,11 @@ require_command() {
     fi
 }
 
+sha256_digest() {
+    input_file=$1
+    sha256sum "$input_file" | awk '{print $1}'
+}
+
 require_c_header() {
     header=$1
     purpose=$2
@@ -253,7 +258,7 @@ download_file() {
     mkdir -p "$DOWNLOAD_DIR"
     run_logged "$label-download" "$DOWNLOAD_DIR" curl -L --fail --retry 3 --retry-delay 2 -o "$dest" "$url"
     if command -v sha256sum >/dev/null 2>&1; then
-        local_sha=$(sha256sum "$dest" | awk '{print $1}')
+        local_sha=$(sha256_digest "$dest")
         echo "$label sha256(local)=$local_sha file=$dest" >> "$ARTIFACTS_FILE"
     fi
 }
@@ -270,7 +275,7 @@ verify_sha256_url() {
     if [ -z "$expected" ]; then
         blocked "empty SHA256 file for $label: $sha_file"
     fi
-    actual=$(sha256sum "$file" | awk '{print $1}')
+    actual=$(sha256_digest "$file")
     {
         echo "$label sha256(expected)=$expected"
         echo "$label sha256(actual)=$actual"
@@ -287,7 +292,7 @@ verify_sha256_literal() {
     expected=$3
     [ -n "$expected" ] || return 0
     require_command sha256sum "verify $label checksum"
-    actual=$(sha256sum "$file" | awk '{print $1}')
+    actual=$(sha256_digest "$file")
     {
         echo "$label sha256(expected)=$expected"
         echo "$label sha256(actual)=$actual"
@@ -318,7 +323,7 @@ verify_required_pcre2_sha256() {
     require_command tr "normalize pcre2 checksum"
     require_command sha256sum "verify pcre2 checksum"
     expected=$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')
-    actual=$(sha256sum "$archive" | awk '{print $1}')
+    actual=$(sha256_digest "$archive")
     {
         echo "pcre2 sha256(expected)=$expected"
         echo "pcre2 sha256(actual)=$actual"

@@ -37,14 +37,26 @@ class NoCrsCatalogMaintainabilityWaveTests(unittest.TestCase):
             no_crs.validate_plan_against_capabilities(
                 dict(expected), "apache", {}, {}, "no_crs_baseline",
             )
-            mismatched = {**expected, "connector": "nginx"}
-            with self.assertRaisesRegex(
-                no_crs.ContractError,
-                "plan does not match a fresh capability-driven selection",
-            ):
-                no_crs.validate_plan_against_capabilities(
-                    mismatched, "apache", {}, {}, "no_crs_baseline",
-                )
+            mismatches = {
+                "schema_version": 2,
+                "connector": "nginx",
+                "catalog": "other-catalog",
+                "ruleset": "other-ruleset",
+                "evidence_stage": "other-stage",
+                "artifact_profile": "other-profile",
+                "counts": {"PASS": 1},
+                "cases": [{"case_id": "other-case"}],
+            }
+            for field, value in mismatches.items():
+                with self.subTest(field=field):
+                    mismatched = {**expected, field: value}
+                    with self.assertRaisesRegex(
+                        no_crs.ContractError,
+                        "plan does not match a fresh capability-driven selection",
+                    ):
+                        no_crs.validate_plan_against_capabilities(
+                            mismatched, "apache", {}, {}, "no_crs_baseline",
+                        )
 
     def test_normalized_case_record_keeps_success_and_status_mismatch_failure(self) -> None:
         catalog = no_crs.load_catalog()

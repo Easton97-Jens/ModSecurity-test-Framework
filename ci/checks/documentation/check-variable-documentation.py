@@ -90,7 +90,7 @@ PULL_REQUEST_REQUIRED_SECTIONS = {
 }
 SHELL_VARIABLE_RE = re.compile(r"\$(?:\{)?([A-Z][A-Z0-9_]+)")
 MAKE_VARIABLE_RE = re.compile(r"\$\(([A-Z][A-Z0-9_]+)\)")
-ASSIGNMENT_RE = re.compile(r"(?<![A-Za-z0-9_])([A-Z][A-Z0-9_]+)\s*(?:\?=|:=|=)")
+ASSIGNMENT_RE = re.compile(r"(?<!(?a:\w))([A-Z][A-Z0-9_]+)\s*(?:\?=|:=|=)")
 DOCUMENTED_VARIABLE_RE = re.compile(r"\b([A-Z][A-Z0-9_]+)\b")
 PLACEHOLDER_RE = re.compile(r"<([A-Za-z][A-Za-z0-9_-]*)>")
 EMPTY_PLACEHOLDER_RE = re.compile(r"<\s+>")

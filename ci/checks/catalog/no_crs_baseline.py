@@ -1004,96 +1004,13 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
     )
     catalog_root = CATALOG_PATH.parent.resolve(strict=False)
     shared_fixture_root = (FRAMEWORK_ROOT / "tests/fixtures/no-crs-baseline").resolve(strict=False)
-
-    def checked_fixture_path(
-        raw_path: object,
-        *,
-        root: Path,
-        label: str,
-        case_id: str,
-    ) -> None:
-        if not isinstance(raw_path, str) or not raw_path.strip():
-            errors.append(f"{case_id}: {label} must be a non-empty relative path")
-            return
-        candidate = (catalog_root / raw_path).resolve(strict=False)
-        try:
-            candidate.relative_to(root)
-        except ValueError:
-            errors.append(f"{case_id}: {label} must remain under {root}")
-            return
-        if not candidate.is_file():
-            errors.append(f"{case_id}: {label} is missing: {candidate}")
-
-    seen: set[str] = set()
-    for case in cases:
-        case_id = str(case.get("case_id") or "")
-        prefix = case_id or "<missing-case-id>"
-        if not case_id:
-            errors.append("case requires case_id")
-        elif case_id in seen:
-            errors.append(f"duplicate case_id: {case_id}")
-        seen.add(case_id)
-        for field in required:
-            if field not in case:
-                errors.append(f"{prefix}: missing {field}")
-        required_capabilities = case.get("required_capabilities")
-        if not isinstance(required_capabilities, list) or not required_capabilities:
-            errors.append(f"{prefix}: required_capabilities must be a non-empty list")
-        else:
-            unknown = sorted({str(item) for item in required_capabilities} - set(CAPABILITIES))
-            if unknown:
-                errors.append(f"{prefix}: unknown capabilities: {', '.join(unknown)}")
-        if not isinstance(case.get("request"), Mapping):
-            errors.append(f"{prefix}: request must be an object")
-        if not isinstance(case.get("expected_event_fields"), list):
-            errors.append(f"{prefix}: expected_event_fields must be a list")
-        if not isinstance(case.get("forbidden_event_fields"), list):
-            errors.append(f"{prefix}: forbidden_event_fields must be a list")
-        if "transport_hardening" in case and not isinstance(case.get("transport_hardening"), bool):
-            errors.append(f"{prefix}: transport_hardening must be Boolean")
-        if case.get("transport_hardening") is True:
-            if not str(case.get("group") or "").startswith("full-lifecycle-transport"):
-                errors.append(f"{prefix}: transport_hardening cases must use the full-lifecycle transport namespace")
-            required_transport_fields = {
-                "run_id", "integration_mode", "transaction_id", "phase", "event", "message_id",
-                "requested_action", "actual_action", "transport_result", "transport_case_id",
-            }
-            declared_transport_fields = {str(field) for field in case.get("expected_event_fields", [])}
-            missing_transport_fields = sorted(required_transport_fields - declared_transport_fields)
-            if missing_transport_fields:
-                errors.append(
-                    f"{prefix}: transport_hardening case is missing causal event fields: "
-                    + ", ".join(missing_transport_fields)
-                )
-        if case.get("connector_applicability") != "capability_driven":
-            errors.append(f"{prefix}: connector_applicability must be capability_driven")
-        if case.get("unsupported_behavior") != "UNSUPPORTED":
-            errors.append(f"{prefix}: unsupported_behavior must be UNSUPPORTED")
-        evidence_requirement = case.get("evidence_requirement")
-        if not isinstance(evidence_requirement, Mapping):
-            errors.append(f"{prefix}: evidence_requirement must be an object")
-        else:
-            if evidence_requirement.get("requires_real_host") is not True:
-                errors.append(f"{prefix}: evidence_requirement.requires_real_host must be true")
-            if evidence_requirement.get("accepts_synthetic_pass") is not False:
-                errors.append(f"{prefix}: evidence_requirement.accepts_synthetic_pass must be false")
-        runner_case = case.get("runner_case")
-        if runner_case:
-            runner_path = CATALOG_PATH.parent / str(runner_case)
-            if not runner_path.is_file():
-                errors.append(f"{prefix}: runner_case is missing: {runner_path}")
-        request = case.get("request")
-        if isinstance(request, Mapping):
-            if "fixture" in request:
-                checked_fixture_path(
-                    request.get("fixture"), root=catalog_root,
-                    label="request.fixture", case_id=prefix,
-                )
-            if "fixture_file" in request:
-                checked_fixture_path(
-                    request.get("fixture_file"), root=shared_fixture_root,
-                    label="request.fixture_file", case_id=prefix,
-                )
+    seen = _validate_catalog_cases(
+        cases,
+        required=required,
+        catalog_root=catalog_root,
+        shared_fixture_root=shared_fixture_root,
+        errors=errors,
+    )
     required_ids = {
         "allow_without_marker", "deny_header_marker_403", "deny_with_alternative_status",
         "transaction_id_present", "transaction_id_generated_or_fallback", "multiple_headers",
@@ -1185,37 +1102,8 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
             None,
         ),
     }
-    for case_id, (expected_result, required_capabilities, event_fields, expected_status) in phase4_contracts.items():
-        case = by_id.get(case_id)
-        if not case:
-            continue
-        if case.get("phase") != 4:
-            errors.append(f"{case_id}: phase must be 4")
-        if case.get("group") != "late-intervention":
-            errors.append(f"{case_id}: group must be late-intervention")
-        if case.get("expected_result") != expected_result:
-            errors.append(f"{case_id}: expected_result must be {expected_result}")
-        if optional_int(case.get("expected_rule_id")) != 1100301:
-            errors.append(f"{case_id}: expected_rule_id must be 1100301")
-        if optional_int(case.get("expected_status")) != expected_status:
-            errors.append(f"{case_id}: expected_status is not canonical for its semantic outcome")
-        declared_capabilities = {str(item) for item in case.get("required_capabilities", [])}
-        missing_capabilities = sorted(required_capabilities - declared_capabilities)
-        if missing_capabilities:
-            errors.append(f"{case_id}: missing Phase-4 capabilities: {', '.join(missing_capabilities)}")
-        declared_event_fields = {str(item) for item in case.get("expected_event_fields", [])}
-        missing_event_fields = sorted(event_fields - declared_event_fields)
-        if missing_event_fields:
-            errors.append(f"{case_id}: missing Phase-4 event fields: {', '.join(missing_event_fields)}")
-    for case_id in sorted(FULL_LIFECYCLE_REQUIRED_IDS):
-        case = by_id.get(case_id)
-        if not case:
-            continue
-        if not str(case.get("group") or "").startswith("full-lifecycle-"):
-            errors.append(f"{case_id}: group must use the full-lifecycle namespace")
-        requirement = case.get("evidence_requirement")
-        if not isinstance(requirement, Mapping) or requirement.get("requires_real_host") is not True:
-            errors.append(f"{case_id}: must retain the real-host evidence requirement")
+    _validate_phase4_catalog_contracts(by_id, phase4_contracts, errors)
+    _validate_full_lifecycle_case_requirements(by_id, errors)
 
     full_lifecycle_contracts = {
         "phase2_marker_split_across_chunks": (
@@ -1294,61 +1182,312 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
             {"content_type_scope", "transport_result"},
         ),
     }
-    for case_id, (expected_result, phase, required_capabilities, event_fields) in full_lifecycle_contracts.items():
+    _validate_full_lifecycle_catalog_contracts(by_id, full_lifecycle_contracts, errors)
+    _validate_catalog_legacy_contracts(by_id, errors)
+    _validate_catalog_ruleset_contracts(errors)
+    return errors
+
+
+def _validate_catalog_cases(
+    cases: Sequence[Mapping[str, Any]],
+    *,
+    required: Sequence[str],
+    catalog_root: Path,
+    shared_fixture_root: Path,
+    errors: list[str],
+) -> set[str]:
+    seen: set[str] = set()
+    for case in cases:
+        prefix = _catalog_case_identity(case, seen, errors)
+        _validate_catalog_case_required_fields(case, prefix, required, errors)
+        _validate_catalog_case_capabilities(case, prefix, errors)
+        _validate_catalog_case_shape(case, prefix, errors)
+        _validate_catalog_transport_hardening(case, prefix, errors)
+        _validate_catalog_case_declarations(case, prefix, errors)
+        _validate_catalog_evidence_requirement(case, prefix, errors)
+        _validate_catalog_case_sources(
+            case,
+            prefix,
+            catalog_root=catalog_root,
+            shared_fixture_root=shared_fixture_root,
+            errors=errors,
+        )
+    return seen
+
+
+def _catalog_case_identity(
+    case: Mapping[str, Any], seen: set[str], errors: list[str],
+) -> str:
+    case_id = str(case.get("case_id") or "")
+    prefix = case_id or "<missing-case-id>"
+    if not case_id:
+        errors.append("case requires case_id")
+    elif case_id in seen:
+        errors.append(f"duplicate case_id: {case_id}")
+    seen.add(case_id)
+    return prefix
+
+
+def _validate_catalog_case_required_fields(
+    case: Mapping[str, Any], prefix: str, required: Sequence[str], errors: list[str],
+) -> None:
+    for field in required:
+        if field not in case:
+            errors.append(f"{prefix}: missing {field}")
+
+
+def _validate_catalog_case_capabilities(
+    case: Mapping[str, Any], prefix: str, errors: list[str],
+) -> None:
+    required_capabilities = case.get("required_capabilities")
+    if not isinstance(required_capabilities, list) or not required_capabilities:
+        errors.append(f"{prefix}: required_capabilities must be a non-empty list")
+        return
+    unknown = sorted({str(item) for item in required_capabilities} - set(CAPABILITIES))
+    if unknown:
+        errors.append(f"{prefix}: unknown capabilities: {', '.join(unknown)}")
+
+
+def _validate_catalog_case_shape(
+    case: Mapping[str, Any], prefix: str, errors: list[str],
+) -> None:
+    if not isinstance(case.get("request"), Mapping):
+        errors.append(f"{prefix}: request must be an object")
+    if not isinstance(case.get("expected_event_fields"), list):
+        errors.append(f"{prefix}: expected_event_fields must be a list")
+    if not isinstance(case.get("forbidden_event_fields"), list):
+        errors.append(f"{prefix}: forbidden_event_fields must be a list")
+
+
+def _validate_catalog_transport_hardening(
+    case: Mapping[str, Any], prefix: str, errors: list[str],
+) -> None:
+    if "transport_hardening" in case and not isinstance(case.get("transport_hardening"), bool):
+        errors.append(f"{prefix}: transport_hardening must be Boolean")
+    if case.get("transport_hardening") is not True:
+        return
+    if not str(case.get("group") or "").startswith("full-lifecycle-transport"):
+        errors.append(f"{prefix}: transport_hardening cases must use the full-lifecycle transport namespace")
+    required_transport_fields = {
+        "run_id", "integration_mode", "transaction_id", "phase", "event", "message_id",
+        "requested_action", "actual_action", "transport_result", "transport_case_id",
+    }
+    declared_transport_fields = {str(field) for field in case.get("expected_event_fields", [])}
+    missing_transport_fields = sorted(required_transport_fields - declared_transport_fields)
+    if missing_transport_fields:
+        errors.append(
+            f"{prefix}: transport_hardening case is missing causal event fields: "
+            + ", ".join(missing_transport_fields)
+        )
+
+
+def _validate_catalog_case_declarations(
+    case: Mapping[str, Any], prefix: str, errors: list[str],
+) -> None:
+    if case.get("connector_applicability") != "capability_driven":
+        errors.append(f"{prefix}: connector_applicability must be capability_driven")
+    if case.get("unsupported_behavior") != "UNSUPPORTED":
+        errors.append(f"{prefix}: unsupported_behavior must be UNSUPPORTED")
+
+
+def _validate_catalog_evidence_requirement(
+    case: Mapping[str, Any], prefix: str, errors: list[str],
+) -> None:
+    evidence_requirement = case.get("evidence_requirement")
+    if not isinstance(evidence_requirement, Mapping):
+        errors.append(f"{prefix}: evidence_requirement must be an object")
+        return
+    if evidence_requirement.get("requires_real_host") is not True:
+        errors.append(f"{prefix}: evidence_requirement.requires_real_host must be true")
+    if evidence_requirement.get("accepts_synthetic_pass") is not False:
+        errors.append(f"{prefix}: evidence_requirement.accepts_synthetic_pass must be false")
+
+
+def _validate_catalog_case_sources(
+    case: Mapping[str, Any],
+    prefix: str,
+    *,
+    catalog_root: Path,
+    shared_fixture_root: Path,
+    errors: list[str],
+) -> None:
+    runner_case = case.get("runner_case")
+    if runner_case:
+        runner_path = CATALOG_PATH.parent / str(runner_case)
+        if not runner_path.is_file():
+            errors.append(f"{prefix}: runner_case is missing: {runner_path}")
+    request = case.get("request")
+    if not isinstance(request, Mapping):
+        return
+    if "fixture" in request:
+        _validate_catalog_fixture_path(
+            request.get("fixture"),
+            root=catalog_root,
+            label="request.fixture",
+            case_id=prefix,
+            catalog_root=catalog_root,
+            errors=errors,
+        )
+    if "fixture_file" in request:
+        _validate_catalog_fixture_path(
+            request.get("fixture_file"),
+            root=shared_fixture_root,
+            label="request.fixture_file",
+            case_id=prefix,
+            catalog_root=catalog_root,
+            errors=errors,
+        )
+
+
+def _validate_catalog_fixture_path(
+    raw_path: object,
+    *,
+    root: Path,
+    label: str,
+    case_id: str,
+    catalog_root: Path,
+    errors: list[str],
+) -> None:
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        errors.append(f"{case_id}: {label} must be a non-empty relative path")
+        return
+    candidate = (catalog_root / raw_path).resolve(strict=False)
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        errors.append(f"{case_id}: {label} must remain under {root}")
+        return
+    if not candidate.is_file():
+        errors.append(f"{case_id}: {label} is missing: {candidate}")
+
+
+def _validate_phase4_catalog_contracts(
+    by_id: Mapping[str, Mapping[str, Any]], contracts: Mapping[str, tuple[Any, ...]], errors: list[str],
+) -> None:
+    for case_id, contract in contracts.items():
         case = by_id.get(case_id)
-        if not case:
-            continue
-        if case.get("expected_result") != expected_result:
-            errors.append(f"{case_id}: expected_result must be {expected_result}")
-        if case.get("phase") != phase:
-            errors.append(f"{case_id}: phase must be {phase}")
-        declared_capabilities = {str(item) for item in case.get("required_capabilities", [])}
-        missing_capabilities = sorted(required_capabilities - declared_capabilities)
-        if missing_capabilities:
-            errors.append(f"{case_id}: missing full-lifecycle capabilities: {', '.join(missing_capabilities)}")
-        declared_event_fields = {str(item) for item in case.get("expected_event_fields", [])}
-        missing_event_fields = sorted(event_fields - declared_event_fields)
-        if missing_event_fields:
-            errors.append(f"{case_id}: missing full-lifecycle event fields: {', '.join(missing_event_fields)}")
+        if case:
+            _validate_phase4_catalog_case(case_id, case, contract, errors)
+
+
+def _validate_phase4_catalog_case(
+    case_id: str, case: Mapping[str, Any], contract: tuple[Any, ...], errors: list[str],
+) -> None:
+    expected_result, required_capabilities, event_fields, expected_status = contract
+    if case.get("phase") != 4:
+        errors.append(f"{case_id}: phase must be 4")
+    if case.get("group") != "late-intervention":
+        errors.append(f"{case_id}: group must be late-intervention")
+    if case.get("expected_result") != expected_result:
+        errors.append(f"{case_id}: expected_result must be {expected_result}")
+    if optional_int(case.get("expected_rule_id")) != 1100301:
+        errors.append(f"{case_id}: expected_rule_id must be 1100301")
+    if optional_int(case.get("expected_status")) != expected_status:
+        errors.append(f"{case_id}: expected_status is not canonical for its semantic outcome")
+    declared_capabilities = {str(item) for item in case.get("required_capabilities", [])}
+    missing_capabilities = sorted(required_capabilities - declared_capabilities)
+    if missing_capabilities:
+        errors.append(f"{case_id}: missing Phase-4 capabilities: {', '.join(missing_capabilities)}")
+    declared_event_fields = {str(item) for item in case.get("expected_event_fields", [])}
+    missing_event_fields = sorted(event_fields - declared_event_fields)
+    if missing_event_fields:
+        errors.append(f"{case_id}: missing Phase-4 event fields: {', '.join(missing_event_fields)}")
+
+
+def _validate_full_lifecycle_case_requirements(
+    by_id: Mapping[str, Mapping[str, Any]], errors: list[str],
+) -> None:
+    for case_id in sorted(FULL_LIFECYCLE_REQUIRED_IDS):
+        case = by_id.get(case_id)
+        if case:
+            _validate_full_lifecycle_case_requirement(case_id, case, errors)
+
+
+def _validate_full_lifecycle_case_requirement(
+    case_id: str, case: Mapping[str, Any], errors: list[str],
+) -> None:
+    if not str(case.get("group") or "").startswith("full-lifecycle-"):
+        errors.append(f"{case_id}: group must use the full-lifecycle namespace")
+    requirement = case.get("evidence_requirement")
+    if not isinstance(requirement, Mapping) or requirement.get("requires_real_host") is not True:
+        errors.append(f"{case_id}: must retain the real-host evidence requirement")
+
+
+def _validate_full_lifecycle_catalog_contracts(
+    by_id: Mapping[str, Mapping[str, Any]], contracts: Mapping[str, tuple[Any, ...]], errors: list[str],
+) -> None:
+    for case_id, contract in contracts.items():
+        case = by_id.get(case_id)
+        if case:
+            _validate_full_lifecycle_catalog_case(case_id, case, contract, errors)
+
+
+def _validate_full_lifecycle_catalog_case(
+    case_id: str, case: Mapping[str, Any], contract: tuple[Any, ...], errors: list[str],
+) -> None:
+    expected_result, phase, required_capabilities, event_fields = contract
+    if case.get("expected_result") != expected_result:
+        errors.append(f"{case_id}: expected_result must be {expected_result}")
+    if case.get("phase") != phase:
+        errors.append(f"{case_id}: phase must be {phase}")
+    declared_capabilities = {str(item) for item in case.get("required_capabilities", [])}
+    missing_capabilities = sorted(required_capabilities - declared_capabilities)
+    if missing_capabilities:
+        errors.append(f"{case_id}: missing full-lifecycle capabilities: {', '.join(missing_capabilities)}")
+    declared_event_fields = {str(item) for item in case.get("expected_event_fields", [])}
+    missing_event_fields = sorted(event_fields - declared_event_fields)
+    if missing_event_fields:
+        errors.append(f"{case_id}: missing full-lifecycle event fields: {', '.join(missing_event_fields)}")
+
+
+def _validate_catalog_legacy_contracts(
+    by_id: Mapping[str, Mapping[str, Any]], errors: list[str],
+) -> None:
     legacy = by_id.get("deny_response_body_marker_403")
     if legacy:
-        if legacy.get("deprecated_alias_for") != "phase4_deny_before_commit":
-            errors.append("deny_response_body_marker_403 must be a deprecated alias for phase4_deny_before_commit")
-        if legacy.get("expected_result") != "legacy_phase4_deny_before_commit":
-            errors.append("deny_response_body_marker_403 must retain strict pre-commit alias semantics")
-        if optional_int(legacy.get("expected_status")) != 403:
-            errors.append("deny_response_body_marker_403 must retain expected_status=403")
-        if legacy.get("runner_case"):
-            errors.append("deny_response_body_marker_403 is an alias and must not own a runner fixture")
+        _validate_legacy_phase4_alias(legacy, errors)
     pre_commit = by_id.get("phase4_deny_before_commit")
     if pre_commit and pre_commit.get("runner_case") != "deny_response_body_marker_403.yaml":
         errors.append("phase4_deny_before_commit must own the legacy pre-commit runner fixture")
-    if RULES_PATH.is_file():
-        rules = RULES_PATH.read_text(encoding="utf-8")
-        required_rule_contracts = (
-            'REQUEST_HEADERS:X-Modsec-Smoke "@streq block"',
-            "id:1100001,phase:1,deny,status:403",
-            "id:1100002,phase:1,deny,status:429",
-            "id:1100003,phase:1",
-            "id:1100101,phase:2",
-            "id:1100201,phase:3",
-            "id:1100202,phase:3,redirect",
-            "id:1100301,phase:4",
-            "id:1100401,phase:1",
-            "id:1100402,phase:1",
-            "id:1100403,phase:1",
-        )
-        for contract in required_rule_contracts:
-            if contract not in rules:
-                errors.append(f"ruleset missing contract: {contract}")
-        lowered = rules.lower()
-        if "owasp-crs" in lowered or "coreruleset" in lowered or re.search(r"\binclude\b.*\bcrs\b", lowered):
-            errors.append("canonical No-CRS ruleset must not include CRS")
-        if any(token in lowered for token in ("%{request_body}", "%{response_body}", "%{http:authorization}")):
-            errors.append("canonical ruleset must not log body or authorization payloads")
-    else:
+
+
+def _validate_legacy_phase4_alias(legacy: Mapping[str, Any], errors: list[str]) -> None:
+    if legacy.get("deprecated_alias_for") != "phase4_deny_before_commit":
+        errors.append("deny_response_body_marker_403 must be a deprecated alias for phase4_deny_before_commit")
+    if legacy.get("expected_result") != "legacy_phase4_deny_before_commit":
+        errors.append("deny_response_body_marker_403 must retain strict pre-commit alias semantics")
+    if optional_int(legacy.get("expected_status")) != 403:
+        errors.append("deny_response_body_marker_403 must retain expected_status=403")
+    if legacy.get("runner_case"):
+        errors.append("deny_response_body_marker_403 is an alias and must not own a runner fixture")
+
+
+def _validate_catalog_ruleset_contracts(errors: list[str]) -> None:
+    if not RULES_PATH.is_file():
         errors.append(f"canonical ruleset missing: {RULES_PATH}")
-    return errors
+        return
+    rules = RULES_PATH.read_text(encoding="utf-8")
+    required_rule_contracts = (
+        'REQUEST_HEADERS:X-Modsec-Smoke "@streq block"',
+        "id:1100001,phase:1,deny,status:403",
+        "id:1100002,phase:1,deny,status:429",
+        "id:1100003,phase:1",
+        "id:1100101,phase:2",
+        "id:1100201,phase:3",
+        "id:1100202,phase:3,redirect",
+        "id:1100301,phase:4",
+        "id:1100401,phase:1",
+        "id:1100402,phase:1",
+        "id:1100403,phase:1",
+    )
+    for contract in required_rule_contracts:
+        if contract not in rules:
+            errors.append(f"ruleset missing contract: {contract}")
+    lowered = rules.lower()
+    if "owasp-crs" in lowered or "coreruleset" in lowered or re.search(r"\binclude\b.*\bcrs\b", lowered):
+        errors.append("canonical No-CRS ruleset must not include CRS")
+    if any(token in lowered for token in ("%{request_body}", "%{response_body}", "%{http:authorization}")):
+        errors.append("canonical ruleset must not log body or authorization payloads")
 
 
 def load_catalog() -> dict[str, Any]:
@@ -1551,6 +1690,18 @@ def plan_semantics(plan: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def plans_have_matching_semantics(
+    plan: Mapping[str, Any], expected: Mapping[str, Any],
+) -> bool:
+    """Compare every field in the fixed capability-plan semantic projection."""
+    actual_semantics = plan_semantics(plan)
+    expected_semantics = plan_semantics(expected)
+    return all(
+        actual_semantics[field] == expected_value
+        for field, expected_value in expected_semantics.items()
+    )
+
+
 def validate_plan_against_capabilities(
     plan: Mapping[str, Any],
     connector: str,
@@ -1562,7 +1713,7 @@ def validate_plan_against_capabilities(
     expected = select_cases(
         connector, manifest, catalog, evidence_stage, artifact_profile
     )
-    if plan_semantics(plan) != plan_semantics(expected):
+    if not plans_have_matching_semantics(plan, expected):
         raise ContractError(
             "plan does not match a fresh capability-driven selection; regenerate it with the select command"
         )
@@ -2361,9 +2512,7 @@ def normalize_transport_result(value: object) -> str | None:
     return transport if transport in TRANSPORT_RESULTS else None
 
 
-def normalize_transport_enum(
-    value: object, *, allowed: set[str], field: str,
-) -> str | None:
+def normalize_transport_enum(value: object, *, allowed: set[str]) -> str | None:
     """Normalize a closed, metadata-only transport vocabulary."""
     if _empty_runtime_value(value):
         return None
@@ -2525,19 +2674,19 @@ def normalize_quic_version(value: object) -> str | None:
 
 
 def normalize_reset_by(value: object) -> str | None:
-    return normalize_transport_enum(value, allowed=RESET_BY_VALUES, field="reset_by")
+    return normalize_transport_enum(value, allowed=RESET_BY_VALUES)
 
 
 def normalize_timeout_stage(value: object) -> str | None:
-    return normalize_transport_enum(value, allowed=TIMEOUT_STAGES, field="timeout_stage")
+    return normalize_transport_enum(value, allowed=TIMEOUT_STAGES)
 
 
 def normalize_write_result(value: object) -> str | None:
-    return normalize_transport_enum(value, allowed=WRITE_RESULTS, field="write_result")
+    return normalize_transport_enum(value, allowed=WRITE_RESULTS)
 
 
 def normalize_cleanup_reason(value: object) -> str | None:
-    return normalize_transport_enum(value, allowed=CLEANUP_REASONS, field="cleanup_reason")
+    return normalize_transport_enum(value, allowed=CLEANUP_REASONS)
 
 
 SEMANTIC_VALUE_NORMALIZERS: dict[str, Callable[[object], object]] = {
@@ -4958,48 +5107,57 @@ def protocol_client_artifact_errors(
         from check_protocol_evidence import validate_protocol_artifacts
     except ImportError as exc:  # pragma: no cover - source checkout defect
         return [f"protocol client evidence checker is unavailable: {exc}"]
-    strict = str(record.get("expected_result") or "") == "connection_aborted_strict"
-    visible_status = record.get("visible_http_status")
-    expected_client_status = (
-        visible_status
-        if isinstance(visible_status, int) and not isinstance(visible_status, bool)
-        else None
-    )
-    stream_id = record.get("stream_id")
-    expected_stream_id = (
-        stream_id if isinstance(stream_id, int) and not isinstance(stream_id, bool) else None
-    )
-    upstream_protocol = record.get("upstream_protocol")
-    expected_upstream_protocol = (
-        str(upstream_protocol) if isinstance(upstream_protocol, str) and upstream_protocol else None
-    )
-    transport_case_id = record.get("transport_case_id")
-    expected_transport_case_id = (
-        str(transport_case_id)
-        if isinstance(transport_case_id, str) and transport_case_id else None
-    )
     return validate_protocol_artifacts(
         artifact_dir,
-        protocol=protocol,
-        strict=strict,
-        connector=str(record.get("connector") or "") or None,
-        integration_mode=str(record.get("integration_mode") or "") or None,
-        run_id=str(record.get("run_id") or "") or None,
-        transaction_id=(
-            str(record.get("transaction_ids", [""])[0])
-            if isinstance(record.get("transaction_ids"), list)
-            and record.get("transaction_ids") else None
-        ),
-        rule_id=(
-            str(record.get("expected_rule_id"))
-            if record.get("expected_rule_id") is not None else None
-        ),
-        phase=str(record.get("phase") or "") or None,
-        expected_client_status=expected_client_status,
-        expected_stream_id=expected_stream_id,
-        expected_upstream_protocol=expected_upstream_protocol,
-        expected_transport_case_id=expected_transport_case_id,
+        **protocol_client_artifact_expectations(record, protocol),
     )
+
+
+def protocol_client_artifact_expectations(
+    record: Mapping[str, Any], protocol: str,
+) -> dict[str, Any]:
+    """Translate one catalog record into narrow protocol-validator expectations."""
+    return {
+        "protocol": protocol,
+        "strict": str(record.get("expected_result") or "") == "connection_aborted_strict",
+        "connector": optional_record_text(record, "connector"),
+        "integration_mode": optional_record_text(record, "integration_mode"),
+        "run_id": optional_record_text(record, "run_id"),
+        "transaction_id": first_record_transaction_id(record),
+        "rule_id": optional_record_string(record, "expected_rule_id"),
+        "phase": optional_record_text(record, "phase"),
+        "expected_client_status": optional_record_int(record, "visible_http_status"),
+        "expected_stream_id": optional_record_int(record, "stream_id"),
+        "expected_upstream_protocol": optional_nonempty_string(record, "upstream_protocol"),
+        "expected_transport_case_id": optional_nonempty_string(record, "transport_case_id"),
+    }
+
+
+def optional_record_text(record: Mapping[str, Any], field: str) -> str | None:
+    value = str(record.get(field) or "")
+    return value or None
+
+
+def optional_record_string(record: Mapping[str, Any], field: str) -> str | None:
+    value = record.get(field)
+    return str(value) if value is not None else None
+
+
+def optional_record_int(record: Mapping[str, Any], field: str) -> int | None:
+    value = record.get(field)
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def optional_nonempty_string(record: Mapping[str, Any], field: str) -> str | None:
+    value = record.get(field)
+    return str(value) if isinstance(value, str) and value else None
+
+
+def first_record_transaction_id(record: Mapping[str, Any]) -> str | None:
+    transaction_ids = record.get("transaction_ids", [""])
+    if not isinstance(transaction_ids, list) or not transaction_ids:
+        return None
+    return str(transaction_ids[0])
 
 
 def record_protocol_profile(
