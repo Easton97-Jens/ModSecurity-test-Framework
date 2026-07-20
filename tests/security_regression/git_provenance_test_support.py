@@ -3,6 +3,35 @@
 from __future__ import annotations
 
 
+def assert_immutable_commit_fetch_control(
+    test_case,
+    result,
+    commands: list[str],
+    git_verbs,
+    approved_repo: str,
+    approved_commit: str,
+) -> str:
+    """Assert the shared positive control for a fixed-origin detached Git fetch."""
+    command_text = "\n".join(commands)
+    test_case.assertEqual(0, result.returncode, result.stdout + result.stderr)
+    test_case.assertIn("init ", command_text)
+    test_case.assertIn(f"remote add origin {approved_repo}", command_text)
+    test_case.assertIn("config --get remote.origin.url", command_text)
+    test_case.assertIn(f"fetch --depth 1 --no-tags origin {approved_commit}", command_text)
+    test_case.assertIn("rev-parse --verify FETCH_HEAD^{commit}", command_text)
+    test_case.assertIn(f"rev-parse --verify {approved_commit}^{{commit}}", command_text)
+    test_case.assertIn(f"checkout --detach {approved_commit}", command_text)
+    test_case.assertIn("rev-parse --verify HEAD^{commit}", command_text)
+    test_case.assertNotIn("clone", git_verbs(commands))
+    test_case.assertNotIn("submodule", git_verbs(commands))
+    test_case.assertIn("-c core.hooksPath=/dev/null", command_text)
+    test_case.assertIn("-c protocol.file.allow=never", command_text)
+    test_case.assertIn("-c fetch.recurseSubmodules=false", command_text)
+    test_case.assertIn("-c submodule.recurse=false", command_text)
+    test_case.assertIn("-c http.sslVerify=true", command_text)
+    return command_text
+
+
 def fake_git_script(approved_repo: str, approved_commit: str) -> str:
     """Build the narrowly scoped Git stand-in used by immutable-source tests."""
 

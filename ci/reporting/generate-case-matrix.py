@@ -2728,6 +2728,69 @@ def append_snapshot_list(lines: list[str], title: str, values: object) -> None:
         lines.extend(f"- {entry}" for entry in values)
 
 
+def append_runtime_snapshot_sections(lines: list[str], runtime_snapshot: dict) -> None:
+    """Append the shared runtime-evidence sections used by both overview reports."""
+    status_columns = [
+        ("Connector", "connector"),
+        ("Command", "command"),
+        ("Status", "status"),
+        ("Exit", "exit_code"),
+        ("Attempted", "attempted"),
+        ("PASS", "pass"),
+        ("FAIL", "fail"),
+        ("BLOCKED", "blocked"),
+        ("NOT_EXECUTABLE", "not_executable"),
+        ("Evidence", "summary_path"),
+    ]
+    lines.extend(
+        render_status_table(
+            FRAMEWORK_CHECK_STATUS_TITLE,
+            snapshot_named_rows(runtime_snapshot, "framework_checks"),
+            [("Command", "command"), ("Status", "status"), ("Details", "details")],
+        )
+    )
+    lines.extend(
+        render_status_table(
+            READINESS_FETCH_STATUS_TITLE,
+            snapshot_named_rows(runtime_snapshot, "readiness_checks"),
+            [("Command", "command"), ("Status", "status"), ("Details", "details")],
+        )
+    )
+    lines.extend(
+        [
+            "",
+            "## Runtime Smoke Status",
+            f"- Snapshot: **{runtime_snapshot.get('snapshot_date', 'unknown')}** ({runtime_snapshot.get('captured_at', 'unknown')})",
+            f"- Git: branch `{runtime_snapshot.get('branch', 'unknown')}`, commit `{runtime_snapshot.get('commit', 'unknown')}`",
+            f"- BUILD_ROOT: `{runtime_snapshot.get('build_root', 'unknown')}`",
+            f"- Snapshot file: `{report_doc(RUNTIME_SNAPSHOT_FILENAME)}`",
+        ]
+    )
+    lines.extend(
+        render_status_table(
+            DEFAULT_RUNTIME_SMOKE_STATUS_TITLE,
+            runtime_smoke_rows(runtime_snapshot),
+            status_columns,
+            heading_level=3,
+        )
+    )
+    lines.extend(
+        render_status_table(
+            FORCE_ALL_RUNTIME_SMOKE_STATUS_TITLE,
+            force_all_runtime_smoke_rows(runtime_snapshot),
+            status_columns,
+            heading_level=3,
+        )
+    )
+    lines.extend(render_connector_runtime_availability(runtime_snapshot))
+    lines.extend(["", RUNTIME_FAIL_DETAILS_TITLE])
+    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "apache", heading_level=3))
+    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "nginx", heading_level=3))
+    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "haproxy", heading_level=3))
+    append_snapshot_list(lines, RUNTIME_VERIFIED_STATUS_TITLE, runtime_snapshot.get("runtime_verified_status", []))
+    append_snapshot_list(lines, OPEN_RUNTIME_ISSUES_TITLE, runtime_snapshot.get("open_issues", []))
+
+
 def render_runtime_snapshot(snapshot: dict) -> list[str]:
     if not snapshot:
         return [
@@ -2946,75 +3009,7 @@ def render_root_summary(
             "- Force-all evidence is traceable runtime evidence but does not promote pending/future/gap feature support.",
         ]
     )
-    lines.extend(
-        render_status_table(
-            FRAMEWORK_CHECK_STATUS_TITLE,
-            snapshot_named_rows(runtime_snapshot, "framework_checks"),
-            [("Command", "command"), ("Status", "status"), ("Details", "details")],
-        )
-    )
-    lines.extend(
-        render_status_table(
-            READINESS_FETCH_STATUS_TITLE,
-            snapshot_named_rows(runtime_snapshot, "readiness_checks"),
-            [("Command", "command"), ("Status", "status"), ("Details", "details")],
-        )
-    )
-    lines.extend(
-        [
-            "",
-            "## Runtime Smoke Status",
-            f"- Snapshot: **{runtime_snapshot.get('snapshot_date', 'unknown')}** ({runtime_snapshot.get('captured_at', 'unknown')})",
-            f"- Git: branch `{runtime_snapshot.get('branch', 'unknown')}`, commit `{runtime_snapshot.get('commit', 'unknown')}`",
-            f"- BUILD_ROOT: `{runtime_snapshot.get('build_root', 'unknown')}`",
-            f"- Snapshot file: `{report_doc(RUNTIME_SNAPSHOT_FILENAME)}`",
-        ]
-    )
-    lines.extend(
-        render_status_table(
-            DEFAULT_RUNTIME_SMOKE_STATUS_TITLE,
-            runtime_smoke_rows(runtime_snapshot),
-            [
-                ("Connector", "connector"),
-                ("Command", "command"),
-                ("Status", "status"),
-                ("Exit", "exit_code"),
-                ("Attempted", "attempted"),
-                ("PASS", "pass"),
-                ("FAIL", "fail"),
-                ("BLOCKED", "blocked"),
-                ("NOT_EXECUTABLE", "not_executable"),
-                ("Evidence", "summary_path"),
-            ],
-            heading_level=3,
-        )
-    )
-    lines.extend(
-        render_status_table(
-            FORCE_ALL_RUNTIME_SMOKE_STATUS_TITLE,
-            force_all_runtime_smoke_rows(runtime_snapshot),
-            [
-                ("Connector", "connector"),
-                ("Command", "command"),
-                ("Status", "status"),
-                ("Exit", "exit_code"),
-                ("Attempted", "attempted"),
-                ("PASS", "pass"),
-                ("FAIL", "fail"),
-                ("BLOCKED", "blocked"),
-                ("NOT_EXECUTABLE", "not_executable"),
-                ("Evidence", "summary_path"),
-            ],
-            heading_level=3,
-        )
-    )
-    lines.extend(render_connector_runtime_availability(runtime_snapshot))
-    lines.extend(["", RUNTIME_FAIL_DETAILS_TITLE])
-    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "apache", heading_level=3))
-    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "nginx", heading_level=3))
-    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "haproxy", heading_level=3))
-    append_snapshot_list(lines, RUNTIME_VERIFIED_STATUS_TITLE, runtime_snapshot.get("runtime_verified_status", []))
-    append_snapshot_list(lines, OPEN_RUNTIME_ISSUES_TITLE, runtime_snapshot.get("open_issues", []))
+    append_runtime_snapshot_sections(lines, runtime_snapshot)
     lines.extend(
         [
             "",
@@ -3145,75 +3140,7 @@ def render_overview(
             "These native MRTS reports are separate from connector full-matrix evidence.",
         ]
     )
-    lines.extend(
-        render_status_table(
-            FRAMEWORK_CHECK_STATUS_TITLE,
-            snapshot_named_rows(runtime_snapshot, "framework_checks"),
-            [("Command", "command"), ("Status", "status"), ("Details", "details")],
-        )
-    )
-    lines.extend(
-        render_status_table(
-            READINESS_FETCH_STATUS_TITLE,
-            snapshot_named_rows(runtime_snapshot, "readiness_checks"),
-            [("Command", "command"), ("Status", "status"), ("Details", "details")],
-        )
-    )
-    lines.extend(
-        [
-            "",
-            "## Runtime Smoke Status",
-            f"- Snapshot: **{runtime_snapshot.get('snapshot_date', 'unknown')}** ({runtime_snapshot.get('captured_at', 'unknown')})",
-            f"- Git: branch `{runtime_snapshot.get('branch', 'unknown')}`, commit `{runtime_snapshot.get('commit', 'unknown')}`",
-            f"- BUILD_ROOT: `{runtime_snapshot.get('build_root', 'unknown')}`",
-            f"- Snapshot file: `{report_doc(RUNTIME_SNAPSHOT_FILENAME)}`",
-        ]
-    )
-    lines.extend(
-        render_status_table(
-            DEFAULT_RUNTIME_SMOKE_STATUS_TITLE,
-            runtime_smoke_rows(runtime_snapshot),
-            [
-                ("Connector", "connector"),
-                ("Command", "command"),
-                ("Status", "status"),
-                ("Exit", "exit_code"),
-                ("Attempted", "attempted"),
-                ("PASS", "pass"),
-                ("FAIL", "fail"),
-                ("BLOCKED", "blocked"),
-                ("NOT_EXECUTABLE", "not_executable"),
-                ("Evidence", "summary_path"),
-            ],
-            heading_level=3,
-        )
-    )
-    lines.extend(
-        render_status_table(
-            FORCE_ALL_RUNTIME_SMOKE_STATUS_TITLE,
-            force_all_runtime_smoke_rows(runtime_snapshot),
-            [
-                ("Connector", "connector"),
-                ("Command", "command"),
-                ("Status", "status"),
-                ("Exit", "exit_code"),
-                ("Attempted", "attempted"),
-                ("PASS", "pass"),
-                ("FAIL", "fail"),
-                ("BLOCKED", "blocked"),
-                ("NOT_EXECUTABLE", "not_executable"),
-                ("Evidence", "summary_path"),
-            ],
-            heading_level=3,
-        )
-    )
-    lines.extend(render_connector_runtime_availability(runtime_snapshot))
-    lines.extend(["", RUNTIME_FAIL_DETAILS_TITLE])
-    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "apache", heading_level=3))
-    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "nginx", heading_level=3))
-    lines.extend(render_connector_runtime_fail_details(runtime_snapshot, "haproxy", heading_level=3))
-    append_snapshot_list(lines, RUNTIME_VERIFIED_STATUS_TITLE, runtime_snapshot.get("runtime_verified_status", []))
-    append_snapshot_list(lines, OPEN_RUNTIME_ISSUES_TITLE, runtime_snapshot.get("open_issues", []))
+    append_runtime_snapshot_sections(lines, runtime_snapshot)
     lines.extend(
         [
             "",

@@ -219,6 +219,49 @@ class GenerateCaseMatrixSonarTests(unittest.TestCase):
         self.assertEqual(cell["promotion"], self.module.NOT_PROMOTED)
         self.assertEqual(cell["evidence"], "expected=200; actual=200")
 
+    def test_runtime_snapshot_sections_keep_shared_status_and_evidence_order(self):
+        smoke_rows = [
+            {
+                "connector": connector,
+                "command": f"run-{connector}",
+                "status": "PASS",
+                "exit_code": 0,
+                "counts": {"pass": 1},
+                "summary_path": f"/safe/{connector}.json",
+            }
+            for connector in ("apache", "nginx", "haproxy")
+        ]
+        snapshot = {
+            "snapshot_date": "2026-07-20",
+            "captured_at": "2026-07-20T00:00:00Z",
+            "branch": "topic",
+            "commit": "a" * 40,
+            "build_root": "/safe/build",
+            "framework_checks": [{"command": "framework", "status": "PASS", "details": "ok"}],
+            "readiness_checks": [{"command": "readiness", "status": "PASS", "details": "ok"}],
+            "runtime_smokes": smoke_rows,
+            "force_all_runtime_smokes": smoke_rows,
+            "runtime_verified_status": ["verified evidence"],
+            "open_issues": ["tracked follow-up"],
+        }
+        lines: list[str] = []
+
+        self.module.append_runtime_snapshot_sections(lines, snapshot)
+
+        rendered = "\n".join(lines)
+        ordered_sections = (
+            "## Framework Check Status",
+            "## Readiness / Fetch Status",
+            "## Runtime Smoke Status",
+            "### Default Runtime Smoke Status",
+            "### Force-All Runtime Smoke Status",
+            "## Connector Runtime Availability",
+            "## Runtime FAIL Details",
+        )
+        self.assertEqual(sorted(ordered_sections, key=rendered.index), list(ordered_sections))
+        self.assertIn("- verified evidence", rendered)
+        self.assertIn("- tracked follow-up", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()

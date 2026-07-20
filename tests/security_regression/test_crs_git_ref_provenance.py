@@ -13,6 +13,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from git_provenance_test_support import assert_immutable_commit_fetch_control
+
 
 ROOT = Path(__file__).resolve().parents[2]
 FETCH_CRS = ROOT / "ci/provisioning/fetch-crs.sh"
@@ -219,23 +221,9 @@ class FetchCrsProvenanceTests(unittest.TestCase):
 
     def test_fresh_control_checks_origin_commit_object_and_head(self):
         result, commands, _ = self.invoke_fetch()
-        command_text = "\n".join(commands)
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertIn("init ", command_text)
-        self.assertIn(f"remote add origin {APPROVED_REPO}", command_text)
-        self.assertIn("config --get remote.origin.url", command_text)
-        self.assertIn(f"fetch --depth 1 --no-tags origin {APPROVED_COMMIT}", command_text)
-        self.assertIn("rev-parse --verify FETCH_HEAD^{commit}", command_text)
-        self.assertIn(f"rev-parse --verify {APPROVED_COMMIT}^{{commit}}", command_text)
-        self.assertIn(f"checkout --detach {APPROVED_COMMIT}", command_text)
-        self.assertIn("rev-parse --verify HEAD^{commit}", command_text)
-        self.assertNotIn("clone", self.git_verbs(commands))
-        self.assertNotIn("submodule", self.git_verbs(commands))
-        self.assertIn("-c core.hooksPath=/dev/null", command_text)
-        self.assertIn("-c protocol.file.allow=never", command_text)
-        self.assertIn("-c fetch.recurseSubmodules=false", command_text)
-        self.assertIn("-c submodule.recurse=false", command_text)
-        self.assertIn("-c http.sslVerify=true", command_text)
+        assert_immutable_commit_fetch_control(
+            self, result, commands, self.git_verbs, APPROVED_REPO, APPROVED_COMMIT
+        )
 
     def test_rejects_unexpected_origin_before_fetch(self):
         result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_ORIGIN": "https://github.com/attacker/crs.git"})
