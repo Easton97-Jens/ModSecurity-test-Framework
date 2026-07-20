@@ -9,7 +9,7 @@
 | Change ID | `20260720-03-add-framework-python-313-updater` |
 | UTC date | 2026-07-20 |
 | Framework base revision | `9dab40c2b8799dc1e4597cb2a2c223ec3f6cd72b` |
-| Issue or pull request | Task branch `agent/add-framework-python-updater`; Draft-PR delivery is authorized after local validation. |
+| Issue or pull request | [Draft PR #39](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/39) on task branch `agent/add-framework-python-updater`; the first published head was `4a31df044ea2c2c7526828e54978238639b57dd4`. |
 
 ## Motivation and problem statement
 
@@ -61,12 +61,24 @@ revalidates the candidate, asserts a one-file diff, explicitly supplies its
 write-scoped token only to the pinned pull-request Action, and uses
 `draft: true` with fixed `add-paths`.
 
+The first Draft-PR head exposed three task-owned compatibility and hardening
+issues before delivery could be verified. The candidate artifact is now a
+fixed direct `RUNNER_TEMP/framework-python-3.13-candidate` file derived inside
+the updater, rather than a caller-selected CLI path; the semantic workflow
+contract rejects an argument after that flag. Candidate runner paths are
+initialized at step runtime through `$GITHUB_ENV`, where the runner context is
+valid, and the literal Markdown body has a narrow ShellCheck annotation.
+Finally, the dependency-free YAML fallback recognizes a list mapping only when
+the colon is followed by whitespace or end-of-value, preserving plain scalars
+such as `ARGS:foo.` and existing `name: Content-Type` mappings.
+
 ## Changed files and tests
 
 - `.python-version`, all affected workflows, `Makefile`, and
   `requirements-ci.lock` comment.
 - `ci/tools/update-python-version.py` and
-  `ci/checks/security/check-python-version.py`.
+  `ci/checks/security/check-python-version.py`, the CI-security maintenance
+  contract, and the shared fallback YAML parser.
 - CI-security, workflow-contract, and updater regression tests.
 - English/German CI-security and GitHub Actions security documentation.
 
@@ -78,17 +90,27 @@ write-scoped token only to the pinned pull-request Action, and uses
 | Framework-owned Python 3.14 focused updater/contract/common-workflow unittest selection | 0 | 27 version-neutral tests passed. | Isolated Framework worktree |
 | `check-ci-security-contract.py --root <task-worktree>` | 0 | Current workflows and the three-job writer contract passed. | Isolated Framework worktree |
 | `check-python-version.py --root <task-worktree>` | 0 | Canonical source and recursive Python workflow contract passed. | Isolated Framework worktree |
+| Focused updater, CI-security-contract, Python-version-contract, and parser-hardening tests | 0 | 35 version-neutral regressions passed after the exact-head remediation. | Isolated Framework worktree |
+| `make test-ci-security-contract` | 0 | 84 CI-security tests passed after the exact-head remediation. | Isolated Framework worktree |
+| `make test-workflow-contract`, `make check-github-actions-workflows`, `make check-documentation`, and `make lint` | 0 | Workflow, documentation, and final local lint gates passed. | `20260720T180337Z-framework-python-313-updater-f3349a7e` task storage |
 
 ## Security impact
 
 The change removes duplicated patch authority, rejects bare/floating/matrix
 selection paths, and ensures a cross-job candidate cannot directly authorize a
-write. Resolver transport, candidate materialization, repository write scope,
+write. Resolver transport, fixed candidate materialization, repository write scope,
 and Draft-PR publication each have explicit fail-closed controls and negative
 tests. The final diff also remediates low-severity Framework hardening finding
 `FND-FRAMEWORK-0033`, which proved that the maintenance contract previously
 accepted future explicit secret/token references outside the reviewed publisher
-input; final local and hosted verification remain required.
+input. Its completion also covers serialized `${{ toJSON(secrets) }}` and
+`${{ toJSON(github) }}` contexts, which now fail closed without rejecting
+legitimate `github.sha` or `github.repository` controls; final local and
+hosted verification remain required.
+The exact-head remediation also tracks `FND-FRAMEWORK-0037` (workflow-context
+and literal-body lint), `FND-FRAMEWORK-0038` (fallback YAML scalar parsing),
+and release-blocking `FND-FRAMEWORK-0039` (candidate output path). No control
+was weakened to clear those checks.
 
 ## Documentation and runtime evidence
 
@@ -101,10 +123,10 @@ candidate-validation job before its publisher can run.
 ## Checks not run
 
 No local CPython 3.13 executable was available, so exact candidate runtime
-validation is not claimed locally. actionlint, ShellCheck, zizmor, Ruff,
-Pyright, hosted GitHub Actions, SonarQube Cloud, review state, and generated-
-PR lifecycle validation remain exact-head PR controls; no global or user-site
-tool was installed as a substitute.
+validation is not claimed locally. The pinned hosted actionlint, ShellCheck,
+zizmor, Ruff, Pyright, GitHub Actions, SonarQube Cloud, review state, and
+generated-PR lifecycle validation remain exact-head PR controls; no global or
+user-site tool was installed as a substitute.
 
 ## Limitations and residual risk
 
@@ -116,6 +138,9 @@ merging.
 
 ## Final diff and review status
 
-Implementation is pending final local diff, documentation, security-diff, and
-delivery review. No commit, push, PR, merge, Parent gitlink change, or MRTS
-change has occurred at the time this record was written.
+Draft PR #39 is open. Its first published head
+`4a31df044ea2c2c7526828e54978238639b57dd4` exposed the tracked lint, parser,
+and candidate-output findings; the remediation described here requires a new
+exact-head GitHub Actions, SonarQube Cloud, and review/thread assessment before
+the task may stop at `verified_pr`. No merge, Parent gitlink change, or MRTS
+change is in scope.

@@ -22,6 +22,7 @@ from urllib.parse import urlsplit
 
 
 CANONICAL_VERSION_FILE = ".python-version"
+CANDIDATE_FILE_NAME = "framework-python-3.13-candidate"
 METADATA_URL = "https://www.python.org/api/v2/downloads/release/"
 METADATA_HOST = "www.python.org"
 METADATA_PATH = "/api/v2/downloads/release/"
@@ -358,17 +359,26 @@ def atomic_write_canonical_version(root: Path, expected: PythonVersion, candidat
             temporary_path.unlink()
 
 
-def runner_temp_child(path: Path, *, allow_existing: bool) -> Path:
+def runner_temp_directory() -> Path:
     runner_temp_value = os.environ.get("RUNNER_TEMP")
     if not runner_temp_value:
         raise UpdaterFailure("blocked_metadata", "RUNNER_TEMP is required for runner-owned output")
-    runner_temp = Path(runner_temp_value)
     try:
-        runner_temp = runner_temp.resolve(strict=True)
+        runner_temp = Path(runner_temp_value).resolve(strict=True)
+    except OSError as exc:
+        raise UpdaterFailure("blocked_metadata", "runner-owned output path cannot be resolved") from exc
+    if not runner_temp.is_dir():
+        raise UpdaterFailure("blocked_metadata", "RUNNER_TEMP must be a directory")
+    return runner_temp
+
+
+def runner_temp_child(path: Path, *, allow_existing: bool) -> Path:
+    runner_temp = runner_temp_directory()
+    try:
         resolved_parent = path.parent.resolve(strict=True)
     except OSError as exc:
         raise UpdaterFailure("blocked_metadata", "runner-owned output path cannot be resolved") from exc
-    if not runner_temp.is_dir() or not resolved_parent.is_relative_to(runner_temp):
+    if not resolved_parent.is_relative_to(runner_temp):
         raise UpdaterFailure("blocked_metadata", "output must be a strict child of RUNNER_TEMP")
     if not path.is_absolute() or path.name in {"", ".", ".."}:
         raise UpdaterFailure("blocked_metadata", "output path must be an absolute file path")
@@ -384,8 +394,17 @@ def runner_temp_child(path: Path, *, allow_existing: bool) -> Path:
     return path
 
 
-def write_candidate_file(candidate: PythonVersion, path: Path) -> None:
-    target = runner_temp_child(path, allow_existing=False)
+def candidate_file_path() -> Path:
+    """Return the sole non-caller-selectable candidate path for this workflow."""
+
+    return runner_temp_child(
+        runner_temp_directory() / CANDIDATE_FILE_NAME,
+        allow_existing=False,
+    )
+
+
+def write_candidate_file(candidate: PythonVersion) -> None:
+    target = candidate_file_path()
     try:
         descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(descriptor, "wb") as stream:
@@ -437,8 +456,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--write-candidate-file",
-        type=Path,
-        help="Create the resolved candidate only in a new RUNNER_TEMP file.",
+        action="store_true",
+        help="Create the resolved candidate only at the fixed RUNNER_TEMP candidate path.",
     )
     parser.add_argument(
         "--write-github-output",
@@ -458,7 +477,7 @@ def main() -> int:
         )
         render_result(result, as_json=args.json)
         return 2
-    if args.write_candidate_file is not None and not args.check:
+    if args.write_candidate_file and not args.check:
         result = UpdateResult(
             "blocked_metadata", None, None, "candidate files are allowed only in --check mode"
         )
@@ -469,12 +488,12 @@ def main() -> int:
         resolve_update(framework_root(), timeout=args.timeout), args.expected_candidate
     )
     try:
-        if args.write_candidate_file is not None:
+        if args.write_candidate_file:
             if result.status != "update_available" or result.candidate is None:
                 raise UpdaterFailure(
                     "blocked_metadata", "a candidate file requires a validated available update"
                 )
-            write_candidate_file(PythonVersion.parse(result.candidate), args.write_candidate_file)
+            write_candidate_file(PythonVersion.parse(result.candidate))
         if args.update and result.status == "update_available" and result.candidate is not None:
             current = PythonVersion.parse(str(result.current))
             candidate = PythonVersion.parse(result.candidate)

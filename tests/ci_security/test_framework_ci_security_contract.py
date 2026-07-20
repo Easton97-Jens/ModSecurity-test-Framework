@@ -267,6 +267,30 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         errors = CHECKER.python_version_maintenance_errors(workflow, candidate_secret)
         self.assertTrue(any("must not declare a GitHub token or secret" in error for error in errors))
 
+        reader_serialized_secrets = copy.deepcopy(data)
+        reader_serialized_secrets["jobs"]["candidate-validate"]["steps"][-1]["run"] += (
+            '\nprintf "%s\\n" "${{ toJSON(secrets) }}"'
+        )
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, reader_serialized_secrets
+        )
+        self.assertTrue(any("must not declare a GitHub token or secret" in error for error in errors))
+
+        caller_selected_candidate_path = copy.deepcopy(data)
+        candidate_materialization = next(
+            step
+            for step in caller_selected_candidate_path["jobs"]["candidate-validate"]["steps"]
+            if step["name"] == "Independently validate and materialize the candidate"
+        )
+        candidate_materialization["run"] = candidate_materialization["run"].replace(
+            "--write-candidate-file",
+            '--write-candidate-file "$RUNNER_TEMP/caller-selected-candidate"',
+        )
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, caller_selected_candidate_path
+        )
+        self.assertTrue(any("without a caller path" in error for error in errors))
+
         reader_shell_token = copy.deepcopy(data)
         reader_shell_token["jobs"]["candidate-validate"]["steps"][-1]["run"] += (
             "\nprintf '%s\\n' \"$GITHUB_TOKEN\""
@@ -279,6 +303,15 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
             "TOKEN": "${{ github.token }}"
         }
         errors = CHECKER.python_version_maintenance_errors(workflow, publisher_secret)
+        self.assertTrue(any("only declare github.token" in error for error in errors))
+
+        publisher_serialized_github = copy.deepcopy(data)
+        publisher_serialized_github["jobs"]["publish"]["steps"][-2]["run"] += (
+            '\nprintf "%s\\n" "${{ toJSON(github) }}"'
+        )
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, publisher_serialized_github
+        )
         self.assertTrue(any("only declare github.token" in error for error in errors))
 
         publisher_indexed_token = copy.deepcopy(data)
@@ -312,6 +345,19 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         ] = "python-version-pr-body.md"
         errors = CHECKER.python_version_maintenance_errors(workflow, publisher_body)
         self.assertTrue(any("body-path" in error for error in errors))
+
+    def test_sensitive_reference_detection_rejects_serialized_contexts(self) -> None:
+        for value in (
+            '${{ toJSON(secrets) }}',
+            '${{ toJSON(github) }}',
+            "${{ github[format('token')] }}",
+            "${{ github.token }}",
+            "${{ secrets['FRAMEWORK_TEST_SECRET'] }}",
+            "$GITHUB_TOKEN",
+        ):
+            self.assertTrue(CHECKER.contains_sensitive_reference(value), value)
+        for value in ("${{ github.sha }}", "${{ github.repository }}"):
+            self.assertFalse(CHECKER.contains_sensitive_reference(value), value)
 
     def test_token_references_and_tool_paths_are_fail_closed(self) -> None:
         token_errors = CHECKER.trust_boundary_errors(

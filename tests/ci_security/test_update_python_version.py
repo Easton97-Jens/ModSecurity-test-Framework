@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import os
 from pathlib import Path
 import sys
@@ -208,20 +210,33 @@ class UpdatePythonVersionTest(unittest.TestCase):
             runner_temp.mkdir()
             output = runner_temp / "output"
             output.write_text("", encoding="ascii")
-            candidate_file = runner_temp / "candidate"
+            candidate_file = runner_temp / UPDATER.CANDIDATE_FILE_NAME
             with patch.dict(
                 os.environ,
                 {"RUNNER_TEMP": str(runner_temp), "GITHUB_OUTPUT": str(output)},
                 clear=False,
             ):
                 UPDATER.write_github_outputs(result)
-                UPDATER.write_candidate_file(UPDATER.PythonVersion(15), candidate_file)
-                with self.assertRaisesRegex(UPDATER.UpdaterFailure, "strict child"):
-                    UPDATER.write_candidate_file(
-                        UPDATER.PythonVersion(15), directory / "outside"
-                    )
+                UPDATER.write_candidate_file(UPDATER.PythonVersion(15))
             self.assertIn("update_available=true", output.read_text(encoding="ascii"))
             self.assertEqual(candidate_file.read_text(encoding="ascii"), "3.13.15\n")
+
+    def test_candidate_file_cli_rejects_a_caller_selected_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            outside = Path(temporary_directory) / "outside"
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    str(UPDATER_PATH),
+                    "--check",
+                    "--write-candidate-file",
+                    str(outside),
+                ],
+            ):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit):
+                        UPDATER.parse_args()
 
 
 if __name__ == "__main__":
