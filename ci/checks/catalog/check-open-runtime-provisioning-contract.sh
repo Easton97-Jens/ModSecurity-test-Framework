@@ -61,6 +61,7 @@ assert_pin() {
     else
         case "$sha256" in
             *[!0-9A-Fa-f]*) fail "${component}_SHA256 is not hexadecimal" ;;
+            *) : ;;
         esac
     fi
 }

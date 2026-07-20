@@ -231,6 +231,31 @@ def unsupported_mapping_key_syntax(value: str, start: int) -> str | None:
     return None
 
 
+def github_expression_end(value: str, start: int) -> int | None:
+    """Return the index after a GitHub expression starting at ``start``."""
+
+    if not value.startswith("${{", start):
+        return None
+    expression_end = value.find("}}", start + 3)
+    return len(value) if expression_end == -1 else expression_end + 2
+
+
+def flow_mapping_key_syntax_at(
+    value: str, index: int, flow_depth: int
+) -> tuple[int, str | None]:
+    """Update flow depth and check syntax that can start a mapping key."""
+
+    character = value[index]
+    if character == "{":
+        flow_depth += 1
+    elif character == "}":
+        flow_depth = max(0, flow_depth - 1)
+        return flow_depth, None
+    elif character != "," or not flow_depth:
+        return flow_depth, None
+    return flow_depth, unsupported_mapping_key_syntax(value, index + 1)
+
+
 def flow_mapping_unsupported_key_syntax(line: str) -> str | None:
     """Return unsupported explicit/node-property key syntax in flow mappings."""
 
@@ -244,23 +269,13 @@ def flow_mapping_unsupported_key_syntax(line: str) -> str | None:
         if consumed:
             index += 1
             continue
-        if line.startswith("${{", index):
-            expression_end = line.find("}}", index + 3)
-            if expression_end == -1:
-                return None
-            index = expression_end + 2
+        expression_end = github_expression_end(line, index)
+        if expression_end is not None:
+            index = expression_end
             continue
-        if character == "{":
-            flow_depth += 1
-            error = unsupported_mapping_key_syntax(line, index + 1)
-            if error:
-                return error
-        elif character == "," and flow_depth:
-            error = unsupported_mapping_key_syntax(line, index + 1)
-            if error:
-                return error
-        elif character == "}":
-            flow_depth = max(0, flow_depth - 1)
+        flow_depth, error = flow_mapping_key_syntax_at(line, index, flow_depth)
+        if error:
+            return error
         index += 1
     return None
 
@@ -288,8 +303,8 @@ def unsupported_multiline_yaml_syntax(line: str) -> str | None:
     return None
 
 
-def flow_uses_value(line: str, start: int) -> tuple[str, int] | None:
-    """Return a flow-mapping ``uses`` value beginning at ``start``, if any."""
+def flow_uses_value_start(line: str, start: int) -> int | None:
+    """Return the value start for a flow-mapping ``uses`` entry, if any."""
 
     index = skip_whitespace(line, start)
     key_end = consume_uses_key(line, index)
@@ -298,14 +313,16 @@ def flow_uses_value(line: str, start: int) -> tuple[str, int] | None:
     index = skip_whitespace(line, key_end)
     if index >= len(line) or line[index] != ":":
         return None
-    index += 1
-    while index < len(line) and line[index].isspace():
-        index += 1
+    return skip_whitespace(line, index + 1)
 
-    value_start = index
+
+def flow_scalar_value_end(line: str, start: int) -> int:
+    """Return the first delimiter after a flow scalar value."""
+
     nested_flow = 0
     quote: str | None = None
     escaped = False
+    index = start
     while index < len(line):
         character = line[index]
         quote, escaped, consumed = advance_yaml_quote(quote, escaped, character)
@@ -316,12 +333,22 @@ def flow_uses_value(line: str, start: int) -> tuple[str, int] | None:
             nested_flow += 1
         elif character in "]}":
             if nested_flow == 0:
-                return line[value_start:index].strip(), index
+                return index
             nested_flow -= 1
         elif character == "," and nested_flow == 0:
-            return line[value_start:index].strip(), index
+            return index
         index += 1
-    return line[value_start:].strip(), index
+    return index
+
+
+def flow_uses_value(line: str, start: int) -> tuple[str, int] | None:
+    """Return a flow-mapping ``uses`` value beginning at ``start``, if any."""
+
+    value_start = flow_uses_value_start(line, start)
+    if value_start is None:
+        return None
+    value_end = flow_scalar_value_end(line, value_start)
+    return line[value_start:value_end].strip(), value_end
 
 
 def flow_mapping_uses_values(line: str) -> list[str]:
