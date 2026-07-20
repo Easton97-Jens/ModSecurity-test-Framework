@@ -27,6 +27,7 @@ write permission. No such behavior was removed by this hardening work.
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, filtered `pull_request` | `actions/checkout` | `contents: read` | PR source is untrusted; it runs read-only with no persisted checkout credential. |
 | `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | workflow default `contents: read`; updater job effective `contents: write`, `pull-requests: write` | Scheduled/manual trusted-maintainer workflow; no pull-request trigger. |
+| `check-python-version.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | workflow default `contents: read`; only publisher job effective `contents: write`, `pull-requests: write` | Resolver and candidate jobs are read-only; the publisher independently re-resolves one stable candidate and creates only a fixed-branch Draft PR for `.python-version`, never a merge. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, schedule | `actions/github-script` | workflow default `contents: read`; cleanup job effective `actions: write` | Scheduled/manual trusted-maintainer workflow; its job can delete repository artifacts only. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout` | `contents: read` | PR source and its development dependencies are untrusted; no write permission, secret, persisted credential, or submodule is configured. |
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout` | `contents: read` | PR source is untrusted; no write permission, secret, persisted credential, or submodule is configured. |
@@ -41,9 +42,9 @@ releases, and commit identities are:
 | Action | Official upstream | Release | Commit SHA | License | Necessary use |
 | --- | --- | --- | --- | --- | --- |
 | `actions/checkout` | [actions/checkout](https://github.com/actions/checkout) | `v7.0.0` | `9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0` | MIT | Checks out the Framework source for validation or maintenance. |
-| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | `v6.3.0` | `ece7cb06caefa5fff74198d8649806c4678c61a1` | MIT | Selects Python for the common-version updater. |
+| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | `v6.3.0` | `ece7cb06caefa5fff74198d8649806c4678c61a1` | MIT | Selects the exact `.python-version` interpreter for Framework CI and controlled maintenance validation. |
 | `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Calls the GitHub Actions artifact API for retention cleanup. |
-| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Creates the scheduled/manual common-version update pull request. |
+| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Creates constrained scheduled/manual maintenance Draft pull requests. |
 
 The contract rejects tags, branches, shortened or uppercase SHAs, dynamic
 references, Docker references, malformed or block-scalar `uses:` values,
@@ -65,10 +66,11 @@ permissions:
 
 Only a trusted job may replace that baseline with a smaller purpose-specific
 permission map. `check-common-versions` needs repository-content and
-pull-request writes to create its maintenance PR; `cleanup-artifacts` needs
-only `actions: write` to delete artifacts; the trusted non-PR CodeQL upload
-job needs `security-events: write`. No PR-triggered job may grant a write
-permission.
+pull-request writes to create its maintenance PR; `check-python-version` gives
+the same two writes only to its publisher job after a resolver and candidate
+job have remained read-only; `cleanup-artifacts` needs only `actions: write` to
+delete artifacts; the trusted non-PR CodeQL upload job needs `security-events:
+write`. No PR-triggered job may grant a write permission.
 
 Each direct `actions/checkout` use sets:
 
@@ -77,15 +79,23 @@ with:
   persist-credentials: false
 ```
 
-The common-version updater exposes `GITHUB_TOKEN` only in the `Validate and
-update common.sh` shell step, and the pull-request Action continues to receive
-its explicit `token: ${{ github.token }}` input. Workflow- and job-level
-environments may not expose `github.token` under any variable name, including
-`GITHUB_TOKEN`. GitHub permissions are job-scoped rather than step-scoped:
-narrowing an environment variable reduces direct shell exposure but does not
-turn a write-capable trusted job into a per-step permission boundary. That job
-is consequently limited to scheduled or manual trusted-maintainer triggers and
-contains no PR event.
+This prevents the checkout credential from persisting for later Git commands.
+GitHub still provides an automatic job token to Actions, and `actions/checkout`
+uses that job-scoped default input unless an action explicitly receives another
+credential. The common-version updater exposes `GITHUB_TOKEN` only in the
+`Validate and update common.sh` shell step, and its pull-request Action receives
+an explicit `token: ${{ github.token }}` input. The Python-version resolver and
+candidate jobs declare no token or secret reference; the publisher declares one
+explicit token only for its reviewed pull-request Action. The contract rejects
+an explicit token/secret reference in any reader job or elsewhere in the
+publisher, including a `run`-step environment. The publisher independently
+re-resolves the candidate, allows only `.python-version` in both the checked
+diff and `add-paths`, fixes the automation branch, sets `draft: true`, and
+rejects merge or auto-merge shell commands in the source contract. GitHub
+permissions are job-scoped rather than step-scoped: narrowing an environment
+variable reduces direct shell exposure but does not turn a write-capable trusted
+job into a per-step permission boundary. That job is consequently limited to
+scheduled or manual trusted-maintainer triggers and contains no PR event.
 
 For every `pull_request` workflow, the checker rejects `pull_request_target`,
 write permissions, `secrets.` and `secrets[...]` references, reusable-workflow
@@ -109,8 +119,18 @@ contract.
 make check-github-actions-pins
 make check-github-actions-permissions
 make check-github-actions-workflows
+make check-python-version
 make test-workflow-security-contract
 ```
+
+`ci/checks/security/check-python-version.py` separately requires the canonical
+regular `.python-version` file, recursive workflow coverage, setup before every
+direct or Make-driven Python command, no hard-coded patch or Python matrix, no
+bare `pip`, and only the controlled `RUNNER_TEMP` candidate-file exception in
+the direct `.github/workflows/check-python-version.yml` read-only validation
+job. The CI-security contract additionally enforces
+the exact three-job maintenance topology, trusted publisher gate, publisher
+revalidation, fixed Draft-PR branch, and `.python-version`-only path scope.
 
 The regression suite first validates the real workflows, then proves that safe
 read-only-PR and trusted-writer fixtures pass. Unsafe fixtures prove rejection
@@ -144,6 +164,12 @@ protection, workflow review, action provenance review, actionlint, zizmor,
 CodeQL, Scorecard, or SonarQube Cloud. Those controls must be evaluated on the
 actual pull-request head. Tool availability is recorded truthfully in the
 Change Record; an unavailable local tool is not treated as a passed check.
+
+For the Python-version publisher, GitHub permissions to dispatch a workflow,
+protected-default-branch rules, required checks, SonarQube Cloud, review
+freshness, and the token-created Draft PR's exact head are hosted controls.
+They must be verified for each published head before any human merges it; the
+workflow itself never merges or enables auto-merge.
 
 If a future workflow changes the documented artifact/SARIF exception, consumes
 artifacts across a trust boundary, uses OIDC, invokes a reusable workflow, or

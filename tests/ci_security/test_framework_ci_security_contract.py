@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import importlib.util
 import os
 from pathlib import Path
@@ -226,9 +227,91 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                 """
             ),
         )
-        self.assertTrue(any("exact reviewed CPython" in error for error in errors))
+        self.assertTrue(any("python-version-file" in error for error in errors))
         self.assertTrue(any("check-latest" in error for error in errors))
         self.assertTrue(any("hash-locked" in error for error in errors))
+
+    def test_python_maintenance_writer_is_scheduled_draft_only_and_fail_closed(self) -> None:
+        workflow = ROOT / ".github/workflows/check-python-version.yml"
+        data = CHECKER.load_yaml(workflow)
+        self.assertIsInstance(data, dict)
+        self.assertEqual(CHECKER.python_version_maintenance_errors(workflow, data), [])
+
+        untrusted_trigger = copy.deepcopy(data)
+        untrusted_trigger[True]["pull_request"] = None
+        errors = CHECKER.python_version_maintenance_errors(workflow, untrusted_trigger)
+        self.assertTrue(any("scheduled/manual only" in error for error in errors))
+
+        broad_writer = copy.deepcopy(data)
+        create_pr = broad_writer["jobs"]["publish"]["steps"][-1]["with"]
+        create_pr["add-paths"] = ".python-version\nREADME.md"
+        errors = CHECKER.python_version_maintenance_errors(workflow, broad_writer)
+        self.assertTrue(any("add-paths" in error for error in errors))
+
+        auto_merge = copy.deepcopy(data)
+        auto_merge["jobs"]["publish"]["steps"][-2]["run"] += "\ngh pr merge --auto"
+        errors = CHECKER.python_version_maintenance_errors(workflow, auto_merge)
+        self.assertTrue(any("must not merge" in error for error in errors))
+
+        reader_secret = copy.deepcopy(data)
+        reader_secret["jobs"]["resolve"]["env"] = {
+            "TOKEN": "${{ secrets.GITHUB_TOKEN }}"
+        }
+        errors = CHECKER.python_version_maintenance_errors(workflow, reader_secret)
+        self.assertTrue(any("must not declare a GitHub token or secret" in error for error in errors))
+
+        candidate_secret = copy.deepcopy(data)
+        candidate_secret["jobs"]["candidate-validate"]["steps"][-1]["env"] = {
+            "TEST_SECRET": "${{ secrets.FRAMEWORK_TEST_SECRET }}"
+        }
+        errors = CHECKER.python_version_maintenance_errors(workflow, candidate_secret)
+        self.assertTrue(any("must not declare a GitHub token or secret" in error for error in errors))
+
+        reader_shell_token = copy.deepcopy(data)
+        reader_shell_token["jobs"]["candidate-validate"]["steps"][-1]["run"] += (
+            "\nprintf '%s\\n' \"$GITHUB_TOKEN\""
+        )
+        errors = CHECKER.python_version_maintenance_errors(workflow, reader_shell_token)
+        self.assertTrue(any("must not declare a GitHub token or secret" in error for error in errors))
+
+        publisher_secret = copy.deepcopy(data)
+        publisher_secret["jobs"]["publish"]["steps"][-2]["env"] = {
+            "TOKEN": "${{ github.token }}"
+        }
+        errors = CHECKER.python_version_maintenance_errors(workflow, publisher_secret)
+        self.assertTrue(any("only declare github.token" in error for error in errors))
+
+        publisher_indexed_token = copy.deepcopy(data)
+        publisher_indexed_token["jobs"]["publish"]["steps"][-2]["env"] = {
+            "TOKEN": "${{ github['token'] }}"
+        }
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, publisher_indexed_token
+        )
+        self.assertTrue(any("only declare github.token" in error for error in errors))
+
+        publisher_bracketed_secret = copy.deepcopy(data)
+        publisher_bracketed_secret["jobs"]["publish"]["steps"][-2]["env"] = {
+            "TOKEN": "${{ secrets['FRAMEWORK_TEST_SECRET'] }}"
+        }
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, publisher_bracketed_secret
+        )
+        self.assertTrue(any("only declare github.token" in error for error in errors))
+
+        duplicate_pr_action = copy.deepcopy(data)
+        duplicate_pr_action["jobs"]["publish"]["steps"].append(
+            copy.deepcopy(duplicate_pr_action["jobs"]["publish"]["steps"][-1])
+        )
+        errors = CHECKER.python_version_maintenance_errors(workflow, duplicate_pr_action)
+        self.assertTrue(any("exactly one" in error for error in errors))
+
+        publisher_body = copy.deepcopy(data)
+        publisher_body["jobs"]["publish"]["steps"][-1]["with"][
+            "body-path"
+        ] = "python-version-pr-body.md"
+        errors = CHECKER.python_version_maintenance_errors(workflow, publisher_body)
+        self.assertTrue(any("body-path" in error for error in errors))
 
     def test_token_references_and_tool_paths_are_fail_closed(self) -> None:
         token_errors = CHECKER.trust_boundary_errors(
