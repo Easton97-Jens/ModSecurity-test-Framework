@@ -9,7 +9,7 @@
 | Change ID | `20260719-02-bind-phase4-evidence-identity` |
 | UTC date | 2026-07-19 |
 | Framework base revision | `9a729226d2e040d07d7e7a4acebf201faf06ab37` |
-| Issue or pull request | FND-CROSS-0006; Framework PR pending |
+| Issue or pull request | FND-CROSS-0006; [Framework PR #34](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/34). This record preserves verified prior-head delivery evidence; its status follow-up requires fresh exact-head verification before merge. |
 
 ## Motivation and problem statement
 
@@ -26,7 +26,7 @@ The security boundary is canonical evidence promotion. Event, result, manifest, 
 
 - Foreign or missing event run ID, connector, integration mode, or transaction identity fails closed.
 - A result/manifest workload-identity mismatch fails closed.
-- A transaction from one Phase-4 PASS case cannot satisfy the other case's first-byte claim.
+- An event transaction identity not supplied by the selected live Phase-4 PASS record cannot satisfy that claim.
 - The identity-consistent selected control passes the first-byte, no-full-buffering, event-privacy, and promotion checks.
 - Parent files, Parent gitlink, and MRTS remain unchanged.
 
@@ -36,19 +36,19 @@ Parent consumer wiring, filename matching, PASS-only selection, and event-only m
 
 ## Implementation decision
 
-The strict matcher derives selected identity from result and manifest, requires it on the specific live selected Phase-4 PASS record for the claim, and requires the event transaction ID to belong to that same record before comparing first-byte fields. Missing or mismatched identity, including cross-case identity mixing, fails closed. The unrelated source-fixed FND-FRAMEWORK-0017 CI-parser control is excluded.
+The strict matcher derives selected identity from result and manifest, requires it on the specific live selected Phase-4 PASS record for the claim, and requires the event transaction ID to belong to that record before comparing first-byte fields. Missing or mismatched identity, including a selected Phase-4 record workload-identity mismatch, fails closed. The unrelated source-fixed FND-FRAMEWORK-0017 CI-parser control is excluded.
 
 ## Changed files and tests
 
 - `ci/checks/evidence/check_full_lifecycle_evidence.py`: binds strict event matching to selected workload identity.
-- `tests/no_crs/test_no_crs_baseline.py`: adds an identity-consistent control, foreign/missing identity regressions, a result/manifest mismatch regression, and a cross-case identity-mixing regression.
+- `tests/no_crs/test_no_crs_baseline.py`: adds an identity-consistent control, foreign/missing identity regressions, a result/manifest mismatch regression, and a selected Phase-4 record identity-mismatch regression.
 - This English/German Change Record pair records the Framework-only remediation.
 
 ## Commands and results
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
-| Focused four-method Framework `unittest` with external temporary root | 0 | Selected control passed; foreign/missing event identity, result/manifest mismatch, and cross-case identity mixing were rejected. | `20260719T224634Z-framework-phase4-blocker-remediation-46e971f1` |
+| Focused four-method Framework `unittest` with external temporary root | 0 | Selected control passed; foreign/missing event identity, result/manifest mismatch, and a selected Phase-4 record identity mismatch were rejected. | `20260719T224634Z-framework-phase4-blocker-remediation-46e971f1` |
 | `python -m py_compile` for the two changed Python files with external bytecode root | 0 | Both files compiled. | `20260719T224634Z-framework-phase4-blocker-remediation-46e971f1` |
 | `make -C "$FRAMEWORK_ROOT" ... test-no-crs-contract` with external roots | 0 | 84 No-CRS contract tests passed. | `20260719T224634Z-framework-phase4-blocker-remediation-46e971f1` |
 | `make -C "$FRAMEWORK_ROOT" ... lint` with external build and temporary roots | 0 | Repository lint, security/data-flow, documentation, Change-Record, catalog, and whitespace checks passed. | `20260719T224634Z-framework-phase4-blocker-remediation-46e971f1` |
@@ -57,7 +57,7 @@ The strict matcher derives selected identity from result and manifest, requires 
 
 ## Security impact
 
-The original missing-run-ID acceptance control was reproduced before the fix. The new regressions retest foreign and missing run ID, connector, integration mode, transaction identity, result/manifest mismatch, and cross-case identity mixing; the legitimate selected control remains accepted. No security control or MRTS boundary was weakened.
+The original missing-run-ID acceptance control was reproduced before the fix. The new regressions retest foreign and missing run ID, connector, integration mode, transaction identity, result/manifest mismatch, and selected Phase-4 record identity mismatch; the legitimate selected control remains accepted. No security control or MRTS boundary was weakened.
 
 ## Documentation and runtime evidence
 
@@ -65,7 +65,7 @@ This paired Change Record is the only reader-facing Framework documentation chan
 
 ## Checks not run
 
-Exact-head GitHub Actions, SonarQube Cloud, and review/thread verification are pending the Framework PR. The local Framework interpreter is CPython 3.14.4 while the checked-in CI contract targets CPython 3.13, so local tests are not CI-parity evidence. MRTS tests are not applicable.
+At the prior PR head `d7b9e67bb11435c7bf7ce8a84bc73724dd943ac6`, applicable GitHub Actions passed, SonarQube Cloud reported a passed Quality Gate, and no reviews or review threads existed. This status update changes the PR head, so its exact-head GitHub Actions, SonarQube Cloud, and review/thread verification must be repeated before merge. The local Framework interpreter is CPython 3.14.4 while the checked-in CI contract targets CPython 3.13, so local tests are not CI-parity evidence. MRTS tests are not applicable.
 
 ## Limitations and residual risk
 
@@ -73,4 +73,4 @@ The repair establishes only the reusable Framework identity-validation contract;
 
 ## Final diff and review status
 
-Implementation, focused/full No-CRS validation, repository lint, whitespace review, and final security diff review are complete. Commit, push, PR creation, and exact-head CI/Sonar/review verification are pending.
+Implementation, focused/full No-CRS validation, repository lint, whitespace review, and final security diff review were completed before PR #34 was created. At its prior exact head, applicable GitHub Actions and SonarQube Cloud passed and no review feedback existed. This delivery-status update creates a new head; fresh exact-head CI, Sonar, review, merge, and resulting-master evidence remain required and are retained in task-completion evidence without a self-referential commit loop.

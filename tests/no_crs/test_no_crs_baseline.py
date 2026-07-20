@@ -1229,7 +1229,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             manifest_path.write_text(json.dumps(manifest_payload), encoding="utf-8")
             self.assert_full_lifecycle_identity_rejected(run_dir)
 
-    def test_full_lifecycle_checker_rejects_cross_case_identity_mixing(self) -> None:
+    def test_full_lifecycle_checker_rejects_selected_phase4_record_identity_mismatch(self) -> None:
         mutations = {
             "foreign_run": ("run_id", "foreign-run"),
             "foreign_integration_mode": ("integration_mode", "unit-test-host-model"),
