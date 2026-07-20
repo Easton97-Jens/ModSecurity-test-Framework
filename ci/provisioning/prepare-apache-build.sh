@@ -119,7 +119,8 @@ require_command() {
 }
 
 sha256_digest() {
-    sha256sum "$1" | awk '{print $1}'
+    input_file=$1
+    sha256sum "$input_file" | awk '{print $1}'
 }
 
 require_c_header() {

@@ -66,6 +66,14 @@ two shell case statements make their fall-through explicit. The documentation
 regex uses an ASCII-scoped word class equivalent to its former ASCII boundary
 while retaining Unicode whitespace behavior.
 
+The first exact-head Draft-PR analysis surfaced three newly introduced
+Framework rows: an unused extracted catalog return value, an unreachable branch
+introduced by the direct mapping-equality form, and a positional shell parameter
+used directly by the digest helper. The follow-up returns only the consumed
+catalog prefix, compares every field of the fixed plan semantic projection, and
+binds the POSIX digest input to a descriptive variable before the unchanged
+quoted checksum pipeline.
+
 Five Framework scanner security rows received source-to-sink/control analysis,
 not speculative code changes: current deterministic output roots, containment,
 symlink checks, deny-list behavior, and fail-closed validations are retained
@@ -83,13 +91,15 @@ Changed Framework files:
 - ci/checks/catalog/check-crs-version-pinning.sh
 - tests/security_regression/test_workflow_action_pins.py
 - tests/security_regression/test_variable_documentation_assignment_regex.py
+- tests/security_regression/test_no_crs_catalog_maintainability_wave.py
 - reports/audits/change-records/20260720-01-remediate-framework-master-sonarcloud.md
 - reports/audits/change-records/20260720-01-remediate-framework-master-sonarcloud.de.md
 
 The added tests protect an action-pin flow mapping with a GitHub expression and
 the corrected closing-flow-delimiter scan, plus ASCII/non-ASCII boundary and
-Unicode-whitespace assignment behavior. Existing No-CRS, transport, runner
-containment, runtime-snapshot, checksum, and CRS-pinning tests provide
+Unicode-whitespace assignment behavior. The No-CRS semantic-plan regression
+now rejects a mismatch in every projected field. Existing No-CRS, transport,
+runner-containment, runtime-snapshot, checksum, and CRS-pinning tests provide
 negative and legitimate controls.
 
 ## Commands and results
@@ -118,6 +128,13 @@ C11 rtk env TMPDIR="$task_run_root/tmp/final-open-runtime" sh ci/checks/catalog/
 C12 rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX="$task_run_root/build/final-pycompile/pycache" "$framework_python" -m py_compile ci/checks/catalog/no_crs_baseline.py ci/checks/security/check-workflow-action-pins.py ci/checks/documentation/check-variable-documentation.py
 C13 rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$task_run_root/tmp/final-lint" TEST_TMPDIR="$task_run_root/tmp/final-lint" PYTHONPYCACHEPREFIX="$task_run_root/build/final-lint/pycache" BUILD_ROOT="$task_run_root/build/final-lint" TMP_ROOT="$task_run_root/tmp/final-lint" STATE_HOME="$task_run_root/state/final-lint" make PYTHON="$framework_python" lint
 C14 rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$task_run_root/tmp/final-lint" TEST_TMPDIR="$task_run_root/tmp/final-lint" PYTHONPYCACHEPREFIX="$task_run_root/build/final-lint/pycache" BUILD_ROOT="$task_run_root/build/final-lint" TMP_ROOT="$task_run_root/tmp/final-lint" STATE_HOME="$task_run_root/state/final-lint" make PYTHON="$framework_python" lint
+C15 rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$task_run_root/tmp/followup-maintainability" TEST_TMPDIR="$task_run_root/tmp/followup-maintainability" PYTHONPYCACHEPREFIX="$task_run_root/build/followup-maintainability/pycache" "$framework_python" tests/security_regression/test_no_crs_catalog_maintainability_wave.py -v
+C16 rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$task_run_root/tmp/followup-no-crs" TEST_TMPDIR="$task_run_root/tmp/followup-no-crs" PYTHONPYCACHEPREFIX="$task_run_root/build/followup-no-crs/pycache" "$framework_python" tests/no_crs/test_no_crs_baseline.py -v
+C17 rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$task_run_root/tmp/followup-catalog" TEST_TMPDIR="$task_run_root/tmp/followup-catalog" PYTHONPYCACHEPREFIX="$task_run_root/build/followup-catalog/pycache" "$framework_python" ci/checks/catalog/no_crs_baseline.py catalog-check
+C18 rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$task_run_root/tmp/followup-pcre2" TEST_TMPDIR="$task_run_root/tmp/followup-pcre2" PYTHONPYCACHEPREFIX="$task_run_root/build/followup-pcre2/pycache" "$framework_python" tests/security_regression/test_pcre2_archive_digest.py -v
+C19 rtk sh -n ci/provisioning/prepare-apache-build.sh
+C20 rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX="$task_run_root/build/followup-maintainability/pycache" "$framework_python" -m py_compile ci/checks/catalog/no_crs_baseline.py
+C21 rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$task_run_root/tmp/followup-lint" TEST_TMPDIR="$task_run_root/tmp/followup-lint" PYTHONPYCACHEPREFIX="$task_run_root/build/followup-lint/pycache" BUILD_ROOT="$task_run_root/build/followup-lint" TMP_ROOT="$task_run_root/tmp/followup-lint" STATE_HOME="$task_run_root/state/followup-lint" make PYTHON="$framework_python" lint
 </pre>
 
 | Command ID | Exit code | Concise result | Run ID or approved evidence path |
@@ -136,6 +153,13 @@ C14 rtk env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$task_run_root/
 | C12 | 0 | syntax compilation passed | 20260720T075840Z-master-sonarcloud-remediation-9cc184c6 |
 | C13 | 2 | first native lint stopped only on local developer paths in new versioned records; no source failure | 20260720T075840Z-master-sonarcloud-remediation-9cc184c6 |
 | C14 | 0 | full native lint passed after the documentation-path correction | 20260720T075840Z-master-sonarcloud-remediation-9cc184c6 |
+| C15 | 0 | 5 maintainability regressions passed, including every semantic-plan mismatch field | 20260720T075840Z-master-sonarcloud-remediation-9cc184c6 |
+| C16 | 0 | 74 No-CRS baseline tests passed; expected negative-control diagnostics were emitted | 20260720T075840Z-master-sonarcloud-remediation-9cc184c6 |
+| C17 | 0 | no-crs-catalog PASS, 166 cases | 20260720T075840Z-master-sonarcloud-remediation-9cc184c6 |
+| C18 | 0 | 3 checksum/negative-path tests passed | 20260720T075840Z-master-sonarcloud-remediation-9cc184c6 |
+| C19 | 0 | POSIX shell syntax passed for the follow-up digest helper | 20260720T075840Z-master-sonarcloud-remediation-9cc184c6 |
+| C20 | 0 | follow-up No-CRS Python compilation passed | 20260720T075840Z-master-sonarcloud-remediation-9cc184c6 |
+| C21 | 0 | full native lint passed for the follow-up working diff | 20260720T075840Z-master-sonarcloud-remediation-9cc184c6 |
 
 ## Security impact
 
@@ -189,10 +213,11 @@ static/focused validation, not connector runtime evidence.
 A full unconstrained repository suite was not run because the active task
 requires avoiding commands that could traverse or inspect MRTS. Local
 SonarCloud analysis is not an accepted substitute for a current GitHub/PR
-analysis. Remote GitHub CI, current-head SonarCloud Quality Gate, current-head
-issue readback, normal push, and draft PR creation remain pending at this
-record's current revision. C14 is the successful full native lint result; it
-is local verification, not remote evidence.
+analysis. The first exact-head Draft-PR analysis completed and found three new
+Framework rows; its Quality Gate was ERROR only on new reliability rating. The
+normal follow-up commit, fresh exact-head remote CI/SonarCloud readback, and
+Draft-PR readiness decision remain pending. C14 and C21 are successful local full native
+lint results; they are not remote evidence.
 
 An initial PCRE2 test attempt and one Make invocation used non-existent
 task-local temporary subdirectories; the former failed before the test could
@@ -212,8 +237,8 @@ no-prohibited-action completion criterion.
 
 ## Final diff and review status
 
-The uncommitted Framework diff has passed whitespace review and full native
-make lint. An independent security-focused review found no validated functional
-regression, security control weakening, compatibility break, or accidental scope
-creep. Normal task-branch commit/push, PR creation, and exact-head remote
-verification remain pending. No merge is authorized.
+The first Framework remediation commit was delivered as Draft PR #35 and its
+remote analysis correctly detected the three follow-up Framework rows above.
+The follow-up working diff has passed focused No-CRS and checksum controls and
+full native lint. Final diff review, normal follow-up commit/push, and a fresh
+exact-head remote verification remain pending. No merge is authorized.

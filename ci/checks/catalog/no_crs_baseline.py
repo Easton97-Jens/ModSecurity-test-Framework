@@ -1198,7 +1198,7 @@ def _validate_catalog_cases(
 ) -> set[str]:
     seen: set[str] = set()
     for case in cases:
-        case_id, prefix = _catalog_case_identity(case, seen, errors)
+        prefix = _catalog_case_identity(case, seen, errors)
         _validate_catalog_case_required_fields(case, prefix, required, errors)
         _validate_catalog_case_capabilities(case, prefix, errors)
         _validate_catalog_case_shape(case, prefix, errors)
@@ -1217,7 +1217,7 @@ def _validate_catalog_cases(
 
 def _catalog_case_identity(
     case: Mapping[str, Any], seen: set[str], errors: list[str],
-) -> tuple[str, str]:
+) -> str:
     case_id = str(case.get("case_id") or "")
     prefix = case_id or "<missing-case-id>"
     if not case_id:
@@ -1225,7 +1225,7 @@ def _catalog_case_identity(
     elif case_id in seen:
         errors.append(f"duplicate case_id: {case_id}")
     seen.add(case_id)
-    return case_id, prefix
+    return prefix
 
 
 def _validate_catalog_case_required_fields(
@@ -1690,6 +1690,18 @@ def plan_semantics(plan: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def plans_have_matching_semantics(
+    plan: Mapping[str, Any], expected: Mapping[str, Any],
+) -> bool:
+    """Compare every field in the fixed capability-plan semantic projection."""
+    actual_semantics = plan_semantics(plan)
+    expected_semantics = plan_semantics(expected)
+    return all(
+        actual_semantics[field] == expected_value
+        for field, expected_value in expected_semantics.items()
+    )
+
+
 def validate_plan_against_capabilities(
     plan: Mapping[str, Any],
     connector: str,
@@ -1701,13 +1713,10 @@ def validate_plan_against_capabilities(
     expected = select_cases(
         connector, manifest, catalog, evidence_stage, artifact_profile
     )
-    actual_semantics = plan_semantics(plan)
-    expected_semantics = plan_semantics(expected)
-    if actual_semantics == expected_semantics:
-        return
-    raise ContractError(
-        "plan does not match a fresh capability-driven selection; regenerate it with the select command"
-    )
+    if not plans_have_matching_semantics(plan, expected):
+        raise ContractError(
+            "plan does not match a fresh capability-driven selection; regenerate it with the select command"
+        )
 
 
 def nearest_existing_directory(path: Path) -> Path:
