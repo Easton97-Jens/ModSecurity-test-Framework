@@ -243,12 +243,13 @@ def github_expression_end(value: str, start: int) -> int | None:
 def flow_mapping_key_syntax_at(
     value: str, index: int, flow_depth: int
 ) -> tuple[int, str | None]:
-    """Update flow depth and check syntax that can start a mapping key."""
+    """Update flow depth and check syntax that can start a flow entry."""
 
     character = value[index]
-    if character == "{":
+    if character in "[{":
         flow_depth += 1
-    elif character == "}":
+        return flow_depth, unsupported_mapping_key_syntax(value, index + 1)
+    if character in "]}":
         flow_depth = max(0, flow_depth - 1)
         return flow_depth, None
     elif character != "," or not flow_depth:
@@ -351,8 +352,17 @@ def flow_uses_value(line: str, start: int) -> tuple[str, int] | None:
     return line[value_start:value_end].strip(), value_end
 
 
+def flow_collection_starts_at(line: str, index: int) -> bool:
+    """Return whether a flow collection marker can begin at ``index``."""
+
+    previous = index - 1
+    while previous >= 0 and line[previous].isspace():
+        previous -= 1
+    return previous < 0 or line[previous] in ":-,[{"
+
+
 def flow_mapping_uses_values(line: str) -> list[str]:
-    """Extract ``uses`` values from YAML flow mappings without parsing strings."""
+    """Extract ``uses`` values from YAML flow mappings and sequences."""
 
     values: list[str] = []
     flow_depth = 0
@@ -362,7 +372,7 @@ def flow_mapping_uses_values(line: str) -> list[str]:
         quote, escaped, consumed = advance_yaml_quote(quote, escaped, character)
         if consumed:
             continue
-        if character == "{":
+        if character in "[{" and flow_collection_starts_at(line, index):
             flow_depth += 1
             parsed = flow_uses_value(line, index + 1)
         elif character == "," and flow_depth:
@@ -372,7 +382,7 @@ def flow_mapping_uses_values(line: str) -> list[str]:
         if parsed:
             value, _ = parsed
             values.append(value)
-        if character == "}":
+        if character in "]}":
             flow_depth = max(0, flow_depth - 1)
     return values
 
