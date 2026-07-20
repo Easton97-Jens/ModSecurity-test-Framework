@@ -30,6 +30,9 @@ CI_ROOT = FRAMEWORK_ROOT / "ci"
 RUNNER_ROOT = FRAMEWORK_ROOT / "tests/runners"
 CATALOG_ROOT = CI_ROOT / "checks" / "catalog"
 PROTOCOL_ROOT = CI_ROOT / "checks" / "protocol"
+FILESYSTEM_ROOT = Path("/")
+SHARED_TEMPORARY_ROOT = FILESYSTEM_ROOT / "tmp"
+SOURCE_ROOT = FILESYSTEM_ROOT / "src"
 for path in (CATALOG_ROOT, PROTOCOL_ROOT, RUNNER_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
@@ -1743,7 +1746,7 @@ def safe_run_dir(run_dir: Path, connector_root: Path | None = None) -> None:
     absolute = lexical_absolute(run_dir)
     assert_no_symlink_components(absolute)
     assert_private_run_parent(absolute)
-    if str(absolute) in {"/", "/tmp", "/src"}:
+    if absolute in {FILESYSTEM_ROOT, SHARED_TEMPORARY_ROOT, SOURCE_ROOT}:
         raise ContractError(f"unsafe run-dir: {absolute}")
     protected = [FRAMEWORK_ROOT.resolve(strict=False)]
     if connector_root is not None:

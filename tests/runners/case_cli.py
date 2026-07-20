@@ -18,7 +18,6 @@ from msconnector_models import (
 from runner_core import (
     CONNECTORS,
     assert_case_artifacts,
-    contained_write_path,
     case_info as build_case_info,
     discover_case_files,
     effective_expect,
@@ -29,6 +28,7 @@ from runner_core import (
     write_headers_file,
     write_response_fixture,
     write_rules_file,
+    write_contained_text_file,
     write_shell_env,
     write_nginx_runtime_files,
 )
@@ -409,19 +409,18 @@ def _add_phase4_log_evidence(info: dict[str, object], phase4_log_file: str | Non
 
 
 def _write_or_print_case_info(info: dict[str, object], args: argparse.Namespace) -> None:
-    output = (
-        contained_write_path(args.output, _required_output_root(args, "case-info"))
-        if args.output
-        else None
-    )
+    output = args.output or None
     content = (
         json.dumps(info, sort_keys=True) + "\n"
         if output is not None
         else json.dumps(info, indent=2, sort_keys=True) + "\n"
     )
     if output is not None:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(content, encoding="utf-8")
+        write_contained_text_file(
+            output,
+            content,
+            output_root=_required_output_root(args, "case-info"),
+        )
     else:
         print(content, end="")
 

@@ -30,6 +30,7 @@ for path in (FRAMEWORK_ROOT / "tests" / "runners", FRAMEWORK_ROOT / "ci" / "lib"
         sys.path.insert(0, str(path))
 
 from runner_core import case_group, load_case  # noqa: E402
+from generated_report_utils import write_generated_report_file  # noqa: E402
 from response_body_status import (  # noqa: E402
     RESPONSE_BODY_RUNTIME_NOTE,
     is_response_body_related,
@@ -66,10 +67,15 @@ class SnapshotLayout:
     snapshot: Path
 
     def write(self, snapshot_data: dict) -> None:
-        if self.snapshot != build_safe_snapshot_path(self.output_root):
+        safe_snapshot_path = build_safe_snapshot_path(self.output_root)
+        if self.snapshot != safe_snapshot_path:
             raise ValueError(f"snapshot path must be the configured report snapshot: {self.snapshot}")
-        self.snapshot.parent.mkdir(parents=True, exist_ok=True)
-        self.snapshot.write_text(json.dumps(snapshot_data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+        safe_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+        write_generated_report_file(
+            safe_snapshot_path.parent,
+            SNAPSHOT_FILENAME,
+            json.dumps(snapshot_data, indent=2, sort_keys=False) + "\n",
+        )
 
 
 def resolve_allowed_output_root(output_root: str | Path | None) -> Path:

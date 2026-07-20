@@ -113,7 +113,17 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
             self.snapshot.configure_paths(framework_root, connector_root, framework_root)
             expected = self.snapshot.build_safe_snapshot_path(framework_root)
 
-            self.snapshot.active_snapshot_layout().write({"untrusted": "../outside.json"})
+            with mock.patch.object(
+                self.snapshot,
+                "write_generated_report_file",
+                wraps=self.snapshot.write_generated_report_file,
+            ) as write_snapshot:
+                self.snapshot.active_snapshot_layout().write({"untrusted": "../outside.json"})
+            write_snapshot.assert_called_once_with(
+                expected.parent,
+                self.snapshot.SNAPSHOT_FILENAME,
+                mock.ANY,
+            )
             self.assertEqual(
                 {"untrusted": "../outside.json"},
                 json.loads(expected.read_text(encoding="utf-8")),
@@ -128,3 +138,23 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "configured report snapshot"):
                 unexpected.write({"untrusted": "../outside.json"})
             self.assertFalse(outside.exists())
+
+    def test_snapshot_layout_rejects_a_linked_target_escaping_the_output_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            framework_root = root / "framework"
+            connector_root = root / "connector"
+            framework_root.mkdir()
+            connector_root.mkdir()
+            self.snapshot.configure_paths(framework_root, connector_root, framework_root)
+            expected = self.snapshot.build_safe_snapshot_path(framework_root)
+            expected.parent.mkdir(parents=True, exist_ok=True)
+            outside = root / "outside.json"
+            outside.write_text("unchanged\n", encoding="utf-8")
+            expected.symlink_to(outside)
+
+            with self.assertRaisesRegex(ValueError, "runtime snapshot path must stay under"):
+                self.snapshot.active_snapshot_layout().write({"untrusted": "content"})
+
+            self.assertTrue(expected.is_symlink())
+            self.assertEqual("unchanged\n", outside.read_text(encoding="utf-8"))

@@ -9,7 +9,7 @@
 | Change ID | 20260720-02-harden-nginx-https-redirects |
 | UTC date | 2026-07-20 |
 | Framework base revision | 784977615acfc55567e37b863309abc4a38ac877 |
-| Issue or pull request | SonarCloud AZ9_o2_jSLr5VHr-smcj (shell:S6506); task-branch delivery is pending and no merge is authorized. |
+| Issue or pull request | SonarCloud AZ9_o2_jSLr5VHr-smcj (shell:S6506) plus five legacy Framework write-path rows; Draft PR #37 is unmerged and no merge is authorized. |
 
 ## Motivation and problem statement
 
@@ -25,6 +25,10 @@ The Framework-only transport boundary includes:
 - ci/provisioning/prepare-nginx-build.sh
 - tests/security_regression/test_nginx_archive_digest.py
 - Makefile
+- ci/checks/catalog/no_crs_baseline.py
+- ci/reporting/update-runtime-snapshot.py
+- tests/runners/runner_core.py
+- tests/runners/case_cli.py
 
 The change constrains redirect protocols while preserving the independent
 pinned SHA-256 check before archive extraction. It changes no Parent,
@@ -39,6 +43,8 @@ connector, gitlink, or MRTS content.
 - The HTTP/3 TLS download receives the same source contract.
 - Direct tests cover existing /tmp, snapshot, runner, and case-information
   output-containment controls.
+- Each of the five legacy Framework rows receives a source-level remediation
+  that retains the existing rejection and output-root invariants.
 - No SonarCloud rule, profile, gate, exclusion, accepted issue, or NOSONAR
   setting changes.
 
@@ -70,20 +76,34 @@ including the HTTP/3 TLS archive.
 The named Make target test-nginx-archive-digest was added to lint so this
 transport contract remains project-native.
 
+The No-CRS control now compares its prohibited roots as fixed `Path` values,
+including the shared temporary root assembled from fixed components. Snapshot
+writing recomputes the canonical fixed filename immediately before the sink
+and uses the Framework's atomic, no-follow output writer. Rules and
+case-information outputs use the same writer only after revalidating their
+resolved target below the caller's required output root. The implementation
+does not accept an analyzer finding, suppress a rule, or relax path checks.
+
 ## Changed files and tests
 
 - ci/provisioning/prepare-nginx-build.sh
 - Makefile
 - tests/security_regression/test_nginx_archive_digest.py
+- ci/checks/catalog/no_crs_baseline.py
+- ci/reporting/update-runtime-snapshot.py
+- tests/runners/runner_core.py
+- tests/runners/case_cli.py
 - tests/no_crs/test_no_crs_baseline.py
 - tests/security_regression/test_runtime_snapshot_sonar.py
 - tests/security_regression/test_runner_core_output_containment.py
 - this English/German Change Record pair
 
 The NGINX regression failed before the patch because fake Curl required both
-HTTPS option values, then passed after the patch. The added containment controls
-reject /tmp, a mismatched snapshot destination, and an out-of-root
-case-information output while preserving legitimate contained writes.
+HTTPS option values, then passed after the patch. The follow-up containment
+controls retain /tmp and mismatched-snapshot rejection, write only to the
+recomputed fixed snapshot filename, reject runner and case-information targets
+that resolve outside their allowed root (including external links), and
+preserve legitimate nested writes.
 
 ## Commands and results
 
@@ -102,6 +122,12 @@ C07 rtk run 'PYTHONNOUSERSITE=1 PYTHONPYCACHEPREFIX="$task_run_root/build/runner
 C08 rtk curl 'https://sonarcloud.io/api/issues/search?organization=easton97-jens&componentKeys=Easton97-Jens_ModSecurity-test-Framework&branch=master&resolved=false&ps=100&p=1'
 C09 rtk curl 'https://sonarcloud.io/api/qualitygates/project_status?projectKey=Easton97-Jens_ModSecurity-test-Framework&branch=master'
 C10 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="$task_run_root/build/lint/pycache" TMPDIR="$task_run_root/tmp/lint" BUILD_ROOT="$task_run_root/build/lint" TMP_ROOT="$task_run_root/tmp/lint" LOG_ROOT="$task_run_root/logs/lint" FRAMEWORK_ROOT="$task_worktree" CONNECTOR_ROOT="$task_worktree" OUTPUT_ROOT="$task_worktree" CI_ROOT="$task_worktree/ci" make lint'
+C11 rtk run 'PYTHONNOUSERSITE=1 PYTHONPYCACHEPREFIX="$task_run_root/build/legacy-write-focused/pycache" TMPDIR="$task_run_root/tmp/legacy-write-focused" "$framework_python" -m unittest tests.no_crs.test_no_crs_baseline.NoCrsBaselineTest.test_run_directory_rejects_shared_tmp_root tests.security_regression.test_runtime_snapshot_sonar tests.security_regression.test_runner_core_output_containment -v'
+C12 rtk run 'PYTHONNOUSERSITE=1 PYTHONPYCACHEPREFIX="$task_run_root/build/legacy-write-remediation/pycache" TMPDIR="$task_run_root/tmp/legacy-write-remediation" "$framework_python" -m py_compile ci/checks/catalog/no_crs_baseline.py ci/reporting/update-runtime-snapshot.py tests/runners/runner_core.py tests/runners/case_cli.py'
+C13 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="$task_run_root/build/lint-legacy-write/pycache" TMPDIR="$task_run_root/tmp/lint-legacy-write" BUILD_ROOT="$task_run_root/build/lint-legacy-write" TMP_ROOT="$task_run_root/tmp/lint-legacy-write" LOG_ROOT="$task_run_root/logs/lint-legacy-write" FRAMEWORK_ROOT="$task_worktree" CONNECTOR_ROOT="$task_worktree" OUTPUT_ROOT="$task_worktree" CI_ROOT="$task_worktree/ci" make lint'
+C14 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="$task_run_root/build/doc-final/pycache" TMPDIR="$task_run_root/tmp/doc-final" BUILD_ROOT="$task_run_root/build/doc-final" TMP_ROOT="$task_run_root/tmp/doc-final" LOG_ROOT="$task_run_root/logs/doc-final" FRAMEWORK_ROOT="$task_worktree" CONNECTOR_ROOT="$task_worktree" OUTPUT_ROOT="$task_worktree" CI_ROOT="$task_worktree/ci" make test-change-record-contract'
+C15 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="$task_run_root/build/doc-final/pycache" TMPDIR="$task_run_root/tmp/doc-final" BUILD_ROOT="$task_run_root/build/doc-final" TMP_ROOT="$task_run_root/tmp/doc-final" LOG_ROOT="$task_run_root/logs/doc-final" FRAMEWORK_ROOT="$task_worktree" CONNECTOR_ROOT="$task_worktree" OUTPUT_ROOT="$task_worktree" CI_ROOT="$task_worktree/ci" make check-documentation'
+C16 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="$task_run_root/build/lint-final/pycache" TMPDIR="$task_run_root/tmp/lint-final" BUILD_ROOT="$task_run_root/build/lint-final" TMP_ROOT="$task_run_root/tmp/lint-final" LOG_ROOT="$task_run_root/logs/lint-final" FRAMEWORK_ROOT="$task_worktree" CONNECTOR_ROOT="$task_worktree" OUTPUT_ROOT="$task_worktree" CI_ROOT="$task_worktree/ci" make lint'
 ~~~
 
 | Command ID | Exit code | Concise result | Run ID |
@@ -116,6 +142,12 @@ C10 rtk run 'PYTHONNOUSERSITE=1 PYTHON="$framework_python" PYTHONPYCACHEPREFIX="
 | C08 | 0 | Current master reports 23 open rows: six Framework and 17 MRTS metadata-only rows. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
 | C09 | 0 | Current master Quality Gate is ERROR only on new_security_rating=5 against threshold 1. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
 | C10 | 0 | Replacement full lint passed with every Framework/connector/output root explicitly bound to the isolated task worktree; its final `git diff --check` also passed. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
+| C11 | 0 | 14 focused controls passed: direct shared-temporary-root rejection, five snapshot controls including escaping-link rejection, and eight runner/case containment controls including nested legitimate writes and external-link-target rejection. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
+| C12 | 0 | Python compilation passed for all four remediated implementation modules. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
+| C13 | 0 | Post-remediation full lint passed with explicit isolated Framework, connector, output, build, temporary, and log roots; its final `git diff --check` passed. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
+| C14 | 0 | Final Change Record contract passed all four tests with explicit isolated project and storage roots. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
+| C15 | 0 | Final documentation checks passed links, variables, repository paths, and Change Record validation with explicit isolated project and storage roots. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
+| C16 | 0 | Final full lint passed after the escaping-snapshot-link regression and final documentation edits, with every project and storage root explicitly isolated; its `git diff --check` passed. | 20260720T161432Z-master-post36-sonar-remediation-0ff399e8 |
 
 ## Security impact
 
@@ -132,16 +164,16 @@ The fresh SonarCloud readback retained five older Framework security signals:
 
 | Key | Rule | Reported sink | Current source/control disposition |
 | --- | --- | --- | --- |
-| AZ9cRqtu1JCbMyYXCAue | python:S5443 | ci/checks/catalog/no_crs_baseline.py:1746 | /tmp, public parents, symlink components, and source checkouts are rejected before a run root is used. |
-| AZ7Wh-x6WJ9AQTOMyhFJ | pythonsecurity:S8707 | ci/reporting/update-runtime-snapshot.py:72 | Snapshot target must equal the canonical report snapshot beneath the selected output root. |
-| AZ5Q3NAAoI4Cm-ZmWjGX | pythonsecurity:S2083 | ci/reporting/update-runtime-snapshot.py:72 | The same canonical snapshot-target guard applies. |
-| AZ55dzzC6nhd5cS8C48e | pythonsecurity:S2083 | tests/runners/runner_core.py:636 | contained_write_path rejects an output outside its trusted root before writing. |
-| AZ6jf1K_DIaptS4_Hf5n | pythonsecurity:S2083 | tests/runners/case_cli.py:424 | case-info uses the same guard and a required trusted output root. |
+| AZ9cRqtu1JCbMyYXCAue | python:S5443 | ci/checks/catalog/no_crs_baseline.py:1746 | /tmp, public parents, symlink components, and source checkouts remain rejected; fixed `Path` components make the rejected-root domain explicit. |
+| AZ7Wh-x6WJ9AQTOMyhFJ | pythonsecurity:S8707 | ci/reporting/update-runtime-snapshot.py:72 | The writer recomputes the canonical fixed snapshot path immediately before the sink. |
+| AZ5Q3NAAoI4Cm-ZmWjGX | pythonsecurity:S2083 | ci/reporting/update-runtime-snapshot.py:72 | The fixed snapshot filename is atomically replaced through the no-follow Framework output writer. |
+| AZ55dzzC6nhd5cS8C48e | pythonsecurity:S2083 | tests/runners/runner_core.py:636 | A resolved target is rechecked below the required root, then atomically written without following links. |
+| AZ6jf1K_DIaptS4_Hf5n | pythonsecurity:S2083 | tests/runners/case_cli.py:424 | case-info passes only a required-root-contained target to the same atomic writer. |
 
 Official flows for the latter four rows show tainted content reaching a write
-API, not a bypass of the path-containment controls. The rows remain open in the
-external analyzer; no false-positive, suppression, or accepted-issue action was
-taken.
+API, not a demonstrated bypass of the path-containment controls. The focused
+source-level remediations are pending a new exact PR-head analysis; no
+false-positive, suppression, or accepted-issue action was taken.
 
 ## Documentation and runtime evidence
 
@@ -184,10 +216,10 @@ evaluate this unmerged change.
 
 ## Limitations and residual risk
 
-Current master remains red because five historical Framework security rows and
-17 externally owned MRTS metadata rows remain open. Framework controls provide
-concrete counterevidence for the reported write-path risk, but cannot change
-the external analyzer status. A post-delivery master verification needs separate
+Current master remains red until the unmerged Framework changes are integrated
+and analyzed; the 17 externally owned MRTS metadata rows remain documentation-
+only. A current-head PR analysis is still required to verify the five source
+remediations, and a post-delivery master verification needs separate
 integration authorization; this task has no merge authority. The recorded
 interrupted lint boundary incident cannot be retroactively erased, although its
 explicit-root replacement passed; the overarching task therefore cannot claim a
@@ -195,7 +227,8 @@ fully clean cross-repository boundary history.
 
 ## Final diff and review status
 
-Focused tests, explicit-root full lint, and `git diff --check` have passed.
-Pending are the final scoped/security review, normal task-branch commit, push,
-Draft PR, and exact-head remote readback. No Parent, gitlink, MRTS source, or
-analyzer-configuration change is included.
+Focused post-remediation tests, Python compilation, the isolated full lint,
+and `git diff --check` have passed. Pending are final scoped/security review,
+normal follow-up commit and push to the existing Draft PR, and exact-head
+remote readback. No Parent, gitlink, MRTS source, or analyzer-configuration
+change is included.
