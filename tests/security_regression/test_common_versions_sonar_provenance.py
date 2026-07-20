@@ -130,6 +130,91 @@ class CommonVersionProvenanceTests(unittest.TestCase):
         self.assertEqual("${1BAD:-fallback}", CHECKER.resolve_value("${1BAD:-fallback}", {}))
         self.assertEqual("${é:-fallback}", CHECKER.resolve_value("${é:-fallback}", {}))
 
+    def test_parse_common_resolves_modsecurity_v3_approved_literals_before_aliases(self):
+        approved_repo = "https://github.com/owasp-modsecurity/ModSecurity.git"
+        approved_commit = "0fb4aff98b4980cf6426697d5605c424e3d5bb60"
+        release_tag = "v3.0.15"
+        fixture_source = "\n".join(
+            [
+                f'MODSECURITY_V3_APPROVED_REPO_URL="{approved_repo}"',
+                f'MODSECURITY_V3_APPROVED_COMMIT="{approved_commit}"',
+                f'MODSECURITY_V3_RELEASE_TAG="{release_tag}"',
+                'MODSECURITY_REPO_URL="${MODSECURITY_REPO_URL:-$MODSECURITY_V3_APPROVED_REPO_URL}"',
+                'MODSECURITY_GIT_REF="${MODSECURITY_GIT_REF:-$MODSECURITY_V3_RELEASE_TAG}"',
+                'MODSECURITY_V3_GIT_URL="${MODSECURITY_V3_GIT_URL:-$MODSECURITY_V3_APPROVED_REPO_URL}"',
+                'MODSECURITY_V3_GIT_REF="${MODSECURITY_V3_GIT_REF:-$MODSECURITY_V3_RELEASE_TAG}"',
+                "",
+            ]
+        )
+        missing_anchor_source = "\n".join(fixture_source.splitlines()[3:]) + "\n"
+
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            fixture = Path(temporary) / FIXTURE_NAME
+            _, entries = self.parse_fixture(fixture, fixture_source)
+            _, missing_entries = self.parse_fixture(fixture, missing_anchor_source)
+
+        self.assertEqual(approved_repo, CHECKER.value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"))
+        self.assertEqual(approved_commit, CHECKER.value(entries, "MODSECURITY_V3_APPROVED_COMMIT"))
+        self.assertEqual(release_tag, CHECKER.value(entries, "MODSECURITY_V3_RELEASE_TAG"))
+        self.assertEqual(approved_repo, CHECKER.value(entries, "MODSECURITY_REPO_URL"))
+        self.assertEqual(release_tag, CHECKER.value(entries, "MODSECURITY_GIT_REF"))
+        self.assertEqual(approved_repo, CHECKER.value(entries, "MODSECURITY_V3_GIT_URL"))
+        self.assertEqual(release_tag, CHECKER.value(entries, "MODSECURITY_V3_GIT_REF"))
+        self.assertEqual([], CHECKER.validate_entries(entries))
+        self.assertIsNone(
+            CHECKER.parse_common_assignment(
+                'UNRELATED_APPROVED_REPO_URL="https://example.invalid/unrelated.git"'
+            )
+        )
+        self.assertEqual(
+            [
+                "MODSECURITY_REPO_URL",
+                "MODSECURITY_GIT_REF",
+                "MODSECURITY_V3_GIT_URL",
+                "MODSECURITY_V3_GIT_REF",
+            ],
+            CHECKER.validate_entries(missing_entries),
+        )
+
+    def test_modsecurity_v3_release_requires_reviewed_tag_and_commit_pair(self):
+        class FakeGitHubClient:
+            def __init__(self) -> None:
+                self.urls: list[str] = []
+
+            def get_json(self, url: str) -> dict[str, str]:
+                self.urls.append(url)
+                return {"tag_name": "v3.0.16"}
+
+        _, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
+        client = FakeGitHubClient()
+
+        result = CHECKER.check_modsecurity_v3_release_provenance(entries, client)
+
+        self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
+        self.assertEqual([], result.updates)
+        self.assertEqual(0, CHECKER.exit_code([result]))
+        self.assertEqual("v3.0.16", result.latest)
+        self.assertEqual(
+            [
+                "MODSECURITY_V3_APPROVED_REPO_URL",
+                "MODSECURITY_V3_RELEASE_TAG",
+                "MODSECURITY_V3_APPROVED_COMMIT",
+                "MODSECURITY_REPO_URL",
+                "MODSECURITY_GIT_REF",
+                "MODSECURITY_V3_GIT_URL",
+                "MODSECURITY_V3_GIT_REF",
+            ],
+            result.variables,
+        )
+        self.assertEqual(
+            "update MODSECURITY_V3_RELEASE_TAG and MODSECURITY_V3_APPROVED_COMMIT together after commit provenance review",
+            result.details["reason"],
+        )
+        self.assertEqual(
+            ["https://api.github.com/repos/owasp-modsecurity/ModSecurity/releases/latest"],
+            client.urls,
+        )
+
     def test_dotted_version_parser_keeps_legacy_match_boundaries_without_regex_backtracking(self):
         self.assertEqual((1, 2, 3), CHECKER.version_tuple("release-1.2.3"))
         self.assertEqual((1, 2), CHECKER.version_tuple("release-1.2..3"))
