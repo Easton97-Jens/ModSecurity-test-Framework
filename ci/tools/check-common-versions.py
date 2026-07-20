@@ -56,6 +56,14 @@ OPTIONAL_EMPTY_VARIABLES = {
     "PCRE2_SHA256",
     "PCRE2_SHA256_URL",
 }
+APPROVED_LITERAL_VARIABLES = {
+    "CRS_APPROVED_REPO_URL",
+    "CRS_APPROVED_COMMIT",
+    "CRS_RELEASE_TAG",
+    "MODSECURITY_V3_APPROVED_REPO_URL",
+    "MODSECURITY_V3_APPROVED_COMMIT",
+    "MODSECURITY_V3_RELEASE_TAG",
+}
 
 STATUS_CURRENT = "current"
 STATUS_OUTDATED = "outdated"
@@ -183,7 +191,7 @@ def parse_common_assignment(line: str) -> tuple[str, str, str] | None:
     if not match:
         return None
     name = match.group(1)
-    if not name.startswith("CRS_APPROVED_") and name != "CRS_RELEASE_TAG":
+    if name not in APPROVED_LITERAL_VARIABLES:
         return None
     return "literal-assignment", name, match.group(2)
 
@@ -972,6 +980,39 @@ def check_crs_release_provenance(
     return result
 
 
+def check_modsecurity_v3_release_provenance(
+    entries: dict[str, VariableEntry], client: HttpClient
+) -> ComponentResult:
+    """Refuse to synthesize a ModSecurity v3 release-tag-to-commit update."""
+    result = check_github_release_ref(
+        "ModSecurity v3",
+        entries,
+        client,
+        repo_var="MODSECURITY_V3_APPROVED_REPO_URL",
+        ref_var="MODSECURITY_V3_RELEASE_TAG",
+    )
+    result.variables = [
+        "MODSECURITY_V3_APPROVED_REPO_URL",
+        "MODSECURITY_V3_RELEASE_TAG",
+        "MODSECURITY_V3_APPROVED_COMMIT",
+        "MODSECURITY_REPO_URL",
+        "MODSECURITY_GIT_REF",
+        "MODSECURITY_V3_GIT_URL",
+        "MODSECURITY_V3_GIT_REF",
+    ]
+    if result.status == STATUS_OUTDATED:
+        result.status = STATUS_UNKNOWN
+        result.updates = []
+        result.message = (
+            "A newer ModSecurity v3 release is available, but updating its release tag and "
+            "immutable commit requires a reviewed provenance change."
+        )
+        result.details = {
+            "reason": "update MODSECURITY_V3_RELEASE_TAG and MODSECURITY_V3_APPROVED_COMMIT together after commit provenance review"
+        }
+    return result
+
+
 def release_asset_metadata(release: dict[str, Any], asset_name: str) -> dict[str, Any]:
     assets = release.get("assets")
     if not isinstance(assets, list):
@@ -1280,13 +1321,7 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
         ),
         (
             "ModSecurity v3",
-            lambda: check_github_release_ref(
-                "ModSecurity v3",
-                entries,
-                client,
-                repo_var="MODSECURITY_V3_GIT_URL",
-                ref_var="MODSECURITY_V3_GIT_REF",
-            ),
+            lambda: check_modsecurity_v3_release_provenance(entries, client),
         ),
         (
             "ModSecurity Apache connector",
