@@ -49,7 +49,11 @@ def connect_control_file_loopback(address: dict[str, object], timeout: float) ->
     return socket.create_connection(("127.0.0.1", port), timeout=timeout)
 
 
-def manifest(connector: str = "envoy", executable: set[str] | None = None) -> dict[str, object]:
+def manifest(
+    connector: str = "envoy",
+    executable: set[str] | None = None,
+    integration_mode: str = "unit-test-host-model",
+) -> dict[str, object]:
     executable = executable or {"request_headers", "phase1", "deny"}
     capabilities = {
         name: {
@@ -62,7 +66,7 @@ def manifest(connector: str = "envoy", executable: set[str] | None = None) -> di
         "schema_version": 1,
         "connector": connector,
         "host_name": connector,
-        "integration_mode": "unit-test-host-model",
+        "integration_mode": integration_mode,
         "host_model_constraints": [],
         "capabilities": capabilities,
         "evidence_stages": {
@@ -1131,92 +1135,171 @@ class NoCrsBaselineTest(unittest.TestCase):
                 evidence, require_real_host=True, require_complete_proof=True
             ))
 
-    def test_full_lifecycle_checker_accepts_real_host_barrier_evidence(self) -> None:
+    def build_full_lifecycle_phase4_run(self, root: Path) -> Path:
+        connector = "envoy"
+        run_id = "real-host"
+        integration_mode = "envoy_ext_proc"
+        capability_path = root / "capabilities.json"
+        capability_path.write_text(
+            json.dumps(manifest(
+                connector,
+                executable=set(no_crs.CAPABILITIES),
+                integration_mode=integration_mode,
+            )),
+            encoding="utf-8",
+        )
+        run_dir = root / f"evidence/{connector}/{run_id}"
+        self.assertEqual(0, no_crs.main([
+            "init", "--connector", connector, "--capabilities", str(capability_path),
+            "--artifact-profile", "full_lifecycle", "--run-dir", str(run_dir),
+            "--run-id", run_id, "--host-version", "1.0", "--libmodsecurity-version", "3.0",
+        ]))
+        event = {
+            "connector": connector,
+            "run_id": run_id,
+            "integration_mode": integration_mode,
+            "event": "phase4_intervention",
+            "message_id": "phase4-first-byte",
+            "transaction_id": "tx-first-byte",
+            "rule_id": 1100301,
+            "phase": 4,
+            "status": "intervened",
+            "no_full_response_buffering": True,
+            "client_first_byte_received": True,
+            "first_byte_before_response_end": True,
+            "first_chunk_size": 17,
+            "upstream_paused": True,
+            "upstream_eos_sent_at_first_byte": False,
+            "upstream_response_finished_at_first_byte": False,
+            "response_committed": True,
+            "body_bytes_seen": 17,
+            "body_bytes_inspected": 17,
+        }
+        events_path = root / "events.jsonl"
+        events_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+        source_path = root / "source-results.json"
+        source_path.write_text(json.dumps({"cases": [
+            {
+                "case_id": "phase4_first_byte_before_response_end",
+                "status": "PASS", "live_executed": True,
+                "observed_rule_ids": [1100301], "transaction_id": "tx-first-byte",
+            },
+            {
+                "case_id": "phase4_no_full_response_buffering",
+                "status": "PASS", "live_executed": True,
+                "observed_rule_ids": [1100301], "transaction_id": "tx-first-byte",
+            },
+        ]}), encoding="utf-8")
+        stdout_path = root / "stdout.log"
+        stderr_path = root / "stderr.log"
+        host_log_path = root / "host.log"
+        for path in (stdout_path, stderr_path, host_log_path):
+            path.write_text("", encoding="utf-8")
+        first_byte_path = root / "first-byte-evidence.json"
+        write_evidence(first_byte_path, {
+            "schema_version": 1,
+            "evidence_type": "synchronized_first_byte",
+            "evidence_origin": "real_host",
+            "promotion_eligible": True,
+            "client_first_byte_received": True,
+            "first_byte_before_response_end": True,
+            "first_chunk_size": 17,
+            "upstream_paused": True,
+            "upstream_eos_sent_at_first_byte": False,
+            "upstream_response_finished_at_first_byte": False,
+            "response_committed": True,
+            "body_bytes_seen": 17,
+            "body_bytes_inspected": 17,
+            "no_full_response_buffering": True,
+            "connector_owned_full_response_buffer": False,
+            "transport_protocol": "http1",
+            "body_payload_persisted": False,
+            "outcome": "PASS",
+        }, control_root=root)
+        self.assertEqual(0, no_crs.main([
+            "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
+            "--source-result", str(source_path), "--source-events", str(events_path),
+            "--stdout-log", str(stdout_path), "--stderr-log", str(stderr_path),
+            "--host-log", str(host_log_path), "--first-byte-evidence", str(first_byte_path),
+            "--stage-rc", "0", "--host-version", "1.0", "--libmodsecurity-version", "3.0",
+        ]))
+        return run_dir
+
+    def assert_full_lifecycle_identity_rejected(self, run_dir: Path) -> None:
+        self.assertTrue(full_lifecycle_check.first_byte_errors(run_dir))
+        self.assertTrue(full_lifecycle_check.no_full_response_buffering_errors(run_dir))
+        self.assertTrue(full_lifecycle_check.promotion_errors(run_dir))
+
+    def test_full_lifecycle_checker_accepts_selected_workload_identity(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-lifecycle-check-") as temporary:
-            root = Path(temporary)
-            capability_path = root / "capabilities.json"
-            capability_path.write_text(
-                json.dumps(manifest("envoy", executable=set(no_crs.CAPABILITIES))),
-                encoding="utf-8",
-            )
-            run_dir = root / "evidence/envoy/real-host"
-            self.assertEqual(0, no_crs.main([
-                "init", "--connector", "envoy", "--capabilities", str(capability_path),
-                "--artifact-profile", "full_lifecycle", "--run-dir", str(run_dir),
-                "--run-id", "real-host", "--host-version", "1.0", "--libmodsecurity-version", "3.0",
-            ]))
-            event = {
-                "connector": "envoy",
-                "integration_mode": "unit-test-host-model",
-                "event": "phase4_intervention",
-                "message_id": "phase4-first-byte",
-                "transaction_id": "tx-first-byte",
-                "rule_id": 1100301,
-                "phase": 4,
-                "status": "intervened",
-                "no_full_response_buffering": True,
-                "client_first_byte_received": True,
-                "first_byte_before_response_end": True,
-                "first_chunk_size": 17,
-                "upstream_paused": True,
-                "upstream_eos_sent_at_first_byte": False,
-                "upstream_response_finished_at_first_byte": False,
-                "response_committed": True,
-                "body_bytes_seen": 17,
-                "body_bytes_inspected": 17,
-            }
-            events_path = root / "events.jsonl"
-            events_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
-            source_path = root / "source-results.json"
-            source_path.write_text(json.dumps({"cases": [
-                {
-                    "case_id": "phase4_first_byte_before_response_end",
-                    "status": "PASS", "live_executed": True,
-                    "observed_rule_ids": [1100301], "transaction_id": "tx-first-byte",
-                },
-                {
-                    "case_id": "phase4_no_full_response_buffering",
-                    "status": "PASS", "live_executed": True,
-                    "observed_rule_ids": [1100301], "transaction_id": "tx-first-byte",
-                },
-            ]}), encoding="utf-8")
-            stdout_path = root / "stdout.log"
-            stderr_path = root / "stderr.log"
-            host_log_path = root / "host.log"
-            for path in (stdout_path, stderr_path, host_log_path):
-                path.write_text("", encoding="utf-8")
-            first_byte_path = root / "first-byte-evidence.json"
-            write_evidence(first_byte_path, {
-                "schema_version": 1,
-                "evidence_type": "synchronized_first_byte",
-                "evidence_origin": "real_host",
-                "promotion_eligible": True,
-                "client_first_byte_received": True,
-                "first_byte_before_response_end": True,
-                "first_chunk_size": 17,
-                "upstream_paused": True,
-                "upstream_eos_sent_at_first_byte": False,
-                "upstream_response_finished_at_first_byte": False,
-                "response_committed": True,
-                "body_bytes_seen": 17,
-                "body_bytes_inspected": 17,
-                "no_full_response_buffering": True,
-                "connector_owned_full_response_buffer": False,
-                "transport_protocol": "http1",
-                "body_payload_persisted": False,
-                "outcome": "PASS",
-            }, control_root=root)
-            self.assertEqual(0, no_crs.main([
-                "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
-                "--source-result", str(source_path), "--source-events", str(events_path),
-                "--stdout-log", str(stdout_path), "--stderr-log", str(stderr_path),
-                "--host-log", str(host_log_path), "--first-byte-evidence", str(first_byte_path),
-                "--stage-rc", "0", "--host-version", "1.0", "--libmodsecurity-version", "3.0",
-            ]))
+            run_dir = self.build_full_lifecycle_phase4_run(Path(temporary))
             self.assertEqual([], full_lifecycle_check.first_byte_errors(run_dir))
             self.assertEqual([], full_lifecycle_check.no_full_response_buffering_errors(run_dir))
             self.assertEqual([], full_lifecycle_check.event_privacy_errors(run_dir))
             self.assertEqual([], full_lifecycle_check.promotion_errors(run_dir))
+
+    def test_full_lifecycle_checker_rejects_foreign_or_missing_event_identity(self) -> None:
+        mutations = {
+            "foreign_connector": ("connector", "nginx"),
+            "foreign_run": ("run_id", "foreign-run"),
+            "missing_run": ("run_id", None),
+            "foreign_integration_mode": ("integration_mode", "unit-test-host-model"),
+            "foreign_transaction": ("transaction_id", "tx-foreign"),
+            "missing_transaction": ("transaction_id", None),
+        }
+        for name, (field, value) in mutations.items():
+            with self.subTest(identity=name), tempfile.TemporaryDirectory(
+                prefix="full-lifecycle-identity-"
+            ) as temporary:
+                run_dir = self.build_full_lifecycle_phase4_run(Path(temporary))
+                events_path = run_dir / "events.jsonl"
+                event = json.loads(events_path.read_text(encoding="utf-8").splitlines()[0])
+                if value is None:
+                    event.pop(field, None)
+                else:
+                    event[field] = value
+                events_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+                self.assert_full_lifecycle_identity_rejected(run_dir)
+
+    def test_full_lifecycle_checker_rejects_result_manifest_identity_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-lifecycle-identity-") as temporary:
+            run_dir = self.build_full_lifecycle_phase4_run(Path(temporary))
+            manifest_path = run_dir / "manifest.json"
+            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_payload["run_id"] = "foreign-run"
+            manifest_path.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            self.assert_full_lifecycle_identity_rejected(run_dir)
+
+    def test_full_lifecycle_checker_rejects_selected_phase4_record_identity_mismatch(self) -> None:
+        mutations = {
+            "foreign_run": ("run_id", "foreign-run"),
+            "foreign_integration_mode": ("integration_mode", "unit-test-host-model"),
+        }
+        for name, (field, value) in mutations.items():
+            with self.subTest(identity=name), tempfile.TemporaryDirectory(
+                prefix="full-lifecycle-identity-"
+            ) as temporary:
+                run_dir = self.build_full_lifecycle_phase4_run(Path(temporary))
+                records_path = run_dir / "results.jsonl"
+                records = [
+                    json.loads(line)
+                    for line in records_path.read_text(encoding="utf-8").splitlines()
+                ]
+                first_byte_record = next(
+                    record
+                    for record in records
+                    if record.get("case_id") == "phase4_first_byte_before_response_end"
+                )
+                first_byte_record[field] = value
+                records_path.write_text(
+                    "\n".join(json.dumps(record) for record in records) + "\n",
+                    encoding="utf-8",
+                )
+                first_byte_errors = full_lifecycle_check.first_byte_errors(run_dir)
+                self.assertTrue(any(
+                    "selected workload identity" in error for error in first_byte_errors
+                ))
+                self.assert_full_lifecycle_identity_rejected(run_dir)
 
     def test_full_lifecycle_late_modes_require_their_actual_runtime_mode(self) -> None:
         base = {
