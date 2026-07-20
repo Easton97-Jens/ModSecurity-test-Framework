@@ -95,8 +95,8 @@ wie `ARGS:foo.` und vorhandene `name: Content-Type`-Mappings erhalten.
 | Framework-eigenes Python 3.14, fokussierte Updater-/Contract-/Common-Workflow-Unittest-Auswahl | 0 | 27 versionsneutrale Tests bestanden. | Isolierter Framework-Worktree |
 | `check-ci-security-contract.py --root <task-worktree>` | 0 | Aktuelle Workflows und der Drei-Job-Writer-Contract bestanden. | Isolierter Framework-Worktree |
 | `check-python-version.py --root <task-worktree>` | 0 | Kanonische Quelle und rekursiver Python-Workflow-Contract bestanden. | Isolierter Framework-Worktree |
-| Fokussierte Updater-, CI-Security-Contract-, Python-Version-Contract- und Parser-Hardening-Tests | 0 | 35 versionsneutrale Regressionen bestanden nach der Exact-Head-Remediation. | Isolierter Framework-Worktree |
-| `make test-ci-security-contract` | 0 | 84 CI-Security-Tests bestanden nach der Exact-Head-Remediation. | Isolierter Framework-Worktree |
+| Fokussierte Updater-, CI-Security-Contract-, Python-Version-Contract- und Parser-Hardening-Tests | 0 | 36 versionsneutrale Regressionen bestanden nach der Exact-Head-Remediation. | Isolierter Framework-Worktree |
+| `make test-ci-security-contract` | 0 | 85 CI-Security-Tests bestanden nach der Exact-Head-Remediation. | Isolierter Framework-Worktree |
 | `make test-workflow-contract`, `make check-github-actions-workflows`, `make check-documentation` und `make lint` | 0 | Workflow-, Dokumentations- und finale lokale Lint-Gates bestanden. | Task-Storage `20260720T180337Z-framework-python-313-updater-f3349a7e` |
 
 ## Sicherheitsauswirkung
@@ -119,6 +119,22 @@ Die Exact-Head-Remediation verfolgt außerdem `FND-FRAMEWORK-0037`
 (Fallback-YAML-Skalarparsing) und das release-blockierende
 `FND-FRAMEWORK-0039` (Kandidatenausgabepfad). Um diese Checks zu bestehen,
 wurde keine Kontrolle abgeschwächt.
+Der aktuelle Quality-Follow-up verfolgt zusätzlich `FND-FRAMEWORK-0040`: Er
+entfernt die task-eigenen Ruff-Fehler F401/E731, ohne eine Quality-Regel zu
+unterdrücken. Ein frischer vollständiger Source-Review reproduzierte danach
+`FND-FRAMEWORK-0041`, einen niedrig wahrscheinlichen Policy-Bypass, bei dem ein
+künftiges Workflow-Environment auf oberster Ebene in den schreibberechtigten
+Publisher geerbt werden könnte, ohne dass der Wartungscontract es zurückweist.
+Der Contract traversiert jetzt den vollständigen geparsten Wartungsworkflow und
+erlaubt ausschließlich den überprüften Pfad
+`create-pull-request.with.token`; seine fokussierte Regression erhält den
+echten Workflow und die vorhandenen Reader-Job-Diagnosen als legitime
+Kontrollen.
+Der finale Dokumentationsreview korrigierte außerdem `FND-FRAMEWORK-0042`: Der
+deutsche Leitfaden bezeichnet das automatische Checkout-Token jetzt korrekt als
+job-scoped und erklärt, dass `persist-credentials: false` die Persistenz des
+Credentials begrenzt, nicht aber den für die Action verfügbaren GitHub-
+Berechtigungsumfang.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -150,7 +166,9 @@ ein Mensch muss die gehosteten Kontrollen vor einem Merge verifizieren.
 
 Draft PR #39 ist offen. Sein erster veröffentlichter Head
 `4a31df044ea2c2c7526828e54978238639b57dd4` machte die verfolgten Lint-,
-Parser- und Kandidatenausgabefindings sichtbar; die hier beschriebene
-Remediation benötigt einen neuen Exact-Head-Check von GitHub Actions,
-SonarQube Cloud und Review-/Thread-Status, bevor die Aufgabe bei `verified_pr`
-stoppen darf. Kein Merge, Parent-Gitlink-Wechsel oder MRTS-Wechsel ist im Scope.
+Parser- und Kandidatenausgabefindings sichtbar. Das aktuelle task-eigene
+Source-Set enthält außerdem die oben beschriebenen Quality- und
+Inherited-Token-Policy-Reparaturen und benötigt einen neuen Exact-Head-Check
+von GitHub Actions, SonarQube Cloud und Review-/Thread-Status, bevor die
+Aufgabe bei `verified_pr` stoppen darf. Kein Merge, Parent-Gitlink-Wechsel oder
+MRTS-Wechsel ist im Scope.

@@ -15,7 +15,9 @@ SETUP_SHA = "0" * 40
 
 
 def load_checker():
-    spec = importlib.util.spec_from_file_location("python_version_contract", CHECKER_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "python_version_contract", CHECKER_PATH
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load {CHECKER_PATH}")
     module = importlib.util.module_from_spec(spec)
@@ -85,7 +87,9 @@ class PythonVersionContractTest(unittest.TestCase):
             errors = CHECKER.canonical_version_errors(root)
             self.assertTrue(any("exactly one" in error for error in errors))
 
-    def test_recurses_yml_and_yaml_and_rejects_pre_setup_python_and_bare_pip(self) -> None:
+    def test_recurses_yml_and_yaml_and_rejects_pre_setup_python_and_bare_pip(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory))
             self.write_workflow(
@@ -117,11 +121,22 @@ check:
                 ),
             )
             errors = CHECKER.validate(root)
-            self.assertTrue(any("unsafe.yml" in error and "before reviewed" in error for error in errors))
-            self.assertTrue(any("unsafe.yml" in error and "bare 'pip'" in error for error in errors))
-            self.assertFalse(any("nested/valid.yaml" in error for error in errors), "\n".join(errors))
+            self.assertTrue(
+                any(
+                    "unsafe.yml" in error and "before reviewed" in error
+                    for error in errors
+                )
+            )
+            self.assertTrue(
+                any("unsafe.yml" in error and "bare 'pip'" in error for error in errors)
+            )
+            self.assertFalse(
+                any("nested/valid.yaml" in error for error in errors), "\n".join(errors)
+            )
 
-    def test_rejects_hardcoded_versions_matrix_and_external_reusable_workflows(self) -> None:
+    def test_rejects_hardcoded_versions_matrix_and_external_reusable_workflows(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory))
             self.write_workflow(
@@ -157,10 +172,19 @@ delegated:
             )
             errors = CHECKER.validate(root)
             self.assertTrue(any("hard-coded" in error for error in errors))
-            self.assertTrue(any("must not select Python through a matrix" in error for error in errors))
-            self.assertTrue(any("external reusable workflow" in error for error in errors))
+            self.assertTrue(
+                any(
+                    "must not select Python through a matrix" in error
+                    for error in errors
+                )
+            )
+            self.assertTrue(
+                any("external reusable workflow" in error for error in errors)
+            )
 
-    def test_local_reusable_workflow_is_scanned_and_must_hold_the_contract(self) -> None:
+    def test_local_reusable_workflow_is_scanned_and_must_hold_the_contract(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory))
             self.write_workflow(
@@ -191,29 +215,42 @@ check:
             )
             self.assertEqual(CHECKER.validate(root), [])
 
-    def test_candidate_runtime_exception_is_narrow_and_requires_canonical_setup_first(self) -> None:
+    def test_candidate_runtime_exception_is_narrow_and_requires_canonical_setup_first(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory))
-            candidate_job = """\
+            candidate_job = (
+                """\
 candidate-validate:
   runs-on: ubuntu-latest
   timeout-minutes: 5
   steps:
-""" + setup_step() + setup_step(CHECKER.CANDIDATE_VERSION_FILE) + "      - run: python3 -VV\n"
+"""
+                + setup_step()
+                + setup_step(CHECKER.CANDIDATE_VERSION_FILE)
+                + "      - run: python3 -VV\n"
+            )
             candidate_path = self.write_workflow(
                 root,
                 CHECKER.CANDIDATE_WORKFLOW,
                 workflow("candidate", candidate_job),
             )
-            errors = CHECKER.workflow_errors(root, candidate_path, indirect_make_python=True)
+            errors = CHECKER.workflow_errors(
+                root, candidate_path, indirect_make_python=True
+            )
             self.assertEqual(errors, [], "\n".join(errors))
 
             other_path = self.write_workflow(
                 root,
                 "ordinary.yml",
-                workflow("ordinary", candidate_job.replace("candidate-validate", "ordinary")),
+                workflow(
+                    "ordinary", candidate_job.replace("candidate-validate", "ordinary")
+                ),
             )
-            errors = CHECKER.workflow_errors(root, other_path, indirect_make_python=True)
+            errors = CHECKER.workflow_errors(
+                root, other_path, indirect_make_python=True
+            )
             self.assertTrue(any("python-version-file" in error for error in errors))
 
             nested_path = self.write_workflow(
@@ -221,7 +258,9 @@ candidate-validate:
                 f"nested/{CHECKER.CANDIDATE_WORKFLOW}",
                 workflow("nested candidate", candidate_job),
             )
-            errors = CHECKER.workflow_errors(root, nested_path, indirect_make_python=True)
+            errors = CHECKER.workflow_errors(
+                root, nested_path, indirect_make_python=True
+            )
             self.assertTrue(any("python-version-file" in error for error in errors))
 
             reversed_job = candidate_job.replace(
@@ -233,10 +272,14 @@ candidate-validate:
                 CHECKER.CANDIDATE_WORKFLOW,
                 workflow("reversed", reversed_job),
             )
-            errors = CHECKER.workflow_errors(root, reversed_path, indirect_make_python=True)
+            errors = CHECKER.workflow_errors(
+                root, reversed_path, indirect_make_python=True
+            )
             self.assertTrue(any("must follow canonical" in error for error in errors))
 
-    def test_indirect_make_python_requires_reviewed_setup_and_setup_pin_comment(self) -> None:
+    def test_indirect_make_python_requires_reviewed_setup_and_setup_pin_comment(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory))
             unsafe_path = self.write_workflow(
@@ -253,7 +296,9 @@ check:
 """,
                 ),
             )
-            errors = CHECKER.workflow_errors(root, unsafe_path, indirect_make_python=True)
+            errors = CHECKER.workflow_errors(
+                root, unsafe_path, indirect_make_python=True
+            )
             self.assertTrue(any("before reviewed" in error for error in errors))
 
             pin_path = self.write_workflow(

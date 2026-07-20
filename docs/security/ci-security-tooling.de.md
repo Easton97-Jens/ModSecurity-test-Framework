@@ -129,9 +129,9 @@ Berechtigungsgrenze. Seine Shell-Schritte erhalten kein explizit
 weitergereichtes Token oder Secret; der Publisher übergibt sein write-scoped
 `github.token` explizit nur an die überprüfte create-pull-request-Action,
 während Checkout weiter ein nicht persistiertes Credential verwendet.
-Der wartungsspezifische Contract weist direkte, indexierte, Shell- und
-serialisierte `secrets`-/GitHub-Kontextformen außerhalb dieses einen
-überprüften Token-Inputs zurück und behält harmlose Kontextverwendungen wie
+Der wartungsspezifische Contract weist direkte, indexierte, Shell-,
+serialisierte und auf Workflow-Ebene geerbte `secrets`-/GitHub-Kontextformen
+außerhalb dieses einen überprüften Token-Inputs zurück und behält harmlose Kontextverwendungen wie
 `github.sha` und `github.repository` bei.
 
 `ci/checks/security/check-python-version.py` erzwingt diese Quell- und

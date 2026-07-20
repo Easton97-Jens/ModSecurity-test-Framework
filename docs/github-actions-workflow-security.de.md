@@ -80,17 +80,18 @@ with:
 ```
 
 Dies verhindert, dass das Checkout-Credential für spätere Git-Kommandos
-persistiert wird. GitHub stellt Actions dennoch ein automatisches Job-Token
-bereit, und `actions/checkout` verwendet seinen read-scoped Default-Input,
-solange eine Action nicht explizit ein anderes Credential erhält. Der
+persistiert wird. GitHub stellt Actions dennoch ein automatisches Token im
+Berechtigungsumfang des Jobs bereit, und `actions/checkout` verwendet
+standardmäßig dieses job-scoped Credential, solange eine Action nicht explizit
+ein anderes Credential erhält. Der
 Common-Version-Updater stellt `GITHUB_TOKEN` nur im Shell-Schritt `Validate and
 update common.sh` bereit, und seine Pull-Request-Action erhält den expliziten
 Input `token: ${{ github.token }}`. Resolver und Kandidatenjob der Python-
 Version deklarieren keine Token- oder Secret-Referenz; der Publisher deklariert
 genau ein explizites Token nur für seine überprüfte Pull-Request-Action. Der
-Contract weist jede explizite Token-/Secret-Referenz in einem Reader-Job oder
-an anderer Stelle im Publisher zurück, einschließlich einer `run`-Step-
-Umgebung. Der Publisher löst den Kandidaten unabhängig erneut auf, erlaubt nur
+Contract weist jede explizite Token-/Secret-Referenz auf Workflow-Ebene, in
+einem Reader-Job oder an anderer Stelle im Publisher zurück, einschließlich
+einer `run`-Step-Umgebung. Der Publisher löst den Kandidaten unabhängig erneut auf, erlaubt nur
 `.python-version` sowohl im geprüften Diff als auch in `add-paths`, fixiert den
 Automationsbranch, setzt `draft: true` und weist Merge- oder Auto-Merge-Shell-
 Kommandos im Source-Contract zurück. GitHub-Berechtigungen sind Job- und nicht

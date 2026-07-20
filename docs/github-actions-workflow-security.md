@@ -82,8 +82,8 @@ credential. The common-version updater exposes `GITHUB_TOKEN` only in the
 an explicit `token: ${{ github.token }}` input. The Python-version resolver and
 candidate jobs declare no token or secret reference; the publisher declares one
 explicit token only for its reviewed pull-request Action. The contract rejects
-an explicit token/secret reference in any reader job or elsewhere in the
-publisher, including a `run`-step environment. The publisher independently
+an explicit token/secret reference at workflow level, in any reader job, or
+elsewhere in the publisher, including a `run`-step environment. The publisher independently
 re-resolves the candidate, allows only `.python-version` in both the checked
 diff and `add-paths`, fixes the automation branch, sets `draft: true`, and
 rejects merge or auto-merge shell commands in the source contract. GitHub

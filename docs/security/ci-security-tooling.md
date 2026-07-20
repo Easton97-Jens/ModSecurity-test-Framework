@@ -121,9 +121,9 @@ than a separate GitHub permission boundary. Its shell steps receive no
 explicitly forwarded token or secret; the publisher explicitly supplies its
 write-scoped `github.token` only to the reviewed create-pull-request Action,
 while checkout continues to use a nonpersistent credential.
-The maintenance-specific contract rejects direct, indexed, shell, and
-serialized `secrets`/GitHub-context forms outside that one reviewed token
-input, while retaining benign context uses such as `github.sha` and
+The maintenance-specific contract rejects direct, indexed, shell, serialized,
+and workflow-level inherited `secrets`/GitHub-context forms outside that one
+reviewed token input, while retaining benign context uses such as `github.sha` and
 `github.repository`.
 
 `ci/checks/security/check-python-version.py` enforces this source and workflow
