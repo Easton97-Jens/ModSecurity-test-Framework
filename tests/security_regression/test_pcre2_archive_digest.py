@@ -110,6 +110,39 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             : > "$FAKE_MODULE_PATH"
             exit 0
         """)
+        self._write_executable(fake_bin / "git", """
+            #!/bin/sh
+            set -eu
+            while [ "$#" -gt 0 ]; do
+                case "$1" in
+                    -c|-C)
+                        shift 2
+                        ;;
+                    *)
+                        break
+                        ;;
+                esac
+            done
+            command=${1:-}
+            shift || true
+            case "$command" in
+                config)
+                    printf '%s\n' 'https://github.com/owasp-modsecurity/ModSecurity.git'
+                    ;;
+                rev-parse)
+                    case "$*" in
+                        *--is-inside-work-tree*) printf '%s\n' true ;;
+                        *--abbrev-ref\\ HEAD*) printf '%s\n' HEAD ;;
+                        *) printf '%s\n' '0fb4aff98b4980cf6426697d5605c424e3d5bb60' ;;
+                    esac
+                    ;;
+                describe)
+                    printf '%s\n' v3.0.15
+                    ;;
+                ls-files)
+                    ;;
+            esac
+        """)
         return fake_bin
 
     def _run_case(self, digest):
@@ -130,6 +163,7 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             (shared_prefix / "lib" / "libmodsecurity.so").write_text("fixture\n", encoding="utf-8")
             v3_source = workspace / "v3-source"
             v3_source.mkdir()
+            (v3_source / ".git").mkdir()
             connector_root = workspace / "connector"
             connector_root.mkdir()
             module_path = verified / "apache-build" / "ModSecurity-apache" / "src" / ".libs" / "mod_security3.so"

@@ -3,8 +3,7 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 SCRIPT_PATH="$SCRIPT_DIR/check-crs-version-pinning.sh"
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-${REPO_ROOT:-$(pwd)}}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
@@ -52,6 +51,7 @@ check_path() {
     path=$1
     case "$path" in
         ci/lib/common.sh) return 0 ;;
+        *) : ;;
     esac
     check_literal "$path" "$CRS_APPROVED_REPO_URL" CRS_APPROVED_REPO_URL
     check_literal "$path" "$CRS_APPROVED_COMMIT" CRS_APPROVED_COMMIT

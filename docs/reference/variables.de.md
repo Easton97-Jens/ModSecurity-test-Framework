@@ -117,6 +117,13 @@ Nur kataloggestützte Werte verwenden. Zugehörige Orchestrierungswerte sind
 `EVIDENCE_ROOT`. `NO_CRS_STAGE_REASON` darf keine Secrets oder
 personenbezogenen Daten enthalten.
 
+`NO_CRS_FINALIZE_ARGS` akzeptiert zusätzliche `finalize`-Optionen. Sein Wert
+wird mit POSIX-Shell-ähnlicher Quotierung in einzelne Argumente zerlegt;
+Optionwerte mit Leerzeichen müssen daher quotiert werden. Der Wert wird als
+Argumentdaten an den Finalizer übergeben und nicht als Make- oder Shell-Code
+ausgewertet; Steueroperatoren wie `;` und Make-Funktionssyntax wie `$(...)`
+bleiben literale Argumente.
+
 ## Protokoll, Cache und Provisionierung
 
 ### `PROTOCOL_URL`
@@ -181,6 +188,22 @@ Submodule-Provenance-Regel existiert. `CRS_RUNTIME_DIR` und
 in Workflows duplizieren. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE` und
 `CONNECTOR_COMPONENT_CACHE` sind Cache-Pfade und benötigen Herkunftsprüfungen.
 
+`MODSECURITY_V3_APPROVED_REPO_URL` und `MODSECURITY_V3_APPROVED_COMMIT` sind
+literale ModSecurity-v3-Provenance-Werte in `ci/lib/common.sh`, derzeit
+`https://github.com/owasp-modsecurity/ModSecurity.git` und
+`0fb4aff98b4980cf6426697d5605c424e3d5bb60`.
+`MODSECURITY_V3_RELEASE_TAG=v3.0.15` sind nur Release-Metadaten. Die
+Legacy-Aliase `MODSECURITY_REPO_URL`, `MODSECURITY_V3_GIT_URL`,
+`MODSECURITY_GIT_REF` und `MODSECURITY_V3_GIT_REF` normalisieren bei leeren
+oder nicht gesetzten Werten zu diesen geprüften Werten; ein nichtleerer
+abweichender Wert wird vor der Git-Nutzung abgewiesen und selektiert nie ein
+Objekt. Der V3-Fetch-Pfad initialisiert ein
+frisches Repository, prüft seinen literalen Origin, lädt den vollständigen
+Commit ohne Tags oder rekursive Submodule und vergleicht gefetchte,
+aufgelöste und ausgecheckte Commit-Identität. Ein V3-Build-Input muss ein
+eigenständiger Checkout mit demselben Origin und `HEAD` sein; `.gitmodules`
+und Gitlinks werden abgewiesen statt initialisiert.
+
 ## Werkzeuge, Statuswerte und sensible Daten
 
 `PYTHON` verwendet `.venv/bin/python`, falls vorhanden, sonst `python3`.
@@ -224,8 +247,8 @@ eine Herkunftsprüfung.
 | `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SHA256` | NGINX-Programm-, GitHub-URL-, Release-Tag/-Ref-, Release-Asset-Name-, Source-Mode- oder SHA-256-Digest-Überschreibung | überprüftes Release-Tupel: `release-1.31.2`, passender Ref, `nginx-1.31.2.tar.gz` und `af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c` | Der unterstützte Mode `github-release` lädt das exakte offizielle GitHub-Release-Asset. Bei einem festen Release muss `NGINX_SOURCE_GIT_REF` gleich `NGINX_RELEASE_TAG` sein; Tag, Asset-Name und Digest sind ein atomar zu prüfendes Provenance-Tupel. Das Provisioning blockiert explizit leere, Whitespace enthaltende, fehlerhafte, abweichende oder tupel-inkonsistente Werte vor Lookup, Cache-Nutzung, Download oder Extraction; der Versionsprüfer aktualisiert dieses Tupel nie automatisch. |
 | `PCRE2_VERSION`, `PCRE_CONFIG` | Abhängigkeitsversion oder Programm | zentraler Pin oder Host-Erkennung | `PCRE_CONFIG=/usr/bin/pcre2-config`; ein Host-Pfad ist nur ein Beispiel. |
 | `PCRE2_VERSION`, `PCRE2_SOURCE_URL`, `PCRE2_SHA256`, `PCRE2_SHA256_URL`, `PCRE_CONFIG` | Abhängigkeitsversion, HTTPS-Quell-URL, 64-hex SHA-256, Versionswerkzeug-Metadaten oder Programm | zentraler Pin oder Host-Erkennung | `PCRE2_SHA256=<64-hex>` muss nicht leer, syntaktisch gültig und exakt passend zum Archiv sein, bevor die Extraktion erfolgt. Leere, nur aus Whitespace bestehende, fehlerhafte oder nicht passende Werte blockieren vor `tar`; `PCRE2_SHA256_URL` ist kein Fallback. |
-| `MODSECURITY_APACHE_SOURCE_DIR`, `MODSECURITY_NGINX_SOURCE_DIR`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `MODSECURITY_V3_ROOT` | absoluter Source-/Build-Pfad | unter `SOURCE_ROOT` oder `BUILD_ROOT` | `<temporary-work-root>/src/libmodsecurity`; nicht auf einen nicht vertrauenswürdigen Checkout zeigen. |
-| `MODSECURITY_GIT_REF`, `LIBMODSECURITY_VERSION`, `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INC`, `MODSECURITY_LIB`, `MODSECURITY_PKG_CONFIG` | Ref-, Versions-, Include-/Lib-/pkg-config-Überschreibung | zentraler Pin oder Erkennung | `MODSECURITY_GIT_REF=v3/master`; Pins mit ihrer Herkunft prüfen. |
+| `MODSECURITY_APACHE_SOURCE_DIR`, `MODSECURITY_NGINX_SOURCE_DIR`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `MODSECURITY_V3_ROOT` | absoluter Source-/Build-Pfad | unter `SOURCE_ROOT` oder `BUILD_ROOT` | `<temporary-work-root>/src/libmodsecurity`; V3-Source muss ein geprüfter eigenständiger Checkout sein, nie ein nicht vertrauenswürdiger Checkout. |
+| `MODSECURITY_GIT_REF`, `MODSECURITY_V3_GIT_REF`, `LIBMODSECURITY_VERSION`, `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INC`, `MODSECURITY_LIB`, `MODSECURITY_PKG_CONFIG` | Release-Metadaten, Versions-, Include-/Lib-/pkg-config-Überschreibung | zentraler Pin oder Erkennung | `MODSECURITY_GIT_REF=MODSECURITY_V3_GIT_REF=v3.0.15`; der vollständige geprüfte Commit, nicht einer der Aliase, selektiert die V3-Quelle. |
 | `MODSECURITY_TEST_VARIANT` | Testvarianten-Enum | `no-crs` oder Target-Auswahl | `with-crs` lädt CRS vor lokalen Regeln; die Katalogsemantik bleibt unverändert. |
 | `MRTS_NATIVE_ROOT` | absoluter MRTS-Source-Pfad | aus `MRTS_ROOT` abgeleitet | `<temporary-work-root>/src/MRTS`; generierte Ausgabe bleibt unter `MRTS_BUILD_ROOT`. |
 | `FORCE_ALL_CASES`, `REFRESH`, `RESPONSE_BODY_PROBE_REPEAT` | Test-/Report-Boolean oder positive Anzahl | Target-Standard | `FORCE_ALL_CASES=1`; Evidence wird nicht automatisch promotet. |

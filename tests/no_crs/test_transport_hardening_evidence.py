@@ -479,6 +479,56 @@ class TransportHardeningEvidenceTest(unittest.TestCase):
             errors = self._errors(run_dir)
             self.assertTrue(any("stream_reset lacks a matching transport case" in error for error in errors), errors)
 
+    def test_event_error_groups_preserve_canonical_order(self) -> None:
+        record = {
+            "case_id": "case-order",
+            "transport_case_id": "case-order",
+            "phase": 4,
+            "observed_rule_ids": [1101],
+            "expected_rule_id": 1101,
+            "requested_action": "deny",
+            "actual_action": "abort_connection",
+            "transport_result": "connection_aborted",
+        }
+        event = {
+            "connector": "wrong-connector",
+            "integration_mode": "wrong-mode",
+            "run_id": "wrong-run",
+            "transaction_id": "wrong-transaction",
+            "transport_case_id": "wrong-case",
+            "phase": 3,
+            "event": "",
+            "message_id": "",
+        }
+        manifest = {"connector": self.connector, "integration_mode": self.integration_mode, "run_id": self.run_id}
+
+        errors = transport_check._event_errors(record, event, manifest, transaction_id=self.transaction_id)
+
+        self.assertEqual(
+            [
+                "case-order: event connector does not match canonical run",
+                "case-order: event integration_mode does not match canonical run",
+                "case-order: event run_id does not match canonical run",
+                "case-order: event transaction_id does not match case result",
+                "case-order: event transport_case_id does not match case result",
+                "case-order: event phase does not match case result",
+                "case-order: event requires a non-empty event",
+                "case-order: event requires a non-empty message_id",
+            ],
+            errors[:8],
+        )
+
+    def test_invalid_required_counter_still_short_circuits_bound_checks(self) -> None:
+        errors = transport_check._counter_errors({}, [], require_bound_counts=True)
+
+        self.assertEqual(
+            [
+                f"lifecycle_counters.{field} must be a non-negative integer"
+                for field in transport_check.REQUIRED_LIFECYCLE_COUNTERS
+            ],
+            errors,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

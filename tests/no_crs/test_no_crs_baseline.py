@@ -38,7 +38,22 @@ from synchronized_upstream import (  # noqa: E402
 )
 
 
-def manifest(connector: str = "envoy", executable: set[str] | None = None) -> dict[str, object]:
+def require_control_file_port(value: object) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 65535:
+        raise ValueError("control-file upstream_port must be an integer in the range 1..65535")
+    return value
+
+
+def connect_control_file_loopback(address: dict[str, object], timeout: float) -> socket.socket:
+    port = require_control_file_port(address.get("upstream_port"))
+    return socket.create_connection(("127.0.0.1", port), timeout=timeout)
+
+
+def manifest(
+    connector: str = "envoy",
+    executable: set[str] | None = None,
+    integration_mode: str = "unit-test-host-model",
+) -> dict[str, object]:
     executable = executable or {"request_headers", "phase1", "deny"}
     capabilities = {
         name: {
@@ -51,7 +66,7 @@ def manifest(connector: str = "envoy", executable: set[str] | None = None) -> di
         "schema_version": 1,
         "connector": connector,
         "host_name": connector,
-        "integration_mode": "unit-test-host-model",
+        "integration_mode": integration_mode,
         "host_model_constraints": [],
         "capabilities": capabilities,
         "evidence_stages": {
@@ -301,14 +316,25 @@ class NoCrsBaselineTest(unittest.TestCase):
 
     def test_makefile_propagates_connector_root_to_finalize_and_validation(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+        finalizer_wrapper = (ROOT / "ci" / "tools" / "run-no-crs-finalize.py").read_text(
+            encoding="utf-8",
+        )
         validation_recipe = makefile.split("define RUN_NO_CRS_CHECK", 1)[1].split("endef", 1)[0]
         finalize_recipe = makefile.split("no-crs-finalize:", 1)[1].split("no-crs-summary:", 1)[0]
         expected = '--connector-root "$(CONNECTOR_ROOT)"'
         self.assertIn(expected, validation_recipe)
-        self.assertIn(expected, finalize_recipe)
+        self.assertIn("export CONNECTOR_ROOT", makefile)
+        self.assertIn(
+            '$(PYTHON) "$(dir $(abspath $(lastword $(MAKEFILE_LIST))))ci/tools/run-no-crs-finalize.py"',
+            finalize_recipe,
+        )
+        self.assertNotIn(expected, finalize_recipe)
+        self.assertIn('required_environment_value("CONNECTOR_ROOT")', finalizer_wrapper)
+        self.assertIn('"--connector-root",', finalizer_wrapper)
+        self.assertIn("subprocess.run(command, check=False, shell=False)", finalizer_wrapper)
         self.assertIn("NO_CRS_ARTIFACT_PROFILE ?= generic", makefile)
         self.assertIn("NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR ?=", makefile)
-        self.assertIn("--protocol-client-artifact-dir", finalize_recipe)
+        self.assertIn("NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR", finalizer_wrapper)
         self.assertIn('--artifact-profile "$(NO_CRS_ARTIFACT_PROFILE)"', makefile)
         for target in (
             "check-first-byte-before-response-end:",
@@ -505,7 +531,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "transport_protocol": "http1",
                 "body_payload_persisted": False,
                 "outcome": "PASS",
-            })
+            }, control_root=root)
             self.assertEqual(0, no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--source-events", str(events_path), "--stdout-log", str(stdout_path),
@@ -542,7 +568,7 @@ class NoCrsBaselineTest(unittest.TestCase):
     def test_post_execution_missing_evidence_is_fail_not_exit_77(self) -> None:
         source = (ROOT / "ci/lib/connector-smoke-common.sh").read_text(encoding="utf-8")
         block = source[source.index('if [ "$rc" -eq 0 ] && [ "${RUN_ONE_CASE:-0}" = "1" ]'):]
-        block = block[:block.index('    exit "$rc"')]
+        block = block[:block.index('\n    return "$rc"\n}')]
         self.assertIn('FAIL 1 failed "RUN_ONE_CASE result.json missing after execution"', block)
         self.assertIn("<<'PY_RUN_ONE_CASE' || exit 1", block)
         self.assertIn('FAIL 1 failed "runtime harness produced no case evidence after execution"', block)
@@ -683,8 +709,12 @@ class NoCrsBaselineTest(unittest.TestCase):
                 case = load_case(no_crs.CATALOG_PATH.parent / str(runner_case))
                 output = root / f"{catalog_case['case_id']}.conf"
                 write_rules_file(
-                    case, output, root / "audit.log", root / "audit",
-                    no_crs.RULES_PATH,
+                    case,
+                    output,
+                    output_root=root,
+                    audit_log_file=root / "audit.log",
+                    audit_log_dir=root / "audit",
+                    rules_preamble_file=no_crs.RULES_PATH,
                 )
                 content = output.read_text(encoding="utf-8")
                 self.assertEqual(1, content.count("id:1100001,"))
@@ -936,7 +966,8 @@ class NoCrsBaselineTest(unittest.TestCase):
 
     def test_synchronized_upstream_emits_payload_free_barrier_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="first-byte-probe-") as temporary:
-            output = Path(temporary) / "first-byte-evidence.json"
+            root = Path(temporary)
+            output = root / "first-byte-evidence.json"
             with SynchronizedStreamingUpstream() as upstream:
                 address = upstream.address
                 evidence = run_client_barrier(
@@ -958,7 +989,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             self.assertTrue(evidence["upstream_paused"])
             self.assertFalse(evidence["upstream_eos_sent_at_first_byte"])
             self.assertGreater(evidence["first_chunk_size"], 0)
-            write_evidence(output, evidence)
+            write_evidence(output, evidence, control_root=root)
             serialized = output.read_text(encoding="utf-8")
             self.assertNotIn("first-byte-prefix", serialized)
             self.assertNotIn("no-crs-response-body-marker", serialized)
@@ -984,6 +1015,19 @@ class NoCrsBaselineTest(unittest.TestCase):
         self.assertEqual(["FAIL", "FAIL"], [record["status"] for record in records])
         self.assertTrue(all("cannot promote" in record["reason"] for record in records))
 
+    def test_control_file_port_validation_prevents_invalid_loopback_connections(self) -> None:
+        for invalid_port in (True, False, 0, -1, 65536, "8080", 1.5, None):
+            with self.subTest(invalid_port=invalid_port):
+                with mock.patch.object(socket, "create_connection") as create_connection:
+                    with self.assertRaises(ValueError):
+                        connect_control_file_loopback({"upstream_port": invalid_port}, timeout=2.0)
+                create_connection.assert_not_called()
+
+        with mock.patch.object(socket, "create_connection", return_value=mock.sentinel.connection) as create_connection:
+            connection = connect_control_file_loopback({"upstream_port": 8080}, timeout=2.0)
+        self.assertIs(mock.sentinel.connection, connection)
+        create_connection.assert_called_once_with(("127.0.0.1", 8080), timeout=2.0)
+
     def test_control_file_daemon_pauses_until_the_harness_releases_it(self) -> None:
         with tempfile.TemporaryDirectory(prefix="first-byte-daemon-") as temporary:
             root = Path(temporary)
@@ -991,18 +1035,19 @@ class NoCrsBaselineTest(unittest.TestCase):
             paused = root / "paused.json"
             release = root / "release"
             server_evidence = root / "server-evidence.json"
-            failures: list[BaseException] = []
+            failures: list[Exception] = []
 
             def serve() -> None:
                 try:
                     serve_with_control_files(
+                        control_root=root,
                         ready_file=ready,
                         paused_file=paused,
                         release_file=release,
                         server_evidence_file=server_evidence,
                         timeout=5.0,
                     )
-                except BaseException as exc:  # capture daemon-thread failures for assertions
+                except Exception as exc:  # capture daemon-thread failures for assertions
                     failures.append(exc)
 
             thread = threading.Thread(target=serve, daemon=True)
@@ -1012,9 +1057,9 @@ class NoCrsBaselineTest(unittest.TestCase):
                 time.sleep(0.01)
             self.assertTrue(ready.is_file())
             address = json.loads(ready.read_text(encoding="utf-8"))
-            with socket.create_connection(
-                (address["upstream_host"], address["upstream_port"]), timeout=2.0
-            ) as client:
+            self.assertEqual("127.0.0.1", address["upstream_host"])
+            self.assertIsInstance(address["upstream_port"], int)
+            with connect_control_file_loopback(address, timeout=2.0) as client:
                 client.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
                 received = bytearray()
                 while b"\r\n\r\n" not in received or not received.split(b"\r\n\r\n", 1)[1]:
@@ -1046,7 +1091,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 )
                 release.touch()
                 while client.recv(4096):
-                    pass
+                    continue
             thread.join(timeout=3.0)
             self.assertFalse(thread.is_alive())
             self.assertEqual([], failures)
@@ -1078,7 +1123,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "connector_owned_full_response_buffer": False,
             }), encoding="utf-8")
             self.assertEqual(0, streaming_main([
-                "--merge-evidence", "--paused-file", str(paused),
+                "--merge-evidence", "--control-root", str(root), "--paused-file", str(paused),
                 "--client-first-byte-file", str(client_output),
                 "--host-metadata-json", str(metadata), "--evidence-origin", "real_host",
                 "--output", str(output),
@@ -1090,92 +1135,171 @@ class NoCrsBaselineTest(unittest.TestCase):
                 evidence, require_real_host=True, require_complete_proof=True
             ))
 
-    def test_full_lifecycle_checker_accepts_real_host_barrier_evidence(self) -> None:
+    def build_full_lifecycle_phase4_run(self, root: Path) -> Path:
+        connector = "envoy"
+        run_id = "real-host"
+        integration_mode = "envoy_ext_proc"
+        capability_path = root / "capabilities.json"
+        capability_path.write_text(
+            json.dumps(manifest(
+                connector,
+                executable=set(no_crs.CAPABILITIES),
+                integration_mode=integration_mode,
+            )),
+            encoding="utf-8",
+        )
+        run_dir = root / f"evidence/{connector}/{run_id}"
+        self.assertEqual(0, no_crs.main([
+            "init", "--connector", connector, "--capabilities", str(capability_path),
+            "--artifact-profile", "full_lifecycle", "--run-dir", str(run_dir),
+            "--run-id", run_id, "--host-version", "1.0", "--libmodsecurity-version", "3.0",
+        ]))
+        event = {
+            "connector": connector,
+            "run_id": run_id,
+            "integration_mode": integration_mode,
+            "event": "phase4_intervention",
+            "message_id": "phase4-first-byte",
+            "transaction_id": "tx-first-byte",
+            "rule_id": 1100301,
+            "phase": 4,
+            "status": "intervened",
+            "no_full_response_buffering": True,
+            "client_first_byte_received": True,
+            "first_byte_before_response_end": True,
+            "first_chunk_size": 17,
+            "upstream_paused": True,
+            "upstream_eos_sent_at_first_byte": False,
+            "upstream_response_finished_at_first_byte": False,
+            "response_committed": True,
+            "body_bytes_seen": 17,
+            "body_bytes_inspected": 17,
+        }
+        events_path = root / "events.jsonl"
+        events_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+        source_path = root / "source-results.json"
+        source_path.write_text(json.dumps({"cases": [
+            {
+                "case_id": "phase4_first_byte_before_response_end",
+                "status": "PASS", "live_executed": True,
+                "observed_rule_ids": [1100301], "transaction_id": "tx-first-byte",
+            },
+            {
+                "case_id": "phase4_no_full_response_buffering",
+                "status": "PASS", "live_executed": True,
+                "observed_rule_ids": [1100301], "transaction_id": "tx-first-byte",
+            },
+        ]}), encoding="utf-8")
+        stdout_path = root / "stdout.log"
+        stderr_path = root / "stderr.log"
+        host_log_path = root / "host.log"
+        for path in (stdout_path, stderr_path, host_log_path):
+            path.write_text("", encoding="utf-8")
+        first_byte_path = root / "first-byte-evidence.json"
+        write_evidence(first_byte_path, {
+            "schema_version": 1,
+            "evidence_type": "synchronized_first_byte",
+            "evidence_origin": "real_host",
+            "promotion_eligible": True,
+            "client_first_byte_received": True,
+            "first_byte_before_response_end": True,
+            "first_chunk_size": 17,
+            "upstream_paused": True,
+            "upstream_eos_sent_at_first_byte": False,
+            "upstream_response_finished_at_first_byte": False,
+            "response_committed": True,
+            "body_bytes_seen": 17,
+            "body_bytes_inspected": 17,
+            "no_full_response_buffering": True,
+            "connector_owned_full_response_buffer": False,
+            "transport_protocol": "http1",
+            "body_payload_persisted": False,
+            "outcome": "PASS",
+        }, control_root=root)
+        self.assertEqual(0, no_crs.main([
+            "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
+            "--source-result", str(source_path), "--source-events", str(events_path),
+            "--stdout-log", str(stdout_path), "--stderr-log", str(stderr_path),
+            "--host-log", str(host_log_path), "--first-byte-evidence", str(first_byte_path),
+            "--stage-rc", "0", "--host-version", "1.0", "--libmodsecurity-version", "3.0",
+        ]))
+        return run_dir
+
+    def assert_full_lifecycle_identity_rejected(self, run_dir: Path) -> None:
+        self.assertTrue(full_lifecycle_check.first_byte_errors(run_dir))
+        self.assertTrue(full_lifecycle_check.no_full_response_buffering_errors(run_dir))
+        self.assertTrue(full_lifecycle_check.promotion_errors(run_dir))
+
+    def test_full_lifecycle_checker_accepts_selected_workload_identity(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-lifecycle-check-") as temporary:
-            root = Path(temporary)
-            capability_path = root / "capabilities.json"
-            capability_path.write_text(
-                json.dumps(manifest("envoy", executable=set(no_crs.CAPABILITIES))),
-                encoding="utf-8",
-            )
-            run_dir = root / "evidence/envoy/real-host"
-            self.assertEqual(0, no_crs.main([
-                "init", "--connector", "envoy", "--capabilities", str(capability_path),
-                "--artifact-profile", "full_lifecycle", "--run-dir", str(run_dir),
-                "--run-id", "real-host", "--host-version", "1.0", "--libmodsecurity-version", "3.0",
-            ]))
-            event = {
-                "connector": "envoy",
-                "integration_mode": "unit-test-host-model",
-                "event": "phase4_intervention",
-                "message_id": "phase4-first-byte",
-                "transaction_id": "tx-first-byte",
-                "rule_id": 1100301,
-                "phase": 4,
-                "status": "intervened",
-                "no_full_response_buffering": True,
-                "client_first_byte_received": True,
-                "first_byte_before_response_end": True,
-                "first_chunk_size": 17,
-                "upstream_paused": True,
-                "upstream_eos_sent_at_first_byte": False,
-                "upstream_response_finished_at_first_byte": False,
-                "response_committed": True,
-                "body_bytes_seen": 17,
-                "body_bytes_inspected": 17,
-            }
-            events_path = root / "events.jsonl"
-            events_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
-            source_path = root / "source-results.json"
-            source_path.write_text(json.dumps({"cases": [
-                {
-                    "case_id": "phase4_first_byte_before_response_end",
-                    "status": "PASS", "live_executed": True,
-                    "observed_rule_ids": [1100301], "transaction_id": "tx-first-byte",
-                },
-                {
-                    "case_id": "phase4_no_full_response_buffering",
-                    "status": "PASS", "live_executed": True,
-                    "observed_rule_ids": [1100301], "transaction_id": "tx-first-byte",
-                },
-            ]}), encoding="utf-8")
-            stdout_path = root / "stdout.log"
-            stderr_path = root / "stderr.log"
-            host_log_path = root / "host.log"
-            for path in (stdout_path, stderr_path, host_log_path):
-                path.write_text("", encoding="utf-8")
-            first_byte_path = root / "first-byte-evidence.json"
-            write_evidence(first_byte_path, {
-                "schema_version": 1,
-                "evidence_type": "synchronized_first_byte",
-                "evidence_origin": "real_host",
-                "promotion_eligible": True,
-                "client_first_byte_received": True,
-                "first_byte_before_response_end": True,
-                "first_chunk_size": 17,
-                "upstream_paused": True,
-                "upstream_eos_sent_at_first_byte": False,
-                "upstream_response_finished_at_first_byte": False,
-                "response_committed": True,
-                "body_bytes_seen": 17,
-                "body_bytes_inspected": 17,
-                "no_full_response_buffering": True,
-                "connector_owned_full_response_buffer": False,
-                "transport_protocol": "http1",
-                "body_payload_persisted": False,
-                "outcome": "PASS",
-            })
-            self.assertEqual(0, no_crs.main([
-                "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
-                "--source-result", str(source_path), "--source-events", str(events_path),
-                "--stdout-log", str(stdout_path), "--stderr-log", str(stderr_path),
-                "--host-log", str(host_log_path), "--first-byte-evidence", str(first_byte_path),
-                "--stage-rc", "0", "--host-version", "1.0", "--libmodsecurity-version", "3.0",
-            ]))
+            run_dir = self.build_full_lifecycle_phase4_run(Path(temporary))
             self.assertEqual([], full_lifecycle_check.first_byte_errors(run_dir))
             self.assertEqual([], full_lifecycle_check.no_full_response_buffering_errors(run_dir))
             self.assertEqual([], full_lifecycle_check.event_privacy_errors(run_dir))
             self.assertEqual([], full_lifecycle_check.promotion_errors(run_dir))
+
+    def test_full_lifecycle_checker_rejects_foreign_or_missing_event_identity(self) -> None:
+        mutations = {
+            "foreign_connector": ("connector", "nginx"),
+            "foreign_run": ("run_id", "foreign-run"),
+            "missing_run": ("run_id", None),
+            "foreign_integration_mode": ("integration_mode", "unit-test-host-model"),
+            "foreign_transaction": ("transaction_id", "tx-foreign"),
+            "missing_transaction": ("transaction_id", None),
+        }
+        for name, (field, value) in mutations.items():
+            with self.subTest(identity=name), tempfile.TemporaryDirectory(
+                prefix="full-lifecycle-identity-"
+            ) as temporary:
+                run_dir = self.build_full_lifecycle_phase4_run(Path(temporary))
+                events_path = run_dir / "events.jsonl"
+                event = json.loads(events_path.read_text(encoding="utf-8").splitlines()[0])
+                if value is None:
+                    event.pop(field, None)
+                else:
+                    event[field] = value
+                events_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
+                self.assert_full_lifecycle_identity_rejected(run_dir)
+
+    def test_full_lifecycle_checker_rejects_result_manifest_identity_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="full-lifecycle-identity-") as temporary:
+            run_dir = self.build_full_lifecycle_phase4_run(Path(temporary))
+            manifest_path = run_dir / "manifest.json"
+            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest_payload["run_id"] = "foreign-run"
+            manifest_path.write_text(json.dumps(manifest_payload), encoding="utf-8")
+            self.assert_full_lifecycle_identity_rejected(run_dir)
+
+    def test_full_lifecycle_checker_rejects_selected_phase4_record_identity_mismatch(self) -> None:
+        mutations = {
+            "foreign_run": ("run_id", "foreign-run"),
+            "foreign_integration_mode": ("integration_mode", "unit-test-host-model"),
+        }
+        for name, (field, value) in mutations.items():
+            with self.subTest(identity=name), tempfile.TemporaryDirectory(
+                prefix="full-lifecycle-identity-"
+            ) as temporary:
+                run_dir = self.build_full_lifecycle_phase4_run(Path(temporary))
+                records_path = run_dir / "results.jsonl"
+                records = [
+                    json.loads(line)
+                    for line in records_path.read_text(encoding="utf-8").splitlines()
+                ]
+                first_byte_record = next(
+                    record
+                    for record in records
+                    if record.get("case_id") == "phase4_first_byte_before_response_end"
+                )
+                first_byte_record[field] = value
+                records_path.write_text(
+                    "\n".join(json.dumps(record) for record in records) + "\n",
+                    encoding="utf-8",
+                )
+                first_byte_errors = full_lifecycle_check.first_byte_errors(run_dir)
+                self.assertTrue(any(
+                    "selected workload identity" in error for error in first_byte_errors
+                ))
+                self.assert_full_lifecycle_identity_rejected(run_dir)
 
     def test_full_lifecycle_late_modes_require_their_actual_runtime_mode(self) -> None:
         base = {
@@ -2111,7 +2235,7 @@ class NoCrsBaselineTest(unittest.TestCase):
         # A catalog protocol profile alone is non-promoting: it cannot pass
         # merely because a source record has a rule/status outcome.
         missing = no_crs.protocol_pass_errors(
-            {**record, **{field: None for field in no_crs.PROTOCOL_CLAIM_FIELDS}},
+            {**record, **dict.fromkeys(no_crs.PROTOCOL_CLAIM_FIELDS)},
             event,
             required_protocol="h3",
         )
@@ -2276,6 +2400,22 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "--run-dir", str(run_dir), "--run-id", "run-parent-link",
             ]))
             self.assertFalse((real_parent / "envoy/run-parent-link").exists())
+
+    def test_run_directory_parent_must_be_private(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-run-parent-") as temporary:
+            root = Path(temporary)
+            private_parent = root / "private"
+            private_parent.mkdir(mode=0o700)
+            no_crs.safe_run_dir(private_parent / "legitimate-run")
+
+            public_parent = root / "public"
+            public_parent.mkdir(mode=0o777)
+            public_parent.chmod(0o777)
+            with self.assertRaisesRegex(
+                no_crs.ContractError,
+                "run-dir parent must not be publicly writable",
+            ):
+                no_crs.safe_run_dir(public_parent / "rejected-run")
 
     def test_init_rejects_tampered_same_connector_plan(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:

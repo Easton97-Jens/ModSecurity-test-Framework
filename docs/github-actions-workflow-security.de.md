@@ -113,13 +113,14 @@ make test-workflow-security-contract
 Die Regression-Suite validiert zuerst die echten Workflows und beweist dann,
 dass sichere Read-only-PR- und Trusted-Writer-Fixtures bestehen. Unsichere
 Fixtures beweisen die Zurückweisung veränderlicher Referenzen in beiden
-Endungen, dynamischer Referenzen und alternativer Key-Syntax, fehlender
-Release-Kommentare, `pull_request_target`, Top-Level- und PR-Job-Write-
-Berechtigungen, persistierter Credentials, breiter Job-Token-Exposition,
-Submodule, Secret-Referenzen und doppelter YAML-Schlüssel. `make lint` ruft
-den Checker und diese Suite auf, während der gefilterte
-`check-action-versions`-Workflow auch bei Änderungen seines Checkers, seiner
-Fixtures, seines Tests oder des Makefiles läuft.
+Endungen, Block-Maps, Flow-Maps und Flow-Sequenz-Maps, dynamischer Referenzen
+und alternativer Key-Syntax, fehlender Release-Kommentare,
+`pull_request_target`, Top-Level- und PR-Job-Write-Berechtigungen,
+persistierter Credentials, breiter Job-Token-Exposition, Submodule,
+Secret-Referenzen und doppelter YAML-Schlüssel. `make lint` ruft den Checker
+und diese Suite auf, während der gefilterte `check-action-versions`-Workflow
+auch bei Änderungen seines Checkers, seiner Fixtures, seines Tests oder des
+Makefiles läuft.
 
 ## Aktualisieren eines Action-Pins
 

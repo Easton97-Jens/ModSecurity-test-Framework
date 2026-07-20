@@ -3,8 +3,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../../lib/path-bootstrap.sh"
 COMMON_SH="$CI_ROOT/lib/common.sh"
 LIGHTTPD_PREPARE_SH="$CI_ROOT/provisioning/prepare-lighttpd-runtime.sh"
 CHECK_ROOT="${TMPDIR:-/tmp}/modsecurity-open-runtime-contract-$$"
@@ -62,6 +61,7 @@ assert_pin() {
     else
         case "$sha256" in
             *[!0-9A-Fa-f]*) fail "${component}_SHA256 is not hexadecimal" ;;
+            *) : ;;
         esac
     fi
 }

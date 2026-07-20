@@ -32,7 +32,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence, cast
 from urllib.parse import urlsplit, urlunsplit
 
 
@@ -51,6 +51,15 @@ _SHA256_TOKEN = re.compile(r"^sha256:[0-9a-f]{64}$")
 _HTTP_FIELD_NAME = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 _VERSION_RE = re.compile(r"\bcurl\s+(\d+)\.(\d+)(?:\.(\d+))?\b", re.IGNORECASE)
 _OPTION_RE = re.compile(r"(?<![A-Za-z0-9_-])(--[A-Za-z0-9][A-Za-z0-9.-]*)")
+_TRANSPORT_CASE_ID_ERROR = "transport_case_id must be a bounded token"
+_PROVENANCE_TEXT_FIELDS = (
+    "connector",
+    "integration_mode",
+    "run_id",
+    "transaction_id",
+    "rule_id",
+    "phase",
+)
 
 
 class ProtocolClientError(ValueError):
@@ -163,6 +172,35 @@ _RAW_CONNECTION_ID_KEYS = frozenset(
         "quic_connection_id",
     }
 )
+_SIDECAR_BOOLEAN_KEYS = (
+    "connection_reused",
+    "quic_udp_observed",
+    "quic_connection_id_present",
+    "stream_reset",
+)
+_CURL_RETURN_CODE_TRANSPORT_ERRORS = {
+    6: "dns_failure",
+    7: "connection_failure",
+    18: "transfer_incomplete",
+    28: "timeout",
+    16: "h2_failure",
+    92: "h2_failure",
+    95: "h3_failure",
+    96: "h3_failure",
+    35: "tls_failure",
+    51: "tls_failure",
+    58: "tls_failure",
+    59: "tls_failure",
+    60: "tls_failure",
+    64: "tls_failure",
+    66: "tls_failure",
+    77: "tls_failure",
+    80: "tls_failure",
+    82: "tls_failure",
+    83: "tls_failure",
+    90: "tls_failure",
+    91: "tls_failure",
+}
 
 
 def _run_process(
@@ -217,7 +255,7 @@ def inspect_curl(curl: str = "curl") -> CurlInspection:
 
     try:
         version_result = _run_process((curl, "--version"), timeout=10)
-    except (FileNotFoundError, PermissionError, OSError):
+    except OSError:
         return CurlInspection(
             executable=curl,
             version_text="curl executable unavailable\n",
@@ -255,7 +293,7 @@ def inspect_curl(curl: str = "curl") -> CurlInspection:
 
     try:
         help_result = _run_process((curl, "--help", "all"), timeout=10)
-    except (FileNotFoundError, PermissionError, OSError):
+    except OSError:
         return CurlInspection(
             executable=curl,
             version_text=version_text,
@@ -401,18 +439,32 @@ def _validate_text_argument(value: str | None, name: str) -> str | None:
     return text
 
 
-def _validate_config(config: ClientConfig) -> tuple[str, str]:
-    protocol = normalize_protocol(config.protocol)
+def _validate_timeouts(config: ClientConfig) -> None:
     if config.timeout <= 0:
         raise ProtocolClientError("timeout must be greater than zero")
     if config.connect_timeout is not None and config.connect_timeout <= 0:
         raise ProtocolClientError("connect_timeout must be greater than zero")
-    if not config.request or any(character in config.request for character in "\r\n\x00"):
+
+
+def _validate_request(request: str) -> None:
+    if not request or any(character in request for character in "\r\n\x00"):
         raise ProtocolClientError("request must be a non-empty HTTP method")
-    parsed = urlsplit(config.url)
+
+
+def _validate_protocol_url_scheme(protocol: str, scheme: str) -> None:
+    if protocol == "h2" and scheme != "https":
+        raise ProtocolClientError("h2 requires an https URL for TLS/ALPN evidence")
+    if protocol == "h2c" and scheme != "http":
+        raise ProtocolClientError("h2c requires an http URL")
+    if protocol == "h3" and scheme != "https":
+        raise ProtocolClientError("h3 requires an https URL")
+
+
+def _validate_url(url: str, protocol: str) -> str:
+    parsed = urlsplit(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ProtocolClientError("url must be an absolute http or https URL")
-    if any(character in config.url for character in "\r\n\x00"):
+    if any(character in url for character in "\r\n\x00"):
         raise ProtocolClientError("url contains a control character")
     if parsed.fragment:
         raise ProtocolClientError("url must not include a fragment")
@@ -420,37 +472,39 @@ def _validate_config(config: ClientConfig) -> tuple[str, str]:
         parsed.port
     except ValueError as exc:
         raise ProtocolClientError("url contains an invalid port") from exc
-    if protocol == "h2" and parsed.scheme != "https":
-        raise ProtocolClientError("h2 requires an https URL for TLS/ALPN evidence")
-    if protocol == "h2c" and parsed.scheme != "http":
-        raise ProtocolClientError("h2c requires an http URL")
-    if protocol == "h3" and parsed.scheme != "https":
-        raise ProtocolClientError("h3 requires an https URL")
-    if config.stream_id is not None and (
-        isinstance(config.stream_id, bool)
-        or not isinstance(config.stream_id, int)
-        or config.stream_id < 0
-    ):
+    _validate_protocol_url_scheme(protocol, parsed.scheme)
+    return parsed.scheme
+
+
+def _has_invalid_stream_id(value: object) -> bool:
+    return isinstance(value, bool) or not isinstance(value, int) or value < 0
+
+
+def _validate_stream_id(stream_id: int | None) -> None:
+    if stream_id is not None and _has_invalid_stream_id(stream_id):
         raise ProtocolClientError("stream_id must be an integer greater than or equal to zero")
-    if config.upstream_protocol is not None:
-        normalize_protocol(config.upstream_protocol)
-    for name in (
-        "connector",
-        "integration_mode",
-        "run_id",
-        "transaction_id",
-        "rule_id",
-        "phase",
-    ):
+
+
+def _validate_provenance_text(config: ClientConfig) -> None:
+    for name in _PROVENANCE_TEXT_FIELDS:
         _validate_text_argument(getattr(config, name), name)
-    if config.transport_case_id is not None and (
-        not isinstance(config.transport_case_id, str)
-        or not _BOUNDED_TOKEN.fullmatch(config.transport_case_id)
+
+
+def _has_invalid_bounded_token(value: object) -> bool:
+    return not isinstance(value, str) or not _BOUNDED_TOKEN.fullmatch(value)
+
+
+def _validate_transport_case_id(config: ClientConfig, protocol: str) -> None:
+    if config.transport_case_id is not None and _has_invalid_bounded_token(
+        config.transport_case_id
     ):
-        raise ProtocolClientError("transport_case_id must be a bounded token")
+        raise ProtocolClientError(_TRANSPORT_CASE_ID_ERROR)
     if protocol in {"h2", "h2c", "h3"} and not config.transport_case_id:
         raise ProtocolClientError("modern protocol probes require a transport_case_id")
-    for header in config.headers:
+
+
+def _validate_headers(headers: Sequence[str]) -> None:
+    for header in headers:
         if (
             not isinstance(header, str)
             or not header
@@ -470,7 +524,20 @@ def _validate_config(config: ClientConfig) -> tuple[str, str]:
             # duplicate would make first/last/combined-header behavior host
             # dependent and break request-to-event attribution.
             raise ProtocolClientError("transport correlation header is helper-owned")
-    return protocol, parsed.scheme
+
+
+def _validate_config(config: ClientConfig) -> tuple[str, str]:
+    protocol = normalize_protocol(config.protocol)
+    _validate_timeouts(config)
+    _validate_request(config.request)
+    scheme = _validate_url(config.url, protocol)
+    _validate_stream_id(config.stream_id)
+    if config.upstream_protocol is not None:
+        normalize_protocol(config.upstream_protocol)
+    _validate_provenance_text(config)
+    _validate_transport_case_id(config, protocol)
+    _validate_headers(config.headers)
+    return protocol, scheme
 
 
 def derive_followup_transport_case_id(primary: str | None) -> str | None:
@@ -484,8 +551,8 @@ def derive_followup_transport_case_id(primary: str | None) -> str | None:
 
     if primary is None:
         return None
-    if not isinstance(primary, str) or not _BOUNDED_TOKEN.fullmatch(primary):
-        raise ProtocolClientError("transport_case_id must be a bounded token")
+    if _has_invalid_bounded_token(primary):
+        raise ProtocolClientError(_TRANSPORT_CASE_ID_ERROR)
     digest = hashlib.sha256(
         ("msconnector-followup:" + primary).encode("ascii")
     ).hexdigest()[:32]
@@ -520,26 +587,27 @@ def target_authority_sha256(url: str) -> str | None:
     return "sha256:" + hashlib.sha256(authority.encode("utf-8")).hexdigest()
 
 
-def _load_observation_sidecar(path: Path) -> dict[str, Any]:
-    """Load only a narrow, non-payload sidecar vocabulary.
-
-    In particular, raw connection IDs are rejected instead of being ignored:
-    silently accepting one makes it too easy for a future caller to persist a
-    QUIC CID by accident.
-    """
-
+def _read_observation_sidecar(path: Path) -> bytes:
     try:
         raw = path.read_bytes()
     except OSError as exc:
         raise ProtocolClientError("observation sidecar is unavailable") from exc
     if len(raw) > _MAX_SIDECAR_BYTES:
         raise ProtocolClientError("observation sidecar exceeds bounded size")
+    return raw
+
+
+def _decode_observation_sidecar(raw: bytes) -> dict[str, Any]:
     try:
         loaded = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ProtocolClientError("observation sidecar is not valid JSON") from exc
     if not isinstance(loaded, dict):
         raise ProtocolClientError("observation sidecar must be a JSON object")
+    return loaded
+
+
+def _validate_observation_sidecar_keys(loaded: Mapping[str, Any]) -> None:
     keys = set(loaded)
     if keys & _RAW_CONNECTION_ID_KEYS:
         raise ProtocolClientError("raw connection identifiers are not accepted")
@@ -547,32 +615,42 @@ def _load_observation_sidecar(path: Path) -> dict[str, Any]:
     if unknown:
         raise ProtocolClientError("observation sidecar contains unsupported fields")
 
-    result: dict[str, Any] = {}
+
+def _copy_sidecar_stream_id(loaded: Mapping[str, Any], result: dict[str, Any]) -> None:
     if "stream_id" in loaded:
         value = loaded["stream_id"]
-        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        if _has_invalid_stream_id(value):
             raise ProtocolClientError("sidecar stream_id must be an integer >= 0")
         result["stream_id"] = value
-    for key in (
-        "connection_reused",
-        "quic_udp_observed",
-        "quic_connection_id_present",
-        "stream_reset",
-    ):
+
+
+def _copy_sidecar_booleans(loaded: Mapping[str, Any], result: dict[str, Any]) -> None:
+    for key in _SIDECAR_BOOLEAN_KEYS:
         if key in loaded:
             if not isinstance(loaded[key], bool):
                 raise ProtocolClientError(f"sidecar {key} must be boolean")
             result[key] = loaded[key]
+
+
+def _copy_sidecar_quic_version(loaded: Mapping[str, Any], result: dict[str, Any]) -> None:
     if "quic_version" in loaded:
         value = loaded["quic_version"]
-        if not isinstance(value, str) or not _BOUNDED_TOKEN.fullmatch(value):
+        if _has_invalid_bounded_token(value):
             raise ProtocolClientError("sidecar quic_version must be a bounded token")
         result["quic_version"] = value
+
+
+def _copy_sidecar_alpn(loaded: Mapping[str, Any], result: dict[str, Any]) -> None:
     if "alpn" in loaded:
         value = loaded["alpn"]
         if value not in {"h2", "h3"}:
             raise ProtocolClientError("sidecar alpn must be h2 or h3")
         result["alpn"] = value
+
+
+def _copy_sidecar_stream_reset_code(
+    loaded: Mapping[str, Any], result: dict[str, Any]
+) -> None:
     if "stream_reset_code" in loaded:
         value = loaded["stream_reset_code"]
         if isinstance(value, bool):
@@ -583,6 +661,24 @@ def _load_observation_sidecar(path: Path) -> dict[str, Any]:
         elif not isinstance(value, str) or not _BOUNDED_TOKEN.fullmatch(value):
             raise ProtocolClientError("sidecar stream_reset_code must be numeric or bounded token")
         result["stream_reset_code"] = value
+
+
+def _load_observation_sidecar(path: Path) -> dict[str, Any]:
+    """Load only a narrow, non-payload sidecar vocabulary.
+
+    In particular, raw connection IDs are rejected instead of being ignored:
+    silently accepting one makes it too easy for a future caller to persist a
+    QUIC CID by accident.
+    """
+
+    loaded = _decode_observation_sidecar(_read_observation_sidecar(path))
+    _validate_observation_sidecar_keys(loaded)
+    result: dict[str, Any] = {}
+    _copy_sidecar_stream_id(loaded, result)
+    _copy_sidecar_booleans(loaded, result)
+    _copy_sidecar_quic_version(loaded, result)
+    _copy_sidecar_alpn(loaded, result)
+    _copy_sidecar_stream_reset_code(loaded, result)
     return result
 
 
@@ -762,34 +858,19 @@ def _negotiated_protocol(http_version: str | None, requested: str, scheme: str) 
     return None
 
 
-def _classify_transport_error(
-    returncode: int | None,
-    stderr: str,
-    requested_protocol: str,
-    http_status: int | None,
-) -> str:
-    """Map curl outcome to a fixed vocabulary without retaining stderr."""
-
+def _returncode_transport_error(
+    returncode: int | None, http_status: int | None
+) -> str | None:
     if returncode == 0:
         return "none"
     if returncode == 22 and http_status is not None:
         return "http_response_error"
     # curl errors are stable enough for the common transport classes.  Keep
     # wording checks only as a supplemental signal and never export them.
-    if returncode == 6:
-        return "dns_failure"
-    if returncode == 7:
-        return "connection_failure"
-    if returncode == 18:
-        return "transfer_incomplete"
-    if returncode == 28:
-        return "timeout"
-    if returncode in {35, 51, 58, 59, 60, 64, 66, 77, 80, 82, 83, 90, 91}:
-        return "tls_failure"
-    if returncode in {16, 92}:
-        return "h2_failure"
-    if returncode in {95, 96}:
-        return "h3_failure"
+    return _CURL_RETURN_CODE_TRANSPORT_ERRORS.get(returncode)
+
+
+def _stderr_transport_error(stderr: str, requested_protocol: str) -> str:
     lower = stderr.lower()
     if "timed out" in lower or "timeout" in lower:
         return "timeout"
@@ -800,6 +881,20 @@ def _classify_transport_error(
     if "http/2" in lower or "http2" in lower:
         return "h2_failure" if requested_protocol in {"h2", "h2c"} else "protocol_failure"
     return "client_or_network_failure"
+
+
+def _classify_transport_error(
+    returncode: int | None,
+    stderr: str,
+    requested_protocol: str,
+    http_status: int | None,
+) -> str:
+    """Map curl outcome to a fixed vocabulary without retaining stderr."""
+
+    categorized = _returncode_transport_error(returncode, http_status)
+    if categorized is not None:
+        return categorized
+    return _stderr_transport_error(stderr, requested_protocol)
 
 
 def _expected_transport(protocol: str, scheme: str) -> str:
@@ -829,20 +924,13 @@ def _derive_transport(
 
 def _provenance(config: ClientConfig, sidecar: Mapping[str, Any]) -> dict[str, Any]:
     fields: dict[str, Any] = {}
-    for name in (
-        "connector",
-        "integration_mode",
-        "run_id",
-        "transaction_id",
-        "rule_id",
-        "phase",
-    ):
+    for name in _PROVENANCE_TEXT_FIELDS:
         value = _validate_text_argument(getattr(config, name), name)
         if value is not None:
             fields[name] = value
     if config.transport_case_id is not None:
         if not _BOUNDED_TOKEN.fullmatch(config.transport_case_id):
-            raise ProtocolClientError("transport_case_id must be a bounded token")
+            raise ProtocolClientError(_TRANSPORT_CASE_ID_ERROR)
         fields["transport_case_id"] = config.transport_case_id
     authority_hash = target_authority_sha256(config.url)
     if authority_hash is not None:
@@ -870,16 +958,9 @@ def _provenance(config: ClientConfig, sidecar: Mapping[str, Any]) -> dict[str, A
     return fields
 
 
-def _evidence_gaps(observation: Mapping[str, Any]) -> tuple[list[str], list[str]]:
-    """Return (missing, contradictory) strict protocol-evidence fields."""
-
-    requested = observation.get("requested_protocol")
-    negotiated = observation.get("negotiated_protocol")
-    missing: list[str] = []
-    contradictory: list[str] = []
-    if negotiated != requested:
-        contradictory.append("negotiated_protocol")
-        return missing, contradictory
+def _observation_expected_transport(
+    observation: Mapping[str, Any], requested: Any
+) -> Any:
     expected_transport = observation.get("expected_transport")
     if expected_transport is None:
         # Persisted artifacts deliberately omit the URL and therefore cannot
@@ -890,34 +971,172 @@ def _evidence_gaps(observation: Mapping[str, Any]) -> tuple[list[str], list[str]
             "h2c": "tcp",
             "h3": "quic_udp",
         }.get(requested)
+    return expected_transport
+
+
+def _append_transport_evidence_gaps(
+    observation: Mapping[str, Any],
+    expected_transport: Any,
+    missing: list[str],
+    contradictory: list[str],
+) -> None:
     transport = observation.get("transport")
     if transport is None:
         missing.append("transport")
     elif expected_transport is not None and transport != expected_transport:
         contradictory.append("transport")
+
+
+def _append_stream_evidence_gaps(
+    observation: Mapping[str, Any],
+    requested: Any,
+    missing: list[str],
+    contradictory: list[str],
+) -> None:
     if requested in {"h2", "h2c", "h3"}:
         stream_id = observation.get("stream_id")
         if stream_id is None:
             missing.append("stream_id")
-        elif isinstance(stream_id, bool) or not isinstance(stream_id, int) or stream_id < 0:
+        elif _has_invalid_stream_id(stream_id):
             contradictory.append("stream_id")
+
+
+def _append_alpn_evidence_gap(
+    observation: Mapping[str, Any],
+    expected_alpn: str,
+    missing: list[str],
+    contradictory: list[str],
+) -> None:
+    alpn = observation.get("alpn")
+    if alpn is None:
+        missing.append("alpn")
+    elif alpn != expected_alpn:
+        contradictory.append("alpn")
+
+
+def _append_h3_evidence_gaps(
+    observation: Mapping[str, Any], missing: list[str]
+) -> None:
+    if observation.get("quic_udp_observed") is not True:
+        missing.append("quic_udp_observed")
+    if observation.get("quic_connection_id_present") is not True:
+        missing.append("quic_connection_id_present")
+
+
+def _evidence_gaps(observation: Mapping[str, Any]) -> tuple[list[str], list[str]]:
+    """Return (missing, contradictory) strict protocol-evidence fields."""
+
+    requested = observation.get("requested_protocol")
+    negotiated = observation.get("negotiated_protocol")
+    missing: list[str] = []
+    contradictory: list[str] = []
+    if negotiated != requested:
+        contradictory.append("negotiated_protocol")
+        return missing, contradictory
+    _append_transport_evidence_gaps(
+        observation,
+        _observation_expected_transport(observation, requested),
+        missing,
+        contradictory,
+    )
+    _append_stream_evidence_gaps(observation, requested, missing, contradictory)
     if requested == "h2":
-        alpn = observation.get("alpn")
-        if alpn is None:
-            missing.append("alpn")
-        elif alpn != "h2":
-            contradictory.append("alpn")
-    if requested == "h3":
-        alpn = observation.get("alpn")
-        if alpn is None:
-            missing.append("alpn")
-        elif alpn != "h3":
-            contradictory.append("alpn")
-        if observation.get("quic_udp_observed") is not True:
-            missing.append("quic_udp_observed")
-        if observation.get("quic_connection_id_present") is not True:
-            missing.append("quic_connection_id_present")
+        _append_alpn_evidence_gap(observation, "h2", missing, contradictory)
+    elif requested == "h3":
+        _append_alpn_evidence_gap(observation, "h3", missing, contradictory)
+        _append_h3_evidence_gaps(observation, missing)
     return missing, contradictory
+
+
+def _has_invalid_sha256_token(value: object) -> bool:
+    return not isinstance(value, str) or not _SHA256_TOKEN.fullmatch(value)
+
+
+def _has_invalid_stream_reset_code(value: object) -> bool:
+    if isinstance(value, bool):
+        return True
+    if isinstance(value, int):
+        return False
+    return _has_invalid_bounded_token(value)
+
+
+def _validate_observation_protocol_fields(
+    observation: Mapping[str, Any], errors: list[str]
+) -> None:
+    if observation.get("requested_protocol") not in CANONICAL_PROTOCOLS:
+        errors.append("requested_protocol is not canonical")
+    if observation.get("downstream_protocol") not in CANONICAL_PROTOCOLS:
+        errors.append("downstream_protocol is not canonical")
+    upstream = observation.get("upstream_protocol")
+    if upstream is not None and upstream not in CANONICAL_PROTOCOLS:
+        errors.append("upstream_protocol is not canonical")
+    negotiated = observation.get("negotiated_protocol")
+    if negotiated is not None and negotiated not in CANONICAL_PROTOCOLS:
+        errors.append("negotiated_protocol is not canonical")
+    transport = observation.get("transport")
+    if transport is not None and transport not in CANONICAL_TRANSPORTS:
+        errors.append("transport is not canonical")
+
+
+def _validate_observation_request_fields(
+    observation: Mapping[str, Any], errors: list[str]
+) -> None:
+    if not isinstance(observation.get("fallback_used"), bool):
+        errors.append("fallback_used must be boolean")
+    if "stream_id" in observation and _has_invalid_stream_id(observation["stream_id"]):
+        errors.append("stream_id must be an integer >= 0")
+    if "transport_case_id" in observation and _has_invalid_bounded_token(
+        observation["transport_case_id"]
+    ):
+        errors.append(_TRANSPORT_CASE_ID_ERROR)
+    if "target_authority_sha256" in observation and _has_invalid_sha256_token(
+        observation["target_authority_sha256"]
+    ):
+        errors.append("target_authority_sha256 must be a SHA-256 token")
+
+
+def _validate_observation_connection_fields(
+    observation: Mapping[str, Any], errors: list[str]
+) -> None:
+    if "connection_reused" in observation and not isinstance(
+        observation["connection_reused"], bool
+    ):
+        errors.append("connection_reused must be boolean")
+    if "quic_connection_id_present" in observation and not isinstance(
+        observation["quic_connection_id_present"], bool
+    ):
+        errors.append("quic_connection_id_present must be boolean")
+    if "quic_udp_observed" in observation and not isinstance(
+        observation["quic_udp_observed"], bool
+    ):
+        errors.append("quic_udp_observed must be boolean")
+    if "quic_version" in observation and _has_invalid_bounded_token(
+        observation["quic_version"]
+    ):
+        errors.append("quic_version must be a bounded token")
+    if "alpn" in observation and observation["alpn"] not in {"h2", "h3"}:
+        errors.append("alpn must be h2 or h3")
+
+
+def _validate_observation_stream_fields(
+    observation: Mapping[str, Any], errors: list[str]
+) -> None:
+    if "stream_reset" in observation and not isinstance(observation["stream_reset"], bool):
+        errors.append("stream_reset must be boolean")
+    if "stream_reset_code" in observation and _has_invalid_stream_reset_code(
+        observation["stream_reset_code"]
+    ):
+        errors.append("stream_reset_code must be numeric or bounded token")
+    if any(key in observation for key in _RAW_CONNECTION_ID_KEYS):
+        errors.append("raw connection identifiers must not be persisted")
+
+
+def _validate_pass_evidence(observation: Mapping[str, Any], errors: list[str]) -> None:
+    if observation.get("fallback_used") is not False:
+        errors.append("PASS cannot use fallback")
+    missing, contradictory = _evidence_gaps(observation)
+    errors.extend(f"missing {field}" for field in missing)
+    errors.extend(f"contradictory {field}" for field in contradictory)
 
 
 def validate_protocol_observation(
@@ -931,69 +1150,12 @@ def validate_protocol_observation(
     """
 
     errors: list[str] = []
-    requested = observation.get("requested_protocol")
-    if requested not in CANONICAL_PROTOCOLS:
-        errors.append("requested_protocol is not canonical")
-    downstream = observation.get("downstream_protocol")
-    if downstream not in CANONICAL_PROTOCOLS:
-        errors.append("downstream_protocol is not canonical")
-    upstream = observation.get("upstream_protocol")
-    if upstream is not None and upstream not in CANONICAL_PROTOCOLS:
-        errors.append("upstream_protocol is not canonical")
-    negotiated = observation.get("negotiated_protocol")
-    if negotiated is not None and negotiated not in CANONICAL_PROTOCOLS:
-        errors.append("negotiated_protocol is not canonical")
-    transport = observation.get("transport")
-    if transport is not None and transport not in CANONICAL_TRANSPORTS:
-        errors.append("transport is not canonical")
-    if not isinstance(observation.get("fallback_used"), bool):
-        errors.append("fallback_used must be boolean")
-    if "stream_id" in observation:
-        stream_id = observation["stream_id"]
-        if isinstance(stream_id, bool) or not isinstance(stream_id, int) or stream_id < 0:
-            errors.append("stream_id must be an integer >= 0")
-    if "transport_case_id" in observation and (
-        not isinstance(observation["transport_case_id"], str)
-        or not _BOUNDED_TOKEN.fullmatch(observation["transport_case_id"])
-    ):
-        errors.append("transport_case_id must be a bounded token")
-    if "target_authority_sha256" in observation and (
-        not isinstance(observation["target_authority_sha256"], str)
-        or not _SHA256_TOKEN.fullmatch(observation["target_authority_sha256"])
-    ):
-        errors.append("target_authority_sha256 must be a SHA-256 token")
-    if "connection_reused" in observation and not isinstance(observation["connection_reused"], bool):
-        errors.append("connection_reused must be boolean")
-    if "quic_connection_id_present" in observation and not isinstance(
-        observation["quic_connection_id_present"], bool
-    ):
-        errors.append("quic_connection_id_present must be boolean")
-    if "quic_udp_observed" in observation and not isinstance(observation["quic_udp_observed"], bool):
-        errors.append("quic_udp_observed must be boolean")
-    if "quic_version" in observation and (
-        not isinstance(observation["quic_version"], str)
-        or not _BOUNDED_TOKEN.fullmatch(observation["quic_version"])
-    ):
-        errors.append("quic_version must be a bounded token")
-    if "alpn" in observation and observation["alpn"] not in {"h2", "h3"}:
-        errors.append("alpn must be h2 or h3")
-    if "stream_reset" in observation and not isinstance(observation["stream_reset"], bool):
-        errors.append("stream_reset must be boolean")
-    if "stream_reset_code" in observation:
-        code = observation["stream_reset_code"]
-        if isinstance(code, bool) or (
-            not isinstance(code, int)
-            and (not isinstance(code, str) or not _BOUNDED_TOKEN.fullmatch(code))
-        ):
-            errors.append("stream_reset_code must be numeric or bounded token")
-    if any(key in observation for key in _RAW_CONNECTION_ID_KEYS):
-        errors.append("raw connection identifiers must not be persisted")
+    _validate_observation_protocol_fields(observation, errors)
+    _validate_observation_request_fields(observation, errors)
+    _validate_observation_connection_fields(observation, errors)
+    _validate_observation_stream_fields(observation, errors)
     if require_pass_evidence:
-        if observation.get("fallback_used") is not False:
-            errors.append("PASS cannot use fallback")
-        missing, contradictory = _evidence_gaps(observation)
-        errors.extend(f"missing {field}" for field in missing)
-        errors.extend(f"contradictory {field}" for field in contradictory)
+        _validate_pass_evidence(observation, errors)
     return errors
 
 
@@ -1201,6 +1363,107 @@ def _write_artifacts(
     atomic_write_json(directory / "client-protocol-observation.json", observation)
 
 
+def _followup_configuration(config: ClientConfig, protocol: str) -> ClientConfig:
+    return cast(
+        ClientConfig,
+        replace(
+            config,
+            url=config.followup_url,
+            protocol=protocol,
+            request="GET",
+            headers=(),
+            data_file=None,
+            transaction_id=None,
+            transport_case_id=derive_followup_transport_case_id(config.transport_case_id),
+            rule_id=None,
+            phase=None,
+            stream_id=None,
+            observation_sidecar=None,
+        ),
+    )
+
+
+def _followup_observation(
+    *, status: str, reason: str, requested_protocol: str | None = None
+) -> dict[str, Any]:
+    observation: dict[str, Any] = {
+        "schema_version": 1,
+        "status": status,
+        "reason": reason,
+    }
+    if requested_protocol is not None:
+        observation["requested_protocol"] = requested_protocol
+    return observation
+
+
+def _finalize_followup_status(
+    observation: dict[str, Any],
+    execution: subprocess.CompletedProcess[str],
+    requested_protocol: str,
+) -> None:
+    if observation.get("fallback_used") is True:
+        observation.update({"status": "FAIL", "reason": "followup_protocol_fallback"})
+    elif observation.get("negotiated_protocol") != requested_protocol:
+        observation.update({"status": "FAIL", "reason": "followup_protocol_not_observed"})
+    elif (
+        isinstance(observation.get("http_status"), int)
+        and 200 <= int(observation["http_status"]) < 400
+        and execution.returncode == 0
+    ):
+        observation.update({"status": "PASS", "reason": "healthy_independent_request"})
+    else:
+        observation.update({"status": "FAIL", "reason": "followup_unhealthy_response"})
+
+
+def _execute_followup_observation(
+    followup: ClientConfig,
+    command: Sequence[str],
+    preflight: Preflight,
+    requested_protocol: str,
+    scheme: str,
+) -> dict[str, Any]:
+    observation = _initial_observation(requested_protocol, scheme, followup, {})
+    try:
+        execution = _run_process(command, timeout=followup.timeout + 10)
+    except subprocess.TimeoutExpired:
+        observation.update(
+            {"status": "FAIL", "reason": "followup_timeout", "transport_error": "timeout"}
+        )
+    except OSError:
+        observation.update(
+            {
+                "status": "BLOCKED",
+                "reason": "followup_client_unavailable",
+                "transport_error": "client_unavailable",
+            }
+        )
+    else:
+        outcome = _parse_writeout(execution.stdout, preflight.writeout_mode)
+        _apply_outcome(
+            observation,
+            outcome,
+            returncode=execution.returncode,
+            stderr=execution.stderr,
+            requested=requested_protocol,
+            scheme=scheme,
+            config=followup,
+            sidecar={},
+        )
+        _finalize_followup_status(observation, execution, requested_protocol)
+    return observation
+
+
+def _followup_artifact_observation(observation: dict[str, Any]) -> dict[str, Any]:
+    observation.pop("expected_transport", None)
+    allowed = {
+        "schema_version", "status", "reason", "requested_protocol", "downstream_protocol",
+        "negotiated_protocol", "transport", "fallback_used", "http_status",
+        "response_complete", "curl_exit_code", "transport_error", "connector",
+        "integration_mode", "run_id", "transport_case_id", "target_authority_sha256",
+    }
+    return {key: value for key, value in observation.items() if key in allowed}
+
+
 def _run_followup_observation(
     config: ClientConfig,
     inspection: CurlInspection,
@@ -1217,84 +1480,36 @@ def _run_followup_observation(
     if config.followup_url is None:
         return None
     protocol = config.followup_protocol or config.protocol
-    followup = replace(
-        config,
-        url=config.followup_url,
-        protocol=protocol,
-        request="GET",
-        headers=(),
-        data_file=None,
-        transaction_id=None,
-        transport_case_id=derive_followup_transport_case_id(config.transport_case_id),
-        rule_id=None,
-        phase=None,
-        stream_id=None,
-        observation_sidecar=None,
-    )
+    followup = _followup_configuration(config, protocol)
     try:
         normalized_protocol, scheme = _validate_config(followup)
     except ProtocolClientError:
-        return {
-            "schema_version": 1,
-            "status": "NOT_EXECUTED",
-            "reason": "invalid_followup_configuration",
-        }
+        return _followup_observation(
+            status="NOT_EXECUTED", reason="invalid_followup_configuration"
+        )
     preflight = preflight_curl(normalized_protocol, inspection, followup)
     if preflight.status != "READY":
-        return {
-            "schema_version": 1,
-            "status": "BLOCKED",
-            "reason": preflight.reason or "followup_client_preflight_blocked",
-            "requested_protocol": normalized_protocol,
-        }
+        return _followup_observation(
+            status="BLOCKED",
+            reason=preflight.reason or "followup_client_preflight_blocked",
+            requested_protocol=normalized_protocol,
+        )
     try:
         command = build_curl_command(followup, preflight)
     except ProtocolClientError:
-        return {
-            "schema_version": 1,
-            "status": "NOT_EXECUTED",
-            "reason": "invalid_followup_configuration",
-            "requested_protocol": normalized_protocol,
-        }
-    observation = _initial_observation(normalized_protocol, scheme, followup, {})
-    try:
-        execution = _run_process(command, timeout=followup.timeout + 10)
-    except subprocess.TimeoutExpired:
-        observation.update({"status": "FAIL", "reason": "followup_timeout", "transport_error": "timeout"})
-    except (FileNotFoundError, PermissionError, OSError):
-        observation.update({"status": "BLOCKED", "reason": "followup_client_unavailable", "transport_error": "client_unavailable"})
-    else:
-        outcome = _parse_writeout(execution.stdout, preflight.writeout_mode)
-        _apply_outcome(
-            observation,
-            outcome,
-            returncode=execution.returncode,
-            stderr=execution.stderr,
-            requested=normalized_protocol,
-            scheme=scheme or "http",
-            config=followup,
-            sidecar={},
+        return _followup_observation(
+            status="NOT_EXECUTED",
+            reason="invalid_followup_configuration",
+            requested_protocol=normalized_protocol,
         )
-        if observation.get("fallback_used") is True:
-            observation.update({"status": "FAIL", "reason": "followup_protocol_fallback"})
-        elif observation.get("negotiated_protocol") != normalized_protocol:
-            observation.update({"status": "FAIL", "reason": "followup_protocol_not_observed"})
-        elif (
-            isinstance(observation.get("http_status"), int)
-            and 200 <= int(observation["http_status"]) < 400
-            and execution.returncode == 0
-        ):
-            observation.update({"status": "PASS", "reason": "healthy_independent_request"})
-        else:
-            observation.update({"status": "FAIL", "reason": "followup_unhealthy_response"})
-    observation.pop("expected_transport", None)
-    allowed = {
-        "schema_version", "status", "reason", "requested_protocol", "downstream_protocol",
-        "negotiated_protocol", "transport", "fallback_used", "http_status",
-        "response_complete", "curl_exit_code", "transport_error", "connector",
-        "integration_mode", "run_id", "transport_case_id", "target_authority_sha256",
-    }
-    return {key: value for key, value in observation.items() if key in allowed}
+    observation = _execute_followup_observation(
+        followup,
+        command,
+        preflight,
+        normalized_protocol,
+        scheme,
+    )
+    return _followup_artifact_observation(observation)
 
 
 def _blocked_observation(
@@ -1314,88 +1529,75 @@ def _blocked_observation(
     return observation
 
 
-def run_protocol_client(config: ClientConfig) -> ClientRunResult:
-    """Preflight curl, execute a forced request, and atomically write evidence.
-
-    Expected request-level HTTP errors (curl exit 22 from ``--fail-with-body``)
-    can still prove negotiation because curl records a response protocol and
-    status.  Protocol fallback, incomplete provenance, malformed observations,
-    and partial transfers never become ``PASS``.
-    """
-
-    inspection = inspect_curl(config.curl)
+def _validated_config_or_default(
+    config: ClientConfig,
+) -> tuple[str, str | None, str | None]:
     protocol = "http1"
     scheme: str | None = None
-    config_error: str | None = None
     try:
         protocol, scheme = _validate_config(config)
     except ProtocolClientError:
         # Do not export user input or an exception message: these artifacts
         # are designed to remain safe for canonical evidence directories.
-        config_error = "invalid_client_configuration"
         try:
             protocol = normalize_protocol(config.protocol)
         except ProtocolClientError:
             protocol = "http1"
+        return protocol, scheme, "invalid_client_configuration"
+    return protocol, scheme, None
 
-    sidecar: dict[str, Any] = {}
-    sidecar_error: str | None = None
-    if config.observation_sidecar is not None:
-        try:
-            sidecar = _load_observation_sidecar(config.observation_sidecar)
-        except ProtocolClientError:
-            sidecar_error = "invalid_observation_sidecar"
 
-    preflight = preflight_curl(protocol, inspection, config)
-    command: tuple[str, ...] = ()
-    if config_error is not None:
-        observation = _blocked_observation(
-            config,
-            protocol,
-            scheme,
-            sidecar,
-            status="NOT_EXECUTED",
-            reason=config_error,
-        )
-        _write_artifacts(config, inspection, preflight, command, observation)
-        return ClientRunResult(observation, inspection, preflight, command)
-    if preflight.status != "READY":
-        observation = _blocked_observation(
-            config,
-            protocol,
-            scheme,
-            sidecar,
-            status="BLOCKED",
-            reason=preflight.reason or "client_preflight_blocked",
-        )
-        _write_artifacts(config, inspection, preflight, command, observation)
-        return ClientRunResult(observation, inspection, preflight, command)
-    if sidecar_error is not None:
-        observation = _blocked_observation(
-            config,
-            protocol,
-            scheme,
-            sidecar,
-            status="NOT_EXECUTED",
-            reason=sidecar_error,
-        )
-        _write_artifacts(config, inspection, preflight, command, observation)
-        return ClientRunResult(observation, inspection, preflight, command)
-
+def _load_config_sidecar(config: ClientConfig) -> tuple[dict[str, Any], str | None]:
+    if config.observation_sidecar is None:
+        return {}, None
     try:
-        command = build_curl_command(config, preflight)
+        return _load_observation_sidecar(config.observation_sidecar), None
     except ProtocolClientError:
-        observation = _blocked_observation(
-            config,
-            protocol,
-            scheme,
-            sidecar,
-            status="NOT_EXECUTED",
-            reason="invalid_client_configuration",
-        )
-        _write_artifacts(config, inspection, preflight, command, observation)
-        return ClientRunResult(observation, inspection, preflight, command)
+        return {}, "invalid_observation_sidecar"
 
+
+def _write_client_result(
+    config: ClientConfig,
+    inspection: CurlInspection,
+    preflight: Preflight,
+    command: tuple[str, ...],
+    observation: dict[str, Any],
+) -> ClientRunResult:
+    _write_artifacts(config, inspection, preflight, command, observation)
+    return ClientRunResult(observation, inspection, preflight, command)
+
+
+def _blocked_client_result(
+    config: ClientConfig,
+    inspection: CurlInspection,
+    preflight: Preflight,
+    command: tuple[str, ...],
+    protocol: str,
+    scheme: str | None,
+    sidecar: Mapping[str, Any],
+    *,
+    status: str,
+    reason: str,
+) -> ClientRunResult:
+    observation = _blocked_observation(
+        config,
+        protocol,
+        scheme,
+        sidecar,
+        status=status,
+        reason=reason,
+    )
+    return _write_client_result(config, inspection, preflight, command, observation)
+
+
+def _execute_primary_observation(
+    config: ClientConfig,
+    command: Sequence[str],
+    preflight: Preflight,
+    protocol: str,
+    scheme: str | None,
+    sidecar: Mapping[str, Any],
+) -> dict[str, Any]:
     observation = _initial_observation(protocol, scheme, config, sidecar)
     try:
         execution = _run_process(command, timeout=config.timeout + 10)
@@ -1408,7 +1610,7 @@ def run_protocol_client(config: ClientConfig) -> ClientRunResult:
                 "transport_error": "timeout",
             }
         )
-    except (FileNotFoundError, PermissionError, OSError):
+    except OSError:
         observation.update(
             {
                 "status": "BLOCKED",
@@ -1429,6 +1631,83 @@ def run_protocol_client(config: ClientConfig) -> ClientRunResult:
             sidecar=sidecar,
         )
         _finalize_status(observation, protocol)
+    return observation
+
+
+def run_protocol_client(config: ClientConfig) -> ClientRunResult:
+    """Preflight curl, execute a forced request, and atomically write evidence.
+
+    Expected request-level HTTP errors (curl exit 22 from ``--fail-with-body``)
+    can still prove negotiation because curl records a response protocol and
+    status.  Protocol fallback, incomplete provenance, malformed observations,
+    and partial transfers never become ``PASS``.
+    """
+
+    inspection = inspect_curl(config.curl)
+    protocol, scheme, config_error = _validated_config_or_default(config)
+    sidecar, sidecar_error = _load_config_sidecar(config)
+    preflight = preflight_curl(protocol, inspection, config)
+    command: tuple[str, ...] = ()
+    if config_error is not None:
+        return _blocked_client_result(
+            config,
+            inspection,
+            preflight,
+            command,
+            protocol,
+            scheme,
+            sidecar,
+            status="NOT_EXECUTED",
+            reason=config_error,
+        )
+    if preflight.status != "READY":
+        return _blocked_client_result(
+            config,
+            inspection,
+            preflight,
+            command,
+            protocol,
+            scheme,
+            sidecar,
+            status="BLOCKED",
+            reason=preflight.reason or "client_preflight_blocked",
+        )
+    if sidecar_error is not None:
+        return _blocked_client_result(
+            config,
+            inspection,
+            preflight,
+            command,
+            protocol,
+            scheme,
+            sidecar,
+            status="NOT_EXECUTED",
+            reason=sidecar_error,
+        )
+
+    try:
+        command = build_curl_command(config, preflight)
+    except ProtocolClientError:
+        return _blocked_client_result(
+            config,
+            inspection,
+            preflight,
+            command,
+            protocol,
+            scheme,
+            sidecar,
+            status="NOT_EXECUTED",
+            reason="invalid_client_configuration",
+        )
+
+    observation = _execute_primary_observation(
+        config,
+        command,
+        preflight,
+        protocol,
+        scheme,
+        sidecar,
+    )
 
     # These are local implementation keys useful while deciding PASS, but the
     # persisted observation should contain only the canonical actual fields.

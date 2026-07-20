@@ -49,6 +49,14 @@ def inspection(*features: str) -> object:
 
 
 class ProtocolClientTest(unittest.TestCase):
+    def test_inspect_curl_treats_os_errors_as_an_unavailable_client(self) -> None:
+        with mock.patch.object(protocol_client, "_run_process", side_effect=PermissionError):
+            result = protocol_client.inspect_curl("unavailable-curl")
+
+        self.assertEqual("unavailable-curl", result.executable)
+        self.assertEqual("curl_executable_unavailable", result.error)
+        self.assertIsNone(result.version_returncode)
+
     def test_h3_uses_http3_only_and_complete_provenance_can_pass(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -263,6 +271,28 @@ class ProtocolClientTest(unittest.TestCase):
                     self.assertEqual("NOT_EXECUTED", result.observation["status"])
                     self.assertEqual("invalid_client_configuration", result.observation["reason"])
                     execute.assert_not_called()
+
+    def test_pass_evidence_reports_h3_gaps_in_canonical_order(self) -> None:
+        observation = {
+            "requested_protocol": "h3",
+            "downstream_protocol": "h3",
+            "negotiated_protocol": "h3",
+            "transport": None,
+            "fallback_used": False,
+        }
+
+        self.assertEqual(
+            [
+                "missing transport",
+                "missing stream_id",
+                "missing alpn",
+                "missing quic_udp_observed",
+                "missing quic_connection_id_present",
+            ],
+            protocol_client.validate_protocol_observation(
+                observation, require_pass_evidence=True
+            ),
+        )
 
     def test_optional_followup_writes_a_payload_free_health_observation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

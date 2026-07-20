@@ -2,8 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 
 if [ -n "${CONNECTOR_ROOT:-}" ]; then
     CONNECTOR_ROOT=$(CDPATH= cd "$CONNECTOR_ROOT" && pwd)

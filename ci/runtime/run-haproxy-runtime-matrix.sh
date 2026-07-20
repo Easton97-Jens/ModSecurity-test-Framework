@@ -2,8 +2,7 @@
 set -u
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
 BUILD_ROOT="${BUILD_ROOT:-/src/ModSecurity-conector-build}"
 RESULTS_ROOT="${RESULTS_ROOT:-$BUILD_ROOT/results}"
@@ -84,6 +83,7 @@ update_snapshot() {
         --haproxy-exit-code "$haproxy_exit_code" \
         --haproxy-command "$haproxy_command" \
         $snapshot_force_args
+    return $?
 }
 
 mkdir -p "$RESULTS_ROOT" "$TMP_ROOT"

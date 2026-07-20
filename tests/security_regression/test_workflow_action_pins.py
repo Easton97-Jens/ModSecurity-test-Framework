@@ -179,6 +179,57 @@ class WorkflowActionPinTests(unittest.TestCase):
         self.assertEqual(1, len(errors))
         self.assertTrue(any("actions/checkout@v7" in error for error in errors))
 
+    def test_rejects_mutable_reference_in_flow_sequence_mapping(self) -> None:
+        errors = self.validate(
+            {
+                "flow-sequence.yaml": (
+                    "jobs:\n"
+                    "  verify:\n"
+                    "    steps: [uses: actions/setup-python@v6]\n"
+                ),
+                "flow-sequence-after-comma.yaml": (
+                    "jobs:\n"
+                    "  verify:\n"
+                    "    steps: [name: setup, uses: actions/checkout@v7]\n"
+                ),
+            }
+        )
+
+        self.assertEqual(2, len(errors))
+        self.assertTrue(any("actions/setup-python@v6" in error for error in errors))
+        self.assertTrue(any("actions/checkout@v7" in error for error in errors))
+
+    def test_accepts_full_sha_reference_in_flow_sequence_mapping(self) -> None:
+        errors = self.validate(
+            {
+                "flow-sequence.yaml": (
+                    "jobs:\n"
+                    "  verify:\n"
+                    f"    steps: [uses: actions/setup-python@{FULL_SHA}]\n"
+                ),
+            }
+        )
+
+        self.assertEqual([], errors)
+
+    def test_accepts_flow_mapping_with_a_github_expression(self) -> None:
+        errors = self.validate(
+            {
+                "expression-flow.yaml": (
+                    f"- {{ if: ${{{{ !cancelled() }}}}, uses: actions/checkout@{FULL_SHA} }}\n"
+                ),
+            }
+        )
+
+        self.assertEqual([], errors)
+
+    def test_closing_flow_delimiter_does_not_start_a_key_check(self) -> None:
+        checker = load_checker()
+
+        error = checker.flow_mapping_unsupported_key_syntax("} !not-a-mapping-key")
+
+        self.assertIsNone(error)
+
     def test_rejects_multiline_flow_mapping(self) -> None:
         errors = self.validate(
             {

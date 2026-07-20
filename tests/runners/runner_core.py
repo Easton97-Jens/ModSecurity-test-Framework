@@ -201,7 +201,23 @@ def _indent_of(line: str) -> int:
     return len(line) - len(line.lstrip(" "))
 
 
-_BLOCK_SCALAR_RE = re.compile(r"^[|>](?:[+-]|\d+)?(?:[+-]|\d+)?$")
+def _is_block_scalar_header(value: str) -> bool:
+    """Return whether ``value`` is a supported YAML block-scalar header."""
+    if not value or value[0] not in "|>":
+        return False
+
+    indicators = value[1:]
+    if not indicators:
+        return True
+    if len(indicators) == 1:
+        return indicators in "+-" or indicators in "123456789"
+    if len(indicators) != 2:
+        return False
+
+    first, second = indicators
+    return (first in "+-" and second in "123456789") or (
+        first in "123456789" and second in "+-"
+    )
 
 
 class MinimalYamlParser:
@@ -238,18 +254,18 @@ class MinimalYamlParser:
             parsed.append(value)
         return parsed, index
 
-    def _sequence_item(self, index: int, indent: int) -> tuple[Any, int] | None:
+    def _sequence_line(self, index: int, indent: int) -> str | None:
         line = self.lines[index]
-        if _indent_of(line) < indent or not line.strip().startswith("- "):
+        line_indent = _indent_of(line)
+        if line_indent < indent or not line.strip().startswith("- "):
             return None
-        if _indent_of(line) > indent:
+        if line_indent > indent:
             raise ValueError(f"unexpected indentation in {self.path}: {line}")
-        raw_value = line.strip()[2:].strip()
-        index += 1
-        if not raw_value:
-            return self.parse_node(index, indent + 2)
-        if ":" not in raw_value or raw_value.startswith(("'", '"')):
-            return _parse_scalar(raw_value), index
+        return line
+
+    def _inline_sequence_mapping(
+        self, raw_value: str, index: int, indent: int
+    ) -> tuple[dict[str, Any], int]:
         key, value = raw_value.split(":", 1)
         item: dict[str, Any] = {key.strip(): _parse_scalar(value.strip())}
         candidate = self.next_significant(index)
@@ -258,33 +274,80 @@ class MinimalYamlParser:
             item.update(nested)
         return item, index
 
+    def _sequence_value(
+        self, raw_value: str, index: int, indent: int
+    ) -> tuple[Any, int]:
+        if ":" not in raw_value or raw_value.startswith(("'", '"')):
+            return _parse_scalar(raw_value), index
+        return self._inline_sequence_mapping(raw_value, index, indent)
+
+    def _sequence_item(self, index: int, indent: int) -> tuple[Any, int] | None:
+        line = self._sequence_line(index, indent)
+        if line is None:
+            return None
+        raw_value = line.strip()[2:].strip()
+        index += 1
+        if not raw_value:
+            return self.parse_node(index, indent + 2)
+        return self._sequence_value(raw_value, index, indent)
+
+    def _next_mapping_index(self, index: int) -> int:
+        while index < len(self.lines):
+            line = self.lines[index]
+            if line.strip() and not line.lstrip().startswith("#"):
+                return index
+            index += 1
+        return index
+
+    def _mapping_line(self, index: int, indent: int) -> tuple[str, int] | None:
+        line = self.lines[index]
+        current_indent = _indent_of(line)
+        if current_indent < indent:
+            return None
+        if current_indent > indent:
+            raise ValueError(f"unexpected indentation in {self.path}: {line}")
+        stripped = line.strip()
+        if ":" not in stripped:
+            raise ValueError(f"expected key/value line in {self.path}: {line}")
+        return stripped, current_indent
+
+    def _mapping_value(
+        self, raw_value: str, index: int, current_indent: int
+    ) -> tuple[Any, int]:
+        if raw_value.startswith(("|", ">")):
+            if not _is_block_scalar_header(raw_value):
+                raise ValueError(
+                    f"unsupported block scalar header in {self.path}: {raw_value}"
+                )
+            return self.parse_block(index, current_indent)
+        if raw_value:
+            return _parse_scalar(raw_value), index
+        return self.parse_node(index, current_indent + 2)
+
+    def _mapping_item(
+        self, index: int, indent: int
+    ) -> tuple[str, Any, int] | None:
+        mapping_line = self._mapping_line(index, indent)
+        if mapping_line is None:
+            return None
+        stripped, current_indent = mapping_line
+        key, raw_value = stripped.split(":", 1)
+        value, next_index = self._mapping_value(
+            raw_value.strip(), index + 1, current_indent
+        )
+        return key.strip(), value, next_index
+
     def parse_mapping(self, index: int, indent: int) -> tuple[dict[str, Any], int]:
         parsed: dict[str, Any] = {}
         while index < len(self.lines):
-            line = self.lines[index]
-            if not line.strip() or line.lstrip().startswith("#"):
-                index += 1
-                continue
-            current_indent = _indent_of(line)
-            if current_indent < indent:
+            index = self._next_mapping_index(index)
+            if index >= len(self.lines):
                 break
-            if current_indent > indent:
-                raise ValueError(f"unexpected indentation in {self.path}: {line}")
-            stripped = line.strip()
-            if ":" not in stripped:
-                raise ValueError(f"expected key/value line in {self.path}: {line}")
-            key, raw_value = stripped.split(":", 1)
-            key = key.strip()
-            raw_value = raw_value.strip()
-            index += 1
-            if _BLOCK_SCALAR_RE.fullmatch(raw_value):
-                parsed[key], index = self.parse_block(index, current_indent)
-                continue
-            if raw_value:
-                parsed[key] = _parse_scalar(raw_value)
-                continue
-            nested, index = self.parse_node(index, current_indent + 2)
-            parsed[key] = nested
+            item = self._mapping_item(index, indent)
+            if item is None:
+                break
+            key, value, index = item
+            parsed[key] = value
         return parsed, index
 
     def parse_block(self, index: int, parent_indent: int) -> tuple[str, int]:
@@ -558,16 +621,36 @@ def _validate_expect_phase4_log(phase4_log: Any, where: str) -> None:
 def write_rules_file(
     case: Mapping[str, Any],
     path: str | Path,
+    *,
+    output_root: str | Path,
     audit_log_file: str | Path | None = None,
     audit_log_dir: str | Path | None = None,
     rules_preamble_file: str | Path | None = None,
 ) -> None:
-    if case.get("no_crs_baseline") is True and rules_preamble_file is None:
+    _validate_rules_preamble(case, rules_preamble_file)
+    rules = _render_rules(case, audit_log_file, audit_log_dir)
+    preamble = _read_rules_preamble(rules_preamble_file)
+    output = contained_write_path(path, output_root)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    local_rules = rules if rules.endswith("\n") else f"{rules}\n"
+    output.write_text(f"{preamble}{local_rules}", encoding="utf-8")
+
+
+def _validate_rules_preamble(
+    case: Mapping[str, Any], rules_preamble_file: str | Path | None
+) -> None:
+    if case.get("no_crs_baseline") is not True:
+        return
+    if rules_preamble_file is None:
         raise ValueError("canonical No-CRS cases require tests/rules/no-crs-baseline.conf as rules preamble")
-    if case.get("no_crs_baseline") is True:
-        canonical_preamble = Path(__file__).resolve().parents[2] / "tests/rules/no-crs-baseline.conf"
-        if Path(rules_preamble_file).resolve() != canonical_preamble.resolve():
-            raise ValueError(f"canonical No-CRS case requires rules preamble {canonical_preamble}")
+    canonical_preamble = Path(__file__).resolve().parents[2] / "tests/rules/no-crs-baseline.conf"
+    if Path(rules_preamble_file).resolve() != canonical_preamble.resolve():
+        raise ValueError(f"canonical No-CRS case requires rules preamble {canonical_preamble}")
+
+
+def _render_rules(
+    case: Mapping[str, Any], audit_log_file: str | Path | None, audit_log_dir: str | Path | None
+) -> str:
     rules = str(case["rules"])
     if audit_log_file is not None:
         rules = rules.replace("@@AUDIT_LOG@@", str(audit_log_file))
@@ -575,18 +658,28 @@ def write_rules_file(
         rules = rules.replace("@@AUDIT_LOG_DIR@@", str(audit_log_dir))
     if "@@AUDIT_LOG@@" in rules or "@@AUDIT_LOG_DIR@@" in rules:
         raise ValueError("audit log placeholders require audit log paths")
-    preamble = ""
-    if rules_preamble_file is not None:
-        preamble_path = Path(rules_preamble_file)
-        if not preamble_path.is_file():
-            raise FileNotFoundError(f"rules preamble file missing: {preamble_path}")
-        preamble = preamble_path.read_text(encoding="utf-8")
-        if preamble and not preamble.endswith("\n"):
-            preamble += "\n"
-    output = Path(path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    local_rules = rules if rules.endswith("\n") else f"{rules}\n"
-    output.write_text(f"{preamble}{local_rules}", encoding="utf-8")
+    return rules
+
+
+def _read_rules_preamble(rules_preamble_file: str | Path | None) -> str:
+    if rules_preamble_file is None:
+        return ""
+    preamble_path = Path(rules_preamble_file)
+    if not preamble_path.is_file():
+        raise FileNotFoundError(f"rules preamble file missing: {preamble_path}")
+    preamble = preamble_path.read_text(encoding="utf-8")
+    return preamble if not preamble or preamble.endswith("\n") else f"{preamble}\n"
+
+
+def contained_write_path(path: str | Path, output_root: str | Path) -> Path:
+    """Resolve a write target and require containment below its trusted root."""
+    root = Path(output_root).resolve()
+    target = Path(path).resolve()
+    try:
+        target.relative_to(root)
+    except ValueError as error:
+        raise ValueError(f"write path escapes output root: {path}") from error
+    return target
 
 
 def request_headers(case: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -706,7 +799,7 @@ def _replace_nginx_placeholders(
         name = marker.split("@@", 1)[0]
         if not name:
             continue
-        target = nginx_runtime_config_dir / name
+        target = _contained_runtime_path(nginx_runtime_config_dir, name)
         rendered = rendered.replace(f"@@NGINX_FILE:{name}@@", str(target))
     if "@@NGINX_PHASE4_LOG@@" in rendered:
         raise ValueError("NGINX phase4 log placeholder requires a phase4 log path")
@@ -715,18 +808,31 @@ def _replace_nginx_placeholders(
     return rendered
 
 
+def _contained_runtime_path(root: Path, untrusted_name: str) -> Path:
+    """Resolve a case-provided runtime filename without permitting an escape."""
+    root = root.resolve()
+    candidate = (root / untrusted_name).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as error:
+        raise ValueError(f"nginx file path escapes runtime config directory: {untrusted_name!r}") from error
+    return candidate
+
+
 def write_nginx_runtime_files(
     case: Mapping[str, Any],
     location_directives_file: str | Path | None,
     runtime_config_dir: str | Path | None,
+    *,
+    output_root: str | Path,
     phase4_log_file: str | Path | None = None,
 ) -> None:
     if location_directives_file is None or runtime_config_dir is None:
         return
-    config_dir = Path(runtime_config_dir)
+    config_dir = contained_write_path(runtime_config_dir, output_root)
     config_dir.mkdir(parents=True, exist_ok=True)
     for name, content in nginx_files(case).items():
-        target = config_dir / name
+        target = _contained_runtime_path(config_dir, name)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content if content.endswith("\n") else f"{content}\n", encoding="utf-8")
     directives = _replace_nginx_placeholders(
@@ -734,7 +840,7 @@ def write_nginx_runtime_files(
         config_dir,
         phase4_log_file,
     )
-    output = Path(location_directives_file)
+    output = contained_write_path(location_directives_file, output_root)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(directives if directives.endswith("\n") else f"{directives}\n", encoding="utf-8")
 
@@ -767,8 +873,8 @@ def expected_phase4_log(case: Mapping[str, Any]) -> Mapping[str, Any]:
     return phase4_log
 
 
-def write_headers_file(case: Mapping[str, Any], path: str | Path) -> None:
-    output = Path(path)
+def write_headers_file(case: Mapping[str, Any], path: str | Path, *, output_root: str | Path) -> None:
+    output = contained_write_path(path, output_root)
     output.parent.mkdir(parents=True, exist_ok=True)
     lines = []
     for name, value in request_headers(case).items():
@@ -776,14 +882,14 @@ def write_headers_file(case: Mapping[str, Any], path: str | Path) -> None:
     output.write_text("".join(lines), encoding="utf-8")
 
 
-def write_body_file(case: Mapping[str, Any], path: str | Path) -> None:
-    output = Path(path)
+def write_body_file(case: Mapping[str, Any], path: str | Path, *, output_root: str | Path) -> None:
+    output = contained_write_path(path, output_root)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(request_body_bytes(case))
 
 
-def write_response_fixture(case: Mapping[str, Any], docroot: str | Path) -> None:
-    root = Path(docroot)
+def write_response_fixture(case: Mapping[str, Any], docroot: str | Path, *, output_root: str | Path) -> None:
+    root = contained_write_path(docroot, output_root)
     root.mkdir(parents=True, exist_ok=True)
     (root / "index.html").write_text(response_body(case), encoding="utf-8")
     (root / "__modsec_smoke_ready").write_text(READY_BODY, encoding="utf-8")
@@ -792,6 +898,8 @@ def write_response_fixture(case: Mapping[str, Any], docroot: str | Path) -> None
 def write_shell_env(
     case: Mapping[str, Any],
     path: str | Path,
+    *,
+    output_root: str | Path,
     headers_file: str | Path | None = None,
     body_file: str | Path | None = None,
     audit_log_file: str | Path | None = None,
@@ -824,7 +932,7 @@ def write_shell_env(
     lines = ["# Generated from common test case. Do not edit.\n"]
     for key, value in values.items():
         lines.append(f"{key}={shlex.quote(str(value))}\n")
-    output = Path(path)
+    output = contained_write_path(path, output_root)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("".join(lines), encoding="utf-8")
 
@@ -979,6 +1087,25 @@ def case_connector_scopes(case: Mapping[str, Any]) -> set[str]:
     return scopes or {"common"}
 
 
+def _is_common_case_applicable(
+    path: str | Path,
+    connector: str,
+    scope: str,
+    connector_scopes: set[str],
+    declared_connector: Any,
+    portable: Any,
+) -> bool:
+    if path_is_in_extra_root(path):
+        if "common" in connector_scopes:
+            return scope in {"common", "all"} and portable is not False
+        return connector in connector_scopes and scope == "all"
+    return (
+        declared_connector in (None, "", "common")
+        and portable is not False
+        and scope in {"common", "all"}
+    )
+
+
 def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str, scope: str) -> bool:
     path_scope = case_scope(path)
     declared_connector = case.get("connector")
@@ -989,15 +1116,9 @@ def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str
     if not force_all_cases_enabled() and not is_default_runtime_case(case):
         return False
     if path_scope == "common" or path_scope.startswith("common/"):
-        if path_is_in_extra_root(path):
-            if "common" in connector_scopes:
-                return scope in {"common", "all"} and portable is not False
-            return connector in connector_scopes and scope == "all"
-        if declared_connector not in (None, "", "common"):
-            return False
-        if portable is False:
-            return False
-        return scope in {"common", "all"}
+        return _is_common_case_applicable(
+            path, connector, scope, connector_scopes, declared_connector, portable
+        )
     if path_scope.startswith(f"{connector}/"):
         return scope in {"connector", "all"} and declared_connector in (None, "", connector)
     return False

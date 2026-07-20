@@ -171,10 +171,17 @@ fi
 MODSECURITY_APACHE_SOURCE_DIR="${MODSECURITY_APACHE_SOURCE_DIR:-$DEFAULT_MODSECURITY_APACHE_SOURCE_DIR}"
 MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$DEFAULT_MODSECURITY_NGINX_SOURCE_DIR}"
 
-MODSECURITY_REPO_URL="${MODSECURITY_REPO_URL:-${MODSECURITY_V3_GIT_URL:-https://github.com/owasp-modsecurity/ModSecurity.git}}"
-MODSECURITY_GIT_REF="${MODSECURITY_GIT_REF:-${MODSECURITY_V3_GIT_REF:-v3/master}}"
-MODSECURITY_V3_GIT_URL="${MODSECURITY_V3_GIT_URL:-$MODSECURITY_REPO_URL}"
-MODSECURITY_V3_GIT_REF="${MODSECURITY_V3_GIT_REF:-$MODSECURITY_GIT_REF}"
+# ModSecurity v3 provenance is a fixed reviewed identity.  The legacy
+# MODSECURITY_* aliases remain available as compatibility metadata, but the
+# V3 provisioning and build paths verify that they match this exact identity
+# before any Git operation or source consumption.
+MODSECURITY_V3_APPROVED_REPO_URL="https://github.com/owasp-modsecurity/ModSecurity.git"
+MODSECURITY_V3_APPROVED_COMMIT="0fb4aff98b4980cf6426697d5605c424e3d5bb60"
+MODSECURITY_V3_RELEASE_TAG="v3.0.15"
+MODSECURITY_REPO_URL="${MODSECURITY_REPO_URL:-$MODSECURITY_V3_APPROVED_REPO_URL}"
+MODSECURITY_GIT_REF="${MODSECURITY_GIT_REF:-$MODSECURITY_V3_RELEASE_TAG}"
+MODSECURITY_V3_GIT_URL="${MODSECURITY_V3_GIT_URL:-$MODSECURITY_V3_APPROVED_REPO_URL}"
+MODSECURITY_V3_GIT_REF="${MODSECURITY_V3_GIT_REF:-$MODSECURITY_V3_RELEASE_TAG}"
 
 ALLOW_EXTERNAL_CONNECTOR_REPOS="${ALLOW_EXTERNAL_CONNECTOR_REPOS:-0}"
 # Optional: external connector repositories are empty by default because this repository
@@ -342,7 +349,8 @@ ci_error() {
 }
 
 ci_is_https_url() {
-    case "$1" in
+    ci_https_url=$1
+    case "$ci_https_url" in
         https://*) return 0 ;;
         *) return 1 ;;
     esac
@@ -550,7 +558,7 @@ ci_command_path() {
 
 skip_blocked() {
     echo "BLOCKED: $*" >&2
-    exit 77
+    return 77
 }
 
 is_local_run() {
@@ -561,7 +569,7 @@ is_local_run() {
 
 ci_fail_local_provisioning() {
     echo "FAIL: $*" >&2
-    exit 1
+    return 1
 }
 
 framework_prepare_runtime_components() {
@@ -633,6 +641,7 @@ envoy_build_paths() {
     printf 'ENVOY_SOURCE_ROOT=%s\n' "$ENVOY_SOURCE_ROOT"
     printf 'ENVOY_BUILD_ROOT=%s\n' "$ENVOY_BUILD_ROOT"
     printf 'ENVOY_BIN=%s\n' "$ENVOY_BIN"
+    return $?
 }
 
 traefik_build_paths() {
@@ -641,6 +650,7 @@ traefik_build_paths() {
     printf 'TRAEFIK_SOURCE_ROOT=%s\n' "$TRAEFIK_SOURCE_ROOT"
     printf 'TRAEFIK_BUILD_ROOT=%s\n' "$TRAEFIK_BUILD_ROOT"
     printf 'TRAEFIK_BIN=%s\n' "$TRAEFIK_BIN"
+    return $?
 }
 
 lighttpd_build_paths() {
@@ -653,6 +663,7 @@ lighttpd_build_paths() {
     printf 'LIGHTTPD_CONNECTOR_BUILD_ROOT=%s\n' "$LIGHTTPD_CONNECTOR_BUILD_ROOT"
     printf 'LIGHTTPD_MODULE_DIR=%s\n' "$LIGHTTPD_MODULE_DIR"
     printf 'LIGHTTPD_BIN=%s\n' "$LIGHTTPD_BIN"
+    return $?
 }
 
 require_or_provision_envoy() {
@@ -744,7 +755,10 @@ require_command_or_blocked() {
     ci_required_cmd=$1
     ci_required_reason=${2:-missing required command: $ci_required_cmd}
 
-    ci_command_path "$ci_required_cmd" >/dev/null 2>&1 || skip_blocked "$ci_required_reason"
+    if ! ci_command_path "$ci_required_cmd" >/dev/null 2>&1; then
+        skip_blocked "$ci_required_reason"
+        return $?
+    fi
     return 0
 }
 
@@ -811,6 +825,7 @@ require_or_provision_apxs() {
 
     if ! is_local_run; then
         skip_blocked "missing apxs/apxs2 for Apache connector checks"
+        return $?
     fi
 
     ci_provision_rc=0
@@ -826,6 +841,7 @@ require_or_provision_apxs() {
     fi
 
     ci_fail_local_provisioning "local Apache/APXS provisioning did not produce apxs/apxs2 (prepare-runtime-components rc=$ci_provision_rc)"
+    return $?
 }
 
 ci_modsecurity_include_flags() {
@@ -892,6 +908,7 @@ modsecurity_include_flags_or_provision() {
 
     if ! is_local_run; then
         skip_blocked "missing libmodsecurity headers"
+        return $?
     fi
 
     ci_provision_rc=0
@@ -907,15 +924,16 @@ modsecurity_include_flags_or_provision() {
     fi
 
     ci_fail_local_provisioning "local libmodsecurity provisioning did not produce headers (prepare-runtime-components rc=$ci_provision_rc)"
+    return $?
 }
 
 require_modsecurity_headers_or_blocked() {
-    modsecurity_include_flags_or_blocked >/dev/null
+    modsecurity_include_flags_or_blocked >/dev/null || return $?
     return 0
 }
 
 require_or_provision_modsecurity_headers() {
-    modsecurity_include_flags_or_provision >/dev/null
+    modsecurity_include_flags_or_provision >/dev/null || return $?
     return 0
 }
 
@@ -1013,6 +1031,7 @@ require_or_provision_nginx_headers() {
 
     if ! is_local_run; then
         skip_blocked "missing NGINX headers/source for NGINX connector C checks"
+        return $?
     fi
 
     ci_provision_rc=0
@@ -1028,10 +1047,11 @@ require_or_provision_nginx_headers() {
     fi
 
     ci_fail_local_provisioning "local NGINX provisioning did not produce headers/source (prepare-runtime-components rc=$ci_provision_rc)"
+    return $?
 }
 
 require_nginx_headers_or_blocked() {
-    nginx_include_flags_or_blocked >/dev/null
+    nginx_include_flags_or_blocked >/dev/null || return $?
     return 0
 }
 
@@ -1127,6 +1147,7 @@ require_or_provision_haproxy_headers() {
 
     if ! is_local_run; then
         skip_blocked "missing HAProxy headers/source for HAProxy connector C checks"
+        return $?
     fi
 
     ci_provision_rc=0
@@ -1142,10 +1163,11 @@ require_or_provision_haproxy_headers() {
     fi
 
     ci_fail_local_provisioning "local HAProxy provisioning did not produce headers/source (prepare-runtime-components rc=$ci_provision_rc)"
+    return $?
 }
 
 require_haproxy_headers_or_blocked() {
-    haproxy_include_flags_or_blocked >/dev/null
+    haproxy_include_flags_or_blocked >/dev/null || return $?
     return 0
 }
 
@@ -1195,6 +1217,7 @@ ci_path_is_configured_project_path() {
         [ -n "$ci_project_root" ] || continue
         case "$ci_project_path" in
             "$ci_project_root"|"$ci_project_root"/*) return 0 ;;
+            *) : ;;
         esac
     done
     return 1
@@ -1295,6 +1318,84 @@ ci_require_full_git_commit() {
     esac
 }
 
+# Run Git for the ModSecurity v3 provenance boundary without inheriting
+# caller-controlled repository, hook, transport, or credential settings.
+ci_modsecurity_v3_git() (
+    unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+    unset GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_EXEC_PATH
+    unset GIT_TEMPLATE_DIR GIT_PROXY_COMMAND GIT_CONFIG_NOSYSTEM GIT_CONFIG_GLOBAL
+    unset GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
+    unset GIT_SSL_NO_VERIFY GIT_SSL_CAINFO GIT_SSL_CAPATH GIT_ASKPASS SSH_ASKPASS
+    unset GIT_SSH GIT_SSH_COMMAND
+    GIT_CONFIG_NOSYSTEM=1 \
+    GIT_CONFIG_GLOBAL=/dev/null \
+    GIT_CONFIG_COUNT=0 \
+    GIT_TERMINAL_PROMPT=0 \
+        git -c core.hooksPath=/dev/null -c protocol.file.allow=never \
+            -c fetch.recurseSubmodules=false -c submodule.recurse=false \
+            -c http.sslVerify=true "$@"
+    return $?
+)
+
+ci_require_approved_modsecurity_v3_provenance() {
+    ci_require_https_github_repo_url "$MODSECURITY_V3_APPROVED_REPO_URL" "MODSECURITY_V3_APPROVED_REPO_URL" || return 77
+    ci_require_full_git_commit "$MODSECURITY_V3_APPROVED_COMMIT" "MODSECURITY_V3_APPROVED_COMMIT" || return 77
+    if [ "$MODSECURITY_REPO_URL" != "$MODSECURITY_V3_APPROVED_REPO_URL" ]; then
+        ci_blocked "MODSECURITY_REPO_URL override is not permitted for ModSecurity v3: $MODSECURITY_REPO_URL"
+        return 77
+    fi
+    if [ "$MODSECURITY_V3_GIT_URL" != "$MODSECURITY_V3_APPROVED_REPO_URL" ]; then
+        ci_blocked "MODSECURITY_V3_GIT_URL override is not permitted: $MODSECURITY_V3_GIT_URL"
+        return 77
+    fi
+    if [ "$MODSECURITY_GIT_REF" != "$MODSECURITY_V3_RELEASE_TAG" ]; then
+        ci_blocked "MODSECURITY_GIT_REF is release metadata and cannot select a Git object: $MODSECURITY_GIT_REF"
+        return 77
+    fi
+    if [ "$MODSECURITY_V3_GIT_REF" != "$MODSECURITY_V3_RELEASE_TAG" ]; then
+        ci_blocked "MODSECURITY_V3_GIT_REF is release metadata and cannot select a Git object: $MODSECURITY_V3_GIT_REF"
+        return 77
+    fi
+    return 0
+}
+
+ci_require_approved_modsecurity_v3_checkout() {
+    ci_v3_checkout=${1:-$MODSECURITY_V3_SOURCE_DIR}
+    ci_require_approved_modsecurity_v3_provenance || return 77
+    ci_require_absolute_path "$ci_v3_checkout" "MODSECURITY_V3_SOURCE_DIR" || return 77
+    if [ ! -d "$ci_v3_checkout" ] || [ ! -d "$ci_v3_checkout/.git" ]; then
+        ci_blocked "ModSecurity v3 source must be a standalone Git checkout: $ci_v3_checkout"
+        return 77
+    fi
+    if [ -e "$ci_v3_checkout/.gitmodules" ] || [ -L "$ci_v3_checkout/.gitmodules" ]; then
+        ci_blocked "ModSecurity v3 checkout declares submodules without an approved provenance rule"
+        return 77
+    fi
+
+    ci_v3_origin=$(ci_modsecurity_v3_git -C "$ci_v3_checkout" config --get remote.origin.url 2>/dev/null || true)
+    if [ "$ci_v3_origin" != "$MODSECURITY_V3_APPROVED_REPO_URL" ]; then
+        ci_blocked "ModSecurity v3 checkout has unexpected origin: $ci_v3_origin"
+        ci_blocked "ModSecurity v3 expected origin: $MODSECURITY_V3_APPROVED_REPO_URL"
+        return 77
+    fi
+
+    ci_v3_head=$(ci_modsecurity_v3_git -C "$ci_v3_checkout" rev-parse --verify "HEAD^{commit}" 2>/dev/null || true)
+    if [ "$ci_v3_head" != "$MODSECURITY_V3_APPROVED_COMMIT" ]; then
+        ci_blocked "ModSecurity v3 checked-out commit does not match the approved commit"
+        return 77
+    fi
+
+    ci_v3_index=$(ci_modsecurity_v3_git -C "$ci_v3_checkout" ls-files --stage 2>/dev/null) || {
+        ci_blocked "ModSecurity v3 checkout index could not be inspected for submodules"
+        return 77
+    }
+    if printf '%s\n' "$ci_v3_index" | awk '$1 == "160000" { found = 1 } END { exit !found }'; then
+        ci_blocked "ModSecurity v3 checkout contains a Gitlink without an approved submodule provenance rule"
+        return 77
+    fi
+    return 0
+}
+
 assert_safe_runtime_path() {
     ci_safe_path=$1
     ci_safe_label=${2:-path}
@@ -1314,6 +1415,7 @@ assert_safe_runtime_path() {
         /src|/src/*)
             return 0
             ;;
+        *) : ;;
     esac
     if ci_path_is_configured_project_path "$ci_safe_path"; then
         return 0
@@ -1323,6 +1425,7 @@ assert_safe_runtime_path() {
             ci_blocked "$ci_safe_label is under /root and is not a safe runtime path: $ci_safe_path"
             return 77
             ;;
+        *) : ;;
     esac
     if [ -n "${REPO_ROOT:-}" ]; then
         case "$ci_safe_path" in
@@ -1330,6 +1433,7 @@ assert_safe_runtime_path() {
                 ci_blocked "$ci_safe_label is inside a read-only/source checkout: $ci_safe_path"
                 return 77
                 ;;
+            *) : ;;
         esac
     fi
     if [ -n "${FRAMEWORK_ROOT:-}" ]; then
@@ -1338,6 +1442,7 @@ assert_safe_runtime_path() {
                 ci_blocked "$ci_safe_label is inside a read-only/source checkout: $ci_safe_path"
                 return 77
                 ;;
+            *) : ;;
         esac
     fi
     if [ -n "${CONNECTOR_ROOT:-}" ]; then
@@ -1346,6 +1451,7 @@ assert_safe_runtime_path() {
                 ci_blocked "$ci_safe_label is inside a read-only/source checkout: $ci_safe_path"
                 return 77
                 ;;
+            *) : ;;
         esac
     fi
 
@@ -1353,35 +1459,42 @@ assert_safe_runtime_path() {
         "$BUILD_ROOT"|"$BUILD_ROOT"/*|"$TMP_ROOT"|"$TMP_ROOT"/*|"$LOG_ROOT"|"$LOG_ROOT"/*)
             return 0
             ;;
+        *) : ;;
     esac
     if [ -n "$ci_verified_root" ]; then
         case "$ci_safe_path" in
             "$ci_verified_root"|"$ci_verified_root"/*) return 0 ;;
+            *) : ;;
         esac
     fi
     if [ -n "${MRTS_BUILD_ROOT:-}" ]; then
         case "$ci_safe_path" in
             "$MRTS_BUILD_ROOT"|"$MRTS_BUILD_ROOT"/*) return 0 ;;
+            *) : ;;
         esac
     fi
     if [ -n "${MRTS_NATIVE_ROOT:-}" ]; then
         case "$ci_safe_path" in
             "$MRTS_NATIVE_ROOT"|"$MRTS_NATIVE_ROOT"/*) return 0 ;;
+            *) : ;;
         esac
     fi
     if [ -n "$ci_component_cache" ]; then
         case "$ci_safe_path" in
             "$ci_component_cache"|"$ci_component_cache"/*) return 0 ;;
+            *) : ;;
         esac
     fi
     if [ -n "$ci_state_root" ]; then
         case "$ci_safe_path" in
             "$ci_state_root"|"$ci_state_root"/*) return 0 ;;
+            *) : ;;
         esac
     fi
     if [ -n "$ci_cache_home" ]; then
         case "$ci_safe_path" in
             "$ci_cache_home"|"$ci_cache_home"/*) return 0 ;;
+            *) : ;;
         esac
     fi
     ci_blocked "$ci_safe_label is not under an allowed runtime/cache root: $ci_safe_path"
@@ -1400,6 +1513,7 @@ safe_remove_runtime_path() {
             ci_blocked "unsafe remove target for $ci_remove_label: $ci_remove_real_target"
             return 77
             ;;
+        *) : ;;
     esac
     if [ -n "${MRTS_BUILD_ROOT:-}" ] && [ "$ci_remove_real_target" = "$MRTS_BUILD_ROOT" ]; then
         ci_blocked "unsafe remove target for $ci_remove_label: $ci_remove_real_target"
@@ -1464,5 +1578,6 @@ ci_git_value() {
 export DEFAULT_BRANCH FRAMEWORK_ROOT CONNECTOR_ROOT VERIFIED_RUN_ROOT VERIFIED_STATE_ROOT VERIFIED_BUILD_ROOT VERIFIED_SOURCE_ROOT VERIFIED_TMP_ROOT VERIFIED_LOG_ROOT CACHE_ROOT VERIFIED_COMPONENT_CACHE
 export SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE DEFAULT_PYTHON HAPROXY_BIN_WAS_SET
 export CRS_REPO_URL CRS_GIT_REF MODSECURITY_REPO_URL MODSECURITY_GIT_REF MODSECURITY_V3_GIT_URL MODSECURITY_V3_GIT_REF
+export MODSECURITY_V3_APPROVED_REPO_URL MODSECURITY_V3_APPROVED_COMMIT MODSECURITY_V3_RELEASE_TAG
 export HTTPD_VERSION HTTPD_SOURCE_URL HTTPD_SHA256 HTTPD_SHA256_URL APR_VERSION APR_SOURCE_URL APR_SHA256 APR_SHA256_URL APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL PCRE2_VERSION PCRE2_SOURCE_URL PCRE2_SHA256 PCRE2_SHA256_URL
 export NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF NGINX_RELEASE_ASSET_NAME NGINX_SHA256 NGINX_SHA256_WAS_SET NGINX_SHA256_REQUESTED HAPROXY_VERSION HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256

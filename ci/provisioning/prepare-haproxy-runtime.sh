@@ -2,8 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
-CI_ROOT="${CI_ROOT:-$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)}"
-. "$CI_ROOT/lib/path-bootstrap.sh"
+. "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 if [ -n "${CONNECTOR_ROOT:-}" ]; then
     CONNECTOR_ROOT=$(CDPATH= cd "$CONNECTOR_ROOT" && pwd)
 elif [ -d "$FRAMEWORK_ROOT/../../connectors/haproxy" ]; then
@@ -228,6 +227,7 @@ require_under_build_root_or_managed_haproxy_cache() {
     assert_safe_runtime_path "$path" "$label" || exit 77
     case "$path" in
         "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
+        *) : ;;
     esac
 
     managed_entry=$(haproxy_managed_cache_entry_for_path "$path" "$label" 2>/dev/null || true)

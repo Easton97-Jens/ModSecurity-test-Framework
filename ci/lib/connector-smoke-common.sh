@@ -1,13 +1,22 @@
 #!/bin/sh
 
-if [ -z "${CI_ROOT:-}" ]; then
-    if [ -z "${FRAMEWORK_ROOT:-}" ]; then
-        printf '%s\n' "connector smoke helper requires FRAMEWORK_ROOT or CI_ROOT" >&2
-        return 2 2>/dev/null || exit 2
-    fi
-    CI_ROOT="$FRAMEWORK_ROOT/ci"
+if [ -z "${FRAMEWORK_ROOT:-}" ]; then
+    printf '%s\n' "connector smoke helper requires FRAMEWORK_ROOT" >&2
+    return 2 2>/dev/null || exit 2
 fi
-FRAMEWORK_ROOT="${FRAMEWORK_ROOT:-$(CDPATH= cd "$CI_ROOT/.." && pwd)}"
+if ! FRAMEWORK_ROOT=$(CDPATH= cd -- "$FRAMEWORK_ROOT" && pwd); then
+    printf '%s\n' "connector smoke helper cannot resolve FRAMEWORK_ROOT: $FRAMEWORK_ROOT" >&2
+    return 2 2>/dev/null || exit 2
+fi
+
+# Never source a helper through a caller-controlled CI_ROOT.  The path
+# bootstrap establishes FRAMEWORK_ROOT from the Framework entrypoint; this
+# library derives its own helper path from that trusted root.
+CI_ROOT="$FRAMEWORK_ROOT/ci"
+if [ ! -f "$CI_ROOT/lib/common.sh" ]; then
+    printf '%s\n' "connector smoke helper requires $CI_ROOT/lib/common.sh" >&2
+    return 2 2>/dev/null || exit 2
+fi
 
 if [ -n "${CONNECTOR_ROOT:-}" ]; then
     CONNECTOR_ROOT=$(CDPATH= cd "$CONNECTOR_ROOT" && pwd)
@@ -21,17 +30,20 @@ fi
 
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 PYTHON_BIN="${PYTHON:-$(ci_python)}"
+CONNECTOR_SMOKE_REQUEST_BODY_CASE=request_body
 
 connector_smoke_require_src_path() {
     path=$1
     label=$2
     assert_safe_runtime_path "$path" "$label" || exit 77
+    return 0
 }
 
 connector_smoke_require_runtime_path() {
     path=$1
     label=$2
     assert_safe_runtime_path "$path" "$label" || exit 77
+    return 0
 }
 
 connector_smoke_require_build_path() {
@@ -79,6 +91,7 @@ connector_smoke_validate_roots() {
         exit 77
     }
     mkdir -p "$RESULTS_DIR" "$TMP_ROOT" "$LOG_ROOT"
+    return 0
 }
 
 connector_smoke_is_global_runtime_path() {
@@ -126,23 +139,46 @@ connector_smoke_require_local_binary_path() {
 
 connector_smoke_runtime_env_was_set() {
     env_var=$1
-    flag_var="${env_var}_WAS_SET"
-    flag_value=$(eval "printf '%s' \"\${$flag_var:-}\"")
-    [ "$flag_value" = "1" ]
+    case "$env_var" in
+        ENVOY_BIN) flag_value=${ENVOY_BIN_WAS_SET:-} ;;
+        TRAEFIK_BIN) flag_value=${TRAEFIK_BIN_WAS_SET:-} ;;
+        LIGHTTPD_BIN) flag_value=${LIGHTTPD_BIN_WAS_SET:-} ;;
+        HAPROXY_BIN) flag_value=${HAPROXY_BIN_WAS_SET:-} ;;
+        *) return 1 ;;
+    esac
+    if [ "$flag_value" = "1" ]; then
+        return 0
+    fi
+    return 1
 }
 
 connector_smoke_connector_name_for_env_var() {
-    case "$1" in
+    env_var=$1
+    case "$env_var" in
         ENVOY_BIN) printf '%s\n' envoy ;;
         TRAEFIK_BIN) printf '%s\n' traefik ;;
         LIGHTTPD_BIN) printf '%s\n' lighttpd ;;
         HAPROXY_BIN) printf '%s\n' haproxy ;;
-        *) printf '%s\n' "" ;;
+        *) return 1 ;;
     esac
+    return 0
+}
+
+connector_smoke_runtime_env_value() {
+    env_var=$1
+    case "$env_var" in
+        ENVOY_BIN) printf '%s\n' "${ENVOY_BIN:-}" ;;
+        TRAEFIK_BIN) printf '%s\n' "${TRAEFIK_BIN:-}" ;;
+        LIGHTTPD_BIN) printf '%s\n' "${LIGHTTPD_BIN:-}" ;;
+        HAPROXY_BIN) printf '%s\n' "${HAPROXY_BIN:-}" ;;
+        *) return 1 ;;
+    esac
+    return 0
 }
 
 connector_smoke_connector_lookup_roots() {
-    case "$1" in
+    connector=$1
+    case "$connector" in
         envoy)
             printf '%s\n' \
                 "${ENVOY_COMPONENT_ROOT:-}" \
@@ -170,7 +206,9 @@ connector_smoke_connector_lookup_roots() {
                 "${HAPROXY_RUNTIME_BUILD_DIR:-}" \
                 "${HAPROXY_SOURCE_ROOT:-}"
             ;;
+        *) : ;;
     esac
+    return 0
 }
 
 connector_smoke_default_verified_roots() {
@@ -188,6 +226,7 @@ find_runtime_binary_in_root() {
         /usr|/usr/*|/usr/local|/usr/local/*|/opt|/opt/*|/bin|/bin/*|/sbin|/sbin/*)
             return 1
             ;;
+        *) : ;;
     esac
     for candidate in \
         "$root/$binary_name" \
@@ -214,8 +253,8 @@ find_runtime_binary_in_root() {
 find_runtime_binary() {
     env_var=$1
     binary_name=$2
-    env_value=$(eval "printf '%s' \"\${$env_var:-}\"")
-    connector=$(connector_smoke_connector_name_for_env_var "$env_var")
+    env_value=$(connector_smoke_runtime_env_value "$env_var") || return 1
+    connector=$(connector_smoke_connector_name_for_env_var "$env_var") || return 1
     if [ -n "$env_value" ]; then
         if connector_smoke_runtime_env_was_set "$env_var"; then
             connector_smoke_require_local_binary_path "$env_value" "$env_var" || return 1
@@ -249,7 +288,8 @@ find_runtime_binary() {
 require_local_binary() {
     env_var=$1
     binary_name=$2
-    find_runtime_binary "$env_var" "$binary_name"
+    find_runtime_binary "$env_var" "$binary_name" || return 1
+    return 0
 }
 
 connector_smoke_runtime_lookup_roots_args() {
@@ -277,6 +317,7 @@ $root"
         printf '%s\n' "--runtime-lookup-root"
         printf '%s\n' "$root"
     done
+    return 0
 }
 
 connector_smoke_decision_backend_value() {
@@ -286,6 +327,7 @@ connector_smoke_decision_backend_value() {
         envoy) connector_backend="${ENVOY_DECISION_BACKEND:-}" ;;
         traefik) connector_backend="${TRAEFIK_DECISION_BACKEND:-}" ;;
         lighttpd) connector_backend="${LIGHTTPD_DECISION_BACKEND:-}" ;;
+        *) : ;;
     esac
     if [ -n "$connector_backend" ]; then
         printf '%s\n' "$connector_backend"
@@ -318,6 +360,7 @@ connector_smoke_modsecurity_rule_file() {
             printf '%s\n' "${MODSECURITY_TARGETED_SMOKE_RULE_FILE:-$CONNECTOR_ROOT/common/rules/modsecurity_targeted_smoke.conf}"
             ;;
     esac
+    return 0
 }
 
 connector_smoke_modsecurity_rule_id() {
@@ -326,6 +369,7 @@ connector_smoke_modsecurity_rule_id() {
         targeted:request_body) printf '%s\n' "1000002" ;;
         *) printf '%s\n' "1000001" ;;
     esac
+    return 0
 }
 
 connector_smoke_modsecurity_missing() {
@@ -625,6 +669,7 @@ resolve_evidence_root() {
         envoy) connector_result_root=${ENVOY_RESULT_ROOT:-} ;;
         traefik) connector_result_root=${TRAEFIK_RESULT_ROOT:-} ;;
         lighttpd) connector_result_root=${LIGHTTPD_RESULT_ROOT:-} ;;
+        *) : ;;
     esac
     if [ -n "$connector_result_root" ]; then
         printf '%s\n' "$connector_result_root"
@@ -649,6 +694,7 @@ resolve_log_root() {
         envoy) connector_log_root=${ENVOY_LOG_ROOT:-} ;;
         traefik) connector_log_root=${TRAEFIK_LOG_ROOT:-} ;;
         lighttpd) connector_log_root=${LIGHTTPD_LOG_ROOT:-} ;;
+        *) : ;;
     esac
     if [ -n "$connector_log_root" ]; then
         printf '%s\n' "$connector_log_root"
@@ -664,6 +710,7 @@ ensure_runtime_dirs() {
         connector_smoke_require_runtime_path "$evidence_root" EVIDENCE_ROOT
         mkdir -p "$evidence_root"
     fi
+    return 0
 }
 
 write_blocked_result() {
@@ -689,9 +736,19 @@ write_blocked_result() {
         decision_log_path="$log_dir/modsecurity-decision.log"
         if [ "${MODSECURITY_RULESET:-targeted}" = "crs" ]; then
             decision_log_path="$log_dir/crs-decision.log"
-        elif [ "${MODSECURITY_SMOKE_CASE:-targeted}" = "request_body" ]; then
+        elif [ "${MODSECURITY_SMOKE_CASE:-targeted}" = "$CONNECTOR_SMOKE_REQUEST_BODY_CASE" ]; then
             decision_log_path="$log_dir/request-body-decision.log"
         fi
+    fi
+    request_body_rule_file=
+    request_body_rule_id=
+    request_method=
+    blocked_body_marker=
+    if [ "${MODSECURITY_SMOKE_CASE:-targeted}" = "$CONNECTOR_SMOKE_REQUEST_BODY_CASE" ]; then
+        request_body_rule_file=$modsecurity_rule_file
+        request_body_rule_id=1000002
+        request_method=POST
+        blocked_body_marker=modsec-request-body-block
     fi
     writer="$CONNECTOR_ROOT/common/scripts/write_smoke_result.py"
     starter_available=false
@@ -743,11 +800,11 @@ write_blocked_result() {
         --modsecurity-rule-loaded false \
         --request-body-smoke-verified false \
         --request-body-access-enabled false \
-        --request-body-rule-file "$([ "${MODSECURITY_SMOKE_CASE:-targeted}" = "request_body" ] && printf '%s' "$modsecurity_rule_file" || printf '')" \
-        --request-body-rule-id "$([ "${MODSECURITY_SMOKE_CASE:-targeted}" = "request_body" ] && printf '1000002' || printf '')" \
+        --request-body-rule-file "$request_body_rule_file" \
+        --request-body-rule-id "$request_body_rule_id" \
         --request-body-rule-loaded false \
-        --request-method "$([ "${MODSECURITY_SMOKE_CASE:-targeted}" = "request_body" ] && printf 'POST' || printf '')" \
-        --blocked-body-marker "$([ "${MODSECURITY_SMOKE_CASE:-targeted}" = "request_body" ] && printf 'modsec-request-body-block' || printf '')" \
+        --request-method "$request_method" \
+        --blocked-body-marker "$blocked_body_marker" \
         --intervention-status not-run \
         --decision-log-path "$decision_log_path" \
         --architecture-decision "$architecture_decision" \
@@ -759,6 +816,7 @@ write_blocked_result() {
         --crs-minimal-smoke-verified false \
         --crs-secondary-smoke-verified false \
         $lookup_args
+    return 0
 }
 
 connector_skip_missing_dependency() {
@@ -774,7 +832,7 @@ connector_skip_missing_dependency() {
     echo "$connector runtime smoke: BLOCKED - $skipped_reason"
     echo "Runtime not verified"
     echo "Evidence root: $(resolve_evidence_root "$connector")"
-    exit 77
+    return 77
 }
 
 connector_smoke_starter_available() {
@@ -882,6 +940,7 @@ with open(summary_text, "w", encoding="utf-8") as handle:
     handle.write("Runtime not verified\n")
     handle.write(f"{note}\n")
 PY
+    return 0
 }
 
 connector_smoke_run() {
@@ -891,13 +950,13 @@ connector_smoke_run() {
     connector_dir="$CONNECTOR_ROOT/connectors/$connector"
     [ -d "$connector_dir" ] || {
         connector_smoke_write_evidence "$connector" BLOCKED 77 blocked "connector directory missing" "$harness_script"
-        exit 77
+        return 77
     }
     if [ ! -x "$harness_script" ]; then
         connector_smoke_write_evidence "$connector" BLOCKED 77 blocked "runtime harness not implemented" "$harness_script"
         echo "$connector runtime smoke: BLOCKED - runtime harness not implemented"
         echo "Runtime not verified"
-        exit 77
+        return 77
     fi
     set +e
     (
@@ -911,15 +970,16 @@ connector_smoke_run() {
             # These stages deliberately produce no request-case evidence.  The
             # connector harness exit status and stage-specific logs are the
             # evidence; runtime result requirements start at minimal_runtime_smoke.
-            exit "$rc"
+            return "$rc"
             ;;
+        *) : ;;
     esac
     results_jsonl="$RESULTS_DIR/$connector-results.jsonl"
     if [ "$rc" -eq 0 ] && [ "${RUN_ONE_CASE:-0}" = "1" ]; then
         case_result_path="${LOG_DIR:-$LOG_ROOT/$connector-runtime}/result.json"
         if [ ! -s "$case_result_path" ]; then
             connector_smoke_write_evidence "$connector" FAIL 1 failed "RUN_ONE_CASE result.json missing after execution" "$harness_script"
-            exit 1
+            return 1
         fi
         "$PYTHON_BIN" - "$case_result_path" "$connector" "${MODSECURITY_TEST_VARIANT:-no-crs}" "${MODSECURITY_MRTS_VARIANT:-no-mrts}" "${TEST_CASE:-${SMOKE_CASES:-}}" <<'PY_RUN_ONE_CASE' || exit 1
 import json
@@ -952,13 +1012,13 @@ if requested and requested not in case_id and case_id not in requested:
 if data.get("live_executed") is not True and status == "pass":
     raise SystemExit("RUN_ONE_CASE PASS must carry live_executed=true")
 PY_RUN_ONE_CASE
-        exit 0
+        return 0
     fi
     if [ "$rc" -eq 0 ] && [ ! -s "$results_jsonl" ]; then
         connector_smoke_write_evidence "$connector" FAIL 1 failed "runtime harness produced no case evidence after execution" "$harness_script"
         echo "$connector runtime smoke: FAIL - runtime harness produced no case evidence after execution"
         echo "Runtime not verified"
-        exit 1
+        return 1
     fi
-    exit "$rc"
+    return "$rc"
 }

@@ -106,12 +106,13 @@ make test-workflow-security-contract
 
 The regression suite first validates the real workflows, then proves that safe
 read-only-PR and trusted-writer fixtures pass. Unsafe fixtures prove rejection
-of mutable references in both extensions, dynamic and alternate key syntax
-references, missing release comments, `pull_request_target`, top-level and
-PR-job write permissions, persisted credentials, broad job token exposure,
-submodules, secret references, and duplicate YAML keys. `make lint` invokes
-the checker and this suite, while the filtered `check-action-versions` workflow
-also runs when its checker, fixtures, test, or Makefile changes.
+of mutable references in both extensions, block mappings, flow mappings, and
+flow-sequence mappings, dynamic and alternate key syntax references, missing
+release comments, `pull_request_target`, top-level and PR-job write
+permissions, persisted credentials, broad job token exposure, submodules,
+secret references, and duplicate YAML keys. `make lint` invokes the checker
+and this suite, while the filtered `check-action-versions` workflow also runs
+when its checker, fixtures, test, or Makefile changes.
 
 ## Updating an Action pin
 

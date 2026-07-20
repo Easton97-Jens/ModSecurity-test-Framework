@@ -6,10 +6,18 @@ import json
 import os
 import re
 import sys
+import tempfile
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+FRAMEWORK_LIB = Path(__file__).resolve().parents[1] / "lib"
+if str(FRAMEWORK_LIB) not in sys.path:
+    sys.path.insert(0, str(FRAMEWORK_LIB))
+
+from generated_report_utils import write_generated_report_file
 
 try:
     import yaml
@@ -19,10 +27,14 @@ except Exception:  # pragma: no cover - report still works without PyYAML.
 
 TARGETS = ("apache2_ubuntu", "nginx-pr24")
 MAX_RUN_LOG_BYTES = 1024 * 1024
-TARGET_REPORT_FILENAMES = {
-    "apache2_ubuntu": ("mrts-native-apache.generated.json", "mrts-native-apache.generated.md"),
-    "nginx-pr24": ("mrts-native-nginx.generated.json", "mrts-native-nginx.generated.md"),
+RUN_LOG_FILENAME = "run.log"
+GENERATED_BY = "framework:ci/reporting/generate-mrts-native-report.py"
+DEFAULT_STATE_HOME_PREFIX = "ModSecurity-conector-verified-state-"
+TARGET_REPORT_KEYS = {
+    "apache2_ubuntu": "mrts_native_apache",
+    "nginx-pr24": "mrts_native_nginx",
 }
+KNOWN_LIMITATIONS = ("phase4_native_limitation", "RESPONSE_BODY non-promoted")
 NATIVE_REPORT_LINKS = {
     "apache": "reports/testing/generated/mrts-native/mrts-native-apache.generated.md",
     "nginx": "reports/testing/generated/mrts-native/mrts-native-nginx.generated.md",
@@ -63,8 +75,13 @@ def utc_now() -> str:
 
 
 def default_state_home() -> Path:
-    run_root = Path(os.environ.get("VERIFIED_RUN_ROOT", str(Path(os.environ.get("RUNNER_TEMP") or os.environ.get("TMPDIR") or "/var/tmp") / "ModSecurity-conector-verified")))
-    return Path(os.environ.get("VERIFIED_STATE_ROOT", str(run_root / "state")))
+    explicit_state_root = os.environ.get("VERIFIED_STATE_ROOT")
+    if explicit_state_root:
+        return Path(explicit_state_root)
+    explicit_run_root = os.environ.get("VERIFIED_RUN_ROOT")
+    if explicit_run_root:
+        return Path(explicit_run_root) / "state"
+    return Path(tempfile.mkdtemp(prefix=DEFAULT_STATE_HOME_PREFIX))
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -84,17 +101,53 @@ def read_optional_json(path: Path) -> dict[str, Any]:
 
 
 def canonical_under(path: Path, roots: list[Path]) -> Path | None:
-    try:
-        resolved = path.resolve(strict=True)
-    except OSError:
+    if not path.is_absolute():
         return None
     for root in roots:
+        root_path = root.resolve(strict=False)
         try:
-            resolved.relative_to(root.resolve(strict=True) if root.exists() else root.resolve(strict=False))
-            return resolved
+            lexical_relative = path.relative_to(root_path)
         except ValueError:
             continue
+        if any(part in {"", ".", ".."} for part in lexical_relative.parts):
+            continue
+        try:
+            resolved = (root_path / lexical_relative).resolve(strict=True)
+            resolved.relative_to(root_path)
+        except (OSError, RuntimeError, ValueError):
+            continue
+        return resolved
     return None
+
+
+def relative_path_under_root(path: Path, root: Path) -> Path | None:
+    """Return a canonical relative path only after a lexical containment check.
+
+    Job and component metadata can contain arbitrary strings.  Do not resolve an
+    external path merely to render it: first prove that it is lexically below an
+    approved root, then resolve only the resulting in-root candidate so that a
+    symlink escape is redacted as well.
+    """
+    root_path = root.resolve(strict=False)
+    if not path.is_absolute():
+        return None
+    try:
+        lexical_relative = path.relative_to(root_path)
+    except ValueError:
+        return None
+    if any(part in {"", ".", ".."} for part in lexical_relative.parts):
+        return None
+    try:
+        canonical_relative = (root_path / lexical_relative).resolve(strict=False).relative_to(root_path)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if any(part in {"", ".", ".."} for part in canonical_relative.parts):
+        return None
+    return canonical_relative
+
+
+def labelled_relative_path(label: str, relative_path: Path) -> str:
+    return label if relative_path == Path(".") else f"{label}/{relative_path.as_posix()}"
 
 
 def read_bounded_run_log(path: Path, roots: list[Path], max_bytes: int = MAX_RUN_LOG_BYTES) -> str:
@@ -126,7 +179,7 @@ def parse_failed_cases(run_text: str) -> list[str]:
             case_id = item.strip().strip("\"'")
             if case_id and case_id not in failed:
                 failed.append(case_id)
-    for match in re.findall(r"\b([0-9]+-[0-9]+)\s+failed\b", run_text):
+    for match in re.findall(r"\b(\d+-\d+)\s+failed\b", run_text):
         if match not in failed:
             failed.append(match)
     return failed
@@ -134,12 +187,12 @@ def parse_failed_cases(run_text: str) -> list[str]:
 
 def collect_run_counts(run_log: Path, status: str, allowed_roots: list[Path] | None = None) -> dict[str, Any]:
     run_text = read_bounded_run_log(run_log, allowed_roots or [run_log.parent])
-    attempted = int(first_match(r"run\s+([0-9]+)\s+total tests", run_text) or 0)
+    attempted = int(first_match(r"run\s+(\d+)\s+total tests", run_text) or 0)
     pass_count = run_text.count("passed in")
     failed_cases = parse_failed_cases(run_text)
     fail_count = len(failed_cases)
     if fail_count == 0:
-        fail_count = int(first_match(r"([0-9]+)\s+test\(s\)\s+failed", run_text) or 0)
+        fail_count = int(first_match(r"(\d+)\s+test\(s\)\s+failed", run_text) or 0)
     if attempted and status == "PASS" and pass_count == 0:
         pass_count = attempted
     if attempted and fail_count and pass_count + fail_count < attempted:
@@ -190,14 +243,14 @@ def normalize_job(target: str, native_root: Path) -> dict[str, Any]:
             "counts": {"attempted": 0, "pass": 0, "fail": 0, "blocked": 0, "not_executable": 0, "failed_cases": []},
             "job_root": display_native_path(job_root, native_root),
             "job_json": display_native_path(job_json, native_root),
-            "run_log": display_native_path(job_root / "run.log", native_root),
+            "run_log": display_native_path(job_root / RUN_LOG_FILENAME, native_root),
             "paths": target_paths(target, native_root),
-            "known_limitations": known_limitations([]),
+            "known_limitations": known_limitations(),
             "first_failing_cases": [],
         }
     job = read_json(job_json)
     job.setdefault("target", target)
-    raw_run_log = Path(str(job.get("run_log") or job_root / "run.log"))
+    raw_run_log = Path(str(job.get("run_log") or job_root / RUN_LOG_FILENAME))
     status = str(job.get("status") or "UNKNOWN").upper().replace("-", "_")
     counts = collect_run_counts(raw_run_log, status, [native_root, job_root])
     job["job_root"] = display_native_path(Path(str(job.get("job_root") or job_root)), native_root)
@@ -208,7 +261,7 @@ def normalize_job(target: str, native_root: Path) -> dict[str, Any]:
     job["status"] = status
     job["counts"] = counts
     job["paths"] = target_paths(target, native_root)
-    job["known_limitations"] = known_limitations(counts.get("failed_cases", []))
+    job["known_limitations"] = known_limitations()
     job["first_failing_cases"] = [failing_case_details(case_id) for case_id in counts.get("failed_cases", [])[:5]]
     job["remediation"] = dependency_remediations(str(job.get("reason") or ""))
     return job
@@ -227,10 +280,10 @@ def dependency_remediations(reason: str) -> list[dict[str, str]]:
 
 
 def display_native_path(path: Path, native_root: Path) -> str:
-    try:
-        return "$MRTS_NATIVE_ROOT/" + str(path.resolve(strict=False).relative_to(native_root.resolve(strict=False)))
-    except ValueError:
-        return str(path)
+    relative_path = relative_path_under_root(path, native_root)
+    if relative_path is None:
+        return "<external-path-redacted>"
+    return labelled_relative_path("$MRTS_NATIVE_ROOT", relative_path)
 
 
 def display_root_path(path: Path, root: Path, label: str) -> str:
@@ -247,16 +300,13 @@ def target_paths(target: str, native_root: Path) -> dict[str, str]:
     job_root = native_root / target
     return {
         "staged_infra_path": display_native_path(job_root / "stage/infra", native_root),
-        "run_log_path": display_native_path(job_root / "run.log", native_root),
+        "run_log_path": display_native_path(job_root / RUN_LOG_FILENAME, native_root),
         "job_json_path": display_native_path(job_root / "job.json", native_root),
     }
 
 
-def known_limitations(failed_cases: list[str]) -> list[str]:
-    limitations = ["phase4_native_limitation", "RESPONSE_BODY non-promoted"]
-    if "100003-1" not in failed_cases:
-        return limitations
-    return limitations
+def known_limitations() -> list[str]:
+    return list(KNOWN_LIMITATIONS)
 
 
 def failing_case_details(case_id: str) -> dict[str, Any]:
@@ -307,34 +357,42 @@ def display_component_value(value: Any, roots: list[tuple[str, Path]]) -> Any:
         return value
     path = Path(value)
     for label, root in roots:
-        try:
-            relative = path.resolve(strict=False).relative_to(root.resolve(strict=False))
-        except ValueError:
-            continue
-        return f"${label}/{relative}"
-    return f"<system-path-redacted>/{path.name}"
+        relative_path = relative_path_under_root(path, root)
+        if relative_path is not None:
+            return labelled_relative_path(f"${label}", relative_path)
+    safe_name = path.name if path.name not in {"", ".", ".."} else "unknown"
+    return f"<system-path-redacted>/{safe_name}"
 
 
-def runtime_components_for_target(target: str, components: dict[str, Any], native_root: Path) -> dict[str, Any]:
-    roots = env_path_roots(native_root)
-    modsecurity = components.get("modsecurity", {}) if isinstance(components.get("modsecurity"), dict) else {}
-    go_ftw = components.get("go_ftw", {}) if isinstance(components.get("go_ftw"), dict) else {}
-    albedo = components.get("albedo", {}) if isinstance(components.get("albedo"), dict) else {}
-    common = {
+def component_details(components: dict[str, Any], name: str) -> dict[str, Any]:
+    value = components.get(name)
+    return value if isinstance(value, dict) else {}
+
+
+def common_runtime_components(components: dict[str, Any], roots: list[tuple[str, Path]]) -> dict[str, Any]:
+    modsecurity = component_details(components, "modsecurity")
+    go_ftw = component_details(components, "go_ftw")
+    albedo = component_details(components, "albedo")
+    return {
         "modsecurity_build_id": modsecurity.get("build_id") or "-",
         "go_ftw_binary": display_component_value(go_ftw.get("binary") or go_ftw.get("path") or "-", roots),
         "albedo_binary": display_component_value(albedo.get("binary") or albedo.get("path") or "-", roots),
     }
-    if target == "apache2_ubuntu":
-        apache = components.get("apache_httpd", {}) if isinstance(components.get("apache_httpd"), dict) else {}
-        return {
-            "APACHECTL_BIN": display_component_value(apache.get("apachectl_bin") or "-", roots),
-            "httpd_binary": display_component_value(apache.get("httpd_bin") or "-", roots),
-            "mod_security3_so": display_component_value(apache.get("module_file") or "-", roots),
-            "connector_build_id": apache.get("connector_build_id") or "-",
-            **common,
-        }
-    nginx = components.get("nginx", {}) if isinstance(components.get("nginx"), dict) else {}
+
+
+def apache_runtime_components(components: dict[str, Any], roots: list[tuple[str, Path]], common: dict[str, Any]) -> dict[str, Any]:
+    apache = component_details(components, "apache_httpd")
+    return {
+        "APACHECTL_BIN": display_component_value(apache.get("apachectl_bin") or "-", roots),
+        "httpd_binary": display_component_value(apache.get("httpd_bin") or "-", roots),
+        "mod_security3_so": display_component_value(apache.get("module_file") or "-", roots),
+        "connector_build_id": apache.get("connector_build_id") or "-",
+        **common,
+    }
+
+
+def nginx_runtime_components(components: dict[str, Any], roots: list[tuple[str, Path]], common: dict[str, Any]) -> dict[str, Any]:
+    nginx = component_details(components, "nginx")
     return {
         "MRTS_NATIVE_NGINX_BIN": display_component_value(nginx.get("nginx_bin") or nginx.get("local_nginx_bin") or "-", roots),
         "MRTS_NATIVE_NGINX_MODULE_DIR": display_component_value(nginx.get("module_dir") or "-", roots),
@@ -342,6 +400,14 @@ def runtime_components_for_target(target: str, components: dict[str, Any], nativ
         "connector_build_id": nginx.get("connector_build_id") or "-",
         **common,
     }
+
+
+def runtime_components_for_target(target: str, components: dict[str, Any], native_root: Path) -> dict[str, Any]:
+    roots = env_path_roots(native_root)
+    common = common_runtime_components(components, roots)
+    if target == "apache2_ubuntu":
+        return apache_runtime_components(components, roots, common)
+    return nginx_runtime_components(components, roots, common)
 
 
 def target_source(target: str, overlay: dict[str, Any]) -> dict[str, Any]:
@@ -382,7 +448,7 @@ def target_report_payload(report: dict[str, Any], target: str, components: dict[
         "optional": bool(job.get("optional", True)),
         "critical_merge_blocker": bool(job.get("critical_merge_blocker", False)),
         "counts": job.get("counts", {"attempted": 0, "pass": 0, "fail": 0, "blocked": 0, "not_executable": 0}),
-        "known_limitations": job.get("known_limitations", known_limitations([])),
+        "known_limitations": job.get("known_limitations", known_limitations()),
         "first_failing_cases": job.get("first_failing_cases", []),
         "runtime_components": runtime_components_for_target(target, components, native_root),
         "paths": job.get("paths", target_paths(target, native_root)),
@@ -649,11 +715,21 @@ def main() -> int:
         sys.path.insert(0, str(framework_lib))
     from generated_report_utils import build_metadata, generated_json_text, generated_markdown_text, report_path_from_root, require_under
 
-    build_root = Path(os.environ.get("BUILD_ROOT", str(default_state_home() / "ModSecurity-conector-build"))).resolve()
+    configured_build_root = os.environ.get("BUILD_ROOT")
+    build_root = Path(configured_build_root).resolve() if configured_build_root else default_state_home() / "ModSecurity-conector-build"
     native_root = Path(args.native_root).resolve() if args.native_root else Path(os.environ.get("MRTS_NATIVE_ROOT", str(build_root / "mrts-native"))).resolve()
-    output_root = Path(args.output_root).resolve() if args.output_root else connector_root
-    report_dir = require_under(output_root, output_root / "reports/testing/generated", "generated report directory")
+    output_root = connector_root if args.output_root is None else require_under(connector_root, Path(args.output_root), "report output root")
+    report_dir = require_under(output_root, Path("reports/testing/generated"), "generated report directory")
     report_dir.mkdir(parents=True, exist_ok=True)
+
+    def write_report(name: str, suffix: str, contents: str) -> Path:
+        output_path = report_path_from_root(report_dir, name, suffix)
+        output_directory = output_path.parent
+        output_directory.mkdir(parents=True, exist_ok=True)
+        output_directory = require_under(report_dir, output_directory, "native report output directory")
+        output_path = require_under(output_directory, output_path, f"native report {name}.{suffix}")
+        write_generated_report_file(output_directory, output_path.name, contents)
+        return output_path
 
     targets = {target: normalize_job(target, native_root) for target in TARGETS}
     summary = Counter(str(job.get("status") or "UNKNOWN").upper() for job in targets.values())
@@ -675,41 +751,38 @@ def main() -> int:
     summary_report = summary_report_payload(report, target_reports)
 
     base_metadata = build_metadata(
-        generated_by="framework:ci/reporting/generate-mrts-native-report.py",
+        generated_by=GENERATED_BY,
         make_target="mrts-native-full-run",
         connector_root=connector_root,
         framework_root=framework_root,
         inputs=[native_root / "apache2_ubuntu/job.json", native_root / "nginx-pr24/job.json"],
         generated_at=report["generated_at"],
     )
-    json_path = report_path_from_root(report_dir, "mrts_native_full", "json")
-    md_path = report_path_from_root(report_dir, "mrts_native_full", "md")
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-    json_path.write_text(generated_json_text(report, base_metadata), encoding="utf-8")
-    md_path.write_text(generated_markdown_text(report_markdown(report), base_metadata), encoding="utf-8")
+    write_report("mrts_native_full", "json", generated_json_text(report, base_metadata))
+    md_path = write_report("mrts_native_full", "md", generated_markdown_text(report_markdown(report), base_metadata))
+    target_json_paths: dict[str, Path] = {}
     for target, payload in target_reports.items():
-        json_name, md_name = TARGET_REPORT_FILENAMES[target]
-        key = "mrts_native_apache" if target == "apache2_ubuntu" else "mrts_native_nginx"
+        key = TARGET_REPORT_KEYS[target]
         target_metadata = build_metadata(
-            generated_by="framework:ci/reporting/generate-mrts-native-report.py",
+            generated_by=GENERATED_BY,
             make_target="mrts-native-full-run",
             connector_root=connector_root,
             framework_root=framework_root,
             inputs=[native_root / f"{target}/job.json"],
             generated_at=payload["generated_at"],
         )
-        report_path_from_root(report_dir, key, "json").write_text(generated_json_text(payload, target_metadata), encoding="utf-8")
-        report_path_from_root(report_dir, key, "md").write_text(generated_markdown_text(target_report_markdown(payload), target_metadata), encoding="utf-8")
+        target_json_paths[target] = write_report(key, "json", generated_json_text(payload, target_metadata))
+        write_report(key, "md", generated_markdown_text(target_report_markdown(payload), target_metadata))
     summary_metadata = build_metadata(
-        generated_by="framework:ci/reporting/generate-mrts-native-report.py",
+        generated_by=GENERATED_BY,
         make_target="mrts-native-full-run",
         connector_root=connector_root,
         framework_root=framework_root,
-        inputs=[report_path_from_root(report_dir, "mrts_native_apache", "json"), report_path_from_root(report_dir, "mrts_native_nginx", "json")],
+        inputs=[target_json_paths[target] for target in TARGETS],
         generated_at=summary_report["generated_at"],
     )
-    report_path_from_root(report_dir, "mrts_native_summary", "json").write_text(generated_json_text(summary_report, summary_metadata), encoding="utf-8")
-    report_path_from_root(report_dir, "mrts_native_summary", "md").write_text(generated_markdown_text(summary_report_markdown(summary_report), summary_metadata), encoding="utf-8")
+    write_report("mrts_native_summary", "json", generated_json_text(summary_report, summary_metadata))
+    write_report("mrts_native_summary", "md", generated_markdown_text(summary_report_markdown(summary_report), summary_metadata))
     print(md_path)
     return 0
 

@@ -8,7 +8,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
 REPO_ROOT = Path(os.environ.get("CONNECTOR_ROOT", Path(__file__).resolve().parents[3])).resolve()
 LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\(([^)]+)\)")
@@ -17,12 +17,7 @@ SKIP_DIR_PARTS = {
     ".git",
     "__pycache__",
 }
-REMOTE_PREFIXES = (
-    "http://",
-    "https://",
-    "mailto:",
-    "app://",
-)
+REMOTE_SCHEMES = {"http", "https", "mailto", "app"}
 
 
 def is_skipped(path: Path) -> bool:
@@ -45,9 +40,15 @@ def markdown_files() -> list[Path]:
     )
 
 
+def is_remote_target(target: str) -> bool:
+    """Return whether a Markdown target is an external scheme we do not fetch."""
+
+    return urlsplit(target).scheme.lower() in REMOTE_SCHEMES
+
+
 def normalize_target(raw_target: str) -> tuple[str, str]:
     target = raw_target.strip()
-    if not target or target.startswith(REMOTE_PREFIXES):
+    if not target or is_remote_target(target):
         return "", ""
     if target.startswith("#"):
         return "", target.removeprefix("#")
@@ -58,17 +59,34 @@ def normalize_target(raw_target: str) -> tuple[str, str]:
     return unquote(target), unquote(anchor)
 
 
+def atx_heading_text(line: str) -> str | None:
+    """Return a Markdown ATX heading's text using a bounded marker scan."""
+    marker_length = 0
+    while marker_length < 6 and marker_length < len(line) and line[marker_length] == "#":
+        marker_length += 1
+    if (
+        marker_length == 0
+        or marker_length == len(line)
+        or not line[marker_length].isspace()
+        or marker_length + 1 == len(line)
+    ):
+        return None
+
+    text = line[marker_length + 1 :].rstrip()
+    return text.rstrip("#").rstrip()
+
+
 def heading_anchors(path: Path) -> set[str]:
     anchors: set[str] = set()
     duplicates: dict[str, int] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         anchors.update(unquote(anchor) for anchor in EXPLICIT_ANCHOR_RE.findall(line))
-        match = re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
-        if not match:
+        text = atx_heading_text(line)
+        if text is None:
             continue
         # Preserve underscores: variable headings such as `FRAMEWORK_ROOT`
         # intentionally use GitHub's `framework_root` anchor form.
-        text = re.sub(r"[`*~]", "", match.group(1)).lower()
+        text = re.sub(r"[`*~]", "", text).lower()
         slug = re.sub(r"[^\w\- ]", "", text, flags=re.UNICODE)
         slug = re.sub(r"[\s\-]+", "-", slug).strip("-")
         index = duplicates.get(slug, 0)
@@ -77,25 +95,30 @@ def heading_anchors(path: Path) -> set[str]:
     return anchors
 
 
+def link_errors(path: Path, target: str, anchor: str) -> list[str]:
+    """Validate one local Markdown link target and optional anchor."""
+
+    display_path = path.relative_to(REPO_ROOT)
+    candidate = (path if not target else path.parent / target).resolve()
+    try:
+        candidate.relative_to(REPO_ROOT)
+    except ValueError:
+        return [f"{display_path}: link escapes repo: {target}"]
+    if not candidate.exists():
+        return [f"{display_path}: missing link target: {target}"]
+    if anchor and candidate.is_file() and candidate.suffix == ".md":
+        if anchor not in heading_anchors(candidate):
+            return [f"{display_path}: missing link anchor: {target}#{anchor}"]
+    return []
+
+
 def check_file(path: Path) -> list[str]:
     errors: list[str] = []
     text = path.read_text(encoding="utf-8")
     for match in LINK_RE.finditer(text):
         target, anchor = normalize_target(match.group(1))
-        if not target and not anchor:
-            continue
-        candidate = (path if not target else path.parent / target).resolve()
-        try:
-            candidate.relative_to(REPO_ROOT)
-        except ValueError:
-            errors.append(f"{path.relative_to(REPO_ROOT)}: link escapes repo: {target}")
-            continue
-        if not candidate.exists():
-            errors.append(f"{path.relative_to(REPO_ROOT)}: missing link target: {target}")
-            continue
-        if anchor and candidate.is_file() and candidate.suffix == ".md":
-            if anchor not in heading_anchors(candidate):
-                errors.append(f"{path.relative_to(REPO_ROOT)}: missing link anchor: {target}#{anchor}")
+        if target or anchor:
+            errors.extend(link_errors(path, target, anchor))
     return errors
 
 
