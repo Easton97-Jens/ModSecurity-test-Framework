@@ -1,4 +1,5 @@
-# CI dependency contract for Ubuntu x86_64 with reviewed CPython 3.13.14.
+# CI dependency contract for Ubuntu x86_64 with the exact reviewed CPython
+# patch declared only in .python-version.
 #
 # The hash is the official PyPI digest for:
 # PyYAML-6.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl

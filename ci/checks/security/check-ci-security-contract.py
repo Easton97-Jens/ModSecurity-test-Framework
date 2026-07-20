@@ -51,19 +51,35 @@ ALLOWED_ARCHIVE_TYPES = {ARCHIVE_TYPE_TAR_GZ, ARCHIVE_TYPE_RAW}
 ALLOWED_PERMISSION_LEVELS = {"read", "write", "none"}
 WRITE_PERMISSION_ALLOWLIST = {
     "check-common-versions.yml": {"contents", "pull-requests"},
+    "check-python-version.yml": {"contents", "pull-requests"},
     "cleanup-artifacts.yml": {"actions"},
     "ci-security-codeql.yml": {"security-events"},
 }
 TOKEN_REFERENCE_ALLOWLIST = {
     "check-common-versions.yml",
+    "check-python-version.yml",
     "ci-security-dependency-review.yml",
 }
 TOKEN_REFERENCE = re.compile(
-    r"(?:github\.token|secrets\.GITHUB_TOKEN|\$\{?GITHUB_TOKEN\}?)"
+    r"(?:github(?:\s*\.\s*token|\s*\[\s*['\"]token['\"]\s*\])|"
+    r"secrets(?:\s*\.\s*GITHUB_TOKEN|\s*\[\s*['\"]GITHUB_TOKEN['\"]\s*\])|"
+    r"\$\{?GITHUB_TOKEN\}?)"
 )
-REVIEWED_PYTHON_VERSION = "3.13.14"
+SENSITIVE_REFERENCE = re.compile(
+    r"(?:\bgithub(?:\s*\.\s*token\b|\s*\[\s*['\"]token['\"]\s*\])|"
+    r"\bsecrets\s*(?:\.|\[)|\$\{?GITHUB_TOKEN\}?)"
+)
+CANONICAL_PYTHON_VERSION_FILE = ".python-version"
+PYTHON_VERSION_CANDIDATE_FILE = "${{ runner.temp }}/framework-python-3.13-candidate"
+PYTHON_VERSION_PR_BODY_FILE = "${{ runner.temp }}/framework-python-version-pr-body.md"
+PYTHON_VERSION_PR_BODY_RUN_PATH = "$RUNNER_TEMP/framework-python-version-pr-body.md"
+PYTHON_VERSION_MAINTENANCE_WORKFLOW = "check-python-version.yml"
 PYTHON_VERSION_DECLARATION = re.compile(
     r"^\s*python-version:\s*['\"]?([^\s'\"#]+)['\"]?\s*(?:#.*)?$",
+    re.MULTILINE,
+)
+PYTHON_VERSION_FILE_DECLARATION = re.compile(
+    r"^\s*python-version-file:\s*(?:\"([^\"]+)\"|'([^']+)'|([^#\n]+?))\s*(?:#.*)?$",
     re.MULTILINE,
 )
 CHECK_LATEST_FALSE = re.compile(r"^\s*check-latest:\s*false\s*(?:#.*)?$", re.MULTILINE)
@@ -520,13 +536,27 @@ def setup_python_errors(path: Path, text: str) -> list[str]:
         return []
 
     errors: list[str] = []
-    versions = PYTHON_VERSION_DECLARATION.findall(text)
-    if not versions or any(version != REVIEWED_PYTHON_VERSION for version in versions):
+    setup_count = text.count("actions/setup-python@")
+    if PYTHON_VERSION_DECLARATION.search(text):
         errors.append(
-            f"{path}: setup-python must use exact reviewed CPython "
-            f"{REVIEWED_PYTHON_VERSION}"
+            f"{path}: setup-python must select {CANONICAL_PYTHON_VERSION_FILE} "
+            "through python-version-file, never python-version"
         )
-    if not CHECK_LATEST_FALSE.search(text):
+    version_files = [
+        next(value for value in match if value is not None).strip()
+        for match in PYTHON_VERSION_FILE_DECLARATION.findall(text)
+    ]
+    allowed_files = {CANONICAL_PYTHON_VERSION_FILE}
+    if path.name == PYTHON_VERSION_MAINTENANCE_WORKFLOW:
+        allowed_files.add(PYTHON_VERSION_CANDIDATE_FILE)
+    if len(version_files) != setup_count or any(
+        version_file not in allowed_files for version_file in version_files
+    ):
+        errors.append(
+            f"{path}: every setup-python use must select the canonical "
+            f"{CANONICAL_PYTHON_VERSION_FILE} file"
+        )
+    if len(CHECK_LATEST_FALSE.findall(text)) < setup_count:
         errors.append(f"{path}: setup-python must set check-latest: false")
     return errors
 
@@ -557,6 +587,234 @@ def python_provisioning_errors(path: Path, text: str) -> list[str]:
         *setup_python_errors(path, text),
         *security_tool_downloader_errors(path, text),
     ]
+
+
+def workflow_events(data: dict[str, Any]) -> dict[str, Any] | None:
+    raw_events = data.get("on", data.get(True))
+    return raw_events if isinstance(raw_events, dict) else None
+
+
+def as_job_steps(path: Path, job_name: str, job: Any) -> tuple[list[dict[str, Any]], list[str]]:
+    if not isinstance(job, dict):
+        return [], [f"{path}: Python maintenance job {job_name!r} must be a mapping"]
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        return [], [f"{path}: Python maintenance job {job_name!r} must define steps"]
+    mappings = [step for step in steps if isinstance(step, dict)]
+    if len(mappings) != len(steps):
+        return [], [f"{path}: Python maintenance job {job_name!r} has a malformed step"]
+    return mappings, []
+
+
+def job_run_text(steps: Iterable[dict[str, Any]]) -> str:
+    return "\n".join(str(step.get("run", "")) for step in steps)
+
+
+def sensitive_reference_paths(
+    value: Any, path: tuple[str, ...] = ()
+) -> list[tuple[str, ...]]:
+    """Return parsed locations containing an explicit token or secret reference."""
+
+    if isinstance(value, str):
+        return [path] if SENSITIVE_REFERENCE.search(value) else []
+    if isinstance(value, dict):
+        paths: list[tuple[str, ...]] = []
+        for key, item in value.items():
+            paths.extend(sensitive_reference_paths(item, (*path, str(key))))
+        return paths
+    if isinstance(value, list):
+        paths = []
+        for index, item in enumerate(value):
+            paths.extend(sensitive_reference_paths(item, (*path, str(index))))
+        return paths
+    return []
+
+
+def normalized_needs(value: Any) -> set[str]:
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return set(value)
+    return set()
+
+
+def read_only_job_errors(path: Path, job_name: str, job: Any) -> list[str]:
+    if not isinstance(job, dict):
+        return []
+    permissions = job.get("permissions")
+    if permissions is not None and permissions != {"contents": "read"}:
+        return [
+            f"{path}: Python maintenance job {job_name!r} must remain contents: read only"
+        ]
+    return []
+
+
+def create_pull_request_steps(
+    steps: Iterable[dict[str, Any]],
+) -> list[tuple[int, dict[str, Any]]]:
+    matches: list[tuple[int, dict[str, Any]]] = []
+    for index, step in enumerate(steps):
+        reference = step.get("uses")
+        if isinstance(reference, str) and reference.startswith(
+            "peter-evans/create-pull-request@"
+        ):
+            matches.append((index, step))
+    return matches
+
+
+def python_version_maintenance_errors(path: Path, data: dict[str, Any]) -> list[str]:
+    if path.name != PYTHON_VERSION_MAINTENANCE_WORKFLOW:
+        return []
+
+    errors: list[str] = []
+    events = workflow_events(data)
+    if not isinstance(events, dict) or set(events) != {"workflow_dispatch", "schedule"}:
+        errors.append(
+            f"{path}: Python maintenance must be scheduled/manual only with no other trigger"
+        )
+    elif not isinstance(events.get("schedule"), list) or not events["schedule"]:
+        errors.append(f"{path}: Python maintenance must declare a schedule")
+
+    jobs = data.get("jobs")
+    required_jobs = {"resolve", "candidate-validate", "publish"}
+    if not isinstance(jobs, dict) or set(jobs) != required_jobs:
+        return [
+            *errors,
+            f"{path}: Python maintenance must define exactly resolve, candidate-validate, and publish jobs",
+        ]
+    resolve = jobs["resolve"]
+    candidate = jobs["candidate-validate"]
+    publish = jobs["publish"]
+    errors.extend(read_only_job_errors(path, "resolve", resolve))
+    errors.extend(read_only_job_errors(path, "candidate-validate", candidate))
+    if not isinstance(publish, dict) or publish.get("permissions") != {
+        "contents": "write",
+        "pull-requests": "write",
+    }:
+        errors.append(
+            f"{path}: Python maintenance publish job must have only contents/pull-requests write"
+        )
+    if isinstance(candidate, dict) and normalized_needs(candidate.get("needs")) != {"resolve"}:
+        errors.append(f"{path}: Python maintenance candidate job must need resolve only")
+    if isinstance(publish, dict) and normalized_needs(publish.get("needs")) != {
+        "resolve",
+        "candidate-validate",
+    }:
+        errors.append(f"{path}: Python maintenance publish job must need both prior jobs")
+
+    resolve_steps, resolve_step_errors = as_job_steps(path, "resolve", resolve)
+    candidate_steps, candidate_step_errors = as_job_steps(path, "candidate-validate", candidate)
+    publish_steps, publish_step_errors = as_job_steps(path, "publish", publish)
+    errors.extend(resolve_step_errors)
+    errors.extend(candidate_step_errors)
+    errors.extend(publish_step_errors)
+    resolve_run = job_run_text(resolve_steps)
+    candidate_run = job_run_text(candidate_steps)
+    publish_run = job_run_text(publish_steps)
+    if "update-python-version.py --check --write-github-output" not in resolve_run:
+        errors.append(f"{path}: resolve must use the no-write updater check with GitHub outputs")
+    for job_name, job in (("resolve", resolve), ("candidate-validate", candidate)):
+        if sensitive_reference_paths(job):
+            errors.append(
+                f"{path}: Python maintenance read-only job {job_name!r} must not "
+                "declare a GitHub token or secret"
+            )
+    if (
+        "update-python-version.py --check" not in candidate_run
+        or "--update" in candidate_run
+        or "--expected-candidate \"$CANDIDATE\"" not in candidate_run
+        or (
+            "--write-candidate-file \"$RUNNER_TEMP/framework-python-3.13-candidate\""
+            not in candidate_run
+        )
+    ):
+        errors.append(
+            f"{path}: candidate validation must independently validate and materialize only "
+            "the controlled RUNNER_TEMP candidate file"
+        )
+    if (
+        "update-python-version.py --check --expected-candidate \"$CANDIDATE\""
+        not in publish_run
+        or "update-python-version.py --update --expected-candidate \"$CANDIDATE\""
+        not in publish_run
+    ):
+        errors.append(
+            f"{path}: publisher must independently re-resolve and update with the expected candidate"
+        )
+    if (
+        "git diff --name-only" not in publish_run
+        or 'test "$changed_paths" = ".python-version"' not in publish_run
+    ):
+        errors.append(f"{path}: publisher must assert the exact .python-version-only diff")
+    if any(token in publish_run for token in ("gh pr merge", "--auto", "auto-merge")):
+        errors.append(
+            f"{path}: publisher must not merge or enable auto-merge for its Draft pull request"
+        )
+
+    candidate_if = candidate.get("if") if isinstance(candidate, dict) else None
+    if not isinstance(candidate_if, str) or "needs.resolve.outputs.update_available == 'true'" not in candidate_if:
+        errors.append(f"{path}: candidate job must be gated on an available resolver update")
+    publish_if = publish.get("if") if isinstance(publish, dict) else None
+    publisher_conditions = (
+        "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'",
+        "needs.resolve.outputs.update_available == 'true'",
+        "needs.candidate-validate.outputs.candidate_validated == 'true'",
+        "github.repository == 'Easton97-Jens/ModSecurity-test-Framework'",
+        "github.ref == 'refs/heads/master'",
+    )
+    if not isinstance(publish_if, str) or any(
+        condition not in publish_if for condition in publisher_conditions
+    ):
+        errors.append(
+            f"{path}: publisher must be gated on trusted repository/default-ref and validated candidate"
+        )
+
+    pull_request_steps = create_pull_request_steps(publish_steps)
+    allowed_sensitive_path: tuple[str, ...] | None = None
+    if len(pull_request_steps) != 1:
+        errors.append(
+            f"{path}: publisher must use exactly one reviewed create-pull-request action"
+        )
+    else:
+        pull_request_index, pull_request = pull_request_steps[0]
+        options = pull_request.get("with")
+        if not isinstance(options, dict):
+            errors.append(f"{path}: create-pull-request must have a with mapping")
+        else:
+            if options.get("token") != "${{ github.token }}":
+                errors.append(f"{path}: create-pull-request must use its explicit github.token input")
+            else:
+                allowed_sensitive_path = (
+                    "steps",
+                    str(pull_request_index),
+                    "with",
+                    "token",
+                )
+            if options.get("branch") != "automation/update-framework-python-313":
+                errors.append(f"{path}: publisher branch must be fixed and reviewable")
+            if options.get("draft") is not True:
+                errors.append(f"{path}: publisher must create or update a Draft pull request")
+            if str(options.get("add-paths", "")).strip() != CANONICAL_PYTHON_VERSION_FILE:
+                errors.append(f"{path}: publisher add-paths must be limited to .python-version")
+            if options.get("body-path") != PYTHON_VERSION_PR_BODY_FILE:
+                errors.append(
+                    f"{path}: create-pull-request body-path must be the controlled RUNNER_TEMP file"
+                )
+    unexpected_sensitive_paths = [
+        location
+        for location in sensitive_reference_paths(publish)
+        if location != allowed_sensitive_path
+    ]
+    if unexpected_sensitive_paths:
+        errors.append(
+            f"{path}: publisher may only declare github.token in the reviewed "
+            "create-pull-request with.token input"
+        )
+    if f'> "{PYTHON_VERSION_PR_BODY_RUN_PATH}"' not in publish_run:
+        errors.append(
+            f"{path}: publisher must write its Draft pull request body under RUNNER_TEMP"
+        )
+    return errors
 
 
 def is_job_header(line: str) -> bool:
@@ -690,6 +948,7 @@ def workflow_metadata_errors(path: Path, text: str, data: dict[str, Any]) -> lis
         *top_level_permission_errors(path, data),
         *concurrency_errors(path, data),
         *python_provisioning_errors(path, text),
+        *python_version_maintenance_errors(path, data),
         *scanner_evidence_errors(path, text),
         *codeql_tool_bundle_errors(path, text),
         *run_shell_default_errors(path, text, data),
