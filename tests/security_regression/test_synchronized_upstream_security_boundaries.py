@@ -218,6 +218,21 @@ class SynchronizedUpstreamSecurityBoundaryTests(unittest.TestCase):
             ),
         )
 
+    def test_real_host_evidence_cannot_target_the_synthetic_upstream(self) -> None:
+        upstream = mock.Mock()
+        upstream.address.host = "127.0.0.1"
+        upstream.address.port = 18443
+        with mock.patch.object(self.upstream_module.socket, "create_connection") as connect:
+            with self.assertRaisesRegex(ValueError, "distinct from the synthetic upstream"):
+                self.upstream_module.run_client_barrier(
+                    target_host="127.0.0.1",
+                    target_port=18443,
+                    upstream=upstream,
+                    host_metadata=real_host_metadata(),
+                    evidence_origin="real_host",
+                )
+        connect.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

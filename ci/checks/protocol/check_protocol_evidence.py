@@ -104,8 +104,22 @@ FORBIDDEN_PAYLOAD_KEYS = frozenset(
         "cid",
     }
 )
-FORBIDDEN_COMMAND_FLAGS = re.compile(
-    r"(?:^|\s)(?:--http3(?:\s|$)|--include(?:\s|$)|--dump-header(?:\s|$)|--verbose(?:\s|$)|--trace(?:\s|$)|--trace-ascii(?:\s|$))"
+FORBIDDEN_CAPTURE_OPTIONS = frozenset(
+    {
+        "--dump-header",
+        "--include",
+        "--remote-header-name",
+        "--remote-name",
+        "--trace",
+        "--trace-ascii",
+        "--trace-time",
+        "--verbose",
+        "-D",
+        "-O",
+        "-i",
+        "-J",
+        "-v",
+    }
 )
 REDACTED_COMMAND_VALUE_OPTIONS = frozenset({"--header", "--data-binary", "--cacert"})
 FORBIDDEN_TEXT_HEADERS = re.compile(
@@ -397,17 +411,53 @@ def _command_argument_safety_errors(arguments: Sequence[str]) -> list[str]:
     return errors
 
 
-def _command_policy_errors(command: str, *, protocol: str) -> list[str]:
+def _command_output_safety_errors(arguments: Sequence[str]) -> list[str]:
+    """Require exactly one non-capturing curl output destination.
+
+    Shell-word parsing is intentional here: textual substring checks cannot
+    distinguish a safe ``--output /dev/null`` from a later overriding output
+    option, nor do they recognize curl's ``--option=value`` forms.
+    """
+
     errors: list[str] = []
-    if "--output /dev/null" not in command:
-        errors.append("client command does not discard the response payload")
-    if "--fail-with-body" not in command:
+    output_destinations: list[str] = []
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        option, separator, inline_value = argument.partition("=")
+        if option in FORBIDDEN_CAPTURE_OPTIONS:
+            errors.append(f"client command contains payload-capture option {option}")
+        if option == "--output":
+            if separator:
+                output_destinations.append(inline_value)
+            elif index + 1 < len(arguments):
+                output_destinations.append(arguments[index + 1])
+                index += 1
+            else:
+                errors.append("client command has an output option without a destination")
+        elif argument == "-o":
+            if index + 1 < len(arguments):
+                output_destinations.append(arguments[index + 1])
+                index += 1
+            else:
+                errors.append("client command has an output option without a destination")
+        elif argument.startswith("-o") and len(argument) > 2:
+            output_destinations.append(argument[2:])
+        index += 1
+
+    if output_destinations != ["/dev/null"]:
+        errors.append("client command must use exactly one payload-free output destination")
+    return errors
+
+
+def _command_policy_errors(arguments: Sequence[str], *, protocol: str) -> list[str]:
+    errors: list[str] = []
+    if "--fail-with-body" not in arguments:
         errors.append("client command does not preserve a failed response observation")
     required_flag = _required_protocol_flag(protocol)
-    if not re.search(rf"(?:^|\s){re.escape(required_flag)}(?:\s|$)", command):
+    if required_flag not in arguments:
         errors.append("client command does not force the selected protocol profile")
-    if FORBIDDEN_COMMAND_FLAGS.search(command):
-        errors.append("client command contains a fallback or payload-capture flag")
+    errors.extend(_command_output_safety_errors(arguments))
     return errors
 
 
@@ -423,7 +473,7 @@ def _validate_command(command: str, *, protocol: str) -> list[str]:
     # payload, credential, or CA path.  Enforce that invariant even if an
     # external directory is supplied to the finalizer.
     errors.extend(_command_argument_safety_errors(arguments))
-    errors.extend(_command_policy_errors(command, protocol=protocol))
+    errors.extend(_command_policy_errors(arguments, protocol=protocol))
     return errors
 
 

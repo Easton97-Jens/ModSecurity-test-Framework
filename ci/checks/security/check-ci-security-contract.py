@@ -27,6 +27,21 @@ IF_NO_FILES_FOUND_ERROR = "if-no-files-found: error"
 SECURITY_EVENTS_WRITE = "security-events: write"
 SECURITY_TOOL_DOWNLOADER = "ci/tools/fetch-security-tool.py"
 HASH_LOCKED_CI_REQUIREMENTS = "--require-hashes -r requirements-ci.lock"
+TRUSTED_OSV_WORKFLOW = "ci-security-osv.yml"
+TRUSTED_OSV_TARGET_REQUIREMENTS = (
+    "pull_request_target:",
+    "if: github.event_name == 'pull_request_target'",
+    "ref: ${{ github.event.pull_request.base.sha }}",
+    "fetch-depth: 1",
+    "persist-credentials: false",
+    "submodules: false",
+    "PR_NUMBER: ${{ github.event.pull_request.number }}",
+    '[[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]',
+    'test "$(git rev-parse HEAD)" = "$BASE_SHA"',
+    'git -c protocol.file.allow=never fetch --depth=1 --no-tags origin',
+    '"+refs/pull/$PR_NUMBER/head:refs/remotes/origin/pr-$PR_NUMBER"',
+    'test "$resolved_head" = "$HEAD_SHA"',
+)
 ACTION_FIELDS = {
     "name",
     "version",
@@ -72,9 +87,14 @@ OSV_JOB_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "pull-request-head": (
         "github.event.pull_request.base.sha",
         "github.event.pull_request.head.sha",
-        "fetch-depth: 0",
-        'test "$(git rev-parse HEAD)" = "$HEAD_SHA"',
+        "github.event.pull_request.number",
+        "fetch-depth: 1",
+        'test "$(git rev-parse HEAD)" = "$BASE_SHA"',
         'git cat-file -e "$BASE_SHA^{commit}"',
+        'git -c protocol.file.allow=never fetch --depth=1 --no-tags origin',
+        '"+refs/pull/$PR_NUMBER/head:refs/remotes/origin/pr-$PR_NUMBER"',
+        'test "$resolved_head" = "$HEAD_SHA"',
+        'git cat-file -e "$HEAD_SHA^{commit}"',
         'git cat-file -e "$HEAD_SHA:requirements-ci.lock"',
         "write_osv_input requirements-dev.txt requirements-dev.txt false",
         "write_osv_input requirements-ci.lock requirements-ci.txt true",
@@ -140,7 +160,18 @@ def pull_request_target_errors(path: Path, text: str) -> list[str]:
     if not UNSAFE_TRIGGER.search(text):
         return []
 
-    errors = [f"{path}: pull_request_target is forbidden"]
+    if path.name != TRUSTED_OSV_WORKFLOW:
+        errors = [f"{path}: pull_request_target is forbidden"]
+    else:
+        errors = [
+            f"{path}: trusted OSV pull_request_target is missing {required!r}"
+            for required in TRUSTED_OSV_TARGET_REQUIREMENTS
+            if required not in text
+        ]
+        if "ref: ${{ github.event.pull_request.head.sha }}" in text:
+            errors.append(
+                f"{path}: trusted OSV workflow must not checkout the pull-request head"
+            )
     if UNTRUSTED_INTERPOLATION.search(text):
         errors.append(
             f"{path}: pull_request_target must not interpolate PR title or body"

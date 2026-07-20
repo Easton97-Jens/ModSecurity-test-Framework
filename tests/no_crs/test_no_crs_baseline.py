@@ -4,9 +4,11 @@ import importlib.util
 import inspect
 import io
 import json
+import os
 from contextlib import redirect_stderr
 from pathlib import Path
 import socket
+import subprocess
 import tempfile
 import threading
 import time
@@ -77,6 +79,28 @@ def manifest(
 
 
 class NoCrsBaselineTest(unittest.TestCase):
+    def test_git_value_disables_repository_fsmonitor_hook(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="no-crs-git-fsmonitor-") as temporary:
+            root = Path(temporary)
+            repository = root / "repository"
+            marker = root / "fsmonitor-executed"
+            hook = root / "fsmonitor-hook"
+            hook.write_text(
+                "#!/bin/sh\n"
+                f"touch {marker}\n"
+                "printf '%s\\n' 'last_update_token'\n",
+                encoding="utf-8",
+            )
+            hook.chmod(0o755)
+            subprocess.run(["git", "init", "--quiet", str(repository)], check=True)
+            subprocess.run(
+                ["git", "-C", str(repository), "config", "core.fsmonitor", str(hook)],
+                check=True,
+            )
+
+            self.assertEqual("", no_crs.git_value(repository, "status", "--porcelain=v1"))
+            self.assertFalse(marker.exists())
+
     def normalize_phase4(
         self,
         case_id: str,
@@ -127,6 +151,12 @@ class NoCrsBaselineTest(unittest.TestCase):
             ["allow_without_marker", "deny_header_marker_403"],
             [record["case_id"] for record in records],
         )
+
+    def test_failed_source_status_alias_cannot_clear_the_source_failure_gate(self) -> None:
+        errors = no_crs.status_source_failure_errors(
+            {"source_statuses": ["FAILED"], "source_failure": False}
+        )
+        self.assertTrue(errors)
 
     def test_finalize_copies_allowlisted_engine_lifecycle_artifacts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-engine-artifacts-") as temporary:
@@ -193,6 +223,25 @@ class NoCrsBaselineTest(unittest.TestCase):
                     "generic",
                     {"artifacts": {}},
                 )
+
+    def test_engine_version_artifact_rejects_sensitive_or_unbounded_text(self) -> None:
+        for content in (
+            "Authorization: Bearer untrusted-secret\\n",
+            "v" * 513 + "\\n",
+        ):
+            with self.subTest(content_length=len(content)):
+                with tempfile.TemporaryDirectory(prefix="no-crs-engine-artifacts-") as temporary:
+                    root = Path(temporary)
+                    source = root / "engine-version.txt"
+                    source.write_text(content, encoding="utf-8")
+                    with self.assertRaises(no_crs.ContractError):
+                        no_crs.copy_engine_lifecycle_artifacts(
+                            root / "run",
+                            [f"engine_version={source}"],
+                            "envoy",
+                            "full_lifecycle",
+                            {"artifacts": {}},
+                        )
 
     def test_protocol_client_artifacts_copy_only_the_payload_free_allowlist(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-protocol-artifacts-") as temporary:
@@ -1684,6 +1733,78 @@ class NoCrsBaselineTest(unittest.TestCase):
                 raw={"actual_status": 418, "transport_result": "http_status"},
             )["status"],
         )
+
+    def test_phase4_pass_rejects_an_event_from_a_different_integration_mode(self) -> None:
+        catalog = no_crs.load_catalog()
+        case_by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
+        event = self.phase4_event(
+            integration_mode="compatibility-mode",
+            http_status=403,
+            requested_action="deny",
+            actual_action="deny",
+            original_http_status=200,
+            visible_http_status=403,
+            headers_sent=False,
+            connection_aborted=False,
+        )
+        record = no_crs.normalize_case_record(
+            {
+                "case_id": "phase4_deny_before_commit",
+                "status": "PASS",
+                "live_executed": True,
+                "actual_status": 403,
+                "observed_rule_ids": [1100301],
+            },
+            "apache",
+            case_by_id,
+            [event],
+            "native-mode",
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual("FAIL", record["status"])
+        self.assertIn("integration_mode", record["reason"])
+
+    def test_response_body_verification_requires_an_enforcement_outcome(self) -> None:
+        self.assertFalse(no_crs.response_body_enforcement_verified({"phase4_rule_observed"}))
+        self.assertFalse(
+            no_crs.response_body_enforcement_verified(
+                {"phase4_deny_after_commit_log_only"}
+            )
+        )
+        self.assertTrue(
+            no_crs.response_body_enforcement_verified({"phase4_deny_before_commit"})
+        )
+        self.assertTrue(
+            no_crs.response_body_enforcement_verified(
+                {"phase4_deny_after_commit_abort"}
+            )
+        )
+
+    def test_phase4_content_type_pass_requires_the_catalog_expected_status(self) -> None:
+        catalog = no_crs.load_catalog()
+        case_by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
+        event = self.phase4_event(
+            http_status=500,
+            original_http_status=500,
+            visible_http_status=500,
+            content_type="image/png",
+            content_type_scope="out_of_scope",
+            transport_result="http_status",
+        )
+        record = no_crs.normalize_case_record(
+            {
+                "case_id": "phase4_out_of_scope_content_type",
+                "status": "PASS",
+                "live_executed": True,
+                "actual_status": 500,
+            },
+            "apache",
+            case_by_id,
+            [event],
+        )
+        self.assertIsNotNone(record)
+        self.assertEqual("FAIL", record["status"])
+        self.assertIn("expected status", record["reason"])
 
     def test_phase4_metadata_cases_require_actions_and_statuses_from_the_event(self) -> None:
         pre_commit = self.phase4_event(

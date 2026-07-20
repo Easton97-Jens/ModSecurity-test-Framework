@@ -10,6 +10,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "ci/reporting/generate-case-matrix.py"
+MAKEFILE_PATH = ROOT / "Makefile"
 
 
 def load_case_matrix_module():
@@ -59,6 +60,62 @@ class GenerateCaseMatrixSonarTests(unittest.TestCase):
                     layout._write_known(root.parent / "escape.md", "must not be written")
             self.assertFalse((root.parent / "escape.md").exists())
 
+    def test_connector_report_normalization_does_not_follow_an_untrusted_symlink(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            connector_root = root / "connector"
+            report_root = connector_root / "reports" / "testing"
+            report_root.mkdir(parents=True)
+            target = root / "outside.md"
+            original = "docs/testing/generated/case-matrix.generated.md\n"
+            target.write_text(original, encoding="utf-8")
+            (report_root / "test-coverage-overview.de.md").symlink_to(target)
+            with (
+                mock.patch.object(self.module, "OUTPUT_ROOT", connector_root),
+                mock.patch.object(self.module, "REPORT_ROOT", report_root),
+                mock.patch.object(self.module, "REPORT_UTILS", None),
+            ):
+                self.module.normalize_localized_overview_report_links()
+            self.assertEqual(target.read_text(encoding="utf-8"), original)
+
+    def test_report_equivalence_rejects_injected_volatile_metadata_line(self):
+        candidate = "\n".join(
+            [
+                "> Generated file - do not edit manually.",
+                ">",
+                "> Generated at: `2026-07-20T00:00:00Z`",
+                "> Verified run id: `run-1`",
+                "> Data source policy: `framework-only`",
+                "> Generator: `framework:generator`",
+                "> Make target: `generate-test-matrix`",
+                "> Owner: `framework`",
+                "> Severity: `internal`",
+                "> Connector SHA: `0123456789abcdef0123456789abcdef01234567`",
+                "> Framework SHA: `89abcdef0123456789abcdef0123456789abcdef`",
+                "> Input status: `current`",
+                "",
+                "# Generated report",
+                "",
+            ]
+        )
+        existing = candidate.replace(
+            "# Generated report",
+            "> Generated at: `2026-01-01` <img src=x onerror=alert(1)>\n# Generated report",
+        )
+        self.assertFalse(self.module.generated_report_equivalent(existing, candidate))
+        volatile_only = candidate.replace("2026-07-20T00:00:00Z", "2026-07-21T00:00:00Z")
+        volatile_only = volatile_only.replace("0123456789abcdef0123456789abcdef01234567", "f" * 40)
+        volatile_only = volatile_only.replace("89abcdef0123456789abcdef0123456789abcdef", "e" * 40)
+        self.assertTrue(self.module.generated_report_equivalent(volatile_only, candidate))
+
+    def test_check_test_matrix_rejects_non_framework_output_roots(self):
+        makefile = MAKEFILE_PATH.read_text(encoding="utf-8")
+        target = makefile.split("check-test-matrix: refresh-framework-reports", 1)[1].split(
+            "\nruntime-matrix:", 1
+        )[0]
+        self.assertIn("OUTPUT_ROOT must resolve to FRAMEWORK_ROOT", target)
+        self.assertNotIn('git -C "$(OUTPUT_ROOT)"', target)
+
     def test_haproxy_summary_keeps_verified_and_crs_case_semantics(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             results_dir = Path(temporary_directory) / "results"
@@ -69,8 +126,15 @@ class GenerateCaseMatrixSonarTests(unittest.TestCase):
                     {
                         "haproxy": {
                             "cases": {
-                                "no-crs-pass": {"status": "pass", "requires_crs": False},
-                                "with-crs-pass": {"status": "PASS", "requires_crs": True},
+                                "forged-pass": {"status": "pass", "requires_crs": True},
+                                "no-crs-pass": {"status": "pass", "live_executed": True, "requires_crs": False},
+                                "with-crs-pass": {
+                                    "status": "PASS",
+                                    "live_executed": True,
+                                    "requires_crs": True,
+                                    "crs_loaded": True,
+                                    "crs_verified": True,
+                                },
                                 "blocked": {"status": "blocked", "requires_crs": True},
                             },
                             "summary": {"blocked": 1},
@@ -95,19 +159,43 @@ class GenerateCaseMatrixSonarTests(unittest.TestCase):
             no_crs_path.parent.mkdir(parents=True)
             with_crs_path.parent.mkdir(parents=True)
             no_crs_path.write_text(
-                json.dumps({"verified_cases": ["shared", "no-crs"], "counts": {"pass": 2}}),
+                json.dumps(
+                    {
+                        "haproxy": {
+                            "cases": {
+                                "shared": {"status": "pass", "live_executed": True},
+                                "no-crs": {"status": "pass", "live_executed": True},
+                            },
+                            "summary": {"pass": 2},
+                        }
+                    }
+                ),
                 encoding="utf-8",
             )
             with_crs_path.write_text(
                 json.dumps(
-                    {"verified_cases": ["shared", "with-crs"], "counts": {"pass": 2}, "crs_verified": True}
+                    {
+                        "haproxy": {
+                            "cases": {
+                                "shared": {"status": "pass", "live_executed": True},
+                                "with-crs": {
+                                    "status": "pass",
+                                    "live_executed": True,
+                                    "requires_crs": True,
+                                    "crs_loaded": True,
+                                    "crs_verified": True,
+                                },
+                            },
+                            "summary": {"pass": 2},
+                        }
+                    }
                 ),
                 encoding="utf-8",
             )
             summary = self.module.load_haproxy_connector_summary(results_dir, results_dir / "haproxy-summary.json")
             self.assertEqual(summary["status"], "PARTIAL")
             self.assertEqual(summary["verified_cases"], ["shared", "no-crs", "with-crs"])
-            self.assertEqual(summary["crs_verified_scope"], ["crs_sqli_anomaly_block"])
+            self.assertEqual(summary["crs_verified_scope"], ["with-crs"])
             self.assertEqual(summary["counts"], {"pass": 2})
 
     def test_connector_smoke_row_preserves_snapshot_details(self):
@@ -148,7 +236,7 @@ class GenerateCaseMatrixSonarTests(unittest.TestCase):
                     {
                         "connector": "haproxy",
                         "status": "pass",
-                        "cases": [{"case": "case-a", "status": "pass"}],
+                        "cases": [{"case": "case-a", "status": "pass", "live_executed": True}],
                         "summary_path": "/safe/results/haproxy.json",
                     }
                 ]
@@ -218,6 +306,44 @@ class GenerateCaseMatrixSonarTests(unittest.TestCase):
         self.assertEqual(cell["status"], "BLOCKED")
         self.assertEqual(cell["promotion"], self.module.NOT_PROMOTED)
         self.assertEqual(cell["evidence"], "expected=200; actual=200")
+
+    def test_non_promotable_matrix_suffix_is_not_rendered_as_pass(self):
+        row = {
+            "status": "pass",
+            "matrix_status": "RESPONSE_BODY_PASS_THROUGH",
+            "response_body_non_verified": True,
+            "promotion_allowed": False,
+        }
+        self.assertEqual(self.module.normalized_matrix_status_value(row), "NOT_EXECUTABLE")
+
+    def test_phase1_request_body_gap_is_not_promotion_eligible(self):
+        source = (ROOT / "tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("classification: connector_gap", source)
+        case = {
+            "id": "phase1_vs_phase2_request_body_gap",
+            "scope": "common",
+            "status": "imported",
+            "category": "phase-handling",
+            "source": "ModSecurity-nginx",
+            "notes": "phase-1 reachability only",
+            "tags": ["connector-gap"],
+            "variables": ["REQUEST_BODY"],
+            "metadata_classification": "connector_gap",
+            "path": "tests/cases/phases/phase1/phase1_vs_phase2_request_body_gap.yaml",
+            "capabilities": ["phase1", "phase2"],
+        }
+        observed = {
+            "status": "pass",
+            "matrix_status": "PASS",
+            "live_executed": True,
+            "expected_status": 403,
+            "actual_status": 403,
+        }
+        with mock.patch.object(self.module, "is_response_body_related", return_value=False):
+            cell = self.module.runtime_cell_from_observed(case, observed, "apache")
+        self.assertEqual(cell["promotion"], self.module.NOT_PROMOTED)
 
     def test_runtime_snapshot_sections_keep_shared_status_and_evidence_order(self):
         smoke_rows = [

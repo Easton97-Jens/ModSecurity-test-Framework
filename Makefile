@@ -362,8 +362,20 @@ refresh-framework-reports:
 	MODSECURITY_MRTS_VARIANT=with-mrts $(MAKE) generate-test-matrix CONNECTOR_ROOT="$(FRAMEWORK_ROOT)" OUTPUT_ROOT="$(FRAMEWORK_ROOT)"
 
 check-test-matrix: refresh-framework-reports
-	@git -C "$(OUTPUT_ROOT)" diff --exit-code -- reports/testing docs/testing >/dev/null || { \
-		echo "Generated test matrix docs are out of date for OUTPUT_ROOT=$(OUTPUT_ROOT)"; \
+	@framework_root=$$(CDPATH= cd "$(FRAMEWORK_ROOT)" && pwd -P) || { \
+		echo "FRAMEWORK_ROOT cannot be resolved: $(FRAMEWORK_ROOT)"; \
+		exit 2; \
+	}; \
+	output_root=$$(CDPATH= cd "$(OUTPUT_ROOT)" && pwd -P) || { \
+		echo "OUTPUT_ROOT cannot be resolved: $(OUTPUT_ROOT)"; \
+		exit 2; \
+	}; \
+	[ "$$output_root" = "$$framework_root" ] || { \
+		echo "OUTPUT_ROOT must resolve to FRAMEWORK_ROOT for canonical generated-report freshness checks"; \
+		exit 2; \
+	}; \
+	git -C "$$framework_root" diff --exit-code -- reports/testing docs/testing >/dev/null || { \
+		echo "Generated test matrix docs are out of date for FRAMEWORK_ROOT=$(FRAMEWORK_ROOT)"; \
 		exit 1; \
 	}
 	@git -C "$(FRAMEWORK_ROOT)" diff --exit-code -- TEST-COVERAGE-SUMMARY.md >/dev/null || { \

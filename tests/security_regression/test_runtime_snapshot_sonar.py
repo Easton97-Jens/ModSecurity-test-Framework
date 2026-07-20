@@ -61,6 +61,33 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
         self.assertFalse(rows[0]["promotion_allowed"])
         self.assertFalse(rows[0]["runtime_verified"])
 
+    def test_response_body_display_pass_remains_non_promotable(self) -> None:
+        summary = {
+            "apache": {
+                "cases": {
+                    "case-response-body": {
+                        "path": "response/body/case-response-body.yaml",
+                        "status": "pass",
+                        "expected_status": 200,
+                        "actual_status": 200,
+                    }
+                }
+            }
+        }
+        response_body_metadata = {
+            **self.metadata,
+            "response_body_related": True,
+        }
+        with mock.patch.object(self.snapshot, "case_metadata", return_value=response_body_metadata):
+            rows = self.snapshot.case_rows(summary, "apache", Path("/safe/results/apache-summary.json"))
+
+        self.assertEqual(1, len(rows))
+        self.assertEqual("PASS", rows[0]["matrix_status"])
+        self.assertTrue(rows[0]["not_auto_promoted"])
+        self.assertTrue(rows[0]["response_body_non_verified"])
+        self.assertFalse(rows[0]["promotion_allowed"])
+        self.assertFalse(rows[0]["runtime_verified"])
+
     def test_connector_smoke_uses_summary_exit_status_only_with_case_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

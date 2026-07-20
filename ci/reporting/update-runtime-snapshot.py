@@ -186,6 +186,10 @@ def load_case_metadata(case_path: Path) -> dict:
 
 
 def classify_case(relative: str, status: str, case: dict) -> str:
+    metadata = case.get("metadata") if isinstance(case.get("metadata"), dict) else {}
+    declared = str(metadata.get("classification") or "").strip().lower().replace("-", "_")
+    if declared and declared != "active":
+        return declared
     text = " ".join(
         [
             relative,
@@ -233,6 +237,8 @@ def matrix_status(result_status: str, classification: str, response_body_related
     if strict_abort and str(result_status).strip().lower() == "pass":
         return "NOT_EXECUTABLE"
     if str(classification).strip().lower() in NON_PROMOTABLE_CLASSIFICATIONS and str(result_status).strip().lower() == "pass":
+        return "NOT_EXECUTABLE"
+    if response_body_related and str(result_status).strip().lower() == "pass":
         return "NOT_EXECUTABLE"
     return matrix_status_for_result(
         result_status,
@@ -285,16 +291,11 @@ def case_matrix_status(item: dict, metadata: dict[str, object], status: str, exp
         response_body_related,
         strict_abort=item.get("strict_abort") is True,
     )
-    if response_body_related and status.strip().lower() == "pass":
-        if not response_body_pass_is_pass_through(expected, actual, item.get("observed_transport_result")):
-            computed = matrix_status(
-                status,
-                str(metadata["classification"]),
-                False,
-                strict_abort=item.get("strict_abort") is True,
-            )
-    supplied = str(item.get("matrix_status") or "")
-    return computed if supplied.startswith("XFAIL_") or not supplied else supplied
+    if status.strip().lower() == "pass" and (
+        item.get("response_body_non_verified") is True or item.get("promotion_allowed") is False
+    ):
+        return "NOT_EXECUTABLE"
+    return computed
 
 
 def case_reason(item: dict, status: str) -> object:
@@ -575,8 +576,14 @@ def current_mrts_variant() -> str:
 
 
 def variant_summary_path(results_dir: Path, connector: str, fallback: Path) -> Path:
-    path = results_dir / current_test_variant() / current_mrts_variant() / connector / f"{connector}-summary.json"
-    return path if path.exists() else fallback
+    """Return the direct summary created by the runtime-matrix invocation.
+
+    Variant directories belong to separately invoked MRTS/CRS targets and can
+    retain evidence from an earlier run.  A default runtime-matrix snapshot
+    must never select one merely because it happens to exist.
+    """
+    del results_dir, connector
+    return fallback
 
 
 def summary_text_path(summary_path: Path) -> Path:
@@ -588,11 +595,8 @@ def haproxy_default_matrix_smoke(
     exit_code: str,
     results_dir: Path,
 ) -> dict:
-    summary_path = variant_summary_path(results_dir, "haproxy", results_dir / "with-crs" / "haproxy-summary.json")
+    summary_path = variant_summary_path(results_dir, "haproxy", results_dir / "haproxy-summary.json")
     text_summary_path = summary_text_path(summary_path)
-    if not summary_path.exists():
-        summary_path = results_dir / "haproxy-summary.json"
-        text_summary_path = summary_text_path(summary_path)
     if exit_code in {"not_run", ""}:
         return not_available_force_all_row("haproxy", summary_path, command)
 

@@ -48,6 +48,17 @@ GITHUB_TOKEN_REFERENCE_RE = re.compile(
     r"\bgithub\s*(?:\.\s*token|\[\s*['\"]token['\"]\s*\])",
     re.IGNORECASE,
 )
+SECRET_CONTEXT_SERIALIZATION_RE = re.compile(
+    r"\$\{\{[^}]*\btoJSON\s*\(\s*secrets\s*\)[^}]*\}\}",
+    re.IGNORECASE,
+)
+GITHUB_CONTEXT_SERIALIZATION_RE = re.compile(
+    r"\$\{\{[^}]*\btoJSON\s*\(\s*github\s*\)[^}]*\}\}",
+    re.IGNORECASE,
+)
+TRUSTED_OSV_WORKFLOW = "ci-security-osv.yml"
+PR_BASE_SHA = "${{ github.event.pull_request.base.sha }}"
+PULL_REQUEST_TARGET_CONDITION = "github.event_name == 'pull_request_target'"
 
 
 if yaml is not None:
@@ -355,7 +366,10 @@ def enabled_submodules(value: Any) -> bool:
 
 def contains_secret_reference(value: Any) -> bool:
     if isinstance(value, str):
-        return SECRET_REFERENCE_RE.search(value) is not None
+        return (
+            SECRET_REFERENCE_RE.search(value) is not None
+            or SECRET_CONTEXT_SERIALIZATION_RE.search(value) is not None
+        )
     mapping = as_mapping(value)
     if mapping is not None:
         return any(contains_secret_reference(item) for item in mapping.values())
@@ -364,7 +378,10 @@ def contains_secret_reference(value: Any) -> bool:
 
 def contains_github_token_reference(value: Any) -> bool:
     if isinstance(value, str):
-        return GITHUB_TOKEN_REFERENCE_RE.search(value) is not None
+        return (
+            GITHUB_TOKEN_REFERENCE_RE.search(value) is not None
+            or GITHUB_CONTEXT_SERIALIZATION_RE.search(value) is not None
+        )
     mapping = as_mapping(value)
     if mapping is not None:
         return any(contains_github_token_reference(item) for item in mapping.values())
@@ -421,13 +438,47 @@ def validate_top_level_permissions(
     return errors
 
 
+def trusted_osv_pull_request_target_errors(
+    path: Path, document: Mapping[str, Any]
+) -> list[str]:
+    """Permit only the OSV job that executes the trusted base revision."""
+
+    if path.name != TRUSTED_OSV_WORKFLOW:
+        return [f"{path}: pull_request_target is prohibited"]
+    jobs = as_mapping(document.get("jobs"))
+    job = as_mapping(jobs.get("pull-request-head")) if jobs is not None else None
+    if job is None:
+        return [f"{path}: trusted OSV pull_request_target job is missing"]
+    errors: list[str] = []
+    if job.get("if") != PULL_REQUEST_TARGET_CONDITION:
+        errors.append(
+            f"{path}: trusted OSV job must guard pull_request_target explicitly"
+        )
+    checkouts = list(checkout_steps(job))
+    if len(checkouts) != 1:
+        return [*errors, f"{path}: trusted OSV job must have exactly one checkout"]
+    _, checkout = checkouts[0]
+    checkout_with = as_mapping(checkout.get("with"))
+    if checkout_with is None:
+        return [*errors, f"{path}: trusted OSV checkout must declare safe settings"]
+    if checkout_with.get("ref") != PR_BASE_SHA:
+        errors.append(f"{path}: trusted OSV checkout must use the pull-request base SHA")
+    if checkout_with.get("fetch-depth") != 1:
+        errors.append(f"{path}: trusted OSV checkout must set fetch-depth: 1")
+    if checkout_with.get("persist-credentials") is not False:
+        errors.append(f"{path}: trusted OSV checkout must disable persisted credentials")
+    if checkout_with.get("submodules") is not False:
+        errors.append(f"{path}: trusted OSV checkout must disable submodules")
+    return errors
+
+
 def validate_workflow_trust_boundary(
     path: Path, document: Mapping[str, Any], is_pull_request_workflow: bool
 ) -> list[str]:
     errors: list[str] = []
     events = workflow_events(document)
     if "pull_request_target" in events:
-        errors.append(f"{path}: pull_request_target is prohibited")
+        errors.extend(trusted_osv_pull_request_target_errors(path, document))
     if is_pull_request_workflow and contains_secret_reference(document):
         errors.append(
             f"{path}: pull_request workflows must not expose secrets to untrusted code"
@@ -513,7 +564,7 @@ def validate_job(
 def validate_permissions(path: Path, document: Mapping[str, Any]) -> list[str]:
     errors = validate_top_level_permissions(path, document)
     events = workflow_events(document)
-    is_pull_request_workflow = "pull_request" in events
+    is_pull_request_workflow = bool({"pull_request", "pull_request_target"} & events)
     errors.extend(
         validate_workflow_trust_boundary(path, document, is_pull_request_workflow)
     )

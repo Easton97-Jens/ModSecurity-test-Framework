@@ -190,10 +190,15 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
             item for item in pull_request["steps"] if item.get("id") == "compare_osv"
         )
         run = step["run"]
-        prelude, marker, _remainder = run.partition(
-            'prepare_osv_inputs "$BASE_SHA" "$RESULTS_DIR/base-inputs"'
+        _before_function, function_marker, after_function_start = run.partition(
+            "prepare_osv_inputs() {"
         )
-        self.assertTrue(marker)
+        self.assertTrue(function_marker)
+        function_body, after_function_marker, _remainder = after_function_start.partition(
+            'mkdir -p "$RESULTS_DIR"'
+        )
+        self.assertTrue(after_function_marker)
+        prepare_osv_inputs = f"{function_marker}{function_body}"
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             repository = Path(temporary_directory)
@@ -230,7 +235,7 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
                     "-c",
                     "\n".join(
                         (
-                            prelude,
+                            prepare_osv_inputs,
                             'prepare_osv_inputs "$BASE_SHA" "$RESULTS_DIR/base-inputs"',
                             'test -s "$RESULTS_DIR/base-inputs/requirements-dev.txt"',
                             'test ! -s "$RESULTS_DIR/base-inputs/requirements-ci.txt"',

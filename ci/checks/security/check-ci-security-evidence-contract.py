@@ -27,11 +27,17 @@ SCORECARD_COMMANDS = (
 CHECKOUT = "actions/checkout@"
 UPLOAD_ARTIFACT = "actions/upload-artifact@"
 PR_HEAD = "${{ github.event.pull_request.head.sha }}"
+PR_BASE = "${{ github.event.pull_request.base.sha }}"
 DEFAULT_OR_PR_HEAD = "${{ github.event.pull_request.head.sha || github.sha }}"
 GITHUB_SHA = "${{ github.sha }}"
 PULL_REQUEST_CONDITION = "github.event_name == 'pull_request'"
+PULL_REQUEST_TARGET_CONDITION = "github.event_name == 'pull_request_target'"
 DEFAULT_BRANCH_CONDITION = (
     "github.event_name != 'pull_request' && github.ref == "
+    "format('refs/heads/{0}', github.event.repository.default_branch)"
+)
+OSV_DEFAULT_BRANCH_CONDITION = (
+    "github.event_name != 'pull_request_target' && github.ref == "
     "format('refs/heads/{0}', github.event.repository.default_branch)"
 )
 SCANNER_ARTIFACT_FREE_WORKFLOWS = frozenset(
@@ -616,14 +622,14 @@ def osv_pull_request_errors(path: Path, data: dict[str, Any]) -> list[str]:
         return errors
     errors.extend(
         require_condition(
-            path, "pull-request-head", pull_request, PULL_REQUEST_CONDITION
+            path, "pull-request-head", pull_request, PULL_REQUEST_TARGET_CONDITION
         )
     )
     steps, step_errors = job_steps(path, "pull-request-head", pull_request)
     errors.extend(step_errors)
     if step_errors:
         return errors
-    errors.extend(require_checkout(path, "pull-request-head", steps, PR_HEAD, 0))
+    errors.extend(require_checkout(path, "pull-request-head", steps, PR_BASE, 1))
     run, run_errors = require_run_step(
         path, "pull-request-head", steps, "id", "compare_osv"
     )
@@ -636,8 +642,12 @@ def osv_pull_request_errors(path: Path, data: dict[str, Any]) -> list[str]:
                 "compare_osv",
                 run,
                 (
-                    'test "$(git rev-parse HEAD)" = "$HEAD_SHA"',
+                    '[[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]',
+                    'test "$(git rev-parse HEAD)" = "$BASE_SHA"',
                     'git cat-file -e "$BASE_SHA^{commit}"',
+                    'git -c protocol.file.allow=never fetch --depth=1 --no-tags origin "+refs/pull/$PR_NUMBER/head:refs/remotes/origin/pr-$PR_NUMBER"',
+                    'resolved_head="$(git rev-parse --verify "refs/remotes/origin/pr-$PR_NUMBER^{commit}")"',
+                    'test "$resolved_head" = "$HEAD_SHA"',
                     'git cat-file -e "$HEAD_SHA^{commit}"',
                     'git cat-file -e "$HEAD_SHA:requirements-ci.lock"',
                     "write_osv_input requirements-dev.txt requirements-dev.txt false",
@@ -677,7 +687,7 @@ def osv_scheduled_errors(path: Path, data: dict[str, Any]) -> list[str]:
         return errors
     errors.extend(
         require_condition(
-            path, "scheduled-advisory", scheduled, DEFAULT_BRANCH_CONDITION
+            path, "scheduled-advisory", scheduled, OSV_DEFAULT_BRANCH_CONDITION
         )
     )
     steps, step_errors = job_steps(path, "scheduled-advisory", scheduled)

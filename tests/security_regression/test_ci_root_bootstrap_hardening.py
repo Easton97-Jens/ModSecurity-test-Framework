@@ -156,6 +156,41 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertTrue((case_output / "rules.conf").is_file())
 
+    def test_prepare_crs_rejects_source_and_runtime_paths_outside_task_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temporary_root = Path(tmp)
+            verified_root = temporary_root / "verified"
+            source_root = verified_root / "source"
+            build_root = verified_root / "build"
+            approved_source = source_root / "coreruleset"
+            (approved_source / "rules").mkdir(parents=True)
+            (approved_source / "crs-setup.conf.example").write_text("SecRuleEngine On\n", encoding="utf-8")
+            (approved_source / "rules" / "REQUEST-901-INITIALIZATION.conf").write_text("# rules\n", encoding="utf-8")
+            base_environment = {
+                "VERIFIED_RUN_ROOT": str(verified_root),
+                "SOURCE_ROOT": str(source_root),
+                "BUILD_ROOT": str(build_root),
+                "TMP_ROOT": str(build_root / "tmp"),
+                "LOG_ROOT": str(build_root / "logs"),
+                "CRS_RUNTIME_DIR": str(build_root / "crs"),
+            }
+
+            for label, source_dir, runtime_dir in (
+                ("source", verified_root / "unapproved-source", build_root / "crs"),
+                ("runtime", approved_source, verified_root / "unapproved-runtime"),
+            ):
+                with self.subTest(path=label):
+                    result = self.run_script(
+                        ROOT / "ci/provisioning/prepare-crs.sh",
+                        {
+                            **base_environment,
+                            "CRS_SOURCE_DIR": str(source_dir),
+                            "CRS_RUNTIME_DIR": str(runtime_dir),
+                        },
+                    )
+                    self.assertEqual(77, result.returncode, result.stderr)
+                    self.assertFalse(runtime_dir.exists())
+
     def test_nested_catalog_bootstrap_ignores_foreign_root_environment(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -269,6 +304,76 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(f"{source}\n", result.stdout)
             self.assertFalse(marker.exists())
+
+    def test_starter_checks_reject_results_path_traversal_before_writing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            connector_root = root / "connector"
+            (connector_root / "connectors").mkdir(parents=True)
+            build_root = root / "build"
+            escaped_root = root / "escaped"
+            results_dir = build_root / "results" / ".." / ".." / "escaped"
+            result = self.run_script(
+                ROOT / "ci/runtime/run-connector-starter-checks.sh",
+                {
+                    "CONNECTOR_ROOT": str(connector_root),
+                    "VERIFIED_RUN_ROOT": str(root / "verified"),
+                    "SOURCE_ROOT": "/src",
+                    "BUILD_ROOT": str(build_root),
+                    "TMP_ROOT": str(build_root / "tmp"),
+                    "LOG_ROOT": str(build_root / "logs"),
+                    "RESULTS_DIR": str(results_dir),
+                    "PYTHON": "/bin/true",
+                },
+            )
+            self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+            self.assertFalse(escaped_root.exists())
+
+    def test_haproxy_runtime_rejects_a_shared_component_cache_binary(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            verified = root / "verified"
+            build_root = verified / "build"
+            source_root = verified / "src"
+            connector_root = root / "connector"
+            cache_entry = (
+                root
+                / "cache"
+                / "builds"
+                / "connectors"
+                / "haproxy"
+                / ("a" * 64)
+            )
+            for directory in (
+                build_root,
+                source_root,
+                connector_root,
+                cache_entry / "haproxy-runtime-build",
+                cache_entry / "haproxy-runtime" / "haproxy" / "sbin",
+            ):
+                directory.mkdir(parents=True, exist_ok=True)
+            result = self.run_script(
+                ROOT / "ci/provisioning/prepare-haproxy-runtime.sh",
+                {
+                    "CONNECTOR_ROOT": str(connector_root),
+                    "VERIFIED_RUN_ROOT": str(verified),
+                    "SOURCE_ROOT": str(source_root),
+                    "BUILD_ROOT": str(build_root),
+                    "TMP_ROOT": str(build_root / "tmp"),
+                    "LOG_ROOT": str(build_root / "logs"),
+                    "CONNECTOR_COMPONENT_CACHE": str(root / "cache"),
+                    "HAPROXY_RUNTIME_BUILD_DIR": str(cache_entry / "haproxy-runtime-build"),
+                    "HAPROXY_RUNTIME_BUILD_WORKTREE": str(
+                        cache_entry / "haproxy-runtime-build" / "worktree"
+                    ),
+                    "HAPROXY_RUNTIME_DIR": str(cache_entry / "haproxy-runtime" / "haproxy"),
+                    "HAPROXY_BIN": str(
+                        cache_entry / "haproxy-runtime" / "haproxy" / "sbin" / "haproxy"
+                    ),
+                },
+            )
+        self.assertEqual(77, result.returncode, result.stderr)
+        self.assertIn("HAPROXY_RUNTIME_BUILD_DIR must be under BUILD_ROOT", result.stdout)
 
 
 if __name__ == "__main__":
