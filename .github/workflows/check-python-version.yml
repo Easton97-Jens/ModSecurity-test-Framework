@@ -51,9 +51,6 @@ jobs:
     timeout-minutes: 30
     env:
       CANDIDATE: ${{ needs.resolve.outputs.candidate }}
-      BUILD_ROOT: ${{ runner.temp }}/framework-python-version-build
-      PYTHONPYCACHEPREFIX: ${{ runner.temp }}/framework-python-version-pycache
-      XDG_STATE_HOME: ${{ runner.temp }}/framework-python-version-state
     outputs:
       candidate_validated: ${{ steps.candidate-validation.outputs.candidate_validated }}
     steps:
@@ -71,12 +68,21 @@ jobs:
           python-version-file: ".python-version"
           check-latest: false
 
+      - name: Initialize candidate runner temporary paths
+        run: |
+          set -euo pipefail
+          {
+            echo "BUILD_ROOT=$RUNNER_TEMP/framework-python-version-build"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/framework-python-version-pycache"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/framework-python-version-state"
+          } >> "$GITHUB_ENV"
+
       - name: Independently validate and materialize the candidate
         run: |
           set -euo pipefail
           python3 ci/tools/update-python-version.py --check \
             --expected-candidate "$CANDIDATE" \
-            --write-candidate-file "$RUNNER_TEMP/framework-python-3.13-candidate"
+            --write-candidate-file
 
       - name: Set up candidate Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -169,6 +175,7 @@ jobs:
       - name: Build Draft pull request body
         run: |
           set -euo pipefail
+          # shellcheck disable=SC2016
           printf '%s\n' \
             '## English' \
             '' \

@@ -108,8 +108,10 @@ written, atomically, to the real regular `.python-version` file.
 The scheduled/manual workflow treats resolver output as untrusted transport
 data. Its read-only resolver emits bounded scalar output; its read-only
 candidate job independently re-resolves the official metadata, materializes a
-strict `RUNNER_TEMP` child, selects that candidate only after canonical setup,
-and runs the hash-locked CI dependency, compilation, and contracts. The only
+fixed direct `RUNNER_TEMP/framework-python-3.13-candidate` file without
+accepting a caller-selected output path, selects that candidate only after
+canonical setup, and runs the hash-locked CI dependency, compilation, and
+contracts. The only
 write-capable publisher re-resolves again, requires the same candidate and an
 exact `.python-version`-only diff, then creates or updates a fixed-branch Draft
 PR. It has no pull-request trigger or auto-merge command. The reviewed
@@ -119,6 +121,10 @@ than a separate GitHub permission boundary. Its shell steps receive no
 explicitly forwarded token or secret; the publisher explicitly supplies its
 write-scoped `github.token` only to the reviewed create-pull-request Action,
 while checkout continues to use a nonpersistent credential.
+The maintenance-specific contract rejects direct, indexed, shell, and
+serialized `secrets`/GitHub-context forms outside that one reviewed token
+input, while retaining benign context uses such as `github.sha` and
+`github.repository`.
 
 `ci/checks/security/check-python-version.py` enforces this source and workflow
 contract recursively, including `.yml`/`.yaml`, indirect Make-driven Python,

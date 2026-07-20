@@ -65,10 +65,15 @@ TOKEN_REFERENCE = re.compile(
     r"secrets(?:\s*\.\s*GITHUB_TOKEN|\s*\[\s*['\"]GITHUB_TOKEN['\"]\s*\])|"
     r"\$\{?GITHUB_TOKEN\}?)"
 )
-SENSITIVE_REFERENCE = re.compile(
-    r"(?:\bgithub(?:\s*\.\s*token\b|\s*\[\s*['\"]token['\"]\s*\])|"
-    r"\bsecrets\s*(?:\.|\[)|\$\{?GITHUB_TOKEN\}?)"
+GITHUB_EXPRESSION = re.compile(r"\$\{\{(?P<expression>.*?)\}\}", re.DOTALL)
+SECRET_CONTEXT_REFERENCE = re.compile(r"\bsecrets\b", re.IGNORECASE)
+GITHUB_TOKEN_REFERENCE = re.compile(
+    r"\bgithub\s*(?:\.\s*token\b|\[)", re.IGNORECASE
 )
+BARE_GITHUB_CONTEXT_REFERENCE = re.compile(
+    r"\bgithub\b(?!\s*(?:\.|\[))", re.IGNORECASE
+)
+SHELL_GITHUB_TOKEN_REFERENCE = re.compile(r"\$\{?GITHUB_TOKEN\}?", re.IGNORECASE)
 CANONICAL_PYTHON_VERSION_FILE = ".python-version"
 PYTHON_VERSION_CANDIDATE_FILE = "${{ runner.temp }}/framework-python-3.13-candidate"
 PYTHON_VERSION_PR_BODY_FILE = "${{ runner.temp }}/framework-python-version-pr-body.md"
@@ -610,13 +615,29 @@ def job_run_text(steps: Iterable[dict[str, Any]]) -> str:
     return "\n".join(str(step.get("run", "")) for step in steps)
 
 
+def contains_sensitive_reference(value: str) -> bool:
+    """Reject secret contexts and GitHub-context forms that can expose its token."""
+
+    if SHELL_GITHUB_TOKEN_REFERENCE.search(value):
+        return True
+    for match in GITHUB_EXPRESSION.finditer(value):
+        expression = match.group("expression")
+        if (
+            SECRET_CONTEXT_REFERENCE.search(expression)
+            or GITHUB_TOKEN_REFERENCE.search(expression)
+            or BARE_GITHUB_CONTEXT_REFERENCE.search(expression)
+        ):
+            return True
+    return False
+
+
 def sensitive_reference_paths(
     value: Any, path: tuple[str, ...] = ()
 ) -> list[tuple[str, ...]]:
     """Return parsed locations containing an explicit token or secret reference."""
 
     if isinstance(value, str):
-        return [path] if SENSITIVE_REFERENCE.search(value) else []
+        return [path] if contains_sensitive_reference(value) else []
     if isinstance(value, dict):
         paths: list[tuple[str, ...]] = []
         for key, item in value.items():
@@ -719,18 +740,20 @@ def python_version_maintenance_errors(path: Path, data: dict[str, Any]) -> list[
                 f"{path}: Python maintenance read-only job {job_name!r} must not "
                 "declare a GitHub token or secret"
             )
+    candidate_file_lines = [
+        line.strip().rstrip("\\").strip()
+        for line in candidate_run.splitlines()
+        if "--write-candidate-file" in line
+    ]
     if (
         "update-python-version.py --check" not in candidate_run
         or "--update" in candidate_run
         or "--expected-candidate \"$CANDIDATE\"" not in candidate_run
-        or (
-            "--write-candidate-file \"$RUNNER_TEMP/framework-python-3.13-candidate\""
-            not in candidate_run
-        )
+        or candidate_file_lines != ["--write-candidate-file"]
     ):
         errors.append(
             f"{path}: candidate validation must independently validate and materialize only "
-            "the controlled RUNNER_TEMP candidate file"
+            "the fixed controlled RUNNER_TEMP candidate file without a caller path"
         )
     if (
         "update-python-version.py --check --expected-candidate \"$CANDIDATE\""

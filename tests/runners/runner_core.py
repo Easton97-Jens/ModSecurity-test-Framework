@@ -277,7 +277,7 @@ class MinimalYamlParser:
     def _sequence_value(
         self, raw_value: str, index: int, indent: int
     ) -> tuple[Any, int]:
-        if ":" not in raw_value or raw_value.startswith(("'", '"')):
+        if raw_value.startswith(("'", '"')) or re.search(r":(?=[ \t]|$)", raw_value) is None:
             return _parse_scalar(raw_value), index
         return self._inline_sequence_mapping(raw_value, index, indent)
 

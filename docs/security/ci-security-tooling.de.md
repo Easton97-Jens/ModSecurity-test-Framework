@@ -115,9 +115,10 @@ in die echte reguläre Datei `.python-version` geschrieben werden.
 Der geplante/manuelle Workflow behandelt Resolver-Output als nicht
 vertrauenswürdige Transportdaten. Sein read-only Resolver emittiert begrenzte
 skalare Outputs; sein read-only Kandidatenjob löst die offiziellen Metadaten
-unabhängig erneut auf, materialisiert ein striktes Child von `RUNNER_TEMP`,
-wählt den Kandidaten erst nach kanonischem Setup und führt die hash-gelockte
-CI-Abhängigkeit, Kompilierung und Contracts aus. Der einzige schreibberechtigte
+unabhängig erneut auf, materialisiert die feste direkte Datei
+`RUNNER_TEMP/framework-python-3.13-candidate` ohne einen vom Aufrufer wählbaren
+Ausgabepfad, wählt den Kandidaten erst nach kanonischem Setup und führt die
+hash-gelockte CI-Abhängigkeit, Kompilierung und Contracts aus. Der einzige schreibberechtigte
 Publisher löst erneut auf, verlangt denselben Kandidaten und einen exakten
 `.python-version`-only-Diff und erstellt oder aktualisiert dann einen Draft-PR
 auf einem festen Branch. Er besitzt keinen Pull-Request-Trigger und keinen
@@ -128,6 +129,10 @@ Berechtigungsgrenze. Seine Shell-Schritte erhalten kein explizit
 weitergereichtes Token oder Secret; der Publisher übergibt sein write-scoped
 `github.token` explizit nur an die überprüfte create-pull-request-Action,
 während Checkout weiter ein nicht persistiertes Credential verwendet.
+Der wartungsspezifische Contract weist direkte, indexierte, Shell- und
+serialisierte `secrets`-/GitHub-Kontextformen außerhalb dieses einen
+überprüften Token-Inputs zurück und behält harmlose Kontextverwendungen wie
+`github.sha` und `github.repository` bei.
 
 `ci/checks/security/check-python-version.py` erzwingt diese Quell- und
 Workflow-Regeln rekursiv, einschließlich `.yml`/`.yaml`, indirektem durch Make

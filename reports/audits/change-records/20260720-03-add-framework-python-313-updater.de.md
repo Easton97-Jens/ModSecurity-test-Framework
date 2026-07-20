@@ -9,7 +9,7 @@
 | Change-ID | `20260720-03-add-framework-python-313-updater` |
 | UTC-Datum | 2026-07-20 |
 | Framework-Basisrevision | `9dab40c2b8799dc1e4597cb2a2c223ec3f6cd72b` |
-| Issue oder Pull Request | Task-Branch `agent/add-framework-python-updater`; Draft-PR-Delivery ist nach lokaler Validierung autorisiert. |
+| Issue oder Pull Request | [Draft PR #39](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/39) auf Task-Branch `agent/add-framework-python-updater`; der erste veröffentlichte Head war `4a31df044ea2c2c7526828e54978238639b57dd4`. |
 
 ## Motivation und Problemstellung
 
@@ -64,12 +64,26 @@ Kandidaten erneut, fordert einen Ein-Datei-Diff, übergibt sein write-scoped
 Token explizit nur an die gepinnte Pull-Request-Action und verwendet
 `draft: true` mit festen `add-paths`.
 
+Der erste Draft-PR-Head machte drei task-eigene Kompatibilitäts- und
+Härtungsprobleme sichtbar, bevor die Delivery verifiziert werden konnte. Das
+Kandidatenartefakt ist jetzt die feste direkte Datei
+`RUNNER_TEMP/framework-python-3.13-candidate`, die innerhalb des Updaters
+abgeleitet wird, statt ein vom Aufrufer gewählter CLI-Pfad zu sein; der
+semantische Workflow-Contract weist ein Argument nach diesem Flag zurück.
+Kandidaten-Runner-Pfade werden zur Step-Laufzeit über `$GITHUB_ENV`
+initialisiert, wo der Runner-Kontext gültig ist, und der literale
+Markdown-Body besitzt eine enge ShellCheck-Annotation. Schließlich erkennt
+der abhängigkeitsfreie YAML-Fallback ein List-Mapping nur, wenn auf den
+Doppelpunkt Whitespace oder Wertende folgt; dadurch bleiben Klartextskalare
+wie `ARGS:foo.` und vorhandene `name: Content-Type`-Mappings erhalten.
+
 ## Geänderte Dateien und Tests
 
 - `.python-version`, alle betroffenen Workflows, `Makefile` und der Kommentar
   in `requirements-ci.lock`.
 - `ci/tools/update-python-version.py` und
-  `ci/checks/security/check-python-version.py`.
+  `ci/checks/security/check-python-version.py`, der CI-Security-
+  Wartungscontract und der gemeinsame Fallback-YAML-Parser.
 - CI-Security-, Workflow-Contract- und Updater-Regressionstests.
 - Englische/deutsche CI-Security- und GitHub-Actions-Sicherheitsdokumentation.
 
@@ -81,18 +95,30 @@ Token explizit nur an die gepinnte Pull-Request-Action und verwendet
 | Framework-eigenes Python 3.14, fokussierte Updater-/Contract-/Common-Workflow-Unittest-Auswahl | 0 | 27 versionsneutrale Tests bestanden. | Isolierter Framework-Worktree |
 | `check-ci-security-contract.py --root <task-worktree>` | 0 | Aktuelle Workflows und der Drei-Job-Writer-Contract bestanden. | Isolierter Framework-Worktree |
 | `check-python-version.py --root <task-worktree>` | 0 | Kanonische Quelle und rekursiver Python-Workflow-Contract bestanden. | Isolierter Framework-Worktree |
+| Fokussierte Updater-, CI-Security-Contract-, Python-Version-Contract- und Parser-Hardening-Tests | 0 | 35 versionsneutrale Regressionen bestanden nach der Exact-Head-Remediation. | Isolierter Framework-Worktree |
+| `make test-ci-security-contract` | 0 | 84 CI-Security-Tests bestanden nach der Exact-Head-Remediation. | Isolierter Framework-Worktree |
+| `make test-workflow-contract`, `make check-github-actions-workflows`, `make check-documentation` und `make lint` | 0 | Workflow-, Dokumentations- und finale lokale Lint-Gates bestanden. | Task-Storage `20260720T180337Z-framework-python-313-updater-f3349a7e` |
 
 ## Sicherheitsauswirkung
 
 Die Änderung entfernt doppelte Patch-Autorität, weist bare/floating/Matrix-
 Selektionspfade zurück und stellt sicher, dass ein Cross-Job-Kandidat keinen
-Schreibvorgang direkt autorisieren kann. Resolver-Transport,
+Schreibvorgang direkt autorisieren kann. Resolver-Transport, feste
 Kandidatenmaterialisierung, Repository-Schreibscope und Draft-PR-Publikation
 haben jeweils explizite Fail-Closed-Kontrollen und Negativtests. Der finale
 Diff remediiert außerdem das low-severity-Framework-Härtungsfinding
 `FND-FRAMEWORK-0033`, das bewies, dass der Wartungscontract zuvor künftige
 explizite Secret-/Token-Referenzen außerhalb des überprüften Publisher-Inputs
-akzeptierte; finale lokale und gehostete Verifikation bleiben erforderlich.
+akzeptierte. Die Fertigstellung deckt auch serialisierte
+`${{ toJSON(secrets) }}`- und `${{ toJSON(github) }}`-Kontexte ab, die jetzt
+fail-closed scheitern, ohne legitime `github.sha`- oder
+`github.repository`-Kontrollen zurückzuweisen; finale lokale und gehostete
+Verifikation bleiben erforderlich.
+Die Exact-Head-Remediation verfolgt außerdem `FND-FRAMEWORK-0037`
+(Workflow-Kontext- und Literal-Body-Lint), `FND-FRAMEWORK-0038`
+(Fallback-YAML-Skalarparsing) und das release-blockierende
+`FND-FRAMEWORK-0039` (Kandidatenausgabepfad). Um diese Checks zu bestehen,
+wurde keine Kontrolle abgeschwächt.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -106,10 +132,11 @@ laufen darf.
 ## Nicht ausgeführte Prüfungen
 
 Lokal war kein CPython-3.13-Executable verfügbar; exakte Kandidatenruntime-
-Validierung wird daher nicht lokal behauptet. actionlint, ShellCheck, zizmor,
-Ruff, Pyright, gehostete GitHub Actions, SonarQube Cloud, Review-Status und
-die Lifecycle-Validierung des generierten PR bleiben Exact-Head-PR-Kontrollen;
-es wurde kein globales oder User-Site-Tool als Ersatz installiert.
+Validierung wird daher nicht lokal behauptet. Die gepinnten gehosteten
+actionlint-, ShellCheck-, zizmor-, Ruff-, Pyright-, GitHub-Actions-,
+SonarQube-Cloud-, Review-Status- und Lifecycle-Validierungen des generierten
+PR bleiben Exact-Head-PR-Kontrollen; es wurde kein globales oder User-Site-Tool
+als Ersatz installiert.
 
 ## Einschränkungen und Restrisiko
 
@@ -121,6 +148,9 @@ ein Mensch muss die gehosteten Kontrollen vor einem Merge verifizieren.
 
 ## Finaler Diff- und Review-Status
 
-Die Implementierung wartet auf finalen lokalen Diff-, Dokumentations-,
-Security-Diff- und Delivery-Review. Zum Zeitpunkt dieses Records gab es keinen
-Commit, Push, PR, Merge, Parent-Gitlink-Wechsel oder MRTS-Wechsel.
+Draft PR #39 ist offen. Sein erster veröffentlichter Head
+`4a31df044ea2c2c7526828e54978238639b57dd4` machte die verfolgten Lint-,
+Parser- und Kandidatenausgabefindings sichtbar; die hier beschriebene
+Remediation benötigt einen neuen Exact-Head-Check von GitHub Actions,
+SonarQube Cloud und Review-/Thread-Status, bevor die Aufgabe bei `verified_pr`
+stoppen darf. Kein Merge, Parent-Gitlink-Wechsel oder MRTS-Wechsel ist im Scope.
