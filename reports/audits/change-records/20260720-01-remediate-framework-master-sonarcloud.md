@@ -9,7 +9,7 @@
 | Change ID | 20260720-01-remediate-framework-master-sonarcloud |
 | UTC date | 2026-07-20 |
 | Framework base revision | efdbcbd98afeed0f39f8912ce1140aaa5742f507 |
-| Issue or pull request | Fresh SonarCloud master inventory; normal task-branch delivery and pull request remain pending |
+| Issue or pull request | Framework PR #35, initially opened as a Draft; live delivery state is verified immediately before any authorized merge. |
 
 ## Motivation and problem statement
 
@@ -42,8 +42,9 @@ were not edited.
   records using external metadata only.
 - Do not change a Quality Gate, profile, rule, exclusion, accepted issue,
   NOSONAR setting, Parent repository, gitlink, or MRTS source/content.
-- Deliver only through a normal task branch and non-merged PR after local
-  validation; obtain exact-head remote CI/SonarCloud evidence before closure.
+- Deliver through Framework PR #35 after local validation; use the live
+  exact-head remote CI/SonarCloud, review, and conversation evidence immediately
+  before any authorized merge.
 
 ## Alternatives considered
 
@@ -212,12 +213,14 @@ static/focused validation, not connector runtime evidence.
 
 A full unconstrained repository suite was not run because the active task
 requires avoiding commands that could traverse or inspect MRTS. Local
-SonarCloud analysis is not an accepted substitute for a current GitHub/PR
-analysis. The first exact-head Draft-PR analysis completed and found three new
-Framework rows; its Quality Gate was ERROR only on new reliability rating. The
-normal follow-up commit, fresh exact-head remote CI/SonarCloud readback, and
-Draft-PR readiness decision remain pending. C14 and C21 are successful local full native
-lint results; they are not remote evidence.
+SonarCloud analysis is not an accepted substitute for current GitHub/PR
+evidence. The initial Draft-PR analysis found three new Framework rows, which
+the follow-up head `bbc896d27dc329c2e7df45395de4c345d4594402` addressed. The
+historical exact-head remote result for that head is recorded in the PR; this
+versioned record does not make a self-referential CI claim for a later record
+correction. Live exact-head CI/SonarCloud, review, and conversation evidence
+must be re-read immediately before delivery. C14 and C21 are successful local
+full native lint results; they are not remote evidence.
 
 An initial PCRE2 test attempt and one Make invocation used non-existent
 task-local temporary subdirectories; the former failed before the test could
@@ -237,8 +240,11 @@ no-prohibited-action completion criterion.
 
 ## Final diff and review status
 
-The first Framework remediation commit was delivered as Draft PR #35 and its
-remote analysis correctly detected the three follow-up Framework rows above.
-The follow-up working diff has passed focused No-CRS and checksum controls and
-full native lint. Final diff review, normal follow-up commit/push, and a fresh
-exact-head remote verification remain pending. No merge is authorized.
+The Framework remediation was delivered as PR #35, initially as a Draft, and
+its first remote analysis correctly detected the three follow-up Framework rows
+above. The follow-up head passed the recorded focused controls and native lint.
+This Change Record correction only aligns historic lifecycle wording; it neither
+asserts current merge readiness nor grants merge authority. The live PR head,
+required checks, SonarCloud, reviews, conversations, and permitted merge method
+must be verified immediately before any authorized integration. No Parent,
+Framework-MRTS gitlink, or MRTS action is included.
