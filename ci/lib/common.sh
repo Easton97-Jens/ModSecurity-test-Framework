@@ -683,7 +683,11 @@ require_or_provision_envoy() {
         printf '%s\n' "$ENVOY_BIN"
         return 0
     fi
-    if ALLOW_RUNTIME_DOWNLOADS=1 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+    if [ "${ALLOW_RUNTIME_DOWNLOADS:-0}" != "1" ]; then
+        echo "FAIL: Envoy provisioning requires ALLOW_RUNTIME_DOWNLOADS=1" >&2
+        return 1
+    fi
+    if ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-envoy-runtime.sh" >&2 \
         && ci_runtime_binary_matches_version "$ENVOY_BIN" "$ENVOY_VERSION" --version; then
         printf '%s\n' "$ENVOY_BIN"
@@ -710,7 +714,11 @@ require_or_provision_traefik() {
         printf '%s\n' "$TRAEFIK_BIN"
         return 0
     fi
-    if ALLOW_RUNTIME_DOWNLOADS=1 FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+    if [ "${ALLOW_RUNTIME_DOWNLOADS:-0}" != "1" ]; then
+        echo "FAIL: Traefik provisioning requires ALLOW_RUNTIME_DOWNLOADS=1" >&2
+        return 1
+    fi
+    if ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-traefik-runtime.sh" >&2 \
         && ci_runtime_binary_matches_version "$TRAEFIK_BIN" "$TRAEFIK_VERSION" version; then
         printf '%s\n' "$TRAEFIK_BIN"
@@ -738,7 +746,11 @@ require_or_provision_lighttpd() {
         printf '%s\n' "$LIGHTTPD_BIN"
         return 0
     fi
-    if ALLOW_RUNTIME_DOWNLOADS=1 ALLOW_RUNTIME_BUILDS=1 \
+    if [ "${ALLOW_RUNTIME_DOWNLOADS:-0}" != "1" ] || [ "${ALLOW_RUNTIME_BUILDS:-0}" != "1" ]; then
+        echo "FAIL: lighttpd provisioning requires ALLOW_RUNTIME_DOWNLOADS=1 and ALLOW_RUNTIME_BUILDS=1" >&2
+        return 1
+    fi
+    if ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" ALLOW_RUNTIME_BUILDS="$ALLOW_RUNTIME_BUILDS" \
         LIGHTTPD_BIN= \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-lighttpd-runtime.sh" >&2 \
@@ -790,18 +802,12 @@ framework_find_apxs() {
         return 0
     fi
 
-    for ci_apxs_candidate in \
-        "$CONNECTOR_COMPONENT_CACHE"/builds/connectors/apache/*/httpd/bin/apxs \
-        "$CONNECTOR_COMPONENT_CACHE"/builds/connectors/apache/*/httpd/bin/apxs2 \
-        "$CONNECTOR_COMPONENT_CACHE"/builds/connectors/apache/*/build/httpd/support/apxs \
-        "$BUILD_ROOT"/apache-build/httpd/bin/apxs \
-        "$BUILD_ROOT"/apache-build/build/httpd/support/apxs; do
-        ci_apxs_path=$(ci_command_path "$ci_apxs_candidate" 2>/dev/null || true)
-        if framework_apxs_has_usable_headers "$ci_apxs_path"; then
-            printf '%s\n' "$ci_apxs_path"
-            return 0
-        fi
-    done
+    # Do not probe a cache or build-root candidate automatically.  Checking an
+    # APXS candidate requires executing it with `-q INCLUDEDIR`; an attacker
+    # who can pre-populate a shared cache could otherwise run code before the
+    # runtime-provisioning provenance checks are reached.  A caller may use a
+    # reviewed APXS explicitly through APXS_BIN/APXS, or the trusted PATH
+    # discovery above can select a host-installed APXS.
 
     return 1
 }
@@ -1283,6 +1289,26 @@ ci_reject_traversal_path() {
     return 0
 }
 
+assert_runtime_path_under_root() {
+    ci_contained_path=$1
+    ci_containment_root=$2
+    ci_containment_label=${3:-runtime path}
+
+    ci_require_absolute_path "$ci_contained_path" "$ci_containment_label" || return 77
+    ci_require_absolute_path "$ci_containment_root" "$ci_containment_label root" || return 77
+    ci_reject_traversal_path "$ci_contained_path" "$ci_containment_label" || return 77
+    ci_reject_traversal_path "$ci_containment_root" "$ci_containment_label root" || return 77
+    ci_contained_canonical=$(ci_canonical_path "$ci_contained_path") || return 77
+    ci_root_canonical=$(ci_canonical_path "$ci_containment_root") || return 77
+    case "$ci_contained_canonical" in
+        "$ci_root_canonical"|"$ci_root_canonical"/*) return 0 ;;
+        *)
+            ci_blocked "$ci_containment_label must stay under $ci_root_canonical: $ci_contained_canonical"
+            return 77
+            ;;
+    esac
+}
+
 ci_require_safe_ref() {
     ci_ref=$1
     ci_label=${2:-ref}
@@ -1412,14 +1438,8 @@ assert_safe_runtime_path() {
             ci_blocked "$ci_safe_label is not a safe runtime path: $ci_safe_path"
             return 77
             ;;
-        /src|/src/*)
-            return 0
-            ;;
         *) : ;;
     esac
-    if ci_path_is_configured_project_path "$ci_safe_path"; then
-        return 0
-    fi
     case "$ci_safe_path" in
         /root|/root/*)
             ci_blocked "$ci_safe_label is under /root and is not a safe runtime path: $ci_safe_path"

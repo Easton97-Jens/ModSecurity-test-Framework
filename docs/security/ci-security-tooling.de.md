@@ -10,11 +10,16 @@ Sicherheitsaussagen über Connector-Runtimes ab.
 ## Sicherheitsmodell
 
 Alle Pull-Request-Workflows verwenden `pull_request`; keiner verwendet
-`pull_request_target`. Routine-Jobs erhalten ausschließlich `contents: read`,
-verwenden unveränderliche Action-SHAs mit überprüften Versionskommentaren und
-checken mit `persist-credentials: false` sowie `submodules: false` aus. Sie
-stellen keine Caches wieder her oder speichern sie und laden keine beliebigen
-Artefakte hoch.
+`pull_request_target`. Normale Pull-Request-Workflows, einschließlich
+`ci-security-osv.yml`, erhalten ausschließlich `contents: read`, verwenden
+unveränderliche Action-SHAs mit überprüften Versionskommentaren und checken mit
+`persist-credentials: false` sowie `submodules: false` aus. Sie stellen keine
+Caches wieder her oder speichern sie und laden keine beliebigen Artefakte
+hoch. Der OSV-Job checkt die unveränderliche PR-Basis-SHA ohne persistierte
+Credentials oder Submodule aus, holt nur die nummerierte GitHub-Pull-Request-
+Head-Referenz, verifiziert die gemeldete Head-SHA und liest die zwei benannten
+Dependency-Manifeste als begrenzte Daten. Sein ausgecheckter Framework-
+Quellcode und Scanner-Helper stammen damit aus der Basisrevision.
 
 `persist-credentials: false` verhindert, dass ein Checkout-Credential für
 spätere Git-Kommandos persistiert wird. GitHub stellt Actions dennoch ein
@@ -22,15 +27,18 @@ automatisches Job-Token bereit; die folgenden Kontrollen unterscheiden dieses
 implizite read-scoped Action-Credential von einem explizit an einen Scanner oder
 eine `run`-Step-Umgebung weitergereichten Token oder Secret.
 
-Jeder CI-Security-Pull-Request-Checkout wählt explizit den unveränderlichen
-PR-Head statt des synthetischen GitHub-Merge-Refs. Jobs, die PR- und Nicht-PR-
-Events bedienen, verwenden `github.event.pull_request.head.sha || github.sha`;
-vertrauenswürdige Default-Branch-Jobs verwenden `github.sha`. Der Gitleaks-PR-
-Range-Job verwendet den PR-Head direkt und beweist die ausgecheckte SHA vor
-dem Scan. Der lokale semantische Evidence-Contract prüft diese Mappings und
-die ausführbaren Scanner-Kommandos nach dem Entfernen von Shell-Kommentaren;
-Bodies von Kontrollfluss, nach `exit` nicht erreichbare Befehle und nicht
-aufgerufene Helper werden ausgeschlossen.
+Jeder normale CI-Security-Pull-Request-Checkout außer OSV wählt explizit den
+unveränderlichen PR-Head statt des synthetischen GitHub-Merge-Refs. Jobs, die
+PR- und Nicht-PR-Events bedienen, verwenden
+`github.event.pull_request.head.sha || github.sha`; vertrauenswürdige Default-
+Branch-Jobs verwenden `github.sha`. Der Gitleaks-PR-Range-Job verwendet den
+PR-Head direkt und beweist die ausgecheckte SHA vor dem Scan. Der OSV-PR-Job
+führt dagegen nur die vertrauenswürdige Basisrevision aus und verwendet das
+verifizierte PR-Objekt allein zum Lesen von Blobs. Der lokale semantische
+Evidence-Contract prüft diese Mappings und die ausführbaren Scanner-Kommandos
+nach dem Entfernen von Shell-Kommentaren; Bodies von Kontrollfluss, nach
+`exit` nicht erreichbare Befehle und nicht aufgerufene Helper werden
+ausgeschlossen.
 
 Jeder Workflow hat ein explizites Timeout und ein Concurrency-Verhalten. PR-
 und normale CI-Jobs brechen überholte Runs desselben Workflow/Ref ab. Die drei
@@ -60,7 +68,7 @@ bleiben artefaktfrei.
 | `ci-security-quality.yml` | PR- und Default-Branch-Änderungen am CI-Security-Python-Scope | Prüfsummenverifiziertes Ruff-Lint/-Format und Pyright mit exakt festgelegter Node.js-Runtime. Der Scope umfasst CI-Security- und Change-Record-Checker, Downloader und deren Tests. |
 | `check-python-version.yml` | Nur geplanter oder manueller vertrauenswürdiger Default-Branch-Run | Löst einen exakten stabilen CPython-3.13-Patch auf, validiert ihn read-only mit den gelockten CI-Abhängigkeiten und erlaubt einem separat schreibberechtigten Publisher nur einen Draft-PR für `.python-version`. |
 | `ci-security-secrets.yml` | PR, Zeitplan, manuell | Gitleaks checkt den exakten PR-Head aus und beweist ihn; danach scannt es exakt den Bereich Merge-Base bis Head mit `--redact=100`. Die gesamte Historie ist geplant/manuell advisory, bis Findings triagiert sind. |
-| `ci-security-osv.yml` | PR; Zeitplan und manuell auf dem Default-Branch | Ein prüfsummenverifiziertes OSV-Scanner-Binary vergleicht ohne Remediation exakte PR-Basis- und Head-Abhängigkeitsblobs und scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
+| `ci-security-osv.yml` | Begrenztes nicht privilegiertes `pull_request`; Zeitplan und manuell auf dem Default-Branch | Der PR-Job führt die vertrauenswürdige PR-Basis-SHA aus, holt die nummerierte PR-Referenz ohne Checkout, verifiziert ihre exakte Head-SHA und vergleicht nur begrenzte `requirements-dev.txt`- und `requirements-ci.lock`-Blobs ohne Remediation. Er scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
 | `ci-security-codeql-pr.yml` | PR | CodeQL analysiert den exakten PR-Head mit ausschließlich `contents: read`, dem `linked`-Tool-Bundle der gepinnten Action, `upload: never` und `upload-database: false`. Es analysiert GitHub Actions, Python und C/C++ und ignoriert `tools/MRTS/**`; es erhält nie eine Code-Scanning-Write-Berechtigung. |
 | `ci-security-codeql.yml` | Default-Branch-Push, Zeitplan, manuell | Vertrauenswürdiges CodeQL analysiert die exakte `github.sha` mit demselben begrenzten Sprach-Scope und `linked`-Tool-Bundle. Seine eine Job-spezifische `security-events: write`-Berechtigung wird ausschließlich nach Nicht-PR-Ausführung zum Upload von Code-Scanning-SARIF verwendet. Go oder JavaScript/TypeScript werden nicht behauptet; C/C++ verwendet `build-mode: none`, damit der Scan keine Connector- oder MRTS-Abhängigkeiten provisioniert. |
 | `ci-security-scorecard.yml` | PR; Default-Branch-Push, Zeitplan, manuell auf dem Default-Branch | Ein prüfsummenverifiziertes OpenSSF-Scorecard-Binary bewertet den exakten lokalen PR-Checkout ohne explizit weitergereichtes GitHub-Token. Das PR-Ergebnis wird JSON-validiert, bleibt aber artefaktfrei. Vertrauenswürdige Default-Branch-Jobs verwenden die exakte `github.sha`, bewahren eine validierte begrenzte JSON-Datei einen Tag auf und bleiben advisory, weil kein Score-Schwellenwert gesetzt ist; Scanner- und JSON-Validierungsfehler sind nicht advisory. SARIF wird nicht hochgeladen. |

@@ -23,11 +23,6 @@ ARCHIVE_PATH="$HAPROXY_DOWNLOAD_DIR/$ARCHIVE_NAME"
 SHA256_PATH="$HAPROXY_DOWNLOAD_DIR/$ARCHIVE_NAME.sha256"
 PROVENANCE_FILE="$HAPROXY_SOURCE_DIR/.haproxy-source-provenance"
 BINARY_PROVENANCE_FILE="$HAPROXY_RUNTIME_DIR/haproxy.provenance"
-# These are derived only by validate_paths; never trust an inherited value to
-# decide whether a cache entry is immutable for this invocation.
-HAPROXY_MANAGED_SHARED_CACHE_ENTRY=
-HAPROXY_MANAGED_SHARED_CACHE_REUSE=0
-
 blocked() {
     echo "haproxy_prepare: blocked $*"
     mkdir -p "$LOG_DIR"
@@ -112,138 +107,6 @@ require_under_build_root() {
     esac
 }
 
-# A completed HAProxy connector build is deliberately shared through the
-# managed component cache.  Runtime stages may reuse that immutable entry
-# while writing their own logs/results below BUILD_ROOT.  Do not turn the
-# cache prefix itself into a broad alternate build root: accept only one
-# exact, registry-backed connector:haproxy entry and only its expected paths.
-haproxy_managed_cache_entry_for_path() {
-    path=$1
-    label=$2
-    python_bin=${PYTHON:-$(ci_python)}
-
-    command -v "$python_bin" >/dev/null 2>&1 || return 1
-    "$python_bin" - "$CONNECTOR_COMPONENT_CACHE" "$path" "$label" <<'PY'
-import hashlib
-import json
-import re
-import sys
-from pathlib import Path
-
-
-CACHE_SCHEMA_VERSION = 2
-CACHE_ROOT_MARKER = ".msconnector-runtime-cache-root.json"
-CACHE_ENTRY_MARKER_DIRECTORY = ".msconnector-runtime-cache-entries"
-
-
-def read_json(path: Path) -> dict:
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return value if isinstance(value, dict) else {}
-
-
-def marker_path(entry: Path, cache_root: Path) -> Path:
-    encoded = json.dumps(
-        {"entry_path": str(entry)}, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
-    return cache_root / CACHE_ENTRY_MARKER_DIRECTORY / f"{hashlib.sha256(encoded).hexdigest()}.json"
-
-
-cache_root = Path(sys.argv[1]).resolve(strict=False)
-path = Path(sys.argv[2]).resolve(strict=False)
-label = sys.argv[3]
-connector_entries = cache_root / "builds" / "connectors" / "haproxy"
-
-try:
-    relative = path.relative_to(connector_entries)
-except ValueError:
-    raise SystemExit(1)
-
-if not relative.parts or not re.fullmatch(r"[0-9a-f]{64}", relative.parts[0]):
-    raise SystemExit(1)
-
-entry = connector_entries / relative.parts[0]
-expected_relative = {
-    "HAPROXY_RUNTIME_BUILD_DIR": ("haproxy-runtime-build",),
-    "HAPROXY_RUNTIME_BUILD_WORKTREE": ("haproxy-runtime-build", "worktree"),
-    "HAPROXY_RUNTIME_DIR": ("haproxy-runtime", "haproxy"),
-    "HAPROXY_BIN": ("haproxy-runtime", "haproxy", "sbin", "haproxy"),
-}.get(label)
-if expected_relative is None or tuple(relative.parts[1:]) != expected_relative:
-    raise SystemExit(1)
-
-root_marker = read_json(cache_root / CACHE_ROOT_MARKER)
-if (
-    root_marker.get("kind") != "msconnector-runtime-cache-root"
-    or root_marker.get("schema_version") != CACHE_SCHEMA_VERSION
-    or root_marker.get("cache_root") != str(cache_root)
-):
-    raise SystemExit(1)
-
-entry_marker = read_json(marker_path(entry, cache_root))
-identity = entry_marker.get("cache_identity")
-if not isinstance(identity, dict):
-    raise SystemExit(1)
-identity_payload = dict(identity)
-identity_key = identity_payload.pop("cache_key", "")
-if identity_key != entry.name:
-    raise SystemExit(1)
-if hashlib.sha256(
-    json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-).hexdigest() != entry.name:
-    raise SystemExit(1)
-if (
-    entry_marker.get("kind") != "msconnector-runtime-cache-entry"
-    or entry_marker.get("schema_version") != CACHE_SCHEMA_VERSION
-    or entry_marker.get("cache_root") != str(cache_root)
-    or entry_marker.get("entry_path") != str(entry)
-    or entry_marker.get("component") != "connector:haproxy"
-    or entry_marker.get("cache_key") != entry.name
-    or entry_marker.get("status") != "complete"
-):
-    raise SystemExit(1)
-
-manifest = read_json(entry / "manifest.json")
-if (
-    manifest.get("status") != "complete"
-    or manifest.get("cache_schema_version") != CACHE_SCHEMA_VERSION
-    or manifest.get("connector") != "haproxy"
-    or manifest.get("build_root") != str(entry)
-    or manifest.get("connector_build_id") != entry.name
-    or manifest.get("cache_key") != entry.name
-    or manifest.get("cache_identity") != identity
-):
-    raise SystemExit(1)
-
-print(entry)
-PY
-}
-
-require_under_build_root_or_managed_haproxy_cache() {
-    path=$1
-    label=$2
-    assert_safe_runtime_path "$path" "$label" || exit 77
-    case "$path" in
-        "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
-        *) : ;;
-    esac
-
-    managed_entry=$(haproxy_managed_cache_entry_for_path "$path" "$label" 2>/dev/null || true)
-    if [ -n "$managed_entry" ]; then
-        if [ -n "${HAPROXY_MANAGED_SHARED_CACHE_ENTRY:-}" ] && \
-           [ "$HAPROXY_MANAGED_SHARED_CACHE_ENTRY" != "$managed_entry" ]; then
-            blocked "$label must use the same managed HAProxy cache entry as the other runtime paths: $path"
-        fi
-        HAPROXY_MANAGED_SHARED_CACHE_ENTRY=$managed_entry
-        HAPROXY_MANAGED_SHARED_CACHE_REUSE=1
-        return 0
-    fi
-
-    blocked "$label must be under BUILD_ROOT or a complete managed HAProxy cache entry: $path"
-}
-
 require_under_runtime_root() {
     path=$1
     label=$2
@@ -296,10 +159,10 @@ validate_paths() {
     require_under_source_root_or_cache "$HAPROXY_SOURCE_ROOT" HAPROXY_SOURCE_ROOT
     require_under_source_root_or_cache "$HAPROXY_DOWNLOAD_DIR" HAPROXY_DOWNLOAD_DIR
     require_under_source_root_or_cache "$HAPROXY_SOURCE_DIR" HAPROXY_SOURCE_DIR
-    require_under_build_root_or_managed_haproxy_cache "$HAPROXY_RUNTIME_BUILD_DIR" HAPROXY_RUNTIME_BUILD_DIR
-    require_under_build_root_or_managed_haproxy_cache "$HAPROXY_RUNTIME_BUILD_WORKTREE" HAPROXY_RUNTIME_BUILD_WORKTREE
-    require_under_build_root_or_managed_haproxy_cache "$HAPROXY_RUNTIME_DIR" HAPROXY_RUNTIME_DIR
-    require_under_build_root_or_managed_haproxy_cache "$HAPROXY_BIN" HAPROXY_BIN
+    require_under_build_root "$HAPROXY_RUNTIME_BUILD_DIR" HAPROXY_RUNTIME_BUILD_DIR
+    require_under_build_root "$HAPROXY_RUNTIME_BUILD_WORKTREE" HAPROXY_RUNTIME_BUILD_WORKTREE
+    require_under_build_root "$HAPROXY_RUNTIME_DIR" HAPROXY_RUNTIME_DIR
+    require_under_build_root "$HAPROXY_BIN" HAPROXY_BIN
     require_under_build_root "$LOG_DIR" LOG_DIR
 }
 
@@ -433,10 +296,6 @@ if verify_binary_provenance && [ "${REFRESH:-0}" != "1" ]; then
     echo "pass: existing binary $HAPROXY_BIN" >> "$STATUS_FILE"
     echo "haproxy_bin=$HAPROXY_BIN" >> "$ARTIFACTS_FILE"
     exit 0
-fi
-
-if [ "${HAPROXY_MANAGED_SHARED_CACHE_REUSE:-0}" = "1" ]; then
-    blocked "managed shared HAProxy cache entry is incomplete, stale, or refresh was requested; refuse to modify immutable cache entry: $HAPROXY_MANAGED_SHARED_CACHE_ENTRY"
 fi
 
 require_command curl "download HAProxy source and checksum"

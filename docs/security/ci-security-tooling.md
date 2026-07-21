@@ -10,24 +10,32 @@ security claims.
 ## Security model
 
 All pull-request workflows use `pull_request`; none uses
-`pull_request_target`. Routine jobs receive only `contents: read`, use
-immutable Action SHAs with reviewed version comments, and check out with
+`pull_request_target`. Ordinary pull-request workflows, including
+`ci-security-osv.yml`, receive only `contents: read`, use immutable Action
+SHAs with reviewed version comments, and check out with
 `persist-credentials: false` and `submodules: false`. They do not restore or
-save caches and do not upload arbitrary artifacts.
+save caches or upload arbitrary artifacts. The OSV job checks out the immutable
+pull-request base SHA with no persisted credential or submodules, fetches only
+the numbered GitHub pull-request head reference, verifies the reported head
+SHA, and reads the two named dependency manifests as bounded data. Its
+checked-out Framework source and scanner helper are therefore the base
+revision.
 
 `persist-credentials: false` prevents a checkout credential from persisting for
 later Git commands. GitHub still provides an automatic job token to Actions;
 the controls below distinguish that implicit read-scoped action credential from
 an explicit token or secret forwarded to a scanner or `run`-step environment.
 
-Every CI-security pull-request checkout explicitly selects the immutable PR
-head rather than GitHub's synthetic merge ref. Jobs that serve both PR and
-non-PR events use `github.event.pull_request.head.sha || github.sha`; trusted
-default-branch jobs use `github.sha`. The Gitleaks PR-range job uses the PR
-head directly and proves the checked-out SHA before scanning. The local
-semantic evidence contract validates these mappings and the executable scanner
-commands after discarding shell comments and excluding control-flow bodies,
-unreachable post-`exit` commands, and uncalled helpers.
+Every ordinary CI-security pull-request checkout except OSV explicitly selects
+the immutable PR head rather than GitHub's synthetic merge ref. Jobs that serve
+both PR and non-PR events use `github.event.pull_request.head.sha ||
+github.sha`; trusted default-branch jobs use `github.sha`. The Gitleaks PR-range
+job uses the PR head directly and proves the checked-out SHA before scanning.
+The OSV PR job instead runs only the trusted base revision and uses the verified
+PR object solely for blob reads. The local semantic evidence contract validates
+these mappings and the executable scanner commands after discarding shell
+comments and excluding control-flow bodies, unreachable post-`exit` commands,
+and uncalled helpers.
 
 Every workflow has an explicit timeout and concurrency behavior. PR and normal
 CI jobs cancel superseded runs for the same workflow/ref. The three scheduled
@@ -56,7 +64,7 @@ No workflow uses `id-token: write`.
 | `ci-security-quality.yml` | PR and default-branch changes to the CI-security Python scope | Checksum-verified Ruff lint/format and Pyright using an exact Node.js runtime. The scope is the CI-security and Change Record checkers, downloader, and their tests. |
 | `check-python-version.yml` | Scheduled or manual trusted-default-branch run only | Resolves one exact stable CPython 3.13 patch, validates it read-only with the locked CI dependencies, and lets a separately write-scoped publisher create or update only a Draft PR for `.python-version`. |
 | `ci-security-secrets.yml` | PR, schedule, manual | Gitleaks checks out and proves the exact PR head, then scans the exact merge-base-to-head range with `--redact=100`; full history is scheduled/manual advisory until findings are triaged. |
-| `ci-security-osv.yml` | PR; scheduled and manual default branch | A checksum-verified OSV Scanner binary compares exact PR base and head dependency-contract blobs without remediation and fails only for newly introduced OSV vulnerability groups. Every revision must provide `requirements-dev.txt`; the PR head must provide `requirements-ci.lock`, while a pre-introduction base revision receives a bounded empty optional input. Base, head, and comparison JSON are retained for one day only after regular-file, size, and JSON validation. The named inputs never traverse `tools/MRTS`; scheduled/manual default-branch scans are advisory. |
+| `ci-security-osv.yml` | Constrained non-privileged `pull_request`; scheduled and manual default branch | The PR job executes the trusted PR base SHA, fetches the numbered PR reference without checkout, verifies its exact head SHA, and compares only bounded `requirements-dev.txt` and `requirements-ci.lock` blobs without remediation. It fails only for newly introduced OSV vulnerability groups. Every revision must provide `requirements-dev.txt`; the PR head must provide `requirements-ci.lock`, while a pre-introduction base revision receives a bounded empty optional input. Base, head, and comparison JSON are retained for one day only after regular-file, size, and JSON validation. The named inputs never traverse `tools/MRTS`; scheduled/manual default-branch scans are advisory. |
 | `ci-security-codeql-pr.yml` | PR | CodeQL analyzes the exact PR head with only `contents: read`, the pinned Action's `linked` tool bundle, `upload: never`, and `upload-database: false`. It analyzes GitHub Actions, Python, and C/C++ and ignores `tools/MRTS/**`; it never receives a Code Scanning write permission. |
 | `ci-security-codeql.yml` | Default-branch push, schedule, manual | Trusted CodeQL analyzes the exact `github.sha` with the same bounded language scope and linked tool bundle. Its one job-scoped `security-events: write` permission is used only to upload Code Scanning SARIF after non-PR execution. No Go or JavaScript/TypeScript scope is claimed, and C/C++ uses `build-mode: none` so the scan does not provision connector or MRTS dependencies. |
 | `ci-security-scorecard.yml` | PR; default-branch push, schedule, manual on the default branch | A checksum-verified OpenSSF Scorecard binary assesses the exact local PR checkout without an explicitly forwarded GitHub token. The PR result is JSON-validated but artifact-free. Trusted default-branch jobs use the exact `github.sha`, retain one validated bounded JSON file for one day, and remain advisory because no score threshold is imposed; scanner and JSON-validation failures are not advisory. No SARIF is uploaded. |
