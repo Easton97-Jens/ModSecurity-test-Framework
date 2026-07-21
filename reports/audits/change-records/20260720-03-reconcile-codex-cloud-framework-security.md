@@ -54,7 +54,10 @@ The Actions validators prohibit every `pull_request_target` use. Generated outpu
 paths, and MRTS generated roots are contained; non-promotable observations
 cannot become PASS. The 401 CRS override now requires local rule `2320` in
 the audit record. Hash integrity covers raw event values before display
-normalization.
+normalization. The SonarCloud follow-up makes HAProxy case extraction consume
+the already-normalized mapping directly and separates curl output-option
+parsing from destination collection; both preserve the payload-capture and
+promotion controls while avoiding the reported reliability/complexity defects.
 
 ## Changed files and tests
 
@@ -84,6 +87,9 @@ Cloud-finding reconciliation files. The complete per-ID mapping is in
 | `python -m unittest discover -s tests/workflow_contract -q` | 0 | 2 workflow-contract tests passed. |
 | Locked Ruff `check` and `format --check` over the CI-security scope | 0 | All 14 configured files passed after deterministic formatting. |
 | Locked `zizmor --offline .github` | 0 | No unsuppressed workflow findings; `pull_request_target` is absent. |
+| `python -m unittest tests.protocol_client.test_check_protocol_evidence tests.security_regression.test_generate_case_matrix_sonar -q` | 0 | 31 focused parser and HAProxy-matrix tests passed. |
+| `python -m unittest discover -s tests/protocol_client -q` | 0 | 24 protocol-client tests passed after the parser follow-up. |
+| `python -m unittest discover -s tests/security_regression -q` | 0 | 253 security-regression tests passed after the HAProxy follow-up. |
 | `sh -n` on every modified Framework shell entrypoint and `git diff --check` | 0 | Shell syntax and the complete pending diff passed. |
 
 ## Security impact

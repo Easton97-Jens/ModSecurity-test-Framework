@@ -419,6 +419,25 @@ def _output_option_value(
     return arguments[index + 1], index + 1, None
 
 
+def _output_option_destination(
+    arguments: Sequence[str],
+    index: int,
+) -> tuple[str | None, int, str | None]:
+    """Return one curl output destination and the next consumed argument."""
+
+    argument = arguments[index]
+    option, separator, inline_value = argument.partition("=")
+    if option == "--output":
+        if separator:
+            return inline_value, index, None
+        return _output_option_value(arguments, index, option)
+    if argument == "-o":
+        return _output_option_value(arguments, index, argument)
+    if argument.startswith("-o") and len(argument) > 2:
+        return argument[2:], index, None
+    return None, index, None
+
+
 def _command_output_destinations(
     arguments: Sequence[str],
 ) -> tuple[list[str], list[str]]:
@@ -429,27 +448,15 @@ def _command_output_destinations(
     index = 0
     while index < len(arguments):
         argument = arguments[index]
-        option, separator, inline_value = argument.partition("=")
+        option = argument.split("=", 1)[0]
         if option in FORBIDDEN_CAPTURE_OPTIONS:
             errors.append(f"client command contains payload-capture option {option}")
-        if option == "--output":
-            if separator:
-                output_destinations.append(inline_value)
-            else:
-                value, index, error = _output_option_value(arguments, index, option)
-                if error is not None:
-                    errors.append(error)
-                elif value is not None:
-                    output_destinations.append(value)
-        elif argument == "-o":
-            value, index, error = _output_option_value(arguments, index, argument)
-            if error is not None:
-                errors.append(error)
-            elif value is not None:
-                output_destinations.append(value)
-        elif argument.startswith("-o") and len(argument) > 2:
-            output_destinations.append(argument[2:])
-        index += 1
+        value, next_index, error = _output_option_destination(arguments, index)
+        if error is not None:
+            errors.append(error)
+        elif value is not None:
+            output_destinations.append(value)
+        index = next_index + 1
     return output_destinations, errors
 
 

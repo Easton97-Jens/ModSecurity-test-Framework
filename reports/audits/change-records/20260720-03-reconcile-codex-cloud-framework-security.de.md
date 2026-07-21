@@ -59,7 +59,11 @@ verbieten jede `pull_request_target`-Nutzung. Generated Outputs, Runtime-Pfade
 und MRTS-Generated-Roots sind contained;
 nicht promotierbare Observations können nicht PASS werden. Der 401-CRS-
 Override benötigt nun lokale Regel `2320` im Audit-Record. Hash-Integrität
-umfasst rohe Event-Werte vor der Display-Normalisierung.
+umfasst rohe Event-Werte vor der Display-Normalisierung. Das SonarCloud-
+Follow-up lässt die HAProxy-Case-Extraktion direkt das bereits normalisierte
+Mapping verwenden und trennt Curl-Output-Option-Parsing von der Zielerfassung;
+beides bewahrt die Payload-Capture- und Promotion-Controls und beseitigt die
+gemeldeten Reliability-/Complexity-Defekte.
 
 ## Geänderte Dateien und Tests
 
@@ -90,6 +94,9 @@ Mapping steht in
 | `python -m unittest discover -s tests/workflow_contract -q` | 0 | 2 Workflow-Contract-Tests bestanden. |
 | Gelocktes Ruff `check` und `format --check` über den CI-Security-Scope | 0 | Alle 14 konfigurierten Dateien bestanden nach deterministischer Formatierung. |
 | Gelocktes `zizmor --offline .github` | 0 | Keine nicht unterdrückten Workflow-Befunde; `pull_request_target` fehlt. |
+| `python -m unittest tests.protocol_client.test_check_protocol_evidence tests.security_regression.test_generate_case_matrix_sonar -q` | 0 | 31 fokussierte Parser- und HAProxy-Matrix-Tests bestanden. |
+| `python -m unittest discover -s tests/protocol_client -q` | 0 | 24 Protocol-Client-Tests bestanden nach dem Parser-Follow-up. |
+| `python -m unittest discover -s tests/security_regression -q` | 0 | 253 Security-Regression-Tests bestanden nach dem HAProxy-Follow-up. |
 | `sh -n` für jeden geänderten Framework-Shell-Entrypoint und `git diff --check` | 0 | Shell-Syntax und der vollständige ausstehende Diff bestanden. |
 
 ## Sicherheitsauswirkung

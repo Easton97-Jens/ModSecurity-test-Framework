@@ -474,7 +474,7 @@ def haproxy_summary_payload(data: dict) -> dict:
 
 def haproxy_cases_from_summary(data: dict) -> dict:
     nested = haproxy_summary_payload(data)
-    cases = nested.get("cases") if isinstance(nested, dict) else None
+    cases = nested.get("cases")
     return cases if isinstance(cases, dict) else {}
 
 
