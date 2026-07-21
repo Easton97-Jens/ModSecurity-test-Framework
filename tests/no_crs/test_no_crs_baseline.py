@@ -158,6 +158,9 @@ class NoCrsBaselineTest(unittest.TestCase):
         )
         self.assertTrue(errors)
 
+    def test_missing_source_status_is_a_failed_source(self) -> None:
+        self.assertEqual("FAIL", no_crs.normalize_source_status(None))
+
     def test_finalize_copies_allowlisted_engine_lifecycle_artifacts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-engine-artifacts-") as temporary:
             root = Path(temporary)
@@ -1227,7 +1230,7 @@ class NoCrsBaselineTest(unittest.TestCase):
         events_path = root / "events.jsonl"
         events_path.write_text(json.dumps(event) + "\n", encoding="utf-8")
         source_path = root / "source-results.json"
-        source_path.write_text(json.dumps({"cases": [
+        source_path.write_text(json.dumps({"status": "PASS", "cases": [
             {
                 "case_id": "phase4_first_byte_before_response_end",
                 "status": "PASS", "live_executed": True,
