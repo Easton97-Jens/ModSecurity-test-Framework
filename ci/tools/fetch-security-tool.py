@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import os
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 import stat
 import sys
@@ -51,6 +52,27 @@ LOCK_ROOT_ERROR = "lock must be contained within the Framework root"
 LOCK_TRAVERSAL_ERROR = "lock path must not contain traversal components"
 LOCK_SYMLINK_ERROR = "lock path must not traverse a symlink"
 LOCK_FILE_ERROR = "lock must be a regular non-symlink file"
+# GitHub release downloads start at github.com and may redirect to one of
+# GitHub's release-asset delivery hosts.  Keep this deliberately small: a
+# checksum is necessary but does not make an arbitrary redirect origin an
+# approved provenance source.
+OFFICIAL_RELEASE_ASSET_HOSTS = frozenset(
+    {
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com",
+    }
+)
+GITHUB_COMPONENT = r"[A-Za-z0-9_.-]+"
+GITHUB_RELEASE_URL = re.compile(
+    rf"^https://github\.com/(?P<owner>{GITHUB_COMPONENT})/"
+    rf"(?P<repository>{GITHUB_COMPONENT})/releases/tag/(?P<tag>[^/?#]+)$"
+)
+GITHUB_RELEASE_ASSET_URL = re.compile(
+    rf"^https://github\.com/(?P<owner>{GITHUB_COMPONENT})/"
+    rf"(?P<repository>{GITHUB_COMPONENT})/releases/download/"
+    rf"(?P<tag>[^/?#]+)/(?P<asset>{GITHUB_COMPONENT})$"
+)
 
 
 def is_safe_archive_member(name: str) -> bool:
@@ -134,21 +156,40 @@ def _validate_tool_identity(record: dict[str, Any], tool: str) -> None:
 
 
 def _validate_release_asset_url(record: dict[str, Any], tool: str) -> None:
-    parsed = urlparse(str(record["asset_url"]))
-    if (
-        parsed.scheme != "https"
-        or parsed.netloc != "github.com"
-        or parsed.query
-        or parsed.fragment
-    ):
+    version = record.get("version")
+    release_match = (
+        GITHUB_RELEASE_URL.fullmatch(record.get("upstream_release"))
+        if isinstance(record.get("upstream_release"), str)
+        else None
+    )
+    asset_match = (
+        GITHUB_RELEASE_ASSET_URL.fullmatch(record.get("asset_url"))
+        if isinstance(record.get("asset_url"), str)
+        else None
+    )
+    if release_match is None or asset_match is None:
         raise ToolError(
-            f"tool {tool!r} must use a direct HTTPS GitHub release asset URL"
+            f"tool {tool!r} must use exact direct HTTPS GitHub release URLs"
         )
-    if "/releases/download/" not in parsed.path or not parsed.path.endswith(
-        f"/{record['asset']}"
+    release_identity = (
+        release_match.group("owner"),
+        release_match.group("repository"),
+        release_match.group("tag"),
+    )
+    asset_identity = (
+        asset_match.group("owner"),
+        asset_match.group("repository"),
+        asset_match.group("tag"),
+    )
+    if (
+        not isinstance(version, str)
+        or release_identity[2] != version
+        or asset_identity != release_identity
+        or asset_match.group("asset") != record["asset"]
     ):
         raise ToolError(
-            f"tool {tool!r} asset URL does not match its locked release asset"
+            f"tool {tool!r} release asset provenance does not match its locked "
+            "owner/repository/tag/version tuple"
         )
 
 
@@ -209,15 +250,25 @@ def checked_download(record: dict[str, Any], staging_dir: Path) -> Path:
     try:
         with urlopen(request, timeout=30) as response, archive.open("wb") as output:
             final_url = urlparse(response.geturl())
-            if final_url.scheme != "https":
-                raise ToolError("release asset redirect did not remain on HTTPS")
+            if (
+                final_url.scheme != "https"
+                or final_url.hostname not in OFFICIAL_RELEASE_ASSET_HOSTS
+            ):
+                raise ToolError(
+                    "release asset redirect did not end on an approved official "
+                    "GitHub release-asset host"
+                )
             while True:
                 chunk = response.read(1024 * 1024)
                 if not chunk:
                     break
                 digest.update(chunk)
                 output.write(chunk)
+    except ToolError:
+        archive.unlink(missing_ok=True)
+        raise
     except OSError as exc:
+        archive.unlink(missing_ok=True)
         raise ToolError(f"could not download {record['name']}: {exc}") from exc
     actual = digest.hexdigest()
     if actual != record["sha256"]:

@@ -13,3 +13,7 @@ finalen Framework-Diff synchron und bewahre Evidenz payload-frei und redigiert
 auf, wie in der
 [Änderungsnachverfolgbarkeit](../../../docs/change-traceability.de.md)
 beschrieben.
+
+## Aktuelle Records
+
+- [Framework-Workflow-Tooling-Update (2026-07-21)](20260721-01-framework-workflow-tools-update.de.md)

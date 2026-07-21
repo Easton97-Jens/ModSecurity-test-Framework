@@ -32,10 +32,12 @@ commands after discarding shell comments and excluding control-flow bodies,
 unreachable post-`exit` commands, and uncalled helpers.
 
 Every workflow has an explicit timeout and concurrency behavior. PR and normal
-CI jobs cancel superseded runs for the same workflow/ref. The two scheduled
+CI jobs cancel superseded runs for the same workflow/ref. The three scheduled
 maintenance jobs deliberately do not cancel an active run: the common-version
-job can create one constrained update PR, and the artifact-cleanup job deletes
-only artifacts under its documented retention policy.
+job validates only an ephemeral runner-temporary candidate and has no delivery
+path, the workflow/tool updater can create or continue only its matching Draft
+maintenance PR, and the artifact-cleanup job deletes only artifacts under its
+documented retention policy.
 
 `security-events: write` is limited to the trusted, non-PR
 `ci-security-codeql.yml` upload job. Its read-only PR companion
@@ -59,10 +61,12 @@ No workflow uses `id-token: write`.
 | `ci-security-codeql.yml` | Default-branch push, schedule, manual | Trusted CodeQL analyzes the exact `github.sha` with the same bounded language scope and linked tool bundle. Its one job-scoped `security-events: write` permission is used only to upload Code Scanning SARIF after non-PR execution. No Go or JavaScript/TypeScript scope is claimed, and C/C++ uses `build-mode: none` so the scan does not provision connector or MRTS dependencies. |
 | `ci-security-scorecard.yml` | PR; default-branch push, schedule, manual on the default branch | A checksum-verified OpenSSF Scorecard binary assesses the exact local PR checkout without a GitHub token. The PR result is JSON-validated but artifact-free. Trusted default-branch jobs use the exact `github.sha`, retain one validated bounded JSON file for one day, and remain advisory because no score threshold is imposed; scanner and JSON-validation failures are not advisory. No SARIF is uploaded. |
 | `ci-security-dependency-review.yml` | Dependency-changing PRs | Dependency Review checks high-severity vulnerabilities and runtime/development scopes without automatic remediation or PR comments. |
+| `update-workflow-tools.yml` | Scheduled/manual trusted default revision | A read-only resolver obtains candidates only from lock-derived official GitHub release/Git endpoints. A separate read-only validator checksum-downloads changed tool assets and applies the candidate only in a bounded runner-temporary copy to recheck the resulting pins and contracts. The sole write-capable publisher re-resolves and checksum-validates its fresh candidate, accepts only a base-identity-verified matching Draft PR branch, confines changes to an explicit allowlist, uses a normal push, and creates a Draft PR only. |
 
 The existing `lint.yml`, `test-common.yml`, Action-version check,
-common-version maintenance, and artifact cleanup workflows use the same
-immutable Action, permission, checkout, timeout, and concurrency contract.
+common-version maintenance, workflow/tool maintenance, and artifact-cleanup
+workflows use the same immutable Action, permission, checkout, timeout, and
+concurrency contract.
 This scope hardens `test-common.yml` workflow execution only; its independently
 governed common-case catalog assertion and materialization semantics are not a
 CI-security product fix.
@@ -75,13 +79,39 @@ version, immutable release commit, upstream release, licence, purpose,
 platform, update procedure, and—where a binary/package is downloaded—the
 exact release asset and SHA-256.
 
+Every Action record also fixes its `release_resolution`. Most Actions use the
+official `latest-release` endpoint. `github/codeql-action` instead uses the
+reviewed `same-major-release` mode because its `releases/latest` response may
+describe a CodeQL bundle rather than the Action. The resolver reads one bounded
+official release page, accepts only published non-prerelease numeric Action
+tags in the locked `v4` major, then resolves that exact tag through the Git API
+to its immutable commit. It never treats a bundle or a new Action major as an
+Action update.
+
 `ci/tools/fetch-security-tool.py` accepts only named lock records, direct
 HTTPS GitHub release assets, and an absolute, non-symlink strict child of the
-current-user-owned `RUNNER_TEMP` directory. It checks the SHA-256 before
+current-user-owned `RUNNER_TEMP` directory. A completed redirect is allowed
+only to `github.com`, `objects.githubusercontent.com`, or
+`release-assets.githubusercontent.com`. It verifies the SHA-256 before
 publishing a raw executable or extracting an archive, rejects unsafe archive
 paths, links, and devices, extracts only the locked executable or package tree,
 and publishes the result atomically. It never installs a package into the
 Framework checkout.
+
+`ci/tools/update-workflow-tools.py` is the only native updater for that lock
+scope. Its resolver has no GitHub token and accepts only lock-derived official
+GitHub API URLs. Its candidate binds to the SHA-256 of the trusted current lock
+and can change only release/version, immutable commit, and—in a tool record—the
+expected asset tuple and SHA-256. The validator fails closed on a stale lock,
+unexpected field, URL, asset naming rule, or digest, applies the candidate
+only in a bounded runner-temporary copy, and calls the downloader only for
+changed tool assets. The publisher repeats resolution, checksum-validates its
+fresh tool candidate, validates its working copy, and accepts changes only to
+its explicit lock/workflow/paired-guide allowlist. It does not execute a
+downloaded asset, use `pull_request_target`, force-push, or merge. Existing
+branches are reused only when the one open PR has the exact branch, title,
+base, marker, and Draft state and its changed tuples verify from the current
+default-branch lock identity.
 
 `requirements-ci.lock` pins the CI PyYAML CP313 wheel for reviewed CPython
 3.13.14 on Linux x86_64 and requires its official PyPI SHA-256. Workflows
@@ -103,8 +133,9 @@ update rather than silent recursive discovery.
 
 To update a record, verify the upstream release-tag-to-commit identity, licence,
 asset filename/member, and SHA-256. Update the lock, matching workflow version
-comments, the contract tests, and this guide in one reviewed change. Do not
-replace a SHA pin with a mutable tag.
+comments, the contract tests, and this guide in one reviewed change. The native
+updater applies the same tuple rules and still leaves a Draft PR for review; do
+not replace a SHA pin with a mutable tag.
 
 ## Evidence, retention, and SonarQube Cloud
 
