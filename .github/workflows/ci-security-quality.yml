@@ -8,6 +8,7 @@ on:
       - "ci/checks/security/**"
       - "ci/checks/documentation/check-change-records.py"
       - "ci/tools/fetch-security-tool.py"
+      - "ci/tools/update-workflow-tools.py"
       - "ci/tooling/security-tools.lock.yml"
       - "tests/ci_security/**"
       - "pyproject.toml"
@@ -18,6 +19,7 @@ on:
       - "ci/checks/security/**"
       - "ci/checks/documentation/check-change-records.py"
       - "ci/tools/fetch-security-tool.py"
+      - "ci/tools/update-workflow-tools.py"
       - "ci/tooling/security-tools.lock.yml"
       - "tests/ci_security/**"
       - "pyproject.toml"
@@ -42,7 +44,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
@@ -50,7 +52,7 @@ jobs:
           submodules: false
 
       - name: Set up reviewed Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13.14"
           check-latest: false
@@ -90,14 +92,14 @@ jobs:
             ci/checks/security/compare-osv-results.py \
             ci/checks/security/osv_report_schema.py \
             ci/checks/documentation/check-change-records.py \
-            ci/tools/fetch-security-tool.py tests/ci_security
+            ci/tools/fetch-security-tool.py ci/tools/update-workflow-tools.py tests/ci_security
           "$TOOLS_DIR/ruff" format --check ci/checks/security/check-ci-security-contract.py \
             ci/checks/security/check-ci-security-evidence-contract.py \
             ci/checks/security/check-json-result.py \
             ci/checks/security/compare-osv-results.py \
             ci/checks/security/osv_report_schema.py \
             ci/checks/documentation/check-change-records.py \
-            ci/tools/fetch-security-tool.py tests/ci_security
+            ci/tools/fetch-security-tool.py ci/tools/update-workflow-tools.py tests/ci_security
 
       - name: Run deterministic Pyright type analysis
         env:

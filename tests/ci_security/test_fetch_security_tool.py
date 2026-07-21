@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import importlib.util
 import os
 from pathlib import Path
@@ -196,6 +197,64 @@ class RunnerOwnedOutputDirectoryTest(unittest.TestCase):
                 with patch.object(FETCHER.os, "geteuid", return_value=other_user_id):
                     with self.assertRaisesRegex(FETCHER.ToolError, "not owned"):
                         FETCHER.runner_owned_output_dir(runner_temp / "tools")
+
+
+class ReleaseAssetRedirectTest(unittest.TestCase):
+    class Response:
+        def __init__(self, final_url: str, body: bytes) -> None:
+            self.final_url = final_url
+            self.body = io.BytesIO(body)
+
+        def __enter__(self) -> "ReleaseAssetRedirectTest.Response":
+            return self
+
+        def __exit__(self, *unused: object) -> bool:
+            return False
+
+        def geturl(self) -> str:
+            return self.final_url
+
+        def read(self, size: int = -1) -> bytes:
+            return self.body.read(size)
+
+    @staticmethod
+    def record(payload: bytes) -> dict[str, str]:
+        return {
+            "name": "fixture",
+            "asset": "fixture.bin",
+            "asset_url": "https://github.com/example/fixture/releases/download/v1.0.0/fixture.bin",
+            "sha256": FETCHER.hashlib.sha256(payload).hexdigest(),
+        }
+
+    def test_accepts_an_official_github_release_asset_redirect_host(self) -> None:
+        payload = b"verified release asset"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            staging = Path(temporary_directory)
+            response = self.Response(
+                "https://release-assets.githubusercontent.com/fixture", payload
+            )
+            with patch.object(FETCHER, "urlopen", return_value=response):
+                archive = FETCHER.checked_download(self.record(payload), staging)
+            self.assertEqual(payload, archive.read_bytes())
+
+    def test_rejects_a_foreign_https_redirect_and_removes_partial_asset(self) -> None:
+        payload = b"untrusted redirect"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            staging = Path(temporary_directory)
+            response = self.Response("https://example.invalid/fixture", payload)
+            with patch.object(FETCHER, "urlopen", return_value=response):
+                with self.assertRaisesRegex(FETCHER.ToolError, "approved official"):
+                    FETCHER.checked_download(self.record(payload), staging)
+            self.assertFalse((staging / "fixture.bin").exists())
+
+    def test_rejects_a_static_asset_url_from_a_different_release_identity(self) -> None:
+        record = FETCHER.read_tool_record(LOCK_PATH, "actionlint")
+        record["asset_url"] = (
+            "https://github.com/example/actionlint/releases/download/"
+            "v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz"
+        )
+        with self.assertRaisesRegex(FETCHER.ToolError, "provenance"):
+            FETCHER._validate_release_asset_url(record, "actionlint")
 
 
 if __name__ == "__main__":

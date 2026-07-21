@@ -24,7 +24,8 @@ Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 | Workflow | Trigger | Externe Actions | Effektive Berechtigungen | Vertrauensentscheidung |
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, gefilterter `pull_request` | `actions/checkout` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; er läuft nur lesend und ohne persistierte Checkout-Credentials. |
-| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | Workflow-Standard `contents: read`; Updater-Job effektiv `contents: write`, `pull-requests: write` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; kein Pull-Request-Trigger. |
+| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python` | Workflow und Checker-Job jeweils `contents: read` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; er prüft und ShellCheckt eine unter runner-temporärem Speicher kopierte Kandidatendatei, hat absichtlich keinen Publisher und kann keinen PR-Branch erstellen, aktualisieren, mergen, force-pushen oder löschen. |
+| `update-workflow-tools.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/github-script` | Workflow-Standard `contents: read`; nur der Publisher-Job hat `contents: write`, `pull-requests: write` | Resolver und Validator sind tokenfrei/nur lesend; der Publisher erstellt nur einen passenden Draft-Wartungs-PR oder verwendet genau diesen wieder und force-pusht nie. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, Zeitplan | `actions/github-script` | Workflow-Standard `contents: read`; Cleanup-Job effektiv `actions: write` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; sein Job kann nur Repository-Artefakte löschen. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout` | `contents: read` | PR-Quellcode und seine Entwicklungsabhängigkeiten sind nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
@@ -37,10 +38,9 @@ zugelassenen Upstreams, Releases und Commit-Identitäten sind:
 
 | Action | Offizieller Upstream | Release | Commit-SHA | Lizenz | Notwendige Verwendung |
 | --- | --- | --- | --- | --- | --- |
-| `actions/checkout` | [actions/checkout](https://github.com/actions/checkout) | `v7.0.0` | `9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0` | MIT | Checkt den Framework-Quellcode für Validierung oder Wartung aus. |
-| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | `v6.3.0` | `ece7cb06caefa5fff74198d8649806c4678c61a1` | MIT | Wählt Python für den Common-Version-Updater aus. |
-| `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Ruft die GitHub-Actions-Artifact-API für die Bereinigungsaufbewahrung auf. |
-| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Erstellt den geplanten/manuellen Pull Request für Common-Version-Updates. |
+| `actions/checkout` | [actions/checkout](https://github.com/actions/checkout) | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` | MIT | Checkt den Framework-Quellcode für Validierung oder Wartung aus. |
+| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` | MIT | Wählt Python für die eingeschränkten Wartungs-Updater aus. |
+| `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Prüft oder erstellt den eingeschränkten Draft-PR des Workflow-/Tool-Updaters und ruft die GitHub-Actions-Artifact-API für die Bereinigungsaufbewahrung auf. |
 
 Der Vertrag weist Tags, Branches, verkürzte oder Großbuchstaben-SHAs,
 dynamische Referenzen, Docker-Referenzen, fehlerhafte oder Block-Scalar-
@@ -63,9 +63,12 @@ permissions:
 
 Nur ein vertrauenswürdiger Job darf diese Baseline durch eine kleinere,
 zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions`
-benötigt Repository-Content- und Pull-Request-Write-Rechte zum Erstellen seines
-Wartungs-PRs; `cleanup-artifacts` benötigt nur `actions: write`, um Artefakte
-zu löschen; der vertrauenswürdige Nicht-PR-CodeQL-Upload-Job benötigt
+bleibt read-only: Er validiert einen temporären Runner-Kandidaten und hat
+absichtlich keinen Publisher. Nur der Publisher von
+`update-workflow-tools` benötigt Repository-Content- und Pull-Request-Write-
+Rechte zum Erstellen seines eingeschränkten Wartungs-Draft-PRs;
+`cleanup-artifacts` benötigt nur `actions: write`, um Artefakte zu löschen;
+der vertrauenswürdige Nicht-PR-CodeQL-Upload-Job benötigt
 `security-events: write`. Kein PR-ausgelöster Job darf eine Write-Berechtigung
 vergeben.
 
@@ -76,16 +79,36 @@ with:
   persist-credentials: false
 ```
 
-Der Common-Version-Updater stellt `GITHUB_TOKEN` nur im Shell-Schritt
-`Validate and update common.sh` bereit, und die Pull-Request-Action erhält
-weiter ihren expliziten Input `token: ${{ github.token }}`. Workflow- und
-Job-Level-Umgebungen dürfen `github.token` unter keinem Variablennamen
-bereitstellen, auch nicht als `GITHUB_TOKEN`. GitHub-Berechtigungen sind Job-
-und nicht Schritt-spezifisch: Das Einengen einer Umgebungsvariable reduziert
-die direkte Shell-Exposition, verwandelt einen vertrauenswürdigen Job mit
-Write-Rechten aber nicht in eine Schritt-Berechtigungsgrenze. Daher ist dieser
-Job auf geplante oder manuelle Trigger vertrauenswürdiger Maintainer begrenzt
-und enthält kein PR-Event.
+Der Common-Version-Checker erhält keinen GitHub-Token, kopiert `common.sh` vor
+dem Kandidaten-Update in temporären Runner-Speicher und besitzt keinen Branch-
+oder Pull-Request-Publisher. Der Workflow-/Tool-Updater trennt öffentliche
+Auflösung, Kandidatenvalidierung und Veröffentlichung in drei Jobs: Resolver
+und Validator behalten `contents: read`, erhalten keinen Publishing-Token und
+ändern den Checkout nicht. Der Publisher löst den
+Kandidaten erneut auf, akzeptiert nur den festen Branch
+`automation/update-framework-workflow-tools`, scheitert bei einem vorhandenen
+nicht passenden oder nicht-Draft-PR und beschränkt seinen Token auf kleine
+Publisher-Schritte. Er prüft geänderte Release-Assets über den bestehenden
+prüfsummensicheren Downloader ohne sie auszuführen; ein abgeschlossener
+Redirect darf nur auf `github.com`, `objects.githubusercontent.com` oder
+`release-assets.githubusercontent.com` enden, und SHA-256 wird vor dem
+Entpacken geprüft. Der Validator wendet jeden Kandidaten ausschließlich in
+einer begrenzten Runner-Temporärkopie an, um die resultierenden Contracts erneut
+zu prüfen. Ein wiederverwendeter Branch muss bytegenau dem vertrauenswürdigen
+Basisbaum entsprechen, nachdem der eingeschränkte Updater seinen verifizierten
+Kandidaten erzeugt hat. Der Publisher ändert ausschließlich eine feste
+Dateiallowlist, verwendet einen normalen Push und erstellt nur einen Draft-PR.
+Workflow- und Job-Level-Umgebungen dürfen `github.token` unter keinem
+Variablennamen bereitstellen, auch nicht als `GITHUB_TOKEN`. GitHub-
+Berechtigungen sind Job- und nicht Schritt-spezifisch: Das Einengen einer
+Umgebungsvariable reduziert die direkte Shell-Exposition, verwandelt einen
+vertrauenswürdigen Job mit Write-Rechten aber nicht in eine Schritt-
+Berechtigungsgrenze. Daher ist dieser Job auf geplante oder manuelle Trigger
+vertrauenswürdiger Maintainer begrenzt und enthält kein PR-Event. Der
+Repository-Contract parst diesen exakten Triggersatz und das Publisher-
+Schrittprofil und bindet jeden Publisher-`run`- und `github-script`-Body an
+SHA-256; Kommentare, Aliase, zusätzliche Befehle oder Änderungen an der
+Draft-/Branch-Prüfung scheitern daher geschlossen.
 
 Für jeden `pull_request`-Workflow weist der Checker `pull_request_target`,
 Write-Berechtigungen, Referenzen `secrets.` und `secrets[...]`, Secret-
@@ -137,6 +160,18 @@ Vor dem Ändern eines Action-Pins:
    sowie die verfügbaren actionlint-, ShellCheck- und zizmor-Prüfungen aus.
 5. Aktualisiere diesen englischen/deutschen Leitfaden und den Framework-
    Change Record mit den beobachteten Provenienz- und Validierungsergebnissen.
+
+Der geplante/manuelle Workflow `update-workflow-tools.yml` kann einen
+reviewbaren Kandidaten vorbereiten, ist aber absichtlich weder ein
+Freigabe- noch ein Merge-Mechanismus. Er verwendet ausschließlich die vom
+bestehenden Lock implizierten offiziellen GitHub-Release-/Git-APIs, prüft die
+Release-Tag-zu-Commit-Identität und verlangt den veröffentlichten SHA-256 des
+offiziellen Release-Assets, bevor sich ein heruntergeladenes Tool-Record ändern
+kann. Release-Asset-Redirects sind auf die dokumentierte offizielle
+Host-Allowlist beschränkt, und der Digest wird vor dem Entpacken geprüft. Ein
+fehlgeschlagener Lookup, Digest-, Branch-, aus der Basis abgeleiteter
+Branch-Inhalt-, PR-Form-, Lock-Digest- oder Allowlist-Check stoppt die
+Veröffentlichung.
 
 ## Einschränkungen und betriebliche Erwartungen
 

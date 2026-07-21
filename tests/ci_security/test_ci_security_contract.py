@@ -258,6 +258,334 @@ class CiSecurityContractTest(unittest.TestCase):
         )
         self.assertTrue(any("token reference" in error for error in errors))
 
+    def test_workflow_tool_updater_rejects_secret_or_token_expressions_in_read_jobs(self) -> None:
+        workflow = (
+            ROOT / ".github/workflows/update-workflow-tools.yml"
+        ).read_text(encoding="utf-8")
+        unsafe = workflow.replace(
+            "    steps:\n",
+            "    env: { UPDATER_TOKEN: \"${{ secrets.UPDATER_TOKEN }}\" }\n    steps:\n",
+            1,
+        )
+        errors = CHECKER.workflow_tool_updater_errors(
+            ROOT / ".github/workflows/update-workflow-tools.yml",
+            unsafe,
+            CHECKER.yaml.safe_load(unsafe),
+        )
+        self.assertTrue(
+            any("resolver must not contain secrets or token expressions" in error for error in errors),
+            "\n".join(errors),
+        )
+
+    def test_workflow_tool_updater_semantically_rejects_quoted_inline_write_permissions(self) -> None:
+        workflow = (
+            ROOT / ".github/workflows/update-workflow-tools.yml"
+        ).read_text(encoding="utf-8")
+        unsafe = workflow.replace(
+            "    permissions:\n      contents: read",
+            "    permissions: {'contents': 'read', actions: 'write'}",
+            1,
+        )
+        errors = CHECKER.workflow_tool_updater_errors(
+            ROOT / ".github/workflows/update-workflow-tools.yml",
+            unsafe,
+            CHECKER.yaml.safe_load(unsafe),
+        )
+        self.assertTrue(
+            any("resolver must declare exactly {contents: read}" in error for error in errors),
+            "\n".join(errors),
+        )
+
+    def test_workflow_tool_updater_rejects_extra_jobs_and_nonexact_publisher_permissions(self) -> None:
+        workflow = (
+            ROOT / ".github/workflows/update-workflow-tools.yml"
+        ).read_text(encoding="utf-8")
+        unsafe = workflow.replace(
+            "      pull-requests: write",
+            "      pull-requests: write\n      issues: read",
+            1,
+        ) + (
+            "\n  unexpected_writer:\n"
+            "    runs-on: ubuntu-latest\n"
+            "    permissions: {contents: write}\n"
+            "    steps: []\n"
+        )
+        errors = CHECKER.workflow_tool_updater_errors(
+            ROOT / ".github/workflows/update-workflow-tools.yml",
+            unsafe,
+            CHECKER.yaml.safe_load(unsafe),
+        )
+        self.assertTrue(
+            any("must define exactly resolver, validator, and publisher jobs" in error for error in errors),
+            "\n".join(errors),
+        )
+        self.assertTrue(
+            any("publisher must declare exactly" in error for error in errors),
+            "\n".join(errors),
+        )
+
+    def test_workflow_tool_updater_semantically_enforces_job_ordering(self) -> None:
+        workflow = (
+            ROOT / ".github/workflows/update-workflow-tools.yml"
+        ).read_text(encoding="utf-8")
+        unsafe = workflow.replace("    needs: resolver", "    needs: [] # resolver", 1)
+        errors = CHECKER.workflow_tool_updater_errors(
+            ROOT / ".github/workflows/update-workflow-tools.yml",
+            unsafe,
+            CHECKER.yaml.safe_load(unsafe),
+        )
+        self.assertTrue(
+            any("validator must need exactly resolver" in error for error in errors),
+            "\n".join(errors),
+        )
+
+    def test_workflow_tool_updater_requires_a_default_branch_publisher_gate(self) -> None:
+        workflow = (
+            ROOT / ".github/workflows/update-workflow-tools.yml"
+        ).read_text(encoding="utf-8")
+        unsafe = workflow.replace(
+            "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+            "github.ref == 'refs/heads/unsafe'",
+            1,
+        )
+        errors = CHECKER.workflow_tool_updater_errors(
+            ROOT / ".github/workflows/update-workflow-tools.yml",
+            unsafe,
+            CHECKER.yaml.safe_load(unsafe),
+        )
+        self.assertTrue(
+            any(
+                "publisher must be gated to the default branch and resolver has_updates"
+                in error
+                for error in errors
+            ),
+            "\n".join(errors),
+        )
+
+    def test_workflow_tool_updater_allows_only_reviewed_schedule_and_dispatch_triggers(self) -> None:
+        workflow = (
+            ROOT / ".github/workflows/update-workflow-tools.yml"
+        ).read_text(encoding="utf-8")
+        unsafe = workflow.replace(
+            "  schedule:\n",
+            "  push:\n    branches: [main]\n  schedule:\n",
+            1,
+        )
+        errors = CHECKER.workflow_tool_updater_errors(
+            ROOT / ".github/workflows/update-workflow-tools.yml",
+            unsafe,
+            CHECKER.yaml.safe_load(unsafe),
+        )
+        self.assertTrue(
+            any("updater triggers must be exactly" in error for error in errors),
+            "\n".join(errors),
+        )
+
+    def test_workflow_tool_updater_publisher_profile_rejects_pr_aliases_and_comments(self) -> None:
+        workflow = (
+            ROOT / ".github/workflows/update-workflow-tools.yml"
+        ).read_text(encoding="utf-8")
+        variants = {
+            "remove-existing-pr-uniqueness": workflow.replace(
+                "pullRequests.length !== 1", "false", 1
+            ),
+            "duplicate-direct-pr-create": workflow.replace(
+                "            await github.rest.pulls.create({",
+                "            await github.rest.pulls.create({ owner: context.repo.owner });\n"
+                "            await github.rest.pulls.create({",
+                1,
+            ),
+            "bracket-pr-create-alias": workflow.replace(
+                "github.rest.pulls.create(", 'github.rest.pulls["create"](', 1
+            ),
+            "bracket-auto-merge-alias": workflow.replace(
+                "            await github.rest.pulls.create({",
+                "            await github.rest.pulls[\"merge\"]({ owner: context.repo.owner });\n"
+                "            await github.rest.pulls.create({",
+                1,
+            ),
+            "commented-draft": workflow.replace("draft: true,", "# draft: true,", 1),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.workflow_tool_updater_errors(
+                    ROOT / ".github/workflows/update-workflow-tools.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(
+                    any("publisher github-script body" in error for error in errors),
+                    "\n".join(errors),
+                )
+
+    def test_workflow_tool_updater_publisher_profile_rejects_push_and_validation_bypasses(self) -> None:
+        workflow = (
+            ROOT / ".github/workflows/update-workflow-tools.yml"
+        ).read_text(encoding="utf-8")
+        existing_branch_command = (
+            "              python3 ci/tools/update-workflow-tools.py verify-existing-branch --root . \\\n"
+            '                --base "origin/${{ github.event.repository.default_branch }}" \\\n'
+            '                --head "origin/$UPDATE_BRANCH"\n'
+        )
+        publisher_validation = (
+            '          python3 ci/tools/update-workflow-tools.py validate --root . --candidate "$CANDIDATE" \\\n'
+            "            --verify-tool-assets \\\n"
+            '            --output-dir "$RUNNER_TEMP/framework-workflow-tool-publisher-validation"\n'
+        )
+        update_branch = '          UPDATE_BRANCH="automation/update-framework-workflow-tools"'
+        first_assignment, commit_assignment = workflow.split(update_branch, 1)
+        variants = {
+            "commented-existing-branch-proof": workflow.replace(
+                existing_branch_command,
+                "              # verify-existing-branch --root .\n",
+                1,
+            ),
+            "commented-tool-asset-verification": workflow.replace(
+                publisher_validation,
+                '          python3 ci/tools/update-workflow-tools.py validate --root . --candidate "$CANDIDATE" \\\n'
+                "            # --verify-tool-assets\n"
+                '            --output-dir "$RUNNER_TEMP/framework-workflow-tool-publisher-validation"\n',
+                1,
+            ),
+            "command-prefixed-force-push": workflow.replace(
+                '          git push origin "HEAD:refs/heads/$UPDATE_BRANCH"',
+                '          command git push --force origin "HEAD:refs/heads/$UPDATE_BRANCH"',
+                1,
+            ),
+            "env-prefixed-force-push": workflow.replace(
+                '          git push origin "HEAD:refs/heads/$UPDATE_BRANCH"',
+                '          env X=1 git push -f origin +HEAD:refs/heads/$UPDATE_BRANCH',
+                1,
+            ),
+            "git-config-default-branch-push": workflow.replace(
+                '          git push origin "HEAD:refs/heads/$UPDATE_BRANCH"',
+                "          git -c protocol.version=2 push origin "
+                '"HEAD:refs/heads/${{ github.event.repository.default_branch }}"',
+                1,
+            ),
+            "commit-default-branch-reassignment": first_assignment
+            + update_branch
+            + commit_assignment.replace(
+                update_branch,
+                '          UPDATE_BRANCH="${{ github.event.repository.default_branch }}"',
+                1,
+            ),
+            "fresh-branch-starts-from-stale-checkout-head": workflow.replace(
+                '              git switch --create "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"',
+                '              git switch --create "$UPDATE_BRANCH"',
+                1,
+            ),
+            "publisher-environment-injection": workflow.replace(
+                "          PUBLISH_TOKEN: ${{ github.token }}\n        run: |",
+                "          PUBLISH_TOKEN: ${{ github.token }}\n"
+                "          BASH_ENV: /tmp/untrusted\n        run: |",
+                1,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.workflow_tool_updater_errors(
+                    ROOT / ".github/workflows/update-workflow-tools.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(
+                    any("publisher" in error and "reviewed" in error for error in errors),
+                    "\n".join(errors),
+                )
+
+    def test_common_version_checker_rejects_delivery_and_stale_base_regressions(self) -> None:
+        workflow = (
+            ROOT / ".github/workflows/check-common-versions.yml"
+        ).read_text(encoding="utf-8")
+        variants = {
+            "write-permission": workflow.replace(
+                "    permissions:\n      contents: read\n    steps:",
+                "    permissions:\n      contents: write\n    steps:",
+                1,
+            ),
+            "token-exposure": workflow.replace(
+                "      - name: Validate an ephemeral common.sh candidate\n        run: |",
+                "      - name: Validate an ephemeral common.sh candidate\n"
+                "        env:\n          GITHUB_TOKEN: ${{ github.token }}\n        run: |",
+                1,
+            ),
+            "stale-default-checkout": workflow.replace(
+                "          ref: ${{ github.event.repository.default_branch }}",
+                "          ref: main",
+                1,
+            ),
+            "direct-push": workflow.replace(
+                "      - name: Syntax and ShellCheck",
+                "      - name: Publish candidate\n"
+                "        run: git push origin HEAD\n\n"
+                "      - name: Syntax and ShellCheck",
+                1,
+            ),
+            "third-party-pr-action": workflow.replace(
+                "      - name: Syntax and ShellCheck",
+                "      - name: Create pull request\n"
+                "        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1\n\n"
+                "      - name: Syntax and ShellCheck",
+                1,
+            ),
+            "source-checkout-write": workflow.replace(
+                '          cp ci/lib/common.sh "$BUILD_ROOT/common.sh"\n',
+                "",
+                1,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.workflow_contract_errors(
+                    ROOT / ".github/workflows/check-common-versions.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(
+                    any("common-version" in error or "write" in error for error in errors),
+                    "\n".join(errors),
+                )
+
+    def test_static_lock_provenance_binds_release_asset_and_version_tuples(self) -> None:
+        actions, tools, errors = CHECKER.load_lock(LOCK_PATH)
+        self.assertFalse(errors, "\n".join(errors))
+
+        mismatched_action = dict(actions["actions/checkout"])
+        mismatched_action["upstream_release"] = (
+            "https://github.com/example/checkout/releases/tag/v7.0.1"
+        )
+        action_errors = CHECKER.record_errors(
+            LOCK_PATH, "action", "actions/checkout", mismatched_action
+        )
+        self.assertTrue(
+            any("owner/repository must match" in error for error in action_errors),
+            "\n".join(action_errors),
+        )
+
+        mismatched_tool = dict(tools["actionlint"])
+        mismatched_tool["asset_url"] = (
+            "https://github.com/example/actionlint/releases/download/"
+            "v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz"
+        )
+        tool_errors = CHECKER.record_errors(
+            LOCK_PATH, "tool", "actionlint", mismatched_tool
+        )
+        self.assertTrue(
+            any("owner/repository/tag must match" in error for error in tool_errors),
+            "\n".join(tool_errors),
+        )
+
+        unsafe_codeql = dict(actions["github/codeql-action"])
+        unsafe_codeql["release_resolution"] = "latest-release"
+        codeql_errors = CHECKER.record_errors(
+            LOCK_PATH, "action", "github/codeql-action", unsafe_codeql
+        )
+        self.assertTrue(
+            any("same-major-release" in error for error in codeql_errors),
+            "\n".join(codeql_errors),
+        )
+
     def test_crs_version_pinning_uses_a_safe_runtime_temp_file(self) -> None:
         script = (ROOT / "ci/checks/catalog/check-crs-version-pinning.sh").read_text(
             encoding="utf-8"

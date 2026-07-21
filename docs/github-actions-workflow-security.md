@@ -22,7 +22,8 @@ write permission. No such behavior was removed by this hardening work.
 | Workflow | Triggers | External Actions | Effective permissions | Trust disposition |
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, filtered `pull_request` | `actions/checkout` | `contents: read` | PR source is untrusted; it runs read-only with no persisted checkout credential. |
-| `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | workflow default `contents: read`; updater job effective `contents: write`, `pull-requests: write` | Scheduled/manual trusted-maintainer workflow; no pull-request trigger. |
+| `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python` | workflow and checker job both `contents: read` | Scheduled/manual trusted-maintainer workflow; it checks and ShellChecks a candidate copied under runner temporary storage, intentionally has no publisher, and cannot create, update, merge, force-push, or delete a PR branch. |
+| `update-workflow-tools.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `actions/github-script` | workflow default `contents: read`; only the publisher job has `contents: write`, `pull-requests: write` | Resolver and validator are token-free/read-only; the publisher creates or reuses only its matching Draft maintenance PR and never force-pushes. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, schedule | `actions/github-script` | workflow default `contents: read`; cleanup job effective `actions: write` | Scheduled/manual trusted-maintainer workflow; its job can delete repository artifacts only. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout` | `contents: read` | PR source and its development dependencies are untrusted; no write permission, secret, persisted credential, or submodule is configured. |
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout` | `contents: read` | PR source is untrusted; no write permission, secret, persisted credential, or submodule is configured. |
@@ -35,10 +36,9 @@ releases, and commit identities are:
 
 | Action | Official upstream | Release | Commit SHA | License | Necessary use |
 | --- | --- | --- | --- | --- | --- |
-| `actions/checkout` | [actions/checkout](https://github.com/actions/checkout) | `v7.0.0` | `9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0` | MIT | Checks out the Framework source for validation or maintenance. |
-| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | `v6.3.0` | `ece7cb06caefa5fff74198d8649806c4678c61a1` | MIT | Selects Python for the common-version updater. |
-| `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Calls the GitHub Actions artifact API for retention cleanup. |
-| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Creates the scheduled/manual common-version update pull request. |
+| `actions/checkout` | [actions/checkout](https://github.com/actions/checkout) | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` | MIT | Checks out the Framework source for validation or maintenance. |
+| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` | MIT | Selects Python for the constrained maintenance updaters. |
+| `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Inspects or creates the constrained workflow-tool updater Draft PR and calls the GitHub Actions artifact API for retention cleanup. |
 
 The contract rejects tags, branches, shortened or uppercase SHAs, dynamic
 references, Docker references, malformed or block-scalar `uses:` values,
@@ -59,11 +59,13 @@ permissions:
 ```
 
 Only a trusted job may replace that baseline with a smaller purpose-specific
-permission map. `check-common-versions` needs repository-content and
-pull-request writes to create its maintenance PR; `cleanup-artifacts` needs
-only `actions: write` to delete artifacts; the trusted non-PR CodeQL upload
-job needs `security-events: write`. No PR-triggered job may grant a write
-permission.
+permission map. `check-common-versions` remains read-only: it validates an
+ephemeral runner-temporary candidate and deliberately has no publisher. Only
+the `update-workflow-tools` publisher needs repository-content and pull-request
+writes to create its constrained Draft maintenance PR; `cleanup-artifacts`
+needs only `actions: write` to delete artifacts; the trusted non-PR CodeQL
+upload job needs `security-events: write`. No PR-triggered job may grant a
+write permission.
 
 Each direct `actions/checkout` use sets:
 
@@ -72,15 +74,32 @@ with:
   persist-credentials: false
 ```
 
-The common-version updater exposes `GITHUB_TOKEN` only in the `Validate and
-update common.sh` shell step, and the pull-request Action continues to receive
-its explicit `token: ${{ github.token }}` input. Workflow- and job-level
+The common-version checker receives no GitHub token, copies `common.sh` to
+runner-temporary storage before applying its candidate update, and has no
+branch or pull-request publisher. The workflow/tool updater splits public
+resolution, candidate validation, and publication into three jobs: resolver
+and validator retain `contents: read`, receive no publishing token, and do not
+modify the checkout. The publisher re-resolves the candidate,
+accepts only the fixed branch `automation/update-framework-workflow-tools`,
+fails unless an existing matching PR is Draft, and scopes its token to the
+small publisher steps. It verifies changed release assets through the existing
+checksum-safe downloader without executing them; a completed redirect may end
+only on `github.com`, `objects.githubusercontent.com`, or
+`release-assets.githubusercontent.com`, and SHA-256 is verified before
+extraction. The validator applies each candidate only in a bounded
+runner-temporary copy to recheck the resulting contracts. A reusable branch
+must byte-match the trusted base tree after the constrained updater produces
+its verified candidate. The publisher changes only a fixed file allowlist,
+uses a normal push, and creates a Draft PR only. Workflow- and job-level
 environments may not expose `github.token` under any variable name, including
 `GITHUB_TOKEN`. GitHub permissions are job-scoped rather than step-scoped:
 narrowing an environment variable reduces direct shell exposure but does not
 turn a write-capable trusted job into a per-step permission boundary. That job
 is consequently limited to scheduled or manual trusted-maintainer triggers and
-contains no PR event.
+contains no PR event. The repository contract parses that exact trigger set
+and publisher step profile and SHA-256-binds every publisher `run` and
+`github-script` body; comments, aliases, extra commands, or changes to the
+Draft/branch proof therefore fail closed.
 
 For every `pull_request` workflow, the checker rejects `pull_request_target`,
 write permissions, `secrets.` and `secrets[...]` references, reusable-workflow
@@ -128,6 +147,16 @@ Before changing an Action pin:
    the available actionlint, ShellCheck, and zizmor checks.
 5. Update this English/German guide and the Framework Change Record with the
    observed provenance and validation results.
+
+The scheduled/manual `update-workflow-tools.yml` can prepare a reviewable
+candidate, but it is deliberately not an approval or merge mechanism. It uses
+only the official GitHub release/Git APIs implied by the existing lock, checks
+release-tag-to-commit identity, and requires the official release asset's
+published SHA-256 before a downloaded-tool record can change. Release-asset
+redirects are confined to the documented official host allowlist, and the
+digest is verified before extraction. A failed lookup, digest, branch,
+base-derived branch-content, PR-shape, lock-digest, or allowlist check stops
+publication.
 
 ## Limitations and operational expectations
 
