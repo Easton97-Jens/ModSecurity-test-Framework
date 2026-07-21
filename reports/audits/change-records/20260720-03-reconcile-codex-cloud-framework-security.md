@@ -46,11 +46,11 @@ object for OSV, and precise evidence gates.
 
 ## Implementation decision
 
-The OSV job is a narrow target-triggered exception that executes the trusted
-base revision only, fetches the numbered GitHub pull-request head reference,
-verifies its SHA, and
-reads only bounded dependency blobs. The Actions validators permit exactly
-that shape and retain the general prohibition. Generated outputs, runtime
+The OSV job is a narrow non-privileged `pull_request` job that checks out the
+trusted base revision only, fetches the numbered GitHub pull-request head
+reference, verifies its SHA, and reads only bounded dependency blobs. It has
+only `contents: read`, no secrets, no persisted credential, and no submodules.
+The Actions validators prohibit every `pull_request_target` use. Generated outputs, runtime
 paths, and MRTS generated roots are contained; non-promotable observations
 cannot become PASS. The 401 CRS override now requires local rule `2320` in
 the audit record. Hash integrity covers raw event values before display
@@ -77,11 +77,13 @@ Cloud-finding reconciliation files. The complete per-ID mapping is in
 | `python -m unittest tests.security_regression.test_second_remediation.SecondRemediationTests.test_with_crs_status_override_requires_the_local_rule_audit_evidence` | 0 | Generic CRS block fails; local-rule audit control passes. |
 | `python -m unittest tests.no_crs.test_no_crs_baseline` | 0 | 76 No-CRS baseline tests passed. |
 | `python ci/checks/documentation/check-variable-documentation.py` and `check-repository-path-references.py` | 0 | Documentation pairing and path-reference checks passed. |
-| `python -m unittest discover -s tests/security_regression -q` | 0 | Aggregate security-regression suite passed. |
+| `python -m unittest discover -s tests/security_regression -q` | 0 | Aggregate security-regression suite passed (252 tests), including response-body display PASS with non-promotion. |
 | `python -m unittest discover -s tests/no_crs -q` | 0 | Aggregate No-CRS suite passed; expected rejection diagnostics were observed. |
 | `python -m unittest discover -s tests/ci_security -q` | 0 | 69 CI-security tests passed. |
 | `python -m unittest discover -s tests/protocol_client -q` | 0 | 24 protocol-client tests passed. |
 | `python -m unittest discover -s tests/workflow_contract -q` | 0 | 2 workflow-contract tests passed. |
+| Locked Ruff `check` and `format --check` over the CI-security scope | 0 | All 14 configured files passed after deterministic formatting. |
+| Locked `zizmor --offline .github` | 0 | No unsuppressed workflow findings; `pull_request_target` is absent. |
 | `sh -n` on every modified Framework shell entrypoint and `git diff --check` | 0 | Shell syntax and the complete pending diff passed. |
 
 ## Security impact
@@ -89,12 +91,13 @@ Cloud-finding reconciliation files. The complete per-ID mapping is in
 Focused regressions reproduce the relevant negative condition and retain a
 legitimate control: unsafe cache/provenance inputs, path escape, symlink or
 freshness bypass, generic CRS status, serialized workflow contexts, and
-volatile hash tampering are rejected. The OSV job does not check out or run PR
-head code. No security control was weakened.
+volatile hash tampering are rejected. The OSV job checks out only base-revision
+Framework source and helper code; its PR event has no elevated credential. No
+security control was weakened.
 
 ## Documentation and runtime evidence
 
-The paired workflow guides document the constrained OSV exception. The paired
+The paired workflow guides document the non-privileged OSV boundary. The paired
 finding record and canonical JSON account for every supplied row. No connector
 runtime/lifecycle run is claimed; the recorded evidence is static or Framework
 test-harness evidence.
@@ -109,9 +112,10 @@ connector/API/UI tool is exposed, so Cloud closure is `blocked_permissions`.
 
 ## Limitations and residual risk
 
-The target-triggered OSV workflow takes effect from the trusted default branch;
-its own PR edit cannot protect its pre-merge historical run. Subsequent PR
-runs use the constrained workflow. The final PR head still requires observed
+The OSV workflow is intentionally a `pull_request` workflow, so an untrusted
+PR can alter its own workflow definition only under the read-only PR token and
+without secrets. The job itself checks out base-revision source and reads the
+SHA-verified PR head only as data. The final PR head still requires observed
 GitHub checks, review, and Sonar evidence. This record does not authorize
 merging PR #37.
 

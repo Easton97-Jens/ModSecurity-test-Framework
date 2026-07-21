@@ -238,8 +238,6 @@ def matrix_status(result_status: str, classification: str, response_body_related
         return "NOT_EXECUTABLE"
     if str(classification).strip().lower() in NON_PROMOTABLE_CLASSIFICATIONS and str(result_status).strip().lower() == "pass":
         return "NOT_EXECUTABLE"
-    if response_body_related and str(result_status).strip().lower() == "pass":
-        return "NOT_EXECUTABLE"
     return matrix_status_for_result(
         result_status,
         response_body_related=response_body_related,

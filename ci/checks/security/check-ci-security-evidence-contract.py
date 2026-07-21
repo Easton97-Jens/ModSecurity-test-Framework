@@ -31,13 +31,8 @@ PR_BASE = "${{ github.event.pull_request.base.sha }}"
 DEFAULT_OR_PR_HEAD = "${{ github.event.pull_request.head.sha || github.sha }}"
 GITHUB_SHA = "${{ github.sha }}"
 PULL_REQUEST_CONDITION = "github.event_name == 'pull_request'"
-PULL_REQUEST_TARGET_CONDITION = "github.event_name == 'pull_request_target'"
 DEFAULT_BRANCH_CONDITION = (
     "github.event_name != 'pull_request' && github.ref == "
-    "format('refs/heads/{0}', github.event.repository.default_branch)"
-)
-OSV_DEFAULT_BRANCH_CONDITION = (
-    "github.event_name != 'pull_request_target' && github.ref == "
     "format('refs/heads/{0}', github.event.repository.default_branch)"
 )
 SCANNER_ARTIFACT_FREE_WORKFLOWS = frozenset(
@@ -622,7 +617,7 @@ def osv_pull_request_errors(path: Path, data: dict[str, Any]) -> list[str]:
         return errors
     errors.extend(
         require_condition(
-            path, "pull-request-head", pull_request, PULL_REQUEST_TARGET_CONDITION
+            path, "pull-request-head", pull_request, PULL_REQUEST_CONDITION
         )
     )
     steps, step_errors = job_steps(path, "pull-request-head", pull_request)
@@ -687,7 +682,7 @@ def osv_scheduled_errors(path: Path, data: dict[str, Any]) -> list[str]:
         return errors
     errors.extend(
         require_condition(
-            path, "scheduled-advisory", scheduled, OSV_DEFAULT_BRANCH_CONDITION
+            path, "scheduled-advisory", scheduled, DEFAULT_BRANCH_CONDITION
         )
     )
     steps, step_errors = job_steps(path, "scheduled-advisory", scheduled)

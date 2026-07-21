@@ -194,8 +194,8 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
             "prepare_osv_inputs() {"
         )
         self.assertTrue(function_marker)
-        function_body, after_function_marker, _remainder = after_function_start.partition(
-            'mkdir -p "$RESULTS_DIR"'
+        function_body, after_function_marker, _remainder = (
+            after_function_start.partition('mkdir -p "$RESULTS_DIR"')
         )
         self.assertTrue(after_function_marker)
         prepare_osv_inputs = f"{function_marker}{function_body}"

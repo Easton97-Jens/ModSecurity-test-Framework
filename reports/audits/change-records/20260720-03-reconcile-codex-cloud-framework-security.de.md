@@ -50,12 +50,13 @@ Evidence-Gates.
 
 ## Implementierungsentscheidung
 
-Der OSV-Job ist eine enge target-ausgelöste Ausnahme, die nur die
-vertrauenswürdige Basisrevision ausführt, die nummerierte GitHub-Pull-Request-
-Head-Referenz holt, seine
-SHA verifiziert und nur begrenzte Dependency-Blobs liest. Die Actions-
-Validatoren erlauben genau diese Form und behalten das allgemeine Verbot bei.
-Generated Outputs, Runtime-Pfade und MRTS-Generated-Roots sind contained;
+Der OSV-Job ist ein enger nicht privilegierter `pull_request`-Job, der nur die
+vertrauenswürdige Basisrevision auscheckt, die nummerierte GitHub-Pull-Request-
+Head-Referenz holt, ihre SHA verifiziert und nur begrenzte Dependency-Blobs
+liest. Er hat ausschließlich `contents: read`, keine Secrets, keine
+persistierten Credentials und keine Submodule. Die Actions-Validatoren
+verbieten jede `pull_request_target`-Nutzung. Generated Outputs, Runtime-Pfade
+und MRTS-Generated-Roots sind contained;
 nicht promotierbare Observations können nicht PASS werden. Der 401-CRS-
 Override benötigt nun lokale Regel `2320` im Audit-Record. Hash-Integrität
 umfasst rohe Event-Werte vor der Display-Normalisierung.
@@ -82,11 +83,13 @@ Mapping steht in
 | `python -m unittest tests.security_regression.test_second_remediation.SecondRemediationTests.test_with_crs_status_override_requires_the_local_rule_audit_evidence` | 0 | Generischer CRS-Block schlägt fehl; lokale-Rule-Audit-Control besteht. |
 | `python -m unittest tests.no_crs.test_no_crs_baseline` | 0 | 76 No-CRS-Baseline-Tests bestanden. |
 | `python ci/checks/documentation/check-variable-documentation.py` und `check-repository-path-references.py` | 0 | Documentation-Pairing- und Path-Reference-Checks bestanden. |
-| `python -m unittest discover -s tests/security_regression -q` | 0 | Die aggregierte Security-Regression-Suite bestand. |
+| `python -m unittest discover -s tests/security_regression -q` | 0 | Die aggregierte Security-Regression-Suite bestand (252 Tests), einschließlich Response-Body-Display-PASS mit Non-Promotion. |
 | `python -m unittest discover -s tests/no_crs -q` | 0 | Die aggregierte No-CRS-Suite bestand; erwartete Rejection-Diagnosen wurden beobachtet. |
 | `python -m unittest discover -s tests/ci_security -q` | 0 | 69 CI-Security-Tests bestanden. |
 | `python -m unittest discover -s tests/protocol_client -q` | 0 | 24 Protocol-Client-Tests bestanden. |
 | `python -m unittest discover -s tests/workflow_contract -q` | 0 | 2 Workflow-Contract-Tests bestanden. |
+| Gelocktes Ruff `check` und `format --check` über den CI-Security-Scope | 0 | Alle 14 konfigurierten Dateien bestanden nach deterministischer Formatierung. |
+| Gelocktes `zizmor --offline .github` | 0 | Keine nicht unterdrückten Workflow-Befunde; `pull_request_target` fehlt. |
 | `sh -n` für jeden geänderten Framework-Shell-Entrypoint und `git diff --check` | 0 | Shell-Syntax und der vollständige ausstehende Diff bestanden. |
 
 ## Sicherheitsauswirkung
@@ -95,12 +98,14 @@ Fokussierte Regressionen reproduzieren die relevante Negative Condition und
 bewahren eine legitime Kontrolle: unsichere Cache-/Provenance-Eingaben,
 Path-Escape, Symlink- oder Freshness-Bypass, generischer CRS-Status,
 serialisierte Workflow-Kontexte und volatile Hash-Tampering werden abgewiesen.
-Der OSV-Job checkt keinen PR-Head-Code aus und führt ihn nicht aus. Keine
-Sicherheitskontrolle wurde geschwächt.
+Der OSV-Job checkt nur Framework-Quellcode und Helper der Basisrevision aus;
+sein PR-Event hat keine erhöhte Berechtigung. Keine Sicherheitskontrolle wurde
+geschwächt.
 
 ## Dokumentation und Runtime-Evidenz
 
-Die gepaarten Workflow-Leitfäden dokumentieren die begrenzte OSV-Ausnahme. Der
+Die gepaarten Workflow-Leitfäden dokumentieren die nicht privilegierte OSV-
+Grenze. Der
 gepaarte Finding-Record und das kanonische JSON weisen jede bereitgestellte
 Zeile aus. Es wird kein Connector-Runtime-/Lifecycle-Run behauptet; die
 erfasste Evidence ist statisch oder Framework-Test-Harness-Evidence.
@@ -116,11 +121,12 @@ Cloud-Closure ist daher `blocked_permissions`.
 
 ## Einschränkungen und Restrisiko
 
-Der target-ausgelöste OSV-Workflow wirkt von der vertrauenswürdigen Default-
-Branch aus; seine eigene PR-Änderung kann den historischen Pre-Merge-Run nicht
-schützen. Folgende PR-Runs verwenden den begrenzten Workflow. Der finale PR-
-Head benötigt weiterhin beobachtete GitHub-Checks, Review und Sonar-Evidence.
-Dieser Record autorisiert keinen Merge von PR #37.
+Der OSV-Workflow ist bewusst ein `pull_request`-Workflow; damit kann ein nicht
+vertrauenswürdiger PR seine eigene Workflow-Definition nur unter dem
+schreibgeschützten PR-Token und ohne Secrets ändern. Der Job selbst checkt
+Basisrevisions-Quellcode aus und liest den SHA-verifizierten PR-Head nur als
+Daten. Der finale PR-Head benötigt weiterhin beobachtete GitHub-Checks, Review
+und Sonar-Evidence. Dieser Record autorisiert keinen Merge von PR #37.
 
 ## Finaler Diff- und Review-Status
 

@@ -12,10 +12,11 @@ The contract covers every `.yml` and `.yaml` file in `.github/workflows/`,
 including nested directories. The validator resolves a requested workflow file
 or directory below the current repository root before reading it, and skips a
 resolved path that escapes that root (for example through a symlink).
-There is one Framework-owned, constrained `pull_request_target` workflow:
-the OSV job checks out the trusted PR base SHA, fetches and verifies the
-numbered PR head object, and reads only named dependency-manifest blobs; it
-never checks out or executes PR-head files. No PR checkout enables submodules.
+The Framework-owned OSV workflow uses the non-privileged `pull_request` event.
+Its narrow job checks out the trusted PR base SHA, fetches and verifies the
+numbered PR head object, and reads only named dependency-manifest blobs. The
+checked-out Framework source and scanner helper are therefore the base revision,
+not PR-head files. No PR checkout enables submodules.
 The separately documented CI-security suite has bounded OSV/Scorecard artifact
 exceptions; its only SARIF/CodeQL upload is the trusted, non-PR
 `ci-security-codeql.yml` job. Its read-only
@@ -29,7 +30,7 @@ write permission. No such behavior was removed by this hardening work.
 | `cleanup-artifacts.yml` | `workflow_dispatch`, schedule | `actions/github-script` | workflow default `contents: read`; cleanup job effective `actions: write` | Scheduled/manual trusted-maintainer workflow; its job can delete repository artifacts only. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout` | `contents: read` | PR source and its development dependencies are untrusted; no write permission, secret, persisted credential, or submodule is configured. |
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout` | `contents: read` | PR source is untrusted; no write permission, secret, persisted credential, or submodule is configured. |
-| `ci-security-osv.yml` | constrained `pull_request_target`, schedule, manual | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact` | `contents: read` | The target-triggered job executes the trusted base revision only; it verifies a fetched PR object and treats two manifest blobs as data, never as checked-out code. |
+| `ci-security-osv.yml` | constrained `pull_request`, schedule, manual | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact` | `contents: read` | The non-privileged PR job executes the trusted base revision only, verifies a fetched PR object, and treats two manifest blobs as data rather than checked-out code. |
 
 ## Immutable Action provenance
 
@@ -89,12 +90,11 @@ contains no PR event.
 For every `pull_request` workflow, the checker rejects `pull_request_target`,
 write permissions, `secrets.` and `secrets[...]` references, reusable-workflow
 secret forwarding, direct checkout without `persist-credentials: false`, and
-enabled or dynamic submodules. It permits `pull_request_target` only in the
-named OSV workflow when that job checks out the PR base SHA, uses
-`contents: read`, disables persisted credentials and submodules, and is
-independently required to fetch, SHA-verify, and blob-read the PR head. This
-models same-repository and fork PR code as untrusted while preserving a
-data-only dependency comparison.
+enabled or dynamic submodules. The OSV job is not an exception to this trigger
+policy: it runs with `contents: read`, no secrets, no persisted credentials,
+and no submodules. It additionally checks out the PR base SHA and is required
+to fetch, SHA-verify, and blob-read the PR head, preserving a data-only
+dependency comparison for untrusted same-repository and fork PR input.
 
 ## Enforced checks and fixtures
 
@@ -116,7 +116,7 @@ The regression suite first validates the real workflows, then proves that safe
 read-only-PR and trusted-writer fixtures pass. Unsafe fixtures prove rejection
 of mutable references in both extensions, block mappings, flow mappings, and
 flow-sequence mappings, dynamic and alternate key syntax references, missing
-release comments, unauthorized `pull_request_target`, top-level and PR-job write
+release comments, any `pull_request_target`, top-level and PR-job write
 permissions, persisted credentials, broad job token exposure, submodules,
 secret references, and duplicate YAML keys. `make lint` invokes the checker
 and this suite, while the filtered `check-action-versions` workflow also runs

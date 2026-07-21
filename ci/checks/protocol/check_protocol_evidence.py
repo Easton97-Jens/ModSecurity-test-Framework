@@ -411,13 +411,18 @@ def _command_argument_safety_errors(arguments: Sequence[str]) -> list[str]:
     return errors
 
 
-def _command_output_safety_errors(arguments: Sequence[str]) -> list[str]:
-    """Require exactly one non-capturing curl output destination.
+def _output_option_value(
+    arguments: Sequence[str], index: int, option: str
+) -> tuple[str | None, int, str | None]:
+    if index + 1 >= len(arguments):
+        return None, index, f"client command has an {option} option without a destination"
+    return arguments[index + 1], index + 1, None
 
-    Shell-word parsing is intentional here: textual substring checks cannot
-    distinguish a safe ``--output /dev/null`` from a later overriding output
-    option, nor do they recognize curl's ``--option=value`` forms.
-    """
+
+def _command_output_destinations(
+    arguments: Sequence[str],
+) -> tuple[list[str], list[str]]:
+    """Collect curl output destinations without accepting payload capture."""
 
     errors: list[str] = []
     output_destinations: list[str] = []
@@ -430,21 +435,33 @@ def _command_output_safety_errors(arguments: Sequence[str]) -> list[str]:
         if option == "--output":
             if separator:
                 output_destinations.append(inline_value)
-            elif index + 1 < len(arguments):
-                output_destinations.append(arguments[index + 1])
-                index += 1
             else:
-                errors.append("client command has an output option without a destination")
+                value, index, error = _output_option_value(arguments, index, option)
+                if error is not None:
+                    errors.append(error)
+                elif value is not None:
+                    output_destinations.append(value)
         elif argument == "-o":
-            if index + 1 < len(arguments):
-                output_destinations.append(arguments[index + 1])
-                index += 1
-            else:
-                errors.append("client command has an output option without a destination")
+            value, index, error = _output_option_value(arguments, index, argument)
+            if error is not None:
+                errors.append(error)
+            elif value is not None:
+                output_destinations.append(value)
         elif argument.startswith("-o") and len(argument) > 2:
             output_destinations.append(argument[2:])
         index += 1
+    return output_destinations, errors
 
+
+def _command_output_safety_errors(arguments: Sequence[str]) -> list[str]:
+    """Require exactly one non-capturing curl output destination.
+
+    Shell-word parsing is intentional here: textual substring checks cannot
+    distinguish a safe ``--output /dev/null`` from a later overriding output
+    option, nor do they recognize curl's ``--option=value`` forms.
+    """
+
+    output_destinations, errors = _command_output_destinations(arguments)
     if output_destinations != ["/dev/null"]:
         errors.append("client command must use exactly one payload-free output destination")
     return errors
