@@ -8,11 +8,17 @@ import os
 from pathlib import Path
 import re
 import shlex
+import sys
 import time
 from typing import Any, Iterable, Mapping
 
+FRAMEWORK_CI_LIB = Path(__file__).resolve().parents[2] / "ci" / "lib"
+if str(FRAMEWORK_CI_LIB) not in sys.path:
+    sys.path.insert(0, str(FRAMEWORK_CI_LIB))
+
 from adapter_interface import ConnectorAdapter
 from case_roots import case_dirs, infer_runner_scope, path_is_in_extra_root
+from generated_report_utils import write_generated_report_file  # noqa: E402
 from msconnector_models import intervention_from_expect, operation_status
 
 DEFAULT_RESPONSE_BODY = "TEST-OK-IF-YOU-SEE-THIS\n"
@@ -630,10 +636,8 @@ def write_rules_file(
     _validate_rules_preamble(case, rules_preamble_file)
     rules = _render_rules(case, audit_log_file, audit_log_dir)
     preamble = _read_rules_preamble(rules_preamble_file)
-    output = contained_write_path(path, output_root)
-    output.parent.mkdir(parents=True, exist_ok=True)
     local_rules = rules if rules.endswith("\n") else f"{rules}\n"
-    output.write_text(f"{preamble}{local_rules}", encoding="utf-8")
+    write_contained_text_file(path, f"{preamble}{local_rules}", output_root=output_root)
 
 
 def _validate_rules_preamble(
@@ -680,6 +684,15 @@ def contained_write_path(path: str | Path, output_root: str | Path) -> Path:
     except ValueError as error:
         raise ValueError(f"write path escapes output root: {path}") from error
     return target
+
+
+def write_contained_text_file(path: str | Path, contents: str, *, output_root: str | Path) -> Path:
+    """Atomically replace a contained text output without following links."""
+    output = contained_write_path(path, output_root)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output = contained_write_path(output, output_root)
+    write_generated_report_file(output.parent, output.name, contents)
+    return output
 
 
 def request_headers(case: Mapping[str, Any]) -> Mapping[str, Any]:

@@ -15,6 +15,14 @@ MRTS_BUILD_ROOT="${MRTS_BUILD_ROOT:-$BUILD_ROOT/mrts}"
 MRTS_RULES_OUT="${MRTS_RULES_OUT:-$MRTS_BUILD_ROOT/upstream-config-tests/rules}"
 MRTS_LOAD_FILE="${MRTS_LOAD_FILE:-$MRTS_BUILD_ROOT/upstream-config-tests/mrts.load}"
 
+assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
+assert_runtime_path_under_root "$MRTS_BUILD_ROOT" "$BUILD_ROOT/mrts" MRTS_BUILD_ROOT || exit 77
+assert_safe_runtime_path "$MRTS_RULES_OUT" MRTS_RULES_OUT || exit 77
+assert_runtime_path_under_root "$MRTS_RULES_OUT" "$MRTS_BUILD_ROOT" MRTS_RULES_OUT || exit 77
+assert_safe_runtime_path "$(dirname "$MRTS_LOAD_FILE")" MRTS_LOAD_FILE_DIR || exit 77
+assert_runtime_path_under_root "$MRTS_LOAD_FILE" "$MRTS_BUILD_ROOT" MRTS_LOAD_FILE || exit 77
+assert_not_system_path_for_write "$MRTS_LOAD_FILE" MRTS_LOAD_FILE || exit 77
+
 case "$(CDPATH= cd "$MRTS_RULES_OUT" 2>/dev/null && pwd || printf '%s' "$MRTS_RULES_OUT")" in
     "$FRAMEWORK_ROOT"/tools/MRTS/generated|"$FRAMEWORK_ROOT"/tools/MRTS/generated/*|"$FRAMEWORK_ROOT"/tools/MRTS/feature_demo/generated|"$FRAMEWORK_ROOT"/tools/MRTS/feature_demo/generated/*)
         echo "BLOCKED: refusing to write MRTS load file from golden references: $MRTS_RULES_OUT" >&2
@@ -29,9 +37,6 @@ if [ -z "$rule_list" ]; then
     exit 77
 fi
 
-assert_safe_runtime_path "$MRTS_RULES_OUT" MRTS_RULES_OUT || exit 77
-assert_safe_runtime_path "$(dirname "$MRTS_LOAD_FILE")" MRTS_LOAD_FILE_DIR || exit 77
-assert_not_system_path_for_write "$MRTS_LOAD_FILE" MRTS_LOAD_FILE || exit 77
 mkdir -p "$(dirname "$MRTS_LOAD_FILE")"
 tmp_file="$MRTS_LOAD_FILE.tmp.$$"
 assert_not_system_path_for_write "$tmp_file" MRTS_LOAD_FILE_TMP || exit 77
