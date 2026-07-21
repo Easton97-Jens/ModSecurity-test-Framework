@@ -44,6 +44,12 @@ Checkout is updated to v7.0.1 at 3d3c42e5aac5ba805825da76410c181273ba90b1 and se
 
 The updater separates resolver, validator, and publisher. The contract parses the workflow and pins the write-capable publisher's reviewed step profile, including command/script bodies, rather than relying on loose text markers. The updater uses official GitHub release metadata, validates annotated-tag identities and release-asset digests, and accepts only explicit GitHub release-asset redirect hosts before SHA-256 verification.
 
+Follow-up hardening keeps candidate I/O confined to owned, non-symlinked
+`RUNNER_TEMP` paths and uses canonical allowlisted writes plus validated Git
+arguments. This addresses the source-level path, overwrite, and Git-revision
+boundaries raised by the initial Draft PR scan without weakening the exact
+publisher profile.
+
 `check-common-versions.yml` no longer publishes a maintenance branch or PR. It checks and ShellChecks an ephemeral copy under `RUNNER_TEMP` with read-only permissions, so the new constrained workflow/tool updater is the only Framework path that can create or update a Draft maintenance PR.
 
 ## Changed files and tests
@@ -60,11 +66,13 @@ The updater separates resolver, validator, and publisher. The contract parses th
 | python3 -m unittest discover -s tests/ci_security -v | 0 | 106 focused CI-security tests passed. | Local task validation; no payload retained. |
 | python3 -m unittest tests.security_regression.test_workflow_security_contract -v | 0 | 7 workflow-security regression tests passed. | Local task validation. |
 | CI workflow, Action-pin, and CI-security contract checkers | 0 | 14 workflows, immutable pins, and constrained publisher profile passed. | Local task validation. |
+| token-free `update-workflow-tools.py resolve` | 0 | Current official candidate resolved after the public API reset; output SHA-256 `e2f8ac674fc98a1e84ad426c9ab6e097ec512924c649db4ff6bf7d8b730e8218`. | Local task validation. |
+| `make lint` after the source-level remediation | 0 | CI-security, workflow/pin/docs/change-record checks and remediation lint/format checks passed. | Local task validation. |
 | git diff --check | 0 | No whitespace errors. | Framework task worktree. |
 
 ## Security impact
 
-This is CI supply-chain hardening. Mutable pins, broad redirect acceptance, token exposure in read-only jobs, unvalidated candidate trees, force/default pushes, auto-merge, duplicate PRs, and injected reusable-branch content are covered by explicit negative tests. Removing the third-party common-version PR publisher also removes its force-capable branch update/delete behavior. The updater does not run a changed downloaded tool before validating its checksum and archive layout.
+This is CI supply-chain hardening. Mutable pins, broad redirect acceptance, token exposure in read-only jobs, unvalidated candidate trees, force/default pushes, auto-merge, duplicate PRs, injected reusable-branch content, unsafe temporary-path writes, and hostile Git revision inputs are covered by explicit negative tests. Removing the third-party common-version PR publisher also removes its force-capable branch update/delete behavior. The updater does not run a changed downloaded tool before validating its checksum and archive layout.
 
 ## Documentation and runtime evidence
 
@@ -72,8 +80,7 @@ English/German workflow-security and CI-tooling documentation describes immutabl
 
 ## Checks not run
 
-- Local Ruff was not run because its executable/module is unavailable.
-- Hosted Actionlint/ShellCheck/Zizmor execution, CodeQL, dependency review, OSV, Scorecard, Gitleaks, and any Sonar check remain exact-Draft-PR-head evidence to be observed after publication.
+- Hosted Actionlint/ShellCheck/Zizmor execution, CodeQL, dependency review, OSV, Scorecard, Gitleaks, and any Sonar check remain exact-Draft-PR-head evidence to be observed after publication. The initial head of Draft PR #40 received a Sonar quality-gate failure that drove the source-level remediation recorded above; the resulting later exact head must be observed separately.
 - PR #39 was not modified. Its independent Python-updater work can overlap in workflow/docs files and may require later maintainer conflict resolution.
 
 ## Limitations and residual risk
@@ -82,4 +89,4 @@ The updater deliberately supports only reviewed lock records and explicit paths.
 
 ## Final diff and review status
 
-The source diff received an independent read-only security review, focused tests, workflow/pin/contract checks, and whitespace review before this record. At this record's creation it remains uncommitted and unpushed; the final Draft PR number, exact-head CI evidence, and review state must be added only after they are observed.
+The source diff received independent read-only security review, focused tests, workflow/pin/contract checks, remediation review, and whitespace review. Draft PR #40 exists; exact-head CI evidence and review state for the later remediation head must be added only after they are observed.

@@ -28,6 +28,37 @@ IF_NO_FILES_FOUND_ERROR = "if-no-files-found: error"
 SECURITY_EVENTS_WRITE = "security-events: write"
 SECURITY_TOOL_DOWNLOADER = "ci/tools/fetch-security-tool.py"
 HASH_LOCKED_CI_REQUIREMENTS = "--require-hashes -r requirements-ci.lock"
+WORKFLOW_TOOL_UPDATER = "update-workflow-tools.yml"
+GITHUB_TOKEN_EXPRESSION = "${{ github.token }}"
+UPDATER_PUBLISH_TOKEN_ENV = "PUBLISH_TOKEN"
+STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION = "Checkout trusted default revision"
+STEP_SETUP_REVIEWED_PYTHON = "Set up reviewed Python"
+STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY = "Install hash-locked CI dependency"
+STEP_FETCH_CHECKSUM_VERIFIED_SHELLCHECK = "Fetch checksum-verified ShellCheck"
+STEP_VALIDATE_EPHEMERAL_COMMON_SH_CANDIDATE = (
+    "Validate an ephemeral common.sh candidate"
+)
+STEP_SYNTAX_AND_SHELLCHECK = "Syntax and ShellCheck"
+STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST = (
+    "Inspect matching Draft maintenance pull request"
+)
+STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH = (
+    "Prepare the constrained maintenance branch"
+)
+STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH = (
+    "Revalidate the reusable Draft branch before modifying it"
+)
+STEP_RERESOLVE_CURRENT_CANDIDATES = "Re-resolve and narrowly apply current candidates"
+STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS = (
+    "Commit and push only approved updater paths"
+)
+STEP_CREATE_DRAFT_PULL_REQUEST = "Create the matching Draft pull request"
+STEP_KEYS_ACTION = frozenset({"name", "uses", "with"})
+STEP_KEYS_RUN = frozenset({"name", "run"})
+STEP_KEYS_ENV_RUN = frozenset({"env", "name", "run"})
+STEP_KEYS_SCRIPT = frozenset({"id", "name", "uses", "with"})
+STEP_KEYS_ENV_ID_RUN = frozenset({"env", "id", "name", "run"})
+STEP_KEYS_CONDITIONAL_SCRIPT = frozenset({"if", "name", "uses", "with"})
 COMMON_RECORD_FIELDS = {
     "name",
     "version",
@@ -47,7 +78,7 @@ ACTION_RELEASE_RESOLUTIONS = {
 REVIEWED_ACTION_RELEASE_RESOLUTIONS = {
     "github/codeql-action": ACTION_RELEASE_RESOLUTION_SAME_MAJOR,
 }
-CODEQL_ACTION_SERIES_TAG = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+$")
+CODEQL_ACTION_SERIES_TAG = re.compile(r"^v\d+\.\d+\.\d+$", re.ASCII)
 ACTION_FIELDS = COMMON_RECORD_FIELDS | {"release_resolution"}
 TOOL_FIELDS = COMMON_RECORD_FIELDS | {
     "asset",
@@ -66,13 +97,13 @@ WRITE_PERMISSION_ALLOWLIST = {
     "check-python-version.yml": {"contents", "pull-requests"},
     "cleanup-artifacts.yml": {"actions"},
     "ci-security-codeql.yml": {"security-events"},
-    "update-workflow-tools.yml": {"contents", "pull-requests"},
+    WORKFLOW_TOOL_UPDATER: {"contents", "pull-requests"},
 }
 TOKEN_REFERENCE_ALLOWLIST = {
     "check-common-versions.yml",
     "check-python-version.yml",
     "ci-security-dependency-review.yml",
-    "update-workflow-tools.yml",
+    WORKFLOW_TOOL_UPDATER,
 }
 TOKEN_REFERENCE = re.compile(
     r"(?:github(?:\s*\.\s*token|\s*\[\s*['\"]token['\"]\s*\])|"
@@ -120,42 +151,42 @@ COMMON_VERSION_JOB_KEYS = frozenset(
     {"runs-on", "timeout-minutes", "permissions", "steps"}
 )
 COMMON_VERSION_STEP_PROFILE = (
-    ("Checkout trusted default revision", frozenset({"name", "uses", "with"})),
-    ("Set up reviewed Python", frozenset({"name", "uses", "with"})),
-    ("Install hash-locked CI dependency", frozenset({"name", "run"})),
-    ("Fetch checksum-verified ShellCheck", frozenset({"env", "name", "run"})),
-    ("Validate an ephemeral common.sh candidate", frozenset({"name", "run"})),
-    ("Syntax and ShellCheck", frozenset({"env", "name", "run"})),
+    (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, STEP_KEYS_ACTION),
+    (STEP_SETUP_REVIEWED_PYTHON, STEP_KEYS_ACTION),
+    (STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY, STEP_KEYS_RUN),
+    (STEP_FETCH_CHECKSUM_VERIFIED_SHELLCHECK, STEP_KEYS_ENV_RUN),
+    (STEP_VALIDATE_EPHEMERAL_COMMON_SH_CANDIDATE, STEP_KEYS_RUN),
+    (STEP_SYNTAX_AND_SHELLCHECK, STEP_KEYS_ENV_RUN),
 )
 COMMON_VERSION_ACTIONS = {
-    "Checkout trusted default revision": "actions/checkout",
-    "Set up reviewed Python": "actions/setup-python",
+    STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION: "actions/checkout",
+    STEP_SETUP_REVIEWED_PYTHON: "actions/setup-python",
 }
 COMMON_VERSION_WITH_VALUES = {
-    "Checkout trusted default revision": {
+    STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION: {
         "ref": "${{ github.event.repository.default_branch }}",
         "fetch-depth": 1,
         "persist-credentials": False,
         "submodules": False,
     },
-    "Set up reviewed Python": {
+    STEP_SETUP_REVIEWED_PYTHON: {
         "python-version": REVIEWED_PYTHON_VERSION,
         "check-latest": False,
     },
 }
 COMMON_VERSION_ENV_VALUES = {
-    "Fetch checksum-verified ShellCheck": {
+    STEP_FETCH_CHECKSUM_VERIFIED_SHELLCHECK: {
         "TOOLS_DIR": "${{ runner.temp }}/framework-ci-security-tools",
     },
-    "Syntax and ShellCheck": {
+    STEP_SYNTAX_AND_SHELLCHECK: {
         "TOOLS_DIR": "${{ runner.temp }}/framework-ci-security-tools",
     },
 }
 COMMON_VERSION_RUN_SHA256 = {
-    "Install hash-locked CI dependency": "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
-    "Fetch checksum-verified ShellCheck": "f4e26f8af7f41a9e425a9416c78f0ff7ca2b4e8faa0837acd94c91b26a4ecb7d",
-    "Validate an ephemeral common.sh candidate": "07bd03533098e4545fc5ad541321b508a694832dad4a2c97c35737f12053fe2d",
-    "Syntax and ShellCheck": "48e6e6a734c93fd322d37696b3667027b5a2be31aa2192b386ff47a6b35f739e",
+    STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
+    STEP_FETCH_CHECKSUM_VERIFIED_SHELLCHECK: "f4e26f8af7f41a9e425a9416c78f0ff7ca2b4e8faa0837acd94c91b26a4ecb7d",
+    STEP_VALIDATE_EPHEMERAL_COMMON_SH_CANDIDATE: "07bd03533098e4545fc5ad541321b508a694832dad4a2c97c35737f12053fe2d",
+    STEP_SYNTAX_AND_SHELLCHECK: "48e6e6a734c93fd322d37696b3667027b5a2be31aa2192b386ff47a6b35f739e",
 }
 COMMON_VERSION_FORBIDDEN_DELIVERY_SNIPPETS = (
     "peter-evans/create-pull-request@",
@@ -184,39 +215,39 @@ UPDATER_PUBLISHER_JOB_KEYS = frozenset(
     {"needs", "if", "runs-on", "timeout-minutes", "permissions", "steps"}
 )
 UPDATER_PUBLISHER_STEP_PROFILE = (
-    ("Checkout trusted default revision", frozenset({"name", "uses", "with"})),
-    ("Set up reviewed Python", frozenset({"name", "uses", "with"})),
-    ("Install hash-locked CI dependency", frozenset({"name", "run"})),
+    (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, STEP_KEYS_ACTION),
+    (STEP_SETUP_REVIEWED_PYTHON, STEP_KEYS_ACTION),
+    (STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY, STEP_KEYS_RUN),
     (
-        "Inspect matching Draft maintenance pull request",
-        frozenset({"id", "name", "uses", "with"}),
+        STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST,
+        STEP_KEYS_SCRIPT,
     ),
     (
-        "Prepare the constrained maintenance branch",
-        frozenset({"env", "name", "run"}),
+        STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH,
+        STEP_KEYS_ENV_RUN,
     ),
-    ("Revalidate the reusable Draft branch before modifying it", frozenset({"name", "run"})),
-    ("Re-resolve and narrowly apply current candidates", frozenset({"name", "run"})),
-    ("Commit and push only approved updater paths", frozenset({"env", "id", "name", "run"})),
+    (STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH, STEP_KEYS_RUN),
+    (STEP_RERESOLVE_CURRENT_CANDIDATES, STEP_KEYS_RUN),
+    (STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS, STEP_KEYS_ENV_ID_RUN),
     (
-        "Create the matching Draft pull request",
-        frozenset({"if", "name", "uses", "with"}),
+        STEP_CREATE_DRAFT_PULL_REQUEST,
+        STEP_KEYS_CONDITIONAL_SCRIPT,
     ),
 )
 UPDATER_PUBLISHER_ACTIONS = {
-    "Checkout trusted default revision": "actions/checkout",
-    "Set up reviewed Python": "actions/setup-python",
-    "Inspect matching Draft maintenance pull request": "actions/github-script",
-    "Create the matching Draft pull request": "actions/github-script",
+    STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION: "actions/checkout",
+    STEP_SETUP_REVIEWED_PYTHON: "actions/setup-python",
+    STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: "actions/github-script",
+    STEP_CREATE_DRAFT_PULL_REQUEST: "actions/github-script",
 }
 UPDATER_PUBLISHER_WITH_VALUES = {
-    "Checkout trusted default revision": {
+    STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION: {
         "ref": "${{ github.event.repository.default_branch }}",
         "fetch-depth": 1,
         "persist-credentials": False,
         "submodules": False,
     },
-    "Set up reviewed Python": {
+    STEP_SETUP_REVIEWED_PYTHON: {
         "python-version": REVIEWED_PYTHON_VERSION,
         "check-latest": False,
     },
@@ -226,38 +257,36 @@ UPDATER_PUBLISHER_WITH_KEYS = {
         name: frozenset(values)
         for name, values in UPDATER_PUBLISHER_WITH_VALUES.items()
     },
-    "Inspect matching Draft maintenance pull request": frozenset(
-        {"github-token", "script"}
-    ),
-    "Create the matching Draft pull request": frozenset({"github-token", "script"}),
+    STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: frozenset({"github-token", "script"}),
+    STEP_CREATE_DRAFT_PULL_REQUEST: frozenset({"github-token", "script"}),
 }
 UPDATER_PUBLISHER_ENV_VALUES = {
-    "Prepare the constrained maintenance branch": {
+    STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH: {
         "MAINTENANCE_PR_EXISTS": "${{ steps.maintenance_pr.outputs.existing }}",
-        "PUBLISH_TOKEN": "${{ github.token }}",
+        UPDATER_PUBLISH_TOKEN_ENV: GITHUB_TOKEN_EXPRESSION,
     },
-    "Commit and push only approved updater paths": {
-        "PUBLISH_TOKEN": "${{ github.token }}",
+    STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: {
+        UPDATER_PUBLISH_TOKEN_ENV: GITHUB_TOKEN_EXPRESSION,
     },
 }
 UPDATER_PUBLISHER_FIELD_VALUES = {
-    "Inspect matching Draft maintenance pull request": {"id": "maintenance_pr"},
-    "Commit and push only approved updater paths": {"id": "commit"},
-    "Create the matching Draft pull request": {
+    STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: {"id": "maintenance_pr"},
+    STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: {"id": "commit"},
+    STEP_CREATE_DRAFT_PULL_REQUEST: {
         "if": "steps.commit.outputs.changed == 'true' && "
         "steps.maintenance_pr.outputs.existing == 'false'",
     },
 }
 UPDATER_PUBLISHER_RUN_SHA256 = {
-    "Install hash-locked CI dependency": "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
-    "Prepare the constrained maintenance branch": "f04648061e1365c9a9b74c74746bdef6afb4481e1959d57fdf008606d650a9c6",
-    "Revalidate the reusable Draft branch before modifying it": "4c68dd3aed3315ae942409eb52d6a44175a1c668cde2e9413a475e4422524c93",
-    "Re-resolve and narrowly apply current candidates": "bd0d48ff34d281197af63c9e72be64a719ecd48689c2edf6fbf7fbd4a5f6a278",
-    "Commit and push only approved updater paths": "7287c78623047abc8f73b435103bad91c1dcf1bf4b149ba58bedaea28826e174",
+    STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
+    STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH: "f04648061e1365c9a9b74c74746bdef6afb4481e1959d57fdf008606d650a9c6",
+    STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH: "4c68dd3aed3315ae942409eb52d6a44175a1c668cde2e9413a475e4422524c93",
+    STEP_RERESOLVE_CURRENT_CANDIDATES: "bd0d48ff34d281197af63c9e72be64a719ecd48689c2edf6fbf7fbd4a5f6a278",
+    STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: "7287c78623047abc8f73b435103bad91c1dcf1bf4b149ba58bedaea28826e174",
 }
 UPDATER_PUBLISHER_SCRIPT_SHA256 = {
-    "Inspect matching Draft maintenance pull request": "3d51794a9c57865efd999657eb78214383cf3c81f7575498eebb1ef9dcbf4699",
-    "Create the matching Draft pull request": "83d13cd70cdb643a924d7a79abc1d52bb58f9e2979d5b1e925c7595446fe806c",
+    STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: "3d51794a9c57865efd999657eb78214383cf3c81f7575498eebb1ef9dcbf4699",
+    STEP_CREATE_DRAFT_PULL_REQUEST: "83d13cd70cdb643a924d7a79abc1d52bb58f9e2979d5b1e925c7595446fe806c",
 }
 UPDATER_SENSITIVE_KEY = re.compile(r"(?:secret|token)", re.IGNORECASE)
 UPDATER_SENSITIVE_VALUE = re.compile(
@@ -430,7 +459,10 @@ def common_record_errors(
         expected_resolution = REVIEWED_ACTION_RELEASE_RESOLUTIONS.get(
             name, ACTION_RELEASE_RESOLUTION_LATEST
         )
-        if not isinstance(resolution, str) or resolution not in ACTION_RELEASE_RESOLUTIONS:
+        if (
+            not isinstance(resolution, str)
+            or resolution not in ACTION_RELEASE_RESOLUTIONS
+        ):
             errors.append(
                 f"{path}: action {name!r} has an unsupported release resolution"
             )
@@ -459,9 +491,7 @@ def release_provenance_errors(
     version = record.get("version")
     release = record.get("upstream_release")
     release_match = (
-        GITHUB_RELEASE_URL.fullmatch(release)
-        if isinstance(release, str)
-        else None
+        GITHUB_RELEASE_URL.fullmatch(release) if isinstance(release, str) else None
     )
     if release_match is None:
         return [f"{path}: {group} {name!r} has no exact GitHub release URL"]
@@ -1248,14 +1278,18 @@ def updater_job_topology_errors(path: Path, data: dict[str, Any]) -> list[str]:
 
     jobs = data.get("jobs")
     if not isinstance(jobs, dict):
-        return [f"{path}: updater must define exactly resolver, validator, and publisher jobs"]
+        return [
+            f"{path}: updater must define exactly resolver, validator, and publisher jobs"
+        ]
     errors: list[str] = []
     if set(jobs) != UPDATER_JOB_NAMES:
         errors.append(
             f"{path}: updater must define exactly resolver, validator, and publisher jobs"
         )
     if data.get("permissions") != UPDATER_READ_ONLY_PERMISSIONS:
-        errors.append(f"{path}: updater top-level permissions must be exactly {UPDATER_READ_ONLY_PERMISSIONS}")
+        errors.append(
+            f"{path}: updater top-level permissions must be exactly {UPDATER_READ_ONLY_PERMISSIONS}"
+        )
     top_level_references = updater_sensitive_references(data.get("env", {}), "env")
     if top_level_references:
         errors.append(
@@ -1287,7 +1321,9 @@ def updater_ordering_errors(path: Path, data: dict[str, Any]) -> list[str]:
 
     jobs = data.get("jobs")
     if not isinstance(jobs, dict):
-        return [f"{path}: updater must define ordered resolver/validator/publisher jobs"]
+        return [
+            f"{path}: updater must define ordered resolver/validator/publisher jobs"
+        ]
     validator = jobs.get("validator")
     publisher = jobs.get("publisher")
     errors: list[str] = []
@@ -1313,11 +1349,12 @@ def updater_ordering_errors(path: Path, data: dict[str, Any]) -> list[str]:
 def updater_trigger_errors(path: Path, data: dict[str, Any]) -> list[str]:
     """Allow the write-capable updater to start only by schedule or dispatch."""
 
-    has_string_on = "on" in data
-    has_yaml_boolean_on = True in data
+    yaml_data: dict[Any, Any] = data
+    has_string_on = "on" in yaml_data
+    has_yaml_boolean_on = True in yaml_data
     if has_string_on and has_yaml_boolean_on:
         return [f"{path}: updater trigger declaration is ambiguous"]
-    triggers = data.get("on") if has_string_on else data.get(True)
+    triggers = yaml_data.get("on") if has_string_on else yaml_data.get(True)
     if triggers != UPDATER_TRIGGERS:
         return [
             f"{path}: updater triggers must be exactly the reviewed schedule and workflow_dispatch"
@@ -1331,6 +1368,130 @@ def publisher_body_digest(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def publisher_job_setting_errors(path: Path, publisher: dict[str, Any]) -> list[str]:
+    """Validate the reviewed publisher job fields before checking its steps."""
+
+    errors: list[str] = []
+    if set(publisher) != UPDATER_PUBLISHER_JOB_KEYS:
+        errors.append(
+            f"{path}: updater publisher job must match its reviewed key profile"
+        )
+    if publisher.get("runs-on") != "ubuntu-latest":
+        errors.append(f"{path}: updater publisher must use the reviewed runner")
+    if publisher.get("timeout-minutes") != 25:
+        errors.append(f"{path}: updater publisher must use the reviewed timeout")
+    return errors
+
+
+def publisher_step_key_errors(
+    path: Path, step: dict[str, Any], name: str, expected_keys: frozenset[str]
+) -> list[str]:
+    if set(step) == expected_keys:
+        return []
+    return [f"{path}: publisher step {name!r} must match its reviewed key profile"]
+
+
+def publisher_step_action_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    expected_action = UPDATER_PUBLISHER_ACTIONS.get(name)
+    if expected_action is None:
+        return []
+    uses = step.get("uses")
+    action_name = uses.split("@", 1)[0] if isinstance(uses, str) else None
+    if action_name == expected_action:
+        return []
+    return [f"{path}: publisher step {name!r} must use {expected_action}"]
+
+
+def publisher_script_body_errors(
+    path: Path, name: str, with_values: dict[Any, Any]
+) -> list[str]:
+    if name not in UPDATER_PUBLISHER_SCRIPT_SHA256:
+        return []
+
+    errors: list[str] = []
+    if with_values.get("github-token") != GITHUB_TOKEN_EXPRESSION:
+        errors.append(
+            f"{path}: publisher step {name!r} must use the scoped github token"
+        )
+    script = with_values.get("script")
+    if not isinstance(script, str) or (
+        publisher_body_digest(script) != UPDATER_PUBLISHER_SCRIPT_SHA256[name]
+    ):
+        errors.append(
+            f"{path}: publisher github-script body {name!r} must match the reviewed SHA-256"
+        )
+    return errors
+
+
+def publisher_step_with_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    expected_with_keys = UPDATER_PUBLISHER_WITH_KEYS.get(name)
+    if expected_with_keys is None:
+        return []
+
+    errors: list[str] = []
+    with_values = step.get("with")
+    if not isinstance(with_values, dict) or set(with_values) != expected_with_keys:
+        errors.append(
+            f"{path}: publisher step {name!r} must match its reviewed with profile"
+        )
+        with_values = {}
+    expected_with_values = UPDATER_PUBLISHER_WITH_VALUES.get(name)
+    if expected_with_values is not None and with_values != expected_with_values:
+        errors.append(f"{path}: publisher step {name!r} must use reviewed with values")
+    errors.extend(publisher_script_body_errors(path, name, with_values))
+    return errors
+
+
+def publisher_step_environment_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    expected_environment = UPDATER_PUBLISHER_ENV_VALUES.get(name)
+    if expected_environment is None or step.get("env") == expected_environment:
+        return []
+    return [f"{path}: publisher step {name!r} must use the reviewed environment"]
+
+
+def publisher_step_field_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    return [
+        f"{path}: publisher step {name!r} must use the reviewed {field}"
+        for field, expected_value in UPDATER_PUBLISHER_FIELD_VALUES.get(
+            name, {}
+        ).items()
+        if step.get(field) != expected_value
+    ]
+
+
+def publisher_step_run_errors(path: Path, step: dict[str, Any], name: str) -> list[str]:
+    expected_run_digest = UPDATER_PUBLISHER_RUN_SHA256.get(name)
+    if expected_run_digest is None:
+        return []
+    run = step.get("run")
+    if isinstance(run, str) and publisher_body_digest(run) == expected_run_digest:
+        return []
+    return [f"{path}: publisher run body {name!r} must match the reviewed SHA-256"]
+
+
+def publisher_step_profile_errors(
+    path: Path, step: dict[str, Any], name: str, expected_keys: frozenset[str]
+) -> list[str]:
+    """Return all exact-profile errors for one already identified publisher step."""
+
+    return [
+        *publisher_step_key_errors(path, step, name, expected_keys),
+        *publisher_step_action_errors(path, step, name),
+        *publisher_step_with_errors(path, step, name),
+        *publisher_step_environment_errors(path, step, name),
+        *publisher_step_field_errors(path, step, name),
+        *publisher_step_run_errors(path, step, name),
+    ]
+
+
 def updater_publisher_profile_errors(path: Path, data: dict[str, Any]) -> list[str]:
     """Fail closed if the write-capable publisher differs from its reviewed profile."""
 
@@ -1341,19 +1502,15 @@ def updater_publisher_profile_errors(path: Path, data: dict[str, Any]) -> list[s
     if not isinstance(publisher, dict):
         return [f"{path}: updater publisher profile requires a publisher job mapping"]
 
-    errors: list[str] = []
-    if set(publisher) != UPDATER_PUBLISHER_JOB_KEYS:
-        errors.append(f"{path}: updater publisher job must match its reviewed key profile")
-    if publisher.get("runs-on") != "ubuntu-latest":
-        errors.append(f"{path}: updater publisher must use the reviewed runner")
-    if publisher.get("timeout-minutes") != 25:
-        errors.append(f"{path}: updater publisher must use the reviewed timeout")
+    errors = publisher_job_setting_errors(path, publisher)
 
     steps = publisher.get("steps")
     if not isinstance(steps, list):
         return [*errors, f"{path}: updater publisher steps must be a list"]
     expected_names = [name for name, _keys in UPDATER_PUBLISHER_STEP_PROFILE]
-    actual_names = [step.get("name") if isinstance(step, dict) else None for step in steps]
+    actual_names = [
+        step.get("name") if isinstance(step, dict) else None for step in steps
+    ]
     if actual_names != expected_names:
         return [
             *errors,
@@ -1362,63 +1519,7 @@ def updater_publisher_profile_errors(path: Path, data: dict[str, Any]) -> list[s
 
     for step, (name, expected_keys) in zip(steps, UPDATER_PUBLISHER_STEP_PROFILE):
         assert isinstance(step, dict)
-        if set(step) != expected_keys:
-            errors.append(f"{path}: publisher step {name!r} must match its reviewed key profile")
-
-        expected_action = UPDATER_PUBLISHER_ACTIONS.get(name)
-        if expected_action is not None:
-            uses = step.get("uses")
-            action_name = uses.split("@", 1)[0] if isinstance(uses, str) else None
-            if action_name != expected_action:
-                errors.append(
-                    f"{path}: publisher step {name!r} must use {expected_action}"
-                )
-
-        expected_with_keys = UPDATER_PUBLISHER_WITH_KEYS.get(name)
-        if expected_with_keys is not None:
-            with_values = step.get("with")
-            if not isinstance(with_values, dict) or set(with_values) != expected_with_keys:
-                errors.append(
-                    f"{path}: publisher step {name!r} must match its reviewed with profile"
-                )
-                with_values = {}
-            expected_with_values = UPDATER_PUBLISHER_WITH_VALUES.get(name)
-            if expected_with_values is not None and with_values != expected_with_values:
-                errors.append(
-                    f"{path}: publisher step {name!r} must use reviewed with values"
-                )
-            if name in UPDATER_PUBLISHER_SCRIPT_SHA256:
-                if with_values.get("github-token") != "${{ github.token }}":
-                    errors.append(
-                        f"{path}: publisher step {name!r} must use the scoped github token"
-                    )
-                script = with_values.get("script")
-                if not isinstance(script, str) or (
-                    publisher_body_digest(script)
-                    != UPDATER_PUBLISHER_SCRIPT_SHA256[name]
-                ):
-                    errors.append(
-                        f"{path}: publisher github-script body {name!r} must match the reviewed SHA-256"
-                    )
-
-        expected_environment = UPDATER_PUBLISHER_ENV_VALUES.get(name)
-        if expected_environment is not None and step.get("env") != expected_environment:
-            errors.append(
-                f"{path}: publisher step {name!r} must use the reviewed environment"
-            )
-        for field, expected_value in UPDATER_PUBLISHER_FIELD_VALUES.get(name, {}).items():
-            if step.get(field) != expected_value:
-                errors.append(
-                    f"{path}: publisher step {name!r} must use the reviewed {field}"
-                )
-
-        expected_run_digest = UPDATER_PUBLISHER_RUN_SHA256.get(name)
-        if expected_run_digest is not None:
-            run = step.get("run")
-            if not isinstance(run, str) or publisher_body_digest(run) != expected_run_digest:
-                errors.append(
-                    f"{path}: publisher run body {name!r} must match the reviewed SHA-256"
-                )
+        errors.extend(publisher_step_profile_errors(path, step, name, expected_keys))
     return errors
 
 
@@ -1427,7 +1528,7 @@ def workflow_tool_updater_errors(
 ) -> list[str]:
     """Enforce resolver/validator/publisher separation for the CI updater."""
 
-    if path.name != "update-workflow-tools.yml":
+    if path.name != WORKFLOW_TOOL_UPDATER:
         return []
 
     errors: list[str] = []
@@ -1468,13 +1569,105 @@ def workflow_tool_updater_errors(
     return errors
 
 
-def common_version_read_only_errors(
-    path: Path, text: str, data: dict[str, Any]
-) -> list[str]:
-    """Keep the common-version checker read-only and free of delivery behavior."""
+def common_version_job_profile_errors(path: Path, job: dict[str, Any]) -> list[str]:
+    """Validate the reviewed common-version job fields before checking its steps."""
 
-    if path.name != "check-common-versions.yml":
+    errors: list[str] = []
+    if set(job) != COMMON_VERSION_JOB_KEYS:
+        errors.append(
+            f"{path}: common-version checker job must match its reviewed key profile"
+        )
+    if job.get("runs-on") != "ubuntu-latest" or job.get("timeout-minutes") != 30:
+        errors.append(
+            f"{path}: common-version checker job must use its reviewed runner and timeout"
+        )
+    if job.get("permissions") != COMMON_VERSION_READ_ONLY_PERMISSIONS:
+        errors.append(
+            f"{path}: common-version checker job must declare exactly {COMMON_VERSION_READ_ONLY_PERMISSIONS}"
+        )
+    return errors
+
+
+def common_version_action_profile_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    expected_action = COMMON_VERSION_ACTIONS.get(name)
+    if expected_action is None:
         return []
+
+    errors: list[str] = []
+    uses = step.get("uses")
+    action_name = uses.split("@", 1)[0] if isinstance(uses, str) else None
+    if action_name != expected_action:
+        errors.append(
+            f"{path}: common-version step {name!r} must use {expected_action}"
+        )
+    if step.get("with") != COMMON_VERSION_WITH_VALUES[name]:
+        errors.append(
+            f"{path}: common-version step {name!r} must use reviewed checkout/runtime values"
+        )
+    return errors
+
+
+def common_version_step_profile_errors(
+    path: Path, step: dict[str, Any], name: str, expected_keys: frozenset[str]
+) -> list[str]:
+    """Return all exact-profile errors for one already identified read-only step."""
+
+    errors: list[str] = []
+    if set(step) != expected_keys:
+        errors.append(
+            f"{path}: common-version step {name!r} must match its reviewed key profile"
+        )
+    errors.extend(common_version_action_profile_errors(path, step, name))
+    expected_environment = COMMON_VERSION_ENV_VALUES.get(name)
+    if expected_environment is not None and step.get("env") != expected_environment:
+        errors.append(
+            f"{path}: common-version step {name!r} must use the reviewed environment"
+        )
+    expected_run_digest = COMMON_VERSION_RUN_SHA256.get(name)
+    if expected_run_digest is not None:
+        run = step.get("run")
+        if (
+            not isinstance(run, str)
+            or publisher_body_digest(run) != expected_run_digest
+        ):
+            errors.append(
+                f"{path}: common-version run body {name!r} must match the reviewed SHA-256"
+            )
+    return errors
+
+
+def common_version_step_errors(
+    path: Path, job: dict[str, Any]
+) -> tuple[list[str], bool]:
+    """Validate the ordered steps and report whether delivery checks may continue."""
+
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        return [f"{path}: common-version checker steps must be a list"], False
+    expected_names = [name for name, _keys in COMMON_VERSION_STEP_PROFILE]
+    actual_names = [
+        step.get("name") if isinstance(step, dict) else None for step in steps
+    ]
+    if actual_names != expected_names:
+        return [
+            f"{path}: common-version checker steps must match the reviewed order and count"
+        ], False
+
+    errors: list[str] = []
+    for step, (name, expected_keys) in zip(steps, COMMON_VERSION_STEP_PROFILE):
+        assert isinstance(step, dict)
+        errors.extend(
+            common_version_step_profile_errors(path, step, name, expected_keys)
+        )
+    return errors, True
+
+
+def common_version_job_errors(
+    path: Path, data: dict[str, Any]
+) -> tuple[list[str], dict[str, Any] | None]:
+    """Return reviewed-job errors and the mapping needed for step validation."""
 
     errors: list[str] = []
     if data.get("permissions") != COMMON_VERSION_READ_ONLY_PERMISSIONS:
@@ -1487,59 +1680,30 @@ def common_version_read_only_errors(
         return [
             *errors,
             f"{path}: common-version workflow must define exactly its read-only checker job",
-        ]
+        ], None
     job = jobs[COMMON_VERSION_JOB_NAME]
     if not isinstance(job, dict):
-        return [*errors, f"{path}: common-version checker job must be a mapping"]
-    if set(job) != COMMON_VERSION_JOB_KEYS:
-        errors.append(f"{path}: common-version checker job must match its reviewed key profile")
-    if job.get("runs-on") != "ubuntu-latest" or job.get("timeout-minutes") != 30:
-        errors.append(f"{path}: common-version checker job must use its reviewed runner and timeout")
-    if job.get("permissions") != COMMON_VERSION_READ_ONLY_PERMISSIONS:
-        errors.append(
-            f"{path}: common-version checker job must declare exactly {COMMON_VERSION_READ_ONLY_PERMISSIONS}"
-        )
+        return [*errors, f"{path}: common-version checker job must be a mapping"], None
+    errors.extend(common_version_job_profile_errors(path, job))
+    return errors, job
 
-    steps = job.get("steps")
-    if not isinstance(steps, list):
-        return [*errors, f"{path}: common-version checker steps must be a list"]
-    expected_names = [name for name, _keys in COMMON_VERSION_STEP_PROFILE]
-    actual_names = [step.get("name") if isinstance(step, dict) else None for step in steps]
-    if actual_names != expected_names:
-        return [
-            *errors,
-            f"{path}: common-version checker steps must match the reviewed order and count",
-        ]
-    for step, (name, expected_keys) in zip(steps, COMMON_VERSION_STEP_PROFILE):
-        assert isinstance(step, dict)
-        if set(step) != expected_keys:
-            errors.append(
-                f"{path}: common-version step {name!r} must match its reviewed key profile"
-            )
-        expected_action = COMMON_VERSION_ACTIONS.get(name)
-        if expected_action is not None:
-            uses = step.get("uses")
-            action_name = uses.split("@", 1)[0] if isinstance(uses, str) else None
-            if action_name != expected_action:
-                errors.append(
-                    f"{path}: common-version step {name!r} must use {expected_action}"
-                )
-            if step.get("with") != COMMON_VERSION_WITH_VALUES[name]:
-                errors.append(
-                    f"{path}: common-version step {name!r} must use reviewed checkout/runtime values"
-                )
-        expected_environment = COMMON_VERSION_ENV_VALUES.get(name)
-        if expected_environment is not None and step.get("env") != expected_environment:
-            errors.append(
-                f"{path}: common-version step {name!r} must use the reviewed environment"
-            )
-        expected_run_digest = COMMON_VERSION_RUN_SHA256.get(name)
-        if expected_run_digest is not None:
-            run = step.get("run")
-            if not isinstance(run, str) or publisher_body_digest(run) != expected_run_digest:
-                errors.append(
-                    f"{path}: common-version run body {name!r} must match the reviewed SHA-256"
-                )
+
+def common_version_read_only_errors(
+    path: Path, text: str, data: dict[str, Any]
+) -> list[str]:
+    """Keep the common-version checker read-only and free of delivery behavior."""
+
+    if path.name != "check-common-versions.yml":
+        return []
+
+    errors, job = common_version_job_errors(path, data)
+    if job is None:
+        return errors
+
+    step_errors, can_check_delivery = common_version_step_errors(path, job)
+    errors.extend(step_errors)
+    if not can_check_delivery:
+        return errors
     errors.extend(
         forbidden_workflow_snippet_errors(
             path,

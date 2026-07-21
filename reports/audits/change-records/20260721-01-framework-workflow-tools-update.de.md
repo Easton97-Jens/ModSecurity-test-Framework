@@ -44,6 +44,12 @@ Checkout wird auf v7.0.1 bei 3d3c42e5aac5ba805825da76410c181273ba90b1 und setup-
 
 Der Updater trennt Resolver, Validator und Publisher. Der Vertrag parst den Workflow und pinnt das überprüfte Schrittprofil des schreibfähigen Publishers einschließlich Befehls-/Script-Körpern, statt auf lose Textmarker zu vertrauen. Der Updater verwendet offizielle GitHub-Release-Metadaten, validiert Annotated-Tag-Identitäten und Asset-Digests und akzeptiert vor der SHA-256-Prüfung nur explizite GitHub-Release-Asset-Redirect-Hosts.
 
+Nachgelagerte Härtung begrenzt Candidate-I/O weiter auf eigene, nicht
+symlinkte `RUNNER_TEMP`-Pfade und verwendet kanonische allowlistete Writes plus
+validierte Git-Argumente. Damit werden die beim ersten Draft-PR-Scan gemeldeten
+Quellcodegrenzen für Pfade, Überschreiben und Git-Revisionen geschlossen, ohne
+das exakte Publisher-Profil abzuschwächen.
+
 `check-common-versions.yml` veröffentlicht keinen Maintenance-Branch oder PR mehr. Er prüft und ShellCheckt eine ephemere Kopie unter `RUNNER_TEMP` mit read-only Berechtigungen, sodass der neue eingeschränkte Workflow-/Tool-Updater der einzige Framework-Pfad bleibt, der einen Draft-Maintenance-PR erstellen oder aktualisieren kann.
 
 ## Geänderte Dateien und Tests
@@ -60,11 +66,13 @@ Der Updater trennt Resolver, Validator und Publisher. Der Vertrag parst den Work
 | python3 -m unittest discover -s tests/ci_security -v | 0 | 106 fokussierte CI-Sicherheits-Tests bestanden. | Lokale Task-Validierung; kein Payload gespeichert. |
 | python3 -m unittest tests.security_regression.test_workflow_security_contract -v | 0 | 7 Workflow-Sicherheits-Regressionstests bestanden. | Lokale Task-Validierung. |
 | CI-Workflow-, Action-Pin- und CI-Sicherheits-Contract-Checker | 0 | 14 Workflows, unveränderliche Pins und eingeschränktes Publisher-Profil bestanden. | Lokale Task-Validierung. |
+| tokenfreies `update-workflow-tools.py resolve` | 0 | Aktueller offizieller Kandidat nach dem Public-API-Reset aufgelöst; Output-SHA-256 `e2f8ac674fc98a1e84ad426c9ab6e097ec512924c649db4ff6bf7d8b730e8218`. | Lokale Task-Validierung. |
+| `make lint` nach der Source-Level-Remediation | 0 | CI-Security-, Workflow-/Pin-/Docs-/Change-Record-Checks sowie Remediation-Lint-/Format-Checks bestanden. | Lokale Task-Validierung. |
 | git diff --check | 0 | Keine Whitespace-Fehler. | Framework-Task-Worktree. |
 
 ## Sicherheitsauswirkung
 
-Dies ist CI-Supply-Chain-Hardening. Mutable Pins, breite Redirect-Akzeptanz, Token-Exposition in read-only Jobs, unvalidierte Kandidatenbäume, Force-/Default-Pushes, Auto-Merge, doppelte PRs und injizierter wiederverwendeter Branch-Content sind durch explizite negative Tests abgedeckt. Das Entfernen des Drittanbieter-Common-Version-PR-Publishers entfernt außerdem sein force-fähiges Branch-Update-/Löschverhalten. Der Updater führt ein geändertes heruntergeladenes Tool nicht vor der Validierung von Prüfsumme und Archivlayout aus.
+Dies ist CI-Supply-Chain-Hardening. Mutable Pins, breite Redirect-Akzeptanz, Token-Exposition in read-only Jobs, unvalidierte Kandidatenbäume, Force-/Default-Pushes, Auto-Merge, doppelte PRs, injizierter wiederverwendeter Branch-Content, unsichere Temp-Pfad-Writes und feindliche Git-Revisionseingaben sind durch explizite negative Tests abgedeckt. Das Entfernen des Drittanbieter-Common-Version-PR-Publishers entfernt außerdem sein force-fähiges Branch-Update-/Löschverhalten. Der Updater führt ein geändertes heruntergeladenes Tool nicht vor der Validierung von Prüfsumme und Archivlayout aus.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -72,8 +80,7 @@ Englische/deutsche Workflow-Sicherheits- und CI-Tooling-Dokumentation beschreibt
 
 ## Nicht ausgeführte Prüfungen
 
-- Lokales Ruff wurde nicht ausgeführt, weil Executable/Modul nicht verfügbar ist.
-- Hosted-Actionlint-/ShellCheck-/Zizmor-Ausführung, CodeQL, Dependency Review, OSV, Scorecard, Gitleaks und ein möglicher Sonar-Check bleiben Evidenz für den exakten Draft-PR-Head und sind nach der Veröffentlichung zu beobachten.
+- Hosted-Actionlint-/ShellCheck-/Zizmor-Ausführung, CodeQL, Dependency Review, OSV, Scorecard, Gitleaks und ein möglicher Sonar-Check bleiben Evidenz für den exakten Draft-PR-Head und sind nach der Veröffentlichung zu beobachten. Der erste Head von Draft PR #40 erhielt einen Sonar-Quality-Gate-Fehler, der die oben dokumentierte Source-Level-Remediation ausgelöst hat; der resultierende spätere exakte Head muss getrennt beobachtet werden.
 - PR #39 wurde nicht verändert. Seine unabhängige Python-Updater-Arbeit kann in Workflow-/Dokumentationsdateien überlappen und später eine Maintainer-Konfliktauflösung erfordern.
 
 ## Einschränkungen und Restrisiko
@@ -82,4 +89,4 @@ Der Updater unterstützt absichtlich nur überprüfte Lock-Records und explizite
 
 ## Finaler Diff- und Review-Status
 
-Der Source-Diff erhielt vor diesem Record ein unabhängiges schreibgeschütztes Security-Review, fokussierte Tests, Workflow-/Pin-/Contract-Checks und einen Whitespace-Review. Beim Erstellen dieses Records ist er uncommittet und ungepusht; finale Draft-PR-Nummer, Exact-Head-CI-Evidenz und Review-Status werden erst nach Beobachtung ergänzt.
+Der Source-Diff erhielt unabhängige schreibgeschützte Security-Reviews, fokussierte Tests, Workflow-/Pin-/Contract-Checks, Remediation-Review und Whitespace-Review. Draft PR #40 existiert; Exact-Head-CI-Evidenz und Review-Status für den späteren Remediation-Head werden erst nach Beobachtung ergänzt.

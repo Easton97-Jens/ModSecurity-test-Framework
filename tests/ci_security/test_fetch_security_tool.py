@@ -242,9 +242,10 @@ class ReleaseAssetRedirectTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             staging = Path(temporary_directory)
             response = self.Response("https://example.invalid/fixture", payload)
+            record = self.record(payload)
             with patch.object(FETCHER, "urlopen", return_value=response):
                 with self.assertRaisesRegex(FETCHER.ToolError, "approved official"):
-                    FETCHER.checked_download(self.record(payload), staging)
+                    FETCHER.checked_download(record, staging)
             self.assertFalse((staging / "fixture.bin").exists())
 
     def test_rejects_a_static_asset_url_from_a_different_release_identity(self) -> None:

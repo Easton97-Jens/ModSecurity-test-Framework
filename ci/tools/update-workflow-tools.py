@@ -56,7 +56,9 @@ SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 STABLE_RELEASE_TAG = r"v?[0-9]+(?:\.[0-9]+){1,3}"
 RELEASE_TAG = re.compile(rf"^{STABLE_RELEASE_TAG}$")
-ACTION_SERIES_TAG = re.compile(r"^v(?P<major>[0-9]+)\.(?P<minor>[0-9]+)\.(?P<patch>[0-9]+)$")
+ACTION_SERIES_TAG = re.compile(
+    r"^v(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)$", re.ASCII
+)
 UPSTREAM_RELEASE = re.compile(
     r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/releases/tag/"
     rf"({STABLE_RELEASE_TAG})$"
@@ -645,7 +647,7 @@ def decode_candidate(value: str) -> dict[str, Any]:
     try:
         decoded = base64.b64decode(value, validate=True).decode("utf-8")
         candidate = json.loads(decoded)
-    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except ValueError as exc:
         raise UpdateError("candidate base64 payload is malformed") from exc
     if not isinstance(candidate, dict):
         raise UpdateError("candidate payload must be a JSON object")
@@ -671,10 +673,9 @@ def runner_temp_root() -> Path:
     return runner_root
 
 
-def runner_temp_path(path: Path, *, for_write: bool) -> Path:
-    """Require a regular path beneath a runner-owned, non-symlink temp root."""
+def runner_temp_relative_path(path: Path, runner_root: Path) -> Path:
+    """Return one lexical, strict child path before any filesystem access."""
 
-    runner_root = runner_temp_root()
     if not path.is_absolute():
         raise UpdateError("RUNNER_TEMP and candidate paths must be absolute")
     try:
@@ -683,31 +684,81 @@ def runner_temp_path(path: Path, *, for_write: bool) -> Path:
         raise UpdateError("candidate path must be a strict child of RUNNER_TEMP") from exc
     if not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
         raise UpdateError("candidate path must be a strict child of RUNNER_TEMP")
+    return relative
+
+
+def reject_runner_temp_symlinks(runner_root: Path, relative: Path) -> None:
+    """Reject every existing lexical component that could redirect candidate I/O."""
+
     current = runner_root
     for component in relative.parts:
         current = current / component
-        if current.exists() and current.is_symlink():
+        if current.is_symlink():
             raise UpdateError("candidate path must not traverse a symlink")
+
+
+def resolved_runner_temp_child(path: Path, runner_root: Path, *, strict: bool) -> Path:
+    """Canonicalize a candidate path and prove it remains a strict temp child."""
+
+    try:
+        resolved = path.resolve(strict=strict)
+    except OSError as exc:
+        raise UpdateError("candidate path cannot be resolved") from exc
+    try:
+        relative = resolved.relative_to(runner_root)
+    except ValueError as exc:
+        raise UpdateError("candidate path must be a strict child of RUNNER_TEMP") from exc
+    if not relative.parts:
+        raise UpdateError("candidate path must be a strict child of RUNNER_TEMP")
+    return resolved
+
+
+def candidate_write_path(path: Path, runner_root: Path, relative: Path) -> Path:
+    """Create a candidate-only parent without permitting an existing target."""
+
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    reject_runner_temp_symlinks(runner_root, relative)
+    if path.exists() or path.is_symlink():
+        raise UpdateError("refusing to overwrite an existing candidate file")
+    return resolved_runner_temp_child(path, runner_root, strict=False)
+
+
+def candidate_read_path(path: Path, runner_root: Path) -> Path:
+    """Require an existing candidate to remain a regular non-symlink file."""
+
+    if path.is_symlink() or not path.is_file():
+        raise UpdateError("candidate must be a regular non-symlink file")
+    return resolved_runner_temp_child(path, runner_root, strict=True)
+
+
+def runner_temp_path(path: Path, *, for_write: bool) -> Path:
+    """Require a regular path beneath a runner-owned, non-symlink temp root."""
+
+    runner_root = runner_temp_root()
+    relative = runner_temp_relative_path(path, runner_root)
+    reject_runner_temp_symlinks(runner_root, relative)
     if for_write:
-        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        if path.exists() or path.is_symlink():
-            raise UpdateError("refusing to overwrite an existing candidate file")
-    else:
-        if path.is_symlink() or not path.is_file():
-            raise UpdateError("candidate must be a regular non-symlink file")
-    return path
+        return candidate_write_path(path, runner_root, relative)
+    return candidate_read_path(path, runner_root)
 
 
 def write_candidate(path: Path, candidate: dict[str, Any]) -> None:
     destination = runner_temp_path(path, for_write=True)
-    destination.write_text(canonical_candidate(candidate) + "\n", encoding="utf-8")
-    destination.chmod(0o600)
+    # Resolve immediately at the filesystem sink as a defense in depth layer
+    # for CLI-provided paths; runner_temp_path already checked containment.
+    destination = destination.resolve(strict=False)
+    with destination.open("x", encoding="utf-8") as output:
+        os.fchmod(output.fileno(), 0o600)
+        output.write(canonical_candidate(candidate) + "\n")
 
 
 def read_candidate(path: Path) -> dict[str, Any]:
     source = runner_temp_path(path, for_write=False)
+    # The direct canonicalization keeps the checked path at the I/O boundary.
+    source = source.resolve(strict=True)
     try:
-        loaded = json.loads(source.read_text(encoding="utf-8"))
+        with source.open(encoding="utf-8") as input_file:
+            loaded = json.load(input_file)
     except (OSError, json.JSONDecodeError) as exc:
         raise UpdateError("candidate JSON is malformed") from exc
     if not isinstance(loaded, dict):
@@ -715,33 +766,58 @@ def read_candidate(path: Path) -> dict[str, Any]:
     return loaded
 
 
-def validate_candidate_shape(candidate: dict[str, Any], lock: dict[str, Any], lock_digest: str) -> dict[str, dict[str, dict[str, str]]]:
+def validated_candidate_record(
+    group: str, fields: tuple[str, ...], lock: dict[str, Any], name: Any, changes: Any
+) -> tuple[str, dict[str, Any]]:
+    """Validate one candidate entry and reconstruct its resulting lock record."""
+
+    if not isinstance(name, str) or not isinstance(changes, dict):
+        raise UpdateError(f"candidate {group} entry is malformed")
+    baseline = lock_record(lock, group, name)
+    if set(changes) != set(fields):
+        raise UpdateError(f"candidate {group} {name!r} changes an unapproved field")
+    if not all(isinstance(changes[field], str) and changes[field] for field in fields):
+        raise UpdateError(f"candidate {group} {name!r} has an empty field")
+    if changes["version"] == baseline.get("version"):
+        raise UpdateError(f"candidate {group} {name!r} must not include a no-op version")
+    validate_changed_record(group, name, baseline, changes)
+    resulting = deepcopy(baseline)
+    resulting.update(changes)
+    return name, resulting
+
+
+def validated_candidate_group(
+    candidate: dict[str, Any], lock: dict[str, Any], group: str, fields: tuple[str, ...]
+) -> dict[str, dict[str, Any]]:
+    """Validate every changed record for one lock group."""
+
+    proposed = candidate.get(group)
+    if not isinstance(proposed, dict):
+        raise UpdateError(f"candidate {group} must be a mapping")
+    changed_records: dict[str, dict[str, Any]] = {}
+    for name, changes in proposed.items():
+        record_name, resulting = validated_candidate_record(
+            group, fields, lock, name, changes
+        )
+        changed_records[record_name] = resulting
+    return changed_records
+
+
+def validate_candidate_shape(
+    candidate: dict[str, Any], lock: dict[str, Any], lock_digest: str
+) -> dict[str, dict[str, dict[str, Any]]]:
     """Validate candidate fields and reconstruct the exact resulting records."""
 
     if candidate.get("schema_version") != CANDIDATE_SCHEMA_VERSION:
         raise UpdateError("candidate schema version is not supported")
     if candidate.get("lock_sha256") != lock_digest:
         raise UpdateError("candidate does not describe the current trusted lock")
-    changed_records: dict[str, dict[str, dict[str, str]]] = {"actions": {}, "tools": {}}
-    for group, fields in (("actions", ACTION_MUTABLE_FIELDS), ("tools", TOOL_MUTABLE_FIELDS)):
-        proposed = candidate.get(group)
-        if not isinstance(proposed, dict):
-            raise UpdateError(f"candidate {group} must be a mapping")
-        for name, changes in proposed.items():
-            if not isinstance(name, str) or not isinstance(changes, dict):
-                raise UpdateError(f"candidate {group} entry is malformed")
-            baseline = lock_record(lock, group, name)
-            if set(changes) != set(fields):
-                raise UpdateError(f"candidate {group} {name!r} changes an unapproved field")
-            if not all(isinstance(changes[field], str) and changes[field] for field in fields):
-                raise UpdateError(f"candidate {group} {name!r} has an empty field")
-            if changes["version"] == baseline.get("version"):
-                raise UpdateError(f"candidate {group} {name!r} must not include a no-op version")
-            validate_changed_record(group, name, baseline, changes)
-            resulting = deepcopy(baseline)
-            resulting.update(changes)
-            changed_records[group][name] = resulting
-    return changed_records
+    return {
+        "actions": validated_candidate_group(
+            candidate, lock, "actions", ACTION_MUTABLE_FIELDS
+        ),
+        "tools": validated_candidate_group(candidate, lock, "tools", TOOL_MUTABLE_FIELDS),
+    }
 
 
 def validate_changed_record(
@@ -901,7 +977,7 @@ def lock_record_section(text: str, group: str, name: str) -> tuple[int, int, str
     # field line that merely starts with the same first two spaces.
     boundaries = [
         match.start()
-        for match in re.finditer(r"(?m)^  [^\s].*:$|^[^\s].*:$", text[start + len(header):])
+        for match in re.finditer(r"(?m)^ {2}\S.*:$|^\S.*:$", text[start + len(header):])
     ]
     end = (
         start + len(header) + min(boundaries)
@@ -914,6 +990,16 @@ def lock_record_section(text: str, group: str, name: str) -> tuple[int, int, str
     return start, end, section
 
 
+def write_verified_text(path: Path, text: str) -> None:
+    """Rewrite an existing reviewed regular file through its canonical path."""
+
+    if path.is_symlink() or not path.is_file():
+        raise UpdateError("updated path must be a regular non-symlink file")
+    destination = path.resolve(strict=True)
+    with destination.open("w", encoding="utf-8") as output:
+        output.write(text)
+
+
 def apply_lock_changes(lock_path: Path, lock: dict[str, Any], candidate: dict[str, Any]) -> None:
     text = lock_path.read_text(encoding="utf-8")
     for group, fields in (("actions", ACTION_MUTABLE_FIELDS), ("tools", TOOL_MUTABLE_FIELDS)):
@@ -923,7 +1009,7 @@ def apply_lock_changes(lock_path: Path, lock: dict[str, Any], candidate: dict[st
             for field in fields:
                 section = replace_lock_field(section, field, str(baseline[field]), changes[field], name)
             text = f"{text[:start]}{section}{text[end:]}"
-    lock_path.write_text(text, encoding="utf-8")
+    write_verified_text(lock_path, text)
 
 
 def update_workflow_references(root: Path, lock: dict[str, Any], candidate: dict[str, Any]) -> None:
@@ -945,7 +1031,8 @@ def update_workflow_references(root: Path, lock: dict[str, Any], candidate: dict
             text = path.read_text(encoding="utf-8")
             count = len(reference.findall(text))
             if count:
-                path.write_text(
+                write_verified_text(
+                    path,
                     reference.sub(
                         lambda match: (
                             f"{name}{match.group('suffix')}@{changes['immutable_commit']}"
@@ -953,7 +1040,6 @@ def update_workflow_references(root: Path, lock: dict[str, Any], candidate: dict
                         ),
                         text,
                     ),
-                    encoding="utf-8",
                 )
                 replacements += count
         if replacements == 0:
@@ -969,7 +1055,7 @@ def update_documentation_references(root: Path, lock: dict[str, Any], candidate:
             path = resolve_regular_file(root, Path(relative_text))
             text = path.read_text(encoding="utf-8")
             if old_cells in text:
-                path.write_text(text.replace(old_cells, new_cells), encoding="utf-8")
+                write_verified_text(path, text.replace(old_cells, new_cells))
 
 
 def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
@@ -1040,9 +1126,19 @@ def verify_git_scope(
         base = safe_git_revision(base, "scope base")
         head = safe_git_revision(head, "scope head")
         ancestry = subprocess.run(
-            ["git", "-C", str(root), "merge-base", "--is-ancestor", base, head],
+            [
+                "git",
+                "-C",
+                str(root),
+                "merge-base",
+                "--is-ancestor",
+                "--end-of-options",
+                base,
+                head,
+            ],
             check=False,
             capture_output=True,
+            shell=False,
         )
         if ancestry.returncode == 1:
             raise UpdateError(
@@ -1055,10 +1151,10 @@ def verify_git_scope(
             )
         # Compare the current default tip directly to the reusable branch tip.
         # Triple-dot would hide paths introduced only on the newer default tip.
-        arguments.extend((base, head))
+        arguments.extend(("--end-of-options", base, head))
     elif staged:
         arguments.append("--cached")
-    result = subprocess.run(arguments, check=False, capture_output=True)
+    result = subprocess.run(arguments, check=False, capture_output=True, shell=False)
     if result.returncode != 0:
         raise UpdateError(
             "cannot inspect publisher diff scope: "
@@ -1079,9 +1175,19 @@ def git_blob(root: Path, revision: str, relative: Path) -> bytes:
     if relative_text not in ALLOWED_UPDATE_PATHS:
         raise UpdateError(f"Git blob path is not allow-listed: {relative_text}")
     result = subprocess.run(
-        ["git", "-C", str(root), "show", f"{revision}:{relative_text}"],
+        [
+            "git",
+            "-C",
+            str(root),
+            "show",
+            "--no-textconv",
+            "--format=",
+            "--end-of-options",
+            f"{revision}:{relative_text}",
+        ],
         check=False,
         capture_output=True,
+        shell=False,
     )
     if result.returncode != 0:
         raise UpdateError(
@@ -1159,31 +1265,62 @@ def verify_changed_existing_branch_record(
         )
 
 
-def verify_existing_branch_lock_records(base_lock: dict[str, Any], head_lock: dict[str, Any]) -> None:
-    """Reject a reusable branch unless its lock is a base-identity verified update."""
+def verify_existing_branch_lock_metadata(base_lock: dict[str, Any], head_lock: dict[str, Any]) -> None:
+    """Keep lock-wide metadata immutable on a reusable maintenance branch."""
 
     if set(base_lock) != set(head_lock):
         raise UpdateError("existing branch security tool lock adds or removes top-level fields")
     for field in base_lock:
         if field not in {"actions", "tools"} and head_lock[field] != base_lock[field]:
             raise UpdateError(f"existing branch changes immutable lock field {field!r}")
+
+
+def existing_branch_group_records(lock: dict[str, Any], group: str) -> dict[str, Any]:
+    """Return one required lock-record mapping from a reusable branch."""
+
+    records = lock.get(group)
+    if not isinstance(records, dict):
+        raise UpdateError(f"existing branch {group} lock records are missing")
+    return records
+
+
+def verify_existing_branch_group_record(
+    group: str, name: Any, baseline: Any, head_record: Any
+) -> None:
+    """Verify the sole permissible mutable release tuple for one lock entry."""
+
+    if not isinstance(name, str) or not isinstance(baseline, dict) or not isinstance(
+        head_record, dict
+    ):
+        raise UpdateError(f"existing branch {group} lock record is malformed")
+    changes = changed_lock_record_fields(group, name, baseline, head_record)
+    if changes is not None:
+        verify_changed_existing_branch_record(group, name, baseline, changes)
+
+
+def verify_existing_branch_group_records(
+    group: str, base_records: dict[str, Any], head_records: dict[str, Any]
+) -> None:
+    """Verify every lock entry in one immutable record group."""
+
+    if set(base_records) != set(head_records):
+        raise UpdateError(f"existing branch {group} lock records add or remove entries")
+    for name in sorted(base_records):
+        verify_existing_branch_group_record(
+            group, name, base_records[name], head_records[name]
+        )
+
+
+def verify_existing_branch_lock_records(base_lock: dict[str, Any], head_lock: dict[str, Any]) -> None:
+    """Reject a reusable branch unless its lock is a base-identity verified update."""
+
+    verify_existing_branch_lock_metadata(base_lock, head_lock)
     for group in ("actions", "tools"):
-        base_records = base_lock.get(group)
-        head_records = head_lock.get(group)
-        if not isinstance(base_records, dict) or not isinstance(head_records, dict):
-            raise UpdateError(f"existing branch {group} lock records are missing")
-        if set(base_records) != set(head_records):
-            raise UpdateError(f"existing branch {group} lock records add or remove entries")
-        for name in sorted(base_records):
-            baseline = base_records[name]
-            head_record = head_records[name]
-            if not isinstance(name, str) or not isinstance(baseline, dict) or not isinstance(
-                head_record, dict
-            ):
-                raise UpdateError(f"existing branch {group} lock record is malformed")
-            changes = changed_lock_record_fields(group, name, baseline, head_record)
-            if changes is not None:
-                verify_changed_existing_branch_record(group, name, baseline, changes)
+        verify_existing_branch_group_records(
+            group,
+            existing_branch_group_records(base_lock, group),
+            existing_branch_group_records(head_lock, group),
+        )
 
 
 def existing_branch_candidate(
@@ -1325,44 +1462,69 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> int:
-    args = parse_args()
-    try:
-        if args.mode == "resolve":
-            candidate = resolve_candidate(resolve_root(args.root))
-            if args.github_output:
-                print(f"candidate_b64={candidate_b64(candidate)}")
-                print(f"has_updates={'true' if candidate['actions'] or candidate['tools'] else 'false'}")
-            else:
-                write_candidate(args.output, candidate)
-                print(args.output)
-            return 0
-        if args.mode == "validate":
-            root = resolve_root(args.root)
-            _lock_path, lock, lock_digest = load_lock(root)
-            ensure_locked_action_workflow_coverage(root, lock)
-            candidate = candidate_from_arguments(args)
-            changes = validate_candidate_shape(candidate, lock, lock_digest)
-            if args.verify_tool_assets:
-                if args.output_dir is None:
-                    raise UpdateError("--verify-tool-assets requires --output-dir")
-                verify_changed_tool_assets(changes, args.output_dir)
-            if args.validate_proposed_tree:
-                validate_proposed_tree(root, candidate)
-            print("workflow-tool candidate passed validation")
-            return 0
-        if args.mode == "apply":
-            changed = apply_candidate(args.root, candidate_from_arguments(args))
-            print("\n".join(changed))
-            return 0
-        if args.mode == "verify-existing-branch":
-            verify_existing_branch(args.root, args.base, args.head)
-            print("existing maintenance branch passed base-identity verification")
-            return 0
-        root = resolve_root(args.root)
-        changed = verify_git_scope(root, args.staged, args.base, args.head)
-        print("\n".join(changed))
+def run_resolve_command(args: argparse.Namespace) -> int:
+    candidate = resolve_candidate(resolve_root(args.root))
+    if args.github_output:
+        print(f"candidate_b64={candidate_b64(candidate)}")
+        print(f"has_updates={'true' if candidate['actions'] or candidate['tools'] else 'false'}")
         return 0
+    write_candidate(args.output, candidate)
+    print(args.output)
+    return 0
+
+
+def run_validate_command(args: argparse.Namespace) -> int:
+    root = resolve_root(args.root)
+    _lock_path, lock, lock_digest = load_lock(root)
+    ensure_locked_action_workflow_coverage(root, lock)
+    candidate = candidate_from_arguments(args)
+    changes = validate_candidate_shape(candidate, lock, lock_digest)
+    if args.verify_tool_assets:
+        if args.output_dir is None:
+            raise UpdateError("--verify-tool-assets requires --output-dir")
+        verify_changed_tool_assets(changes, args.output_dir)
+    if args.validate_proposed_tree:
+        validate_proposed_tree(root, candidate)
+    print("workflow-tool candidate passed validation")
+    return 0
+
+
+def run_apply_command(args: argparse.Namespace) -> int:
+    changed = apply_candidate(args.root, candidate_from_arguments(args))
+    print("\n".join(changed))
+    return 0
+
+
+def run_verify_existing_branch_command(args: argparse.Namespace) -> int:
+    verify_existing_branch(args.root, args.base, args.head)
+    print("existing maintenance branch passed base-identity verification")
+    return 0
+
+
+def run_verify_scope_command(args: argparse.Namespace) -> int:
+    root = resolve_root(args.root)
+    changed = verify_git_scope(root, args.staged, args.base, args.head)
+    print("\n".join(changed))
+    return 0
+
+
+def run_command(args: argparse.Namespace) -> int:
+    handlers = {
+        "resolve": run_resolve_command,
+        "validate": run_validate_command,
+        "apply": run_apply_command,
+        "verify-existing-branch": run_verify_existing_branch_command,
+        "verify-scope": run_verify_scope_command,
+    }
+    handler = handlers.get(args.mode)
+    if handler is None:
+        raise UpdateError(f"unsupported updater mode: {args.mode!r}")
+    return handler(args)
+
+
+def main() -> int:
+    try:
+        return run_command(parse_args())
     except UpdateError as exc:
         print(f"workflow-tool updater error: {exc}", file=sys.stderr)
         return 2
