@@ -614,6 +614,14 @@ def run_client_barrier(
     if not request_path.startswith("/") or "\r" in request_path or "\n" in request_path:
         raise ValueError("request_path must be an absolute HTTP path without control characters")
     target_port = _validated_target_port(target_host, target_port)
+    if (
+        evidence_origin == "real_host"
+        and target_host == upstream.address.host
+        and target_port == upstream.address.port
+    ):
+        raise ValueError(
+            "real_host evidence target must be distinct from the synthetic upstream"
+        )
     metadata = normalize_host_metadata(host_metadata)
     client_first_byte_received = False
     first_chunk_size = 0

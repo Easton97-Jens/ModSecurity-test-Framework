@@ -48,8 +48,14 @@ GITHUB_TOKEN_REFERENCE_RE = re.compile(
     r"\bgithub\s*(?:\.\s*token|\[\s*['\"]token['\"]\s*\])",
     re.IGNORECASE,
 )
-
-
+SECRET_CONTEXT_SERIALIZATION_RE = re.compile(
+    r"\$\{\{[^}]*\btoJSON\s*\(\s*secrets\s*\)[^}]*\}\}",
+    re.IGNORECASE,
+)
+GITHUB_CONTEXT_SERIALIZATION_RE = re.compile(
+    r"\$\{\{[^}]*\btoJSON\s*\(\s*github\s*\)[^}]*\}\}",
+    re.IGNORECASE,
+)
 if yaml is not None:
 
     class UniqueKeySafeLoader(yaml.SafeLoader):
@@ -355,7 +361,10 @@ def enabled_submodules(value: Any) -> bool:
 
 def contains_secret_reference(value: Any) -> bool:
     if isinstance(value, str):
-        return SECRET_REFERENCE_RE.search(value) is not None
+        return (
+            SECRET_REFERENCE_RE.search(value) is not None
+            or SECRET_CONTEXT_SERIALIZATION_RE.search(value) is not None
+        )
     mapping = as_mapping(value)
     if mapping is not None:
         return any(contains_secret_reference(item) for item in mapping.values())
@@ -364,7 +373,10 @@ def contains_secret_reference(value: Any) -> bool:
 
 def contains_github_token_reference(value: Any) -> bool:
     if isinstance(value, str):
-        return GITHUB_TOKEN_REFERENCE_RE.search(value) is not None
+        return (
+            GITHUB_TOKEN_REFERENCE_RE.search(value) is not None
+            or GITHUB_CONTEXT_SERIALIZATION_RE.search(value) is not None
+        )
     mapping = as_mapping(value)
     if mapping is not None:
         return any(contains_github_token_reference(item) for item in mapping.values())
@@ -513,7 +525,7 @@ def validate_job(
 def validate_permissions(path: Path, document: Mapping[str, Any]) -> list[str]:
     errors = validate_top_level_permissions(path, document)
     events = workflow_events(document)
-    is_pull_request_workflow = "pull_request" in events
+    is_pull_request_workflow = bool({"pull_request", "pull_request_target"} & events)
     errors.extend(
         validate_workflow_trust_boundary(path, document, is_pull_request_workflow)
     )

@@ -61,6 +61,33 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
         self.assertFalse(rows[0]["promotion_allowed"])
         self.assertFalse(rows[0]["runtime_verified"])
 
+    def test_response_body_display_pass_remains_non_promotable(self) -> None:
+        summary = {
+            "apache": {
+                "cases": {
+                    "case-response-body": {
+                        "path": "response/body/case-response-body.yaml",
+                        "status": "pass",
+                        "expected_status": 200,
+                        "actual_status": 200,
+                    }
+                }
+            }
+        }
+        response_body_metadata = {
+            **self.metadata,
+            "response_body_related": True,
+        }
+        with mock.patch.object(self.snapshot, "case_metadata", return_value=response_body_metadata):
+            rows = self.snapshot.case_rows(summary, "apache", Path("/safe/results/apache-summary.json"))
+
+        self.assertEqual(1, len(rows))
+        self.assertEqual("PASS", rows[0]["matrix_status"])
+        self.assertTrue(rows[0]["not_auto_promoted"])
+        self.assertTrue(rows[0]["response_body_non_verified"])
+        self.assertFalse(rows[0]["promotion_allowed"])
+        self.assertFalse(rows[0]["runtime_verified"])
+
     def test_connector_smoke_uses_summary_exit_status_only_with_case_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -102,3 +129,60 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
         self.assertIn("build=blocked", row["per_case_unavailable_reason"])
         self.assertIn("first failing detail", row["per_case_unavailable_reason"])
         self.assertEqual(row["per_case_unavailable_reason"], row["blocker"]["reason"])
+
+    def test_snapshot_layout_writes_only_the_expected_contained_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            framework_root = root / "framework"
+            connector_root = root / "connector"
+            framework_root.mkdir()
+            connector_root.mkdir()
+            self.snapshot.configure_paths(framework_root, connector_root, framework_root)
+            expected = self.snapshot.build_safe_snapshot_path(framework_root)
+
+            with mock.patch.object(
+                self.snapshot,
+                "write_generated_report_file",
+                wraps=self.snapshot.write_generated_report_file,
+            ) as write_snapshot:
+                self.snapshot.active_snapshot_layout().write({"untrusted": "../outside.json"})
+            write_snapshot.assert_called_once_with(
+                expected.parent,
+                self.snapshot.SNAPSHOT_FILENAME,
+                mock.ANY,
+            )
+            self.assertEqual(
+                {"untrusted": "../outside.json"},
+                json.loads(expected.read_text(encoding="utf-8")),
+            )
+
+            outside = root / "outside.json"
+            unexpected = self.snapshot.SnapshotLayout(
+                output_root=framework_root,
+                report_root=expected.parent,
+                snapshot=outside,
+            )
+            with self.assertRaisesRegex(ValueError, "configured report snapshot"):
+                unexpected.write({"untrusted": "../outside.json"})
+            self.assertFalse(outside.exists())
+
+    def test_snapshot_layout_rejects_a_linked_target_escaping_the_output_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            framework_root = root / "framework"
+            connector_root = root / "connector"
+            framework_root.mkdir()
+            connector_root.mkdir()
+            self.snapshot.configure_paths(framework_root, connector_root, framework_root)
+            expected = self.snapshot.build_safe_snapshot_path(framework_root)
+            expected.parent.mkdir(parents=True, exist_ok=True)
+            outside = root / "outside.json"
+            outside.write_text("unchanged\n", encoding="utf-8")
+            expected.symlink_to(outside)
+            layout = self.snapshot.active_snapshot_layout()
+
+            with self.assertRaisesRegex(ValueError, "runtime snapshot path must stay under"):
+                layout.write({"untrusted": "content"})
+
+            self.assertTrue(expected.is_symlink())
+            self.assertEqual("unchanged\n", outside.read_text(encoding="utf-8"))

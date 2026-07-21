@@ -28,6 +28,7 @@ PYTHON_BIN="${PYTHON:-python3}"
 require_safe_runtime_or_src() {
     path=$1
     label=$2
+    ci_reject_traversal_path "$path" "$label" || exit 77
     case "$path" in
         /src|/src/*) return 0 ;;
         /*) assert_safe_runtime_path "$path" "$label" || exit 77 ;;
@@ -38,10 +39,8 @@ require_safe_runtime_or_src() {
 require_under_build_root() {
     path=$1
     label=$2
-    case "$path" in
-        "$BUILD_ROOT"|"$BUILD_ROOT"/*) return 0 ;;
-        *) echo "BLOCKED: $label must be under BUILD_ROOT: $path" >&2; exit 77 ;;
-    esac
+    assert_safe_runtime_path "$path" "$label" || exit 77
+    assert_runtime_path_under_root "$path" "$BUILD_ROOT" "$label" || exit 77
 }
 
 require_under_build_root_or_safe_runtime() {
@@ -56,17 +55,25 @@ require_under_build_root_or_safe_runtime() {
 require_results_root() {
     path=$1
     label=$2
-    case "$path" in
-        "$BUILD_ROOT/results"|"$BUILD_ROOT/results"/*) return 0 ;;
-        *) echo "BLOCKED: $label must be under BUILD_ROOT/results: $path" >&2; exit 77 ;;
-    esac
+    assert_safe_runtime_path "$path" "$label" || exit 77
+    assert_runtime_path_under_root "$path" "$BUILD_ROOT/results" "$label" || exit 77
 }
 
 require_log_root() {
     path=$1
     label=$2
+    ci_reject_traversal_path "$path" "$label" || exit 77
     case "$path" in
-        "$BUILD_ROOT/logs"|"$BUILD_ROOT/logs"/*|"$BUILD_ROOT/results"|"$BUILD_ROOT/results"/*) return 0 ;;
+        "$BUILD_ROOT/logs"|"$BUILD_ROOT/logs"/*)
+            assert_safe_runtime_path "$path" "$label" || exit 77
+            assert_runtime_path_under_root "$path" "$BUILD_ROOT/logs" "$label" || exit 77
+            return 0
+            ;;
+        "$BUILD_ROOT/results"|"$BUILD_ROOT/results"/*)
+            assert_safe_runtime_path "$path" "$label" || exit 77
+            assert_runtime_path_under_root "$path" "$BUILD_ROOT/results" "$label" || exit 77
+            return 0
+            ;;
         *) require_safe_runtime_or_src "$path" "$label" ;;
     esac
 }

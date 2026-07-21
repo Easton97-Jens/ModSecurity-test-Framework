@@ -10,6 +10,13 @@ former_xfail_reason: "operator/transformation/phase/edge/parser compatibility ca
 promoted_from_xfail_date: "2026-06-07"
 known_limitations:
   - Phase 1 is a reachability marker only; request-body content is asserted in phase 2.
+metadata:
+  classification: connector_gap
+  classification_reason: >-
+    The phase-1 action is a reachability marker only; the phase-2 REQUEST_BODY
+    denial cannot prove phase-1 request-body enforcement and is non-promotable.
+  report_labels:
+    - phase1-reachability-only
 name: phase1_vs_phase2_request_body_gap
 capabilities:
   intervention: true

@@ -52,6 +52,7 @@ _LOCAL_PATH_TOKEN_RE = re.compile(
     + r")(?:/[^\s`<>()\[\]{}|,;]*)?)"
 )
 GERMAN_MARKDOWN_SUFFIX = ".de.md"
+SAFE_VERIFIED_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$")
 
 
 def _absolute_posix_path_parts(raw: str) -> tuple[str, ...] | None:
@@ -311,18 +312,25 @@ def read_json_object(path: Path) -> dict[str, Any]:
 def current_verified_run_id(connector_root: Path) -> str:
     explicit = os.environ.get("VERIFIED_RUN_ID", "").strip()
     if explicit:
-        return explicit
+        return safe_verified_run_id(explicit)
     snapshot = read_json_object(connector_root / "reports/testing/runtime-validation-snapshot.json")
     for key in ("verified_run_id", "run_id"):
         value = str(snapshot.get(key) or "").strip()
         if value:
-            return value
+            return safe_verified_run_id(value)
     snapshot_date = str(snapshot.get("snapshot_date") or "").strip()
     commit = str(snapshot.get("commit") or "").strip()
     if snapshot_date and commit:
-        return f"{snapshot_date}-{commit}"
+        return safe_verified_run_id(f"{snapshot_date}-{commit}")
     sha = git_sha(connector_root)
-    return sha[:12] if sha != "unknown" else "unknown"
+    return safe_verified_run_id(sha[:12] if sha != "unknown" else "unknown")
+
+
+def safe_verified_run_id(value: object) -> str:
+    """Render only a bounded token in Markdown metadata and table cells."""
+
+    candidate = str(value or "").strip()
+    return candidate if SAFE_VERIFIED_RUN_ID_RE.fullmatch(candidate) else "invalid"
 
 
 def input_records(inputs: Iterable[Path | str], connector_root: Path, framework_root: Path) -> list[dict[str, Any]]:
@@ -526,7 +534,7 @@ def generated_markdown_text(body: str, metadata: dict[str, Any]) -> str:
         f"> {GENERATED_NOTICE}",
         ">",
         f"> Generated at: `{metadata.get('generated_at', 'unknown')}`",
-        f"> Verified run id: `{metadata.get('verified_run_id', 'unknown')}`",
+        f"> Verified run id: `{safe_verified_run_id(metadata.get('verified_run_id', 'unknown'))}`",
         f"> Data source policy: `{metadata.get('data_source_policy', DATA_SOURCE_POLICY)}`",
         f"> Generator: `{metadata.get('generated_by', 'unknown')}`",
         f"> Make target: `{metadata.get('make_target', 'unknown')}`",
@@ -577,7 +585,9 @@ def data_sources_section(metadata: dict[str, Any]) -> str:
         for record in records:
             source = portable_markdown_text(str(record.get("path", "-"))).replace("|", "\\|")
             source_hash = str(record.get("source_hash") or "unknown")
-            run_id = str(record.get("verified_run_id") or metadata.get("verified_run_id") or "unknown")
+            run_id = safe_verified_run_id(
+                record.get("verified_run_id") or metadata.get("verified_run_id") or "unknown"
+            )
             status = str(record.get("status") or "unknown")
             lines.append(f"| Declared input | `{source}` | `{source_hash}` | `{run_id}` | {status} |")
     return "\n".join(lines)

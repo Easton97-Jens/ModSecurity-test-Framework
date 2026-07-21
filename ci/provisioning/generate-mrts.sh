@@ -61,8 +61,12 @@ if [ -z "$definition_list" ]; then
     exit 77
 fi
 
+assert_safe_runtime_path "$MRTS_BUILD_ROOT" MRTS_BUILD_ROOT || exit 77
+assert_runtime_path_under_root "$MRTS_BUILD_ROOT" "$BUILD_ROOT/mrts" MRTS_BUILD_ROOT || exit 77
 assert_safe_runtime_path "$MRTS_RULES_OUT" MRTS_RULES_OUT || exit 77
+assert_runtime_path_under_root "$MRTS_RULES_OUT" "$MRTS_BUILD_ROOT" MRTS_RULES_OUT || exit 77
 assert_safe_runtime_path "$MRTS_FTW_OUT" MRTS_FTW_OUT || exit 77
+assert_runtime_path_under_root "$MRTS_FTW_OUT" "$MRTS_BUILD_ROOT" MRTS_FTW_OUT || exit 77
 mkdir -p "$MRTS_RULES_OUT" "$MRTS_FTW_OUT"
 find "$MRTS_RULES_OUT" -type f -name '*.conf' -exec rm -f {} \;
 find "$MRTS_FTW_OUT" -type f -name '*.yaml' -exec rm -f {} \;

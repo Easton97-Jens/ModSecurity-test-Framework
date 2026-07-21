@@ -30,6 +30,7 @@ for path in (FRAMEWORK_ROOT / "tests" / "runners", FRAMEWORK_ROOT / "ci" / "lib"
         sys.path.insert(0, str(path))
 
 from runner_core import case_group, load_case  # noqa: E402
+from generated_report_utils import write_generated_report_file  # noqa: E402
 from response_body_status import (  # noqa: E402
     RESPONSE_BODY_RUNTIME_NOTE,
     is_response_body_related,
@@ -66,10 +67,15 @@ class SnapshotLayout:
     snapshot: Path
 
     def write(self, snapshot_data: dict) -> None:
-        if self.snapshot != build_safe_snapshot_path(self.output_root):
+        safe_snapshot_path = build_safe_snapshot_path(self.output_root)
+        if self.snapshot != safe_snapshot_path:
             raise ValueError(f"snapshot path must be the configured report snapshot: {self.snapshot}")
-        self.snapshot.parent.mkdir(parents=True, exist_ok=True)
-        self.snapshot.write_text(json.dumps(snapshot_data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+        safe_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+        write_generated_report_file(
+            safe_snapshot_path.parent,
+            SNAPSHOT_FILENAME,
+            json.dumps(snapshot_data, indent=2, sort_keys=False) + "\n",
+        )
 
 
 def resolve_allowed_output_root(output_root: str | Path | None) -> Path:
@@ -180,6 +186,10 @@ def load_case_metadata(case_path: Path) -> dict:
 
 
 def classify_case(relative: str, status: str, case: dict) -> str:
+    metadata = case.get("metadata") if isinstance(case.get("metadata"), dict) else {}
+    declared = str(metadata.get("classification") or "").strip().lower().replace("-", "_")
+    if declared and declared != "active":
+        return declared
     text = " ".join(
         [
             relative,
@@ -271,7 +281,7 @@ def case_evidence(summary_path: Path, name: object, status: str, expected: objec
     return evidence
 
 
-def case_matrix_status(item: dict, metadata: dict[str, object], status: str, expected: object, actual: object) -> str:
+def case_matrix_status(item: dict, metadata: dict[str, object], status: str) -> str:
     response_body_related = bool(metadata["response_body_related"])
     computed = matrix_status(
         status,
@@ -279,16 +289,11 @@ def case_matrix_status(item: dict, metadata: dict[str, object], status: str, exp
         response_body_related,
         strict_abort=item.get("strict_abort") is True,
     )
-    if response_body_related and status.strip().lower() == "pass":
-        if not response_body_pass_is_pass_through(expected, actual, item.get("observed_transport_result")):
-            computed = matrix_status(
-                status,
-                str(metadata["classification"]),
-                False,
-                strict_abort=item.get("strict_abort") is True,
-            )
-    supplied = str(item.get("matrix_status") or "")
-    return computed if supplied.startswith("XFAIL_") or not supplied else supplied
+    if status.strip().lower() == "pass" and (
+        item.get("response_body_non_verified") is True or item.get("promotion_allowed") is False
+    ):
+        return "NOT_EXECUTABLE"
+    return computed
 
 
 def case_reason(item: dict, status: str) -> object:
@@ -311,7 +316,7 @@ def base_case_row(
         "case": str(name),
         "path": normalize_case(str(item.get("path", ""))),
         "status": status,
-        "matrix_status": case_matrix_status(item, metadata, status, expected, actual),
+        "matrix_status": case_matrix_status(item, metadata, status),
         "runtime_attempted": True,
         "live_executed": item.get("live_executed") is True,
         "operation_status": item.get("operation_status", "unknown"),
@@ -569,8 +574,14 @@ def current_mrts_variant() -> str:
 
 
 def variant_summary_path(results_dir: Path, connector: str, fallback: Path) -> Path:
-    path = results_dir / current_test_variant() / current_mrts_variant() / connector / f"{connector}-summary.json"
-    return path if path.exists() else fallback
+    """Return the direct summary created by the runtime-matrix invocation.
+
+    Variant directories belong to separately invoked MRTS/CRS targets and can
+    retain evidence from an earlier run.  A default runtime-matrix snapshot
+    must never select one merely because it happens to exist.
+    """
+    del results_dir, connector
+    return fallback
 
 
 def summary_text_path(summary_path: Path) -> Path:
@@ -582,11 +593,8 @@ def haproxy_default_matrix_smoke(
     exit_code: str,
     results_dir: Path,
 ) -> dict:
-    summary_path = variant_summary_path(results_dir, "haproxy", results_dir / "with-crs" / "haproxy-summary.json")
+    summary_path = variant_summary_path(results_dir, "haproxy", results_dir / "haproxy-summary.json")
     text_summary_path = summary_text_path(summary_path)
-    if not summary_path.exists():
-        summary_path = results_dir / "haproxy-summary.json"
-        text_summary_path = summary_text_path(summary_path)
     if exit_code in {"not_run", ""}:
         return not_available_force_all_row("haproxy", summary_path, command)
 

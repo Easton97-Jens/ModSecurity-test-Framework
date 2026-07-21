@@ -92,11 +92,19 @@ def body_payload_errors(security_event_normalizer: ModuleType) -> list[str]:
 def integrity_hash_chain_errors(integrity_hash_chain: ModuleType) -> list[str]:
     """Prove that a minimal canonical hash-chain record rejects tampering."""
 
-    record = {"sequence": 1, "previous_event_hash": "", "event": "start"}
+    record = {
+        "sequence": 1,
+        "previous_event_hash": "",
+        "event": "start",
+        "timestamp": "2026-07-20T00:00:00Z",
+    }
     record["event_hash"] = integrity_hash_chain.compute_event_hash(record)
     tampered = json.dumps(record).replace("start", "tampered")
     if integrity_hash_chain.validate_hash_chain(tampered)[1]:
-        return []
+        timestamp_tampered = json.dumps(record).replace("00:00:00Z", "00:01:00Z")
+        if integrity_hash_chain.validate_hash_chain(timestamp_tampered)[1]:
+            return []
+        return ["volatile timestamp tampering was not detected"]
     return ["tamper data was not detected"]
 
 

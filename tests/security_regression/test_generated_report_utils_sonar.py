@@ -94,6 +94,27 @@ class GeneratedReportUtilsSonarTests(unittest.TestCase):
             ("**Sprache:**", "**Sprache:** [English](runtime-matrix.generated.md) | Deutsch"),
         )
 
+    def test_generated_markdown_rejects_an_untrusted_run_id_with_markdown_syntax(self):
+        unsafe_run_id = "run`\n| injected | <script>alert(1)</script> |"
+        rendered = self.utils.generated_markdown_text(
+            "# Generated report",
+            {
+                "verified_run_id": unsafe_run_id,
+                "inputs": [
+                    {
+                        "path": "reports/testing/input.json",
+                        "source_hash": "a" * 64,
+                        "verified_run_id": unsafe_run_id,
+                        "status": "present",
+                        "notes": "input file available",
+                    }
+                ],
+            },
+        )
+        self.assertIn("> Verified run id: `invalid`", rendered)
+        self.assertNotIn(unsafe_run_id, rendered)
+        self.assertNotIn("<script>", rendered)
+
 
 if __name__ == "__main__":
     unittest.main()

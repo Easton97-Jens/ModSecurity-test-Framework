@@ -107,6 +107,35 @@ class CommonShellSonarContractsTest(unittest.TestCase):
         result = run_common_shell(script)
         self.assertEqual(0, result.returncode, result.stderr)
 
+    def test_runtime_provisioning_requires_explicit_download_and_build_opt_in(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            marker = Path(temporary) / "provisioning-invoked"
+            script = textwrap.dedent(
+                f"""
+                . {shlex.quote(str(COMMON))}
+                ENVOY_BIN=/definitely/missing/envoy
+                TRAEFIK_BIN=/definitely/missing/traefik
+                LIGHTTPD_BIN=/definitely/missing/lighttpd
+                LIGHTTPD_INCLUDE_DIR=/definitely/missing/include
+                ci_stage_matching_runtime_binary() {{ return 1; }}
+                sh() {{ : > {shlex.quote(str(marker))}; return 1; }}
+
+                ALLOW_RUNTIME_DOWNLOADS=0
+                ALLOW_RUNTIME_BUILDS=0
+                require_or_provision_envoy >/dev/null 2>&1 || :
+                require_or_provision_traefik >/dev/null 2>&1 || :
+                require_or_provision_lighttpd >/dev/null 2>&1 || :
+                [ ! -e {shlex.quote(str(marker))} ] || exit 1
+
+                ALLOW_RUNTIME_DOWNLOADS=1
+                require_or_provision_envoy >/dev/null 2>&1 || :
+                [ -e {shlex.quote(str(marker))} ] || exit 1
+                exit 0
+                """
+            )
+            result = run_common_shell(script)
+        self.assertEqual(0, result.returncode, result.stderr)
+
     def test_default_case_paths_preserve_the_existing_safe_flow(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -166,6 +195,67 @@ class CommonShellSonarContractsTest(unittest.TestCase):
 
             result = run_common_shell(script)
             self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_runtime_path_guard_rejects_all_source_checkout_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            repo_root = root / "repo"
+            framework_root = root / "framework"
+            connector_root = root / "connector"
+            build_root = root / "build"
+            for path in (repo_root, framework_root, connector_root, build_root):
+                path.mkdir()
+            script = textwrap.dedent(
+                f"""
+                . {shlex.quote(str(COMMON))}
+                REPO_ROOT={shlex.quote(str(repo_root))}
+                FRAMEWORK_ROOT={shlex.quote(str(framework_root))}
+                CONNECTOR_ROOT={shlex.quote(str(connector_root))}
+                BUILD_ROOT={shlex.quote(str(build_root))}
+                TMP_ROOT={shlex.quote(str(build_root / 'tmp'))}
+                LOG_ROOT={shlex.quote(str(build_root / 'logs'))}
+                XDG_STATE_HOME={shlex.quote(str(root / 'state'))}
+                XDG_CACHE_HOME={shlex.quote(str(root / 'cache'))}
+
+                assert_safe_runtime_path {shlex.quote(str(build_root / 'owned'))} build || exit 1
+                for source_path in \
+                    {shlex.quote(str(repo_root / 'generated'))} \
+                    {shlex.quote(str(framework_root / 'generated'))} \
+                    {shlex.quote(str(connector_root / 'generated'))}; do
+                    assert_safe_runtime_path "$source_path" source >/dev/null 2>&1 && exit 1
+                done
+                exit 0
+                """
+            )
+            result = run_common_shell(script)
+        self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_mrts_generated_paths_are_confined_to_the_build_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build_root = root / "build"
+            generated_root = build_root / "mrts"
+            outside = root / "outside"
+            generated_root.mkdir(parents=True)
+            outside.mkdir()
+            script = textwrap.dedent(
+                f"""
+                . {shlex.quote(str(COMMON))}
+                BUILD_ROOT={shlex.quote(str(build_root))}
+                TMP_ROOT={shlex.quote(str(build_root / 'tmp'))}
+                LOG_ROOT={shlex.quote(str(build_root / 'logs'))}
+                MRTS_BUILD_ROOT={shlex.quote(str(generated_root))}
+                assert_runtime_path_under_root {shlex.quote(str(generated_root / 'rules'))} {shlex.quote(str(generated_root))} rules || exit 1
+                assert_runtime_path_under_root {shlex.quote(str(outside / 'rules'))} {shlex.quote(str(generated_root))} rules >/dev/null 2>&1 && exit 1
+                exit 0
+                """
+            )
+            result = run_common_shell(script)
+        self.assertEqual(0, result.returncode, result.stderr)
+
+        for relative_path in ("ci/provisioning/generate-mrts.sh", "ci/provisioning/write-mrts-load.sh"):
+            source = (ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertIn('assert_runtime_path_under_root "$MRTS_BUILD_ROOT" "$BUILD_ROOT/mrts"', source)
 
 
 if __name__ == "__main__":

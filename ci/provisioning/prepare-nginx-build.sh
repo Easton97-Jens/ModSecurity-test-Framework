@@ -257,7 +257,7 @@ ensure_quic_tls_source() {
     if [ ! -f "$NGINX_QUIC_TLS_ARCHIVE" ]; then
         require_command curl "download pinned NGINX QUIC TLS source"
         run_blocked nginx-quic-tls-source-download "$DOWNLOAD_DIR" \
-            curl -L --fail --retry 3 --retry-delay 2 -o "$NGINX_QUIC_TLS_ARCHIVE" "$NGINX_QUIC_TLS_SOURCE_URL"
+            curl --proto =https --proto-redir =https -L --fail --retry 3 --retry-delay 2 -o "$NGINX_QUIC_TLS_ARCHIVE" "$NGINX_QUIC_TLS_SOURCE_URL"
     fi
     NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL=$(sha256sum "$NGINX_QUIC_TLS_ARCHIVE" | awk '{print $1}')
     if [ "$NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL" != "$NGINX_QUIC_TLS_SOURCE_SHA256" ]; then
@@ -588,10 +588,10 @@ resolve_nginx_release_tag() {
     {
         echo "[nginx-github-latest-release]"
         echo "cwd=$DOWNLOAD_DIR"
-        echo "command=curl -fsSL --retry 3 --retry-delay 2 -H Accept: application/vnd.github+json -o $latest_tmp $api_url"
+        echo "command=curl --proto =https --proto-redir =https -fsSL --retry 3 --retry-delay 2 -H Accept: application/vnd.github+json -o $latest_tmp $api_url"
         echo
     } >> "$COMMANDS_FILE"
-    if curl -fsSL --retry 3 --retry-delay 2 -H "Accept: application/vnd.github+json" -o "$latest_tmp" "$api_url" >"$LOG_DIR/nginx-github-latest-release.log" 2>&1; then
+    if curl --proto =https --proto-redir =https -fsSL --retry 3 --retry-delay 2 -H "Accept: application/vnd.github+json" -o "$latest_tmp" "$api_url" >"$LOG_DIR/nginx-github-latest-release.log" 2>&1; then
         mv "$latest_tmp" "$latest_json"
         echo "pass: nginx-github-latest-release log=$LOG_DIR/nginx-github-latest-release.log" >> "$STATUS_FILE"
     elif [ -s "$latest_json" ]; then
@@ -645,7 +645,7 @@ download_nginx_source() {
     else
         download_tmp="$NGINX_ARCHIVE.download.$$"
         run_blocked nginx-source-download "$DOWNLOAD_DIR" \
-            curl -L --fail --retry 3 --retry-delay 2 -o "$download_tmp" "$NGINX_ARCHIVE_URL"
+            curl --proto =https --proto-redir =https -L --fail --retry 3 --retry-delay 2 -o "$download_tmp" "$NGINX_ARCHIVE_URL"
         if ! mv "$download_tmp" "$NGINX_ARCHIVE"; then
             blocked "could not place downloaded NGINX archive: $NGINX_ARCHIVE"
         fi

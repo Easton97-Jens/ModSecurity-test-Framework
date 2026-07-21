@@ -182,6 +182,52 @@ class SecondRemediationTests(unittest.TestCase):
             self.assertEqual(row["status"], "NOT_AVAILABLE")
             self.assertEqual(row["connector"], "haproxy")
 
+    def test_runtime_matrix_ignores_stale_variant_summary(self):
+        snap = load_module("ci/reporting/update-runtime-snapshot.py", "runtime_snapshot_variant_test")
+        with tempfile.TemporaryDirectory() as tmp:
+            results = Path(tmp) / "results"
+            stale = results / "with-crs" / "with-mrts" / "apache" / "apache-summary.json"
+            stale.parent.mkdir(parents=True)
+            stale.write_text('{"apache": {"cases": {"forged": {"status": "pass"}}}}', encoding="utf-8")
+            fallback = results / "apache-summary.json"
+            with mock.patch.dict(
+                os.environ,
+                {"MODSECURITY_TEST_VARIANT": "with-crs", "MODSECURITY_MRTS_VARIANT": "with-mrts"},
+                clear=False,
+            ):
+                self.assertEqual(snap.variant_summary_path(results, "apache", fallback), fallback)
+
+    def test_snapshot_never_preserves_a_supplied_pass_for_strict_abort(self):
+        snap = load_module("ci/reporting/update-runtime-snapshot.py", "runtime_snapshot_nonpromotable_test")
+        matrix_status = snap.case_matrix_status(
+            {"strict_abort": True, "matrix_status": "PASS"},
+            {"classification": "active", "response_body_related": True},
+            "pass",
+        )
+        self.assertEqual("NOT_EXECUTABLE", matrix_status)
+
+    def test_with_crs_status_override_requires_the_local_rule_audit_evidence(self):
+        runner = load_module("tests/runners/runner_core.py", "runner_core_crs_rule_identity_test")
+        case = {
+            "expect": {
+                "status": 401,
+                "intervention": "block",
+                "rule_id": 2320,
+                "audit_log": {"required": True, "rule_id": 2320},
+                "variants": {"with-crs": {"status": 403}},
+            }
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            audit_log = Path(tmp) / "audit.log"
+            audit_log.write_text("Message: generic CRS block [id \"949110\"]\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"MODSECURITY_TEST_VARIANT": "with-crs"}, clear=False):
+                errors = runner.assert_case_artifacts(case, {"status": 403}, audit_log_file=audit_log)
+            self.assertTrue(any("rule_id" in error and "2320" in error for error in errors), errors)
+
+            audit_log.write_text("Message: local status action [id \"2320\"]\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"MODSECURITY_TEST_VARIANT": "with-crs"}, clear=False):
+                self.assertEqual([], runner.assert_case_artifacts(case, {"status": 403}, audit_log_file=audit_log))
+
     def test_run_one_case_rejects_unverified_pass_result(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

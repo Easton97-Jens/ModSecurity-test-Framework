@@ -96,10 +96,20 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             set -eu
             output=
             url=
+            protocol=
+            redirect_protocol=
             while [ "$#" -gt 0 ]; do
                 case "$1" in
                     -o)
                         output=$2
+                        shift 2
+                        ;;
+                    --proto)
+                        protocol=$2
+                        shift 2
+                        ;;
+                    --proto-redir)
+                        redirect_protocol=$2
                         shift 2
                         ;;
                     *)
@@ -108,7 +118,11 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                         ;;
                 esac
             done
-            printf '%s\\n' "$url" >> "$CURL_LOG"
+            if [ "${CURL_REQUIRE_HTTPS_REDIRECTS:-0}" = "1" ]; then
+                [ "$protocol" = "=https" ] || exit 91
+                [ "$redirect_protocol" = "=https" ] || exit 92
+            fi
+            printf '%s|%s|%s\\n' "$protocol" "$redirect_protocol" "$url" >> "$CURL_LOG"
             if [ "$url" = "$LATEST_URL" ]; then
                 [ "${CURL_LATEST_FAIL:-0}" = "1" ] && exit 22
                 cp "$FIXTURE_LATEST" "$output"
@@ -450,6 +464,41 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             self.assertEqual(len(self.tar_invocations(harness)), 1)
         finally:
             self.remove_harness(harness)
+
+    def test_latest_and_release_downloads_require_https_only_redirects(self):
+        harness = self.make_harness()
+        try:
+            latest_candidate = harness["cache"] / "nginx-fixture-latest.tar.gz"
+            result = self.run_prepare(
+                harness,
+                self.archive_digest(harness),
+                NGINX_RELEASE_TAG="latest",
+                NGINX_SOURCE_GIT_REF="latest",
+                NGINX_ARCHIVE_EXPECTED=str(latest_candidate),
+                CURL_REQUIRE_HTTPS_REDIRECTS="1",
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            curl_calls = harness["curl_log"].read_text(encoding="utf-8").splitlines()
+            self.assertEqual(
+                curl_calls,
+                [
+                    "=https|=https|https://api.github.com/repos/nginx/nginx/releases/latest",
+                    "=https|=https|https://github.com/nginx/nginx/releases/download/fixture-latest/nginx-fixture-latest.tar.gz",
+                ],
+            )
+            self.assertEqual(len(self.tar_invocations(harness)), 1)
+        finally:
+            self.remove_harness(harness)
+
+    def test_all_redirecting_curl_commands_limit_protocols_to_https(self):
+        curl_calls = [
+            line.strip()
+            for line in SCRIPT.read_text(encoding="utf-8").splitlines()
+            if line.lstrip().startswith(("curl ", "if curl "))
+        ]
+        self.assertEqual(len(curl_calls), 3)
+        for call in curl_calls:
+            self.assertIn("curl --proto =https --proto-redir =https", call)
 
     def test_release_and_source_overrides_select_the_expected_local_archive_path(self):
         harness = self.make_harness()

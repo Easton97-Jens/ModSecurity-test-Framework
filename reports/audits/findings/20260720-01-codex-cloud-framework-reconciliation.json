@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "record_id": "FND-FRAMEWORK-CODEX-CLOUD-20260720-01",
+  "scope": "ModSecurity-test-Framework only",
+  "source": {
+    "file": "codex-security-findings-2026-07-20T17-18-10.034Z.csv",
+    "sha256": "4836e7d8a1aba6088f1d125e7f48dd2cb333c2e7d4c1d19117d911c0aad45daf",
+    "row_count": 41
+  },
+  "delivery": {
+    "pull_request": 37,
+    "branch": "agent/master-post36-sonar-remediation",
+    "master_integration": "prohibited",
+    "cloud_rescan": "blocked_permissions"
+  },
+  "finding_defaults": {
+    "owner": "ModSecurity-test-Framework maintainers",
+    "confidence": "high",
+    "acceptance_criterion": "The listed Framework control rejects the original negative condition without breaking a legitimate control.",
+    "validation_plan": "Run the per-finding focused regression/control recorded in Change Record 20260720-03 and the relevant aggregate Framework contract.",
+    "cloud_closure": "blocked_permissions"
+  },
+  "dispositions": {
+    "historical": ["48ddc89c01548191aac6fdc953d4a69b"],
+    "fixed_in_pr": [
+      "bcbd96f10f448191803aba3e3b8a0070", "16149ebc6acc8191ac9ee9d7e69c0df6", "54eada328eec819189aae57610065121", "864b7d9ee20081919d081396d2a233ad", "baea266fb5888191bb324059eba138a2", "ee0623b9b9388191b29b09766e413ad8", "a0aff086d85c8191b2082624edf5307f", "1026985814c481918b4b027a23781d3f", "9a214a75c8588191882b8ac9d962680f", "79df193a47ac8191bc86540880a67c9b", "b7182cd323788191ab7ac23888fa4450", "d977dab59b8881918b43fe4266be1701", "51d9936d46c081918bd41943cfca556e", "63a331f94bcc8191a3e7f92bdbb7c7bf", "fe1ef37482e08191b59d3408d055654b", "65bc10b56e808191a520045cfdfa2bae", "2df18b3855f4819199ca1ee44272f787", "c9ca53a179948191addf07c5cfa34f67", "616c924be1f48191af25a59b90cc867b", "badab16622ec8191b449fd8a86283684", "828ebddbd9a081918184d9d0169a66ec", "f4db578ad0948191a1edcd79e393c733", "a4235836148c81919fe06cfb7046d481", "6f134b6136c481918d5576fa425a5957", "b5a2c3f804a08191a3b7e679f0595af6", "6acb550c6d8881919d471e219a372279", "35b0191ac00c819199f15e78d1af47da", "2e073de989788191a9757339713f6b4e", "ab82b17e04b481919f6af41953c716c4", "5c1e67465d948191bf7bd26dd900273b"
+    ],
+    "already_safe": [
+      "932c7c43d8d88191a06ca768bba69f42", "49dfbbb3887c819187fdbd9b670341c1", "6645193c8a4081919df834437048f38c", "712cf426a780819188abe4928484b4d7", "ce59a7b5dfa881919172d51d9b5f02bd", "2ad2602367208191955e63da621fcf3f", "0044ed827d5c8191a5b68bc7d257862a", "0c88f026e99c819184283536e5ca8af5", "0648f667c8a08191ab140169675aacb4", "3677a6db8d74819181aa8258ae94b410"
+    ]
+  },
+  "acceptance": {
+    "all_41_ids_accounted_for": true,
+    "confirmed_feasible_fixes_have_regressions": true,
+    "parent_changed": false,
+    "mrts_changed": false,
+    "final_cloud_closure": false
+  }
+}

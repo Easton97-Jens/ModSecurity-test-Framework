@@ -5,7 +5,10 @@ from typing import Any
 from tests.normalizers.security_event_normalizer import normalize_value, parse_jsonl
 
 def _canonical(row: dict[str, Any]) -> str:
-    data={k: normalize_value(v) for k,v in row.items() if k != "event_hash"}
+    # Integrity must cover the recorded values.  Display normalization is
+    # intentionally applied only after validation so changing a timestamp,
+    # path, or endpoint cannot preserve a previously valid event hash.
+    data={k: v for k,v in row.items() if k != "event_hash"}
     return json.dumps(data, sort_keys=True, separators=(",",":"))
 
 def compute_event_hash(row: dict[str, Any]) -> str:

@@ -54,9 +54,6 @@ LOCAL_AGENT_ROOT_NAMES = {
 LOCAL_AGENT_PREFIXES = (
     ".codex/",
 )
-AGENT_ROOT_INCLUDE_RE = re.compile(
-    r"^@(?P<name>[A-Za-z0-9][\w.-]*\.md)\s*$", re.MULTILINE | re.ASCII
-)
 PULL_REQUEST_TEMPLATE = ROOT / ".github/pull_request_template.md"
 PULL_REQUEST_REQUIRED_SECTIONS = {
     "English": (
@@ -177,23 +174,10 @@ def tracked_markdown_files() -> list[Path]:
     )
 
 
-def agent_referenced_root_markdown() -> set[str]:
-    """Return root Markdown files explicitly included by the root agent file."""
-
-    agent = ROOT / "AGENTS.md"
-    if not agent.is_file():
-        return set()
-    return {
-        match.group("name")
-        for match in AGENT_ROOT_INCLUDE_RE.finditer(agent.read_text(encoding="utf-8"))
-    }
-
-
 def is_local_agent_configuration_path(path: Path) -> bool:
     value = relative(path)
     return (
         value in LOCAL_AGENT_ROOT_NAMES
-        or value in agent_referenced_root_markdown()
         or any(value.startswith(prefix) for prefix in LOCAL_AGENT_PREFIXES)
     )
 

@@ -30,6 +30,9 @@ CI_ROOT = FRAMEWORK_ROOT / "ci"
 RUNNER_ROOT = FRAMEWORK_ROOT / "tests/runners"
 CATALOG_ROOT = CI_ROOT / "checks" / "catalog"
 PROTOCOL_ROOT = CI_ROOT / "checks" / "protocol"
+FILESYSTEM_ROOT = Path("/")
+SHARED_TEMPORARY_ROOT = FILESYSTEM_ROOT / "tmp"
+SOURCE_ROOT = FILESYSTEM_ROOT / "src"
 for path in (CATALOG_ROOT, PROTOCOL_ROOT, RUNNER_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
@@ -201,6 +204,11 @@ ENGINE_LIFECYCLE_ARTIFACT_PATHS = {
     "transaction_counts": "transaction-counts.json",
     "lifecycle_counters": "lifecycle-counters.json",
 }
+MAX_ENGINE_VERSION_BYTES = 512
+ENGINE_VERSION_RE = re.compile(
+    r"^(?:[a-z][a-z0-9_-]{0,31}:[A-Za-z0-9][A-Za-z0-9._+-]{0,127})"
+    r"(?:;[a-z][a-z0-9_-]{0,31}:[A-Za-z0-9][A-Za-z0-9._+-]{0,127}){0,7}$"
+)
 PROTOCOL_CLIENT_ARTIFACT_DIR = "inventory/protocol-client"
 PROTOCOL_CLIENT_ARTIFACT_PATHS = {
     "client_version": f"{PROTOCOL_CLIENT_ARTIFACT_DIR}/client-version.txt",
@@ -359,6 +367,20 @@ PHASE4_CASE_IDS = (
     "phase4_body_process_partial",
     "phase4_body_reject",
 )
+RESPONSE_BODY_ENFORCEMENT_CASE_IDS = frozenset(
+    {
+        "phase4_deny_before_commit",
+        "phase4_deny_after_commit_abort",
+    }
+)
+
+
+def response_body_enforcement_verified(pass_ids: Iterable[str]) -> bool:
+    """Require a disruptive Phase-4 outcome, not rule observation alone."""
+
+    return bool(RESPONSE_BODY_ENFORCEMENT_CASE_IDS.intersection(pass_ids))
+
+
 FULL_LIFECYCLE_REQUIRED_IDS = {
     "phase1_allow",
     "phase1_deny_403",
@@ -840,13 +862,33 @@ def sha256_file(path: Path) -> str:
 
 
 def git_value(root: Path, *arguments: str) -> str:
+    # Provenance inspection must not execute a repository-selected fsmonitor
+    # command.  The inspected checkout can be connector-owned or otherwise
+    # outside this Framework's trust boundary, and `git status` normally
+    # consults local configuration before it returns its porcelain output.
+    git_environment = {
+        **os.environ,
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_OPTIONAL_LOCKS": "0",
+    }
     try:
         return subprocess.run(
-            ["git", "-C", str(root), *arguments],
+            [
+                "git",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-C",
+                str(root),
+                *arguments,
+            ],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             text=True,
+            env=git_environment,
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
@@ -882,6 +924,15 @@ def normalize_status(value: object) -> str:
     if normalized is None:
         raise ContractError(f"unsupported case status: {value!r}")
     return normalized
+
+
+def normalize_source_status(value: object) -> str:
+    """Treat unknown or missing collector source status as a failed source."""
+
+    try:
+        return normalize_status(value)
+    except ContractError:
+        return "FAIL"
 
 
 def bool_value(value: object) -> bool:
@@ -1743,7 +1794,7 @@ def safe_run_dir(run_dir: Path, connector_root: Path | None = None) -> None:
     absolute = lexical_absolute(run_dir)
     assert_no_symlink_components(absolute)
     assert_private_run_parent(absolute)
-    if str(absolute) in {"/", "/tmp", "/src"}:
+    if absolute in {FILESYSTEM_ROOT, SHARED_TEMPORARY_ROOT, SOURCE_ROOT}:
         raise ContractError(f"unsafe run-dir: {absolute}")
     protected = [FRAMEWORK_ROOT.resolve(strict=False)]
     if connector_root is not None:
@@ -3188,6 +3239,16 @@ def append_observable_client_status_errors(
         errors.append("observed client status does not match visible_http_status")
 
 
+def require_phase4_expected_status(
+    record: Mapping[str, Any], errors: list[str],
+) -> None:
+    expected_status = optional_int(record.get("expected_status"))
+    if expected_status is None:
+        return
+    if record.get("actual_status") != expected_status:
+        errors.append("observed client status does not match the catalog expected status")
+
+
 def append_abort_client_status_errors(
     record: Mapping[str, Any], errors: list[str],
 ) -> None:
@@ -3376,6 +3437,7 @@ def validate_phase4_content_type_out_of_scope(
     require_phase4_event_value(record, event, errors, "content_type_scope", "out_of_scope")
     if not str(event.get("content_type") or ""):
         errors.append("out-of-scope response evidence is missing content_type")
+    require_phase4_expected_status(record, errors)
     append_observable_client_status_errors(record, errors)
 
 
@@ -3385,6 +3447,7 @@ def validate_phase4_content_type_missing(
     require_phase4_event_value(record, event, errors, "content_type_scope", "missing")
     if event.get("content_type") not in (None, ""):
         errors.append("missing-content-type evidence must not invent content_type")
+    require_phase4_expected_status(record, errors)
     append_observable_client_status_errors(record, errors)
 
 
@@ -3532,6 +3595,7 @@ def phase4_pass_errors(
     record: Mapping[str, Any], matching_event: Mapping[str, Any] | None,
     runtime_evidence_errors: Sequence[str] = (),
     required_protocol: str | None = None,
+    integration_mode: str | None = None,
 ) -> list[str]:
     """Return semantic evidence failures for a canonical Phase-4 PASS.
 
@@ -3558,6 +3622,7 @@ def phase4_pass_errors(
     errors.extend(canonical_event_errors(
         matching_event,
         connector=str(record.get("connector") or "") or None,
+        integration_mode=integration_mode,
     ))
     if not phase_is_four(matching_event.get("phase")):
         errors.append("canonical event does not report phase 4")
@@ -3989,12 +4054,17 @@ def normalized_case_pass_errors(
     expected_fields: Sequence[str],
     observed_event_fields: Sequence[str],
     event_errors: Sequence[str],
+    integration_mode: str | None,
 ) -> list[str]:
     required_protocol, protocol_errors = case_required_protocol_errors(case)
     errors = [*provenance_errors, *protocol_errors]
     if is_phase4_semantic_case(case):
         errors.extend(phase4_pass_errors(
-            record, matching_event, runtime_evidence_errors, required_protocol,
+            record,
+            matching_event,
+            runtime_evidence_errors,
+            required_protocol,
+            integration_mode,
         ))
     else:
         errors.extend(non_phase4_case_pass_errors(
@@ -4100,6 +4170,7 @@ def normalize_case_record(
             expected_fields,
             observed_event_fields,
             event_errors,
+            integration_mode,
         )
         mark_case_record_invalid(record, validation_errors)
     return record
@@ -4923,7 +4994,16 @@ def copy_engine_lifecycle_artifact(
     if name in {"client_log", "upstream_log", "transport_log", "cleanup_log"}:
         copy_engine_lifecycle_artifact_file(run_dir, name, source, manifest)
         return
-    if name in {"engine_version", "engine_library_sha256", "ruleset_sha256"}:
+    if name == "engine_version":
+        text = read_bounded_engine_version_artifact(source)
+        validate_engine_lifecycle_text_artifact(name, text)
+        destination = run_dir / ENGINE_LIFECYCLE_ARTIFACT_PATHS[name]
+        atomic_write_text(destination, text)
+        manifest["artifacts"][name] = artifact_entry(
+            str(destination.relative_to(run_dir)), "produced", sha256=sha256_file(destination)
+        )
+        return
+    if name in {"engine_library_sha256", "ruleset_sha256"}:
         validate_engine_lifecycle_text_artifact(name, source)
     else:
         payload = load_json(source)
@@ -4958,13 +5038,57 @@ def copy_engine_lifecycle_artifact_file(
     )
 
 
-def validate_engine_lifecycle_text_artifact(name: str, source: Path) -> None:
+def read_bounded_engine_version_artifact(source: Path) -> str:
+    """Read a regular, non-symlinked version sidecar with a strict byte bound."""
+
+    source = lexical_absolute(source)
+    parent_descriptor = open_directory_chain(source.parent)
+    descriptor: int | None = None
     try:
-        text = source.read_text(encoding="utf-8").strip()
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+        descriptor = os.open(source.name, flags, dir_fd=parent_descriptor)
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode):
+            raise ContractError("engine lifecycle artifact engine_version must be a regular file")
+        if metadata.st_size > MAX_ENGINE_VERSION_BYTES:
+            raise ContractError("engine lifecycle artifact engine_version exceeds the bounded size")
+        chunks: list[bytes] = []
+        remaining = MAX_ENGINE_VERSION_BYTES + 1
+        while remaining:
+            chunk = os.read(descriptor, min(remaining, 4096))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        if len(raw) > MAX_ENGINE_VERSION_BYTES:
+            raise ContractError("engine lifecycle artifact engine_version exceeds the bounded size")
     except OSError as exc:
-        raise ContractError(f"cannot read engine lifecycle artifact {name}: {exc}") from exc
+        raise ContractError(f"cannot read engine lifecycle artifact engine_version: {exc}") from exc
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        os.close(parent_descriptor)
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ContractError("engine lifecycle artifact engine_version must be UTF-8") from exc
+
+
+def validate_engine_lifecycle_text_artifact(name: str, source: Path | str) -> None:
+    if isinstance(source, Path):
+        try:
+            text = secure_read_text(source).strip()
+        except OSError as exc:
+            raise ContractError(f"cannot read engine lifecycle artifact {name}: {exc}") from exc
+    else:
+        text = source.strip()
     if not text:
         raise ContractError(f"engine lifecycle artifact {name} is empty")
+    if name == "engine_version" and ENGINE_VERSION_RE.fullmatch(text) is None:
+        raise ContractError(
+            "engine lifecycle artifact engine_version must use bounded key:value fields"
+        )
     if name != "engine_version" and re.fullmatch(r"[0-9a-f]{64}", text) is None:
         raise ContractError(f"engine lifecycle artifact {name} must contain a SHA-256 digest")
 
@@ -6105,7 +6229,7 @@ def build_finalize_summary(
     first_byte_evidence: Mapping[str, Any] | None,
 ) -> FinalizeSummary:
     stage_rc = int(args.stage_rc)
-    source_statuses = [str(payload.get("status") or "").upper() for payload in source_payloads]
+    source_statuses = [normalize_source_status(payload.get("status")) for payload in source_payloads]
     source_failure = "FAIL" in source_statuses
     status, blocked_before_execution = aggregate_status(
         records, stage_rc, source_failure=source_failure,
@@ -6254,7 +6378,7 @@ def build_finalize_result(
         "request_headers_verified": {"allow_without_marker", "deny_header_marker_403"}.issubset(summary.pass_ids),
         "request_body_verified": "deny_request_body_marker_403" in summary.pass_ids,
         "response_headers_verified": "deny_response_header_marker_403" in summary.pass_ids,
-        "response_body_verified": "phase4_rule_observed" in summary.pass_ids,
+        "response_body_verified": response_body_enforcement_verified(summary.pass_ids),
         "late_intervention_verified": bool(
             {
                 "phase4_deny_after_commit_log_only",
@@ -7038,7 +7162,12 @@ def pass_case_completeness_errors(
         errors.append(f"{case_id}: PASS missing expected event fields")
     matching_event = matching_case_event_for_validation(record, events, integration_mode)
     if is_phase4_semantic_case(record):
-        errors.extend(f"{case_id}: {error}" for error in phase4_pass_errors(record, matching_event))
+        errors.extend(
+            f"{case_id}: {error}"
+            for error in phase4_pass_errors(
+                record, matching_event, integration_mode=integration_mode,
+            )
+        )
     errors.extend(f"{case_id}: {error}" for error in canonical_event_errors(
         matching_event, connector=connector, integration_mode=integration_mode,
     ))
@@ -7429,7 +7558,7 @@ def status_record_facts(
         }.issubset(pass_ids),
         "request_body_verified": "deny_request_body_marker_403" in pass_ids,
         "response_headers_verified": "deny_response_header_marker_403" in pass_ids,
-        "response_body_verified": "phase4_rule_observed" in pass_ids,
+        "response_body_verified": response_body_enforcement_verified(pass_ids),
         "late_intervention_verified": bool(
             {
                 "phase4_deny_after_commit_log_only",
@@ -7466,7 +7595,7 @@ def status_group_errors(result: Mapping[str, Any], records: Sequence[Mapping[str
 
 def status_source_failure_errors(result: Mapping[str, Any]) -> list[str]:
     expected_source_failure = "FAIL" in {
-        str(status).upper() for status in result.get("source_statuses", [])
+        normalize_source_status(status) for status in result.get("source_statuses", [])
     }
     if result.get("source_failure") is not expected_source_failure:
         return ["source_failure is inconsistent with source_statuses"]

@@ -352,6 +352,50 @@ class ProtocolEvidenceTest(unittest.TestCase):
             errors = check_protocol_evidence.validate_protocol_artifacts(root, protocol="h3")
             self.assertTrue(any("raw connection-ID argument" in error for error in errors))
 
+    def test_rejects_overridden_or_payload_capturing_client_output_options(self) -> None:
+        unsafe_options = (
+            "--output /tmp/leaked-body",
+            "--output=/tmp/leaked-body",
+            "--dump-header=/tmp/leaked-headers",
+            "--trace-ascii=/tmp/leaked-trace",
+        )
+        with temporary_artifact_directory() as temporary:
+            root = Path(temporary)
+            observation: dict[str, object] = {
+                "schema_version": 1,
+                "status": "PASS",
+                "requested_protocol": "h3",
+                "downstream_protocol": "h3",
+                "negotiated_protocol": "h3",
+                "transport": "quic_udp",
+                "alpn": "h3",
+                "stream_id": 4,
+                "fallback_used": False,
+                "quic_udp_observed": True,
+                "quic_connection_id_present": True,
+                "quic_version": "v1",
+            }
+            for unsafe_option in unsafe_options:
+                with self.subTest(unsafe_option=unsafe_option):
+                    write_bundle(root, observation, followup=False)
+                    write_text_artifact(
+                        root,
+                        check_protocol_evidence.CLIENT_COMMAND_ARTIFACT,
+                        "curl --silent --fail-with-body --output /dev/null --http3-only "
+                        f"{unsafe_option} https://localhost/probe\\n",
+                    )
+                    errors = check_protocol_evidence.validate_protocol_artifacts(
+                        root, protocol="h3"
+                    )
+                    self.assertTrue(
+                        any(
+                            "payload-capture" in error
+                            or "payload-free output" in error
+                            for error in errors
+                        ),
+                        "\\n".join(errors),
+                    )
+
     def test_binds_stream_and_upstream_provenance(self) -> None:
         with temporary_artifact_directory() as temporary:
             root = Path(temporary)

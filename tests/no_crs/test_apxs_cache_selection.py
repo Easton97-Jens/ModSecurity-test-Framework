@@ -12,11 +12,15 @@ COMMON_SH = FRAMEWORK_ROOT / "ci" / "lib" / "common.sh"
 
 
 class ApxsCacheSelectionTest(unittest.TestCase):
-    def write_apxs(self, path: Path, include_dir: Path) -> None:
+    def write_apxs(self, path: Path, include_dir: Path, marker: Path | None = None) -> None:
         path.parent.mkdir(parents=True)
+        marker_command = ""
+        if marker is not None:
+            marker_command = f"touch '{marker}'\\n"
         path.write_text(
             "#!/bin/sh\n"
-            "if [ \"${1:-}\" = \"-q\" ] && [ \"${2:-}\" = \"INCLUDEDIR\" ]; then\n"
+            + marker_command
+            + "if [ \"${1:-}\" = \"-q\" ] && [ \"${2:-}\" = \"INCLUDEDIR\" ]; then\n"
             f"    printf '%s\\n' '{include_dir}'\n"
             "    exit 0\n"
             "fi\n"
@@ -25,19 +29,16 @@ class ApxsCacheSelectionTest(unittest.TestCase):
         )
         path.chmod(0o755)
 
-    def test_unusable_cached_apxs_does_not_hide_later_complete_entry(self) -> None:
+    def test_cached_apxs_is_never_probed_or_executed(self) -> None:
         with tempfile.TemporaryDirectory(prefix="framework-apxs-cache-") as temporary:
             root = Path(temporary)
             cache = root / "cache"
-            stale = cache / "builds/connectors/apache/a-stale/httpd/bin/apxs"
-            usable = cache / "builds/connectors/apache/z-usable/httpd/bin/apxs"
-            stale_include = root / "stale/include"
-            usable_include = root / "usable/include"
-            stale_include.mkdir(parents=True)
-            usable_include.mkdir(parents=True)
-            (usable_include / "httpd.h").write_text("/* httpd */\n", encoding="utf-8")
-            self.write_apxs(stale, stale_include)
-            self.write_apxs(usable, usable_include)
+            poisoned = cache / "builds/connectors/apache/poisoned/httpd/bin/apxs"
+            include_dir = root / "poisoned/include"
+            marker = root / "poisoned-executed"
+            include_dir.mkdir(parents=True)
+            (include_dir / "httpd.h").write_text("/* httpd */\n", encoding="utf-8")
+            self.write_apxs(poisoned, include_dir, marker)
 
             result = subprocess.run(
                 ["sh", "-eu", "-c", '. "$1"; framework_find_apxs', "sh", str(COMMON_SH)],
@@ -45,7 +46,36 @@ class ApxsCacheSelectionTest(unittest.TestCase):
                     **os.environ,
                     "CONNECTOR_COMPONENT_CACHE": str(cache),
                     "BUILD_ROOT": str(root / "build"),
-                    "APXS_BIN": str(stale),
+                    "APXS_BIN": "",
+                    "APXS": "",
+                    "CI_APXS_BIN_CANDIDATES": "definitely-not-an-apxs-binary",
+                },
+                check=False,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+        self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual("", result.stdout.strip())
+        self.assertFalse(marker.exists())
+
+    def test_explicit_apxs_remains_usable(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="framework-apxs-explicit-") as temporary:
+            root = Path(temporary)
+            explicit = root / "explicit/bin/apxs"
+            include_dir = root / "explicit/include"
+            include_dir.mkdir(parents=True)
+            (include_dir / "httpd.h").write_text("/* httpd */\n", encoding="utf-8")
+            self.write_apxs(explicit, include_dir)
+
+            result = subprocess.run(
+                ["sh", "-eu", "-c", '. "$1"; framework_find_apxs', "sh", str(COMMON_SH)],
+                env={
+                    **os.environ,
+                    "CONNECTOR_COMPONENT_CACHE": str(root / "cache"),
+                    "BUILD_ROOT": str(root / "build"),
+                    "APXS_BIN": str(explicit),
                     "APXS": "",
                     "CI_APXS_BIN_CANDIDATES": "definitely-not-an-apxs-binary",
                 },
@@ -56,7 +86,7 @@ class ApxsCacheSelectionTest(unittest.TestCase):
             )
 
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertEqual(str(usable), result.stdout.strip())
+        self.assertEqual(str(explicit), result.stdout.strip())
 
 
 if __name__ == "__main__":

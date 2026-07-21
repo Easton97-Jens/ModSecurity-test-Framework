@@ -82,6 +82,20 @@ TABLE_SEPARATOR_2COL = "|---|---|"
 TABLE_STATUS_COUNT_HEADER = "| Status | Count |"
 TABLE_STATUS_COUNT_SEPARATOR = "|---|---:|"
 NOT_EXECUTED = "NOT EXECUTED"
+NON_PROMOTABLE_RUNTIME_CLASSIFICATIONS = {
+    "pending",
+    "future",
+    "connector_gap",
+    "runtime_difference",
+    "non_promoted",
+    "non-promoted",
+}
+GENERATED_MARKDOWN_NOTICE = "> Generated file - do not edit manually."
+VOLATILE_GENERATED_HEADER_LINES = {
+    2: re.compile(r"^> Generated at: `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`$"),
+    9: re.compile(r"^> Connector SHA: `(?:[0-9A-Fa-f]{7,64}|unknown)`$"),
+    10: re.compile(r"^> Framework SHA: `(?:[0-9A-Fa-f]{7,64}|unknown)`$"),
+}
 
 ROOT_COLLECTIONS = [
     "ARGS",
@@ -222,8 +236,12 @@ def normalize_localized_overview_report_links() -> None:
 
     The bilingual overview predates the provenance-aware category layout.  Its
     text is retained as generated output, while this generator normalizes only
-    report links during the same regeneration transaction.
+    the Framework-owned tracked report links during the same regeneration
+    transaction.  Connector output is not Framework-owned and may contain
+    attacker-controlled symlinks, so it must remain outside this write path.
     """
+    if OUTPUT_ROOT != FRAMEWORK_ROOT:
+        return
     overview_de = REPORT_ROOT / "test-coverage-overview.de.md"
     if not overview_de.is_file():
         return
@@ -353,17 +371,16 @@ def generated_report_equivalent(existing: str, candidate: str) -> bool:
         return True
 
     def stable_lines(text: str) -> list[str]:
-        return [
-            line
-            for line in text.splitlines()
-            if not line.startswith(
-                (
-                    "> Generated at: `",
-                    "> Connector SHA: `",
-                    "> Framework SHA: `",
-                )
-            )
-        ]
+        lines = text.splitlines()
+        if len(lines) <= max(VOLATILE_GENERATED_HEADER_LINES):
+            return lines
+        if lines[:2] != [GENERATED_MARKDOWN_NOTICE, ">"]:
+            return lines
+        if any(not pattern.fullmatch(lines[index]) for index, pattern in VOLATILE_GENERATED_HEADER_LINES.items()):
+            return lines
+        for index in VOLATILE_GENERATED_HEADER_LINES:
+            lines[index] = f"<volatile generated metadata line {index}>"
+        return lines
 
     return stable_lines(existing) == stable_lines(candidate)
 
@@ -420,15 +437,45 @@ def load_json_dict(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def haproxy_row_is_verified(row: dict, *, require_crs: bool = False) -> bool:
+    if str(row.get("status", "")).strip().lower() != "pass":
+        return False
+    if row.get("live_executed") is not True:
+        return False
+    if row.get("promotion_allowed") is False or row.get("response_body_non_verified") is True:
+        return False
+    if row.get("strict_abort") is True:
+        return False
+    classification = str(row.get("runtime_classification", "active") or "active").strip().lower().replace("-", "_")
+    if classification in {value.replace("-", "_") for value in NON_PROMOTABLE_RUNTIME_CLASSIFICATIONS}:
+        return False
+    if require_crs and not (
+        row.get("requires_crs") is True
+        and row.get("crs_loaded") is True
+        and row.get("crs_verified") is True
+    ):
+        return False
+    return True
+
+
 def haproxy_verified_cases(cases: dict, *, require_crs: bool = False) -> list[str]:
     verified: list[str] = []
     for name, row in cases.items():
-        if not isinstance(row, dict) or str(row.get("status", "")).lower() != "pass":
-            continue
-        if require_crs and row.get("requires_crs") is not True:
+        if not isinstance(row, dict) or not haproxy_row_is_verified(row, require_crs=require_crs):
             continue
         verified.append(str(name))
     return verified
+
+
+def haproxy_summary_payload(data: dict) -> dict:
+    nested = data.get("haproxy") if isinstance(data.get("haproxy"), dict) else data
+    return nested if isinstance(nested, dict) else {}
+
+
+def haproxy_cases_from_summary(data: dict) -> dict:
+    nested = haproxy_summary_payload(data)
+    cases = nested.get("cases")
+    return cases if isinstance(cases, dict) else {}
 
 
 def haproxy_root_status(verified_cases: list[str], counts: dict) -> str:
@@ -495,16 +542,19 @@ def haproxy_summary_from_variant_data(results_dir: Path, root_path: Path, root_d
     if not no_crs_data and not with_crs_data:
         return haproxy_summary_without_variant_data(root_data, root_path)
 
-    verified_cases: list[str] = []
-    for data in (no_crs_data, with_crs_data):
-        values = data.get("verified_cases") if isinstance(data.get("verified_cases"), list) else []
-        verified_cases.extend(str(value) for value in values)
+    no_crs_cases = haproxy_cases_from_summary(no_crs_data)
+    with_crs_cases = haproxy_cases_from_summary(with_crs_data)
+    verified_cases = haproxy_verified_cases(no_crs_cases)
+    verified_cases.extend(haproxy_verified_cases(with_crs_cases))
     verified_cases = list(dict.fromkeys(verified_cases))
-    crs_verified = with_crs_data.get("crs_verified") is True
+    crs_verified_scope = haproxy_verified_cases(with_crs_cases, require_crs=True)
+    crs_verified = bool(crs_verified_scope)
+    with_crs_summary = haproxy_summary_payload(with_crs_data)
+    no_crs_summary = haproxy_summary_payload(no_crs_data)
     matrix_counts = (
-        with_crs_data.get("counts")
-        if isinstance(with_crs_data.get("counts"), dict)
-        else no_crs_data.get("counts", {})
+        with_crs_summary.get("summary")
+        if isinstance(with_crs_summary.get("summary"), dict)
+        else no_crs_summary.get("summary", {})
     )
     return {
         "connector": "haproxy",
@@ -513,7 +563,7 @@ def haproxy_summary_from_variant_data(results_dir: Path, root_path: Path, root_d
         "runtime_verified": bool(verified_cases),
         "response_body_verified": False,
         "crs_verified": crs_verified,
-        "crs_verified_scope": ["crs_sqli_anomaly_block"] if crs_verified else [],
+        "crs_verified_scope": crs_verified_scope,
         "full_matrix_verified": False,
         "matrix_full": False,
         "counts": matrix_counts if isinstance(matrix_counts, dict) else {},
@@ -547,18 +597,24 @@ def blocked_new_connector_summary(connector: str) -> dict:
 
 
 def haproxy_summary_from_snapshot(summary: dict, smoke: dict) -> dict:
-    verified_cases = smoke.get("verified_cases") if isinstance(smoke.get("verified_cases"), list) else []
-    if not verified_cases and isinstance(smoke.get("cases"), list):
-        verified_cases = [
-            str(row.get("case"))
-            for row in smoke.get("cases", [])
-            if isinstance(row, dict) and str(row.get("status", "")).lower() == "pass"
-        ]
+    rows = smoke.get("cases") if isinstance(smoke.get("cases"), list) else []
+    verified_cases = [
+        str(row.get("case") or row.get("name"))
+        for row in rows
+        if isinstance(row, dict) and haproxy_row_is_verified(row)
+    ]
+    crs_verified_scope = [
+        str(row.get("case") or row.get("name"))
+        for row in rows
+        if isinstance(row, dict) and haproxy_row_is_verified(row, require_crs=True)
+    ]
     summary["status"] = "PARTIAL" if verified_cases else str(smoke.get("status", "BLOCKED"))
     summary["runtime_verified"] = bool(verified_cases)
     default_runtime_status = "live-yaml-runtime" if verified_cases else "not-verified"
     summary["runtime_status"] = str(smoke.get("runtime_status", default_runtime_status))
     summary["verified_cases"] = verified_cases
+    summary["crs_verified"] = bool(crs_verified_scope)
+    summary["crs_verified_scope"] = crs_verified_scope
     summary["full_matrix_verified"] = False
     summary["matrix_full"] = False
     summary["counts"] = (
@@ -1690,6 +1746,20 @@ def status_label(status: object) -> str:
 
 def normalized_matrix_status_value(row: dict) -> str:
     supplied = str(row.get("matrix_status", "") or "").strip()
+    raw_status = str(row.get("status", "") or "").strip().lower()
+    classification = str(
+        row.get("runtime_classification", row.get("metadata_classification", "")) or ""
+    ).strip().lower().replace("-", "_")
+    non_promotable = (
+        row.get("response_body_non_verified") is True
+        or row.get("promotion_allowed") is False
+        or row.get("strict_abort") is True
+        or classification in {value.replace("-", "_") for value in NON_PROMOTABLE_RUNTIME_CLASSIFICATIONS}
+    )
+    if non_promotable and (
+        raw_status == "pass" or supplied == "PASS" or supplied.endswith(("_PASS", "_RESPONSE_BODY_PASS_THROUGH"))
+    ):
+        return "NOT_EXECUTABLE"
     if supplied in {"PASS", "FAIL", "BLOCKED", "NOT_EXECUTABLE"}:
         return supplied
     if supplied.endswith(("_PASS", "_RESPONSE_BODY_PASS_THROUGH")):

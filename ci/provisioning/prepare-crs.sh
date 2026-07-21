@@ -14,6 +14,8 @@ blocked() {
 
 ci_require_absolute_path "$CRS_SOURCE_DIR" "CRS_SOURCE_DIR" || exit 77
 ci_require_absolute_path "$CRS_RUNTIME_DIR" "CRS_RUNTIME_DIR" || exit 77
+assert_runtime_path_under_root "$CRS_SOURCE_DIR" "$SOURCE_ROOT" CRS_SOURCE_DIR || exit 77
+assert_runtime_path_under_root "$CRS_RUNTIME_DIR" "$BUILD_ROOT" CRS_RUNTIME_DIR || exit 77
 assert_safe_runtime_path "$CRS_RUNTIME_DIR" CRS_RUNTIME_DIR || exit 77
 
 [ -d "$CRS_SOURCE_DIR" ] || blocked "missing CRS_SOURCE_DIR: $CRS_SOURCE_DIR; run make fetch-crs"
