@@ -9,15 +9,18 @@
 | Change-ID | `20260720-03-reconcile-codex-cloud-framework-security` |
 | UTC-Datum | 2026-07-20 |
 | Framework-Basisrevision | `2f4a5d7` (normaler lokaler Merge des aktuellen Framework-master in den bestehenden PR-Branch) |
-| Issue oder Pull Request | Codex-Cloud-Export `4836e7…45daf`; bestehender Framework-Draft-PR #37 auf `agent/master-post36-sonar-remediation` |
+| Issue oder Pull Request | Codex-Cloud-Export `4836e7…45daf`; Framework-PR #37 auf `agent/master-post36-sonar-remediation` (Draft zum Zeitpunkt der ursprünglichen Record-Erfassung) |
 
 ## Motivation und Problemstellung
 
 Der bereitgestellte Codex-Cloud-Export enthält 41 Framework-Zeilen. Der
-Benutzer verlangt einen kumulativen Framework-PR, verbietet ausdrücklich eine
-`master`-Integration und schließt Parent-Repository und MRTS aus. Die Änderungen
-gleichen deshalb jede Zeile auf einem Branch ab und bewahren getrennte
-Root-Cause-Kontrollen sowie ehrliche Evidenz.
+ursprüngliche Benutzerauftrag verlangte einen kumulativen Framework-PR,
+verbot zu diesem Zeitpunkt ausdrücklich eine `master`-Integration und schloss
+Parent-Repository und MRTS aus. Die Änderungen gleichen deshalb jede Zeile auf
+einem Branch ab und bewahren getrennte Root-Cause-Kontrollen sowie ehrliche
+Evidenz. Der aktuelle Delivery-Zustand ist getrennt geregelt: Eine spätere
+aktuelle, ausdrückliche Framework-spezifische Autorisation darf nur den
+geschützten PR-Workflow nach finaler Exact-Head-Verifikation verwenden.
 
 ## Betroffene Komponenten und Sicherheitsgrenzen
 
@@ -34,7 +37,9 @@ Inhalt und keinen MRTS-Gitlink.
   Record ausweisen.
 - Bestätigte ausführbare Kontrollen und ihre Negative-/Control-Regressionen
   auf dem einen bestehenden PR-#37-Branch halten.
-- Keinen master-Merge und keinen direkten master-Push zulassen.
+- Jeden direkten `master`-Push verbieten. Ein Merge ist nur zulässig, wenn
+  eine aktuelle ausdrückliche Framework-spezifische Autorisation PR #37
+  auswählt und sein finaler Exact Head die Repository-Delivery-Controls erfüllt.
 - High-Impact-Kontrollen bewahren oder konkrete Already-safe-/Historical-
   Evidence erfassen; keinen Scanner unterdrücken und keinen Test schwächen.
 - Den Cloud-Rescan-Status explizit halten, wenn kein authentifiziertes Cloud-
@@ -135,12 +140,17 @@ vertrauenswürdiger PR seine eigene Workflow-Definition nur unter dem
 schreibgeschützten PR-Token und ohne Secrets ändern. Der Job selbst checkt
 Basisrevisions-Quellcode aus und liest den SHA-verifizierten PR-Head nur als
 Daten. Der finale PR-Head benötigt weiterhin beobachtete GitHub-Checks, Review
-und Sonar-Evidence. Dieser Record autorisiert keinen Merge von PR #37.
+und Sonar-Evidence. Dieser Record autorisiert selbst keinen Merge von PR #37;
+jede aktuelle Benutzerautorisierung bleibt an geschützten PR-, Review- und
+Post-Merge-Anforderungen gebunden.
 
 ## Finaler Diff- und Review-Status
 
-Der Worktree enthält den lokal verifizierten kumulativen Framework-only-Change-
-Set für bestehenden Draft-PR #37. Parent und MRTS bleiben unberührt, und kein
-master-Ref wurde geändert. Als nächste Delivery-Schritte bleiben ein normaler
-Commit/Push auf den bestehenden PR-Branch sowie Exact-Remote-Head-, GitHub-
-Check-, Review- und Sonar-Abgleich erforderlich; der PR muss ungemergt bleiben.
+Zum Zeitpunkt der ursprünglichen Record-Erfassung enthielt der Worktree den
+lokal verifizierten kumulativen Framework-only-Change-Set für PR #37. Parent
+und MRTS bleiben unberührt, und dieser Arbeitsschritt änderte keinen
+`master`-Ref. Für eine aktuelle ausdrücklich autorisierte Framework-Integration
+sind die verbleibenden Delivery-Schritte ein frischer Exact-Remote-Head-,
+GitHub-Check-, Review- und Sonar-Abgleich, das Bereitmachen des PR, wenn
+angemessen, und ein Exact-Head-gebundener konventioneller geschützter PR-Merge.
+Direkte `master`-Pushes und Bypässe bleiben verboten.

@@ -9,14 +9,17 @@
 | Change ID | `20260720-03-reconcile-codex-cloud-framework-security` |
 | UTC date | 2026-07-20 |
 | Framework base revision | `2f4a5d7` (normal, local merge of current Framework master into the existing PR branch) |
-| Issue or pull request | Codex Cloud export `4836e7…45daf`; existing Framework Draft PR #37 on `agent/master-post36-sonar-remediation` |
+| Issue or pull request | Codex Cloud export `4836e7…45daf`; Framework PR #37 on `agent/master-post36-sonar-remediation` (Draft at original record capture) |
 
 ## Motivation and problem statement
 
-The supplied Codex Cloud export has 41 Framework rows. The user requires one
-cumulative Framework PR, explicitly forbids `master` integration, and excludes
-the Parent repository and MRTS. The changes therefore reconcile every row in
-one branch while preserving separate root-cause controls and honest evidence.
+The supplied Codex Cloud export has 41 Framework rows. The originating user
+request required one cumulative Framework PR, expressly prohibited `master`
+integration at that time, and excluded the Parent repository and MRTS. The
+changes therefore reconcile every row in one branch while preserving separate
+root-cause controls and honest evidence. Current delivery is governed
+separately: a later current, explicit Framework-scoped authorization may use
+only the protected PR workflow after final exact-head verification.
 
 ## Affected components and security boundaries
 
@@ -32,7 +35,9 @@ Parent Git state, Parent gitlink, MRTS content, or MRTS gitlink.
   Framework record.
 - Keep confirmed feasible controls and their negative/control regressions on
   the one existing PR #37 branch.
-- Allow no master merge or direct master push.
+- Prohibit every direct `master` push. A merge is permitted only when a
+  current explicit Framework-scoped authorization selects PR #37 and its final
+  exact head satisfies the repository delivery controls.
 - Retain high-impact controls or record concrete already-safe/historical
   evidence; do not suppress a scanner or weaken a test.
 - Leave Cloud rescan status explicit when no authenticated Cloud tool exists.
@@ -124,13 +129,16 @@ The OSV workflow is intentionally a `pull_request` workflow, so an untrusted
 PR can alter its own workflow definition only under the read-only PR token and
 without secrets. The job itself checks out base-revision source and reads the
 SHA-verified PR head only as data. The final PR head still requires observed
-GitHub checks, review, and Sonar evidence. This record does not authorize
-merging PR #37.
+GitHub checks, review, and Sonar evidence. This record does not itself
+authorize merging PR #37; any current user authorization remains subject to
+the protected PR, review, and post-merge requirements.
 
 ## Final diff and review status
 
-The worktree contains the locally verified cumulative Framework-only change set
-for existing Draft PR #37. Parent and MRTS remain untouched, and no master ref
-has been changed. The remaining delivery steps are a normal commit/push to the
-existing PR branch and exact remote-head, GitHub-check, review, and Sonar
-verification; the PR must remain unmerged.
+At original record capture, the worktree contained the locally verified
+cumulative Framework-only change set for PR #37. Parent and MRTS remain
+untouched, and no `master` ref was changed by that work. For a current
+explicitly authorized Framework integration, the remaining delivery steps are
+a fresh exact remote-head, GitHub-check, review, and Sonar verification,
+marking the PR ready when appropriate, and an exact-head-bound conventional
+protected PR merge. Direct `master` pushes and bypasses remain prohibited.
