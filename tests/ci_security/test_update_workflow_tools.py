@@ -434,6 +434,18 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                     UPDATER.runner_temp_path(traversal, for_write=True)
                 with self.assertRaisesRegex(UPDATER.UpdateError, "strict child"):
                     UPDATER.runner_temp_path(traversal, for_write=False)
+                redirected = runner_temp / "redirected"
+                redirected.symlink_to(outside, target_is_directory=True)
+                with self.assertRaisesRegex(UPDATER.UpdateError, "symlink"):
+                    UPDATER.write_candidate(redirected / "candidate.json", {"safe": True})
+
+                candidate_path = runner_temp / "nested" / "candidate.json"
+                candidate = {"safe": True}
+                UPDATER.write_candidate(candidate_path, candidate)
+                self.assertEqual(candidate, UPDATER.read_candidate(candidate_path))
+                self.assertEqual(0o600, candidate_path.stat().st_mode & 0o777)
+                with self.assertRaisesRegex(UPDATER.UpdateError, "overwrite"):
+                    UPDATER.write_candidate(candidate_path, candidate)
 
     def test_resolve_root_rejects_symlinks_and_traversal_before_resolving(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -503,7 +515,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
 
     def test_scope_verification_rejects_a_stale_reusable_branch(self) -> None:
         stale = subprocess.CompletedProcess(["git"], 1, b"", b"")
-        with patch.object(UPDATER.subprocess, "run", return_value=stale):
+        with patch.object(UPDATER.subprocess, "run", return_value=stale) as run:
             with self.assertRaisesRegex(UPDATER.UpdateError, "stale"):
                 UPDATER.verify_git_scope(
                     ROOT,
@@ -511,6 +523,22 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                     base="origin/main",
                     head="origin/automation/update-framework-workflow-tools",
                 )
+        arguments = run.call_args.args[0]
+        self.assertIn("--end-of-options", arguments)
+        self.assertFalse(run.call_args.kwargs["shell"])
+
+        for unsafe_revision in ("--upload-pack=sh", "origin/../outside", "HEAD:README.md"):
+            with patch.object(UPDATER.subprocess, "run") as unsafe_run:
+                with self.assertRaisesRegex(UPDATER.UpdateError, "safe Git revision"):
+                    UPDATER.verify_git_scope(
+                        ROOT,
+                        staged=False,
+                        base="origin/main",
+                        head=unsafe_revision,
+                    )
+                with self.assertRaisesRegex(UPDATER.UpdateError, "safe Git revision"):
+                    UPDATER.git_blob(ROOT, unsafe_revision, UPDATER.LOCK_RELATIVE_PATH)
+                unsafe_run.assert_not_called()
 
     def test_existing_branch_cannot_change_a_tool_source_identity(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
@@ -570,6 +598,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         lock_path = ROOT / "ci/tooling/security-tools.lock.yml"
         base_lock_blob = lock_path.read_bytes()
         base_lock = UPDATER.yaml.safe_load(base_lock_blob)
+        base_lock_digest = UPDATER.hashlib.sha256(base_lock_blob).hexdigest()
         head_lock = deepcopy(base_lock)
         blobs = {
             (revision, relative_text): (ROOT / relative_text).read_bytes()
@@ -607,7 +636,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                         "head",
                         base_lock,
                         head_lock,
-                        UPDATER.hashlib.sha256(base_lock_blob).hexdigest(),
+                        base_lock_digest,
                     )
             self.assertEqual([], list(runner_temp.iterdir()))
 

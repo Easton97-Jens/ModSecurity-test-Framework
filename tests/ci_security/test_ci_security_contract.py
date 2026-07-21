@@ -258,13 +258,15 @@ class CiSecurityContractTest(unittest.TestCase):
         )
         self.assertTrue(any("token reference" in error for error in errors))
 
-    def test_workflow_tool_updater_rejects_secret_or_token_expressions_in_read_jobs(self) -> None:
-        workflow = (
-            ROOT / ".github/workflows/update-workflow-tools.yml"
-        ).read_text(encoding="utf-8")
+    def test_workflow_tool_updater_rejects_secret_or_token_expressions_in_read_jobs(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
         unsafe = workflow.replace(
             "    steps:\n",
-            "    env: { UPDATER_TOKEN: \"${{ secrets.UPDATER_TOKEN }}\" }\n    steps:\n",
+            '    env: { UPDATER_TOKEN: "${{ secrets.UPDATER_TOKEN }}" }\n    steps:\n',
             1,
         )
         errors = CHECKER.workflow_tool_updater_errors(
@@ -273,14 +275,19 @@ class CiSecurityContractTest(unittest.TestCase):
             CHECKER.yaml.safe_load(unsafe),
         )
         self.assertTrue(
-            any("resolver must not contain secrets or token expressions" in error for error in errors),
+            any(
+                "resolver must not contain secrets or token expressions" in error
+                for error in errors
+            ),
             "\n".join(errors),
         )
 
-    def test_workflow_tool_updater_semantically_rejects_quoted_inline_write_permissions(self) -> None:
-        workflow = (
-            ROOT / ".github/workflows/update-workflow-tools.yml"
-        ).read_text(encoding="utf-8")
+    def test_workflow_tool_updater_semantically_rejects_quoted_inline_write_permissions(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
         unsafe = workflow.replace(
             "    permissions:\n      contents: read",
             "    permissions: {'contents': 'read', actions: 'write'}",
@@ -292,14 +299,19 @@ class CiSecurityContractTest(unittest.TestCase):
             CHECKER.yaml.safe_load(unsafe),
         )
         self.assertTrue(
-            any("resolver must declare exactly {contents: read}" in error for error in errors),
+            any(
+                "resolver must declare exactly {contents: read}" in error
+                for error in errors
+            ),
             "\n".join(errors),
         )
 
-    def test_workflow_tool_updater_rejects_extra_jobs_and_nonexact_publisher_permissions(self) -> None:
-        workflow = (
-            ROOT / ".github/workflows/update-workflow-tools.yml"
-        ).read_text(encoding="utf-8")
+    def test_workflow_tool_updater_rejects_extra_jobs_and_nonexact_publisher_permissions(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
         unsafe = workflow.replace(
             "      pull-requests: write",
             "      pull-requests: write\n      issues: read",
@@ -316,7 +328,10 @@ class CiSecurityContractTest(unittest.TestCase):
             CHECKER.yaml.safe_load(unsafe),
         )
         self.assertTrue(
-            any("must define exactly resolver, validator, and publisher jobs" in error for error in errors),
+            any(
+                "must define exactly resolver, validator, and publisher jobs" in error
+                for error in errors
+            ),
             "\n".join(errors),
         )
         self.assertTrue(
@@ -325,9 +340,9 @@ class CiSecurityContractTest(unittest.TestCase):
         )
 
     def test_workflow_tool_updater_semantically_enforces_job_ordering(self) -> None:
-        workflow = (
-            ROOT / ".github/workflows/update-workflow-tools.yml"
-        ).read_text(encoding="utf-8")
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
         unsafe = workflow.replace("    needs: resolver", "    needs: [] # resolver", 1)
         errors = CHECKER.workflow_tool_updater_errors(
             ROOT / ".github/workflows/update-workflow-tools.yml",
@@ -339,10 +354,12 @@ class CiSecurityContractTest(unittest.TestCase):
             "\n".join(errors),
         )
 
-    def test_workflow_tool_updater_requires_a_default_branch_publisher_gate(self) -> None:
-        workflow = (
-            ROOT / ".github/workflows/update-workflow-tools.yml"
-        ).read_text(encoding="utf-8")
+    def test_workflow_tool_updater_requires_a_default_branch_publisher_gate(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
         unsafe = workflow.replace(
             "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
             "github.ref == 'refs/heads/unsafe'",
@@ -362,10 +379,12 @@ class CiSecurityContractTest(unittest.TestCase):
             "\n".join(errors),
         )
 
-    def test_workflow_tool_updater_allows_only_reviewed_schedule_and_dispatch_triggers(self) -> None:
-        workflow = (
-            ROOT / ".github/workflows/update-workflow-tools.yml"
-        ).read_text(encoding="utf-8")
+    def test_workflow_tool_updater_allows_only_reviewed_schedule_and_dispatch_triggers(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
         unsafe = workflow.replace(
             "  schedule:\n",
             "  push:\n    branches: [main]\n  schedule:\n",
@@ -381,10 +400,12 @@ class CiSecurityContractTest(unittest.TestCase):
             "\n".join(errors),
         )
 
-    def test_workflow_tool_updater_publisher_profile_rejects_pr_aliases_and_comments(self) -> None:
-        workflow = (
-            ROOT / ".github/workflows/update-workflow-tools.yml"
-        ).read_text(encoding="utf-8")
+    def test_workflow_tool_updater_publisher_profile_rejects_pr_aliases_and_comments(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
         variants = {
             "remove-existing-pr-uniqueness": workflow.replace(
                 "pullRequests.length !== 1", "false", 1
@@ -400,7 +421,7 @@ class CiSecurityContractTest(unittest.TestCase):
             ),
             "bracket-auto-merge-alias": workflow.replace(
                 "            await github.rest.pulls.create({",
-                "            await github.rest.pulls[\"merge\"]({ owner: context.repo.owner });\n"
+                '            await github.rest.pulls["merge"]({ owner: context.repo.owner });\n'
                 "            await github.rest.pulls.create({",
                 1,
             ),
@@ -418,10 +439,12 @@ class CiSecurityContractTest(unittest.TestCase):
                     "\n".join(errors),
                 )
 
-    def test_workflow_tool_updater_publisher_profile_rejects_push_and_validation_bypasses(self) -> None:
-        workflow = (
-            ROOT / ".github/workflows/update-workflow-tools.yml"
-        ).read_text(encoding="utf-8")
+    def test_workflow_tool_updater_publisher_profile_rejects_push_and_validation_bypasses(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
         existing_branch_command = (
             "              python3 ci/tools/update-workflow-tools.py verify-existing-branch --root . \\\n"
             '                --base "origin/${{ github.event.repository.default_branch }}" \\\n'
@@ -432,7 +455,9 @@ class CiSecurityContractTest(unittest.TestCase):
             "            --verify-tool-assets \\\n"
             '            --output-dir "$RUNNER_TEMP/framework-workflow-tool-publisher-validation"\n'
         )
-        update_branch = '          UPDATE_BRANCH="automation/update-framework-workflow-tools"'
+        update_branch = (
+            '          UPDATE_BRANCH="automation/update-framework-workflow-tools"'
+        )
         first_assignment, commit_assignment = workflow.split(update_branch, 1)
         variants = {
             "commented-existing-branch-proof": workflow.replace(
@@ -454,7 +479,7 @@ class CiSecurityContractTest(unittest.TestCase):
             ),
             "env-prefixed-force-push": workflow.replace(
                 '          git push origin "HEAD:refs/heads/$UPDATE_BRANCH"',
-                '          env X=1 git push -f origin +HEAD:refs/heads/$UPDATE_BRANCH',
+                "          env X=1 git push -f origin +HEAD:refs/heads/$UPDATE_BRANCH",
                 1,
             ),
             "git-config-default-branch-push": workflow.replace(
@@ -490,14 +515,18 @@ class CiSecurityContractTest(unittest.TestCase):
                     CHECKER.yaml.safe_load(unsafe),
                 )
                 self.assertTrue(
-                    any("publisher" in error and "reviewed" in error for error in errors),
+                    any(
+                        "publisher" in error and "reviewed" in error for error in errors
+                    ),
                     "\n".join(errors),
                 )
 
-    def test_common_version_checker_rejects_delivery_and_stale_base_regressions(self) -> None:
-        workflow = (
-            ROOT / ".github/workflows/check-common-versions.yml"
-        ).read_text(encoding="utf-8")
+    def test_common_version_checker_rejects_delivery_and_stale_base_regressions(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/check-common-versions.yml").read_text(
+            encoding="utf-8"
+        )
         variants = {
             "write-permission": workflow.replace(
                 "    permissions:\n      contents: read\n    steps:",
@@ -543,11 +572,16 @@ class CiSecurityContractTest(unittest.TestCase):
                     CHECKER.yaml.safe_load(unsafe),
                 )
                 self.assertTrue(
-                    any("common-version" in error or "write" in error for error in errors),
+                    any(
+                        "common-version" in error or "write" in error
+                        for error in errors
+                    ),
                     "\n".join(errors),
                 )
 
-    def test_static_lock_provenance_binds_release_asset_and_version_tuples(self) -> None:
+    def test_static_lock_provenance_binds_release_asset_and_version_tuples(
+        self,
+    ) -> None:
         actions, tools, errors = CHECKER.load_lock(LOCK_PATH)
         self.assertFalse(errors, "\n".join(errors))
 
@@ -584,6 +618,16 @@ class CiSecurityContractTest(unittest.TestCase):
         self.assertTrue(
             any("same-major-release" in error for error in codeql_errors),
             "\n".join(codeql_errors),
+        )
+
+        non_ascii_codeql = dict(actions["github/codeql-action"])
+        non_ascii_codeql["version"] = "v٤.37.1"
+        non_ascii_errors = CHECKER.common_record_errors(
+            LOCK_PATH, "action", "github/codeql-action", non_ascii_codeql
+        )
+        self.assertTrue(
+            any("v<major>.<minor>.<patch>" in error for error in non_ascii_errors),
+            "\n".join(non_ascii_errors),
         )
 
     def test_crs_version_pinning_uses_a_safe_runtime_temp_file(self) -> None:
