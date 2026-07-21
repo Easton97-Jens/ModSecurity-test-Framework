@@ -5049,7 +5049,7 @@ def read_bounded_engine_version_artifact(source: Path) -> str:
         descriptor = os.open(source.name, flags, dir_fd=parent_descriptor)
         metadata = os.fstat(descriptor)
         if not stat.S_ISREG(metadata.st_mode):
-            raise ContractError(f"engine lifecycle artifact engine_version must be a regular file")
+            raise ContractError("engine lifecycle artifact engine_version must be a regular file")
         if metadata.st_size > MAX_ENGINE_VERSION_BYTES:
             raise ContractError("engine lifecycle artifact engine_version exceeds the bounded size")
         chunks: list[bytes] = []

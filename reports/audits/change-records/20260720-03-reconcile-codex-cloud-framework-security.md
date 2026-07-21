@@ -58,6 +58,8 @@ normalization. The SonarCloud follow-up makes HAProxy case extraction consume
 the already-normalized mapping directly and separates curl output-option
 parsing from destination collection; both preserve the payload-capture and
 promotion controls while avoiding the reported reliability/complexity defects.
+The remaining warning-level static findings are also removed without changing
+the No-CRS source-failure, snapshot-promotion, or negative-evidence contracts.
 
 ## Changed files and tests
 

@@ -203,8 +203,6 @@ class SecondRemediationTests(unittest.TestCase):
             {"strict_abort": True, "matrix_status": "PASS"},
             {"classification": "active", "response_body_related": True},
             "pass",
-            403,
-            403,
         )
         self.assertEqual("NOT_EXECUTABLE", matrix_status)
 

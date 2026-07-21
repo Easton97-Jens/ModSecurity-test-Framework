@@ -63,7 +63,9 @@ umfasst rohe Event-Werte vor der Display-Normalisierung. Das SonarCloud-
 Follow-up lässt die HAProxy-Case-Extraktion direkt das bereits normalisierte
 Mapping verwenden und trennt Curl-Output-Option-Parsing von der Zielerfassung;
 beides bewahrt die Payload-Capture- und Promotion-Controls und beseitigt die
-gemeldeten Reliability-/Complexity-Defekte.
+gemeldeten Reliability-/Complexity-Defekte. Die verbleibenden Static-Findings
+auf Warning-Level sind ebenfalls entfernt, ohne die No-CRS-Source-Failure-,
+Snapshot-Promotion- oder Negative-Evidence-Contracts zu ändern.
 
 ## Geänderte Dateien und Tests
 

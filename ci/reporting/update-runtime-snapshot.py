@@ -281,7 +281,7 @@ def case_evidence(summary_path: Path, name: object, status: str, expected: objec
     return evidence
 
 
-def case_matrix_status(item: dict, metadata: dict[str, object], status: str, expected: object, actual: object) -> str:
+def case_matrix_status(item: dict, metadata: dict[str, object], status: str) -> str:
     response_body_related = bool(metadata["response_body_related"])
     computed = matrix_status(
         status,
@@ -316,7 +316,7 @@ def base_case_row(
         "case": str(name),
         "path": normalize_case(str(item.get("path", ""))),
         "status": status,
-        "matrix_status": case_matrix_status(item, metadata, status, expected, actual),
+        "matrix_status": case_matrix_status(item, metadata, status),
         "runtime_attempted": True,
         "live_executed": item.get("live_executed") is True,
         "operation_status": item.get("operation_status", "unknown"),
