@@ -33,10 +33,49 @@ jobs:
           persist-credentials: false
           submodules: false
 
+      - name: Materialize reviewed Python version from verified pull-request head data
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PYTHON_VERSION_FILE: ${{ runner.temp }}/framework-osv-pr-python-version
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          test "$(git rev-parse HEAD)" = "$BASE_SHA"
+          git cat-file -e "$BASE_SHA^{commit}"
+          git -c protocol.file.allow=never fetch --depth=1 --no-tags origin \
+            "+refs/pull/$PR_NUMBER/head:refs/remotes/origin/pr-$PR_NUMBER"
+          resolved_head="$(git rev-parse --verify "refs/remotes/origin/pr-$PR_NUMBER^{commit}")"
+          test "$resolved_head" = "$HEAD_SHA"
+          git cat-file -e "$HEAD_SHA^{commit}"
+          git cat-file -e "$HEAD_SHA:.python-version"
+          version_size="$(git cat-file -s "$HEAD_SHA:.python-version")"
+          [[ "$version_size" =~ ^[0-9]+$ ]]
+          [ "$version_size" -le 32 ]
+          [ ! -e "$PYTHON_VERSION_FILE" ]
+          [ ! -L "$PYTHON_VERSION_FILE" ]
+          set -C
+          if ! git show "$HEAD_SHA:.python-version" > "$PYTHON_VERSION_FILE"; then
+            set +C
+            exit 1
+          fi
+          set +C
+          [ -f "$PYTHON_VERSION_FILE" ]
+          [ ! -L "$PYTHON_VERSION_FILE" ]
+          version="$(cat "$PYTHON_VERSION_FILE")"
+          [[ "$version" =~ ^3\.13\.(0|[1-9][0-9]*)$ ]]
+          expected_size=$(( ${#version} + 1 ))
+          [ "$(wc -c < "$PYTHON_VERSION_FILE")" -eq "$expected_size" ]
+          printf '%s\n' "$version" | cmp -s - "$PYTHON_VERSION_FILE"
+
       - name: Set up reviewed Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version-file: ".python-version"
+          python-version-file: "${{ runner.temp }}/framework-osv-pr-python-version"
           check-latest: false
 
       - name: Install hash-locked CI dependency

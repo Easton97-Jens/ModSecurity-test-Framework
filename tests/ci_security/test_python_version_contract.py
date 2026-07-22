@@ -277,6 +277,57 @@ candidate-validate:
             )
             self.assertTrue(any("must follow canonical" in error for error in errors))
 
+    def test_osv_pull_request_head_bootstrap_is_narrow_and_counts_as_reviewed_setup(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = self.make_root(Path(temporary_directory))
+            osv_job = (
+                """\
+pull-request-head:
+  runs-on: ubuntu-latest
+  timeout-minutes: 5
+  steps:
+"""
+                + setup_step(CHECKER.OSV_PR_HEAD_VERSION_FILE)
+                + "      - run: python3 -VV\n"
+            )
+            osv_path = self.write_workflow(
+                root,
+                CHECKER.OSV_WORKFLOW,
+                workflow("OSV pull-request head", osv_job),
+            )
+            self.assertEqual(
+                CHECKER.workflow_errors(root, osv_path, indirect_make_python=True),
+                [],
+            )
+
+            ordinary_path = self.write_workflow(
+                root,
+                "ordinary.yml",
+                workflow("ordinary", osv_job),
+            )
+            errors = CHECKER.workflow_errors(
+                root, ordinary_path, indirect_make_python=True
+            )
+            self.assertTrue(any("python-version-file" in error for error in errors))
+
+            duplicate_setup = osv_job.replace(
+                setup_step(CHECKER.OSV_PR_HEAD_VERSION_FILE),
+                setup_step(CHECKER.OSV_PR_HEAD_VERSION_FILE) + setup_step(),
+            )
+            duplicate_path = self.write_workflow(
+                root,
+                CHECKER.OSV_WORKFLOW,
+                workflow("duplicate OSV setup", duplicate_setup),
+            )
+            errors = CHECKER.workflow_errors(
+                root, duplicate_path, indirect_make_python=True
+            )
+            self.assertTrue(
+                any("without another Python selection" in error for error in errors)
+            )
+
     def test_indirect_make_python_requires_reviewed_setup_and_setup_pin_comment(
         self,
     ) -> None:

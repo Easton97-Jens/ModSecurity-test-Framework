@@ -22,6 +22,10 @@ CANDIDATE_WORKFLOW = "check-python-version.yml"
 CANDIDATE_WORKFLOW_PATH = Path(".github/workflows") / CANDIDATE_WORKFLOW
 CANDIDATE_JOB = "candidate-validate"
 CANDIDATE_VERSION_FILE = "${{ runner.temp }}/framework-python-3.13-candidate"
+OSV_WORKFLOW = "ci-security-osv.yml"
+OSV_WORKFLOW_PATH = Path(".github/workflows") / OSV_WORKFLOW
+OSV_PR_HEAD_JOB = "pull-request-head"
+OSV_PR_HEAD_VERSION_FILE = "${{ runner.temp }}/framework-osv-pr-python-version"
 SETUP_PYTHON_REFERENCE = "actions/setup-python@"
 SETUP_PYTHON_LINE = re.compile(
     r"^\s*(?:-\s*)?uses:\s*['\"]?actions/setup-python@"
@@ -195,6 +199,12 @@ def setup_kind(
         and version_file == CANDIDATE_VERSION_FILE
     ):
         return "candidate", errors
+    if (
+        path == root / OSV_WORKFLOW_PATH
+        and job_name == OSV_PR_HEAD_JOB
+        and version_file == OSV_PR_HEAD_VERSION_FILE
+    ):
+        return "osv-pr-head", errors
     errors.append(
         f"{path}: job {job_name!r} setup-python must use "
         f"python-version-file: {CANONICAL_VERSION_FILE!r}"
@@ -298,6 +308,7 @@ def job_errors(
 
     canonical_setup_seen = False
     candidate_setup_seen = False
+    osv_pr_head_setup_seen = False
     for step_number, raw_step in enumerate(steps, start=1):
         if not isinstance(raw_step, dict):
             errors.append(
@@ -312,6 +323,12 @@ def job_errors(
                     errors.append(
                         f"{path}: job {job_name!r} cannot select canonical Python after candidate Python"
                     )
+                if osv_pr_head_setup_seen:
+                    errors.append(
+                        f"{path}: job {job_name!r} may use the OSV pull-request "
+                        "head Python bootstrap exactly once and without another "
+                        "Python selection"
+                    )
                 canonical_setup_seen = True
             elif kind == "candidate":
                 if not canonical_setup_seen:
@@ -319,13 +336,24 @@ def job_errors(
                         f"{path}: job {job_name!r} candidate Python must follow canonical setup"
                     )
                 candidate_setup_seen = True
+            elif kind == "osv-pr-head":
+                if (
+                    canonical_setup_seen
+                    or candidate_setup_seen
+                    or osv_pr_head_setup_seen
+                ):
+                    errors.append(
+                        f"{path}: job {job_name!r} may use the OSV pull-request "
+                        "head Python bootstrap exactly once and without another "
+                        "Python selection"
+                    )
+                osv_pr_head_setup_seen = True
         run = raw_step.get("run")
         if not isinstance(run, str):
             continue
         errors.extend(bare_pip_errors(path, job_name, step_number, run))
-        if (
-            run_uses_python(run, indirect_make_python=indirect_make_python)
-            and not canonical_setup_seen
+        if run_uses_python(run, indirect_make_python=indirect_make_python) and not (
+            canonical_setup_seen or osv_pr_head_setup_seen
         ):
             errors.append(
                 f"{path}: job {job_name!r} step {step_number} invokes Python before reviewed setup-python"

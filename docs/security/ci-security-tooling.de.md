@@ -14,8 +14,12 @@ verwenden `pull_request`. Der OSV-Job erhält ausschließlich `contents: read`,
 checkt die unveränderliche PR-Basis-SHA ohne persistierte Credentials oder
 Submodule aus, holt nur die nummerierte GitHub-Pull-Request-Head-Referenz,
 verifiziert die gemeldete Head-SHA und liest die zwei benannten Dependency-
-Manifeste als begrenzte Daten. Sein ausgecheckter Framework-Quellcode und
-Scanner-Helper stammen damit aus der Basisrevision. Alle Routine-Jobs erhalten
+Manifeste sowie nur den Head-Blob `.python-version` als begrenzte Daten.
+Letzterer wird nach Größen- und stabilem CPython-3.13-Format-Check einmalig als
+reguläre, nicht symlinkte Datei unter privatem `runner.temp` materialisiert und
+allein von `setup-python` verwendet. Sein ausgecheckter Framework-Quellcode und
+Scanner-Helper stammen damit aus der Basisrevision; der Job checkt keinen
+PR-Head aus und führt keinen PR-Head-Code aus. Alle Routine-Jobs erhalten
 nur `contents: read`, verwenden unveränderliche Action-SHAs mit überprüften
 Versionskommentaren und checken mit `persist-credentials: false` sowie
 `submodules: false` aus. Sie stellen keine Caches wieder her oder speichern
@@ -28,7 +32,8 @@ PR- und Nicht-PR-Events bedienen, verwenden `github.event.pull_request.head.sha
 Der Gitleaks-PR-Range-Job verwendet den PR-Head direkt und beweist die
 ausgecheckte SHA vor dem Scan. Der OSV-PR-Job führt dagegen nur die
 vertrauenswürdige Basisrevision aus und verwendet das verifizierte PR-Objekt
-allein zum Lesen von Blobs. Der lokale semantische Evidence-Contract prüft
+allein zum begrenzten Blob-Lesen und für den isolierten
+`setup-python`-Version-Datei-Bootstrap. Der lokale semantische Evidence-Contract prüft
 diese Mappings und die ausführbaren Scanner-Kommandos nach dem Entfernen von
 Shell-Kommentaren; Bodies von Kontrollfluss, nach `exit` nicht erreichbare
 Befehle und nicht aufgerufene Helper werden ausgeschlossen.
@@ -59,7 +64,7 @@ bleiben artefaktfrei.
 | `ci-security-workflow-lint.yml` | PR, Default-Branch-Push, manuell | Prüfsummenverifiziertes actionlint mit ShellCheck, offline zizmor, Contracts für immutable Pins/Berechtigungen/Checkout, semantische Evidence-Validierung sowie sichere und unsichere Fixtures. |
 | `ci-security-quality.yml` | PR- und Default-Branch-Änderungen am CI-Security-Python-Scope | Prüfsummenverifiziertes Ruff-Lint/-Format und Pyright mit exakt festgelegter Node.js-Runtime. Der Scope umfasst CI-Security- und Change-Record-Checker, Downloader und deren Tests. |
 | `ci-security-secrets.yml` | PR, Zeitplan, manuell | Gitleaks checkt den exakten PR-Head aus und beweist ihn; danach scannt es exakt den Bereich Merge-Base bis Head mit `--redact=100`. Die gesamte Historie ist geplant/manuell advisory, bis Findings triagiert sind. |
-| `ci-security-osv.yml` | Begrenztes nicht privilegiertes `pull_request`; Zeitplan und manuell auf dem Default-Branch | Der PR-Job führt die vertrauenswürdige PR-Basis-SHA aus, holt die nummerierte PR-Referenz ohne Checkout, verifiziert ihre exakte Head-SHA und vergleicht nur begrenzte `requirements-dev.txt`- und `requirements-ci.lock`-Blobs ohne Remediation. Er scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
+| `ci-security-osv.yml` | Begrenztes nicht privilegiertes `pull_request`; Zeitplan und manuell auf dem Default-Branch | Der PR-Job führt die vertrauenswürdige PR-Basis-SHA aus, holt die nummerierte PR-Referenz ohne Checkout, verifiziert ihre exakte Head-SHA und vergleicht begrenzte `requirements-dev.txt`- und `requirements-ci.lock`-Blobs ohne Remediation. Er materialisiert nur den verifizierten begrenzten Head-Blob `.python-version` einmalig unter privatem `runner.temp` als reguläre, nicht symlinkte Datei allein für `setup-python`; kein PR-Head-Source wird ausgecheckt oder ausgeführt. Er scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
 | `ci-security-codeql-pr.yml` | PR | CodeQL analysiert den exakten PR-Head mit ausschließlich `contents: read`, dem `linked`-Tool-Bundle der gepinnten Action, `upload: never` und `upload-database: false`. Es analysiert GitHub Actions, Python und C/C++ und ignoriert `tools/MRTS/**`; es erhält nie eine Code-Scanning-Write-Berechtigung. |
 | `ci-security-codeql.yml` | Default-Branch-Push, Zeitplan, manuell | Vertrauenswürdiges CodeQL analysiert die exakte `github.sha` mit demselben begrenzten Sprach-Scope und `linked`-Tool-Bundle. Seine eine Job-spezifische `security-events: write`-Berechtigung wird ausschließlich nach Nicht-PR-Ausführung zum Upload von Code-Scanning-SARIF verwendet. Go oder JavaScript/TypeScript werden nicht behauptet; C/C++ verwendet `build-mode: none`, damit der Scan keine Connector- oder MRTS-Abhängigkeiten provisioniert. |
 | `ci-security-scorecard.yml` | PR; Default-Branch-Push, Zeitplan, manuell auf dem Default-Branch | Ein prüfsummenverifiziertes OpenSSF-Scorecard-Binary bewertet den exakten lokalen PR-Checkout ohne GitHub-Token. Das PR-Ergebnis wird JSON-validiert, bleibt aber artefaktfrei. Vertrauenswürdige Default-Branch-Jobs verwenden die exakte `github.sha`, bewahren eine validierte begrenzte JSON-Datei einen Tag auf und bleiben advisory, weil kein Score-Schwellenwert gesetzt ist; Scanner- und JSON-Validierungsfehler sind nicht advisory. SARIF wird nicht hochgeladen. |
@@ -81,6 +86,13 @@ Remote-Action und jede heruntergeladene CLI in diesem CI-Scope. Er dokumentiert
 Name, Version, immutable Release-Commit, Upstream-Release, Lizenz, Zweck,
 Plattform, Update-Verfahren sowie bei heruntergeladenen Binaries/Packages das
 exakte Release-Asset und SHA-256.
+
+Der CI-Security-Contract löst außerdem jede geparste nicht lokale Workflow-
+Referenz `uses` rekursiv auf und bindet sie unabhängig von der YAML-Key-
+Schreibweise an den Action-Namen und exakten `immutable_commit` dieses Locks.
+Source-Prüfungen für immutable Pins und Release-Kommentare bleiben Defense in
+Depth. Regression-Fixtures beweisen die Zurückweisung von Quoted-Keys und
+Flow-Mappings mit einer abweichenden Voll-SHA.
 
 Jeder Action-Record legt zusätzlich seine `release_resolution` fest. Die
 meisten Actions verwenden den offiziellen Endpunkt `latest-release`.

@@ -16,4 +16,5 @@ beschrieben.
 
 ## Aktuelle Records
 
+- [Konsolidierung der Framework-PRs 39–41 (2026-07-22)](20260722-01-consolidate-framework-pr-39-41.de.md)
 - [Framework-Workflow-Tooling-Update (2026-07-21)](20260721-01-framework-workflow-tools-update.de.md)

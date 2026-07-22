@@ -50,6 +50,16 @@ actions:
     purpose: Inspect or create the constrained workflow-tool updater Draft PR and run scheduled artifact-retention maintenance.
     platform: GitHub Actions
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
+  peter-evans/create-pull-request:
+    name: peter-evans/create-pull-request
+    version: v8.1.1
+    immutable_commit: 5f6978faf089d4d20b00c7766989d076bb2fc7f1
+    upstream_release: https://github.com/peter-evans/create-pull-request/releases/tag/v8.1.1
+    release_resolution: latest-release
+    license: MIT
+    purpose: Create the constrained scheduled CPython-version update Draft pull request.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   github/codeql-action:
     name: github/codeql-action
     version: v4.37.1

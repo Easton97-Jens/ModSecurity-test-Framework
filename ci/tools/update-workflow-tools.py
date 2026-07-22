@@ -52,6 +52,7 @@ CANDIDATE_SCHEMA_VERSION = 1
 GITHUB_API_ORIGIN = "https://api.github.com"
 GITHUB_WEB_ORIGIN = "https://github.com"
 GITHUB_USER_AGENT = "framework-workflow-tool-updater/1"
+RUNNER_TEMP_STRICT_CHILD_ERROR = "candidate path must be a strict child of RUNNER_TEMP"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 STABLE_RELEASE_TAG = r"v?[0-9]+(?:\.[0-9]+){1,3}"
@@ -74,6 +75,7 @@ ALLOWED_UPDATE_PATHS = frozenset(
         "ci/tooling/security-tools.lock.yml",
         ".github/workflows/check-action-versions.yml",
         ".github/workflows/check-common-versions.yml",
+        ".github/workflows/check-python-version.yml",
         ".github/workflows/cleanup-artifacts.yml",
         ".github/workflows/ci-security-codeql-pr.yml",
         ".github/workflows/ci-security-codeql.yml",
@@ -91,7 +93,9 @@ ALLOWED_UPDATE_PATHS = frozenset(
     }
 )
 WORKFLOW_UPDATE_PATHS = tuple(
-    path for path in sorted(ALLOWED_UPDATE_PATHS) if path.startswith(".github/workflows/")
+    path
+    for path in sorted(ALLOWED_UPDATE_PATHS)
+    if path.startswith(".github/workflows/")
 )
 DOCUMENTATION_UPDATE_PATHS = tuple(
     path for path in sorted(ALLOWED_UPDATE_PATHS) if path.startswith("docs/")
@@ -135,18 +139,31 @@ def sha256_file(path: Path) -> str:
 
 def is_safe_component(value: str) -> bool:
     path = PurePosixPath(value)
-    return bool(value) and not path.is_absolute() and len(path.parts) == 1 and path.parts[0] not in {".", ".."}
+    return (
+        bool(value)
+        and not path.is_absolute()
+        and len(path.parts) == 1
+        and path.parts[0] not in {".", ".."}
+    )
 
 
 def is_safe_posix_path(value: str) -> bool:
     path = PurePosixPath(value)
-    return bool(value) and not path.is_absolute() and all(part not in {"", ".", ".."} for part in path.parts)
+    return (
+        bool(value)
+        and not path.is_absolute()
+        and all(part not in {"", ".", ".."} for part in path.parts)
+    )
 
 
 def resolve_regular_file(root: Path, relative: Path) -> Path:
     """Resolve an existing regular non-symlink file contained by ``root``."""
 
-    if relative.is_absolute() or not relative.parts or any(part == ".." for part in relative.parts):
+    if (
+        relative.is_absolute()
+        or not relative.parts
+        or any(part == ".." for part in relative.parts)
+    ):
         raise UpdateError(f"unsafe relative path: {relative}")
     current = root
     for part in relative.parts:
@@ -186,7 +203,9 @@ def load_lock(root: Path) -> tuple[Path, dict[str, Any], str]:
         raise UpdateError(f"cannot parse the security tool lock: {exc}") from exc
     if not isinstance(data, dict):
         raise UpdateError("security tool lock must be a mapping")
-    if not isinstance(data.get("actions"), dict) or not isinstance(data.get("tools"), dict):
+    if not isinstance(data.get("actions"), dict) or not isinstance(
+        data.get("tools"), dict
+    ):
         raise UpdateError("security tool lock must contain action and tool mappings")
     return lock_path, data, sha256_file(lock_path)
 
@@ -201,7 +220,9 @@ def workflow_source_paths(root: Path) -> list[Path]:
         except OSError as exc:
             raise UpdateError("Framework workflow directory is missing") from exc
         if stat.S_ISLNK(mode) or not stat.S_ISDIR(mode):
-            raise UpdateError("Framework workflow directory must be a non-symlink directory")
+            raise UpdateError(
+                "Framework workflow directory must be a non-symlink directory"
+            )
     paths: list[Path] = []
     for candidate in sorted(workflow_root.rglob("*")):
         relative = candidate.relative_to(root)
@@ -274,7 +295,9 @@ def release_identity(
         raise UpdateError(f"{name!r} release URL tag does not match its version")
     identity = RepositoryIdentity(owner, repository, current_tag)
     if require_name_match and identity.slug != name:
-        raise UpdateError(f"{name!r} release owner/repository does not match its action name")
+        raise UpdateError(
+            f"{name!r} release owner/repository does not match its action name"
+        )
     return identity
 
 
@@ -365,7 +388,9 @@ def github_json_list(path: str) -> list[dict[str, Any]]:
     """Read one bounded list response and reject malformed release entries."""
 
     payload = github_payload(path)
-    if not isinstance(payload, list) or not all(isinstance(item, dict) for item in payload):
+    if not isinstance(payload, list) or not all(
+        isinstance(item, dict) for item in payload
+    ):
         raise UpdateError("official GitHub API response must be a list of objects")
     return payload
 
@@ -424,8 +449,10 @@ def same_major_action_tag(current_tag: str, candidate_tag: str) -> bool:
 
     current = ACTION_SERIES_TAG.fullmatch(current_tag)
     candidate = ACTION_SERIES_TAG.fullmatch(candidate_tag)
-    return current is not None and candidate is not None and (
-        current.group("major") == candidate.group("major")
+    return (
+        current is not None
+        and candidate is not None
+        and (current.group("major") == candidate.group("major"))
     )
 
 
@@ -470,7 +497,9 @@ def selected_action_release(
             confirmed, f"action {name!r} selected release"
         )
         if confirmed_tag != tag:
-            raise UpdateError(f"action {name!r} release tag does not match its release page")
+            raise UpdateError(
+                f"action {name!r} release tag does not match its release page"
+            )
         return confirmed
     raise UpdateError(f"action {name!r} has an unsupported release resolution")
 
@@ -480,10 +509,10 @@ def validate_action_release_tag(
 ) -> None:
     """Keep constrained Action records in their lock-reviewed release stream."""
 
-    if (
-        action_release_resolution(record, name)
-        == ACTION_RELEASE_RESOLUTION_SAME_MAJOR
-        and not same_major_action_tag(identity.current_tag, tag)
+    if action_release_resolution(
+        record, name
+    ) == ACTION_RELEASE_RESOLUTION_SAME_MAJOR and not same_major_action_tag(
+        identity.current_tag, tag
     ):
         raise UpdateError(
             f"action {name!r} selected release does not match the reviewed major"
@@ -514,7 +543,9 @@ def release_tag_commit(identity: RepositoryIdentity, tag: str) -> str:
     """Resolve an official release tag through the GitHub Git API, fail closed."""
 
     if not RELEASE_TAG.fullmatch(tag):
-        raise UpdateError(f"{identity.slug} latest release tag is not a supported stable version")
+        raise UpdateError(
+            f"{identity.slug} latest release tag is not a supported stable version"
+        )
     reference = github_json(
         f"/repos/{identity.owner}/{identity.repository}/git/ref/tags/{quote(tag, safe='')}"
     )
@@ -528,48 +559,73 @@ def release_tag_commit(identity: RepositoryIdentity, tag: str) -> str:
     if kind == "commit":
         return sha
     if kind != "tag":
-        raise UpdateError(f"{identity.slug} tag must resolve to a commit or annotated tag")
+        raise UpdateError(
+            f"{identity.slug} tag must resolve to a commit or annotated tag"
+        )
     tag_object = github_json(
         f"/repos/{identity.owner}/{identity.repository}/git/tags/{sha}"
     ).get("object")
     if not isinstance(tag_object, dict) or tag_object.get("type") != "commit":
-        raise UpdateError(f"{identity.slug} annotated tag must resolve directly to a commit")
+        raise UpdateError(
+            f"{identity.slug} annotated tag must resolve directly to a commit"
+        )
     return require_sha40(tag_object.get("sha"), f"{identity.slug} annotated tag commit")
 
 
 def expected_asset_name(record: dict[str, Any], new_version: str, tool: str) -> str:
     old_version = record.get("version")
     asset = record.get("asset")
-    if not isinstance(old_version, str) or not isinstance(asset, str) or not is_safe_component(asset):
+    if (
+        not isinstance(old_version, str)
+        or not isinstance(asset, str)
+        or not is_safe_component(asset)
+    ):
         raise UpdateError(f"tool {tool!r} has an unsafe current asset record")
     old_token = old_version.removeprefix("v")
     new_token = new_version.removeprefix("v")
     if old_token and old_token in asset:
         if asset.count(old_token) != 1:
-            raise UpdateError(f"tool {tool!r} asset contains its version more than once")
+            raise UpdateError(
+                f"tool {tool!r} asset contains its version more than once"
+            )
         return asset.replace(old_token, new_token)
     return asset
 
 
 def selected_release_asset(
-    identity: RepositoryIdentity, release: dict[str, Any], record: dict[str, Any], tool: str
+    identity: RepositoryIdentity,
+    release: dict[str, Any],
+    record: dict[str, Any],
+    tool: str,
 ) -> tuple[str, str, str]:
     tag = stable_release_tag(release, f"tool {tool!r} release")
     asset_name = expected_asset_name(record, tag, tool)
     assets = release.get("assets")
     if not isinstance(assets, list):
         raise UpdateError(f"tool {tool!r} release has no asset list")
-    candidates = [asset for asset in assets if isinstance(asset, dict) and asset.get("name") == asset_name]
+    candidates = [
+        asset
+        for asset in assets
+        if isinstance(asset, dict) and asset.get("name") == asset_name
+    ]
     if len(candidates) != 1:
-        raise UpdateError(f"tool {tool!r} release must contain exactly one expected asset {asset_name!r}")
+        raise UpdateError(
+            f"tool {tool!r} release must contain exactly one expected asset {asset_name!r}"
+        )
     asset = candidates[0]
     digest = asset.get("digest")
     if not isinstance(digest, str) or not digest.startswith("sha256:"):
         raise UpdateError(f"tool {tool!r} official release asset has no SHA-256 digest")
-    sha256 = require_sha256(digest.removeprefix("sha256:"), f"tool {tool!r} release asset")
-    asset_url = f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{tag}/{asset_name}"
+    sha256 = require_sha256(
+        digest.removeprefix("sha256:"), f"tool {tool!r} release asset"
+    )
+    asset_url = (
+        f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{tag}/{asset_name}"
+    )
     if asset.get("browser_download_url") != asset_url:
-        raise UpdateError(f"tool {tool!r} release asset URL does not match the official release tuple")
+        raise UpdateError(
+            f"tool {tool!r} release asset URL does not match the official release tuple"
+        )
     return tag, asset_name, sha256
 
 
@@ -640,7 +696,9 @@ def canonical_candidate(candidate: dict[str, Any]) -> str:
 
 
 def candidate_b64(candidate: dict[str, Any]) -> str:
-    return base64.b64encode(canonical_candidate(candidate).encode("utf-8")).decode("ascii")
+    return base64.b64encode(canonical_candidate(candidate).encode("utf-8")).decode(
+        "ascii"
+    )
 
 
 def decode_candidate(value: str) -> dict[str, Any]:
@@ -681,9 +739,9 @@ def runner_temp_relative_path(path: Path, runner_root: Path) -> Path:
     try:
         relative = path.relative_to(runner_root)
     except ValueError as exc:
-        raise UpdateError("candidate path must be a strict child of RUNNER_TEMP") from exc
+        raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR) from exc
     if not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
-        raise UpdateError("candidate path must be a strict child of RUNNER_TEMP")
+        raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR)
     return relative
 
 
@@ -707,9 +765,9 @@ def resolved_runner_temp_child(path: Path, runner_root: Path, *, strict: bool) -
     try:
         relative = resolved.relative_to(runner_root)
     except ValueError as exc:
-        raise UpdateError("candidate path must be a strict child of RUNNER_TEMP") from exc
+        raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR) from exc
     if not relative.parts:
-        raise UpdateError("candidate path must be a strict child of RUNNER_TEMP")
+        raise UpdateError(RUNNER_TEMP_STRICT_CHILD_ERROR)
     return resolved
 
 
@@ -779,7 +837,9 @@ def validated_candidate_record(
     if not all(isinstance(changes[field], str) and changes[field] for field in fields):
         raise UpdateError(f"candidate {group} {name!r} has an empty field")
     if changes["version"] == baseline.get("version"):
-        raise UpdateError(f"candidate {group} {name!r} must not include a no-op version")
+        raise UpdateError(
+            f"candidate {group} {name!r} must not include a no-op version"
+        )
     validate_changed_record(group, name, baseline, changes)
     resulting = deepcopy(baseline)
     resulting.update(changes)
@@ -816,7 +876,9 @@ def validate_candidate_shape(
         "actions": validated_candidate_group(
             candidate, lock, "actions", ACTION_MUTABLE_FIELDS
         ),
-        "tools": validated_candidate_group(candidate, lock, "tools", TOOL_MUTABLE_FIELDS),
+        "tools": validated_candidate_group(
+            candidate, lock, "tools", TOOL_MUTABLE_FIELDS
+        ),
     }
 
 
@@ -828,7 +890,9 @@ def validate_changed_record(
         validate_tool_baseline_provenance(baseline, identity, name)
     version = changes["version"]
     if not RELEASE_TAG.fullmatch(version):
-        raise UpdateError(f"candidate {group} {name!r} version is not a supported stable tag")
+        raise UpdateError(
+            f"candidate {group} {name!r} version is not a supported stable tag"
+        )
     require_sha40(changes["immutable_commit"], f"candidate {group} {name!r} commit")
     expected_release = f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{version}"
     if changes["upstream_release"] != expected_release:
@@ -841,8 +905,12 @@ def validate_changed_record(
         raise UpdateError(f"candidate tool {name!r} has an unsafe asset name")
     expected_asset = expected_asset_name(baseline, version, name)
     if asset != expected_asset:
-        raise UpdateError(f"candidate tool {name!r} asset does not match its reviewed naming rule")
-    expected_url = f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{version}/{asset}"
+        raise UpdateError(
+            f"candidate tool {name!r} asset does not match its reviewed naming rule"
+        )
+    expected_url = (
+        f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{version}/{asset}"
+    )
     if changes["asset_url"] != expected_url:
         raise UpdateError(f"candidate tool {name!r} has an untrusted asset URL")
     require_sha256(changes["sha256"], f"candidate tool {name!r} asset")
@@ -850,7 +918,9 @@ def validate_changed_record(
 
 def load_fetcher_module() -> Any:
     module_path = Path(__file__).with_name("fetch-security-tool.py")
-    spec = importlib.util.spec_from_file_location("framework_security_tool_fetcher", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "framework_security_tool_fetcher", module_path
+    )
     if spec is None or spec.loader is None:
         raise UpdateError("cannot load the checksum-verified tool downloader")
     module = importlib.util.module_from_spec(spec)
@@ -959,7 +1029,9 @@ def replace_lock_field(section: str, field: str, old: str, new: str, name: str) 
     replacement = f"    {field}: {new}\n"
     count = section.count(expected)
     if count != 1:
-        raise UpdateError(f"lock record {name!r} does not contain exactly one expected {field}")
+        raise UpdateError(
+            f"lock record {name!r} does not contain exactly one expected {field}"
+        )
     return section.replace(expected, replacement)
 
 
@@ -977,13 +1049,11 @@ def lock_record_section(text: str, group: str, name: str) -> tuple[int, int, str
     # field line that merely starts with the same first two spaces.
     boundaries = [
         match.start()
-        for match in re.finditer(r"(?m)^ {2}\S.*:$|^\S.*:$", text[start + len(header):])
+        for match in re.finditer(
+            r"(?m)^ {2}\S.*:$|^\S.*:$", text[start + len(header) :]
+        )
     ]
-    end = (
-        start + len(header) + min(boundaries)
-        if boundaries
-        else len(text)
-    )
+    end = start + len(header) + min(boundaries) if boundaries else len(text)
     section = text[start:end]
     if not section.startswith(header):
         raise UpdateError(f"lock record {name!r} has an unsafe layout")
@@ -1000,19 +1070,28 @@ def write_verified_text(path: Path, text: str) -> None:
         output.write(text)
 
 
-def apply_lock_changes(lock_path: Path, lock: dict[str, Any], candidate: dict[str, Any]) -> None:
+def apply_lock_changes(
+    lock_path: Path, lock: dict[str, Any], candidate: dict[str, Any]
+) -> None:
     text = lock_path.read_text(encoding="utf-8")
-    for group, fields in (("actions", ACTION_MUTABLE_FIELDS), ("tools", TOOL_MUTABLE_FIELDS)):
+    for group, fields in (
+        ("actions", ACTION_MUTABLE_FIELDS),
+        ("tools", TOOL_MUTABLE_FIELDS),
+    ):
         for name, changes in sorted(candidate[group].items()):
             baseline = lock_record(lock, group, name)
             start, end, section = lock_record_section(text, group, name)
             for field in fields:
-                section = replace_lock_field(section, field, str(baseline[field]), changes[field], name)
+                section = replace_lock_field(
+                    section, field, str(baseline[field]), changes[field], name
+                )
             text = f"{text[:start]}{section}{text[end:]}"
     write_verified_text(lock_path, text)
 
 
-def update_workflow_references(root: Path, lock: dict[str, Any], candidate: dict[str, Any]) -> None:
+def update_workflow_references(
+    root: Path, lock: dict[str, Any], candidate: dict[str, Any]
+) -> None:
     for name, changes in sorted(candidate["actions"].items()):
         baseline = lock_record(lock, "actions", name)
         # Most records are used directly (``owner/action@sha``).  CodeQL is a
@@ -1043,10 +1122,14 @@ def update_workflow_references(root: Path, lock: dict[str, Any], candidate: dict
                 )
                 replacements += count
         if replacements == 0:
-            raise UpdateError(f"action {name!r} has no reviewed workflow reference to update")
+            raise UpdateError(
+                f"action {name!r} has no reviewed workflow reference to update"
+            )
 
 
-def update_documentation_references(root: Path, lock: dict[str, Any], candidate: dict[str, Any]) -> None:
+def update_documentation_references(
+    root: Path, lock: dict[str, Any], candidate: dict[str, Any]
+) -> None:
     for name, changes in sorted(candidate["actions"].items()):
         baseline = lock_record(lock, "actions", name)
         old_cells = f"`{baseline['version']}` | `{baseline['immutable_commit']}`"
@@ -1077,7 +1160,9 @@ def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
     ]
     unexpected = sorted(set(changed).difference(ALLOWED_UPDATE_PATHS))
     if unexpected:
-        raise UpdateError(f"updater changed an unallowlisted path: {', '.join(unexpected)}")
+        raise UpdateError(
+            f"updater changed an unallowlisted path: {', '.join(unexpected)}"
+        )
     return sorted(changed)
 
 
@@ -1093,7 +1178,9 @@ def safe_git_revision(value: str, description: str) -> str:
 
 
 def git_output_text(value: bytes | str) -> str:
-    return value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+    return (
+        value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+    )
 
 
 def name_status_paths(output: bytes) -> list[str]:
@@ -1163,7 +1250,9 @@ def verify_git_scope(
     changed = sorted(set(name_status_paths(result.stdout)))
     unexpected = sorted(set(changed).difference(ALLOWED_UPDATE_PATHS))
     if unexpected:
-        raise UpdateError(f"publisher diff includes unallowlisted paths: {', '.join(unexpected)}")
+        raise UpdateError(
+            f"publisher diff includes unallowlisted paths: {', '.join(unexpected)}"
+        )
     return changed
 
 
@@ -1204,11 +1293,17 @@ def git_lock_blob_data(root: Path, revision: str) -> tuple[bytes, dict[str, Any]
     try:
         data = yaml.safe_load(blob.decode("utf-8"))
     except (UnicodeDecodeError, yaml.YAMLError) as exc:
-        raise UpdateError(f"security tool lock at {revision} is malformed: {exc}") from exc
-    if not isinstance(data, dict) or not isinstance(data.get("actions"), dict) or not isinstance(
-        data.get("tools"), dict
+        raise UpdateError(
+            f"security tool lock at {revision} is malformed: {exc}"
+        ) from exc
+    if (
+        not isinstance(data, dict)
+        or not isinstance(data.get("actions"), dict)
+        or not isinstance(data.get("tools"), dict)
     ):
-        raise UpdateError(f"security tool lock at {revision} must contain action and tool mappings")
+        raise UpdateError(
+            f"security tool lock at {revision} must contain action and tool mappings"
+        )
     return blob, data
 
 
@@ -1217,9 +1312,13 @@ def changed_lock_record_fields(
 ) -> dict[str, str] | None:
     """Allow only a complete mutable release tuple to differ from the base lock."""
 
-    mutable_fields = ACTION_MUTABLE_FIELDS if group == "actions" else TOOL_MUTABLE_FIELDS
+    mutable_fields = (
+        ACTION_MUTABLE_FIELDS if group == "actions" else TOOL_MUTABLE_FIELDS
+    )
     if set(base_record) != set(head_record):
-        raise UpdateError(f"existing branch {group} {name!r} adds or removes lock fields")
+        raise UpdateError(
+            f"existing branch {group} {name!r} adds or removes lock fields"
+        )
     for field in base_record:
         if field not in mutable_fields and head_record[field] != base_record[field]:
             raise UpdateError(
@@ -1227,7 +1326,9 @@ def changed_lock_record_fields(
             )
     changes = {field: head_record.get(field) for field in mutable_fields}
     if any(not isinstance(value, str) or not value for value in changes.values()):
-        raise UpdateError(f"existing branch {group} {name!r} has an invalid mutable release field")
+        raise UpdateError(
+            f"existing branch {group} {name!r} has an invalid mutable release field"
+        )
     if all(changes[field] == base_record.get(field) for field in mutable_fields):
         return None
     return {field: str(value) for field, value in changes.items()}
@@ -1252,10 +1353,14 @@ def verify_changed_existing_branch_record(
     else:
         tag = stable_release_tag(release, f"existing branch tool {name!r} release")
     if tag != changes["version"]:
-        raise UpdateError(f"existing branch {group} {name!r} release tag does not match its lock")
+        raise UpdateError(
+            f"existing branch {group} {name!r} release tag does not match its lock"
+        )
     commit = release_tag_commit(identity, tag)
     if commit != changes["immutable_commit"]:
-        raise UpdateError(f"existing branch {group} {name!r} commit does not match its tag")
+        raise UpdateError(
+            f"existing branch {group} {name!r} commit does not match its tag"
+        )
     if group == "actions":
         return
     _tag, asset, digest = selected_release_asset(identity, release, baseline, name)
@@ -1265,11 +1370,15 @@ def verify_changed_existing_branch_record(
         )
 
 
-def verify_existing_branch_lock_metadata(base_lock: dict[str, Any], head_lock: dict[str, Any]) -> None:
+def verify_existing_branch_lock_metadata(
+    base_lock: dict[str, Any], head_lock: dict[str, Any]
+) -> None:
     """Keep lock-wide metadata immutable on a reusable maintenance branch."""
 
     if set(base_lock) != set(head_lock):
-        raise UpdateError("existing branch security tool lock adds or removes top-level fields")
+        raise UpdateError(
+            "existing branch security tool lock adds or removes top-level fields"
+        )
     for field in base_lock:
         if field not in {"actions", "tools"} and head_lock[field] != base_lock[field]:
             raise UpdateError(f"existing branch changes immutable lock field {field!r}")
@@ -1289,8 +1398,10 @@ def verify_existing_branch_group_record(
 ) -> None:
     """Verify the sole permissible mutable release tuple for one lock entry."""
 
-    if not isinstance(name, str) or not isinstance(baseline, dict) or not isinstance(
-        head_record, dict
+    if (
+        not isinstance(name, str)
+        or not isinstance(baseline, dict)
+        or not isinstance(head_record, dict)
     ):
         raise UpdateError(f"existing branch {group} lock record is malformed")
     changes = changed_lock_record_fields(group, name, baseline, head_record)
@@ -1311,7 +1422,9 @@ def verify_existing_branch_group_records(
         )
 
 
-def verify_existing_branch_lock_records(base_lock: dict[str, Any], head_lock: dict[str, Any]) -> None:
+def verify_existing_branch_lock_records(
+    base_lock: dict[str, Any], head_lock: dict[str, Any]
+) -> None:
     """Reject a reusable branch unless its lock is a base-identity verified update."""
 
     verify_existing_branch_lock_metadata(base_lock, head_lock)
@@ -1337,8 +1450,10 @@ def existing_branch_candidate(
         for name in sorted(base_records):
             baseline = base_records[name]
             head_record = head_records.get(name)
-            if not isinstance(name, str) or not isinstance(baseline, dict) or not isinstance(
-                head_record, dict
+            if (
+                not isinstance(name, str)
+                or not isinstance(baseline, dict)
+                or not isinstance(head_record, dict)
             ):
                 raise UpdateError(f"existing branch {group} lock record is malformed")
             changes = changed_lock_record_fields(group, name, baseline, head_record)
@@ -1360,7 +1475,9 @@ def copy_git_update_inputs(root: Path, revision: str, destination_root: Path) ->
         destination = destination_root / relative
         destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         if destination.exists() or destination.is_symlink():
-            raise UpdateError(f"existing branch validation path already exists: {relative}")
+            raise UpdateError(
+                f"existing branch validation path already exists: {relative}"
+            )
         destination.write_bytes(git_blob(root, revision, relative))
         destination.chmod(0o600)
 
@@ -1421,13 +1538,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="mode", required=True)
 
-    resolve = subparsers.add_parser("resolve", help="resolve a public read-only candidate")
+    resolve = subparsers.add_parser(
+        "resolve", help="resolve a public read-only candidate"
+    )
     resolve.add_argument("--root", type=Path, default=framework_root())
     output = resolve.add_mutually_exclusive_group(required=True)
     output.add_argument("--output", type=Path)
     output.add_argument("--github-output", action="store_true")
 
-    validate = subparsers.add_parser("validate", help="validate a candidate without source writes")
+    validate = subparsers.add_parser(
+        "validate", help="validate a candidate without source writes"
+    )
     validate.add_argument("--root", type=Path, default=framework_root())
     candidate = validate.add_mutually_exclusive_group(required=True)
     candidate.add_argument("--candidate", type=Path)
@@ -1440,13 +1561,17 @@ def parse_args() -> argparse.Namespace:
         help="apply only in a bounded RUNNER_TEMP copy and validate the result",
     )
 
-    apply = subparsers.add_parser("apply", help="apply the narrow allow-listed candidate")
+    apply = subparsers.add_parser(
+        "apply", help="apply the narrow allow-listed candidate"
+    )
     apply.add_argument("--root", type=Path, default=framework_root())
     candidate = apply.add_mutually_exclusive_group(required=True)
     candidate.add_argument("--candidate", type=Path)
     candidate.add_argument("--candidate-b64")
 
-    scope = subparsers.add_parser("verify-scope", help="fail if a publisher diff escapes the allowlist")
+    scope = subparsers.add_parser(
+        "verify-scope", help="fail if a publisher diff escapes the allowlist"
+    )
     scope.add_argument("--root", type=Path, default=framework_root())
     scope.add_argument("--staged", action="store_true")
     scope.add_argument("--base")
@@ -1462,15 +1587,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_resolve_command(args: argparse.Namespace) -> int:
+def run_resolve_command(args: argparse.Namespace) -> None:
     candidate = resolve_candidate(resolve_root(args.root))
     if args.github_output:
         print(f"candidate_b64={candidate_b64(candidate)}")
-        print(f"has_updates={'true' if candidate['actions'] or candidate['tools'] else 'false'}")
-        return 0
+        print(
+            f"has_updates={'true' if candidate['actions'] or candidate['tools'] else 'false'}"
+        )
+        return
     write_candidate(args.output, candidate)
     print(args.output)
-    return 0
 
 
 def run_validate_command(args: argparse.Namespace) -> int:
@@ -1509,8 +1635,10 @@ def run_verify_scope_command(args: argparse.Namespace) -> int:
 
 
 def run_command(args: argparse.Namespace) -> int:
+    if args.mode == "resolve":
+        run_resolve_command(args)
+        return 0
     handlers = {
-        "resolve": run_resolve_command,
         "validate": run_validate_command,
         "apply": run_apply_command,
         "verify-existing-branch": run_verify_existing_branch_command,

@@ -13,4 +13,5 @@ described in [change traceability](../../../docs/change-traceability.md).
 
 ## Current records
 
+- [Framework PRs 39–41 consolidation (2026-07-22)](20260722-01-consolidate-framework-pr-39-41.md)
 - [Framework workflow tooling update (2026-07-21)](20260721-01-framework-workflow-tools-update.md)

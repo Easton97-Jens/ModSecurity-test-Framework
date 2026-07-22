@@ -120,6 +120,8 @@ PYTHON_VERSION_CANDIDATE_FILE = "${{ runner.temp }}/framework-python-3.13-candid
 PYTHON_VERSION_PR_BODY_FILE = "${{ runner.temp }}/framework-python-version-pr-body.md"
 PYTHON_VERSION_PR_BODY_RUN_PATH = "$RUNNER_TEMP/framework-python-version-pr-body.md"
 PYTHON_VERSION_MAINTENANCE_WORKFLOW = "check-python-version.yml"
+OSV_WORKFLOW = "ci-security-osv.yml"
+OSV_PR_HEAD_PYTHON_VERSION_FILE = "${{ runner.temp }}/framework-osv-pr-python-version"
 GITHUB_COMPONENT = r"[A-Za-z0-9_.-]+"
 GITHUB_RELEASE_URL = re.compile(
     rf"^https://github\.com/(?P<owner>{GITHUB_COMPONENT})/"
@@ -130,7 +132,6 @@ GITHUB_RELEASE_ASSET_URL = re.compile(
     rf"(?P<repository>{GITHUB_COMPONENT})/releases/download/"
     rf"(?P<tag>[^/?#]+)/(?P<asset>{GITHUB_COMPONENT})$"
 )
-REVIEWED_PYTHON_VERSION = "3.13.14"
 UPDATER_READ_ONLY_PERMISSIONS = {"contents": "read"}
 UPDATER_PUBLISHER_PERMISSIONS = {
     "contents": "write",
@@ -141,6 +142,7 @@ UPDATER_DEFAULT_REF_CONDITION = (
     "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
 )
 UPDATER_HAS_UPDATES_CONDITION = "needs.resolver.outputs.has_updates == 'true'"
+UPDATER_DEFAULT_BRANCH_ENV = "DEFAULT_BRANCH"
 UPDATER_TRIGGERS = {
     "workflow_dispatch": None,
     "schedule": [{"cron": "17 5 * * 1"}],
@@ -170,7 +172,7 @@ COMMON_VERSION_WITH_VALUES = {
         "submodules": False,
     },
     STEP_SETUP_REVIEWED_PYTHON: {
-        "python-version": REVIEWED_PYTHON_VERSION,
+        "python-version-file": CANONICAL_PYTHON_VERSION_FILE,
         "check-latest": False,
     },
 }
@@ -226,7 +228,7 @@ UPDATER_PUBLISHER_STEP_PROFILE = (
         STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH,
         STEP_KEYS_ENV_RUN,
     ),
-    (STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH, STEP_KEYS_RUN),
+    (STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH, STEP_KEYS_ENV_RUN),
     (STEP_RERESOLVE_CURRENT_CANDIDATES, STEP_KEYS_RUN),
     (STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS, STEP_KEYS_ENV_ID_RUN),
     (
@@ -248,7 +250,7 @@ UPDATER_PUBLISHER_WITH_VALUES = {
         "submodules": False,
     },
     STEP_SETUP_REVIEWED_PYTHON: {
-        "python-version": REVIEWED_PYTHON_VERSION,
+        "python-version-file": CANONICAL_PYTHON_VERSION_FILE,
         "check-latest": False,
     },
 }
@@ -262,8 +264,12 @@ UPDATER_PUBLISHER_WITH_KEYS = {
 }
 UPDATER_PUBLISHER_ENV_VALUES = {
     STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH: {
+        UPDATER_DEFAULT_BRANCH_ENV: "${{ github.event.repository.default_branch }}",
         "MAINTENANCE_PR_EXISTS": "${{ steps.maintenance_pr.outputs.existing }}",
         UPDATER_PUBLISH_TOKEN_ENV: GITHUB_TOKEN_EXPRESSION,
+    },
+    STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH: {
+        UPDATER_DEFAULT_BRANCH_ENV: "${{ github.event.repository.default_branch }}",
     },
     STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: {
         UPDATER_PUBLISH_TOKEN_ENV: GITHUB_TOKEN_EXPRESSION,
@@ -279,10 +285,10 @@ UPDATER_PUBLISHER_FIELD_VALUES = {
 }
 UPDATER_PUBLISHER_RUN_SHA256 = {
     STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
-    STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH: "f04648061e1365c9a9b74c74746bdef6afb4481e1959d57fdf008606d650a9c6",
-    STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH: "4c68dd3aed3315ae942409eb52d6a44175a1c668cde2e9413a475e4422524c93",
+    STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH: "57f9f21447a89e45b6ae8199afe6f92837d81b1acb31a2a963c9fcbafe29c3f2",
+    STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH: "e87da1dc670eb4fcd0bad20fcb11f93e46eb2774679c886b9e129cb383d78047",
     STEP_RERESOLVE_CURRENT_CANDIDATES: "bd0d48ff34d281197af63c9e72be64a719ecd48689c2edf6fbf7fbd4a5f6a278",
-    STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: "7287c78623047abc8f73b435103bad91c1dcf1bf4b149ba58bedaea28826e174",
+    STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: "4e33fe934d78f3389bca65955b7eda28920f9c78242e758c587b425d3c06528f",
 }
 UPDATER_PUBLISHER_SCRIPT_SHA256 = {
     STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: "3d51794a9c57865efd999657eb78214383cf3c81f7575498eebb1ef9dcbf4699",
@@ -318,6 +324,18 @@ OSV_JOB_REQUIREMENTS: dict[str, tuple[str, ...]] = {
         '"+refs/pull/$PR_NUMBER/head:refs/remotes/origin/pr-$PR_NUMBER"',
         'test "$resolved_head" = "$HEAD_SHA"',
         'git cat-file -e "$HEAD_SHA^{commit}"',
+        'git cat-file -e "$HEAD_SHA:.python-version"',
+        'git cat-file -s "$HEAD_SHA:.python-version"',
+        '[ "$version_size" -le 32 ]',
+        '[ ! -e "$PYTHON_VERSION_FILE" ]',
+        '[ ! -L "$PYTHON_VERSION_FILE" ]',
+        "umask 077",
+        "set -C",
+        'git show "$HEAD_SHA:.python-version" > "$PYTHON_VERSION_FILE"',
+        '[ -f "$PYTHON_VERSION_FILE" ]',
+        '[[ "$version" =~ ^3\\.13\\.(0|[1-9][0-9]*)$ ]]',
+        'printf \'%s\\n\' "$version" | cmp -s - "$PYTHON_VERSION_FILE"',
+        OSV_PR_HEAD_PYTHON_VERSION_FILE,
         'git cat-file -e "$HEAD_SHA:requirements-ci.lock"',
         "write_osv_input requirements-dev.txt requirements-dev.txt false",
         "write_osv_input requirements-ci.lock requirements-ci.txt true",
@@ -760,6 +778,62 @@ def pin_errors(path: Path, text: str, actions: dict[str, dict[str, Any]]) -> lis
     return errors
 
 
+def parsed_uses_references(node: Any, seen: set[int] | None = None) -> Iterable[Any]:
+    """Yield every parsed workflow ``uses`` value without trusting YAML spelling."""
+
+    if seen is None:
+        seen = set()
+    if isinstance(node, dict):
+        identity = id(node)
+        if identity in seen:
+            return
+        seen.add(identity)
+        if "uses" in node:
+            yield node["uses"]
+        for value in node.values():
+            yield from parsed_uses_references(value, seen)
+    elif isinstance(node, list):
+        identity = id(node)
+        if identity in seen:
+            return
+        seen.add(identity)
+        for value in node:
+            yield from parsed_uses_references(value, seen)
+
+
+def parsed_action_lock_errors(
+    path: Path, data: Any, actions: dict[str, dict[str, Any]]
+) -> list[str]:
+    """Bind every parsed external Action reference to the reviewed action lock.
+
+    Raw source checks remain responsible for the adjacent release-comment
+    convention. This parsed pass is deliberately independent of YAML key
+    spelling, so quoted keys and flow mappings cannot bypass SHA provenance.
+    """
+
+    errors: list[str] = []
+    for reference in parsed_uses_references(data):
+        if not isinstance(reference, str):
+            errors.append(f"{path}: workflow uses references must be strings")
+            continue
+        if reference.startswith("./"):
+            continue
+        details = locked_action_details(reference)
+        if details is None:
+            errors.append(
+                f"{path}: {reference} must be a locked GitHub Action with a "
+                "full immutable commit SHA"
+            )
+            continue
+        action, pin = details
+        record = actions.get(action)
+        if record is None:
+            errors.append(f"{path}: {action} is absent from the action lock")
+        elif pin != record["immutable_commit"]:
+            errors.append(f"{path}: {action} SHA differs from the reviewed lock")
+    return errors
+
+
 def run_shell_default(data: dict[str, Any]) -> bool:
     defaults = data.get("defaults")
     return (
@@ -861,6 +935,8 @@ def setup_python_errors(path: Path, text: str) -> list[str]:
     allowed_files = {CANONICAL_PYTHON_VERSION_FILE}
     if path.name == PYTHON_VERSION_MAINTENANCE_WORKFLOW:
         allowed_files.add(PYTHON_VERSION_CANDIDATE_FILE)
+    if path.name == OSV_WORKFLOW:
+        allowed_files.add(OSV_PR_HEAD_PYTHON_VERSION_FILE)
     if len(version_files) != setup_count or any(
         version_file not in allowed_files for version_file in version_files
     ):
@@ -1879,6 +1955,7 @@ def validate(root: Path, lock_path: Path) -> list[str]:
             errors.append(str(exc))
             continue
         errors.extend(pin_errors(path, text, actions))
+        errors.extend(parsed_action_lock_errors(path, data, actions))
         errors.extend(workflow_contract_errors(path, text, data))
     return errors
 

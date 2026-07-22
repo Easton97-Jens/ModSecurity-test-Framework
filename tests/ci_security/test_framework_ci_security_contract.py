@@ -119,6 +119,16 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         osv_path = ROOT / ".github/workflows/ci-security-osv.yml"
         osv_text = osv_path.read_text(encoding="utf-8")
         self.assertEqual(CHECKER.scanner_evidence_errors(osv_path, osv_text), [])
+        missing_python_bootstrap_bound = osv_text.replace(
+            '[ "$version_size" -le 32 ]', '[ "$version_size" -le 33 ]', 1
+        )
+        bootstrap_errors = CHECKER.scanner_evidence_errors(
+            osv_path, missing_python_bootstrap_bound
+        )
+        self.assertTrue(
+            any("version_size" in error for error in bootstrap_errors),
+            "\n".join(bootstrap_errors),
+        )
         relaxed_osv = osv_text.replace(
             "--format json", "--format json --allow-no-lockfiles", 1
         ).replace("retention-days: 1", "retention-days: 2", 1)

@@ -124,6 +124,52 @@ class CiSecurityContractTest(unittest.TestCase):
         self.assertTrue(any("quoted-action.yaml" in error for error in errors))
         self.assertTrue(any("full immutable commit SHA" in error for error in errors))
 
+    def test_parsed_action_lock_validation_rejects_yaml_spelling_bypasses(
+        self,
+    ) -> None:
+        actions, _tools, lock_errors = CHECKER.load_lock(LOCK_PATH)
+        self.assertFalse(lock_errors, "\n".join(lock_errors))
+        locked_sha = actions["actions/checkout"]["immutable_commit"]
+        different_sha = "0" * 40 if locked_sha != "0" * 40 else "1" * 40
+
+        fixtures = {
+            "quoted-key.yml": f"""\
+jobs:
+  publisher:
+    steps:
+      - "uses": actions/checkout@{different_sha} # v7.0.1
+""",
+            "flow-mapping.yml": f"""\
+jobs:
+  publisher:
+    steps:
+      - {{name: Checkout, uses: actions/checkout@{different_sha}}}
+""",
+        }
+        for name, text in fixtures.items():
+            with self.subTest(name=name):
+                data = CHECKER.yaml.safe_load(text)
+                errors = CHECKER.parsed_action_lock_errors(Path(name), data, actions)
+                self.assertTrue(
+                    any(
+                        "SHA differs from the reviewed lock" in error
+                        for error in errors
+                    ),
+                    "\n".join(errors),
+                )
+
+        current_data = CHECKER.load_yaml(
+            ROOT / ".github/workflows/update-workflow-tools.yml"
+        )
+        self.assertEqual(
+            CHECKER.parsed_action_lock_errors(
+                ROOT / ".github/workflows/update-workflow-tools.yml",
+                current_data,
+                actions,
+            ),
+            [],
+        )
+
     def test_contract_rejects_scalar_permissions_and_invalid_controls(self) -> None:
         assert_rejects_unsafe_workflow_controls(self, CHECKER.workflow_contract_errors)
 
@@ -447,7 +493,7 @@ class CiSecurityContractTest(unittest.TestCase):
         )
         existing_branch_command = (
             "              python3 ci/tools/update-workflow-tools.py verify-existing-branch --root . \\\n"
-            '                --base "origin/${{ github.event.repository.default_branch }}" \\\n'
+            '                --base "origin/$DEFAULT_BRANCH" \\\n'
             '                --head "origin/$UPDATE_BRANCH"\n'
         )
         publisher_validation = (

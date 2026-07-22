@@ -16,9 +16,12 @@ diese Wurzel verlässt (zum Beispiel über einen Symlink).
 Der Framework-eigene OSV-Workflow verwendet das nicht privilegierte
 `pull_request`-Event. Sein enger Job checkt die vertrauenswürdige PR-Basis-SHA
 aus, holt und verifiziert das nummerierte PR-Head-Objekt und liest nur benannte
-Dependency-Manifest-Blobs. Der ausgecheckte Framework-Quellcode und der
-Scanner-Helper stammen damit aus der Basisrevision und nicht aus PR-Head-
-Dateien. Kein PR-Checkout aktiviert Submodule. Die separat
+Dependency-Manifest-Blobs sowie den PR-Head-Blob `.python-version`. Letzterer
+ist größen- und formatbegrenzt, wird einmalig als reguläre, nicht symlinkte Datei
+unter privatem `runner.temp` geschrieben und nur von `setup-python` verwendet.
+Der ausgecheckte Framework-Quellcode und der Scanner-Helper stammen damit aus
+der Basisrevision und nicht aus PR-Head-Dateien: Der Job checkt keinen PR-Head
+aus und führt keinen PR-Head-Code aus. Kein PR-Checkout aktiviert Submodule. Die separat
 dokumentierte CI-Security-Suite besitzt begrenzte OSV-/Scorecard-
 Artefaktausnahmen; ihr einziger SARIF-/CodeQL-Upload ist der vertrauenswürdige Nicht-PR-Job in
 `ci-security-codeql.yml`. Sein read-only-Pendant
@@ -27,13 +30,14 @@ Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 
 | Workflow | Trigger | Externe Actions | Effektive Berechtigungen | Vertrauensentscheidung |
 | --- | --- | --- | --- | --- |
-| `check-action-versions.yml` | `workflow_dispatch`, gefilterter `pull_request` | `actions/checkout` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; er läuft nur lesend und ohne persistierte Checkout-Credentials. |
-| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | Workflow-Standard `contents: read`; Updater-Job effektiv `contents: write`, `pull-requests: write` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; kein Pull-Request-Trigger. |
+| `check-action-versions.yml` | `workflow_dispatch`, gefilterter `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; er läuft nur lesend und ohne persistierte Checkout-Credentials. |
+| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python` | `contents: read` | Geplanter/manueller, vertrauenswürdiger Checker ohne Auslieferungs- oder Publisher-Job. |
 | `check-python-version.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | Workflow-Standard `contents: read`; nur Publisher-Job effektiv `contents: write`, `pull-requests: write` | Resolver- und Kandidatenjobs sind read-only; der Publisher löst einen stabilen Kandidaten unabhängig erneut auf und erstellt nur einen Draft-PR auf festem Branch für `.python-version`, niemals einen Merge. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, Zeitplan | `actions/github-script` | Workflow-Standard `contents: read`; Cleanup-Job effektiv `actions: write` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; sein Job kann nur Repository-Artefakte löschen. |
-| `lint.yml` | `push`, `pull_request` | `actions/checkout` | `contents: read` | PR-Quellcode und seine Entwicklungsabhängigkeiten sind nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
-| `test-common.yml` | `push`, `pull_request` | `actions/checkout` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
-| `ci-security-osv.yml` | begrenztes `pull_request`, Zeitplan, manuell | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact` | `contents: read` | Der nicht privilegierte PR-Job führt nur die vertrauenswürdige Basisrevision aus, verifiziert ein geholtes PR-Objekt und behandelt zwei Manifest-Blobs als Daten statt als ausgecheckten Code. |
+| `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode und seine Entwicklungsabhängigkeiten sind nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
+| `test-common.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
+| `ci-security-osv.yml` | begrenztes `pull_request`, Zeitplan, manuell | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact` | `contents: read` | Der nicht privilegierte PR-Job führt nur die vertrauenswürdige Basisrevision aus, verifiziert ein geholtes PR-Objekt und behandelt Dependency-Manifest- und begrenzte `.python-version`-Blobs als Daten statt als ausgecheckten Code. |
+| `update-workflow-tools.yml` | Zeitplan, manuell | `actions/checkout`, `actions/setup-python`, `actions/github-script` | Reader-Jobs `contents: read`; nur der Default-Branch-Publisher hat `contents: write`, `pull-requests: write` | Der eingeschränkte Publisher läuft erst nach unabhängigen Resolver- und Validator-Jobs und erstellt ausschließlich einen Draft-PR. |
 
 ## Unveränderliche Action-Provenienz
 
@@ -43,17 +47,27 @@ zugelassenen Upstreams, Releases und Commit-Identitäten sind:
 
 | Action | Offizieller Upstream | Release | Commit-SHA | Lizenz | Notwendige Verwendung |
 | --- | --- | --- | --- | --- | --- |
-| `actions/checkout` | [actions/checkout](https://github.com/actions/checkout) | `v7.0.0` | `9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0` | MIT | Checkt den Framework-Quellcode für Validierung oder Wartung aus. |
-| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | `v6.3.0` | `ece7cb06caefa5fff74198d8649806c4678c61a1` | MIT | Wählt den exakten Interpreter aus `.python-version` für Framework-CI und kontrollierte Wartungsvalidierung aus. |
-| `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Ruft die GitHub-Actions-Artifact-API für die Bereinigungsaufbewahrung auf. |
-| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Erstellt eingeschränkte geplante/manuelle Wartungs-Draft-PRs. |
+| `actions/checkout` | [actions/checkout](https://github.com/actions/checkout) | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` | MIT | Checkt den Framework-Quellcode für Validierung oder Wartung aus. |
+| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` | MIT | Wählt den exakten Interpreter aus `.python-version` für Framework-CI und kontrollierte Wartungsvalidierung aus. |
+| `actions/setup-node` | [actions/setup-node](https://github.com/actions/setup-node) | `v7.0.0` | `820762786026740c76f36085b0efc47a31fe5020` | MIT | Wählt die überprüfte Node.js-Runtime für prüfsummenverifiziertes Pyright. |
+| `actions/upload-artifact` | [actions/upload-artifact](https://github.com/actions/upload-artifact) | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | MIT | Bewahrt nur begrenzte CI-Security-Evidenz auf. |
+| `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Prüft eingeschränkte Draft-PRs oder führt Artefakt-Aufbewahrungsbereinigung aus. |
+| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Erstellt den eingeschränkten CPython-Version-Draft-PR. |
+| `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | `v4.37.1` | `7188fc363630916deb702c7fdcf4e481b751f97a` | MIT | Führt die begrenzte CodeQL-Analyse und den vertrauenswürdigen SARIF-Upload aus. |
+| `actions/dependency-review-action` | [actions/dependency-review-action](https://github.com/actions/dependency-review-action) | `v5.0.0` | `a1d282b36b6f3519aa1f3fc636f609c47dddb294` | MIT | Prüft Abhängigkeitsänderungs-PRs ohne Remediation. |
 
 Der Vertrag weist Tags, Branches, verkürzte oder Großbuchstaben-SHAs,
 dynamische Referenzen, Docker-Referenzen, fehlerhafte oder Block-Scalar-
 `uses:`-Werte, YAML-Flow-Collections, explizite Mapping-Keys, YAML-Tags/Anker/
 Aliase/Merge-Keys in Key- oder Value-Position, escapte doppelt zitierte
 Mapping-Keys, YAML-Dokumentmarker (auch nach einem UTF-8-BOM) und einen
-fehlenden Release-Kommentar zurück. Lokale `./`-Actions sind keine Remote-
+fehlenden Release-Kommentar zurück. Unabhängig von der Source-Schreibweise
+bindet der CI-Security-Contract jede geparste nicht lokale `uses`-Referenz
+rekursiv an ihren überprüften Lock-Record und den exakten unveränderlichen
+Commit; die Source-Prüfung des Release-Kommentars bleibt Defense in Depth.
+Quoted-Key- und Flow-Mapping-Referenzen mit einer abweichenden Voll-SHA werden
+damit zurückgewiesen, statt auf eine literale Schreibweise `uses:` zu vertrauen.
+Lokale `./`-Actions sind keine Remote-
 Abhängigkeiten und benötigen daher keinen Remote-Pin; derzeit existiert keine,
 und jede künftige lokale Action in einem PR-Workflow bleibt der untenstehenden
 nicht schreibenden PR-Vertrauensgrenze unterworfen.
@@ -69,13 +83,14 @@ permissions:
 
 Nur ein vertrauenswürdiger Job darf diese Baseline durch eine kleinere,
 zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions`
-benötigt Repository-Content- und Pull-Request-Write-Rechte zum Erstellen seines
-Wartungs-PRs; `check-python-version` gibt dieselben zwei Write-Rechte erst
-seinem Publisher-Job, nachdem Resolver und Kandidatenjob read-only geblieben
-sind; `cleanup-artifacts` benötigt nur `actions: write`, um Artefakte zu
-löschen; der vertrauenswürdige Nicht-PR-CodeQL-Upload-Job benötigt
-`security-events: write`. Kein PR-ausgelöster Job darf eine Write-Berechtigung
-vergeben.
+bleibt read-only; `check-python-version` gibt Repository-Content- und
+Pull-Request-Write-Rechte erst seinem Publisher-Job, nachdem Resolver und
+Kandidatenjob read-only geblieben sind; der separate Publisher von
+`update-workflow-tools` hat dieselben zwei Write-Rechte erst nach unabhängigen
+Resolver- und Validator-Jobs; `cleanup-artifacts` benötigt nur `actions: write`,
+um Artefakte zu löschen; der vertrauenswürdige Nicht-PR-CodeQL-Upload-Job
+benötigt `security-events: write`. Kein PR-ausgelöster Job darf eine
+Write-Berechtigung vergeben.
 
 Jede direkte Verwendung von `actions/checkout` setzt:
 
@@ -88,23 +103,24 @@ Dies verhindert, dass das Checkout-Credential für spätere Git-Kommandos
 persistiert wird. GitHub stellt Actions dennoch ein automatisches Token im
 Berechtigungsumfang des Jobs bereit, und `actions/checkout` verwendet
 standardmäßig dieses job-scoped Credential, solange eine Action nicht explizit
-ein anderes Credential erhält. Der
-Common-Version-Updater stellt `GITHUB_TOKEN` nur im Shell-Schritt `Validate and
-update common.sh` bereit, und seine Pull-Request-Action erhält den expliziten
-Input `token: ${{ github.token }}`. Resolver und Kandidatenjob der Python-
-Version deklarieren keine Token- oder Secret-Referenz; der Publisher deklariert
-genau ein explizites Token nur für seine überprüfte Pull-Request-Action. Der
-Contract weist jede explizite Token-/Secret-Referenz auf Workflow-Ebene, in
-einem Reader-Job oder an anderer Stelle im Publisher zurück, einschließlich
-einer `run`-Step-Umgebung. Der Publisher löst den Kandidaten unabhängig erneut auf, erlaubt nur
-`.python-version` sowohl im geprüften Diff als auch in `add-paths`, fixiert den
-Automationsbranch, setzt `draft: true` und weist Merge- oder Auto-Merge-Shell-
-Kommandos im Source-Contract zurück. GitHub-Berechtigungen sind Job- und nicht
-Schritt-spezifisch: Das Einengen einer Umgebungsvariable reduziert die direkte
-Shell-Exposition, verwandelt einen vertrauenswürdigen Job mit Write-Rechten
-aber nicht in eine Schritt-Berechtigungsgrenze. Daher ist dieser Job auf
-geplante oder manuelle Trigger vertrauenswürdiger Maintainer begrenzt und
-enthält kein PR-Event.
+ein anderes Credential erhält. Der Common-Version-Checker deklariert kein
+explizites Token oder Secret. Auch Resolver und Kandidatenjob der Python-Version
+deklarieren keines; sein Publisher deklariert genau ein explizites Token nur für
+seine überprüfte Pull-Request-Action. Resolver und Validator des Workflow-Tools
+bleiben im Source ebenfalls tokenfrei, während der eng profilierte Publisher
+die überprüften Token-Inputs nur für seine eingeschränkten Draft-PR- und
+normalen Push-Schritte verwendet. Der Contract weist eine explizite Token-/
+Secret-Referenz auf Workflow-Ebene oder in jedem Reader-Job zurück und bindet
+die Profile der schreibfähigen Publisher exakt. Der Python-Publisher löst den
+Kandidaten unabhängig erneut auf, erlaubt nur `.python-version` sowohl im
+geprüften Diff als auch in `add-paths`, fixiert den Automationsbranch, setzt
+`draft: true` und weist Merge- oder Auto-Merge-Shell-Kommandos im Source-
+Contract zurück. GitHub-Berechtigungen sind Job- und nicht Schritt-spezifisch:
+Das Einengen einer Umgebungsvariable reduziert die direkte Shell-Exposition,
+verwandelt einen vertrauenswürdigen Job mit Write-Rechten aber nicht in eine
+Schritt-Berechtigungsgrenze. Jeder Publisher ist daher auf geplante oder
+manuelle Trigger vertrauenswürdiger Maintainer begrenzt und enthält kein
+PR-Event.
 
 Für jeden `pull_request`-Workflow weist der Checker `pull_request_target`,
 Write-Berechtigungen, Referenzen `secrets.` und `secrets[...]`, Secret-
@@ -137,12 +153,15 @@ make test-workflow-security-contract
 `ci/checks/security/check-python-version.py` fordert separat die kanonische
 reguläre Datei `.python-version`, rekursive Workflow-Abdeckung, Setup vor jedem
 direkten oder durch Make ausgelösten Python-Kommando, keinen hart kodierten
-Patch oder Python-Matrix, kein bares `pip` und nur die kontrollierte
-`RUNNER_TEMP`-Kandidatendatei im read-only Validierungsjob der direkten
-`.github/workflows/check-python-version.yml`. Der CI-Security-Contract
-erzwingt zusätzlich die exakte Drei-Job-Wartungstopologie, das
-vertrauenswürdige Publisher-Gate, die Publisher-Revalidierung, den festen
-Draft-PR-Branch und den Pfadumfang nur für `.python-version`.
+Patch oder Python-Matrix und kein bares `pip`. Es erlaubt genau zwei
+Runner-Temporär-Dateiausnahmen: die Kandidatendatei im direkten
+Validierungsjob von `check-python-version.yml` nach kanonischem Setup sowie die
+OSV-Datei `pull-request-head` nach vertrauenswürdigem Basis-Checkout,
+SHA-verifizierter, begrenzter und nicht symlinkter PR-Head-Blob-
+Materialisierung. Der CI-Security-Contract erzwingt zusätzlich die exakten
+Wartungstopologien, vertrauenswürdigen Publisher-Gates, Publisher-
+Revalidierungen, festen Draft-PR-Branches und jeweiligen zugelassenen
+Pfadumfänge.
 
 Die Regression-Suite validiert zuerst die echten Workflows und beweist dann,
 dass sichere Read-only-PR- und Trusted-Writer-Fixtures bestehen. Unsichere
