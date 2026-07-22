@@ -108,6 +108,11 @@ gequotete Shell-Expansion und ist durch das exakte Publisher-Profil gebunden.
   Verhalten, die OSV-Ausnahmegrenze, Quoted-Key- und Flow-Mapping-
   Alternativumgehungen, die Zurückweisung einer abweichenden Voll-SHA und das
   eingeschränkte Publisher-Profil ab.
+- Die nach der Veröffentlichung ergänzte Pyright-Korrektur gibt dem
+  Release-URL-Validator vor dem Regular-Expression-Matching stabile
+  String-Werte und typisiert die Test-Lock-Fixture entsprechend ihrer
+  verschachtelten Datenform; Download-, Provenance-, Lock-, Publisher- und
+  Berechtigungs-Controls werden nicht verändert.
 - `docs/github-actions-workflow-security.{md,de.md}` und
   `docs/security/ci-security-tooling.{md,de.md}` dokumentieren korrigiertes
   Inventar, Sicherheitskontrollen und Token-/Checkout-Semantik.
@@ -171,6 +176,13 @@ Integrations- oder Lifecycle-Evidenz.
 - Ein Live-OSV-PR-Context-Run, Publisher-Verhalten, erforderliche GitHub-Checks
   und der SonarQube-Cloud-Status des resultierenden Masters sind Hosted-
   Evidenz und noch nicht beobachtet.
+- Der veröffentlichte PR-#42-Head
+  `22747d460a9f7be02760edf05c311be376492457` führte Hosted Pyright aus und
+  scheiterte mit fünf Typdiagnosen: zwei wiederholte dynamische Dictionary-
+  Lookups für Regular-Expression-Matching und eine als flache Object-Map
+  typisierte Test-Lock-Fixture. Die eingegrenzte Folgekorrektur ist als
+  `FND-FRAMEWORK-0049` erfasst; ihr neuer exakter Head muss Hosted Pyright und
+  alle Required Checks erneut ausführen.
 - Ein explorativer vollständiger `ruff check ci tests` ist nicht das Projekt-
   CI-Ziel und endet mit 54 Diagnosen außerhalb des CI-Security-Quality-Scopes;
   der oben genannte exakte begrenzte Befehl besteht. Diese Konsolidierung macht

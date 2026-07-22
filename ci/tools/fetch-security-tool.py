@@ -157,14 +157,16 @@ def _validate_tool_identity(record: dict[str, Any], tool: str) -> None:
 
 def _validate_release_asset_url(record: dict[str, Any], tool: str) -> None:
     version = record.get("version")
+    upstream_release = record.get("upstream_release")
+    asset_url = record.get("asset_url")
     release_match = (
-        GITHUB_RELEASE_URL.fullmatch(record.get("upstream_release"))
-        if isinstance(record.get("upstream_release"), str)
+        GITHUB_RELEASE_URL.fullmatch(upstream_release)
+        if isinstance(upstream_release, str)
         else None
     )
     asset_match = (
-        GITHUB_RELEASE_ASSET_URL.fullmatch(record.get("asset_url"))
-        if isinstance(record.get("asset_url"), str)
+        GITHUB_RELEASE_ASSET_URL.fullmatch(asset_url)
+        if isinstance(asset_url, str)
         else None
     )
     if release_match is None or asset_match is None:

@@ -100,6 +100,10 @@ the exact publisher profile.
   behavior, the OSV exception boundary, quoted-key and flow-mapping alternate
   bypasses, a different full SHA rejection, and the constrained publisher
   profile.
+- The post-publication Pyright correction gives the release-URL validator
+  stable string values before regular-expression matching and types the test
+  lock fixture according to its nested data shape; it does not alter the
+  download, provenance, lock, publisher, or permission controls.
 - `docs/github-actions-workflow-security.{md,de.md}` and
   `docs/security/ci-security-tooling.{md,de.md}` document the corrected
   inventory, security controls, and token/checkout semantics.
@@ -160,6 +164,12 @@ MRTS, integration, or lifecycle evidence is claimed by this Framework record.
 - A live OSV PR-context run, updater publisher behavior, required GitHub
   checks, and resulting-master SonarQube Cloud status are hosted evidence and
   have not yet been observed.
+- Published PR #42 head `22747d460a9f7be02760edf05c311be376492457` did run
+  hosted Pyright and failed with five type diagnostics: two repeated dynamic
+  dictionary lookups supplied to regular-expression matching and one test lock
+  fixture typed as a flat object map. The bounded follow-up correction is
+  tracked as `FND-FRAMEWORK-0049`; its new exact head must rerun hosted Pyright
+  and all required checks.
 - An exploratory full-repository `ruff check ci tests` is not the project CI
   target and exits 1 with 54 diagnostics outside the CI-security-quality scope;
   the exact scoped command above passes. This consolidation does not make

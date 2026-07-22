@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from typing import Any
 import unittest
 from unittest.mock import call, patch
 
@@ -44,7 +45,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
 
     @staticmethod
     def changed_action(
-        lock: dict[str, object], name: str, version: str, sha: str
+        lock: dict[str, Any], name: str, version: str, sha: str
     ) -> dict[str, str]:
         record = lock["actions"][name]
         upstream = UPDATER.release_identity(record, name)
