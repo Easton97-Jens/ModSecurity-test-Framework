@@ -11,7 +11,7 @@
     "tests/ci_security"
   ],
   "exclude": ["tools/MRTS"],
-  "pythonVersion": "3.13",
+  "pythonVersion": "3.14",
   "typeCheckingMode": "basic",
   "reportMissingImports": "none",
   "reportMissingTypeStubs": "none"

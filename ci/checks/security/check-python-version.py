@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the Framework's canonical CPython 3.13 workflow contract."""
+"""Validate the Framework's canonical CPython 3.14 workflow contract."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ except ModuleNotFoundError:  # pragma: no cover - exercised by the CLI only
 
 
 CANONICAL_VERSION_FILE = ".python-version"
-CANONICAL_VERSION_VALUE = re.compile(r"^3\.13\.(0|[1-9][0-9]*)\n$")
+CANONICAL_VERSION_VALUE = re.compile(r"^3\.14\.(0|[1-9](?a:\d)*)\n$")
 WORKFLOW_SUFFIXES = {".yml", ".yaml"}
 CANDIDATE_WORKFLOW = "check-python-version.yml"
 CANDIDATE_WORKFLOW_PATH = Path(".github/workflows") / CANDIDATE_WORKFLOW
 CANDIDATE_JOB = "candidate-validate"
-CANDIDATE_VERSION_FILE = "${{ runner.temp }}/framework-python-3.13-candidate"
+CANDIDATE_VERSION_FILE = "${{ runner.temp }}/framework-python-3.14-candidate"
 OSV_WORKFLOW = "ci-security-osv.yml"
 OSV_WORKFLOW_PATH = Path(".github/workflows") / OSV_WORKFLOW
 OSV_PR_HEAD_JOB = "pull-request-head"
@@ -32,15 +32,15 @@ SETUP_PYTHON_LINE = re.compile(
     r"(?P<sha>[0-9a-f]{40})['\"]?\s+#\s*(?P<release>v[0-9]+(?:\.[0-9]+){1,3})\s*$"
 )
 PYTHON_VERSION_KEY = re.compile(r"^\s*python-version\s*:", re.MULTILINE)
-HARDCODED_313 = re.compile(
-    r"(?<![0-9A-Za-z_.-])3\.13\.(?:[0-9]+|x|\*)(?![0-9A-Za-z_.-])"
+HARDCODED_314 = re.compile(
+    r"(?<![0-9A-Za-z_.-])3\.14\.(?:(?a:\d+)|x|\*)(?![0-9A-Za-z_.-])"
 )
 PYTHON_COMMAND = re.compile(
-    r"(?<![0-9A-Za-z_.-])(?:python(?:3(?:\.[0-9]+)?)?|pytest|ruff|pyright|mypy|tox|nox)(?![0-9A-Za-z_.-])"
+    r"(?<![0-9A-Za-z_.-])(?:python(?:3(?:\.(?a:\d+))?)?|pytest|ruff|pyright|mypy|tox|nox)(?![0-9A-Za-z_.-])"
 )
 PIP_COMMAND = re.compile(r"(?<![0-9A-Za-z_.-])pip3?(?![0-9A-Za-z_.-])")
 PYTHON_MODULE_PREFIX = re.compile(
-    r"(?:^|[;&|]\s*|\s)python(?:3(?:\.[0-9]+)?)?\s+-m\s*$"
+    r"(?:^|[;&|]\s*|\s)python(?:3(?:\.(?a:\d+))?)?\s+-m\s*$"
 )
 MAKE_COMMAND = re.compile(r"(?<![0-9A-Za-z_.-])make(?![0-9A-Za-z_.-])")
 
@@ -88,7 +88,7 @@ def canonical_version_errors(root: Path) -> list[str]:
     if CANONICAL_VERSION_VALUE.fullmatch(content) is None:
         return [
             f"{path}: {CANONICAL_VERSION_FILE} must contain exactly one stable "
-            "3.13.<numeric patch> newline-terminated value"
+            "3.14.<numeric patch> newline-terminated value"
         ]
     return []
 
@@ -158,9 +158,9 @@ def hardcoded_version_errors(path: Path, text: str) -> list[str]:
         errors.append(
             f"{path}: python-version is forbidden; use {CANONICAL_VERSION_FILE} instead"
         )
-    if HARDCODED_313.search(text):
+    if HARDCODED_314.search(text):
         errors.append(
-            f"{path}: hard-coded CPython 3.13 patch values are forbidden in workflows"
+            f"{path}: hard-coded CPython 3.14 patch values are forbidden in workflows"
         )
     return errors
 
@@ -288,6 +288,152 @@ def local_reusable_errors(
     return []
 
 
+def canonical_setup_order_errors(
+    path: Path, job_name: str, selected_setup_kinds: set[str]
+) -> list[str]:
+    errors: list[str] = []
+    if "candidate" in selected_setup_kinds:
+        errors.append(
+            f"{path}: job {job_name!r} cannot select canonical Python after candidate Python"
+        )
+    if "osv-pr-head" in selected_setup_kinds:
+        errors.append(
+            f"{path}: job {job_name!r} may use the OSV pull-request "
+            "head Python bootstrap exactly once and without another "
+            "Python selection"
+        )
+    return errors
+
+
+def candidate_setup_order_errors(
+    path: Path, job_name: str, selected_setup_kinds: set[str]
+) -> list[str]:
+    if "canonical" in selected_setup_kinds:
+        return []
+    return [
+        f"{path}: job {job_name!r} candidate Python must follow canonical setup"
+    ]
+
+
+def osv_pr_head_setup_order_errors(
+    path: Path, job_name: str, selected_setup_kinds: set[str]
+) -> list[str]:
+    if not selected_setup_kinds:
+        return []
+    return [
+        f"{path}: job {job_name!r} may use the OSV pull-request "
+        "head Python bootstrap exactly once and without another "
+        "Python selection"
+    ]
+
+
+def setup_order_errors(
+    path: Path, job_name: str, kind: str, selected_setup_kinds: set[str]
+) -> list[str]:
+    if kind == "canonical":
+        return canonical_setup_order_errors(path, job_name, selected_setup_kinds)
+    if kind == "candidate":
+        return candidate_setup_order_errors(path, job_name, selected_setup_kinds)
+    if kind == "osv-pr-head":
+        return osv_pr_head_setup_order_errors(path, job_name, selected_setup_kinds)
+    return []
+
+
+def setup_step_errors(
+    root: Path,
+    path: Path,
+    job_name: str,
+    step: dict[str, Any],
+    selected_setup_kinds: set[str],
+) -> list[str]:
+    kind, errors = setup_kind(root, path, job_name, step)
+    if kind is None:
+        return errors
+    errors.extend(setup_order_errors(path, job_name, kind, selected_setup_kinds))
+    selected_setup_kinds.add(kind)
+    return errors
+
+
+def run_step_errors(
+    path: Path,
+    job_name: str,
+    step_number: int,
+    run: str,
+    *,
+    indirect_make_python: bool,
+    selected_setup_kinds: set[str],
+) -> list[str]:
+    errors = bare_pip_errors(path, job_name, step_number, run)
+    setup_seen = bool({"canonical", "osv-pr-head"} & selected_setup_kinds)
+    if run_uses_python(run, indirect_make_python=indirect_make_python) and not setup_seen:
+        errors.append(
+            f"{path}: job {job_name!r} step {step_number} invokes Python before reviewed setup-python"
+        )
+    return errors
+
+
+def step_errors(
+    root: Path,
+    path: Path,
+    job_name: str,
+    step_number: int,
+    raw_step: Any,
+    *,
+    indirect_make_python: bool,
+    selected_setup_kinds: set[str],
+) -> list[str]:
+    if not isinstance(raw_step, dict):
+        return [f"{path}: job {job_name!r} step {step_number} must be a mapping"]
+
+    errors: list[str] = []
+    if is_setup_python(raw_step):
+        errors.extend(
+            setup_step_errors(root, path, job_name, raw_step, selected_setup_kinds)
+        )
+    run = raw_step.get("run")
+    if isinstance(run, str):
+        errors.extend(
+            run_step_errors(
+                path,
+                job_name,
+                step_number,
+                run,
+                indirect_make_python=indirect_make_python,
+                selected_setup_kinds=selected_setup_kinds,
+            )
+        )
+    return errors
+
+
+def steps_errors(
+    root: Path,
+    path: Path,
+    job_name: str,
+    job: dict[str, Any],
+    errors: list[str],
+    *,
+    indirect_make_python: bool,
+) -> list[str]:
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        return [*errors, f"{path}: job {job_name!r} must define a steps list"]
+
+    selected_setup_kinds: set[str] = set()
+    for step_number, raw_step in enumerate(steps, start=1):
+        errors.extend(
+            step_errors(
+                root,
+                path,
+                job_name,
+                step_number,
+                raw_step,
+                indirect_make_python=indirect_make_python,
+                selected_setup_kinds=selected_setup_kinds,
+            )
+        )
+    return errors
+
+
 def job_errors(
     root: Path, path: Path, job_name: str, job: Any, *, indirect_make_python: bool
 ) -> list[str]:
@@ -301,64 +447,14 @@ def job_errors(
                 f"{path}: job {job_name!r} must not mix reusable uses and steps"
             )
         return errors
-
-    steps = job.get("steps")
-    if not isinstance(steps, list):
-        return [*errors, f"{path}: job {job_name!r} must define a steps list"]
-
-    canonical_setup_seen = False
-    candidate_setup_seen = False
-    osv_pr_head_setup_seen = False
-    for step_number, raw_step in enumerate(steps, start=1):
-        if not isinstance(raw_step, dict):
-            errors.append(
-                f"{path}: job {job_name!r} step {step_number} must be a mapping"
-            )
-            continue
-        if is_setup_python(raw_step):
-            kind, setup_errors = setup_kind(root, path, job_name, raw_step)
-            errors.extend(setup_errors)
-            if kind == "canonical":
-                if candidate_setup_seen:
-                    errors.append(
-                        f"{path}: job {job_name!r} cannot select canonical Python after candidate Python"
-                    )
-                if osv_pr_head_setup_seen:
-                    errors.append(
-                        f"{path}: job {job_name!r} may use the OSV pull-request "
-                        "head Python bootstrap exactly once and without another "
-                        "Python selection"
-                    )
-                canonical_setup_seen = True
-            elif kind == "candidate":
-                if not canonical_setup_seen:
-                    errors.append(
-                        f"{path}: job {job_name!r} candidate Python must follow canonical setup"
-                    )
-                candidate_setup_seen = True
-            elif kind == "osv-pr-head":
-                if (
-                    canonical_setup_seen
-                    or candidate_setup_seen
-                    or osv_pr_head_setup_seen
-                ):
-                    errors.append(
-                        f"{path}: job {job_name!r} may use the OSV pull-request "
-                        "head Python bootstrap exactly once and without another "
-                        "Python selection"
-                    )
-                osv_pr_head_setup_seen = True
-        run = raw_step.get("run")
-        if not isinstance(run, str):
-            continue
-        errors.extend(bare_pip_errors(path, job_name, step_number, run))
-        if run_uses_python(run, indirect_make_python=indirect_make_python) and not (
-            canonical_setup_seen or osv_pr_head_setup_seen
-        ):
-            errors.append(
-                f"{path}: job {job_name!r} step {step_number} invokes Python before reviewed setup-python"
-            )
-    return errors
+    return steps_errors(
+        root,
+        path,
+        job_name,
+        job,
+        errors,
+        indirect_make_python=indirect_make_python,
+    )
 
 
 def workflow_errors(root: Path, path: Path, *, indirect_make_python: bool) -> list[str]:

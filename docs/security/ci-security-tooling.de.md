@@ -15,8 +15,9 @@ checkt die unveränderliche PR-Basis-SHA ohne persistierte Credentials oder
 Submodule aus, holt nur die nummerierte GitHub-Pull-Request-Head-Referenz,
 verifiziert die gemeldete Head-SHA und liest die zwei benannten Dependency-
 Manifeste sowie nur den Head-Blob `.python-version` als begrenzte Daten.
-Letzterer wird nach Größen- und stabilem CPython-3.13-Format-Check einmalig als
-reguläre, nicht symlinkte Datei unter privatem `runner.temp` materialisiert und
+Letzterer wird nach Größen- und striktem stabilem CPython-3.14-Grammatik-Check
+einmalig als reguläre, nicht symlinkte Datei unter privatem `runner.temp`
+materialisiert und
 allein von `setup-python` verwendet. Sein ausgecheckter Framework-Quellcode und
 Scanner-Helper stammen damit aus der Basisrevision; der Job checkt keinen
 PR-Head aus und führt keinen PR-Head-Code aus. Alle Routine-Jobs erhalten
@@ -65,6 +66,7 @@ bleiben artefaktfrei.
 | `ci-security-quality.yml` | PR- und Default-Branch-Änderungen am CI-Security-Python-Scope | Prüfsummenverifiziertes Ruff-Lint/-Format und Pyright mit exakt festgelegter Node.js-Runtime. Der Scope umfasst CI-Security- und Change-Record-Checker, Downloader und deren Tests. |
 | `ci-security-secrets.yml` | PR, Zeitplan, manuell | Gitleaks checkt den exakten PR-Head aus und beweist ihn; danach scannt es exakt den Bereich Merge-Base bis Head mit `--redact=100`. Die gesamte Historie ist geplant/manuell advisory, bis Findings triagiert sind. |
 | `ci-security-osv.yml` | Begrenztes nicht privilegiertes `pull_request`; Zeitplan und manuell auf dem Default-Branch | Der PR-Job führt die vertrauenswürdige PR-Basis-SHA aus, holt die nummerierte PR-Referenz ohne Checkout, verifiziert ihre exakte Head-SHA und vergleicht begrenzte `requirements-dev.txt`- und `requirements-ci.lock`-Blobs ohne Remediation. Er materialisiert nur den verifizierten begrenzten Head-Blob `.python-version` einmalig unter privatem `runner.temp` als reguläre, nicht symlinkte Datei allein für `setup-python`; kein PR-Head-Source wird ausgecheckt oder ausgeführt. Er scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
+| `check-python-version.yml` | Geplant/manuell auf der vertrauenswürdigen `master`-Revision | Ein dreistufiger CPython-Wartungsworkflow löst einen Kandidaten auf, validiert ihn und darf erst danach einen Draft-Review-PR veröffentlichen. Die zwei read-only Stufen verwenden die ausgecheckte vertrauenswürdige Revision und kein Token; die Kandidatvalidierung materialisiert nur den festen Pfad `${{ runner.temp }}/framework-python-3.14-candidate`. Der Publisher ist durch `github.ref == 'refs/heads/master'` und einen validierten Kandidaten begrenzt, löst ihn unabhängig erneut auf, beschränkt die Änderung auf `.python-version` und verwendet den festen Review-Branch `automation/update-framework-python-314`. |
 | `ci-security-codeql-pr.yml` | PR | CodeQL analysiert den exakten PR-Head mit ausschließlich `contents: read`, dem `linked`-Tool-Bundle der gepinnten Action, `upload: never` und `upload-database: false`. Es analysiert GitHub Actions, Python und C/C++ und ignoriert `tools/MRTS/**`; es erhält nie eine Code-Scanning-Write-Berechtigung. |
 | `ci-security-codeql.yml` | Default-Branch-Push, Zeitplan, manuell | Vertrauenswürdiges CodeQL analysiert die exakte `github.sha` mit demselben begrenzten Sprach-Scope und `linked`-Tool-Bundle. Seine eine Job-spezifische `security-events: write`-Berechtigung wird ausschließlich nach Nicht-PR-Ausführung zum Upload von Code-Scanning-SARIF verwendet. Go oder JavaScript/TypeScript werden nicht behauptet; C/C++ verwendet `build-mode: none`, damit der Scan keine Connector- oder MRTS-Abhängigkeiten provisioniert. |
 | `ci-security-scorecard.yml` | PR; Default-Branch-Push, Zeitplan, manuell auf dem Default-Branch | Ein prüfsummenverifiziertes OpenSSF-Scorecard-Binary bewertet den exakten lokalen PR-Checkout ohne GitHub-Token. Das PR-Ergebnis wird JSON-validiert, bleibt aber artefaktfrei. Vertrauenswürdige Default-Branch-Jobs verwenden die exakte `github.sha`, bewahren eine validierte begrenzte JSON-Datei einen Tag auf und bleiben advisory, weil kein Score-Schwellenwert gesetzt ist; Scanner- und JSON-Validierungsfehler sind nicht advisory. SARIF wird nicht hochgeladen. |
@@ -133,14 +135,59 @@ Branch, Titel, Basis, Marker und Draft-Status besitzt und seine geänderten
 Tupel gegenüber der Lock-Identität des aktuellen Default-Branches verifiziert
 sind.
 
-`requirements-ci.lock` pinnt das CI-PyYAML-CP313-Wheel für überprüftes
-CPython 3.13.14 auf Linux x86_64 und verlangt dessen offiziellen PyPI-SHA-256.
-Workflows wählen diesen exakten Patch mit `check-latest: false` und
+`requirements-ci.lock` pinnt das CI-PyYAML-CP314-Wheel
+`PyYAML-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl`
+für überprüftes CPython 3.14.6 auf Linux x86_64 und verlangt dessen offiziellen
+PyPI-SHA-256
+`c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5`.
+Workflows wählen den exakten überprüften Patch mit `check-latest: false` und
 installieren ihn anschließend mit `--require-hashes`, `--only-binary=:all:`
 und `pip check`. Dependabot überwacht sowohl `github-actions` als auch `pip`;
 ein vorgeschlagenes Update bleibt aber dem Lock-/Provenienzreview und dem
 Immutable-Pin-Contract unterworfen. Kein Workflow behebt Abhängigkeiten
 automatisch.
+
+## CPython-Baseline und Wartungsvertrag
+
+`.python-version` ist der einzige kanonische Framework-Interpreter-Selektor.
+Sie muss eine reguläre, nicht symlinkte UTF-8-Datei sein, die genau einen mit
+Zeilenumbruch abgeschlossenen stabilen Wert `3.14.<numeric patch>` enthält.
+Sie erlaubt keinen floating selector, kein wildcard, kein prerelease, keine
+alternative Implementierung und keine zweite Zeile. Jeder aktive
+`actions/setup-python`-Use wählt sie mit `python-version-file: .python-version`
+und `check-latest: false`, mit Ausnahme der zwei separat verifizierten
+Datendateien unten:
+
+- Nur der Job `candidate-validate` in `check-python-version.yml` darf
+  `${{ runner.temp }}/framework-python-3.14-candidate` verwenden. Der Updater
+  schreibt diesen festen privaten Runner-Pfad erst, nachdem er den erwarteten
+  Kandidaten unabhängig nach derselben strikten Grammatik akzeptiert hat; die
+  Datei ist regulär und nicht symlinkbar, und kein Aufrufer kontrolliert ihren
+  Pfad.
+- Nur der OSV-Job `pull-request-head` darf seinen separat begrenzten Head-Blob
+  `.python-version` verwenden. Er führt weiterhin die vertrauenswürdige
+  Basisrevision aus und verwendet den Head-Wert nur als Daten für
+  `setup-python`; er checkt keinen PR-Head-Source oder Workflow-Content aus und
+  führt ihn nicht aus.
+
+`ci/tools/update-python-version.py` ist der einzige native Updater der Python-
+Baseline. Er bezieht Metadaten nur vom dokumentierten öffentlichen
+Python.org-JSON-Endpunkt, weist Redirects und nicht erkannte Metadaten zurück,
+akzeptiert nur veröffentlichte stabile CPython-3.14-Patch-Releases und schreibt
+keine Repository-Datei außer `.python-version`. Er verwendet weder einen
+GitHub-Token noch HTML-Scraping. Der geplante/manuelle Workflow
+`check-python-version.yml` trennt read-only Auflösung von Kandidatvalidierung.
+Sein Publisher löst den Kandidaten unabhängig erneut auf und validiert ihn,
+ist durch `github.ref == 'refs/heads/master'` beschränkt und kann nur einen
+Draft-PR auf `automation/update-framework-python-314` mit
+`.python-version` als einzigem Änderungspfad erstellen oder aktualisieren. Er
+merged nicht automatisch und verwendet keinen floating version selector.
+
+Die Static-Tool-Baselines folgen demselben Vertrag: `pyproject.toml` deklariert
+Ruff `target-version = "py314"`, und `pyrightconfig.json` deklariert
+`"pythonVersion": "3.14"`. Dies sind Analyse-Baselines, keine Behauptung,
+dass ein lokaler oder gehosteter CPython-3.14.6-Validierungslauf abgeschlossen
+ist.
 
 Der aktuelle OSV-Scope ist absichtlich explizit. Sein `.lock`-Suffix ist kein
 Python-Requirements-Dateiname, den OSV Scanner direkt akzeptiert. Deshalb

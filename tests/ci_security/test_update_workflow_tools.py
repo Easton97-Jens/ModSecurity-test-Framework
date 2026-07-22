@@ -433,8 +433,8 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         with patch.object(UPDATER, "load_fetcher_module", return_value=FakeFetcher):
             UPDATER.verify_changed_tool_assets(changes, Path("/runner-temp/validated"))
 
-        self.assertEqual(1, len(calls))
-        self.assertEqual("fixture", calls[0][0]["name"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][0]["name"], "fixture")
         self.assertEqual(Path("/runner-temp/validated/fixture"), calls[0][1])
 
     def test_candidate_paths_reject_runner_temp_traversal_for_reads_and_writes(
@@ -465,7 +465,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 candidate = {"safe": True}
                 UPDATER.write_candidate(candidate_path, candidate)
                 self.assertEqual(candidate, UPDATER.read_candidate(candidate_path))
-                self.assertEqual(0o600, candidate_path.stat().st_mode & 0o777)
+                self.assertEqual(candidate_path.stat().st_mode & 0o777, 0o600)
                 with self.assertRaisesRegex(UPDATER.UpdateError, "overwrite"):
                     UPDATER.write_candidate(candidate_path, candidate)
 
@@ -518,8 +518,8 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             ):
                 UPDATER.validate_proposed_tree(root, candidate)
 
-            self.assertEqual(3, len(commands))
-            self.assertEqual([], list(runner_temp.iterdir()))
+            self.assertEqual(len(commands), 3)
+            self.assertEqual(list(runner_temp.iterdir()), [])
             self.assertEqual(
                 source_lock,
                 (root / "ci/tooling/security-tools.lock.yml").read_bytes(),
@@ -675,7 +675,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                         head_lock,
                         base_lock_digest,
                     )
-            self.assertEqual([], list(runner_temp.iterdir()))
+            self.assertEqual(list(runner_temp.iterdir()), [])
 
     def test_existing_branch_accepts_exact_trusted_base_derived_blobs(self) -> None:
         base_lock_blob = (ROOT / "ci/tooling/security-tools.lock.yml").read_bytes()
@@ -728,7 +728,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                     head_lock,
                     UPDATER.hashlib.sha256(base_lock_blob).hexdigest(),
                 )
-            self.assertEqual([], list(runner_temp.iterdir()))
+            self.assertEqual(list(runner_temp.iterdir()), [])
 
     def test_publisher_workflow_keeps_resolver_validator_and_publisher_separate(
         self,

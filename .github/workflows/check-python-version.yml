@@ -1,4 +1,4 @@
-name: Resolve reviewed CPython 3.13 updates
+name: Resolve reviewed CPython 3.14 updates
 
 on:
   workflow_dispatch:
@@ -38,7 +38,7 @@ jobs:
           python-version-file: ".python-version"
           check-latest: false
 
-      - name: Resolve latest published stable CPython 3.13 patch
+      - name: Resolve latest published stable CPython 3.14 patch
         id: resolve
         run: |
           set -euo pipefail
@@ -87,7 +87,7 @@ jobs:
       - name: Set up candidate Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version-file: "${{ runner.temp }}/framework-python-3.13-candidate"
+          python-version-file: "${{ runner.temp }}/framework-python-3.14-candidate"
           check-latest: false
 
       - name: Verify candidate runtime and install hash-locked CI dependency
@@ -102,8 +102,8 @@ jobs:
               raise SystemExit(
                   f"candidate mismatch: expected {os.environ['CANDIDATE']}, got {sys.version}"
               )
-          if sys.version_info[:2] != (3, 13):
-              raise SystemExit(f"candidate is not CPython 3.13: {sys.version}")
+          if sys.version_info[:2] != (3, 14):
+              raise SystemExit(f"candidate is not CPython 3.14: {sys.version}")
           PY
           python3 -VV
           python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
@@ -179,13 +179,13 @@ jobs:
           printf '%s\n' \
             '## English' \
             '' \
-            'This Draft pull request was generated only after a read-only CPython 3.13 candidate validation.' \
+            'This Draft pull request was generated only after a read-only CPython 3.14 candidate validation.' \
             '' \
             'The publisher independently re-resolved the official Python.org metadata and verified that only `.python-version` changed.' \
             '' \
             '## Deutsch' \
             '' \
-            'Dieser Draft Pull Request wurde erst nach einer schreibgeschützten CPython-3.13-Kandidatenvalidierung erzeugt.' \
+            'Dieser Draft Pull Request wurde erst nach einer schreibgeschützten CPython-3.14-Kandidatenvalidierung erzeugt.' \
             '' \
             'Der Publisher hat die offiziellen Python.org-Metadaten unabhängig erneut aufgelöst und geprüft, dass sich nur `.python-version` änderte.' \
             > "$RUNNER_TEMP/framework-python-version-pr-body.md"
@@ -194,10 +194,10 @@ jobs:
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ github.token }}
-          commit-message: "chore: update reviewed CPython 3.13"
-          title: "chore: update reviewed CPython 3.13"
+          commit-message: "chore: update reviewed CPython 3.14"
+          title: "chore: update reviewed CPython 3.14"
           body-path: ${{ runner.temp }}/framework-python-version-pr-body.md
-          branch: automation/update-framework-python-313
+          branch: automation/update-framework-python-314
           delete-branch: false
           draft: true
           add-paths: |

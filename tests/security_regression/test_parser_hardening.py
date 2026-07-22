@@ -49,8 +49,8 @@ class FallbackYamlParserHardeningTests(unittest.TestCase):
             "  - Accept\n"
         )
         self.assertEqual(
-            {"headers": [{"name": "Content-Type", "value": "application/json"}, "Accept"]},
             parsed,
+            {"headers": [{"name": "Content-Type", "value": "application/json"}, "Accept"]},
         )
 
         with self.assertRaisesRegex(ValueError, "unexpected indentation"):
@@ -63,8 +63,8 @@ class FallbackYamlParserHardeningTests(unittest.TestCase):
             "  - https://example.invalid/path\n"
         )
         self.assertEqual(
-            {"known_limitations": ["ARGS:foo.", "https://example.invalid/path"]},
             parsed,
+            {"known_limitations": ["ARGS:foo.", "https://example.invalid/path"]},
         )
 
     def test_preserves_mapping_value_forms(self) -> None:
@@ -77,12 +77,12 @@ class FallbackYamlParserHardeningTests(unittest.TestCase):
         )
 
         self.assertEqual(
+            parsed,
             {
                 "name": "parser-hardening",
                 "rules": "SecRuleEngine On\n",
                 "metadata": {"enabled": True},
             },
-            parsed,
         )
 
     def test_accepts_documented_block_scalar_header_forms(self) -> None:
@@ -102,7 +102,7 @@ class FallbackYamlParserHardeningTests(unittest.TestCase):
 
         for header in headers:
             with self.subTest(header=header):
-                self.assertEqual("SecRuleEngine On\n", self.parse_header(header)["rules"])
+                self.assertEqual(self.parse_header(header)["rules"], "SecRuleEngine On\n")
 
     def test_rejects_invalid_block_scalar_headers(self) -> None:
         for header in ("|0", "|10", "|++", "|--", "|+-", "|-+", "|1+2"):
@@ -140,6 +140,7 @@ class MarkdownHeadingHardeningTests(unittest.TestCase):
         )
 
         self.assertEqual(
+            anchors,
             {
                 "getting-started",
                 "framework_root",
@@ -148,7 +149,6 @@ class MarkdownHeadingHardeningTests(unittest.TestCase):
                 "inline-formatting-and-strike",
                 "manual-anchor",
             },
-            anchors,
         )
 
     def test_handles_the_previous_malformed_heading_shape_in_linear_time(self) -> None:
@@ -156,12 +156,12 @@ class MarkdownHeadingHardeningTests(unittest.TestCase):
         started = time.perf_counter()
         anchors = self.anchors_for(f"# {prefix}{' ' * 1_000}x\n")
         self.assertLess(time.perf_counter() - started, 0.5)
-        self.assertEqual({f"{prefix}-x"}, anchors)
+        self.assertEqual(anchors, {f"{prefix}-x"})
 
     def test_preserves_a_long_legitimate_heading(self) -> None:
         heading = "legitimate-" + ("a" * 10_000)
         started = time.perf_counter()
-        self.assertEqual({heading}, self.anchors_for(f"# {heading}\n"))
+        self.assertEqual(self.anchors_for(f"# {heading}\n"), {heading})
         self.assertLess(time.perf_counter() - started, 0.5)
 
     def test_rejects_non_atx_heading_markers(self) -> None:

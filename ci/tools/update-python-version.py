@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve and safely apply reviewed stable CPython 3.13 patch updates.
+"""Resolve and safely apply reviewed stable CPython 3.14 patch updates.
 
 The updater deliberately trusts only the documented, public Python.org JSON
 endpoint.  It does not consume a GitHub token, follow redirects, scrape HTML,
@@ -22,18 +22,24 @@ from urllib.parse import urlsplit
 
 
 CANONICAL_VERSION_FILE = ".python-version"
-CANDIDATE_FILE_NAME = "framework-python-3.13-candidate"
+CANDIDATE_FILE_NAME = "framework-python-3.14-candidate"
 METADATA_URL = "https://www.python.org/api/v2/downloads/release/"
 METADATA_HOST = "www.python.org"
 METADATA_PATH = "/api/v2/downloads/release/"
 MAX_METADATA_BYTES = 1_000_000
 DEFAULT_TIMEOUT_SECONDS = 20.0
 MAX_TIMEOUT_SECONDS = 60.0
-VERSION_PATTERN = re.compile(r"^3\.13\.(0|[1-9][0-9]*)$")
-RELEASE_NAME_PATTERN = re.compile(r"^Python 3\.13\.(0|[1-9][0-9]*)$")
-LEADING_ZERO_RELEASE_PATTERN = re.compile(r"^Python 3\.13\.0[0-9]+$")
+ASCII_REGEX_FLAGS = re.ASCII
+VERSION_PATTERN = re.compile(r"^3\.14\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS)
+RELEASE_NAME_PATTERN = re.compile(
+    r"^Python 3\.14\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS
+)
+LEADING_ZERO_RELEASE_PATTERN = re.compile(
+    r"^Python 3\.14\.0\d+$", ASCII_REGEX_FLAGS
+)
 RELEASE_DATE_PATTERN = re.compile(
-    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z$"
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$",
+    ASCII_REGEX_FLAGS,
 )
 SUCCESS_STATUSES = {"current", "update_available"}
 
@@ -67,7 +73,7 @@ class PythonVersion:
 
     @property
     def text(self) -> str:
-        return f"3.13.{self.patch}"
+        return f"3.14.{self.patch}"
 
     @classmethod
     def parse(cls, value: str) -> "PythonVersion":
@@ -75,7 +81,7 @@ class PythonVersion:
         if match is None:
             raise UpdaterFailure(
                 "invalid_current_version",
-                "the canonical version must be an exact stable 3.13.<numeric patch>",
+                "the canonical version must be an exact stable 3.14.<numeric patch>",
             )
         return cls(patch=int(match.group(1)))
 
@@ -229,7 +235,7 @@ def fetch_release_metadata(
         raise UpdaterFailure(
             status, f"metadata request returned HTTP {exc.code}"
         ) from exc
-    except (error.URLError, TimeoutError, OSError) as exc:
+    except OSError as exc:
         raise UpdaterFailure(
             "blocked_network", "metadata request could not be completed"
         ) from exc
@@ -259,44 +265,51 @@ def fetch_release_metadata(
     return [dict(record) for record in parsed]
 
 
-def stable_313_releases(records: list[dict[str, object]]) -> dict[int, PythonVersion]:
-    """Select published, non-prerelease stable 3.13 releases from strict records."""
+def stable_314_release_patch(record: dict[str, object]) -> int | None:
+    """Return a published stable 3.14 patch after name and flag validation."""
+
+    name = record.get("name")
+    if not isinstance(name, str):
+        raise UpdaterFailure("unsupported_response", "metadata release name is missing")
+    if LEADING_ZERO_RELEASE_PATTERN.fullmatch(name):
+        raise UpdaterFailure(
+            "unsupported_response", "metadata release uses a leading-zero patch"
+        )
+    match = RELEASE_NAME_PATTERN.fullmatch(name)
+    if match is None:
+        return None
+    is_published = record.get("is_published")
+    is_prerelease = record.get("pre_release")
+    if type(is_published) is not bool or type(is_prerelease) is not bool:
+        raise UpdaterFailure("unsupported_response", "metadata release flags are invalid")
+    if not is_published or is_prerelease:
+        return None
+    return int(match.group(1))
+
+
+def validate_stable_314_release_details(record: dict[str, object], patch: int) -> None:
+    """Validate strict metadata fields required for a selected stable release."""
+
+    if record.get("slug") != f"python-314{patch}":
+        raise UpdaterFailure(
+            "unsupported_response", "metadata release slug is inconsistent"
+        )
+    release_date = record.get("release_date")
+    if not isinstance(release_date, str) or not RELEASE_DATE_PATTERN.fullmatch(
+        release_date
+    ):
+        raise UpdaterFailure("unsupported_response", "metadata release date is invalid")
+
+
+def stable_314_releases(records: list[dict[str, object]]) -> dict[int, PythonVersion]:
+    """Select published, non-prerelease stable 3.14 releases from strict records."""
 
     releases: dict[int, PythonVersion] = {}
     for record in records:
-        name = record.get("name")
-        if not isinstance(name, str):
-            raise UpdaterFailure(
-                "unsupported_response", "metadata release name is missing"
-            )
-        if LEADING_ZERO_RELEASE_PATTERN.fullmatch(name):
-            raise UpdaterFailure(
-                "unsupported_response", "metadata release uses a leading-zero patch"
-            )
-        match = RELEASE_NAME_PATTERN.fullmatch(name)
-        if match is None:
+        patch = stable_314_release_patch(record)
+        if patch is None:
             continue
-        is_published = record.get("is_published")
-        is_prerelease = record.get("pre_release")
-        if type(is_published) is not bool or type(is_prerelease) is not bool:
-            raise UpdaterFailure(
-                "unsupported_response", "metadata release flags are invalid"
-            )
-        if not is_published or is_prerelease:
-            continue
-        patch = int(match.group(1))
-        expected_slug = f"python-313{patch}"
-        if record.get("slug") != expected_slug:
-            raise UpdaterFailure(
-                "unsupported_response", "metadata release slug is inconsistent"
-            )
-        release_date = record.get("release_date")
-        if not isinstance(release_date, str) or not RELEASE_DATE_PATTERN.fullmatch(
-            release_date
-        ):
-            raise UpdaterFailure(
-                "unsupported_response", "metadata release date is invalid"
-            )
+        validate_stable_314_release_details(record, patch)
         if patch in releases:
             raise UpdaterFailure(
                 "unsupported_response", "metadata contains duplicate stable releases"
@@ -318,17 +331,17 @@ def resolve_update(
     except UpdaterFailure as exc:
         return UpdateResult(exc.status, None, None, exc.message)
     try:
-        releases = stable_313_releases(
+        releases = stable_314_releases(
             fetch_release_metadata(timeout=timeout, opener=opener)
         )
     except UpdaterFailure as exc:
         return UpdateResult(exc.status, current.text, None, exc.message)
     if not releases:
         return UpdateResult(
-            "no_stable_3_13_release",
+            "no_stable_3_14_release",
             current.text,
             None,
-            "metadata contains no published stable CPython 3.13 release",
+            "metadata contains no published stable CPython 3.14 release",
         )
     latest = releases[max(releases)]
     if latest < current:
@@ -346,7 +359,7 @@ def resolve_update(
         "update_available",
         current.text,
         latest.text,
-        "a newer published stable CPython 3.13 patch is available",
+        "a newer published stable CPython 3.14 patch is available",
     )
 
 
@@ -362,7 +375,7 @@ def require_expected_candidate(
             "blocked_metadata",
             result.current,
             result.candidate,
-            "the expected candidate is not an exact stable CPython 3.13 patch",
+            "the expected candidate is not an exact stable CPython 3.14 patch",
         )
     if result.status != "update_available" or result.candidate != expected_version.text:
         return UpdateResult(
@@ -466,15 +479,14 @@ def runner_temp_child(path: Path, *, allow_existing: bool) -> Path:
         raise UpdaterFailure(
             "blocked_metadata", "output path cannot be inspected"
         ) from exc
-    if details is not None:
-        if (
-            not allow_existing
-            or stat.S_ISLNK(details.st_mode)
-            or not stat.S_ISREG(details.st_mode)
-        ):
-            raise UpdaterFailure(
-                "blocked_metadata", "output path is not a safe regular file"
-            )
+    if details is not None and (
+        not allow_existing
+        or stat.S_ISLNK(details.st_mode)
+        or not stat.S_ISREG(details.st_mode)
+    ):
+        raise UpdaterFailure(
+            "blocked_metadata", "output path is not a safe regular file"
+        )
     return path
 
 
@@ -565,62 +577,84 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> int:
-    args = parse_args()
+def invalid_argument_result(args: argparse.Namespace) -> UpdateResult | None:
     if args.timeout <= 0 or args.timeout > MAX_TIMEOUT_SECONDS:
-        result = UpdateResult(
+        return UpdateResult(
             "blocked_metadata",
             None,
             None,
             "timeout must be greater than zero and at most 60 seconds",
         )
-        render_result(result, as_json=args.json)
-        return 2
     if args.write_candidate_file and not args.check:
-        result = UpdateResult(
+        return UpdateResult(
             "blocked_metadata",
             None,
             None,
             "candidate files are allowed only in --check mode",
         )
-        render_result(result, as_json=args.json)
-        return 2
+    return None
 
+
+def write_candidate_if_requested(args: argparse.Namespace, result: UpdateResult) -> None:
+    if not args.write_candidate_file:
+        return
+    if result.status != "update_available" or result.candidate is None:
+        raise UpdaterFailure(
+            "blocked_metadata", "a candidate file requires a validated available update"
+        )
+    write_candidate_file(PythonVersion.parse(result.candidate))
+
+
+def update_if_requested(args: argparse.Namespace, result: UpdateResult) -> UpdateResult:
+    if (
+        not args.update
+        or result.status != "update_available"
+        or result.candidate is None
+    ):
+        return result
+    current = PythonVersion.parse(str(result.current))
+    candidate = PythonVersion.parse(result.candidate)
+    atomic_write_canonical_version(framework_root(), current, candidate)
+    return UpdateResult(
+        result.status,
+        result.current,
+        result.candidate,
+        result.message,
+        updated=True,
+    )
+
+
+def apply_requested_writes(args: argparse.Namespace, result: UpdateResult) -> UpdateResult:
+    write_candidate_if_requested(args, result)
+    result = update_if_requested(args, result)
+    if args.write_github_output:
+        write_github_outputs(result)
+    return result
+
+
+def write_failure_github_output(args: argparse.Namespace, result: UpdateResult) -> None:
+    if not args.write_github_output:
+        return
+    try:
+        write_github_outputs(result)
+    except UpdaterFailure:
+        pass
+
+
+def main() -> int:
+    args = parse_args()
+    invalid_result = invalid_argument_result(args)
+    if invalid_result is not None:
+        render_result(invalid_result, as_json=args.json)
+        return 2
     result = require_expected_candidate(
         resolve_update(framework_root(), timeout=args.timeout), args.expected_candidate
     )
     try:
-        if args.write_candidate_file:
-            if result.status != "update_available" or result.candidate is None:
-                raise UpdaterFailure(
-                    "blocked_metadata",
-                    "a candidate file requires a validated available update",
-                )
-            write_candidate_file(PythonVersion.parse(result.candidate))
-        if (
-            args.update
-            and result.status == "update_available"
-            and result.candidate is not None
-        ):
-            current = PythonVersion.parse(str(result.current))
-            candidate = PythonVersion.parse(result.candidate)
-            atomic_write_canonical_version(framework_root(), current, candidate)
-            result = UpdateResult(
-                result.status,
-                result.current,
-                result.candidate,
-                result.message,
-                updated=True,
-            )
-        if args.write_github_output:
-            write_github_outputs(result)
+        result = apply_requested_writes(args, result)
     except UpdaterFailure as exc:
         result = UpdateResult(exc.status, result.current, result.candidate, exc.message)
-        if args.write_github_output:
-            try:
-                write_github_outputs(result)
-            except UpdaterFailure:
-                pass
+        write_failure_github_output(args, result)
 
     render_result(result, as_json=args.json)
     return 0 if result.status in SUCCESS_STATUSES else 2

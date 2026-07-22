@@ -235,7 +235,7 @@ class ReleaseAssetRedirectTest(unittest.TestCase):
             )
             with patch.object(FETCHER, "urlopen", return_value=response):
                 archive = FETCHER.checked_download(self.record(payload), staging)
-            self.assertEqual(payload, archive.read_bytes())
+            self.assertEqual(archive.read_bytes(), payload)
 
     def test_rejects_a_foreign_https_redirect_and_removes_partial_asset(self) -> None:
         payload = b"untrusted redirect"

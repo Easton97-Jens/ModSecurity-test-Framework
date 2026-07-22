@@ -67,7 +67,7 @@ jobs:
           [ -f "$PYTHON_VERSION_FILE" ]
           [ ! -L "$PYTHON_VERSION_FILE" ]
           version="$(cat "$PYTHON_VERSION_FILE")"
-          [[ "$version" =~ ^3\.13\.(0|[1-9][0-9]*)$ ]]
+          [[ "$version" =~ ^3\.14\.(0|[1-9][0-9]*)$ ]]
           expected_size=$(( ${#version} + 1 ))
           [ "$(wc -c < "$PYTHON_VERSION_FILE")" -eq "$expected_size" ]
           printf '%s\n' "$version" | cmp -s - "$PYTHON_VERSION_FILE"

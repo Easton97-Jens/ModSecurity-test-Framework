@@ -129,6 +129,21 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
             any("version_size" in error for error in bootstrap_errors),
             "\n".join(bootstrap_errors),
         )
+        old_major_python_bootstrap = osv_text.replace(
+            '[[ "$version" =~ ^3\\.14\\.(0|[1-9][0-9]*)$ ]]',
+            '[[ "$version" =~ ^3\\.13\\.(0|[1-9][0-9]*)$ ]]',
+            1,
+        )
+        old_major_errors = CHECKER.scanner_evidence_errors(
+            osv_path, old_major_python_bootstrap
+        )
+        self.assertTrue(
+            any(
+                "job 'pull-request-head' must contain" in error
+                for error in old_major_errors
+            ),
+            "\n".join(old_major_errors),
+        )
         relaxed_osv = osv_text.replace(
             "--format json", "--format json --allow-no-lockfiles", 1
         ).replace("retention-days: 1", "retention-days: 2", 1)

@@ -56,7 +56,7 @@ jobs:
 
 
 class PythonVersionContractTest(unittest.TestCase):
-    def make_root(self, directory: Path, version: str = "3.13.14\n") -> Path:
+    def make_root(self, directory: Path, version: str = "3.14.6\n") -> Path:
         root = directory / "framework"
         (root / ".github/workflows").mkdir(parents=True)
         (root / ".python-version").write_text(version, encoding="utf-8")
@@ -80,12 +80,21 @@ class PythonVersionContractTest(unittest.TestCase):
 
     def test_canonical_file_requires_one_exact_stable_value(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
-            root = self.make_root(Path(temporary_directory), "3.13.014\n")
+            root = self.make_root(Path(temporary_directory), "3.14.06\n")
             errors = CHECKER.canonical_version_errors(root)
-            self.assertTrue(any("stable 3.13" in error for error in errors))
-            (root / ".python-version").write_text("3.13.14\nextra\n", encoding="utf-8")
+            self.assertTrue(any("stable 3.14" in error for error in errors))
+            (root / ".python-version").write_text("3.13.14\n", encoding="utf-8")
+            errors = CHECKER.canonical_version_errors(root)
+            self.assertTrue(any("stable 3.14" in error for error in errors))
+            (root / ".python-version").write_text("3.14.6\nextra\n", encoding="utf-8")
             errors = CHECKER.canonical_version_errors(root)
             self.assertTrue(any("exactly one" in error for error in errors))
+
+    def test_canonical_file_rejects_non_ascii_patch_digits(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = self.make_root(Path(temporary_directory), "3.14.1\u0661\n")
+            errors = CHECKER.canonical_version_errors(root)
+            self.assertTrue(any("stable 3.14" in error for error in errors))
 
     def test_recurses_yml_and_yaml_and_rejects_pre_setup_python_and_bare_pip(
         self,
@@ -150,11 +159,11 @@ check:
   timeout-minutes: 5
   strategy:
     matrix:
-      python: [\"3.13.14\"]
+      python: [\"3.14.6\"]
   steps:
       - uses: actions/setup-python@{SETUP_SHA} # v6.3.0
         with:
-          python-version: \"3.13.14\"
+          python-version: \"3.14.6\"
           check-latest: false
 """,
                 ),
@@ -276,6 +285,12 @@ candidate-validate:
                 root, reversed_path, indirect_make_python=True
             )
             self.assertTrue(any("must follow canonical" in error for error in errors))
+            self.assertTrue(
+                any(
+                    "cannot select canonical Python after candidate Python" in error
+                    for error in errors
+                )
+            )
 
     def test_osv_pull_request_head_bootstrap_is_narrow_and_counts_as_reviewed_setup(
         self,

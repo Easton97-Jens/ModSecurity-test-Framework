@@ -53,6 +53,37 @@ class CiSecurityContractTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_setup_python_version_file_parsing_accepts_reviewed_values_and_rejects_long_input(
+        self,
+    ) -> None:
+        setup_python = CHECKER.SETUP_PYTHON_REFERENCE
+        safe_text = (
+            f"uses: {setup_python}\n"
+            'python-version-file: ".python-version" # canonical\n'
+            "check-latest: false\n"
+            f"uses: {setup_python}\n"
+            'python-version-file: "${{ runner.temp }}/framework-python-3.14-candidate"\n'
+            "check-latest: false\n"
+        )
+        self.assertEqual(
+            CHECKER.setup_python_errors(
+                Path(CHECKER.PYTHON_VERSION_MAINTENANCE_WORKFLOW), safe_text
+            ),
+            [],
+        )
+
+        long_untrusted_value = "untrusted" * 5_000
+        untrusted_text = (
+            f"uses: {setup_python}\n"
+            f"python-version-file: {long_untrusted_value} # comment\n"
+            "check-latest: false\n"
+        )
+        errors = CHECKER.setup_python_errors(Path("untrusted.yml"), untrusted_text)
+        self.assertTrue(
+            any("every setup-python use" in error for error in errors),
+            "\n".join(errors),
+        )
+
     def test_lock_has_complete_action_and_tool_provenance(self) -> None:
         actions, tools, errors = CHECKER.load_lock(LOCK_PATH)
         self.assertFalse(errors, "\n".join(errors))
@@ -91,6 +122,11 @@ class CiSecurityContractTest(unittest.TestCase):
         self.assertTrue(
             any("pull_request_target is forbidden" in error for error in errors)
         )
+
+    def test_github_context_detection_rejects_bracket_and_bare_forms(self) -> None:
+        for expression in ("${{ github['token'] }}", "${{ github }}"):
+            with self.subTest(expression=expression):
+                self.assertTrue(CHECKER.contains_sensitive_reference(expression))
 
     def test_yaml_workflow_and_quoted_mutable_action_are_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
