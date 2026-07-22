@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from email.message import Message
 import importlib.util
 import io
 import os
@@ -220,8 +221,9 @@ class UpdatePythonVersionTest(unittest.TestCase):
             def unavailable(_request: object, _timeout: float) -> FakeResponse:
                 raise OSError("fixture unavailable")
 
+            headers: Message[str, str] = Message()
             not_found_error = error.HTTPError(
-                UPDATER.METADATA_URL, 404, "not found", {}, None
+                UPDATER.METADATA_URL, 404, "not found", headers, None
             )
             self.addCleanup(not_found_error.close)
 
@@ -243,7 +245,7 @@ class UpdatePythonVersionTest(unittest.TestCase):
     def test_unrelated_release_records_are_ignored_before_flag_validation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = self.make_root(Path(temporary_directory))
-            unrelated_record = {
+            unrelated_record: dict[str, object] = {
                 "name": "Python 3.13.0",
                 "is_published": "not a boolean",
                 "pre_release": "not a boolean",
