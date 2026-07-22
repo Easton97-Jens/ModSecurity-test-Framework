@@ -31,12 +31,8 @@ DEFAULT_TIMEOUT_SECONDS = 20.0
 MAX_TIMEOUT_SECONDS = 60.0
 ASCII_REGEX_FLAGS = re.ASCII
 VERSION_PATTERN = re.compile(r"^3\.14\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS)
-RELEASE_NAME_PATTERN = re.compile(
-    r"^Python 3\.14\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS
-)
-LEADING_ZERO_RELEASE_PATTERN = re.compile(
-    r"^Python 3\.14\.0\d+$", ASCII_REGEX_FLAGS
-)
+RELEASE_NAME_PATTERN = re.compile(r"^Python 3\.14\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS)
+LEADING_ZERO_RELEASE_PATTERN = re.compile(r"^Python 3\.14\.0\d+$", ASCII_REGEX_FLAGS)
 RELEASE_DATE_PATTERN = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$",
     ASCII_REGEX_FLAGS,
@@ -281,7 +277,9 @@ def stable_314_release_patch(record: dict[str, object]) -> int | None:
     is_published = record.get("is_published")
     is_prerelease = record.get("pre_release")
     if type(is_published) is not bool or type(is_prerelease) is not bool:
-        raise UpdaterFailure("unsupported_response", "metadata release flags are invalid")
+        raise UpdaterFailure(
+            "unsupported_response", "metadata release flags are invalid"
+        )
     if not is_published or is_prerelease:
         return None
     return int(match.group(1))
@@ -595,7 +593,9 @@ def invalid_argument_result(args: argparse.Namespace) -> UpdateResult | None:
     return None
 
 
-def write_candidate_if_requested(args: argparse.Namespace, result: UpdateResult) -> None:
+def write_candidate_if_requested(
+    args: argparse.Namespace, result: UpdateResult
+) -> None:
     if not args.write_candidate_file:
         return
     if result.status != "update_available" or result.candidate is None:
@@ -624,7 +624,9 @@ def update_if_requested(args: argparse.Namespace, result: UpdateResult) -> Updat
     )
 
 
-def apply_requested_writes(args: argparse.Namespace, result: UpdateResult) -> UpdateResult:
+def apply_requested_writes(
+    args: argparse.Namespace, result: UpdateResult
+) -> UpdateResult:
     write_candidate_if_requested(args, result)
     result = update_if_requested(args, result)
     if args.write_github_output:

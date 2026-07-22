@@ -129,6 +129,33 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
             any("version_size" in error for error in bootstrap_errors),
             "\n".join(bootstrap_errors),
         )
+        missing_legacy_base_guard = osv_text.replace(
+            "OSV_LEGACY_BASE_SHA: f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+            "OSV_LEGACY_BASE_SHA: 0000000000000000000000000000000000000000",
+            1,
+        )
+        legacy_base_guard_errors = CHECKER.scanner_evidence_errors(
+            osv_path, missing_legacy_base_guard
+        )
+        self.assertTrue(
+            any("OSV_LEGACY_BASE_SHA" in error for error in legacy_base_guard_errors),
+            "\n".join(legacy_base_guard_errors),
+        )
+        changed_legacy_version = osv_text.replace(
+            "OSV_LEGACY_BASE_VERSION: 3.13.14",
+            "OSV_LEGACY_BASE_VERSION: 3.13.13",
+            1,
+        )
+        legacy_version_errors = CHECKER.scanner_evidence_errors(
+            osv_path, changed_legacy_version
+        )
+        self.assertTrue(
+            any(
+                "OSV_LEGACY_BASE_VERSION: 3.13.14" in error
+                for error in legacy_version_errors
+            ),
+            "\n".join(legacy_version_errors),
+        )
         old_major_python_bootstrap = osv_text.replace(
             '[[ "$version" =~ ^3\\.14\\.(0|[1-9][0-9]*)$ ]]',
             '[[ "$version" =~ ^3\\.13\\.(0|[1-9][0-9]*)$ ]]',
@@ -143,6 +170,19 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                 for error in old_major_errors
             ),
             "\n".join(old_major_errors),
+        )
+        restored_head_version_read = osv_text.replace(
+            'git cat-file -e "$HEAD_SHA:requirements-ci.lock"',
+            'git cat-file -e "$HEAD_SHA:.python-version"\n'
+            '          git cat-file -e "$HEAD_SHA:requirements-ci.lock"',
+            1,
+        )
+        head_read_errors = CHECKER.scanner_evidence_errors(
+            osv_path, restored_head_version_read
+        )
+        self.assertTrue(
+            any("HEAD_SHA:.python-version" in error for error in head_read_errors),
+            "\n".join(head_read_errors),
         )
         relaxed_osv = osv_text.replace(
             "--format json", "--format json --allow-no-lockfiles", 1
@@ -182,6 +222,110 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         )
         self.assertTrue(any("artifact-free" in error for error in scorecard_errors))
         self.assertTrue(any("retention-days: 1" in error for error in scorecard_errors))
+
+    def test_osv_trusted_base_bootstrap_allows_only_legacy_cp313_transition(
+        self,
+    ) -> None:
+        workflow_text = (ROOT / ".github/workflows/ci-security-osv.yml").read_text(
+            encoding="utf-8"
+        )
+        step_start = workflow_text.index(
+            "      - name: Materialize trusted base Python version\n"
+        )
+        run_start = workflow_text.index("        run: |\n", step_start)
+        step_end = workflow_text.index(
+            "\n\n      - name: Set up reviewed Python", run_start
+        )
+        bootstrap = textwrap.dedent(
+            workflow_text[run_start + len("        run: |\n") : step_end]
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            fake_git = temporary_root / "git"
+            fake_git.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/usr/bin/env bash
+                    set -euo pipefail
+
+                    case "$1" in
+                      rev-parse)
+                        [ "$2" = "HEAD" ]
+                        printf '%s\\n' "$BASE_SHA"
+                        ;;
+                      cat-file)
+                        case "$2" in
+                          -e)
+                            if [ "$3" = "$BASE_SHA^{commit}" ]; then
+                              exit 0
+                            fi
+                            [ "$3" = "$BASE_SHA:.python-version" ]
+                            [ "$BASE_SHA" != "$OSV_LEGACY_BASE_SHA" ]
+                            ;;
+                          -t)
+                            [ "$3" = "$BASE_SHA:.python-version" ]
+                            printf '%s\\n' blob
+                            ;;
+                          -s)
+                            [ "$3" = "$BASE_SHA:.python-version" ]
+                            printf '%s\\n' 8
+                            ;;
+                          *)
+                            exit 1
+                            ;;
+                        esac
+                        ;;
+                      show)
+                        [ "$2" = "$BASE_SHA:.python-version" ]
+                        if [ "$BASE_SHA" = "$FAKE_CP314_BASE_SHA" ]; then
+                          printf '%s\\n' 3.14.6
+                        else
+                          printf '%s\\n' 3.13.14
+                        fi
+                        ;;
+                      *)
+                        exit 1
+                        ;;
+                    esac
+                    """
+                ),
+                encoding="utf-8",
+            )
+            fake_git.chmod(0o755)
+            cases = (
+                (CHECKER.OSV_LEGACY_BASE_SHA, True, "3.13.14"),
+                ("2" * 40, False, None),
+                ("3" * 40, True, "3.14.6"),
+            )
+            for base_sha, expected_success, expected_version in cases:
+                version_file = temporary_root / f"python-version-{base_sha[:8]}"
+                environment = {
+                    **os.environ,
+                    "BASE_SHA": base_sha,
+                    "OSV_LEGACY_BASE_SHA": CHECKER.OSV_LEGACY_BASE_SHA,
+                    "OSV_LEGACY_BASE_VERSION": CHECKER.OSV_LEGACY_BASE_VERSION,
+                    "FAKE_CP314_BASE_SHA": "3" * 40,
+                    "PYTHON_VERSION_FILE": str(version_file),
+                    "PATH": f"{temporary_root}{os.pathsep}{os.environ['PATH']}",
+                }
+                result = subprocess.run(
+                    ["bash", "-c", bootstrap],
+                    cwd=temporary_root,
+                    env=environment,
+                    check=False,
+                    capture_output=True,
+                    encoding="utf-8",
+                )
+                self.assertEqual(
+                    result.returncode,
+                    0 if expected_success else 1,
+                    result.stdout + result.stderr,
+                )
+                if expected_success:
+                    self.assertEqual(
+                        version_file.read_text(encoding="utf-8"),
+                        f"{expected_version}\n",
+                    )
 
     def test_safe_and_unsafe_trust_boundary_fixtures(self) -> None:
         safe = ROOT / "tests/fixtures/ci-security/safe.yml"

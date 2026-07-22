@@ -25,7 +25,9 @@ CANDIDATE_VERSION_FILE = "${{ runner.temp }}/framework-python-3.14-candidate"
 OSV_WORKFLOW = "ci-security-osv.yml"
 OSV_WORKFLOW_PATH = Path(".github/workflows") / OSV_WORKFLOW
 OSV_PR_HEAD_JOB = "pull-request-head"
-OSV_PR_HEAD_VERSION_FILE = "${{ runner.temp }}/framework-osv-pr-python-version"
+OSV_TRUSTED_BASE_VERSION_FILE = (
+    "${{ runner.temp }}/framework-osv-trusted-base-python-version"
+)
 SETUP_PYTHON_REFERENCE = "actions/setup-python@"
 SETUP_PYTHON_LINE = re.compile(
     r"^\s*(?:-\s*)?uses:\s*['\"]?actions/setup-python@"
@@ -83,7 +85,7 @@ def canonical_version_errors(root: Path) -> list[str]:
         return errors
     try:
         content = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
+    except OSError, UnicodeError:
         return [f"{path}: {CANONICAL_VERSION_FILE} cannot be decoded as UTF-8"]
     if CANONICAL_VERSION_VALUE.fullmatch(content) is None:
         return [
@@ -202,9 +204,9 @@ def setup_kind(
     if (
         path == root / OSV_WORKFLOW_PATH
         and job_name == OSV_PR_HEAD_JOB
-        and version_file == OSV_PR_HEAD_VERSION_FILE
+        and version_file == OSV_TRUSTED_BASE_VERSION_FILE
     ):
-        return "osv-pr-head", errors
+        return "osv-trusted-base", errors
     errors.append(
         f"{path}: job {job_name!r} setup-python must use "
         f"python-version-file: {CANONICAL_VERSION_FILE!r}"
@@ -228,7 +230,7 @@ def makefile_uses_python(root: Path) -> bool:
     path = root / "Makefile"
     try:
         content = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
+    except OSError, UnicodeError:
         return False
     return "$(PYTHON)" in content or "python3" in content or "python -m" in content
 
@@ -296,10 +298,10 @@ def canonical_setup_order_errors(
         errors.append(
             f"{path}: job {job_name!r} cannot select canonical Python after candidate Python"
         )
-    if "osv-pr-head" in selected_setup_kinds:
+    if "osv-trusted-base" in selected_setup_kinds:
         errors.append(
             f"{path}: job {job_name!r} may use the OSV pull-request "
-            "head Python bootstrap exactly once and without another "
+            "trusted-base Python bootstrap exactly once and without another "
             "Python selection"
         )
     return errors
@@ -310,19 +312,17 @@ def candidate_setup_order_errors(
 ) -> list[str]:
     if "canonical" in selected_setup_kinds:
         return []
-    return [
-        f"{path}: job {job_name!r} candidate Python must follow canonical setup"
-    ]
+    return [f"{path}: job {job_name!r} candidate Python must follow canonical setup"]
 
 
-def osv_pr_head_setup_order_errors(
+def osv_trusted_base_setup_order_errors(
     path: Path, job_name: str, selected_setup_kinds: set[str]
 ) -> list[str]:
     if not selected_setup_kinds:
         return []
     return [
         f"{path}: job {job_name!r} may use the OSV pull-request "
-        "head Python bootstrap exactly once and without another "
+        "trusted-base Python bootstrap exactly once and without another "
         "Python selection"
     ]
 
@@ -334,8 +334,8 @@ def setup_order_errors(
         return canonical_setup_order_errors(path, job_name, selected_setup_kinds)
     if kind == "candidate":
         return candidate_setup_order_errors(path, job_name, selected_setup_kinds)
-    if kind == "osv-pr-head":
-        return osv_pr_head_setup_order_errors(path, job_name, selected_setup_kinds)
+    if kind == "osv-trusted-base":
+        return osv_trusted_base_setup_order_errors(path, job_name, selected_setup_kinds)
     return []
 
 
@@ -364,8 +364,11 @@ def run_step_errors(
     selected_setup_kinds: set[str],
 ) -> list[str]:
     errors = bare_pip_errors(path, job_name, step_number, run)
-    setup_seen = bool({"canonical", "osv-pr-head"} & selected_setup_kinds)
-    if run_uses_python(run, indirect_make_python=indirect_make_python) and not setup_seen:
+    setup_seen = bool({"canonical", "osv-trusted-base"} & selected_setup_kinds)
+    if (
+        run_uses_python(run, indirect_make_python=indirect_make_python)
+        and not setup_seen
+    ):
         errors.append(
             f"{path}: job {job_name!r} step {step_number} invokes Python before reviewed setup-python"
         )
@@ -460,7 +463,7 @@ def job_errors(
 def workflow_errors(root: Path, path: Path, *, indirect_make_python: bool) -> list[str]:
     try:
         text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError):
+    except OSError, UnicodeError:
         return [f"{path}: workflow cannot be decoded as UTF-8"]
     document, errors = load_yaml(path)
     errors.extend(setup_reference_errors(path, text))

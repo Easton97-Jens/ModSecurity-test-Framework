@@ -292,7 +292,7 @@ candidate-validate:
                 )
             )
 
-    def test_osv_pull_request_head_bootstrap_is_narrow_and_counts_as_reviewed_setup(
+    def test_osv_trusted_base_bootstrap_is_narrow_and_counts_as_reviewed_setup(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -304,7 +304,7 @@ pull-request-head:
   timeout-minutes: 5
   steps:
 """
-                + setup_step(CHECKER.OSV_PR_HEAD_VERSION_FILE)
+                + setup_step(CHECKER.OSV_TRUSTED_BASE_VERSION_FILE)
                 + "      - run: python3 -VV\n"
             )
             osv_path = self.write_workflow(
@@ -327,9 +327,23 @@ pull-request-head:
             )
             self.assertTrue(any("python-version-file" in error for error in errors))
 
+            old_head_job = osv_job.replace(
+                CHECKER.OSV_TRUSTED_BASE_VERSION_FILE,
+                "${{ runner.temp }}/framework-osv-pr-python-version",
+            )
+            old_head_path = self.write_workflow(
+                root,
+                CHECKER.OSV_WORKFLOW,
+                workflow("obsolete OSV pull-request head", old_head_job),
+            )
+            errors = CHECKER.workflow_errors(
+                root, old_head_path, indirect_make_python=True
+            )
+            self.assertTrue(any("python-version-file" in error for error in errors))
+
             duplicate_setup = osv_job.replace(
-                setup_step(CHECKER.OSV_PR_HEAD_VERSION_FILE),
-                setup_step(CHECKER.OSV_PR_HEAD_VERSION_FILE) + setup_step(),
+                setup_step(CHECKER.OSV_TRUSTED_BASE_VERSION_FILE),
+                setup_step(CHECKER.OSV_TRUSTED_BASE_VERSION_FILE) + setup_step(),
             )
             duplicate_path = self.write_workflow(
                 root,

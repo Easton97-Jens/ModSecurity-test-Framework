@@ -201,9 +201,7 @@ class UpdatePythonVersionTest(unittest.TestCase):
                 ).status,
                 "no_stable_3_14_release",
             )
-            non_ascii_date = stable_record(
-                7, release_date="2026-06-1\u0660T16:00:00Z"
-            )
+            non_ascii_date = stable_record(7, release_date="2026-06-1\u0660T16:00:00Z")
             self.assertEqual(
                 UPDATER.resolve_update(
                     root,

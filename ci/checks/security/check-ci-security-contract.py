@@ -125,7 +125,11 @@ PYTHON_VERSION_CANDIDATE_FILE = "${{ runner.temp }}/framework-python-3.14-candid
 PYTHON_VERSION_PR_BODY_FILE = "${{ runner.temp }}/framework-python-version-pr-body.md"
 PYTHON_VERSION_PR_BODY_RUN_PATH = "$RUNNER_TEMP/framework-python-version-pr-body.md"
 OSV_WORKFLOW = "ci-security-osv.yml"
-OSV_PR_HEAD_PYTHON_VERSION_FILE = "${{ runner.temp }}/framework-osv-pr-python-version"
+OSV_TRUSTED_BASE_PYTHON_VERSION_FILE = (
+    "${{ runner.temp }}/framework-osv-trusted-base-python-version"
+)
+OSV_LEGACY_BASE_SHA = "f73f8842f45318e2df8aff1d31855eeb7c20a22f"
+OSV_LEGACY_BASE_VERSION = "3.13.14"
 GITHUB_COMPONENT = r"[A-Za-z0-9_.-]+"
 GITHUB_RELEASE_URL = re.compile(
     rf"^https://github\.com/(?P<owner>{GITHUB_COMPONENT})/"
@@ -318,24 +322,32 @@ OSV_JOB_REQUIREMENTS: dict[str, tuple[str, ...]] = {
         "github.event.pull_request.head.sha",
         "github.event.pull_request.number",
         "fetch-depth: 1",
+        "Materialize trusted base Python version",
         'test "$(git rev-parse HEAD)" = "$BASE_SHA"',
         'git cat-file -e "$BASE_SHA^{commit}"',
         "git -c protocol.file.allow=never fetch --depth=1 --no-tags origin",
         '"+refs/pull/$PR_NUMBER/head:refs/remotes/origin/pr-$PR_NUMBER"',
         'test "$resolved_head" = "$HEAD_SHA"',
         'git cat-file -e "$HEAD_SHA^{commit}"',
-        'git cat-file -e "$HEAD_SHA:.python-version"',
-        'git cat-file -s "$HEAD_SHA:.python-version"',
+        'if git cat-file -e "$BASE_SHA:.python-version" 2>/dev/null; then',
+        'test "$(git cat-file -t "$BASE_SHA:.python-version")" = "blob"',
+        'git cat-file -s "$BASE_SHA:.python-version"',
         '[ "$version_size" -le 32 ]',
         '[ ! -e "$PYTHON_VERSION_FILE" ]',
         '[ ! -L "$PYTHON_VERSION_FILE" ]',
         "umask 077",
         "set -C",
-        'git show "$HEAD_SHA:.python-version" > "$PYTHON_VERSION_FILE"',
+        'git show "$BASE_SHA:.python-version" > "$PYTHON_VERSION_FILE"',
+        f"OSV_LEGACY_BASE_SHA: {OSV_LEGACY_BASE_SHA}",
+        f"OSV_LEGACY_BASE_VERSION: {OSV_LEGACY_BASE_VERSION}",
+        'test "$BASE_SHA" = "$OSV_LEGACY_BASE_SHA"',
+        'version="$OSV_LEGACY_BASE_VERSION"',
+        'if [ "$BASE_SHA" = "$OSV_LEGACY_BASE_SHA" ]; then',
+        '[ "$version" = "$OSV_LEGACY_BASE_VERSION" ]',
         '[ -f "$PYTHON_VERSION_FILE" ]',
         '[[ "$version" =~ ^3\\.14\\.(0|[1-9][0-9]*)$ ]]',
         'printf \'%s\\n\' "$version" | cmp -s - "$PYTHON_VERSION_FILE"',
-        OSV_PR_HEAD_PYTHON_VERSION_FILE,
+        OSV_TRUSTED_BASE_PYTHON_VERSION_FILE,
         'git cat-file -e "$HEAD_SHA:requirements-ci.lock"',
         "write_osv_input requirements-dev.txt requirements-dev.txt false",
         "write_osv_input requirements-ci.lock requirements-ci.txt true",
@@ -371,6 +383,8 @@ OSV_PROHIBITED_SNIPPETS = (
     "--allow-no-lockfiles",
     "--recursive",
     SECURITY_EVENTS_WRITE,
+    "$HEAD_SHA:.python-version",
+    "framework-osv-pr-python-version",
 )
 SCORECARD_JOB_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "pull-request-head": (
@@ -967,7 +981,7 @@ def setup_python_errors(path: Path, text: str) -> list[str]:
     if path.name == PYTHON_VERSION_MAINTENANCE_WORKFLOW:
         allowed_files.add(PYTHON_VERSION_CANDIDATE_FILE)
     if path.name == OSV_WORKFLOW:
-        allowed_files.add(OSV_PR_HEAD_PYTHON_VERSION_FILE)
+        allowed_files.add(OSV_TRUSTED_BASE_PYTHON_VERSION_FILE)
     if len(version_files) != setup_count or any(
         version_file not in allowed_files for version_file in version_files
     ):
@@ -1221,9 +1235,7 @@ def python_version_candidate_gate_errors(path: Path, candidate: Any) -> list[str
         not isinstance(candidate_if, str)
         or "needs.resolve.outputs.update_available == 'true'" not in candidate_if
     ):
-        return [
-            f"{path}: candidate job must be gated on an available resolver update"
-        ]
+        return [f"{path}: candidate job must be gated on an available resolver update"]
     return []
 
 
@@ -1266,13 +1278,9 @@ def python_version_pull_request_option_errors(
     if options.get("branch") != "automation/update-framework-python-314":
         errors.append(f"{path}: publisher branch must be fixed and reviewable")
     if options.get("draft") is not True:
-        errors.append(
-            f"{path}: publisher must create or update a Draft pull request"
-        )
+        errors.append(f"{path}: publisher must create or update a Draft pull request")
     if str(options.get("add-paths", "")).strip() != CANONICAL_PYTHON_VERSION_FILE:
-        errors.append(
-            f"{path}: publisher add-paths must be limited to .python-version"
-        )
+        errors.append(f"{path}: publisher add-paths must be limited to .python-version")
     if options.get("body-path") != PYTHON_VERSION_PR_BODY_FILE:
         errors.append(
             f"{path}: create-pull-request body-path must be the controlled RUNNER_TEMP file"
@@ -1292,9 +1300,7 @@ def python_version_pull_request_errors(
     options = pull_request.get("with")
     if not isinstance(options, dict):
         return [f"{path}: create-pull-request must have a with mapping"], None
-    return python_version_pull_request_option_errors(
-        path, options, pull_request_index
-    )
+    return python_version_pull_request_option_errors(path, options, pull_request_index)
 
 
 def python_version_unexpected_sensitive_errors(
