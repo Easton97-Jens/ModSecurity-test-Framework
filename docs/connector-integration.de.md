@@ -57,11 +57,29 @@ Die ModSecurity-v3-Akquise akzeptiert nur den literalen OWASP-HTTPS-Origin und
 den oben geprüften vollständigen Commit. `v3.0.15` sind Release-Metadaten und
 kein Git-Selektor: Leere Legacy-Aliase `MODSECURITY_*` normalisieren zur
 geprüften Identität; ein nichtleerer abweichender Wert stoppt vor einer
-Git-Nutzung. Der Fetch-Pfad erstellt
-immer einen frischen Checkout; ein Build-Pfad akzeptiert einen vorhandenen
-Checkout nur nach Prüfung dieses Origins und von `HEAD` und weist
-`.gitmodules`-Manifeste sowie Gitlinks ab. Das Framework initialisiert keine
-V3-Submodule.
+Git-Nutzung. Der Fetch-Pfad erstellt immer einen frischen Checkout, prüft den
+gepinnten Root und initialisiert erst danach dessen rekursive Submodule
+ausdrücklich. Ein Build-Pfad akzeptiert einen vorhandenen Checkout nur nach
+Prüfung des exakten Roots und der statisch freigegebenen rekursiven Topologie
+mit acht Kindern: Jedes Kind hat gepinnten Pfad, Origin und Commit, einen nicht
+verlinkten physischen Worktree und enthaltenen Gitdir, genau ein `origin`,
+abgetrenntes `HEAD` und einen sauberen normalen Index. `.gitmodules` und
+Gitlinks werden damit nicht generisch akzeptiert: Jede fehlende, zusätzliche,
+abweichende, verlinkte oder ausbrechende Topologie wird fail-closed abgewiesen.
+Frische V3-Provisionierung ist ausschließlich über
+`ci_provision_approved_modsecurity_v3_checkout` verfügbar: Sie akzeptiert ein
+nicht vorhandenes Kind unter einem bestehenden kanonischen, nicht verlinkten
+Parent, erzeugt einen privaten `0700`-Root und verwendet das geprüfte,
+root-eigene sowie nicht gruppen- oder welt-schreibbare `/usr/bin/git` mit
+bereinigtem `PATH`. Jede Operation nach `init` wechselt in diesen kanonischen
+physischen Root und setzt ihren Worktree explizit, ohne `GIT_DIR` oder
+`GIT_WORK_TREE` zu exportieren; dadurch bleibt der normale Worktree-Kontext
+für Gits rekursiven Submodule-Helfer erhalten. Sie ignoriert externe
+Attributes- und Sparse-Checkout-Zustände und entfernt lokale Werte für `core.worktree`,
+`core.attributesfile`, `core.sparseCheckout` und `submodule.*.update` vor
+rekursiver Git-Verarbeitung. Die Grenze löscht außerdem Dynamic-Loader-
+Variablen, bevor sie eigene Prozesse startet; ein Caller muss die aufrufende
+Shell weiterhin aus einer vertrauenswürdigen Umgebung starten.
 
 ## Sechs-Connector-Grenze
 
