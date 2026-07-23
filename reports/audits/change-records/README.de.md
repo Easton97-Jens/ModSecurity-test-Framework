@@ -13,3 +13,9 @@ finalen Framework-Diff synchron und bewahre Evidenz payload-frei und redigiert
 auf, wie in der
 [Änderungsnachverfolgbarkeit](../../../docs/change-traceability.de.md)
 beschrieben.
+
+## Aktuelle Records
+
+- [Framework-CPython-3.14-CI-Migration (2026-07-22)](20260722-02-migrate-framework-python-314-ci.de.md)
+- [Konsolidierung der Framework-PRs 39–41 (2026-07-22)](20260722-01-consolidate-framework-pr-39-41.de.md)
+- [Framework-Workflow-Tooling-Update (2026-07-21)](20260721-01-framework-workflow-tools-update.de.md)

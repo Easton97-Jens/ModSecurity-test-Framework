@@ -1,0 +1,309 @@
+name: Update pinned workflow tools
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: framework-workflow-tool-maintenance-${{ github.repository }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  resolver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      candidate_b64: ${{ steps.resolve.outputs.candidate_b64 }}
+      has_updates: ${{ steps.resolve.outputs.has_updates }}
+    steps:
+      - name: Checkout trusted default revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Resolve official immutable release candidates
+        id: resolve
+        run: |
+          set -euo pipefail
+          python3 ci/tools/update-workflow-tools.py resolve --root . --github-output >> "$GITHUB_OUTPUT"
+
+  validator:
+    needs: resolver
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted default revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Validate candidate and changed tool assets
+        env:
+          CANDIDATE_B64: ${{ needs.resolver.outputs.candidate_b64 }}
+        run: |
+          set -euo pipefail
+          python3 ci/tools/update-workflow-tools.py validate --root . \
+            --candidate-b64 "$CANDIDATE_B64" --verify-tool-assets \
+            --output-dir "$RUNNER_TEMP/framework-workflow-tool-validation" \
+            --validate-proposed-tree
+
+      - name: Validate immutable Action and tool contracts
+        run: |
+          set -euo pipefail
+          python3 ci/checks/security/check-github-actions-workflows.py --check all
+          python3 ci/checks/security/check-workflow-action-pins.py
+          python3 ci/checks/security/check-ci-security-contract.py
+
+  publisher:
+    needs:
+      - resolver
+      - validator
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      needs.resolver.outputs.has_updates == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout trusted default revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Inspect matching Draft maintenance pull request
+        id: maintenance_pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const branch = "automation/update-framework-workflow-tools";
+            const title = "chore(ci): update pinned workflow tools";
+            const marker = "<!-- framework-workflow-tool-updater -->";
+            const { owner, repo } = context.repo;
+            const defaultBranch = context.payload.repository.default_branch;
+            const references = await github.rest.git.listMatchingRefs({
+              owner,
+              repo,
+              ref: `heads/${branch}`,
+            });
+            const pullRequests = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              head: `${owner}:${branch}`,
+              state: "open",
+              per_page: 100,
+            });
+            if (references.data.length === 0) {
+              if (pullRequests.length !== 0) {
+                core.setFailed("a maintenance pull request exists without its expected branch");
+              }
+              core.setOutput("existing", "false");
+              return;
+            }
+            if (
+              references.data.length !== 1 ||
+              references.data[0].ref !== `refs/heads/${branch}` ||
+              pullRequests.length !== 1
+            ) {
+              core.setFailed("expected exactly one matching maintenance branch and open pull request");
+              return;
+            }
+            const pullRequest = pullRequests[0];
+            if (
+              !pullRequest.draft ||
+              pullRequest.base.ref !== defaultBranch ||
+              pullRequest.title !== title ||
+              !pullRequest.body?.includes(marker)
+            ) {
+              core.setFailed("the existing maintenance pull request is not the matching Draft updater PR");
+              return;
+            }
+            core.setOutput("existing", "true");
+
+      - name: Prepare the constrained maintenance branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          MAINTENANCE_PR_EXISTS: ${{ steps.maintenance_pr.outputs.existing }}
+          PUBLISH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          UPDATE_BRANCH="automation/update-framework-workflow-tools"
+          git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
+          trap 'git config --local --unset-all credential.helper || true' EXIT
+          git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          case "$MAINTENANCE_PR_EXISTS" in
+            true)
+              git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
+              python3 ci/tools/update-workflow-tools.py verify-scope --root . \
+                --base "origin/$DEFAULT_BRANCH" \
+                --head "origin/$UPDATE_BRANCH"
+              python3 ci/tools/update-workflow-tools.py verify-existing-branch --root . \
+                --base "origin/$DEFAULT_BRANCH" \
+                --head "origin/$UPDATE_BRANCH"
+              git switch --create "$UPDATE_BRANCH" --track "origin/$UPDATE_BRANCH"
+              ;;
+            false)
+              git switch --create "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
+              ;;
+            *)
+              echo "maintenance PR state is invalid" >&2
+              exit 2
+              ;;
+          esac
+
+      - name: Revalidate the reusable Draft branch before modifying it
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          python3 ci/checks/security/check-github-actions-workflows.py --check all
+          python3 ci/checks/security/check-workflow-action-pins.py
+          python3 ci/checks/security/check-ci-security-contract.py
+          python3 ci/tools/update-workflow-tools.py verify-scope --root . \
+            --base "origin/$DEFAULT_BRANCH" --head HEAD
+
+      - name: Re-resolve and narrowly apply current candidates
+        run: |
+          set -euo pipefail
+          CANDIDATE="$RUNNER_TEMP/framework-workflow-tool-candidate.json"
+          python3 ci/tools/update-workflow-tools.py resolve --root . --output "$CANDIDATE"
+          python3 ci/tools/update-workflow-tools.py validate --root . --candidate "$CANDIDATE" \
+            --verify-tool-assets \
+            --output-dir "$RUNNER_TEMP/framework-workflow-tool-publisher-validation"
+          python3 ci/tools/update-workflow-tools.py apply --root . --candidate "$CANDIDATE"
+          python3 ci/checks/security/check-github-actions-workflows.py --check all
+          python3 ci/checks/security/check-workflow-action-pins.py
+          python3 ci/checks/security/check-ci-security-contract.py
+          python3 ci/tools/update-workflow-tools.py verify-scope --root .
+
+      - name: Commit and push only approved updater paths
+        id: commit
+        env:
+          PUBLISH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          UPDATE_BRANCH="automation/update-framework-workflow-tools"
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python3 ci/tools/update-workflow-tools.py verify-scope --root .
+          git add -- \
+            ci/tooling/security-tools.lock.yml \
+            .github/workflows/check-action-versions.yml \
+            .github/workflows/check-common-versions.yml \
+            .github/workflows/check-python-version.yml \
+            .github/workflows/cleanup-artifacts.yml \
+            .github/workflows/ci-security-codeql-pr.yml \
+            .github/workflows/ci-security-codeql.yml \
+            .github/workflows/ci-security-dependency-review.yml \
+            .github/workflows/ci-security-osv.yml \
+            .github/workflows/ci-security-quality.yml \
+            .github/workflows/ci-security-scorecard.yml \
+            .github/workflows/ci-security-secrets.yml \
+            .github/workflows/ci-security-workflow-lint.yml \
+            .github/workflows/lint.yml \
+            .github/workflows/test-common.yml \
+            .github/workflows/update-workflow-tools.yml \
+            docs/github-actions-workflow-security.md \
+            docs/github-actions-workflow-security.de.md
+          python3 ci/tools/update-workflow-tools.py verify-scope --root . --staged
+          git diff --cached --check
+          git commit -m "chore(ci): update pinned workflow tools"
+          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
+          trap 'git config --local --unset-all credential.helper || true' EXIT
+          git push origin "HEAD:refs/heads/$UPDATE_BRANCH"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create the matching Draft pull request
+        if: steps.commit.outputs.changed == 'true' && steps.maintenance_pr.outputs.existing == 'false'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const body = [
+              "<!-- framework-workflow-tool-updater -->",
+              "## English",
+              "",
+              "This Draft PR was created by the constrained Framework workflow/tool updater.",
+              "It contains only resolver-validated immutable Action pins and checksum-validated downloaded-tool provenance.",
+              "",
+              "## Deutsch",
+              "",
+              "Dieser Draft-PR wurde vom eingeschränkten Framework-Workflow-/Tool-Updater erstellt.",
+              "Er enthält ausschließlich vom Resolver validierte unveränderliche Action-Pins und prüfsummenvalidierte Provenance heruntergeladener Tools.",
+            ].join("\n");
+            await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "chore(ci): update pinned workflow tools",
+              head: "automation/update-framework-workflow-tools",
+              base: context.payload.repository.default_branch,
+              body,
+              draft: true,
+            });

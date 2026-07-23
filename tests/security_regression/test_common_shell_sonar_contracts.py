@@ -48,7 +48,7 @@ class CommonShellSonarContractsTest(unittest.TestCase):
         )
 
         result = run_common_shell(script)
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_prerequisite_wrappers_propagate_blocked_and_failed_statuses(self) -> None:
         script = textwrap.dedent(
@@ -105,7 +105,7 @@ class CommonShellSonarContractsTest(unittest.TestCase):
         )
 
         result = run_common_shell(script)
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_runtime_provisioning_requires_explicit_download_and_build_opt_in(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -134,7 +134,7 @@ class CommonShellSonarContractsTest(unittest.TestCase):
                 """
             )
             result = run_common_shell(script)
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_default_case_paths_preserve_the_existing_safe_flow(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -194,7 +194,7 @@ class CommonShellSonarContractsTest(unittest.TestCase):
             )
 
             result = run_common_shell(script)
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_runtime_path_guard_rejects_all_source_checkout_roots(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -228,7 +228,7 @@ class CommonShellSonarContractsTest(unittest.TestCase):
                 """
             )
             result = run_common_shell(script)
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_mrts_generated_paths_are_confined_to_the_build_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -251,7 +251,7 @@ class CommonShellSonarContractsTest(unittest.TestCase):
                 """
             )
             result = run_common_shell(script)
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
         for relative_path in ("ci/provisioning/generate-mrts.sh", "ci/provisioning/write-mrts-load.sh"):
             source = (ROOT / relative_path).read_text(encoding="utf-8")

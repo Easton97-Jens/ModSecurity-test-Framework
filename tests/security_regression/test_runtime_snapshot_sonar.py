@@ -56,8 +56,8 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
         with mock.patch.object(self.snapshot, "case_metadata", return_value=self.metadata):
             rows = self.snapshot.case_rows(summary, "apache", Path("/safe/results/apache-summary.json"))
 
-        self.assertEqual(1, len(rows))
-        self.assertEqual("NOT_EXECUTABLE", rows[0]["matrix_status"])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["matrix_status"], "NOT_EXECUTABLE")
         self.assertFalse(rows[0]["promotion_allowed"])
         self.assertFalse(rows[0]["runtime_verified"])
 
@@ -81,8 +81,8 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
         with mock.patch.object(self.snapshot, "case_metadata", return_value=response_body_metadata):
             rows = self.snapshot.case_rows(summary, "apache", Path("/safe/results/apache-summary.json"))
 
-        self.assertEqual(1, len(rows))
-        self.assertEqual("PASS", rows[0]["matrix_status"])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["matrix_status"], "PASS")
         self.assertTrue(rows[0]["not_auto_promoted"])
         self.assertTrue(rows[0]["response_body_non_verified"])
         self.assertFalse(rows[0]["promotion_allowed"])
@@ -110,9 +110,9 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
                     "apache", "make smoke-apache", "not_run", summary_path, root / "apache-summary.txt"
                 )
 
-        self.assertEqual("PASS", row["status"])
-        self.assertEqual(0, row["exit_code"])
-        self.assertEqual("available", row["per_case_results"])
+        self.assertEqual(row["status"], "PASS")
+        self.assertEqual(row["exit_code"], 0)
+        self.assertEqual(row["per_case_results"], "available")
 
     def test_connector_smoke_preserves_missing_case_blocker_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -124,8 +124,8 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
 
             row = self.snapshot.connector_smoke("apache", "make smoke-apache", "1", summary_path, text_path)
 
-        self.assertEqual("FAIL", row["status"])
-        self.assertEqual("unavailable", row["per_case_results"])
+        self.assertEqual(row["status"], "FAIL")
+        self.assertEqual(row["per_case_results"], "unavailable")
         self.assertIn("build=blocked", row["per_case_unavailable_reason"])
         self.assertIn("first failing detail", row["per_case_unavailable_reason"])
         self.assertEqual(row["per_case_unavailable_reason"], row["blocker"]["reason"])
@@ -152,8 +152,8 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
                 mock.ANY,
             )
             self.assertEqual(
-                {"untrusted": "../outside.json"},
                 json.loads(expected.read_text(encoding="utf-8")),
+                {"untrusted": "../outside.json"},
             )
 
             outside = root / "outside.json"
@@ -185,4 +185,4 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
                 layout.write({"untrusted": "content"})
 
             self.assertTrue(expected.is_symlink())
-            self.assertEqual("unchanged\n", outside.read_text(encoding="utf-8"))
+            self.assertEqual(outside.read_text(encoding="utf-8"), "unchanged\n")

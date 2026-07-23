@@ -14,6 +14,16 @@ WORKFLOW = ROOT / ".github" / "workflows" / "test-common.yml"
 
 
 class CommonStructureWorkflowTest(unittest.TestCase):
+    def test_common_structure_selects_canonical_python_before_python_use(self) -> None:
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+
+        setup = 'python-version-file: ".python-version"'
+        compile_step = "- name: Compile framework Python"
+        self.assertIn(setup, workflow)
+        self.assertIn("check-latest: false", workflow)
+        self.assertIn(compile_step, workflow)
+        self.assertLess(workflow.index(setup), workflow.index(compile_step))
+
     def test_common_structure_uses_dynamic_discovery_with_non_empty_guards(self) -> None:
         workflow = WORKFLOW.read_text(encoding="utf-8")
 

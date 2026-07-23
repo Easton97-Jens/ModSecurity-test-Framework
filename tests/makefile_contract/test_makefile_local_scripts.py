@@ -62,7 +62,7 @@ class MakefileLocalScriptsTest(unittest.TestCase):
         references = local_script_references(makefile)
 
         self.assertTrue(references, "Makefile contains no local script references")
-        self.assertEqual([], missing_local_scripts(makefile))
+        self.assertEqual(missing_local_scripts(makefile), [])
 
     def test_protocol_tool_defaults_use_the_maintained_underscore_runners(self) -> None:
         makefile = MAKEFILE.read_text(encoding="utf-8")
@@ -82,6 +82,6 @@ class MakefileLocalScriptsTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            ["ci/checks/protocol/protocol-client.py"],
             missing,
+            ["ci/checks/protocol/protocol-client.py"],
         )

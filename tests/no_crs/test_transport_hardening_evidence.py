@@ -229,7 +229,7 @@ class TransportHardeningEvidenceTest(unittest.TestCase):
 
     def test_accepts_causally_bound_strict_transport_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="transport-hardening-") as temporary:
-            self.assertEqual([], self._errors(self._build_run(Path(temporary))))
+            self.assertEqual(self._errors(self._build_run(Path(temporary))), [])
 
     def test_bound_upstream_disconnect_is_cancel_cleanup(self) -> None:
         with tempfile.TemporaryDirectory(prefix="transport-hardening-") as temporary:
@@ -249,10 +249,10 @@ class TransportHardeningEvidenceTest(unittest.TestCase):
                 "cleanup_cancel": 1,
             })
             self.assertEqual(
-                [],
                 transport_check._counter_errors(
                     counters, lifecycle["records"], require_bound_counts=True,
                 ),
+                [],
             )
 
     def test_normalizes_bounded_transport_metadata_without_payload(self) -> None:
@@ -271,11 +271,11 @@ class TransportHardeningEvidenceTest(unittest.TestCase):
             "barrier_id": "barrier-1",
         }
         normalized = no_crs.canonicalize_event_protocol_provenance(event)
-        self.assertEqual("completed", normalized["transport_result"])
+        self.assertEqual(normalized["transport_result"], "completed")
         self.assertIs(normalized["client_disconnected"], True)
-        self.assertEqual("strict_intervention", normalized["reset_by"])
-        self.assertEqual("write_would_block", normalized["write_result"])
-        self.assertEqual([], no_crs.canonical_event_errors(normalized, connector=self.connector))
+        self.assertEqual(normalized["reset_by"], "strict_intervention")
+        self.assertEqual(normalized["write_result"], "write_would_block")
+        self.assertEqual(no_crs.canonical_event_errors(normalized, connector=self.connector), [])
         invalid = dict(normalized, cleanup_reason="no-crs-response-body-marker")
         self.assertTrue(any(
             "cleanup_reason" in error or "body payload" in error
@@ -348,12 +348,12 @@ class TransportHardeningEvidenceTest(unittest.TestCase):
             run_dir = self._build_run(Path(temporary), passed=False)
             observations = no_crs.load_json(run_dir / "inventory/transport-observations.json")
             lifecycle = no_crs.load_json(run_dir / "inventory/connection-lifecycle.json")
-            self.assertEqual(1, len(observations["observations"]))
-            self.assertEqual(1, lifecycle["records"][0]["intentional_abort"])
-            self.assertEqual([], self._errors(run_dir))
+            self.assertEqual(len(observations["observations"]), 1)
+            self.assertEqual(lifecycle["records"][0]["intentional_abort"], 1)
+            self.assertEqual(self._errors(run_dir), [])
             record = no_crs.read_jsonl(run_dir / "results.jsonl")[0]
-            self.assertEqual("NOT_EXECUTED", record["status"])
-            self.assertEqual([], transport_check._transport_passes([record], transport_check._catalog_by_id()))
+            self.assertEqual(record["status"], "NOT_EXECUTED")
+            self.assertEqual(transport_check._transport_passes([record], transport_check._catalog_by_id()), [])
 
     def test_diagnostic_stream_reset_without_transport_pass_is_non_promoting(self) -> None:
         with tempfile.TemporaryDirectory(prefix="transport-hardening-") as temporary:
@@ -398,10 +398,10 @@ class TransportHardeningEvidenceTest(unittest.TestCase):
             ):
                 manifest["artifacts"][name] = self._artifact(run_dir, relative)
             self._write_json(run_dir / "manifest.json", manifest)
-            self.assertEqual([], self._errors(run_dir))
+            self.assertEqual(self._errors(run_dir), [])
             record = no_crs.read_jsonl(run_dir / "results.jsonl")[0]
-            self.assertEqual("NOT_EXECUTED", record["status"])
-            self.assertEqual([], transport_check._transport_passes([record], transport_check._catalog_by_id()))
+            self.assertEqual(record["status"], "NOT_EXECUTED")
+            self.assertEqual(transport_check._transport_passes([record], transport_check._catalog_by_id()), [])
 
     def test_rejects_payload_in_diagnostic_transport_observation(self) -> None:
         with tempfile.TemporaryDirectory(prefix="transport-hardening-") as temporary:
@@ -505,6 +505,7 @@ class TransportHardeningEvidenceTest(unittest.TestCase):
         errors = transport_check._event_errors(record, event, manifest, transaction_id=self.transaction_id)
 
         self.assertEqual(
+            errors[:8],
             [
                 "case-order: event connector does not match canonical run",
                 "case-order: event integration_mode does not match canonical run",
@@ -515,7 +516,6 @@ class TransportHardeningEvidenceTest(unittest.TestCase):
                 "case-order: event requires a non-empty event",
                 "case-order: event requires a non-empty message_id",
             ],
-            errors[:8],
         )
 
     def test_invalid_required_counter_still_short_circuits_bound_checks(self) -> None:

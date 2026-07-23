@@ -1,0 +1,204 @@
+name: Resolve reviewed CPython 3.14 updates
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: framework-python-version-maintenance-${{ github.repository }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      update_available: ${{ steps.resolve.outputs.update_available }}
+      candidate: ${{ steps.resolve.outputs.candidate }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+          check-latest: false
+
+      - name: Resolve latest published stable CPython 3.14 patch
+        id: resolve
+        run: |
+          set -euo pipefail
+          python3 ci/tools/update-python-version.py --check --write-github-output
+
+  candidate-validate:
+    needs: resolve
+    if: ${{ needs.resolve.outputs.update_available == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CANDIDATE: ${{ needs.resolve.outputs.candidate }}
+    outputs:
+      candidate_validated: ${{ steps.candidate-validation.outputs.candidate_validated }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+          check-latest: false
+
+      - name: Initialize candidate runner temporary paths
+        run: |
+          set -euo pipefail
+          {
+            echo "BUILD_ROOT=$RUNNER_TEMP/framework-python-version-build"
+            echo "PYTHONPYCACHEPREFIX=$RUNNER_TEMP/framework-python-version-pycache"
+            echo "XDG_STATE_HOME=$RUNNER_TEMP/framework-python-version-state"
+          } >> "$GITHUB_ENV"
+
+      - name: Independently validate and materialize the candidate
+        run: |
+          set -euo pipefail
+          python3 ci/tools/update-python-version.py --check \
+            --expected-candidate "$CANDIDATE" \
+            --write-candidate-file
+
+      - name: Set up candidate Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: "${{ runner.temp }}/framework-python-3.14-candidate"
+          check-latest: false
+
+      - name: Verify candidate runtime and install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import sys
+
+          expected = tuple(int(part) for part in os.environ["CANDIDATE"].split("."))
+          if sys.version_info[:3] != expected:
+              raise SystemExit(
+                  f"candidate mismatch: expected {os.environ['CANDIDATE']}, got {sys.version}"
+              )
+          if sys.version_info[:2] != (3, 14):
+              raise SystemExit(f"candidate is not CPython 3.14: {sys.version}")
+          PY
+          python3 -VV
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Validate candidate compatibility and contracts
+        id: candidate-validation
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q ci tests
+          python3 -m unittest \
+            tests.ci_security.test_update_python_version \
+            tests.ci_security.test_python_version_contract -v
+          make test-ci-security-contract
+          make check-github-actions-workflows
+          make test-workflow-security-contract
+          echo "candidate_validated=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs:
+      - resolve
+      - candidate-validate
+    if: >-
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      github.repository == 'Easton97-Jens/ModSecurity-test-Framework' &&
+      github.ref == 'refs/heads/master' &&
+      needs.resolve.outputs.update_available == 'true' &&
+      needs.candidate-validate.outputs.candidate_validated == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      CANDIDATE: ${{ needs.resolve.outputs.candidate }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Independently revalidate and apply the candidate
+        run: |
+          set -euo pipefail
+          python3 ci/tools/update-python-version.py --check --expected-candidate "$CANDIDATE"
+          python3 ci/tools/update-python-version.py --update --expected-candidate "$CANDIDATE"
+          python3 ci/checks/security/check-python-version.py
+          changed_paths="$(git diff --name-only)"
+          test "$changed_paths" = ".python-version"
+          git diff --check
+
+      - name: Build Draft pull request body
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2016
+          printf '%s\n' \
+            '## English' \
+            '' \
+            'This Draft pull request was generated only after a read-only CPython 3.14 candidate validation.' \
+            '' \
+            'The publisher independently re-resolved the official Python.org metadata and verified that only `.python-version` changed.' \
+            '' \
+            '## Deutsch' \
+            '' \
+            'Dieser Draft Pull Request wurde erst nach einer schreibgeschützten CPython-3.14-Kandidatenvalidierung erzeugt.' \
+            '' \
+            'Der Publisher hat die offiziellen Python.org-Metadaten unabhängig erneut aufgelöst und geprüft, dass sich nur `.python-version` änderte.' \
+            > "$RUNNER_TEMP/framework-python-version-pr-body.md"
+
+      - name: Create or update Draft pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ github.token }}
+          commit-message: "chore: update reviewed CPython 3.14"
+          title: "chore: update reviewed CPython 3.14"
+          body-path: ${{ runner.temp }}/framework-python-version-pr-body.md
+          branch: automation/update-framework-python-314
+          delete-branch: false
+          draft: true
+          add-paths: |
+            .python-version

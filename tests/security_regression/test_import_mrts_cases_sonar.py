@@ -62,6 +62,7 @@ class ImportMrtsCasesSonarTests(unittest.TestCase):
             }
         )
         self.assertEqual(
+            rendered,
             [
                 "rules: |",
                 "  SecRuleEngine On",
@@ -73,7 +74,6 @@ class ImportMrtsCasesSonarTests(unittest.TestCase):
                 "    - child",
                 "  - plain",
             ],
-            rendered,
         )
 
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -110,9 +110,10 @@ class ImportMrtsCasesSonarTests(unittest.TestCase):
             base64.b64encode(payload).decode("ascii")
         )
         self.assertTrue(reliable)
-        self.assertEqual("POST", request["method"])
-        self.assertEqual("/upload", request["path"])
+        self.assertEqual(request["method"], "POST")
+        self.assertEqual(request["path"], "/upload")
         self.assertEqual(
+            request["multipart"],
             {
                 "boundary": "synthetic",
                 "parts": [
@@ -124,12 +125,11 @@ class ImportMrtsCasesSonarTests(unittest.TestCase):
                     }
                 ],
             },
-            request["multipart"],
         )
 
         malformed, malformed_reliable = self.importer.request_from_encoded("not base64")
         self.assertFalse(malformed_reliable)
-        self.assertEqual({"method": "GET", "path": "/"}, malformed)
+        self.assertEqual(malformed, {"method": "GET", "path": "/"})
 
         request, reliable = self.importer.request_from_stage(
             {
@@ -145,8 +145,8 @@ class ImportMrtsCasesSonarTests(unittest.TestCase):
             }
         )
         self.assertTrue(reliable)
-        self.assertEqual("/search?term=safe", request["path"])
-        self.assertEqual({"X-Synthetic": "accepted"}, request["headers"])
+        self.assertEqual(request["path"], "/search?term=safe")
+        self.assertEqual(request["headers"], {"X-Synthetic": "accepted"})
 
     def test_build_case_keeps_status_and_rule_identity(self) -> None:
         case = self.importer.build_case(
@@ -173,10 +173,10 @@ class ImportMrtsCasesSonarTests(unittest.TestCase):
             case_status="computed",
             pending_reason="",
         )
-        self.assertEqual("active", case["status"])
-        self.assertEqual(42, case["expect"]["rule_id"])
-        self.assertEqual(42, case["metadata"]["mrts_rule_id"])
-        self.assertEqual("/safe", case["request"]["path"])
+        self.assertEqual(case["status"], "active")
+        self.assertEqual(case["expect"]["rule_id"], 42)
+        self.assertEqual(case["metadata"]["mrts_rule_id"], 42)
+        self.assertEqual(case["request"]["path"], "/safe")
 
     def test_private_roots_reject_public_or_symlink_output_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -230,7 +230,7 @@ class ImportMrtsCasesSonarTests(unittest.TestCase):
                 check=False,
                 env=environment,
             )
-            self.assertNotEqual(0, result.returncode)
+            self.assertNotEqual(result.returncode, 0)
             self.assertIn("MRTS build root is required", result.stderr)
             self.assertFalse((public_root / "ModSecurity-conector-verified").exists())
 
@@ -272,12 +272,12 @@ class ImportMrtsCasesSonarTests(unittest.TestCase):
                 check=False,
                 env=environment,
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             generated = list(output_dir.glob("*.yaml"))
-            self.assertEqual(1, len(generated))
+            self.assertEqual(len(generated), 1)
             generated_case = self.importer.load_yaml(generated[0])
-            self.assertEqual("pending", generated_case["status"])
-            self.assertEqual(42, generated_case["expect"]["rule_id"])
+            self.assertEqual(generated_case["status"], "pending")
+            self.assertEqual(generated_case["expect"]["rule_id"], 42)
 
 
 if __name__ == "__main__":

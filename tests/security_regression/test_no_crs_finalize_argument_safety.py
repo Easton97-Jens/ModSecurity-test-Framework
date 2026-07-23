@@ -144,11 +144,11 @@ class NoCrsFinalizeArgumentSafetyTests(unittest.TestCase):
                 connector=connector,
             )
 
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertFalse(marker.exists(), result.stdout + result.stderr)
             self.assertFalse(connector_marker.exists(), result.stdout + result.stderr)
             arguments = json.loads(capture.read_text(encoding="utf-8"))
-            self.assertEqual("finalize", arguments[0])
+            self.assertEqual(arguments[0], "finalize")
             self.assertEqual(str(run_dir), arguments[arguments.index("--run-dir") + 1])
             self.assertEqual(
                 str(connector_root), arguments[arguments.index("--connector-root") + 1]
@@ -156,15 +156,15 @@ class NoCrsFinalizeArgumentSafetyTests(unittest.TestCase):
             self.assertEqual(
                 str(capabilities_file), arguments[arguments.index("--capabilities") + 1]
             )
-            self.assertEqual(stage_reason, arguments[arguments.index("--stage-reason") + 1])
+            self.assertEqual(arguments[arguments.index("--stage-reason") + 1], stage_reason)
             self.assertEqual(
                 str(protocol_artifact),
                 arguments[arguments.index("--protocol-client-artifact-dir") + 1],
             )
-            self.assertEqual(
-                [";", "printf", "MAKE_INTERPOLATION_CONFIRMED", ">", str(marker)],
-                arguments[-5:],
-            )
+            expected_marker_arguments = [
+                ";", "printf", "MAKE_INTERPOLATION_CONFIRMED", ">", str(marker)
+            ]
+            self.assertEqual(arguments[-5:], expected_marker_arguments)
 
     def test_quoted_extra_options_remain_individual_arguments(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-finalize-quoted-options-") as temporary:
@@ -181,12 +181,12 @@ class NoCrsFinalizeArgumentSafetyTests(unittest.TestCase):
                 extra_arguments=extra_arguments,
             )
 
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             arguments = json.loads(capture.read_text(encoding="utf-8"))
-            self.assertEqual(
-                ["--artifact-label", str(quoted_path), "--mode", "strict finalize"],
-                arguments[-4:],
-            )
+            expected_quoted_option_arguments = [
+                "--artifact-label", str(quoted_path), "--mode", "strict finalize"
+            ]
+            self.assertEqual(arguments[-4:], expected_quoted_option_arguments)
 
     def test_connector_derived_defaults_keep_make_syntax_as_argv_data(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-finalize-derived-paths-") as temporary:
@@ -204,7 +204,7 @@ class NoCrsFinalizeArgumentSafetyTests(unittest.TestCase):
                 use_default_connector_paths=True,
             )
 
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             arguments = json.loads(capture.read_text(encoding="utf-8"))
             self.assertEqual(
                 str(temporary_root / "evidence root" / connector / "derived"),
@@ -239,7 +239,7 @@ class NoCrsFinalizeArgumentSafetyTests(unittest.TestCase):
                 extra_arguments=payload,
             )
 
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertFalse(marker.exists(), result.stdout + result.stderr)
             arguments = json.loads(capture.read_text(encoding="utf-8"))
             self.assertIn("$(shell", arguments)
@@ -275,7 +275,7 @@ class NoCrsFinalizeArgumentSafetyTests(unittest.TestCase):
                 timeout=15,
             )
 
-            self.assertEqual(37, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(result.returncode, 37, result.stdout + result.stderr)
 
     def test_make_target_keeps_the_connector_requirement_in_the_wrapper(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-finalize-connector-required-") as temporary:
@@ -291,7 +291,7 @@ class NoCrsFinalizeArgumentSafetyTests(unittest.TestCase):
                 connector="",
             )
 
-            self.assertNotEqual(0, result.returncode)
+            self.assertNotEqual(result.returncode, 0)
             self.assertIn("CONNECTOR is required", result.stderr)
             self.assertFalse(capture.exists())
 

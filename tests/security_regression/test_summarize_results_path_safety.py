@@ -38,7 +38,7 @@ class SummarizeResultsPathSafetyTests(unittest.TestCase):
             summary.write_text('{"apache": {}, "nginx": {}}', encoding="utf-8")
             os.environ["BUILD_ROOT"] = str(root)
 
-            self.assertEqual(0, self.module.main(["summarize-results.py", "results/connector-summary.json"]))
+            self.assertEqual(self.module.main(["summarize-results.py", "results/connector-summary.json"]), 0)
 
     def test_rejects_external_or_symlink_escaped_summary_input(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -50,10 +50,10 @@ class SummarizeResultsPathSafetyTests(unittest.TestCase):
             link.symlink_to(outside)
             os.environ["BUILD_ROOT"] = str(root)
 
-            self.assertEqual(2, self.module.main(["summarize-results.py", str(outside)]))
-            self.assertEqual(2, self.module.main(["summarize-results.py", str(link)]))
+            self.assertEqual(self.module.main(["summarize-results.py", str(outside)]), 2)
+            self.assertEqual(self.module.main(["summarize-results.py", str(link)]), 2)
 
     def test_requires_an_explicit_approved_root(self) -> None:
         os.environ.pop("BUILD_ROOT", None)
         os.environ.pop("VERIFIED_RUN_ROOT", None)
-        self.assertEqual(2, self.module.main(["summarize-results.py", "connector-summary.json"]))
+        self.assertEqual(self.module.main(["summarize-results.py", "connector-summary.json"]), 2)

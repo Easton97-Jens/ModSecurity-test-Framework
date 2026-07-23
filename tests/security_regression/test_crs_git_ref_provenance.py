@@ -165,8 +165,8 @@ class FetchCrsProvenanceTests(unittest.TestCase):
 
     def assert_blocked_before_git(self, overrides):
         result, commands, _ = self.invoke_fetch(overrides=overrides)
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
-        self.assertEqual([], commands, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+        self.assertEqual(commands, [], result.stdout + result.stderr)
 
     def test_rejects_mutable_ref_forms_before_git(self):
         for rejected_ref in (
@@ -184,7 +184,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
     def test_default_release_tag_is_metadata_not_a_git_selector(self):
         result, commands, _ = self.invoke_fetch(overrides={"CRS_GIT_REF": APPROVED_RELEASE_TAG})
         command_text = "\n".join(commands)
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(f"fetch --depth 1 --no-tags origin {APPROVED_COMMIT}", command_text)
         self.assertNotIn(APPROVED_RELEASE_TAG, command_text)
         self.assertNotIn("--branch", command_text)
@@ -196,14 +196,14 @@ class FetchCrsProvenanceTests(unittest.TestCase):
 
         result, commands, _ = self.invoke_fetch(overrides={"CRS_APPROVED_COMMIT": ALTERNATE_COMMIT})
         command_text = "\n".join(commands)
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(APPROVED_COMMIT, command_text)
         self.assertNotIn(ALTERNATE_COMMIT, command_text)
 
         alternate_repo = "https://github.com/attacker/approved-crs.git"
         result, commands, _ = self.invoke_fetch(overrides={"CRS_APPROVED_REPO_URL": alternate_repo})
         command_text = "\n".join(commands)
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(APPROVED_REPO, command_text)
         self.assertNotIn(alternate_repo, command_text)
 
@@ -216,7 +216,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                 "GIT_ASKPASS": "/bin/false",
             }
         )
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("fetch", self.git_verbs(commands))
 
     def test_fresh_control_checks_origin_commit_object_and_head(self):
@@ -228,34 +228,34 @@ class FetchCrsProvenanceTests(unittest.TestCase):
     def test_rejects_unexpected_origin_before_fetch(self):
         result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_ORIGIN": "https://github.com/attacker/crs.git"})
         command_text = "\n".join(commands)
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn("config --get remote.origin.url", command_text)
         self.assertNotIn("fetch", self.git_verbs(commands))
 
     def test_rejects_preexisting_source_before_git_or_crs_consumption(self):
         result, commands, sentinel_exists = self.invoke_fetch(existing_source=True)
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
-        self.assertEqual([], commands, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+        self.assertEqual(commands, [], result.stdout + result.stderr)
         self.assertTrue(sentinel_exists)
 
     def test_rejects_resolved_commit_or_final_head_mismatch_before_submodules(self):
         result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_FETCH_HEAD_COMMIT": ALTERNATE_COMMIT})
         command_text = "\n".join(commands)
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn("rev-parse --verify FETCH_HEAD^{commit}", command_text)
         self.assertNotIn("checkout", self.git_verbs(commands))
         self.assertNotIn("submodule", self.git_verbs(commands))
 
         result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_RESOLVED_COMMIT": ALTERNATE_COMMIT})
         command_text = "\n".join(commands)
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn("rev-parse --verify", command_text)
         self.assertNotIn("checkout", self.git_verbs(commands))
         self.assertNotIn("submodule", self.git_verbs(commands))
 
         result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_HEAD_COMMIT": ALTERNATE_COMMIT})
         command_text = "\n".join(commands)
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn(f"checkout --detach {APPROVED_COMMIT}", command_text)
         self.assertIn("rev-parse --verify HEAD^{commit}", command_text)
         self.assertNotIn("submodule", self.git_verbs(commands))
@@ -263,7 +263,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
     def test_rejects_submodule_manifest_after_parent_verification(self):
         result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_CREATE_GITMODULES": "1"})
         command_text = "\n".join(commands)
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn("rev-parse --verify HEAD^{commit}", command_text)
         self.assertNotIn("submodule", self.git_verbs(commands))
 
@@ -280,22 +280,22 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         client = FakeGithubClient()
         result = COMMON_VERSION_CHECKER.check_crs_release_provenance(entries, client)
 
-        self.assertEqual(APPROVED_REPO, COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_REPO_URL"))
-        self.assertEqual(APPROVED_COMMIT, COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_COMMIT"))
-        self.assertEqual(APPROVED_RELEASE_TAG, COMMON_VERSION_CHECKER.value(entries, "CRS_RELEASE_TAG"))
+        self.assertEqual(COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_REPO_URL"), APPROVED_REPO)
+        self.assertEqual(COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_COMMIT"), APPROVED_COMMIT)
+        self.assertEqual(COMMON_VERSION_CHECKER.value(entries, "CRS_RELEASE_TAG"), APPROVED_RELEASE_TAG)
         self.assertEqual(COMMON_VERSION_CHECKER.STATUS_UNKNOWN, result.status)
-        self.assertEqual([], result.updates)
+        self.assertEqual(result.updates, [])
         self.assertEqual(
-            ["CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"],
             result.variables,
+            ["CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"],
         )
         self.assertEqual(
-            "update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after commit provenance review",
             result.details["reason"],
+            "update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after commit provenance review",
         )
         self.assertEqual(
-            ["https://api.github.com/repos/coreruleset/coreruleset/releases/latest"],
             client.urls,
+            ["https://api.github.com/repos/coreruleset/coreruleset/releases/latest"],
         )
 
 

@@ -153,7 +153,7 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 check=False,
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertTrue((case_output / "rules.conf").is_file())
 
     def test_prepare_crs_rejects_source_and_runtime_paths_outside_task_roots(self) -> None:
@@ -188,7 +188,7 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
                             "CRS_RUNTIME_DIR": str(runtime_dir),
                         },
                     )
-                    self.assertEqual(77, result.returncode, result.stderr)
+                    self.assertEqual(result.returncode, 77, result.stderr)
                     self.assertFalse(runtime_dir.exists())
 
     def test_nested_catalog_bootstrap_ignores_foreign_root_environment(self) -> None:
@@ -209,7 +209,7 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
                 ),
                 {},
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(marker.exists())
 
     def test_bootstrap_fails_closed_before_sourcing_a_foreign_helper(self) -> None:
@@ -230,7 +230,7 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
                 ),
                 {},
             )
-            self.assertNotEqual(0, result.returncode)
+            self.assertNotEqual(result.returncode, 0)
             self.assertFalse(marker.exists())
 
     def test_runtime_entrypoint_ignores_foreign_ci_root_and_preserves_legitimate_execution(self) -> None:
@@ -273,7 +273,7 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
                     "PYTHON": "sh",
                 },
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(marker.exists())
             self.assertTrue((build_root / "results/envoy-results.jsonl").is_file())
 
@@ -301,8 +301,8 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
                     "MODSECURITY_V3_SOURCE_DIR": str(source),
                 },
             )
-            self.assertEqual(0, result.returncode, result.stderr)
-            self.assertEqual(f"{source}\n", result.stdout)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, f"{source}\n")
             self.assertFalse(marker.exists())
 
     def test_starter_checks_reject_results_path_traversal_before_writing(self) -> None:
@@ -326,7 +326,7 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
                     "PYTHON": "/bin/true",
                 },
             )
-            self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
             self.assertFalse(escaped_root.exists())
 
     def test_haproxy_runtime_rejects_a_shared_component_cache_binary(self) -> None:
@@ -372,7 +372,7 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
                     ),
                 },
             )
-        self.assertEqual(77, result.returncode, result.stderr)
+        self.assertEqual(result.returncode, 77, result.stderr)
         self.assertIn("HAPROXY_RUNTIME_BUILD_DIR must be under BUILD_ROOT", result.stdout)
 
 

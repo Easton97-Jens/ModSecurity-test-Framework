@@ -204,7 +204,7 @@ class SecondRemediationTests(unittest.TestCase):
             {"classification": "active", "response_body_related": True},
             "pass",
         )
-        self.assertEqual("NOT_EXECUTABLE", matrix_status)
+        self.assertEqual(matrix_status, "NOT_EXECUTABLE")
 
     def test_with_crs_status_override_requires_the_local_rule_audit_evidence(self):
         runner = load_module("tests/runners/runner_core.py", "runner_core_crs_rule_identity_test")
@@ -226,7 +226,7 @@ class SecondRemediationTests(unittest.TestCase):
 
             audit_log.write_text("Message: local status action [id \"2320\"]\n", encoding="utf-8")
             with mock.patch.dict(os.environ, {"MODSECURITY_TEST_VARIANT": "with-crs"}, clear=False):
-                self.assertEqual([], runner.assert_case_artifacts(case, {"status": 403}, audit_log_file=audit_log))
+                self.assertEqual(runner.assert_case_artifacts(case, {"status": 403}, audit_log_file=audit_log), [])
 
     def test_run_one_case_rejects_unverified_pass_result(self):
         with tempfile.TemporaryDirectory() as tmp:

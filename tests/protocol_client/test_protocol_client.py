@@ -53,8 +53,8 @@ class ProtocolClientTest(unittest.TestCase):
         with mock.patch.object(protocol_client, "_run_process", side_effect=PermissionError):
             result = protocol_client.inspect_curl("unavailable-curl")
 
-        self.assertEqual("unavailable-curl", result.executable)
-        self.assertEqual("curl_executable_unavailable", result.error)
+        self.assertEqual(result.executable, "unavailable-curl")
+        self.assertEqual(result.error, "curl_executable_unavailable")
         self.assertIsNone(result.version_returncode)
 
     def test_h3_uses_http3_only_and_complete_provenance_can_pass(self) -> None:
@@ -99,13 +99,13 @@ class ProtocolClientTest(unittest.TestCase):
             ):
                 result = protocol_client.run_protocol_client(config)
 
-            self.assertEqual("PASS", result.observation["status"])
+            self.assertEqual(result.observation["status"], "PASS")
             self.assertIn("--http3-only", result.command)
             self.assertNotIn("--http3", result.command)
-            self.assertEqual("h3", result.observation["negotiated_protocol"])
-            self.assertEqual("quic_udp", result.observation["transport"])
+            self.assertEqual(result.observation["negotiated_protocol"], "h3")
+            self.assertEqual(result.observation["transport"], "quic_udp")
             self.assertFalse(result.observation["fallback_used"])
-            self.assertEqual("case-h3-negotiated", result.observation["transport_case_id"])
+            self.assertEqual(result.observation["transport_case_id"], "case-h3-negotiated")
             self.assertIn("X-MSConnector-Transport-Case: case-h3-negotiated", result.command)
             command_artifact = (directory / "client-command.txt").read_text(encoding="utf-8")
             feature_artifact = (directory / "client-features.txt").read_text(encoding="utf-8")
@@ -127,8 +127,8 @@ class ProtocolClientTest(unittest.TestCase):
             ) as execute:
                 result = protocol_client.run_protocol_client(config)
 
-            self.assertEqual("BLOCKED", result.observation["status"])
-            self.assertEqual("client_http3_unsupported", result.observation["reason"])
+            self.assertEqual(result.observation["status"], "BLOCKED")
+            self.assertEqual(result.observation["reason"], "client_http3_unsupported")
             execute.assert_not_called()
             for name in (
                 "client-version.txt",
@@ -178,7 +178,7 @@ class ProtocolClientTest(unittest.TestCase):
             ):
                 result = protocol_client.run_protocol_client(config)
 
-            self.assertEqual("PASS", result.observation["status"])
+            self.assertEqual(result.observation["status"], "PASS")
             combined = "\n".join(
                 (directory / name).read_text(encoding="utf-8")
                 for name in (
@@ -224,9 +224,9 @@ class ProtocolClientTest(unittest.TestCase):
             ):
                 result = protocol_client.run_protocol_client(config)
 
-            self.assertEqual("FAIL", result.observation["status"])
+            self.assertEqual(result.observation["status"], "FAIL")
             self.assertTrue(result.observation["fallback_used"])
-            self.assertEqual("protocol_fallback_observed", result.observation["reason"])
+            self.assertEqual(result.observation["reason"], "protocol_fallback_observed")
 
     def test_modern_probe_requires_a_transport_case_token(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -242,8 +242,8 @@ class ProtocolClientTest(unittest.TestCase):
             ), mock.patch.object(protocol_client, "_run_process") as execute:
                 result = protocol_client.run_protocol_client(config)
 
-            self.assertEqual("NOT_EXECUTED", result.observation["status"])
-            self.assertEqual("invalid_client_configuration", result.observation["reason"])
+            self.assertEqual(result.observation["status"], "NOT_EXECUTED")
+            self.assertEqual(result.observation["reason"], "invalid_client_configuration")
             execute.assert_not_called()
 
     def test_caller_cannot_override_or_indirect_the_transport_correlation_header(self) -> None:
@@ -268,8 +268,8 @@ class ProtocolClientTest(unittest.TestCase):
                     ), mock.patch.object(protocol_client, "_run_process") as execute:
                         result = protocol_client.run_protocol_client(config)
 
-                    self.assertEqual("NOT_EXECUTED", result.observation["status"])
-                    self.assertEqual("invalid_client_configuration", result.observation["reason"])
+                    self.assertEqual(result.observation["status"], "NOT_EXECUTED")
+                    self.assertEqual(result.observation["reason"], "invalid_client_configuration")
                     execute.assert_not_called()
 
     def test_pass_evidence_reports_h3_gaps_in_canonical_order(self) -> None:
@@ -282,6 +282,9 @@ class ProtocolClientTest(unittest.TestCase):
         }
 
         self.assertEqual(
+            protocol_client.validate_protocol_observation(
+                observation, require_pass_evidence=True
+            ),
             [
                 "missing transport",
                 "missing stream_id",
@@ -289,9 +292,6 @@ class ProtocolClientTest(unittest.TestCase):
                 "missing quic_udp_observed",
                 "missing quic_connection_id_present",
             ],
-            protocol_client.validate_protocol_observation(
-                observation, require_pass_evidence=True
-            ),
         )
 
     def test_optional_followup_writes_a_payload_free_health_observation(self) -> None:
@@ -324,17 +324,17 @@ class ProtocolClientTest(unittest.TestCase):
             ):
                 result = protocol_client.run_protocol_client(config)
 
-            self.assertEqual("PASS", result.observation["status"])
+            self.assertEqual(result.observation["status"], "PASS")
             followup = json.loads(
                 (directory / "client-followup-observation.json").read_text(encoding="utf-8")
             )
-            self.assertEqual("PASS", followup["status"])
-            self.assertEqual(200, followup["http_status"])
+            self.assertEqual(followup["status"], "PASS")
+            self.assertEqual(followup["http_status"], 200)
             self.assertEqual(
                 protocol_client.derive_followup_transport_case_id("case-followup-primary"),
                 followup["transport_case_id"],
             )
-            self.assertNotEqual("case-followup-primary", followup["transport_case_id"])
+            self.assertNotEqual(followup["transport_case_id"], "case-followup-primary")
             self.assertEqual(
                 result.observation["target_authority_sha256"],
                 followup["target_authority_sha256"],

@@ -48,7 +48,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_rejects_mutable_major_tags_in_yml_and_yaml(self) -> None:
         errors = self.validate(
@@ -58,7 +58,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(2, len(errors))
+        self.assertEqual(len(errors), 2)
         self.assertTrue(any("actions/checkout@v7" in error for error in errors))
         self.assertTrue(any("actions/setup-python@v6" in error for error in errors))
 
@@ -72,7 +72,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(2, len(errors))
+        self.assertEqual(len(errors), 2)
         self.assertTrue(any("actions/checkout@main" in error for error in errors))
         self.assertTrue(any("actions/checkout@11bd71901bbe" in error for error in errors))
 
@@ -87,7 +87,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_ignores_uses_text_inside_a_literal_script_block(self) -> None:
         errors = self.validate(
@@ -103,7 +103,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_rejects_yaml_node_properties_on_action_values(self) -> None:
         errors = self.validate(
@@ -114,7 +114,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(3, len(errors))
+        self.assertEqual(len(errors), 3)
         self.assertTrue(
             all("unsupported YAML node property" in error for error in errors)
         )
@@ -142,7 +142,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(5, len(errors))
+        self.assertEqual(len(errors), 5)
         self.assertTrue(
             all("unsupported YAML node property or alias as mapping key" in error for error in errors)
         )
@@ -154,7 +154,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(1, len(errors))
+        self.assertEqual(len(errors), 1)
         self.assertTrue(any("actions/checkout@v7" in error for error in errors))
 
     def test_rejects_mutable_reference_with_escaped_uses_key(self) -> None:
@@ -165,7 +165,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(2, len(errors))
+        self.assertEqual(len(errors), 2)
         self.assertTrue(any("actions/checkout@v7" in error for error in errors))
         self.assertTrue(any("actions/setup-python@v6" in error for error in errors))
 
@@ -176,7 +176,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(1, len(errors))
+        self.assertEqual(len(errors), 1)
         self.assertTrue(any("actions/checkout@v7" in error for error in errors))
 
     def test_rejects_mutable_reference_in_flow_sequence_mapping(self) -> None:
@@ -195,7 +195,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(2, len(errors))
+        self.assertEqual(len(errors), 2)
         self.assertTrue(any("actions/setup-python@v6" in error for error in errors))
         self.assertTrue(any("actions/checkout@v7" in error for error in errors))
 
@@ -210,7 +210,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_accepts_flow_mapping_with_a_github_expression(self) -> None:
         errors = self.validate(
@@ -221,7 +221,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_closing_flow_delimiter_does_not_start_a_key_check(self) -> None:
         checker = load_checker()
@@ -251,7 +251,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_rejects_unsupported_explicit_uses_key_syntax(self) -> None:
         errors = self.validate(
@@ -263,7 +263,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(1, len(errors))
+        self.assertEqual(len(errors), 1)
         self.assertTrue(any("unsupported explicit uses key syntax" in error for error in errors))
 
     def test_rejects_unsupported_explicit_uses_key_syntax_in_flow_mappings(
@@ -278,7 +278,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(2, len(errors))
+        self.assertEqual(len(errors), 2)
         self.assertTrue(
             all("unsupported explicit uses key syntax" in error for error in errors)
         )
@@ -311,7 +311,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_rejects_docker_references(self) -> None:
         errors = self.validate(
@@ -323,7 +323,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(2, len(errors))
+        self.assertEqual(len(errors), 2)
         self.assertTrue(any("docker://alpine:3.20" in error for error in errors))
         self.assertTrue(any("docker://alpine@sha256:" in error for error in errors))
 
@@ -334,7 +334,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(1, len(errors))
+        self.assertEqual(len(errors), 1)
         self.assertTrue(any("Docker://alpine" in error for error in errors))
 
     def test_rejects_escaped_docker_scheme(self) -> None:
@@ -345,7 +345,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(2, len(errors))
+        self.assertEqual(len(errors), 2)
         self.assertTrue(all("Docker://alpine" in error for error in errors))
 
     def test_accepts_reusable_workflow_pinned_to_full_commit_sha(self) -> None:
@@ -359,7 +359,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual([], errors)
+        self.assertEqual(errors, [])
 
     def test_rejects_mutable_external_reusable_workflow(self) -> None:
         errors = self.validate(
@@ -372,7 +372,7 @@ class WorkflowActionPinTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(1, len(errors))
+        self.assertEqual(len(errors), 1)
         self.assertTrue(any("reusable.yml@v1" in error for error in errors))
 
 

@@ -86,11 +86,11 @@ class MrtsCommonSonarRegressionTests(unittest.TestCase):
                 MODSECURITY_MRTS_VARIANT="unsupported",
             )
 
-            self.assertEqual(0, valid.returncode, valid.stdout + valid.stderr)
-            self.assertEqual("valid\n", valid.stdout)
-            self.assertEqual("", valid.stderr)
-            self.assertEqual(2, invalid.returncode, invalid.stdout + invalid.stderr)
-            self.assertEqual("", invalid.stdout)
+            self.assertEqual(valid.returncode, 0, valid.stdout + valid.stderr)
+            self.assertEqual(valid.stdout, "valid\n")
+            self.assertEqual(valid.stderr, "")
+            self.assertEqual(invalid.returncode, 2, invalid.stdout + invalid.stderr)
+            self.assertEqual(invalid.stdout, "")
             self.assertIn(
                 "ERROR: invalid MODSECURITY_MRTS_VARIANT=unsupported",
                 invalid.stderr,
@@ -116,12 +116,12 @@ class MrtsCommonSonarRegressionTests(unittest.TestCase):
                 SAFE_ROOT=str(safe_root),
             )
 
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertEqual(
-                f"{safe_root}\n{safe_root}\n",
                 result.stdout,
+                f"{safe_root}\n{safe_root}\n",
             )
-            self.assertEqual("", result.stderr)
+            self.assertEqual(result.stderr, "")
 
     def test_golden_reference_roots_remain_blocked_on_synthetic_paths(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mrts-common-golden-root-") as temporary:
@@ -146,8 +146,8 @@ class MrtsCommonSonarRegressionTests(unittest.TestCase):
                         GOLDEN_ROOT=str(golden_root),
                     )
 
-                    self.assertEqual(2, result.returncode, result.stdout + result.stderr)
-                    self.assertEqual("", result.stdout)
+                    self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                    self.assertEqual(result.stdout, "")
                     self.assertIn(expected_message, result.stderr)
 
     def test_rule_preamble_combines_only_synthetic_files(self) -> None:
@@ -174,12 +174,12 @@ class MrtsCommonSonarRegressionTests(unittest.TestCase):
             )
             combined = temporary_root / "build" / "preambles" / "mrts-combined.load"
 
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-            self.assertEqual(f"{combined}\n", result.stdout)
-            self.assertEqual("", result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, f"{combined}\n")
+            self.assertEqual(result.stderr, "")
             self.assertEqual(
-                f'Include "{existing_preamble}"\nInclude "{new_preamble}"\n',
                 combined.read_text(encoding="utf-8"),
+                f'Include "{existing_preamble}"\nInclude "{new_preamble}"\n',
             )
 
     def test_no_mrts_and_results_helpers_return_success_without_corpus_access(self) -> None:
@@ -205,9 +205,9 @@ class MrtsCommonSonarRegressionTests(unittest.TestCase):
             expected_results = (
                 temporary_root / "build" / "results" / "synthetic" / "no-mrts"
             )
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-            self.assertEqual(f"{extra_root}\n{expected_results}\n", result.stdout)
-            self.assertEqual("", result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, f"{extra_root}\n{expected_results}\n")
+            self.assertEqual(result.stderr, "")
 
     def test_shell_source_uses_posix_test_and_explicit_terminal_returns(self) -> None:
         source = HELPER.read_text(encoding="utf-8")

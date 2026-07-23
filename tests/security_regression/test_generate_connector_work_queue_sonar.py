@@ -76,21 +76,21 @@ class ConnectorWorkQueueSonarTests(unittest.TestCase):
             self.assertEqual(summary, safe_path)
             self.assertIsNone(error)
             self.assertEqual(
-                {"safe": {"status": "pass"}},
                 self.queue.read_cases_from_summary(safe_path, "apache"),
+                {"safe": {"status": "pass"}},
             )
 
             escaped_path, outside_error = self.queue.summary_path_from_run(
                 {"runtime_summary_path": str(outside)}, approved_roots,
             )
             self.assertIsNone(escaped_path)
-            self.assertEqual("runtime summary path is outside approved roots", outside_error)
+            self.assertEqual(outside_error, "runtime summary path is outside approved roots")
 
             linked_path, symlink_error = self.queue.summary_path_from_run(
                 {"runtime_summary_path": str(symlink)}, approved_roots,
             )
             self.assertIsNone(linked_path)
-            self.assertEqual("runtime summary path must not contain a symlink", symlink_error)
+            self.assertEqual(symlink_error, "runtime summary path must not contain a symlink")
 
             blocked_entries = self.queue.entries_for_run(
                 {"connector": "apache", "runtime_summary_path": str(outside)},
@@ -98,8 +98,8 @@ class ConnectorWorkQueueSonarTests(unittest.TestCase):
                 {},
                 approved_roots,
             )
-            self.assertEqual("BLOCKED", blocked_entries[0]["runtime_status"])
-            self.assertEqual("runtime summary path is outside approved roots", blocked_entries[0]["reason"])
+            self.assertEqual(blocked_entries[0]["runtime_status"], "BLOCKED")
+            self.assertEqual(blocked_entries[0]["reason"], "runtime summary path is outside approved roots")
 
     def test_output_root_is_limited_to_the_trusted_roots(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -123,21 +123,21 @@ class ConnectorWorkQueueSonarTests(unittest.TestCase):
 
     def test_refactored_classification_and_priority_contracts(self) -> None:
         self.assertEqual(
-            "request_body_processor",
             self.queue.choose_work_direction(
                 "apache", ["expected_block_got_501"], ["request_body_json"], False,
             ),
+            "request_body_processor",
         )
         self.assertEqual(
-            "connector_gap",
             self.queue.choose_work_direction("haproxy", ["expected_200_got_501"], [], False),
+            "connector_gap",
         )
         meta = self.queue.CaseMeta(case_id="phase4-action", path="", source_kind="framework-owned")
         self.assertIn(
             "action_intervention",
             self.queue.functional_areas(meta, {"expected_intervention": "deny"}),
         )
-        self.assertEqual("P3", self.queue.initial_priority("PASS", [], [], False))
+        self.assertEqual(self.queue.initial_priority("PASS", [], [], False), "P3")
 
         entry = {
             "classification": "active",
@@ -150,7 +150,7 @@ class ConnectorWorkQueueSonarTests(unittest.TestCase):
             "priority": "P1",
         }
         self.queue.apply_priority_rules([entry])
-        self.assertEqual("P0", entry["priority"])
+        self.assertEqual(entry["priority"], "P0")
 
     def test_main_rejects_untrusted_output_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -180,7 +180,7 @@ class ConnectorWorkQueueSonarTests(unittest.TestCase):
                 check=False,
                 env=environment,
             )
-            self.assertNotEqual(0, result.returncode)
+            self.assertNotEqual(result.returncode, 0)
             self.assertIn("output root must resolve exactly", result.stderr)
             self.assertFalse((output_root / "reports").exists())
 
@@ -207,7 +207,7 @@ class ConnectorWorkQueueSonarTests(unittest.TestCase):
                 check=False,
                 env=environment,
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             generated_root = connector_root / "reports/testing/generated/canonical"
             self.assertTrue((generated_root / "connector_work_queue.generated.json").is_file())
             self.assertTrue((generated_root / "connector_work_queue.generated.md").is_file())

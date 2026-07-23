@@ -13,9 +13,19 @@ Normale Pull-Request-Workflows, einschließlich `ci-security-osv.yml`,
 verwenden `pull_request`. Der OSV-Job erhält ausschließlich `contents: read`,
 checkt die unveränderliche PR-Basis-SHA ohne persistierte Credentials oder
 Submodule aus, holt nur die nummerierte GitHub-Pull-Request-Head-Referenz,
-verifiziert die gemeldete Head-SHA und liest die zwei benannten Dependency-
-Manifeste als begrenzte Daten. Sein ausgecheckter Framework-Quellcode und
-Scanner-Helper stammen damit aus der Basisrevision. Alle Routine-Jobs erhalten
+verifiziert die gemeldete Head-SHA und liest ausschließlich die zwei benannten
+Dependency-Manifeste als begrenzte Daten. Sein Python-Bootstrap wird einmalig
+als reguläre, nicht symlinkte Datei unter privatem `runner.temp` aus der
+vertrauenswürdigen Basis materialisiert. Eine vorhandene Basis-`.python-version`
+muss ein größenbegrenzter Blob sein und der strikten stabilen
+CPython-3.14-Grammatik entsprechen. Die exakte historische Basis
+`f73f8842f45318e2df8aff1d31855eeb7c20a22f` liegt vor dieser Datei und erhält
+allein den festen Kompatibilitätswert `3.13.14`. Jeder andere CP313-Selektor
+oder eine andere fehlende Basisdatei scheitert geschlossen. Der ausgewählte
+Interpreter passt somit immer zum vom Job installierten vertrauenswürdigen
+Basis-Lock. Sein ausgecheckter Framework-Quellcode und Scanner-Helper stammen
+aus der Basisrevision; der Job liest keinen PR-Head-Python-Selektor, checkt
+keinen PR-Head aus und führt keinen PR-Head-Code aus. Alle Routine-Jobs erhalten
 nur `contents: read`, verwenden unveränderliche Action-SHAs mit überprüften
 Versionskommentaren und checken mit `persist-credentials: false` sowie
 `submodules: false` aus. Sie stellen keine Caches wieder her oder speichern
@@ -28,17 +38,21 @@ PR- und Nicht-PR-Events bedienen, verwenden `github.event.pull_request.head.sha
 Der Gitleaks-PR-Range-Job verwendet den PR-Head direkt und beweist die
 ausgecheckte SHA vor dem Scan. Der OSV-PR-Job führt dagegen nur die
 vertrauenswürdige Basisrevision aus und verwendet das verifizierte PR-Objekt
-allein zum Lesen von Blobs. Der lokale semantische Evidence-Contract prüft
+allein zum begrenzten Lesen der Dependency-Manifest-Blobs. Sein isolierter
+`setup-python`-Version-Datei-Bootstrap stammt ausschließlich aus der
+vertrauenswürdigen Basis oder dem einen SHA-gebundenen
+CP313-Kompatibilitätsfall. Der lokale semantische Evidence-Contract prüft
 diese Mappings und die ausführbaren Scanner-Kommandos nach dem Entfernen von
 Shell-Kommentaren; Bodies von Kontrollfluss, nach `exit` nicht erreichbare
 Befehle und nicht aufgerufene Helper werden ausgeschlossen.
 
 Jeder Workflow hat ein explizites Timeout und ein Concurrency-Verhalten. PR-
-und normale CI-Jobs brechen überholte Runs desselben Workflow/Ref ab. Die zwei
+und normale CI-Jobs brechen überholte Runs desselben Workflow/Ref ab. Die drei
 geplanten Wartungsjobs brechen einen aktiven Run bewusst nicht ab: Der
-Common-Version-Job kann einen begrenzten Update-PR erstellen, und der
-Artefakt-Cleanup-Job löscht nur Artefakte nach seiner dokumentierten
-Aufbewahrungsrichtlinie.
+Common-Version-Job validiert nur einen temporären Runner-Kandidaten und besitzt
+keinen Auslieferungspfad, der Workflow-/Tool-Updater kann ausschließlich seinen
+passenden Draft-Wartungs-PR erstellen oder fortführen, und der Artefakt-Cleanup-
+Job löscht nur Artefakte nach seiner dokumentierten Aufbewahrungsrichtlinie.
 
 `security-events: write` ist auf den vertrauenswürdigen Nicht-PR-Upload-Job
 in `ci-security-codeql.yml` beschränkt. Sein read-only PR-Pendant
@@ -58,15 +72,18 @@ bleiben artefaktfrei.
 | `ci-security-workflow-lint.yml` | PR, Default-Branch-Push, manuell | Prüfsummenverifiziertes actionlint mit ShellCheck, offline zizmor, Contracts für immutable Pins/Berechtigungen/Checkout, semantische Evidence-Validierung sowie sichere und unsichere Fixtures. |
 | `ci-security-quality.yml` | PR- und Default-Branch-Änderungen am CI-Security-Python-Scope | Prüfsummenverifiziertes Ruff-Lint/-Format und Pyright mit exakt festgelegter Node.js-Runtime. Der Scope umfasst CI-Security- und Change-Record-Checker, Downloader und deren Tests. |
 | `ci-security-secrets.yml` | PR, Zeitplan, manuell | Gitleaks checkt den exakten PR-Head aus und beweist ihn; danach scannt es exakt den Bereich Merge-Base bis Head mit `--redact=100`. Die gesamte Historie ist geplant/manuell advisory, bis Findings triagiert sind. |
-| `ci-security-osv.yml` | Begrenztes nicht privilegiertes `pull_request`; Zeitplan und manuell auf dem Default-Branch | Der PR-Job führt die vertrauenswürdige PR-Basis-SHA aus, holt die nummerierte PR-Referenz ohne Checkout, verifiziert ihre exakte Head-SHA und vergleicht nur begrenzte `requirements-dev.txt`- und `requirements-ci.lock`-Blobs ohne Remediation. Er scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
+| `ci-security-osv.yml` | Begrenztes nicht privilegiertes `pull_request`; Zeitplan und manuell auf dem Default-Branch | Der PR-Job führt die vertrauenswürdige PR-Basis-SHA aus, holt die nummerierte PR-Referenz ohne Checkout, verifiziert ihre exakte Head-SHA und vergleicht begrenzte `requirements-dev.txt`- und `requirements-ci.lock`-Blobs ohne Remediation. `setup-python` erhält ausschließlich eine private reguläre, nicht symlinkte Versionsdatei aus einem größenbegrenzten Trusted-Base-Blob. Striktes CPython 3.14 ist erforderlich, ausgenommen allein die exakte Basis vor dem Selektor `f73f8842f45318e2df8aff1d31855eeb7c20a22f`; diese wählt allein `3.13.14`. Jeder andere CP313-Selektor oder eine andere fehlende Basisdatei scheitert geschlossen, und kein PR-Head-Python-Selektor, Source oder Workflow-Content wird gelesen oder ausgeführt. Er scheitert nur bei neu eingeführten OSV-Schwachstellengruppen. Jede Revision muss `requirements-dev.txt` enthalten; der PR-Head muss `requirements-ci.lock` enthalten, während eine Basisrevision vor dessen Einführung eine begrenzte leere optionale Eingabe erhält. Basis-, Head- und Vergleichs-JSON werden erst nach Regular-File-, Größen- und JSON-Validierung einen Tag aufbewahrt. Die benannten Eingaben traversieren niemals `tools/MRTS`; geplante/manuelle Default-Branch-Scans sind advisory. |
+| `check-python-version.yml` | Geplant/manuell auf der vertrauenswürdigen `master`-Revision | Ein dreistufiger CPython-Wartungsworkflow löst einen Kandidaten auf, validiert ihn und darf erst danach einen Draft-Review-PR veröffentlichen. Die zwei read-only Stufen verwenden die ausgecheckte vertrauenswürdige Revision und kein Token; die Kandidatvalidierung materialisiert nur den festen Pfad `${{ runner.temp }}/framework-python-3.14-candidate`. Der Publisher ist durch `github.ref == 'refs/heads/master'` und einen validierten Kandidaten begrenzt, löst ihn unabhängig erneut auf, beschränkt die Änderung auf `.python-version` und verwendet den festen Review-Branch `automation/update-framework-python-314`. |
 | `ci-security-codeql-pr.yml` | PR | CodeQL analysiert den exakten PR-Head mit ausschließlich `contents: read`, dem `linked`-Tool-Bundle der gepinnten Action, `upload: never` und `upload-database: false`. Es analysiert GitHub Actions, Python und C/C++ und ignoriert `tools/MRTS/**`; es erhält nie eine Code-Scanning-Write-Berechtigung. |
 | `ci-security-codeql.yml` | Default-Branch-Push, Zeitplan, manuell | Vertrauenswürdiges CodeQL analysiert die exakte `github.sha` mit demselben begrenzten Sprach-Scope und `linked`-Tool-Bundle. Seine eine Job-spezifische `security-events: write`-Berechtigung wird ausschließlich nach Nicht-PR-Ausführung zum Upload von Code-Scanning-SARIF verwendet. Go oder JavaScript/TypeScript werden nicht behauptet; C/C++ verwendet `build-mode: none`, damit der Scan keine Connector- oder MRTS-Abhängigkeiten provisioniert. |
 | `ci-security-scorecard.yml` | PR; Default-Branch-Push, Zeitplan, manuell auf dem Default-Branch | Ein prüfsummenverifiziertes OpenSSF-Scorecard-Binary bewertet den exakten lokalen PR-Checkout ohne GitHub-Token. Das PR-Ergebnis wird JSON-validiert, bleibt aber artefaktfrei. Vertrauenswürdige Default-Branch-Jobs verwenden die exakte `github.sha`, bewahren eine validierte begrenzte JSON-Datei einen Tag auf und bleiben advisory, weil kein Score-Schwellenwert gesetzt ist; Scanner- und JSON-Validierungsfehler sind nicht advisory. SARIF wird nicht hochgeladen. |
 | `ci-security-dependency-review.yml` | PRs mit Abhängigkeitsänderungen | Dependency Review prüft hochschwere Schwachstellen und Runtime-/Development-Scopes ohne automatische Remediation oder PR-Kommentare. |
+| `update-workflow-tools.yml` | Geplant/manuell auf der vertrauenswürdigen Default-Revision | Ein nur lesender Resolver bezieht Kandidaten ausschließlich von durch den Lock abgeleiteten offiziellen GitHub-Release-/Git-Endpunkten. Ein separater nur lesender Validator lädt geänderte Tool-Assets prüfsummenvalidiert und wendet den Kandidaten ausschließlich in einer begrenzten Runner-Temporärkopie an, um die resultierenden Pins und Contracts erneut zu prüfen. Der einzige schreibfähige Publisher löst erneut auf und prüfsummenvalidiert seinen frischen Kandidaten, akzeptiert nur einen zur Basisidentität verifizierten passenden Draft-PR-Branch, beschränkt Änderungen auf eine explizite Allowlist, verwendet einen normalen Push und erstellt ausschließlich einen Draft-PR. |
 
 Die vorhandenen Workflows `lint.yml`, `test-common.yml`, Action-Version-Check,
-Common-Version-Wartung und Artefakt-Cleanup verwenden denselben Contract für
-immutable Actions, Berechtigungen, Checkout, Timeouts und Concurrency.
+Common-Version-Wartung, Workflow-/Tool-Wartung und Artefakt-Cleanup verwenden
+denselben Contract für immutable Actions, Berechtigungen, Checkout, Timeouts
+und Concurrency.
 Dieser Scope härtet nur die Workflow-Ausführung von `test-common.yml`; seine
 eigenständig geregelte Common-Case-Katalog-Assertion und
 Materialisierungssemantik sind kein CI-Security-Produktfix.
@@ -79,23 +96,109 @@ Name, Version, immutable Release-Commit, Upstream-Release, Lizenz, Zweck,
 Plattform, Update-Verfahren sowie bei heruntergeladenen Binaries/Packages das
 exakte Release-Asset und SHA-256.
 
+Der CI-Security-Contract löst außerdem jede geparste nicht lokale Workflow-
+Referenz `uses` rekursiv auf und bindet sie unabhängig von der YAML-Key-
+Schreibweise an den Action-Namen und exakten `immutable_commit` dieses Locks.
+Source-Prüfungen für immutable Pins und Release-Kommentare bleiben Defense in
+Depth. Regression-Fixtures beweisen die Zurückweisung von Quoted-Keys und
+Flow-Mappings mit einer abweichenden Voll-SHA.
+
+Jeder Action-Record legt zusätzlich seine `release_resolution` fest. Die
+meisten Actions verwenden den offiziellen Endpunkt `latest-release`.
+`github/codeql-action` verwendet stattdessen den überprüften Modus
+`same-major-release`, weil dessen Antwort von `releases/latest` ein CodeQL-
+Bundle statt der Action beschreiben kann. Der Resolver liest eine begrenzte
+offizielle Release-Seite, akzeptiert nur veröffentlichte numerische
+Nicht-Prerelease-Action-Tags im gelockten Major `v4` und löst genau diesen Tag
+über die Git-API zu seinem unveränderlichen Commit auf. Er behandelt weder ein
+Bundle noch einen neuen Action-Major als Action-Update.
+
 `ci/tools/fetch-security-tool.py` akzeptiert ausschließlich benannte
 Lock-Records, direkte HTTPS-GitHub-Release-Assets und ein absolutes,
 symlinkfreies striktes Child des dem aktuellen User gehörenden
-`RUNNER_TEMP`-Verzeichnisses. Das Tool prüft SHA-256 vor dem Veröffentlichen
-einer Raw-Executable oder vor dem Entpacken eines Archivs, lehnt unsichere
-Archivpfade, Links und Devices ab, extrahiert nur die gelockte Executable oder
-den gelockten Package-Tree und veröffentlicht das Ergebnis atomar. Es
-installiert kein Paket in den Framework-Checkout.
+`RUNNER_TEMP`-Verzeichnisses. Ein abgeschlossener Redirect ist ausschließlich
+zu `github.com`, `objects.githubusercontent.com` oder
+`release-assets.githubusercontent.com` zulässig. Das Tool prüft SHA-256 vor
+dem Veröffentlichen einer Raw-Executable oder vor dem Entpacken eines Archivs,
+lehnt unsichere Archivpfade, Links und Devices ab, extrahiert nur die gelockte
+Executable oder den gelockten Package-Tree und veröffentlicht das Ergebnis
+atomar. Es installiert kein Paket in den Framework-Checkout.
 
-`requirements-ci.lock` pinnt das CI-PyYAML-CP313-Wheel für überprüftes
-CPython 3.13.14 auf Linux x86_64 und verlangt dessen offiziellen PyPI-SHA-256.
-Workflows wählen diesen exakten Patch mit `check-latest: false` und
+`ci/tools/update-workflow-tools.py` ist der einzige native Updater für diesen
+Lock-Scope. Sein Resolver besitzt keinen GitHub-Token und akzeptiert nur vom
+Lock abgeleitete offizielle GitHub-API-URLs. Sein Kandidat bindet an den
+SHA-256 des vertrauenswürdigen aktuellen Locks und darf nur Release/Version,
+immutable Commit sowie in einem Tool-Record das erwartete Asset-Tupel und
+SHA-256 ändern. Der Validator scheitert geschlossen bei einem veralteten Lock,
+unerwarteten Feld, URL, Asset-Namensregel oder Digest, wendet den Kandidaten
+ausschließlich in einer begrenzten Runner-Temporärkopie an und ruft den
+Downloader nur für geänderte Tool-Assets auf. Der Publisher wiederholt die
+Auflösung, prüfsummenvalidiert seinen frischen Tool-Kandidaten, validiert seine
+Working Copy und akzeptiert Änderungen nur an seiner expliziten
+Lock-/Workflow-/Begleitguide-Allowlist. Er führt kein heruntergeladenes Asset
+aus, verwendet kein `pull_request_target`, keinen Force-Push und keinen Merge.
+Bestehende Branches werden nur wiederverwendet, wenn der eine offene PR exakt
+Branch, Titel, Basis, Marker und Draft-Status besitzt und seine geänderten
+Tupel gegenüber der Lock-Identität des aktuellen Default-Branches verifiziert
+sind.
+
+`requirements-ci.lock` pinnt das CI-PyYAML-CP314-Wheel
+`PyYAML-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl`
+für überprüftes CPython 3.14.6 auf Linux x86_64 und verlangt dessen offiziellen
+PyPI-SHA-256
+`c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5`.
+Workflows wählen den exakten überprüften Patch mit `check-latest: false` und
 installieren ihn anschließend mit `--require-hashes`, `--only-binary=:all:`
 und `pip check`. Dependabot überwacht sowohl `github-actions` als auch `pip`;
 ein vorgeschlagenes Update bleibt aber dem Lock-/Provenienzreview und dem
 Immutable-Pin-Contract unterworfen. Kein Workflow behebt Abhängigkeiten
 automatisch.
+
+## CPython-Baseline und Wartungsvertrag
+
+`.python-version` ist der einzige kanonische Framework-Interpreter-Selektor.
+Sie muss eine reguläre, nicht symlinkte UTF-8-Datei sein, die genau einen mit
+Zeilenumbruch abgeschlossenen stabilen Wert `3.14.<numeric patch>` enthält.
+Sie erlaubt keinen floating selector, kein wildcard, kein prerelease, keine
+alternative Implementierung und keine zweite Zeile. Jeder aktive
+`actions/setup-python`-Use wählt sie mit `python-version-file: .python-version`
+und `check-latest: false`, mit Ausnahme der zwei separat verifizierten
+Datendateien unten:
+
+- Nur der Job `candidate-validate` in `check-python-version.yml` darf
+  `${{ runner.temp }}/framework-python-3.14-candidate` verwenden. Der Updater
+  schreibt diesen festen privaten Runner-Pfad erst, nachdem er den erwarteten
+  Kandidaten unabhängig nach derselben strikten Grammatik akzeptiert hat; die
+  Datei ist regulär und nicht symlinkbar, und kein Aufrufer kontrolliert ihren
+  Pfad.
+- Nur der OSV-Job `pull-request-head` darf
+  `${{ runner.temp }}/framework-osv-trusted-base-python-version` verwenden. Er
+  materialisiert diesen festen privaten Pfad nach Größen- und Stable-3.14-
+  Validierung aus der vertrauenswürdigen Basis-`.python-version`. Die exakte
+  historische Basis `f73f8842f45318e2df8aff1d31855eeb7c20a22f`, die vor der
+  kanonischen Datei liegt, ist die einzige fail-closed-Kompatibilitätsausnahme
+  und schreibt nur den festen Wert `3.13.14`; eine andere fehlende Basisdatei
+  scheitert. Dies erhält das Basis-Interpreter-/Lock-ABI-Paar und liest nie
+  einen PR-Head-Python-Selektor.
+
+`ci/tools/update-python-version.py` ist der einzige native Updater der Python-
+Baseline. Er bezieht Metadaten nur vom dokumentierten öffentlichen
+Python.org-JSON-Endpunkt, weist Redirects und nicht erkannte Metadaten zurück,
+akzeptiert nur veröffentlichte stabile CPython-3.14-Patch-Releases und schreibt
+keine Repository-Datei außer `.python-version`. Er verwendet weder einen
+GitHub-Token noch HTML-Scraping. Der geplante/manuelle Workflow
+`check-python-version.yml` trennt read-only Auflösung von Kandidatvalidierung.
+Sein Publisher löst den Kandidaten unabhängig erneut auf und validiert ihn,
+ist durch `github.ref == 'refs/heads/master'` beschränkt und kann nur einen
+Draft-PR auf `automation/update-framework-python-314` mit
+`.python-version` als einzigem Änderungspfad erstellen oder aktualisieren. Er
+merged nicht automatisch und verwendet keinen floating version selector.
+
+Die Static-Tool-Baselines folgen demselben Vertrag: `pyproject.toml` deklariert
+Ruff `target-version = "py314"`, und `pyrightconfig.json` deklariert
+`"pythonVersion": "3.14"`. Dies sind Analyse-Baselines, keine Behauptung,
+dass ein lokaler oder gehosteter CPython-3.14.6-Validierungslauf abgeschlossen
+ist.
 
 Der aktuelle OSV-Scope ist absichtlich explizit. Sein `.lock`-Suffix ist kein
 Python-Requirements-Dateiname, den OSV Scanner direkt akzeptiert. Deshalb
@@ -111,8 +214,9 @@ statt stiller rekursiver Erkennung.
 Zum Aktualisieren eines Records müssen Upstream-Release-Tag-zu-Commit-Identität,
 Lizenz, Asset-Dateiname/-Member und SHA-256 geprüft werden. Aktualisiere Lock,
 passende Workflow-Versionskommentare, Contract-Tests und diesen Leitfaden in
-einer geprüften Änderung. Ersetze niemals einen SHA-Pin durch einen mutablen
-Tag.
+einer geprüften Änderung. Der native Updater wendet dieselben Tupelregeln an
+und hinterlässt weiterhin einen Draft-PR zur Prüfung; ersetze niemals einen
+SHA-Pin durch einen mutablen Tag.
 
 ## Evidence, Aufbewahrung und SonarQube Cloud
 

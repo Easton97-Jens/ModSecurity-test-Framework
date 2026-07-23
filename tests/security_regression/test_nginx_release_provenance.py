@@ -68,11 +68,11 @@ class NginxReleaseProvenanceTests(unittest.TestCase):
         )
 
         self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
-        self.assertEqual([], result.updates)
-        self.assertEqual(PUBLISHED_SHA256, result.details["official_asset_sha256"])
+        self.assertEqual(result.updates, [])
+        self.assertEqual(result.details["official_asset_sha256"], PUBLISHED_SHA256)
         self.assertEqual(
-            f"https://github.com/{REPOSITORY}/releases/download/{RELEASE_TAG}/{ASSET_NAME}",
             result.details["official_asset_url"],
+            f"https://github.com/{REPOSITORY}/releases/download/{RELEASE_TAG}/{ASSET_NAME}",
         )
 
     def test_newer_release_requires_a_reviewed_atomic_tuple_change(self):
@@ -82,8 +82,8 @@ class NginxReleaseProvenanceTests(unittest.TestCase):
         )
 
         self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
-        self.assertEqual("release-1.31.3", result.latest)
-        self.assertEqual([], result.updates)
+        self.assertEqual(result.latest, "release-1.31.3")
+        self.assertEqual(result.updates, [])
         self.assertIn("atomically", result.message)
 
     def test_digest_mismatch_never_generates_an_automatic_update(self):
@@ -93,7 +93,7 @@ class NginxReleaseProvenanceTests(unittest.TestCase):
         )
 
         self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
-        self.assertEqual([], result.updates)
+        self.assertEqual(result.updates, [])
         self.assertIn("does not match", result.message)
 
 

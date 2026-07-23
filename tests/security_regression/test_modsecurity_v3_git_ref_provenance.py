@@ -130,8 +130,8 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
 
     def assert_blocked_before_git(self, overrides):
         result, commands, _ = self.invoke_fetch(overrides=overrides)
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
-        self.assertEqual([], commands, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+        self.assertEqual(commands, [], result.stdout + result.stderr)
 
     def test_rejects_mutable_refs_and_origin_overrides_before_git(self):
         for variable, rejected_value in (
@@ -154,7 +154,7 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             }
         )
         command_text = "\n".join(commands)
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(f"fetch --depth 1 --no-tags origin {APPROVED_COMMIT}", command_text)
         self.assertNotIn(APPROVED_RELEASE_TAG, command_text)
 
@@ -174,20 +174,20 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
                 "GIT_ASKPASS": "/bin/false",
             }
         )
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("fetch", self.git_verbs(commands))
 
     def test_rejects_preexisting_source_before_git_or_consumption(self):
         result, commands, sentinel_exists = self.invoke_fetch(existing_source=True)
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
-        self.assertEqual([], commands, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+        self.assertEqual(commands, [], result.stdout + result.stderr)
         self.assertTrue(sentinel_exists)
 
     def test_rejects_unexpected_origin_before_fetch(self):
         result, commands, _ = self.invoke_fetch(
             overrides={"FAKE_GIT_ORIGIN": "https://github.com/attacker/ModSecurity.git"}
         )
-        self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn("config", self.git_verbs(commands))
         self.assertNotIn("fetch", self.git_verbs(commands))
 
@@ -199,7 +199,7 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         ):
             with self.subTest(variable=variable):
                 result, commands, _ = self.invoke_fetch(overrides={variable: ALTERNATE_COMMIT})
-                self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
                 self.assertIn("fetch", self.git_verbs(commands))
                 self.assertNotIn("submodule", self.git_verbs(commands))
 
@@ -210,7 +210,7 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         ):
             with self.subTest(overrides=overrides):
                 result, commands, _ = self.invoke_fetch(overrides=overrides)
-                self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
                 self.assertIn("checkout", self.git_verbs(commands))
                 self.assertNotIn("submodule", self.git_verbs(commands))
 
@@ -246,11 +246,11 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         for script in (PREPARE_APACHE, PREPARE_NGINX, BUILD_V3):
             with self.subTest(script=script.name):
                 result, commands, build_commands = self.invoke_existing_source_consumer(script)
-                self.assertEqual(77, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
                 self.assertIn("config", self.git_verbs(commands))
                 self.assertNotIn("fetch", self.git_verbs(commands))
                 self.assertNotIn("submodule", self.git_verbs(commands))
-                self.assertEqual("", build_commands, result.stdout + result.stderr)
+                self.assertEqual(build_commands, "", result.stdout + result.stderr)
 
     def test_approved_fake_checkout_is_a_legitimate_direct_build_control(self):
         with tempfile.TemporaryDirectory(prefix="modsecurity-v3-approved-build-") as temporary:
@@ -275,7 +275,7 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
                 timeout=15,
             )
             commands = self.read_commands(git_log)
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertTrue((destination / "src/.libs/libmodsecurity.so").is_file())
             self.assertIn("config", self.git_verbs(commands))
             self.assertNotIn("fetch", self.git_verbs(commands))

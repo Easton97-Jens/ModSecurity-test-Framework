@@ -7,10 +7,11 @@
     "ci/checks/security/osv_report_schema.py",
     "ci/checks/documentation/check-change-records.py",
     "ci/tools/fetch-security-tool.py",
+    "ci/tools/update-workflow-tools.py",
     "tests/ci_security"
   ],
   "exclude": ["tools/MRTS"],
-  "pythonVersion": "3.13",
+  "pythonVersion": "3.14",
   "typeCheckingMode": "basic",
   "reportMissingImports": "none",
   "reportMissingTypeStubs": "none"

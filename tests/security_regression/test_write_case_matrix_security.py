@@ -38,7 +38,7 @@ class WriteCaseMatrixSecurityTests(unittest.TestCase):
             self.module.CONNECTOR_ROOT = Path(temporary) / "connector"
             os.environ["BUILD_ROOT"] = str(root)
 
-            self.assertEqual(0, self.module.main(["write-case-matrix.py"]))
+            self.assertEqual(self.module.main(["write-case-matrix.py"]), 0)
             output = root / "case-matrix.md"
             self.assertTrue(output.is_file())
             self.assertFalse(output.is_symlink())
@@ -55,11 +55,11 @@ class WriteCaseMatrixSecurityTests(unittest.TestCase):
             self.module.CONNECTOR_ROOT = Path(temporary) / "connector"
             os.environ["BUILD_ROOT"] = str(root)
 
-            self.assertEqual(2, self.module.main(["write-case-matrix.py", str(outside)]))
-            self.assertEqual(2, self.module.main(["write-case-matrix.py", "", str(escaped)]))
-            self.assertEqual("outside", outside.read_text(encoding="utf-8"))
+            self.assertEqual(self.module.main(["write-case-matrix.py", str(outside)]), 2)
+            self.assertEqual(self.module.main(["write-case-matrix.py", "", str(escaped)]), 2)
+            self.assertEqual(outside.read_text(encoding="utf-8"), "outside")
 
     def test_requires_an_explicit_private_root(self) -> None:
         os.environ.pop("BUILD_ROOT", None)
         os.environ.pop("VERIFIED_RUN_ROOT", None)
-        self.assertEqual(2, self.module.main(["write-case-matrix.py"]))
+        self.assertEqual(self.module.main(["write-case-matrix.py"]), 2)

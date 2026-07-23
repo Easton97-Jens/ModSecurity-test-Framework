@@ -51,7 +51,7 @@ class ConnectorSmokeCommonHardeningTests(unittest.TestCase):
                 """,
                 environment={"FRAMEWORK_ROOT": str(ROOT)},
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(flag_marker.exists())
             self.assertFalse(lookup_marker.exists())
 
@@ -69,7 +69,7 @@ class ConnectorSmokeCommonHardeningTests(unittest.TestCase):
                 """,
                 environment={"FRAMEWORK_ROOT": str(ROOT), "ENVOY_BIN": str(binary)},
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_foreign_ci_root_cannot_supply_common_helper(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -88,7 +88,7 @@ class ConnectorSmokeCommonHardeningTests(unittest.TestCase):
                 """,
                 environment={"FRAMEWORK_ROOT": str(ROOT), "CI_ROOT": str(foreign_ci)},
             )
-            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(marker.exists())
 
     def test_missing_framework_root_fails_before_foreign_common_is_sourced(self) -> None:
@@ -108,7 +108,7 @@ class ConnectorSmokeCommonHardeningTests(unittest.TestCase):
                 """,
                 environment={"CI_ROOT": str(foreign_ci)},
             )
-            self.assertNotEqual(0, result.returncode)
+            self.assertNotEqual(result.returncode, 0)
             self.assertFalse(marker.exists())
 
 

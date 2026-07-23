@@ -168,14 +168,14 @@ class SynchronizedUpstreamSecurityBoundaryTests(unittest.TestCase):
                 ]
             )
 
-            self.assertEqual(0, result)
+            self.assertEqual(result, 0)
             self.assertEqual(
-                [],
                 self.upstream_module.first_byte_evidence_errors(
                     json.loads(output.read_text(encoding="utf-8")),
                     require_real_host=True,
                     require_complete_proof=True,
                 ),
+                [],
             )
 
     def test_merge_cli_rejects_an_output_outside_its_control_root(self) -> None:
@@ -212,10 +212,10 @@ class SynchronizedUpstreamSecurityBoundaryTests(unittest.TestCase):
                 host_metadata=real_host_metadata(),
             )
         self.assertEqual(
-            [],
             self.upstream_module.first_byte_evidence_errors(
                 evidence, require_complete_proof=True
             ),
+            [],
         )
 
     def test_real_host_evidence_cannot_target_the_synthetic_upstream(self) -> None:

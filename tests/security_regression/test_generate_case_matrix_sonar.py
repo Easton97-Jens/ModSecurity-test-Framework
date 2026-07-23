@@ -152,15 +152,15 @@ class GenerateCaseMatrixSonarTests(unittest.TestCase):
             self.assertEqual(summary["evidence_path"], str(summary_path))
 
     def test_haproxy_case_extraction_rejects_non_mapping_case_payloads(self):
-        self.assertEqual({}, self.module.haproxy_cases_from_summary({}))
+        self.assertEqual(self.module.haproxy_cases_from_summary({}), {})
         self.assertEqual(
-            {}, self.module.haproxy_cases_from_summary({"haproxy": {"cases": []}})
+            self.module.haproxy_cases_from_summary({"haproxy": {"cases": []}}), {}
         )
         self.assertEqual(
-            {"case-a": {"status": "PASS"}},
             self.module.haproxy_cases_from_summary(
                 {"haproxy": {"cases": {"case-a": {"status": "PASS"}}}}
             ),
+            {"case-a": {"status": "PASS"}},
         )
 
     def test_haproxy_variant_summary_remains_deduplicated(self):
