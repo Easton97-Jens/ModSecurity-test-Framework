@@ -98,7 +98,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 check=True,
             )
 
-            self.assertEqual("", no_crs.git_value(repository, "status", "--porcelain=v1"))
+            self.assertEqual(no_crs.git_value(repository, "status", "--porcelain=v1"), "")
             self.assertFalse(marker.exists())
 
     def normalize_phase4(
@@ -148,8 +148,8 @@ class NoCrsBaselineTest(unittest.TestCase):
             ]
         })
         self.assertEqual(
-            ["allow_without_marker", "deny_header_marker_403"],
             [record["case_id"] for record in records],
+            ["allow_without_marker", "deny_header_marker_403"],
         )
 
     def test_failed_source_status_alias_cannot_clear_the_source_failure_gate(self) -> None:
@@ -159,7 +159,7 @@ class NoCrsBaselineTest(unittest.TestCase):
         self.assertTrue(errors)
 
     def test_missing_source_status_is_a_failed_source(self) -> None:
-        self.assertEqual("FAIL", no_crs.normalize_source_status(None))
+        self.assertEqual(no_crs.normalize_source_status(None), "FAIL")
 
     def test_finalize_copies_allowlisted_engine_lifecycle_artifacts(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-engine-artifacts-") as temporary:
@@ -208,8 +208,8 @@ class NoCrsBaselineTest(unittest.TestCase):
             )
             artifacts = manifest["artifacts"]
             self.assertEqual(
-                "engine-version.txt",
-                artifacts["engine_version"]["path"],  # type: ignore[index]
+                artifacts["engine_version"]["path"],
+                "engine-version.txt",  # type: ignore[index]
             )
             self.assertTrue((run_dir / "lifecycle-counters.json").is_file())
 
@@ -332,7 +332,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "transport_case_id": "case-h2-identity",
             }
             self.assertEqual(
-                [], no_crs.protocol_client_artifact_errors(root, record, "h2"),
+                no_crs.protocol_client_artifact_errors(root, record, "h2"), [],
             )
             record["run_id"] = "other-run"
             self.assertTrue(no_crs.protocol_client_artifact_errors(root, record, "h2"))
@@ -447,33 +447,33 @@ class NoCrsBaselineTest(unittest.TestCase):
             capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
             plan_path = root / "legacy-generic-plan.json"
             run_dir = root / "evidence/envoy/generic"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "select", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--output", str(plan_path),
-            ]))
+            ]), 0)
             legacy_plan = no_crs.load_json(plan_path)
-            self.assertEqual("generic", legacy_plan["artifact_profile"])
+            self.assertEqual(legacy_plan["artifact_profile"], "generic")
             legacy_plan.pop("artifact_profile")
             no_crs.write_json(plan_path, legacy_plan)
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--plan", str(plan_path), "--run-dir", str(run_dir), "--run-id", "generic",
-            ]))
-            self.assertEqual(0, no_crs.main([
+            ]), 0)
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--stage-rc", "0",
-            ]))
+            ]), 0)
             for relative_path in (
                 "plan.json", "manifest.json", "inventory/run.json", "result.json",
             ):
                 payload = no_crs.load_json(run_dir / relative_path)
-                self.assertEqual("generic", payload["artifact_profile"])
-                self.assertEqual("default", payload["host_profile"])
+                self.assertEqual(payload["artifact_profile"], "generic")
+                self.assertEqual(payload["host_profile"], "default")
             self.assertFalse((run_dir / "events.jsonl").exists())
             self.assertFalse((run_dir / "logs/stdout.log").exists())
             self.assertFalse((run_dir / "logs/stderr.log").exists())
             self.assertFalse((run_dir / "logs/host.log").exists())
-            self.assertEqual([], no_crs.layout_errors(run_dir))
+            self.assertEqual(no_crs.layout_errors(run_dir), [])
 
             # A profile-less external plan remains a supported init input, but
             # profile-less run artifacts are no longer canonical evidence.
@@ -510,19 +510,19 @@ class NoCrsBaselineTest(unittest.TestCase):
             capability_path = root / "capabilities.json"
             capability_path.write_text(json.dumps(manifest("envoy")), encoding="utf-8")
             run_dir = root / "evidence/envoy/profile"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--run-dir", str(run_dir), "--run-id", "profile",
                 "--host-profile", "ext_proc",
                 "--executed-target", "full-lifecycle-envoy-ext-proc",
-            ]))
-            self.assertEqual(0, no_crs.main([
+            ]), 0)
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--stage-rc", "77",
-            ]))
+            ]), 0)
             for relative_path in ("manifest.json", "inventory/run.json", "result.json"):
                 payload = no_crs.load_json(run_dir / relative_path)
-                self.assertEqual("ext_proc", payload["host_profile"])
+                self.assertEqual(payload["host_profile"], "ext_proc")
 
     def test_full_lifecycle_artifact_profile_requires_host_evidence(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
@@ -531,23 +531,23 @@ class NoCrsBaselineTest(unittest.TestCase):
             capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
             plan_path = root / "full-lifecycle-plan.json"
             run_dir = root / "evidence/envoy/full-lifecycle"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "select", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--artifact-profile", "full_lifecycle", "--output", str(plan_path),
-            ]))
+            ]), 0)
             plan = no_crs.load_json(plan_path)
-            self.assertEqual("full_lifecycle", plan["artifact_profile"])
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(plan["artifact_profile"], "full_lifecycle")
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--artifact-profile", "full_lifecycle", "--plan", str(plan_path),
                 "--run-dir", str(run_dir), "--run-id", "full-lifecycle",
-            ]))
+            ]), 0)
             stderr = io.StringIO()
             with redirect_stderr(stderr):
-                self.assertEqual(1, no_crs.main([
+                self.assertEqual(no_crs.main([
                     "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                     "--stage-rc", "0",
-                ]))
+                ]), 1)
             self.assertIn(
                 "full_lifecycle artifact profile requires host-produced",
                 stderr.getvalue(),
@@ -584,38 +584,38 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "body_payload_persisted": False,
                 "outcome": "PASS",
             }, control_root=root)
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--source-events", str(events_path), "--stdout-log", str(stdout_path),
                 "--stderr-log", str(stderr_path), "--host-log", str(host_log_path),
                 "--first-byte-evidence", str(first_byte_path),
                 "--stage-rc", "0",
-            ]))
+            ]), 0)
             expected_paths = dict(no_crs.FULL_LIFECYCLE_REQUIRED_ARTIFACTS)
             for name, relative_path in expected_paths.items():
                 with self.subTest(artifact=name):
                     self.assertTrue((run_dir / relative_path).is_file())
             for path in ("result.json", "manifest.json", "inventory/run.json"):
                 payload = no_crs.load_json(run_dir / path)
-                self.assertEqual("full_lifecycle", payload["artifact_profile"])
-            self.assertEqual([], no_crs.layout_errors(run_dir))
+                self.assertEqual(payload["artifact_profile"], "full_lifecycle")
+            self.assertEqual(no_crs.layout_errors(run_dir), [])
             capabilities = no_crs.load_capability_manifest(capability_path, "envoy")
             self.assertEqual(
-                [],
                 no_crs.validate_run(
                     run_dir, "envoy", capabilities, tuple(no_crs.VALID_CHECKS),
                 ),
+                [],
             )
             # A selected full-lifecycle run must keep a payload-free barrier
             # artifact even if it makes no P4 streaming claim.  The strict
             # checks must not turn that deliberate NOT_EXECUTED boundary into
             # a demand for synthetic first-byte promotion.
-            self.assertEqual([], full_lifecycle_check.first_byte_errors(run_dir))
+            self.assertEqual(full_lifecycle_check.first_byte_errors(run_dir), [])
             self.assertEqual(
-                [],
                 full_lifecycle_check.no_full_response_buffering_errors(run_dir),
+                [],
             )
-            self.assertEqual([], full_lifecycle_check.promotion_errors(run_dir))
+            self.assertEqual(full_lifecycle_check.promotion_errors(run_dir), [])
 
     def test_post_execution_missing_evidence_is_fail_not_exit_77(self) -> None:
         source = (ROOT / "ci/lib/connector-smoke-common.sh").read_text(encoding="utf-8")
@@ -628,11 +628,11 @@ class NoCrsBaselineTest(unittest.TestCase):
 
     def test_catalog_has_complete_mandatory_core_and_native_rule_contract(self) -> None:
         catalog = no_crs.load_catalog()
-        self.assertEqual([], no_crs.validate_catalog(catalog))
+        self.assertEqual(no_crs.validate_catalog(catalog), [])
         # The protocol matrix adds 33 explicit H2/H2C/H3 execution
         # dimensions and transport hardening adds 29 causal lifecycle cases
         # while retaining the 104 baseline cases.
-        self.assertEqual(166, len(no_crs.catalog_cases(catalog)))
+        self.assertEqual(len(no_crs.catalog_cases(catalog)), 166)
         by_id = {case["case_id"]: case for case in no_crs.catalog_cases(catalog)}
         self.assertTrue(
             {
@@ -683,7 +683,6 @@ class NoCrsBaselineTest(unittest.TestCase):
         )
         self.assertTrue(no_crs.FULL_LIFECYCLE_REQUIRED_IDS.issubset(by_id))
         self.assertEqual(
-            {"minimal", "safe", "strict"},
             {
                 by_id[case_id]["request"]["late_intervention_mode"]
                 for case_id in (
@@ -692,20 +691,9 @@ class NoCrsBaselineTest(unittest.TestCase):
                     "phase4_deny_after_commit_abort_strict",
                 )
             },
+            {"minimal", "safe", "strict"},
         )
         self.assertEqual(
-            {
-                "request_body_incremental_ingest",
-                "response_body_incremental_ingest",
-                "phase4_end_of_stream_evaluation",
-                "no_full_response_buffering",
-                "first_byte_before_response_end",
-                "content_type_scope",
-                "request_body_limits",
-                "response_body_limits",
-                "header_limits",
-                "transport_metadata",
-            },
             {
                 capability
                 for case in by_id.values()
@@ -723,27 +711,39 @@ class NoCrsBaselineTest(unittest.TestCase):
                     "transport_metadata",
                 }
             },
+            {
+                "request_body_incremental_ingest",
+                "response_body_incremental_ingest",
+                "phase4_end_of_stream_evaluation",
+                "no_full_response_buffering",
+                "first_byte_before_response_end",
+                "content_type_scope",
+                "request_body_limits",
+                "response_body_limits",
+                "header_limits",
+                "transport_metadata",
+            },
         )
         self.assertEqual(
-            "phase4_deny_before_commit",
             by_id["deny_response_body_marker_403"]["deprecated_alias_for"],
+            "phase4_deny_before_commit",
         )
-        self.assertEqual(403, by_id["deny_response_body_marker_403"]["expected_status"])
+        self.assertEqual(by_id["deny_response_body_marker_403"]["expected_status"], 403)
         self.assertNotIn("runner_case", by_id["deny_response_body_marker_403"])
         self.assertEqual(
-            "deny_response_body_marker_403.yaml",
             by_id["phase4_deny_before_commit"]["runner_case"],
+            "deny_response_body_marker_403.yaml",
         )
         runner_cases = [case for case in no_crs.catalog_cases(catalog) if case.get("runner_case")]
-        self.assertEqual(10, len(runner_cases))
+        self.assertEqual(len(runner_cases), 10)
         self.assertNotIn("deny_response_header_marker_403", {case["case_id"] for case in runner_cases})
         self.assertEqual(
-            "full-lifecycle/phase3_deny_before_commit.yaml",
             by_id["phase3_deny_before_commit"]["runner_case"],
+            "full-lifecycle/phase3_deny_before_commit.yaml",
         )
         self.assertEqual(
-            "full-lifecycle/phase3_redirect_before_commit.yaml",
             by_id["phase3_redirect_before_commit"]["runner_case"],
+            "full-lifecycle/phase3_redirect_before_commit.yaml",
         )
         rules = no_crs.RULES_PATH.read_text(encoding="utf-8")
         self.assertIn('REQUEST_HEADERS:X-Modsec-Smoke "@streq block"', rules)
@@ -769,7 +769,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                     rules_preamble_file=no_crs.RULES_PATH,
                 )
                 content = output.read_text(encoding="utf-8")
-                self.assertEqual(1, content.count("id:1100001,"))
+                self.assertEqual(content.count("id:1100001,"), 1)
                 self.assertIn("id:1100403,", content)
                 self.assertNotIn("@@AUDIT_LOG@@", content)
 
@@ -784,8 +784,8 @@ class NoCrsBaselineTest(unittest.TestCase):
             with self.subTest(case_id=catalog_case["case_id"]):
                 fixture_path = no_crs.CATALOG_PATH.parent / catalog_case["request"]["fixture"]
                 fixture = load_case(fixture_path)
-                self.assertEqual("future", fixture["status"])
-                self.assertEqual("not_executed_until_real_host", fixture["full_lifecycle"]["evidence_status"])
+                self.assertEqual(fixture["status"], "future")
+                self.assertEqual(fixture["full_lifecycle"]["evidence_status"], "not_executed_until_real_host")
                 if catalog_case["case_id"] in {
                     "phase3_deny_before_commit",
                     "phase3_redirect_before_commit",
@@ -820,12 +820,12 @@ class NoCrsBaselineTest(unittest.TestCase):
         }
         record = no_crs.normalize_case_record(raw, "apache", case_by_id, [event])
         self.assertIsNotNone(record)
-        self.assertEqual("PASS", record["status"])
+        self.assertEqual(record["status"], "PASS")
         missing = dict(event)
         missing.pop("marker_split_across_chunks")
         record = no_crs.normalize_case_record(raw, "apache", case_by_id, [missing])
         self.assertIsNotNone(record)
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
 
     def test_phase3_prefers_a_matching_host_confirmed_outcome(self) -> None:
         catalog = no_crs.load_catalog()
@@ -868,8 +868,8 @@ class NoCrsBaselineTest(unittest.TestCase):
             "patched-native-lighttpd",
         )
         self.assertIsNotNone(record)
-        self.assertEqual("PASS", record["status"])
-        self.assertEqual(403, record["visible_http_status"])
+        self.assertEqual(record["status"], "PASS")
+        self.assertEqual(record["visible_http_status"], 403)
 
         false_outcome = dict(outcome)
         false_outcome["visible_http_status"] = 429
@@ -881,7 +881,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             "patched-native-lighttpd",
         )
         self.assertIsNotNone(record)
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
 
         wrong_mode = dict(outcome)
         wrong_mode["integration_mode"] = "stock-lighttpd-plugin"
@@ -893,7 +893,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             "patched-native-lighttpd",
         )
         self.assertIsNotNone(record)
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
         self.assertIn("integration_mode", record["reason"])
 
         not_executed = dict(raw)
@@ -906,7 +906,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             "patched-native-lighttpd",
         )
         self.assertIsNotNone(record)
-        self.assertEqual("NOT_EXECUTED", record["status"])
+        self.assertEqual(record["status"], "NOT_EXECUTED")
 
     def test_full_lifecycle_first_byte_proof_requires_a_causal_barrier_event(self) -> None:
         event = self.phase4_event(
@@ -924,15 +924,15 @@ class NoCrsBaselineTest(unittest.TestCase):
             body_bytes_inspected=17,
         )
         record = self.normalize_phase4("phase4_first_byte_before_response_end", event)
-        self.assertEqual("PASS", record["status"])
+        self.assertEqual(record["status"], "PASS")
         missing_barrier = dict(event)
         missing_barrier.pop("upstream_response_finished_at_first_byte")
         record = self.normalize_phase4("phase4_first_byte_before_response_end", missing_barrier)
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
         buffered = dict(event)
         buffered["upstream_response_finished_at_first_byte"] = True
         record = self.normalize_phase4("phase4_no_full_response_buffering", buffered)
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
 
     def test_first_byte_cases_choose_the_barrier_event_after_an_ordinary_phase4_event(self) -> None:
         catalog = no_crs.load_catalog()
@@ -985,7 +985,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                     [ordinary, barrier],
                 )
                 self.assertIsNotNone(record)
-                self.assertEqual("PASS", record["status"])
+                self.assertEqual(record["status"], "PASS")
                 self.assertIn("first_byte_before_response_end", record["observed_event_fields"])
 
     def test_end_of_stream_case_chooses_the_causal_eos_event(self) -> None:
@@ -1034,8 +1034,8 @@ class NoCrsBaselineTest(unittest.TestCase):
                         "connector_owned_full_response_buffer": False,
                     },
                 )
-            self.assertEqual([], first_byte_evidence_errors(evidence, require_complete_proof=True))
-            self.assertEqual("synthetic_harness", evidence["evidence_origin"])
+            self.assertEqual(first_byte_evidence_errors(evidence, require_complete_proof=True), [])
+            self.assertEqual(evidence["evidence_origin"], "synthetic_harness")
             self.assertFalse(evidence["promotion_eligible"])
             self.assertTrue(evidence["client_first_byte_received"])
             self.assertTrue(evidence["upstream_paused"])
@@ -1064,7 +1064,7 @@ class NoCrsBaselineTest(unittest.TestCase):
         no_crs.prevent_synthetic_first_byte_promotion(
             records, {"evidence_origin": "synthetic_harness"}
         )
-        self.assertEqual(["FAIL", "FAIL"], [record["status"] for record in records])
+        self.assertEqual([record["status"] for record in records], ["FAIL", "FAIL"])
         self.assertTrue(all("cannot promote" in record["reason"] for record in records))
 
     def test_control_file_port_validation_prevents_invalid_loopback_connections(self) -> None:
@@ -1109,7 +1109,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 time.sleep(0.01)
             self.assertTrue(ready.is_file())
             address = json.loads(ready.read_text(encoding="utf-8"))
-            self.assertEqual("127.0.0.1", address["upstream_host"])
+            self.assertEqual(address["upstream_host"], "127.0.0.1")
             self.assertIsInstance(address["upstream_port"], int)
             with connect_control_file_loopback(address, timeout=2.0) as client:
                 client.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
@@ -1137,16 +1137,16 @@ class NoCrsBaselineTest(unittest.TestCase):
                     },
                 )
                 self.assertEqual(
-                    [], first_byte_evidence_errors(
+                    first_byte_evidence_errors(
                         merged, require_real_host=True, require_complete_proof=True
-                    )
+                    ), []
                 )
                 release.touch()
                 while client.recv(4096):
                     continue
             thread.join(timeout=3.0)
             self.assertFalse(thread.is_alive())
-            self.assertEqual([], failures)
+            self.assertEqual(failures, [])
             daemon_evidence = json.loads(server_evidence.read_text(encoding="utf-8"))
             self.assertTrue(daemon_evidence["upstream_eos_sent"])
             self.assertNotIn("no-crs-response-body-marker", json.dumps(daemon_evidence))
@@ -1174,18 +1174,18 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "no_full_response_buffering": True,
                 "connector_owned_full_response_buffer": False,
             }), encoding="utf-8")
-            self.assertEqual(0, streaming_main([
+            self.assertEqual(streaming_main([
                 "--merge-evidence", "--control-root", str(root), "--paused-file", str(paused),
                 "--client-first-byte-file", str(client_output),
                 "--host-metadata-json", str(metadata), "--evidence-origin", "real_host",
                 "--output", str(output),
-            ]))
+            ]), 0)
             serialized = output.read_text(encoding="utf-8")
             self.assertNotIn("payload-is-never-read", serialized)
             evidence = json.loads(serialized)
-            self.assertEqual([], first_byte_evidence_errors(
+            self.assertEqual(first_byte_evidence_errors(
                 evidence, require_real_host=True, require_complete_proof=True
-            ))
+            ), [])
 
     def build_full_lifecycle_phase4_run(self, root: Path) -> Path:
         connector = "envoy"
@@ -1201,11 +1201,11 @@ class NoCrsBaselineTest(unittest.TestCase):
             encoding="utf-8",
         )
         run_dir = root / f"evidence/{connector}/{run_id}"
-        self.assertEqual(0, no_crs.main([
+        self.assertEqual(no_crs.main([
             "init", "--connector", connector, "--capabilities", str(capability_path),
             "--artifact-profile", "full_lifecycle", "--run-dir", str(run_dir),
             "--run-id", run_id, "--host-version", "1.0", "--libmodsecurity-version", "3.0",
-        ]))
+        ]), 0)
         event = {
             "connector": connector,
             "run_id": run_id,
@@ -1268,13 +1268,13 @@ class NoCrsBaselineTest(unittest.TestCase):
             "body_payload_persisted": False,
             "outcome": "PASS",
         }, control_root=root)
-        self.assertEqual(0, no_crs.main([
+        self.assertEqual(no_crs.main([
             "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
             "--source-result", str(source_path), "--source-events", str(events_path),
             "--stdout-log", str(stdout_path), "--stderr-log", str(stderr_path),
             "--host-log", str(host_log_path), "--first-byte-evidence", str(first_byte_path),
             "--stage-rc", "0", "--host-version", "1.0", "--libmodsecurity-version", "3.0",
-        ]))
+        ]), 0)
         return run_dir
 
     def assert_full_lifecycle_identity_rejected(self, run_dir: Path) -> None:
@@ -1285,10 +1285,10 @@ class NoCrsBaselineTest(unittest.TestCase):
     def test_full_lifecycle_checker_accepts_selected_workload_identity(self) -> None:
         with tempfile.TemporaryDirectory(prefix="full-lifecycle-check-") as temporary:
             run_dir = self.build_full_lifecycle_phase4_run(Path(temporary))
-            self.assertEqual([], full_lifecycle_check.first_byte_errors(run_dir))
-            self.assertEqual([], full_lifecycle_check.no_full_response_buffering_errors(run_dir))
-            self.assertEqual([], full_lifecycle_check.event_privacy_errors(run_dir))
-            self.assertEqual([], full_lifecycle_check.promotion_errors(run_dir))
+            self.assertEqual(full_lifecycle_check.first_byte_errors(run_dir), [])
+            self.assertEqual(full_lifecycle_check.no_full_response_buffering_errors(run_dir), [])
+            self.assertEqual(full_lifecycle_check.event_privacy_errors(run_dir), [])
+            self.assertEqual(full_lifecycle_check.promotion_errors(run_dir), [])
 
     def test_full_lifecycle_checker_rejects_foreign_or_missing_event_identity(self) -> None:
         mutations = {
@@ -1369,20 +1369,20 @@ class NoCrsBaselineTest(unittest.TestCase):
             connection_aborted=False,
         )
         self.assertEqual(
-            "PASS",
             self.normalize_phase4(
                 "phase4_deny_after_commit_log_only_minimal", minimal,
                 raw={"actual_status": 200},
             )["status"],
+            "PASS",
         )
         wrong_mode = dict(minimal)
         wrong_mode["late_intervention_mode"] = "safe"
         self.assertEqual(
-            "FAIL",
             self.normalize_phase4(
                 "phase4_deny_after_commit_log_only_minimal", wrong_mode,
                 raw={"actual_status": 200},
             )["status"],
+            "FAIL",
         )
         strict = self.phase4_event(
             **base,
@@ -1392,8 +1392,8 @@ class NoCrsBaselineTest(unittest.TestCase):
             transport_result="connection_aborted",
         )
         self.assertEqual(
-            "PASS",
             self.normalize_phase4("phase4_deny_after_commit_abort_strict", strict)["status"],
+            "PASS",
         )
 
     def test_selection_is_capability_driven(self) -> None:
@@ -1402,14 +1402,14 @@ class NoCrsBaselineTest(unittest.TestCase):
         payload["capabilities"]["phase2"]["state"] = "configured_not_exercised"  # type: ignore[index]
         plan = no_crs.select_cases("envoy", payload, no_crs.load_catalog())
         by_id = {item["case_id"]: item for item in plan["cases"]}
-        self.assertEqual("SELECTED", by_id["deny_request_body_marker_403"]["selection_status"])
-        self.assertEqual("UNSUPPORTED", by_id["deny_response_header_marker_403"]["selection_status"])
-        self.assertEqual("NOT IMPLEMENTED", no_crs.capability_cell({
+        self.assertEqual(by_id["deny_request_body_marker_403"]["selection_status"], "SELECTED")
+        self.assertEqual(by_id["deny_response_header_marker_403"]["selection_status"], "UNSUPPORTED")
+        self.assertEqual(no_crs.capability_cell({
             "capabilities_verified": [], "capability_states": {"phase4": "not_implemented"},
-        }, "phase4"))
-        self.assertEqual("IMPLEMENTED, NOT ASSERTED", no_crs.capability_cell({
+        }, "phase4"), "NOT IMPLEMENTED")
+        self.assertEqual(no_crs.capability_cell({
             "capabilities_verified": [], "capability_states": {"phase3": "implemented_not_asserted"},
-        }, "phase3"))
+        }, "phase3"), "IMPLEMENTED, NOT ASSERTED")
 
     def test_full_lifecycle_cases_stay_not_executed_without_the_new_host_capability(self) -> None:
         catalog = no_crs.load_catalog()
@@ -1423,8 +1423,8 @@ class NoCrsBaselineTest(unittest.TestCase):
         plan = no_crs.select_cases("envoy", payload, catalog)
         by_id = {item["case_id"]: item for item in plan["cases"]}
         self.assertEqual(
-            "NOT_EXECUTED",
             by_id["phase4_first_byte_before_response_end"]["selection_status"],
+            "NOT_EXECUTED",
         )
 
     def test_phase4_selection_keeps_not_implemented_distinct_from_host_unsupported(self) -> None:
@@ -1437,14 +1437,14 @@ class NoCrsBaselineTest(unittest.TestCase):
         lighttpd["capabilities"]["phase4_pre_commit_deny"]["reason"] = "unit-test missing implementation"  # type: ignore[index]
         plan = no_crs.select_cases("lighttpd", lighttpd, no_crs.load_catalog())
         by_id = {item["case_id"]: item for item in plan["cases"]}
-        self.assertEqual("NOT_EXECUTED", by_id["phase4_deny_before_commit"]["selection_status"])
+        self.assertEqual(by_id["phase4_deny_before_commit"]["selection_status"], "NOT_EXECUTED")
 
         envoy = manifest("envoy", executable=executable)
         envoy["capabilities"]["phase4"]["state"] = "unsupported_by_host_model"  # type: ignore[index]
         envoy["capabilities"]["phase4"]["reason"] = "unit-test host boundary"  # type: ignore[index]
         plan = no_crs.select_cases("envoy", envoy, no_crs.load_catalog())
         by_id = {item["case_id"]: item for item in plan["cases"]}
-        self.assertEqual("UNSUPPORTED", by_id["phase4_rule_observed"]["selection_status"])
+        self.assertEqual(by_id["phase4_rule_observed"]["selection_status"], "UNSUPPORTED")
 
     def test_phase4_normalizer_observes_rule_without_rewriting_a_visible_200(self) -> None:
         record = self.normalize_phase4(
@@ -1457,9 +1457,9 @@ class NoCrsBaselineTest(unittest.TestCase):
             ),
             raw={"actual_status": 200},
         )
-        self.assertEqual("PASS", record["status"])
-        self.assertEqual(200, record["actual_status"])
-        self.assertEqual(200, record["visible_http_status"])
+        self.assertEqual(record["status"], "PASS")
+        self.assertEqual(record["actual_status"], 200)
+        self.assertEqual(record["visible_http_status"], 200)
         self.assertTrue(record["response_started"])
         self.assertFalse(record["body_truncated"])
 
@@ -1479,18 +1479,18 @@ class NoCrsBaselineTest(unittest.TestCase):
             "observed_transport_result": "aborted",
             "response_body": "must-not-be-projected",
         })
-        self.assertEqual("deny", evidence["requested_action"])
-        self.assertEqual("abort_connection", evidence["actual_action"])
-        self.assertEqual(403, evidence["http_status"])
-        self.assertEqual(200, evidence["original_http_status"])
-        self.assertEqual(200, evidence["visible_http_status"])
+        self.assertEqual(evidence["requested_action"], "deny")
+        self.assertEqual(evidence["actual_action"], "abort_connection")
+        self.assertEqual(evidence["http_status"], 403)
+        self.assertEqual(evidence["original_http_status"], 200)
+        self.assertEqual(evidence["visible_http_status"], 200)
         self.assertTrue(evidence["late_intervention"])
         self.assertTrue(evidence["headers_sent"])
         self.assertTrue(evidence["response_started"])
         self.assertTrue(evidence["body_started"])
         self.assertFalse(evidence["body_truncated"])
         self.assertTrue(evidence["connection_aborted"])
-        self.assertEqual("connection_aborted", evidence["transport_result"])
+        self.assertEqual(evidence["transport_result"], "connection_aborted")
         self.assertNotIn("response_committed", evidence)
         self.assertNotIn("response_body", evidence)
 
@@ -1515,20 +1515,20 @@ class NoCrsBaselineTest(unittest.TestCase):
             "upstream_aborted": False,
             "response_body": "must-not-be-projected",
         })
-        self.assertEqual("safe", evidence["late_intervention_mode"])
-        self.assertEqual("out_of_scope", evidence["content_type_scope"])
-        self.assertEqual("process_partial", evidence["body_limit_outcome"])
+        self.assertEqual(evidence["late_intervention_mode"], "safe")
+        self.assertEqual(evidence["content_type_scope"], "out_of_scope")
+        self.assertEqual(evidence["body_limit_outcome"], "process_partial")
         self.assertTrue(evidence["marker_split_across_chunks"])
         self.assertTrue(evidence["end_of_stream_evaluation"])
         self.assertTrue(evidence["no_full_response_buffering"])
         self.assertTrue(evidence["first_byte_before_response_end"])
         self.assertTrue(evidence["client_first_byte_received"])
-        self.assertEqual(17, evidence["first_chunk_size"])
+        self.assertEqual(evidence["first_chunk_size"], 17)
         self.assertTrue(evidence["upstream_paused"])
         self.assertFalse(evidence["upstream_eos_sent_at_first_byte"])
         self.assertFalse(evidence["upstream_response_finished_at_first_byte"])
-        self.assertEqual("http1", evidence["transport_protocol"])
-        self.assertEqual("content_length", evidence["transfer_encoding"])
+        self.assertEqual(evidence["transport_protocol"], "http1")
+        self.assertEqual(evidence["transfer_encoding"], "content_length")
         self.assertNotIn("response_body", evidence)
 
     def test_phase4_log_extraction_projects_bounded_protocol_provenance(self) -> None:
@@ -1552,13 +1552,13 @@ class NoCrsBaselineTest(unittest.TestCase):
             "connection_id": "raw-quic-connection-id",
             "response_body": "must-not-be-projected",
         })
-        self.assertEqual("stream_reset", evidence["actual_action"])
-        self.assertEqual("stream_reset", evidence["transport_result"])
-        self.assertEqual("h3", evidence["requested_protocol"])
-        self.assertEqual("h3", evidence["negotiated_protocol"])
-        self.assertEqual("quic_udp", evidence["transport"])
-        self.assertEqual("h3", evidence["alpn"])
-        self.assertEqual(0, evidence["stream_id"])
+        self.assertEqual(evidence["actual_action"], "stream_reset")
+        self.assertEqual(evidence["transport_result"], "stream_reset")
+        self.assertEqual(evidence["requested_protocol"], "h3")
+        self.assertEqual(evidence["negotiated_protocol"], "h3")
+        self.assertEqual(evidence["transport"], "quic_udp")
+        self.assertEqual(evidence["alpn"], "h3")
+        self.assertEqual(evidence["stream_id"], 0)
         self.assertTrue(evidence["quic_connection_id_present"])
         self.assertFalse(evidence["fallback_used"])
         self.assertTrue(evidence["stream_reset"])
@@ -1578,12 +1578,12 @@ class NoCrsBaselineTest(unittest.TestCase):
         record = self.normalize_phase4(
             "phase4_deny_before_commit", event, raw={"actual_status": 403},
         )
-        self.assertEqual("PASS", record["status"])
+        self.assertEqual(record["status"], "PASS")
         record = self.normalize_phase4(
             "phase4_deny_before_commit", {**event, "headers_sent": True},
             raw={"actual_status": 403},
         )
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
 
     def test_phase4_log_only_requires_late_runtime_evidence(self) -> None:
         event = self.phase4_event(
@@ -1599,19 +1599,19 @@ class NoCrsBaselineTest(unittest.TestCase):
         record = self.normalize_phase4(
             "phase4_deny_after_commit_log_only", event, raw={"actual_status": 200},
         )
-        self.assertEqual("PASS", record["status"])
+        self.assertEqual(record["status"], "PASS")
         without_late = dict(event)
         without_late.pop("late_intervention")
         record = self.normalize_phase4(
             "phase4_deny_after_commit_log_only", without_late, raw={"actual_status": 200},
         )
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
         missing_rule = dict(event)
         missing_rule["rule_id"] = 1100302
         record = self.normalize_phase4(
             "phase4_deny_after_commit_log_only", missing_rule, raw={"actual_status": 200},
         )
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
 
     def test_phase4_normalizer_binds_multiple_events_by_transaction_id(self) -> None:
         pre_commit = self.phase4_event(
@@ -1650,8 +1650,8 @@ class NoCrsBaselineTest(unittest.TestCase):
             [pre_commit, log_only],
         )
         self.assertIsNotNone(record)
-        self.assertEqual("PASS", record["status"])
-        self.assertEqual(200, record["visible_http_status"])
+        self.assertEqual(record["status"], "PASS")
+        self.assertEqual(record["visible_http_status"], 200)
 
     def test_phase4_abort_requires_a_real_abort_action(self) -> None:
         event = self.phase4_event(
@@ -1665,15 +1665,15 @@ class NoCrsBaselineTest(unittest.TestCase):
             connection_aborted=True,
         )
         record = self.normalize_phase4("phase4_deny_after_commit_abort", event)
-        self.assertEqual("PASS", record["status"])
+        self.assertEqual(record["status"], "PASS")
         record = self.normalize_phase4(
             "phase4_deny_after_commit_abort", {**event, "connection_aborted": False},
         )
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
         record = self.normalize_phase4(
             "phase4_deny_after_commit_abort", {**event, "actual_action": "log_only"},
         )
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
 
     def test_phase4_client_status_matches_visible_status_when_observable(self) -> None:
         pre_commit = self.phase4_event(
@@ -1686,10 +1686,10 @@ class NoCrsBaselineTest(unittest.TestCase):
             connection_aborted=False,
         )
         self.assertEqual(
-            "FAIL",
             self.normalize_phase4(
                 "phase4_deny_before_commit", pre_commit, raw={"actual_status": 200},
             )["status"],
+            "FAIL",
         )
         log_only = self.phase4_event(
             http_status=403,
@@ -1702,10 +1702,10 @@ class NoCrsBaselineTest(unittest.TestCase):
             connection_aborted=False,
         )
         self.assertEqual(
-            "FAIL",
             self.normalize_phase4(
                 "phase4_deny_after_commit_log_only", log_only, raw={"actual_status": 403},
             )["status"],
+            "FAIL",
         )
 
         abort = self.phase4_event(
@@ -1721,20 +1721,20 @@ class NoCrsBaselineTest(unittest.TestCase):
         # A connection-reset transport has no observable final HTTP response,
         # so a supplied status is not compared to the already-visible status.
         self.assertEqual(
-            "PASS",
             self.normalize_phase4(
                 "phase4_deny_after_commit_abort",
                 abort,
                 raw={"actual_status": 418, "transport_result": "connection_aborted"},
             )["status"],
+            "PASS",
         )
         self.assertEqual(
-            "FAIL",
             self.normalize_phase4(
                 "phase4_deny_after_commit_abort",
                 abort,
                 raw={"actual_status": 418, "transport_result": "http_status"},
             )["status"],
+            "FAIL",
         )
 
     def test_phase4_pass_rejects_an_event_from_a_different_integration_mode(self) -> None:
@@ -1764,7 +1764,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             "native-mode",
         )
         self.assertIsNotNone(record)
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
         self.assertIn("integration_mode", record["reason"])
 
     def test_response_body_verification_requires_an_enforcement_outcome(self) -> None:
@@ -1806,7 +1806,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             [event],
         )
         self.assertIsNotNone(record)
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
         self.assertIn("expected status", record["reason"])
 
     def test_phase4_metadata_cases_require_actions_and_statuses_from_the_event(self) -> None:
@@ -1821,12 +1821,12 @@ class NoCrsBaselineTest(unittest.TestCase):
             connection_aborted=False,
         )
         self.assertEqual(
-            "PASS",
             self.normalize_phase4("phase4_event_contains_original_status", pre_commit)["status"],
+            "PASS",
         )
         self.assertEqual(
-            "PASS",
             self.normalize_phase4("phase4_event_contains_late_intervention_action", pre_commit)["status"],
+            "PASS",
         )
         for field in ("requested_action", "actual_action", "original_http_status", "visible_http_status"):
             with self.subTest(field=field):
@@ -1837,7 +1837,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                     if field in {"requested_action", "actual_action"}
                     else "phase4_event_contains_original_status"
                 )
-                self.assertEqual("FAIL", self.normalize_phase4(case_id, event)["status"])
+                self.assertEqual(self.normalize_phase4(case_id, event)["status"], "FAIL")
 
     def test_phase4_normalizer_rejects_unknown_or_payload_event_fields(self) -> None:
         event = self.phase4_event(visible_http_status=200, original_http_status=200)
@@ -1848,8 +1848,8 @@ class NoCrsBaselineTest(unittest.TestCase):
         ):
             with self.subTest(field=field):
                 self.assertEqual(
-                    "FAIL",
                     self.normalize_phase4("phase4_rule_observed", {**event, field: value})["status"],
+                    "FAIL",
                 )
         for field in ("event", "message_id"):
             with self.subTest(missing_phase4_identity=field):
@@ -1860,8 +1860,8 @@ class NoCrsBaselineTest(unittest.TestCase):
                     for error in no_crs.canonical_event_errors(missing)
                 ))
                 self.assertEqual(
-                    "FAIL",
                     self.normalize_phase4("phase4_rule_observed", missing)["status"],
+                    "FAIL",
                 )
 
     def test_common_bounded_event_metadata_is_accepted_without_payload(self) -> None:
@@ -1905,7 +1905,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             "previous_event_hash": 0,
             "event_hash": 1,
         }
-        self.assertEqual([], no_crs.canonical_event_errors(event, connector="apache"))
+        self.assertEqual(no_crs.canonical_event_errors(event, connector="apache"), [])
         initialized_common_event = {
             **event,
             "timestamp": "",
@@ -1943,9 +1943,9 @@ class NoCrsBaselineTest(unittest.TestCase):
             "previous_event_hash": 0,
             "event_hash": 0,
         }
-        self.assertEqual([], no_crs.canonical_event_errors(
+        self.assertEqual(no_crs.canonical_event_errors(
             initialized_common_event, connector="apache",
-        ))
+        ), [])
         self.assertTrue(no_crs.canonical_event_errors({
             **event,
             "response_body": "no-crs-response-body-marker",
@@ -1988,10 +1988,10 @@ class NoCrsBaselineTest(unittest.TestCase):
         )
         self.assertTrue(no_crs.phase4_event_matches_outcome(event, "deny_before_commit"))
         self.assertEqual(
-            "PASS",
             self.normalize_phase4(
                 "phase4_deny_before_commit", event, raw={"actual_status": 403},
             )["status"],
+            "PASS",
         )
 
     def test_phase4_statuses_and_legacy_alias_are_never_promoted_without_evidence(self) -> None:
@@ -2016,20 +2016,20 @@ class NoCrsBaselineTest(unittest.TestCase):
         alias = self.normalize_phase4(
             "deny_response_body_marker_403", event, raw={"actual_status": 403},
         )
-        self.assertEqual("PASS", alias["status"])
+        self.assertEqual(alias["status"], "PASS")
         failed_target = dict(alias)
         failed_target.update({"case_id": "phase4_deny_before_commit", "status": "FAIL"})
         records = [alias, failed_target]
         no_crs.resolve_deprecated_aliases(records, case_by_id)
-        self.assertEqual("FAIL", records[0]["status"])
+        self.assertEqual(records[0]["status"], "FAIL")
 
         target = self.normalize_phase4(
             "phase4_deny_before_commit", event, raw={"actual_status": 403},
         )
         records = [dict(alias, status="NOT_EXECUTED"), target]
         no_crs.resolve_deprecated_aliases(records, case_by_id)
-        self.assertEqual("PASS", records[0]["status"])
-        self.assertEqual("legacy_phase4_deny_before_commit", records[0]["expected_result"])
+        self.assertEqual(records[0]["status"], "PASS")
+        self.assertEqual(records[0]["expected_result"], "legacy_phase4_deny_before_commit")
 
     def test_valid_phase4_outcomes_derive_only_their_narrower_facts(self) -> None:
         catalog = no_crs.load_catalog()
@@ -2087,13 +2087,13 @@ class NoCrsBaselineTest(unittest.TestCase):
         for base_case_id, event, raw, absent_outcomes in outcomes:
             with self.subTest(base_case_id=base_case_id):
                 base = self.normalize_phase4(base_case_id, event, raw=raw)
-                self.assertEqual("PASS", base["status"])
+                self.assertEqual(base["status"], "PASS")
                 records = [base]
                 no_crs.append_derived_phase4_records(records, plan, case_by_id, [event])
                 by_id = {record["case_id"]: record for record in records}
-                self.assertEqual("PASS", by_id["phase4_rule_observed"]["status"])
-                self.assertEqual("PASS", by_id["phase4_event_contains_original_status"]["status"])
-                self.assertEqual("PASS", by_id["phase4_event_contains_late_intervention_action"]["status"])
+                self.assertEqual(by_id["phase4_rule_observed"]["status"], "PASS")
+                self.assertEqual(by_id["phase4_event_contains_original_status"]["status"], "PASS")
+                self.assertEqual(by_id["phase4_event_contains_late_intervention_action"]["status"], "PASS")
                 self.assertTrue(absent_outcomes.isdisjoint(by_id))
 
     def test_valid_safe_and_minimal_phase4_host_evidence_derives_narrower_facts(self) -> None:
@@ -2124,14 +2124,14 @@ class NoCrsBaselineTest(unittest.TestCase):
                 base = self.normalize_phase4(
                     base_case_id, event, raw={"actual_status": 200},
                 )
-                self.assertEqual("PASS", base["status"])
+                self.assertEqual(base["status"], "PASS")
                 self.assertIs(base["live_executed"], True)
                 records = [base]
                 no_crs.append_derived_phase4_records(records, plan, case_by_id, [event])
                 by_id = {record["case_id"]: record for record in records}
-                self.assertEqual("PASS", by_id["phase4_rule_observed"]["status"])
-                self.assertEqual("PASS", by_id["phase4_event_contains_original_status"]["status"])
-                self.assertEqual("PASS", by_id["phase4_event_contains_late_intervention_action"]["status"])
+                self.assertEqual(by_id["phase4_rule_observed"]["status"], "PASS")
+                self.assertEqual(by_id["phase4_event_contains_original_status"]["status"], "PASS")
+                self.assertEqual(by_id["phase4_event_contains_late_intervention_action"]["status"], "PASS")
 
     def test_phase4_derivation_does_not_promote_unexecuted_or_strict_outcomes(self) -> None:
         catalog = no_crs.load_catalog()
@@ -2156,7 +2156,7 @@ class NoCrsBaselineTest(unittest.TestCase):
         safe = self.normalize_phase4(
             "phase4_deny_after_commit_log_only_safe", safe_event, raw={"actual_status": 200},
         )
-        self.assertEqual("PASS", safe["status"])
+        self.assertEqual(safe["status"], "PASS")
         unexecuted = dict(safe, status="NOT_EXECUTED", live_executed=False)
         records = [unexecuted]
         no_crs.append_derived_phase4_records(records, plan, case_by_id, [safe_event])
@@ -2179,7 +2179,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             transport_result="connection_aborted",
         )
         strict = self.normalize_phase4("phase4_deny_after_commit_abort_strict", strict_event)
-        self.assertEqual("PASS", strict["status"])
+        self.assertEqual(strict["status"], "PASS")
         records = [strict]
         no_crs.append_derived_phase4_records(records, plan, case_by_id, [strict_event])
         self.assertNotIn(
@@ -2204,12 +2204,12 @@ class NoCrsBaselineTest(unittest.TestCase):
             }],
         )
         self.assertIsNotNone(record)
-        self.assertEqual("FAIL", record["status"])
+        self.assertEqual(record["status"], "FAIL")
 
     def test_protocol_contract_normalizes_h3_without_rewriting_legacy_transport_protocol(self) -> None:
-        self.assertEqual("h3", no_crs.normalize_semantic_value("negotiated_protocol", "HTTP/3"))
-        self.assertEqual("quic_udp", no_crs.normalize_semantic_value("transport", "QUIC/UDP"))
-        self.assertEqual("http2", no_crs.normalize_semantic_value("transport_protocol", "HTTP/2"))
+        self.assertEqual(no_crs.normalize_semantic_value("negotiated_protocol", "HTTP/3"), "h3")
+        self.assertEqual(no_crs.normalize_semantic_value("transport", "QUIC/UDP"), "quic_udp")
+        self.assertEqual(no_crs.normalize_semantic_value("transport_protocol", "HTTP/2"), "http2")
         self.assertIsNone(no_crs.normalize_semantic_value("transport_protocol", "HTTP/3"))
 
         event = no_crs.canonicalize_event_protocol_provenance({
@@ -2228,12 +2228,12 @@ class NoCrsBaselineTest(unittest.TestCase):
             "connection_id": "",
             "upstream_protocol": "",
         })
-        self.assertEqual("h3", event["requested_protocol"])
-        self.assertEqual("h3", event["negotiated_protocol"])
-        self.assertEqual("quic_udp", event["transport"])
-        self.assertEqual(0, event["stream_id"])
-        self.assertEqual("case-h3-normalization", event["transport_case_id"])
-        self.assertEqual("", event["connection_id"])
+        self.assertEqual(event["requested_protocol"], "h3")
+        self.assertEqual(event["negotiated_protocol"], "h3")
+        self.assertEqual(event["transport"], "quic_udp")
+        self.assertEqual(event["stream_id"], 0)
+        self.assertEqual(event["transport_case_id"], "case-h3-normalization")
+        self.assertEqual(event["connection_id"], "")
         with self.assertRaises(no_crs.ContractError):
             no_crs.canonicalize_event_protocol_provenance({
                 "transport_case_id": "contains a request payload",
@@ -2298,7 +2298,6 @@ class NoCrsBaselineTest(unittest.TestCase):
             "transport_result": "stream_reset",
         }
         self.assertEqual(
-            [],
             no_crs.protocol_pass_errors(
                 record,
                 event,
@@ -2306,6 +2305,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 expected_integration_mode="envoy_ext_proc",
                 required_protocol="h3",
             ),
+            [],
         )
 
         h2_event = dict(event)
@@ -2333,7 +2333,6 @@ class NoCrsBaselineTest(unittest.TestCase):
             "quic_version": None,
         })
         self.assertEqual(
-            [],
             no_crs.protocol_pass_errors(
                 h2_record,
                 h2_event,
@@ -2341,6 +2340,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 expected_integration_mode="envoy_ext_proc",
                 required_protocol="h2",
             ),
+            [],
         )
 
         fallback_record = dict(record)
@@ -2378,7 +2378,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             for error in no_crs.canonical_event_errors(event)
         ))
         event["connection_id"] = "sha256:" + ("a" * 32)
-        self.assertEqual([], no_crs.canonical_event_errors(event))
+        self.assertEqual(no_crs.canonical_event_errors(event), [])
 
     def test_zero_exit_without_case_evidence_is_not_pass(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
@@ -2386,28 +2386,28 @@ class NoCrsBaselineTest(unittest.TestCase):
             capability_path = root / "capabilities.json"
             capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
             run_dir = root / "evidence/envoy/run-1"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--run-dir", str(run_dir), "--run-id", "run-1", "--host-version", "1.0",
-            ]))
+            ]), 0)
             self.assertFalse((run_dir / "result.json").exists())
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--stage-rc", "0", "--host-version", "1.0",
-            ]))
+            ]), 0)
             result = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
-            self.assertEqual("NOT_EXECUTED", result["status"])
-            self.assertEqual(0, result["cases_passed"])
+            self.assertEqual(result["status"], "NOT_EXECUTED")
+            self.assertEqual(result["cases_passed"], 0)
             self.assertFalse(result["requests_sent"])
             tampered = dict(result)
             tampered.pop("status_counts")
             no_crs.write_json(run_dir / "result.json", tampered)
             schema_errors = no_crs.schema_errors(run_dir, "envoy", no_crs.load_capability_manifest(capability_path, "envoy"))
             self.assertTrue(any("missing required property status_counts" in error for error in schema_errors))
-            self.assertEqual(1, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "validate", "--evidence-root", str(run_dir), "--connector", "envoy",
                 "--capabilities", str(capability_path), "--check", "schema",
-            ]))
+            ]), 1)
             tampered = json.loads(json.dumps(result))
             tampered.pop("evidence_stages")
             no_crs.write_json(run_dir / "result.json", tampered)
@@ -2437,14 +2437,14 @@ class NoCrsBaselineTest(unittest.TestCase):
             capability_path = root / "capabilities.json"
             capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
             run_dir = root / "evidence/envoy/strict-schema"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--run-dir", str(run_dir), "--run-id", "strict-schema", "--host-version", "1.0",
-            ]))
-            self.assertEqual(0, no_crs.main([
+            ]), 0)
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--stage-rc", "0", "--host-version", "1.0",
-            ]))
+            ]), 0)
             capabilities = no_crs.load_capability_manifest(capability_path, "envoy")
             result = no_crs.load_json(run_dir / "result.json")
             self.assertIsInstance(result, dict)
@@ -2473,10 +2473,10 @@ class NoCrsBaselineTest(unittest.TestCase):
             capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
             run_dir = root / "already-created"
             run_dir.mkdir()
-            self.assertEqual(1, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--run-dir", str(run_dir), "--run-id", "run-existing",
-            ]))
+            ]), 1)
 
     def test_validator_rejects_evidence_from_other_current_commits(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
@@ -2484,14 +2484,14 @@ class NoCrsBaselineTest(unittest.TestCase):
             capability_path = root / "capabilities.json"
             capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
             run_dir = root / "evidence/envoy/stale-commit"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--run-dir", str(run_dir), "--run-id", "stale-commit",
-            ]))
-            self.assertEqual(0, no_crs.main([
+            ]), 0)
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--stage-rc", "0", "--host-version", "1.0",
-            ]))
+            ]), 0)
             fake_commit = "f" * 40
             for name in ("result.json", "manifest.json", "inventory/run.json"):
                 path = run_dir / name
@@ -2506,7 +2506,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                     "--connector-root", str(ROOT.parents[1]),
                     "--capabilities", str(capability_path), "--check", "status",
                 ])
-            self.assertEqual(1, rc)
+            self.assertEqual(rc, 1)
             self.assertIn("does not match current", stderr.getvalue())
 
     def test_init_rejects_symlink_in_run_parent_chain(self) -> None:
@@ -2519,10 +2519,10 @@ class NoCrsBaselineTest(unittest.TestCase):
             linked_parent = root / "linked-parent"
             linked_parent.symlink_to(real_parent, target_is_directory=True)
             run_dir = linked_parent / "envoy/run-parent-link"
-            self.assertEqual(1, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--run-dir", str(run_dir), "--run-id", "run-parent-link",
-            ]))
+            ]), 1)
             self.assertFalse((real_parent / "envoy/run-parent-link").exists())
 
     def test_run_directory_parent_must_be_private(self) -> None:
@@ -2557,10 +2557,10 @@ class NoCrsBaselineTest(unittest.TestCase):
             plan_path = root / "tampered-plan.json"
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
             run_dir = root / "evidence/envoy/tampered"
-            self.assertEqual(1, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--plan", str(plan_path), "--run-dir", str(run_dir), "--run-id", "tampered",
-            ]))
+            ]), 1)
             self.assertFalse(run_dir.exists())
 
     def test_finalize_refuses_symlink_log_destination_without_touching_victim(self) -> None:
@@ -2569,20 +2569,20 @@ class NoCrsBaselineTest(unittest.TestCase):
             capability_path = root / "capabilities.json"
             capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
             run_dir = root / "evidence/envoy/run-symlink"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--run-dir", str(run_dir), "--run-id", "run-symlink",
-            ]))
+            ]), 0)
             victim = root / "victim.txt"
             victim.write_text("do-not-overwrite\n", encoding="utf-8")
             source_log = root / "source.log"
             source_log.write_text("observed stdout\n", encoding="utf-8")
             (run_dir / "logs/stdout.log").symlink_to(victim)
-            self.assertEqual(1, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--stdout-log", str(source_log), "--stage-rc", "0",
-            ]))
-            self.assertEqual("do-not-overwrite\n", victim.read_text(encoding="utf-8"))
+            ]), 1)
+            self.assertEqual(victim.read_text(encoding="utf-8"), "do-not-overwrite\n")
             self.assertTrue((run_dir / "logs/stdout.log").is_symlink())
             self.assertTrue(any("symlink" in error for error in no_crs.layout_errors(run_dir)))
 
@@ -2592,16 +2592,16 @@ class NoCrsBaselineTest(unittest.TestCase):
             capability_path = root / "capabilities.json"
             capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
             run_dir = root / "evidence/envoy/run-payload"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--run-dir", str(run_dir), "--run-id", "run-payload",
-            ]))
+            ]), 0)
             events = root / "raw-events.jsonl"
             events.write_text(json.dumps({"connector": "envoy", "request_body": "sensitive"}) + "\n", encoding="utf-8")
-            self.assertEqual(1, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--source-events", str(events), "--stage-rc", "0",
-            ]))
+            ]), 1)
             self.assertFalse((run_dir / "events.jsonl").exists())
 
     def test_finalize_rejects_unreviewed_or_nested_event_metadata(self) -> None:
@@ -2609,7 +2609,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             "connector": "envoy", "transaction_id": "tx-event-contract",
             "rule_id": 1100001, "phase": "request_headers", "status": "blocked",
         }
-        self.assertEqual([], no_crs.canonical_event_errors(base_event))
+        self.assertEqual(no_crs.canonical_event_errors(base_event), [])
         for suffix, extra in (
             ("unknown", {"data": "arbitrary unreviewed payload"}),
             ("nested", {"metadata": {"snippet": "arbitrary unreviewed payload"}}),
@@ -2621,19 +2621,19 @@ class NoCrsBaselineTest(unittest.TestCase):
                 capability_path = root / "capabilities.json"
                 capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
                 run_dir = root / f"evidence/envoy/{suffix}"
-                self.assertEqual(0, no_crs.main([
+                self.assertEqual(no_crs.main([
                     "init", "--connector", "envoy", "--capabilities", str(capability_path),
                     "--run-dir", str(run_dir), "--run-id", suffix,
-                ]))
+                ]), 0)
                 events = root / "events.jsonl"
                 events.write_text(json.dumps({**base_event, **extra}) + "\n", encoding="utf-8")
                 self.assertTrue(no_crs.canonical_event_errors(
                     {**base_event, **extra}, connector="envoy",
                 ))
-                self.assertEqual(1, no_crs.main([
+                self.assertEqual(no_crs.main([
                     "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                     "--source-events", str(events), "--stage-rc", "0",
-                ]))
+                ]), 1)
                 self.assertFalse((run_dir / "events.jsonl").exists())
 
     def test_event_schema_detects_post_finalize_tampering(self) -> None:
@@ -2653,18 +2653,18 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "connector": "envoy", "transaction_id": "tx-tampered", "rule_id": 1100001,
                 "phase": 1, "status": 403,
             }) + "\n", encoding="utf-8")
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--evidence-stage", "minimal_runtime_smoke", "--run-dir", str(run_dir),
                 "--run-id", "tampered-event", "--host-version", "1.0",
                 "--libmodsecurity-version", "3.0.15",
-            ]))
-            self.assertEqual(0, no_crs.main([
+            ]), 0)
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--source-result", str(source), "--source-events", str(events),
                 "--stage-rc", "0", "--host-version", "1.0",
                 "--libmodsecurity-version", "3.0.15",
-            ]))
+            ]), 0)
             (run_dir / "events.jsonl").write_text(json.dumps({
                 "connector": "envoy", "transaction_id": "tx-tampered", "rule_id": 1100001,
                 "phase": 1, "status": 403, "metadata": {"payload": "unreviewed"},
@@ -2674,9 +2674,9 @@ class NoCrsBaselineTest(unittest.TestCase):
                 run_dir, "envoy", capabilities,
             )))
             self.assertTrue(any("unexpected property metadata" in error for error in no_crs.body_payload_errors(run_dir)))
-            self.assertEqual((False, False), no_crs.canonical_core_event_contract(
+            self.assertEqual(no_crs.canonical_core_event_contract(
                 no_crs.read_jsonl(run_dir / "events.jsonl"), "envoy",
-            ))
+            ), (False, False))
 
     def test_http_403_without_observed_rule_id_is_not_deny_pass(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
@@ -2691,19 +2691,19 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "allowed_request_status": 200, "blocked_request_status": 403,
                 "observed_rule_ids": [],
             }), encoding="utf-8")
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--run-dir", str(run_dir), "--run-id", "run-2", "--host-version", "1.0",
-            ]))
-            self.assertEqual(1, no_crs.main([
+            ]), 0)
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--source-result", str(source), "--stage-rc", "0", "--host-version", "1.0",
-            ]))
+            ]), 1)
             records = {record["case_id"]: record for record in no_crs.read_jsonl(run_dir / "results.jsonl")}
             result = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
-            self.assertEqual("PASS", records["allow_without_marker"]["status"])
-            self.assertEqual("FAIL", records["deny_header_marker_403"]["status"])
-            self.assertEqual([], records["deny_header_marker_403"]["observed_rule_ids"])
+            self.assertEqual(records["allow_without_marker"]["status"], "PASS")
+            self.assertEqual(records["deny_header_marker_403"]["status"], "FAIL")
+            self.assertEqual(records["deny_header_marker_403"]["observed_rule_ids"], [])
             partitions = [
                 set(result["capabilities_verified"]), set(result["capabilities_unsupported"]),
                 set(result["capabilities_not_exercised"]),
@@ -2719,19 +2719,19 @@ class NoCrsBaselineTest(unittest.TestCase):
             capability_path = root / "capabilities.json"
             capability_path.write_text(json.dumps(manifest()), encoding="utf-8")
             plan_path = root / "minimal-plan.json"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "select", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--evidence-stage", "minimal_runtime_smoke", "--output", str(plan_path),
-            ]))
+            ]), 0)
             plan = json.loads(plan_path.read_text(encoding="utf-8"))
-            self.assertEqual(2, len(plan["cases"]))
+            self.assertEqual(len(plan["cases"]), 2)
             run_dir = root / "evidence/envoy/minimal"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "init", "--connector", "envoy", "--capabilities", str(capability_path),
                 "--evidence-stage", "minimal_runtime_smoke", "--plan", str(plan_path),
                 "--run-dir", str(run_dir), "--run-id", "minimal", "--host-version", "1.0",
                 "--libmodsecurity-version", "3.0.15",
-            ]))
+            ]), 0)
             source = root / "source.json"
             source.write_text(json.dumps({
                 "connector": "envoy", "status": "PASS", "started": True,
@@ -2743,22 +2743,22 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "connector": "envoy", "transaction_id": "tx-minimal", "rule_id": 1100001,
                 "phase": "request_headers", "status": 403,
             }) + "\n", encoding="utf-8")
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                 "--source-result", str(source), "--source-events", str(events),
                 "--stage-rc", "0", "--host-version", "1.0",
                 "--libmodsecurity-version", "3.0.15",
-            ]))
+            ]), 0)
             result = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
-            self.assertEqual("minimal_runtime_smoke", result["evidence_stage"])
-            self.assertEqual("PASS", result["status"])
-            self.assertEqual(2, result["cases_total"])
-            self.assertEqual(2, result["cases_passed"])
+            self.assertEqual(result["evidence_stage"], "minimal_runtime_smoke")
+            self.assertEqual(result["status"], "PASS")
+            self.assertEqual(result["cases_total"], 2)
+            self.assertEqual(result["cases_passed"], 2)
             self.assertTrue(result["event_metadata_verified"])
             self.assertTrue(result["body_payload_absent_from_events"])
-            self.assertEqual(1, no_crs.read_jsonl(run_dir / "events.jsonl")[0]["phase"])
-            self.assertEqual("PASS", no_crs.result_cell(result, "minimal_runtime_smoke"))
-            self.assertEqual("NOT EXECUTED", no_crs.result_cell(result, "no_crs_baseline"))
+            self.assertEqual(no_crs.read_jsonl(run_dir / "events.jsonl")[0]["phase"], 1)
+            self.assertEqual(no_crs.result_cell(result, "minimal_runtime_smoke"), "PASS")
+            self.assertEqual(no_crs.result_cell(result, "no_crs_baseline"), "NOT EXECUTED")
 
             tampered = json.loads(json.dumps(result))
             tampered["status_counts"]["PASS"] = 999
@@ -2789,8 +2789,8 @@ class NoCrsBaselineTest(unittest.TestCase):
             no_crs.write_json(run_dir / "result.json", result)
 
             inventory = json.loads((run_dir / "inventory/run.json").read_text(encoding="utf-8"))
-            self.assertEqual("minimal_runtime_smoke", inventory["evidence_stage"])
-            self.assertEqual("no-crs-baseline", inventory["ruleset"])
+            self.assertEqual(inventory["evidence_stage"], "minimal_runtime_smoke")
+            self.assertEqual(inventory["ruleset"], "no-crs-baseline")
             inventory["evidence_stage"] = "no_crs_baseline"
             no_crs.write_json(run_dir / "inventory/run.json", inventory)
             self.assertTrue(any(
@@ -2820,7 +2820,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                     "--run-id", run_id, "--host-version", "1.0",
                     "--libmodsecurity-version", lib_version,
                 ]
-                self.assertEqual(0, no_crs.main(init_args))
+                self.assertEqual(no_crs.main(init_args), 0)
                 finalize_args = [
                     "finalize", "--run-dir", str(run_dir), "--capabilities", str(capability_path),
                     "--source-result", str(source), "--stage-rc", "0", "--host-version", "1.0",
@@ -2833,9 +2833,9 @@ class NoCrsBaselineTest(unittest.TestCase):
                         "phase": "request_headers", "status": "blocked",
                     }) + "\n", encoding="utf-8")
                     finalize_args.extend(["--source-events", str(events)])
-                self.assertEqual(1, no_crs.main(finalize_args))
+                self.assertEqual(no_crs.main(finalize_args), 1)
                 result = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
-                self.assertEqual("FAIL", result["status"])
+                self.assertEqual(result["status"], "FAIL")
                 if with_event:
                     self.assertTrue(result["pass_gate_failures"])
                 else:
@@ -2872,7 +2872,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             }
 
             def fake_git_value(checkout: Path, *arguments: str) -> str:
-                self.assertEqual(("rev-parse", "HEAD"), arguments)
+                self.assertEqual(arguments, ("rev-parse", "HEAD"))
                 if Path(checkout).resolve() == connector_root.resolve():
                     return str(state["connector_commit"])
                 if Path(checkout).resolve() == no_crs.FRAMEWORK_ROOT.resolve():
@@ -2892,28 +2892,28 @@ class NoCrsBaselineTest(unittest.TestCase):
                     no_crs, "git_worktree_clean", side_effect=fake_git_worktree_clean,
                 ),
             ):
-                self.assertEqual(0, no_crs.main([
+                self.assertEqual(no_crs.main([
                     "init", "--connector", "envoy", "--capabilities", str(capability_path),
                     "--evidence-stage", "minimal_runtime_smoke", "--run-dir", str(run_dir),
                     "--run-id", "provenance-race", "--connector-root", str(connector_root),
                     "--host-version", "1.0", "--libmodsecurity-version", "3.0.15",
-                ]))
+                ]), 0)
                 state.update({
                     "connector_commit": "d" * 40,
                     "framework_commit": "e" * 40,
                     "connector_clean": False,
                     "framework_clean": False,
                 })
-                self.assertEqual(1, no_crs.main([
+                self.assertEqual(no_crs.main([
                     "finalize", "--run-dir", str(run_dir),
                     "--connector-root", str(connector_root),
                     "--capabilities", str(capability_path), "--source-result", str(source),
                     "--source-events", str(events), "--stage-rc", "0",
                     "--host-version", "1.0", "--libmodsecurity-version", "3.0.15",
-                ]))
+                ]), 1)
 
             result = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
-            self.assertEqual("FAIL", result["status"])
+            self.assertEqual(result["status"], "FAIL")
             self.assertFalse(result["connector_worktree_clean"])
             self.assertFalse(result["framework_worktree_clean"])
             self.assertEqual("d" * 40, result["connector_commit_at_finalize"])
@@ -2928,16 +2928,16 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "PASS requires an unchanged framework commit through finalize",
                 result["pass_gate_failures"],
             )
-            self.assertEqual([], no_crs.status_errors(run_dir))
+            self.assertEqual(no_crs.status_errors(run_dir), [])
 
     def test_body_payload_scanner_rejects_body_and_secret_fields(self) -> None:
         errors = no_crs.forbidden_payload_errors({
             "request_body": "redacted?", "nested": {"authorization": "Bearer example"},
         })
-        self.assertEqual(2, len(errors))
-        self.assertEqual([], no_crs.forbidden_payload_errors({
+        self.assertEqual(len(errors), 2)
+        self.assertEqual(no_crs.forbidden_payload_errors({
             "request_body_size": 32, "body_bytes_inspected": 32, "truncated": False,
-        }))
+        }), [])
 
     def test_summary_never_promotes_missing_results(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
@@ -2945,13 +2945,13 @@ class NoCrsBaselineTest(unittest.TestCase):
             output_json = root / "summary.json"
             output_md = root / "summary.md"
             output_de = root / "summary.de.md"
-            self.assertEqual(0, no_crs.main([
+            self.assertEqual(no_crs.main([
                 "summarize", "--evidence-root", str(root / "missing"),
                 "--run-id", "missing-run", "--output-json", str(output_json),
                 "--output-md", str(output_md), "--output-md-de", str(output_de),
-            ]))
+            ]), 0)
             payload = json.loads(output_json.read_text(encoding="utf-8"))
-            self.assertEqual({"NOT_EXECUTED": 6}, payload["status_counts"])
+            self.assertEqual(payload["status_counts"], {"NOT_EXECUTED": 6})
             english = output_md.read_text(encoding="utf-8")
             german = output_de.read_text(encoding="utf-8")
             self.assertNotIn("| PASS |", english)
@@ -2974,11 +2974,11 @@ class NoCrsBaselineTest(unittest.TestCase):
             output_json = root / "summary.json"
             stderr = io.StringIO()
             with redirect_stderr(stderr):
-                self.assertEqual(1, no_crs.main([
+                self.assertEqual(no_crs.main([
                     "summarize", "--evidence-root", str(root), "--run-id", "run",
                     "--output-json", str(output_json), "--output-md", str(root / "summary.md"),
                     "--output-md-de", str(root / "summary.de.md"),
-                ]))
+                ]), 1)
             self.assertFalse(output_json.exists())
             self.assertIn("refusing to summarize invalid canonical result", stderr.getvalue())
 

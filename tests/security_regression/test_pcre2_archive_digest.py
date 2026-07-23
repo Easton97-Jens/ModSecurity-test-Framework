@@ -239,22 +239,22 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
         for case, digest in self.fixture["negative_digests"].items():
             with self.subTest(case=case):
                 completed, tar_log, status, _ = self._run_case(digest)
-                self.assertEqual(77, completed.returncode, completed.stdout + completed.stderr)
-                self.assertEqual("", tar_log)
+                self.assertEqual(completed.returncode, 77, completed.stdout + completed.stderr)
+                self.assertEqual(tar_log, "")
                 if case == "empty":
                     self.assertIn("missing required SHA256 digest for pcre2", status)
                 elif case == "wrong":
                     self.assertIn("SHA256 mismatch for pcre2", status)
                 elif case == "invalid":
-                    self.assertEqual(64, len(digest))
+                    self.assertEqual(len(digest), 64)
                     self.assertIn("invalid SHA256 digest for pcre2", status)
                 else:
                     self.assertIn("invalid SHA256 digest for pcre2", status)
 
     def test_matching_digest_reaches_pcre2_tar_after_verification(self):
         completed, tar_log, status, pcre2_config_exists = self._run_case(None)
-        self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
-        self.assertEqual(1, len(tar_log.splitlines()))
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+        self.assertEqual(len(tar_log.splitlines()), 1)
         self.assertIn("pass: pcre2 sha256 verified", status)
         self.assertTrue(pcre2_config_exists)
 

@@ -87,7 +87,7 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
         self.assertIn("mrts_path_matches_kind=$2", source)
         self.assertNotIn('case "$2" in', source)
         self.assertIn('return "$mrts_path_matches_status"', source)
-        self.assertEqual(3, source.count("command -p find -H"))
+        self.assertEqual(source.count("command -p find -H"), 3)
 
     def test_path_classifier_rejects_unknown_match_kind(self) -> None:
         unknown_kind_script = "\n".join(
@@ -114,9 +114,9 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 NORMAL_PATH=str(normal_file),
             )
 
-            self.assertEqual(2, result.returncode, result.stdout + result.stderr)
-            self.assertEqual("rejected:2\n", result.stdout)
-            self.assertEqual("", result.stderr)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, "rejected:2\n")
+            self.assertEqual(result.stderr, "")
 
     def test_path_classifier_rejects_function_and_path_shadowing(self) -> None:
         missing_path_script = "\n".join(
@@ -154,12 +154,12 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                         MISSING_PATH=str(temporary_root / "missing path"),
                     )
 
-                    self.assertNotEqual(0, result.returncode)
+                    self.assertNotEqual(result.returncode, 0)
                     self.assertRegex(result.stdout, r"^rejected:[1-9][0-9]*\n$")
                     self.assertEqual(
-                        f"rejected:{result.returncode}\n", result.stdout
+                        result.stdout, f"rejected:{result.returncode}\n"
                     )
-                    self.assertEqual("", result.stderr)
+                    self.assertEqual(result.stderr, "")
 
                     for match_kind, normal_path in (
                         ("regular", normal_file),
@@ -189,14 +189,14 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                             )
 
                             self.assertEqual(
-                                0,
                                 legitimate.returncode,
+                                0,
                                 legitimate.stdout + legitimate.stderr,
                             )
                             self.assertEqual(
-                                f"accepted:{match_kind}\n", legitimate.stdout
+                                legitimate.stdout, f"accepted:{match_kind}\n"
                             )
-                            self.assertEqual("", legitimate.stderr)
+                            self.assertEqual(legitimate.stderr, "")
 
     def test_case_root_values_remain_literal_under_posix_sh(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mrts-common-posix-") as temporary:
@@ -232,12 +232,12 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                         )
 
                         self.assertEqual(
-                            0,
                             result.returncode,
+                            0,
                             result.stdout + result.stderr,
                         )
-                        self.assertEqual(f"{expected_value}\n", result.stdout)
-                        self.assertEqual("", result.stderr)
+                        self.assertEqual(result.stdout, f"{expected_value}\n")
+                        self.assertEqual(result.stderr, "")
 
     def test_results_dir_preserves_nonempty_literal_values(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mrts-common-posix-") as temporary:
@@ -258,12 +258,12 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                     )
 
                     self.assertEqual(
-                        0,
                         result.returncode,
+                        0,
                         result.stdout + result.stderr,
                     )
-                    self.assertEqual(f"{results_dir}\n", result.stdout)
-                    self.assertEqual("", result.stderr)
+                    self.assertEqual(result.stdout, f"{results_dir}\n")
+                    self.assertEqual(result.stderr, "")
 
     def test_glob_like_preamble_path_is_compared_literally(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mrts-common-posix-") as temporary:
@@ -283,9 +283,9 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 PREAMBLE=str(preamble),
             )
 
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-            self.assertEqual(f"{preamble}\n", result.stdout)
-            self.assertEqual("", result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, f"{preamble}\n")
+            self.assertEqual(result.stderr, "")
             self.assertFalse(
                 (temporary_root / "build" / "preambles" / "mrts-combined.load").exists()
             )
@@ -308,9 +308,9 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 SYNTHETIC_ROOT=str(temporary_root),
             )
 
-            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-            self.assertEqual("ready\n", result.stdout)
-            self.assertEqual("", result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, "ready\n")
+            self.assertEqual(result.stderr, "")
 
     def test_prepared_variant_fails_closed_for_missing_paths(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mrts-common-posix-") as temporary:
@@ -330,8 +330,8 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
             )
 
             self.assertEqual(
-                77,
                 missing_load.returncode,
+                77,
                 missing_load.stdout + missing_load.stderr,
             )
             self.assertIn("prepared MRTS load file missing", missing_load.stderr)
@@ -350,8 +350,8 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
             )
 
             self.assertEqual(
-                77,
                 missing_case_root.returncode,
+                77,
                 missing_case_root.stdout + missing_case_root.stderr,
             )
             self.assertIn("prepared MRTS case root missing", missing_case_root.stderr)
@@ -391,11 +391,11 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                     )
 
                     self.assertEqual(
-                        77,
                         result.returncode,
+                        77,
                         result.stdout + result.stderr,
                     )
-                    self.assertEqual("", result.stdout)
+                    self.assertEqual(result.stdout, "")
                     self.assertIn("prepared MRTS load file missing", result.stderr)
 
     def test_prepared_feature_demo_requires_a_literal_regular_file(self) -> None:
@@ -422,9 +422,9 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 SYNTHETIC_ROOT=str(temporary_root),
             )
 
-            self.assertEqual(0, enabled.returncode, enabled.stdout + enabled.stderr)
-            self.assertEqual("ready\n", enabled.stdout)
-            self.assertEqual("", enabled.stderr)
+            self.assertEqual(enabled.returncode, 0, enabled.stdout + enabled.stderr)
+            self.assertEqual(enabled.stdout, "ready\n")
+            self.assertEqual(enabled.stderr, "")
 
             missing = self.run_shell(
                 self.prepared_variant_script(),
@@ -438,7 +438,7 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 SYNTHETIC_ROOT=str(temporary_root),
             )
 
-            self.assertEqual(77, missing.returncode, missing.stdout + missing.stderr)
+            self.assertEqual(missing.returncode, 77, missing.stdout + missing.stderr)
             self.assertIn(
                 "prepared feature-demo MRTS load file missing", missing.stderr
             )
@@ -473,14 +473,14 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
             distinct = self.run_shell(distinct_script, temporary_root)
 
             self.assertEqual(
-                77,
                 duplicate.returncode,
+                77,
                 duplicate.stdout + duplicate.stderr,
             )
             self.assertIn("duplicate rule IDs", duplicate.stderr)
-            self.assertEqual(0, distinct.returncode, distinct.stdout + distinct.stderr)
-            self.assertEqual("safe\n", distinct.stdout)
-            self.assertEqual("", distinct.stderr)
+            self.assertEqual(distinct.returncode, 0, distinct.stdout + distinct.stderr)
+            self.assertEqual(distinct.stdout, "safe\n")
+            self.assertEqual(distinct.stderr, "")
 
     def test_feature_and_prepared_values_select_only_the_literal_enabled_path(self) -> None:
         import_script = "\n".join(
@@ -517,9 +517,9 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO="1",
                 **import_roots,
             )
-            self.assertEqual(0, enabled.returncode, enabled.stdout + enabled.stderr)
-            self.assertEqual("checked\ndone\n", enabled.stdout)
-            self.assertEqual("", enabled.stderr)
+            self.assertEqual(enabled.returncode, 0, enabled.stdout + enabled.stderr)
+            self.assertEqual(enabled.stdout, "checked\ndone\n")
+            self.assertEqual(enabled.stderr, "")
 
             for feature_value in ("", " ", "*", "-1"):
                 with self.subTest(feature_value=feature_value):
@@ -530,12 +530,12 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                         **import_roots,
                     )
                     self.assertEqual(
-                        0,
                         disabled.returncode,
+                        0,
                         disabled.stdout + disabled.stderr,
                     )
-                    self.assertEqual("done\n", disabled.stdout)
-                    self.assertEqual("", disabled.stderr)
+                    self.assertEqual(disabled.stdout, "done\n")
+                    self.assertEqual(disabled.stderr, "")
 
             for prepared_value, expected_output in (
                 ("1", ""),
@@ -552,12 +552,12 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                         MODSECURITY_MRTS_VARIANT="with-mrts",
                     )
                     self.assertEqual(
-                        0,
                         runtime.returncode,
+                        0,
                         runtime.stdout + runtime.stderr,
                     )
                     self.assertEqual(expected_output, runtime.stdout)
-                    self.assertEqual("", runtime.stderr)
+                    self.assertEqual(runtime.stderr, "")
 
 
 if __name__ == "__main__":

@@ -71,7 +71,7 @@ class CrsVersionPinningPathTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("ci/space name.sh", result.stderr)
         self.assertIn("ci/line\nbreak.sh", result.stderr)
 
@@ -80,14 +80,14 @@ class CrsVersionPinningPathTests(unittest.TestCase):
             {"ci/ordinary.sh": "#!/bin/sh\nprintf '%s\\n' ordinary\n"}
         )
 
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_preserves_the_ordinary_path_provenance_check(self) -> None:
         result = self.run_checker(
             {"ci/ordinary.sh": "CRS_RELEASE_TAG=v0.0.0\n"}
         )
 
-        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("ci/ordinary.sh", result.stderr)
 
 
