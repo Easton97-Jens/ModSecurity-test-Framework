@@ -10,7 +10,7 @@
 | UTC date | `2026-07-22` |
 | Framework branch predecessor revision | `1fd3b362e0fed9766c6920e3c7bd1939535850f2` |
 | Hosted PR base revision | `f73f8842f45318e2df8aff1d31855eeb7c20a22f` |
-| Issue or pull request | Framework PR #42; the initial CPython-3.14.6 migration was submitted as `e0564d219980d62bc37162ac6c11641f289f1b71`. Hosted CPython 3.14.6 availability and Sonar passed there, while OSV exposed a trusted-base CP313/PR-head CP314 lock mismatch and Ruff reported formatting drift. The current security-preserving follow-up is locally validated; its new exact-head, hosted, and resulting-master evidence remain pending. |
+| Issue or pull request | Framework PR #42; the initial CPython-3.14.6 migration was submitted as `e0564d219980d62bc37162ac6c11641f289f1b71`. Hosted CPython 3.14.6 availability and Sonar passed there, while OSV exposed a trusted-base CP313/PR-head CP314 lock mismatch and Ruff reported formatting drift. The security-preserving source follow-up at `2930e04e1558b5b10bdeb87a76abb077a2085566` corrected those controls and the focused Pyright test-fixture typing issue. Its hosted `python-ci-security-quality` run `29962792445` / job `89067507532`, repaired OSV control, all non-skipped PR checks, and PR SonarQube Cloud Quality Gate passed. Resulting-master evidence is unobserved; every later PR head requires fresh exact-head evidence. |
 
 ## Motivation and problem statement
 
@@ -99,7 +99,8 @@ Record does not relabel or close those distinct findings.
 | Hosted initial submitted head | `1` | Run `29956021487` correctly rejected CP314 PyYAML against the trusted base's CP313-only hash lock; run `29956021568` passed lint and reported four deterministic Ruff format changes. The same head confirmed a hosted CPython 3.14.6 runtime and passed Sonar. | GitHub Actions runs `29956021487` / `29956021568`, Framework PR #42 head `e0564d219980d62bc37162ac6c11641f289f1b71` |
 | Trusted-base OSV follow-up contracts | `0` | Full `make test-ci-security-contract` passed 133 tests, including missing-selector-f73 CP313, non-allowlisted-CP313 rejection, base-3.14, and obsolete PR-head-selector regressions. | Task-owned follow-up validation root |
 | Deterministic Ruff follow-up | `0` | The reviewed checksum-verified Ruff 0.15.22 binary passed the exact hosted lint and format scope after formatting the four reported files. | Task-owned reviewed CI-tool extraction |
-| Python.org updater/network validation, fresh hosted PR checks, and resulting-master checks | `not_run` | Fresh exact-follow-up-head evidence remains required after the normal PR update. | None |
+| Hosted exact source-follow-up PR checks | `0` | Exact source head `2930e04e1558b5b10bdeb87a76abb077a2085566` passed hosted `python-ci-security-quality` run `29962792445` / job `89067507532`; the repaired OSV control, all other non-skipped PR checks, and the PR SonarQube Cloud Quality Gate also passed. | GitHub Actions, GitHub PR #42 checks, and SonarQube Cloud PR #42 analysis |
+| Python.org updater/network validation and resulting-master checks | `not_run` | No Python.org live updater-network run was performed. PR #42 has not merged, so no resulting-master SHA or resulting-master check exists. Every later PR head requires fresh exact-head evidence. | None |
 
 ## Security impact
 
@@ -107,19 +108,19 @@ This record describes a CI security-boundary migration; it does not claim a secu
 
 ## Documentation and runtime evidence
 
-The paired CI-security guide documents the 3.14.6 baseline, strict stable CPython 3.14 grammar, controlled candidate path, Python.org updater, publisher branch, static-tool baselines, exact CP314 PyYAML tuple, and retained OSV trust boundary including its one SHA-bound CP313 compatibility case. The README indexes this pair. Local contract and lock-dry-run evidence was collected with CPython 3.14.4; the initial hosted head additionally confirmed a 3.14.6 runner but does not substitute for the fresh follow-up workflow result. No connector runtime, Python.org live updater request, or real package installation was claimed.
+The paired CI-security guide documents the 3.14.6 baseline, strict stable CPython 3.14 grammar, controlled candidate path, Python.org updater, publisher branch, static-tool baselines, exact CP314 PyYAML tuple, and retained OSV trust boundary including its one SHA-bound CP313 compatibility case. The README indexes this pair. Local contract and lock-dry-run evidence was collected with CPython 3.14.4; exact source follow-up `2930e04e1558b5b10bdeb87a76abb077a2085566` additionally passed hosted Python quality, repaired OSV, other non-skipped PR checks, and the PR SonarQube Cloud Quality Gate. That source-head result does not substitute for fresh evidence for a later PR head or resulting master. No connector runtime, Python.org live updater request, or real package installation was claimed.
 
 ## Checks not run
 
 - No Python.org live request or updater-network check was run.
 - No real package installation was run; the CP314 evidence uses a retained artifact and pip dry-run only.
-- No local Pyright executable was installed or substituted. A retained checksum-verified Ruff binary was used only for the exact CI lint/format scope; a fresh hosted Ruff and Pyright result remains required.
-- No normal follow-up commit, push, fresh exact submitted PR-head, fresh GitHub Actions/SonarQube Cloud result, merge, or resulting-master check was run or observed for this follow-up.
+- No local Pyright executable was installed or substituted. A retained checksum-verified Ruff binary was used only for the exact CI lint/format scope; the source follow-up's hosted Ruff and Pyright result passed, while every later PR head requires fresh hosted evidence.
+- No resulting-master check has been observed because PR #42 has not merged. This record does not claim a result for a later documentation-evidence reconciliation commit.
 
 ## Limitations and residual risk
 
-The initial submitted head proves CPython 3.14.6 runner availability and its Sonar PR result, but cannot prove the fresh follow-up's GitHub event context, `runner.temp` semantics, branch protection, hosted OSV/Ruff/Pyright result, or resulting-master result. The selected local runner is CPython 3.14.4, not the configured 3.14.6. The current follow-up therefore remains locally validated but not hosted verified. This record makes no connector-runtime claim and does not change the read-only `tools/MRTS` boundary.
+Exact source follow-up `2930e04e1558b5b10bdeb87a76abb077a2085566` proves its hosted PR event results, including Python quality, repaired OSV, other non-skipped PR checks, and the PR SonarQube Cloud Quality Gate, but it cannot prove the GitHub event context of a later PR head, `runner.temp` semantics, branch protection, or a resulting-master result. The selected local runner is CPython 3.14.4, not the configured 3.14.6. No resulting-master evidence is available. This record makes no connector-runtime claim and does not change the read-only `tools/MRTS` boundary.
 
 ## Final diff and review status
 
-The paired documentation passed local link, variable, path-reference, Change Record, whitespace, and scoped-diff checks as part of the native lint contract. A complete follow-up final-diff security review, normal task-branch commit/push, hosted exact-head checks, and the separate resulting-master gate review remain delivery prerequisites. Historical Change Records are unchanged; no credential, token, raw log, or sensitive payload is recorded here.
+The paired documentation passed local link, variable, path-reference, Change Record, whitespace, and scoped-diff checks as part of the native lint contract. The exact source follow-up received a final-diff security review with no reportable High/Critical issue, was committed and pushed normally, and passed its hosted exact-head checks at `2930e04e1558b5b10bdeb87a76abb077a2085566`. The separate resulting-master gate review remains a delivery prerequisite, and every later PR head requires new exact-head verification. Historical Change Records are unchanged; no credential, token, raw log, or sensitive payload is recorded here.
