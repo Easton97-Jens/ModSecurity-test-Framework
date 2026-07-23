@@ -43,7 +43,7 @@ class RunnerCoreOutputContainmentTests(unittest.TestCase):
                 target,
                 output_root=root,
             )
-            self.assertEqual("SecRuleEngine On\n", target.read_text(encoding="utf-8"))
+            self.assertEqual(target.read_text(encoding="utf-8"), "SecRuleEngine On\n")
 
     def test_rules_file_rejects_a_linked_target_outside_the_trusted_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -60,7 +60,7 @@ class RunnerCoreOutputContainmentTests(unittest.TestCase):
                     output_root=root,
                 )
             self.assertTrue(linked_target.is_symlink())
-            self.assertEqual("unchanged\n", outside.read_text(encoding="utf-8"))
+            self.assertEqual(outside.read_text(encoding="utf-8"), "unchanged\n")
 
     def test_rejects_case_controlled_nginx_path_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -87,8 +87,8 @@ class RunnerCoreOutputContainmentTests(unittest.TestCase):
                 output_root=root,
             )
             self.assertEqual(
-                "location / {}\n",
                 (root / "nginx" / "includes" / "test.conf").read_text(encoding="utf-8"),
+                "location / {}\n",
             )
 
     def test_case_info_rejects_an_output_outside_the_trusted_root(self) -> None:
@@ -106,7 +106,7 @@ class RunnerCoreOutputContainmentTests(unittest.TestCase):
             target = root / "nested" / "case.json"
             args = argparse.Namespace(output=str(target), output_root=str(root))
             case_cli._write_or_print_case_info({"untrusted": "content"}, args)
-            self.assertEqual({"untrusted": "content"}, json.loads(target.read_text(encoding="utf-8")))
+            self.assertEqual(json.loads(target.read_text(encoding="utf-8")), {"untrusted": "content"})
 
     def test_case_info_rejects_a_linked_target_outside_the_trusted_root(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -120,4 +120,4 @@ class RunnerCoreOutputContainmentTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "escapes output root"):
                 case_cli._write_or_print_case_info({"untrusted": "content"}, args)
             self.assertTrue(linked_target.is_symlink())
-            self.assertEqual("unchanged\n", outside.read_text(encoding="utf-8"))
+            self.assertEqual(outside.read_text(encoding="utf-8"), "unchanged\n")

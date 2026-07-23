@@ -116,19 +116,19 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
     def test_shell_variable_expansion_accepts_ascii_names_and_rejects_invalid_names(self):
         self.assertEqual(
-            "resolved",
             CHECKER.resolve_value("${FOO_1:-fallback}", {"FOO_1": "resolved"}),
+            "resolved",
         )
         self.assertEqual(
-            "fallback",
             CHECKER.resolve_value("${MISSING:-fallback}", {}),
+            "fallback",
         )
         self.assertEqual(
-            "plain-value",
             CHECKER.resolve_value("$FOO_1", {"FOO_1": "plain-value"}),
+            "plain-value",
         )
-        self.assertEqual("${1BAD:-fallback}", CHECKER.resolve_value("${1BAD:-fallback}", {}))
-        self.assertEqual("${é:-fallback}", CHECKER.resolve_value("${é:-fallback}", {}))
+        self.assertEqual(CHECKER.resolve_value("${1BAD:-fallback}", {}), "${1BAD:-fallback}")
+        self.assertEqual(CHECKER.resolve_value("${é:-fallback}", {}), "${é:-fallback}")
 
     def test_parse_common_resolves_modsecurity_v3_approved_literals_before_aliases(self):
         approved_repo = "https://github.com/owasp-modsecurity/ModSecurity.git"
@@ -153,27 +153,27 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             _, entries = self.parse_fixture(fixture, fixture_source)
             _, missing_entries = self.parse_fixture(fixture, missing_anchor_source)
 
-        self.assertEqual(approved_repo, CHECKER.value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"))
-        self.assertEqual(approved_commit, CHECKER.value(entries, "MODSECURITY_V3_APPROVED_COMMIT"))
-        self.assertEqual(release_tag, CHECKER.value(entries, "MODSECURITY_V3_RELEASE_TAG"))
-        self.assertEqual(approved_repo, CHECKER.value(entries, "MODSECURITY_REPO_URL"))
-        self.assertEqual(release_tag, CHECKER.value(entries, "MODSECURITY_GIT_REF"))
-        self.assertEqual(approved_repo, CHECKER.value(entries, "MODSECURITY_V3_GIT_URL"))
-        self.assertEqual(release_tag, CHECKER.value(entries, "MODSECURITY_V3_GIT_REF"))
-        self.assertEqual([], CHECKER.validate_entries(entries))
+        self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"), approved_repo)
+        self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_APPROVED_COMMIT"), approved_commit)
+        self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_RELEASE_TAG"), release_tag)
+        self.assertEqual(CHECKER.value(entries, "MODSECURITY_REPO_URL"), approved_repo)
+        self.assertEqual(CHECKER.value(entries, "MODSECURITY_GIT_REF"), release_tag)
+        self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_GIT_URL"), approved_repo)
+        self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_GIT_REF"), release_tag)
+        self.assertEqual(CHECKER.validate_entries(entries), [])
         self.assertIsNone(
             CHECKER.parse_common_assignment(
                 'UNRELATED_APPROVED_REPO_URL="https://example.invalid/unrelated.git"'
             )
         )
         self.assertEqual(
+            CHECKER.validate_entries(missing_entries),
             [
                 "MODSECURITY_REPO_URL",
                 "MODSECURITY_GIT_REF",
                 "MODSECURITY_V3_GIT_URL",
                 "MODSECURITY_V3_GIT_REF",
             ],
-            CHECKER.validate_entries(missing_entries),
         )
 
     def test_modsecurity_v3_release_requires_reviewed_tag_and_commit_pair(self):
@@ -191,10 +191,11 @@ class CommonVersionProvenanceTests(unittest.TestCase):
         result = CHECKER.check_modsecurity_v3_release_provenance(entries, client)
 
         self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
-        self.assertEqual([], result.updates)
-        self.assertEqual(0, CHECKER.exit_code([result]))
-        self.assertEqual("v3.0.16", result.latest)
+        self.assertEqual(result.updates, [])
+        self.assertEqual(CHECKER.exit_code([result]), 0)
+        self.assertEqual(result.latest, "v3.0.16")
         self.assertEqual(
+            result.variables,
             [
                 "MODSECURITY_V3_APPROVED_REPO_URL",
                 "MODSECURITY_V3_RELEASE_TAG",
@@ -204,21 +205,20 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                 "MODSECURITY_V3_GIT_URL",
                 "MODSECURITY_V3_GIT_REF",
             ],
-            result.variables,
         )
         self.assertEqual(
-            "update MODSECURITY_V3_RELEASE_TAG and MODSECURITY_V3_APPROVED_COMMIT together after commit provenance review",
             result.details["reason"],
+            "update MODSECURITY_V3_RELEASE_TAG and MODSECURITY_V3_APPROVED_COMMIT together after commit provenance review",
         )
         self.assertEqual(
-            ["https://api.github.com/repos/owasp-modsecurity/ModSecurity/releases/latest"],
             client.urls,
+            ["https://api.github.com/repos/owasp-modsecurity/ModSecurity/releases/latest"],
         )
 
     def test_dotted_version_parser_keeps_legacy_match_boundaries_without_regex_backtracking(self):
-        self.assertEqual((1, 2, 3), CHECKER.version_tuple("release-1.2.3"))
-        self.assertEqual((1, 2), CHECKER.version_tuple("release-1.2..3"))
-        self.assertEqual((5, 6), CHECKER.version_tuple("build-123-release-5.6"))
+        self.assertEqual(CHECKER.version_tuple("release-1.2.3"), (1, 2, 3))
+        self.assertEqual(CHECKER.version_tuple("release-1.2..3"), (1, 2))
+        self.assertEqual(CHECKER.version_tuple("build-123-release-5.6"), (5, 6))
         with self.assertRaises(CHECKER.UpstreamUnknown):
             CHECKER.version_tuple("release-without-a-dotted-version")
 
@@ -253,7 +253,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
         self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
         self.assertIn("expected official tarball URL", result.details["reason"])
-        self.assertEqual([], client.urls)
+        self.assertEqual(client.urls, [])
 
     def test_official_tarball_host_and_checksum_are_checked_with_fixture_responses(self):
         listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"
@@ -276,7 +276,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
         self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
         self.assertEqual(CHECKSUM, result.details["official_sha256"])
-        self.assertEqual([listing_url, checksum_url, checksum_url], client.urls)
+        self.assertEqual(client.urls, [listing_url, checksum_url, checksum_url])
 
     def test_outdated_tarball_only_plans_an_update_until_update_mode_is_requested(self):
         listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"
@@ -327,7 +327,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
         self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
         self.assertIn("expected official HAProxy tarball URL", result.details["reason"])
-        self.assertEqual([], client.urls)
+        self.assertEqual(client.urls, [])
 
     def test_haproxy_requires_a_checksum_before_any_http_lookup(self):
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
@@ -346,7 +346,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
         self.assertEqual(CHECKER.STATUS_BLOCKED, result.status)
         self.assertIn("HAPROXY_SHA256 is required", result.message)
-        self.assertEqual([], client.urls)
+        self.assertEqual(client.urls, [])
 
     def test_check_mode_does_not_apply_a_planned_update(self):
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
@@ -373,10 +373,10 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                     [result],
                 )
 
-            self.assertEqual(1, rc)
-            self.assertEqual([], applied)
+            self.assertEqual(rc, 1)
+            self.assertEqual(applied, [])
             apply_updates.assert_not_called()
-            self.assertEqual(original, fixture.read_text(encoding="utf-8"))
+            self.assertEqual(fixture.read_text(encoding="utf-8"), original)
 
     def test_update_allows_only_a_common_sh_fixture_below_build_root(self):
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
@@ -391,7 +391,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
                 CHECKER.apply_updates(fixture, lines, [update])
 
-            self.assertEqual('VERSION="${VERSION:-2.0}"\n', fixture.read_text(encoding="utf-8"))
+            self.assertEqual(fixture.read_text(encoding="utf-8"), 'VERSION="${VERSION:-2.0}"\n')
 
     def test_update_accepts_strict_version_sha_and_https_url_values(self):
         listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"
@@ -414,7 +414,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             ]
             valid_updates = [update for update in updates if update is not None]
 
-            self.assertEqual(4, len(valid_updates))
+            self.assertEqual(len(valid_updates), 4)
             with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
                 CHECKER.apply_updates(fixture, lines, valid_updates)
 
@@ -439,7 +439,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             insecure_source_url = (
                 urlsplit(candidate_source_url)._replace(scheme="http").geturl()
             )
-            self.assertEqual("http", urlsplit(insecure_source_url).scheme)
+            self.assertEqual(urlsplit(insecure_source_url).scheme, "http")
 
             for variable, invalid_value in (
                 ("VERSION", "1.2.4;touch"),
@@ -489,7 +489,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                 with self.assertRaises(CHECKER.UpstreamError):
                     CHECKER.apply_updates(rejected_fixture, lines, [update])
 
-            self.assertEqual(original, rejected_fixture.read_text(encoding="utf-8"))
+            self.assertEqual(rejected_fixture.read_text(encoding="utf-8"), original)
 
 
 if __name__ == "__main__":

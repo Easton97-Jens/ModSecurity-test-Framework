@@ -234,9 +234,9 @@ class ProtocolEvidenceTest(unittest.TestCase):
             )
             write_bundle(root, observation)
             self.assertEqual(
-                [], check_protocol_evidence.validate_protocol_artifacts(
+                check_protocol_evidence.validate_protocol_artifacts(
                     root, protocol="h3", strict=True
-                )
+                ), []
             )
 
     def test_strict_evidence_rejects_missing_followup_and_raw_connection_id(self) -> None:
@@ -418,7 +418,6 @@ class ProtocolEvidenceTest(unittest.TestCase):
             }
             write_bundle(root, observation, followup=False)
             self.assertEqual(
-                [],
                 check_protocol_evidence.validate_protocol_artifacts(
                     root,
                     protocol="h3",
@@ -427,6 +426,7 @@ class ProtocolEvidenceTest(unittest.TestCase):
                     expected_upstream_protocol="http1",
                     expected_transport_case_id="case-h3-bound",
                 ),
+                [],
             )
             errors = check_protocol_evidence.validate_protocol_artifacts(
                 root,
@@ -519,7 +519,7 @@ class ProtocolEvidenceTest(unittest.TestCase):
                     read_json_artifact(root, check_protocol_evidence.FOLLOWUP_ARTIFACT)
 
                 self.assertTrue(artifact.is_symlink())
-                self.assertEqual('{"outside": true}', outside.read_text(encoding="utf-8"))
+                self.assertEqual(outside.read_text(encoding="utf-8"), '{"outside": true}')
 
     def test_oversized_version_artifact_is_rejected_before_validation(self) -> None:
         with temporary_artifact_directory() as temporary:

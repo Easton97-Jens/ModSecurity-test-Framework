@@ -73,14 +73,14 @@ class NoCrsCatalogMaintainabilityWaveTests(unittest.TestCase):
             {**common, "actual_status": 200}, "apache", case_by_id, [],
         )
         self.assertIsNotNone(matched)
-        self.assertEqual("PASS", matched["status"])
-        self.assertEqual(200, matched["actual_status"])
+        self.assertEqual(matched["status"], "PASS")
+        self.assertEqual(matched["actual_status"], 200)
 
         mismatched = no_crs.normalize_case_record(
             {**common, "actual_status": 418}, "apache", case_by_id, [],
         )
         self.assertIsNotNone(mismatched)
-        self.assertEqual("FAIL", mismatched["status"])
+        self.assertEqual(mismatched["status"], "FAIL")
         self.assertIn("actual status does not match expected status", mismatched["reason"])
 
     def test_finalize_summary_preserves_named_values(self) -> None:
@@ -109,10 +109,10 @@ class NoCrsCatalogMaintainabilityWaveTests(unittest.TestCase):
             "evidence_stages": {"no_crs_baseline": {"status": "passed"}},
         }
         summary = no_crs.FinalizeSummary(values)
-        self.assertEqual("PASS", summary.status)
+        self.assertEqual(summary.status, "PASS")
         self.assertEqual(Counter({"PASS": 1}), summary.counts)
-        self.assertEqual({"actual_status": 403}, summary.blocked_record)
-        self.assertEqual({"no_crs_baseline": {"status": "passed"}}, summary.evidence_stages)
+        self.assertEqual(summary.blocked_record, {"actual_status": 403})
+        self.assertEqual(summary.evidence_stages, {"no_crs_baseline": {"status": "passed"}})
 
     def test_protocol_validation_preserves_success_and_error_order(self) -> None:
         valid_event = {
@@ -122,8 +122,8 @@ class NoCrsCatalogMaintainabilityWaveTests(unittest.TestCase):
             "stream_reset": True,
         }
         self.assertEqual(
-            [],
             no_crs.canonical_event_protocol_errors(valid_event, "event"),
+            [],
         )
         invalid_event = {
             "requested_protocol": [],
@@ -132,12 +132,12 @@ class NoCrsCatalogMaintainabilityWaveTests(unittest.TestCase):
             "stream_reset": True,
         }
         self.assertEqual(
+            no_crs.canonical_event_protocol_errors(invalid_event, "event"),
             [
                 "event.requested_protocol: unsupported transport provenance",
                 "event.connection_id: raw QUIC connection identifiers are forbidden",
                 "event.stream_reset: requires h2, h2c, or h3 downstream protocol",
             ],
-            no_crs.canonical_event_protocol_errors(invalid_event, "event"),
         )
 
     def test_body_payload_json_errors_preserve_success_and_error_order(self) -> None:
@@ -150,8 +150,8 @@ class NoCrsCatalogMaintainabilityWaveTests(unittest.TestCase):
             events, errors = no_crs.body_payload_json_artifact_errors(
                 run_dir, [events_path, metadata_path],
             )
-            self.assertEqual([{"connector": "apache"}], events)
-            self.assertEqual([], errors)
+            self.assertEqual(events, [{"connector": "apache"}])
+            self.assertEqual(errors, [])
 
             metadata_path.write_text(
                 json.dumps({"response_body": "body"}), encoding="utf-8",
@@ -162,15 +162,15 @@ class NoCrsCatalogMaintainabilityWaveTests(unittest.TestCase):
             events, errors = no_crs.body_payload_json_artifact_errors(
                 run_dir, [events_path, metadata_path],
             )
-            self.assertEqual([{"response_body": "body"}], events)
+            self.assertEqual(events, [{"response_body": "body"}])
             self.assertEqual(
+                errors,
                 [
                     "before-events.json.response_body: forbidden payload/secret field",
                     "events.jsonl[0]: missing required property connector",
                     "events.jsonl[0]: unexpected property response_body",
                     "events.jsonl[0].response_body: forbidden payload/secret field",
                 ],
-                errors,
             )
 
 

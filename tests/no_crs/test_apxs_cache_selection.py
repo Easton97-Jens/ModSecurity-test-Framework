@@ -56,8 +56,8 @@ class ApxsCacheSelectionTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
             )
 
-        self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
-        self.assertEqual("", result.stdout.strip())
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.strip(), "")
         self.assertFalse(marker.exists())
 
     def test_explicit_apxs_remains_usable(self) -> None:
@@ -85,7 +85,7 @@ class ApxsCacheSelectionTest(unittest.TestCase):
                 stderr=subprocess.PIPE,
             )
 
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(str(explicit), result.stdout.strip())
 
 
