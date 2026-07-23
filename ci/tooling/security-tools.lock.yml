@@ -2,18 +2,20 @@ schema_version: 1
 actions:
   actions/checkout:
     name: actions/checkout
-    version: v7.0.0
-    immutable_commit: 9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-    upstream_release: https://github.com/actions/checkout/releases/tag/v7.0.0
+    version: v7.0.1
+    immutable_commit: 3d3c42e5aac5ba805825da76410c181273ba90b1
+    upstream_release: https://github.com/actions/checkout/releases/tag/v7.0.1
+    release_resolution: latest-release
     license: MIT
     purpose: Checkout the Framework without persisting credentials or initializing MRTS.
     platform: GitHub Actions
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   actions/setup-python:
     name: actions/setup-python
-    version: v6.3.0
-    immutable_commit: ece7cb06caefa5fff74198d8649806c4678c61a1
-    upstream_release: https://github.com/actions/setup-python/releases/tag/v6.3.0
+    version: v7.0.0
+    immutable_commit: 5fda3b95a4ea91299a34e894583c3862153e4b97
+    upstream_release: https://github.com/actions/setup-python/releases/tag/v7.0.0
+    release_resolution: latest-release
     license: MIT
     purpose: Select the reviewed CPython lane for deterministic CI dependency checks.
     platform: GitHub Actions
@@ -23,6 +25,7 @@ actions:
     version: v7.0.0
     immutable_commit: 820762786026740c76f36085b0efc47a31fe5020
     upstream_release: https://github.com/actions/setup-node/releases/tag/v7.0.0
+    release_resolution: latest-release
     license: MIT
     purpose: Select the exact Node.js runtime used to execute the checksum-verified Pyright package.
     platform: GitHub Actions
@@ -32,6 +35,7 @@ actions:
     version: v7.0.1
     immutable_commit: 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
     upstream_release: https://github.com/actions/upload-artifact/releases/tag/v7.0.1
+    release_resolution: latest-release
     license: MIT
     purpose: Retain only bounded JSON security-governance evidence for the documented minimum period.
     platform: GitHub Actions
@@ -41,8 +45,9 @@ actions:
     version: v9.0.0
     immutable_commit: 3a2844b7e9c422d3c10d287c895573f7108da1b3
     upstream_release: https://github.com/actions/github-script/releases/tag/v9.0.0
+    release_resolution: latest-release
     license: MIT
-    purpose: Run the existing scheduled artifact-retention maintenance script.
+    purpose: Inspect or create the constrained workflow-tool updater Draft PR and run scheduled artifact-retention maintenance.
     platform: GitHub Actions
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   peter-evans/create-pull-request:
@@ -50,8 +55,9 @@ actions:
     version: v8.1.1
     immutable_commit: 5f6978faf089d4d20b00c7766989d076bb2fc7f1
     upstream_release: https://github.com/peter-evans/create-pull-request/releases/tag/v8.1.1
+    release_resolution: latest-release
     license: MIT
-    purpose: Create the constrained scheduled common.sh update pull request.
+    purpose: Create the constrained scheduled CPython-version update Draft pull request.
     platform: GitHub Actions
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   github/codeql-action:
@@ -59,6 +65,7 @@ actions:
     version: v4.37.1
     immutable_commit: 7188fc363630916deb702c7fdcf4e481b751f97a
     upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.1
+    release_resolution: same-major-release
     license: MIT
     purpose: Initialize, analyze, and upload SARIF for bounded CodeQL jobs.
     platform: GitHub Actions
@@ -68,6 +75,7 @@ actions:
     version: v5.0.0
     immutable_commit: a1d282b36b6f3519aa1f3fc636f609c47dddb294
     upstream_release: https://github.com/actions/dependency-review-action/releases/tag/v5.0.0
+    release_resolution: latest-release
     license: MIT
     purpose: Review pull-request dependency changes without automatic remediation.
     platform: GitHub Actions

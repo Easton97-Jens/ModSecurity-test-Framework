@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import importlib.util
 import os
 from pathlib import Path
@@ -118,6 +119,71 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         osv_path = ROOT / ".github/workflows/ci-security-osv.yml"
         osv_text = osv_path.read_text(encoding="utf-8")
         self.assertEqual(CHECKER.scanner_evidence_errors(osv_path, osv_text), [])
+        missing_python_bootstrap_bound = osv_text.replace(
+            '[ "$version_size" -le 32 ]', '[ "$version_size" -le 33 ]', 1
+        )
+        bootstrap_errors = CHECKER.scanner_evidence_errors(
+            osv_path, missing_python_bootstrap_bound
+        )
+        self.assertTrue(
+            any("version_size" in error for error in bootstrap_errors),
+            "\n".join(bootstrap_errors),
+        )
+        missing_legacy_base_guard = osv_text.replace(
+            "OSV_LEGACY_BASE_SHA: f73f8842f45318e2df8aff1d31855eeb7c20a22f",
+            "OSV_LEGACY_BASE_SHA: 0000000000000000000000000000000000000000",
+            1,
+        )
+        legacy_base_guard_errors = CHECKER.scanner_evidence_errors(
+            osv_path, missing_legacy_base_guard
+        )
+        self.assertTrue(
+            any("OSV_LEGACY_BASE_SHA" in error for error in legacy_base_guard_errors),
+            "\n".join(legacy_base_guard_errors),
+        )
+        changed_legacy_version = osv_text.replace(
+            "OSV_LEGACY_BASE_VERSION: 3.13.14",
+            "OSV_LEGACY_BASE_VERSION: 3.13.13",
+            1,
+        )
+        legacy_version_errors = CHECKER.scanner_evidence_errors(
+            osv_path, changed_legacy_version
+        )
+        self.assertTrue(
+            any(
+                "OSV_LEGACY_BASE_VERSION: 3.13.14" in error
+                for error in legacy_version_errors
+            ),
+            "\n".join(legacy_version_errors),
+        )
+        old_major_python_bootstrap = osv_text.replace(
+            '[[ "$version" =~ ^3\\.14\\.(0|[1-9][0-9]*)$ ]]',
+            '[[ "$version" =~ ^3\\.13\\.(0|[1-9][0-9]*)$ ]]',
+            1,
+        )
+        old_major_errors = CHECKER.scanner_evidence_errors(
+            osv_path, old_major_python_bootstrap
+        )
+        self.assertTrue(
+            any(
+                "job 'pull-request-head' must contain" in error
+                for error in old_major_errors
+            ),
+            "\n".join(old_major_errors),
+        )
+        restored_head_version_read = osv_text.replace(
+            'git cat-file -e "$HEAD_SHA:requirements-ci.lock"',
+            'git cat-file -e "$HEAD_SHA:.python-version"\n'
+            '          git cat-file -e "$HEAD_SHA:requirements-ci.lock"',
+            1,
+        )
+        head_read_errors = CHECKER.scanner_evidence_errors(
+            osv_path, restored_head_version_read
+        )
+        self.assertTrue(
+            any("HEAD_SHA:.python-version" in error for error in head_read_errors),
+            "\n".join(head_read_errors),
+        )
         relaxed_osv = osv_text.replace(
             "--format json", "--format json --allow-no-lockfiles", 1
         ).replace("retention-days: 1", "retention-days: 2", 1)
@@ -156,6 +222,110 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         )
         self.assertTrue(any("artifact-free" in error for error in scorecard_errors))
         self.assertTrue(any("retention-days: 1" in error for error in scorecard_errors))
+
+    def test_osv_trusted_base_bootstrap_allows_only_legacy_cp313_transition(
+        self,
+    ) -> None:
+        workflow_text = (ROOT / ".github/workflows/ci-security-osv.yml").read_text(
+            encoding="utf-8"
+        )
+        step_start = workflow_text.index(
+            "      - name: Materialize trusted base Python version\n"
+        )
+        run_start = workflow_text.index("        run: |\n", step_start)
+        step_end = workflow_text.index(
+            "\n\n      - name: Set up reviewed Python", run_start
+        )
+        bootstrap = textwrap.dedent(
+            workflow_text[run_start + len("        run: |\n") : step_end]
+        )
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            fake_git = temporary_root / "git"
+            fake_git.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/usr/bin/env bash
+                    set -euo pipefail
+
+                    case "$1" in
+                      rev-parse)
+                        [ "$2" = "HEAD" ]
+                        printf '%s\\n' "$BASE_SHA"
+                        ;;
+                      cat-file)
+                        case "$2" in
+                          -e)
+                            if [ "$3" = "$BASE_SHA^{commit}" ]; then
+                              exit 0
+                            fi
+                            [ "$3" = "$BASE_SHA:.python-version" ]
+                            [ "$BASE_SHA" != "$OSV_LEGACY_BASE_SHA" ]
+                            ;;
+                          -t)
+                            [ "$3" = "$BASE_SHA:.python-version" ]
+                            printf '%s\\n' blob
+                            ;;
+                          -s)
+                            [ "$3" = "$BASE_SHA:.python-version" ]
+                            printf '%s\\n' 8
+                            ;;
+                          *)
+                            exit 1
+                            ;;
+                        esac
+                        ;;
+                      show)
+                        [ "$2" = "$BASE_SHA:.python-version" ]
+                        if [ "$BASE_SHA" = "$FAKE_CP314_BASE_SHA" ]; then
+                          printf '%s\\n' 3.14.6
+                        else
+                          printf '%s\\n' 3.13.14
+                        fi
+                        ;;
+                      *)
+                        exit 1
+                        ;;
+                    esac
+                    """
+                ),
+                encoding="utf-8",
+            )
+            fake_git.chmod(0o755)
+            cases = (
+                (CHECKER.OSV_LEGACY_BASE_SHA, True, "3.13.14"),
+                ("2" * 40, False, None),
+                ("3" * 40, True, "3.14.6"),
+            )
+            for base_sha, expected_success, expected_version in cases:
+                version_file = temporary_root / f"python-version-{base_sha[:8]}"
+                environment = {
+                    **os.environ,
+                    "BASE_SHA": base_sha,
+                    "OSV_LEGACY_BASE_SHA": CHECKER.OSV_LEGACY_BASE_SHA,
+                    "OSV_LEGACY_BASE_VERSION": CHECKER.OSV_LEGACY_BASE_VERSION,
+                    "FAKE_CP314_BASE_SHA": "3" * 40,
+                    "PYTHON_VERSION_FILE": str(version_file),
+                    "PATH": f"{temporary_root}{os.pathsep}{os.environ['PATH']}",
+                }
+                result = subprocess.run(
+                    ["bash", "-c", bootstrap],
+                    cwd=temporary_root,
+                    env=environment,
+                    check=False,
+                    capture_output=True,
+                    encoding="utf-8",
+                )
+                self.assertEqual(
+                    result.returncode,
+                    0 if expected_success else 1,
+                    result.stdout + result.stderr,
+                )
+                if expected_success:
+                    self.assertEqual(
+                        version_file.read_text(encoding="utf-8"),
+                        f"{expected_version}\n",
+                    )
 
     def test_safe_and_unsafe_trust_boundary_fixtures(self) -> None:
         safe = ROOT / "tests/fixtures/ci-security/safe.yml"
@@ -226,9 +396,166 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
                 """
             ),
         )
-        self.assertTrue(any("exact reviewed CPython" in error for error in errors))
+        self.assertTrue(any("python-version-file" in error for error in errors))
         self.assertTrue(any("check-latest" in error for error in errors))
         self.assertTrue(any("hash-locked" in error for error in errors))
+
+    def test_python_maintenance_writer_is_scheduled_draft_only_and_fail_closed(
+        self,
+    ) -> None:
+        workflow = ROOT / ".github/workflows/check-python-version.yml"
+        data = CHECKER.load_yaml(workflow)
+        self.assertIsInstance(data, dict)
+        self.assertEqual(CHECKER.python_version_maintenance_errors(workflow, data), [])
+
+        workflow_level_token = copy.deepcopy(data)
+        workflow_level_token["env"] = {"TOKEN": "${{ github.token }}"}
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, workflow_level_token
+        )
+        self.assertTrue(any("only declare github.token" in error for error in errors))
+
+        untrusted_trigger = copy.deepcopy(data)
+        untrusted_trigger[True]["pull_request"] = None
+        errors = CHECKER.python_version_maintenance_errors(workflow, untrusted_trigger)
+        self.assertTrue(any("scheduled/manual only" in error for error in errors))
+
+        broad_writer = copy.deepcopy(data)
+        create_pr = broad_writer["jobs"]["publish"]["steps"][-1]["with"]
+        create_pr["add-paths"] = ".python-version\nREADME.md"
+        errors = CHECKER.python_version_maintenance_errors(workflow, broad_writer)
+        self.assertTrue(any("add-paths" in error for error in errors))
+
+        auto_merge = copy.deepcopy(data)
+        auto_merge["jobs"]["publish"]["steps"][-2]["run"] += "\ngh pr merge --auto"
+        errors = CHECKER.python_version_maintenance_errors(workflow, auto_merge)
+        self.assertTrue(any("must not merge" in error for error in errors))
+
+        reader_secret = copy.deepcopy(data)
+        reader_secret["jobs"]["resolve"]["env"] = {
+            "TOKEN": "${{ secrets.GITHUB_TOKEN }}"
+        }
+        errors = CHECKER.python_version_maintenance_errors(workflow, reader_secret)
+        self.assertTrue(
+            any(
+                "must not declare a GitHub token or secret" in error for error in errors
+            )
+        )
+
+        candidate_secret = copy.deepcopy(data)
+        candidate_secret["jobs"]["candidate-validate"]["steps"][-1]["env"] = {
+            "TEST_SECRET": "${{ secrets.FRAMEWORK_TEST_SECRET }}"
+        }
+        errors = CHECKER.python_version_maintenance_errors(workflow, candidate_secret)
+        self.assertTrue(
+            any(
+                "must not declare a GitHub token or secret" in error for error in errors
+            )
+        )
+
+        reader_serialized_secrets = copy.deepcopy(data)
+        reader_serialized_secrets["jobs"]["candidate-validate"]["steps"][-1]["run"] += (
+            '\nprintf "%s\\n" "${{ toJSON(secrets) }}"'
+        )
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, reader_serialized_secrets
+        )
+        self.assertTrue(
+            any(
+                "must not declare a GitHub token or secret" in error for error in errors
+            )
+        )
+
+        caller_selected_candidate_path = copy.deepcopy(data)
+        candidate_materialization = next(
+            step
+            for step in caller_selected_candidate_path["jobs"]["candidate-validate"][
+                "steps"
+            ]
+            if step["name"] == "Independently validate and materialize the candidate"
+        )
+        candidate_materialization["run"] = candidate_materialization["run"].replace(
+            "--write-candidate-file",
+            '--write-candidate-file "$RUNNER_TEMP/caller-selected-candidate"',
+        )
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, caller_selected_candidate_path
+        )
+        self.assertTrue(any("without a caller path" in error for error in errors))
+
+        reader_shell_token = copy.deepcopy(data)
+        reader_shell_token["jobs"]["candidate-validate"]["steps"][-1]["run"] += (
+            "\nprintf '%s\\n' \"$GITHUB_TOKEN\""
+        )
+        errors = CHECKER.python_version_maintenance_errors(workflow, reader_shell_token)
+        self.assertTrue(
+            any(
+                "must not declare a GitHub token or secret" in error for error in errors
+            )
+        )
+
+        publisher_secret = copy.deepcopy(data)
+        publisher_secret["jobs"]["publish"]["steps"][-2]["env"] = {
+            "TOKEN": "${{ github.token }}"
+        }
+        errors = CHECKER.python_version_maintenance_errors(workflow, publisher_secret)
+        self.assertTrue(any("only declare github.token" in error for error in errors))
+
+        publisher_serialized_github = copy.deepcopy(data)
+        publisher_serialized_github["jobs"]["publish"]["steps"][-2]["run"] += (
+            '\nprintf "%s\\n" "${{ toJSON(github) }}"'
+        )
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, publisher_serialized_github
+        )
+        self.assertTrue(any("only declare github.token" in error for error in errors))
+
+        publisher_indexed_token = copy.deepcopy(data)
+        publisher_indexed_token["jobs"]["publish"]["steps"][-2]["env"] = {
+            "TOKEN": "${{ github['token'] }}"
+        }
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, publisher_indexed_token
+        )
+        self.assertTrue(any("only declare github.token" in error for error in errors))
+
+        publisher_bracketed_secret = copy.deepcopy(data)
+        publisher_bracketed_secret["jobs"]["publish"]["steps"][-2]["env"] = {
+            "TOKEN": "${{ secrets['FRAMEWORK_TEST_SECRET'] }}"
+        }
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, publisher_bracketed_secret
+        )
+        self.assertTrue(any("only declare github.token" in error for error in errors))
+
+        duplicate_pr_action = copy.deepcopy(data)
+        duplicate_pr_action["jobs"]["publish"]["steps"].append(
+            copy.deepcopy(duplicate_pr_action["jobs"]["publish"]["steps"][-1])
+        )
+        errors = CHECKER.python_version_maintenance_errors(
+            workflow, duplicate_pr_action
+        )
+        self.assertTrue(any("exactly one" in error for error in errors))
+
+        publisher_body = copy.deepcopy(data)
+        publisher_body["jobs"]["publish"]["steps"][-1]["with"]["body-path"] = (
+            "python-version-pr-body.md"
+        )
+        errors = CHECKER.python_version_maintenance_errors(workflow, publisher_body)
+        self.assertTrue(any("body-path" in error for error in errors))
+
+    def test_sensitive_reference_detection_rejects_serialized_contexts(self) -> None:
+        for value in (
+            "${{ toJSON(secrets) }}",
+            "${{ toJSON(github) }}",
+            "${{ github[format('token')] }}",
+            "${{ github.token }}",
+            "${{ secrets['FRAMEWORK_TEST_SECRET'] }}",
+            "$GITHUB_TOKEN",
+        ):
+            self.assertTrue(CHECKER.contains_sensitive_reference(value), value)
+        for value in ("${{ github.sha }}", "${{ github.repository }}"):
+            self.assertFalse(CHECKER.contains_sensitive_reference(value), value)
 
     def test_token_references_and_tool_paths_are_fail_closed(self) -> None:
         token_errors = CHECKER.trust_boundary_errors(
