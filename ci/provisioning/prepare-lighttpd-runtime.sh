@@ -29,6 +29,7 @@ assert_safe_runtime_path "$LIGHTTPD_CONFIG_ROOT" LIGHTTPD_CONFIG_ROOT || exit 77
 assert_safe_runtime_path "$LIGHTTPD_LOG_ROOT" LIGHTTPD_LOG_ROOT || exit 77
 assert_safe_runtime_path "$LIGHTTPD_RESULT_ROOT" LIGHTTPD_RESULT_ROOT || exit 77
 assert_safe_runtime_path "$LIGHTTPD_BUILD_LOG_ROOT" LIGHTTPD_BUILD_LOG_ROOT || exit 77
+runtime_component_require_under_cache "$LIGHTTPD_SOURCE_STAGE_DIR" LIGHTTPD_SOURCE_STAGE_DIR || exit 77
 runtime_component_require_under_cache "$LIGHTTPD_STAGED_BIN" "lighttpd staged binary" || exit 77
 runtime_component_require_under_cache "$LIGHTTPD_BUILD_ROOT" "lighttpd build root" || exit 77
 ci_require_absolute_path "$LIGHTTPD_BIN" LIGHTTPD_BIN || exit 77

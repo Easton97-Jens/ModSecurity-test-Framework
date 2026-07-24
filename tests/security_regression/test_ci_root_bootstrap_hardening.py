@@ -191,6 +191,77 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 77, result.stderr)
                     self.assertFalse(runtime_dir.exists())
 
+    def test_prepare_lighttpd_rejects_staged_source_outside_component_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            temporary_root = Path(tmp)
+            verified_root = temporary_root / "verified"
+            component_cache = verified_root / "component-cache"
+            staged_source = temporary_root / "untrusted-lighttpd-source"
+            component_cache.mkdir(parents=True)
+            staged_source.mkdir()
+            result = self.run_script(
+                ROOT / "ci/provisioning/prepare-lighttpd-runtime.sh",
+                {
+                    "VERIFIED_RUN_ROOT": str(verified_root),
+                    "SOURCE_ROOT": str(verified_root / "source"),
+                    "BUILD_ROOT": str(verified_root / "build"),
+                    "TMP_ROOT": str(verified_root / "tmp"),
+                    "LOG_ROOT": str(verified_root / "logs"),
+                    "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                    "LIGHTTPD_SOURCE_STAGE_DIR": str(staged_source),
+                    "ALLOW_RUNTIME_BUILDS": "0",
+                    "ALLOW_RUNTIME_DOWNLOADS": "0",
+                },
+            )
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertIn(
+                "LIGHTTPD_SOURCE_STAGE_DIR must stay under",
+                result.stdout + result.stderr,
+            )
+
+            allowed_source = component_cache / "src" / "lighttpd-allowed"
+            allowed_source.mkdir(parents=True)
+            allowed_result = self.run_script(
+                ROOT / "ci/provisioning/prepare-lighttpd-runtime.sh",
+                {
+                    "VERIFIED_RUN_ROOT": str(verified_root),
+                    "SOURCE_ROOT": str(verified_root / "source"),
+                    "BUILD_ROOT": str(verified_root / "build"),
+                    "TMP_ROOT": str(verified_root / "tmp"),
+                    "LOG_ROOT": str(verified_root / "logs"),
+                    "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                    "LIGHTTPD_SOURCE_STAGE_DIR": str(allowed_source),
+                    "ALLOW_RUNTIME_BUILDS": "0",
+                    "ALLOW_RUNTIME_DOWNLOADS": "0",
+                },
+            )
+            self.assertEqual(allowed_result.returncode, 77, allowed_result.stdout + allowed_result.stderr)
+            self.assertIn("lighttpd source is staged", allowed_result.stderr)
+
+            traversal_source = verified_root / "untrusted-lighttpd-source"
+            traversal_source.mkdir()
+            traversal_result = self.run_script(
+                ROOT / "ci/provisioning/prepare-lighttpd-runtime.sh",
+                {
+                    "VERIFIED_RUN_ROOT": str(verified_root),
+                    "SOURCE_ROOT": str(verified_root / "source"),
+                    "BUILD_ROOT": str(verified_root / "build"),
+                    "TMP_ROOT": str(verified_root / "tmp"),
+                    "LOG_ROOT": str(verified_root / "logs"),
+                    "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                    "LIGHTTPD_SOURCE_STAGE_DIR": str(
+                        component_cache / "src" / ".." / ".." / "untrusted-lighttpd-source"
+                    ),
+                    "ALLOW_RUNTIME_BUILDS": "0",
+                    "ALLOW_RUNTIME_DOWNLOADS": "0",
+                },
+            )
+            self.assertEqual(traversal_result.returncode, 77, traversal_result.stdout + traversal_result.stderr)
+            self.assertIn(
+                "LIGHTTPD_SOURCE_STAGE_DIR contains traversal segments",
+                traversal_result.stdout + traversal_result.stderr,
+            )
+
     def test_nested_catalog_bootstrap_ignores_foreign_root_environment(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
