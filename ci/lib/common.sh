@@ -1642,7 +1642,7 @@ ci_modsecurity_v3_require_clean_checkout() {
     ci_v3_clean_dir=$1
     ci_v3_clean_label=$2
 
-    ci_v3_status=$(ci_modsecurity_v3_git -C "$ci_v3_clean_dir" status --porcelain=v1 --untracked-files=all 2>/dev/null) || {
+    ci_v3_status=$(ci_modsecurity_v3_git -C "$ci_v3_clean_dir" status --porcelain=v1 --untracked-files=all --ignored=matching 2>/dev/null) || {
         ci_blocked "ModSecurity v3 $ci_v3_clean_label checkout status could not be inspected"
         return 77
     }
