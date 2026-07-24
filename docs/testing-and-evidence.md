@@ -121,16 +121,24 @@ proves the provisioning identity control only, not a CRS runtime support claim.
 ## ModSecurity v3 source provenance contract
 
 `make test-modsecurity-v3-provenance-contract`, also run by `make lint`,
-executes the real V3 fetch and direct-build boundaries against a temporary fake
-Git executable. It verifies that mutable refs and differing non-empty legacy
-aliases are rejected, while empty aliases normalize to reviewed metadata; it
-also rejects a foreign origin, mismatched fetched/resolved/checked-out commits,
-pre-existing fetch paths, `.gitmodules`, and Gitlinks are rejected. It also
-proves that Apache, NGINX, and the standalone V3 builder stop an existing
-unapproved checkout before copy or build commands run. The legitimate control
-uses an approved fake checkout and a minimal local build fixture; it has no
-network access, initializes no submodules, and does not make a connector
-runtime support claim.
+executes the V3 fetch and direct-build boundaries against a temporary fake Git
+executable where the topology decision needs controlled input, plus real-Git
+fresh-root fixtures. It verifies that mutable refs and differing non-empty
+legacy aliases are rejected, while empty aliases normalize to reviewed
+metadata; it also rejects a foreign origin, mismatched
+fetched/resolved/checked-out commits, pre-existing fetch paths, and every
+missing, extra, origin- or commit-mismatched, symlinked, escaping, dirty, or
+non-normal-index member of the approved recursive topology. It proves that
+Apache, NGINX, and the standalone V3 builder stop an existing unapproved
+checkout before copy or build commands run, and that the standalone build path
+reaches the complete guard before it copies source. The legitimate fake control
+uses the exact approved root and eight-child graph. Real-Git controls prove
+that a fake earlier `PATH` Git is ignored, a symlinked fresh-root parent is
+rejected before Git, `core.worktree` cannot redirect checkout writes, an
+external attributes/smudge filter is not run, and a local custom
+`submodule.*.update` setting is removed before recursion. The contract has no
+network access, does not accept generic submodules, and does not make a
+connector runtime support claim.
 
 ## No-CRS and full-lifecycle evidence
 
