@@ -32,6 +32,7 @@ BRACED_VAR_RE = re.compile(r"\$\{((?!\d)\w+)\}", re.ASCII)
 PLAIN_VAR_RE = re.compile(r"\$((?!\d)\w+)", re.ASCII)
 SHA256_RE = re.compile(r"\b([A-Fa-f0-9]{64})\b")
 SHA256_VALUE_RE = re.compile(r"^[a-f0-9]{64}$")
+GIT_COMMIT_SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_REF_RE = re.compile(r"^(?!.*\.\.)(?!/)(?!.*//)[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
 SAFE_VERSION_RE = re.compile(r"^\d+(?:\.\d+)+$")
 SAFE_HTTPS_HOST_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$")
@@ -984,14 +985,7 @@ def check_modsecurity_v3_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
     """Refuse to synthesize a ModSecurity v3 release-tag-to-commit update."""
-    result = check_github_release_ref(
-        "ModSecurity v3",
-        entries,
-        client,
-        repo_var="MODSECURITY_V3_APPROVED_REPO_URL",
-        ref_var="MODSECURITY_V3_RELEASE_TAG",
-    )
-    result.variables = [
+    variables = [
         "MODSECURITY_V3_APPROVED_REPO_URL",
         "MODSECURITY_V3_RELEASE_TAG",
         "MODSECURITY_V3_APPROVED_COMMIT",
@@ -1000,6 +994,27 @@ def check_modsecurity_v3_release_provenance(
         "MODSECURITY_V3_GIT_URL",
         "MODSECURITY_V3_GIT_REF",
     ]
+    approved_commit = value(entries, "MODSECURITY_V3_APPROVED_COMMIT")
+    if GIT_COMMIT_SHA1_RE.fullmatch(approved_commit) is None:
+        return ComponentResult(
+            component="ModSecurity v3",
+            status=STATUS_BLOCKED,
+            message="MODSECURITY_V3_APPROVED_COMMIT must be a reviewed 40-hex immutable commit.",
+            variables=variables,
+            current=value(entries, "MODSECURITY_V3_RELEASE_TAG"),
+            source=value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"),
+            details={
+                "reason": "MODSECURITY_V3_APPROVED_COMMIT is required before release provenance can be checked"
+            },
+        )
+    result = check_github_release_ref(
+        "ModSecurity v3",
+        entries,
+        client,
+        repo_var="MODSECURITY_V3_APPROVED_REPO_URL",
+        ref_var="MODSECURITY_V3_RELEASE_TAG",
+    )
+    result.variables = variables
     if result.status == STATUS_OUTDATED:
         result.status = STATUS_UNKNOWN
         result.updates = []
