@@ -177,6 +177,10 @@ class ImportMrtsCasesSonarTests(unittest.TestCase):
         self.assertEqual(case["expect"]["rule_id"], 42)
         self.assertEqual(case["metadata"]["mrts_rule_id"], 42)
         self.assertEqual(case["request"]["path"], "/safe")
+        self.assertEqual(
+            case["origin"][0]["repo"],
+            self.importer.MRTS_SOURCE_REPOSITORY,
+        )
 
     def test_private_roots_reject_public_or_symlink_output_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
