@@ -9,7 +9,7 @@
 | Change ID | 20260724-01-reconcile-codex-security-csv-findings |
 | UTC date | 2026-07-24 |
 | Framework base revision | 77d73decd094a8f289fbe0ef2582f12430923e24 |
-| Issue or pull request | Draft PR to be created from agent/fix-codex-security-csv-findings; no merge authority |
+| Issue or pull request | Draft PR [#45](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/45) from agent/fix-codex-security-csv-findings; no merge authority |
 
 ## Motivation and problem statement
 
@@ -35,8 +35,8 @@ They do not update Parent, a gitlink, a remote default branch, or MRTS content.
 - [x] The five confirmed CSV rows are fixed through six separate focused root-cause commits.
 - [x] Each correction has a negative regression and a legitimate control.
 - [x] English/German report and Change Record describe the same result.
-- [ ] A Draft PR has exact local/remote/PR head equality and terminal hosted evidence; this is a delivery
-  follow-up, not a merge authorization.
+- [x] Draft PR #45 has exact local/remote/PR head equality and 11 successful terminal hosted checks;
+  this is not a merge authorization.
 
 ## Alternatives considered
 
@@ -97,7 +97,8 @@ The source CSV and normalized row data are retained in the task evidence run.
 
 No authenticated Codex Security re-scan was available; Cloud closure is therefore
 blocked_permissions. No Framework default-branch update, merge, Parent gitlink update, or MRTS
-mutation was attempted. Hosted PR checks remain pending until the Draft PR is created.
+mutation was attempted. PR #45 hosted checks are terminal and successful; its three advisory
+checks are expected skips.
 
 ## Limitations and residual risk
 
@@ -108,6 +109,7 @@ authorized.
 
 ## Final diff and review status
 
-Whitespace, scoped source-diff, and security-diff review passed before delivery. The final delivery
-receipt must state the exact local, remote, and Draft-PR head SHA and all observed terminal check
-states. No merge is authorized by this record.
+Whitespace, scoped source-diff, and security-diff review passed before delivery. PR #45 initially
+verified local = remote = PR head at `a025724b2f07d70ffce29c1d6bef5e9b0e93fbcf`; all 11 executed
+checks, including SonarCloud and CodeQL Actions/Python/C++, passed, and there were no reviews or
+unresolved review threads. This record remains no-merge authority.

@@ -9,7 +9,7 @@
 | Change-ID | 20260724-01-reconcile-codex-security-csv-findings |
 | UTC-Datum | 2026-07-24 |
 | Framework-Basisrevision | 77d73decd094a8f289fbe0ef2582f12430923e24 |
-| Issue oder Pull Request | Draft-PR wird aus agent/fix-codex-security-csv-findings erstellt; keine Merge-Berechtigung |
+| Issue oder Pull Request | Draft-PR [#45](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/45) aus agent/fix-codex-security-csv-findings; keine Merge-Berechtigung |
 
 ## Motivation und Problemstellung
 
@@ -38,8 +38,8 @@ MRTS-Inhalt.
 - [x] Die fünf bestätigten CSV-Zeilen sind durch sechs separate fokussierte Root-Cause-Commits behoben.
 - [x] Jede Korrektur hat einen Negativ-Regressionstest und eine Legitimate Control.
 - [x] Englischer/deutscher Bericht und Change Record beschreiben dasselbe Ergebnis.
-- [ ] Ein Draft-PR hat gleiche lokale, Remote- und PR-Head-SHA sowie terminale Hosted-Evidenz; dies
-  ist eine Delivery-Nacharbeit und keine Merge-Berechtigung.
+- [x] Draft-PR #45 hat gleiche lokale, Remote- und PR-Head-SHA sowie 11 erfolgreiche terminale
+  Hosted-Checks; dies ist keine Merge-Berechtigung.
 
 ## Untersuchte Alternativen
 
@@ -103,7 +103,8 @@ Task-Evidence-Run aufbewahrt.
 
 Kein authentifizierter Codex-Security-Re-Scan war verfügbar; der Cloud-Abschluss ist daher
 blocked_permissions. Kein Framework-Default-Branch-Update, Merge, Parent-Gitlink-Update oder
-MRTS-Mutation wurde versucht. Hosted-PR-Checks bleiben bis zur Erstellung des Draft-PR ausstehend.
+MRTS-Mutation wurde versucht. Die Hosted-Checks von PR #45 sind terminal und erfolgreich; seine
+drei Advisory-Checks sind erwartete Skips.
 
 ## Einschränkungen und Restrisiko
 
@@ -114,6 +115,7 @@ unmerged bleiben, sofern er nicht gesondert autorisiert wird.
 
 ## Finaler Diff- und Review-Status
 
-Whitespace-, Scoped-Source-Diff- und Security-Diff-Review bestanden vor der Auslieferung. Der
-finale Delivery-Receipt muss die exakte lokale, Remote- und Draft-PR-Head-SHA sowie alle
-beobachteten terminalen Check-Status nennen. Dieser Record autorisiert keinen Merge.
+Whitespace-, Scoped-Source-Diff- und Security-Diff-Review bestanden vor der Auslieferung. PR #45
+verifizierte initial local = remote = PR head bei `a025724b2f07d70ffce29c1d6bef5e9b0e93fbcf`; alle
+11 ausgeführten Checks einschließlich SonarCloud und CodeQL Actions/Python/C++ bestanden, und es
+gab keine Reviews oder ungelösten Review-Threads. Dieser Record autorisiert keinen Merge.
