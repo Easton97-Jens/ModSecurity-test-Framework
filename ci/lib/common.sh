@@ -1344,9 +1344,53 @@ ci_require_full_git_commit() {
     esac
 }
 
+# A caller can launch its own shell with dynamic-loader state, but the V3
+# boundary must not forward that state to any process it starts. This helper is
+# shell-only so it runs before host Git, mkdir, stat, or another executable.
+ci_modsecurity_v3_scrub_dynamic_loader_environment() {
+    unset LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT LD_PROFILE LD_DEBUG LD_DEBUG_OUTPUT
+    unset LD_BIND_NOT LD_ASSUME_KERNEL LD_ORIGIN_PATH LD_DYNAMIC_WEAK LD_HWCAP_MASK
+    unset LD_SHOW_AUXV LD_TRACE_LOADED_OBJECTS LD_USE_LOAD_BIAS
+    unset LD_PREFER_MAP_32BIT_EXEC LD_POINTER_GUARD
+}
+
+# Bind every V3 provenance command to the reviewed system Git rather than
+# selecting an executable from caller PATH.
+ci_modsecurity_v3_require_host_git() {
+    ci_v3_host_git_bin=/usr/bin/git
+    if [ -L "$ci_v3_host_git_bin" ] || [ ! -f "$ci_v3_host_git_bin" ] || [ ! -x "$ci_v3_host_git_bin" ]; then
+        ci_blocked "ModSecurity v3 host Git must be a non-symlinked regular executable: $ci_v3_host_git_bin"
+        return 77
+    fi
+    ci_v3_host_git_metadata=$(/usr/bin/stat -c '%u %a' "$ci_v3_host_git_bin" 2>/dev/null) || {
+        ci_blocked "ModSecurity v3 host Git metadata could not be inspected: $ci_v3_host_git_bin"
+        return 77
+    }
+    ci_v3_host_git_owner=${ci_v3_host_git_metadata%% *}
+    ci_v3_host_git_mode=${ci_v3_host_git_metadata#* }
+    case "$ci_v3_host_git_mode" in
+        ''|*[!0-7]*)
+            ci_blocked "ModSecurity v3 host Git mode is invalid: $ci_v3_host_git_bin"
+            return 77
+            ;;
+    esac
+    if [ "$ci_v3_host_git_owner" != "0" ]; then
+        ci_blocked "ModSecurity v3 host Git must be root-owned: $ci_v3_host_git_bin"
+        return 77
+    fi
+    if [ "$((0$ci_v3_host_git_mode & 022))" -ne 0 ]; then
+        ci_blocked "ModSecurity v3 host Git must not be group- or world-writable: $ci_v3_host_git_bin"
+        return 77
+    fi
+    return 0
+}
+
 # Run Git for the ModSecurity v3 provenance boundary without inheriting
-# caller-controlled repository, hook, transport, or credential settings.
+# caller-controlled repository, hook, transport, credential, or executable
+# search-path settings.
 ci_modsecurity_v3_git() (
+    ci_modsecurity_v3_scrub_dynamic_loader_environment
+    ci_modsecurity_v3_require_host_git || return 77
     unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
     unset GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_EXEC_PATH
     unset GIT_TEMPLATE_DIR GIT_PROXY_COMMAND GIT_CONFIG_NOSYSTEM GIT_CONFIG_GLOBAL
@@ -1357,13 +1401,198 @@ ci_modsecurity_v3_git() (
     GIT_CONFIG_GLOBAL=/dev/null \
     GIT_CONFIG_COUNT=0 \
     GIT_TERMINAL_PROMPT=0 \
-        git -c core.hooksPath=/dev/null -c protocol.file.allow=never \
+    PATH=/usr/bin:/bin \
+        "$ci_v3_host_git_bin" --no-optional-locks \
+            -c core.hooksPath=/dev/null \
+            -c core.fsmonitor=false \
+            -c core.useBuiltinFSMonitor=false \
+            -c status.showUntrackedFiles=all \
+            -c protocol.file.allow=never \
             -c fetch.recurseSubmodules=false -c submodule.recurse=false \
             -c http.sslVerify=true "$@"
     return $?
 )
 
+# Every post-init operation runs from the validated physical root and overrides
+# core.worktree on the Git command itself. Git's --git-dir/--work-tree flags
+# and inherited GIT_DIR/GIT_WORK_TREE can leave git-submodule without a usable
+# worktree; changing to the canonical root keeps that helper contained while
+# the host runner still clears all caller-controlled Git environment state.
+ci_modsecurity_v3_fresh_root_git() {
+    ci_v3_fresh_root=$1
+    shift
+    ci_require_absolute_path "$ci_v3_fresh_root" "ModSecurity v3 fresh root" || return 77
+    if [ ! -d "$ci_v3_fresh_root" ] || [ -L "$ci_v3_fresh_root" ]; then
+        ci_blocked "ModSecurity v3 fresh root must be a non-symlinked directory: $ci_v3_fresh_root"
+        return 77
+    fi
+    ci_v3_fresh_root_real=$(ci_canonical_existing "$ci_v3_fresh_root") || {
+        ci_blocked "ModSecurity v3 fresh root could not be canonicalized: $ci_v3_fresh_root"
+        return 77
+    }
+    if [ "$ci_v3_fresh_root" != "$ci_v3_fresh_root_real" ]; then
+        ci_blocked "ModSecurity v3 fresh root must be canonical: $ci_v3_fresh_root"
+        return 77
+    fi
+    if [ ! -d "$ci_v3_fresh_root/.git" ] || [ -L "$ci_v3_fresh_root/.git" ]; then
+        ci_blocked "ModSecurity v3 fresh root Gitdir must be a non-symlinked directory: $ci_v3_fresh_root/.git"
+        return 77
+    fi
+    (
+        cd -- "$ci_v3_fresh_root" || {
+            ci_blocked "ModSecurity v3 fresh root could not be entered: $ci_v3_fresh_root"
+            return 77
+        }
+        ci_modsecurity_v3_git \
+            "--work-tree=$ci_v3_fresh_root" \
+            -c core.worktree="$ci_v3_fresh_root" \
+            -c core.attributesfile=/dev/null \
+            -c core.sparseCheckout=false \
+            "$@"
+    )
+}
+
+ci_modsecurity_v3_clear_fresh_local_config_key() {
+    ci_v3_config_root=$1
+    ci_v3_config_key=$2
+
+    ci_v3_unset_rc=0
+    ci_modsecurity_v3_fresh_root_git "$ci_v3_config_root" config --local --unset-all "$ci_v3_config_key" >/dev/null 2>&1 || ci_v3_unset_rc=$?
+    case "$ci_v3_unset_rc" in
+        0|5) ;;
+        *)
+            ci_blocked "ModSecurity v3 could not clear local $ci_v3_config_key configuration"
+            return 77
+            ;;
+    esac
+
+    ci_v3_local_values_rc=0
+    ci_v3_local_values=$(ci_modsecurity_v3_fresh_root_git "$ci_v3_config_root" config --local --get-all "$ci_v3_config_key" 2>/dev/null) || ci_v3_local_values_rc=$?
+    case "$ci_v3_local_values_rc" in
+        1) return 0 ;;
+        0)
+            ci_blocked "ModSecurity v3 local $ci_v3_config_key configuration remains set"
+            return 77
+            ;;
+        *)
+            ci_blocked "ModSecurity v3 local $ci_v3_config_key configuration could not be inspected"
+            return 77
+            ;;
+    esac
+}
+
+# Remove every local configuration value that can redirect fresh checkout bytes,
+# select external attributes, retain sparse state, or execute a custom recursive
+# submodule update. This must run immediately before recursive Git processing.
+ci_modsecurity_v3_scrub_fresh_recursive_config() {
+    ci_v3_scrub_root=$1
+    for ci_v3_scrub_key in core.worktree core.attributesfile core.sparseCheckout; do
+        ci_modsecurity_v3_clear_fresh_local_config_key "$ci_v3_scrub_root" "$ci_v3_scrub_key" || return 77
+    done
+
+    ci_v3_submodule_update_keys=$(ci_modsecurity_v3_fresh_root_git "$ci_v3_scrub_root" config --local --list --name-only 2>/dev/null) || {
+        ci_blocked "ModSecurity v3 local recursive configuration could not be listed"
+        return 77
+    }
+    ci_v3_submodule_update_keys=$(printf '%s\n' "$ci_v3_submodule_update_keys" | /usr/bin/awk 'tolower($0) ~ /^submodule\..*\.update$/')
+    if [ -n "$ci_v3_submodule_update_keys" ]; then
+        while IFS= read -r ci_v3_submodule_update_key; do
+            [ -n "$ci_v3_submodule_update_key" ] || continue
+            ci_modsecurity_v3_clear_fresh_local_config_key \
+                "$ci_v3_scrub_root" "$ci_v3_submodule_update_key" || return 77
+        done <<EOF
+$ci_v3_submodule_update_keys
+EOF
+    fi
+    return 0
+}
+
+ci_modsecurity_v3_create_private_fresh_root() {
+    ci_v3_private_root=$1
+    if [ -e "$ci_v3_private_root" ] || [ -L "$ci_v3_private_root" ]; then
+        ci_blocked "ModSecurity v3 fresh source root already exists: $ci_v3_private_root"
+        return 77
+    fi
+    (umask 077 && /usr/bin/mkdir -m 700 "$ci_v3_private_root") || {
+        ci_blocked "ModSecurity v3 private source root could not be created: $ci_v3_private_root"
+        return 77
+    }
+    if [ ! -d "$ci_v3_private_root" ] || [ -L "$ci_v3_private_root" ]; then
+        ci_blocked "ModSecurity v3 private source root is not a non-symlinked directory: $ci_v3_private_root"
+        return 77
+    fi
+    ci_v3_private_metadata=$(/usr/bin/stat -c '%u %a' "$ci_v3_private_root" 2>/dev/null) || {
+        ci_blocked "ModSecurity v3 private source root metadata could not be inspected: $ci_v3_private_root"
+        return 77
+    }
+    ci_v3_private_owner=${ci_v3_private_metadata%% *}
+    ci_v3_private_mode=${ci_v3_private_metadata#* }
+    ci_v3_current_uid=$(/usr/bin/id -u 2>/dev/null || true)
+    case "$ci_v3_private_mode" in
+        ''|*[!0-7]*)
+            ci_blocked "ModSecurity v3 private source root mode is invalid: $ci_v3_private_root"
+            return 77
+            ;;
+    esac
+    if [ -z "$ci_v3_current_uid" ] || [ "$ci_v3_private_owner" != "$ci_v3_current_uid" ]; then
+        ci_blocked "ModSecurity v3 private source root must be owned by the current user: $ci_v3_private_root"
+        return 77
+    fi
+    if [ "$((0$ci_v3_private_mode & 077))" -ne 0 ]; then
+        ci_blocked "ModSecurity v3 private source root must not grant group or other access: $ci_v3_private_root"
+        return 77
+    fi
+    return 0
+}
+
+# A public caller may select the storage parent, but not a symlinked or
+# non-canonical parent path. Bind the non-existing destination to the physical
+# parent before mkdir so a parent symlink cannot receive fresh checkout bytes.
+ci_modsecurity_v3_require_fresh_destination() {
+    ci_v3_destination=$1
+    ci_require_absolute_path "$ci_v3_destination" "ModSecurity v3 provisioning destination" || return 77
+    ci_reject_traversal_path "$ci_v3_destination" "ModSecurity v3 provisioning destination" || return 77
+    if [ -e "$ci_v3_destination" ] || [ -L "$ci_v3_destination" ]; then
+        ci_blocked "ModSecurity v3 fresh source root already exists: $ci_v3_destination"
+        return 77
+    fi
+    ci_v3_destination_parent=${ci_v3_destination%/*}
+    ci_v3_destination_leaf=${ci_v3_destination##*/}
+    if [ -z "$ci_v3_destination_parent" ]; then
+        ci_v3_destination_parent=/
+    fi
+    case "$ci_v3_destination_leaf" in
+        ''|.|..)
+            ci_blocked "ModSecurity v3 provisioning destination must name a child directory: $ci_v3_destination"
+            return 77
+            ;;
+    esac
+    if [ ! -d "$ci_v3_destination_parent" ] || [ -L "$ci_v3_destination_parent" ]; then
+        ci_blocked "ModSecurity v3 provisioning parent must be an existing non-symlinked directory: $ci_v3_destination_parent"
+        return 77
+    fi
+    ci_v3_destination_parent_real=$(ci_canonical_existing "$ci_v3_destination_parent") || {
+        ci_blocked "ModSecurity v3 provisioning parent could not be canonicalized: $ci_v3_destination_parent"
+        return 77
+    }
+    if [ "$ci_v3_destination_parent" != "$ci_v3_destination_parent_real" ]; then
+        ci_blocked "ModSecurity v3 provisioning parent must be canonical: $ci_v3_destination_parent"
+        return 77
+    fi
+    if [ "$ci_v3_destination_parent_real" = / ]; then
+        ci_v3_destination_expected=/$ci_v3_destination_leaf
+    else
+        ci_v3_destination_expected=$ci_v3_destination_parent_real/$ci_v3_destination_leaf
+    fi
+    if [ "$ci_v3_destination" != "$ci_v3_destination_expected" ]; then
+        ci_blocked "ModSecurity v3 provisioning destination escapes its canonical parent: $ci_v3_destination"
+        return 77
+    fi
+    return 0
+}
+
 ci_require_approved_modsecurity_v3_provenance() {
+    ci_modsecurity_v3_scrub_dynamic_loader_environment
     ci_require_https_github_repo_url "$MODSECURITY_V3_APPROVED_REPO_URL" "MODSECURITY_V3_APPROVED_REPO_URL" || return 77
     ci_require_full_git_commit "$MODSECURITY_V3_APPROVED_COMMIT" "MODSECURITY_V3_APPROVED_COMMIT" || return 77
     if [ "$MODSECURITY_REPO_URL" != "$MODSECURITY_V3_APPROVED_REPO_URL" ]; then
@@ -1385,40 +1614,320 @@ ci_require_approved_modsecurity_v3_provenance() {
     return 0
 }
 
-ci_require_approved_modsecurity_v3_checkout() {
+# The approved ModSecurity v3 root at MODSECURITY_V3_APPROVED_COMMIT contains
+# this exact recursive Gitlink graph.  The values are intentionally static:
+# accepting a URL, path, or commit supplied by a checkout would turn the
+# provenance check into a generic recursive-submodule policy.
+ci_modsecurity_v3_root_gitlinks() {
+    printf '%s\n' \
+        'bindings/python|bc625d5bb0bac6a64bcce8dc9902208612399348' \
+        'others/libinjection|211782219663f889f471650150df12b623c5766e' \
+        'others/mbedtls|0fe989b6b514192783c469039edd325fd0989806' \
+        'test/test-cases/secrules-language-tests|a3d4405e5a2c90488c387e589c5534974575e35b'
+}
+
+ci_modsecurity_v3_mbedtls_gitlinks() {
+    printf '%s\n' \
+        'framework|dff9da04438d712f7647fd995bc90fadd0c0e2ce' \
+        'tf-psa-crypto|29160dd877d29658279fd683b2ae57b320ddcf09'
+}
+
+ci_modsecurity_v3_tf_psa_crypto_gitlinks() {
+    printf '%s\n' \
+        'drivers/pqcp/mldsa-native|5772b4f4a0105694b1203abb582273f78fa951b7' \
+        'framework|dff9da04438d712f7647fd995bc90fadd0c0e2ce'
+}
+
+ci_modsecurity_v3_require_clean_checkout() {
+    ci_v3_clean_dir=$1
+    ci_v3_clean_label=$2
+
+    ci_v3_status=$(ci_modsecurity_v3_git -C "$ci_v3_clean_dir" status --porcelain=v1 --untracked-files=all 2>/dev/null) || {
+        ci_blocked "ModSecurity v3 $ci_v3_clean_label checkout status could not be inspected"
+        return 77
+    }
+    if [ -n "$ci_v3_status" ]; then
+        ci_blocked "ModSecurity v3 $ci_v3_clean_label checkout must be clean"
+        return 77
+    fi
+
+    ci_v3_index_flags=$(ci_modsecurity_v3_git -C "$ci_v3_clean_dir" ls-files -v 2>/dev/null) || {
+        ci_blocked "ModSecurity v3 $ci_v3_clean_label checkout index flags could not be inspected"
+        return 77
+    }
+    if ! printf '%s\n' "$ci_v3_index_flags" | /usr/bin/awk 'NF && $1 != "H" { exit 1 }'; then
+        ci_blocked "ModSecurity v3 $ci_v3_clean_label checkout has non-normal Git index flags"
+        return 77
+    fi
+    return 0
+}
+
+ci_modsecurity_v3_require_exact_gitlinks() {
+    ci_v3_gitlink_dir=$1
+    ci_v3_expected_gitlinks=$2
+    ci_v3_gitlink_label=$3
+
+    ci_v3_index=$(ci_modsecurity_v3_git -C "$ci_v3_gitlink_dir" ls-files --stage 2>/dev/null) || {
+        ci_blocked "ModSecurity v3 $ci_v3_gitlink_label checkout index could not be inspected"
+        return 77
+    }
+    ci_v3_actual_gitlinks=$(printf '%s\n' "$ci_v3_index" | /usr/bin/awk '$1 == "160000" { print $4 "|" $2 }')
+    if [ "$ci_v3_actual_gitlinks" != "$ci_v3_expected_gitlinks" ]; then
+        ci_blocked "ModSecurity v3 $ci_v3_gitlink_label checkout Gitlink topology is not approved"
+        return 77
+    fi
+    return 0
+}
+
+ci_modsecurity_v3_require_checkout() {
+    ci_v3_dir=$1
+    ci_v3_expected_worktree=$2
+    ci_v3_expected_origin=$3
+    ci_v3_expected_commit=$4
+    ci_v3_expected_git_dir=$5
+    ci_v3_expected_gitlinks=$6
+    ci_v3_label=$7
+    ci_v3_kind=$8
+    ci_v3_root=$9
+
+    if [ ! -d "$ci_v3_dir" ] || [ -L "$ci_v3_dir" ]; then
+        ci_blocked "ModSecurity v3 $ci_v3_label worktree is missing or symlinked: $ci_v3_dir"
+        return 77
+    fi
+    ci_v3_real_dir=$(ci_canonical_existing "$ci_v3_dir") || {
+        ci_blocked "ModSecurity v3 $ci_v3_label worktree could not be canonicalized: $ci_v3_dir"
+        return 77
+    }
+    if [ "$ci_v3_real_dir" != "$ci_v3_expected_worktree" ]; then
+        ci_blocked "ModSecurity v3 $ci_v3_label worktree escapes the approved source root"
+        return 77
+    fi
+
+    case "$ci_v3_kind" in
+        root)
+            if [ ! -d "$ci_v3_dir/.git" ] || [ -L "$ci_v3_dir/.git" ]; then
+                ci_blocked "ModSecurity v3 root checkout must have a non-symlinked .git directory"
+                return 77
+            fi
+            ;;
+        child)
+            if [ ! -f "$ci_v3_dir/.git" ] || [ -L "$ci_v3_dir/.git" ]; then
+                ci_blocked "ModSecurity v3 $ci_v3_label child must have a non-symlinked Gitdir file"
+                return 77
+            fi
+            ;;
+        *)
+            ci_blocked "ModSecurity v3 internal checkout-kind error: $ci_v3_kind"
+            return 77
+            ;;
+    esac
+
+    ci_v3_top=$(ci_modsecurity_v3_git -C "$ci_v3_dir" rev-parse --show-toplevel 2>/dev/null) || {
+        ci_blocked "ModSecurity v3 $ci_v3_label worktree could not be resolved"
+        return 77
+    }
+    if [ "$ci_v3_top" != "$ci_v3_expected_worktree" ]; then
+        ci_blocked "ModSecurity v3 $ci_v3_label Git worktree differs from its physical checkout"
+        return 77
+    fi
+
+    ci_v3_git_dir=$(ci_modsecurity_v3_git -C "$ci_v3_dir" rev-parse --absolute-git-dir 2>/dev/null) || {
+        ci_blocked "ModSecurity v3 $ci_v3_label Gitdir could not be resolved"
+        return 77
+    }
+    ci_v3_git_dir_real=$(ci_canonical_existing "$ci_v3_git_dir") || {
+        ci_blocked "ModSecurity v3 $ci_v3_label Gitdir does not exist"
+        return 77
+    }
+    ci_v3_expected_git_dir_real=$(ci_canonical_existing "$ci_v3_expected_git_dir") || {
+        ci_blocked "ModSecurity v3 $ci_v3_label expected Gitdir does not exist"
+        return 77
+    }
+    if [ "$ci_v3_git_dir_real" != "$ci_v3_expected_git_dir_real" ]; then
+        ci_blocked "ModSecurity v3 $ci_v3_label Gitdir is not the approved contained Gitdir"
+        return 77
+    fi
+    case "$ci_v3_git_dir_real" in
+        "$ci_v3_root/.git"|"$ci_v3_root/.git/modules/"*) ;;
+        *)
+            ci_blocked "ModSecurity v3 $ci_v3_label Gitdir escapes the approved root"
+            return 77
+            ;;
+    esac
+
+    ci_v3_remotes=$(ci_modsecurity_v3_git -C "$ci_v3_dir" remote 2>/dev/null) || {
+        ci_blocked "ModSecurity v3 $ci_v3_label remotes could not be inspected"
+        return 77
+    }
+    if [ "$ci_v3_remotes" != "origin" ]; then
+        ci_blocked "ModSecurity v3 $ci_v3_label checkout must have exactly one origin remote"
+        return 77
+    fi
+    ci_v3_origin=$(ci_modsecurity_v3_git -C "$ci_v3_dir" config --get remote.origin.url 2>/dev/null || true)
+    if [ "$ci_v3_origin" != "$ci_v3_expected_origin" ]; then
+        ci_blocked "ModSecurity v3 $ci_v3_label checkout has unexpected origin: $ci_v3_origin"
+        return 77
+    fi
+
+    ci_v3_symbolic_head=$(ci_modsecurity_v3_git -C "$ci_v3_dir" symbolic-ref -q HEAD 2>/dev/null || true)
+    if [ -n "$ci_v3_symbolic_head" ]; then
+        ci_blocked "ModSecurity v3 $ci_v3_label checkout must use a detached HEAD"
+        return 77
+    fi
+    ci_v3_head=$(ci_modsecurity_v3_git -C "$ci_v3_dir" rev-parse --verify "HEAD^{commit}" 2>/dev/null || true)
+    if [ "$ci_v3_head" != "$ci_v3_expected_commit" ]; then
+        ci_blocked "ModSecurity v3 $ci_v3_label checked-out commit does not match the approved commit"
+        return 77
+    fi
+
+    if ! ci_modsecurity_v3_git -C "$ci_v3_dir" fsck --full --no-dangling >/dev/null 2>&1; then
+        ci_blocked "ModSecurity v3 $ci_v3_label Git object verification failed"
+        return 77
+    fi
+    ci_modsecurity_v3_require_clean_checkout "$ci_v3_dir" "$ci_v3_label" || return 77
+    ci_modsecurity_v3_require_exact_gitlinks "$ci_v3_dir" "$ci_v3_expected_gitlinks" "$ci_v3_label" || return 77
+    return 0
+}
+
+ci_require_approved_modsecurity_v3_root_checkout() {
     ci_v3_checkout=${1:-$MODSECURITY_V3_SOURCE_DIR}
     ci_require_approved_modsecurity_v3_provenance || return 77
     ci_require_absolute_path "$ci_v3_checkout" "MODSECURITY_V3_SOURCE_DIR" || return 77
-    if [ ! -d "$ci_v3_checkout" ] || [ ! -d "$ci_v3_checkout/.git" ]; then
-        ci_blocked "ModSecurity v3 source must be a standalone Git checkout: $ci_v3_checkout"
+    if [ ! -d "$ci_v3_checkout" ] || [ -L "$ci_v3_checkout" ]; then
+        ci_blocked "ModSecurity v3 source must be a non-symlinked Git checkout: $ci_v3_checkout"
         return 77
     fi
-    if [ -e "$ci_v3_checkout/.gitmodules" ] || [ -L "$ci_v3_checkout/.gitmodules" ]; then
-        ci_blocked "ModSecurity v3 checkout declares submodules without an approved provenance rule"
-        return 77
-    fi
-
-    ci_v3_origin=$(ci_modsecurity_v3_git -C "$ci_v3_checkout" config --get remote.origin.url 2>/dev/null || true)
-    if [ "$ci_v3_origin" != "$MODSECURITY_V3_APPROVED_REPO_URL" ]; then
-        ci_blocked "ModSecurity v3 checkout has unexpected origin: $ci_v3_origin"
-        ci_blocked "ModSecurity v3 expected origin: $MODSECURITY_V3_APPROVED_REPO_URL"
-        return 77
-    fi
-
-    ci_v3_head=$(ci_modsecurity_v3_git -C "$ci_v3_checkout" rev-parse --verify "HEAD^{commit}" 2>/dev/null || true)
-    if [ "$ci_v3_head" != "$MODSECURITY_V3_APPROVED_COMMIT" ]; then
-        ci_blocked "ModSecurity v3 checked-out commit does not match the approved commit"
-        return 77
-    fi
-
-    ci_v3_index=$(ci_modsecurity_v3_git -C "$ci_v3_checkout" ls-files --stage 2>/dev/null) || {
-        ci_blocked "ModSecurity v3 checkout index could not be inspected for submodules"
+    ci_v3_root=$(ci_canonical_existing "$ci_v3_checkout") || {
+        ci_blocked "ModSecurity v3 source could not be canonicalized: $ci_v3_checkout"
         return 77
     }
-    if printf '%s\n' "$ci_v3_index" | awk '$1 == "160000" { found = 1 } END { exit !found }'; then
-        ci_blocked "ModSecurity v3 checkout contains a Gitlink without an approved submodule provenance rule"
+    if [ "$ci_v3_checkout" != "$ci_v3_root" ]; then
+        ci_blocked "ModSecurity v3 source path must be canonical and cannot traverse a symlink"
         return 77
     fi
+    if [ ! -f "$ci_v3_root/.gitmodules" ] || [ -L "$ci_v3_root/.gitmodules" ]; then
+        ci_blocked "ModSecurity v3 root must contain the approved non-symlinked .gitmodules manifest"
+        return 77
+    fi
+    ci_v3_root_gitlinks=$(ci_modsecurity_v3_root_gitlinks)
+    ci_modsecurity_v3_require_checkout \
+        "$ci_v3_root" "$ci_v3_root" "$MODSECURITY_V3_APPROVED_REPO_URL" \
+        "$MODSECURITY_V3_APPROVED_COMMIT" "$ci_v3_root/.git" \
+        "$ci_v3_root_gitlinks" "root" root "$ci_v3_root" || return 77
+    return 0
+}
+
+ci_modsecurity_v3_initialize_approved_submodules() {
+    ci_v3_checkout=${1:-$MODSECURITY_V3_SOURCE_DIR}
+    ci_require_approved_modsecurity_v3_root_checkout "$ci_v3_checkout" || return 77
+    ci_modsecurity_v3_scrub_fresh_recursive_config "$ci_v3_checkout" || return 77
+    if ! ci_modsecurity_v3_fresh_root_git "$ci_v3_checkout" submodule update --init --recursive --checkout; then
+        ci_blocked "ModSecurity v3 approved recursive submodule initialization failed"
+        return 77
+    fi
+    return 0
+}
+
+ci_require_approved_modsecurity_v3_checkout() {
+    ci_v3_checkout=${1:-$MODSECURITY_V3_SOURCE_DIR}
+    ci_require_approved_modsecurity_v3_root_checkout "$ci_v3_checkout" || return 77
+    ci_v3_root=$(ci_canonical_existing "$ci_v3_checkout") || return 77
+    ci_v3_mbedtls_gitlinks=$(ci_modsecurity_v3_mbedtls_gitlinks)
+    ci_v3_tf_psa_crypto_gitlinks=$(ci_modsecurity_v3_tf_psa_crypto_gitlinks)
+
+    ci_modsecurity_v3_require_checkout \
+        "$ci_v3_root/bindings/python" "$ci_v3_root/bindings/python" \
+        "https://github.com/owasp-modsecurity/ModSecurity-Python-bindings.git" \
+        "bc625d5bb0bac6a64bcce8dc9902208612399348" \
+        "$ci_v3_root/.git/modules/bindings/python" "" "bindings/python" child "$ci_v3_root" || return 77
+    ci_modsecurity_v3_require_checkout \
+        "$ci_v3_root/others/libinjection" "$ci_v3_root/others/libinjection" \
+        "https://github.com/libinjection/libinjection.git" \
+        "211782219663f889f471650150df12b623c5766e" \
+        "$ci_v3_root/.git/modules/others/libinjection" "" "others/libinjection" child "$ci_v3_root" || return 77
+    ci_modsecurity_v3_require_checkout \
+        "$ci_v3_root/others/mbedtls" "$ci_v3_root/others/mbedtls" \
+        "https://github.com/Mbed-TLS/mbedtls.git" \
+        "0fe989b6b514192783c469039edd325fd0989806" \
+        "$ci_v3_root/.git/modules/others/mbedtls" "$ci_v3_mbedtls_gitlinks" "others/mbedtls" child "$ci_v3_root" || return 77
+    ci_modsecurity_v3_require_checkout \
+        "$ci_v3_root/others/mbedtls/framework" "$ci_v3_root/others/mbedtls/framework" \
+        "https://github.com/Mbed-TLS/mbedtls-framework" \
+        "dff9da04438d712f7647fd995bc90fadd0c0e2ce" \
+        "$ci_v3_root/.git/modules/others/mbedtls/modules/framework" "" "others/mbedtls/framework" child "$ci_v3_root" || return 77
+    ci_modsecurity_v3_require_checkout \
+        "$ci_v3_root/others/mbedtls/tf-psa-crypto" "$ci_v3_root/others/mbedtls/tf-psa-crypto" \
+        "https://github.com/Mbed-TLS/TF-PSA-Crypto.git" \
+        "29160dd877d29658279fd683b2ae57b320ddcf09" \
+        "$ci_v3_root/.git/modules/others/mbedtls/modules/tf-psa-crypto" "$ci_v3_tf_psa_crypto_gitlinks" "others/mbedtls/tf-psa-crypto" child "$ci_v3_root" || return 77
+    ci_modsecurity_v3_require_checkout \
+        "$ci_v3_root/others/mbedtls/tf-psa-crypto/drivers/pqcp/mldsa-native" "$ci_v3_root/others/mbedtls/tf-psa-crypto/drivers/pqcp/mldsa-native" \
+        "https://github.com/Mbed-TLS/mldsa-native" \
+        "5772b4f4a0105694b1203abb582273f78fa951b7" \
+        "$ci_v3_root/.git/modules/others/mbedtls/modules/tf-psa-crypto/modules/mldsa-native" "" "others/mbedtls/tf-psa-crypto/drivers/pqcp/mldsa-native" child "$ci_v3_root" || return 77
+    ci_modsecurity_v3_require_checkout \
+        "$ci_v3_root/others/mbedtls/tf-psa-crypto/framework" "$ci_v3_root/others/mbedtls/tf-psa-crypto/framework" \
+        "https://github.com/Mbed-TLS/mbedtls-framework" \
+        "dff9da04438d712f7647fd995bc90fadd0c0e2ce" \
+        "$ci_v3_root/.git/modules/others/mbedtls/modules/tf-psa-crypto/modules/framework" "" "others/mbedtls/tf-psa-crypto/framework" child "$ci_v3_root" || return 77
+    ci_modsecurity_v3_require_checkout \
+        "$ci_v3_root/test/test-cases/secrules-language-tests" "$ci_v3_root/test/test-cases/secrules-language-tests" \
+        "https://github.com/owasp-modsecurity/secrules-language-tests" \
+        "a3d4405e5a2c90488c387e589c5534974575e35b" \
+        "$ci_v3_root/.git/modules/test/test-cases/secrules-language-tests" "" "test/test-cases/secrules-language-tests" child "$ci_v3_root" || return 77
+    return 0
+}
+
+# Public Framework provisioning API for Parent bridges and fetch consumers.
+# Callers must provide a previously storage-authorized absolute destination and
+# remove it safely on failure. This helper refuses an existing destination,
+# creates a private root before Git, and never delegates to a generic clone.
+ci_provision_approved_modsecurity_v3_checkout() {
+    ci_modsecurity_v3_scrub_dynamic_loader_environment
+    if [ "$#" -ne 1 ]; then
+        ci_blocked "ModSecurity v3 provisioning requires exactly one destination"
+        return 77
+    fi
+    ci_v3_provision_root=$1
+    ci_require_approved_modsecurity_v3_provenance || return 77
+    ci_modsecurity_v3_require_fresh_destination "$ci_v3_provision_root" || return 77
+    ci_modsecurity_v3_create_private_fresh_root "$ci_v3_provision_root" || return 77
+
+    if ! ci_modsecurity_v3_git init "$ci_v3_provision_root" >/dev/null 2>&1; then
+        ci_blocked "ModSecurity v3 private source repository could not be initialized"
+        return 77
+    fi
+    if ! ci_modsecurity_v3_fresh_root_git "$ci_v3_provision_root" remote add origin "$MODSECURITY_V3_APPROVED_REPO_URL"; then
+        ci_blocked "ModSecurity v3 approved origin could not be set"
+        return 77
+    fi
+    ci_v3_provision_origin=$(ci_modsecurity_v3_fresh_root_git "$ci_v3_provision_root" config --get remote.origin.url 2>/dev/null || true)
+    if [ "$ci_v3_provision_origin" != "$MODSECURITY_V3_APPROVED_REPO_URL" ]; then
+        ci_blocked "ModSecurity v3 fresh checkout has unexpected origin: $ci_v3_provision_origin"
+        return 77
+    fi
+
+    if ! ci_modsecurity_v3_fresh_root_git "$ci_v3_provision_root" fetch --depth 1 --no-tags origin "$MODSECURITY_V3_APPROVED_COMMIT"; then
+        ci_blocked "ModSecurity v3 approved commit fetch failed"
+        return 77
+    fi
+    ci_v3_fetched_commit=$(ci_modsecurity_v3_fresh_root_git "$ci_v3_provision_root" rev-parse --verify "FETCH_HEAD^{commit}" 2>/dev/null || true)
+    if [ "$ci_v3_fetched_commit" != "$MODSECURITY_V3_APPROVED_COMMIT" ]; then
+        ci_blocked "ModSecurity v3 fetched commit does not match the approved commit"
+        return 77
+    fi
+    ci_v3_resolved_commit=$(ci_modsecurity_v3_fresh_root_git "$ci_v3_provision_root" rev-parse --verify "$MODSECURITY_V3_APPROVED_COMMIT^{commit}" 2>/dev/null || true)
+    if [ "$ci_v3_resolved_commit" != "$MODSECURITY_V3_APPROVED_COMMIT" ]; then
+        ci_blocked "ModSecurity v3 resolved commit does not match the approved commit"
+        return 77
+    fi
+    if ! ci_modsecurity_v3_fresh_root_git "$ci_v3_provision_root" checkout --detach "$MODSECURITY_V3_APPROVED_COMMIT" >/dev/null 2>&1; then
+        ci_blocked "ModSecurity v3 approved commit checkout failed"
+        return 77
+    fi
+
+    ci_modsecurity_v3_initialize_approved_submodules "$ci_v3_provision_root" || return 77
+    ci_require_approved_modsecurity_v3_checkout "$ci_v3_provision_root" || return 77
     return 0
 }
 

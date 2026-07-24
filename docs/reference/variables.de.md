@@ -197,12 +197,28 @@ Legacy-Aliase `MODSECURITY_REPO_URL`, `MODSECURITY_V3_GIT_URL`,
 `MODSECURITY_GIT_REF` und `MODSECURITY_V3_GIT_REF` normalisieren bei leeren
 oder nicht gesetzten Werten zu diesen geprüften Werten; ein nichtleerer
 abweichender Wert wird vor der Git-Nutzung abgewiesen und selektiert nie ein
-Objekt. Der V3-Fetch-Pfad initialisiert ein
-frisches Repository, prüft seinen literalen Origin, lädt den vollständigen
-Commit ohne Tags oder rekursive Submodule und vergleicht gefetchte,
-aufgelöste und ausgecheckte Commit-Identität. Ein V3-Build-Input muss ein
-eigenständiger Checkout mit demselben Origin und `HEAD` sein; `.gitmodules`
-und Gitlinks werden abgewiesen statt initialisiert.
+Objekt. Der V3-Fetch-Pfad initialisiert ein frisches Repository, prüft seinen
+literalen Origin, lädt den vollständigen Commit ohne Tags oder automatische
+rekursive Submodule und vergleicht gefetchte, aufgelöste und ausgecheckte
+Commit-Identität. Danach initialisiert er ausschließlich die statisch
+freigegebene rekursive Topologie ausdrücklich. Ein V3-Build-Input muss diese
+Root-Identität und den exakten Graphen mit acht Kindern aus `(Pfad, Origin,
+Commit)` besitzen, der durch die Helfer `ci_modsecurity_v3_*_gitlinks` in
+`ci/lib/common.sh` deklariert ist; jeder Checkout muss nicht verlinkt,
+enthalten, abgetrennt, sauber und mit genau einem freigegebenen `origin` sein.
+`.gitmodules` und Gitlinks werden nur als dieser exakte statische Graph
+akzeptiert; fehlende, zusätzliche oder abweichende Topologie wird abgewiesen.
+Der einzige Entry-Point für frische Provisionierung ist
+`ci_provision_approved_modsecurity_v3_checkout`; er verlangt ein nicht
+vorhandenes Ziel direkt unter einem bestehenden kanonischen, nicht verlinkten
+Parent, erzeugt dieses Ziel privat und verwendet keine vorhandene V3-Quelle
+erneut. Seine Provenance-Operationen verwenden das geprüfte `/usr/bin/git`
+statt des Caller-`PATH`, führen Operationen nach `init` aus dem kanonischen
+physischen Verzeichnis des neuen Roots mit explizitem Worktree aus, während
+`GIT_DIR` und `GIT_WORK_TREE` für Gits rekursiven Helfer nicht gesetzt bleiben,
+und löschen lokale Redirect-, Attributes-, Sparse-Checkout- und
+benutzerdefinierte Recursive-Update-Konfiguration vor der Submodule-
+Verarbeitung.
 
 ## Werkzeuge, Statuswerte und sensible Daten
 

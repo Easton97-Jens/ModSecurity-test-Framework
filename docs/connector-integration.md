@@ -56,10 +56,26 @@ ModSecurity v3 acquisition accepts only the literal OWASP HTTPS origin and
 the reviewed full commit above. `v3.0.15` is release metadata rather than a
 Git selector: empty legacy `MODSECURITY_*` aliases normalize to the reviewed
 identity, while a non-empty differing value fails before Git use. The fetch
-path always creates a fresh checkout; a
-build path accepts an existing checkout only after it verifies that exact
-origin and `HEAD` and rejects `.gitmodules` manifests and Gitlinks. No V3
-submodules are initialized by the Framework.
+path always creates a fresh checkout and verifies the pinned root before it
+explicitly initializes its recursive submodules. A build path accepts an
+existing checkout only after it verifies the exact root and static approved
+eight-child topology: each child has a pinned path, origin, and commit; a
+non-symlinked physical worktree and contained Gitdir; one `origin`; a detached
+`HEAD`; and a clean normal index. `.gitmodules` and Gitlinks are therefore not
+accepted generically: any missing, extra, mismatched, symlinked, or escaping
+topology fails closed. Fresh V3 provisioning is exposed only through
+`ci_provision_approved_modsecurity_v3_checkout`: it accepts an absent child
+below an existing canonical, non-symlinked parent; creates a private `0700`
+root; and uses the verified root-owned, non-group/world-writable
+`/usr/bin/git` with a scrubbed `PATH`. Every post-init operation explicitly
+enters that canonical physical root and sets its worktree explicitly without
+exporting `GIT_DIR` or `GIT_WORK_TREE`; this preserves the normal worktree
+context required by Git's recursive submodule helper. It ignores external
+attributes and sparse checkout state, and removes local `core.worktree`, `core.attributesfile`,
+`core.sparseCheckout`, and `submodule.*.update` values before recursive Git
+processing. The boundary also clears dynamic-loader variables before it starts
+its own process; a caller must still start the invoking shell from a trusted
+environment.
 
 ## Six-connector boundary
 

@@ -1,8 +1,11 @@
 """Regression coverage for the NGINX GitHub release archive trust boundary.
 
-The test invokes the real preparation entry point with only deterministic local
-archives and command shims. The shims make archive URL and cache decisions
-observable while the real ``tar`` program performs the successful extraction.
+The test invokes an exact temporary copy of the real preparation entry point
+with deterministic local archives and command shims. Its copied common helper
+uses a test-local host-Git function override so the NGINX archive boundary can
+consume an approved fake V3 topology without weakening production provenance.
+The shims make archive URL and cache decisions observable while the real
+``tar`` program performs the successful extraction.
 """
 
 from __future__ import annotations
@@ -19,10 +22,17 @@ import textwrap
 import unittest
 from pathlib import Path
 
+from git_provenance_test_support import (
+    create_approved_modsecurity_v3_topology,
+    fake_git_script,
+)
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "ci/provisioning/prepare-nginx-build.sh"
 FIXTURES = ROOT / "tests/fixtures/nginx-archive-digest"
+APPROVED_MODSECURITY_V3_REPO = "https://github.com/owasp-modsecurity/ModSecurity.git"
+APPROVED_MODSECURITY_V3_COMMIT = "0fb4aff98b4980cf6426697d5605c424e3d5bb60"
 
 
 class NginxArchiveDigestRegressionTests(unittest.TestCase):
@@ -56,6 +66,31 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         path.write_text(textwrap.dedent(contents).lstrip(), encoding="utf-8")
         path.chmod(0o755)
 
+    def make_test_framework_copy(self, root: Path) -> Path:
+        """Copy only the sourced entrypoint dependencies into task-local test state."""
+
+        framework_root = root / "framework-copy"
+        (framework_root / "ci/lib").mkdir(parents=True)
+        (framework_root / "ci/provisioning").mkdir(parents=True)
+        (framework_root / "tests").mkdir()
+        (framework_root / "Makefile").write_text("# test-only framework root\n", encoding="utf-8")
+        shutil.copy2(ROOT / "ci/lib/path.sh", framework_root / "ci/lib/path.sh")
+        shutil.copy2(
+            ROOT / "ci/lib/path-bootstrap.sh", framework_root / "ci/lib/path-bootstrap.sh"
+        )
+        shutil.copy2(SCRIPT, framework_root / "ci/provisioning/prepare-nginx-build.sh")
+        common_source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        (framework_root / "ci/lib/common.sh").write_text(
+            common_source
+            + "\n# Test-only host-Git override; production common.sh has no such escape.\n"
+            + "ci_modsecurity_v3_require_host_git() {\n"
+            + "    ci_v3_host_git_bin=$FAKE_GIT_BIN\n"
+            + "    return 0\n"
+            + "}\n",
+            encoding="utf-8",
+        )
+        return framework_root / "ci/provisioning/prepare-nginx-build.sh"
+
     def make_harness(self) -> dict[str, Path | dict[str, str]]:
         root = Path(tempfile.mkdtemp(prefix="nginx-archive-digest-"))
         tools_dir = root / "tools"
@@ -67,8 +102,8 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
 
         build_root = root / "build-root"
         v3 = build_root / "v3"
-        v3.mkdir(parents=True)
-        (v3 / ".git").mkdir()
+        create_approved_modsecurity_v3_topology(v3)
+        framework_script = self.make_test_framework_copy(root)
         nginx_adapter = root / "nginx-adapter"
         (nginx_adapter / "src").mkdir(parents=True)
         (nginx_adapter / "src/ddebug.h").write_text("fixture\n", encoding="utf-8")
@@ -82,6 +117,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
 
         curl_log = root / "curl.log"
         tar_log = root / "tar.log"
+        git_log = root / "git.log"
         swap_marker = root / "archive-swapped"
         latest = FIXTURES / "latest-release.json"
         real_tar = shutil.which("tar")
@@ -180,39 +216,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         )
         self.write_executable(
             tools_dir / "git",
-            """
-            #!/bin/sh
-            set -eu
-            while [ "$#" -gt 0 ]; do
-                case "$1" in
-                    -c|-C)
-                        shift 2
-                        ;;
-                    *)
-                        break
-                        ;;
-                esac
-            done
-            command=${1:-}
-            shift || true
-            case "$command" in
-                config)
-                    printf '%s\n' 'https://github.com/owasp-modsecurity/ModSecurity.git'
-                    ;;
-                rev-parse)
-                    case "$*" in
-                        *--is-inside-work-tree*) printf '%s\n' true ;;
-                        *--abbrev-ref\\ HEAD*) printf '%s\n' HEAD ;;
-                        *) printf '%s\n' '0fb4aff98b4980cf6426697d5605c424e3d5bb60' ;;
-                    esac
-                    ;;
-                describe)
-                    printf '%s\n' v3.0.15
-                    ;;
-                ls-files)
-                    ;;
-            esac
-            """,
+            fake_git_script(APPROVED_MODSECURITY_V3_REPO, APPROVED_MODSECURITY_V3_COMMIT),
         )
 
         nginx_build = build_root / "nginx-build"
@@ -238,6 +242,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             "LATEST_URL": "https://api.github.com/repos/nginx/nginx/releases/latest",
             "CURL_LOG": str(curl_log),
             "TAR_LOG": str(tar_log),
+            "FAKE_GIT_LOG": str(git_log),
+            "FAKE_GIT_ROOT": str(v3),
+            "FAKE_GIT_BIN": str(tools_dir / "git"),
             "REAL_TAR": str(real_tar),
             "REAL_SHA256SUM": str(real_sha256sum),
             "REPLACEMENT_ARCHIVE": str(replacement),
@@ -254,6 +261,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             "candidate": candidate,
             "curl_log": curl_log,
             "tar_log": tar_log,
+            "script": framework_script,
             "environment": environment,
         }
 
@@ -271,7 +279,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         environment["NGINX_SHA256"] = digest
         environment.update(overrides)
         return subprocess.run(
-            ["sh", str(SCRIPT)],
+            ["sh", str(harness["script"])],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,

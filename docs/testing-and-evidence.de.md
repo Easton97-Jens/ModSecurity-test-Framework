@@ -127,17 +127,26 @@ Provisionierungs-Identitätskontrolle, keinen CRS-Runtime-Support-Claim.
 ## ModSecurity-v3-Quellherkunftsvertrag
 
 `make test-modsecurity-v3-provenance-contract`, ebenfalls von `make lint`
-ausgeführt, führt die echte V3-Fetch- und Direct-Build-Grenze mit einem
-temporären Fake-Git-Programm aus. Der Test verifiziert, dass mutable Refs und
-abweichende nichtleere Legacy-Aliase abgewiesen werden, während leere Aliase
-zu geprüften Metadaten normalisieren; außerdem weist er einen fremden Origin,
-abweichende gefetchte/aufgelöste/ausgecheckte Commits und vorhandene Fetch-Pfade,
-`.gitmodules` und Gitlinks abgewiesen werden. Er beweist außerdem, dass
-Apache, NGINX und der eigenständige V3-Builder einen vorhandenen nicht
-freigegebenen Checkout vor Copy- oder Build-Kommandos stoppen. Die legitime
-Kontrolle verwendet einen freigegebenen Fake-Checkout und ein minimales lokales
-Build-Fixture; sie hat keinen Netzwerkzugriff, initialisiert keine Submodule
-und behauptet keinen Connector-Runtime-Support.
+ausgeführt, führt die V3-Fetch- und Direct-Build-Grenze dort mit einem
+temporären Fake-Git-Programm aus, wo die Topologieentscheidung kontrollierten
+Input benötigt, und ergänzt das um Real-Git-Fixtures für frische Roots. Der
+Test verifiziert, dass mutable Refs und abweichende nichtleere Legacy-Aliase
+abgewiesen werden, während leere Aliase zu geprüften Metadaten normalisieren;
+außerdem weist er einen fremden Origin, abweichende
+gefetchte/aufgelöste/ausgecheckte Commits und vorhandene Fetch-Pfade sowie
+jedes fehlende, zusätzliche, Origin- oder Commit-abweichende, verlinkte,
+ausbrechende, schmutzige oder nicht normale Index-Mitglied der freigegebenen
+rekursiven Topologie ab. Er beweist, dass Apache, NGINX und der eigenständige
+V3-Builder einen vorhandenen nicht freigegebenen Checkout vor Copy- oder
+Build-Kommandos stoppen und dass der eigenständige Build-Pfad den vollständigen
+Guard vor dem Source-Copy erreicht. Die legitime Fake-Kontrolle verwendet den
+exakten freigegebenen Root und Graphen mit acht Kindern. Real-Git-Kontrollen
+beweisen, dass ein früheres Fake-Git aus `PATH` ignoriert wird, ein verlinkter
+Fresh-Root-Parent vor Git abgewiesen wird, `core.worktree` Checkout-Schreibungen
+nicht umleiten kann, ein externer Attributes-/Smudge-Filter nicht läuft und
+eine lokale benutzerdefinierte `submodule.*.update`-Einstellung vor der
+Rekursion entfernt wird. Der Vertrag hat keinen Netzwerkzugriff, akzeptiert
+keine generischen Submodule und behauptet keinen Connector-Runtime-Support.
 
 ## No-CRS- und Full-Lifecycle-Evidence
 

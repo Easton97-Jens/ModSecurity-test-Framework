@@ -191,10 +191,24 @@ literal ModSecurity v3 provenance values in `ci/lib/common.sh`, currently
 `MODSECURITY_V3_GIT_REF` aliases normalize to those reviewed values when empty
 or unset; a non-empty differing value is rejected before Git use and never
 selects an object. The V3 fetch route initializes a fresh repository, verifies its literal origin,
-fetches the full commit without tags or recursive submodules, and compares the
-fetched, resolved, and checked-out commit identities. A V3 build input must be
-a standalone checkout with that same origin and `HEAD`; `.gitmodules` and
-Gitlinks are rejected rather than initialized.
+fetches the full commit without tags or automatic recursive submodules, and
+compares the fetched, resolved, and checked-out commit identities. It then
+explicitly initializes only the static approved recursive topology. A V3 build
+input must have that root identity and the exact eight-child `(path, origin,
+commit)` graph declared by the `ci_modsecurity_v3_*_gitlinks` helpers in
+`ci/lib/common.sh`; every checkout must be non-symlinked, contained, detached,
+clean, and have exactly one approved `origin`. `.gitmodules` and Gitlinks are
+accepted only as that exact static graph; missing, extra, or mismatched
+topology is rejected. The only fresh-provisioning entry point is
+`ci_provision_approved_modsecurity_v3_checkout`; it requires an absent
+destination directly below an existing canonical non-symlinked parent, creates
+that destination privately, and does not reuse an existing V3 source. Its
+provenance operations use the verified `/usr/bin/git` rather than a caller's
+`PATH`, run post-init commands from the new root's canonical physical
+directory with an explicit worktree while keeping `GIT_DIR` and `GIT_WORK_TREE`
+unset for Git's recursive helper, and clear local redirect, attributes,
+sparse-checkout, and custom recursive-update
+configuration before submodule processing.
 
 ## Tooling, status values, and sensitive data
 
