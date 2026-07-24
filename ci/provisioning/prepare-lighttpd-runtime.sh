@@ -78,6 +78,11 @@ if [ "${LIGHTTPD_BIN_WAS_SET:-0}" = "1" ] \
     exit 77
 fi
 
+if [ -d "$LIGHTTPD_SOURCE_STAGE_DIR" ]; then
+    ci_blocked "unverified staged lighttpd source is not accepted: $LIGHTTPD_SOURCE_STAGE_DIR"
+    exit 77
+fi
+
 if [ ! -d "$LIGHTTPD_SOURCE_STAGE_DIR" ]; then
     if ! require_runtime_download_opt_in; then
         write_prepare_blocked_message \
@@ -101,8 +106,6 @@ if [ ! -d "$LIGHTTPD_SOURCE_STAGE_DIR" ]; then
     download_runtime_artifact lighttpd "$LIGHTTPD_DOWNLOAD_URL" "$archive" >/dev/null || exit 77
     verify_runtime_artifact_sha256 lighttpd "$LIGHTTPD_SHA256" "$archive" || exit 77
     source_dir=$(extract_runtime_source_tar lighttpd "$archive" "$source_parent" "lighttpd-$LIGHTTPD_VERSION") || exit 77
-else
-    source_dir="$LIGHTTPD_SOURCE_STAGE_DIR"
 fi
 
 # A matching binary may have been staged from an existing installation. Keep
