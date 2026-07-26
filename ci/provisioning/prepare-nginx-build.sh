@@ -18,6 +18,7 @@ MODSECURITY_V3_SOURCE_DIR="${MODSECURITY_V3_SOURCE_DIR:-$DEFAULT_MODSECURITY_V3_
 REFRESH="${REFRESH:-0}"
 PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
 BUILD_NGINX_FROM_SOURCE="${BUILD_NGINX_FROM_SOURCE:-1}"
+NGINX_BUILD_OWNER_ROOT="${NGINX_BUILD_OWNER_ROOT:-$BUILD_ROOT}"
 
 # Keep the historical H1 locations exactly as they were.  Other profiles get
 # isolated defaults so a binary/module built without H3 can never be reused as
@@ -119,7 +120,7 @@ require_absolute_generated_path() {
 
 safe_remove_dir() {
     target=$1
-    safe_remove_runtime_path "$target" "$BUILD_ROOT" "NGINX REFRESH target" || exit 77
+    safe_remove_runtime_path "$target" "$NGINX_BUILD_OWNER_ROOT" "NGINX REFRESH target" || exit 77
 }
 
 validate_nginx_protocol_profile() {
@@ -843,6 +844,7 @@ echo "nginx_poc: NGINX_PROTOCOL_PROFILE=$NGINX_PROTOCOL_PROFILE"
 validate_nginx_protocol_profile
 validate_nginx_archive_configuration
 require_absolute_generated_path "$BUILD_ROOT" "BUILD_ROOT"
+require_absolute_generated_path "$NGINX_BUILD_OWNER_ROOT" "NGINX_BUILD_OWNER_ROOT"
 require_absolute_generated_path "$NGINX_BUILD_DIR" "NGINX_BUILD_DIR"
 require_absolute_generated_path "$NGINX_SOURCE_DIR" "NGINX_SOURCE_DIR"
 require_absolute_generated_path "$NGINX_PREFIX" "NGINX_PREFIX"
