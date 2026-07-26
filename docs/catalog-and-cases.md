@@ -26,6 +26,7 @@ starter check as a replacement for observed connector evidence.
 | `name` | Stable case identity; paths may change without changing the identity |
 | `metadata` | Scope, status, provenance, capabilities, and promotion boundaries |
 | `rules` | Local ModSecurity rules materialized for the case |
+| `runtime_materializable: false` | Explicitly records a connector-neutral descriptor without a safe executable rule; it must retain `former_xfail: true` and `capabilities.runtime_verified: false` |
 | `request` | Method, path, headers, body, multipart data, and fixtures |
 | `response` | Optional response fixture used by host harnesses |
 | `expect` | Expected status and bounded response or audit assertions |
@@ -43,6 +44,7 @@ exception.
 | `pending`, `future`, `connector-gap`, or `runtime-difference` | Visible in planning and generated reports, not a promotion |
 | `mapped-only` | Provenance or design mapping without an executable case claim |
 | `runtime_verified` | Evidence metadata; it changes only through the defined evidence path |
+| `runtime_materializable: false` | Excluded even from force-all connector execution; it stays visible as non-promotable metadata until a connector-owned runtime implementation exists |
 | `RESPONSE_BODY` | Non-verified and non-promoted until stable qualifying connector evidence exists |
 
 Case directories organize discovery and reporting. They do not encode a PASS,

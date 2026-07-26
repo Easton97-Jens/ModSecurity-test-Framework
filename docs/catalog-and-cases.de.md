@@ -26,6 +26,7 @@ Upstream-Test oder Starter-Check als Ersatz für beobachtete Connector-Evidence.
 | `name` | Stabile Fallidentität; Pfade dürfen sich ändern, ohne die Identität zu ändern |
 | `metadata` | Scope, Status, Provenienz, Capabilities und Promotion-Grenzen |
 | `rules` | Für den Fall materialisierte lokale ModSecurity-Regeln |
+| `runtime_materializable: false` | Kennzeichnet explizit einen connector-neutralen Deskriptor ohne sicher ausführbare Regel; er muss `former_xfail: true` und `capabilities.runtime_verified: false` beibehalten |
 | `request` | Methode, Pfad, Header, Body, Multipart-Daten und Fixtures |
 | `response` | Optionale Response-Fixture für Host-Harnesses |
 | `expect` | Erwarteter Status sowie begrenzte Response- oder Audit-Assertions |
@@ -43,6 +44,7 @@ With-CRS-Ausnahme zu kodieren.
 | `pending`, `future`, `connector-gap` oder `runtime-difference` | In Planung und generierten Berichten sichtbar, keine Promotion |
 | `mapped-only` | Provenienz- oder Designzuordnung ohne ausführbaren Fallanspruch |
 | `runtime_verified` | Evidence-Metadatum; ändert sich nur über den definierten Evidence-Pfad |
+| `runtime_materializable: false` | Wird auch bei Force-All-Connector-Ausführung ausgeschlossen und bleibt nicht hochstufbare Metadaten, bis eine connector-eigene Runtime-Implementierung existiert |
 | `RESPONSE_BODY` | Nicht verifiziert und nicht hochgestuft, bis stabile qualifizierende Connector-Evidence vorliegt |
 
 Fallverzeichnisse organisieren Discovery und Reporting. Sie kodieren keinen
