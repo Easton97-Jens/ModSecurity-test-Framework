@@ -9,6 +9,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -166,6 +167,28 @@ class MarkdownHeadingHardeningTests(unittest.TestCase):
 
     def test_rejects_non_atx_heading_markers(self) -> None:
         self.assertEqual(set(), self.anchors_for("####### too deep\n#\n# \n"))
+
+    def test_excludes_mrts_submodule_paths_even_if_git_reports_them(self) -> None:
+        """The Framework documentation aggregate must never enter MRTS."""
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            repository_root = Path(temporary_directory)
+            framework_guide = repository_root / "docs" / "guide.md"
+            mrts_document = repository_root / "tools" / "MRTS" / "ignored.md"
+            framework_guide.parent.mkdir(parents=True)
+            mrts_document.parent.mkdir(parents=True)
+            framework_guide.write_text("# Framework guide\n", encoding="utf-8")
+            mrts_document.write_text("[broken](missing.md)\n", encoding="utf-8")
+
+            with (
+                mock.patch.object(self.checker, "REPO_ROOT", repository_root),
+                mock.patch.object(
+                    self.checker.subprocess,
+                    "check_output",
+                    return_value="docs/guide.md\ntools/MRTS/ignored.md\n",
+                ),
+            ):
+                self.assertEqual(self.checker.markdown_files(), [framework_guide])
 
 
 if __name__ == "__main__":
