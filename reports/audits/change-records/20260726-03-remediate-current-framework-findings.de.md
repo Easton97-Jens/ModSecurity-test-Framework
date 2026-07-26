@@ -9,7 +9,7 @@
 | Change-ID | `20260726-03-remediate-current-framework-findings` |
 | UTC-Datum | 2026-07-26 |
 | Framework-Basisrevision | `a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6` |
-| Issue oder Pull Request | Current-State-Abgleich von `FND-FRAMEWORK-0002`, `FND-FRAMEWORK-0011`, `FND-FRAMEWORK-0053` und `FND-FRAMEWORK-0056` auf Branch `agent/framework-findings-current-state`. Ein Framework-Draft-PR ist ausstehend; kein Merge ist autorisiert. |
+| Issue oder Pull Request | Current-State-Abgleich von `FND-FRAMEWORK-0002`, `FND-FRAMEWORK-0011`, `FND-FRAMEWORK-0053` und `FND-FRAMEWORK-0056` im Framework-Draft-PR [#50](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/50) auf Branch `agent/framework-findings-current-state`; kein Merge ist autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -128,7 +128,7 @@ Merge-Ergebnisse beansprucht.
 - Native Apache- oder NGINX-Lifecycle-Validierung liegt außerhalb dieses
   Fixture-only- und Protocol-Artefakt-Scopes.
 - Hosted Actions, SonarQube Cloud, Reviews, Branch Protection und Cloudflare-
-  Status gelten für den zukünftigen exakten Draft-PR-Head und sind noch nicht
+  Status gelten für den aktuellen exakten Draft-PR-#50-Head und sind noch nicht
   beobachtet.
 - Findings, die Codex-Cloud-Zugriff, External-Tool-Änderungen oder native H2-
   und Apache-Lifecycle-Evidenz benötigen, bleiben getrennt getrackt und werden
@@ -151,6 +151,6 @@ Der abgegrenzte Diff beschränkt sich auf die vier aktuellen Framework-eigenen
 Finding-Pfade, ihre Regression-Coverage und erforderliche gepaarte Records.
 Vollständiger lokaler Lint, ShellCheck, Dokumentation, Security-Data-Flow,
 Protocol, Provenance und Diff-Format-Evidenz bestanden im Task-Worktree.
-Hosted-Validierung bleibt für den zukünftigen exakten Draft-PR-Head ausstehend.
+Hosted-Validierung bleibt für den aktuellen exakten Draft-PR-#50-Head ausstehend.
 Keine Secrets, Credentials, rohen Request-Payloads, Parent-Änderungen,
 MRTS-Änderungen, direkte Master-Pushes oder Merges sind enthalten.

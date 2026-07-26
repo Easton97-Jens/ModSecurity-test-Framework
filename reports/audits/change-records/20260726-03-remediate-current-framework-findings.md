@@ -9,7 +9,7 @@
 | Change ID | `20260726-03-remediate-current-framework-findings` |
 | UTC date | 2026-07-26 |
 | Framework base revision | `a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6` |
-| Issue or pull request | Current-state reconciliation of `FND-FRAMEWORK-0002`, `FND-FRAMEWORK-0011`, `FND-FRAMEWORK-0053`, and `FND-FRAMEWORK-0056` on branch `agent/framework-findings-current-state`. A Framework Draft PR is pending; no merge is authorized. |
+| Issue or pull request | Current-state reconciliation of `FND-FRAMEWORK-0002`, `FND-FRAMEWORK-0011`, `FND-FRAMEWORK-0053`, and `FND-FRAMEWORK-0056` in Framework Draft PR [#50](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/50) on branch `agent/framework-findings-current-state`; no merge is authorized. |
 
 ## Motivation and problem statement
 
@@ -124,7 +124,7 @@ is observed for this Draft PR.
 - Native Apache or NGINX lifecycle validation remains outside this fixture-only
   and protocol-artifact scope.
 - Hosted Actions, SonarQube Cloud, reviews, branch protection, and Cloudflare
-  status apply to the future exact Draft PR head and are not yet observed.
+  status apply to the current exact Draft PR #50 head and are not yet observed.
 - Findings requiring Codex Cloud access, external-tool changes, or native H2
   and Apache lifecycle evidence remain separately tracked and are not hidden
   by this change.
@@ -145,6 +145,6 @@ The scoped diff is limited to the four current Framework-owned finding paths,
 their regression coverage, and required paired records. Full local lint,
 ShellCheck, documentation, security-data-flow, protocol, provenance, and
 diff-format evidence passed on the task worktree. Hosted validation remains
-for the future exact Draft PR head. No secrets, credentials, raw request
+for the current exact Draft PR #50 head. No secrets, credentials, raw request
 payloads, Parent changes, MRTS changes, direct master push, or merge are
 included.
