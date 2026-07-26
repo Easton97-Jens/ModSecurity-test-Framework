@@ -92,7 +92,12 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         return framework_root / "ci/provisioning/prepare-nginx-build.sh"
 
     def make_harness(self) -> dict[str, Path | dict[str, str]]:
-        root = Path(tempfile.mkdtemp(prefix="nginx-archive-digest-"))
+        root = Path(
+            tempfile.mkdtemp(
+                prefix="nginx-archive-digest-",
+                dir=os.environ.get("TEST_TMPDIR"),
+            )
+        )
         tools_dir = root / "tools"
         tools_dir.mkdir()
         archive = root / "good.tar.gz"
@@ -577,6 +582,88 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             self.assertEqual(len(self.tar_invocations(refreshed)), 1)
         finally:
             self.remove_harness(refreshed)
+
+    def test_cache_backed_refresh_accepts_an_explicit_cache_owner_root(self):
+        harness = self.make_harness()
+        try:
+            root = harness["root"]
+            environment = harness["environment"]
+            self.assertIsInstance(root, Path)
+            self.assertIsInstance(environment, dict)
+            component_cache = root / "component-cache"
+            owner_root = component_cache / "builds" / "connectors"
+            nginx_build = owner_root / "nginx" / "cache-key" / "build"
+            nginx_build.mkdir(parents=True)
+            environment.update(
+                {
+                    "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                    "NGINX_BUILD_DIR": str(nginx_build),
+                    "NGINX_BUILD_OWNER_ROOT": str(owner_root),
+                }
+            )
+
+            result = self.run_prepare(harness, self.archive_digest(harness), REFRESH="1")
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue(nginx_build.is_dir())
+            self.assertEqual(len(self.tar_invocations(harness)), 1)
+        finally:
+            self.remove_harness(harness)
+
+    def test_cache_backed_refresh_rejects_outside_owner_and_symlink_targets(self):
+        for case, target_is_symlink in (("outside-owner", False), ("symlink", True)):
+            with self.subTest(case=case):
+                harness = self.make_harness()
+                try:
+                    root = harness["root"]
+                    environment = harness["environment"]
+                    self.assertIsInstance(root, Path)
+                    self.assertIsInstance(environment, dict)
+                    component_cache = root / "component-cache"
+                    owner_root = component_cache / "builds" / "connectors"
+                    outside_target = (
+                        component_cache / "builds" / "not-connectors" / "nginx" / "cache-key" / "build"
+                    )
+                    outside_target.mkdir(parents=True)
+                    nginx_build = outside_target
+                    if target_is_symlink:
+                        nginx_build = owner_root / "nginx" / "cache-key" / "build"
+                        nginx_build.parent.mkdir(parents=True)
+                        nginx_build.symlink_to(outside_target, target_is_directory=True)
+                    environment.update(
+                        {
+                            "CONNECTOR_COMPONENT_CACHE": str(component_cache),
+                            "NGINX_BUILD_DIR": str(nginx_build),
+                            "NGINX_BUILD_OWNER_ROOT": str(owner_root),
+                        }
+                    )
+
+                    result = self.run_prepare(harness, self.archive_digest(harness), REFRESH="1")
+
+                    self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                    self.assertIn("NGINX REFRESH target remove target outside owner root", result.stdout)
+                    self.assertTrue(outside_target.is_dir())
+                    self.assertFalse(harness["curl_log"].exists())
+                finally:
+                    self.remove_harness(harness)
+
+    def test_explicit_nginx_build_owner_root_must_be_an_absolute_safe_path(self):
+        harness = self.make_harness()
+        try:
+            result = self.run_prepare(
+                harness,
+                self.archive_digest(harness),
+                NGINX_BUILD_OWNER_ROOT="relative-owner-root",
+            )
+
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertIn(
+                "NGINX_BUILD_OWNER_ROOT must be an absolute generated path",
+                result.stdout,
+            )
+            self.assertEqual(self.tar_invocations(harness), [])
+        finally:
+            self.remove_harness(harness)
 
 
 if __name__ == "__main__":
