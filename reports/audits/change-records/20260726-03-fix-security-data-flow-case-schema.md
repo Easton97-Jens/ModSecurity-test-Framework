@@ -9,7 +9,7 @@
 | Change ID | 20260726-03-fix-security-data-flow-case-schema |
 | UTC date | 2026-07-26 |
 | Framework base revision | `a7ebf5a1d9cad2b0a65a7603476a1434fdb16cf6` |
-| Issue or pull request | Framework PR pending; unblocks Parent PR #74 exact-head validation |
+| Issue or pull request | Framework Draft PR [#51](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/51); initially published at `70b5a74c32fcb924e97b6f02a2079cad8ccbc848`; unblocks Parent PR #74 exact-head validation after independent integration |
 
 ## Motivation and problem statement
 
@@ -119,7 +119,10 @@ Framework PR is merged and its exact revision is deliberately adopted.
 
 ## Final diff and review status
 
-Implementation is uncommitted at this record revision. Focused tests,
-syntax compilation, descriptor validation, and documentation checks pass;
-final scoped diff, whitespace, secret, and staged review remain pending before
-commit.
+The versioned implementation was committed normally as
+`70b5a74c32fcb924e97b6f02a2079cad8ccbc848` and is presented by Framework
+Draft PR #51. This record is being bound to that PR through a normal follow-up
+commit, without history rewrite. Focused tests, syntax compilation, descriptor
+validation, documentation checks, whitespace review, and staged review passed;
+the exact final PR head still requires its own hosted CI, SonarQube Cloud, and
+review evidence before Framework integration.
