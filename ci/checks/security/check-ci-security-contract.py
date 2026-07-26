@@ -29,6 +29,9 @@ SECURITY_EVENTS_WRITE = "security-events: write"
 SECURITY_TOOL_DOWNLOADER = "ci/tools/fetch-security-tool.py"
 HASH_LOCKED_CI_REQUIREMENTS = "--require-hashes -r requirements-ci.lock"
 WORKFLOW_TOOL_UPDATER = "update-workflow-tools.yml"
+SUBMODULE_UPDATER = "update-submodules.yml"
+CHECKOUT_WITHOUT_SUBMODULES = "submodules: false"
+CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS = "persist-credentials: false"
 COMMON_VERSION_WORKFLOW = "check-common-versions.yml"
 PYTHON_VERSION_MAINTENANCE_WORKFLOW = "check-python-version.yml"
 SETUP_PYTHON_ACTION = "actions/setup-python"
@@ -114,12 +117,14 @@ WRITE_PERMISSION_ALLOWLIST = {
     "cleanup-artifacts.yml": {"actions"},
     "ci-security-codeql.yml": {"security-events"},
     WORKFLOW_TOOL_UPDATER: {"contents", "pull-requests"},
+    SUBMODULE_UPDATER: {"contents", "pull-requests"},
 }
 TOKEN_REFERENCE_ALLOWLIST = {
     COMMON_VERSION_WORKFLOW,
     PYTHON_VERSION_MAINTENANCE_WORKFLOW,
     "ci-security-dependency-review.yml",
     WORKFLOW_TOOL_UPDATER,
+    SUBMODULE_UPDATER,
 }
 TOKEN_REFERENCE = re.compile(
     r"(?:github(?:\s*\.\s*token|\s*\[\s*['\"]token['\"]\s*\])|"
@@ -316,7 +321,7 @@ UPDATER_PUBLISHER_RUN_SHA256 = {
     STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH: "57f9f21447a89e45b6ae8199afe6f92837d81b1acb31a2a963c9fcbafe29c3f2",
     STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH: "e87da1dc670eb4fcd0bad20fcb11f93e46eb2774679c886b9e129cb383d78047",
     STEP_RERESOLVE_CURRENT_CANDIDATES: "bd0d48ff34d281197af63c9e72be64a719ecd48689c2edf6fbf7fbd4a5f6a278",
-    STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: "4e33fe934d78f3389bca65955b7eda28920f9c78242e758c587b425d3c06528f",
+    STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: "e4de02a954e32828306355776368f6cfe08645a370f2edbc575cc69e6f6def7d",
 }
 UPDATER_PUBLISHER_SCRIPT_SHA256 = {
     STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: "3d51794a9c57865efd999657eb78214383cf3c81f7575498eebb1ef9dcbf4699",
@@ -1758,8 +1763,8 @@ def workflow_tool_updater_errors(
             (
                 "contents: read",
                 "resolve --root . --github-output",
-                "persist-credentials: false",
-                "submodules: false",
+                CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
+                CHECKOUT_WITHOUT_SUBMODULES,
             ),
         )
     )
@@ -1772,9 +1777,168 @@ def workflow_tool_updater_errors(
                 "contents: read",
                 "--candidate-b64",
                 "--verify-tool-assets",
-                "persist-credentials: false",
-                "submodules: false",
+                CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
+                CHECKOUT_WITHOUT_SUBMODULES,
             ),
+        )
+    )
+    return errors
+
+
+def submodule_updater_metadata_errors(
+    path: Path, text: str, data: dict[str, Any]
+) -> list[str]:
+    """Validate top-level controls for the MRTS updater."""
+
+    errors: list[str] = []
+    expected_environment = {
+        "SUBMODULE_PATH": "tools/MRTS",
+        "SUBMODULE_URL": "https://github.com/Easton97-Jens/MRTS.git",
+        "SUBMODULE_REF": "refs/heads/main",
+        "UPDATE_BRANCH": "automation/update-framework-mrts-submodule",
+        "UPDATE_TITLE": "chore: update MRTS submodule",
+    }
+    if data.get("permissions") != {"contents": "read"}:
+        errors.append(f"{path}: MRTS updater must be top-level contents: read")
+    if data.get("env") != expected_environment:
+        errors.append(f"{path}: MRTS updater must use the reviewed environment")
+    if "pull_request:" in text or "pull_request_target:" in text:
+        errors.append(f"{path}: MRTS updater must not run from a pull request")
+    if "--force" in text:
+        errors.append(f"{path}: MRTS updater must not force-push")
+    return errors
+
+
+def submodule_updater_jobs(
+    path: Path, data: dict[str, Any]
+) -> tuple[list[str], dict[str, Any] | None]:
+    """Return the fixed MRTS updater job topology or its errors."""
+
+    jobs = data.get("jobs")
+    if not isinstance(jobs, dict):
+        return [f"{path}: MRTS updater jobs must be a mapping"], None
+    expected_jobs = {
+        "resolve-submodule-update",
+        "validate-submodule-update",
+        "create-submodule-update-pr",
+    }
+    if set(jobs) != expected_jobs:
+        return [f"{path}: MRTS updater jobs must match the reviewed topology"], None
+    return [], jobs
+
+
+def submodule_updater_reader_job_errors(
+    path: Path, text: str, jobs: dict[str, Any]
+) -> list[str]:
+    """Keep resolver and validator jobs read-only and credential-free."""
+
+    errors: list[str] = []
+    for job_name in ("resolve-submodule-update", "validate-submodule-update"):
+        job = jobs[job_name]
+        if not isinstance(job, dict):
+            errors.append(f"{path}: {job_name} must be a job mapping")
+            continue
+        if job.get("permissions") != {"contents": "read"}:
+            errors.append(f"{path}: {job_name} must remain contents: read")
+        if job.get("runs-on") != "ubuntu-latest":
+            errors.append(f"{path}: {job_name} must use the reviewed runner")
+        reader_text = job_text(text, job_name)
+        if reader_text is not None and any(
+            reference in reader_text
+            for reference in ("github.token", "GH_TOKEN:", "PUBLISH_TOKEN:", "secrets.")
+        ):
+            errors.append(f"{path}: {job_name} must remain credential-free")
+    return errors
+
+
+def submodule_updater_validator_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
+    """Bind the validator to immutable resolver output."""
+
+    validator = jobs["validate-submodule-update"]
+    if (
+        isinstance(validator, dict)
+        and validator.get("needs") != "resolve-submodule-update"
+    ):
+        return [f"{path}: MRTS validator must depend on the resolver"]
+    return []
+
+
+def submodule_updater_publisher_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
+    """Validate publisher permissions, dependencies, and execution gate."""
+
+    errors: list[str] = []
+    publisher = jobs["create-submodule-update-pr"]
+    if not isinstance(publisher, dict):
+        return [f"{path}: MRTS publisher must be a job mapping"]
+    if publisher.get("permissions") != {
+        "contents": "write",
+        "pull-requests": "write",
+    }:
+        errors.append(
+            f"{path}: MRTS publisher must use only reviewed write permissions"
+        )
+    if publisher.get("needs") != [
+        "resolve-submodule-update",
+        "validate-submodule-update",
+    ]:
+        errors.append(f"{path}: MRTS publisher must depend on resolver and validator")
+    publisher_gate = publisher.get("if")
+    if not isinstance(publisher_gate, str) or (
+        "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
+        not in publisher_gate
+        or "needs.resolve-submodule-update.outputs.changed == 'true'"
+        not in publisher_gate
+        or "needs.validate-submodule-update.result == 'success'" not in publisher_gate
+    ):
+        errors.append(
+            f"{path}: MRTS publisher must be default-branch and validation gated"
+        )
+    return errors
+
+
+def submodule_updater_errors(path: Path, text: str, data: dict[str, Any]) -> list[str]:
+    """Enforce the Framework-only MRTS gitlink updater boundary."""
+
+    if path.name != SUBMODULE_UPDATER:
+        return []
+
+    errors = submodule_updater_metadata_errors(path, text, data)
+    topology_errors, jobs = submodule_updater_jobs(path, data)
+    errors.extend(topology_errors)
+    if jobs is None:
+        return errors
+    errors.extend(submodule_updater_reader_job_errors(path, text, jobs))
+    errors.extend(submodule_updater_validator_errors(path, jobs))
+    errors.extend(submodule_updater_publisher_errors(path, jobs))
+    errors.extend(
+        job_requirement_errors(
+            path,
+            text,
+            {
+                "resolve-submodule-update": (
+                    'git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF"',
+                    'git ls-tree HEAD -- "$SUBMODULE_PATH"',
+                    "candidate_sha=%s",
+                    "changed=false",
+                    "changed=true",
+                ),
+                "validate-submodule-update": (
+                    CHECKOUT_WITHOUT_SUBMODULES,
+                    CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
+                    "--require-hashes -r requirements-ci.lock",
+                    'git submodule update --init -- "$SUBMODULE_PATH"',
+                    'git -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"',
+                    "make quick-check",
+                ),
+                "create-submodule-update-pr": (
+                    CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
+                    'git update-index --add --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"',
+                    'git push origin "HEAD:refs/heads/$UPDATE_BRANCH"',
+                    "--draft",
+                    "staged maintenance update changes paths outside $SUBMODULE_PATH",
+                    "existing MRTS maintenance branch changes paths outside $SUBMODULE_PATH",
+                ),
+            },
         )
     )
     return errors
@@ -2018,6 +2182,7 @@ def workflow_metadata_errors(path: Path, text: str, data: dict[str, Any]) -> lis
         *permission_errors(path, data),
         *workflow_token_environment_errors(path, data),
         *workflow_tool_updater_errors(path, text, data),
+        *submodule_updater_errors(path, text, data),
         *common_version_read_only_errors(path, text, data),
     ]
 
