@@ -1,3 +1,4 @@
+#!/bin/sh
 # Shared MRTS helper functions.
 #
 # This file is intentionally sourceable. It defines defaults and functions only;
