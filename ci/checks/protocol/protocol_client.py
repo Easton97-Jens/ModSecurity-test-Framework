@@ -683,7 +683,7 @@ def _load_observation_sidecar(path: Path) -> dict[str, Any]:
 
 
 def _safe_url_for_command(url: str) -> str:
-    """Keep a useful target in the command artifact without query credentials."""
+    """Keep a bounded target in the command artifact without request details."""
 
     parsed = urlsplit(url)
     host = parsed.hostname or ""
@@ -692,7 +692,12 @@ def _safe_url_for_command(url: str) -> str:
     netloc = host
     if parsed.port is not None:
         netloc = f"{netloc}:{parsed.port}"
+    # The command artifact is copied into canonical evidence.  Retain only a
+    # small health-endpoint allowlist; arbitrary and percent-encoded paths can
+    # carry identifiers, bearer material, or application data.
     safe_path = parsed.path or "/"
+    if safe_path not in {"/", "/health", "/healthz", "/ready", "/readyz"}:
+        safe_path = "/[redacted-path]"
     query = "[redacted]" if parsed.query else ""
     return urlunsplit((parsed.scheme, netloc, safe_path, query, ""))
 
@@ -703,24 +708,27 @@ def _redacted_command(command: Iterable[str], *, url: str) -> str:
     values = list(command)
     rendered: list[str] = []
     redact_next = False
-    for index, value in enumerate(values):
+    for value in values:
         if redact_next:
             rendered.append("[redacted]")
             redact_next = False
             continue
-        if value in {"--header", "--data-binary", "--cacert"}:
+        if value in {"--header", "--data-binary", "--cacert", "--resolve"}:
             rendered.append(value)
             redact_next = True
             continue
         if value == url:
             rendered.append(_safe_url_for_command(url))
             continue
-        # Curl's data option may be written in the --option=value form by a
-        # future caller.  Do not let that become a payload artifact.
-        if value.startswith("--data") and "=" in value:
-            rendered.append(value.split("=", 1)[0] + "=[redacted]")
-            continue
-        rendered.append(value)
+        # Redacted curl options may be written in the --option=value form by
+        # a future caller.  Do not let that become a payload, CA path, or
+        # direct resolver artifact.
+        for option in ("--header", "--data-binary", "--cacert", "--resolve"):
+            if value.startswith(option + "="):
+                rendered.append(option + "=[redacted]")
+                break
+        else:
+            rendered.append(value)
     return shlex.join(rendered) + "\n"
 
 

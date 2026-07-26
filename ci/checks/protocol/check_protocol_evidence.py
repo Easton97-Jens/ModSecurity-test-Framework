@@ -22,6 +22,7 @@ import re
 import shlex
 import sys
 from typing import Any, Mapping, Sequence
+from urllib.parse import urlsplit
 
 
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[3]
@@ -131,7 +132,11 @@ PROTOCOL_SELECTOR_OPTIONS = frozenset(
         "--http3-only",
     }
 )
-REDACTED_COMMAND_VALUE_OPTIONS = frozenset({"--header", "--data-binary", "--cacert"})
+REDACTED_COMMAND_VALUE_OPTIONS = frozenset({"--header", "--data-binary", "--cacert", "--resolve"})
+REDACTED_COMMAND_VALUE = "[redacted]"
+SAFE_COMMAND_URL_PATHS = frozenset(
+    {"/", "/health", "/healthz", "/ready", "/readyz", "/[redacted-path]"}
+)
 FORBIDDEN_TEXT_HEADERS = re.compile(
     r"(?im)^(?:authorization|proxy-authorization|cookie|set-cookie)\s*:"
 )
@@ -400,12 +405,12 @@ def _parse_command_arguments(command: str) -> tuple[list[str], list[str]]:
 def _redacted_option_error(arguments: Sequence[str], index: int) -> str | None:
     argument = arguments[index]
     if argument in REDACTED_COMMAND_VALUE_OPTIONS:
-        if index + 1 >= len(arguments) or arguments[index + 1] != "[redacted]":
+        if index + 1 >= len(arguments) or arguments[index + 1] != REDACTED_COMMAND_VALUE:
             return f"client command leaks the value for {argument}"
         return None
     for option in REDACTED_COMMAND_VALUE_OPTIONS:
         prefix = option + "="
-        if argument.startswith(prefix) and argument != prefix + "[redacted]":
+        if argument.startswith(prefix) and argument != prefix + REDACTED_COMMAND_VALUE:
             return f"client command leaks the value for {option}"
     return None
 
@@ -418,6 +423,25 @@ def _command_argument_safety_errors(arguments: Sequence[str]) -> list[str]:
         redaction_error = _redacted_option_error(arguments, index)
         if redaction_error is not None:
             errors.append(redaction_error)
+    return errors
+
+
+def _command_url_safety_errors(arguments: Sequence[str]) -> list[str]:
+    """Reject URL command values that the managed renderer would not retain."""
+
+    errors: list[str] = []
+    for argument in arguments:
+        parsed = urlsplit(argument)
+        if parsed.scheme not in {"http", "https"}:
+            continue
+        if parsed.username is not None or parsed.password is not None:
+            errors.append("client command contains URL userinfo")
+        if parsed.path not in SAFE_COMMAND_URL_PATHS:
+            errors.append("client command contains an unredacted URL path")
+        if parsed.query not in {"", REDACTED_COMMAND_VALUE}:
+            errors.append("client command contains an unredacted URL query")
+        if parsed.fragment:
+            errors.append("client command contains a URL fragment")
     return errors
 
 
@@ -508,6 +532,7 @@ def _validate_command(command: str, *, protocol: str) -> list[str]:
     # payload, credential, or CA path.  Enforce that invariant even if an
     # external directory is supplied to the finalizer.
     errors.extend(_command_argument_safety_errors(arguments))
+    errors.extend(_command_url_safety_errors(arguments))
     errors.extend(_command_policy_errors(arguments, protocol=protocol))
     return errors
 

@@ -254,7 +254,7 @@ class NoCrsBaselineTest(unittest.TestCase):
             (source / "client-version.txt").write_text("curl 8.1.0\n", encoding="utf-8")
             (source / "client-features.txt").write_text("features=HTTP2\n", encoding="utf-8")
             (source / "client-command.txt").write_text(
-                "curl --output /dev/null --http2 https://host/probe\n", encoding="utf-8"
+                "curl --output /dev/null --http2 https://host/[redacted-path]\n", encoding="utf-8"
             )
             no_crs.write_json(source / "client-protocol-observation.json", {
                 "schema_version": 1,
@@ -299,7 +299,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                     "preflight_reason=\n"
                     "writeout_mode=json\n"
                 ),
-                "client-command.txt": "curl --fail-with-body --output /dev/null --header [redacted] --http2 https://host/probe\n",
+                "client-command.txt": "curl --fail-with-body --output /dev/null --header [redacted] --http2 https://host/[redacted-path]\n",
             }.items():
                 (root / name).write_text(content, encoding="utf-8")
             no_crs.write_json(root / "client-protocol-observation.json", {
