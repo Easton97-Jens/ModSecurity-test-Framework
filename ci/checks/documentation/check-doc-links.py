@@ -16,6 +16,10 @@ EXPLICIT_ANCHOR_RE = re.compile(r"<a\b[^>]*\bid=[\"']([^\"']+)[\"'][^>]*>", re.I
 SKIP_DIR_PARTS = {
     ".git",
     "__pycache__",
+    # MRTS is an independently owned Git submodule, not Framework
+    # documentation.  Keep it outside this aggregate even if a future Git
+    # inventory unexpectedly reports a nested Markdown path.
+    "tools/MRTS",
 }
 REMOTE_SCHEMES = {"http", "https", "mailto", "app"}
 
