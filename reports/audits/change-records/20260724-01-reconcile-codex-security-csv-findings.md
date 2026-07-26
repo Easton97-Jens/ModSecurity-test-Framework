@@ -35,8 +35,11 @@ They do not update Parent, a gitlink, a remote default branch, or MRTS content.
 - [x] The five confirmed CSV rows are fixed through six separate focused root-cause commits.
 - [x] Each correction has a negative regression and a legitimate control.
 - [x] English/German report and Change Record describe the same result.
-- [x] Draft PR #45 has exact local/remote/PR head equality and 11 successful terminal hosted checks;
-  this is not a merge authorization.
+- [x] The historical Draft-PR #45 review recorded exact local/remote/PR-head equality and 11
+  successful terminal hosted checks at `a025724b2f07d70ffce29c1d6bef5e9b0e93fbcf`; this is not
+  evidence for a later head or merge authorization.
+- [x] Current local revalidation records exact commands and results below; a fresh hosted analysis
+  is required after the next pushed PR head.
 
 ## Alternatives considered
 
@@ -52,11 +55,13 @@ path canonically and then refuses every preexisting staged source, so executable
 come from the verified missing-source download/extraction flow. The ModSecurity v3 guard checks ignored artifacts alongside
 other checkout state. The protocol validator requires exactly one forced selector equal to the
 profile selector. The version checker rejects missing or malformed immutable commit anchors before
-network work. All are fail-closed additions and preserve the existing legitimate controls.
+network work. A follow-up `MODSECURITY_V3_COMPONENT` constant centralizes the repeated component
+label without changing provenance decisions, supported variables, or network conditions. All
+additions are fail-closed and preserve the existing legitimate controls.
 
 ## Changed files and tests
 
-| Commit | Production files | Regression coverage |
+| Change / commit | Production files | Regression coverage |
 | --- | --- | --- |
 | d2d3320 | ci/provisioning/import-mrts-cases.py | tests/security_regression/test_import_mrts_cases_sonar.py |
 | 19d8494 | ci/lib/runtime-component-common.sh; ci/provisioning/prepare-lighttpd-runtime.sh | tests/security_regression/test_ci_root_bootstrap_hardening.py |
@@ -64,6 +69,7 @@ network work. All are fail-closed additions and preserve the existing legitimate
 | e94074c | ci/lib/common.sh | tests/security_regression/test_modsecurity_v3_git_ref_provenance.py and support fixture |
 | 75f15ab | ci/checks/protocol/check_protocol_evidence.py | tests/protocol_client/test_check_protocol_evidence.py |
 | f3aac14 | ci/tools/check-common-versions.py | tests/security_regression/test_common_versions_sonar_provenance.py |
+| SonarQube Cloud `python:S1192` follow-up | ci/tools/check-common-versions.py | tests/security_regression/test_common_versions_sonar_provenance.py |
 
 The reconciliation matrix is reports/audits/findings/20260724-01-codex-security-csv-reconciliation
 with Markdown, German Markdown, and JSON representations.
@@ -72,12 +78,15 @@ with Markdown, German Markdown, and JSON representations.
 
 | Command | Exit code | Concise result | Evidence |
 | --- | --- | --- | --- |
-| focused importer suite | 0 | 6 tests passed; emitted source repository is the pinned identity | task run 20260724T172359Z-framework-codex-security-csv-reconciliation-20260724-9e9a8c53 |
-| bootstrap-hardening suite | 0 | 11 tests passed; external, traversal-like, and contained unverified executable Lighttpd stages rejected before execution | same task run |
-| ModSecurity v3 provenance suite | 0 | 16 tests passed; ignored checkout artifact is rejected | same task run |
-| protocol-client suite | 0 | 16 tests passed; fallback, duplicate, and conflicting selectors rejected | same task run |
-| common-version provenance suite | 0 | 16 tests passed; missing/malformed commit anchors block before network use | same task run |
-| final shell, documentation, JSON, diff, and security-diff checks | 0 | shell syntax, documentation contract, JSON parse, whitespace diff, and completed 12-file Codex Security diff scan passed | same task run |
+| `rtk proxy -- python3 -B -m unittest tests.security_regression.test_import_mrts_cases_sonar -v` | 0 | 6 tests passed; emitted source repository is the pinned identity | current local revalidation |
+| `rtk proxy -- python3 -B -m unittest discover -s tests/security_regression -p test_ci_root_bootstrap_hardening.py -v` | 0 | 11 tests passed; external, traversal-like, and contained unverified executable Lighttpd stages were rejected before execution | current local revalidation |
+| `rtk proxy -- python3 -B -m unittest tests.security_regression.test_modsecurity_v3_git_ref_provenance.ModSecurityV3ProvenanceTests.test_rejects_recursive_topology_bypass_variants -v` | 0 | 1 focused test passed; an ignored checkout artifact was rejected | current local revalidation |
+| `rtk proxy -- python3 -B -m unittest tests.protocol_client.test_check_protocol_evidence -v` | 0 | 16 tests passed; fallback, duplicate, and conflicting selectors were rejected | current local revalidation |
+| `rtk proxy -- python3 -B -m unittest tests.security_regression.test_common_versions_sonar_provenance -v` | 0 | 16 tests passed; missing/malformed commit anchors block before network use | current local revalidation |
+| `rtk proxy -- bash -n ci/lib/common.sh ci/lib/runtime-component-common.sh ci/provisioning/prepare-lighttpd-runtime.sh` | 0 | changed shell sources parse successfully | current local revalidation |
+| `rtk proxy -- python3 -m json.tool reports/audits/findings/20260724-01-codex-security-csv-reconciliation.json >/dev/null` | 0 | reconciliation JSON parses successfully | current local revalidation |
+| `rtk proxy -- make check-documentation` | 0 | bilingual links, variable documentation, repository-path references, and Change Record contract passed | current local revalidation |
+| `rtk proxy -- git diff --check` | 0 | current PR working-tree diff has no whitespace errors | current local revalidation |
 
 ## Security impact
 
@@ -96,20 +105,22 @@ The source CSV and normalized row data are retained in the task evidence run.
 ## Checks not run
 
 No authenticated Codex Security re-scan was available; Cloud closure is therefore
-blocked_permissions. No Framework default-branch update, merge, Parent gitlink update, or MRTS
-mutation was attempted. PR #45 hosted checks are terminal and successful; its three advisory
-checks are expected skips.
+blocked_permissions. At this record update, no Framework default-branch update, merge, Parent
+gitlink update, or MRTS mutation had been attempted. The hosted-check observation at the historical
+`a025724b2f07d70ffce29c1d6bef5e9b0e93fbcf` head is retained only as historical evidence; a fresh
+current-head analysis is required after a subsequent push.
 
 ## Limitations and residual risk
 
 This is a source-level Framework reconciliation. Existing trusted dependency and runtime
 prerequisites remain subject to their documented controls. A fresh Cloud scan is required to
-supersede the scan service's own status. An open Draft PR must remain unmerged unless separately
-authorized.
+supersede the scan service's own status. A Draft PR can be marked ready and merged only after
+separate authorization and all current-head controls are observed.
 
 ## Final diff and review status
 
-Whitespace, scoped source-diff, and security-diff review passed before delivery. PR #45 initially
-verified local = remote = PR head at `a025724b2f07d70ffce29c1d6bef5e9b0e93fbcf`; all 11 executed
-checks, including SonarCloud and CodeQL Actions/Python/C++, passed, and there were no reviews or
-unresolved review threads. This record remains no-merge authority.
+The historical pre-documentation review observed local = remote = PR head at
+`a025724b2f07d70ffce29c1d6bef5e9b0e93fbcf`, with 11 executed checks including SonarQube Cloud
+and CodeQL Actions/Python/C++. That historical observation does not establish the status of the
+later `d8b6d129ad7ccb0978d7932c2a673e87f10f73d1` head or any newer head. This record makes no
+current-head hosted-check or merge claim and remains no-merge authority.

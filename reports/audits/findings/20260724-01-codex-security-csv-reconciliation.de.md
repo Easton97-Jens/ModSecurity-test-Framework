@@ -62,5 +62,5 @@ Die Tests validieren Framework-Kontrollen, keine Connector-Runtime-Behauptung.
 Eine Cloud-Disposition oder ein Re-Scan ist über keinen authentifizierten Codex-Security-Service in
 dieser Umgebung verfügbar; der Cloud-Abschluss ist daher `blocked_permissions`. Der aufbewahrte
 CSV-Quellbestand, sein Digest, die normalisierte 23-Zeilen-Evidenz und diese Matrix sind eine
-reproduzierbare Übergabe. Der spätere Draft-PR ist der einzige Auslieferungscontainer und gibt keine
+reproduzierbare Übergabe. Draft-PR #45 ist der einzige Auslieferungscontainer und gibt keine
 Berechtigung zum Mergen, für Parent-Änderungen oder MRTS-Änderungen.

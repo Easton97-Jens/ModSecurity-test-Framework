@@ -23,6 +23,7 @@ NO_SAFE_UPDATER_MESSAGE = "No safe updater implemented for this source yet."
 SHA256_SUFFIX = ".sha256"
 ARCHIVE_BZ2_EXTENSION = ".tar.bz2"
 APACHE_DOWNLOAD_HOST = "downloads.apache.org"
+MODSECURITY_V3_COMPONENT = "ModSecurity v3"
 
 TRACKED_NAME_RE = re.compile(
     r"VERSION|RELEASE|TAG|SOURCE_URL|GIT_URL|SHA256|CHECKSUM|REF|BRANCH|COMMIT|URL"
@@ -997,7 +998,7 @@ def check_modsecurity_v3_release_provenance(
     approved_commit = value(entries, "MODSECURITY_V3_APPROVED_COMMIT")
     if GIT_COMMIT_SHA1_RE.fullmatch(approved_commit) is None:
         return ComponentResult(
-            component="ModSecurity v3",
+            component=MODSECURITY_V3_COMPONENT,
             status=STATUS_BLOCKED,
             message="MODSECURITY_V3_APPROVED_COMMIT must be a reviewed 40-hex immutable commit.",
             variables=variables,
@@ -1008,7 +1009,7 @@ def check_modsecurity_v3_release_provenance(
             },
         )
     result = check_github_release_ref(
-        "ModSecurity v3",
+        MODSECURITY_V3_COMPONENT,
         entries,
         client,
         repo_var="MODSECURITY_V3_APPROVED_REPO_URL",
@@ -1335,7 +1336,7 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
             lambda: check_crs_release_provenance(entries, client),
         ),
         (
-            "ModSecurity v3",
+            MODSECURITY_V3_COMPONENT,
             lambda: check_modsecurity_v3_release_provenance(entries, client),
         ),
         (

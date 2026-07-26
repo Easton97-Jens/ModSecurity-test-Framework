@@ -38,8 +38,12 @@ MRTS-Inhalt.
 - [x] Die fünf bestätigten CSV-Zeilen sind durch sechs separate fokussierte Root-Cause-Commits behoben.
 - [x] Jede Korrektur hat einen Negativ-Regressionstest und eine Legitimate Control.
 - [x] Englischer/deutscher Bericht und Change Record beschreiben dasselbe Ergebnis.
-- [x] Draft-PR #45 hat gleiche lokale, Remote- und PR-Head-SHA sowie 11 erfolgreiche terminale
-  Hosted-Checks; dies ist keine Merge-Berechtigung.
+- [x] Der historische Draft-PR-#45-Review verzeichnete gleiche lokale, Remote- und PR-Head-SHA
+  sowie 11 erfolgreiche terminale Hosted-Checks bei
+  `a025724b2f07d70ffce29c1d6bef5e9b0e93fbcf`; dies ist keine Evidenz für einen späteren Head oder
+  eine Merge-Berechtigung.
+- [x] Die aktuelle lokale Nachvalidierung dokumentiert unten exakte Befehle und Ergebnisse; nach
+  dem nächsten gepushten PR-Head ist eine neue Hosted-Analyse erforderlich.
 
 ## Untersuchte Alternativen
 
@@ -55,12 +59,14 @@ Stage-Pfad zuerst kanonisch ein und verweigert danach jede bereits vorhandene So
 ausführbarer Source nur aus dem verifizierten Missing-Source-Download-/Extract-Flow stammt. Der ModSecurity-v3-Guard prüft
 ignorierte Artefakte zusammen mit anderem Checkout-Zustand. Der Protocol-Validator verlangt genau
 einen erzwungenen Selector, der dem Profilselector entspricht. Der Version-Checker verwirft
-fehlende oder ungültige unveränderliche Commit-Anker vor Netzwerkzugriffen. Alle Ergänzungen sind
-fail-closed und bewahren die bestehenden Legitimate Controls.
+fehlende oder ungültige unveränderliche Commit-Anker vor Netzwerkzugriffen. Eine nachfolgende
+`MODSECURITY_V3_COMPONENT`-Konstante zentralisiert das wiederholte Komponentenlabel, ohne
+Provenance-Entscheidungen, unterstützte Variablen oder Netzwerkbedingungen zu ändern. Alle
+Ergänzungen sind fail-closed und bewahren die bestehenden Legitimate Controls.
 
 ## Geänderte Dateien und Tests
 
-| Commit | Produktivdateien | Regression Coverage |
+| Änderung / Commit | Produktivdateien | Regression Coverage |
 | --- | --- | --- |
 | d2d3320 | ci/provisioning/import-mrts-cases.py | tests/security_regression/test_import_mrts_cases_sonar.py |
 | 19d8494 | ci/lib/runtime-component-common.sh; ci/provisioning/prepare-lighttpd-runtime.sh | tests/security_regression/test_ci_root_bootstrap_hardening.py |
@@ -68,6 +74,7 @@ fail-closed und bewahren die bestehenden Legitimate Controls.
 | e94074c | ci/lib/common.sh | tests/security_regression/test_modsecurity_v3_git_ref_provenance.py und Support-Fixture |
 | 75f15ab | ci/checks/protocol/check_protocol_evidence.py | tests/protocol_client/test_check_protocol_evidence.py |
 | f3aac14 | ci/tools/check-common-versions.py | tests/security_regression/test_common_versions_sonar_provenance.py |
+| SonarQube-Cloud-`python:S1192`-Nacharbeit | ci/tools/check-common-versions.py | tests/security_regression/test_common_versions_sonar_provenance.py |
 
 Die Abgleichsmatrix liegt unter reports/audits/findings/20260724-01-codex-security-csv-reconciliation
 als Markdown, deutsches Markdown und JSON vor.
@@ -76,12 +83,15 @@ als Markdown, deutsches Markdown und JSON vor.
 
 | Befehl | Exit-Code | Kurzergebnis | Evidenz |
 | --- | --- | --- | --- |
-| fokussierte Importer-Suite | 0 | 6 Tests bestanden; ausgegebenes Source-Repository ist die gepinnte Identität | Task-Run 20260724T172359Z-framework-codex-security-csv-reconciliation-20260724-9e9a8c53 |
-| Bootstrap-Hardening-Suite | 0 | 11 Tests bestanden; externe, traversal-artige und enthaltene unverifizierte ausführbare Lighttpd-Stages vor Ausführung abgewiesen | gleicher Task-Run |
-| ModSecurity-v3-Provenance-Suite | 0 | 16 Tests bestanden; ignoriertes Checkout-Artefakt wird abgewiesen | gleicher Task-Run |
-| Protocol-Client-Suite | 0 | 16 Tests bestanden; Fallback-, doppelte und widersprüchliche Selector abgewiesen | gleicher Task-Run |
-| Common-Version-Provenance-Suite | 0 | 16 Tests bestanden; fehlende/ungültige Commit-Anker blockieren vor Netzwerknutzung | gleicher Task-Run |
-| finale Shell-, Dokumentations-, JSON-, Diff- und Security-Diff-Checks | 0 | Shell-Syntax, Dokumentationsvertrag, JSON-Parse, Whitespace-Diff und vollständiger 12-Dateien-Codex-Security-Diff-Scan bestanden | gleicher Task-Run |
+| `rtk proxy -- python3 -B -m unittest tests.security_regression.test_import_mrts_cases_sonar -v` | 0 | 6 Tests bestanden; ausgegebenes Source-Repository ist die gepinnte Identität | aktuelle lokale Nachvalidierung |
+| `rtk proxy -- python3 -B -m unittest discover -s tests/security_regression -p test_ci_root_bootstrap_hardening.py -v` | 0 | 11 Tests bestanden; externe, traversal-artige und enthaltene unverifizierte ausführbare Lighttpd-Stages wurden vor Ausführung abgewiesen | aktuelle lokale Nachvalidierung |
+| `rtk proxy -- python3 -B -m unittest tests.security_regression.test_modsecurity_v3_git_ref_provenance.ModSecurityV3ProvenanceTests.test_rejects_recursive_topology_bypass_variants -v` | 0 | 1 fokussierter Test bestand; ein ignoriertes Checkout-Artefakt wurde abgewiesen | aktuelle lokale Nachvalidierung |
+| `rtk proxy -- python3 -B -m unittest tests.protocol_client.test_check_protocol_evidence -v` | 0 | 16 Tests bestanden; Fallback-, doppelte und widersprüchliche Selector wurden abgewiesen | aktuelle lokale Nachvalidierung |
+| `rtk proxy -- python3 -B -m unittest tests.security_regression.test_common_versions_sonar_provenance -v` | 0 | 16 Tests bestanden; fehlende/ungültige Commit-Anker blockieren vor Netzwerknutzung | aktuelle lokale Nachvalidierung |
+| `rtk proxy -- bash -n ci/lib/common.sh ci/lib/runtime-component-common.sh ci/provisioning/prepare-lighttpd-runtime.sh` | 0 | geänderte Shell-Quellen werden erfolgreich geparst | aktuelle lokale Nachvalidierung |
+| `rtk proxy -- python3 -m json.tool reports/audits/findings/20260724-01-codex-security-csv-reconciliation.json >/dev/null` | 0 | Abgleichs-JSON wird erfolgreich geparst | aktuelle lokale Nachvalidierung |
+| `rtk proxy -- make check-documentation` | 0 | zweisprachige Links, Variablendokumentation, Repository-Pfadreferenzen und Change-Record-Vertrag bestanden | aktuelle lokale Nachvalidierung |
+| `rtk proxy -- git diff --check` | 0 | aktueller PR-Working-Tree-Diff hat keine Whitespace-Fehler | aktuelle lokale Nachvalidierung |
 
 ## Sicherheitsauswirkung
 
@@ -102,20 +112,23 @@ Task-Evidence-Run aufbewahrt.
 ## Nicht ausgeführte Prüfungen
 
 Kein authentifizierter Codex-Security-Re-Scan war verfügbar; der Cloud-Abschluss ist daher
-blocked_permissions. Kein Framework-Default-Branch-Update, Merge, Parent-Gitlink-Update oder
-MRTS-Mutation wurde versucht. Die Hosted-Checks von PR #45 sind terminal und erfolgreich; seine
-drei Advisory-Checks sind erwartete Skips.
+blocked_permissions. Bei diesem Record-Update waren kein Framework-Default-Branch-Update, kein
+Merge, kein Parent-Gitlink-Update und keine MRTS-Mutation versucht worden. Die Hosted-Check-
+Beobachtung beim historischen `a025724b2f07d70ffce29c1d6bef5e9b0e93fbcf`-Head bleibt nur
+historische Evidenz; nach einem weiteren Push ist eine aktuelle Head-Analyse erforderlich.
 
 ## Einschränkungen und Restrisiko
 
 Dies ist ein Source-Level-Framework-Abgleich. Bestehende vertrauenswürdige Abhängigkeits- und
 Runtime-Voraussetzungen bleiben ihren dokumentierten Kontrollen unterworfen. Ein frischer
-Cloud-Scan ist nötig, um den Status des Scan-Service zu ersetzen. Ein offener Draft-PR muss
-unmerged bleiben, sofern er nicht gesondert autorisiert wird.
+Cloud-Scan ist nötig, um den Status des Scan-Service zu ersetzen. Ein Draft-PR kann erst nach
+gesonderter Autorisierung und Beobachtung aller Current-Head-Kontrollen bereitgemeldet und gemerged
+werden.
 
 ## Finaler Diff- und Review-Status
 
-Whitespace-, Scoped-Source-Diff- und Security-Diff-Review bestanden vor der Auslieferung. PR #45
-verifizierte initial local = remote = PR head bei `a025724b2f07d70ffce29c1d6bef5e9b0e93fbcf`; alle
-11 ausgeführten Checks einschließlich SonarCloud und CodeQL Actions/Python/C++ bestanden, und es
-gab keine Reviews oder ungelösten Review-Threads. Dieser Record autorisiert keinen Merge.
+Der historische Pre-Documentation-Review beobachtete local = remote = PR head bei
+`a025724b2f07d70ffce29c1d6bef5e9b0e93fbcf` sowie 11 ausgeführte Checks einschließlich SonarQube
+Cloud und CodeQL Actions/Python/C++. Diese historische Beobachtung belegt nicht den Status des
+späteren `d8b6d129ad7ccb0978d7932c2a673e87f10f73d1`-Heads oder eines neueren Heads. Dieser Record
+trifft keine Current-Head-Hosted-Check- oder Merge-Aussage und autorisiert keinen Merge.

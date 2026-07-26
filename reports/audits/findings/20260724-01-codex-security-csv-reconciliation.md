@@ -60,5 +60,5 @@ Framework control behavior only; they make no connector-runtime claim.
 
 Cloud disposition or re-scan is not available through an authenticated Codex Security service in this
 environment, so Cloud closure is `blocked_permissions`. The retained source CSV, its digest, the
-normalized 23-row evidence, and this matrix provide a reproducible handoff. The eventual Draft PR is
-the only delivery container and is not authority to merge, update Parent, or alter MRTS.
+normalized 23-row evidence, and this matrix provide a reproducible handoff. Draft PR #45 is the
+only delivery container and is not authority to merge, update Parent, or alter MRTS.
