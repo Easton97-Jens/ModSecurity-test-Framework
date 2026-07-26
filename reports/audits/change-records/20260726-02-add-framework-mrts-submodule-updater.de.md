@@ -98,6 +98,17 @@ den neuen Workflow erhielt. Der Publisher wird dadurch nicht semantisch
 erweitert: Normaler Push, Draft-only-Verhalten und gestagte Scope-Prüfung
 bleiben unverändert.
 
+Die exakte anfängliche PR-#47-Analyse bei
+`3bbb2e806f4892e8f92476e35740d149b8b9b17b` meldete vier neue, task-eigene
+Maintainability-Code-Smells: zwei `python:S1192`-doppelte
+Checkout-Literale und einen `python:S3776`-Komplexitätsbefund im
+CI-Sicherheits-Contract-Checker sowie einen `python:S3415`-Befund zur
+Actual-/Expected-Assertion-Reihenfolge im fokussierten Test. Dieses Follow-up
+verwendet weder `NOSONAR`, Suppression, Exclusion, Quality-Gate-Änderung,
+Regeländerung noch eine False-Positive-Disposition. Es bewahrt denselben
+Least-Privilege-Resolver-/Validator-/Publisher-Contract, während jede
+Validierungsaufgabe separat lesbar und testbar bleibt.
+
 ## Geänderte Dateien und Tests
 
 - `.github/workflows/update-submodules.yml` fügt den eingeschränkten
@@ -109,6 +120,10 @@ bleiben unverändert.
 - `ci/checks/security/check-ci-security-contract.py` und
   `tests/ci_security/test_ci_security_contract.py` binden und testen das neue
   Workflow-Profil einschließlich negativer Ref-/Token-/Force-Push-Mutationen.
+  Das SonarQube-Cloud-Follow-up für PR #47 zentralisiert die beiden
+  Checkout-Contract-Literale, teilt die MRTS-Updater-Validierung in begrenzte
+  Helfer und korrigiert die Actual-/Expected-Reihenfolge der Test-Assertion,
+  ohne das akzeptierte/abgelehnte Workflow-Verhalten zu ändern.
 - Die gepaarten Workflow-Sicherheits- und CI-Tooling-Guides dokumentieren
   dieselben Grenzen auf Englisch und Deutsch.
 - Dieses gepaarte Änderungsprotokoll schafft Delivery-Traceability.
@@ -130,6 +145,9 @@ bleiben unverändert.
 | `ci/tools/fetch-security-tool.py --tool ruff` und gesperrte Ruff-Check-/Format-Prüfung | 0 | Das lock-verifizierte Ruff-Binary formatierte die eine Python-Datei; fokussierte Lint- und Format-Prüfungen bestanden. | Framework-Task-Worktree, Runner-eigenes externes Tool-Verzeichnis. |
 | `make PYTHON=<reviewed Framework test interpreter> test-ci-security-contract` | 0 | Die 136-Test-CI-Sicherheits-Suite bestand erneut nach der reinen Formatkorrektur. | Framework-Task-Worktree. |
 | `gh run view 30197914475 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed` | 0 | Der OSV-Vergleich scheiterte erneut nur wegen externer OSV-RPC-Service-Unerreichbarkeit, gefolgt von Scanner-Exit-Code 127. | Run `20260726T094125Z-rebuild-pr-47-submodule-aligned`, OSV-Service-Quittung. |
+| `make PYTHON=<reviewed Framework test interpreter> test-ci-security-contract` | 0 | 136 fokussierte CI-Sicherheits-Tests bestanden nach dem PR-#47-Sonar-Follow-up, einschließlich negativer Mutationen für persistierte Credentials und rekursiven Checkout. | Run `20260726T105400Z-framework-pr47-sonar-merge`, externe Build- und Pycache-Roots. |
+| `make PYTHON=<reviewed Framework test interpreter> check-github-actions-workflows test-workflow-action-pins check-documentation` | 0 | Python-Version, alle 16 Workflow-Pin-/Permission-Contracts, 25 Action-Pin-Tests, Links, zweisprachige Dokumentation, Pfade und Change-Record-Validierung bestanden. | Run `20260726T105400Z-framework-pr47-sonar-merge`, externe Build- und Pycache-Roots. |
+| `python -m py_compile ci/checks/security/check-ci-security-contract.py tests/ci_security/test_ci_security_contract.py` | 0 | Beide geänderten Python-Module kompilierten mit dem ausgewählten Framework-Virtualenv und externem Bytecode-Root. | Run `20260726T105400Z-framework-pr47-sonar-merge`. |
 
 ## Sicherheitsauswirkung
 
@@ -162,6 +180,15 @@ kanonische Parent-Finding-Allocation ist derzeit blockiert, weil der Mount
 - Hosted Actions, SonarQube Cloud, Review-Threads und Branch Protection sind
   exakte PR-Head-Kontrollen und werden erst nach dem Push des aktualisierten
   Branches beobachtet.
+- Das ausgewählte Framework-Environment enthält das optionale eigenständige
+  `ruff`-Modul nicht; deshalb wurde keine lokale direkte Ruff-Ausführung
+  ersetzt oder installiert. Der vorhandene Hosted-Python-Quality-Check bleibt
+  erforderlich.
+- Der breite `make lint`-Versuch durchlief Syntax und mehrere native
+  Contract-Suites, lieferte aber vor dem begrenzten Ausführungsfenster des
+  Task-Command-Runners kein terminales Ergebnis. Er wird nicht als bestanden
+  behauptet; die fokussierten lokalen Prüfungen oben und der exakte
+  Hosted-`lint`-Check bleiben getrennte Evidenz.
 
 ## Einschränkungen und Restrisiko
 

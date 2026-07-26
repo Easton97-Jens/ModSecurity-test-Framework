@@ -89,6 +89,16 @@ intentionally refreshed after its explicit path allowlist gained the new
 workflow. No semantic broadening of that publisher occurs: its normal push,
 Draft-only behavior, and staged-scope verification are unchanged.
 
+The exact initial PR #47 analysis at
+`3bbb2e806f4892e8f92476e35740d149b8b9b17b` reported four new, task-owned
+maintainability code smells: two `python:S1192` duplicate checkout literals
+and one `python:S3776` complexity report in the CI-security contract checker,
+plus one `python:S3415` actual/expected assertion-order report in its focused
+test. This follow-up uses no `NOSONAR`, suppression, exclusion, Quality-Gate
+change, rule change, or false-positive disposition. It preserves the same
+least-privilege resolver/validator/publisher contract while making each
+validation responsibility independently readable and testable.
+
 ## Changed files and tests
 
 - `.github/workflows/update-submodules.yml` adds the constrained MRTS
@@ -99,7 +109,11 @@ Draft-only behavior, and staged-scope verification are unchanged.
   removed.
 - `ci/checks/security/check-ci-security-contract.py` and
   `tests/ci_security/test_ci_security_contract.py` bind and test the new
-  workflow profile, including negative ref/token/force-push mutations.
+  workflow profile, including negative ref/token/force-push mutations. The
+  PR #47 SonarQube Cloud follow-up centralizes the two checkout-contract
+  literals, separates the MRTS updater validation into bounded helpers, and
+  corrects the test assertion's actual/expected order without changing the
+  accepted/rejected workflow behavior.
 - The paired workflow-security and CI-tooling guides document the same
   boundaries in English and German.
 - This paired Change Record provides delivery traceability.
@@ -121,6 +135,9 @@ Draft-only behavior, and staged-scope verification are unchanged.
 | `ci/tools/fetch-security-tool.py --tool ruff` and locked Ruff check/format | 0 | The lock-verified Ruff binary reformatted the one Python file; targeted lint and format checks passed. | Framework task worktree, runner-owned external tool directory. |
 | `make PYTHON=<reviewed Framework test interpreter> test-ci-security-contract` | 0 | The 136-test CI-security suite passed again after the format-only correction. | Framework task worktree. |
 | `gh run view 30197914475 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed` | 0 | The OSV comparison again failed only because the external OSV RPC service was unavailable, followed by scanner exit 127. | Run `20260726T094125Z-rebuild-pr-47-submodule-aligned`, OSV service receipt. |
+| `make PYTHON=<reviewed Framework test interpreter> test-ci-security-contract` | 0 | 136 focused CI-security tests passed after the PR #47 Sonar follow-up, including negative persisted-credential and recursive-checkout mutations. | Run `20260726T105400Z-framework-pr47-sonar-merge`, external build and pycache roots. |
+| `make PYTHON=<reviewed Framework test interpreter> check-github-actions-workflows test-workflow-action-pins check-documentation` | 0 | Python-version, all 16 workflow pin/permission contracts, 25 Action-pin tests, links, bilingual documentation, paths, and Change Record validation passed. | Run `20260726T105400Z-framework-pr47-sonar-merge`, external build and pycache roots. |
+| `python -m py_compile ci/checks/security/check-ci-security-contract.py tests/ci_security/test_ci_security_contract.py` | 0 | Both changed Python modules compiled with the selected Framework virtual environment and external bytecode root. | Run `20260726T105400Z-framework-pr47-sonar-merge`. |
 
 ## Security impact
 
@@ -150,6 +167,14 @@ the mounted `.codex/findings` storage rejects creation of the required new
 - Hosted Actions, SonarQube Cloud, review threads, and branch protection are
   exact-PR-head controls and will be observed only after the updated branch is
   pushed.
+- The selected Framework environment does not contain the optional standalone
+  `ruff` module, so no local direct Ruff invocation was substituted or
+  installed. The existing hosted Python-quality check remains required.
+- The broad `make lint` attempt progressed through syntax and multiple native
+  contract suites but did not return a terminal result before the task command
+  runner's bounded execution window. It is not claimed as passed; the focused
+  local checks above and the exact-head hosted `lint` check remain separate
+  evidence.
 
 ## Limitations and residual risk
 

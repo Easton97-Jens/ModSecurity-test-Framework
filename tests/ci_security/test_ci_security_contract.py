@@ -492,7 +492,7 @@ jobs:
             workflow,
             CHECKER.yaml.safe_load(workflow),
         )
-        self.assertEqual([], errors, "\n".join(errors))
+        self.assertEqual(errors, [], "\n".join(errors))
 
     def test_submodule_updater_rejects_mrts_ref_token_and_force_push_bypasses(
         self,
@@ -517,6 +517,16 @@ jobs:
                 'git push origin "HEAD:refs/heads/$UPDATE_BRANCH"',
                 'git push --force-with-lease origin "HEAD:refs/heads/$UPDATE_BRANCH"',
                 1,
+            ),
+            "persisted-validator-credentials": workflow.replace(
+                "persist-credentials: false",
+                "persist-credentials: true",
+                2,
+            ),
+            "recursive-validator-checkout": workflow.replace(
+                "submodules: false",
+                "submodules: recursive",
+                2,
             ),
         }
         for name, unsafe in variants.items():
