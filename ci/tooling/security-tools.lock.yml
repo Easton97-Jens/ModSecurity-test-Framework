@@ -50,6 +50,16 @@ actions:
     purpose: Inspect or create the constrained workflow-tool updater Draft PR and run scheduled artifact-retention maintenance.
     platform: GitHub Actions
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
+  actions/create-github-app-token:
+    name: actions/create-github-app-token
+    version: v3.2.0
+    immutable_commit: bcd2ba49218906704ab6c1aa796996da409d3eb1
+    upstream_release: https://github.com/actions/create-github-app-token/releases/tag/v3.2.0
+    release_resolution: latest-release
+    license: MIT
+    purpose: Mint a short-lived repository-limited GitHub App token only for the constrained workflow-tool publisher.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity, repository scope, required installation permissions, default token revocation, and MIT license, then update this record, every matching version comment, and the contract test together.
   peter-evans/create-pull-request:
     name: peter-evans/create-pull-request
     version: v8.1.1

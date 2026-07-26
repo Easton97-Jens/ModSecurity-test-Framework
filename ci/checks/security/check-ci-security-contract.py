@@ -35,6 +35,14 @@ SETUP_PYTHON_ACTION = "actions/setup-python"
 SETUP_PYTHON_REFERENCE = f"{SETUP_PYTHON_ACTION}@"
 GITHUB_TOKEN_EXPRESSION = "${{ github.token }}"
 DEFAULT_BRANCH_EXPRESSION = "${{ github.event.repository.default_branch }}"
+WORKFLOW_UPDATER_APP_TOKEN_ACTION = "actions/create-github-app-token"
+WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION = "${{ steps.publisher_app_token.outputs.token }}"
+WORKFLOW_UPDATER_APP_CLIENT_ID_EXPRESSION = "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}"
+WORKFLOW_UPDATER_APP_PRIVATE_KEY_EXPRESSION = (
+    "${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}"
+)
+GITHUB_REPOSITORY_OWNER_EXPRESSION = "${{ github.repository_owner }}"
+GITHUB_REPOSITORY_EXPRESSION = "${{ github.repository }}"
 UPDATER_PUBLISH_TOKEN_ENV = "PUBLISH_TOKEN"
 STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION = "Checkout trusted default revision"
 STEP_SETUP_REVIEWED_PYTHON = "Set up reviewed Python"
@@ -46,6 +54,9 @@ STEP_VALIDATE_EPHEMERAL_COMMON_SH_CANDIDATE = (
 STEP_SYNTAX_AND_SHELLCHECK = "Syntax and ShellCheck"
 STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST = (
     "Inspect matching Draft maintenance pull request"
+)
+STEP_MINT_WORKFLOW_PUBLISHER_APP_TOKEN = (
+    "Mint repository-limited workflow publisher App token"
 )
 STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH = (
     "Prepare the constrained maintenance branch"
@@ -141,10 +152,7 @@ GITHUB_RELEASE_ASSET_URL = re.compile(
     rf"(?P<tag>[^/?#]+)/(?P<asset>{GITHUB_COMPONENT})$"
 )
 UPDATER_READ_ONLY_PERMISSIONS = {"contents": "read"}
-UPDATER_PUBLISHER_PERMISSIONS = {
-    "contents": "write",
-    "pull-requests": "write",
-}
+UPDATER_PUBLISHER_PERMISSIONS = {"contents": "read"}
 UPDATER_JOB_NAMES = frozenset({"resolver", "validator", "publisher"})
 UPDATER_DEFAULT_REF_CONDITION = (
     "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
@@ -228,6 +236,7 @@ UPDATER_PUBLISHER_STEP_PROFILE = (
     (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, STEP_KEYS_ACTION),
     (STEP_SETUP_REVIEWED_PYTHON, STEP_KEYS_ACTION),
     (STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY, STEP_KEYS_RUN),
+    (STEP_MINT_WORKFLOW_PUBLISHER_APP_TOKEN, STEP_KEYS_SCRIPT),
     (
         STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST,
         STEP_KEYS_SCRIPT,
@@ -247,6 +256,7 @@ UPDATER_PUBLISHER_STEP_PROFILE = (
 UPDATER_PUBLISHER_ACTIONS = {
     STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION: "actions/checkout",
     STEP_SETUP_REVIEWED_PYTHON: SETUP_PYTHON_ACTION,
+    STEP_MINT_WORKFLOW_PUBLISHER_APP_TOKEN: WORKFLOW_UPDATER_APP_TOKEN_ACTION,
     STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: "actions/github-script",
     STEP_CREATE_DRAFT_PULL_REQUEST: "actions/github-script",
 }
@@ -261,6 +271,15 @@ UPDATER_PUBLISHER_WITH_VALUES = {
         "python-version-file": CANONICAL_PYTHON_VERSION_FILE,
         "check-latest": False,
     },
+    STEP_MINT_WORKFLOW_PUBLISHER_APP_TOKEN: {
+        "client-id": WORKFLOW_UPDATER_APP_CLIENT_ID_EXPRESSION,
+        "private-key": WORKFLOW_UPDATER_APP_PRIVATE_KEY_EXPRESSION,
+        "owner": GITHUB_REPOSITORY_OWNER_EXPRESSION,
+        "repositories": GITHUB_REPOSITORY_EXPRESSION,
+        "permission-contents": "write",
+        "permission-pull-requests": "write",
+        "permission-workflows": "write",
+    },
 }
 UPDATER_PUBLISHER_WITH_KEYS = {
     **{
@@ -274,16 +293,17 @@ UPDATER_PUBLISHER_ENV_VALUES = {
     STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH: {
         UPDATER_DEFAULT_BRANCH_ENV: DEFAULT_BRANCH_EXPRESSION,
         "MAINTENANCE_PR_EXISTS": "${{ steps.maintenance_pr.outputs.existing }}",
-        UPDATER_PUBLISH_TOKEN_ENV: GITHUB_TOKEN_EXPRESSION,
+        UPDATER_PUBLISH_TOKEN_ENV: WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION,
     },
     STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH: {
         UPDATER_DEFAULT_BRANCH_ENV: DEFAULT_BRANCH_EXPRESSION,
     },
     STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: {
-        UPDATER_PUBLISH_TOKEN_ENV: GITHUB_TOKEN_EXPRESSION,
+        UPDATER_PUBLISH_TOKEN_ENV: WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION,
     },
 }
 UPDATER_PUBLISHER_FIELD_VALUES = {
+    STEP_MINT_WORKFLOW_PUBLISHER_APP_TOKEN: {"id": "publisher_app_token"},
     STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: {"id": "maintenance_pr"},
     STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: {"id": "commit"},
     STEP_CREATE_DRAFT_PULL_REQUEST: {
@@ -1493,7 +1513,7 @@ def updater_job_topology_errors(path: Path, data: dict[str, Any]) -> list[str]:
     elif publisher.get("permissions") != UPDATER_PUBLISHER_PERMISSIONS:
         errors.append(
             f"{path}: updater publisher must declare exactly "
-            "{contents: write, pull-requests: write} permissions"
+            f"{UPDATER_PUBLISHER_PERMISSIONS} permissions"
         )
     return errors
 
@@ -1602,9 +1622,9 @@ def publisher_script_body_errors(
         return []
 
     errors: list[str] = []
-    if with_values.get("github-token") != GITHUB_TOKEN_EXPRESSION:
+    if with_values.get("github-token") != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION:
         errors.append(
-            f"{path}: publisher step {name!r} must use the scoped github token"
+            f"{path}: publisher step {name!r} must use the scoped GitHub App token"
         )
     script = with_values.get("script")
     if not isinstance(script, str) or (

@@ -37,7 +37,7 @@ Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode und seine Entwicklungsabhängigkeiten sind nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
 | `ci-security-osv.yml` | begrenztes `pull_request`, Zeitplan, manuell | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact` | `contents: read` | Der nicht privilegierte PR-Job führt nur die vertrauenswürdige Basisrevision aus, verifiziert ein geholtes PR-Objekt und behandelt Dependency-Manifest- und begrenzte `.python-version`-Blobs als Daten statt als ausgecheckten Code. |
-| `update-workflow-tools.yml` | Zeitplan, manuell | `actions/checkout`, `actions/setup-python`, `actions/github-script` | Reader-Jobs `contents: read`; nur der Default-Branch-Publisher hat `contents: write`, `pull-requests: write` | Der eingeschränkte Publisher läuft erst nach unabhängigen Resolver- und Validator-Jobs und erstellt ausschließlich einen Draft-PR. |
+| `update-workflow-tools.yml` | Zeitplan, manuell | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script` | Reader-Jobs und das eingebaute Publisher-Token `contents: read`; sein erzeugtes App-Token hat `contents`, `pull-requests`, `workflows`: write | Der eingeschränkte Publisher läuft erst nach unabhängigen Resolver- und Validator-Jobs, begrenzt sein kurzlebiges App-Token auf dieses Repository und erstellt ausschließlich einen Draft-PR. |
 
 ## Unveränderliche Action-Provenienz
 
@@ -52,6 +52,7 @@ zugelassenen Upstreams, Releases und Commit-Identitäten sind:
 | `actions/setup-node` | [actions/setup-node](https://github.com/actions/setup-node) | `v7.0.0` | `820762786026740c76f36085b0efc47a31fe5020` | MIT | Wählt die überprüfte Node.js-Runtime für prüfsummenverifiziertes Pyright. |
 | `actions/upload-artifact` | [actions/upload-artifact](https://github.com/actions/upload-artifact) | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | MIT | Bewahrt nur begrenzte CI-Security-Evidenz auf. |
 | `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Prüft eingeschränkte Draft-PRs oder führt Artefakt-Aufbewahrungsbereinigung aus. |
+| `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` | MIT | Erzeugt das kurzlebige, auf das Repository begrenzte App-Token des Workflow-Tool-Publishers. |
 | `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Erstellt den eingeschränkten CPython-Version-Draft-PR. |
 | `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | `v4.37.1` | `7188fc363630916deb702c7fdcf4e481b751f97a` | MIT | Führt die begrenzte CodeQL-Analyse und den vertrauenswürdigen SARIF-Upload aus. |
 | `actions/dependency-review-action` | [actions/dependency-review-action](https://github.com/actions/dependency-review-action) | `v5.0.0` | `a1d282b36b6f3519aa1f3fc636f609c47dddb294` | MIT | Prüft Abhängigkeitsänderungs-PRs ohne Remediation. |
@@ -86,11 +87,13 @@ zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions`
 bleibt read-only; `check-python-version` gibt Repository-Content- und
 Pull-Request-Write-Rechte erst seinem Publisher-Job, nachdem Resolver und
 Kandidatenjob read-only geblieben sind; der separate Publisher von
-`update-workflow-tools` hat dieselben zwei Write-Rechte erst nach unabhängigen
-Resolver- und Validator-Jobs; `cleanup-artifacts` benötigt nur `actions: write`,
-um Artefakte zu löschen; der vertrauenswürdige Nicht-PR-CodeQL-Upload-Job
-benötigt `security-events: write`. Kein PR-ausgelöster Job darf eine
-Write-Berechtigung vergeben.
+`update-workflow-tools` behält `contents: read` für sein eingebautes Token und
+erzeugt erst nach unabhängigen Resolver- und Validator-Jobs ein auf das
+Repository begrenztes GitHub-App-Token mit `contents`-, `pull-requests`- und
+`workflows`-Write-Recht; `cleanup-artifacts` benötigt nur `actions: write`, um
+Artefakte zu löschen; der vertrauenswürdige Nicht-PR-CodeQL-Upload-Job benötigt
+`security-events: write`. Kein PR-ausgelöster Job darf eine Write-Berechtigung
+vergeben.
 
 Jede direkte Verwendung von `actions/checkout` setzt:
 
@@ -107,9 +110,17 @@ ein anderes Credential erhält. Der Common-Version-Checker deklariert kein
 explizites Token oder Secret. Auch Resolver und Kandidatenjob der Python-Version
 deklarieren keines; sein Publisher deklariert genau ein explizites Token nur für
 seine überprüfte Pull-Request-Action. Resolver und Validator des Workflow-Tools
-bleiben im Source ebenfalls tokenfrei, während der eng profilierte Publisher
-die überprüften Token-Inputs nur für seine eingeschränkten Draft-PR- und
-normalen Push-Schritte verwendet. Der Contract weist eine explizite Token-/
+bleiben im Source ebenfalls tokenfrei. Sein eng profilierter Publisher übergibt
+`vars.WORKFLOW_UPDATER_APP_CLIENT_ID` und
+`secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY` nur an den unveränderlichen
+`create-github-app-token`-Step, fordert ein Token nur für das aktuelle
+Repository an und übergibt dessen Output nur an seine eingeschränkten Draft-PR-
+API- und normalen Push-Schritte. Er hat keinen `github.token`-Publishing-
+Fallback, und die Standard-Post-Job-Token-Revocation der Action bleibt aktiv.
+Die App muss nur für dieses Framework-Repository installiert sein und exakt
+`Contents`-, `Pull requests`- und `Workflows`-Write-Autorität erhalten;
+fehlende oder unzureichende Hosted-Konfiguration lässt den Publisher scheitern,
+statt eine Credential zu erweitern. Der Contract weist eine explizite Token-/
 Secret-Referenz auf Workflow-Ebene oder in jedem Reader-Job zurück und bindet
 die Profile der schreibfähigen Publisher exakt. Der Python-Publisher löst den
 Kandidaten unabhängig erneut auf, erlaubt nur `.python-version` sowohl im
