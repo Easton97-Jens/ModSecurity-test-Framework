@@ -395,8 +395,9 @@ jobs:
             encoding="utf-8"
         )
         unsafe = workflow.replace(
-            "      pull-requests: write",
-            "      pull-requests: write\n      issues: read",
+            "    timeout-minutes: 25\n    permissions:\n      contents: read\n    steps:",
+            "    timeout-minutes: 25\n    permissions:\n      contents: read\n"
+            "      actions: write\n    steps:",
             1,
         ) + (
             "\n  unexpected_writer:\n"
@@ -583,8 +584,8 @@ jobs:
                 1,
             ),
             "publisher-environment-injection": workflow.replace(
-                "          PUBLISH_TOKEN: ${{ github.token }}\n        run: |",
-                "          PUBLISH_TOKEN: ${{ github.token }}\n"
+                "          PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}\n        run: |",
+                "          PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}\n"
                 "          BASH_ENV: /tmp/untrusted\n        run: |",
                 1,
             ),
@@ -600,6 +601,46 @@ jobs:
                     any(
                         "publisher" in error and "reviewed" in error for error in errors
                     ),
+                    "\n".join(errors),
+                )
+
+    def test_workflow_tool_updater_publisher_uses_only_the_reviewed_app_token(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
+        variants = {
+            "legacy-github-script-token": workflow.replace(
+                "github-token: ${{ steps.publisher_app_token.outputs.token }}",
+                "github-token: ${{ github.token }}",
+                1,
+            ),
+            "legacy-git-publish-token": workflow.replace(
+                "PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}",
+                "PUBLISH_TOKEN: ${{ github.token }}",
+                1,
+            ),
+            "unreviewed-app-permission": workflow.replace(
+                "          permission-workflows: write",
+                "          permission-workflows: read",
+                1,
+            ),
+            "unreviewed-app-repository-scope": workflow.replace(
+                "          repositories: ${{ github.repository }}",
+                "          repositories: another-repository",
+                1,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.workflow_tool_updater_errors(
+                    ROOT / ".github/workflows/update-workflow-tools.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(
+                    any("reviewed" in error or "GitHub App token" in error for error in errors),
                     "\n".join(errors),
                 )
 
