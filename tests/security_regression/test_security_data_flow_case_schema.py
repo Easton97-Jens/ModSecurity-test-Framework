@@ -53,5 +53,6 @@ class SecurityDataFlowCaseSchemaTests(unittest.TestCase):
             validate_case(case)
 
     def test_direct_materialization_rejects_non_materializable_descriptor(self) -> None:
+        arguments = argparse.Namespace(case=self.cases[0])
         with self.assertRaisesRegex(ValueError, "explicitly non-materializable"):
-            case_cli.materialize(argparse.Namespace(case=self.cases[0]))
+            case_cli.materialize(arguments)

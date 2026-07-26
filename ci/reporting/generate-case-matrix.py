@@ -1827,7 +1827,7 @@ def runtime_cell_outside_snapshot(case: dict) -> dict[str, str]:
     }
 
 
-def runtime_cell_non_materializable(case: dict) -> dict[str, str]:
+def runtime_cell_non_materializable() -> dict[str, str]:
     return {
         "status": "NOT_EXECUTABLE",
         "reason": "YAML explicitly sets runtime_materializable=false; no connector runtime implementation exists",
@@ -1954,7 +1954,7 @@ def runtime_cell(case: dict, connector: str, snapshot: dict) -> dict[str, str]:
     if not connector_applies(case, connector):
         return runtime_cell_not_applicable(case, connector)
     if case.get("runtime_materializable") is False:
-        return runtime_cell_non_materializable(case)
+        return runtime_cell_non_materializable()
     results = runtime_results_by_connector(snapshot)
     observed = results.get(connector, {}).get(case["id"])
     if not is_force_all_snapshot(snapshot) and not runtime_executable(case, connector):
