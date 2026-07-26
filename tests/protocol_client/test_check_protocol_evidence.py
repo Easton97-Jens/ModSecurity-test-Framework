@@ -166,7 +166,7 @@ def write_bundle(root: Path, observation: dict[str, object], *, followup: bool =
     write_text_artifact(
         root,
         check_protocol_evidence.CLIENT_COMMAND_ARTIFACT,
-        f"curl --silent --fail-with-body --output /dev/null --header [redacted] {protocol_flag} https://localhost/probe\n",
+        f"curl --silent --fail-with-body --output /dev/null --header [redacted] {protocol_flag} https://localhost/[redacted-path]\n",
     )
     write_json_artifact(
         root,
@@ -353,6 +353,33 @@ class ProtocolEvidenceTest(unittest.TestCase):
             )
             errors = check_protocol_evidence.validate_protocol_artifacts(root, protocol="h3")
             self.assertTrue(any("raw connection-ID argument" in error for error in errors))
+
+    def test_rejects_unredacted_command_path_and_resolve_value(self) -> None:
+        with temporary_artifact_directory() as temporary:
+            root = Path(temporary)
+            observation: dict[str, object] = {
+                "schema_version": 1,
+                "status": "PASS",
+                "requested_protocol": "h2",
+                "downstream_protocol": "h2",
+                "negotiated_protocol": "h2",
+                "transport": "tls_tcp",
+                "alpn": "h2",
+                "stream_id": 1,
+                "fallback_used": False,
+            }
+            write_bundle(root, observation, followup=False)
+            write_text_artifact(
+                root,
+                check_protocol_evidence.CLIENT_COMMAND_ARTIFACT,
+                "curl --silent --fail-with-body --output /dev/null --resolve "
+                "localhost:443:203.0.113.9 --http2 "
+                "https://localhost/synthetic-path-marker?token=synthetic-query-marker\\n",
+            )
+            errors = check_protocol_evidence.validate_protocol_artifacts(root, protocol="h2")
+            self.assertTrue(any("unredacted URL path" in error for error in errors))
+            self.assertTrue(any("unredacted URL query" in error for error in errors))
+            self.assertTrue(any("leaks the value for --resolve" in error for error in errors))
 
     def test_rejects_overridden_or_payload_capturing_client_output_options(self) -> None:
         unsafe_options = (
