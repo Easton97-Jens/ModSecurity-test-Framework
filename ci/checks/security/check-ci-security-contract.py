@@ -1783,9 +1783,7 @@ def workflow_tool_updater_errors(
     return errors
 
 
-def submodule_updater_errors(
-    path: Path, text: str, data: dict[str, Any]
-) -> list[str]:
+def submodule_updater_errors(path: Path, text: str, data: dict[str, Any]) -> list[str]:
     """Enforce the Framework-only MRTS gitlink updater boundary."""
 
     if path.name != SUBMODULE_UPDATER:
@@ -1837,7 +1835,10 @@ def submodule_updater_errors(
             errors.append(f"{path}: {job_name} must remain credential-free")
 
     validator = jobs["validate-submodule-update"]
-    if isinstance(validator, dict) and validator.get("needs") != "resolve-submodule-update":
+    if (
+        isinstance(validator, dict)
+        and validator.get("needs") != "resolve-submodule-update"
+    ):
         errors.append(f"{path}: MRTS validator must depend on the resolver")
 
     publisher = jobs["create-submodule-update-pr"]
@@ -1847,7 +1848,9 @@ def submodule_updater_errors(
         "contents": "write",
         "pull-requests": "write",
     }:
-        errors.append(f"{path}: MRTS publisher must use only reviewed write permissions")
+        errors.append(
+            f"{path}: MRTS publisher must use only reviewed write permissions"
+        )
     if publisher.get("needs") != [
         "resolve-submodule-update",
         "validate-submodule-update",
@@ -1861,7 +1864,9 @@ def submodule_updater_errors(
         not in publisher_gate
         or "needs.validate-submodule-update.result == 'success'" not in publisher_gate
     ):
-        errors.append(f"{path}: MRTS publisher must be default-branch and validation gated")
+        errors.append(
+            f"{path}: MRTS publisher must be default-branch and validation gated"
+        )
 
     errors.extend(
         job_requirement_errors(

@@ -126,6 +126,10 @@ bleiben unverändert.
 | `git diff --check` | 0 | Der laufende Source-Diff hatte vor der finalen Prüfung keine Whitespace-Fehler. | Framework-Task-Worktree. |
 | `gh pr view 47 --repo Easton97-Jens/ModSecurity-test-Framework --json headRefOid,baseRefOid,statusCheckRollup` | 0 | Bestätigte Basis `c27c644…`, beobachteten Head `36a81c…` und den externen OSV-Check-Fehler. | Run `20260726T094125Z-rebuild-pr-47-submodule-aligned`, OSV-Service-Quittung. |
 | `gh run view 30196691788 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed` | 0 | Der fehlgeschlagene OSV-Job meldete externe RPC-Service-Unerreichbarkeit und Scanner-Exit-Code 127. | Dieselbe zurückbehaltene Quittung. |
+| `gh run view 30197914476 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed` | 0 | Der erste aktualisierte PR-Head scheiterte nur an Ruff-Formatierung von `check-ci-security-contract.py`; Ruff-Lint selbst bestand. | Hosted-PR-#47-CI-Evidenz. |
+| `ci/tools/fetch-security-tool.py --tool ruff` und gesperrte Ruff-Check-/Format-Prüfung | 0 | Das lock-verifizierte Ruff-Binary formatierte die eine Python-Datei; fokussierte Lint- und Format-Prüfungen bestanden. | Framework-Task-Worktree, Runner-eigenes externes Tool-Verzeichnis. |
+| `make PYTHON=<reviewed Framework test interpreter> test-ci-security-contract` | 0 | Die 136-Test-CI-Sicherheits-Suite bestand erneut nach der reinen Formatkorrektur. | Framework-Task-Worktree. |
+| `gh run view 30197914475 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed` | 0 | Der OSV-Vergleich scheiterte erneut nur wegen externer OSV-RPC-Service-Unerreichbarkeit, gefolgt von Scanner-Exit-Code 127. | Run `20260726T094125Z-rebuild-pr-47-submodule-aligned`, OSV-Service-Quittung. |
 
 ## Sicherheitsauswirkung
 
@@ -177,8 +181,10 @@ Der begrenzte Source-Diff erhielt einen fokussierten Workflow-/Security-Review:
 Der einzige Write-Pfad ist Default-Branch-gegate, auf den MRTS-Gitlink
 beschränkt und verwendet weder Force-Push noch MRTS-Source-Write. Der finale
 lokale vollständige Lint-, Dokumentations-, Immutable-Pin-, CI-Sicherheits- und
-Whitespace-Check bestand. Die verbleibenden exakten Kontrollen sind die
-künftigen Hosted-Checks des PR-Heads und nach zulässigem Dispatch der
-gehostete Wartungslebenszyklus. Dieses Protokoll repräsentiert weder einen
-Merge, eine Gitlink-Änderung noch die Verifikation dieses künftigen
-Wartungslebenszyklus.
+Whitespace-Check bestand. Der erste aktualisierte PR-Head hatte einen rein
+mechanischen Ruff-Formatfehler; der Folge-Commit enthält exakt diese
+lock-verifizierte Formatkorrektur und führt die fokussierte Suite erneut aus.
+Die verbleibenden exakten Kontrollen sind seine Hosted-Checks und nach
+zulässigem Dispatch der gehostete Wartungslebenszyklus. Dieses Protokoll
+repräsentiert weder einen Merge, eine Gitlink-Änderung noch die Verifikation
+dieses künftigen Wartungslebenszyklus.

@@ -117,6 +117,10 @@ Draft-only behavior, and staged-scope verification are unchanged.
 | `git diff --check` | 0 | The in-progress source diff had no whitespace errors before final review. | Framework task worktree. |
 | `gh pr view 47 --repo Easton97-Jens/ModSecurity-test-Framework --json headRefOid,baseRefOid,statusCheckRollup` | 0 | Confirmed base `c27c644…`, observed head `36a81c…`, and the external OSV check failure. | Run `20260726T094125Z-rebuild-pr-47-submodule-aligned`, OSV service receipt. |
 | `gh run view 30196691788 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed` | 0 | The failed OSV job reported external RPC service unavailability and scanner exit 127. | Same retained receipt. |
+| `gh run view 30197914476 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed` | 0 | The first updated PR head failed only Ruff format checking for `check-ci-security-contract.py`; Ruff lint itself passed. | Hosted PR #47 CI evidence. |
+| `ci/tools/fetch-security-tool.py --tool ruff` and locked Ruff check/format | 0 | The lock-verified Ruff binary reformatted the one Python file; targeted lint and format checks passed. | Framework task worktree, runner-owned external tool directory. |
+| `make PYTHON=<reviewed Framework test interpreter> test-ci-security-contract` | 0 | The 136-test CI-security suite passed again after the format-only correction. | Framework task worktree. |
+| `gh run view 30197914475 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed` | 0 | The OSV comparison again failed only because the external OSV RPC service was unavailable, followed by scanner exit 127. | Run `20260726T094125Z-rebuild-pr-47-submodule-aligned`, OSV service receipt. |
 
 ## Security impact
 
@@ -164,6 +168,9 @@ The scoped source diff received a focused workflow/security review: the only
 write path is default-branch-gated, is limited to the MRTS gitlink, and does
 not use a force push or MRTS source write. The final local full-lint,
 documentation, immutable-pin, CI-security, and whitespace checks passed. The
-remaining exact controls are the future PR-head hosted checks and, after a
-permitted dispatch, the hosted maintenance lifecycle. This record does not
-represent a merge, a Gitlink change, or verification of that future lifecycle.
+first updated PR head had one mechanical Ruff-format failure; the follow-up
+commit contains exactly that lock-verified formatting correction and reruns
+the focused suite. The remaining exact controls are its hosted checks and,
+after a permitted dispatch, the hosted maintenance lifecycle. This record does
+not represent a merge, a Gitlink change, or verification of that future
+lifecycle.
