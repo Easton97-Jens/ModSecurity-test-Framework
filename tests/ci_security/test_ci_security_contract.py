@@ -483,6 +483,51 @@ jobs:
             "\n".join(errors),
         )
 
+    def test_submodule_updater_uses_the_reviewed_framework_profile(self) -> None:
+        workflow = (ROOT / ".github/workflows/update-submodules.yml").read_text(
+            encoding="utf-8"
+        )
+        errors = CHECKER.submodule_updater_errors(
+            ROOT / ".github/workflows/update-submodules.yml",
+            workflow,
+            CHECKER.yaml.safe_load(workflow),
+        )
+        self.assertEqual([], errors, "\n".join(errors))
+
+    def test_submodule_updater_rejects_mrts_ref_token_and_force_push_bypasses(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-submodules.yml").read_text(
+            encoding="utf-8"
+        )
+        variants = {
+            "wrong-mrts-default-branch": workflow.replace(
+                "SUBMODULE_REF: refs/heads/main",
+                "SUBMODULE_REF: refs/heads/master",
+                1,
+            ),
+            "reader-token": workflow.replace(
+                "      - name: Resolve the official MRTS commit",
+                "      - name: Resolve the official MRTS commit\n"
+                "        env:\n"
+                "          GH_TOKEN: ${{ github.token }}",
+                1,
+            ),
+            "force-push": workflow.replace(
+                'git push origin "HEAD:refs/heads/$UPDATE_BRANCH"',
+                'git push --force-with-lease origin "HEAD:refs/heads/$UPDATE_BRANCH"',
+                1,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.submodule_updater_errors(
+                    ROOT / ".github/workflows/update-submodules.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(errors, "expected reviewed-profile rejection")
+
     def test_workflow_tool_updater_publisher_profile_rejects_pr_aliases_and_comments(
         self,
     ) -> None:

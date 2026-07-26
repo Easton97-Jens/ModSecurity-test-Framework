@@ -73,6 +73,7 @@ No workflow uses `id-token: write`.
 | `ci-security-scorecard.yml` | PR; default-branch push, schedule, manual on the default branch | A checksum-verified OpenSSF Scorecard binary assesses the exact local PR checkout without a GitHub token. The PR result is JSON-validated but artifact-free. Trusted default-branch jobs use the exact `github.sha`, retain one validated bounded JSON file for one day, and remain advisory because no score threshold is imposed; scanner and JSON-validation failures are not advisory. No SARIF is uploaded. |
 | `ci-security-dependency-review.yml` | Dependency-changing PRs | Dependency Review checks high-severity vulnerabilities and runtime/development scopes without automatic remediation or PR comments. |
 | `update-workflow-tools.yml` | Scheduled/manual trusted default revision | A read-only resolver obtains candidates only from lock-derived official GitHub release/Git endpoints. A separate read-only validator checksum-downloads changed tool assets and applies the candidate only in a bounded runner-temporary copy to recheck the resulting pins and contracts. The sole write-capable publisher re-resolves and checksum-validates its fresh candidate, accepts only a base-identity-verified matching Draft PR branch, confines changes to an explicit allowlist, uses a normal push, and creates a Draft PR only. |
+| `update-submodules.yml` | Scheduled/manual trusted default revision | A read-only resolver resolves only the full SHA at `Easton97-Jens/MRTS` `refs/heads/main`. A separate read-only validator explicitly initializes only the declared `tools/MRTS` submodule, checks the detached candidate, and runs `make quick-check`. The default-branch publisher revalidates the SHA, accepts an existing Draft branch only when it changes `tools/MRTS` alone, uses a normal non-force push, and creates a matching Draft PR only. |
 
 The existing `lint.yml`, `test-common.yml`, Action-version check,
 common-version maintenance, workflow/tool maintenance, and artifact-cleanup
@@ -129,6 +130,14 @@ downloaded asset, use `pull_request_target`, force-push, or merge. Existing
 branches are reused only when the one open PR has the exact branch, title,
 base, marker, and Draft state and its changed tuples verify from the current
 default-branch lock identity.
+
+`update-submodules.yml` is intentionally separate from the lock/tool updater:
+it updates only the Framework-owned `tools/MRTS` gitlink, never MRTS content.
+It accepts only a full SHA from the named MRTS `main` branch, explicitly
+initializes only that direct submodule in the runner-local checkout, and
+publishes only a verified gitlink-only Draft PR. Its publisher uses no App
+private key, force push,
+default-branch push, merge, or PR-triggered execution.
 
 `requirements-ci.lock` pins the CI PyYAML CP314 wheel
 `PyYAML-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl`

@@ -8,12 +8,6 @@ on:
 permissions:
   contents: read
 
-
-env:
-  SUBMODULE_PATH: tools/MRTS
-  SUBMODULE_URL: https://github.com/Easton97-Jens/MRTS.git
-  SUBMODULE_REF: refs/heads/master
-  
 concurrency:
   group: framework-workflow-tool-maintenance-${{ github.repository }}
   cancel-in-progress: false
@@ -286,6 +280,7 @@ jobs:
             .github/workflows/ci-security-workflow-lint.yml \
             .github/workflows/lint.yml \
             .github/workflows/test-common.yml \
+            .github/workflows/update-submodules.yml \
             .github/workflows/update-workflow-tools.yml \
             docs/github-actions-workflow-security.md \
             docs/github-actions-workflow-security.de.md

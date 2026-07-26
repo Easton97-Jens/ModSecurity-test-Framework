@@ -36,6 +36,7 @@ write permission. No such behavior was removed by this hardening work.
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source is untrusted; no write permission, secret, persisted credential, or submodule is configured. |
 | `ci-security-osv.yml` | constrained `pull_request`, schedule, manual | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact` | `contents: read` | The non-privileged PR job executes the trusted base revision only, verifies a fetched PR object, and treats dependency-manifest and bounded `.python-version` blobs as data rather than checked-out code. |
 | `update-workflow-tools.yml` | schedule, manual | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script` | reader jobs and the publisher's built-in token `contents: read`; its minted App token has `contents`, `pull-requests`, `workflows`: write | The constrained publisher runs only after independent resolver and validator jobs, scopes its short-lived App token to this repository, and creates a Draft PR only. |
+| `update-submodules.yml` | schedule, manual | `actions/checkout`, `actions/setup-python` | reader jobs `contents: read`; only the validated default-branch publisher has `contents: write`, `pull-requests: write` | The resolver follows only `Easton97-Jens/MRTS` `refs/heads/main`; the validator explicitly initializes only `tools/MRTS` before checking the detached candidate; the publisher changes only `tools/MRTS`, uses a normal non-force push, and creates or updates one matching Draft PR. |
 
 ## Immutable Action provenance
 
@@ -86,8 +87,10 @@ after a resolver and candidate job have remained read-only; the separate
 token and, only after independent resolver and validator jobs, mints a
 repository-limited GitHub App token with `contents`, `pull-requests`, and
 `workflows` write permission; `cleanup-artifacts` needs only `actions: write`
-to delete artifacts; the trusted non-PR CodeQL upload job needs `security-events:
-write`. No PR-triggered job may grant a write permission.
+to delete artifacts; `update-submodules` gives `contents` and
+`pull-requests` writes only to its validated default-branch publisher; the
+trusted non-PR CodeQL upload job needs `security-events: write`. No
+PR-triggered job may grant a write permission.
 
 Each direct `actions/checkout` use sets:
 
@@ -113,6 +116,11 @@ default post-job token revocation remains enabled. The App must be installed
 only for this Framework repository and grant exactly `Contents`, `Pull
 requests`, and `Workflows` write authority; missing or insufficient hosted
 configuration fails the publisher rather than widening a credential. The
+MRTS submodule resolver and validator likewise declare no token or secret. Its
+separate publisher uses the native job token only for its reviewed GitHub CLI
+and normal Git push steps, verifies an existing Draft branch changes only
+`tools/MRTS`, and rejects force pushes, a default-branch target, or a PR event.
+The
 contract rejects an explicit token/secret reference at workflow level or in any
 reader job and binds the write-capable publisher profiles exactly. The Python publisher independently
 re-resolves the candidate, allows only `.python-version` in both the checked
