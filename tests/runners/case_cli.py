@@ -22,6 +22,7 @@ from runner_core import (
     discover_case_files,
     effective_expect,
     expected_audit_log,
+    is_runtime_materializable,
     phase4_log_metadata,
     load_case,
     write_body_file,
@@ -249,6 +250,8 @@ def phase4_runtime_evidence(metadata: dict[str, object]) -> dict[str, object]:
 
 def materialize(args: argparse.Namespace) -> int:
     case = load_case(args.case)
+    if not is_runtime_materializable(case):
+        raise ValueError("case is explicitly non-materializable and cannot enter a connector runtime")
     output_root = _materialize_output_root(args)
     write_rules_file(
         case,

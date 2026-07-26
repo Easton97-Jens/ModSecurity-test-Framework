@@ -36,6 +36,20 @@ class GenerateCaseMatrixSonarTests(unittest.TestCase):
             with mock.patch.dict(os.environ, {"VERIFIED_RUN_ROOT": str(verified_run_root)}, clear=True):
                 self.assertEqual(self.module.default_build_root(), verified_run_root.resolve() / "build")
 
+    def test_non_materializable_case_is_not_force_all_executable_or_promotable(self):
+        case = {
+            "id": "security-data-flow-descriptor",
+            "scope": "common",
+            "status": "connector-gap",
+            "runtime_materializable": False,
+        }
+        snapshot = {"force_all_cases": True}
+
+        self.assertFalse(self.module.runtime_executable_for_snapshot(case, "apache", snapshot))
+        cell = self.module.runtime_cell(case, "apache", snapshot)
+        self.assertEqual(cell["status"], "NOT_EXECUTABLE")
+        self.assertEqual(cell["promotion"], self.module.NOT_PROMOTED)
+
     def test_report_layout_writes_only_allowlisted_output_paths(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

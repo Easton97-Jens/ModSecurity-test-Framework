@@ -62,6 +62,7 @@ CAPABILITY_ALIASES = {
     "upstream_abort": "upstream-abort",
     "connection_metadata": "connection-metadata",
     "event_jsonl": "event-jsonl",
+    "security_data_flow": "security-data-flow",
     "transaction_id": "transaction-id",
     "tx": "tx-collection",
 }
@@ -115,6 +116,7 @@ KNOWN_CAPABILITIES = {
     "no-full-response-buffering",
     "parallel-requests",
     "rule-parser",
+    "security-data-flow",
     "transaction-lifecycle",
     "transaction-id",
     "transport-metadata",
@@ -399,6 +401,8 @@ def load_case(path: str | Path) -> Mapping[str, Any]:
 def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
     where = f" in {path}" if path is not None else ""
     _validate_case_metadata(case, where)
+    if not is_runtime_materializable(case):
+        return
     _validate_request(case, where)
     _validate_response(case, where)
     _validate_nginx(case, where)
@@ -408,7 +412,10 @@ def validate_case(case: Mapping[str, Any], path: Path | None = None) -> None:
 def _validate_case_metadata(case: Mapping[str, Any], where: str) -> None:
     if not str(case.get("name", "")).strip():
         raise ValueError(f"case requires name{where}")
-    if not str(case.get("rules", "")).strip():
+    materializable = case.get("runtime_materializable", True)
+    if not isinstance(materializable, bool):
+        raise ValueError(f"case runtime_materializable must be a boolean{where}")
+    if materializable and not str(case.get("rules", "")).strip():
         raise ValueError(f"case requires rules{where}")
     _validate_capabilities(case, where)
     _validate_origin(case, where)
@@ -425,6 +432,16 @@ def _validate_case_metadata(case: Mapping[str, Any], where: str) -> None:
     status = case.get("status")
     if status is not None and str(status) not in CASE_STATUSES:
         raise ValueError(f"case status is unsupported{where}")
+    if not materializable:
+        capabilities = case.get("capabilities")
+        if not isinstance(capabilities, Mapping) or capabilities.get("runtime_verified") is not False:
+            raise ValueError(
+                f"non-materializable case requires capabilities.runtime_verified=false{where}"
+            )
+        if case.get("former_xfail") is not True:
+            raise ValueError(f"non-materializable case requires former_xfail=true{where}")
+        if str(status) != "connector-gap":
+            raise ValueError(f"non-materializable case requires status=connector-gap{where}")
 
 
 def _validate_capabilities(case: Mapping[str, Any], where: str) -> None:
@@ -993,6 +1010,10 @@ def is_default_runtime_case(case: Mapping[str, Any]) -> bool:
     }
 
 
+def is_runtime_materializable(case: Mapping[str, Any]) -> bool:
+    return case.get("runtime_materializable", True) is not False
+
+
 def case_group(path: str | Path, case: Mapping[str, Any] | None = None) -> str:
     if case is None:
         try:
@@ -1125,6 +1146,8 @@ def is_case_applicable(case: Mapping[str, Any], path: str | Path, connector: str
     portable = case.get("portable")
     connector_scopes = case_connector_scopes(case)
     if case_requires_crs(case) and modsecurity_test_variant() != "with-crs":
+        return False
+    if not is_runtime_materializable(case):
         return False
     if not force_all_cases_enabled() and not is_default_runtime_case(case):
         return False
