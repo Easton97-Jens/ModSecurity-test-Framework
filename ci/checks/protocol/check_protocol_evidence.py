@@ -121,6 +121,16 @@ FORBIDDEN_CAPTURE_OPTIONS = frozenset(
         "-v",
     }
 )
+PROTOCOL_SELECTOR_OPTIONS = frozenset(
+    {
+        "--http1.0",
+        "--http1.1",
+        "--http2",
+        "--http2-prior-knowledge",
+        "--http3",
+        "--http3-only",
+    }
+)
 REDACTED_COMMAND_VALUE_OPTIONS = frozenset({"--header", "--data-binary", "--cacert"})
 FORBIDDEN_TEXT_HEADERS = re.compile(
     r"(?im)^(?:authorization|proxy-authorization|cookie|set-cookie)\s*:"
@@ -479,8 +489,9 @@ def _command_policy_errors(arguments: Sequence[str], *, protocol: str) -> list[s
     if "--fail-with-body" not in arguments:
         errors.append("client command does not preserve a failed response observation")
     required_flag = _required_protocol_flag(protocol)
-    if required_flag not in arguments:
-        errors.append("client command does not force the selected protocol profile")
+    selectors = [argument for argument in arguments if argument in PROTOCOL_SELECTOR_OPTIONS]
+    if selectors != [required_flag]:
+        errors.append("client command must use exactly one forced protocol selector")
     errors.extend(_command_output_safety_errors(arguments))
     return errors
 

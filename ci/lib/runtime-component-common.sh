@@ -85,15 +85,8 @@ runtime_component_require_under_cache() {
     rc_label=${2:-runtime component path}
     ci_require_absolute_path "$rc_path" "$rc_label" || return 77
     assert_safe_runtime_path "$CONNECTOR_COMPONENT_CACHE" CONNECTOR_COMPONENT_CACHE || return 77
-    case "$rc_path" in
-        "$CONNECTOR_COMPONENT_CACHE"|"$CONNECTOR_COMPONENT_CACHE"/*)
-            return 0
-            ;;
-        *)
-            ci_blocked "$rc_label must be under CONNECTOR_COMPONENT_CACHE: $rc_path"
-            return 77
-            ;;
-    esac
+    assert_runtime_path_under_root "$rc_path" "$CONNECTOR_COMPONENT_CACHE" "$rc_label" || return 77
+    return 0
 }
 
 download_runtime_artifact() {
