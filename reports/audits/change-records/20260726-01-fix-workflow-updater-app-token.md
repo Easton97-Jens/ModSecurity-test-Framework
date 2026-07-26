@@ -99,6 +99,9 @@ real publisher run can prove the remote branch-push path.
 | `make check-documentation` | 0 | Bilingual documentation, link, repository-path, and Change Record contracts passed. | Local Framework task worktree. |
 | `make lint` | 0 | The complete repository lint target passed, including syntax, focused contracts, pins, workflow checks, documentation, and final whitespace checking. | Local Framework task worktree. |
 | `git diff --check` | 0 | The final unstaged source diff had no whitespace errors. | Local Framework task worktree. |
+| `gh run view 30194585056 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed` | 0 | The first PR head failed only Ruff format checking; Ruff lint passed and exactly two changed Python files required formatting. | Hosted CI security Python quality receipt. |
+| `ruff check ci/checks/security/check-ci-security-contract.py tests/ci_security` | 0 | The repository-locked Ruff `0.15.22` accepted the corrected source. | Local Framework task worktree. |
+| `ruff format --check ci/checks/security/check-ci-security-contract.py tests/ci_security` | 0 | The repository-locked Ruff accepted all targeted files after formatting. | Local Framework task worktree. |
 
 ## Security impact
 
@@ -146,6 +149,9 @@ The scoped source diff and credential data flow received a focused security
 review; no plausible source-to-sink defect was found. The final workflow scan
 found neither a legacy `github.token`/`GITHUB_TOKEN` publishing route nor
 private-key material; the reviewed App-token output has exactly four consumers.
-Documentation and whitespace validation passed. Commit, push, and exact
-Draft-PR-head receipt are recorded only after their observed results. No merge
-is authorized by this record.
+Documentation and whitespace validation passed. The initial PR head failed
+hosted Python quality only because Ruff required two mechanical formatting
+changes; the follow-up commit contains exactly those changes and this receipt
+update. Local locked-Ruff validation and all focused CI-security tests passed.
+Local Pyright was not run because Node is unavailable; the hosted rerun remains
+the exact Pyright control. No merge is authorized by this record.

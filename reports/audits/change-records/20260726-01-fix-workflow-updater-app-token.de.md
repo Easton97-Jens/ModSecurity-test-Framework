@@ -59,6 +59,9 @@ Der Source kann weder App-Installation noch Repository-Variable oder Private-Key
 | `make check-documentation` | 0 | Zweisprachige Dokumentations-, Link-, Repository-Pfad- und Change-Record-Verträge bestanden. | Lokaler Framework-Task-Worktree. |
 | `make lint` | 0 | Das vollständige Repository-Lint-Ziel bestand, einschließlich Syntax, fokussierter Verträge, Pins, Workflow-Checks, Dokumentation und abschließender Whitespace-Prüfung. | Lokaler Framework-Task-Worktree. |
 | `git diff --check` | 0 | Der finale unstaged Source-Diff hatte keine Whitespace-Fehler. | Lokaler Framework-Task-Worktree. |
+| `gh run view 30194585056 --repo Easton97-Jens/ModSecurity-test-Framework --log-failed` | 0 | Der erste PR-Head scheiterte nur an Ruff-Formatierung; Ruff-Lint bestand, und exakt zwei geänderte Python-Dateien benötigten Formatierung. | Hosted-CI-security-Python-quality-Receipt. |
+| `ruff check ci/checks/security/check-ci-security-contract.py tests/ci_security` | 0 | Der im Repository gesperrte Ruff `0.15.22` akzeptierte den korrigierten Source. | Lokaler Framework-Task-Worktree. |
+| `ruff format --check ci/checks/security/check-ci-security-contract.py tests/ci_security` | 0 | Der im Repository gesperrte Ruff akzeptierte nach der Formatierung alle Ziel-Dateien. | Lokaler Framework-Task-Worktree. |
 
 ## Sicherheitsauswirkung
 
@@ -79,4 +82,4 @@ Source und lokale Verträge können nicht beweisen, dass die zukünftige GitHub-
 
 ## Finaler Diff- und Review-Status
 
-Der eingegrenzte Source-Diff und Credential-Datenfluss erhielten ein fokussiertes Security-Review; es wurde kein plausibler Source-to-Sink-Defekt gefunden. Der finale Workflow-Scan fand weder eine alte `github.token`-/`GITHUB_TOKEN`-Publishing-Route noch Private-Key-Material; der überprüfte App-Token-Output hat exakt vier Consumer. Dokumentations- und Whitespace-Validierung bestanden. Commit-, Push- und Exact-Draft-PR-Head-Receipt werden erst nach ihren beobachteten Ergebnissen erfasst. Kein Merge ist durch diesen Record autorisiert.
+Der eingegrenzte Source-Diff und Credential-Datenfluss erhielten ein fokussiertes Security-Review; es wurde kein plausibler Source-to-Sink-Defekt gefunden. Der finale Workflow-Scan fand weder eine alte `github.token`-/`GITHUB_TOKEN`-Publishing-Route noch Private-Key-Material; der überprüfte App-Token-Output hat exakt vier Consumer. Dokumentations- und Whitespace-Validierung bestanden. Der initiale PR-Head scheiterte in Hosted-Python-quality nur, weil Ruff zwei mechanische Formatierungsänderungen verlangte; der Follow-up-Commit enthält exakt diese Änderungen und dieses Receipt-Update. Lokale Validierung mit gesperrtem Ruff und alle fokussierten CI-Security-Tests bestanden. Lokales Pyright wurde wegen fehlendem Node nicht ausgeführt; der Hosted-Rerun bleibt der exakte Pyright-Control. Kein Merge ist durch diesen Record autorisiert.

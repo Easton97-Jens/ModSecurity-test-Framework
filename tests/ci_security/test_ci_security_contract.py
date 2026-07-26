@@ -640,7 +640,10 @@ jobs:
                     CHECKER.yaml.safe_load(unsafe),
                 )
                 self.assertTrue(
-                    any("reviewed" in error or "GitHub App token" in error for error in errors),
+                    any(
+                        "reviewed" in error or "GitHub App token" in error
+                        for error in errors
+                    ),
                     "\n".join(errors),
                 )
 
