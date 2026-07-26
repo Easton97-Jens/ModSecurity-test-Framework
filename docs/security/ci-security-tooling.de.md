@@ -79,6 +79,7 @@ bleiben artefaktfrei.
 | `ci-security-scorecard.yml` | PR; Default-Branch-Push, Zeitplan, manuell auf dem Default-Branch | Ein prüfsummenverifiziertes OpenSSF-Scorecard-Binary bewertet den exakten lokalen PR-Checkout ohne GitHub-Token. Das PR-Ergebnis wird JSON-validiert, bleibt aber artefaktfrei. Vertrauenswürdige Default-Branch-Jobs verwenden die exakte `github.sha`, bewahren eine validierte begrenzte JSON-Datei einen Tag auf und bleiben advisory, weil kein Score-Schwellenwert gesetzt ist; Scanner- und JSON-Validierungsfehler sind nicht advisory. SARIF wird nicht hochgeladen. |
 | `ci-security-dependency-review.yml` | PRs mit Abhängigkeitsänderungen | Dependency Review prüft hochschwere Schwachstellen und Runtime-/Development-Scopes ohne automatische Remediation oder PR-Kommentare. |
 | `update-workflow-tools.yml` | Geplant/manuell auf der vertrauenswürdigen Default-Revision | Ein nur lesender Resolver bezieht Kandidaten ausschließlich von durch den Lock abgeleiteten offiziellen GitHub-Release-/Git-Endpunkten. Ein separater nur lesender Validator lädt geänderte Tool-Assets prüfsummenvalidiert und wendet den Kandidaten ausschließlich in einer begrenzten Runner-Temporärkopie an, um die resultierenden Pins und Contracts erneut zu prüfen. Der einzige schreibfähige Publisher löst erneut auf und prüfsummenvalidiert seinen frischen Kandidaten, akzeptiert nur einen zur Basisidentität verifizierten passenden Draft-PR-Branch, beschränkt Änderungen auf eine explizite Allowlist, verwendet einen normalen Push und erstellt ausschließlich einen Draft-PR. |
+| `update-submodules.yml` | Geplant/manuell auf der vertrauenswürdigen Default-Revision | Ein nur lesender Resolver löst ausschließlich die volle SHA auf `Easton97-Jens/MRTS` `refs/heads/main` auf. Ein separater nur lesender Validator initialisiert ausdrücklich nur das deklarierte Submodule `tools/MRTS`, prüft den detached Kandidaten und führt `make quick-check` aus. Der Default-Branch-Publisher validiert die SHA erneut, akzeptiert einen bestehenden Draft-Branch nur bei alleiniger `tools/MRTS`-Änderung, verwendet einen normalen Push ohne Force und erstellt ausschließlich einen passenden Draft-PR. |
 
 Die vorhandenen Workflows `lint.yml`, `test-common.yml`, Action-Version-Check,
 Common-Version-Wartung, Workflow-/Tool-Wartung und Artefakt-Cleanup verwenden
@@ -141,6 +142,14 @@ Bestehende Branches werden nur wiederverwendet, wenn der eine offene PR exakt
 Branch, Titel, Basis, Marker und Draft-Status besitzt und seine geänderten
 Tupel gegenüber der Lock-Identität des aktuellen Default-Branches verifiziert
 sind.
+
+`update-submodules.yml` bleibt bewusst vom Lock-/Tool-Updater getrennt: Es
+aktualisiert nur den Framework-eigenen `tools/MRTS`-Gitlink, niemals MRTS-
+Inhalt. Es akzeptiert nur eine volle SHA vom benannten MRTS-`main`-Branch,
+initialisiert im Runner-lokalen Checkout ausdrücklich nur dieses direkte
+Submodule und veröffentlicht ausschließlich einen verifizierten Gitlink-only-
+Draft-PR. Sein Publisher verwendet keinen App-Private-Key, keinen Force-Push, keinen Default-
+Branch-Push, keinen Merge und keine PR-ausgelöste Ausführung.
 
 `requirements-ci.lock` pinnt das CI-PyYAML-CP314-Wheel
 `PyYAML-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl`

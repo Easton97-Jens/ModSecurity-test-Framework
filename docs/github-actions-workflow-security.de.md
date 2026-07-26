@@ -38,6 +38,7 @@ Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
 | `ci-security-osv.yml` | begrenztes `pull_request`, Zeitplan, manuell | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact` | `contents: read` | Der nicht privilegierte PR-Job führt nur die vertrauenswürdige Basisrevision aus, verifiziert ein geholtes PR-Objekt und behandelt Dependency-Manifest- und begrenzte `.python-version`-Blobs als Daten statt als ausgecheckten Code. |
 | `update-workflow-tools.yml` | Zeitplan, manuell | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script` | Reader-Jobs und das eingebaute Publisher-Token `contents: read`; sein erzeugtes App-Token hat `contents`, `pull-requests`, `workflows`: write | Der eingeschränkte Publisher läuft erst nach unabhängigen Resolver- und Validator-Jobs, begrenzt sein kurzlebiges App-Token auf dieses Repository und erstellt ausschließlich einen Draft-PR. |
+| `update-submodules.yml` | Zeitplan, manuell | `actions/checkout`, `actions/setup-python` | Reader-Jobs `contents: read`; nur der validierte Default-Branch-Publisher hat `contents: write`, `pull-requests: write` | Der Resolver folgt ausschließlich `Easton97-Jens/MRTS` `refs/heads/main`; der Validator initialisiert ausdrücklich nur `tools/MRTS`, bevor er den detached Kandidaten prüft; der Publisher ändert nur `tools/MRTS`, verwendet einen normalen Push ohne Force und erstellt oder aktualisiert genau einen passenden Draft-PR. |
 
 ## Unveränderliche Action-Provenienz
 
@@ -91,9 +92,10 @@ Kandidatenjob read-only geblieben sind; der separate Publisher von
 erzeugt erst nach unabhängigen Resolver- und Validator-Jobs ein auf das
 Repository begrenztes GitHub-App-Token mit `contents`-, `pull-requests`- und
 `workflows`-Write-Recht; `cleanup-artifacts` benötigt nur `actions: write`, um
-Artefakte zu löschen; der vertrauenswürdige Nicht-PR-CodeQL-Upload-Job benötigt
-`security-events: write`. Kein PR-ausgelöster Job darf eine Write-Berechtigung
-vergeben.
+Artefakte zu löschen; `update-submodules` gibt `contents`- und
+`pull-requests`-Write-Recht nur seinem validierten Default-Branch-Publisher;
+der vertrauenswürdige Nicht-PR-CodeQL-Upload-Job benötigt `security-events:
+write`. Kein PR-ausgelöster Job darf eine Write-Berechtigung vergeben.
 
 Jede direkte Verwendung von `actions/checkout` setzt:
 
@@ -120,9 +122,14 @@ Fallback, und die Standard-Post-Job-Token-Revocation der Action bleibt aktiv.
 Die App muss nur für dieses Framework-Repository installiert sein und exakt
 `Contents`-, `Pull requests`- und `Workflows`-Write-Autorität erhalten;
 fehlende oder unzureichende Hosted-Konfiguration lässt den Publisher scheitern,
-statt eine Credential zu erweitern. Der Contract weist eine explizite Token-/
-Secret-Referenz auf Workflow-Ebene oder in jedem Reader-Job zurück und bindet
-die Profile der schreibfähigen Publisher exakt. Der Python-Publisher löst den
+statt eine Credential zu erweitern. Auch MRTS-Submodule-Resolver und
+Validator deklarieren kein Token oder Secret. Sein separater Publisher
+verwendet das native Job-Token nur für seine überprüften GitHub-CLI- und
+normalen Git-Push-Schritte, verifiziert, dass ein vorhandener Draft-Branch nur
+`tools/MRTS` ändert, und weist Force-Pushes, ein Default-Branch-Ziel oder ein
+PR-Event zurück. Der Contract weist eine explizite Token-/Secret-Referenz auf
+Workflow-Ebene oder in jedem Reader-Job zurück und bindet die Profile der
+schreibfähigen Publisher exakt. Der Python-Publisher löst den
 Kandidaten unabhängig erneut auf, erlaubt nur `.python-version` sowohl im
 geprüften Diff als auch in `add-paths`, fixiert den Automationsbranch, setzt
 `draft: true` und weist Merge- oder Auto-Merge-Shell-Kommandos im Source-

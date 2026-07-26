@@ -87,6 +87,7 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/ci-security-workflow-lint.yml",
         ".github/workflows/lint.yml",
         ".github/workflows/test-common.yml",
+        ".github/workflows/update-submodules.yml",
         ".github/workflows/update-workflow-tools.yml",
         "docs/github-actions-workflow-security.md",
         "docs/github-actions-workflow-security.de.md",
