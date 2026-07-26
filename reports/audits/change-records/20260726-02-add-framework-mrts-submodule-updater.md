@@ -138,6 +138,7 @@ validation responsibility independently readable and testable.
 | `make PYTHON=<reviewed Framework test interpreter> test-ci-security-contract` | 0 | 136 focused CI-security tests passed after the PR #47 Sonar follow-up, including negative persisted-credential and recursive-checkout mutations. | Run `20260726T105400Z-framework-pr47-sonar-merge`, external build and pycache roots. |
 | `make PYTHON=<reviewed Framework test interpreter> check-github-actions-workflows test-workflow-action-pins check-documentation` | 0 | Python-version, all 16 workflow pin/permission contracts, 25 Action-pin tests, links, bilingual documentation, paths, and Change Record validation passed. | Run `20260726T105400Z-framework-pr47-sonar-merge`, external build and pycache roots. |
 | `python -m py_compile ci/checks/security/check-ci-security-contract.py tests/ci_security/test_ci_security_contract.py` | 0 | Both changed Python modules compiled with the selected Framework virtual environment and external bytecode root. | Run `20260726T105400Z-framework-pr47-sonar-merge`. |
+| Locked `ruff 0.15.22` check and format check | 0 | The repository-locked external tool reformatted only `check-ci-security-contract.py`; the complete CI-security Ruff check and format check then passed. | Run `20260726T105400Z-framework-pr47-sonar-merge`, task-owned runner-temp tool root. |
 
 ## Security impact
 
@@ -168,8 +169,10 @@ the mounted `.codex/findings` storage rejects creation of the required new
   exact-PR-head controls and will be observed only after the updated branch is
   pushed.
 - The selected Framework environment does not contain the optional standalone
-  `ruff` module, so no local direct Ruff invocation was substituted or
-  installed. The existing hosted Python-quality check remains required.
+  `ruff` module. The repository-locked external `ruff 0.15.22` tool was
+  instead fetched to the task-owned runner-temp root, verified by its locked
+  release digest, and used without installing a Python package. The existing
+  hosted Python-quality check remains required.
 - The broad `make lint` attempt progressed through syntax and multiple native
   contract suites but did not return a terminal result before the task command
   runner's bounded execution window. It is not claimed as passed; the focused

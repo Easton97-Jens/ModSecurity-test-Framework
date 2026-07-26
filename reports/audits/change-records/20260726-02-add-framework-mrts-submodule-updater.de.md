@@ -148,6 +148,7 @@ Validierungsaufgabe separat lesbar und testbar bleibt.
 | `make PYTHON=<reviewed Framework test interpreter> test-ci-security-contract` | 0 | 136 fokussierte CI-Sicherheits-Tests bestanden nach dem PR-#47-Sonar-Follow-up, einschließlich negativer Mutationen für persistierte Credentials und rekursiven Checkout. | Run `20260726T105400Z-framework-pr47-sonar-merge`, externe Build- und Pycache-Roots. |
 | `make PYTHON=<reviewed Framework test interpreter> check-github-actions-workflows test-workflow-action-pins check-documentation` | 0 | Python-Version, alle 16 Workflow-Pin-/Permission-Contracts, 25 Action-Pin-Tests, Links, zweisprachige Dokumentation, Pfade und Change-Record-Validierung bestanden. | Run `20260726T105400Z-framework-pr47-sonar-merge`, externe Build- und Pycache-Roots. |
 | `python -m py_compile ci/checks/security/check-ci-security-contract.py tests/ci_security/test_ci_security_contract.py` | 0 | Beide geänderten Python-Module kompilierten mit dem ausgewählten Framework-Virtualenv und externem Bytecode-Root. | Run `20260726T105400Z-framework-pr47-sonar-merge`. |
+| Gesperrter `ruff 0.15.22`-Check und Format-Check | 0 | Das repository-gesperrte externe Tool formatierte nur `check-ci-security-contract.py`; danach bestanden der vollständige CI-Security-Ruff-Check und Format-Check. | Run `20260726T105400Z-framework-pr47-sonar-merge`, task-eigener Runner-Temp-Tool-Root. |
 
 ## Sicherheitsauswirkung
 
@@ -181,9 +182,10 @@ kanonische Parent-Finding-Allocation ist derzeit blockiert, weil der Mount
   exakte PR-Head-Kontrollen und werden erst nach dem Push des aktualisierten
   Branches beobachtet.
 - Das ausgewählte Framework-Environment enthält das optionale eigenständige
-  `ruff`-Modul nicht; deshalb wurde keine lokale direkte Ruff-Ausführung
-  ersetzt oder installiert. Der vorhandene Hosted-Python-Quality-Check bleibt
-  erforderlich.
+  `ruff`-Modul nicht. Stattdessen wurde das repository-gesperrte externe
+  `ruff 0.15.22`-Tool in den task-eigenen Runner-Temp-Root geladen, über seinen
+  gesperrten Release-Digest verifiziert und ohne Python-Paketinstallation
+  verwendet. Der vorhandene Hosted-Python-Quality-Check bleibt erforderlich.
 - Der breite `make lint`-Versuch durchlief Syntax und mehrere native
   Contract-Suites, lieferte aber vor dem begrenzten Ausführungsfenster des
   Task-Command-Runners kein terminales Ergebnis. Er wird nicht als bestanden

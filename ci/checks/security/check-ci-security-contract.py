@@ -1863,9 +1863,7 @@ def submodule_updater_validator_errors(path: Path, jobs: dict[str, Any]) -> list
     return []
 
 
-def submodule_updater_publisher_errors(
-    path: Path, jobs: dict[str, Any]
-) -> list[str]:
+def submodule_updater_publisher_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
     """Validate publisher permissions, dependencies, and execution gate."""
 
     errors: list[str] = []
