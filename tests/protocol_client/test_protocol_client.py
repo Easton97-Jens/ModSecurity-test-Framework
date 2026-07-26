@@ -29,6 +29,7 @@ ALL_OPTIONS = frozenset(
         "--max-time",
         "--output",
         "--request",
+        "--resolve",
         "--show-error",
         "--silent",
         "--write-out",
@@ -195,6 +196,61 @@ class ProtocolClientTest(unittest.TestCase):
             ):
                 self.assertNotIn(forbidden, combined)
             self.assertIn("[redacted]", (directory / "client-command.txt").read_text())
+
+    def test_command_artifact_redacts_opaque_url_paths_and_resolve_values(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            sidecar = directory / "h2-observation.json"
+            sidecar.write_text(
+                json.dumps({"alpn": "h2", "stream_id": 1}),
+                encoding="utf-8",
+            )
+            completed = subprocess.CompletedProcess(
+                args=["curl"],
+                returncode=0,
+                stdout=json.dumps(
+                    {
+                        "response_code": 204,
+                        "http_version": "2",
+                        "size_download": 0,
+                    }
+                )
+                + "\n",
+                stderr="",
+            )
+            config = protocol_client.ClientConfig(
+                url=(
+                    "https://localhost:8443/synthetic-path-marker%2Fencoded"
+                    "?token=synthetic-query-marker"
+                ),
+                protocol="h2",
+                artifact_dir=directory,
+                observation_sidecar=sidecar,
+                resolve=("localhost:8443:203.0.113.9",),
+                transport_case_id="case-h2-redaction",
+            )
+            with mock.patch.object(protocol_client, "inspect_curl", return_value=inspection("HTTP2")), mock.patch.object(
+                protocol_client, "_run_process", return_value=completed
+            ):
+                result = protocol_client.run_protocol_client(config)
+
+            self.assertEqual(result.observation["status"], "PASS")
+            command_artifact = (directory / "client-command.txt").read_text(encoding="utf-8")
+            self.assertIn("https://localhost:8443/[redacted-path]?[redacted]", command_artifact)
+            self.assertIn("--resolve '[redacted]'", command_artifact)
+            for leaked in (
+                "synthetic-path-marker",
+                "synthetic-query-marker",
+                "203.0.113.9",
+            ):
+                self.assertNotIn(leaked, command_artifact)
+
+    def test_command_artifact_preserves_safe_health_endpoint(self) -> None:
+        rendered = protocol_client._redacted_command(
+            ("curl", "https://localhost:8443/health"),
+            url="https://localhost:8443/health",
+        )
+        self.assertIn("https://localhost:8443/health", rendered)
 
     def test_h2_fallback_is_a_failure_not_a_pass(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

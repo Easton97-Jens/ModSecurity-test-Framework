@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "report_id": "20260724-01-codex-security-csv-reconciliation",
+  "scope": "framework_only",
+  "source": {
+    "path": "Parent .codex/findings/codex-security-findings-2026-07-24T17-04-36.095Z.csv",
+    "sha256": "e28d182304f854ce01935f6f08e880900241fc67c45a4289e83f03f3192da7a4",
+    "configured_scan_id": "user-cTR8W8YixbRnTZ4QJJXk1jpW:github-1240166325",
+    "rows": 23,
+    "parser": "python csv.excel; all data rows have 17 fields"
+  },
+  "baseline": "77d73decd094a8f289fbe0ef2582f12430923e24",
+  "counts": {
+    "confirmed_open_fixed_in_task_branch": 5,
+    "already_fixed_on_default": 12,
+    "documented_false_positive": 5,
+    "not_applicable": 1
+  },
+  "cloud_closure": "blocked_permissions",
+  "rows": [
+    {"number": 1, "id": "3e5b4a68b3288191a46e2e897019db4f", "severity": "high", "disposition": "documented_false_positive"},
+    {"number": 2, "id": "6e64449e9d4481918fbcc63aef4ab41e", "severity": "high", "disposition": "confirmed_open_fixed_in_task_branch", "commit": "d2d3320"},
+    {"number": 3, "id": "990e73aec6948191a3206a204a7d5881", "severity": "high", "disposition": "already_fixed_on_default"},
+    {"number": 4, "id": "932c7c43d8d88191a06ca768bba69f42", "severity": "high", "disposition": "already_fixed_on_default"},
+    {"number": 5, "id": "49dfbbb3887c819187fdbd9b670341c1", "severity": "high", "disposition": "confirmed_open_fixed_in_task_branch", "commits": ["19d8494", "e60cb8c"]},
+    {"number": 6, "id": "6645193c8a4081919df834437048f38c", "severity": "high", "disposition": "documented_false_positive"},
+    {"number": 7, "id": "f2c4b104dc288191b7976a77bc5d6f02", "severity": "medium", "disposition": "confirmed_open_fixed_in_task_branch", "commit": "e94074c"},
+    {"number": 8, "id": "ca36c37a1b8c8191bf5bba672b843f46", "severity": "medium", "disposition": "documented_false_positive"},
+    {"number": 9, "id": "de250c7664b88191be2cf8ec9caf52f2", "severity": "medium", "disposition": "confirmed_open_fixed_in_task_branch", "commit": "75f15ab"},
+    {"number": 10, "id": "864b7d9ee20081919d081396d2a233ad", "severity": "medium", "disposition": "already_fixed_on_default"},
+    {"number": 11, "id": "ee0623b9b9388191b29b09766e413ad8", "severity": "medium", "disposition": "already_fixed_on_default"},
+    {"number": 12, "id": "a0aff086d85c8191b2082624edf5307f", "severity": "medium", "disposition": "already_fixed_on_default"},
+    {"number": 13, "id": "712cf426a780819188abe4928484b4d7", "severity": "medium", "disposition": "already_fixed_on_default"},
+    {"number": 14, "id": "ce59a7b5dfa881919172d51d9b5f02bd", "severity": "medium", "disposition": "already_fixed_on_default"},
+    {"number": 15, "id": "c9ca53a179948191addf07c5cfa34f67", "severity": "medium", "disposition": "already_fixed_on_default"},
+    {"number": 16, "id": "2ad2602367208191955e63da621fcf3f", "severity": "medium", "disposition": "already_fixed_on_default"},
+    {"number": 17, "id": "f4db578ad0948191a1edcd79e393c733", "severity": "medium", "disposition": "already_fixed_on_default"},
+    {"number": 18, "id": "a4235836148c81919fe06cfb7046d481", "severity": "medium", "disposition": "already_fixed_on_default"},
+    {"number": 19, "id": "6f134b6136c481918d5576fa425a5957", "severity": "medium", "disposition": "documented_false_positive"},
+    {"number": 20, "id": "0c88f026e99c819184283536e5ca8af5", "severity": "medium", "disposition": "already_fixed_on_default"},
+    {"number": 21, "id": "0648f667c8a08191ab140169675aacb4", "severity": "low", "disposition": "confirmed_open_fixed_in_task_branch", "commit": "f3aac14"},
+    {"number": 22, "id": "2f9959fe71ec8191bb9c335685e68c15", "severity": "informational", "disposition": "documented_false_positive"},
+    {"number": 23, "id": "3677a6db8d74819181aa8258ae94b410", "severity": "informational", "disposition": "not_applicable"}
+  ]
+}

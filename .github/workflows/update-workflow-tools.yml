@@ -108,8 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
       - name: Checkout trusted default revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -132,11 +131,23 @@ jobs:
             --require-hashes -r requirements-ci.lock
           python3 -m pip check
 
+      - name: Mint repository-limited workflow publisher App token
+        id: publisher_app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
       - name: Inspect matching Draft maintenance pull request
         id: maintenance_pr
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
-          github-token: ${{ github.token }}
+          github-token: ${{ steps.publisher_app_token.outputs.token }}
           script: |
             const branch = "automation/update-framework-workflow-tools";
             const title = "chore(ci): update pinned workflow tools";
@@ -186,7 +197,7 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           MAINTENANCE_PR_EXISTS: ${{ steps.maintenance_pr.outputs.existing }}
-          PUBLISH_TOKEN: ${{ github.token }}
+          PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
         run: |
           set -euo pipefail
           UPDATE_BRANCH="automation/update-framework-workflow-tools"
@@ -244,7 +255,7 @@ jobs:
       - name: Commit and push only approved updater paths
         id: commit
         env:
-          PUBLISH_TOKEN: ${{ github.token }}
+          PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
         run: |
           set -euo pipefail
           UPDATE_BRANCH="automation/update-framework-workflow-tools"
@@ -269,6 +280,7 @@ jobs:
             .github/workflows/ci-security-workflow-lint.yml \
             .github/workflows/lint.yml \
             .github/workflows/test-common.yml \
+            .github/workflows/update-submodules.yml \
             .github/workflows/update-workflow-tools.yml \
             docs/github-actions-workflow-security.md \
             docs/github-actions-workflow-security.de.md
@@ -284,7 +296,7 @@ jobs:
         if: steps.commit.outputs.changed == 'true' && steps.maintenance_pr.outputs.existing == 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
-          github-token: ${{ github.token }}
+          github-token: ${{ steps.publisher_app_token.outputs.token }}
           script: |
             const body = [
               "<!-- framework-workflow-tool-updater -->",

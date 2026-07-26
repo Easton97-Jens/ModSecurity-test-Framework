@@ -395,8 +395,9 @@ jobs:
             encoding="utf-8"
         )
         unsafe = workflow.replace(
-            "      pull-requests: write",
-            "      pull-requests: write\n      issues: read",
+            "    timeout-minutes: 25\n    permissions:\n      contents: read\n    steps:",
+            "    timeout-minutes: 25\n    permissions:\n      contents: read\n"
+            "      actions: write\n    steps:",
             1,
         ) + (
             "\n  unexpected_writer:\n"
@@ -481,6 +482,61 @@ jobs:
             any("updater triggers must be exactly" in error for error in errors),
             "\n".join(errors),
         )
+
+    def test_submodule_updater_uses_the_reviewed_framework_profile(self) -> None:
+        workflow = (ROOT / ".github/workflows/update-submodules.yml").read_text(
+            encoding="utf-8"
+        )
+        errors = CHECKER.submodule_updater_errors(
+            ROOT / ".github/workflows/update-submodules.yml",
+            workflow,
+            CHECKER.yaml.safe_load(workflow),
+        )
+        self.assertEqual(errors, [], "\n".join(errors))
+
+    def test_submodule_updater_rejects_mrts_ref_token_and_force_push_bypasses(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-submodules.yml").read_text(
+            encoding="utf-8"
+        )
+        variants = {
+            "wrong-mrts-default-branch": workflow.replace(
+                "SUBMODULE_REF: refs/heads/main",
+                "SUBMODULE_REF: refs/heads/master",
+                1,
+            ),
+            "reader-token": workflow.replace(
+                "      - name: Resolve the official MRTS commit",
+                "      - name: Resolve the official MRTS commit\n"
+                "        env:\n"
+                "          GH_TOKEN: ${{ github.token }}",
+                1,
+            ),
+            "force-push": workflow.replace(
+                'git push origin "HEAD:refs/heads/$UPDATE_BRANCH"',
+                'git push --force-with-lease origin "HEAD:refs/heads/$UPDATE_BRANCH"',
+                1,
+            ),
+            "persisted-validator-credentials": workflow.replace(
+                "persist-credentials: false",
+                "persist-credentials: true",
+                2,
+            ),
+            "recursive-validator-checkout": workflow.replace(
+                "submodules: false",
+                "submodules: recursive",
+                2,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.submodule_updater_errors(
+                    ROOT / ".github/workflows/update-submodules.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(errors, "expected reviewed-profile rejection")
 
     def test_workflow_tool_updater_publisher_profile_rejects_pr_aliases_and_comments(
         self,
@@ -583,8 +639,8 @@ jobs:
                 1,
             ),
             "publisher-environment-injection": workflow.replace(
-                "          PUBLISH_TOKEN: ${{ github.token }}\n        run: |",
-                "          PUBLISH_TOKEN: ${{ github.token }}\n"
+                "          PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}\n        run: |",
+                "          PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}\n"
                 "          BASH_ENV: /tmp/untrusted\n        run: |",
                 1,
             ),
@@ -599,6 +655,49 @@ jobs:
                 self.assertTrue(
                     any(
                         "publisher" in error and "reviewed" in error for error in errors
+                    ),
+                    "\n".join(errors),
+                )
+
+    def test_workflow_tool_updater_publisher_uses_only_the_reviewed_app_token(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
+        variants = {
+            "legacy-github-script-token": workflow.replace(
+                "github-token: ${{ steps.publisher_app_token.outputs.token }}",
+                "github-token: ${{ github.token }}",
+                1,
+            ),
+            "legacy-git-publish-token": workflow.replace(
+                "PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}",
+                "PUBLISH_TOKEN: ${{ github.token }}",
+                1,
+            ),
+            "unreviewed-app-permission": workflow.replace(
+                "          permission-workflows: write",
+                "          permission-workflows: read",
+                1,
+            ),
+            "unreviewed-app-repository-scope": workflow.replace(
+                "          repositories: ${{ github.repository }}",
+                "          repositories: another-repository",
+                1,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.workflow_tool_updater_errors(
+                    ROOT / ".github/workflows/update-workflow-tools.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(
+                    any(
+                        "reviewed" in error or "GitHub App token" in error
+                        for error in errors
                     ),
                     "\n".join(errors),
                 )

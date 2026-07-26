@@ -532,6 +532,7 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             {"FAKE_GIT_EXTRA_REMOTE": "1"},
             {"FAKE_GIT_ATTACHED_HEAD": "1"},
             {"FAKE_GIT_DIRTY": "1"},
+            {"FAKE_GIT_IGNORED": "1"},
             {"FAKE_GIT_INDEX_FLAG": "1"},
         ):
             with self.subTest(overrides=overrides):

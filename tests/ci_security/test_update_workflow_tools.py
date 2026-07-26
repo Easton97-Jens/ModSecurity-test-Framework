@@ -739,8 +739,16 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self.assertIn("resolver:", workflow)
         self.assertIn("validator:", workflow)
         self.assertIn("publisher:", workflow)
-        self.assertIn("contents: write", workflow)
-        self.assertIn("pull-requests: write", workflow)
+        self.assertIn("actions/create-github-app-token@", workflow)
+        self.assertIn("client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}", workflow)
+        self.assertIn(
+            "private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}", workflow
+        )
+        self.assertIn("permission-contents: write", workflow)
+        self.assertIn("permission-pull-requests: write", workflow)
+        self.assertIn("permission-workflows: write", workflow)
+        self.assertIn("${{ steps.publisher_app_token.outputs.token }}", workflow)
+        self.assertNotIn("${{ github.token }}", workflow)
         self.assertIn("--verify-tool-assets", workflow)
         self.assertIn("--validate-proposed-tree", workflow)
         self.assertIn("framework-workflow-tool-publisher-validation", workflow)

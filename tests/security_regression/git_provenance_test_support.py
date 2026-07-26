@@ -311,6 +311,8 @@ elif command == "fsck":
 elif command == "status":
     if os.environ.get("FAKE_GIT_DIRTY") == "1":
         print(" M tracked-file")
+    elif os.environ.get("FAKE_GIT_IGNORED") == "1":
+        print("!! ignored-build-output")
 elif command == "ls-files":
     if "--stage" in arguments:
         links = list(direct_links)

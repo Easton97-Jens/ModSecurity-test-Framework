@@ -7,6 +7,7 @@ portable: true
 status: connector-gap
 former_xfail: true
 former_xfail_reason: "framework case only; runtime_verified=false and not counted as verified PASS."
+runtime_materializable: false
 known_limitations:
   - Pending connector runtime evidence; not counted as verified PASS.
   - No connector implementation, adapter metadata, or runtime evidence is provided by this framework case.

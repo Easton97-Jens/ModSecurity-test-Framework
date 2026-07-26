@@ -215,6 +215,34 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             ["https://api.github.com/repos/owasp-modsecurity/ModSecurity/releases/latest"],
         )
 
+    def test_modsecurity_v3_release_blocks_missing_or_malformed_immutable_anchor(self):
+        source_lines = [
+            'MODSECURITY_V3_APPROVED_REPO_URL="https://github.com/owasp-modsecurity/ModSecurity.git"',
+            'MODSECURITY_V3_RELEASE_TAG="v3.0.15"',
+            'MODSECURITY_REPO_URL="${MODSECURITY_REPO_URL:-$MODSECURITY_V3_APPROVED_REPO_URL}"',
+            'MODSECURITY_GIT_REF="${MODSECURITY_GIT_REF:-$MODSECURITY_V3_RELEASE_TAG}"',
+            'MODSECURITY_V3_GIT_URL="${MODSECURITY_V3_GIT_URL:-$MODSECURITY_V3_APPROVED_REPO_URL}"',
+            'MODSECURITY_V3_GIT_REF="${MODSECURITY_V3_GIT_REF:-$MODSECURITY_V3_RELEASE_TAG}"',
+        ]
+
+        class UnexpectedNetworkClient:
+            def get_json(self, url: str) -> dict[str, str]:
+                raise AssertionError(f"provenance check must block before network access: {url}")
+
+        for anchor in (None, "not-a-commit"):
+            with self.subTest(anchor=anchor):
+                lines = list(source_lines)
+                if anchor is not None:
+                    lines.insert(2, f'MODSECURITY_V3_APPROVED_COMMIT="{anchor}"')
+                with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+                    fixture = Path(temporary) / FIXTURE_NAME
+                    _, entries = self.parse_fixture(fixture, "\n".join(lines) + "\n")
+                result = CHECKER.check_modsecurity_v3_release_provenance(
+                    entries, UnexpectedNetworkClient()
+                )
+                self.assertEqual(CHECKER.STATUS_BLOCKED, result.status)
+                self.assertIn("MODSECURITY_V3_APPROVED_COMMIT", result.message)
+
     def test_dotted_version_parser_keeps_legacy_match_boundaries_without_regex_backtracking(self):
         self.assertEqual(CHECKER.version_tuple("release-1.2.3"), (1, 2, 3))
         self.assertEqual(CHECKER.version_tuple("release-1.2..3"), (1, 2))

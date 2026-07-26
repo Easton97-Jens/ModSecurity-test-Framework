@@ -25,6 +25,7 @@ from runtime_path_safety import (
 )
 
 INCOMPLETE_REASON = "MRTS classification incomplete"
+MRTS_SOURCE_REPOSITORY = "Easton97-Jens/MRTS"
 ROOT_COLLECTIONS = [
     "ARGS",
     "ARGS_NAMES",
@@ -1002,7 +1003,7 @@ def initialized_case(
         "name": name,
         "origin": [
             {
-                "repo": "owasp-modsecurity/MRTS",
+                "repo": MRTS_SOURCE_REPOSITORY,
                 "path": str(source_path),
                 "reason": "Generated MRTS go-ftw test imported into framework YAML schema.",
             }

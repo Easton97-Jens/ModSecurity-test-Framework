@@ -16,6 +16,7 @@ beschrieben.
 
 ## Aktuelle Records
 
+- [PR-#50-Follow-up für CI und SonarQube Cloud (2026-07-26)](20260726-04-remediate-pr50-ci-sonar-followup.de.md)
 - [Wiederherstellung der exakten ModSecurity-v3-Provenance-Prüfung für rekursive Topologie (2026-07-23)](20260723-02-remediate-modsecurity-v3-topology-provenance.de.md)
 - [Framework-CPython-3.14-CI-Migration (2026-07-22)](20260722-02-migrate-framework-python-314-ci.de.md)
 - [Konsolidierung der Framework-PRs 39–41 (2026-07-22)](20260722-01-consolidate-framework-pr-39-41.de.md)

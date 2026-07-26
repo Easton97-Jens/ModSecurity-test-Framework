@@ -1,0 +1,255 @@
+name: Update MRTS submodule
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: framework-mrts-submodule-maintenance-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  SUBMODULE_PATH: tools/MRTS
+  SUBMODULE_URL: https://github.com/Easton97-Jens/MRTS.git
+  SUBMODULE_REF: refs/heads/main
+  UPDATE_BRANCH: automation/update-framework-mrts-submodule
+  UPDATE_TITLE: "chore: update MRTS submodule"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  resolve-submodule-update:
+    name: Resolve MRTS submodule update
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      candidate_sha: ${{ steps.resolve.outputs.candidate_sha }}
+      changed: ${{ steps.resolve.outputs.changed }}
+    steps:
+      - name: Checkout Framework metadata
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve the official MRTS commit
+        id: resolve
+        run: |
+          set -euo pipefail
+          candidate_sha="$(git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF" | awk 'NR == 1 { print $1 }')"
+          current_sha="$(git ls-tree HEAD -- "$SUBMODULE_PATH" | awk '{ print $3 }')"
+
+          if ! printf '%s\n' "$candidate_sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Resolved MRTS revision is not a full SHA-1: $candidate_sha" >&2
+            exit 1
+          fi
+          if ! printf '%s\n' "$current_sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Current MRTS gitlink is not a full SHA-1: $current_sha" >&2
+            exit 1
+          fi
+
+          printf 'candidate_sha=%s\n' "$candidate_sha" >> "$GITHUB_OUTPUT"
+          if [ "$candidate_sha" = "$current_sha" ]; then
+            printf 'changed=false\n' >> "$GITHUB_OUTPUT"
+            echo "No MRTS submodule changes detected."
+          else
+            printf 'changed=true\n' >> "$GITHUB_OUTPUT"
+            echo "Resolved MRTS update: $current_sha -> $candidate_sha"
+          fi
+
+  validate-submodule-update:
+    name: Validate MRTS submodule update
+    needs: resolve-submodule-update
+    if: needs.resolve-submodule-update.outputs.changed == 'true'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
+    steps:
+      - name: Checkout candidate for read-only validation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Check out the resolved MRTS revision
+        run: |
+          set -euo pipefail
+          if ! printf '%s\n' "$CANDIDATE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Candidate MRTS revision is not a full SHA-1: $CANDIDATE_SHA" >&2
+            exit 1
+          fi
+          git submodule update --init -- "$SUBMODULE_PATH"
+          git -C "$SUBMODULE_PATH" fetch --no-tags origin "$CANDIDATE_SHA"
+          git -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
+
+      - name: Run Framework quick check without write permissions
+        run: make quick-check
+
+  create-submodule-update-pr:
+    name: Create MRTS submodule update pull request
+    needs:
+      - resolve-submodule-update
+      - validate-submodule-update
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      needs.resolve-submodule-update.outputs.changed == 'true' &&
+      needs.validate-submodule-update.result == 'success'
+    permissions:
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CANDIDATE_SHA: ${{ needs.resolve-submodule-update.outputs.candidate_sha }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Checkout Framework repository without submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          submodules: false
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Revalidate the official MRTS revision
+        run: |
+          set -euo pipefail
+          if ! printf '%s\n' "$CANDIDATE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Candidate MRTS revision is not a full SHA-1: $CANDIDATE_SHA" >&2
+            exit 1
+          fi
+          expected_sha="$(git ls-remote --exit-code "$SUBMODULE_URL" "$SUBMODULE_REF" | awk 'NR == 1 { print $1 }')"
+          if [ "$expected_sha" != "$CANDIDATE_SHA" ]; then
+            echo "Official MRTS branch changed after validation; refusing to publish $CANDIDATE_SHA." >&2
+            exit 1
+          fi
+
+      - name: Inspect matching Draft maintenance pull request
+        id: maintenance_pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          matching_prs="$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --base "$DEFAULT_BRANCH" \
+            --head "$UPDATE_BRANCH" \
+            --state open \
+            --json number,isDraft,baseRefName,title)"
+          matching_count="$(printf '%s' "$matching_prs" | jq 'length')"
+          case "$matching_count" in
+            0)
+              printf 'existing=false\n' >> "$GITHUB_OUTPUT"
+              ;;
+            1)
+              is_draft="$(printf '%s' "$matching_prs" | jq -r '.[0].isDraft')"
+              base_ref="$(printf '%s' "$matching_prs" | jq -r '.[0].baseRefName')"
+              title="$(printf '%s' "$matching_prs" | jq -r '.[0].title')"
+              if [ "$is_draft" != true ] || [ "$base_ref" != "$DEFAULT_BRANCH" ] || [ "$title" != "$UPDATE_TITLE" ]; then
+                echo "existing MRTS maintenance pull request does not match the reviewed Draft profile" >&2
+                exit 1
+              fi
+              printf 'existing=true\n' >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "expected zero or one matching MRTS maintenance pull request" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Prepare the constrained maintenance branch
+        env:
+          MAINTENANCE_PR_EXISTS: ${{ steps.maintenance_pr.outputs.existing }}
+        run: |
+          set -euo pipefail
+          git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null
+          git check-ref-format --branch "$UPDATE_BRANCH" >/dev/null
+          git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          case "$MAINTENANCE_PR_EXISTS" in
+            true)
+              git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
+              changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH")"
+              if [ "$changed_paths" != "$SUBMODULE_PATH" ]; then
+                echo "existing MRTS maintenance branch changes paths outside $SUBMODULE_PATH" >&2
+                exit 1
+              fi
+              git switch --create "$UPDATE_BRANCH" --track "origin/$UPDATE_BRANCH"
+              ;;
+            false)
+              git switch --create "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
+              ;;
+            *)
+              echo "MRTS maintenance pull request state is invalid" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Commit and push only the MRTS gitlink update
+        id: commit
+        env:
+          PUBLISH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git update-index --add --cacheinfo "160000,$CANDIDATE_SHA,$SUBMODULE_PATH"
+
+          if git diff --cached --quiet; then
+            echo "No staged MRTS submodule changes."
+            printf 'changed=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          staged_paths="$(git diff --cached --name-only)"
+          if [ "$staged_paths" != "$SUBMODULE_PATH" ]; then
+            echo "staged maintenance update changes paths outside $SUBMODULE_PATH" >&2
+            exit 1
+          fi
+          git diff --cached --check
+          git commit -m "chore: update MRTS submodule"
+          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
+          trap 'git config --local --unset-all credential.helper || true' EXIT
+          git push origin "HEAD:refs/heads/$UPDATE_BRANCH"
+          printf 'changed=true\n' >> "$GITHUB_OUTPUT"
+
+      - name: Create the matching Draft pull request
+        if: steps.commit.outputs.changed == 'true' && steps.maintenance_pr.outputs.existing == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base "$DEFAULT_BRANCH" \
+            --head "$UPDATE_BRANCH" \
+            --draft \
+            --title "$UPDATE_TITLE" \
+            --body $'## English\n\nThis Draft PR was created by the constrained Framework MRTS submodule updater.\nIt contains only the validated `tools/MRTS` gitlink update.\n\n## Deutsch\n\nDieser Draft-PR wurde vom eingeschränkten Framework-MRTS-Submodule-Updater erstellt.\nEr enthält ausschließlich das validierte `tools/MRTS`-Gitlink-Update.'

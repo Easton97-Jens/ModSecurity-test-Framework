@@ -10,10 +10,17 @@ import textwrap
 import unittest
 from pathlib import Path
 
+from git_provenance_test_support import (
+    create_approved_modsecurity_v3_topology,
+    fake_git_script,
+)
+
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_ROOT = ROOT / "tests" / "fixtures" / "pcre2-digest"
 PREPARE_SCRIPT = ROOT / "ci" / "provisioning" / "prepare-apache-build.sh"
+APPROVED_V3_REPOSITORY = "https://github.com/owasp-modsecurity/ModSecurity.git"
+APPROVED_V3_COMMIT = "0fb4aff98b4980cf6426697d5605c424e3d5bb60"
 
 
 class Pcre2ArchiveDigestTests(unittest.TestCase):
@@ -51,6 +58,40 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             exit 0
         """)
         return adapter
+
+    def _create_framework_fixture(self, workspace):
+        """Copy the real Apache path with only a test-local Git host binding.
+
+        FND-FRAMEWORK-0054 separately verifies the production `/usr/bin/git`
+        trust contract.  This PCRE2 test instead needs a non-network, exact
+        approved V3 topology so that it can reach its archive-digest boundary.
+        The copied helper preserves the production provenance checks and swaps
+        only the host-Git binding for the hermetic topology model.
+        """
+
+        fixture_root = workspace / "framework-fixture"
+        (fixture_root / "tests").mkdir(parents=True)
+        (fixture_root / "Makefile").write_text("# test fixture\n", encoding="utf-8")
+        for relative in (
+            "ci/lib/path-bootstrap.sh",
+            "ci/lib/path.sh",
+            "ci/provisioning/prepare-apache-build.sh",
+        ):
+            destination = fixture_root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ROOT / relative, destination)
+        common_source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        common_fixture = fixture_root / "ci/lib/common.sh"
+        common_fixture.write_text(
+            common_source
+            + "\n# Test-only hermetic topology binding; production host-Git trust is covered separately.\n"
+            + "ci_modsecurity_v3_require_host_git() {\n"
+            + "    ci_v3_host_git_bin=$FAKE_GIT_BIN\n"
+            + "    return 0\n"
+            + "}\n",
+            encoding="utf-8",
+        )
+        return fixture_root / "ci/provisioning/prepare-apache-build.sh"
 
     def _create_fake_tools(self, workspace):
         fake_bin = workspace / "fake-bin"
@@ -110,39 +151,10 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             : > "$FAKE_MODULE_PATH"
             exit 0
         """)
-        self._write_executable(fake_bin / "git", """
-            #!/bin/sh
-            set -eu
-            while [ "$#" -gt 0 ]; do
-                case "$1" in
-                    -c|-C)
-                        shift 2
-                        ;;
-                    *)
-                        break
-                        ;;
-                esac
-            done
-            command=${1:-}
-            shift || true
-            case "$command" in
-                config)
-                    printf '%s\n' 'https://github.com/owasp-modsecurity/ModSecurity.git'
-                    ;;
-                rev-parse)
-                    case "$*" in
-                        *--is-inside-work-tree*) printf '%s\n' true ;;
-                        *--abbrev-ref\\ HEAD*) printf '%s\n' HEAD ;;
-                        *) printf '%s\n' '0fb4aff98b4980cf6426697d5605c424e3d5bb60' ;;
-                    esac
-                    ;;
-                describe)
-                    printf '%s\n' v3.0.15
-                    ;;
-                ls-files)
-                    ;;
-            esac
-        """)
+        self._write_executable(
+            fake_bin / "git",
+            fake_git_script(APPROVED_V3_REPOSITORY, APPROVED_V3_COMMIT),
+        )
         return fake_bin
 
     def _run_case(self, digest):
@@ -152,6 +164,7 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             archive = self._build_archive(workspace)
             adapter = self._create_adapter_source(workspace)
             fake_bin = self._create_fake_tools(workspace)
+            prepare_script = self._create_framework_fixture(workspace)
             verified = workspace / "verified"
             build_root = verified / "build"
             shared_prefix = verified / "shared"
@@ -162,20 +175,21 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             (shared_prefix / "lib").mkdir(parents=True)
             (shared_prefix / "lib" / "libmodsecurity.so").write_text("fixture\n", encoding="utf-8")
             v3_source = workspace / "v3-source"
-            v3_source.mkdir()
-            (v3_source / ".git").mkdir()
+            create_approved_modsecurity_v3_topology(v3_source)
             connector_root = workspace / "connector"
             connector_root.mkdir()
             module_path = verified / "apache-build" / "ModSecurity-apache" / "src" / ".libs" / "mod_security3.so"
             tar_log = workspace / "pcre2-tar.log"
+            git_log = workspace / "v3-git.log"
+            git_log.touch()
             digest_value = hashlib.sha256(archive.read_bytes()).hexdigest()
             if digest is None:
                 digest = digest_value
             environment = os.environ.copy()
             environment.update(
                 {
-                    "FRAMEWORK_ROOT": str(ROOT),
-                    "CI_ROOT": str(ROOT / "ci"),
+                    "FRAMEWORK_ROOT": str(prepare_script.parents[2]),
+                    "CI_ROOT": str(prepare_script.parents[1]),
                     "CONNECTOR_ROOT": str(connector_root),
                     "VERIFIED_RUN_ROOT": str(verified),
                     "BUILD_ROOT": str(build_root),
@@ -217,11 +231,15 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                     "REAL_TAR": self.real_tar,
                     "FAKE_MODULE_PATH": str(module_path),
                     "FAKE_MODULE_DIR": str(module_path.parent),
+                    "FAKE_GIT_BIN": str(fake_bin / "git"),
+                    "FAKE_GIT_LOG": str(git_log),
+                    "FAKE_GIT_ROOT": str(v3_source),
+                    "FAKE_GIT_ORIGIN": APPROVED_V3_REPOSITORY,
                     "PATH": f"{fake_bin}:{environment['PATH']}",
                 }
             )
             completed = subprocess.run(
-                ["sh", str(PREPARE_SCRIPT)],
+                ["sh", str(prepare_script)],
                 cwd=workspace,
                 env=environment,
                 text=True,

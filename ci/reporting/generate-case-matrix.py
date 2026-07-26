@@ -991,6 +991,7 @@ def parse_case(path: Path) -> dict:
         "status": status,
         "former_xfail": bool(data.get("former_xfail") is True),
         "former_xfail_reason": str(data.get("former_xfail_reason", "") or ""),
+        "runtime_materializable": data.get("runtime_materializable") is not False,
         "promoted_from_xfail_date": str(data.get("promoted_from_xfail_date", "") or ""),
         "category": category,
         "runtime_verified": parse_runtime_verified(data),
@@ -1681,6 +1682,8 @@ def is_force_all_snapshot(snapshot: dict) -> bool:
 def runtime_executable(case: dict, connector: str) -> bool:
     if not connector_applies(case, connector):
         return False
+    if case.get("runtime_materializable") is False:
+        return False
     if case.get("former_xfail") is True:
         return False
     return case_group(case) in ACTIVE_RUNTIME_STATUSES
@@ -1790,6 +1793,8 @@ def response_body_pass_is_pass_through(observed: dict) -> bool:
 def runtime_executable_for_snapshot(case: dict, connector: str, snapshot: dict) -> bool:
     if not connector_applies(case, connector):
         return False
+    if case.get("runtime_materializable") is False:
+        return False
     if is_force_all_snapshot(snapshot):
         return case_group(case) not in NON_EXECUTABLE_STATUSES
     return runtime_executable(case, connector)
@@ -1818,6 +1823,15 @@ def runtime_cell_outside_snapshot(case: dict) -> dict[str, str]:
         "status": "NOT_EXECUTABLE",
         "reason": f"YAML status `{case_group(case)}` is outside active runtime smoke discovery",
         "evidence": "-",
+        "promotion": NOT_PROMOTED,
+    }
+
+
+def runtime_cell_non_materializable() -> dict[str, str]:
+    return {
+        "status": "NOT_EXECUTABLE",
+        "reason": "YAML explicitly sets runtime_materializable=false; no connector runtime implementation exists",
+        "evidence": "metadata only; no PASS promotion",
         "promotion": NOT_PROMOTED,
     }
 
@@ -1939,6 +1953,8 @@ def runtime_cell_without_case_evidence(smoke: dict, connector: str, snapshot: di
 def runtime_cell(case: dict, connector: str, snapshot: dict) -> dict[str, str]:
     if not connector_applies(case, connector):
         return runtime_cell_not_applicable(case, connector)
+    if case.get("runtime_materializable") is False:
+        return runtime_cell_non_materializable()
     results = runtime_results_by_connector(snapshot)
     observed = results.get(connector, {}).get(case["id"])
     if not is_force_all_snapshot(snapshot) and not runtime_executable(case, connector):
