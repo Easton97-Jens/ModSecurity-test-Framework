@@ -9,7 +9,7 @@
 | Change ID | `20260726-04-exclude-mrts-from-documentation-link-checks` |
 | UTC date | 2026-07-26 |
 | Framework base revision | `de705a5efb872f95f010346fe2e6143c88876ad4` |
-| Issue or pull request | Framework task branch `agent/remediate-active-framework-findings-20260726`; a draft PR is created only after final local validation and an exact-head push. |
+| Issue or pull request | Draft Framework PR [#52](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/52) from task branch `agent/remediate-active-framework-findings-20260726`; no merge is authorized. |
 
 ## Motivation and problem statement
 
