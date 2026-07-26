@@ -167,11 +167,13 @@ Beide Workflow-Sicherheits- und CI-Tooling-Guides erhalten entsprechende
 englische/deutsche Einträge. Es wurde kein gehosteter Wartungsrun manuell
 gestartet, weil ein erfolgreicher Run einen Remote-Wartungsbranch und Draft-PR
 erstellen oder aktualisieren könnte; diese Delivery-Aktion bleibt vom
-PR-Update und normalen Hosted-Checks abhängig. Der vorbestehende PR-OSV-
-Service-Fehler wird als secret-freie externe Quittung zurückbehalten. Seine
-kanonische Parent-Finding-Allocation ist derzeit blockiert, weil der Mount
-`.codex/findings` das Anlegen des erforderlichen neuen Verzeichnisses
-`FND-GITHUB-0009` mit `Read-only file system` zurückweist.
+PR-Update und normalen Hosted-Checks abhängig. Der frühere PR-OSV-Service-
+Fehler wird als secret-freie historische Quittung zurückbehalten. Es war ein
+externer RPC-Verfügbarkeitsfehler und kein Source-Finding; die erforderliche
+Reaktion ist ein Hosted-Exact-Head-Rerun, nie eine Scanner- oder Permission-
+Änderung. Seine kanonische Parent-Finding-Allocation ist derzeit blockiert,
+weil der Mount `.codex/findings` das Anlegen des erforderlichen neuen
+`FND-GITHUB-0009`-Verzeichnisses mit `Read-only file system` zurückweist.
 
 ## Nicht ausgeführte Prüfungen
 
@@ -196,22 +198,23 @@ kanonische Parent-Finding-Allocation ist derzeit blockiert, weil der Mount
 
 Lokale Source- und Contract-Checks können GitHub-gehostetes Verhalten,
 Remote-MRTS-Verfügbarkeit oder Draft-PR-Erstellung nicht beweisen, bevor ein
-geplanter/manueller Run zulässig ist. Der bekannte OSV-Service-Fehler liegt
-außerhalb dieses Diffs und bleibt ein release-blockierender Hosted-Check, bis
-er erfolgreich erneut ausgeführt wird; kein Scanner, Quality Gate, Test oder
-Berechtigung wurde geschwächt. Der nicht verfügbare Parent-Finding-Store-
-Write-Zugriff verhindert die kanonische Allocation seines neuen Findings, aber
-Evidenzquittung und Einschränkung werden zurückbehalten. Kein Merge oder
-direkter Default-Branch-Schritt ist autorisiert.
+geplanter/manueller Run zulässig ist. Der frühere OSV-Service-Fehler liegt
+außerhalb dieses Diffs und benötigt vor Delivery einen Hosted-Exact-Head-Rerun;
+kein Scanner, Quality Gate, Test oder Berechtigung wurde geschwächt. Der nicht
+verfügbare Parent-Finding-Store-Write-Zugriff verhindert die kanonische
+Allocation seines neuen Findings, aber Evidenzquittung und Einschränkung werden
+zurückbehalten. Kein Merge oder direkter Default-Branch-Schritt ist autorisiert.
 
 ## Finaler Diff- und Review-Status
 
 Der begrenzte Source-Diff erhielt einen fokussierten Workflow-/Security-Review:
 Der einzige Write-Pfad ist Default-Branch-gegate, auf den MRTS-Gitlink
-beschränkt und verwendet weder Force-Push noch MRTS-Source-Write. Der finale
-lokale vollständige Lint-, Dokumentations-, Immutable-Pin-, CI-Sicherheits- und
-Whitespace-Check bestand. Der erste aktualisierte PR-Head hatte einen rein
-mechanischen Ruff-Formatfehler; der Folge-Commit enthält exakt diese
+beschränkt und verwendet weder Force-Push noch MRTS-Source-Write. Die
+fokussierten Dokumentations-, Immutable-Pin-, CI-Sicherheits-, Ruff-,
+Python-Compile- und Whitespace-Checks bestanden. Der breite lokale `make lint`
+Versuch lieferte im begrenzten Task-Command-Runner kein terminales Ergebnis
+und wird nicht als bestanden behauptet. Der erste aktualisierte PR-Head hatte
+einen rein mechanischen Ruff-Formatfehler; der Folge-Commit enthält exakt diese
 lock-verifizierte Formatkorrektur und führt die fokussierte Suite erneut aus.
 Die verbleibenden exakten Kontrollen sind seine Hosted-Checks und nach
 zulässigem Dispatch der gehostete Wartungslebenszyklus. Dieses Protokoll

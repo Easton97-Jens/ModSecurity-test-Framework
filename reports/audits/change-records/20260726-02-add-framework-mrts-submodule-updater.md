@@ -156,10 +156,12 @@ Both workflow-security and CI-tooling guides gain matching English/German
 entries. No hosted maintenance run is manually dispatched because a successful
 run could create or update a remote maintenance branch and Draft PR; that
 delivery action remains contingent on the PR update and normal hosted checks.
-The pre-existing PR OSV service failure is retained as a secret-free external
-receipt. Its canonical Parent finding allocation is currently blocked because
-the mounted `.codex/findings` storage rejects creation of the required new
-`FND-GITHUB-0009` directory with `Read-only file system`.
+The earlier PR OSV service failure is retained as a secret-free historical
+receipt. It was an external RPC availability failure, not a source finding;
+the required response is an exact-head hosted rerun, never a scanner or
+permission change. Its canonical Parent finding allocation is currently
+blocked because the mounted `.codex/findings` storage rejects creation of the
+required new `FND-GITHUB-0009` directory with `Read-only file system`.
 
 ## Checks not run
 
@@ -183,22 +185,23 @@ the mounted `.codex/findings` storage rejects creation of the required new
 
 Local source and contract checks cannot prove GitHub-hosted behavior, remote
 MRTS availability, or Draft-PR creation until a scheduled/manual run is
-permitted. The known OSV service failure is external to this diff and remains a
-release-blocking hosted check until it is rerun successfully; no scanner,
-quality gate, test, or permission has been weakened. The unavailable Parent
-finding-store write access prevents canonical allocation of its new finding,
-but the evidence receipt and this limitation are retained. No merge or direct
-default-branch action is authorized.
+permitted. The earlier OSV service failure is external to this diff and needs
+an exact-head rerun before delivery; no scanner, quality gate, test, or
+permission has been weakened. The unavailable Parent finding-store write
+access prevents canonical allocation of its new finding, but the evidence
+receipt and this limitation are retained. No merge or direct default-branch
+action is authorized.
 
 ## Final diff and review status
 
 The scoped source diff received a focused workflow/security review: the only
 write path is default-branch-gated, is limited to the MRTS gitlink, and does
-not use a force push or MRTS source write. The final local full-lint,
-documentation, immutable-pin, CI-security, and whitespace checks passed. The
-first updated PR head had one mechanical Ruff-format failure; the follow-up
-commit contains exactly that lock-verified formatting correction and reruns
-the focused suite. The remaining exact controls are its hosted checks and,
-after a permitted dispatch, the hosted maintenance lifecycle. This record does
-not represent a merge, a Gitlink change, or verification of that future
-lifecycle.
+not use a force push or MRTS source write. The focused documentation,
+immutable-pin, CI-security, Ruff, Python-compile, and whitespace checks passed.
+The broad local `make lint` attempt did not return a terminal result in the
+bounded task command runner and is not claimed as passed. The first updated PR
+head had one mechanical Ruff-format failure; the follow-up commit contains
+exactly that lock-verified formatting correction and reruns the focused suite.
+The remaining exact controls are its hosted checks and, after a permitted
+dispatch, the hosted maintenance lifecycle. This record does not represent a
+merge, a Gitlink change, or verification of that future lifecycle.
