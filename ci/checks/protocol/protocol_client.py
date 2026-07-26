@@ -708,7 +708,7 @@ def _redacted_command(command: Iterable[str], *, url: str) -> str:
     values = list(command)
     rendered: list[str] = []
     redact_next = False
-    for index, value in enumerate(values):
+    for value in values:
         if redact_next:
             rendered.append("[redacted]")
             redact_next = False
@@ -729,7 +729,6 @@ def _redacted_command(command: Iterable[str], *, url: str) -> str:
                 break
         else:
             rendered.append(value)
-            continue
     return shlex.join(rendered) + "\n"
 
 

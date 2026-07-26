@@ -133,6 +133,7 @@ PROTOCOL_SELECTOR_OPTIONS = frozenset(
     }
 )
 REDACTED_COMMAND_VALUE_OPTIONS = frozenset({"--header", "--data-binary", "--cacert", "--resolve"})
+REDACTED_COMMAND_VALUE = "[redacted]"
 SAFE_COMMAND_URL_PATHS = frozenset(
     {"/", "/health", "/healthz", "/ready", "/readyz", "/[redacted-path]"}
 )
@@ -404,12 +405,12 @@ def _parse_command_arguments(command: str) -> tuple[list[str], list[str]]:
 def _redacted_option_error(arguments: Sequence[str], index: int) -> str | None:
     argument = arguments[index]
     if argument in REDACTED_COMMAND_VALUE_OPTIONS:
-        if index + 1 >= len(arguments) or arguments[index + 1] != "[redacted]":
+        if index + 1 >= len(arguments) or arguments[index + 1] != REDACTED_COMMAND_VALUE:
             return f"client command leaks the value for {argument}"
         return None
     for option in REDACTED_COMMAND_VALUE_OPTIONS:
         prefix = option + "="
-        if argument.startswith(prefix) and argument != prefix + "[redacted]":
+        if argument.startswith(prefix) and argument != prefix + REDACTED_COMMAND_VALUE:
             return f"client command leaks the value for {option}"
     return None
 
@@ -437,7 +438,7 @@ def _command_url_safety_errors(arguments: Sequence[str]) -> list[str]:
             errors.append("client command contains URL userinfo")
         if parsed.path not in SAFE_COMMAND_URL_PATHS:
             errors.append("client command contains an unredacted URL path")
-        if parsed.query not in {"", "[redacted]"}:
+        if parsed.query not in {"", REDACTED_COMMAND_VALUE}:
             errors.append("client command contains an unredacted URL query")
         if parsed.fragment:
             errors.append("client command contains a URL fragment")

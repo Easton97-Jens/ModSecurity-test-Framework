@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 
 
@@ -261,6 +262,95 @@ class FrameworkCiSecurityEvidenceContractTest(unittest.TestCase):
         workflow = CHECKER.load_yaml(path)
         errors = CHECKER.osv_errors(path, workflow)
         self.assertFalse(errors, "\n".join(errors))
+
+    def test_pr_osv_scan_retries_only_transient_status_127(self) -> None:
+        path = ROOT / ".github/workflows/ci-security-osv.yml"
+        workflow = CHECKER.load_yaml(path)
+        pull_request = workflow["jobs"]["pull-request-head"]
+        step = next(
+            item for item in pull_request["steps"] if item.get("id") == "compare_osv"
+        )
+        _before_function, function_marker, after_function_start = step["run"].partition(
+            "scan_osv_attempt() {"
+        )
+        self.assertTrue(function_marker)
+        function_body, function_end_marker, _remainder = after_function_start.partition(
+            'prepare_osv_inputs "$BASE_SHA"'
+        )
+        self.assertTrue(function_end_marker)
+        scan_osv = f"{function_marker}{function_body}"
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            tools_directory = temporary_root / "tools"
+            tools_directory.mkdir()
+            attempts_file = temporary_root / "attempts"
+            scanner = tools_directory / "osv-scanner"
+            scanner.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    set -eu
+                    attempts=$(cat "$OSV_TEST_ATTEMPTS" 2>/dev/null || printf '0')
+                    attempts=$((attempts + 1))
+                    printf '%s\\n' "$attempts" > "$OSV_TEST_ATTEMPTS"
+                    if [ "$attempts" -lt "$OSV_TEST_SUCCESS_ATTEMPT" ]; then
+                      exit "$OSV_TEST_FAILURE_STATUS"
+                    fi
+                    exit "$OSV_TEST_SUCCESS_STATUS"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            scanner.chmod(0o755)
+            input_directory = temporary_root / "inputs"
+            input_directory.mkdir()
+            cases = (
+                ("transient", 2, 127, 0, 0, "2"),
+                ("persistent", 4, 127, 0, 127, "3"),
+                ("unexpected", 2, 2, 0, 2, "1"),
+                ("clean", 1, 127, 0, 0, "1"),
+                ("finding", 1, 127, 1, 0, "1"),
+            )
+            for (
+                label,
+                success_attempt,
+                failure_status,
+                success_status,
+                expected_status,
+                expected_attempts,
+            ) in cases:
+                with self.subTest(label=label):
+                    attempts_file.write_text("0\n", encoding="utf-8")
+                    result = subprocess.run(
+                        [
+                            "bash",
+                            "-c",
+                            f'{scan_osv}\nscan_osv "$INPUT_DIRECTORY" "$RESULT_FILE"',
+                        ],
+                        check=False,
+                        capture_output=True,
+                        encoding="utf-8",
+                        env={
+                            **os.environ,
+                            "TOOLS_DIR": str(tools_directory),
+                            "INPUT_DIRECTORY": str(input_directory),
+                            "RESULT_FILE": str(temporary_root / f"{label}.json"),
+                            "OSV_TEST_ATTEMPTS": str(attempts_file),
+                            "OSV_TEST_SUCCESS_ATTEMPT": str(success_attempt),
+                            "OSV_TEST_FAILURE_STATUS": str(failure_status),
+                            "OSV_TEST_SUCCESS_STATUS": str(success_status),
+                        },
+                    )
+                    self.assertEqual(
+                        result.returncode,
+                        expected_status,
+                        result.stdout + result.stderr,
+                    )
+                    self.assertEqual(
+                        attempts_file.read_text(encoding="utf-8").strip(),
+                        expected_attempts,
+                    )
 
     def test_codeql_checkout_and_gitleaks_redaction_are_fail_closed(self) -> None:
         codeql_path = ROOT / ".github/workflows/ci-security-codeql-pr.yml"
