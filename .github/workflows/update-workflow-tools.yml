@@ -8,6 +8,12 @@ on:
 permissions:
   contents: read
 
+
+env:
+  SUBMODULE_PATH: tools/MRTS
+  SUBMODULE_URL: https://github.com/Easton97-Jens/MRTS.git
+  SUBMODULE_REF: refs/heads/master
+  
 concurrency:
   group: framework-workflow-tool-maintenance-${{ github.repository }}
   cancel-in-progress: false
