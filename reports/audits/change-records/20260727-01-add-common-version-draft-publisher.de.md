@@ -1,4 +1,4 @@
-# Änderungsnachweis: Common-Version-Draft-PR-Publisher ergänzen
+# Change Record: Common-Version-Draft-PR-Publisher
 
 **Sprache:** [English](20260727-01-add-common-version-draft-publisher.md) | Deutsch
 
@@ -9,69 +9,118 @@
 | Change-ID | `20260727-01-add-common-version-draft-publisher` |
 | UTC-Datum | 2026-07-27 |
 | Framework-Basisrevision | `47e50e7bc43ba7a3b5bad1a9448111794f664cc0` |
-| Issue oder Pull Request | Task-Branch `agent/common-version-native-publisher`; Draft-PR beim Schreiben dieses Records ausstehend. Kein Merge oder Auto-Merge ist autorisiert. |
+| Issue oder Pull Request | Framework-Draft-PR [#53](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/53), Task-Branch `agent/common-version-native-publisher`; kein Merge oder Auto-Merge ist autorisiert. |
 
-## Motivation und Entscheidung
+## Motivation und Problemstellung
 
-Der geplante Common-Version-Workflow erzeugte sicher einen ephemeren
-Kandidaten, konnte aber weder einen Draft-PR veröffentlichen noch seinen
-eigenen ShellCheck-Schritt bestehen. Die neue Drei-Job-Topologie verwendet
-dieselbe kurzlebige native GitHub-Job-Token-Methode wie der Framework-
-Python-Version-Publisher, weil ihr Wartungs-Scope nur `ci/lib/common.sh` und
-keine Workflow-Datei umfasst.
+Der geplante Common-Version-Workflow konnte sicher einen ephemeren Kandidaten
+erzeugen, aber weder einen reviewbaren Draft-PR veröffentlichen noch seinen
+eigenen Common-Version-ShellCheck bestehen. Er benötigt einen engen Update-Pfad,
+der ohne separat konfiguriertes Secret oder GitHub-App-Credential nutzbar bleibt.
 
-`resolve` und `candidate-validate` bleiben `contents: read`, im Source
-tokenfrei und arbeiten nur auf einer temporären Kopie. `publish` läuft nur für
-ein geplantes/manuelles Default-Branch-Event im autoritativen Repository. Er
-hat nur `contents`-/`pull-requests`-Write-Rechte, löst den Kandidaten erneut
-auf, vergleicht dessen SHA-256 mit dem read-only validierten Ergebnis und weist
-jeden Working-Tree-Diff außerhalb von `ci/lib/common.sh` zurück. Der einzige
-explizite Token-Consumer ist die per vollständigem SHA gepinnte Action
-`peter-evans/create-pull-request`; sie erstellt oder aktualisiert genau einen
-Draft-PR auf festem Branch und kann ihn nicht mergen.
+## Betroffene Komponenten und Sicherheitsgrenzen
 
-## Scope und Sicherheitsgrenze
+Betroffen sind der Framework-Workflow, sein CI-Sicherheitsvertrag, `common.sh`
+und die APXS-Listen-Consumer. Dies berührt die CI-Schreibberechtigungsgrenze:
+Kandidatenauflösung muss read-only bleiben, während ein vertrauenswürdiger
+Publisher nur einen Draft-PR für `ci/lib/common.sh` erzeugen darf. Parent,
+MRTS-Quellen und beide Gitlinks liegen außerhalb dieser Änderung.
 
-- Geändert: Common-Version-Workflow, CI-Sicherheitsvertrag und Tests,
-  ShellCheck-Korrekturen in `common.sh`, APXS-Listen-Consumer, zweisprachige
-  Workflow-Sicherheitsdokumentation, der Zweck des bestehenden Action-Locks und
-  dieser gepaarte Record.
-- Es kommen weder PAT, Repository-Secret, GitHub-App-Credential, direkter Push,
-  breites Staging, Auto-Merge, Parent-Änderung, MRTS-Source-Änderung noch
-  Gitlink-Änderung hinzu.
-- `update-workflow-tools.yml` bleibt unverändert: Hosted-Evidenz beweist, dass
-  dem nativen Token dort die benötigte Workflow-Datei-Autorität fehlt.
-- Negative Contract-Mutationen weisen Reader-Write-Rechte oder Token-Exposition,
-  einen veralteten Checkout, direkten Push, nicht überprüften Token-Input und
-  Pfadaufweitung zurück.
+## Akzeptanzkriterien
 
-## Verifikation
+- Resolver und Kandidatenvalidator sind im Source tokenfrei und verwenden nur
+  `contents: read`.
+- Der Publisher ist auf Zeitplan/manuell/Default-Branch begrenzt, hat nur
+  `contents`-/`pull-requests`-Write-Rechte und erzeugt oder aktualisiert einen
+  Draft-PR auf festem Branch.
+- Der Publisher löst einen 64-stelligen SHA-256-Kandidaten unabhängig erneut
+  auf und akzeptiert nur einen `ci/lib/common.sh`-Working-Tree-Diff.
+- ShellCheck-Blocker werden ohne Suppressions korrigiert; Parent und MRTS
+  bleiben unverändert.
 
-| Befehl | Exit-Code | Ergebnis |
-| --- | --- | --- |
-| `sh -n` für `ci/lib/common.sh`, `check-common-helpers.sh`, `doctor.sh` und `smoke-installed.sh` | 0 | Geänderte Shell-Dateien bestanden die Syntaxprüfung. |
-| `sh -eu -c '. ci/lib/common.sh; … ci_find_bin_list …'` | 0 | Der APXS-Listen-Helper wählte einen späteren gültigen Kandidaten und wies eine ungültige Liste zurück. |
-| `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh` | 0 | Der exakte ShellCheck-Scope des Common-Version-Workflows bestand. |
-| `git diff --check` | 0 | Keine Whitespace-Fehler im aktuellen Task-Diff. |
+## Untersuchte Alternativen
 
-Der isolierte Framework-Task-Worktree besitzt keine Framework-Virtualenv. Die
-lokale Policy verbietet das beiläufige Erstellen oder Ersetzen einer solchen
-Umgebung; daher sind Python-Tests, CI-Sicherheits-/Workflow-Contract-Ausführung,
-Dokumentationschecks, `make lint`, actionlint, zizmor und Ruff lokal
-`not_run`. Hosted-PR-Checks und SonarQube Cloud bleiben exakte Head-Evidenz und
-stehen bis zur Auslieferung aus.
+Ein read-only Workflow kann Versionen nicht über einen PR pflegen. Der
+GitHub-App-Publisher des Workflow-Tool-Updaters ist nicht gleichwertig, weil
+seine App-Konfiguration extern fehlt und er Workflow-Dateien ändert. PAT,
+direkter Push, breites Staging oder Auto-Merge würden die Berechtigungsgrenze
+aufweiten und wurden verworfen.
 
-Ein breiterer lokaler ShellCheck-Aufruf meldet vorbestehende Befunde in den
-nicht zusammenhängenden Skripten `doctor.sh` und `smoke-installed.sh`. Deren
-bestehende Diagnose- und Source-Following-Befunde liegen außerhalb des exakten
-ShellCheck-Scopes des Workflows; diese Änderung ersetzt dort nur die unsichere
-APXS-Kandidatenlisten-Wortaufteilung und unterdrückt keine Lint-Kontrolle.
+## Implementierungsentscheidung
 
-## Restrisiko und Review
+Der Workflow hat jetzt die Jobs `resolve`, `candidate-validate` und `publish`.
+Reader arbeiten nur auf temporären Kopien. Der Publisher löst erneut auf und
+bindet den Kandidaten per SHA-256, validiert ihn erneut, begrenzt den Pfad und
+übergibt den kurzlebigen nativen `github.token` nur der vorhandenen, per
+vollständigem SHA gepinnten Action `peter-evans/create-pull-request`. Der Pfad
+bleibt ausschließlich Draft.
 
-Es werden keine Credential-Werte, Secrets, rohen Hosted-Logs, Parent-Änderungen
-oder MRTS-Änderungen festgehalten. Der fokussierte Review deckt die
-Autoritätsgrenze ab: Upstream-Daten bleiben read-only, bis der Publisher sie
-unabhängig validiert sowie an Hash und Pfad bindet. Ein geplanter/manueller
-Publisher-Run nach einem Merge muss die Draft-PR-Erstellung noch beweisen.
-Dieser Record autorisiert keinen Merge.
+## Geänderte Dateien und Tests
+
+- `.github/workflows/check-common-versions.yml` enthält die Drei-Job-Topologie.
+- `ci/checks/security/check-ci-security-contract.py` und
+  `tests/ci_security/test_ci_security_contract.py` definieren und mutieren
+  den Least-Privilege-Workflow-Vertrag.
+- `ci/lib/common.sh`, `ci/tools/doctor.sh` und
+  `ci/runtime/smoke-installed.sh` verwenden einen POSIX-APXS-Listen-Helper;
+  `tests/no_crs/test_apxs_cache_selection.py` deckt literale Glob-Zeichen und
+  Fallback-Auswahl ab.
+- Zweck des Action-Locks und die zweisprachige Workflow-Sicherheitsdokumentation
+  beschreiben die neue geprüfte Verwendung der vorhandenen gepinnten PR-Action.
+
+## Befehle und Ergebnisse
+
+| Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
+| --- | --- | --- | --- |
+| `sh -n` für geänderte Shell-Dateien | 0 | Shell-Syntax bestanden. | Task-Evidenz unter `/var/tmp/codex/ModSecurity-conector/runs/20260727-common-version-native-publisher/` |
+| APXS-Literal-Glob-/Fallback-Kontrolle | 0 | Ein literales `*` wurde nicht expandiert und der spätere `sh`-Kandidat gewählt. | Derselbe Task-Evidenzpfad |
+| `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh` | 0 | Exakter ShellCheck-Scope des Common-Version-Workflows lokal bestanden. | Derselbe Task-Evidenzpfad |
+| Gelockter Ruff-Check und Format-Check | 0 | Alle CI-Security-Python-Ziele bestehen Lint- und Formatvalidierung. | Derselbe Task-Evidenzpfad |
+| Gelocktes actionlint mit ShellCheck | 0 | Der geänderte Common-Version-Workflow besteht GitHub-Actions-Linting. | Derselbe Task-Evidenzpfad |
+| `python3 ci/checks/documentation/check-change-records.py` | 0 | Gepaarte Change-Record-Überschriften und wechselseitige Links bestehen den Vertrag. | Derselbe Task-Evidenzpfad |
+| `git diff --check` und gestagtes Äquivalent | 0 | Keine Whitespace-Fehler. | Commit `7d369ed2a7be5a72d1ebccafb626db76f4c70f57` |
+| Erste Hosted-Checks von PR #53 | ungleich null | CI-Remediation für Workflow-Body-ShellCheck, Ruff-Formatierung und Change-Record-Überschriften erforderlich. | GitHub-Actions-Runs `30299159464`, `30299159306`, `30299140782`, `30299159376` |
+
+## Sicherheitsauswirkung
+
+Dies ist CI-Berechtigungshärtung, keine Produkt-Sicherheitsremediation. Die
+ursprünglichen unsicheren Pfade werden strukturell erneut geprüft:
+Reader-Token-Exposition, Write-Rechte, veralteter Checkout, kurzer
+Kandidaten-Hash, direkter Push, Token-Substitution und Pfadaufweitung weist der
+Contract-Test zurück. Die alternative Umgehung über Workflow-Dateiänderungen
+bleibt aus diesem nativen-Token-Design ausgeschlossen.
+
+## Dokumentation und Runtime-Evidenz
+
+Die englische und deutsche Workflow-Sicherheitsdokumentation sowie dieser
+gepaarte Record wurden aktualisiert. Es lief kein Connector- oder MRTS-
+Runtime-Lifecycle, weil dies eine Framework-CI-Wartungsänderung ist. PR #53
+liefert die Delivery-Evidenz; ein späterer geplanter oder manueller
+Default-Branch-Lauf muss die automatische Draft-PR-Veröffentlichung beobachten.
+
+## Nicht ausgeführte Prüfungen
+
+Der isolierte Framework-Task-Worktree besitzt keine freigegebene
+Framework-Virtualenv; die Policy verbietet deren beiläufiges Erstellen oder
+Ersetzen. Python-Unit-Tests, der vollständige CI-Sicherheits-Contract-Test und
+`make lint` liefen nicht lokal. Der enge Change-Record-Check verwendete
+die verfügbare System-Python nur, weil er keine Drittanbieterabhängigkeit hat;
+die gelockten eigenständigen Ruff- und actionlint-Binärdateien wurden in den
+Task-eigenen externen Evidenzpfad geladen. Exakte Hosted-Checks für den PR-Head
+sind weiterhin die erforderliche Delivery-Evidenz.
+
+## Einschränkungen und Restrisiko
+
+Der native Token kann die GitHub-App für `update-workflow-tools.yml` nicht
+sicher ersetzen; dieser Workflow bleibt unverändert. Es werden kein
+Credential-Wert, Secret, direkter Push, Parent-Änderung, MRTS-Änderung oder
+Gitlink-Änderung eingeführt. Hosted-Remediation-Evidenz für den geänderten
+PR-Head steht auf dieser Record-Revision noch aus.
+
+## Finaler Diff- und Review-Status
+
+Der gestagte Scope-Diff und der Whitespace-Diff wurden vor Commit
+`7d369ed2a7be5a72d1ebccafb626db76f4c70f57` geprüft; Task-Worktree war sauber
+und lokale/Remote-/PR-Heads stimmten auf diesem Commit überein. Draft-PR #53
+ist offen. Das Folge-Amendment dieses Records korrigiert die beobachteten
+CI-Format- und Template-Defekte; es autorisiert weder Merge noch Auto-Merge.

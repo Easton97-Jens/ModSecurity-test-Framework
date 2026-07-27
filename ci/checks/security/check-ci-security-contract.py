@@ -176,9 +176,7 @@ COMMON_VERSION_PUBLISHER_PERMISSIONS = {
 COMMON_VERSION_JOB_NAMES = {"resolve", "candidate-validate", "publish"}
 COMMON_VERSION_UPDATE_BRANCH = "automation/update-framework-common-versions"
 COMMON_VERSION_UPDATE_PATH = "ci/lib/common.sh"
-COMMON_VERSION_PR_BODY_FILE = (
-    "${{ runner.temp }}/framework-common-version-pr-body.md"
-)
+COMMON_VERSION_PR_BODY_FILE = "${{ runner.temp }}/framework-common-version-pr-body.md"
 COMMON_VERSION_PR_BODY_RUN_PATH = "$RUNNER_TEMP/framework-common-version-pr-body.md"
 COMMON_VERSION_PUBLISHER_PROHIBITED_SNIPPETS = (
     "git push",
@@ -2026,9 +2024,7 @@ def common_version_publisher_gate_errors(path: Path, publish: Any) -> list[str]:
             f"{path}: common-version publisher must have only contents/pull-requests write"
         )
     if normalized_needs(publish.get("needs")) != {"resolve", "candidate-validate"}:
-        errors.append(
-            f"{path}: common-version publisher must need both prior jobs"
-        )
+        errors.append(f"{path}: common-version publisher must need both prior jobs")
     publisher_if = publish.get("if")
     required_conditions = (
         "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'",
@@ -2058,9 +2054,13 @@ def common_version_publisher_run_errors(path: Path, publish_run: str) -> list[st
         "git diff --check",
         '"$TOOLS_DIR/shellcheck" -x ci/lib/common.sh',
     )
-    errors = [
-        f"{path}: common-version publisher must re-resolve, bind, and limit its candidate to {COMMON_VERSION_UPDATE_PATH}"
-    ] if any(requirement not in publish_run for requirement in requirements) else []
+    errors = (
+        [
+            f"{path}: common-version publisher must re-resolve, bind, and limit its candidate to {COMMON_VERSION_UPDATE_PATH}"
+        ]
+        if any(requirement not in publish_run for requirement in requirements)
+        else []
+    )
     errors.extend(
         forbidden_workflow_snippet_errors(
             path,
@@ -2087,7 +2087,9 @@ def common_version_pull_request_errors(
     index, pull_request = pull_request_steps[0]
     options = pull_request.get("with")
     if not isinstance(options, dict):
-        return [f"{path}: common-version create-pull-request must have a with mapping"], None
+        return [
+            f"{path}: common-version create-pull-request must have a with mapping"
+        ], None
     errors: list[str] = []
     allowed_sensitive_path: tuple[str, ...] | None = None
     if options.get("token") != GITHUB_TOKEN_EXPRESSION:
@@ -2104,9 +2106,13 @@ def common_version_pull_request_errors(
             "token",
         )
     if options.get("branch") != COMMON_VERSION_UPDATE_BRANCH:
-        errors.append(f"{path}: common-version publisher branch must be fixed and reviewable")
+        errors.append(
+            f"{path}: common-version publisher branch must be fixed and reviewable"
+        )
     if options.get("draft") is not True:
-        errors.append(f"{path}: common-version publisher must create or update a Draft pull request")
+        errors.append(
+            f"{path}: common-version publisher must create or update a Draft pull request"
+        )
     if str(options.get("add-paths", "")).strip() != COMMON_VERSION_UPDATE_PATH:
         errors.append(
             f"{path}: common-version publisher add-paths must be limited to {COMMON_VERSION_UPDATE_PATH}"
@@ -2170,7 +2176,9 @@ def common_version_maintenance_errors(
     candidate_run = job_run_text(candidate_steps)
     publish_run = job_run_text(publish_steps)
     errors.extend(
-        common_version_candidate_errors(path, resolve, candidate, resolve_run, candidate_run)
+        common_version_candidate_errors(
+            path, resolve, candidate, resolve_run, candidate_run
+        )
     )
     errors.extend(common_version_publisher_gate_errors(path, publish))
     errors.extend(common_version_publisher_run_errors(path, publish_run))

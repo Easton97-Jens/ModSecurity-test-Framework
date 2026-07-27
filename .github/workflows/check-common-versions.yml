@@ -224,13 +224,13 @@ jobs:
             '' \
             'This Draft pull request was generated only after an independent, read-only validation of a safe common.sh version candidate.' \
             '' \
-            'The publisher re-resolved the candidate, bound its SHA-256 to the validated result, and verified that only `ci/lib/common.sh` changed.' \
+            'The publisher re-resolved the candidate, bound its SHA-256 to the validated result, and verified that only ci/lib/common.sh changed.' \
             '' \
             '## Deutsch' \
             '' \
             'Dieser Draft-Pull-Request wurde erst nach einer unabhängigen, schreibgeschützten Validierung eines sicheren common.sh-Versionskandidaten erzeugt.' \
             '' \
-            'Der Publisher löste den Kandidaten erneut auf, band dessen SHA-256 an das validierte Ergebnis und prüfte, dass sich nur `ci/lib/common.sh` änderte.' \
+            'Der Publisher löste den Kandidaten erneut auf, band dessen SHA-256 an das validierte Ergebnis und prüfte, dass sich nur ci/lib/common.sh änderte.' \
             > "$RUNNER_TEMP/framework-common-version-pr-body.md"
 
       - name: Create or update Draft pull request
