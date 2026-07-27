@@ -31,7 +31,7 @@ Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 | Workflow | Trigger | Externe Actions | Effektive Berechtigungen | Vertrauensentscheidung |
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, gefilterter `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; er läuft nur lesend und ohne persistierte Checkout-Credentials. |
-| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python` | `contents: read` | Geplanter/manueller, vertrauenswürdiger Checker ohne Auslieferungs- oder Publisher-Job. |
+| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | Workflow-Standard `contents: read`; nur Publisher-Job effektiv `contents: write`, `pull-requests: write` | Resolver und Kandidatenjob bleiben read-only; ein Default-Branch-Publisher löst den Kandidaten unabhängig erneut auf, bindet dessen SHA-256 und erstellt oder aktualisiert nur einen Draft-PR auf festem Branch für `ci/lib/common.sh`. |
 | `check-python-version.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | Workflow-Standard `contents: read`; nur Publisher-Job effektiv `contents: write`, `pull-requests: write` | Resolver- und Kandidatenjobs sind read-only; der Publisher löst einen stabilen Kandidaten unabhängig erneut auf und erstellt nur einen Draft-PR auf festem Branch für `.python-version`, niemals einen Merge. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, Zeitplan | `actions/github-script` | Workflow-Standard `contents: read`; Cleanup-Job effektiv `actions: write` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; sein Job kann nur Repository-Artefakte löschen. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode und seine Entwicklungsabhängigkeiten sind nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
@@ -84,10 +84,11 @@ permissions:
 ```
 
 Nur ein vertrauenswürdiger Job darf diese Baseline durch eine kleinere,
-zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions`
-bleibt read-only; `check-python-version` gibt Repository-Content- und
-Pull-Request-Write-Rechte erst seinem Publisher-Job, nachdem Resolver und
-Kandidatenjob read-only geblieben sind; der separate Publisher von
+zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions` gibt
+Repository-Content- und Pull-Request-Write-Rechte erst seinem Publisher-Job,
+nachdem Resolver und Kandidatenjob read-only geblieben sind;
+`check-python-version` gibt diese Rechte erst seinem Publisher-Job, nachdem
+Resolver und Kandidatenjob read-only geblieben sind; der separate Publisher von
 `update-workflow-tools` behält `contents: read` für sein eingebautes Token und
 erzeugt erst nach unabhängigen Resolver- und Validator-Jobs ein auf das
 Repository begrenztes GitHub-App-Token mit `contents`-, `pull-requests`- und
@@ -108,10 +109,16 @@ Dies verhindert, dass das Checkout-Credential für spätere Git-Kommandos
 persistiert wird. GitHub stellt Actions dennoch ein automatisches Token im
 Berechtigungsumfang des Jobs bereit, und `actions/checkout` verwendet
 standardmäßig dieses job-scoped Credential, solange eine Action nicht explizit
-ein anderes Credential erhält. Der Common-Version-Checker deklariert kein
-explizites Token oder Secret. Auch Resolver und Kandidatenjob der Python-Version
-deklarieren keines; sein Publisher deklariert genau ein explizites Token nur für
-seine überprüfte Pull-Request-Action. Resolver und Validator des Workflow-Tools
+ein anderes Credential erhält. Resolver und Kandidatenjob der Common-Versionen
+deklarieren kein explizites Token oder Secret. Der Publisher ist auf geplante/
+manuelle Ausführung im vertrauenswürdigen Default-Branch begrenzt und übergibt
+`github.token` nur an die überprüfte, unveränderliche
+`create-pull-request`-Action; er löst den Kandidaten unabhängig erneut auf,
+vergleicht dessen SHA-256 mit dem read-only validierten Ergebnis und verlangt,
+dass Working-Tree-Diff und `add-paths` der Action nur `ci/lib/common.sh`
+enthalten. Auch Resolver und Kandidatenjob der Python-Version deklarieren
+keines; sein Publisher deklariert genau ein explizites Token nur für seine
+überprüfte Pull-Request-Action. Resolver und Validator des Workflow-Tools
 bleiben im Source ebenfalls tokenfrei. Sein eng profilierter Publisher übergibt
 `vars.WORKFLOW_UPDATER_APP_CLIENT_ID` und
 `secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY` nur an den unveränderlichen

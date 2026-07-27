@@ -541,6 +541,24 @@ ci_find_bin_multi() {
     return 1
 }
 
+ci_find_bin_list() {
+    ci_candidate_list=$1
+    while [ -n "$ci_candidate_list" ]; do
+        ci_candidate_list=${ci_candidate_list#"${ci_candidate_list%%[![:space:]]*}"}
+        [ -n "$ci_candidate_list" ] || break
+        ci_candidate=${ci_candidate_list%%[[:space:]]*}
+        if [ "$ci_candidate" = "$ci_candidate_list" ]; then
+            ci_candidate_list=
+        else
+            ci_candidate_list=${ci_candidate_list#"$ci_candidate"}
+        fi
+        if ci_find_bin_multi "$ci_candidate"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 ci_command_path() {
     ci_cmd=$1
     [ -n "$ci_cmd" ] || return 1
@@ -687,7 +705,7 @@ require_or_provision_envoy() {
         echo "FAIL: Envoy provisioning requires ALLOW_RUNTIME_DOWNLOADS=1" >&2
         return 1
     fi
-    if ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+    if env ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-envoy-runtime.sh" >&2 \
         && ci_runtime_binary_matches_version "$ENVOY_BIN" "$ENVOY_VERSION" --version; then
         printf '%s\n' "$ENVOY_BIN"
@@ -718,7 +736,7 @@ require_or_provision_traefik() {
         echo "FAIL: Traefik provisioning requires ALLOW_RUNTIME_DOWNLOADS=1" >&2
         return 1
     fi
-    if ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+    if env ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-traefik-runtime.sh" >&2 \
         && ci_runtime_binary_matches_version "$TRAEFIK_BIN" "$TRAEFIK_VERSION" version; then
         printf '%s\n' "$TRAEFIK_BIN"
@@ -750,8 +768,8 @@ require_or_provision_lighttpd() {
         echo "FAIL: lighttpd provisioning requires ALLOW_RUNTIME_DOWNLOADS=1 and ALLOW_RUNTIME_BUILDS=1" >&2
         return 1
     fi
-    if ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" ALLOW_RUNTIME_BUILDS="$ALLOW_RUNTIME_BUILDS" \
-        LIGHTTPD_BIN= \
+    if env ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" ALLOW_RUNTIME_BUILDS="$ALLOW_RUNTIME_BUILDS" \
+        LIGHTTPD_BIN='' \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-lighttpd-runtime.sh" >&2 \
         && ci_runtime_binary_matches_version "$LIGHTTPD_BIN" "$LIGHTTPD_VERSION" -v \
@@ -796,7 +814,7 @@ framework_find_apxs() {
         fi
     done
 
-    ci_apxs_path=$(ci_find_bin_multi $CI_APXS_BIN_CANDIDATES 2>/dev/null || true)
+    ci_apxs_path=$(ci_find_bin_list "$CI_APXS_BIN_CANDIDATES" 2>/dev/null || true)
     if framework_apxs_has_usable_headers "$ci_apxs_path"; then
         printf '%s\n' "$ci_apxs_path"
         return 0
@@ -1073,7 +1091,7 @@ ci_haproxy_include_dir_flags() {
     fi
 
     if [ -f "$ci_haproxy_dir/api.h" ]; then
-        ci_haproxy_parent=$(CDPATH= cd -- "$ci_haproxy_dir/.." 2>/dev/null && pwd)
+        ci_haproxy_parent=$(CDPATH='' cd -- "$ci_haproxy_dir/.." 2>/dev/null && pwd)
         printf '%s\n' "-Dtypeof=__typeof__ -I$ci_haproxy_parent"
         return 0
     fi

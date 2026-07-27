@@ -67,7 +67,7 @@ actions:
     upstream_release: https://github.com/peter-evans/create-pull-request/releases/tag/v8.1.1
     release_resolution: latest-release
     license: MIT
-    purpose: Create the constrained scheduled CPython-version update Draft pull request.
+    purpose: Create constrained scheduled version-maintenance Draft pull requests.
     platform: GitHub Actions
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   github/codeql-action:

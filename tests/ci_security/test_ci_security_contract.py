@@ -702,22 +702,26 @@ jobs:
                     "\n".join(errors),
                 )
 
-    def test_common_version_checker_rejects_delivery_and_stale_base_regressions(
+    def test_common_version_publisher_rejects_privilege_and_scope_regressions(
         self,
     ) -> None:
         workflow = (ROOT / ".github/workflows/check-common-versions.yml").read_text(
             encoding="utf-8"
         )
         variants = {
-            "write-permission": workflow.replace(
-                "    permissions:\n      contents: read\n    steps:",
-                "    permissions:\n      contents: write\n    steps:",
+            "reader-write-permission": workflow.replace(
+                "  resolve:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n"
+                "    permissions:\n      contents: read",
+                "  resolve:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n"
+                "    permissions:\n      contents: write",
                 1,
             ),
-            "token-exposure": workflow.replace(
-                "      - name: Validate an ephemeral common.sh candidate\n        run: |",
-                "      - name: Validate an ephemeral common.sh candidate\n"
-                "        env:\n          GITHUB_TOKEN: ${{ github.token }}\n        run: |",
+            "reader-token-exposure": workflow.replace(
+                "      - name: Resolve an ephemeral common.sh candidate\n        id: resolve\n",
+                "      - name: Resolve an ephemeral common.sh candidate\n"
+                "        env:\n"
+                "          GITHUB_TOKEN: ${{ github.token }}\n"
+                "        id: resolve\n",
                 1,
             ),
             "stale-default-checkout": workflow.replace(
@@ -725,23 +729,26 @@ jobs:
                 "          ref: main",
                 1,
             ),
-            "direct-push": workflow.replace(
-                "      - name: Syntax and ShellCheck",
-                "      - name: Publish candidate\n"
-                "        run: git push origin HEAD\n\n"
-                "      - name: Syntax and ShellCheck",
-                1,
-            ),
-            "third-party-pr-action": workflow.replace(
-                "      - name: Syntax and ShellCheck",
-                "      - name: Create pull request\n"
-                "        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1\n\n"
-                "      - name: Syntax and ShellCheck",
-                1,
-            ),
-            "source-checkout-write": workflow.replace(
-                '          cp ci/lib/common.sh "$BUILD_ROOT/common.sh"\n',
+            "short-candidate-hash": workflow.replace(
+                '          test "${#candidate_sha256}" -eq 64\n',
                 "",
+                1,
+            ),
+            "direct-push": workflow.replace(
+                "      - name: Build Draft pull request body",
+                "      - name: Push candidate\n"
+                "        run: git push origin HEAD\n\n"
+                "      - name: Build Draft pull request body",
+                1,
+            ),
+            "publisher-token-outside-action": workflow.replace(
+                "          token: ${{ github.token }}",
+                "          token: ${{ secrets.UNSAFE_TOKEN }}",
+                1,
+            ),
+            "publisher-path-expansion": workflow.replace(
+                "            ci/lib/common.sh\n",
+                "            .github/workflows/check-common-versions.yml\n",
                 1,
             ),
         }

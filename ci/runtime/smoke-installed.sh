@@ -8,7 +8,7 @@ REPO_ROOT="${REPO_ROOT:-$FRAMEWORK_ROOT}"
 
 ci_info "smoke-installed probing installed/system components (no build triggered)"
 
-APXS_BIN="${APXS_BIN:-$(ci_find_bin_multi $CI_APXS_BIN_CANDIDATES 2>/dev/null || true)}"
+APXS_BIN="${APXS_BIN:-$(ci_find_bin_list "$CI_APXS_BIN_CANDIDATES" 2>/dev/null || true)}"
 HTTPD_BIN="${APACHE_BIN:-${APACHECTL_BIN:-$(ci_find_bin_multi $CI_APACHE_BIN_CANDIDATES 2>/dev/null || true)}}"
 if [ -z "$APACHECTL_BIN" ] && [ -n "$HTTPD_BIN" ]; then
   case "$(basename "$HTTPD_BIN")" in
