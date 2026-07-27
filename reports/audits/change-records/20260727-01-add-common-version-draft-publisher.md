@@ -71,12 +71,12 @@ short-lived native `github.token` only to the existing full-SHA-pinned
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
-| `sh -n` on changed shell files | 0 | Shell syntax passed. | Task evidence retained under `/var/tmp/codex/ModSecurity-conector/runs/20260727-common-version-native-publisher/` |
-| APXS literal-glob/fallback control | 0 | A literal `*` was not expanded and the later `sh` candidate was selected. | Same task evidence root |
-| `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh` | 0 | Exact Common-version workflow ShellCheck scope passed locally. | Same task evidence root |
-| Locked Ruff check and format check | 0 | All CI-security Python targets pass lint and format validation. | Same task evidence root |
-| Locked actionlint with ShellCheck | 0 | The amended Common-version workflow passes GitHub Actions linting. | Same task evidence root |
-| `python3 ci/checks/documentation/check-change-records.py` | 0 | Paired Change Record headings and reciprocal links pass the contract. | Same task evidence root |
+| `sh -n` on changed shell files | 0 | Shell syntax passed. | Task-owned external evidence root; PR #53 |
+| APXS literal-glob/fallback control | 0 | A literal `*` was not expanded and the later `sh` candidate was selected. | Same task-owned evidence root |
+| `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh` | 0 | Exact Common-version workflow ShellCheck scope passed locally. | Same task-owned evidence root |
+| Locked Ruff check and format check | 0 | All CI-security Python targets pass lint and format validation. | Same task-owned evidence root |
+| Locked actionlint with ShellCheck | 0 | The amended Common-version workflow passes GitHub Actions linting. | Same task-owned evidence root |
+| `python3 ci/checks/documentation/check-change-records.py` | 0 | Paired Change Record headings and reciprocal links pass the contract. | Same task-owned evidence root |
 | `git diff --check` and staged equivalent | 0 | No whitespace errors. | Commit `7d369ed2a7be5a72d1ebccafb626db76f4c70f57` |
 | Initial PR #53 hosted checks | non-zero | CI remediation required for workflow Body ShellCheck, Ruff formatting, and Change Record template headings. | GitHub Actions runs `30299159464`, `30299159306`, `30299140782`, `30299159376` |
 

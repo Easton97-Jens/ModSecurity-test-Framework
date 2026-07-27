@@ -72,12 +72,12 @@ bleibt ausschließlich Draft.
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- | --- |
-| `sh -n` für geänderte Shell-Dateien | 0 | Shell-Syntax bestanden. | Task-Evidenz unter `/var/tmp/codex/ModSecurity-conector/runs/20260727-common-version-native-publisher/` |
-| APXS-Literal-Glob-/Fallback-Kontrolle | 0 | Ein literales `*` wurde nicht expandiert und der spätere `sh`-Kandidat gewählt. | Derselbe Task-Evidenzpfad |
-| `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh` | 0 | Exakter ShellCheck-Scope des Common-Version-Workflows lokal bestanden. | Derselbe Task-Evidenzpfad |
-| Gelockter Ruff-Check und Format-Check | 0 | Alle CI-Security-Python-Ziele bestehen Lint- und Formatvalidierung. | Derselbe Task-Evidenzpfad |
-| Gelocktes actionlint mit ShellCheck | 0 | Der geänderte Common-Version-Workflow besteht GitHub-Actions-Linting. | Derselbe Task-Evidenzpfad |
-| `python3 ci/checks/documentation/check-change-records.py` | 0 | Gepaarte Change-Record-Überschriften und wechselseitige Links bestehen den Vertrag. | Derselbe Task-Evidenzpfad |
+| `sh -n` für geänderte Shell-Dateien | 0 | Shell-Syntax bestanden. | Task-eigener externer Evidenzpfad; PR #53 |
+| APXS-Literal-Glob-/Fallback-Kontrolle | 0 | Ein literales `*` wurde nicht expandiert und der spätere `sh`-Kandidat gewählt. | Derselbe Task-eigene Evidenzpfad |
+| `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh` | 0 | Exakter ShellCheck-Scope des Common-Version-Workflows lokal bestanden. | Derselbe Task-eigene Evidenzpfad |
+| Gelockter Ruff-Check und Format-Check | 0 | Alle CI-Security-Python-Ziele bestehen Lint- und Formatvalidierung. | Derselbe Task-eigene Evidenzpfad |
+| Gelocktes actionlint mit ShellCheck | 0 | Der geänderte Common-Version-Workflow besteht GitHub-Actions-Linting. | Derselbe Task-eigene Evidenzpfad |
+| `python3 ci/checks/documentation/check-change-records.py` | 0 | Gepaarte Change-Record-Überschriften und wechselseitige Links bestehen den Vertrag. | Derselbe Task-eigene Evidenzpfad |
 | `git diff --check` und gestagtes Äquivalent | 0 | Keine Whitespace-Fehler. | Commit `7d369ed2a7be5a72d1ebccafb626db76f4c70f57` |
 | Erste Hosted-Checks von PR #53 | ungleich null | CI-Remediation für Workflow-Body-ShellCheck, Ruff-Formatierung und Change-Record-Überschriften erforderlich. | GitHub-Actions-Runs `30299159464`, `30299159306`, `30299140782`, `30299159376` |
 
