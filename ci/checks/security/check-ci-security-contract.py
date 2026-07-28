@@ -159,9 +159,11 @@ GITHUB_RELEASE_ASSET_URL = re.compile(
 UPDATER_READ_ONLY_PERMISSIONS = {"contents": "read"}
 UPDATER_PUBLISHER_PERMISSIONS = {"contents": "read"}
 UPDATER_JOB_NAMES = frozenset({"resolver", "validator", "publisher"})
-UPDATER_DEFAULT_REF_CONDITION = (
+DEFAULT_BRANCH_REF_CONDITION = (
     "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
 )
+RESOLVER_UPDATE_AVAILABLE_CONDITION = "needs.resolve.outputs.update_available == 'true'"
+CANDIDATE_SHA256_LENGTH_CHECK = 'test "${#candidate_sha256}" -eq 64'
 UPDATER_HAS_UPDATES_CONDITION = "needs.resolver.outputs.has_updates == 'true'"
 UPDATER_DEFAULT_BRANCH_ENV = "DEFAULT_BRANCH"
 UPDATER_TRIGGERS = {
@@ -1216,7 +1218,7 @@ def python_version_candidate_gate_errors(path: Path, candidate: Any) -> list[str
     candidate_if = candidate.get("if") if isinstance(candidate, dict) else None
     if (
         not isinstance(candidate_if, str)
-        or "needs.resolve.outputs.update_available == 'true'" not in candidate_if
+        or RESOLVER_UPDATE_AVAILABLE_CONDITION not in candidate_if
     ):
         return [f"{path}: candidate job must be gated on an available resolver update"]
     return []
@@ -1226,7 +1228,7 @@ def python_version_publisher_gate_errors(path: Path, publish: Any) -> list[str]:
     publish_if = publish.get("if") if isinstance(publish, dict) else None
     publisher_conditions = (
         "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'",
-        "needs.resolve.outputs.update_available == 'true'",
+        RESOLVER_UPDATE_AVAILABLE_CONDITION,
         "needs.candidate-validate.outputs.candidate_validated == 'true'",
         "github.repository == 'Easton97-Jens/ModSecurity-test-Framework'",
         "github.ref == 'refs/heads/master'",
@@ -1510,7 +1512,7 @@ def updater_ordering_errors(path: Path, data: dict[str, Any]) -> list[str]:
         return errors
     if job_needs(publisher) != {"resolver", "validator"}:
         errors.append(f"{path}: updater publisher must need resolver and validator")
-    expected_if = f"{UPDATER_DEFAULT_REF_CONDITION} && {UPDATER_HAS_UPDATES_CONDITION}"
+    expected_if = f"{DEFAULT_BRANCH_REF_CONDITION} && {UPDATER_HAS_UPDATES_CONDITION}"
     actual_if = publisher.get("if")
     if not isinstance(actual_if, str) or " ".join(actual_if.split()) != expected_if:
         errors.append(
@@ -1842,7 +1844,7 @@ def submodule_updater_publisher_errors(path: Path, jobs: dict[str, Any]) -> list
         errors.append(f"{path}: MRTS publisher must depend on resolver and validator")
     publisher_gate = publisher.get("if")
     if not isinstance(publisher_gate, str) or (
-        "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
+        DEFAULT_BRANCH_REF_CONDITION
         not in publisher_gate
         or "needs.resolve-submodule-update.outputs.changed == 'true'"
         not in publisher_gate
@@ -1980,7 +1982,7 @@ def common_version_candidate_errors(
     candidate_if = candidate.get("if") if isinstance(candidate, dict) else None
     if (
         not isinstance(candidate_if, str)
-        or "needs.resolve.outputs.update_available == 'true'" not in candidate_if
+        or RESOLVER_UPDATE_AVAILABLE_CONDITION not in candidate_if
     ):
         errors.append(
             f"{path}: common-version candidate job must be gated on an available resolver update"
@@ -1991,7 +1993,7 @@ def common_version_candidate_errors(
         "--update",
         "cmp -s ci/lib/common.sh",
         'candidate_sha256="$(sha256sum "$BUILD_ROOT/common.sh"',
-        'test "${#candidate_sha256}" -eq 64',
+        CANDIDATE_SHA256_LENGTH_CHECK,
         "update_available=true",
     )
     if any(requirement not in resolve_run for requirement in resolver_requirements):
@@ -2003,7 +2005,7 @@ def common_version_candidate_errors(
         '--common-sh "$BUILD_ROOT/common.sh"',
         "--update",
         'candidate_sha256="$(sha256sum "$BUILD_ROOT/common.sh"',
-        'test "${#candidate_sha256}" -eq 64',
+        CANDIDATE_SHA256_LENGTH_CHECK,
         'test "$candidate_sha256" = "$CANDIDATE_SHA256"',
         '"$TOOLS_DIR/shellcheck" -x "$BUILD_ROOT/common.sh"',
         "candidate_validated=true",
@@ -2029,8 +2031,8 @@ def common_version_publisher_gate_errors(path: Path, publish: Any) -> list[str]:
     required_conditions = (
         "github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'",
         "github.repository == 'Easton97-Jens/ModSecurity-test-Framework'",
-        "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
-        "needs.resolve.outputs.update_available == 'true'",
+        DEFAULT_BRANCH_REF_CONDITION,
+        RESOLVER_UPDATE_AVAILABLE_CONDITION,
         "needs.candidate-validate.outputs.candidate_validated == 'true'",
     )
     if not isinstance(publisher_if, str) or any(
@@ -2047,7 +2049,7 @@ def common_version_publisher_run_errors(path: Path, publish_run: str) -> list[st
         "--common-sh ci/lib/common.sh",
         "--update",
         'candidate_sha256="$(sha256sum ci/lib/common.sh',
-        'test "${#candidate_sha256}" -eq 64',
+        CANDIDATE_SHA256_LENGTH_CHECK,
         'test "$candidate_sha256" = "$CANDIDATE_SHA256"',
         "git diff --name-only",
         f'test "$changed_paths" = "{COMMON_VERSION_UPDATE_PATH}"',
@@ -2141,9 +2143,7 @@ def common_version_unexpected_sensitive_errors(
     return []
 
 
-def common_version_maintenance_errors(
-    path: Path, text: str, data: dict[str, Any]
-) -> list[str]:
+def common_version_maintenance_errors(path: Path, data: dict[str, Any]) -> list[str]:
     if path.name != COMMON_VERSION_WORKFLOW:
         return []
 
@@ -2285,7 +2285,7 @@ def workflow_metadata_errors(path: Path, text: str, data: dict[str, Any]) -> lis
         *workflow_token_environment_errors(path, data),
         *workflow_tool_updater_errors(path, text, data),
         *submodule_updater_errors(path, text, data),
-        *common_version_maintenance_errors(path, text, data),
+        *common_version_maintenance_errors(path, data),
     ]
 
 

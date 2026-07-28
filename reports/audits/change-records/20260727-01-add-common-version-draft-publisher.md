@@ -9,7 +9,7 @@
 | Change ID | `20260727-01-add-common-version-draft-publisher` |
 | UTC date | 2026-07-27 |
 | Framework base revision | `47e50e7bc43ba7a3b5bad1a9448111794f664cc0` |
-| Issue or pull request | Framework Draft PR [#53](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/53), task branch `agent/common-version-native-publisher`; no merge or auto-merge is authorized. |
+| Issue or pull request | Framework Draft PR [#53](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/53), task branch `agent/common-version-native-publisher`; the current user authorized a protected merge after fresh final evidence, but no merge or auto-merge has occurred. |
 
 ## Motivation and problem statement
 
@@ -66,6 +66,10 @@ short-lived native `github.token` only to the existing full-SHA-pinned
   fallback selection.
 - The action-lock purpose and paired workflow-security documentation describe
   the newly reviewed use of the existing pinned PR action.
+- The 2026-07-28 SonarQube Cloud remediation replaces repeated contract
+  predicates and the candidate-hash length check with named constants, and
+  removes one unused parameter. It preserves the exact required workflow
+  strings and adds no suppression, permission, or behavior change.
 
 ## Commands and results
 
@@ -79,6 +83,8 @@ short-lived native `github.token` only to the existing full-SHA-pinned
 | `python3 ci/checks/documentation/check-change-records.py` | 0 | Paired Change Record headings and reciprocal links pass the contract. | Same task-owned evidence root |
 | `git diff --check` and staged equivalent | 0 | No whitespace errors. | Commit `7d369ed2a7be5a72d1ebccafb626db76f4c70f57` |
 | Initial PR #53 hosted checks | non-zero | CI remediation required for workflow Body ShellCheck, Ruff formatting, and Change Record template headings. | GitHub Actions runs `30299159464`, `30299159306`, `30299140782`, `30299159376` |
+| `make test-ci-security-contract` with the selected Framework virtual environment | 0 | 137 CI-security contract, mutation, evidence, provenance, and updater tests passed after the Sonar remediation. | Task-owned run `20260728-pr53-sonar-master` |
+| `make lint` with the selected Framework virtual environment | 0 | Native lint, workflow-contract, documentation, pinning, and focused CI-security checks passed. | Task-owned run `20260728-pr53-sonar-master` |
 
 ## Security impact
 
@@ -88,6 +94,9 @@ write permission, stale checkout, short candidate hash, direct push, token
 substitution, and path expansion are all rejected by the contract test.
 The alternate bypass class of changing workflow files remains excluded from
 this native-token design.
+The 2026-07-28 refactor retains the exact protected strings as named constants;
+the complete contract and mutation suite proves that permission, token,
+checkout, hash-length, direct-push, and path-scope regressions remain rejected.
 
 ## Documentation and runtime evidence
 
@@ -122,4 +131,9 @@ The scoped staged diff and whitespace diff were reviewed before commit
 `7d369ed2a7be5a72d1ebccafb626db76f4c70f57`; the task worktree was clean and
 local/remote/PR heads matched that commit. Draft PR #53 is open. This record's
 follow-up amendment addresses the observed CI-only formatting and template
-defects; it authorizes neither merge nor auto-merge.
+defects; at that time it authorized neither merge nor auto-merge.
+
+The 2026-07-28 follow-up remediates four current-head SonarQube Cloud
+Maintainability findings without suppressions. The user has authorized a merge
+only after the new exact-head CI, SonarQube Cloud, review, and ruleset round;
+the PR remains a Draft until that round is complete.

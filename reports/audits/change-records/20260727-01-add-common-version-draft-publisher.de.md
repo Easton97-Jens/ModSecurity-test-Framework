@@ -9,7 +9,7 @@
 | Change-ID | `20260727-01-add-common-version-draft-publisher` |
 | UTC-Datum | 2026-07-27 |
 | Framework-Basisrevision | `47e50e7bc43ba7a3b5bad1a9448111794f664cc0` |
-| Issue oder Pull Request | Framework-Draft-PR [#53](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/53), Task-Branch `agent/common-version-native-publisher`; kein Merge oder Auto-Merge ist autorisiert. |
+| Issue oder Pull Request | Framework-Draft-PR [#53](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/53), Task-Branch `agent/common-version-native-publisher`; der aktuelle Benutzer hat einen geschützten Merge nach frischer finaler Evidenz autorisiert, aber noch kein Merge oder Auto-Merge ist erfolgt. |
 
 ## Motivation und Problemstellung
 
@@ -67,6 +67,11 @@ bleibt ausschließlich Draft.
   Fallback-Auswahl ab.
 - Zweck des Action-Locks und die zweisprachige Workflow-Sicherheitsdokumentation
   beschreiben die neue geprüfte Verwendung der vorhandenen gepinnten PR-Action.
+- Die SonarQube-Cloud-Remediation vom 2026-07-28 ersetzt wiederholte
+  Contract-Prädikate und die Kandidaten-Hash-Längenprüfung durch benannte
+  Konstanten und entfernt einen ungenutzten Parameter. Sie erhält die exakten
+  erforderlichen Workflow-Strings und führt keine Suppression, Berechtigung
+  oder Verhaltensänderung ein.
 
 ## Befehle und Ergebnisse
 
@@ -80,6 +85,8 @@ bleibt ausschließlich Draft.
 | `python3 ci/checks/documentation/check-change-records.py` | 0 | Gepaarte Change-Record-Überschriften und wechselseitige Links bestehen den Vertrag. | Derselbe Task-eigene Evidenzpfad |
 | `git diff --check` und gestagtes Äquivalent | 0 | Keine Whitespace-Fehler. | Commit `7d369ed2a7be5a72d1ebccafb626db76f4c70f57` |
 | Erste Hosted-Checks von PR #53 | ungleich null | CI-Remediation für Workflow-Body-ShellCheck, Ruff-Formatierung und Change-Record-Überschriften erforderlich. | GitHub-Actions-Runs `30299159464`, `30299159306`, `30299140782`, `30299159376` |
+| `make test-ci-security-contract` mit der ausgewählten Framework-Virtualenv | 0 | 137 CI-Security-Contract-, Mutations-, Evidenz-, Provenienz- und Updater-Tests nach der Sonar-Remediation bestanden. | Task-eigener Lauf `20260728-pr53-sonar-master` |
+| `make lint` mit der ausgewählten Framework-Virtualenv | 0 | Native Lint-, Workflow-Contract-, Dokumentations-, Pinning- und fokussierte CI-Security-Prüfungen bestanden. | Task-eigener Lauf `20260728-pr53-sonar-master` |
 
 ## Sicherheitsauswirkung
 
@@ -89,6 +96,10 @@ Reader-Token-Exposition, Write-Rechte, veralteter Checkout, kurzer
 Kandidaten-Hash, direkter Push, Token-Substitution und Pfadaufweitung weist der
 Contract-Test zurück. Die alternative Umgehung über Workflow-Dateiänderungen
 bleibt aus diesem nativen-Token-Design ausgeschlossen.
+Der Refaktor vom 2026-07-28 erhält die exakten geschützten Strings als benannte
+Konstanten; die vollständige Contract- und Mutationssuite beweist weiterhin,
+dass Berechtigungs-, Token-, Checkout-, Hash-Längen-, Direkt-Push- und
+Pfad-Scope-Regressionen verworfen werden.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -123,4 +134,10 @@ Der gestagte Scope-Diff und der Whitespace-Diff wurden vor Commit
 `7d369ed2a7be5a72d1ebccafb626db76f4c70f57` geprüft; Task-Worktree war sauber
 und lokale/Remote-/PR-Heads stimmten auf diesem Commit überein. Draft-PR #53
 ist offen. Das Folge-Amendment dieses Records korrigiert die beobachteten
-CI-Format- und Template-Defekte; es autorisiert weder Merge noch Auto-Merge.
+CI-Format- und Template-Defekte; zu diesem Zeitpunkt autorisierte es weder
+Merge noch Auto-Merge.
+
+Das Folge-Commit vom 2026-07-28 behebt vier aktuelle SonarQube-Cloud-
+Maintainability-Befunde ohne Suppressions. Der Benutzer hat einen Merge erst
+nach der neuen exakten CI-, SonarQube-Cloud-, Review- und Ruleset-Runde
+autorisiert; der PR bleibt bis zum Abschluss dieser Runde ein Draft.
