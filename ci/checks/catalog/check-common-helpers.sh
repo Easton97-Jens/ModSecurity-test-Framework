@@ -2,6 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
+# shellcheck source=ci/lib/path-bootstrap.sh
 . "$SCRIPT_DIR/../../lib/path-bootstrap.sh"
 REPO_ROOT="${REPO_ROOT:-$FRAMEWORK_ROOT}"
 # shellcheck source=ci/lib/common.sh

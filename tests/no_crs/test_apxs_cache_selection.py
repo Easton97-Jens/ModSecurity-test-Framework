@@ -88,6 +88,32 @@ class ApxsCacheSelectionTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(str(explicit), result.stdout.strip())
 
+    def test_candidate_list_preserves_literal_tokens_and_uses_fallback(self) -> None:
+        result = subprocess.run(
+            [
+                "sh",
+                "-eu",
+                "-c",
+                '. "$1"; ci_find_bin_list "$2"',
+                "sh",
+                str(COMMON_SH),
+                "definitely-not-a-binary * sh",
+            ],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        expected = subprocess.run(
+            ["sh", "-eu", "-c", "command -v sh"],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(expected.stdout.strip(), result.stdout.strip())
+
 
 if __name__ == "__main__":
     unittest.main()

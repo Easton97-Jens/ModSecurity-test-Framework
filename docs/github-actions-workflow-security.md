@@ -29,7 +29,7 @@ write permission. No such behavior was removed by this hardening work.
 | Workflow | Triggers | External Actions | Effective permissions | Trust disposition |
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, filtered `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source is untrusted; it runs read-only with no persisted checkout credential. |
-| `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python` | `contents: read` | Scheduled/manual trusted-maintainer checker with no delivery or publisher job. |
+| `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | workflow default `contents: read`; only publisher job effective `contents: write`, `pull-requests: write` | Resolver and candidate jobs remain read-only; a default-branch publisher independently re-resolves the candidate, binds its SHA-256, and creates or updates only one fixed-branch Draft PR for `ci/lib/common.sh`. |
 | `check-python-version.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | workflow default `contents: read`; only publisher job effective `contents: write`, `pull-requests: write` | Resolver and candidate jobs are read-only; the publisher independently re-resolves one stable candidate and creates only a fixed-branch Draft PR for `.python-version`, never a merge. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, schedule | `actions/github-script` | workflow default `contents: read`; cleanup job effective `actions: write` | Scheduled/manual trusted-maintainer workflow; its job can delete repository artifacts only. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source and its development dependencies are untrusted; no write permission, secret, persisted credential, or submodule is configured. |
@@ -80,9 +80,11 @@ permissions:
 ```
 
 Only a trusted job may replace that baseline with a smaller purpose-specific
-permission map. `check-common-versions` remains read-only; `check-python-version`
-gives repository-content and pull-request writes only to its publisher job
-after a resolver and candidate job have remained read-only; the separate
+permission map. `check-common-versions` gives repository-content and
+pull-request writes only to its publisher job after a resolver and candidate
+job have remained read-only; `check-python-version` gives the same writes only
+to its publisher job after a resolver and candidate job have remained read-only;
+the separate
 `update-workflow-tools` publisher retains `contents: read` for its built-in
 token and, only after independent resolver and validator jobs, mints a
 repository-limited GitHub App token with `contents`, `pull-requests`, and
@@ -102,9 +104,15 @@ with:
 This prevents the checkout credential from persisting for later Git commands.
 GitHub still provides an automatic job token to Actions, and `actions/checkout`
 uses that job-scoped default input unless an action explicitly receives another
-credential. The common-version checker declares no explicit token or secret.
-The Python-version resolver and candidate jobs also declare none; its publisher
-declares one explicit token only for its reviewed pull-request Action. The
+credential. The Common-version resolver and candidate jobs declare no explicit
+token or secret. Its publisher is limited to scheduled/manual execution on the
+trusted default branch and passes `github.token` only to the reviewed,
+immutable `create-pull-request` action; it independently re-resolves the
+candidate, compares its SHA-256 with the read-only validation result, and
+requires the working-tree diff and action `add-paths` to contain only
+`ci/lib/common.sh`. The Python-version resolver and candidate jobs also declare
+none; its publisher declares one explicit token only for its reviewed
+pull-request Action. The
 workflow-tool resolver and validator likewise remain token-free in source. Its
 tightly profiled publisher passes
 `vars.WORKFLOW_UPDATER_APP_CLIENT_ID` and
