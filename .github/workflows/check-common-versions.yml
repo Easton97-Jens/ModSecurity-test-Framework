@@ -17,11 +17,74 @@ defaults:
     shell: bash
 
 jobs:
-  check-common-versions:
+  resolve:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
+    outputs:
+      update_available: ${{ steps.resolve.outputs.update_available }}
+      candidate_sha256: ${{ steps.resolve.outputs.candidate_sha256 }}
+    steps:
+      - name: Checkout trusted default revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Resolve an ephemeral common.sh candidate
+        id: resolve
+        run: |
+          set -euo pipefail
+          export VERIFIED_RUN_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified"
+          export XDG_STATE_HOME="${RUNNER_TEMP}/state"
+          export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
+          mkdir -p "$BUILD_ROOT"
+          cp ci/lib/common.sh "$BUILD_ROOT/common.sh"
+          python3 ci/tools/check-common-versions.py --common-sh "$BUILD_ROOT/common.sh" \
+            --update --json --write-files --timeout 20 > "$RUNNER_TEMP/common-version-check.json"
+          cat "$RUNNER_TEMP/common-version-check.json" >> "$GITHUB_STEP_SUMMARY"
+          if cmp -s ci/lib/common.sh "$BUILD_ROOT/common.sh"; then
+            printf 'update_available=false\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          candidate_sha256="$(sha256sum "$BUILD_ROOT/common.sh" | awk '{print $1}')"
+          test "${#candidate_sha256}" -eq 64
+          case "$candidate_sha256" in
+            *[!0-9a-f]*|'')
+              echo "candidate common.sh SHA-256 is malformed" >&2
+              exit 1
+              ;;
+          esac
+          printf 'candidate_sha256=%s\n' "$candidate_sha256" >> "$GITHUB_OUTPUT"
+          printf 'update_available=true\n' >> "$GITHUB_OUTPUT"
+
+  candidate-validate:
+    needs: resolve
+    if: needs.resolve.outputs.update_available == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      candidate_validated: ${{ steps.candidate_validation.outputs.candidate_validated }}
+    env:
+      CANDIDATE_SHA256: ${{ needs.resolve.outputs.candidate_sha256 }}
     steps:
       - name: Checkout trusted default revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,7 +115,10 @@ jobs:
           python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
             --tool shellcheck --output-dir "$TOOLS_DIR"
 
-      - name: Validate an ephemeral common.sh candidate
+      - name: Independently validate the candidate
+        id: candidate_validation
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
         run: |
           set -euo pipefail
           export VERIFIED_RUN_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified"
@@ -63,14 +129,119 @@ jobs:
           python3 ci/tools/check-common-versions.py --common-sh "$BUILD_ROOT/common.sh" \
             --update --markdown --write-files --timeout 20 | tee "$RUNNER_TEMP/common-version-check.md"
           cat "$RUNNER_TEMP/common-version-check.md" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Syntax and ShellCheck
-        env:
-          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
-        run: |
-          set -euo pipefail
-          export BUILD_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified/build"
+          candidate_sha256="$(sha256sum "$BUILD_ROOT/common.sh" | awk '{print $1}')"
+          test "${#candidate_sha256}" -eq 64
+          test "$candidate_sha256" = "$CANDIDATE_SHA256"
           bash -n "$BUILD_ROOT/common.sh"
           bash -n ci/checks/catalog/check-common-helpers.sh
           "$TOOLS_DIR/shellcheck" -x "$BUILD_ROOT/common.sh" ci/checks/catalog/check-common-helpers.sh
           python3 -m py_compile ci/tools/check-common-versions.py
+          python3 -m unittest \
+            tests.security_regression.test_common_versions_sonar_provenance \
+            tests.security_regression.test_nginx_release_provenance \
+            tests.security_regression.test_crs_git_ref_provenance -v
+          printf 'candidate_validated=true\n' >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs:
+      - resolve
+      - candidate-validate
+    if: >-
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
+      github.repository == 'Easton97-Jens/ModSecurity-test-Framework' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
+      needs.resolve.outputs.update_available == 'true' &&
+      needs.candidate-validate.outputs.candidate_validated == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      CANDIDATE_SHA256: ${{ needs.resolve.outputs.candidate_sha256 }}
+    steps:
+      - name: Checkout trusted default revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+          check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
+
+      - name: Fetch checksum-verified ShellCheck
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
+            --tool shellcheck --output-dir "$TOOLS_DIR"
+
+      - name: Independently revalidate and apply the candidate
+        env:
+          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+        run: |
+          set -euo pipefail
+          export VERIFIED_RUN_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified"
+          export XDG_STATE_HOME="${RUNNER_TEMP}/state"
+          export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
+          mkdir -p "$BUILD_ROOT"
+          python3 ci/tools/check-common-versions.py --common-sh ci/lib/common.sh \
+            --update --markdown --write-files --timeout 20 | tee "$RUNNER_TEMP/common-version-check.md"
+          cat "$RUNNER_TEMP/common-version-check.md" >> "$GITHUB_STEP_SUMMARY"
+          candidate_sha256="$(sha256sum ci/lib/common.sh | awk '{print $1}')"
+          test "${#candidate_sha256}" -eq 64
+          test "$candidate_sha256" = "$CANDIDATE_SHA256"
+          changed_paths="$(git diff --name-only)"
+          test "$changed_paths" = "ci/lib/common.sh"
+          git diff --check
+          bash -n ci/lib/common.sh
+          bash -n ci/checks/catalog/check-common-helpers.sh
+          "$TOOLS_DIR/shellcheck" -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh
+          python3 -m py_compile ci/tools/check-common-versions.py
+          python3 -m unittest \
+            tests.security_regression.test_common_versions_sonar_provenance \
+            tests.security_regression.test_nginx_release_provenance \
+            tests.security_regression.test_crs_git_ref_provenance -v
+
+      - name: Build Draft pull request body
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            '## English' \
+            '' \
+            'This Draft pull request was generated only after an independent, read-only validation of a safe common.sh version candidate.' \
+            '' \
+            'The publisher re-resolved the candidate, bound its SHA-256 to the validated result, and verified that only ci/lib/common.sh changed.' \
+            '' \
+            '## Deutsch' \
+            '' \
+            'Dieser Draft-Pull-Request wurde erst nach einer unabhängigen, schreibgeschützten Validierung eines sicheren common.sh-Versionskandidaten erzeugt.' \
+            '' \
+            'Der Publisher löste den Kandidaten erneut auf, band dessen SHA-256 an das validierte Ergebnis und prüfte, dass sich nur ci/lib/common.sh änderte.' \
+            > "$RUNNER_TEMP/framework-common-version-pr-body.md"
+
+      - name: Create or update Draft pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ github.token }}
+          commit-message: "chore(ci): update common.sh versions"
+          title: "chore(ci): update common.sh versions"
+          body-path: ${{ runner.temp }}/framework-common-version-pr-body.md
+          branch: automation/update-framework-common-versions
+          delete-branch: false
+          draft: true
+          add-paths: |
+            ci/lib/common.sh

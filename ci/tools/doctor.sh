@@ -88,7 +88,7 @@ fi
 section "OPTIONAL INSTALLED READINESS"
 say "installed components are diagnostic only; source-build smokes do not require them"
 
-APXS_BIN="${APXS_BIN:-$(ci_find_bin_multi $CI_APXS_BIN_CANDIDATES 2>/dev/null || true)}"
+APXS_BIN="${APXS_BIN:-$(ci_find_bin_list "$CI_APXS_BIN_CANDIDATES" 2>/dev/null || true)}"
 APACHE_BIN="${APACHE_BIN:-${APACHECTL_BIN:-$(ci_find_bin_multi $CI_APACHE_BIN_CANDIDATES 2>/dev/null || true)}}"
 if [ -z "$APACHECTL_BIN" ] && [ -n "$APACHE_BIN" ]; then
   case "$(basename "$APACHE_BIN")" in
