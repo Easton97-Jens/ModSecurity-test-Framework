@@ -85,6 +85,7 @@ short-lived native `github.token` only to the existing full-SHA-pinned
 | Initial PR #53 hosted checks | non-zero | CI remediation required for workflow Body ShellCheck, Ruff formatting, and Change Record template headings. | GitHub Actions runs `30299159464`, `30299159306`, `30299140782`, `30299159376` |
 | `make test-ci-security-contract` with the selected Framework virtual environment | 0 | 137 CI-security contract, mutation, evidence, provenance, and updater tests passed after the Sonar remediation. | Task-owned run `20260728-pr53-sonar-master` |
 | `make lint` with the selected Framework virtual environment | 0 | Native lint, workflow-contract, documentation, pinning, and focused CI-security checks passed. | Task-owned run `20260728-pr53-sonar-master` |
+| Locked Ruff 0.15.22 check and format check | 0 | The exact hosted CI target set passes after the deterministic formatter remediation. | Task-owned run `20260728-pr53-sonar-master` |
 
 ## Security impact
 
@@ -108,14 +109,10 @@ Draft-PR publication.
 
 ## Checks not run
 
-The isolated Framework task worktree has no approved Framework virtual
-environment, and policy forbids creating or substituting one incidentally.
-Python unit tests, the full CI-security contract test, and `make lint` were not
-run locally. The narrowly scoped Change Record check
-used the available system Python only because it has no third-party dependency;
-the locked standalone Ruff and actionlint binaries were fetched into the
-task-owned external evidence root. Exact-head hosted checks remain required
-delivery evidence.
+No connector or MRTS runtime lifecycle applies to this Framework CI-maintenance
+change. The locked standalone Ruff binary was fetched into the task-owned
+external evidence root and validates the exact Python CI target set. Fresh
+exact-head hosted checks remain required delivery evidence.
 
 ## Limitations and residual risk
 
@@ -137,3 +134,9 @@ The 2026-07-28 follow-up remediates four current-head SonarQube Cloud
 Maintainability findings without suppressions. The user has authorized a merge
 only after the new exact-head CI, SonarQube Cloud, review, and ruleset round;
 the PR remains a Draft until that round is complete.
+
+The first fresh `python-ci-security-quality` run found only Ruff formatting in
+the remediated contract checker; lint itself passed. The locked Ruff 0.15.22
+formatter has corrected that whitespace-only defect. A normal follow-up commit
+and a new exact-head hosted evidence round remain required before the protected
+merge.

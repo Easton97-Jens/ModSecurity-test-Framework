@@ -1844,8 +1844,7 @@ def submodule_updater_publisher_errors(path: Path, jobs: dict[str, Any]) -> list
         errors.append(f"{path}: MRTS publisher must depend on resolver and validator")
     publisher_gate = publisher.get("if")
     if not isinstance(publisher_gate, str) or (
-        DEFAULT_BRANCH_REF_CONDITION
-        not in publisher_gate
+        DEFAULT_BRANCH_REF_CONDITION not in publisher_gate
         or "needs.resolve-submodule-update.outputs.changed == 'true'"
         not in publisher_gate
         or "needs.validate-submodule-update.result == 'success'" not in publisher_gate

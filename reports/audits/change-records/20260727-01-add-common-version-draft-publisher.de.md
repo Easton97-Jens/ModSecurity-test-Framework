@@ -87,6 +87,7 @@ bleibt ausschließlich Draft.
 | Erste Hosted-Checks von PR #53 | ungleich null | CI-Remediation für Workflow-Body-ShellCheck, Ruff-Formatierung und Change-Record-Überschriften erforderlich. | GitHub-Actions-Runs `30299159464`, `30299159306`, `30299140782`, `30299159376` |
 | `make test-ci-security-contract` mit der ausgewählten Framework-Virtualenv | 0 | 137 CI-Security-Contract-, Mutations-, Evidenz-, Provenienz- und Updater-Tests nach der Sonar-Remediation bestanden. | Task-eigener Lauf `20260728-pr53-sonar-master` |
 | `make lint` mit der ausgewählten Framework-Virtualenv | 0 | Native Lint-, Workflow-Contract-, Dokumentations-, Pinning- und fokussierte CI-Security-Prüfungen bestanden. | Task-eigener Lauf `20260728-pr53-sonar-master` |
+| Gelockter Ruff 0.15.22 Check und Format-Check | 0 | Der exakte Python-CI-Zielsatz besteht nach der deterministischen Formatter-Remediation. | Task-eigener Lauf `20260728-pr53-sonar-master` |
 
 ## Sicherheitsauswirkung
 
@@ -111,14 +112,11 @@ Default-Branch-Lauf muss die automatische Draft-PR-Veröffentlichung beobachten.
 
 ## Nicht ausgeführte Prüfungen
 
-Der isolierte Framework-Task-Worktree besitzt keine freigegebene
-Framework-Virtualenv; die Policy verbietet deren beiläufiges Erstellen oder
-Ersetzen. Python-Unit-Tests, der vollständige CI-Sicherheits-Contract-Test und
-`make lint` liefen nicht lokal. Der enge Change-Record-Check verwendete
-die verfügbare System-Python nur, weil er keine Drittanbieterabhängigkeit hat;
-die gelockten eigenständigen Ruff- und actionlint-Binärdateien wurden in den
-Task-eigenen externen Evidenzpfad geladen. Exakte Hosted-Checks für den PR-Head
-sind weiterhin die erforderliche Delivery-Evidenz.
+Kein Connector- oder MRTS-Runtime-Lifecycle ist für diese Framework-CI-
+Wartungsänderung einschlägig. Die gelockte eigenständige Ruff-Binärdatei wurde
+in den Task-eigenen externen Evidenzpfad geladen und validiert den exakten
+Python-CI-Zielsatz. Frische exakte Hosted-Checks bleiben die erforderliche
+Delivery-Evidenz.
 
 ## Einschränkungen und Restrisiko
 
@@ -141,3 +139,9 @@ Das Folge-Commit vom 2026-07-28 behebt vier aktuelle SonarQube-Cloud-
 Maintainability-Befunde ohne Suppressions. Der Benutzer hat einen Merge erst
 nach der neuen exakten CI-, SonarQube-Cloud-, Review- und Ruleset-Runde
 autorisiert; der PR bleibt bis zum Abschluss dieser Runde ein Draft.
+
+Der erste frische `python-ci-security-quality`-Lauf fand nur Ruff-Formatierung
+im remedierten Contract-Checker; Lint selbst bestand. Der gelockte Ruff-0.15.22-
+Formatter hat diesen reinen Whitespace-Defekt korrigiert. Vor dem geschützten
+Merge bleiben ein normaler Folge-Commit und eine neue exakte Hosted-
+Evidenzrunde erforderlich.
