@@ -14,7 +14,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
     "check_protocol_evidence", ROOT / "ci" / "checks" / "protocol" / "check_protocol_evidence.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 check_protocol_evidence = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = check_protocol_evidence
 SPEC.loader.exec_module(check_protocol_evidence)
