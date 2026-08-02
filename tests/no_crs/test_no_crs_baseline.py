@@ -18,13 +18,15 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("no_crs_baseline", ROOT / "ci/checks/catalog/no_crs_baseline.py")
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 no_crs = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(no_crs)
 CHECK_SPEC = importlib.util.spec_from_file_location(
     "check_full_lifecycle_evidence", ROOT / "ci/checks/evidence/check_full_lifecycle_evidence.py"
 )
-assert CHECK_SPEC is not None and CHECK_SPEC.loader is not None
+assert CHECK_SPEC is not None
+assert CHECK_SPEC.loader is not None
 full_lifecycle_check = importlib.util.module_from_spec(CHECK_SPEC)
 CHECK_SPEC.loader.exec_module(full_lifecycle_check)
 from runner_core import load_case, write_rules_file  # noqa: E402
