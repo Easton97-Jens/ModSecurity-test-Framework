@@ -11,9 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER_PATH = ROOT / "ci/tools/check-common-versions.py"
 REPOSITORY = "nginx/nginx"
-RELEASE_TAG = "release-1.31.2"
-ASSET_NAME = "nginx-1.31.2.tar.gz"
-PUBLISHED_SHA256 = "af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c"
+RELEASE_TAG = "release-1.31.3"
+ASSET_NAME = "nginx-1.31.3.tar.gz"
+PUBLISHED_SHA256 = "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
 
 
 def load_checker():
@@ -78,11 +78,11 @@ class NginxReleaseProvenanceTests(unittest.TestCase):
     def test_newer_release_requires_a_reviewed_atomic_tuple_change(self):
         result = CHECKER.check_nginx_release_provenance(
             self.entries(),
-            FakeGitHubClient(release_payload(RELEASE_TAG), release_payload("release-1.31.3")),
+            FakeGitHubClient(release_payload(RELEASE_TAG), release_payload("release-1.31.4")),
         )
 
         self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
-        self.assertEqual(result.latest, "release-1.31.3")
+        self.assertEqual(result.latest, "release-1.31.4")
         self.assertEqual(result.updates, [])
         self.assertIn("atomically", result.message)
 

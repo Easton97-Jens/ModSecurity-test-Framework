@@ -335,10 +335,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         self.assertEqual(
             result.stdout.splitlines(),
             [
-                "release-1.31.2",
-                "release-1.31.2",
-                "nginx-1.31.2.tar.gz",
-                "af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c",
+                "release-1.31.3",
+                "release-1.31.3",
+                "nginx-1.31.3.tar.gz",
+                "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
             ],
         )
 
