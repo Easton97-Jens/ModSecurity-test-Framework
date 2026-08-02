@@ -247,7 +247,7 @@ review before use.
 | `ALLOW_EXTERNAL_CONNECTOR_REPOS` | source acquisition boolean | `0`; caller or CI | `1` opts in to external source fetches; review the repository first. |
 | `BUILD_HTTPD_FROM_SOURCE`, `BUILD_NGINX_FROM_SOURCE`, `BUILD_PCRE2_FROM_SOURCE`, `XDG_STATE_HOME` | build boolean or state-home path | target default or host state home; caller | `1` enables the named source build; `XDG_STATE_HOME=<temporary-work-root>/state` selects a state-home outside Git. |
 | `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, `HTTPD_PREFIX`, `HTTPD_VERSION`, `APR_VERSION`, `APR_UTIL_VERSION` | Apache executable/path or version override | central pin or host discovery | `/opt/httpd/bin/httpd`; do not treat a host installation as portable evidence. |
-| `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SHA256` | NGINX executable, GitHub URL, release tag/ref, release-asset name, source-mode, or SHA-256 digest override | reviewed release tuple: `release-1.31.2`, matching ref, `nginx-1.31.2.tar.gz`, and `af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c` | The supported `github-release` mode downloads the exact official GitHub release asset. For a fixed release, `NGINX_SOURCE_GIT_REF` must equal `NGINX_RELEASE_TAG`, and tag, asset name, and digest are one atomic reviewed provenance tuple. Provisioning blocks explicitly empty, whitespace-containing, malformed, mismatching, or tuple-inconsistent values before lookup, cache use, download, or extraction; the version checker never auto-updates this tuple. |
+| `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SHA256` | NGINX executable, compatibility GitHub URL alias, fixed release tag/ref, release-asset name, source mode, or SHA-256 digest input | reviewed fixed source tuple; see [NGINX fixed-release provenance](#nginx-fixed-release-provenance) | NGINX accepts only the reviewed `github-release` provenance path. A floating `latest` tag or ref is rejected; it is not a supported compatibility mode. |
 | `PCRE2_VERSION`, `PCRE_CONFIG` | dependency version or executable | central pin or host discovery | `PCRE_CONFIG=/usr/bin/pcre2-config`; a host path is only an example. |
 | `PCRE2_VERSION`, `PCRE2_SOURCE_URL`, `PCRE2_SHA256`, `PCRE2_SHA256_URL`, `PCRE_CONFIG` | dependency version, HTTPS source URL, 64-hex SHA-256, version-tooling metadata, or executable | central pin or host discovery | `PCRE2_SHA256=<64-hex>` must be non-empty, syntactically valid, and exactly match the archive before extraction. Empty, whitespace-only, malformed, or mismatching values block before `tar`; `PCRE2_SHA256_URL` is not a fallback. |
 | `MODSECURITY_APACHE_SOURCE_DIR`, `MODSECURITY_NGINX_SOURCE_DIR`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `MODSECURITY_V3_ROOT` | absolute source/build directory | below `SOURCE_ROOT` or `BUILD_ROOT` | `<temporary-work-root>/src/libmodsecurity`; V3 source must be a reviewed standalone checkout, never an untrusted checkout. |
@@ -261,6 +261,44 @@ review before use.
 | `HOME`, `PWD`, `TMPDIR` | host shell paths | host shell | inherited from the shell; use an explicit Framework root for reproducibility. |
 | `TARGET` | Make target name | supplied by `make` or the caller | `TARGET=linux-glibc`; allowed values depend on the invoked upstream build. |
 | `USER_TOKEN` | sensitive authentication value | no repository default | `<secret-from-secure-store>`; never commit, log, or pass it in a visible process argument. |
+
+### NGINX fixed-release provenance
+
+NGINX source provisioning is a fixed, reviewed release path rather than a
+rolling channel. When a caller leaves the tuple unset, the static reviewed
+default is used. An explicitly supplied empty value is invalid and fails
+closed; `NGINX_SOURCE_GIT_REF` may be derived only from the explicit reviewed
+`NGINX_RELEASE_TAG`.
+
+| Tuple field | Required reviewed value |
+|---|---|
+| `NGINX_SOURCE_MODE` | `github-release` |
+| `NGINX_SOURCE_REPO_URL` | `https://github.com/nginx/nginx` |
+| `NGINX_RELEASE_TAG` | `release-1.31.3` |
+| `NGINX_SOURCE_GIT_REF` | `release-1.31.3` |
+| `NGINX_RELEASE_ASSET_NAME` | `nginx-1.31.3.tar.gz` |
+| `NGINX_SHA256` | `a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525` |
+
+`NGINX_GITHUB_REPO` is a compatibility alias only; it cannot select an origin
+other than `https://github.com/nginx/nginx`. The resulting archive endpoint is
+`https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz`.
+
+For NGINX, `latest` is prohibited as both `NGINX_RELEASE_TAG` and
+`NGINX_SOURCE_GIT_REF`. Those values, a missing tag/ref/asset/digest, an
+invalid digest, a noncanonical source repository or source mode, and a
+tag/ref/asset mismatch are rejected before cache selection, a network request,
+download, or extraction. The NGINX provenance check resolves only the
+configured tag through `/releases/tags/<tag>`; it never uses the NGINX
+`/releases/latest` endpoint. A newer NGINX release requires a separate atomic
+review of the full tuple.
+
+Cache reuse is bound to a non-symlinked manifest and a key over the full
+`(source repository, source mode, release tag, source ref, release asset name,
+expected SHA-256)` tuple. A cache entry with a missing, mismatched, or legacy
+`latest` identity cannot be reused. The selected archive must match the
+non-empty, 64-hex `NGINX_SHA256` value before it is staged or extracted, and
+the staged copy is verified again. These source-provenance checks do not claim
+a connector or production-runtime result.
 
 | Placeholder | What to replace | Allowed values and example |
 |---|---|---|

@@ -260,7 +260,7 @@ eine Herkunftsprüfung.
 | `ALLOW_EXTERNAL_CONNECTOR_REPOS` | Boolean zur Quellenbeschaffung | `0`; Aufrufer oder CI | `1` stimmt externen Source-Fetches zu; Repository vorher prüfen. |
 | `BUILD_HTTPD_FROM_SOURCE`, `BUILD_NGINX_FROM_SOURCE`, `BUILD_PCRE2_FROM_SOURCE`, `XDG_STATE_HOME` | Build-Boolean oder State-Home-Pfad | Target-Standard oder Host-State-Home; Aufrufer | `1` aktiviert den benannten Source-Build; `XDG_STATE_HOME=<temporary-work-root>/state` wählt ein State-Home außerhalb von Git. |
 | `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, `HTTPD_PREFIX`, `HTTPD_VERSION`, `APR_VERSION`, `APR_UTIL_VERSION` | Apache-Programm-, Pfad- oder Versionsüberschreibung | zentraler Pin oder Host-Erkennung | `/opt/httpd/bin/httpd`; eine Host-Installation ist keine portable Evidence. |
-| `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SHA256` | NGINX-Programm-, GitHub-URL-, Release-Tag/-Ref-, Release-Asset-Name-, Source-Mode- oder SHA-256-Digest-Überschreibung | überprüftes Release-Tupel: `release-1.31.2`, passender Ref, `nginx-1.31.2.tar.gz` und `af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c` | Der unterstützte Mode `github-release` lädt das exakte offizielle GitHub-Release-Asset. Bei einem festen Release muss `NGINX_SOURCE_GIT_REF` gleich `NGINX_RELEASE_TAG` sein; Tag, Asset-Name und Digest sind ein atomar zu prüfendes Provenance-Tupel. Das Provisioning blockiert explizit leere, Whitespace enthaltende, fehlerhafte, abweichende oder tupel-inkonsistente Werte vor Lookup, Cache-Nutzung, Download oder Extraction; der Versionsprüfer aktualisiert dieses Tupel nie automatisch. |
+| `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SHA256` | NGINX-Programm-, Kompatibilitäts-GitHub-URL-Alias-, fester Release-Tag/-Ref-, Release-Asset-Name-, Source-Mode- oder SHA-256-Digest-Eingabe | überprüftes festes Source-Tupel; siehe [feste NGINX-Release-Provenance](#feste-nginx-release-provenance) | NGINX akzeptiert nur den überprüften Provenance-Pfad `github-release`. Ein fließender `latest`-Tag oder -Ref wird abgewiesen und ist kein unterstützter Kompatibilitätsmodus. |
 | `PCRE2_VERSION`, `PCRE_CONFIG` | Abhängigkeitsversion oder Programm | zentraler Pin oder Host-Erkennung | `PCRE_CONFIG=/usr/bin/pcre2-config`; ein Host-Pfad ist nur ein Beispiel. |
 | `PCRE2_VERSION`, `PCRE2_SOURCE_URL`, `PCRE2_SHA256`, `PCRE2_SHA256_URL`, `PCRE_CONFIG` | Abhängigkeitsversion, HTTPS-Quell-URL, 64-hex SHA-256, Versionswerkzeug-Metadaten oder Programm | zentraler Pin oder Host-Erkennung | `PCRE2_SHA256=<64-hex>` muss nicht leer, syntaktisch gültig und exakt passend zum Archiv sein, bevor die Extraktion erfolgt. Leere, nur aus Whitespace bestehende, fehlerhafte oder nicht passende Werte blockieren vor `tar`; `PCRE2_SHA256_URL` ist kein Fallback. |
 | `MODSECURITY_APACHE_SOURCE_DIR`, `MODSECURITY_NGINX_SOURCE_DIR`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `MODSECURITY_V3_ROOT` | absoluter Source-/Build-Pfad | unter `SOURCE_ROOT` oder `BUILD_ROOT` | `<temporary-work-root>/src/libmodsecurity`; V3-Source muss ein geprüfter eigenständiger Checkout sein, nie ein nicht vertrauenswürdiger Checkout. |
@@ -274,6 +274,47 @@ eine Herkunftsprüfung.
 | `HOME`, `PWD`, `TMPDIR` | Host-Shell-Pfade | Host-Shell | aus der Shell übernommen; für Reproduzierbarkeit explizite Framework-Wurzel verwenden. |
 | `TARGET` | Make-Target-Name | von `make` oder Aufrufer | `TARGET=linux-glibc`; erlaubte Werte hängen vom aufgerufenen Upstream-Build ab. |
 | `USER_TOKEN` | sensibles Authentifizierungsdatum | kein Repository-Standard | `<secret-from-secure-store>`; nie committen, loggen oder als sichtbares Prozessargument übergeben. |
+
+### Feste NGINX-Release-Provenance
+
+Die NGINX-Source-Provisionierung ist ein fester, überprüfter Release-Pfad und
+kein rollierender Kanal. Lässt ein Aufrufer das Tupel ungesetzt, wird der
+statische überprüfte Standard verwendet. Ein explizit übergebener leerer Wert
+ist ungültig und wird fail-closed abgewiesen; `NGINX_SOURCE_GIT_REF` darf nur
+aus dem expliziten überprüften `NGINX_RELEASE_TAG` abgeleitet werden.
+
+| Tupelfeld | Erforderlicher überprüfter Wert |
+|---|---|
+| `NGINX_SOURCE_MODE` | `github-release` |
+| `NGINX_SOURCE_REPO_URL` | `https://github.com/nginx/nginx` |
+| `NGINX_RELEASE_TAG` | `release-1.31.3` |
+| `NGINX_SOURCE_GIT_REF` | `release-1.31.3` |
+| `NGINX_RELEASE_ASSET_NAME` | `nginx-1.31.3.tar.gz` |
+| `NGINX_SHA256` | `a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525` |
+
+`NGINX_GITHUB_REPO` ist nur ein Kompatibilitätsalias; er kann keinen anderen
+Origin als `https://github.com/nginx/nginx` wählen. Der resultierende
+Archivendpunkt lautet
+`https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz`.
+
+Für NGINX ist `latest` sowohl als `NGINX_RELEASE_TAG` als auch als
+`NGINX_SOURCE_GIT_REF` verboten. Diese Werte, ein fehlender Tag/Ref/Asset/Digest,
+ein ungültiger Digest, ein nicht kanonisches Source-Repository oder ein anderer
+Source-Mode sowie ein Tag/Ref/Asset-Mismatch werden vor Cache-Auswahl,
+Netzwerkanfrage, Download oder Extraktion abgewiesen. Die NGINX-
+Provenance-Prüfung löst ausschließlich den konfigurierten Tag über
+`/releases/tags/<tag>` auf; sie verwendet nie den NGINX-Endpunkt
+`/releases/latest`. Ein neueres NGINX-Release erfordert eine separate atomare
+Prüfung des vollständigen Tupels.
+
+Die Cache-Wiederverwendung ist an ein nicht verlinktes Manifest und einen Key
+über das vollständige Tupel `(Source-Repository, Source-Mode, Release-Tag,
+Source-Ref, Release-Asset-Name, erwarteter SHA-256)` gebunden. Ein Cache-Eintrag
+mit fehlender, abweichender oder alter `latest`-Identität kann nicht
+wiederverwendet werden. Das ausgewählte Archiv muss vor Staging oder Extraktion
+dem nicht leeren, 64-hexadezimalen Wert `NGINX_SHA256` entsprechen; die gestagte
+Kopie wird erneut geprüft. Diese Source-Provenance-Prüfungen behaupten kein
+Connector- oder Produktionsruntime-Ergebnis.
 
 | Platzhalter | Zu ersetzender Wert | Erlaubte Werte und Beispiel |
 |---|---|---|

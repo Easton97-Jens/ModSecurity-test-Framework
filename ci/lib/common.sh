@@ -216,22 +216,22 @@ PCRE2_SHA256="${PCRE2_SHA256-47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9
 # verification fallback.
 PCRE2_SHA256_URL="${PCRE2_SHA256_URL:-}"
 
-NGINX_SOURCE_MODE="${NGINX_SOURCE_MODE:-github-release}"
-NGINX_SOURCE_REPO_URL="${NGINX_SOURCE_REPO_URL:-${NGINX_GITHUB_REPO:-https://github.com/nginx/nginx}}"
-NGINX_GITHUB_REPO="${NGINX_GITHUB_REPO:-$NGINX_SOURCE_REPO_URL}"
-NGINX_RELEASE_TAG="${NGINX_RELEASE_TAG:-release-1.31.2}"
-NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF:-$NGINX_RELEASE_TAG}"
+NGINX_SOURCE_MODE="${NGINX_SOURCE_MODE-github-release}"
+NGINX_SOURCE_REPO_URL="${NGINX_SOURCE_REPO_URL-${NGINX_GITHUB_REPO-https://github.com/nginx/nginx}}"
+NGINX_GITHUB_REPO="${NGINX_GITHUB_REPO-$NGINX_SOURCE_REPO_URL}"
+NGINX_RELEASE_TAG="${NGINX_RELEASE_TAG-release-1.31.3}"
+NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF-$NGINX_RELEASE_TAG}"
 # NGINX source provenance is an atomic binding: the official GitHub release
 # tag, its exact release asset, and the digest GitHub publishes for that asset
 # are reviewed together.  Do not update one member of this tuple alone.
-NGINX_RELEASE_ASSET_NAME="${NGINX_RELEASE_ASSET_NAME:-nginx-1.31.2.tar.gz}"
+NGINX_RELEASE_ASSET_NAME="${NGINX_RELEASE_ASSET_NAME-nginx-1.31.3.tar.gz}"
 if [ "${NGINX_SHA256+x}" = x ]; then
     NGINX_SHA256_WAS_SET=1
 else
     NGINX_SHA256_WAS_SET=0
 fi
 NGINX_SHA256_REQUESTED="${NGINX_SHA256-}"
-NGINX_SHA256="${NGINX_SHA256:-af2a957c41da636ddc4f883e4523c6d140b4784dbce42000c364ae5092aa473c}"
+NGINX_SHA256="${NGINX_SHA256:-a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525}"
 
 # Managed NGINX protocol builds are deliberately explicit.  The default keeps
 # the established clear-text HTTP/1.1 smoke path unchanged; H2/H3 are opted in
