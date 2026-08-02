@@ -44,15 +44,16 @@ def release_payload(tag: str, digest: str = PUBLISHED_SHA256) -> dict[str, objec
 
 
 class FakeGitHubClient:
-    def __init__(self, current_release: dict[str, object], latest_release: dict[str, object]) -> None:
+    def __init__(self, current_release: dict[str, object]) -> None:
         self.current_release = current_release
-        self.latest_release = latest_release
+        self.urls: list[str] = []
 
     def get_json(self, url: str) -> dict[str, object]:
+        self.urls.append(url)
         if url == f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}":
             return self.current_release
-        if url == f"https://api.github.com/repos/{REPOSITORY}/releases/latest":
-            return self.latest_release
+        if url.endswith("/releases/latest"):
+            raise AssertionError("NGINX provenance must never query GitHub's floating latest endpoint")
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
 
@@ -62,9 +63,10 @@ class NginxReleaseProvenanceTests(unittest.TestCase):
         return parsed
 
     def test_current_release_asset_and_digest_are_verified_together(self):
+        client = FakeGitHubClient(release_payload(RELEASE_TAG))
         result = CHECKER.check_nginx_release_provenance(
             self.entries(),
-            FakeGitHubClient(release_payload(RELEASE_TAG), release_payload(RELEASE_TAG)),
+            client,
         )
 
         self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
@@ -74,27 +76,39 @@ class NginxReleaseProvenanceTests(unittest.TestCase):
             result.details["official_asset_url"],
             f"https://github.com/{REPOSITORY}/releases/download/{RELEASE_TAG}/{ASSET_NAME}",
         )
-
-    def test_newer_release_requires_a_reviewed_atomic_tuple_change(self):
-        result = CHECKER.check_nginx_release_provenance(
-            self.entries(),
-            FakeGitHubClient(release_payload(RELEASE_TAG), release_payload("release-1.31.4")),
+        self.assertEqual(
+            client.urls,
+            [f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}"],
         )
 
-        self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
-        self.assertEqual(result.latest, "release-1.31.4")
-        self.assertEqual(result.updates, [])
-        self.assertIn("atomically", result.message)
-
-    def test_digest_mismatch_never_generates_an_automatic_update(self):
+    def test_provenance_check_uses_only_the_configured_fixed_tag_endpoint(self):
+        client = FakeGitHubClient(release_payload(RELEASE_TAG))
         result = CHECKER.check_nginx_release_provenance(
             self.entries(),
-            FakeGitHubClient(release_payload(RELEASE_TAG, "b" * 64), release_payload(RELEASE_TAG)),
+            client,
+        )
+
+        self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
+        self.assertEqual(
+            client.urls,
+            [f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}"],
+        )
+        self.assertNotIn("/releases/latest", "\n".join(client.urls))
+
+    def test_digest_mismatch_never_generates_an_automatic_update(self):
+        client = FakeGitHubClient(release_payload(RELEASE_TAG, "b" * 64))
+        result = CHECKER.check_nginx_release_provenance(
+            self.entries(),
+            client,
         )
 
         self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
         self.assertEqual(result.updates, [])
         self.assertIn("does not match", result.message)
+        self.assertEqual(
+            client.urls,
+            [f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}"],
+        )
 
 
 if __name__ == "__main__":

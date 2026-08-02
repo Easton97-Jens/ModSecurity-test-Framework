@@ -28,7 +28,7 @@ MODSECURITY_V3_COMPONENT = "ModSecurity v3"
 TRACKED_NAME_RE = re.compile(
     r"VERSION|RELEASE|TAG|SOURCE_URL|GIT_URL|SHA256|CHECKSUM|REF|BRANCH|COMMIT|URL"
 )
-PARAM_EXPANSION_RE = re.compile(r"\$\{((?!\d)\w+):[-=]([^{}]*)\}", re.ASCII)
+PARAM_EXPANSION_RE = re.compile(r"\$\{((?!\d)\w+):?[-=]([^{}]*)\}", re.ASCII)
 BRACED_VAR_RE = re.compile(r"\$\{((?!\d)\w+)\}", re.ASCII)
 PLAIN_VAR_RE = re.compile(r"\$((?!\d)\w+)", re.ASCII)
 SHA256_RE = re.compile(r"\b([A-Fa-f0-9]{64})\b")
@@ -181,10 +181,15 @@ def resolve_value(raw_value: str, resolved: dict[str, str]) -> str:
 
 def parse_common_assignment(line: str) -> tuple[str, str, str] | None:
     assign_re = re.compile(r'^([A-Z][A-Z0-9_]*)="\$\{\1:-(.*)\}"\s*$')
+    unset_assign_re = re.compile(r'^([A-Z][A-Z0-9_]*)="\$\{\1-(.*)\}"\s*$')
     colon_re = re.compile(r'^:\s+"\$\{([A-Z][A-Z0-9_]*):=(.*)\}"\s*$')
     literal_re = re.compile(r'^([A-Z][A-Z0-9_]*)="([^"$`]*)"\s*$')
 
-    for style, pattern in (("colon-default", colon_re), ("assignment-default", assign_re)):
+    for style, pattern in (
+        ("colon-default", colon_re),
+        ("assignment-default", assign_re),
+        ("assignment-unset-default", unset_assign_re),
+    ):
         match = pattern.match(line)
         if match:
             return style, match.group(1), match.group(2)
@@ -346,7 +351,8 @@ def replace_default_line(line: str, variable: str, new_default: str) -> str:
     colon_re = re.compile(rf'^(:\s*"\$\{{{escaped}:=)(.*)(\}}"\s*)$')
     assign_re = re.compile(rf'^({escaped}\s*=\s*"\$\{{{escaped}:=)(.*)(\}}"\s*)$')
     default_re = re.compile(rf'^({escaped}\s*=\s*"\$\{{{escaped}:-)(.*)(\}}"\s*)$')
-    for pattern in (colon_re, assign_re, default_re):
+    unset_default_re = re.compile(rf'^({escaped}\s*=\s*"\$\{{{escaped}-)(.*)(\}}"\s*)$')
+    for pattern in (colon_re, assign_re, default_re, unset_default_re):
         match = pattern.match(line)
         if match:
             return f"{match.group(1)}{new_default}{match.group(3)}"
@@ -1190,29 +1196,18 @@ def check_nginx_release_provenance(
             details={"official_asset_sha256": official_sha256},
         )
 
-    latest_tag = release_tag_name(latest_github_release(client, repo_path), repo_path)
-    if latest_tag != release_tag:
-        return ComponentResult(
-            component="NGINX",
-            status=STATUS_UNKNOWN,
-            message=(
-                "A different official NGINX release tag is available; review and update "
-                "the tag, asset name, and SHA-256 digest atomically."
-            ),
-            variables=variables,
-            current=current,
-            latest=latest_tag,
-            source=f"https://github.com/{repo_path}/releases/latest",
-            details={"official_asset_url": official_asset_url, "official_asset_sha256": official_sha256},
-        )
     return ComponentResult(
         component="NGINX",
         status=STATUS_CURRENT,
-        message="Release tag, official release asset, and published SHA-256 digest are current.",
+        message=(
+            "Configured release tag, official release asset, and published SHA-256 digest "
+            "match the reviewed NGINX provenance tuple. New NGINX releases require a "
+            "separate atomic review update."
+        ),
         variables=variables,
         current=current,
-        latest=latest_tag,
-        source=f"https://github.com/{repo_path}/releases/latest",
+        latest=release_tag,
+        source=f"https://github.com/{repo_path}/releases/tags/{release_tag}",
         details={"official_asset_url": official_asset_url, "official_asset_sha256": official_sha256},
     )
 

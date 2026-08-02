@@ -159,6 +159,27 @@ validate_nginx_release_asset_name() {
 }
 
 validate_nginx_archive_configuration() {
+    if [ "$NGINX_SOURCE_MODE" != "github-release" ]; then
+        blocked "NGINX_SOURCE_MODE must be github-release for the reviewed NGINX provenance tuple"
+    fi
+    if [ "$NGINX_SOURCE_REPO_URL" != "https://github.com/nginx/nginx" ]; then
+        blocked "NGINX_SOURCE_REPO_URL must be https://github.com/nginx/nginx for the reviewed NGINX provenance tuple"
+    fi
+    if [ -z "$NGINX_RELEASE_TAG" ]; then
+        blocked "NGINX_RELEASE_TAG must be an explicit reviewed release tag"
+    fi
+    if [ "$NGINX_RELEASE_TAG" = "latest" ]; then
+        blocked "NGINX_RELEASE_TAG must be an explicit reviewed release tag; the floating value 'latest' is not supported"
+    fi
+    if [ -z "$NGINX_SOURCE_GIT_REF" ]; then
+        blocked "NGINX_SOURCE_GIT_REF must be an explicit reviewed source ref or be derived from NGINX_RELEASE_TAG"
+    fi
+    if [ "$NGINX_SOURCE_GIT_REF" = "latest" ]; then
+        blocked "NGINX_SOURCE_GIT_REF must be an explicit reviewed source ref; the floating value 'latest' is not supported"
+    fi
+    if [ -z "$NGINX_RELEASE_ASSET_NAME" ]; then
+        blocked "NGINX_RELEASE_ASSET_NAME must be an explicit reviewed release asset name"
+    fi
     if [ "$NGINX_SHA256_WAS_SET" = "1" ] && [ -z "$NGINX_SHA256_REQUESTED" ]; then
         blocked "NGINX_SHA256 must not be explicitly empty"
     fi
@@ -168,15 +189,13 @@ validate_nginx_archive_configuration() {
         blocked "NGINX_RELEASE_TAG must be a safe release reference"
     ci_require_safe_ref "$NGINX_SOURCE_GIT_REF" NGINX_SOURCE_GIT_REF || \
         blocked "NGINX_SOURCE_GIT_REF must be a safe source reference"
-    if [ "$NGINX_RELEASE_TAG" != "latest" ]; then
-        if [ "$NGINX_SOURCE_GIT_REF" != "$NGINX_RELEASE_TAG" ]; then
-            blocked "NGINX_SOURCE_GIT_REF must equal NGINX_RELEASE_TAG for a fixed release asset"
-        fi
-        validate_nginx_release_asset_name "$NGINX_RELEASE_ASSET_NAME"
-        expected_asset_name=$(nginx_release_asset_name_for_tag "$NGINX_RELEASE_TAG")
-        if [ "$NGINX_RELEASE_ASSET_NAME" != "$expected_asset_name" ]; then
-            blocked "NGINX_RELEASE_ASSET_NAME must bind NGINX_RELEASE_TAG to $expected_asset_name"
-        fi
+    if [ "$NGINX_SOURCE_GIT_REF" != "$NGINX_RELEASE_TAG" ]; then
+        blocked "NGINX_SOURCE_GIT_REF must equal NGINX_RELEASE_TAG for a fixed release asset"
+    fi
+    validate_nginx_release_asset_name "$NGINX_RELEASE_ASSET_NAME"
+    expected_asset_name=$(nginx_release_asset_name_for_tag "$NGINX_RELEASE_TAG")
+    if [ "$NGINX_RELEASE_ASSET_NAME" != "$expected_asset_name" ]; then
+        blocked "NGINX_RELEASE_ASSET_NAME must bind NGINX_RELEASE_TAG to $expected_asset_name"
     fi
 }
 
@@ -571,81 +590,80 @@ github_repo_path() {
 
 resolve_nginx_release_tag() {
     repo_path=$(github_repo_path)
-    if [ "$NGINX_RELEASE_TAG" != "latest" ]; then
-        RESOLVED_NGINX_RELEASE_TAG="$NGINX_RELEASE_TAG"
-        ci_require_safe_ref "$RESOLVED_NGINX_RELEASE_TAG" RESOLVED_NGINX_RELEASE_TAG || \
-            blocked "resolved NGINX release tag must be safe"
-        RESOLVED_NGINX_RELEASE_ASSET_NAME="$NGINX_RELEASE_ASSET_NAME"
-        validate_nginx_release_asset_name "$RESOLVED_NGINX_RELEASE_ASSET_NAME"
-        NGINX_ARCHIVE_URL="https://github.com/$repo_path/releases/download/$RESOLVED_NGINX_RELEASE_TAG/$RESOLVED_NGINX_RELEASE_ASSET_NAME"
-        return 0
-    fi
-
-    require_command "$PYTHON_BIN" "parse GitHub latest release response"
-    latest_json="$DOWNLOAD_DIR/nginx-latest-release.json"
-    latest_tmp="$DOWNLOAD_DIR/nginx-latest-release.json.tmp"
-    api_url="https://api.github.com/repos/$repo_path/releases/latest"
-    mkdir -p "$DOWNLOAD_DIR"
-    {
-        echo "[nginx-github-latest-release]"
-        echo "cwd=$DOWNLOAD_DIR"
-        echo "command=curl --proto =https --proto-redir =https -fsSL --retry 3 --retry-delay 2 -H Accept: application/vnd.github+json -o $latest_tmp $api_url"
-        echo
-    } >> "$COMMANDS_FILE"
-    if curl --proto =https --proto-redir =https -fsSL --retry 3 --retry-delay 2 -H "Accept: application/vnd.github+json" -o "$latest_tmp" "$api_url" >"$LOG_DIR/nginx-github-latest-release.log" 2>&1; then
-        mv "$latest_tmp" "$latest_json"
-        echo "pass: nginx-github-latest-release log=$LOG_DIR/nginx-github-latest-release.log" >> "$STATUS_FILE"
-    elif [ -s "$latest_json" ]; then
-        rm -f "$latest_tmp"
-        echo "warn: blocked_network nginx-github-latest-release; using cached $latest_json log=$LOG_DIR/nginx-github-latest-release.log" >> "$STATUS_FILE"
-        echo "nginx_poc: blocked_network latest release lookup failed; using cached $latest_json"
-    else
-        rm -f "$latest_tmp"
-        echo "blocked: nginx-github-latest-release log=$LOG_DIR/nginx-github-latest-release.log" >> "$STATUS_FILE"
-        echo "nginx_poc: blocked command failed: curl latest release $api_url"
-        echo "nginx_poc: see log: $LOG_DIR/nginx-github-latest-release.log"
-        exit 77
-    fi
-    if ! RESOLVED_NGINX_RELEASE_TAG=$("$PYTHON_BIN" - "$latest_json" 2>"$LOG_DIR/nginx-latest-release-parse.log" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as handle:
-    data = json.load(handle)
-tag = data.get("tag_name")
-if not isinstance(tag, str) or not tag.strip():
-    raise SystemExit("missing tag_name in GitHub latest release response")
-print(tag.strip())
-PY
-); then
-        blocked "failed to parse GitHub latest release response; see $LOG_DIR/nginx-latest-release-parse.log"
-    fi
-    [ -n "$RESOLVED_NGINX_RELEASE_TAG" ] || blocked "GitHub latest release response did not include tag_name"
+    RESOLVED_NGINX_RELEASE_TAG="$NGINX_RELEASE_TAG"
     ci_require_safe_ref "$RESOLVED_NGINX_RELEASE_TAG" RESOLVED_NGINX_RELEASE_TAG || \
         blocked "resolved NGINX release tag must be safe"
-    RESOLVED_NGINX_RELEASE_ASSET_NAME=$(nginx_release_asset_name_for_tag "$RESOLVED_NGINX_RELEASE_TAG")
+    RESOLVED_NGINX_RELEASE_ASSET_NAME="$NGINX_RELEASE_ASSET_NAME"
     validate_nginx_release_asset_name "$RESOLVED_NGINX_RELEASE_ASSET_NAME"
     NGINX_ARCHIVE_URL="https://github.com/$repo_path/releases/download/$RESOLVED_NGINX_RELEASE_TAG/$RESOLVED_NGINX_RELEASE_ASSET_NAME"
 }
 
+nginx_archive_cache_key() {
+    cache_identity=$(printf '%s\0' \
+        "$NGINX_SOURCE_REPO_URL" \
+        "$NGINX_SOURCE_MODE" \
+        "$NGINX_RELEASE_TAG" \
+        "$NGINX_SOURCE_GIT_REF" \
+        "$NGINX_RELEASE_ASSET_NAME" \
+        "$NGINX_SHA256_CANONICAL" | sha256sum) || \
+        blocked "could not calculate NGINX archive cache key"
+    NGINX_ARCHIVE_CACHE_KEY=${cache_identity%% *}
+    validate_pinned_sha256 "$NGINX_ARCHIVE_CACHE_KEY" "NGINX archive cache key"
+}
+
+nginx_archive_cache_manifest_payload() {
+    printf '%s\n' \
+        'schema=nginx-archive-cache-v2' \
+        "source_repository=$NGINX_SOURCE_REPO_URL" \
+        "source_mode=$NGINX_SOURCE_MODE" \
+        "release_tag=$NGINX_RELEASE_TAG" \
+        "source_ref=$NGINX_SOURCE_GIT_REF" \
+        "release_asset_name=$NGINX_RELEASE_ASSET_NAME" \
+        "expected_sha256=$NGINX_SHA256_CANONICAL" \
+        "cache_key=$NGINX_ARCHIVE_CACHE_KEY"
+}
+
+nginx_archive_cache_manifest_matches() {
+    [ -f "$NGINX_ARCHIVE" ] && [ ! -L "$NGINX_ARCHIVE" ] || return 1
+    [ -f "$NGINX_ARCHIVE_CACHE_MANIFEST" ] && [ ! -L "$NGINX_ARCHIVE_CACHE_MANIFEST" ] || return 1
+    actual_manifest=$(cat "$NGINX_ARCHIVE_CACHE_MANIFEST") || return 1
+    expected_manifest=$(nginx_archive_cache_manifest_payload) || return 1
+    [ "$actual_manifest" = "$expected_manifest" ]
+}
+
+write_nginx_archive_cache_manifest() {
+    manifest_tmp="$NGINX_ARCHIVE_CACHE_MANIFEST.tmp.$$"
+    if ! nginx_archive_cache_manifest_payload > "$manifest_tmp"; then
+        blocked "could not write NGINX archive cache manifest: $manifest_tmp"
+    fi
+    if ! mv "$manifest_tmp" "$NGINX_ARCHIVE_CACHE_MANIFEST"; then
+        blocked "could not finalize NGINX archive cache manifest: $NGINX_ARCHIVE_CACHE_MANIFEST"
+    fi
+}
+
 download_nginx_source() {
-    # Defend the archive trust boundary again at the point of use.  This must
-    # happen before a latest lookup, cache selection, or archive download.
+    # Defend the archive trust boundary again at the point of use before cache
+    # selection, archive download, or extraction.
     validate_nginx_archive_configuration
     require_command curl "download NGINX GitHub archive"
     require_command tar "extract NGINX GitHub archive"
     require_command sha256sum "verify NGINX archive checksum"
     mkdir -p "$DOWNLOAD_DIR"
     resolve_nginx_release_tag
-    NGINX_ARCHIVE="$DOWNLOAD_DIR/$RESOLVED_NGINX_RELEASE_ASSET_NAME"
+    nginx_archive_cache_key
+    NGINX_ARCHIVE_CACHE_DIR="$DOWNLOAD_DIR/nginx-archives/$NGINX_ARCHIVE_CACHE_KEY"
+    NGINX_ARCHIVE="$NGINX_ARCHIVE_CACHE_DIR/$RESOLVED_NGINX_RELEASE_ASSET_NAME"
+    NGINX_ARCHIVE_CACHE_MANIFEST="$NGINX_ARCHIVE_CACHE_DIR/nginx-archive-cache.manifest"
+    mkdir -p "$NGINX_ARCHIVE_CACHE_DIR"
     echo "nginx_poc: resolved nginx release tag=$RESOLVED_NGINX_RELEASE_TAG"
     echo "nginx_poc: resolved nginx release asset=$RESOLVED_NGINX_RELEASE_ASSET_NAME"
     echo "nginx_poc: nginx archive url=$NGINX_ARCHIVE_URL"
-    if [ -f "$NGINX_ARCHIVE" ] && [ "$REFRESH" != "1" ]; then
+    echo "nginx_poc: nginx archive cache key=$NGINX_ARCHIVE_CACHE_KEY"
+    if [ "$REFRESH" != "1" ] && nginx_archive_cache_manifest_matches; then
         echo "nginx_poc: reusing cached nginx archive=$NGINX_ARCHIVE"
     else
-        download_tmp="$NGINX_ARCHIVE.download.$$"
-        run_blocked nginx-source-download "$DOWNLOAD_DIR" \
+        download_tmp="$NGINX_ARCHIVE_CACHE_DIR/.$RESOLVED_NGINX_RELEASE_ASSET_NAME.download.$$"
+        run_blocked nginx-source-download "$NGINX_ARCHIVE_CACHE_DIR" \
             curl --proto =https --proto-redir =https -L --fail --retry 3 --retry-delay 2 -o "$download_tmp" "$NGINX_ARCHIVE_URL"
         if ! mv "$download_tmp" "$NGINX_ARCHIVE"; then
             blocked "could not place downloaded NGINX archive: $NGINX_ARCHIVE"
@@ -654,6 +672,7 @@ download_nginx_source() {
 
     verify_nginx_archive_digest "$NGINX_ARCHIVE" "selected NGINX archive"
     stage_verified_nginx_archive
+    write_nginx_archive_cache_manifest
     echo "nginx_poc: nginx archive sha256(verified)=$NGINX_ARCHIVE_SHA256_LOCAL"
     {
         echo "nginx_source_mode=$NGINX_SOURCE_MODE"
@@ -666,6 +685,8 @@ download_nginx_source() {
         echo "nginx_release_asset_resolved=$RESOLVED_NGINX_RELEASE_ASSET_NAME"
         echo "nginx_archive_url=$NGINX_ARCHIVE_URL"
         echo "nginx_archive_candidate=$NGINX_ARCHIVE"
+        echo "nginx_archive_cache_key=$NGINX_ARCHIVE_CACHE_KEY"
+        echo "nginx_archive_cache_manifest=$NGINX_ARCHIVE_CACHE_MANIFEST"
         echo "nginx_archive=$NGINX_VERIFIED_ARCHIVE"
         echo "nginx_archive_sha256_expected=$NGINX_SHA256_CANONICAL"
         echo "nginx_archive_sha256_local=$NGINX_ARCHIVE_SHA256_LOCAL"
