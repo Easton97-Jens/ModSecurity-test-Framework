@@ -9,7 +9,7 @@
 | Change-ID | `20260802-01-pin-nginx-release-1.31.3` |
 | UTC-Datum | 2026-08-02 |
 | Framework-Basisrevision | `5cb371949ceafec6685cf716ba50a75d0f448bd1` |
-| Issue oder Pull Request | Framework-Draft-PR ausstehend; lokale Validierung ist vor dem ersten Task-Commit dokumentiert. |
+| Issue oder Pull Request | [Framework-Draft-PR #60](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/60) auf `agent/pin-nginx-current-release-20260802`; kein Merge ist autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -80,4 +80,4 @@ Zukünftige Releases benötigen weiterhin frische offizielle Evidenz und eine at
 
 ## Finaler Diff- und Review-Status
 
-Fokussierte und breitere lokale Validierung bestanden. Ein unabhängiger Diff-Review fand keine plausible Security-Regression und bestätigte die atomare Tupeländerung. Staged-Diff-Review, erster Task-Commit, Remote-Gleichheit, Draft-PR und CI-/Read-back für den aktuellen Head stehen noch aus; ein Merge ist nicht autorisiert.
+Fokussierte und breitere lokale Validierung bestanden. Ein unabhängiger Diff-Review fand keine plausible Security-Regression und bestätigte die atomare Tupeländerung. Der Task-Branch ist gepusht und [Framework-Draft-PR #60](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/60) ist offen; Remote-/Current-Head-Read-back und CI-Status werden als Delivery-Evidenz nachverfolgt. Kein Merge ist autorisiert.

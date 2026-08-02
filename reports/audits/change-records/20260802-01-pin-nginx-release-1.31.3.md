@@ -9,7 +9,7 @@
 | Change ID | `20260802-01-pin-nginx-release-1.31.3` |
 | UTC date | 2026-08-02 |
 | Framework base revision | `5cb371949ceafec6685cf716ba50a75d0f448bd1` |
-| Issue or pull request | Framework Draft PR pending; local validation is recorded before the first task commit. |
+| Issue or pull request | [Framework Draft PR #60](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/60) on `agent/pin-nginx-current-release-20260802`; no merge is authorized. |
 
 ## Motivation and problem statement
 
@@ -80,4 +80,4 @@ Future releases require fresh official evidence and an atomic tag/asset/digest r
 
 ## Final diff and review status
 
-Focused and broad local validation passed. An independent diff review found no plausible security regression and confirmed the tuple is changed atomically. The staged-diff review, first task commit, remote equality, Draft PR, and current-head CI/read-back remain pending; no merge is authorized.
+Focused and broad local validation passed. An independent diff review found no plausible security regression and confirmed the tuple is changed atomically. The task branch is pushed and [Framework Draft PR #60](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/60) is open; the remote/current-head read-back and CI status are tracked as delivery evidence. No merge is authorized.
