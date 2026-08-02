@@ -12,7 +12,8 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("protocol_client", ROOT / "ci/checks/protocol/protocol_client.py")
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 protocol_client = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = protocol_client
 SPEC.loader.exec_module(protocol_client)

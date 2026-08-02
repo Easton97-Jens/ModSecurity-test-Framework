@@ -16,7 +16,8 @@ SPEC = importlib.util.spec_from_file_location(
     "no_crs_catalog_maintainability_wave",
     ROOT / "ci/checks/catalog/no_crs_baseline.py",
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 no_crs = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(no_crs)
 
