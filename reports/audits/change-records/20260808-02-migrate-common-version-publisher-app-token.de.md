@@ -28,6 +28,14 @@ konnte und kein abschließender Job den übersprungenen No-Update-Zustand bewies
 oder eine operatorseitige Zusammenfassung veröffentlichte. Beide Bedingungen
 erforderten einen Source-Fix, bevor der PR für die Delivery geeignet sein kann.
 
+Der erste normale Source-Push beseitigte diese drei dokumentierten
+Sonar-Befunde, doch die frische PR-Analyse meldete zwei neue offene
+`python:S3776`-Befunde im selben statischen Security-Contract-Checker. Obwohl
+das Sonar-Quality-Gate `OK` blieb, erfüllt das nicht die Null-Policy dieses
+Tasks. Das Follow-up zerlegt deshalb ausschließlich die betroffenen
+Validierungsfunktionen in begrenzte Helfer, ohne ihre geprüften Fehlermeldungen
+oder fail-closed-Entscheidungen zu verändern.
+
 ## Betroffene Komponenten und Sicherheitsgrenzen
 
 Diese reine Framework-Änderung umfasst den Common-Version-GitHub-Actions-
@@ -106,7 +114,10 @@ beiden Ergebnisse liefert; jeder andere Zustand schlägt fehl.
   Default-Branch-Drift-Prüfung und einen credential-freien Ergebnis-Job.
 - `ci/checks/security/check-ci-security-contract.py` definiert ein exaktes
   Common-Version-Publisher-/Ergebnis-Profil und weist nativen Token-/Permission-/
-  Scope-, Zustands-, Pfad-, SHA-, Write-Pfad- und Endzustandsdrift zurück.
+  Scope-, Zustands-, Pfad-, SHA-, Write-Pfad- und Endzustandsdrift zurück. Seine
+  Publisher-Step- und Ergebnis-Job-Prüfungen sind in begrenzte Helfer zerlegt,
+  um die zwei aktuellen Sonar-Befunde zur kognitiven Komplexität ohne
+  Abschwächung des Vertrags zu beheben.
 - `ci/tools/check-common-versions.py` schlägt bei `unknown` fail-closed fehl
   und unterscheidet bewusst nicht aktualisierbare lokale Policy-Einträge von
   unsicheren Upstream-Auflösungsfehlern.
@@ -138,6 +149,7 @@ beiden Ergebnisse liefert; jeder andere Zustand schlägt fehl.
 | `make check-github-actions-workflows` | 0 | Python-Version-, Pin- und Permission-Prüfungen akzeptierten jeden eingecheckten Workflow. | Derselbe Task-Worktree |
 | `make check-documentation` | 0 | Links, zweisprachige Parität, Pfadreferenzen und der Change-Record-Contract bestanden. | Derselbe Task-Worktree |
 | `make lint` | 0 | Die vollständige lokale Lint- und Regressionsmatrix bestand, einschließlich Workflow-Security- und Provenance-Suites. | Derselbe Task-Worktree |
+| SonarCloud-PR-#65-Analyse bei `0ba1e39d64baaa34cb9f2ae51b875609749f724e` | 0 | Quality-Gate `OK` und keine offenen Hotspots, aber zwei neue OFFENE `python:S3776`-Befunde blieben; dies ist die Ursache des aktuellen begrenzten Follow-ups, kein Erfolg der Null-Policy. | [PR-Analyse](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=65) |
 | `<locked-tools>/actionlint -shellcheck=<locked-tools>/shellcheck` | 0 | Alle eingecheckten Workflows und eingebetteten Shell-Blöcke bestanden. | SHA-256-gesperrte lokale Tools |
 | `<locked-tools>/zizmor --offline .github` | 0 | Keine Findings; 33 repository-konfigurierte Suppressions wurden gemeldet. | SHA-256-gesperrtes lokales Tool |
 | `<locked-tools>/ruff check …` und `ruff format --check …` | 0 | Ruff-Lint und Formatprüfungen akzeptierten den relevanten CI-Security-Scope (20 Dateien). | SHA-256-gesperrtes lokales Tool |
@@ -183,10 +195,11 @@ aktualisieren.
 
 Die für das hash-gesperrte Pyright-Paket erforderliche repository-lokale
 Node-Runtime ist nicht vorhanden (`node` und `nodejs` fehlen); Pyright bleibt
-daher blockiert und wird nicht global installiert. Hosted-Draft-PR-Checks und
-Post-Merge-Publisher-Evidenz bleiben bis zur normalen Delivery und einem
-separat autorisierten Merge ausstehend. Keine nicht verfügbare oder nicht
-ausgeführte Prüfung wird als bestanden dargestellt.
+daher blockiert und wird nicht global installiert. Der erste gepushte PR-Head
+hat seine Hosted-Checks abgeschlossen, doch seine zwei offenen Sonar-Befunde
+erfordern dieses neue Source-Amendment; Exact-Head-Hosted-/Sonar-Evidenz für
+dieses Amendment und Post-Merge-Publisher-Evidenz bleiben ausstehend. Keine
+nicht verfügbare oder nicht ausgeführte Prüfung wird als bestanden dargestellt.
 
 ## Einschränkungen und Restrisiko
 
@@ -209,9 +222,11 @@ Framework `master`, Parent, MRTS oder Gitlink ist autorisiert. Der finale
 Source-Review umfasst ein sauberes `git diff --check`, exakte statische
 Publisher-/Ergebnis-Profile, keinen nativen Token-Fallback, keinen `workflows`-
 Write-Request, keinen direkten/Force-Push und keinen ungeprüften App-Token-
-Consumer. PR #65 existiert bereits; sein Source-Amendment benötigt noch einen
-normalen Push, Current-Head-Hosted-Checks und alle erforderlichen
-Delivery-Gates, bevor er review-bereit werden kann. Er darf nicht gemergt
-werden, solange das bekannte Post-Merge-Resolver-Preflight ohne getrennte
-autorisierte Provenance-Entscheidung keinen der beiden erlaubten Endzustände
-erreichen kann.
+Consumer. Der erste normale Source-Push bei
+`0ba1e39d64baaa34cb9f2ae51b875609749f724e` legte die zwei neuen Sonar-Befunde
+offen; dieses begrenzte Amendment benötigt daher noch einen normalen Push,
+Current-Head-Hosted-Checks, Sonar-Evidenz ohne offene Befunde und alle
+erforderlichen Delivery-Gates, bevor PR #65 review-bereit werden kann. Er darf
+nicht gemergt werden, solange das bekannte Post-Merge-Resolver-Preflight ohne
+getrennte autorisierte Provenance-Entscheidung keinen der beiden erlaubten
+Endzustände erreichen kann.

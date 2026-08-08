@@ -2307,48 +2307,11 @@ def common_version_publisher_step_profile_errors(
 ) -> list[str]:
     """Validate one exact-profile Common-version publisher step."""
 
-    errors: list[str] = []
-    if set(step) != expected_keys:
-        errors.append(
-            f"{path}: common-version publisher step {name!r} must match its reviewed key profile"
-        )
+    errors = common_version_publisher_step_key_errors(path, step, name, expected_keys)
 
-    expected_action = COMMON_VERSION_PUBLISHER_ACTIONS.get(name)
-    if expected_action is not None:
-        uses = step.get("uses")
-        action_name = uses.split("@", 1)[0] if isinstance(uses, str) else None
-        if action_name != expected_action:
-            errors.append(
-                f"{path}: common-version publisher step {name!r} must use {expected_action}"
-            )
+    errors.extend(common_version_publisher_step_action_errors(path, step, name))
 
-    expected_with_keys = COMMON_VERSION_PUBLISHER_WITH_KEYS.get(name)
-    if expected_with_keys is not None:
-        with_values = step.get("with")
-        if not isinstance(with_values, dict) or set(with_values) != expected_with_keys:
-            errors.append(
-                f"{path}: common-version publisher step {name!r} must match its reviewed with profile"
-            )
-            with_values = {}
-        expected_with_values = COMMON_VERSION_PUBLISHER_WITH_VALUES.get(name)
-        if expected_with_values is not None and with_values != expected_with_values:
-            errors.append(
-                f"{path}: common-version publisher step {name!r} must use reviewed with values"
-            )
-        if name in COMMON_VERSION_PUBLISHER_SCRIPT_SHA256:
-            if with_values.get("github-token") != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION:
-                errors.append(
-                    f"{path}: common-version state check must use only the scoped GitHub App token"
-                )
-            script = with_values.get("script")
-            if not isinstance(script, str) or (
-                publisher_body_digest(script)
-                != COMMON_VERSION_PUBLISHER_SCRIPT_SHA256[name]
-            ):
-                errors.append(
-                    f"{path}: common-version state-check script must match the reviewed SHA-256"
-                )
-
+    errors.extend(common_version_publisher_step_with_errors(path, step, name))
     expected_environment = COMMON_VERSION_PUBLISHER_ENV_VALUES.get(name)
     if expected_environment is not None and step.get("env") != expected_environment:
         errors.append(
@@ -2375,11 +2338,126 @@ def common_version_publisher_step_profile_errors(
     return errors
 
 
+def common_version_publisher_step_key_errors(
+    path: Path, step: dict[str, Any], name: str, expected_keys: frozenset[str]
+) -> list[str]:
+    """Validate the reviewed key set for one publisher step."""
+
+    if set(step) == expected_keys:
+        return []
+    return [
+        f"{path}: common-version publisher step {name!r} must match its reviewed key profile"
+    ]
+
+
+def common_version_publisher_step_action_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    """Validate a reviewed Action reference when the step uses one."""
+
+    expected_action = COMMON_VERSION_PUBLISHER_ACTIONS.get(name)
+    if expected_action is None:
+        return []
+    uses = step.get("uses")
+    action_name = uses.split("@", 1)[0] if isinstance(uses, str) else None
+    if action_name == expected_action:
+        return []
+    return [
+        f"{path}: common-version publisher step {name!r} must use {expected_action}"
+    ]
+
+
+def common_version_publisher_state_check_with_errors(
+    path: Path, name: str, with_values: dict[str, Any]
+) -> list[str]:
+    """Bind GitHub-script state checks to the scoped token and reviewed script."""
+
+    expected_script_digest = COMMON_VERSION_PUBLISHER_SCRIPT_SHA256.get(name)
+    if expected_script_digest is None:
+        return []
+
+    errors: list[str] = []
+    if with_values.get("github-token") != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION:
+        errors.append(
+            f"{path}: common-version state check must use only the scoped GitHub App token"
+        )
+    script = with_values.get("script")
+    if (
+        not isinstance(script, str)
+        or publisher_body_digest(script) != expected_script_digest
+    ):
+        errors.append(
+            f"{path}: common-version state-check script must match the reviewed SHA-256"
+        )
+    return errors
+
+
+def common_version_publisher_step_with_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    """Validate the reviewed Action-input profile for one publisher step."""
+
+    expected_with_keys = COMMON_VERSION_PUBLISHER_WITH_KEYS.get(name)
+    if expected_with_keys is None:
+        return []
+
+    errors: list[str] = []
+    with_values = step.get("with")
+    if not isinstance(with_values, dict) or set(with_values) != expected_with_keys:
+        errors.append(
+            f"{path}: common-version publisher step {name!r} must match the reviewed with profile"
+        )
+        with_values = {}
+    expected_with_values = COMMON_VERSION_PUBLISHER_WITH_VALUES.get(name)
+    if expected_with_values is not None and with_values != expected_with_values:
+        errors.append(
+            f"{path}: common-version publisher step {name!r} must use reviewed with values"
+        )
+    errors.extend(
+        common_version_publisher_state_check_with_errors(path, name, with_values)
+    )
+    return errors
+
+
 def common_version_result_errors(path: Path, result: Any) -> list[str]:
     """Require a credential-free, fail-closed terminal outcome job."""
 
     if not isinstance(result, dict):
         return [f"{path}: common-version result job must be a mapping"]
+
+    errors = common_version_result_job_setting_errors(path, result)
+
+    steps = result.get("steps")
+    if not isinstance(steps, list):
+        return [*errors, f"{path}: common-version result steps must be a list"]
+    expected_names = [name for name, _keys in COMMON_VERSION_RESULT_STEP_PROFILE]
+    actual_names = [
+        step.get("name") if isinstance(step, dict) else None for step in steps
+    ]
+    if actual_names != expected_names:
+        return [
+            *errors,
+            f"{path}: common-version result steps must match the reviewed order and count",
+        ]
+    for step, (name, expected_keys) in zip(steps, COMMON_VERSION_RESULT_STEP_PROFILE):
+        assert isinstance(step, dict)
+        if set(step) != expected_keys:
+            errors.append(
+                f"{path}: common-version result step {name!r} must match its reviewed key profile"
+            )
+        run = step.get("run")
+        expected_digest = COMMON_VERSION_RESULT_RUN_SHA256[name]
+        if not isinstance(run, str) or publisher_body_digest(run) != expected_digest:
+            errors.append(
+                f"{path}: common-version result run body {name!r} must match the reviewed SHA-256"
+            )
+    return errors
+
+
+def common_version_result_job_setting_errors(
+    path: Path, result: dict[str, Any]
+) -> list[str]:
+    """Validate the static credential-free terminal-job profile."""
 
     errors: list[str] = []
     if set(result) != COMMON_VERSION_RESULT_JOB_KEYS:
@@ -2410,31 +2488,6 @@ def common_version_result_errors(path: Path, result: Any) -> list[str]:
         errors.append(
             f"{path}: common-version result job must not declare a GitHub token or secret"
         )
-
-    steps = result.get("steps")
-    if not isinstance(steps, list):
-        return [*errors, f"{path}: common-version result steps must be a list"]
-    expected_names = [name for name, _keys in COMMON_VERSION_RESULT_STEP_PROFILE]
-    actual_names = [
-        step.get("name") if isinstance(step, dict) else None for step in steps
-    ]
-    if actual_names != expected_names:
-        return [
-            *errors,
-            f"{path}: common-version result steps must match the reviewed order and count",
-        ]
-    for step, (name, expected_keys) in zip(steps, COMMON_VERSION_RESULT_STEP_PROFILE):
-        assert isinstance(step, dict)
-        if set(step) != expected_keys:
-            errors.append(
-                f"{path}: common-version result step {name!r} must match its reviewed key profile"
-            )
-        run = step.get("run")
-        expected_digest = COMMON_VERSION_RESULT_RUN_SHA256[name]
-        if not isinstance(run, str) or publisher_body_digest(run) != expected_digest:
-            errors.append(
-                f"{path}: common-version result run body {name!r} must match the reviewed SHA-256"
-            )
     return errors
 
 

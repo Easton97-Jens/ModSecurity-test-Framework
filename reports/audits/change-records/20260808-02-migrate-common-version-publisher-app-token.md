@@ -27,6 +27,13 @@ proved the skipped/no-update state or published an operator-facing summary.
 Both conditions required a source fix before this PR could be eligible for
 delivery.
 
+The first normal source push cleared those three recorded Sonar findings, but
+the fresh PR analysis reported two new open `python:S3776` findings in the
+same static security-contract checker. Although the Sonar Quality Gate stayed
+`OK`, that does not meet this task's zero-open-issue policy. The follow-up
+therefore decomposes only the affected validation functions into bounded
+helpers without changing their reviewed errors or fail-closed decisions.
+
 ## Affected components and security boundaries
 
 This Framework-only change covers the Common-version GitHub Actions publisher,
@@ -97,7 +104,10 @@ the Action does not return either output; every other state fails.
   check, and a credential-free terminal result job.
 - `ci/checks/security/check-ci-security-contract.py` defines an exact
   Common-version publisher/result profile and rejects native-token/permission/
-  scope, state, path, SHA, write-path, and terminal-state drift.
+  scope, state, path, SHA, write-path, and terminal-state drift. Its
+  publisher-step and result-job checks are decomposed into bounded helpers to
+  remediate the two current Sonar cognitive-complexity findings without
+  weakening the contract.
 - `ci/tools/check-common-versions.py` fails closed for `unknown` results and
   distinguishes deliberately non-updatable local-policy entries from unsafe
   upstream resolution failures.
@@ -129,6 +139,7 @@ the Action does not return either output; every other state fails.
 | `make check-github-actions-workflows` | 0 | Python-version, pin, and permission checks accepted every checked-in workflow. | Same task worktree |
 | `make check-documentation` | 0 | Links, bilingual parity, path references, and Change Record contract passed. | Same task worktree |
 | `make lint` | 0 | Full local lint and regression matrix passed, including the workflow-security and provenance suites. | Same task worktree |
+| SonarCloud PR #65 analysis at `0ba1e39d64baaa34cb9f2ae51b875609749f724e` | 0 | Quality Gate `OK` and no open hotspots, but two new OPEN `python:S3776` findings remained; this is the source of the current bounded follow-up, not zero-policy success. | [PR analysis](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=65) |
 | `<locked-tools>/actionlint -shellcheck=<locked-tools>/shellcheck` | 0 | All checked-in workflows and embedded shell blocks passed. | SHA-256-locked local tools |
 | `<locked-tools>/zizmor --offline .github` | 0 | No findings; 33 repository-configured suppressions were reported. | SHA-256-locked local tool |
 | `<locked-tools>/ruff check …` and `ruff format --check …` | 0 | Ruff lint and format checks accepted the relevant CI-security scope (20 files). | SHA-256-locked local tool |
@@ -170,9 +181,10 @@ to update either pin in this PR.
 
 The repository-local Node runtime required by the hash-locked Pyright package
 is unavailable (`node` and `nodejs` are absent), so Pyright is blocked rather
-than installed globally. Hosted Draft-PR checks and post-merge publisher
-evidence remain pending until normal delivery and a separately authorized
-merge. No unavailable or unrun check is presented as passed.
+than installed globally. The first pushed PR head completed its hosted checks,
+but its two open Sonar findings require this new source amendment; exact-head
+hosted/Sonar evidence for that amendment and post-merge publisher evidence
+remain pending. No unavailable or unrun check is presented as passed.
 
 ## Limitations and residual risk
 
@@ -193,8 +205,10 @@ The source-fix worktree is isolated on
 MRTS, or Gitlink change is authorized. The final source review includes a
 clean `git diff --check`, exact static publisher/result-profile checks, no
 native-token fallback, no `workflows` write request, no direct/force push, and
-no unreviewed App-token consumer. PR #65 already exists; its source amendment
-still requires a normal push, current-head hosted checks, and all required
+no unreviewed App-token consumer. PR #65 already exists; the first normal
+source push at `0ba1e39d64baaa34cb9f2ae51b875609749f724e` exposed the two new
+Sonar findings, so this bounded amendment still requires a normal push,
+current-head hosted checks, zero-open-issue Sonar evidence, and all required
 delivery gates before it can become ready for review. It must not be merged
 while the known post-merge resolver preflight cannot reach either permitted
 terminal outcome without a separate approved provenance decision.
