@@ -9,7 +9,7 @@
 | Change-ID | `20260808-03-fix-portable-apache-audit-fixture` |
 | UTC-Datum | 2026-08-08 |
 | Framework-Basisrevision | `da28e6da58fa8b1135d3631612a78e73ff98584b` |
-| Issue oder Pull Request | Zugehöriger Parent-Lauf `31258666144`, no-CRS-Job `93105942184`; Task-Branch `fix/apache-portable-audit-fixture`, Framework-Pull-Request ausstehend. |
+| Issue oder Pull Request | Zugehöriger Parent-Lauf `31258666144`, no-CRS-Job `93105942184`; Framework-Draft-PR [#66](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/66) auf `fix/apache-portable-audit-fixture`. |
 
 ## Motivation und Problemstellung
 
@@ -31,6 +31,12 @@ Host erzeugten Audit-Artefakt. Das Parent-Apache-Harness besitzt die
 tatsächliche Pfadvorbereitung, den Apache-Start, die reale HTTP-Transaktion und
 das Cleanup. Parent-Source, Parent-Gitlinks, MRTS, APR-util-Provenance,
 CRS-Materialisierung und NGINX-Privilege-Handling werden hier nicht geändert.
+
+Der Framework-Workflow für die gemeinsame Strukturprüfung ist ein separater
+statischer Materialisierungs-Consumer. Er muss das frische, nur dem Owner
+zugängliche Audit-Verzeichnis vor dem fail-closed Renderer vorbereiten; er
+erzeugt weder eine reale Servertransaktion noch ersetzt er die Runtime-
+Evidence-Grenze.
 
 ## Akzeptanzkriterien
 
@@ -78,6 +84,12 @@ erfüllen; eine schon vorhandene Auditdatei wird vor Serverstart als stale
 Evidence abgelehnt. Der Runner ersetzt ausschließlich Platzhalter. Er erzeugt,
 kopiert oder markiert keine Auditdatei als bestanden.
 
+Der gemeinsame Struktur-Workflow erstellt und beschränkt nun vor der
+Materialisierung das pro Fall verwendete Audit-Verzeichnis auf den Owner. Dieses
+enge Test-Setup erhält die vorhandene Verzeichnis-Vorbedingung und erzeugt
+weder eine Auditdatei noch lockert es die Pfadvalidierung oder erklärt den
+anschließenden strukturellen Fixture-Check zu Runtime-Evidence.
+
 ## Geänderte Dateien und Tests
 
 - `tests/cases/phases/phase1/action_status_401_phase1_block.yaml` ergänzt nur
@@ -90,6 +102,13 @@ kopiert oder markiert keine Auditdatei als bestanden.
   Request-/Rule-/Nachrichten-/Transaktions-, Missing-File- und
   Wrong-Status-Negativfälle ab.
 - `docs/catalog-and-cases.md` und `.de.md` beschreiben die portable Grenze.
+- `.github/workflows/test-common.yml` bereitet vor der Materialisierung
+  gemeinsamer Fälle ein frisches Owner-only-Audit-Verzeichnis vor.
+- `tests/workflow_contract/test_common_structure_workflow.py` prüft diese
+  Verzeichnisvorbereitung und ihre Reihenfolge vor der Materialisierung.
+- `tests/security_regression/test_ci_root_bootstrap_hardening.py` stellt seiner
+  direkten legitimen Materialisierungs-Kontrolle dasselbe private Verzeichnis
+  bereit.
 
 ## Befehle und Ergebnisse
 
@@ -97,6 +116,7 @@ kopiert oder markiert keine Auditdatei als bestanden.
 | --- | ---: | --- | --- |
 | `python3 -B -m unittest -v tests.security_regression.test_portable_audit_fixture_contract` | 0 | Neun fokussierte positive und negative Fixture-/Materialisierungs-/Assertion-Tests bestanden mit dem lokalen Diagnoseinterpreter. | Task-eigener Framework-Worktree |
 | `make lint` mit task-eigenen `BUILD_ROOT`, `TMP_ROOT` und `PYTHONPYCACHEPREFIX` | 0 | Shell-Syntax, Python-Kompilierung, 137 CI-Security-Tests, Provenance-Verträge, Workflow-/YAML-Checks, Dokumentation, Record-Vertrag und Whitespace-Checks bestanden. | Task-eigener Framework-Worktree |
+| `python3 -B -m unittest -v tests.workflow_contract.test_common_structure_workflow tests.security_regression.test_ci_root_bootstrap_hardening` | 0 nach Folgeänderung | Der zuvor reproduzierte Fehler eines fehlenden Audit-Verzeichnisses besitzt nun ein Owner-only-Setup; Workflow-Vertrag und direkte Materialisierungs-Kontrolle bestehen. | Task-eigener Framework-Worktree |
 
 ## Sicherheitsauswirkung
 
@@ -110,19 +130,24 @@ fail-closed fehl. Diese Änderung behauptet nicht, dass ein lokaler
 synthetischer Test ein hosterzeugter Audit-Record ist; exakte Hosted-
 Runtime-Evidence bleibt vor dem Merge erforderlich.
 
+Der anfängliche exakte PR-#66-Head-Run von `test-common` zeigte die fehlende
+Verzeichnisvorbedingung unter Hosted-CPython 3.14.6. Die Folgeänderungen
+behalten die Ablehnung eines fehlenden oder unsicheren Verzeichnisses durch den
+Renderer bei und unterliegen einer frischen Hosted-Validierung für den exakten
+Head.
+
 ## Dokumentation und Runtime-Evidenz
 
 Das englisch/deutsche Katalogpaar dokumentiert nun Required-Audit-
 Konfiguration, private Pfadmaterialisierung, Stale-Datei-Ablehnung und die
 Host-Verantwortung für reale Audit-Erzeugung und Cleanup. Der aufbewahrte
 Parent-Lauf `31258666144` beobachtet nur das Fehlerbild vor dem Fix – HTTP 401
-und fehlende Auditdatei – und ist keine Evidence für diese uneingereichte
-Framework-Änderung.
+und fehlende Auditdatei – und ist keine Evidence für diesen Framework-PR.
 
 ## Nicht ausgeführte Prüfungen
 
-- Repository-erforderliche CPython-3.14.6-Prüfungen sind ausstehend; lokal
-  läuft Python 3.14.4.
+- Eine frische Repository-erforderliche CPython-3.14.6-Validierung für den
+  Folge-Head des PR ist ausstehend; lokal läuft Python 3.14.4.
 - Apache-Konfigurationsprüfung und eine reale Apache-401-/Audit-Transaktion
   sind als exakte Hosted- oder kontrollierte Host-Validierung ausstehend.
 - Sonar, Review, Branch Protection, Framework-Merge,
@@ -139,9 +164,7 @@ der Host nach Erfolgs- und Fehlerpfaden aufräumt.
 
 ## Finaler Diff- und Review-Status
 
-Beim Verfassen besitzt dieser task-eigene Framework-Worktree einen unstaged,
-fokussierten Diff; `git diff --check` bestand und es wurde kein
-Secret-haltiges Material ergänzt. Er ist weder committet, gepusht noch
-eingereicht. Dieser Record behauptet keine Framework-PR-Nummer, kein
-Branch-Protection-Ergebnis, keine Freigabe, kein Sonar-Ergebnis, keinen Merge,
-kein Parent-Gitlink-Update und kein Parent-PR-Ergebnis.
+Dieser Record dokumentiert Framework-Draft-PR #66 und nur dessen begrenzte
+Folgevalidierung. Er behauptet keinen vollständigen grünen Check-Satz, keine
+Freigabe, kein Sonar-Ergebnis, keinen Merge, kein Parent-Gitlink-Update und
+kein Parent-PR-Ergebnis.

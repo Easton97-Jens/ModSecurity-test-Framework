@@ -9,7 +9,7 @@
 | Change ID | `20260808-03-fix-portable-apache-audit-fixture` |
 | UTC date | 2026-08-08 |
 | Framework base revision | `da28e6da58fa8b1135d3631612a78e73ff98584b` |
-| Issue or pull request | Related Parent run `31258666144`, no-CRS job `93105942184`; task branch `fix/apache-portable-audit-fixture`, with Framework pull request pending. |
+| Issue or pull request | Related Parent run `31258666144`, no-CRS job `93105942184`; Framework Draft PR [#66](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/66) on `fix/apache-portable-audit-fixture`. |
 
 ## Motivation and problem statement
 
@@ -29,6 +29,11 @@ private-audit-path-to-host-created-audit-artifact path. The Parent Apache
 harness owns actual path preparation, Apache startup, the real HTTP transaction,
 and cleanup. Parent source, Parent Gitlinks, MRTS, APR-util provenance, CRS
 materialization, and NGINX privilege handling are not changed here.
+
+The Framework common-structure workflow is a separate static materialization
+consumer. It must prepare the fresh, owner-only audit directory before calling
+the fail-closed renderer; it does not produce a real server transaction or
+replace the runtime evidence boundary.
 
 ## Acceptance criteria
 
@@ -70,6 +75,12 @@ ownership rule; a pre-existing audit file is rejected before server startup as
 stale evidence. The runner replaces placeholders only. It never creates,
 copies, or marks an audit file as passing.
 
+The common-structure workflow now creates and owner-restricts the per-case
+audit directory before materialization. That narrow test setup preserves the
+existing directory precondition and does not create an audit file, relax path
+validation, or turn the subsequent structural fixture check into runtime
+evidence.
+
 ## Changed files and tests
 
 - `tests/cases/phases/phase1/action_status_401_phase1_block.yaml` adds only
@@ -81,6 +92,12 @@ copies, or marks an audit file as passing.
   group-writable-directory, wrong-request/rule/message/transaction,
   missing-file, and wrong-status negatives.
 - `docs/catalog-and-cases.md` and `.de.md` describe the portable boundary.
+- `.github/workflows/test-common.yml` prepares a fresh owner-only audit
+  directory before common-case materialization.
+- `tests/workflow_contract/test_common_structure_workflow.py` verifies that
+  directory preparation and its ordering before materialization.
+- `tests/security_regression/test_ci_root_bootstrap_hardening.py` supplies the
+  same legitimate private directory to its direct materialization control.
 
 ## Commands and results
 
@@ -88,6 +105,7 @@ copies, or marks an audit file as passing.
 | --- | ---: | --- | --- |
 | `python3 -B -m unittest -v tests.security_regression.test_portable_audit_fixture_contract` | 0 | Nine focused positive and negative fixture/materialization/assertion tests passed using the local diagnostic interpreter. | Task-owned Framework worktree |
 | `make lint` with task-owned `BUILD_ROOT`, `TMP_ROOT`, and `PYTHONPYCACHEPREFIX` | 0 | Shell syntax, Python compilation, 137 CI-security tests, provenance contracts, workflow/YAML checks, documentation, record contract, and whitespace checks passed. | Task-owned Framework worktree |
+| `python3 -B -m unittest -v tests.workflow_contract.test_common_structure_workflow tests.security_regression.test_ci_root_bootstrap_hardening` | 0 after follow-up | The previously reproduced absent-audit-directory failure now has an owner-only setup and both the workflow contract and direct materialization control pass. | Task-owned Framework worktree |
 
 ## Security impact
 
@@ -99,18 +117,23 @@ path/rule/message/transaction/status controls fail closed. This
 change does not claim that a local synthetic test is a host-generated audit
 record; exact-head hosted runtime evidence remains required before merge.
 
+The initial exact-head PR #66 `test-common` run exposed the absent-directory
+test-setup mismatch under hosted CPython 3.14.6. The follow-up changes retain
+the renderer's refusal of a nonexistent or unsafe directory and are subject to
+a fresh exact-head hosted validation cycle.
+
 ## Documentation and runtime evidence
 
 The English/German catalog pair now documents required-audit configuration,
 private path materialization, stale-file refusal, and host ownership of real
 audit creation and cleanup. The retained Parent run `31258666144` observes the
 pre-fix HTTP 401 and missing audit file only; it is not evidence for this
-unsubmitted Framework change.
+Framework PR.
 
 ## Checks not run
 
-- Repository-required CPython 3.14.6 checks are pending; the local interpreter
-  is Python 3.14.4.
+- A fresh repository-required CPython 3.14.6 validation cycle for the
+  follow-up PR head is pending; the local interpreter is Python 3.14.4.
 - Apache configuration and a real Apache 401/audit transaction are pending
   exact-head hosted or controlled host validation.
 - Sonar, review, branch protection, Framework merge, Parent
@@ -126,8 +149,6 @@ root and that the host cleaned up after both success and failure paths.
 
 ## Final diff and review status
 
-At authoring this task-owned Framework worktree has an unstaged focused diff;
-`git diff --check` passed and no secret-bearing material was added. It has not
-been committed, pushed, or submitted. No Framework pull request number,
-branch-protection result, approval, Sonar result, merge, Parent gitlink update,
-or Parent PR result is asserted by this record.
+This record documents Framework Draft PR #66 and its bounded follow-up
+validation only. It does not assert a passing final check set, approval, Sonar
+result, merge, Parent gitlink update, or Parent PR result.
