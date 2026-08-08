@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 from copy import deepcopy
 import importlib.util
+import io
 import os
 from pathlib import Path
 import shutil
@@ -312,6 +314,51 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         candidate["lock_sha256"] = "0" * 64
         with self.assertRaisesRegex(UPDATER.UpdateError, "current trusted lock"):
             UPDATER.validate_candidate_shape(candidate, lock, digest)
+
+    def test_candidate_identity_digest_and_required_update_gate_are_fail_closed(
+        self,
+    ) -> None:
+        candidate = self.candidate_for(ROOT, {})
+        digest = UPDATER.candidate_sha256(candidate)
+
+        self.assertEqual(digest, UPDATER.candidate_sha256(deepcopy(candidate)))
+        UPDATER.require_candidate_sha256(candidate, digest)
+        UPDATER.require_candidate_sha256(candidate, None)
+        with self.assertRaisesRegex(UPDATER.UpdateError, "lowercase digest"):
+            UPDATER.require_candidate_sha256(candidate, digest.upper())
+        with self.assertRaisesRegex(
+            UPDATER.UpdateError, "does not match the resolver result"
+        ):
+            UPDATER.require_candidate_sha256(candidate, "0" * 64)
+
+        empty_changes = {"actions": {}, "tools": {}}
+        UPDATER.require_candidate_updates(empty_changes, False)
+        with self.assertRaisesRegex(UPDATER.UpdateError, "must contain"):
+            UPDATER.require_candidate_updates(empty_changes, True)
+        UPDATER.require_candidate_updates(
+            {"actions": {"actions/checkout": {}}, "tools": {}}, True
+        )
+
+    def test_resolve_github_output_binds_payload_digest_and_update_state(self) -> None:
+        candidate = self.candidate_for(ROOT, {})
+        output = io.StringIO()
+        args = UPDATER.argparse.Namespace(root=ROOT, github_output=True)
+
+        with (
+            patch.object(UPDATER, "resolve_candidate", return_value=candidate),
+            contextlib.redirect_stdout(output),
+        ):
+            UPDATER.run_resolve_command(args)
+
+        values = dict(
+            line.split("=", 1)
+            for line in output.getvalue().splitlines()
+            if "=" in line
+        )
+        self.assertEqual(values["resolver_status"], "resolved")
+        self.assertEqual(values["candidate_b64"], UPDATER.candidate_b64(candidate))
+        self.assertEqual(values["candidate_sha256"], UPDATER.candidate_sha256(candidate))
+        self.assertEqual(values["has_updates"], "false")
 
     def test_apply_changes_only_lock_pins_and_paired_documentation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -730,7 +777,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 )
             self.assertEqual(list(runner_temp.iterdir()), [])
 
-    def test_publisher_workflow_keeps_resolver_validator_and_publisher_separate(
+    def test_publisher_workflow_keeps_resolver_validator_publisher_and_outcome_separate(
         self,
     ) -> None:
         workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
@@ -739,6 +786,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self.assertIn("resolver:", workflow)
         self.assertIn("validator:", workflow)
         self.assertIn("publisher:", workflow)
+        self.assertIn("outcome:", workflow)
         self.assertIn("actions/create-github-app-token@", workflow)
         self.assertIn("client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}", workflow)
         self.assertIn(
@@ -749,6 +797,11 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self.assertIn("permission-workflows: write", workflow)
         self.assertIn("${{ steps.publisher_app_token.outputs.token }}", workflow)
         self.assertNotIn("${{ github.token }}", workflow)
+        self.assertIn("Verify workflow publisher GitHub App configuration", workflow)
+        self.assertIn("resolver_status", workflow)
+        self.assertIn("candidate_sha256", workflow)
+        self.assertIn("--expected-candidate-sha256", workflow)
+        self.assertIn("--require-updates", workflow)
         self.assertIn("--verify-tool-assets", workflow)
         self.assertIn("--validate-proposed-tree", workflow)
         self.assertIn("framework-workflow-tool-publisher-validation", workflow)
@@ -759,6 +812,10 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
             workflow,
         )
+        self.assertIn("if: ${{ always() }}", workflow)
+        self.assertIn("permissions: {}", workflow)
+        self.assertIn("No reviewed workflow or tool updates are currently available.", workflow)
+        self.assertNotIn("|| true", workflow)
         self.assertNotIn("--force", workflow)
         self.assertNotIn("pull_request_target", workflow)
 

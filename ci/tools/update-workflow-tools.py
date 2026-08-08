@@ -702,6 +702,32 @@ def candidate_b64(candidate: dict[str, Any]) -> str:
     )
 
 
+def candidate_sha256(candidate: dict[str, Any]) -> str:
+    """Return the immutable identity digest for one canonical candidate."""
+
+    return hashlib.sha256(canonical_candidate(candidate).encode("utf-8")).hexdigest()
+
+
+def require_candidate_sha256(candidate: dict[str, Any], expected: str | None) -> None:
+    """Bind a consumer to the exact resolver candidate when one is supplied."""
+
+    if expected is None:
+        return
+    if not isinstance(expected, str) or not SHA256.fullmatch(expected):
+        raise UpdateError("expected candidate SHA-256 must be a lowercase digest")
+    if candidate_sha256(candidate) != expected:
+        raise UpdateError("candidate SHA-256 does not match the resolver result")
+
+
+def require_candidate_updates(
+    changes: dict[str, dict[str, dict[str, Any]]], required: bool
+) -> None:
+    """Reject an empty candidate when a publisher has entered the update path."""
+
+    if required and not (changes["actions"] or changes["tools"]):
+        raise UpdateError("publisher candidate must contain a reviewed update")
+
+
 def decode_candidate(value: str) -> dict[str, Any]:
     try:
         decoded = base64.b64decode(value, validate=True).decode("utf-8")
@@ -1556,6 +1582,8 @@ def parse_args() -> argparse.Namespace:
     candidate.add_argument("--candidate-b64")
     validate.add_argument("--verify-tool-assets", action="store_true")
     validate.add_argument("--output-dir", type=Path)
+    validate.add_argument("--expected-candidate-sha256")
+    validate.add_argument("--require-updates", action="store_true")
     validate.add_argument(
         "--validate-proposed-tree",
         action="store_true",
@@ -1569,6 +1597,8 @@ def parse_args() -> argparse.Namespace:
     candidate = apply.add_mutually_exclusive_group(required=True)
     candidate.add_argument("--candidate", type=Path)
     candidate.add_argument("--candidate-b64")
+    apply.add_argument("--expected-candidate-sha256")
+    apply.add_argument("--require-updates", action="store_true")
 
     scope = subparsers.add_parser(
         "verify-scope", help="fail if a publisher diff escapes the allowlist"
@@ -1591,7 +1621,9 @@ def parse_args() -> argparse.Namespace:
 def run_resolve_command(args: argparse.Namespace) -> None:
     candidate = resolve_candidate(resolve_root(args.root))
     if args.github_output:
+        print("resolver_status=resolved")
         print(f"candidate_b64={candidate_b64(candidate)}")
+        print(f"candidate_sha256={candidate_sha256(candidate)}")
         print(
             f"has_updates={'true' if candidate['actions'] or candidate['tools'] else 'false'}"
         )
@@ -1605,7 +1637,9 @@ def run_validate_command(args: argparse.Namespace) -> int:
     _lock_path, lock, lock_digest = load_lock(root)
     ensure_locked_action_workflow_coverage(root, lock)
     candidate = candidate_from_arguments(args)
+    require_candidate_sha256(candidate, getattr(args, "expected_candidate_sha256", None))
     changes = validate_candidate_shape(candidate, lock, lock_digest)
+    require_candidate_updates(changes, getattr(args, "require_updates", False))
     if args.verify_tool_assets:
         if args.output_dir is None:
             raise UpdateError("--verify-tool-assets requires --output-dir")
@@ -1617,7 +1651,12 @@ def run_validate_command(args: argparse.Namespace) -> int:
 
 
 def run_apply_command(args: argparse.Namespace) -> int:
-    changed = apply_candidate(args.root, candidate_from_arguments(args))
+    candidate = candidate_from_arguments(args)
+    require_candidate_sha256(candidate, getattr(args, "expected_candidate_sha256", None))
+    _lock_path, lock, lock_digest = load_lock(resolve_root(args.root))
+    changes = validate_candidate_shape(candidate, lock, lock_digest)
+    require_candidate_updates(changes, getattr(args, "require_updates", False))
+    changed = apply_candidate(args.root, candidate)
     print("\n".join(changed))
     return 0
 

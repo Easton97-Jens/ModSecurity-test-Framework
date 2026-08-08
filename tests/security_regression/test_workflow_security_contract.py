@@ -76,6 +76,42 @@ jobs:
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("immutable full SHA", result.stderr)
 
+    def test_validator_allows_only_an_explicit_empty_permissions_mapping(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_root:
+            workflow_root = Path(temporary_root)
+            workflow = workflow_root / "outcome.yml"
+            workflow.write_text(
+                """\
+name: terminal outcome
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  outcome:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - run: true
+""",
+                encoding="utf-8",
+            )
+            result = self.run_checker(
+                workflow_root, working_directory=workflow_root
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            workflow.write_text(
+                workflow.read_text(encoding="utf-8").replace(
+                    "permissions: {}", "permissions: {contents: read}"
+                ),
+                encoding="utf-8",
+            )
+            result = self.run_checker(
+                workflow_root, check="pins", working_directory=workflow_root
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("flow-style YAML collections", result.stderr)
+
     def test_validator_rejects_workflow_roots_outside_the_repository(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_root:
             workflow = Path(temporary_root) / "workflow.yml"

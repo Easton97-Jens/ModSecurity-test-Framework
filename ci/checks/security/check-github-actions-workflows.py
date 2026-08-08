@@ -29,6 +29,9 @@ USES_LINE_RE = re.compile(
     r"(?P<comment>\s+#.*)?\s*$"
 )
 FLOW_COLLECTION_RE = re.compile(r"(?:^|[:\-,\[]\s*)[\[{]")
+EMPTY_PERMISSIONS_MAPPING_RE = re.compile(
+    r"^\s*permissions\s*:\s*\{\s*\}\s*(?:#.*)?$"
+)
 EXPLICIT_MAPPING_KEY_RE = re.compile(r"^\s*(?:-\s*)?\?")
 ADVANCED_YAML_NODE_RE = re.compile(r"^\s*(?:-\s*)?(?:!|&|\*|<<\s*:)")
 YAML_DOCUMENT_MARKER_RE = re.compile(r"^\s*(?:---|\.\.\.)(?:\s|$)")
@@ -292,6 +295,11 @@ def source_uses(path: Path) -> tuple[list[tuple[int, str, str | None]], list[str
             action_uses.append(entry)
             continue
         if block_scalar_indent is not None:
+            continue
+        # GitHub Actions uses this exact spelling to deny every job permission.
+        # It is the sole safe flow-style mapping exception; all nonempty flow
+        # collections remain prohibited so action references stay reviewable.
+        if EMPTY_PERMISSIONS_MAPPING_RE.match(line) is not None:
             continue
         if FLOW_COLLECTION_RE.search(line) is not None:
             errors.append(

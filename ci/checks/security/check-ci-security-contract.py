@@ -61,6 +61,31 @@ STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST = (
 STEP_MINT_WORKFLOW_PUBLISHER_APP_TOKEN = (
     "Mint repository-limited workflow publisher App token"
 )
+STEP_VERIFY_WORKFLOW_PUBLISHER_APP_CONFIGURATION = (
+    "Verify workflow publisher GitHub App configuration"
+)
+STEP_REPORT_WORKFLOW_TOOL_OUTCOME = "Report explicit workflow-tool maintenance outcome"
+STEP_VERIFY_PYTHON_PUBLISHER_APP_CONFIGURATION = (
+    "Verify CPython publisher GitHub App configuration"
+)
+STEP_MINT_PYTHON_PUBLISHER_APP_TOKEN = (
+    "Mint repository-limited CPython publisher App token"
+)
+STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST = (
+    "Inspect matching CPython Draft maintenance pull request"
+)
+STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH = (
+    "Prepare the constrained CPython maintenance branch"
+)
+STEP_REVALIDATE_PYTHON_DRAFT_BRANCH = (
+    "Revalidate the reusable CPython Draft branch before modifying it"
+)
+STEP_APPLY_PYTHON_CANDIDATE = "Independently revalidate and apply the candidate"
+STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY = "Build Draft pull request body"
+STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST = (
+    "Create or update Draft pull request"
+)
+STEP_REPORT_PYTHON_OUTCOME = "Report explicit CPython maintenance outcome"
 STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH = (
     "Prepare the constrained maintenance branch"
 )
@@ -78,6 +103,7 @@ STEP_KEYS_ENV_RUN = frozenset({"env", "name", "run"})
 STEP_KEYS_SCRIPT = frozenset({"id", "name", "uses", "with"})
 STEP_KEYS_ENV_ID_RUN = frozenset({"env", "id", "name", "run"})
 STEP_KEYS_CONDITIONAL_SCRIPT = frozenset({"if", "name", "uses", "with"})
+STEP_KEYS_CONDITIONAL_ENV_RUN = frozenset({"env", "if", "name", "run"})
 COMMON_RECORD_FIELDS = {
     "name",
     "version",
@@ -158,7 +184,8 @@ GITHUB_RELEASE_ASSET_URL = re.compile(
 )
 UPDATER_READ_ONLY_PERMISSIONS = {"contents": "read"}
 UPDATER_PUBLISHER_PERMISSIONS = {"contents": "read"}
-UPDATER_JOB_NAMES = frozenset({"resolver", "validator", "publisher"})
+UPDATER_OUTCOME_PERMISSIONS: dict[str, str] = {}
+UPDATER_JOB_NAMES = frozenset({"resolver", "validator", "publisher", "outcome"})
 DEFAULT_BRANCH_REF_CONDITION = (
     "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)"
 )
@@ -201,6 +228,7 @@ UPDATER_PUBLISHER_STEP_PROFILE = (
     (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, STEP_KEYS_ACTION),
     (STEP_SETUP_REVIEWED_PYTHON, STEP_KEYS_ACTION),
     (STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY, STEP_KEYS_RUN),
+    (STEP_VERIFY_WORKFLOW_PUBLISHER_APP_CONFIGURATION, STEP_KEYS_ENV_RUN),
     (STEP_MINT_WORKFLOW_PUBLISHER_APP_TOKEN, STEP_KEYS_SCRIPT),
     (
         STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST,
@@ -211,7 +239,7 @@ UPDATER_PUBLISHER_STEP_PROFILE = (
         STEP_KEYS_ENV_RUN,
     ),
     (STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH, STEP_KEYS_ENV_RUN),
-    (STEP_RERESOLVE_CURRENT_CANDIDATES, STEP_KEYS_RUN),
+    (STEP_RERESOLVE_CURRENT_CANDIDATES, STEP_KEYS_ENV_RUN),
     (STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS, STEP_KEYS_ENV_ID_RUN),
     (
         STEP_CREATE_DRAFT_PULL_REQUEST,
@@ -255,6 +283,10 @@ UPDATER_PUBLISHER_WITH_KEYS = {
     STEP_CREATE_DRAFT_PULL_REQUEST: frozenset({"github-token", "script"}),
 }
 UPDATER_PUBLISHER_ENV_VALUES = {
+    STEP_VERIFY_WORKFLOW_PUBLISHER_APP_CONFIGURATION: {
+        "WORKFLOW_UPDATER_APP_CLIENT_ID": WORKFLOW_UPDATER_APP_CLIENT_ID_EXPRESSION,
+        "WORKFLOW_UPDATER_APP_PRIVATE_KEY": WORKFLOW_UPDATER_APP_PRIVATE_KEY_EXPRESSION,
+    },
     STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH: {
         UPDATER_DEFAULT_BRANCH_ENV: DEFAULT_BRANCH_EXPRESSION,
         "MAINTENANCE_PR_EXISTS": "${{ steps.maintenance_pr.outputs.existing }}",
@@ -262,6 +294,10 @@ UPDATER_PUBLISHER_ENV_VALUES = {
     },
     STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH: {
         UPDATER_DEFAULT_BRANCH_ENV: DEFAULT_BRANCH_EXPRESSION,
+    },
+    STEP_RERESOLVE_CURRENT_CANDIDATES: {
+        "CANDIDATE_B64": "${{ needs.resolver.outputs.candidate_b64 }}",
+        "CANDIDATE_SHA256": "${{ needs.resolver.outputs.candidate_sha256 }}",
     },
     STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: {
         UPDATER_PUBLISH_TOKEN_ENV: WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION,
@@ -278,15 +314,151 @@ UPDATER_PUBLISHER_FIELD_VALUES = {
 }
 UPDATER_PUBLISHER_RUN_SHA256 = {
     STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
-    STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH: "57f9f21447a89e45b6ae8199afe6f92837d81b1acb31a2a963c9fcbafe29c3f2",
+    STEP_VERIFY_WORKFLOW_PUBLISHER_APP_CONFIGURATION: "c01127376f95819c3abb8f99815aa9877ed4c5fd6ab248f0968feb458bdec033",
+    STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH: "f2ac933375a5809a264b99461a0df96292e8bcf474a6c1bf390be8931c9a9474",
     STEP_REVALIDATE_REUSABLE_DRAFT_BRANCH: "e87da1dc670eb4fcd0bad20fcb11f93e46eb2774679c886b9e129cb383d78047",
-    STEP_RERESOLVE_CURRENT_CANDIDATES: "bd0d48ff34d281197af63c9e72be64a719ecd48689c2edf6fbf7fbd4a5f6a278",
-    STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: "e4de02a954e32828306355776368f6cfe08645a370f2edbc575cc69e6f6def7d",
+    STEP_RERESOLVE_CURRENT_CANDIDATES: "dde36fd8ab4cf1864a6cd030ea2a3135ed31e9d96c453922cf05fb35bdabc727",
+    STEP_COMMIT_AND_PUSH_APPROVED_UPDATER_PATHS: "8ca5545a4dfe2efa86f8dcf26bbdb257dd6fe5b86598aa9d83e2b0812d286158",
 }
 UPDATER_PUBLISHER_SCRIPT_SHA256 = {
     STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: "3d51794a9c57865efd999657eb78214383cf3c81f7575498eebb1ef9dcbf4699",
     STEP_CREATE_DRAFT_PULL_REQUEST: "83d13cd70cdb643a924d7a79abc1d52bb58f9e2979d5b1e925c7595446fe806c",
 }
+UPDATER_OUTCOME_JOB_KEYS = frozenset(
+    {"needs", "if", "runs-on", "timeout-minutes", "permissions", "env", "steps"}
+)
+UPDATER_OUTCOME_ENV_VALUES = {
+    "RESOLVER_RESULT": "${{ needs.resolver.result }}",
+    "VALIDATOR_RESULT": "${{ needs.validator.result }}",
+    "PUBLISHER_RESULT": "${{ needs.publisher.result }}",
+    "RESOLVER_STATUS": "${{ needs.resolver.outputs.resolver_status }}",
+    "HAS_UPDATES": "${{ needs.resolver.outputs.has_updates }}",
+    "CANDIDATE_B64": "${{ needs.resolver.outputs.candidate_b64 }}",
+    "CANDIDATE_SHA256": "${{ needs.resolver.outputs.candidate_sha256 }}",
+}
+UPDATER_OUTCOME_RUN_SHA256 = (
+    "e60c38e06b2bde55e19a6ea1cc62667863093b3b0c31edbe9e98d71cb62c1012"
+)
+PYTHON_PUBLISHER_PERMISSIONS = {"contents": "read"}
+PYTHON_OUTCOME_PERMISSIONS: dict[str, str] = {}
+PYTHON_JOB_NAMES = frozenset({"resolve", "candidate-validate", "publish", "outcome"})
+PYTHON_PUBLISHER_JOB_KEYS = frozenset(
+    {"needs", "if", "runs-on", "timeout-minutes", "permissions", "env", "steps"}
+)
+PYTHON_PUBLISHER_ENV_VALUES = {
+    "CANDIDATE": "${{ needs.resolve.outputs.candidate }}",
+}
+PYTHON_PUBLISHER_STEP_PROFILE = (
+    ("Checkout repository", STEP_KEYS_ACTION),
+    (STEP_SETUP_REVIEWED_PYTHON, STEP_KEYS_ACTION),
+    (STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY, STEP_KEYS_RUN),
+    (STEP_VERIFY_PYTHON_PUBLISHER_APP_CONFIGURATION, STEP_KEYS_ENV_RUN),
+    (STEP_MINT_PYTHON_PUBLISHER_APP_TOKEN, STEP_KEYS_SCRIPT),
+    (STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST, STEP_KEYS_SCRIPT),
+    (STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH, STEP_KEYS_ENV_RUN),
+    (STEP_REVALIDATE_PYTHON_DRAFT_BRANCH, STEP_KEYS_CONDITIONAL_ENV_RUN),
+    (STEP_APPLY_PYTHON_CANDIDATE, STEP_KEYS_ENV_RUN),
+    (STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY, STEP_KEYS_RUN),
+    (STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST, STEP_KEYS_ACTION),
+)
+PYTHON_PUBLISHER_ACTIONS = {
+    "Checkout repository": "actions/checkout",
+    STEP_SETUP_REVIEWED_PYTHON: SETUP_PYTHON_ACTION,
+    STEP_MINT_PYTHON_PUBLISHER_APP_TOKEN: WORKFLOW_UPDATER_APP_TOKEN_ACTION,
+    STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST: "actions/github-script",
+    STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST: "peter-evans/create-pull-request",
+}
+PYTHON_PUBLISHER_WITH_VALUES = {
+    "Checkout repository": {
+        "ref": "${{ github.sha }}",
+        "fetch-depth": 1,
+        "persist-credentials": False,
+        "submodules": False,
+    },
+    STEP_SETUP_REVIEWED_PYTHON: {
+        "python-version-file": CANONICAL_PYTHON_VERSION_FILE,
+        "check-latest": False,
+    },
+    STEP_MINT_PYTHON_PUBLISHER_APP_TOKEN: {
+        "client-id": WORKFLOW_UPDATER_APP_CLIENT_ID_EXPRESSION,
+        "private-key": WORKFLOW_UPDATER_APP_PRIVATE_KEY_EXPRESSION,
+        "owner": GITHUB_REPOSITORY_OWNER_EXPRESSION,
+        "repositories": GITHUB_REPOSITORY_EXPRESSION,
+        "permission-contents": "write",
+        "permission-pull-requests": "write",
+    },
+    STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST: {
+        "token": WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION,
+        "commit-message": "chore: update reviewed CPython 3.14",
+        "title": "chore: update reviewed CPython 3.14",
+        "body-path": PYTHON_VERSION_PR_BODY_FILE,
+        "branch": "automation/update-framework-python-314",
+        "delete-branch": False,
+        "draft": True,
+        "add-paths": f"{CANONICAL_PYTHON_VERSION_FILE}\n",
+    },
+}
+PYTHON_PUBLISHER_WITH_KEYS = {
+    **{
+        name: frozenset(values)
+        for name, values in PYTHON_PUBLISHER_WITH_VALUES.items()
+    },
+    STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST: frozenset(
+        {"github-token", "script"}
+    ),
+}
+PYTHON_PUBLISHER_STEP_ENV_VALUES = {
+    STEP_VERIFY_PYTHON_PUBLISHER_APP_CONFIGURATION: {
+        "WORKFLOW_UPDATER_APP_CLIENT_ID": WORKFLOW_UPDATER_APP_CLIENT_ID_EXPRESSION,
+        "WORKFLOW_UPDATER_APP_PRIVATE_KEY": WORKFLOW_UPDATER_APP_PRIVATE_KEY_EXPRESSION,
+    },
+    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: {
+        "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
+        "MAINTENANCE_PR_EXISTS": "${{ steps.maintenance_pr.outputs.existing }}",
+        UPDATER_PUBLISH_TOKEN_ENV: WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION,
+    },
+    STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: {
+        "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
+    },
+    STEP_APPLY_PYTHON_CANDIDATE: {
+        "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
+    },
+}
+PYTHON_PUBLISHER_FIELD_VALUES = {
+    STEP_MINT_PYTHON_PUBLISHER_APP_TOKEN: {"id": "publisher_app_token"},
+    STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST: {"id": "maintenance_pr"},
+    STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: {
+        "if": "steps.maintenance_pr.outputs.existing == 'true'",
+    },
+}
+PYTHON_PUBLISHER_RUN_SHA256 = {
+    STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
+    STEP_VERIFY_PYTHON_PUBLISHER_APP_CONFIGURATION: "c01127376f95819c3abb8f99815aa9877ed4c5fd6ab248f0968feb458bdec033",
+    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "9522f8355efc316b33f40b0a463277da726aa17c94f005b74668fb65b5f6cd9b",
+    STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: "6f18681cce504e91519c59b8f443f296f6f6761a45292e60062b714451a8fe4c",
+    STEP_APPLY_PYTHON_CANDIDATE: "4a60b0c705c41d62bc8d16b3f663a6f862a8ffb37f9e9bd35ceb3c8896b0fa8e",
+    STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY: "8a00f20abc0833931fa04b2723b739e5c27285eecf5955b25566d0a597929d37",
+}
+PYTHON_PUBLISHER_SCRIPT_SHA256 = {
+    STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST: (
+        "18cdf3715900c5a7c72eba2ca22afb4e75bfe6365a708f4f63251825f3e0e5d7"
+    ),
+}
+PYTHON_OUTCOME_JOB_KEYS = frozenset(
+    {"needs", "if", "runs-on", "timeout-minutes", "permissions", "env", "steps"}
+)
+PYTHON_OUTCOME_ENV_VALUES = {
+    "RESOLVER_RESULT": "${{ needs.resolve.result }}",
+    "CANDIDATE_RESULT": "${{ needs.candidate-validate.result }}",
+    "PUBLISHER_RESULT": "${{ needs.publish.result }}",
+    "RESOLVER_STATUS": "${{ needs.resolve.outputs.resolver_status }}",
+    "UPDATE_AVAILABLE": "${{ needs.resolve.outputs.update_available }}",
+    "CANDIDATE": "${{ needs.resolve.outputs.candidate }}",
+    "CANDIDATE_VALIDATED": "${{ needs.candidate-validate.outputs.candidate_validated }}",
+}
+PYTHON_OUTCOME_RUN_SHA256 = (
+    "7ee08de961161f56f6989d3c02ad2e336c0f4c8d0d70b2522398bd079add3ff5"
+)
 UPDATER_SENSITIVE_KEY = re.compile(r"(?:secret|token)", re.IGNORECASE)
 UPDATER_SENSITIVE_VALUE = re.compile(
     r"(?:\$\{\{[^}]*\b(?:secrets|token)\b[^}]*\}\}|"
@@ -1111,28 +1283,34 @@ def python_version_trigger_errors(path: Path, data: dict[str, Any]) -> list[str]
 
 def python_version_jobs(
     path: Path, data: dict[str, Any]
-) -> tuple[tuple[Any, Any, Any] | None, list[str]]:
+) -> tuple[tuple[Any, Any, Any, Any] | None, list[str]]:
     jobs = data.get("jobs")
-    required_jobs = {"resolve", "candidate-validate", "publish"}
+    required_jobs = PYTHON_JOB_NAMES
     if not isinstance(jobs, dict) or set(jobs) != required_jobs:
         return None, [
-            f"{path}: Python maintenance must define exactly resolve, candidate-validate, and publish jobs"
+            f"{path}: Python maintenance must define exactly resolve, candidate-validate, publish, and outcome jobs"
         ]
-    return (jobs["resolve"], jobs["candidate-validate"], jobs["publish"]), []
+    return (
+        jobs["resolve"],
+        jobs["candidate-validate"],
+        jobs["publish"],
+        jobs["outcome"],
+    ), []
 
 
 def python_version_job_access_errors(
-    path: Path, resolve: Any, candidate: Any, publish: Any
+    path: Path, resolve: Any, candidate: Any, publish: Any, outcome: Any
 ) -> list[str]:
     errors: list[str] = []
     errors.extend(read_only_job_errors(path, "resolve", resolve))
     errors.extend(read_only_job_errors(path, "candidate-validate", candidate))
-    if not isinstance(publish, dict) or publish.get("permissions") != {
-        "contents": "write",
-        "pull-requests": "write",
-    }:
+    if not isinstance(publish, dict) or publish.get("permissions") != PYTHON_PUBLISHER_PERMISSIONS:
         errors.append(
-            f"{path}: Python maintenance publish job must have only contents/pull-requests write"
+            f"{path}: Python maintenance publish job must retain only native contents: read"
+        )
+    if not isinstance(outcome, dict) or outcome.get("permissions") != PYTHON_OUTCOME_PERMISSIONS:
+        errors.append(
+            f"{path}: Python maintenance outcome job must declare empty permissions"
         )
     if isinstance(candidate, dict) and normalized_needs(candidate.get("needs")) != {
         "resolve"
@@ -1147,15 +1325,37 @@ def python_version_job_access_errors(
         errors.append(
             f"{path}: Python maintenance publish job must need both prior jobs"
         )
+    if isinstance(outcome, dict) and normalized_needs(outcome.get("needs")) != {
+        "resolve",
+        "candidate-validate",
+        "publish",
+    }:
+        errors.append(
+            f"{path}: Python maintenance outcome job must need resolve, candidate-validate, and publish"
+        )
+    if not isinstance(outcome, dict) or outcome.get("if") != "${{ always() }}":
+        errors.append(
+            f"{path}: Python maintenance outcome job must always report the terminal result"
+        )
     return errors
 
 
-def python_version_resolver_errors(path: Path, resolve_run: str) -> list[str]:
+def python_version_resolver_errors(path: Path, resolve: Any, resolve_run: str) -> list[str]:
+    expected_outputs = {
+        "resolver_status": "${{ steps.resolve.outputs.status }}",
+        "update_available": "${{ steps.resolve.outputs.update_available }}",
+        "candidate": "${{ steps.resolve.outputs.candidate }}",
+    }
+    errors: list[str] = []
+    if not isinstance(resolve, dict) or resolve.get("outputs") != expected_outputs:
+        errors.append(
+            f"{path}: resolve must expose reviewed status, update_available, and candidate outputs"
+        )
     if "update-python-version.py --check --write-github-output" not in resolve_run:
-        return [
+        errors.append(
             f"{path}: resolve must use the no-write updater check with GitHub outputs"
-        ]
-    return []
+        )
+    return errors
 
 
 def python_version_read_only_secret_errors(
@@ -1190,30 +1390,6 @@ def python_version_candidate_run_errors(path: Path, candidate_run: str) -> list[
     return []
 
 
-def python_version_publisher_run_errors(path: Path, publish_run: str) -> list[str]:
-    errors: list[str] = []
-    required_commands = (
-        'update-python-version.py --check --expected-candidate "$CANDIDATE"',
-        'update-python-version.py --update --expected-candidate "$CANDIDATE"',
-    )
-    if not all(command in publish_run for command in required_commands):
-        errors.append(
-            f"{path}: publisher must independently re-resolve and update with the expected candidate"
-        )
-    if (
-        "git diff --name-only" not in publish_run
-        or 'test "$changed_paths" = ".python-version"' not in publish_run
-    ):
-        errors.append(
-            f"{path}: publisher must assert the exact .python-version-only diff"
-        )
-    if any(token in publish_run for token in ("gh pr merge", "--auto", "auto-merge")):
-        errors.append(
-            f"{path}: publisher must not merge or enable auto-merge for its Draft pull request"
-        )
-    return errors
-
-
 def python_version_candidate_gate_errors(path: Path, candidate: Any) -> list[str]:
     candidate_if = candidate.get("if") if isinstance(candidate, dict) else None
     if (
@@ -1242,72 +1418,161 @@ def python_version_publisher_gate_errors(path: Path, publish: Any) -> list[str]:
     return []
 
 
-def python_version_pull_request_option_errors(
-    path: Path, options: dict[str, Any], pull_request_index: int
-) -> tuple[list[str], tuple[str, ...] | None]:
+def python_version_publisher_step_errors(
+    path: Path, step: dict[str, Any], name: str, expected_keys: frozenset[str]
+) -> list[str]:
     errors: list[str] = []
-    allowed_sensitive_path: tuple[str, ...] | None = None
-    if options.get("token") != GITHUB_TOKEN_EXPRESSION:
+    if set(step) != expected_keys:
         errors.append(
-            f"{path}: create-pull-request must use its explicit github.token input"
+            f"{path}: CPython publisher step {name!r} must match its reviewed key profile"
         )
-    else:
-        allowed_sensitive_path = (
+    expected_action = PYTHON_PUBLISHER_ACTIONS.get(name)
+    if expected_action is not None:
+        uses = step.get("uses")
+        action = uses.split("@", 1)[0] if isinstance(uses, str) else None
+        if action != expected_action:
+            errors.append(
+                f"{path}: CPython publisher step {name!r} must use {expected_action}"
+            )
+    expected_with_keys = PYTHON_PUBLISHER_WITH_KEYS.get(name)
+    if expected_with_keys is not None:
+        with_values = step.get("with")
+        if not isinstance(with_values, dict) or set(with_values) != expected_with_keys:
+            errors.append(
+                f"{path}: CPython publisher step {name!r} must match its reviewed with profile"
+            )
+            with_values = {}
+        expected_with_values = PYTHON_PUBLISHER_WITH_VALUES.get(name)
+        if expected_with_values is not None and with_values != expected_with_values:
+            errors.append(
+                f"{path}: CPython publisher step {name!r} must use reviewed with values"
+            )
+        if name == STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST:
+            if with_values.get("github-token") != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION:
+                errors.append(
+                    f"{path}: CPython Draft inspection must use the scoped GitHub App token"
+                )
+            script = with_values.get("script")
+            if not isinstance(script, str) or (
+                publisher_body_digest(script)
+                != PYTHON_PUBLISHER_SCRIPT_SHA256[name]
+            ):
+                errors.append(
+                    f"{path}: CPython Draft inspection script must match the reviewed SHA-256"
+                )
+    expected_environment = PYTHON_PUBLISHER_STEP_ENV_VALUES.get(name)
+    if expected_environment is not None and step.get("env") != expected_environment:
+        errors.append(
+            f"{path}: CPython publisher step {name!r} must use the reviewed environment"
+        )
+    for field, expected_value in PYTHON_PUBLISHER_FIELD_VALUES.get(name, {}).items():
+        if step.get(field) != expected_value:
+            errors.append(
+                f"{path}: CPython publisher step {name!r} must use the reviewed {field}"
+            )
+    expected_digest = PYTHON_PUBLISHER_RUN_SHA256.get(name)
+    if expected_digest is not None:
+        run = step.get("run")
+        if not isinstance(run, str) or publisher_body_digest(run) != expected_digest:
+            errors.append(
+                f"{path}: CPython publisher run body {name!r} must match the reviewed SHA-256"
+            )
+    return errors
+
+
+def python_version_publisher_profile_errors(path: Path, publish: Any) -> list[str]:
+    if not isinstance(publish, dict):
+        return [f"{path}: CPython publisher job must be a mapping"]
+    errors: list[str] = []
+    if set(publish) != PYTHON_PUBLISHER_JOB_KEYS:
+        errors.append(f"{path}: CPython publisher job must match its reviewed key profile")
+    if publish.get("runs-on") != "ubuntu-latest":
+        errors.append(f"{path}: CPython publisher must use the reviewed runner")
+    if publish.get("timeout-minutes") != 15:
+        errors.append(f"{path}: CPython publisher must use the reviewed timeout")
+    if publish.get("env") != PYTHON_PUBLISHER_ENV_VALUES:
+        errors.append(f"{path}: CPython publisher must use the reviewed candidate input")
+    steps = publish.get("steps")
+    if not isinstance(steps, list):
+        return [*errors, f"{path}: CPython publisher steps must be a list"]
+    expected_names = [name for name, _keys in PYTHON_PUBLISHER_STEP_PROFILE]
+    actual_names = [
+        step.get("name") if isinstance(step, dict) else None for step in steps
+    ]
+    if actual_names != expected_names:
+        return [
+            *errors,
+            f"{path}: CPython publisher steps must match the reviewed order and count",
+        ]
+    for step, (name, expected_keys) in zip(steps, PYTHON_PUBLISHER_STEP_PROFILE):
+        assert isinstance(step, dict)
+        errors.extend(
+            python_version_publisher_step_errors(path, step, name, expected_keys)
+        )
+    return errors
+
+
+def python_version_outcome_errors(path: Path, outcome: Any) -> list[str]:
+    if not isinstance(outcome, dict):
+        return [f"{path}: CPython maintenance outcome job must be a mapping"]
+    errors: list[str] = []
+    if set(outcome) != PYTHON_OUTCOME_JOB_KEYS:
+        errors.append(
+            f"{path}: CPython maintenance outcome must match its reviewed key profile"
+        )
+    if outcome.get("runs-on") != "ubuntu-latest" or outcome.get("timeout-minutes") != 5:
+        errors.append(
+            f"{path}: CPython maintenance outcome must use the reviewed runner and timeout"
+        )
+    if outcome.get("env") != PYTHON_OUTCOME_ENV_VALUES:
+        errors.append(
+            f"{path}: CPython maintenance outcome must use reviewed terminal-state inputs"
+        )
+    if sensitive_reference_paths(outcome):
+        errors.append(
+            f"{path}: CPython maintenance outcome must not receive a token or secret"
+        )
+    steps = outcome.get("steps")
+    if not isinstance(steps, list) or len(steps) != 1 or not isinstance(steps[0], dict):
+        return [
+            *errors,
+            f"{path}: CPython maintenance outcome must have exactly one reviewed report step",
+        ]
+    step = steps[0]
+    if set(step) != STEP_KEYS_RUN or step.get("name") != STEP_REPORT_PYTHON_OUTCOME:
+        errors.append(
+            f"{path}: CPython maintenance outcome step must match the reviewed profile"
+        )
+    run = step.get("run")
+    if not isinstance(run, str) or publisher_body_digest(run) != PYTHON_OUTCOME_RUN_SHA256:
+        errors.append(
+            f"{path}: CPython maintenance outcome must match the reviewed fail-closed report"
+        )
+    return errors
+
+
+def python_version_sensitive_reference_errors(path: Path, data: dict[str, Any]) -> list[str]:
+    expected = {
+        (
             "jobs",
             "publish",
             "steps",
-            str(pull_request_index),
+            "3",
+            "env",
+            "WORKFLOW_UPDATER_APP_PRIVATE_KEY",
+        ),
+        (
+            "jobs",
+            "publish",
+            "steps",
+            "4",
             "with",
-            "token",
-        )
-    if options.get("branch") != "automation/update-framework-python-314":
-        errors.append(f"{path}: publisher branch must be fixed and reviewable")
-    if options.get("draft") is not True:
-        errors.append(f"{path}: publisher must create or update a Draft pull request")
-    if str(options.get("add-paths", "")).strip() != CANONICAL_PYTHON_VERSION_FILE:
-        errors.append(f"{path}: publisher add-paths must be limited to .python-version")
-    if options.get("body-path") != PYTHON_VERSION_PR_BODY_FILE:
-        errors.append(
-            f"{path}: create-pull-request body-path must be the controlled RUNNER_TEMP file"
-        )
-    return errors, allowed_sensitive_path
-
-
-def python_version_pull_request_errors(
-    path: Path, publish_steps: Iterable[dict[str, Any]]
-) -> tuple[list[str], tuple[str, ...] | None]:
-    pull_request_steps = create_pull_request_steps(publish_steps)
-    if len(pull_request_steps) != 1:
+            "private-key",
+        ),
+    }
+    if set(sensitive_reference_paths(data)) != expected:
         return [
-            f"{path}: publisher must use exactly one reviewed create-pull-request action"
-        ], None
-    pull_request_index, pull_request = pull_request_steps[0]
-    options = pull_request.get("with")
-    if not isinstance(options, dict):
-        return [f"{path}: create-pull-request must have a with mapping"], None
-    return python_version_pull_request_option_errors(path, options, pull_request_index)
-
-
-def python_version_unexpected_sensitive_errors(
-    path: Path, data: dict[str, Any], allowed_sensitive_path: tuple[str, ...] | None
-) -> list[str]:
-    unexpected_sensitive_paths = [
-        location
-        for location in sensitive_reference_paths(data)
-        if location != allowed_sensitive_path
-    ]
-    if unexpected_sensitive_paths:
-        return [
-            f"{path}: publisher may only declare github.token in the reviewed "
-            "create-pull-request with.token input"
-        ]
-    return []
-
-
-def python_version_publisher_body_errors(path: Path, publish_run: str) -> list[str]:
-    if f'> "{PYTHON_VERSION_PR_BODY_RUN_PATH}"' not in publish_run:
-        return [
-            f"{path}: publisher must write its Draft pull request body under RUNNER_TEMP"
+            f"{path}: CPython publisher may use only the reviewed GitHub App private-key references"
         ]
     return []
 
@@ -1322,34 +1587,31 @@ def python_version_maintenance_errors(path: Path, data: dict[str, Any]) -> list[
     if jobs is None:
         return errors
 
-    resolve, candidate, publish = jobs
-    errors.extend(python_version_job_access_errors(path, resolve, candidate, publish))
+    resolve, candidate, publish, outcome = jobs
+    errors.extend(
+        python_version_job_access_errors(path, resolve, candidate, publish, outcome)
+    )
 
     resolve_steps, resolve_step_errors = as_job_steps(path, "resolve", resolve)
     candidate_steps, candidate_step_errors = as_job_steps(
         path, "candidate-validate", candidate
     )
     publish_steps, publish_step_errors = as_job_steps(path, "publish", publish)
+    _outcome_steps, outcome_step_errors = as_job_steps(path, "outcome", outcome)
     errors.extend(resolve_step_errors)
     errors.extend(candidate_step_errors)
     errors.extend(publish_step_errors)
+    errors.extend(outcome_step_errors)
     resolve_run = job_run_text(resolve_steps)
     candidate_run = job_run_text(candidate_steps)
-    publish_run = job_run_text(publish_steps)
-    errors.extend(python_version_resolver_errors(path, resolve_run))
+    errors.extend(python_version_resolver_errors(path, resolve, resolve_run))
     errors.extend(python_version_read_only_secret_errors(path, resolve, candidate))
     errors.extend(python_version_candidate_run_errors(path, candidate_run))
-    errors.extend(python_version_publisher_run_errors(path, publish_run))
     errors.extend(python_version_candidate_gate_errors(path, candidate))
     errors.extend(python_version_publisher_gate_errors(path, publish))
-    pull_request_errors, allowed_sensitive_path = python_version_pull_request_errors(
-        path, publish_steps
-    )
-    errors.extend(pull_request_errors)
-    errors.extend(
-        python_version_unexpected_sensitive_errors(path, data, allowed_sensitive_path)
-    )
-    errors.extend(python_version_publisher_body_errors(path, publish_run))
+    errors.extend(python_version_publisher_profile_errors(path, publish))
+    errors.extend(python_version_outcome_errors(path, outcome))
+    errors.extend(python_version_sensitive_reference_errors(path, data))
     return errors
 
 
@@ -1427,7 +1689,7 @@ def updater_read_only_job_errors(path: Path, data: dict[str, Any]) -> list[str]:
 
     jobs = data.get("jobs")
     if not isinstance(jobs, dict):
-        return [f"{path}: updater must define resolver and validator jobs"]
+        return [f"{path}: updater must define resolver, validator, and outcome jobs"]
 
     errors: list[str] = []
     for name in ("resolver", "validator"):
@@ -1446,6 +1708,20 @@ def updater_read_only_job_errors(path: Path, data: dict[str, Any]) -> list[str]:
                 f"{path}: updater {name} must not contain secrets or token "
                 f"expressions ({', '.join(sorted(set(references)))})"
             )
+    outcome = jobs.get("outcome")
+    if not isinstance(outcome, dict):
+        errors.append(f"{path}: updater outcome job must be a mapping")
+    else:
+        if outcome.get("permissions") != UPDATER_OUTCOME_PERMISSIONS:
+            errors.append(
+                f"{path}: updater outcome must declare exactly empty permissions"
+            )
+        references = updater_sensitive_references(outcome, "jobs.outcome")
+        if references:
+            errors.append(
+                f"{path}: updater outcome must not contain secrets or token "
+                f"expressions ({', '.join(sorted(set(references)))})"
+            )
     return errors
 
 
@@ -1455,12 +1731,12 @@ def updater_job_topology_errors(path: Path, data: dict[str, Any]) -> list[str]:
     jobs = data.get("jobs")
     if not isinstance(jobs, dict):
         return [
-            f"{path}: updater must define exactly resolver, validator, and publisher jobs"
+            f"{path}: updater must define exactly resolver, validator, publisher, and outcome jobs"
         ]
     errors: list[str] = []
     if set(jobs) != UPDATER_JOB_NAMES:
         errors.append(
-            f"{path}: updater must define exactly resolver, validator, and publisher jobs"
+            f"{path}: updater must define exactly resolver, validator, publisher, and outcome jobs"
         )
     if data.get("permissions") != UPDATER_READ_ONLY_PERMISSIONS:
         errors.append(
@@ -1498,10 +1774,11 @@ def updater_ordering_errors(path: Path, data: dict[str, Any]) -> list[str]:
     jobs = data.get("jobs")
     if not isinstance(jobs, dict):
         return [
-            f"{path}: updater must define ordered resolver/validator/publisher jobs"
+            f"{path}: updater must define ordered resolver/validator/publisher/outcome jobs"
         ]
     validator = jobs.get("validator")
     publisher = jobs.get("publisher")
+    outcome = jobs.get("outcome")
     errors: list[str] = []
     if not isinstance(validator, dict):
         errors.append(f"{path}: updater validator job must be a mapping")
@@ -1519,6 +1796,15 @@ def updater_ordering_errors(path: Path, data: dict[str, Any]) -> list[str]:
             f"{path}: updater publisher must be gated to the default branch and "
             "resolver has_updates output"
         )
+    if not isinstance(outcome, dict):
+        errors.append(f"{path}: updater outcome job must be a mapping")
+        return errors
+    if job_needs(outcome) != {"resolver", "validator", "publisher"}:
+        errors.append(
+            f"{path}: updater outcome must need resolver, validator, and publisher"
+        )
+    if outcome.get("if") != "${{ always() }}":
+        errors.append(f"{path}: updater outcome must always report the terminal result")
     return errors
 
 
@@ -1699,6 +1985,40 @@ def updater_publisher_profile_errors(path: Path, data: dict[str, Any]) -> list[s
     return errors
 
 
+def updater_outcome_profile_errors(path: Path, data: dict[str, Any]) -> list[str]:
+    """Fail closed unless the terminal updater status job stays read-only and exact."""
+
+    jobs = data.get("jobs")
+    if not isinstance(jobs, dict):
+        return [f"{path}: updater outcome profile requires jobs to be a mapping"]
+    outcome = jobs.get("outcome")
+    if not isinstance(outcome, dict):
+        return [f"{path}: updater outcome profile requires an outcome job mapping"]
+
+    errors: list[str] = []
+    if set(outcome) != UPDATER_OUTCOME_JOB_KEYS:
+        errors.append(f"{path}: updater outcome must match its reviewed key profile")
+    if outcome.get("runs-on") != "ubuntu-latest":
+        errors.append(f"{path}: updater outcome must use the reviewed runner")
+    if outcome.get("timeout-minutes") != 5:
+        errors.append(f"{path}: updater outcome must use the reviewed timeout")
+    if outcome.get("env") != UPDATER_OUTCOME_ENV_VALUES:
+        errors.append(f"{path}: updater outcome must use reviewed terminal-state inputs")
+    steps = outcome.get("steps")
+    if not isinstance(steps, list) or len(steps) != 1 or not isinstance(steps[0], dict):
+        return [
+            *errors,
+            f"{path}: updater outcome must have exactly one reviewed report step",
+        ]
+    step = steps[0]
+    if set(step) != STEP_KEYS_RUN or step.get("name") != STEP_REPORT_WORKFLOW_TOOL_OUTCOME:
+        errors.append(f"{path}: updater outcome step must match the reviewed profile")
+    run = step.get("run")
+    if not isinstance(run, str) or publisher_body_digest(run) != UPDATER_OUTCOME_RUN_SHA256:
+        errors.append(f"{path}: updater outcome must match the reviewed fail-closed report")
+    return errors
+
+
 def workflow_tool_updater_errors(
     path: Path, text: str, data: dict[str, Any]
 ) -> list[str]:
@@ -1713,6 +2033,7 @@ def workflow_tool_updater_errors(
     errors.extend(updater_ordering_errors(path, data))
     errors.extend(updater_trigger_errors(path, data))
     errors.extend(updater_publisher_profile_errors(path, data))
+    errors.extend(updater_outcome_profile_errors(path, data))
     resolver = job_text(text, "resolver")
     validator = job_text(text, "validator")
     errors.extend(
@@ -1723,6 +2044,8 @@ def workflow_tool_updater_errors(
             (
                 "contents: read",
                 "resolve --root . --github-output",
+                "resolver_status",
+                "candidate_sha256",
                 CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
                 CHECKOUT_WITHOUT_SUBMODULES,
             ),
@@ -1736,6 +2059,9 @@ def workflow_tool_updater_errors(
             (
                 "contents: read",
                 "--candidate-b64",
+                "--expected-candidate-sha256",
+                "--require-updates",
+                "HAS_UPDATES",
                 "--verify-tool-assets",
                 CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
                 CHECKOUT_WITHOUT_SUBMODULES,
