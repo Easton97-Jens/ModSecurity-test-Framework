@@ -384,11 +384,15 @@ verify_required_sha256_literal() {
 }
 
 verify_required_pcre2_sha256() {
-    verify_required_sha256_literal pcre2 "$1" "$2"
+    pcre2_archive=$1
+    pcre2_expected_sha256=$2
+    verify_required_sha256_literal pcre2 "$pcre2_archive" "$pcre2_expected_sha256"
 }
 
 verify_required_apr_util_sha256() {
-    verify_required_sha256_literal apr-util "$1" "$2"
+    apr_util_archive=$1
+    apr_util_expected_sha256=$2
+    verify_required_sha256_literal apr-util "$apr_util_archive" "$apr_util_expected_sha256"
 }
 
 extract_tar_strip() {

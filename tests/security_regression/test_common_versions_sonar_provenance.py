@@ -347,8 +347,8 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             result = CHECKER.check_apr_util_release_provenance(entries, client)
 
         self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
-        self.assertEqual(APR_UTIL_VERSION, result.current)
-        self.assertEqual(APR_UTIL_SHA256, result.details["official_sha256"])
+        self.assertEqual(result.current, APR_UTIL_VERSION)
+        self.assertEqual(result.details["official_sha256"], APR_UTIL_SHA256)
         self.assertEqual(client.urls, [listing_url, APR_UTIL_SHA256_URL, APR_UTIL_SHA256_URL])
 
     def test_apr_util_rejects_any_runtime_tuple_mismatch_before_http_lookup(self):

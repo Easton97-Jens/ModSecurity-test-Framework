@@ -105,6 +105,15 @@ review.
 
 ## Security impact
 
+The initial PR #64 analysis for commit
+`b02dc979f9716c96a642611e6782fdc11309bb76` had a passing Quality Gate but
+reported six new open Code Smells. Four `shelldre:S7679` findings identified
+wrapper positional parameters in the required-digest helpers; two
+`python:S3415` findings identified reversed actual/expected assertion order in
+the new tuple test. They were neither suppressed nor accepted. The follow-up
+uses named local shell variables and actual-first assertions. A new exact-head
+Sonar analysis is required before merge.
+
 The original 404 path and alternate mirror/empty-digest bypasses are rejected
 before the Apache provisioner starts source acquisition. The direct canonical
 APR-util downloader does not follow a provider redirect, and the repair makes

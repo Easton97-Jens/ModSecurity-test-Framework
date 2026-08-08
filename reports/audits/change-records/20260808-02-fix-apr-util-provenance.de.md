@@ -112,6 +112,16 @@ Provenance-Prüfung.
 
 ## Sicherheitsauswirkung
 
+Die erste PR-#64-Analyse für Commit
+`b02dc979f9716c96a642611e6782fdc11309bb76` hatte ein bestandenes Quality Gate,
+meldete aber sechs neue offene Code Smells. Vier `shelldre:S7679`-Befunde
+betrafen Wrapper-Positionsparameter in den Required-Digest-Helpern; zwei
+`python:S3415`-Befunde betrafen die vertauschte Actual-/Expected-Assertion-
+Reihenfolge im neuen Tupeltest. Sie wurden weder unterdrückt noch akzeptiert.
+Das Follow-up verwendet benannte lokale Shell-Variablen und Actual-first-
+Assertions. Vor einem Merge ist eine neue Sonar-Analyse des exakten Heads
+erforderlich.
+
 Der ursprüngliche 404-Pfad und die alternativen Mirror-/Leer-Digest-Bypässe
 werden abgelehnt, bevor der Apache-Preparer die Source-Beschaffung startet. Der
 direkte kanonische APR-util-Downloader folgt keinem Provider-Redirect, und die
