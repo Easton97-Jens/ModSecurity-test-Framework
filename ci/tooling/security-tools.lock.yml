@@ -72,9 +72,9 @@ actions:
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   github/codeql-action:
     name: github/codeql-action
-    version: v4.37.4
-    immutable_commit: f205ea1c3313d32999d8d6a48b4f6530d4437b38
-    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.4
+    version: v4.37.6
+    immutable_commit: 5595ccaf912efad79be6eef63a5619ff05969be3
+    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.6
     release_resolution: same-major-release
     license: MIT
     purpose: Initialize, analyze, and upload SARIF for bounded CodeQL jobs.
@@ -109,12 +109,12 @@ tools:
     update_procedure: Verify the annotated release tag-to-commit identity, official release checksum, archive member, and Apache-2.0 license before updating this record and its validation evidence.
   osv-scanner:
     name: osv-scanner
-    version: v2.4.0
-    immutable_commit: b56b5191101d5f27d4787d5583d8d01e9518a7af
-    upstream_release: https://github.com/google/osv-scanner/releases/tag/v2.4.0
+    version: v2.5.0
+    immutable_commit: a258868211a57052da6bd323f758b8388dee02bb
+    upstream_release: https://github.com/google/osv-scanner/releases/tag/v2.5.0
     asset: osv-scanner_linux_amd64
-    asset_url: https://github.com/google/osv-scanner/releases/download/v2.4.0/osv-scanner_linux_amd64
-    sha256: 15314940c10d26af9c6649f150b8a47c1262e8fc7e17b1d1029b0e479e8ed8a0
+    asset_url: https://github.com/google/osv-scanner/releases/download/v2.5.0/osv-scanner_linux_amd64
+    sha256: edcfc41d257db36148f065055655fe3fcfc434b0b423ea67468a84c207524e0c
     archive_type: raw
     layout: executable
     executable: osv-scanner
@@ -156,12 +156,12 @@ tools:
     update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and GPL-3.0 license before updating this record and its validation evidence.
   zizmor:
     name: zizmor
-    version: v1.27.0
-    immutable_commit: e2627367eb7c917a90503ce05a66872fd91da6fb
-    upstream_release: https://github.com/zizmorcore/zizmor/releases/tag/v1.27.0
+    version: v1.29.0
+    immutable_commit: 3c116961091b50bd1a08ffefe916469d4d90093c
+    upstream_release: https://github.com/zizmorcore/zizmor/releases/tag/v1.29.0
     asset: zizmor-x86_64-unknown-linux-gnu.tar.gz
-    asset_url: https://github.com/zizmorcore/zizmor/releases/download/v1.27.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
-    sha256: 277f2bd8fd37cf60c42ab7afca6faa884e65440fa31e02b44bdaae60f62a358f
+    asset_url: https://github.com/zizmorcore/zizmor/releases/download/v1.29.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
+    sha256: dd96df044a6e8538d5f423790f453bdd03d49e5b2bcc38214acc41a2f1297839
     archive_type: tar.gz
     layout: executable
     archive_member: zizmor
@@ -188,12 +188,12 @@ tools:
     update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and MIT license before updating this record and its validation evidence.
   ruff:
     name: ruff
-    version: 0.15.22
-    immutable_commit: 0177a7e0d2c4a3805afa1960f106d72878766cbc
-    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.15.22
+    version: 0.16.2
+    immutable_commit: 5b48a040974781ba90b47c8df628f8fd9b6c95dd
+    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.2
     asset: ruff-x86_64-unknown-linux-gnu.tar.gz
-    asset_url: https://github.com/astral-sh/ruff/releases/download/0.15.22/ruff-x86_64-unknown-linux-gnu.tar.gz
-    sha256: d535a4be6504146e757eff67b992f11a293a7a108be22e2a5898b32c32565996
+    asset_url: https://github.com/astral-sh/ruff/releases/download/0.16.2/ruff-x86_64-unknown-linux-gnu.tar.gz
+    sha256: 3d2c355e641ceb5b608a158c603768fcc908c5009c56c6e78da7487da033b92a
     archive_type: tar.gz
     layout: executable
     archive_member: ruff-x86_64-unknown-linux-gnu/ruff
