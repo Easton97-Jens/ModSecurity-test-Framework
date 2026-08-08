@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -896,6 +897,52 @@ jobs:
                 "      - name: Create or update Draft pull request",
                 1,
             ),
+            "publisher-draft-output-removed": workflow.replace(
+                "      draft_pull_request_url: ${{ steps.draft_pull_request.outputs.pull-request-url }}\n",
+                "",
+                1,
+            ),
+            "result-does-not-always-run": workflow.replace(
+                "    if: ${{ always() }}\n",
+                "    if: ${{ success() }}\n",
+                1,
+            ),
+            "result-write-permission": workflow.replace(
+                "    timeout-minutes: 5\n    permissions:\n      contents: read\n",
+                "    timeout-minutes: 5\n    permissions:\n      contents: write\n",
+                1,
+            ),
+            "result-token-exposure": workflow.replace(
+                "      UPDATE_AVAILABLE: ${{ needs.resolve.outputs.update_available }}\n",
+                "      UPDATE_AVAILABLE: ${{ needs.resolve.outputs.update_available }}\n"
+                "      GITHUB_TOKEN: ${{ github.token }}\n",
+                1,
+            ),
+            "result-accepts-empty-resolver-output": workflow.replace(
+                "            false)\n",
+                "            ''|false)\n",
+                1,
+            ),
+            "result-accepts-unknown-resolver-output": workflow.replace(
+                "            false)\n",
+                "            unknown|false)\n",
+                1,
+            ),
+            "result-runs-validator-for-no-update": workflow.replace(
+                'test "$VALIDATOR_RESULT" = "skipped"',
+                'test "$VALIDATOR_RESULT" = "success"',
+                1,
+            ),
+            "result-runs-publisher-for-no-update": workflow.replace(
+                'test "$PUBLISHER_RESULT" = "skipped"',
+                'test "$PUBLISHER_RESULT" = "success"',
+                1,
+            ),
+            "result-masks-publisher-failure": workflow.replace(
+                'test "$PUBLISHER_RESULT" = "success"',
+                'test "$PUBLISHER_RESULT" = "skipped"',
+                1,
+            ),
         }
         for name, unsafe in variants.items():
             with self.subTest(name=name):
@@ -909,6 +956,132 @@ jobs:
                     errors,
                     "\n".join(errors),
                 )
+
+    def test_common_version_result_job_reports_safe_terminal_states(self) -> None:
+        workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
+        workflow = CHECKER.yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        result_run = workflow["jobs"]["result"]["steps"][0]["run"]
+
+        cases = (
+            (
+                "no-update",
+                {
+                    "RESOLVER_RESULT": "success",
+                    "UPDATE_AVAILABLE": "false",
+                    "VALIDATOR_RESULT": "skipped",
+                    "PUBLISHER_RESULT": "skipped",
+                    "DRAFT_PULL_REQUEST_NUMBER": "",
+                    "DRAFT_PULL_REQUEST_URL": "",
+                },
+                0,
+                (
+                    "No reviewed common.sh version updates are currently available.",
+                    "Derzeit sind keine geprüften common.sh-Versionsaktualisierungen verfügbar.",
+                    "Es wurde kein Branch, Commit oder Pull Request erstellt oder verändert.",
+                ),
+            ),
+            (
+                "published-update-with-url",
+                {
+                    "RESOLVER_RESULT": "success",
+                    "UPDATE_AVAILABLE": "true",
+                    "VALIDATOR_RESULT": "success",
+                    "PUBLISHER_RESULT": "success",
+                    "DRAFT_PULL_REQUEST_NUMBER": "42",
+                    "DRAFT_PULL_REQUEST_URL": "https://example.test/owner/repo/pull/42",
+                },
+                0,
+                (
+                    "A reviewed common.sh version update was validated and published",
+                    "Draft pull request: https://example.test/owner/repo/pull/42",
+                    "Draft-Pull-Request: https://example.test/owner/repo/pull/42",
+                ),
+            ),
+            (
+                "published-update-without-action-output",
+                {
+                    "RESOLVER_RESULT": "success",
+                    "UPDATE_AVAILABLE": "true",
+                    "VALIDATOR_RESULT": "success",
+                    "PUBLISHER_RESULT": "success",
+                    "DRAFT_PULL_REQUEST_NUMBER": "",
+                    "DRAFT_PULL_REQUEST_URL": "",
+                },
+                0,
+                (
+                    "Draft pull request: created or updated; the action did not report a URL or number.",
+                    "Draft-Pull-Request: erstellt oder aktualisiert; die Action hat keine URL oder Nummer gemeldet.",
+                ),
+            ),
+            (
+                "unknown-resolver-output",
+                {
+                    "RESOLVER_RESULT": "success",
+                    "UPDATE_AVAILABLE": "unknown",
+                    "VALIDATOR_RESULT": "skipped",
+                    "PUBLISHER_RESULT": "skipped",
+                    "DRAFT_PULL_REQUEST_NUMBER": "",
+                    "DRAFT_PULL_REQUEST_URL": "",
+                },
+                1,
+                (),
+            ),
+            (
+                "no-update-with-executed-publisher",
+                {
+                    "RESOLVER_RESULT": "success",
+                    "UPDATE_AVAILABLE": "false",
+                    "VALIDATOR_RESULT": "skipped",
+                    "PUBLISHER_RESULT": "success",
+                    "DRAFT_PULL_REQUEST_NUMBER": "",
+                    "DRAFT_PULL_REQUEST_URL": "",
+                },
+                1,
+                (),
+            ),
+            (
+                "available-update-with-failed-validator",
+                {
+                    "RESOLVER_RESULT": "success",
+                    "UPDATE_AVAILABLE": "true",
+                    "VALIDATOR_RESULT": "failure",
+                    "PUBLISHER_RESULT": "skipped",
+                    "DRAFT_PULL_REQUEST_NUMBER": "",
+                    "DRAFT_PULL_REQUEST_URL": "",
+                },
+                1,
+                (),
+            ),
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            summary_path = Path(temporary_directory) / "github-step-summary.md"
+            for name, values, expected_return_code, expected_fragments in cases:
+                with self.subTest(name=name):
+                    summary_path.unlink(missing_ok=True)
+                    result = subprocess.run(
+                        ["bash", "-c", result_run],
+                        check=False,
+                        capture_output=True,
+                        encoding="utf-8",
+                        env={
+                            **os.environ,
+                            **values,
+                            "GITHUB_STEP_SUMMARY": str(summary_path),
+                        },
+                    )
+                    self.assertEqual(
+                        result.returncode,
+                        expected_return_code,
+                        result.stdout + result.stderr,
+                    )
+                    summary = (
+                        summary_path.read_text(encoding="utf-8")
+                        if expected_return_code == 0
+                        else ""
+                    )
+                    for fragment in expected_fragments:
+                        self.assertIn(fragment, summary)
 
     def test_static_lock_provenance_binds_release_asset_and_version_tuples(
         self,

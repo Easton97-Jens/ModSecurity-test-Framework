@@ -162,15 +162,23 @@ marker, and `ci/lib/common.sh`-only diff). Any other state fails closed without
 deleting or overwriting a branch or PR. A trusted-default-branch drift during
 publisher revalidation also fails closed.
 
-When no safe update exists, the resolver succeeds and the candidate and
-publisher jobs are skipped without changing a branch, PR, or commit. Missing
-App configuration after an available update fails clearly rather than being
-treated as no update. A PR created with the App token is expected to emit normal
-pull-request events, so required checks, workflow/action pin checks, Python and
-ShellCheck quality, Common-version provenance, documentation contracts, and
-scope-applicable SonarQube/branch-protection checks must be observed on its
-actual head before a human merge. The workflow itself never approves, merges,
-or enables auto-merge.
+The resolver emits `update_available=false` only when every update-eligible
+source is current. `unknown`, `blocked`, and `error` results fail the resolver;
+intentionally tracked local-policy values without an updater contract are
+reported as `not_applicable` and do not disguise an unsafe source result. The
+credential-free terminal result job always runs: for `false`, it requires a
+successful resolver and skipped candidate/publisher jobs, then writes the
+reviewed English/German no-update summary; for `true`, it requires all three
+prior jobs to succeed and reports the constrained Draft PR URL or number, with
+a clear fallback when the Action does not return either value. Any other state
+fails rather than being interpreted as no update. Thus no-update cannot change
+a branch, PR, or commit. Missing App configuration after an available update
+also fails clearly rather than being treated as no update. A PR created with
+the App token is expected to emit normal pull-request events, so required
+checks, workflow/action pin checks, Python and ShellCheck quality, Common-
+version provenance, documentation contracts, and scope-applicable
+SonarQube/branch-protection checks must be observed on its actual head before a
+human merge. The workflow itself never approves, merges, or enables auto-merge.
 
 For every `pull_request` workflow, the checker rejects `pull_request_target`,
 write permissions, `secrets.` and `secrets[...]` references, reusable-workflow

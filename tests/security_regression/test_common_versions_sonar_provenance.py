@@ -218,7 +218,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
         self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
         self.assertEqual(result.updates, [])
-        self.assertEqual(CHECKER.exit_code([result]), 0)
+        self.assertEqual(CHECKER.exit_code([result]), 2)
         self.assertEqual(result.latest, "v3.0.16")
         self.assertEqual(
             result.variables,
@@ -240,6 +240,25 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             client.urls,
             ["https://api.github.com/repos/owasp-modsecurity/ModSecurity/releases/latest"],
         )
+
+    def test_unknown_results_fail_closed_while_local_policy_entries_are_not_applicable(self):
+        unknown = CHECKER.unknown_component(
+            "unresolved source",
+            {},
+            [],
+            "trusted upstream provenance is incomplete",
+        )
+        not_applicable = CHECKER.not_applicable_component(
+            "local policy default",
+            {},
+            [],
+            "the entry has no automated updater contract",
+        )
+
+        self.assertEqual(CHECKER.STATUS_UNKNOWN, unknown.status)
+        self.assertEqual(CHECKER.STATUS_NOT_APPLICABLE, not_applicable.status)
+        self.assertEqual(CHECKER.exit_code([unknown]), 2)
+        self.assertEqual(CHECKER.exit_code([not_applicable]), 0)
 
     def test_modsecurity_v3_release_blocks_missing_or_malformed_immutable_anchor(self):
         source_lines = [

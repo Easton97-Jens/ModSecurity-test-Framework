@@ -173,16 +173,25 @@ einen Branch oder PR zu löschen oder zu überschreiben. Auch ein Fortschreiten
 des vertrauenswürdigen Default-Branches während der Publisher-Revalidierung
 führt zum fail-closed-Abbruch.
 
-Wenn kein sicheres Update vorliegt, beendet der Resolver sich erfolgreich und
-Kandidaten- sowie Publisher-Job werden übersprungen, ohne Branch, PR oder
-Commit zu ändern. Fehlende App-Konfiguration nach einem verfügbaren Update
-führt klar zum Abbruch und wird nicht als fehlendes Update behandelt. Ein mit
-dem App-Token erzeugter PR soll normale Pull-Request-Events auslösen; deshalb
-müssen Required Checks, Workflow-/Action-Pin-Checks, Python- und
-ShellCheck-Qualität, Common-Version-Provenance, Dokumentationsverträge sowie
-scope-anwendbare SonarQube-/Branch-Protection-Checks am tatsächlichen PR-Head
-beobachtet werden, bevor ein Mensch merged. Der Workflow selbst genehmigt,
-merged oder aktiviert niemals Auto-Merge.
+Der Resolver gibt `update_available=false` nur aus, wenn jede
+update-berechtigte Quelle aktuell ist. Ergebnisse `unknown`, `blocked` und
+`error` lassen den Resolver fehlschlagen; bewusst erfasste lokale Policy-Werte
+ohne Updater-Vertrag werden als `not_applicable` gemeldet und verschleiern kein
+unsicheres Quellergebnis. Der credential-freie abschließende Ergebnis-Job läuft
+immer: Bei `false` verlangt er einen erfolgreichen Resolver und übersprungene
+Kandidaten-/Publisher-Jobs und schreibt dann die geprüfte englische/deutsche
+No-Update-Zusammenfassung; bei `true` verlangt er erfolgreiche drei
+Vorgängerjobs und meldet URL oder Nummer des begrenzten Draft-PR mit einem
+klaren Fallback, falls die Action keines der beiden Ergebnisse liefert. Jeder
+andere Zustand schlägt fehl, statt als fehlendes Update interpretiert zu werden.
+Damit kann ein No-Update weder Branch, PR noch Commit ändern. Auch fehlende
+App-Konfiguration nach einem verfügbaren Update führt klar zum Abbruch und wird
+nicht als fehlendes Update behandelt. Ein mit dem App-Token erzeugter PR soll
+normale Pull-Request-Events auslösen; deshalb müssen Required Checks,
+Workflow-/Action-Pin-Checks, Python- und ShellCheck-Qualität, Common-Version-
+Provenance, Dokumentationsverträge sowie scope-anwendbare SonarQube-/Branch-
+Protection-Checks am tatsächlichen PR-Head beobachtet werden, bevor ein Mensch
+merged. Der Workflow selbst genehmigt, merged oder aktiviert niemals Auto-Merge.
 
 Für jeden `pull_request`-Workflow weist der Checker `pull_request_target`,
 Write-Berechtigungen, Referenzen `secrets.` und `secrets[...]`, Secret-

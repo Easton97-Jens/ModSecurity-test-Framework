@@ -156,6 +156,9 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    outputs:
+      draft_pull_request_number: ${{ steps.draft_pull_request.outputs.pull-request-number }}
+      draft_pull_request_url: ${{ steps.draft_pull_request.outputs.pull-request-url }}
     env:
       CANDIDATE_SHA256: ${{ needs.resolve.outputs.candidate_sha256 }}
     steps:
@@ -462,6 +465,7 @@ jobs:
             core.info(`common-version publisher state B: reusing Draft pull request #${pull.number}`);
 
       - name: Create or update Draft pull request
+        id: draft_pull_request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.publisher_app_token.outputs.token }}
@@ -474,3 +478,74 @@ jobs:
           draft: true
           add-paths: |
             ci/lib/common.sh
+
+  result:
+    needs:
+      - resolve
+      - candidate-validate
+      - publish
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      RESOLVER_RESULT: ${{ needs.resolve.result }}
+      UPDATE_AVAILABLE: ${{ needs.resolve.outputs.update_available }}
+      VALIDATOR_RESULT: ${{ needs.candidate-validate.result }}
+      PUBLISHER_RESULT: ${{ needs.publish.result }}
+      DRAFT_PULL_REQUEST_NUMBER: ${{ needs.publish.outputs.draft_pull_request_number }}
+      DRAFT_PULL_REQUEST_URL: ${{ needs.publish.outputs.draft_pull_request_url }}
+    steps:
+      - name: Report reviewed common-version outcome
+        run: |
+          set -euo pipefail
+          case "$UPDATE_AVAILABLE" in
+            false)
+              test "$RESOLVER_RESULT" = "success"
+              test "$VALIDATOR_RESULT" = "skipped"
+              test "$PUBLISHER_RESULT" = "skipped"
+              cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## English
+
+          No reviewed common.sh version updates are currently available.
+          All tracked version pins remain current. No branch, commit, or pull request was created or modified.
+
+          ## Deutsch
+
+          Derzeit sind keine geprüften common.sh-Versionsaktualisierungen verfügbar.
+          Alle erfassten Versions-Pins sind aktuell. Es wurde kein Branch, Commit oder Pull Request erstellt oder verändert.
+          EOF
+              ;;
+            true)
+              test "$RESOLVER_RESULT" = "success"
+              test "$VALIDATOR_RESULT" = "success"
+              test "$PUBLISHER_RESULT" = "success"
+              {
+                printf '%s\n' '## English' '' \
+                  'A reviewed common.sh version update was validated and published to the constrained Draft pull request.' \
+                  "Maintenance branch: \`automation/update-framework-common-versions\`."
+                if test -n "$DRAFT_PULL_REQUEST_URL"; then
+                  printf 'Draft pull request: %s\n' "$DRAFT_PULL_REQUEST_URL"
+                elif test -n "$DRAFT_PULL_REQUEST_NUMBER"; then
+                  printf 'Draft pull request: #%s\n' "$DRAFT_PULL_REQUEST_NUMBER"
+                else
+                  printf '%s\n' 'Draft pull request: created or updated; the action did not report a URL or number.'
+                fi
+                printf '%s\n' '' '## Deutsch' '' \
+                  'Eine geprüfte common.sh-Versionsaktualisierung wurde validiert und im begrenzten Draft-Pull-Request veröffentlicht.' \
+                  "Wartungsbranch: \`automation/update-framework-common-versions\`."
+                if test -n "$DRAFT_PULL_REQUEST_URL"; then
+                  printf 'Draft-Pull-Request: %s\n' "$DRAFT_PULL_REQUEST_URL"
+                elif test -n "$DRAFT_PULL_REQUEST_NUMBER"; then
+                  printf 'Draft-Pull-Request: #%s\n' "$DRAFT_PULL_REQUEST_NUMBER"
+                else
+                  printf '%s\n' 'Draft-Pull-Request: erstellt oder aktualisiert; die Action hat keine URL oder Nummer gemeldet.'
+                fi
+              } >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              printf 'common-version result is unsafe: update_available must be exactly true or false\n' >&2
+              exit 1
+              ;;
+          esac

@@ -9,7 +9,7 @@
 | Change-ID | `20260808-02-migrate-common-version-publisher-app-token` |
 | UTC-Datum | 2026-08-08 |
 | Framework-Basisrevision | `da28e6da58fa8b1135d3631612a78e73ff98584b` |
-| Issue oder Pull Request | Der Source-Fix-Draft-PR ist autorisiert, war bei der ersten Erstellung dieses Records aber noch nicht angelegt; er muss gegen Framework `master` gerichtet sein und autorisiert niemals einen Merge. |
+| Issue oder Pull Request | Framework-PR [#65](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/65) zielt auf `master`. Dieser Record verfolgt seine Source-Finalisierung und autorisiert niemals einen Merge. |
 
 ## Motivation und Problemstellung
 
@@ -21,6 +21,12 @@ gewöhnlicher Pull-Request-Events. Der Hosted-Lauf `31254801083` zeigte
 zusätzlich, dass die Kandidatenvalidierung vor der Publisher-Ausführung
 abbricht, weil der direkt aufgerufene CRS-Provenance-Test seinen lokalen
 Testhelfer nicht importieren konnte.
+
+Während der Finalisierung von PR #65 zeigte die Prüfung außerdem, dass ein
+Resolver-Ergebnis `unknown` wie ein harmloses fehlendes Update behandelt werden
+konnte und kein abschließender Job den übersprungenen No-Update-Zustand bewies
+oder eine operatorseitige Zusammenfassung veröffentlichte. Beide Bedingungen
+erforderten einen Source-Fix, bevor der PR für die Delivery geeignet sein kann.
 
 ## Betroffene Komponenten und Sicherheitsgrenzen
 
@@ -41,6 +47,11 @@ MRTS, Gitlinks, Runtime-Connectoren und ein Merge liegen außerhalb des Scopes.
   `pull-requests`: write begrenzt.
 - Konfigurations-Gate, Zustandscheck, feste Wartungsidentität, Body-Marker und
   die Pfadbegrenzung `ci/lib/common.sh` brechen bei Abweichung fail-closed ab.
+- Nur aktuelle update-berechtigte Quellen dürfen `update_available=false`
+  erzeugen; Ergebnisse `unknown`, `blocked` und `error` schlagen vor einer
+  No-Update-Entscheidung fehl. Ein credential-freier `always()`-Ergebnis-Job
+  muss den Endzustand beweisen und das geprüfte englische/deutsche Ergebnis
+  veröffentlichen.
 - Es entstehen weder nativer-Token-, PAT-, SSH-, direkter-Default-Branch-Push-,
   Force-Push-, breites-Staging-, PR-Übernahme-, Merge- noch Auto-Merge-Pfade.
 - Die erforderlichen Tests, gepaarte Dokumentation, Action-Pin-Contract,
@@ -78,18 +89,35 @@ SHA der vertrauenswürdigen Default-Revision erreicht `github-script` über eine
 benannte Action-Umgebungsvariable statt durch Template-Interpolation in
 JavaScript.
 
+Der Resolver markiert nun bewusst erfasste lokale Policy-Einträge ohne
+automatisierten Updater-Vertrag als `not_applicable`, während `unknown`,
+`blocked` und `error` fail-closed bleiben. Sein abschließender Ergebnis-Job
+prüft immer die tatsächlichen Job-Ergebnisse. Er erlaubt `false` nur nach einem
+erfolgreichen Resolver und übersprungenen Kandidaten-/Publisher-Jobs, gibt die
+exakte zweisprachige No-Update-Zusammenfassung aus und erlaubt `true` nur nach
+erfolgreichen drei Vorgängerjobs. Das Update-Ergebnis meldet URL oder Nummer des
+begrenzten Draft-PR mit einem sachlichen Fallback, wenn die Action keines der
+beiden Ergebnisse liefert; jeder andere Zustand schlägt fehl.
+
 ## Geänderte Dateien und Tests
 
 - `.github/workflows/check-common-versions.yml` verwendet das eingeschränkte
-  App-Token, Zustandscheck, feste Draft-Identität, validierten Body und
-  Default-Branch-Drift-Prüfung.
+  App-Token, Zustandscheck, feste Draft-Identität, validierten Body,
+  Default-Branch-Drift-Prüfung und einen credential-freien Ergebnis-Job.
 - `ci/checks/security/check-ci-security-contract.py` definiert ein exaktes
-  Common-Version-Publisher-Profil und weist nativen Token-/Permission-/Scope-,
-  Zustands-, Pfad-, SHA- und Write-Pfad-Drift zurück.
+  Common-Version-Publisher-/Ergebnis-Profil und weist nativen Token-/Permission-/
+  Scope-, Zustands-, Pfad-, SHA-, Write-Pfad- und Endzustandsdrift zurück.
+- `ci/tools/check-common-versions.py` schlägt bei `unknown` fail-closed fehl
+  und unterscheidet bewusst nicht aktualisierbare lokale Policy-Einträge von
+  unsicheren Upstream-Auflösungsfehlern.
 - `tests/ci_security/test_ci_security_contract.py` mutation-testet App-Token,
   Konfigurationsnamen, Berechtigungen, Repository-/Owner-Scope, Branch, Draft,
   Marker, Staging, direkte/Force-Pushes, SHA-Bindung, Artefaktwiederverwendung,
-  Publisher-Gate und PR-Übernahme-Bypässe.
+  Publisher-Gate, PR-Übernahme-Bypässe und führt Endzustände sowie
+  zweisprachige Zusammenfassungen direkt aus.
+- `tests/security_regression/test_common_versions_sonar_provenance.py` beweist,
+  dass unbekannte Provenance fail-closed fehlschlägt, während nicht
+  aktualisierbare lokale Policy keinen falschen Fehler erzeugt.
 - `tests/security_regression/test_crs_git_ref_provenance.py` macht seinen
   lokalen Provenance-Helper importierbar, wenn der Test per vollqualifiziertem
   Modulnamen aufgerufen wird.
@@ -104,16 +132,17 @@ JavaScript.
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- | --- |
 | `rtk proxy gh run view 31254801083 --log` | 0 | Resolver bestand; Kandidatenvalidierung scheiterte mit `ModuleNotFoundError: git_provenance_test_support`; Publisher wurde übersprungen. | [Lauf #14](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/31254801083) |
-| `make test-ci-security-contract` | 0 | 137 CI-Security-, Change-Record-, Evidence-, Updater- und Security-Contract-Tests bestanden. | Task-eigener externer Framework-Worktree |
+| `make test-ci-security-contract` | 0 | 138 CI-Security-, Change-Record-, Evidence-, Updater- und Security-Contract-Tests bestanden, einschließlich direkter Terminal-Ergebnis-Ausführung. | Task-eigener externer Framework-Worktree |
 | `make test-workflow-action-pins` | 0 | 25 Action-Pin-Regressionstests bestanden. | Derselbe Task-Worktree |
 | `make test-workflow-security-contract` | 0 | 7 Workflow-Security-Contract-Tests bestanden. | Derselbe Task-Worktree |
 | `make check-github-actions-workflows` | 0 | Python-Version-, Pin- und Permission-Prüfungen akzeptierten jeden eingecheckten Workflow. | Derselbe Task-Worktree |
 | `make check-documentation` | 0 | Links, zweisprachige Parität, Pfadreferenzen und der Change-Record-Contract bestanden. | Derselbe Task-Worktree |
 | `make lint` | 0 | Die vollständige lokale Lint- und Regressionsmatrix bestand, einschließlich Workflow-Security- und Provenance-Suites. | Derselbe Task-Worktree |
 | `<locked-tools>/actionlint -shellcheck=<locked-tools>/shellcheck` | 0 | Alle eingecheckten Workflows und eingebetteten Shell-Blöcke bestanden. | SHA-256-gesperrte lokale Tools |
-| `<locked-tools>/zizmor --offline .github` | 0 | Keine Findings; 32 repository-gebilligte Suppressions blieben bestehen. | SHA-256-gesperrtes lokales Tool |
-| `<locked-tools>/ruff check …` und `ruff format --check …` | 0 | Ruff-Lint akzeptierte den relevanten CI-Security-Scope und den geänderten CRS-Regressionstest; der Formatcheck akzeptierte 20 CI-Security-Dateien. | SHA-256-gesperrtes lokales Tool |
-| Fokussierter erforderlicher `unittest`-Modulverbund | 0 | 73 Tests über CI-Security, Workflow-Tool-Updater und Common-Version-Provenance bestanden. | Derselbe Task-Worktree |
+| `<locked-tools>/zizmor --offline .github` | 0 | Keine Findings; 33 repository-konfigurierte Suppressions wurden gemeldet. | SHA-256-gesperrtes lokales Tool |
+| `<locked-tools>/ruff check …` und `ruff format --check …` | 0 | Ruff-Lint und Formatprüfungen akzeptierten den relevanten CI-Security-Scope (20 Dateien). | SHA-256-gesperrtes lokales Tool |
+| Fokussierter `unittest`-Updater-/NGINX-/CRS-Modulverbund | 0 | 37 Tests bestanden; die fokussierte Common-Version-Provenance-/Terminal-State-Suite bestand ebenfalls. | Derselbe Task-Worktree |
+| `check-common-versions.py --check --json --timeout 10` | 2 | Korrektes fail-closed-Preflight: ein ModSecurity-v3-Release erfordert getrennte Immutable-Provenance-Review und ein neueres HAProxy-Tupel ist verfügbar; keine Datei wurde geändert. | Task-eigener externer Framework-Worktree |
 | `git diff --check` | 0 | Keine Whitespace-Fehler im finalen uncommitted Review. | Derselbe Task-Worktree |
 
 ## Sicherheitsauswirkung
@@ -134,10 +163,21 @@ Die englische/deutsche Workflow-Security-Paarung ist aktualisiert. Keine
 Connector- oder MRTS-Runtime war erforderlich. Lauf #14 ist Hosted-
 Fehlerevidenz für den Testimportdefekt, aber kein Nachweis für den App-
 Publisher: Sein Publisher wurde korrekt übersprungen. Die Repository-
-App-Metadatenprüfung fand Variable und Secret als abwesend, ohne einen der Werte
-zu lesen. Ein echter Publisher-End-to-End-Lauf darf erst nach separat
-autorisiertem Merge nach `master` erfolgen und muss reale Upstream-Ergebnisse
-statt eines fabrizierten Kandidaten verwenden.
+Metadatenprüfung bestätigte die erforderlichen App-Variablen- und
+App-Secret-Namen, ohne einen der Werte zu lesen. Das Standard-CLI-OAuth-
+Credential kann App-Installationsmetadaten nicht über den App-JWT-Endpunkt
+belegen; Installation und effektive App-Berechtigungen bleiben daher
+unverifiziert, bis ein echter Post-Merge-Publisher-Lauf das begrenzte Token
+erzeugt und verwendet. Dieser Lauf muss reale Upstream-Ergebnisse statt eines
+fabrizierten Kandidaten verwenden.
+
+Ein schreibfreies Resolver-Preflight gab korrekt Exit-Code 2 statt eines
+falschen No-Update-Ergebnisses zurück: ModSecurity v3 hat nun ein neueres
+Release, dessen Tag und unveränderlicher Commit getrennte Provenance-Review
+erfordern, und HAProxy hat ein neueres offizielles Tarball-/Checksum-Tupel.
+Das ist Source-Control-Evidenz für fail-closed-Verhalten, kein App-Publisher-
+End-to-End-Ergebnis und keine Autorisierung, einen der Pins in diesem PR zu
+aktualisieren.
 
 ## Nicht ausgeführte Prüfungen
 
@@ -150,11 +190,14 @@ ausgeführte Prüfung wird als bestanden dargestellt.
 
 ## Einschränkungen und Restrisiko
 
-Die GitHub-App-Konfiguration ist derzeit abwesend. Daher schlägt ein
-verfügbares Update nun mit der dokumentierten Fehlermeldung fail-closed fehl,
-statt einen PR zu erzeugen. Das normale Event-/Check-Verhalten eines vom
+Die erforderlichen App-Konfigurationsnamen sind vorhanden, aber Installation
+und effektive Berechtigungen sind noch nicht durch einen erfolgreichen
+kurzlebigen Token-Mint belegt. Das normale Event-/Check-Verhalten eines vom
 App-Token erzeugten Draft-PRs bleibt unbeobachtet, bis der Source-Fix-PR mit
-separater Autorisierung gemergt ist. Der Zustandscheck reduziert Branch-/PR-
+separater Autorisierung gemergt ist. Das aktuelle Resolver-Preflight bedeutet
+auch, dass ein manueller Post-Merge-Lauf vor dem erlaubten Update- oder
+No-Update-Endzustand fehlschlagen würde, solange keine getrennt geprüfte
+Provenance-Entscheidung getroffen ist. Der Zustandscheck reduziert Branch-/PR-
 Übernahme- und Default-Branch-Drift-Risiko, autorisiert aber weder Merge,
 Branch-Protection-Bypass noch eine Änderung außerhalb von `ci/lib/common.sh`.
 
@@ -164,8 +207,11 @@ Der Source-Fix-Worktree ist auf
 `fix/common-version-draft-publisher-app-token` isoliert; keine Änderung von
 Framework `master`, Parent, MRTS oder Gitlink ist autorisiert. Der finale
 Source-Review umfasst ein sauberes `git diff --check`, exakte statische
-Publisher-Profile, keinen nativen Token-Fallback, keinen `workflows`-
+Publisher-/Ergebnis-Profile, keinen nativen Token-Fallback, keinen `workflows`-
 Write-Request, keinen direkten/Force-Push und keinen ungeprüften App-Token-
-Consumer. Normaler Push, exakt ein Framework-Draft-PR und dessen Current-Head-
-Hosted-Checks sind die bei dieser Record-Revision noch ausstehende
-Delivery-Evidenz.
+Consumer. PR #65 existiert bereits; sein Source-Amendment benötigt noch einen
+normalen Push, Current-Head-Hosted-Checks und alle erforderlichen
+Delivery-Gates, bevor er review-bereit werden kann. Er darf nicht gemergt
+werden, solange das bekannte Post-Merge-Resolver-Preflight ohne getrennte
+autorisierte Provenance-Entscheidung keinen der beiden erlaubten Endzustände
+erreichen kann.
