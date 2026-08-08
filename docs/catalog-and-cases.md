@@ -36,6 +36,23 @@ Use `expect.variants.with-crs` only when the CRS runtime context changes an
 assertion. Do not change the base No-CRS expectation to encode a With-CRS
 exception.
 
+## Portable audit evidence
+
+A case with `expect.audit_log.required: true` must carry the canonical portable
+serial-audit directives in its own `rules`: `SecAuditEngine On` or
+`RelevantOnly`, `SecAuditLogType Serial`, `SecAuditLogParts ABHZ`, and the
+exact `@@AUDIT_LOG@@` and `@@AUDIT_LOG_DIR@@` placeholders. Materialization
+accepts those paths only when they are absolute, non-symlinked descendants of
+an existing current-user-owned output root that is neither group- nor
+world-writable; the audit directory must already exist and meet the same
+ownership rule, and a pre-existing audit file is rejected as stale evidence.
+The runner substitutes the paths but never creates a synthetic audit log.
+
+Host harnesses own secure directory preparation, the actual server transaction,
+the fresh audit artifact, and cleanup. A fixture's `audit_log` expectations
+must bind stable request and rule evidence such as the URI, rule ID, and
+message; a status response or an arbitrary nonempty file is not an audit PASS.
+
 ## Selection, status, and promotion
 
 | Status or property | Meaning |

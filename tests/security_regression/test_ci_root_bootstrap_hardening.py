@@ -115,7 +115,9 @@ class CiRootBootstrapHardeningTests(unittest.TestCase):
             temporary_root = Path(temporary_directory)
             verified_root = temporary_root / "verified"
             case_output = verified_root / "case-runner" / "audit-log"
-            case_output.mkdir(parents=True)
+            case_output.mkdir(parents=True, mode=0o700)
+            case_output.chmod(0o700)
+            (case_output / "audit").mkdir(mode=0o700)
             environment = os.environ.copy()
             environment.update(
                 {

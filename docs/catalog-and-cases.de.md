@@ -36,6 +36,25 @@ Verwende `expect.variants.with-crs` nur, wenn der CRS-Runtime-Kontext eine
 Assertion verändert. Ändere nicht die No-CRS-Basiserwartung, um eine
 With-CRS-Ausnahme zu kodieren.
 
+## Portable Audit-Evidence
+
+Ein Fall mit `expect.audit_log.required: true` muss die kanonischen portablen
+Serial-Audit-Direktiven in seinen eigenen `rules` tragen: `SecAuditEngine On`
+oder `RelevantOnly`, `SecAuditLogType Serial`, `SecAuditLogParts ABHZ` sowie
+die exakten Platzhalter `@@AUDIT_LOG@@` und `@@AUDIT_LOG_DIR@@`. Die
+Materialisierung akzeptiert diese Pfade nur, wenn sie absolut, symlinkfrei und
+Nachfahren einer vorhandenen, dem aktuellen Benutzer gehörenden Output-Root
+sind, die weder gruppen- noch world-writable ist; das Audit-Verzeichnis muss
+bereits existieren und dieselbe Ownership-Regel erfüllen, und eine schon
+vorhandene Auditdatei wird als stale Evidence abgelehnt. Der Runner ersetzt die
+Pfade, erzeugt aber nie ein synthetisches Auditlog.
+
+Host-Harnesses besitzen die sichere Verzeichnisvorbereitung, die tatsächliche
+Servertransaktion, das frische Audit-Artefakt und das Cleanup. Die
+`audit_log`-Erwartungen eines Falls müssen stabile Request- und Rule-Evidence
+wie URI, Rule-ID und Nachricht binden; eine Statusantwort oder eine beliebige
+nichtleere Datei ist kein Audit-PASS.
+
 ## Auswahl, Status und Promotion
 
 | Status oder Eigenschaft | Bedeutung |

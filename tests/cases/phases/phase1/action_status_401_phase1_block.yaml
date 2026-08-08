@@ -23,6 +23,11 @@ capabilities:
 
 rules: |
   SecRuleEngine On
+  SecAuditEngine RelevantOnly
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
   SecRule ARGS "@streq block401" \
     "id:2320,phase:1,deny,status:401,block,msg:'shared imported status 401 block'"
 
@@ -37,6 +42,8 @@ expect:
   audit_log:
     required: true
     rule_id: 2320
+    uri: "/?what=block401"
+    message: shared imported status 401 block
   variants:
     with-crs:
       status: 403
