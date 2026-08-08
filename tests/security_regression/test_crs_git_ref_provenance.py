@@ -30,7 +30,9 @@ ANNOTATED_TAG_OBJECT = "5d2bd9a1ad7e607813f9e19cc73fa44dd5dd2ceb"
 
 
 def load_common_version_checker():
-    spec = importlib.util.spec_from_file_location("check_common_versions", CHECK_COMMON_VERSIONS)
+    spec = importlib.util.spec_from_file_location(
+        "check_common_versions", CHECK_COMMON_VERSIONS
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError("could not load the common-version checker")
     module = importlib.util.module_from_spec(spec)
@@ -163,7 +165,11 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 timeout=15,
             )
-            commands = [line.rstrip() for line in git_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+            commands = [
+                line.rstrip()
+                for line in git_log.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
             return result, commands, sentinel.exists()
 
     def assert_blocked_before_git(self, overrides):
@@ -185,26 +191,38 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                 self.assert_blocked_before_git({"CRS_GIT_REF": rejected_ref})
 
     def test_default_release_tag_is_metadata_not_a_git_selector(self):
-        result, commands, _ = self.invoke_fetch(overrides={"CRS_GIT_REF": APPROVED_RELEASE_TAG})
+        result, commands, _ = self.invoke_fetch(
+            overrides={"CRS_GIT_REF": APPROVED_RELEASE_TAG}
+        )
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn(f"fetch --depth 1 --no-tags origin {APPROVED_COMMIT}", command_text)
+        self.assertIn(
+            f"fetch --depth 1 --no-tags origin {APPROVED_COMMIT}", command_text
+        )
         self.assertNotIn(APPROVED_RELEASE_TAG, command_text)
         self.assertNotIn("--branch", command_text)
         self.assertNotIn("checkout --detach FETCH_HEAD", command_text)
 
-    def test_rejects_runtime_url_and_ref_overrides_or_ignores_approved_commit_override(self):
-        self.assert_blocked_before_git({"CRS_REPO_URL": "https://github.com/attacker/crs.git"})
+    def test_rejects_runtime_url_and_ref_overrides_or_ignores_approved_commit_override(
+        self,
+    ):
+        self.assert_blocked_before_git(
+            {"CRS_REPO_URL": "https://github.com/attacker/crs.git"}
+        )
         self.assert_blocked_before_git({"CRS_GIT_REF": "main"})
 
-        result, commands, _ = self.invoke_fetch(overrides={"CRS_APPROVED_COMMIT": ALTERNATE_COMMIT})
+        result, commands, _ = self.invoke_fetch(
+            overrides={"CRS_APPROVED_COMMIT": ALTERNATE_COMMIT}
+        )
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(APPROVED_COMMIT, command_text)
         self.assertNotIn(ALTERNATE_COMMIT, command_text)
 
         alternate_repo = "https://github.com/attacker/approved-crs.git"
-        result, commands, _ = self.invoke_fetch(overrides={"CRS_APPROVED_REPO_URL": alternate_repo})
+        result, commands, _ = self.invoke_fetch(
+            overrides={"CRS_APPROVED_REPO_URL": alternate_repo}
+        )
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn(APPROVED_REPO, command_text)
@@ -229,7 +247,9 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         )
 
     def test_rejects_unexpected_origin_before_fetch(self):
-        result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_ORIGIN": "https://github.com/attacker/crs.git"})
+        result, commands, _ = self.invoke_fetch(
+            overrides={"FAKE_GIT_ORIGIN": "https://github.com/attacker/crs.git"}
+        )
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn("config --get remote.origin.url", command_text)
@@ -242,21 +262,27 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         self.assertTrue(sentinel_exists)
 
     def test_rejects_resolved_commit_or_final_head_mismatch_before_submodules(self):
-        result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_FETCH_HEAD_COMMIT": ALTERNATE_COMMIT})
+        result, commands, _ = self.invoke_fetch(
+            overrides={"FAKE_GIT_FETCH_HEAD_COMMIT": ALTERNATE_COMMIT}
+        )
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn("rev-parse --verify FETCH_HEAD^{commit}", command_text)
         self.assertNotIn("checkout", self.git_verbs(commands))
         self.assertNotIn("submodule", self.git_verbs(commands))
 
-        result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_RESOLVED_COMMIT": ALTERNATE_COMMIT})
+        result, commands, _ = self.invoke_fetch(
+            overrides={"FAKE_GIT_RESOLVED_COMMIT": ALTERNATE_COMMIT}
+        )
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn("rev-parse --verify", command_text)
         self.assertNotIn("checkout", self.git_verbs(commands))
         self.assertNotIn("submodule", self.git_verbs(commands))
 
-        result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_HEAD_COMMIT": ALTERNATE_COMMIT})
+        result, commands, _ = self.invoke_fetch(
+            overrides={"FAKE_GIT_HEAD_COMMIT": ALTERNATE_COMMIT}
+        )
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn(f"checkout --detach {APPROVED_COMMIT}", command_text)
@@ -264,7 +290,9 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         self.assertNotIn("submodule", self.git_verbs(commands))
 
     def test_rejects_submodule_manifest_after_parent_verification(self):
-        result, commands, _ = self.invoke_fetch(overrides={"FAKE_GIT_CREATE_GITMODULES": "1"})
+        result, commands, _ = self.invoke_fetch(
+            overrides={"FAKE_GIT_CREATE_GITMODULES": "1"}
+        )
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn("rev-parse --verify HEAD^{commit}", command_text)
@@ -283,18 +311,46 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         client = FakeGithubClient()
         result = COMMON_VERSION_CHECKER.check_crs_release_provenance(entries, client)
 
-        self.assertEqual(COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_REPO_URL"), APPROVED_REPO)
-        self.assertEqual(COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_COMMIT"), APPROVED_COMMIT)
-        self.assertEqual(COMMON_VERSION_CHECKER.value(entries, "CRS_RELEASE_TAG"), APPROVED_RELEASE_TAG)
-        self.assertEqual(COMMON_VERSION_CHECKER.STATUS_UNKNOWN, result.status)
+        self.assertEqual(
+            COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_REPO_URL"),
+            APPROVED_REPO,
+        )
+        self.assertEqual(
+            COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_COMMIT"),
+            APPROVED_COMMIT,
+        )
+        self.assertEqual(
+            COMMON_VERSION_CHECKER.value(entries, "CRS_RELEASE_TAG"),
+            APPROVED_RELEASE_TAG,
+        )
+        self.assertEqual(COMMON_VERSION_CHECKER.STATUS_REVIEW_REQUIRED, result.status)
         self.assertEqual(result.updates, [])
         self.assertEqual(
             result.variables,
-            ["CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"],
+            [
+                "CRS_APPROVED_REPO_URL",
+                "CRS_RELEASE_TAG",
+                "CRS_APPROVED_COMMIT",
+                "CRS_REPO_URL",
+                "CRS_GIT_REF",
+            ],
         )
         self.assertEqual(
             result.details["reason"],
             "update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after commit provenance review",
+        )
+        self.assertEqual(
+            result.details["manual_variables"],
+            list(COMMON_VERSION_CHECKER.MANUAL_REVIEW_VARIABLES["OWASP Core Rule Set"]),
+        )
+        self.assertEqual(COMMON_VERSION_CHECKER.exit_code([result]), 2)
+        self.assertEqual(
+            COMMON_VERSION_CHECKER.exit_code(
+                [result],
+                entries,
+                defer_reviewed_provenance=True,
+            ),
+            0,
         )
         self.assertEqual(
             client.urls,

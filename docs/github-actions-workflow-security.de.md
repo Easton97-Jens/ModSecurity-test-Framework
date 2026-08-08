@@ -219,25 +219,37 @@ einen Branch oder PR zu löschen oder zu überschreiben. Auch ein Fortschreiten
 des vertrauenswürdigen Default-Branches während der Publisher-Revalidierung
 führt zum fail-closed-Abbruch.
 
-Der Resolver gibt `update_available=false` nur aus, wenn jede
-update-berechtigte Quelle aktuell ist. Ergebnisse `unknown`, `blocked` und
-`error` lassen den Resolver fehlschlagen; bewusst erfasste lokale Policy-Werte
-ohne Updater-Vertrag werden als `not_applicable` gemeldet und verschleiern kein
-unsicheres Quellergebnis. Der credential-freie abschließende Ergebnis-Job läuft
-immer: Bei `false` verlangt er einen erfolgreichen Resolver und übersprungene
-Kandidaten-/Publisher-Jobs und schreibt dann die geprüfte englische/deutsche
-No-Update-Zusammenfassung; bei `true` verlangt er erfolgreiche drei
-Vorgängerjobs und meldet URL oder Nummer des begrenzten Draft-PR mit einem
-klaren Fallback, falls die Action keines der beiden Ergebnisse liefert. Jeder
-andere Zustand schlägt fehl, statt als fehlendes Update interpretiert zu werden.
-Damit kann ein No-Update weder Branch, PR noch Commit ändern. Auch fehlende
-App-Konfiguration nach einem verfügbaren Update führt klar zum Abbruch und wird
-nicht als fehlendes Update behandelt. Ein mit dem App-Token erzeugter PR soll
-normale Pull-Request-Events auslösen; deshalb müssen Required Checks,
-Workflow-/Action-Pin-Checks, Python- und ShellCheck-Qualität, Common-Version-
-Provenance, Dokumentationsverträge sowie scope-anwendbare SonarQube-/Branch-
-Protection-Checks am tatsächlichen PR-Head beobachtet werden, bevor ein Mensch
-merged. Der Workflow selbst genehmigt, merged oder aktiviert niemals Auto-Merge.
+Der Resolver verwendet den expliziten Modus
+`--defer-reviewed-provenance` nur für diesen begrenzten Wartungsablauf; die
+Standard-CLI des Checkers bleibt strikt. Sein `maintenance_outcome` ist genau
+`no_updates`, `manual_review_only`, `safe_updates`,
+`safe_updates_with_manual_review` oder das fail-closed-Ergebnis `fatal`.
+`review_required` ist ausschließlich für die bereits expliziten atomaren
+CRS- und ModSecurity-v3-Tag-plus-immutable-Commit-Pfade zulässig, nachdem ihr
+festes Repository, Tag-Format, Immutable-Commit-Format und die lokalen
+Bindings geprüft wurden. Dieser Status enthält nie einen automatischen
+Update-Plan. `unknown`, `blocked`, `error`, fehlerhafte manuelle Metadaten,
+Plan-Konflikte oder jede Variablenüberschneidung bleiben fatal; lokale
+Policy-Werte ohne Updater-Vertrag bleiben `not_applicable`.
+
+Bei `manual_review_only` gibt der Resolver `update_available=false` aus,
+Validator und Publisher werden übersprungen, und der Ergebnis-Job schreibt
+eine ausdrückliche englische/deutsche Zusammenfassung zur manuellen Prüfung.
+Es werden kein Kandidat, Branch, Commit oder Pull Request erzeugt. Bei beiden
+sicheren Update-Ergebnissen vergleichen Resolver, Validator und Publisher
+unabhängig Outcome, Kandidat-SHA-256, Liste automatischer Variablen, Liste
+manueller Komponenten und den Nachweis erhaltener manueller Pins. Der Publisher
+darf nur für diese beiden sicheren Ergebnisse laufen; sein Draft-PR-Body führt
+getrennte Tabellen für automatische Änderungen und unveränderte manuelle
+Provenance-Prüfungen. Der Ergebnis-Job akzeptiert keine andere
+Ausgabekombination. Auch fehlende App-Konfiguration nach einem verfügbaren
+Update führt klar zum Abbruch und wird nicht als fehlendes Update behandelt.
+Ein mit dem App-Token erzeugter PR soll normale Pull-Request-Events auslösen;
+deshalb müssen Required Checks, Workflow-/Action-Pin-Checks, Python- und
+ShellCheck-Qualität, Common-Version-Provenance, Dokumentationsverträge sowie
+scope-anwendbare SonarQube-/Branch-Protection-Checks am tatsächlichen PR-Head
+beobachtet werden, bevor ein Mensch merged. Der Workflow selbst genehmigt,
+merged oder aktiviert niemals Auto-Merge.
 
 Für jeden `pull_request`-Workflow weist der Checker `pull_request_target`,
 Write-Berechtigungen, Referenzen `secrets.` und `secrets[...]`, Secret-

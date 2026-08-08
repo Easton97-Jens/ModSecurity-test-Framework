@@ -226,16 +226,45 @@ COMMON_VERSION_APP_CONFIG_MISSING_CONDITION = (
     "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID == '' || "
     "env.WORKFLOW_UPDATER_APP_PRIVATE_KEY_CONFIGURED != 'true' }}"
 )
+COMMON_VERSION_RESOLVER_OUTPUTS = {
+    "maintenance_outcome": "${{ steps.resolve.outputs.maintenance_outcome }}",
+    "update_available": "${{ steps.resolve.outputs.update_available }}",
+    "candidate_sha256": "${{ steps.resolve.outputs.candidate_sha256 }}",
+    "manual_review_required": "${{ steps.resolve.outputs.manual_review_required }}",
+    "manual_review_components_b64": (
+        "${{ steps.resolve.outputs.manual_review_components_b64 }}"
+    ),
+    "automatic_update_variables_b64": (
+        "${{ steps.resolve.outputs.automatic_update_variables_b64 }}"
+    ),
+    "manual_review_pins_sha256": (
+        "${{ steps.resolve.outputs.manual_review_pins_sha256 }}"
+    ),
+}
 COMMON_VERSION_PUBLISHER_IF = (
     "(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') "
     "&& github.repository == 'Easton97-Jens/ModSecurity-test-Framework' && "
     "github.ref == format('refs/heads/{0}', github.event.repository.default_branch) "
     "&& needs.resolve.outputs.update_available == 'true' && "
+    "(needs.resolve.outputs.maintenance_outcome == 'safe_updates' || "
+    "needs.resolve.outputs.maintenance_outcome == 'safe_updates_with_manual_review') && "
     "needs.candidate-validate.outputs.candidate_validated == 'true'"
 )
 COMMON_VERSION_PUBLISHER_ENV = {
-    "CANDIDATE_SHA256": "${{ needs.resolve.outputs.candidate_sha256 }}"
+    "CANDIDATE_SHA256": "${{ needs.resolve.outputs.candidate_sha256 }}",
+    "MAINTENANCE_OUTCOME": "${{ needs.resolve.outputs.maintenance_outcome }}",
+    "MANUAL_REVIEW_REQUIRED": "${{ needs.resolve.outputs.manual_review_required }}",
+    "MANUAL_REVIEW_COMPONENTS_B64": (
+        "${{ needs.resolve.outputs.manual_review_components_b64 }}"
+    ),
+    "AUTOMATIC_UPDATE_VARIABLES_B64": (
+        "${{ needs.resolve.outputs.automatic_update_variables_b64 }}"
+    ),
+    "MANUAL_REVIEW_PINS_SHA256": (
+        "${{ needs.resolve.outputs.manual_review_pins_sha256 }}"
+    ),
 }
+COMMON_VERSION_CANDIDATE_ENV = COMMON_VERSION_PUBLISHER_ENV
 STEP_REVALIDATE_COMMON_VERSION_CANDIDATE = (
     "Independently revalidate and apply the candidate"
 )
@@ -364,8 +393,8 @@ COMMON_VERSION_PUBLISHER_OUTPUTS = {
 COMMON_VERSION_PUBLISHER_RUN_SHA256 = {
     STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
     STEP_FETCH_CHECKSUM_VERIFIED_SHELLCHECK: "f4e26f8af7f41a9e425a9416c78f0ff7ca2b4e8faa0837acd94c91b26a4ecb7d",
-    STEP_REVALIDATE_COMMON_VERSION_CANDIDATE: "fdfecb216d06c84cbfb6db606bb3bb87fbbcf2723c32df7132985cec4f3db3d6",
-    STEP_BUILD_BOUNDED_COMMON_VERSION_PR_BODY: "770020519433c088e83331263f636e6ba4c12be6fb16493429548584a9ca4f75",
+    STEP_REVALIDATE_COMMON_VERSION_CANDIDATE: "0efb644c2ea0e081bd506aeb1675389e4d7c220ab6eddc4365789482e2bd3476",
+    STEP_BUILD_BOUNDED_COMMON_VERSION_PR_BODY: "d32906bb8fff4feb518395fcfedb566b32a80930084ec3489577ba3c4e6da609",
     STEP_FAIL_CLOSED_COMMON_VERSION_APP_CONFIGURATION: "89dbee536c4566a0f64ee9ae5f1363fbeca67f6a7f6b2b02d86158b5955ede1b",
 }
 COMMON_VERSION_PUBLISHER_SCRIPT_SHA256 = {
@@ -395,7 +424,16 @@ COMMON_VERSION_RESULT_NEEDS = {
 ALWAYS_CONDITION = "${{ always() }}"
 COMMON_VERSION_RESULT_ENV = {
     "RESOLVER_RESULT": "${{ needs.resolve.result }}",
+    "MAINTENANCE_OUTCOME": "${{ needs.resolve.outputs.maintenance_outcome }}",
     "UPDATE_AVAILABLE": "${{ needs.resolve.outputs.update_available }}",
+    "CANDIDATE_SHA256": "${{ needs.resolve.outputs.candidate_sha256 }}",
+    "MANUAL_REVIEW_REQUIRED": "${{ needs.resolve.outputs.manual_review_required }}",
+    "MANUAL_REVIEW_COMPONENTS_B64": (
+        "${{ needs.resolve.outputs.manual_review_components_b64 }}"
+    ),
+    "MANUAL_REVIEW_PINS_SHA256": (
+        "${{ needs.resolve.outputs.manual_review_pins_sha256 }}"
+    ),
     "VALIDATOR_RESULT": "${{ needs.candidate-validate.result }}",
     "PUBLISHER_RESULT": "${{ needs.publish.result }}",
     "DRAFT_PULL_REQUEST_NUMBER": (
@@ -408,7 +446,7 @@ COMMON_VERSION_RESULT_STEP_PROFILE = (
     (STEP_REPORT_COMMON_VERSION_OUTCOME, STEP_KEYS_RUN),
 )
 COMMON_VERSION_RESULT_RUN_SHA256 = {
-    STEP_REPORT_COMMON_VERSION_OUTCOME: "e6131dff3a4ab71ca0c90a4974509a71ff295f6e0b31a4450df8037faa8692fb",
+    STEP_REPORT_COMMON_VERSION_OUTCOME: "ca4afb210ae1e7eda774adbd3bc1bde4c650bf6689cc341957c786c4f24b5af8",
 }
 # The publisher is the updater's only write-capable trust boundary.  Its run and
 # github-script bodies are intentionally static: updating an Action pin does not
@@ -2587,10 +2625,24 @@ def common_version_candidate_errors(
     path: Path, resolve: Any, candidate: Any, resolve_run: str, candidate_run: str
 ) -> list[str]:
     errors: list[str] = []
+    if (
+        not isinstance(resolve, dict)
+        or resolve.get("outputs") != COMMON_VERSION_RESOLVER_OUTPUTS
+    ):
+        errors.append(
+            f"{path}: common-version resolver must expose only the reviewed maintenance outputs"
+        )
     if not isinstance(candidate, dict) or normalized_needs(candidate.get("needs")) != {
         "resolve"
     }:
         errors.append(f"{path}: common-version candidate job must need resolve only")
+    if (
+        isinstance(candidate, dict)
+        and candidate.get("env") != COMMON_VERSION_CANDIDATE_ENV
+    ):
+        errors.append(
+            f"{path}: common-version candidate job must use the reviewed resolver-bound environment"
+        )
     candidate_if = candidate.get("if") if isinstance(candidate, dict) else None
     if (
         not isinstance(candidate_if, str)
@@ -2603,10 +2655,14 @@ def common_version_candidate_errors(
         'cp ci/lib/common.sh "$BUILD_ROOT/common.sh"',
         '--common-sh "$BUILD_ROOT/common.sh"',
         "--update",
-        "cmp -s ci/lib/common.sh",
-        'candidate_sha256="$(sha256sum "$BUILD_ROOT/common.sh"',
-        CANDIDATE_SHA256_LENGTH_CHECK,
-        "update_available=true",
+        "--defer-reviewed-provenance",
+        "candidate_sha256 = hashlib.sha256(candidate).hexdigest()",
+        "maintenance_outcome",
+        "manual_review_required",
+        "manual_review_components_b64",
+        "automatic_update_variables_b64",
+        "manual_review_pins_sha256",
+        '"update_available": str(safe_updates).lower()',
     )
     if any(requirement not in resolve_run for requirement in resolver_requirements):
         errors.append(
@@ -2616,9 +2672,15 @@ def common_version_candidate_errors(
         'cp ci/lib/common.sh "$BUILD_ROOT/common.sh"',
         '--common-sh "$BUILD_ROOT/common.sh"',
         "--update",
+        "--defer-reviewed-provenance",
         'candidate_sha256="$(sha256sum "$BUILD_ROOT/common.sh"',
         CANDIDATE_SHA256_LENGTH_CHECK,
         'test "$candidate_sha256" = "$CANDIDATE_SHA256"',
+        "candidate validator maintenance outcome mismatch",
+        "candidate validator manual components mismatch",
+        "candidate validator automatic variables mismatch",
+        "candidate validator manual-pin proof mismatch",
+        "candidate validator candidate SHA-256 mismatch",
         '"$TOOLS_DIR/shellcheck" -x "$BUILD_ROOT/common.sh"',
         "candidate_validated=true",
     )

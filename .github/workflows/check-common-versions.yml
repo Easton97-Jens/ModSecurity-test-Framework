@@ -23,8 +23,13 @@ jobs:
     permissions:
       contents: read
     outputs:
+      maintenance_outcome: ${{ steps.resolve.outputs.maintenance_outcome }}
       update_available: ${{ steps.resolve.outputs.update_available }}
       candidate_sha256: ${{ steps.resolve.outputs.candidate_sha256 }}
+      manual_review_required: ${{ steps.resolve.outputs.manual_review_required }}
+      manual_review_components_b64: ${{ steps.resolve.outputs.manual_review_components_b64 }}
+      automatic_update_variables_b64: ${{ steps.resolve.outputs.automatic_update_variables_b64 }}
+      manual_review_pins_sha256: ${{ steps.resolve.outputs.manual_review_pins_sha256 }}
     steps:
       - name: Checkout trusted default revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -57,22 +62,98 @@ jobs:
           mkdir -p "$BUILD_ROOT"
           cp ci/lib/common.sh "$BUILD_ROOT/common.sh"
           python3 ci/tools/check-common-versions.py --common-sh "$BUILD_ROOT/common.sh" \
-            --update --json --write-files --timeout 20 > "$RUNNER_TEMP/common-version-check.json"
+            --update --defer-reviewed-provenance --json --write-files --timeout 20 \
+            > "$RUNNER_TEMP/common-version-check.json"
+          cmp -s "$RUNNER_TEMP/common-version-check.json" \
+            "$BUILD_ROOT/results/common-version-check/summary.json"
           cat "$RUNNER_TEMP/common-version-check.json" >> "$GITHUB_STEP_SUMMARY"
-          if cmp -s ci/lib/common.sh "$BUILD_ROOT/common.sh"; then
-            printf 'update_available=false\n' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          candidate_sha256="$(sha256sum "$BUILD_ROOT/common.sh" | awk '{print $1}')"
-          test "${#candidate_sha256}" -eq 64
-          case "$candidate_sha256" in
-            *[!0-9a-f]*|'')
-              echo "candidate common.sh SHA-256 is malformed" >&2
-              exit 1
-              ;;
-          esac
-          printf 'candidate_sha256=%s\n' "$candidate_sha256" >> "$GITHUB_OUTPUT"
-          printf 'update_available=true\n' >> "$GITHUB_OUTPUT"
+          python3 - "$RUNNER_TEMP/common-version-check.json" ci/lib/common.sh \
+            "$BUILD_ROOT/common.sh" "$GITHUB_OUTPUT" <<'PY'
+          import base64
+          import binascii
+          import hashlib
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          summary_path, source_path, candidate_path, output_path = map(Path, sys.argv[1:])
+          summary = json.loads(summary_path.read_text(encoding="utf-8"))
+          outcomes = {
+              "no_updates": (False, False),
+              "manual_review_only": (False, True),
+              "safe_updates": (True, False),
+              "safe_updates_with_manual_review": (True, True),
+          }
+          outcome = summary.get("maintenance_outcome")
+          if outcome not in outcomes:
+              raise SystemExit("common-version resolver produced an unsafe maintenance outcome")
+          safe_updates, manual_review = outcomes[outcome]
+          if summary.get("safe_updates_available") is not safe_updates:
+              raise SystemExit("common-version resolver summary has inconsistent safe-update state")
+          if summary.get("manual_review_required") is not manual_review:
+              raise SystemExit("common-version resolver summary has inconsistent manual-review state")
+          manual_components = summary.get("manual_review_components")
+          automatic_variables = summary.get("automatic_update_variables")
+          updates = summary.get("updates_applied")
+          pin_sha256 = summary.get("manual_review_pins_sha256")
+          if (
+              not isinstance(manual_components, list)
+              or not all(
+                  isinstance(component, str)
+                  and component in {"OWASP Core Rule Set", "ModSecurity v3"}
+                  for component in manual_components
+              )
+              or len(manual_components) != len(set(manual_components))
+              or not isinstance(automatic_variables, list)
+              or not all(
+                  isinstance(variable, str)
+                  and re.fullmatch(r"[A-Z][A-Z0-9_]*", variable)
+                  for variable in automatic_variables
+              )
+              or len(automatic_variables) != len(set(automatic_variables))
+              or not isinstance(updates, list)
+              or not isinstance(pin_sha256, str)
+          ):
+              raise SystemExit("common-version resolver summary has malformed bounded fields")
+          applied_variables = [update.get("variable") for update in updates if isinstance(update, dict)]
+          if len(applied_variables) != len(updates) or applied_variables != automatic_variables:
+              raise SystemExit("common-version resolver summary has inconsistent automatic variables")
+          if safe_updates != bool(updates):
+              raise SystemExit("common-version resolver summary has inconsistent applied updates")
+          if manual_review != bool(manual_components):
+              raise SystemExit("common-version resolver summary has inconsistent manual components")
+          if summary.get("manual_review_pins_preserved") is not manual_review:
+              raise SystemExit("common-version resolver summary lacks manual-pin preservation proof")
+          if manual_review:
+              if re.fullmatch(r"[0-9a-f]{64}", pin_sha256) is None:
+                  raise SystemExit("common-version resolver manual-pin proof is malformed")
+          elif pin_sha256:
+              raise SystemExit("common-version resolver emitted an unexpected manual-pin proof")
+          source = source_path.read_bytes()
+          candidate = candidate_path.read_bytes()
+          if safe_updates != (source != candidate):
+              raise SystemExit("common-version resolver candidate does not match its maintenance outcome")
+          candidate_sha256 = hashlib.sha256(candidate).hexdigest() if safe_updates else ""
+          manual_components_b64 = base64.b64encode(
+              json.dumps(manual_components, separators=(",", ":")).encode("utf-8")
+          ).decode("ascii")
+          automatic_variables_b64 = base64.b64encode(
+              json.dumps(automatic_variables, separators=(",", ":")).encode("utf-8")
+          ).decode("ascii")
+          output_values = {
+              "maintenance_outcome": outcome,
+              "update_available": str(safe_updates).lower(),
+              "candidate_sha256": candidate_sha256,
+              "manual_review_required": str(manual_review).lower(),
+              "manual_review_components_b64": manual_components_b64,
+              "automatic_update_variables_b64": automatic_variables_b64,
+              "manual_review_pins_sha256": pin_sha256,
+          }
+          with output_path.open("a", encoding="utf-8") as output:
+              for name, value in output_values.items():
+                  output.write(f"{name}={value}\n")
+          PY
 
   candidate-validate:
     needs: resolve
@@ -85,6 +166,11 @@ jobs:
       candidate_validated: ${{ steps.candidate_validation.outputs.candidate_validated }}
     env:
       CANDIDATE_SHA256: ${{ needs.resolve.outputs.candidate_sha256 }}
+      MAINTENANCE_OUTCOME: ${{ needs.resolve.outputs.maintenance_outcome }}
+      MANUAL_REVIEW_REQUIRED: ${{ needs.resolve.outputs.manual_review_required }}
+      MANUAL_REVIEW_COMPONENTS_B64: ${{ needs.resolve.outputs.manual_review_components_b64 }}
+      AUTOMATIC_UPDATE_VARIABLES_B64: ${{ needs.resolve.outputs.automatic_update_variables_b64 }}
+      MANUAL_REVIEW_PINS_SHA256: ${{ needs.resolve.outputs.manual_review_pins_sha256 }}
     steps:
       - name: Checkout trusted default revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -127,11 +213,89 @@ jobs:
           mkdir -p "$BUILD_ROOT"
           cp ci/lib/common.sh "$BUILD_ROOT/common.sh"
           python3 ci/tools/check-common-versions.py --common-sh "$BUILD_ROOT/common.sh" \
-            --update --markdown --write-files --timeout 20 | tee "$RUNNER_TEMP/common-version-check.md"
+            --update --defer-reviewed-provenance --json --write-files --timeout 20 \
+            > "$RUNNER_TEMP/common-version-check.json"
+          cmp -s "$RUNNER_TEMP/common-version-check.json" \
+            "$BUILD_ROOT/results/common-version-check/summary.json"
+          cp "$BUILD_ROOT/results/common-version-check/summary.md" \
+            "$RUNNER_TEMP/common-version-check.md"
           cat "$RUNNER_TEMP/common-version-check.md" >> "$GITHUB_STEP_SUMMARY"
           candidate_sha256="$(sha256sum "$BUILD_ROOT/common.sh" | awk '{print $1}')"
           test "${#candidate_sha256}" -eq 64
           test "$candidate_sha256" = "$CANDIDATE_SHA256"
+          python3 - "$RUNNER_TEMP/common-version-check.json" ci/lib/common.sh \
+            "$BUILD_ROOT/common.sh" <<'PY'
+          import base64
+          import binascii
+          import hashlib
+          import json
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          summary_path, source_path, candidate_path = map(Path, sys.argv[1:])
+
+          def decode_list(name):
+              encoded = os.environ[name]
+              if re.fullmatch(r"[A-Za-z0-9+/]*={0,2}", encoded) is None:
+                  raise SystemExit(f"{name} is not canonical base64")
+              try:
+                  value = json.loads(base64.b64decode(encoded, validate=True))
+              except (ValueError, binascii.Error, json.JSONDecodeError) as exc:
+                  raise SystemExit(f"{name} is not a JSON list") from exc
+              if (
+                  not isinstance(value, list)
+                  or not all(isinstance(item, str) for item in value)
+                  or base64.b64encode(
+                      json.dumps(value, separators=(",", ":")).encode("utf-8")
+                  ).decode("ascii")
+                  != encoded
+              ):
+                  raise SystemExit(f"{name} is not a canonical bounded list")
+              return value
+
+          summary = json.loads(summary_path.read_text(encoding="utf-8"))
+          outcome = os.environ["MAINTENANCE_OUTCOME"]
+          if outcome not in {"safe_updates", "safe_updates_with_manual_review"}:
+              raise SystemExit("candidate validator received an unsafe resolver outcome")
+          manual_review = outcome == "safe_updates_with_manual_review"
+          if os.environ["MANUAL_REVIEW_REQUIRED"] != str(manual_review).lower():
+              raise SystemExit("candidate validator manual-review flag does not match outcome")
+          manual_components = decode_list("MANUAL_REVIEW_COMPONENTS_B64")
+          automatic_variables = decode_list("AUTOMATIC_UPDATE_VARIABLES_B64")
+          if summary.get("maintenance_outcome") != outcome:
+              raise SystemExit("candidate validator maintenance outcome mismatch")
+          if summary.get("manual_review_required") is not manual_review:
+              raise SystemExit("candidate validator manual-review mismatch")
+          if summary.get("manual_review_components") != manual_components:
+              raise SystemExit("candidate validator manual components mismatch")
+          if summary.get("automatic_update_variables") != automatic_variables:
+              raise SystemExit("candidate validator automatic variables mismatch")
+          updates = summary.get("updates_applied")
+          if (
+              not isinstance(updates, list)
+              or [update.get("variable") for update in updates if isinstance(update, dict)]
+              != automatic_variables
+              or len(updates) != len(automatic_variables)
+          ):
+              raise SystemExit("candidate validator applied-update variables mismatch")
+          pin_sha256 = os.environ["MANUAL_REVIEW_PINS_SHA256"]
+          if manual_review:
+              if (
+                  summary.get("manual_review_pins_preserved") is not True
+                  or summary.get("manual_review_pins_sha256") != pin_sha256
+                  or re.fullmatch(r"[0-9a-f]{64}", pin_sha256) is None
+              ):
+                  raise SystemExit("candidate validator manual-pin proof mismatch")
+          elif summary.get("manual_review_pins_sha256") or pin_sha256:
+              raise SystemExit("candidate validator received unexpected manual-pin proof")
+          candidate = candidate_path.read_bytes()
+          if candidate == source_path.read_bytes():
+              raise SystemExit("candidate validator received an unchanged safe-update candidate")
+          if hashlib.sha256(candidate).hexdigest() != os.environ["CANDIDATE_SHA256"]:
+              raise SystemExit("candidate validator candidate SHA-256 mismatch")
+          PY
           bash -n "$BUILD_ROOT/common.sh"
           bash -n ci/checks/catalog/check-common-helpers.sh
           "$TOOLS_DIR/shellcheck" -x "$BUILD_ROOT/common.sh" ci/checks/catalog/check-common-helpers.sh
@@ -139,7 +303,9 @@ jobs:
           python3 -m unittest \
             tests.security_regression.test_common_versions_sonar_provenance \
             tests.security_regression.test_nginx_release_provenance \
-            tests.security_regression.test_crs_git_ref_provenance -v
+            tests.security_regression.test_crs_git_ref_provenance \
+            tests.security_regression.test_modsecurity_v3_git_ref_provenance \
+            tests.security_regression.test_apr_util_provenance -v
           printf 'candidate_validated=true\n' >> "$GITHUB_OUTPUT"
 
   publish:
@@ -151,6 +317,8 @@ jobs:
       github.repository == 'Easton97-Jens/ModSecurity-test-Framework' &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch) &&
       needs.resolve.outputs.update_available == 'true' &&
+      (needs.resolve.outputs.maintenance_outcome == 'safe_updates' ||
+      needs.resolve.outputs.maintenance_outcome == 'safe_updates_with_manual_review') &&
       needs.candidate-validate.outputs.candidate_validated == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -161,6 +329,11 @@ jobs:
       draft_pull_request_url: ${{ steps.draft_pull_request.outputs.pull-request-url }}
     env:
       CANDIDATE_SHA256: ${{ needs.resolve.outputs.candidate_sha256 }}
+      MAINTENANCE_OUTCOME: ${{ needs.resolve.outputs.maintenance_outcome }}
+      MANUAL_REVIEW_REQUIRED: ${{ needs.resolve.outputs.manual_review_required }}
+      MANUAL_REVIEW_COMPONENTS_B64: ${{ needs.resolve.outputs.manual_review_components_b64 }}
+      AUTOMATIC_UPDATE_VARIABLES_B64: ${{ needs.resolve.outputs.automatic_update_variables_b64 }}
+      MANUAL_REVIEW_PINS_SHA256: ${{ needs.resolve.outputs.manual_review_pins_sha256 }}
     steps:
       - name: Checkout trusted default revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -202,15 +375,91 @@ jobs:
           export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
           mkdir -p "$BUILD_ROOT"
           python3 ci/tools/check-common-versions.py --common-sh ci/lib/common.sh \
-            --update --markdown --write-files --timeout 20 | tee "$RUNNER_TEMP/common-version-check.md"
+            --update --defer-reviewed-provenance --json --write-files --timeout 20 \
+            > "$RUNNER_TEMP/common-version-check.stdout.json"
           cp "$BUILD_ROOT/results/common-version-check/summary.json" \
             "$RUNNER_TEMP/common-version-check.json"
+          cmp -s "$RUNNER_TEMP/common-version-check.stdout.json" \
+            "$RUNNER_TEMP/common-version-check.json"
+          cp "$BUILD_ROOT/results/common-version-check/summary.md" \
+            "$RUNNER_TEMP/common-version-check.md"
           test -s "$RUNNER_TEMP/common-version-check.json"
           test -s "$RUNNER_TEMP/common-version-check.md"
           cat "$RUNNER_TEMP/common-version-check.md" >> "$GITHUB_STEP_SUMMARY"
           candidate_sha256="$(sha256sum ci/lib/common.sh | awk '{print $1}')"
           test "${#candidate_sha256}" -eq 64
           test "$candidate_sha256" = "$CANDIDATE_SHA256"
+          python3 - "$RUNNER_TEMP/common-version-check.json" ci/lib/common.sh <<'PY'
+          import base64
+          import binascii
+          import hashlib
+          import json
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          summary_path, candidate_path = map(Path, sys.argv[1:])
+
+          def decode_list(name):
+              encoded = os.environ[name]
+              if re.fullmatch(r"[A-Za-z0-9+/]*={0,2}", encoded) is None:
+                  raise SystemExit(f"{name} is not canonical base64")
+              try:
+                  value = json.loads(base64.b64decode(encoded, validate=True))
+              except (ValueError, binascii.Error, json.JSONDecodeError) as exc:
+                  raise SystemExit(f"{name} is not a JSON list") from exc
+              if (
+                  not isinstance(value, list)
+                  or not all(isinstance(item, str) for item in value)
+                  or base64.b64encode(
+                      json.dumps(value, separators=(",", ":")).encode("utf-8")
+                  ).decode("ascii")
+                  != encoded
+              ):
+                  raise SystemExit(f"{name} is not a canonical bounded list")
+              return value
+
+          summary = json.loads(summary_path.read_text(encoding="utf-8"))
+          outcome = os.environ["MAINTENANCE_OUTCOME"]
+          if outcome not in {"safe_updates", "safe_updates_with_manual_review"}:
+              raise SystemExit("publisher received an unsafe resolver outcome")
+          manual_review = outcome == "safe_updates_with_manual_review"
+          if os.environ["MANUAL_REVIEW_REQUIRED"] != str(manual_review).lower():
+              raise SystemExit("publisher manual-review flag does not match outcome")
+          manual_components = decode_list("MANUAL_REVIEW_COMPONENTS_B64")
+          automatic_variables = decode_list("AUTOMATIC_UPDATE_VARIABLES_B64")
+          if summary.get("maintenance_outcome") != outcome:
+              raise SystemExit("publisher maintenance outcome mismatch")
+          if summary.get("manual_review_required") is not manual_review:
+              raise SystemExit("publisher manual-review mismatch")
+          if summary.get("manual_review_components") != manual_components:
+              raise SystemExit("publisher manual components mismatch")
+          if summary.get("automatic_update_variables") != automatic_variables:
+              raise SystemExit("publisher automatic variables mismatch")
+          updates = summary.get("updates_applied")
+          if (
+              not isinstance(updates, list)
+              or [update.get("variable") for update in updates if isinstance(update, dict)]
+              != automatic_variables
+              or len(updates) != len(automatic_variables)
+              or not updates
+          ):
+              raise SystemExit("publisher applied-update variables mismatch")
+          pin_sha256 = os.environ["MANUAL_REVIEW_PINS_SHA256"]
+          if manual_review:
+              if (
+                  summary.get("manual_review_pins_preserved") is not True
+                  or summary.get("manual_review_pins_sha256") != pin_sha256
+                  or re.fullmatch(r"[0-9a-f]{64}", pin_sha256) is None
+              ):
+                  raise SystemExit("publisher manual-pin proof mismatch")
+          elif summary.get("manual_review_pins_sha256") or pin_sha256:
+              raise SystemExit("publisher received unexpected manual-pin proof")
+          candidate = candidate_path.read_bytes()
+          if hashlib.sha256(candidate).hexdigest() != os.environ["CANDIDATE_SHA256"]:
+              raise SystemExit("publisher candidate SHA-256 mismatch")
+          PY
           changed_paths="$(git diff --name-only)"
           test "$changed_paths" = "ci/lib/common.sh"
           git diff --check
@@ -221,7 +470,9 @@ jobs:
           python3 -m unittest \
             tests.security_regression.test_common_versions_sonar_provenance \
             tests.security_regression.test_nginx_release_provenance \
-            tests.security_regression.test_crs_git_ref_provenance -v
+            tests.security_regression.test_crs_git_ref_provenance \
+            tests.security_regression.test_modsecurity_v3_git_ref_provenance \
+            tests.security_regression.test_apr_util_provenance -v
           trusted_base_sha="$(git rev-parse HEAD)"
           test "${#trusted_base_sha}" -eq 40
           case "$trusted_base_sha" in
@@ -248,8 +499,31 @@ jobs:
           if not markdown.startswith("# common.sh version check\n"):
               raise SystemExit("validated common-version Markdown is missing its expected heading")
 
+          outcome = summary.get("maintenance_outcome")
+          if outcome not in {"safe_updates", "safe_updates_with_manual_review"}:
+              raise SystemExit("validated common-version JSON has an unsafe maintenance outcome")
+          manual_review_required = outcome == "safe_updates_with_manual_review"
+          manual_components = summary.get("manual_review_components")
+          automatic_variables = summary.get("automatic_update_variables")
           updates = summary.get("updates_applied")
           components = summary.get("components")
+          if (
+              not isinstance(updates, list)
+              or not updates
+              or not isinstance(manual_components, list)
+              or not all(isinstance(component, str) and component for component in manual_components)
+              or len(manual_components) != len(set(manual_components))
+              or not isinstance(automatic_variables, list)
+              or not all(isinstance(variable, str) and variable for variable in automatic_variables)
+              or len(automatic_variables) != len(set(automatic_variables))
+          ):
+              raise SystemExit("validated common-version JSON has malformed maintenance fields")
+          if manual_review_required != bool(manual_components):
+              raise SystemExit("validated common-version JSON has inconsistent manual-review fields")
+          if summary.get("manual_review_required") is not manual_review_required:
+              raise SystemExit("validated common-version JSON has inconsistent manual-review flag")
+          if summary.get("manual_review_pins_preserved") is not manual_review_required:
+              raise SystemExit("validated common-version JSON lacks manual-pin preservation proof")
           if not isinstance(updates, list) or not updates:
               raise SystemExit("validated common-version JSON has no applied updates")
           if not isinstance(components, list):
@@ -295,6 +569,40 @@ jobs:
                   sources.append((component_name, source))
                   source_names.add(component_name)
 
+          if [variable for _, variable, _, _ in validated_updates] != automatic_variables:
+              raise SystemExit("validated common-version JSON has inconsistent automatic variables")
+
+          manual_reviews = []
+          seen_manual_components = set()
+          for component in components:
+              if not isinstance(component, dict):
+                  raise SystemExit("validated common-version JSON has a malformed component")
+              component_name = component.get("component")
+              if component_name not in manual_components:
+                  continue
+              if (
+                  component.get("status") != "review_required"
+                  or component.get("updates") != []
+                  or not isinstance(component_name, str)
+                  or component_name in seen_manual_components
+              ):
+                  raise SystemExit("validated common-version JSON has an unsafe manual-review component")
+              details = component.get("details")
+              reason = details.get("reason") if isinstance(details, dict) else None
+              if not isinstance(reason, str) or not reason:
+                  raise SystemExit("validated common-version JSON has an incomplete manual-review reason")
+              manual_reviews.append(
+                  (
+                      component_name,
+                      component.get("current") or "",
+                      component.get("latest") or "",
+                      reason,
+                  )
+              )
+              seen_manual_components.add(component_name)
+          if seen_manual_components != set(manual_components):
+              raise SystemExit("validated common-version JSON lost a manual-review component")
+
           lines = [
               "<!-- framework-common-version-updater -->",
               "",
@@ -304,7 +612,7 @@ jobs:
               "The candidate was independently resolved three times and bound with SHA-256.",
               "Only `ci/lib/common.sh` may change. No auto-merge is authorized.",
               "",
-              "### Validated version changes",
+              "### Validated automatic version changes",
               "",
               "| Component | Variable | Previous value | New value |",
               "| --- | --- | --- | --- |",
@@ -313,6 +621,24 @@ jobs:
               f"| {markdown_cell(component)} | `{markdown_cell(variable)}` | `{markdown_cell(old)}` | `{markdown_cell(new)}` |"
               for component, variable, old, new in validated_updates
           )
+          lines.extend(
+              [
+                  "",
+                  "### Manual provenance review required",
+                  "",
+                  "These reviewed atomic provenance pins were intentionally not changed by this Draft pull request.",
+                  "",
+                  "| Component | Current release metadata | Latest release metadata | Review reason |",
+                  "| --- | --- | --- | --- |",
+              ]
+          )
+          if manual_reviews:
+              lines.extend(
+                  f"| {markdown_cell(component)} | `{markdown_cell(current)}` | `{markdown_cell(latest)}` | {markdown_cell(reason)} |"
+                  for component, current, latest, reason in manual_reviews
+              )
+          else:
+              lines.append("| None | — | — | No manual provenance review is pending. |")
           lines.extend(
               [
                   "",
@@ -335,7 +661,7 @@ jobs:
                   "Der Kandidat wurde dreifach unabhängig aufgelöst und über SHA-256 gebunden.",
                   "Es darf nur `ci/lib/common.sh` geändert werden. Kein Auto-Merge ist autorisiert.",
                   "",
-                  "### Validierte Versionsänderungen",
+                  "### Validierte automatische Versionsänderungen",
                   "",
               "| Komponente | Variable | Alter Wert | Neuer Wert |",
               "| --- | --- | --- | --- |",
@@ -345,6 +671,24 @@ jobs:
               f"| {markdown_cell(component)} | `{markdown_cell(variable)}` | `{markdown_cell(old)}` | `{markdown_cell(new)}` |"
               for component, variable, old, new in validated_updates
           )
+          lines.extend(
+              [
+                  "",
+                  "### Manuelle Provenance-Prüfung erforderlich",
+                  "",
+                  "Diese geprüften atomaren Provenance-Pins wurden von diesem Draft-Pull-Request absichtlich nicht verändert.",
+                  "",
+                  "| Komponente | Aktuelle Release-Metadaten | Neueste Release-Metadaten | Prüfgrund |",
+                  "| --- | --- | --- | --- |",
+              ]
+          )
+          if manual_reviews:
+              lines.extend(
+                  f"| {markdown_cell(component)} | `{markdown_cell(current)}` | `{markdown_cell(latest)}` | {markdown_cell(reason)} |"
+                  for component, current, latest, reason in manual_reviews
+              )
+          else:
+              lines.append("| Keine | — | — | Es steht keine manuelle Provenance-Prüfung aus. |")
           lines.extend(
               [
                   "",
@@ -491,7 +835,12 @@ jobs:
       contents: read
     env:
       RESOLVER_RESULT: ${{ needs.resolve.result }}
+      MAINTENANCE_OUTCOME: ${{ needs.resolve.outputs.maintenance_outcome }}
       UPDATE_AVAILABLE: ${{ needs.resolve.outputs.update_available }}
+      CANDIDATE_SHA256: ${{ needs.resolve.outputs.candidate_sha256 }}
+      MANUAL_REVIEW_REQUIRED: ${{ needs.resolve.outputs.manual_review_required }}
+      MANUAL_REVIEW_COMPONENTS_B64: ${{ needs.resolve.outputs.manual_review_components_b64 }}
+      MANUAL_REVIEW_PINS_SHA256: ${{ needs.resolve.outputs.manual_review_pins_sha256 }}
       VALIDATOR_RESULT: ${{ needs.candidate-validate.result }}
       PUBLISHER_RESULT: ${{ needs.publish.result }}
       DRAFT_PULL_REQUEST_NUMBER: ${{ needs.publish.outputs.draft_pull_request_number }}
@@ -500,11 +849,14 @@ jobs:
       - name: Report reviewed common-version outcome
         run: |
           set -euo pipefail
-          case "$UPDATE_AVAILABLE" in
-            false)
+          case "$MAINTENANCE_OUTCOME:$UPDATE_AVAILABLE:$MANUAL_REVIEW_REQUIRED" in
+            no_updates:false:false)
               test "$RESOLVER_RESULT" = "success"
               test "$VALIDATOR_RESULT" = "skipped"
               test "$PUBLISHER_RESULT" = "skipped"
+              test -z "$CANDIDATE_SHA256"
+              test "$MANUAL_REVIEW_COMPONENTS_B64" = "W10="
+              test -z "$MANUAL_REVIEW_PINS_SHA256"
               cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
           ## English
 
@@ -517,14 +869,77 @@ jobs:
           Alle erfassten Versions-Pins sind aktuell. Es wurde kein Branch, Commit oder Pull Request erstellt oder verändert.
           EOF
               ;;
-            true)
+            manual_review_only:false:true)
+              test "$RESOLVER_RESULT" = "success"
+              test "$VALIDATOR_RESULT" = "skipped"
+              test "$PUBLISHER_RESULT" = "skipped"
+              test -z "$CANDIDATE_SHA256"
+              case "$MANUAL_REVIEW_COMPONENTS_B64" in
+                ''|W10=|*[!A-Za-z0-9+/=]*)
+                  printf '%s\n' 'common-version result is unsafe: manual review components are malformed' >&2
+                  exit 1
+                  ;;
+              esac
+              test "${#MANUAL_REVIEW_PINS_SHA256}" -eq 64
+              case "$MANUAL_REVIEW_PINS_SHA256" in
+                *[!0-9a-f]*|'')
+                  printf '%s\n' 'common-version result is unsafe: manual review pin proof is missing' >&2
+                  exit 1
+                  ;;
+              esac
+              cat >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          ## English
+
+          A reviewed manual common.sh provenance decision is required.
+          No automatic candidate, branch, commit, or pull request was created or modified. The resolver summary records the exact bounded component list and unchanged manual-pin proof.
+
+          ## Deutsch
+
+          Eine geprüfte manuelle common.sh-Provenance-Entscheidung ist erforderlich.
+          Es wurde kein automatischer Kandidat, Branch, Commit oder Pull Request erstellt oder verändert. Die Resolver-Zusammenfassung enthält die exakte begrenzte Komponentenliste und den Nachweis unveränderter manueller Pins.
+          EOF
+              ;;
+            safe_updates:true:false|safe_updates_with_manual_review:true:true)
               test "$RESOLVER_RESULT" = "success"
               test "$VALIDATOR_RESULT" = "success"
               test "$PUBLISHER_RESULT" = "success"
+              test "${#CANDIDATE_SHA256}" -eq 64
+              case "$CANDIDATE_SHA256" in
+                *[!0-9a-f]*|'')
+                  printf '%s\n' 'common-version result is unsafe: candidate SHA-256 is malformed' >&2
+                  exit 1
+                  ;;
+              esac
+              case "$MAINTENANCE_OUTCOME" in
+                safe_updates)
+                  test "$MANUAL_REVIEW_REQUIRED" = "false"
+                  test "$MANUAL_REVIEW_COMPONENTS_B64" = "W10="
+                  test -z "$MANUAL_REVIEW_PINS_SHA256"
+                  ;;
+                safe_updates_with_manual_review)
+                  test "$MANUAL_REVIEW_REQUIRED" = "true"
+                  case "$MANUAL_REVIEW_COMPONENTS_B64" in
+                    ''|W10=|*[!A-Za-z0-9+/=]*)
+                      printf '%s\n' 'common-version result is unsafe: manual review components are malformed' >&2
+                      exit 1
+                      ;;
+                  esac
+                  test "${#MANUAL_REVIEW_PINS_SHA256}" -eq 64
+                  case "$MANUAL_REVIEW_PINS_SHA256" in
+                    *[!0-9a-f]*|'')
+                      printf '%s\n' 'common-version result is unsafe: manual review pin proof is malformed' >&2
+                      exit 1
+                      ;;
+                  esac
+                  ;;
+              esac
               {
                 printf '%s\n' '## English' '' \
                   'A reviewed common.sh version update was validated and published to the constrained Draft pull request.' \
                   "Maintenance branch: \`automation/update-framework-common-versions\`."
+                if test "$MANUAL_REVIEW_REQUIRED" = "true"; then
+                  printf '%s\n' 'A separate manual provenance review remains required; its components are listed in the Draft pull request body and resolver summary.'
+                fi
                 if test -n "$DRAFT_PULL_REQUEST_URL"; then
                   printf 'Draft pull request: %s\n' "$DRAFT_PULL_REQUEST_URL"
                 elif test -n "$DRAFT_PULL_REQUEST_NUMBER"; then
@@ -535,6 +950,9 @@ jobs:
                 printf '%s\n' '' '## Deutsch' '' \
                   'Eine geprüfte common.sh-Versionsaktualisierung wurde validiert und im begrenzten Draft-Pull-Request veröffentlicht.' \
                   "Wartungsbranch: \`automation/update-framework-common-versions\`."
+                if test "$MANUAL_REVIEW_REQUIRED" = "true"; then
+                  printf '%s\n' 'Eine getrennte manuelle Provenance-Prüfung bleibt erforderlich; ihre Komponenten stehen im Draft-Pull-Request-Text und in der Resolver-Zusammenfassung.'
+                fi
                 if test -n "$DRAFT_PULL_REQUEST_URL"; then
                   printf 'Draft-Pull-Request: %s\n' "$DRAFT_PULL_REQUEST_URL"
                 elif test -n "$DRAFT_PULL_REQUEST_NUMBER"; then
@@ -545,7 +963,7 @@ jobs:
               } >> "$GITHUB_STEP_SUMMARY"
               ;;
             *)
-              printf 'common-version result is unsafe: update_available must be exactly true or false\n' >&2
+              printf 'common-version result is unsafe: resolver maintenance outcome is inconsistent\n' >&2
               exit 1
               ;;
           esac
