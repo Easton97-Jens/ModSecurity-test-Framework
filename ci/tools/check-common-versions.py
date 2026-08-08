@@ -13,7 +13,7 @@ import re
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -1282,21 +1282,27 @@ def review_required_release_result(
     if result.status != STATUS_OUTDATED:
         return result
     if expected_tag.fullmatch(result.latest) is None:
-        return dataclasses.replace(
-            result,
-            status=STATUS_UNKNOWN,
-            updates=[],
-            message="Latest upstream release tag is outside the reviewed component-specific form.",
-            details={
-                "reason": "latest release tag is outside the reviewed update contract"
-            },
+        return cast(
+            ComponentResult,
+            dataclasses.replace(
+                result,
+                status=STATUS_UNKNOWN,
+                updates=[],
+                message="Latest upstream release tag is outside the reviewed component-specific form.",
+                details={
+                    "reason": "latest release tag is outside the reviewed update contract"
+                },
+            ),
         )
-    return dataclasses.replace(
-        result,
-        status=STATUS_REVIEW_REQUIRED,
-        updates=[],
-        message=message,
-        details={"reason": reason, "manual_variables": list(manual_variables)},
+    return cast(
+        ComponentResult,
+        dataclasses.replace(
+            result,
+            status=STATUS_REVIEW_REQUIRED,
+            updates=[],
+            message=message,
+            details={"reason": reason, "manual_variables": list(manual_variables)},
+        ),
     )
 
 
@@ -1971,45 +1977,66 @@ def require_manual_review_pins_unchanged(
             )
 
 
-def maintenance_update_plan(
-    results: list[ComponentResult], entries: dict[str, VariableEntry]
-) -> tuple[list[UpdateChange], list[str]]:
-    """Return only complete automatic plans, or their affected fatal components."""
+def manual_review_variable_names(results: list[ComponentResult]) -> set[str]:
+    """Return the declared manual variables from already-recognized review rows."""
 
-    invalid_components: list[str] = []
-    automatic_results = [
-        result for result in results if result.status == STATUS_OUTDATED
-    ]
-    manual_variables: set[str] = set()
+    names: set[str] = set()
     for result in results:
         if result.status != STATUS_REVIEW_REQUIRED:
             continue
         reviewed = reviewed_manual_variables(result)
         if reviewed is not None:
-            manual_variables.update(reviewed)
+            names.update(reviewed)
+    return names
 
+
+def update_matches_automatic_plan(
+    update: UpdateChange,
+    result: ComponentResult,
+    entries: dict[str, VariableEntry],
+    manual_variables: set[str],
+) -> bool:
+    """Accept only an exact automatic update that cannot touch a manual pin."""
+
+    current = entry(entries, update.variable)
+    try:
+        require_shell_safe_default(
+            update.variable,
+            update.old,
+            current.default if current is not None else None,
+        )
+        require_shell_safe_default(
+            update.variable,
+            update.new,
+            current.default if current is not None else None,
+        )
+    except UpstreamError:
+        return False
+    return bool(
+        current is not None
+        and update.variable in result.variables
+        and update.line == current.line
+        and update.old == current.default
+        and update.variable not in manual_variables
+    )
+
+
+def automatic_plan_errors(
+    automatic_results: list[ComponentResult],
+    entries: dict[str, VariableEntry],
+    manual_variables: set[str],
+) -> list[str]:
+    """Return every component whose automatic update set is incomplete or unsafe."""
+
+    invalid_components: list[str] = []
     seen_variables: dict[str, str] = {}
     for result in automatic_results:
         if not result.updates:
             append_unique(invalid_components, result.component)
             continue
         for update in result.updates:
-            current = entry(entries, update.variable)
-            try:
-                require_shell_safe_default(
-                    update.variable,
-                    update.new,
-                    current.default if current is not None else None,
-                )
-            except UpstreamError:
-                append_unique(invalid_components, result.component)
-                continue
-            if (
-                current is None
-                or update.variable not in result.variables
-                or update.line != current.line
-                or update.old != current.default
-                or update.variable in manual_variables
+            if not update_matches_automatic_plan(
+                update, result, entries, manual_variables
             ):
                 append_unique(invalid_components, result.component)
                 continue
@@ -2019,52 +2046,85 @@ def maintenance_update_plan(
                 append_unique(invalid_components, previous_component)
                 continue
             seen_variables[update.variable] = result.component
+    return invalid_components
 
-    if invalid_components:
-        return [], invalid_components
+
+def maintenance_update_plan(
+    results: list[ComponentResult], entries: dict[str, VariableEntry]
+) -> tuple[list[UpdateChange], list[str]]:
+    """Return only complete automatic plans, or their affected fatal components."""
+
+    automatic_results = [
+        result for result in results if result.status == STATUS_OUTDATED
+    ]
+    plan_errors = automatic_plan_errors(
+        automatic_results,
+        entries,
+        manual_review_variable_names(results),
+    )
+    if plan_errors:
+        return [], plan_errors
     try:
         updates = flatten_updates(automatic_results)
     except UpstreamError:
         return [], [result.component for result in automatic_results]
-    if len(updates) != len(seen_variables):
+    expected_count = sum(len(result.updates) for result in automatic_results)
+    if len(updates) != expected_count:
         return [], [result.component for result in automatic_results]
     return updates, []
 
 
-def maintenance_disposition(
+def reviewed_component_groups(
     results: list[ComponentResult],
-    entries: dict[str, VariableEntry],
-    *,
-    defer_reviewed_provenance: bool,
-) -> MaintenanceDisposition:
-    """Classify maintenance work without converting unsafe states into success."""
+) -> tuple[list[str], list[str]]:
+    """Separate fail-closed statuses from explicitly recognized manual review."""
 
     fatal_components: list[str] = []
     manual_components: list[str] = []
     for result in results:
         if result.status in FATAL_STATUSES:
             append_unique(fatal_components, result.component)
-            continue
-        if result.status == STATUS_REVIEW_REQUIRED:
-            if reviewed_manual_variables(result) is None:
-                append_unique(fatal_components, result.component)
-            else:
-                append_unique(manual_components, result.component)
+        elif result.status == STATUS_REVIEW_REQUIRED:
+            destination = (
+                manual_components
+                if reviewed_manual_variables(result) is not None
+                else fatal_components
+            )
+            append_unique(destination, result.component)
+    return fatal_components, manual_components
 
+
+def append_review_components_as_fatal(
+    fatal_components: list[str], results: list[ComponentResult]
+) -> None:
+    """Preserve failure when a reviewed pin snapshot cannot be proven exact."""
+
+    for result in results:
+        if result.status == STATUS_REVIEW_REQUIRED:
+            append_unique(fatal_components, result.component)
+
+
+def manual_review_pins_are_valid(
+    results: list[ComponentResult], entries: dict[str, VariableEntry]
+) -> bool:
     try:
         manual_review_pin_values(results, entries)
     except UpstreamError:
-        for result in results:
-            if result.status == STATUS_REVIEW_REQUIRED:
-                append_unique(fatal_components, result.component)
+        return False
+    return True
 
-    if manual_components and not defer_reviewed_provenance:
-        for component in manual_components:
-            append_unique(fatal_components, component)
 
-    automatic_updates, plan_errors = maintenance_update_plan(results, entries)
-    for component in plan_errors:
-        append_unique(fatal_components, component)
+def append_unique_values(destination: list[str], values: list[str]) -> None:
+    for value in values:
+        append_unique(destination, value)
+
+
+def build_maintenance_disposition(
+    fatal_components: list[str],
+    manual_components: list[str],
+    automatic_updates: list[UpdateChange],
+) -> MaintenanceDisposition:
+    """Construct the sole terminal disposition after every safety check ran."""
 
     if fatal_components:
         return MaintenanceDisposition(
@@ -2078,14 +2138,18 @@ def maintenance_disposition(
         )
 
     safe_updates_available = bool(automatic_updates)
-    if safe_updates_available and manual_components:
-        outcome = MAINTENANCE_OUTCOME_SAFE_UPDATES_WITH_MANUAL_REVIEW
-    elif safe_updates_available:
-        outcome = MAINTENANCE_OUTCOME_SAFE_UPDATES
-    elif manual_components:
-        outcome = MAINTENANCE_OUTCOME_MANUAL_REVIEW_ONLY
+    if safe_updates_available:
+        outcome = (
+            MAINTENANCE_OUTCOME_SAFE_UPDATES_WITH_MANUAL_REVIEW
+            if manual_components
+            else MAINTENANCE_OUTCOME_SAFE_UPDATES
+        )
     else:
-        outcome = MAINTENANCE_OUTCOME_NO_UPDATES
+        outcome = (
+            MAINTENANCE_OUTCOME_MANUAL_REVIEW_ONLY
+            if manual_components
+            else MAINTENANCE_OUTCOME_NO_UPDATES
+        )
     return MaintenanceDisposition(
         outcome=outcome,
         safe_updates_available=safe_updates_available,
@@ -2096,6 +2160,28 @@ def maintenance_disposition(
         automatic_update_variables=tuple(
             update.variable for update in automatic_updates
         ),
+    )
+
+
+def maintenance_disposition(
+    results: list[ComponentResult],
+    entries: dict[str, VariableEntry],
+    *,
+    defer_reviewed_provenance: bool,
+) -> MaintenanceDisposition:
+    """Classify maintenance work without converting unsafe states into success."""
+
+    fatal_components, manual_components = reviewed_component_groups(results)
+    if not manual_review_pins_are_valid(results, entries):
+        append_review_components_as_fatal(fatal_components, results)
+    if manual_components and not defer_reviewed_provenance:
+        append_unique_values(fatal_components, manual_components)
+    automatic_updates, plan_errors = maintenance_update_plan(results, entries)
+    append_unique_values(fatal_components, plan_errors)
+    return build_maintenance_disposition(
+        fatal_components,
+        manual_components,
+        automatic_updates,
     )
 
 
@@ -2140,6 +2226,78 @@ def make_summary(
     }
 
 
+def markdown_component_action(result: dict[str, Any]) -> str:
+    """Describe a component action without changing its terminal status."""
+
+    if result.get("updates"):
+        return ", ".join(update["variable"] for update in result["updates"])
+    if result["status"] in {STATUS_UNKNOWN, STATUS_REVIEW_REQUIRED}:
+        return result.get("details", {}).get("reason") or "manual review"
+    if result["status"] == STATUS_BLOCKED:
+        return "retry when upstream is reachable"
+    return "none"
+
+
+def append_markdown_component_rows(
+    lines: list[str], components: list[dict[str, Any]]
+) -> None:
+    for result in components:
+        lines.append(
+            "| {component} | {current} | {latest} | `{status}` | {action} |".format(
+                component=markdown_escape(result["component"]),
+                current=markdown_escape(result.get("current") or ""),
+                latest=markdown_escape(result.get("latest") or ""),
+                status=markdown_escape(result["status"]),
+                action=markdown_escape(markdown_component_action(result)),
+            )
+        )
+
+
+def append_markdown_component_section(
+    lines: list[str], heading: str, components: list[str]
+) -> None:
+    if not components:
+        return
+    lines.extend(["", heading, ""])
+    for component in components:
+        lines.append(f"- `{markdown_escape(component)}`")
+
+
+def append_markdown_applied_updates(
+    lines: list[str], updates: list[dict[str, Any]]
+) -> None:
+    if not updates:
+        return
+    lines.extend(["", "## Applied Updates", ""])
+    lines.append("| Variable | Line | Before | After |")
+    lines.append("| --- | ---: | --- | --- |")
+    for update in updates:
+        lines.append(
+            "| {variable} | {line} | `{old}` | `{new}` |".format(
+                variable=markdown_escape(update["variable"]),
+                line=update["line"],
+                old=markdown_escape(update["old"]),
+                new=markdown_escape(update["new"]),
+            )
+        )
+
+
+def append_markdown_inventory(
+    lines: list[str], inventory_rows: list[dict[str, Any]]
+) -> None:
+    lines.extend(["", "## Inventory", ""])
+    lines.append("| Variable | Line | Resolved value |")
+    lines.append("| --- | ---: | --- |")
+    for item in inventory_rows:
+        lines.append(
+            "| {name} | {line} | `{resolved}` |".format(
+                name=markdown_escape(item["name"]),
+                line=item["line"],
+                resolved=markdown_escape(item["resolved"]),
+            )
+        )
+
+
 def markdown_summary(summary: dict[str, Any]) -> str:
     lines = [
         "# common.sh version check",
@@ -2153,60 +2311,22 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         "| Komponente | aktuelle Version | neueste Version | Status | Aktion |",
         "| --- | --- | --- | --- | --- |",
     ]
-    for result in summary["components"]:
-        action = "none"
-        if result.get("updates"):
-            action = ", ".join(update["variable"] for update in result["updates"])
-        elif result["status"] in {STATUS_UNKNOWN, STATUS_REVIEW_REQUIRED}:
-            action = result.get("details", {}).get("reason") or "manual review"
-        elif result["status"] == STATUS_BLOCKED:
-            action = "retry when upstream is reachable"
-        lines.append(
-            "| {component} | {current} | {latest} | `{status}` | {action} |".format(
-                component=markdown_escape(result["component"]),
-                current=markdown_escape(result.get("current") or ""),
-                latest=markdown_escape(result.get("latest") or ""),
-                status=markdown_escape(result["status"]),
-                action=markdown_escape(action),
-            )
-        )
+    append_markdown_component_rows(lines, summary["components"])
     if summary["missing_required"]:
         lines.extend(["", "## Missing required values", ""])
-        for name in summary["missing_required"]:
-            lines.append(f"- `{name}`")
-    if summary["manual_review_components"]:
-        lines.extend(["", "## Manual provenance review required", ""])
-        for component in summary["manual_review_components"]:
-            lines.append(f"- `{markdown_escape(component)}`")
-    if summary["fatal_components"]:
-        lines.extend(["", "## Fatal components", ""])
-        for component in summary["fatal_components"]:
-            lines.append(f"- `{markdown_escape(component)}`")
-    updates = summary["updates_applied"]
-    if updates:
-        lines.extend(["", "## Applied Updates", ""])
-        lines.append("| Variable | Line | Before | After |")
-        lines.append("| --- | ---: | --- | --- |")
-        for update in updates:
-            lines.append(
-                "| {variable} | {line} | `{old}` | `{new}` |".format(
-                    variable=markdown_escape(update["variable"]),
-                    line=update["line"],
-                    old=markdown_escape(update["old"]),
-                    new=markdown_escape(update["new"]),
-                )
-            )
-    lines.extend(["", "## Inventory", ""])
-    lines.append("| Variable | Line | Resolved value |")
-    lines.append("| --- | ---: | --- |")
-    for item in summary["inventory"]:
-        lines.append(
-            "| {name} | {line} | `{resolved}` |".format(
-                name=markdown_escape(item["name"]),
-                line=item["line"],
-                resolved=markdown_escape(item["resolved"]),
-            )
-        )
+        lines.extend(f"- `{name}`" for name in summary["missing_required"])
+    append_markdown_component_section(
+        lines,
+        "## Manual provenance review required",
+        summary["manual_review_components"],
+    )
+    append_markdown_component_section(
+        lines,
+        "## Fatal components",
+        summary["fatal_components"],
+    )
+    append_markdown_applied_updates(lines, summary["updates_applied"])
+    append_markdown_inventory(lines, summary["inventory"])
     lines.append("")
     return "\n".join(lines)
 
@@ -2334,6 +2454,93 @@ def append_missing_required_result(
     )
 
 
+def prepare_update_candidate(
+    common_sh: Path,
+    lines: list[str],
+    updates: list[UpdateChange],
+    manual_pins: dict[str, str],
+) -> tuple[Path, list[str], dict[str, VariableEntry]]:
+    """Render and validate every local invariant before the first file write."""
+
+    target = require_safe_common_sh_update_target(common_sh)
+    candidate_lines = render_updated_lines(lines, updates)
+    candidate_entries = parse_common_lines(candidate_lines)
+    if validate_entries(candidate_entries):
+        raise UpstreamError(
+            "candidate common.sh leaves required tracked variables empty"
+        )
+    require_manual_review_pins_unchanged(manual_pins, candidate_entries)
+    return target, candidate_lines, candidate_entries
+
+
+def revalidate_update_candidate(
+    candidate_entries: dict[str, VariableEntry],
+    manual_pins: dict[str, str],
+    manual_components: tuple[str, ...],
+    *,
+    defer_reviewed_provenance: bool,
+    revalidate: Callable[[dict[str, VariableEntry]], list[ComponentResult]] | None,
+) -> None:
+    """Require a fresh candidate view to settle before a mutation is allowed."""
+
+    if revalidate is None:
+        return
+    candidate_results = revalidate(candidate_entries)
+    append_missing_required_result(candidate_results, candidate_entries)
+    candidate_disposition = maintenance_disposition(
+        candidate_results,
+        candidate_entries,
+        defer_reviewed_provenance=defer_reviewed_provenance,
+    )
+    if candidate_disposition.outcome not in {
+        MAINTENANCE_OUTCOME_NO_UPDATES,
+        MAINTENANCE_OUTCOME_MANUAL_REVIEW_ONLY,
+    }:
+        raise UpstreamError(
+            "candidate revalidation did not settle to no updates or manual review only"
+        )
+    if candidate_disposition.manual_review_components != manual_components:
+        raise UpstreamError("candidate revalidation changed manual review components")
+    require_manual_review_pins_unchanged(manual_pins, candidate_entries)
+
+
+def reversed_updates(updates: list[UpdateChange]) -> list[UpdateChange]:
+    """Return an exact inverse plan suitable for the existing safe write path."""
+
+    return [
+        UpdateChange(
+            variable=update.variable,
+            line=update.line,
+            old=update.new,
+            new=update.old,
+        )
+        for update in updates
+    ]
+
+
+def rollback_update_candidate(
+    target: Path, candidate_lines: list[str], updates: list[UpdateChange]
+) -> None:
+    """Rollback through the same BUILD_ROOT-checked update primitive as writes."""
+
+    apply_updates(target, candidate_lines, reversed_updates(updates))
+
+
+def verify_written_candidate(
+    common_sh: Path,
+    candidate_lines: list[str],
+    candidate_entries: dict[str, VariableEntry],
+    manual_pins: dict[str, str],
+) -> tuple[list[str], dict[str, VariableEntry]]:
+    """Reject any post-write mismatch before reporting the update as successful."""
+
+    updated_lines, updated_entries = parse_common(common_sh)
+    if updated_lines != candidate_lines or updated_entries != candidate_entries:
+        raise UpstreamError("written common.sh does not match its validated candidate")
+    require_manual_review_pins_unchanged(manual_pins, updated_entries)
+    return updated_lines, updated_entries
+
+
 def apply_requested_updates(
     update_requested: bool,
     rc: int,
@@ -2364,68 +2571,36 @@ def apply_requested_updates(
 
     updates = list(disposition.automatic_updates)
     manual_pins = manual_review_pin_values(results, entries)
-    target: Path | None = None
-    original_text = ""
-    wrote_candidate = False
     try:
-        target = require_safe_common_sh_update_target(common_sh)
-        original_text = target.read_text(encoding="utf-8")
-        candidate_lines = render_updated_lines(lines, updates)
-        candidate_entries = parse_common_lines(candidate_lines)
-        if validate_entries(candidate_entries):
-            raise UpstreamError(
-                "candidate common.sh leaves required tracked variables empty"
-            )
-        require_manual_review_pins_unchanged(manual_pins, candidate_entries)
-        if revalidate is not None:
-            candidate_results = revalidate(candidate_entries)
-            append_missing_required_result(candidate_results, candidate_entries)
-            candidate_disposition = maintenance_disposition(
-                candidate_results,
-                candidate_entries,
-                defer_reviewed_provenance=defer_reviewed_provenance,
-            )
-            if candidate_disposition.outcome not in {
-                MAINTENANCE_OUTCOME_NO_UPDATES,
-                MAINTENANCE_OUTCOME_MANUAL_REVIEW_ONLY,
-            }:
-                raise UpstreamError(
-                    "candidate revalidation did not settle to no updates or manual review only"
-                )
-            if (
-                candidate_disposition.manual_review_components
-                != disposition.manual_review_components
-            ):
-                raise UpstreamError(
-                    "candidate revalidation changed manual review components"
-                )
-            require_manual_review_pins_unchanged(manual_pins, candidate_entries)
+        target, candidate_lines, candidate_entries = prepare_update_candidate(
+            common_sh,
+            lines,
+            updates,
+            manual_pins,
+        )
+        revalidate_update_candidate(
+            candidate_entries,
+            manual_pins,
+            disposition.manual_review_components,
+            defer_reviewed_provenance=defer_reviewed_provenance,
+            revalidate=revalidate,
+        )
         apply_updates(common_sh, lines, updates)
-        wrote_candidate = True
     except (OSError, UpstreamError) as exc:
-        if wrote_candidate and target is not None:
-            try:
-                target.write_text(original_text, encoding="utf-8")
-            except OSError as rollback_exc:
-                print(f"error: {exc}; rollback failed: {rollback_exc}", file=sys.stderr)
-                return None
         print(f"error: {exc}", file=sys.stderr)
         return None
 
     try:
-        updated_lines, updated_entries = parse_common(common_sh)
-        if updated_lines != candidate_lines or updated_entries != candidate_entries:
-            raise UpstreamError(
-                "written common.sh does not match its validated candidate"
-            )
-        require_manual_review_pins_unchanged(manual_pins, updated_entries)
+        updated_lines, updated_entries = verify_written_candidate(
+            common_sh,
+            candidate_lines,
+            candidate_entries,
+            manual_pins,
+        )
     except (OSError, UpstreamError) as exc:
-        if target is None:
-            print(f"error: {exc}", file=sys.stderr)
-            return None
         try:
-            target.write_text(original_text, encoding="utf-8")
-        except OSError as rollback_exc:
+            rollback_update_candidate(target, candidate_lines, updates)
+        except (OSError, UpstreamError) as rollback_exc:
             print(f"error: {exc}; rollback failed: {rollback_exc}", file=sys.stderr)
             return None
         print(f"error: {exc}", file=sys.stderr)

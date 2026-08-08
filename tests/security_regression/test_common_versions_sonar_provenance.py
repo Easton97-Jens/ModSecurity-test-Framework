@@ -825,6 +825,144 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             CHECKER.manual_review_pin_digest([manual], entries),
         )
 
+    def test_post_write_validation_failure_rolls_back_through_safe_update_path(self):
+        source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            temporary_path = Path(temporary)
+            build_root = temporary_path / "build"
+            fixture = build_root / COMMON_SH_NAME
+            fixture.parent.mkdir(parents=True)
+            lines, entries = self.parse_fixture(fixture, source)
+            manual = self.modsecurity_review_required(entries)
+            safe = self.haproxy_safe_update(entries)
+            original = fixture.read_text(encoding="utf-8")
+
+            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                with patch.object(
+                    CHECKER,
+                    "parse_common",
+                    side_effect=CHECKER.UpstreamError("forced post-write verification"),
+                ):
+                    outcome = CHECKER.apply_requested_updates(
+                        True,
+                        CHECKER.exit_code(
+                            [manual, safe],
+                            entries,
+                            defer_reviewed_provenance=True,
+                        ),
+                        fixture,
+                        lines,
+                        entries,
+                        [manual, safe],
+                        defer_reviewed_provenance=True,
+                    )
+
+            restored = fixture.read_text(encoding="utf-8")
+
+        self.assertIsNone(outcome)
+        self.assertEqual(restored, original)
+
+    def test_markdown_summary_preserves_manual_and_fatal_sections(self):
+        summary = {
+            "generated_at": "2026-08-08T00:00:00Z",
+            "common_sh": "/safe/build/common.sh",
+            "maintenance_outcome": CHECKER.MAINTENANCE_OUTCOME_FATAL,
+            "components": [
+                {
+                    "component": "manual component",
+                    "current": "1.0",
+                    "latest": "1.1",
+                    "status": CHECKER.STATUS_REVIEW_REQUIRED,
+                    "updates": [],
+                    "details": {"reason": "review immutable commit"},
+                },
+                {
+                    "component": "safe component",
+                    "current": "2.0",
+                    "latest": "2.1",
+                    "status": CHECKER.STATUS_OUTDATED,
+                    "updates": [{"variable": "SAFE_VERSION"}],
+                    "details": {},
+                },
+            ],
+            "missing_required": ["REQUIRED_VALUE"],
+            "manual_review_components": ["manual component"],
+            "fatal_components": ["fatal component"],
+            "updates_applied": [
+                {
+                    "variable": "SAFE_VERSION",
+                    "line": 7,
+                    "old": "2.0",
+                    "new": "2.1",
+                }
+            ],
+            "inventory": [{"name": "SAFE_VERSION", "line": 7, "resolved": "2.1"}],
+        }
+
+        markdown = CHECKER.markdown_summary(summary)
+
+        self.assertIn(
+            "| manual component | 1.0 | 1.1 | `review_required` | review immutable commit |",
+            markdown,
+        )
+        self.assertIn("## Missing required values", markdown)
+        self.assertIn("## Manual provenance review required", markdown)
+        self.assertIn("## Fatal components", markdown)
+        self.assertIn("| SAFE_VERSION | 7 | `2.0` | `2.1` |", markdown)
+        self.assertIn("| SAFE_VERSION | 7 | `2.1` |", markdown)
+        self.assertLess(
+            markdown.index("## Missing required values"),
+            markdown.index("## Manual provenance review required"),
+        )
+        self.assertLess(
+            markdown.index("## Manual provenance review required"),
+            markdown.index("## Fatal components"),
+        )
+
+    def test_maintenance_rejects_a_nonreversible_automatic_source_value(self):
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            temporary_path = Path(temporary)
+            build_root = temporary_path / "build"
+            fixture = build_root / COMMON_SH_NAME
+            fixture.parent.mkdir(parents=True)
+            original = 'VERSION="${VERSION:-1.0;unsafe}"\n'
+            lines, entries = self.parse_fixture(fixture, original)
+            unsafe_update = CHECKER.UpdateChange(
+                variable="VERSION",
+                line=entries["VERSION"].line,
+                old="1.0;unsafe",
+                new="2.0",
+            )
+            unsafe_result = CHECKER.ComponentResult(
+                component="unsafe rollback fixture",
+                status=CHECKER.STATUS_OUTDATED,
+                message="must not write an irreversible candidate",
+                variables=["VERSION"],
+                updates=[unsafe_update],
+            )
+
+            disposition = CHECKER.maintenance_disposition(
+                [unsafe_result],
+                entries,
+                defer_reviewed_provenance=True,
+            )
+            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                rc, applied, _, _ = CHECKER.apply_requested_updates(
+                    True,
+                    1,
+                    fixture,
+                    lines,
+                    entries,
+                    [unsafe_result],
+                    defer_reviewed_provenance=True,
+                )
+            unchanged = fixture.read_text(encoding="utf-8")
+
+        self.assertEqual(disposition.outcome, CHECKER.MAINTENANCE_OUTCOME_FATAL)
+        self.assertEqual(rc, 2)
+        self.assertEqual(applied, [])
+        self.assertEqual(unchanged, original)
+
     def test_maintenance_mode_rejects_fatal_statuses_and_variable_overlap_without_writing(
         self,
     ):
