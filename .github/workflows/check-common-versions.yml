@@ -155,8 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     env:
       CANDIDATE_SHA256: ${{ needs.resolve.outputs.candidate_sha256 }}
     steps:
@@ -190,6 +189,7 @@ jobs:
             --tool shellcheck --output-dir "$TOOLS_DIR"
 
       - name: Independently revalidate and apply the candidate
+        id: candidate_revalidation
         env:
           TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
         run: |
@@ -200,6 +200,10 @@ jobs:
           mkdir -p "$BUILD_ROOT"
           python3 ci/tools/check-common-versions.py --common-sh ci/lib/common.sh \
             --update --markdown --write-files --timeout 20 | tee "$RUNNER_TEMP/common-version-check.md"
+          cp "$BUILD_ROOT/results/common-version-check/summary.json" \
+            "$RUNNER_TEMP/common-version-check.json"
+          test -s "$RUNNER_TEMP/common-version-check.json"
+          test -s "$RUNNER_TEMP/common-version-check.md"
           cat "$RUNNER_TEMP/common-version-check.md" >> "$GITHUB_STEP_SUMMARY"
           candidate_sha256="$(sha256sum ci/lib/common.sh | awk '{print $1}')"
           test "${#candidate_sha256}" -eq 64
@@ -215,32 +219,257 @@ jobs:
             tests.security_regression.test_common_versions_sonar_provenance \
             tests.security_regression.test_nginx_release_provenance \
             tests.security_regression.test_crs_git_ref_provenance -v
+          trusted_base_sha="$(git rev-parse HEAD)"
+          test "${#trusted_base_sha}" -eq 40
+          case "$trusted_base_sha" in
+            *[!0-9a-f]*|'')
+              echo "trusted default revision SHA is malformed" >&2
+              exit 1
+              ;;
+          esac
+          printf 'trusted_base_sha=%s\n' "$trusted_base_sha" >> "$GITHUB_OUTPUT"
 
-      - name: Build Draft pull request body
+      - name: Build bounded Draft pull request body
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/common-version-check.json" \
+            "$RUNNER_TEMP/common-version-check.md" \
+            "$RUNNER_TEMP/framework-common-version-pr-body.md" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          summary_path, markdown_path, body_path = map(Path, sys.argv[1:])
+          summary = json.loads(summary_path.read_text(encoding="utf-8"))
+          markdown = markdown_path.read_text(encoding="utf-8")
+          if not markdown.startswith("# common.sh version check\n"):
+              raise SystemExit("validated common-version Markdown is missing its expected heading")
+
+          updates = summary.get("updates_applied")
+          components = summary.get("components")
+          if not isinstance(updates, list) or not updates:
+              raise SystemExit("validated common-version JSON has no applied updates")
+          if not isinstance(components, list):
+              raise SystemExit("validated common-version JSON has no component list")
+
+          def markdown_cell(value):
+              return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\r", "").replace("\n", " ")
+
+          component_by_variable = {}
+          for component in components:
+              if not isinstance(component, dict):
+                  raise SystemExit("validated common-version JSON has a malformed component")
+              for update in component.get("updates", []):
+                  if not isinstance(update, dict) or not isinstance(update.get("variable"), str):
+                      raise SystemExit("validated common-version JSON has a malformed component update")
+                  component_by_variable[update["variable"]] = component
+
+          validated_updates = []
+          sources = []
+          source_names = set()
+          for update in updates:
+              if not isinstance(update, dict):
+                  raise SystemExit("validated common-version JSON has a malformed applied update")
+              variable = update.get("variable")
+              old = update.get("old")
+              new = update.get("new")
+              if not all(isinstance(value, str) and value for value in (variable, old, new)):
+                  raise SystemExit("validated common-version JSON has an incomplete applied update")
+              component = component_by_variable.get(variable)
+              if component is None:
+                  raise SystemExit(f"no validated component is associated with {variable}")
+              component_name = component.get("component")
+              details = component.get("details")
+              if not isinstance(component_name, str) or not component_name:
+                  raise SystemExit("validated common-version JSON has an unnamed changed component")
+              source = details.get("latest_source_url") if isinstance(details, dict) else None
+              if not isinstance(source, str) or not source:
+                  source = component.get("source")
+              if not isinstance(source, str) or not source:
+                  raise SystemExit(f"no validated upstream source is associated with {component_name}")
+              validated_updates.append((component_name, variable, old, new))
+              if component_name not in source_names:
+                  sources.append((component_name, source))
+                  source_names.add(component_name)
+
+          lines = [
+              "<!-- framework-common-version-updater -->",
+              "",
+              "## English",
+              "",
+              "This Draft pull request was created by the bounded Common-version updater.",
+              "The candidate was independently resolved three times and bound with SHA-256.",
+              "Only `ci/lib/common.sh` may change. No auto-merge is authorized.",
+              "",
+              "### Validated version changes",
+              "",
+              "| Component | Variable | Previous value | New value |",
+              "| --- | --- | --- | --- |",
+          ]
+          lines.extend(
+              f"| {markdown_cell(component)} | `{markdown_cell(variable)}` | `{markdown_cell(old)}` | `{markdown_cell(new)}` |"
+              for component, variable, old, new in validated_updates
+          )
+          lines.extend(
+              [
+                  "",
+                  "### Validated upstream sources or release references",
+                  "",
+                  "| Component | Upstream source or release reference |",
+                  "| --- | --- |",
+              ]
+          )
+          lines.extend(
+              f"| {markdown_cell(component)} | {markdown_cell(source)} |"
+              for component, source in sources
+          )
+          lines.extend(
+              [
+                  "",
+                  "## Deutsch",
+                  "",
+                  "Dieser Draft-Pull-Request wurde vom begrenzten Common-Version-Updater erzeugt.",
+                  "Der Kandidat wurde dreifach unabhängig aufgelöst und über SHA-256 gebunden.",
+                  "Es darf nur `ci/lib/common.sh` geändert werden. Kein Auto-Merge ist autorisiert.",
+                  "",
+                  "### Validierte Versionsänderungen",
+                  "",
+              "| Komponente | Variable | Alter Wert | Neuer Wert |",
+              "| --- | --- | --- | --- |",
+              ]
+          )
+          lines.extend(
+              f"| {markdown_cell(component)} | `{markdown_cell(variable)}` | `{markdown_cell(old)}` | `{markdown_cell(new)}` |"
+              for component, variable, old, new in validated_updates
+          )
+          lines.extend(
+              [
+                  "",
+                  "### Validierte Upstream-Quellen oder Release-Referenzen",
+                  "",
+                  "| Komponente | Upstream-Quelle oder Release-Referenz |",
+                  "| --- | --- |",
+              ]
+          )
+          lines.extend(
+              f"| {markdown_cell(component)} | {markdown_cell(source)} |"
+              for component, source in sources
+          )
+          lines.extend(["", "## Validated checker output", "", markdown.rstrip()])
+          body_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+      - name: Fail closed when common-version publisher App configuration is unavailable
+        env:
+          WORKFLOW_UPDATER_APP_PRIVATE_KEY_CONFIGURED: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY != '' }}
+        if: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID == '' || env.WORKFLOW_UPDATER_APP_PRIVATE_KEY_CONFIGURED != 'true' }}
         run: |
           set -euo pipefail
           printf '%s\n' \
-            '## English' \
-            '' \
-            'This Draft pull request was generated only after an independent, read-only validation of a safe common.sh version candidate.' \
-            '' \
-            'The publisher re-resolved the candidate, bound its SHA-256 to the validated result, and verified that only ci/lib/common.sh changed.' \
-            '' \
-            '## Deutsch' \
-            '' \
-            'Dieser Draft-Pull-Request wurde erst nach einer unabhängigen, schreibgeschützten Validierung eines sicheren common.sh-Versionskandidaten erzeugt.' \
-            '' \
-            'Der Publisher löste den Kandidaten erneut auf, band dessen SHA-256 an das validierte Ergebnis und prüfte, dass sich nur ci/lib/common.sh änderte.' \
-            > "$RUNNER_TEMP/framework-common-version-pr-body.md"
+            'Common-version publisher is not configured:' \
+            'WORKFLOW_UPDATER_APP_CLIENT_ID and/or' \
+            'WORKFLOW_UPDATER_APP_PRIVATE_KEY is unavailable.' >&2
+          exit 1
+
+      - name: Mint repository-limited common-version publisher App token
+        id: publisher_app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Inspect matching common-version Draft pull request
+        env:
+          TRUSTED_BASE_SHA: ${{ steps.candidate_revalidation.outputs.trusted_base_sha }}
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.publisher_app_token.outputs.token }}
+          script: |
+            const branch = "automation/update-framework-common-versions";
+            const marker = "<!-- framework-common-version-updater -->";
+            const title = "chore(ci): update common.sh versions";
+            const updatePath = "ci/lib/common.sh";
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const defaultBranch = context.payload.repository.default_branch;
+            const expectedBaseSha = process.env.TRUSTED_BASE_SHA;
+            const repositoryName = `${owner}/${repo}`;
+
+            if (!/^[0-9a-f]{40}$/.test(expectedBaseSha)) {
+              throw new Error("common-version publisher state check failed: trusted base SHA is malformed");
+            }
+
+            const { data: defaultBranchInfo } = await github.rest.repos.getBranch({
+              owner,
+              repo,
+              branch: defaultBranch,
+            });
+            if (defaultBranchInfo.commit.sha !== expectedBaseSha) {
+              throw new Error("common-version publisher state check failed: trusted default branch advanced during validation");
+            }
+
+            const { data: refs } = await github.rest.git.listMatchingRefs({
+              owner,
+              repo,
+              ref: `heads/${branch}`,
+            });
+            const matchingRefs = refs.filter((ref) => ref.ref === `refs/heads/${branch}`);
+            const openPulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+            const matchingPulls = openPulls.filter((pull) => pull.head?.ref === branch);
+
+            if (matchingRefs.length === 0 && matchingPulls.length === 0) {
+              core.info("common-version publisher state A: no maintenance branch or open pull request");
+              return;
+            }
+            if (matchingRefs.length !== 1 || matchingPulls.length !== 1) {
+              throw new Error("common-version publisher state check failed: expected exactly one matching branch and open pull request");
+            }
+
+            const pull = matchingPulls[0];
+            const branchSha = matchingRefs[0].object?.sha;
+            if (
+              !/^[0-9a-f]{40}$/.test(branchSha || "") ||
+              pull.head?.repo?.full_name !== repositoryName ||
+              pull.head?.ref !== branch ||
+              pull.head?.sha !== branchSha ||
+              pull.base?.repo?.full_name !== repositoryName ||
+              pull.base?.ref !== defaultBranch ||
+              pull.title !== title ||
+              pull.draft !== true ||
+              !(pull.body || "").includes(marker)
+            ) {
+              throw new Error("common-version publisher state check failed: matching pull request identity is unsafe");
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pull.number,
+              per_page: 100,
+            });
+            if (files.length !== 1 || files[0].filename !== updatePath) {
+              throw new Error("common-version publisher state check failed: matching pull request changes an unsafe path");
+            }
+            core.info(`common-version publisher state B: reusing Draft pull request #${pull.number}`);
 
       - name: Create or update Draft pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ github.token }}
+          token: ${{ steps.publisher_app_token.outputs.token }}
           commit-message: "chore(ci): update common.sh versions"
           title: "chore(ci): update common.sh versions"
           body-path: ${{ runner.temp }}/framework-common-version-pr-body.md
           branch: automation/update-framework-common-versions
+          base: ${{ github.event.repository.default_branch }}
           delete-branch: false
           draft: true
           add-paths: |

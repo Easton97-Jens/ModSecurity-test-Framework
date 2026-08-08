@@ -708,6 +708,12 @@ jobs:
         workflow = (ROOT / ".github/workflows/check-common-versions.yml").read_text(
             encoding="utf-8"
         )
+
+        def replace_last(text: str, old: str, new: str) -> str:
+            prefix, separator, suffix = text.rpartition(old)
+            self.assertTrue(separator, old)
+            return prefix + new + suffix
+
         variants = {
             "reader-write-permission": workflow.replace(
                 "  resolve:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n"
@@ -729,41 +735,178 @@ jobs:
                 "          ref: main",
                 1,
             ),
-            "short-candidate-hash": workflow.replace(
-                '          test "${#candidate_sha256}" -eq 64\n',
+            "native-github-token-publisher": workflow.replace(
+                "          token: ${{ steps.publisher_app_token.outputs.token }}",
+                "          token: ${{ github.token }}",
+                1,
+            ),
+            "native-secret-github-token-publisher": workflow.replace(
+                "          token: ${{ steps.publisher_app_token.outputs.token }}",
+                "          token: ${{ secrets.GITHUB_TOKEN }}",
+                1,
+            ),
+            "missing-app-token-action": workflow.replace(
+                "uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1",
+                "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+                1,
+            ),
+            "wrong-app-client-id-variable": workflow.replace(
+                "client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
+                "client-id: ${{ vars.UNSAFE_APP_CLIENT_ID }}",
+                1,
+            ),
+            "wrong-app-private-key-secret": workflow.replace(
+                "private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}",
+                "private-key: ${{ secrets.UNSAFE_APP_PRIVATE_KEY }}",
+                1,
+            ),
+            "app-configuration-uses-secret-directly-in-if": workflow.replace(
+                "env.WORKFLOW_UPDATER_APP_PRIVATE_KEY_CONFIGURED != 'true'",
+                "secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY == ''",
+                1,
+            ),
+            "app-configuration-flag-is-forged": workflow.replace(
+                "${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY != '' }}",
+                "true",
+                1,
+            ),
+            "wrong-app-owner-scope": workflow.replace(
+                "owner: ${{ github.repository_owner }}",
+                "owner: another-owner",
+                1,
+            ),
+            "broad-app-repository-scope": workflow.replace(
+                "repositories: ${{ github.repository }}",
+                'repositories: "*"',
+                1,
+            ),
+            "foreign-app-repository-scope": workflow.replace(
+                "repositories: ${{ github.repository }}",
+                "repositories: another-repository",
+                1,
+            ),
+            "app-token-workflows-write": workflow.replace(
+                "          permission-pull-requests: write\n",
+                "          permission-pull-requests: write\n"
+                "          permission-workflows: write\n",
+                1,
+            ),
+            "app-token-missing-contents-write": workflow.replace(
+                "          permission-contents: write\n",
                 "",
                 1,
             ),
-            "direct-push": workflow.replace(
-                "      - name: Build Draft pull request body",
-                "      - name: Push candidate\n"
-                "        run: git push origin HEAD\n\n"
-                "      - name: Build Draft pull request body",
+            "app-token-missing-pull-requests-write": workflow.replace(
+                "          permission-pull-requests: write\n",
+                "",
                 1,
             ),
-            "publisher-token-outside-action": workflow.replace(
-                "          token: ${{ github.token }}",
-                "          token: ${{ secrets.UNSAFE_TOKEN }}",
+            "maintenance-branch-changed": workflow.replace(
+                "          branch: automation/update-framework-common-versions",
+                "          branch: automation/unreviewed-common-versions",
                 1,
+            ),
+            "pull-request-not-draft": workflow.replace(
+                "          draft: true",
+                "          draft: false",
+                1,
+            ),
+            "maintenance-marker-removed": workflow.replace(
+                "<!-- framework-common-version-updater -->",
+                "<!-- removed -->",
             ),
             "publisher-path-expansion": workflow.replace(
-                "            ci/lib/common.sh\n",
+                "          add-paths: |\n            ci/lib/common.sh\n",
+                "          add-paths: |\n            ci/lib/common.sh\n"
                 "            .github/workflows/check-common-versions.yml\n",
+                1,
+            ),
+            "broad-git-add-dot": workflow.replace(
+                "          git diff --check\n",
+                "          git diff --check\n          git add .\n",
+                1,
+            ),
+            "broad-git-add-all": workflow.replace(
+                "          git diff --check\n",
+                "          git diff --check\n          git add -A\n",
+                1,
+            ),
+            "direct-default-branch-push": workflow.replace(
+                "          git diff --check\n",
+                "          git diff --check\n"
+                '          git push origin "HEAD:refs/heads/${{ github.event.repository.default_branch }}"\n',
+                1,
+            ),
+            "force-push": workflow.replace(
+                "          git diff --check\n",
+                "          git diff --check\n"
+                "          git push --force origin HEAD:refs/heads/automation/update-framework-common-versions\n",
+                1,
+            ),
+            "missing-publisher-candidate-sha-comparison": workflow.replace(
+                '          test "$candidate_sha256" = "$CANDIDATE_SHA256"\n'
+                "          changed_paths",
+                "          changed_paths",
+                1,
+            ),
+            "short-publisher-candidate-sha": replace_last(
+                workflow,
+                '          test "${#candidate_sha256}" -eq 64\n',
+                "",
+            ),
+            "candidate-from-resolver-artifact": workflow.replace(
+                "          python3 ci/tools/check-common-versions.py --common-sh ci/lib/common.sh \\\n",
+                '          cp "$RUNNER_TEMP/resolver-common.sh" ci/lib/common.sh\n',
+                1,
+            ),
+            "publisher-untrusted-branch": workflow.replace(
+                "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+                "github.ref == 'refs/heads/untrusted'",
+                1,
+            ),
+            "publisher-runs-without-update": replace_last(
+                workflow,
+                "needs.resolve.outputs.update_available == 'true'",
+                "needs.resolve.outputs.update_available == 'false'",
+            ),
+            "unsafe-existing-pr-is-accepted": workflow.replace(
+                "              pull.title !== title ||\n",
+                "              false ||\n",
+                1,
+            ),
+            "matching-pr-head-sha-is-not-verified": workflow.replace(
+                "              pull.head?.sha !== branchSha ||\n",
+                "",
+                1,
+            ),
+            "matching-pr-base-repository-is-not-verified": workflow.replace(
+                "              pull.base?.repo?.full_name !== repositoryName ||\n",
+                "",
+                1,
+            ),
+            "trusted-base-sha-is-template-interpolated": workflow.replace(
+                "process.env.TRUSTED_BASE_SHA",
+                '"${{ steps.candidate_revalidation.outputs.trusted_base_sha }}"',
+                1,
+            ),
+            "app-token-passed-to-unreviewed-step": workflow.replace(
+                "      - name: Create or update Draft pull request",
+                "      - name: Unreviewed App-token consumer\n"
+                "        run: echo '${{ steps.publisher_app_token.outputs.token }}'\n\n"
+                "      - name: Create or update Draft pull request",
                 1,
             ),
         }
         for name, unsafe in variants.items():
             with self.subTest(name=name):
+                self.assertNotEqual(workflow, unsafe)
                 errors = CHECKER.workflow_contract_errors(
                     ROOT / ".github/workflows/check-common-versions.yml",
                     unsafe,
                     CHECKER.yaml.safe_load(unsafe),
                 )
                 self.assertTrue(
-                    any(
-                        "common-version" in error or "write" in error
-                        for error in errors
-                    ),
+                    errors,
                     "\n".join(errors),
                 )
 

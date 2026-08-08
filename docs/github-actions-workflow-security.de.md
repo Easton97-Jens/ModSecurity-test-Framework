@@ -31,7 +31,7 @@ Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 | Workflow | Trigger | Externe Actions | Effektive Berechtigungen | Vertrauensentscheidung |
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, gefilterter `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; er läuft nur lesend und ohne persistierte Checkout-Credentials. |
-| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | Workflow-Standard `contents: read`; nur Publisher-Job effektiv `contents: write`, `pull-requests: write` | Resolver und Kandidatenjob bleiben read-only; ein Default-Branch-Publisher löst den Kandidaten unabhängig erneut auf, bindet dessen SHA-256 und erstellt oder aktualisiert nur einen Draft-PR auf festem Branch für `ci/lib/common.sh`. |
+| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | Workflow und natives Publisher-Token `contents: read`; nur das kurzlebige, repositorybegrenzte App-Token hat `contents`, `pull-requests`: write | Resolver und Kandidatenjob bleiben read-only; der Default-Branch-Publisher löst den Kandidaten unabhängig erneut auf und SHA-256-bindet ihn, bricht bei unsicherem Wartungszustand fail-closed ab und erstellt oder aktualisiert nur einen Draft-PR auf festem Branch für `ci/lib/common.sh`. |
 | `check-python-version.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | Workflow-Standard `contents: read`; nur Publisher-Job effektiv `contents: write`, `pull-requests: write` | Resolver- und Kandidatenjobs sind read-only; der Publisher löst einen stabilen Kandidaten unabhängig erneut auf und erstellt nur einen Draft-PR auf festem Branch für `.python-version`, niemals einen Merge. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, Zeitplan | `actions/github-script` | Workflow-Standard `contents: read`; Cleanup-Job effektiv `actions: write` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; sein Job kann nur Repository-Artefakte löschen. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode und seine Entwicklungsabhängigkeiten sind nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
@@ -53,8 +53,8 @@ zugelassenen Upstreams, Releases und Commit-Identitäten sind:
 | `actions/setup-node` | [actions/setup-node](https://github.com/actions/setup-node) | `v7.0.0` | `820762786026740c76f36085b0efc47a31fe5020` | MIT | Wählt die überprüfte Node.js-Runtime für prüfsummenverifiziertes Pyright. |
 | `actions/upload-artifact` | [actions/upload-artifact](https://github.com/actions/upload-artifact) | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | MIT | Bewahrt nur begrenzte CI-Security-Evidenz auf. |
 | `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Prüft eingeschränkte Draft-PRs oder führt Artefakt-Aufbewahrungsbereinigung aus. |
-| `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` | MIT | Erzeugt das kurzlebige, auf das Repository begrenzte App-Token des Workflow-Tool-Publishers. |
-| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Erstellt den eingeschränkten CPython-Version-Draft-PR. |
+| `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` | MIT | Erzeugt das kurzlebige, auf das Repository begrenzte App-Token des Workflow-Tool- oder Common-Version-Publishers. |
+| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Erstellt eingeschränkte Common-Version- oder CPython-Version-Draft-PRs. |
 | `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | `v4.37.4` | `f205ea1c3313d32999d8d6a48b4f6530d4437b38` | MIT | Führt die begrenzte CodeQL-Analyse und den vertrauenswürdigen SARIF-Upload aus. |
 | `actions/dependency-review-action` | [actions/dependency-review-action](https://github.com/actions/dependency-review-action) | `v5.0.0` | `a1d282b36b6f3519aa1f3fc636f609c47dddb294` | MIT | Prüft Abhängigkeitsänderungs-PRs ohne Remediation. |
 
@@ -84,11 +84,12 @@ permissions:
 ```
 
 Nur ein vertrauenswürdiger Job darf diese Baseline durch eine kleinere,
-zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions` gibt
+zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions`
+behält Resolver, Kandidat und natives Publisher-Token bei `contents: read`; nur
+sein erst nach der Validierung erzeugtes, repositorybegrenztes GitHub-App-Token
+erhält `contents` und `pull-requests`: write. `check-python-version` gibt
 Repository-Content- und Pull-Request-Write-Rechte erst seinem Publisher-Job,
-nachdem Resolver und Kandidatenjob read-only geblieben sind;
-`check-python-version` gibt diese Rechte erst seinem Publisher-Job, nachdem
-Resolver und Kandidatenjob read-only geblieben sind; der separate Publisher von
+nachdem Resolver und Kandidatenjob read-only geblieben sind; der separate Publisher von
 `update-workflow-tools` behält `contents: read` für sein eingebautes Token und
 erzeugt erst nach unabhängigen Resolver- und Validator-Jobs ein auf das
 Repository begrenztes GitHub-App-Token mit `contents`-, `pull-requests`- und
@@ -111,14 +112,21 @@ Berechtigungsumfang des Jobs bereit, und `actions/checkout` verwendet
 standardmäßig dieses job-scoped Credential, solange eine Action nicht explizit
 ein anderes Credential erhält. Resolver und Kandidatenjob der Common-Versionen
 deklarieren kein explizites Token oder Secret. Der Publisher ist auf geplante/
-manuelle Ausführung im vertrauenswürdigen Default-Branch begrenzt und übergibt
-`github.token` nur an die überprüfte, unveränderliche
-`create-pull-request`-Action; er löst den Kandidaten unabhängig erneut auf,
-vergleicht dessen SHA-256 mit dem read-only validierten Ergebnis und verlangt,
-dass Working-Tree-Diff und `add-paths` der Action nur `ci/lib/common.sh`
-enthalten. Auch Resolver und Kandidatenjob der Python-Version deklarieren
-keines; sein Publisher deklariert genau ein explizites Token nur für seine
-überprüfte Pull-Request-Action. Resolver und Validator des Workflow-Tools
+manuelle Ausführung im vertrauenswürdigen Default-Branch begrenzt, löst den
+Kandidaten unabhängig erneut auf, vergleicht dessen SHA-256 mit dem read-only
+validierten Ergebnis und verlangt, dass Working-Tree-Diff und `add-paths` der
+Action nur `ci/lib/common.sh` enthalten. Sein natives Token bleibt read-only;
+weder `github.token`, `GITHUB_TOKEN`, PAT, SSH-Credential noch ein Runner-Push
+dürfen veröffentlichen. Er prüft die Verfügbarkeit von
+`WORKFLOW_UPDATER_APP_CLIENT_ID` und `WORKFLOW_UPDATER_APP_PRIVATE_KEY`, ohne
+einen Wert auszugeben; der Private-Key-Wert wird nur an die unveränderliche
+`create-github-app-token`-Action übergeben. Diese Action ist auf aktuellen
+Owner und Repository begrenzt und fordert nur `contents` und
+`pull-requests`: write an, niemals `workflows`: write. Ihr Output wird nur vom
+geprüften read-only-Zustandscheck und der unveränderlichen
+`create-pull-request`-Action verwendet. Auch Resolver und Kandidatenjob der
+Python-Version deklarieren keines; sein Publisher deklariert genau ein
+explizites Token nur für seine überprüfte Pull-Request-Action. Resolver und Validator des Workflow-Tools
 bleiben im Source ebenfalls tokenfrei. Sein eng profilierter Publisher übergibt
 `vars.WORKFLOW_UPDATER_APP_CLIENT_ID` und
 `secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY` nur an den unveränderlichen
@@ -146,6 +154,35 @@ verwandelt einen vertrauenswürdigen Job mit Write-Rechten aber nicht in eine
 Schritt-Berechtigungsgrenze. Jeder Publisher ist daher auf geplante oder
 manuelle Trigger vertrauenswürdiger Maintainer begrenzt und enthält kein
 PR-Event.
+
+### Common-Version-Draft-Publisher
+
+Die Common-Version-Wartungsidentität ist fest auf Branch
+`automation/update-framework-common-versions`, Titel
+`chore(ci): update common.sh versions`, den Default-Branch des Repositories als
+Base und `draft: true` festgelegt. Der Body enthält den Marker
+`<!-- framework-common-version-updater -->`, englische und deutsche
+Erklärungen, die validierten alten/neuen Variablenwerte und die validierte
+Upstream-Quelle oder Release-Referenz pro geänderter Komponente. Er stellt
+klar, dass kein Auto-Merge autorisiert ist. Bevor die App-Token-PR-Action einen
+Branch ändern darf, akzeptiert ein read-only-GitHub-API-Check nur Zustand A
+(kein Branch und kein offener passender PR) oder Zustand B (genau ein
+same-repository-Draft-PR mit festem Head, Base, Titel, Marker und einem Diff
+nur für `ci/lib/common.sh`). Jeder andere Zustand bricht fail-closed ab, ohne
+einen Branch oder PR zu löschen oder zu überschreiben. Auch ein Fortschreiten
+des vertrauenswürdigen Default-Branches während der Publisher-Revalidierung
+führt zum fail-closed-Abbruch.
+
+Wenn kein sicheres Update vorliegt, beendet der Resolver sich erfolgreich und
+Kandidaten- sowie Publisher-Job werden übersprungen, ohne Branch, PR oder
+Commit zu ändern. Fehlende App-Konfiguration nach einem verfügbaren Update
+führt klar zum Abbruch und wird nicht als fehlendes Update behandelt. Ein mit
+dem App-Token erzeugter PR soll normale Pull-Request-Events auslösen; deshalb
+müssen Required Checks, Workflow-/Action-Pin-Checks, Python- und
+ShellCheck-Qualität, Common-Version-Provenance, Dokumentationsverträge sowie
+scope-anwendbare SonarQube-/Branch-Protection-Checks am tatsächlichen PR-Head
+beobachtet werden, bevor ein Mensch merged. Der Workflow selbst genehmigt,
+merged oder aktiviert niemals Auto-Merge.
 
 Für jeden `pull_request`-Workflow weist der Checker `pull_request_target`,
 Write-Berechtigungen, Referenzen `secrets.` und `secrets[...]`, Secret-

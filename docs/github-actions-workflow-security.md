@@ -29,7 +29,7 @@ write permission. No such behavior was removed by this hardening work.
 | Workflow | Triggers | External Actions | Effective permissions | Trust disposition |
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, filtered `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source is untrusted; it runs read-only with no persisted checkout credential. |
-| `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | workflow default `contents: read`; only publisher job effective `contents: write`, `pull-requests: write` | Resolver and candidate jobs remain read-only; a default-branch publisher independently re-resolves the candidate, binds its SHA-256, and creates or updates only one fixed-branch Draft PR for `ci/lib/common.sh`. |
+| `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | workflow and native publisher token `contents: read`; only the short-lived, repository-limited App token has `contents`, `pull-requests`: write | Resolver and candidate jobs remain read-only; the default-branch publisher independently re-resolves and SHA-256-binds the candidate, fail-closes on unsafe maintenance state, and creates or updates one fixed-branch Draft PR for `ci/lib/common.sh`. |
 | `check-python-version.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | workflow default `contents: read`; only publisher job effective `contents: write`, `pull-requests: write` | Resolver and candidate jobs are read-only; the publisher independently re-resolves one stable candidate and creates only a fixed-branch Draft PR for `.python-version`, never a merge. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, schedule | `actions/github-script` | workflow default `contents: read`; cleanup job effective `actions: write` | Scheduled/manual trusted-maintainer workflow; its job can delete repository artifacts only. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source and its development dependencies are untrusted; no write permission, secret, persisted credential, or submodule is configured. |
@@ -51,8 +51,8 @@ releases, and commit identities are:
 | `actions/setup-node` | [actions/setup-node](https://github.com/actions/setup-node) | `v7.0.0` | `820762786026740c76f36085b0efc47a31fe5020` | MIT | Selects the reviewed Node.js runtime for checksum-verified Pyright. |
 | `actions/upload-artifact` | [actions/upload-artifact](https://github.com/actions/upload-artifact) | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | MIT | Retains only bounded CI-security evidence. |
 | `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Inspects constrained Draft PRs or performs artifact-retention cleanup. |
-| `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` | MIT | Mints the workflow-tool publisher's short-lived, repository-limited App token. |
-| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Creates the constrained CPython-version Draft pull request. |
+| `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` | MIT | Mints the workflow-tool or Common-version publisher's short-lived, repository-limited App token. |
+| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Creates constrained Common-version or CPython-version Draft pull requests. |
 | `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | `v4.37.4` | `f205ea1c3313d32999d8d6a48b4f6530d4437b38` | MIT | Performs the bounded CodeQL analysis and trusted SARIF upload. |
 | `actions/dependency-review-action` | [actions/dependency-review-action](https://github.com/actions/dependency-review-action) | `v5.0.0` | `a1d282b36b6f3519aa1f3fc636f609c47dddb294` | MIT | Reviews dependency-changing pull requests without remediation. |
 
@@ -80,11 +80,12 @@ permissions:
 ```
 
 Only a trusted job may replace that baseline with a smaller purpose-specific
-permission map. `check-common-versions` gives repository-content and
-pull-request writes only to its publisher job after a resolver and candidate
-job have remained read-only; `check-python-version` gives the same writes only
-to its publisher job after a resolver and candidate job have remained read-only;
-the separate
+permission map. `check-common-versions` keeps its resolver, candidate, and
+native publisher token at `contents: read`; only its post-validation,
+repository-limited GitHub App token receives `contents` and `pull-requests`:
+write. `check-python-version` gives repository-content and pull-request writes
+only to its publisher job after a resolver and candidate job have remained
+read-only; the separate
 `update-workflow-tools` publisher retains `contents: read` for its built-in
 token and, only after independent resolver and validator jobs, mints a
 repository-limited GitHub App token with `contents`, `pull-requests`, and
@@ -106,13 +107,19 @@ GitHub still provides an automatic job token to Actions, and `actions/checkout`
 uses that job-scoped default input unless an action explicitly receives another
 credential. The Common-version resolver and candidate jobs declare no explicit
 token or secret. Its publisher is limited to scheduled/manual execution on the
-trusted default branch and passes `github.token` only to the reviewed,
-immutable `create-pull-request` action; it independently re-resolves the
-candidate, compares its SHA-256 with the read-only validation result, and
-requires the working-tree diff and action `add-paths` to contain only
-`ci/lib/common.sh`. The Python-version resolver and candidate jobs also declare
-none; its publisher declares one explicit token only for its reviewed
-pull-request Action. The
+trusted default branch, independently re-resolves the candidate, compares its
+SHA-256 with the read-only validation result, and requires the working-tree
+diff and action `add-paths` to contain only `ci/lib/common.sh`. The publisher's
+native token stays read-only and no `github.token`, `GITHUB_TOKEN`, PAT, SSH
+credential, or runner-driven push may publish. It tests the availability of
+`WORKFLOW_UPDATER_APP_CLIENT_ID` and `WORKFLOW_UPDATER_APP_PRIVATE_KEY` without
+printing either value; the private-key value is passed only to the immutable
+`create-github-app-token` Action. That Action is scoped to the current owner
+and repository and requests only `contents` and `pull-requests`: write, never
+`workflows`: write. Its output is consumed only by the reviewed read-only
+state check and the immutable `create-pull-request` Action. The Python-version
+resolver and candidate jobs also declare none; its publisher declares one
+explicit token only for its reviewed pull-request Action. The
 workflow-tool resolver and validator likewise remain token-free in source. Its
 tightly profiled publisher passes
 `vars.WORKFLOW_UPDATER_APP_CLIENT_ID` and
@@ -138,6 +145,32 @@ permissions are job-scoped rather than step-scoped: narrowing an environment
 variable reduces direct shell exposure but does not turn a write-capable trusted
 job into a per-step permission boundary. Each publisher is consequently limited
 to scheduled or manual trusted-maintainer triggers and contains no PR event.
+
+### Common-version Draft publisher
+
+The Common-version maintenance identity is fixed to branch
+`automation/update-framework-common-versions`, title
+`chore(ci): update common.sh versions`, the repository default branch as base,
+and `draft: true`. Its body contains the marker
+`<!-- framework-common-version-updater -->`, English and German explanations,
+the validated old/new variable values, and the validated upstream source or
+release reference for each changed component. It states that no auto-merge is
+authorized. Before the App-token PR Action can change a branch, a read-only
+GitHub API check accepts only state A (no branch and no open matching PR) or
+state B (exactly one same-repository Draft PR with the fixed head, base, title,
+marker, and `ci/lib/common.sh`-only diff). Any other state fails closed without
+deleting or overwriting a branch or PR. A trusted-default-branch drift during
+publisher revalidation also fails closed.
+
+When no safe update exists, the resolver succeeds and the candidate and
+publisher jobs are skipped without changing a branch, PR, or commit. Missing
+App configuration after an available update fails clearly rather than being
+treated as no update. A PR created with the App token is expected to emit normal
+pull-request events, so required checks, workflow/action pin checks, Python and
+ShellCheck quality, Common-version provenance, documentation contracts, and
+scope-applicable SonarQube/branch-protection checks must be observed on its
+actual head before a human merge. The workflow itself never approves, merges,
+or enables auto-merge.
 
 For every `pull_request` workflow, the checker rejects `pull_request_target`,
 write permissions, `secrets.` and `secrets[...]` references, reusable-workflow

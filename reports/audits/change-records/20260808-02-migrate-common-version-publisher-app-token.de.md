@@ -1,0 +1,171 @@
+# Change Record: Migration des Common-Version-Publishers auf ein GitHub-App-Token
+
+**Sprache:** [English](20260808-02-migrate-common-version-publisher-app-token.md) | Deutsch
+
+## Identität
+
+| Feld | Wert |
+| --- | --- |
+| Change-ID | `20260808-02-migrate-common-version-publisher-app-token` |
+| UTC-Datum | 2026-08-08 |
+| Framework-Basisrevision | `da28e6da58fa8b1135d3631612a78e73ff98584b` |
+| Issue oder Pull Request | Der Source-Fix-Draft-PR ist autorisiert, war bei der ersten Erstellung dieses Records aber noch nicht angelegt; er muss gegen Framework `master` gerichtet sein und autorisiert niemals einen Merge. |
+
+## Motivation und Problemstellung
+
+`check-common-versions.yml` löste bereits einen begrenzten `ci/lib/common.sh`-
+Kandidaten auf und validierte ihn unabhängig, verwendete für den Publisher aber
+den nativen GitHub-Token-Pfad. Dieser Pfad belegt weder die geforderte
+repositorybegrenzte GitHub-App-Autorität noch die zuverlässige Auslösung
+gewöhnlicher Pull-Request-Events. Der Hosted-Lauf `31254801083` zeigte
+zusätzlich, dass die Kandidatenvalidierung vor der Publisher-Ausführung
+abbricht, weil der direkt aufgerufene CRS-Provenance-Test seinen lokalen
+Testhelfer nicht importieren konnte.
+
+## Betroffene Komponenten und Sicherheitsgrenzen
+
+Diese reine Framework-Änderung umfasst den Common-Version-GitHub-Actions-
+Publisher, seinen CI-Security-Contract und seine Mutation-Suite, die
+Importgrenze des CRS-Provenance-Regressionstests, die Action-
+Verwendungsmetadaten, die gepaarte Workflow-Security-Dokumentation und diesen
+Record. Die Sicherheitsgrenze ist der Übergang von einem validierten
+Default-Branch-Kandidaten zu einem eng begrenzten Draft-Pull-Request. Parent,
+MRTS, Gitlinks, Runtime-Connectoren und ein Merge liegen außerhalb des Scopes.
+
+## Akzeptanzkriterien
+
+- Resolver und Validator bleiben credential-frei, `contents: read`, unabhängig
+  und über einen exakten SHA-256-Kandidatendigest mit 64 Zeichen gebunden.
+- Das native Publisher-Token bleibt `contents: read`; exakt ein gepinntes
+  App-Token ist auf aktuellen Owner/Repository und nur `contents` sowie
+  `pull-requests`: write begrenzt.
+- Konfigurations-Gate, Zustandscheck, feste Wartungsidentität, Body-Marker und
+  die Pfadbegrenzung `ci/lib/common.sh` brechen bei Abweichung fail-closed ab.
+- Es entstehen weder nativer-Token-, PAT-, SSH-, direkter-Default-Branch-Push-,
+  Force-Push-, breites-Staging-, PR-Übernahme-, Merge- noch Auto-Merge-Pfade.
+- Die erforderlichen Tests, gepaarte Dokumentation, Action-Pin-Contract,
+  Change-Record-Contract und finale PR-Delivery-Evidenz werden wahrheitsgemäß
+  festgehalten.
+
+## Untersuchte Alternativen
+
+Das native Token beizubehalten würde einen unzureichenden
+Publishing-/Event-Grenzanspruch fortschreiben. PAT, Deploy-Key, langlebiges
+Secret oder Runner-gesteuerter Push würden die Autorität erweitern. Eine neue
+Implementierung mit eigenen Git-Pushes war nicht erforderlich, weil die
+vorhandene, full-SHA-gepinnte `peter-evans/create-pull-request`-Action das
+begrenzte App-Token nach einem fail-closed-Zustandscheck nutzen kann. Alle
+Alternativen mit direktem `master`-Update, Token-Fallback oder künstlichem
+Kandidaten wurden verworfen.
+
+## Implementierungsentscheidung
+
+Der Publisher validiert den Kandidaten auf der vertrauenswürdigen
+Default-Revision erneut, prüft SHA-256 und exakten Diff, bewahrt die validierte
+JSON-/Markdown-Ausgabe und erzeugt daraus ausschließlich einen englischen/
+deutschen Draft-Body. Bei einem verfügbaren Update stoppt er mit einer klaren
+Konfigurationsfehlermeldung, wenn `WORKFLOW_UPDATER_APP_CLIENT_ID` oder
+`WORKFLOW_UPDATER_APP_PRIVATE_KEY` nicht verfügbar ist. Das Konfigurations-Gate
+leitet nur einen nicht sensiblen Boolean ab, weil GitHub Actions keine direkte
+Secret-Referenz in `if:` unterstützt. Der Private-Key-Wert wird nur an die
+gepinnte App-Token-Action gegeben; das kurzlebige Ergebnis-
+Token geht nur an einen read-only-GitHub-API-Zustandscheck und die gepinnte
+Pull-Request-Action. Zustand A enthält keinen Branch und keinen offenen
+passenden PR; Zustand B enthält exakt einen gleichnamigen, korrekt
+identifizierten Same-Repository-Draft-PR, dessen Diff nur
+`ci/lib/common.sh` betrifft. Jeder andere Zustand bricht fail-closed ab. Die
+SHA der vertrauenswürdigen Default-Revision erreicht `github-script` über eine
+benannte Action-Umgebungsvariable statt durch Template-Interpolation in
+JavaScript.
+
+## Geänderte Dateien und Tests
+
+- `.github/workflows/check-common-versions.yml` verwendet das eingeschränkte
+  App-Token, Zustandscheck, feste Draft-Identität, validierten Body und
+  Default-Branch-Drift-Prüfung.
+- `ci/checks/security/check-ci-security-contract.py` definiert ein exaktes
+  Common-Version-Publisher-Profil und weist nativen Token-/Permission-/Scope-,
+  Zustands-, Pfad-, SHA- und Write-Pfad-Drift zurück.
+- `tests/ci_security/test_ci_security_contract.py` mutation-testet App-Token,
+  Konfigurationsnamen, Berechtigungen, Repository-/Owner-Scope, Branch, Draft,
+  Marker, Staging, direkte/Force-Pushes, SHA-Bindung, Artefaktwiederverwendung,
+  Publisher-Gate und PR-Übernahme-Bypässe.
+- `tests/security_regression/test_crs_git_ref_provenance.py` macht seinen
+  lokalen Provenance-Helper importierbar, wenn der Test per vollqualifiziertem
+  Modulnamen aufgerufen wird.
+- `ci/tooling/security-tools.lock.yml` hält die zusätzliche Verwendung der
+  bereits gepinnten App-Token-Action fest; keine Action-Version ändert sich.
+- `docs/github-actions-workflow-security.md` und die deutsche Begleitdatei
+  dokumentieren App-Token-Vertrag, No-Update-/Konfigurationsverhalten, festen
+  Draft-Zustand und die Erwartung normaler PR-Checks.
+
+## Befehle und Ergebnisse
+
+| Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
+| --- | --- | --- | --- |
+| `rtk proxy gh run view 31254801083 --log` | 0 | Resolver bestand; Kandidatenvalidierung scheiterte mit `ModuleNotFoundError: git_provenance_test_support`; Publisher wurde übersprungen. | [Lauf #14](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/31254801083) |
+| `make test-ci-security-contract` | 0 | 137 CI-Security-, Change-Record-, Evidence-, Updater- und Security-Contract-Tests bestanden. | Task-eigener externer Framework-Worktree |
+| `make test-workflow-action-pins` | 0 | 25 Action-Pin-Regressionstests bestanden. | Derselbe Task-Worktree |
+| `make test-workflow-security-contract` | 0 | 7 Workflow-Security-Contract-Tests bestanden. | Derselbe Task-Worktree |
+| `make check-github-actions-workflows` | 0 | Python-Version-, Pin- und Permission-Prüfungen akzeptierten jeden eingecheckten Workflow. | Derselbe Task-Worktree |
+| `make check-documentation` | 0 | Links, zweisprachige Parität, Pfadreferenzen und der Change-Record-Contract bestanden. | Derselbe Task-Worktree |
+| `make lint` | 0 | Die vollständige lokale Lint- und Regressionsmatrix bestand, einschließlich Workflow-Security- und Provenance-Suites. | Derselbe Task-Worktree |
+| `<locked-tools>/actionlint -shellcheck=<locked-tools>/shellcheck` | 0 | Alle eingecheckten Workflows und eingebetteten Shell-Blöcke bestanden. | SHA-256-gesperrte lokale Tools |
+| `<locked-tools>/zizmor --offline .github` | 0 | Keine Findings; 32 repository-gebilligte Suppressions blieben bestehen. | SHA-256-gesperrtes lokales Tool |
+| `<locked-tools>/ruff check …` und `ruff format --check …` | 0 | Ruff-Lint akzeptierte den relevanten CI-Security-Scope und den geänderten CRS-Regressionstest; der Formatcheck akzeptierte 20 CI-Security-Dateien. | SHA-256-gesperrtes lokales Tool |
+| Fokussierter erforderlicher `unittest`-Modulverbund | 0 | 73 Tests über CI-Security, Workflow-Tool-Updater und Common-Version-Provenance bestanden. | Derselbe Task-Worktree |
+| `git diff --check` | 0 | Keine Whitespace-Fehler im finalen uncommitted Review. | Derselbe Task-Worktree |
+
+## Sicherheitsauswirkung
+
+Dies ist eine CI-Autoritäts-Härtung und eine CI-Validierungsreparatur. Der
+ursprüngliche Native-Token-Publisherpfad wird strukturell zurückgewiesen,
+während der legitime Kontrollfall ein Default-Branch-Kandidat mit passender
+SHA-256, sicherer App-Konfiguration, zulässigem Zustand A/B und genau einem
+erlaubten geänderten Pfad bleibt. Die Alternativ-Bypass-Mutationen decken
+Token-Fallback, App-Scope-/Permission-Drift, Private-Key-Namensdrift,
+Branch-/PR-Hijacking, breites Staging, direkte und Force-Pushes, kurzen oder
+fehlenden Digest, Resolver-Artefaktwiederverwendung und ein nicht
+vertrauenswürdiges Publisher-Gate ab. Es wird kein Credentialwert festgehalten.
+
+## Dokumentation und Runtime-Evidenz
+
+Die englische/deutsche Workflow-Security-Paarung ist aktualisiert. Keine
+Connector- oder MRTS-Runtime war erforderlich. Lauf #14 ist Hosted-
+Fehlerevidenz für den Testimportdefekt, aber kein Nachweis für den App-
+Publisher: Sein Publisher wurde korrekt übersprungen. Die Repository-
+App-Metadatenprüfung fand Variable und Secret als abwesend, ohne einen der Werte
+zu lesen. Ein echter Publisher-End-to-End-Lauf darf erst nach separat
+autorisiertem Merge nach `master` erfolgen und muss reale Upstream-Ergebnisse
+statt eines fabrizierten Kandidaten verwenden.
+
+## Nicht ausgeführte Prüfungen
+
+Die für das hash-gesperrte Pyright-Paket erforderliche repository-lokale
+Node-Runtime ist nicht vorhanden (`node` und `nodejs` fehlen); Pyright bleibt
+daher blockiert und wird nicht global installiert. Hosted-Draft-PR-Checks und
+Post-Merge-Publisher-Evidenz bleiben bis zur normalen Delivery und einem
+separat autorisierten Merge ausstehend. Keine nicht verfügbare oder nicht
+ausgeführte Prüfung wird als bestanden dargestellt.
+
+## Einschränkungen und Restrisiko
+
+Die GitHub-App-Konfiguration ist derzeit abwesend. Daher schlägt ein
+verfügbares Update nun mit der dokumentierten Fehlermeldung fail-closed fehl,
+statt einen PR zu erzeugen. Das normale Event-/Check-Verhalten eines vom
+App-Token erzeugten Draft-PRs bleibt unbeobachtet, bis der Source-Fix-PR mit
+separater Autorisierung gemergt ist. Der Zustandscheck reduziert Branch-/PR-
+Übernahme- und Default-Branch-Drift-Risiko, autorisiert aber weder Merge,
+Branch-Protection-Bypass noch eine Änderung außerhalb von `ci/lib/common.sh`.
+
+## Finaler Diff- und Review-Status
+
+Der Source-Fix-Worktree ist auf
+`fix/common-version-draft-publisher-app-token` isoliert; keine Änderung von
+Framework `master`, Parent, MRTS oder Gitlink ist autorisiert. Der finale
+Source-Review umfasst ein sauberes `git diff --check`, exakte statische
+Publisher-Profile, keinen nativen Token-Fallback, keinen `workflows`-
+Write-Request, keinen direkten/Force-Push und keinen ungeprüften App-Token-
+Consumer. Normaler Push, exakt ein Framework-Draft-PR und dessen Current-Head-
+Hosted-Checks sind die bei dieser Record-Revision noch ausstehende
+Delivery-Evidenz.
