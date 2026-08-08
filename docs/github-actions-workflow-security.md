@@ -83,7 +83,7 @@ permissions:
 `permissions: {}` and grants its resolver, candidate-validator, and publisher
 jobs their separate built-in `contents: read` token; its outcome job remains
 empty. This avoids ambient token access in the final status path. No
-workflow-level permission map grants write. `check-common-versions` gives
+workflow-level permission map grants write.
 Only a trusted job may replace that baseline with a smaller purpose-specific
 permission map. `check-common-versions` keeps its resolver, candidate, and
 native publisher token at `contents: read`; only its post-validation,
