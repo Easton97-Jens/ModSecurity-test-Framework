@@ -74,6 +74,7 @@ APPROVED_LITERAL_VARIABLES = {
 STATUS_CURRENT = "current"
 STATUS_OUTDATED = "outdated"
 STATUS_UNKNOWN = "unknown"
+STATUS_NOT_APPLICABLE = "not_applicable"
 STATUS_BLOCKED = "blocked"
 STATUS_ERROR = "error"
 
@@ -1396,6 +1397,26 @@ def unknown_component(
     )
 
 
+def not_applicable_component(
+    component: str,
+    entries: dict[str, VariableEntry],
+    variables: list[str],
+    reason: str,
+) -> ComponentResult:
+    """Describe a tracked local-policy entry that has no updater contract."""
+
+    return ComponentResult(
+        component=component,
+        status=STATUS_NOT_APPLICABLE,
+        message=reason,
+        variables=variables,
+        current=", ".join(
+            f"{name}={value(entries, name)}" for name in variables if name in entries
+        ),
+        details={"reason": reason},
+    )
+
+
 def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[ComponentResult]:
     checks: list[ComponentResult] = []
     nginx_check = lambda: check_nginx_release_provenance(entries, client)
@@ -1410,7 +1431,7 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
         ),
         (
             "ModSecurity Apache connector",
-            lambda: unknown_component(
+            lambda: not_applicable_component(
                 "ModSecurity Apache connector",
                 entries,
                 ["MODSECURITY_APACHE_GIT_URL", "MODSECURITY_APACHE_GIT_REF"],
@@ -1419,7 +1440,7 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
         ),
         (
             "ModSecurity NGINX connector",
-            lambda: unknown_component(
+            lambda: not_applicable_component(
                 "ModSecurity NGINX connector",
                 entries,
                 ["MODSECURITY_NGINX_GIT_URL", "MODSECURITY_NGINX_GIT_REF"],
@@ -1467,7 +1488,7 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
         ("HAProxy", lambda: check_haproxy(entries, client)),
         (
             "Default branch",
-            lambda: unknown_component(
+            lambda: not_applicable_component(
                 "Default branch",
                 entries,
                 ["DEFAULT_BRANCH"],
@@ -1651,7 +1672,7 @@ def plain_summary(summary: dict[str, Any]) -> str:
 
 def exit_code(results: list[ComponentResult]) -> int:
     statuses = {result.status for result in results}
-    if STATUS_ERROR in statuses or STATUS_BLOCKED in statuses:
+    if STATUS_ERROR in statuses or STATUS_BLOCKED in statuses or STATUS_UNKNOWN in statuses:
         return 2
     if STATUS_OUTDATED in statuses:
         return 1

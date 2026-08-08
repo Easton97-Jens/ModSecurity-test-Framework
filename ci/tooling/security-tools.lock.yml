@@ -57,7 +57,7 @@ actions:
     upstream_release: https://github.com/actions/create-github-app-token/releases/tag/v3.2.0
     release_resolution: latest-release
     license: MIT
-    purpose: Mint a short-lived repository-limited GitHub App token only for the constrained workflow-tool publisher.
+    purpose: Mint a short-lived repository-limited GitHub App token only for the constrained workflow-tool and Common-version Draft-PR publishers.
     platform: GitHub Actions
     update_procedure: Verify the upstream tag-to-commit identity, repository scope, required installation permissions, default token revocation, and MIT license, then update this record, every matching version comment, and the contract test together.
   peter-evans/create-pull-request:
