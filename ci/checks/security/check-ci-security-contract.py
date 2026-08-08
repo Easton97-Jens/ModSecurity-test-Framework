@@ -2175,12 +2175,16 @@ def common_version_publisher_gate_errors(path: Path, publish: Any) -> list[str]:
     return errors
 
 
-def common_version_publisher_profile_errors(path: Path, data: dict[str, Any]) -> list[str]:
+def common_version_publisher_profile_errors(
+    path: Path, data: dict[str, Any]
+) -> list[str]:
     """Fail closed if the App-token publisher differs from its reviewed profile."""
 
     jobs = data.get("jobs")
     if not isinstance(jobs, dict):
-        return [f"{path}: common-version publisher profile requires jobs to be a mapping"]
+        return [
+            f"{path}: common-version publisher profile requires jobs to be a mapping"
+        ]
     publish = jobs.get("publish")
     if not isinstance(publish, dict):
         return [
@@ -2235,7 +2239,10 @@ def common_version_publisher_profile_errors(path: Path, data: dict[str, Any]) ->
         expected_with_keys = COMMON_VERSION_PUBLISHER_WITH_KEYS.get(name)
         if expected_with_keys is not None:
             with_values = step.get("with")
-            if not isinstance(with_values, dict) or set(with_values) != expected_with_keys:
+            if (
+                not isinstance(with_values, dict)
+                or set(with_values) != expected_with_keys
+            ):
                 errors.append(
                     f"{path}: common-version publisher step {name!r} must match its reviewed with profile"
                 )
@@ -2246,7 +2253,10 @@ def common_version_publisher_profile_errors(path: Path, data: dict[str, Any]) ->
                     f"{path}: common-version publisher step {name!r} must use reviewed with values"
                 )
             if name in COMMON_VERSION_PUBLISHER_SCRIPT_SHA256:
-                if with_values.get("github-token") != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION:
+                if (
+                    with_values.get("github-token")
+                    != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION
+                ):
                     errors.append(
                         f"{path}: common-version state check must use only the scoped GitHub App token"
                     )
@@ -2285,8 +2295,13 @@ def common_version_publisher_profile_errors(path: Path, data: dict[str, Any]) ->
     return errors
 
 
-def common_version_unexpected_sensitive_errors(path: Path, data: dict[str, Any]) -> list[str]:
-    if frozenset(sensitive_reference_paths(data)) != COMMON_VERSION_EXPECTED_SENSITIVE_PATHS:
+def common_version_unexpected_sensitive_errors(
+    path: Path, data: dict[str, Any]
+) -> list[str]:
+    if (
+        frozenset(sensitive_reference_paths(data))
+        != COMMON_VERSION_EXPECTED_SENSITIVE_PATHS
+    ):
         return [
             f"{path}: common-version publisher may reference the App secret only in the reviewed configuration gate and App-token action"
         ]
