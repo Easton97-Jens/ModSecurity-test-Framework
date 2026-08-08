@@ -44,13 +44,20 @@ class CommonStructureWorkflowTest(unittest.TestCase):
         list_cases = '            --scope common > "$out/apache-common-cases.txt"'
         non_empty_selection = 'if [ ! -s "$out/apache-common-cases.txt" ]; then'
         materialization_loop = 'while IFS= read -r case_file; do'
+        private_audit_directory = '            mkdir -p "$case_out/audit"'
+        private_audit_permissions = '            chmod 700 "$case_out" "$case_out/audit"'
+        materialize = '            python3 tests/runners/case_cli.py materialize \\'
         self.assertIn(list_cases, workflow)
         self.assertIn(non_empty_selection, workflow)
+        self.assertIn(private_audit_directory, workflow)
+        self.assertIn(private_audit_permissions, workflow)
         self.assertLess(workflow.index(list_cases), workflow.index(non_empty_selection))
         self.assertLess(
             workflow.index(non_empty_selection),
             workflow.index(materialization_loop),
         )
+        self.assertLess(workflow.index(private_audit_directory), workflow.index(materialize))
+        self.assertLess(workflow.index(private_audit_permissions), workflow.index(materialize))
 
     def test_common_selection_excludes_non_runtime_catalog_cases(self) -> None:
         environment = os.environ.copy()

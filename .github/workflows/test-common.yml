@@ -73,6 +73,8 @@ jobs:
             name=$(basename "$case_file" .yaml)
             case_out="$out/$name"
             mkdir -p "$case_out"
+            mkdir -p "$case_out/audit"
+            chmod 700 "$case_out" "$case_out/audit"
             python3 tests/runners/case_cli.py materialize \
               --case "$case_file" \
               --rules-file "$case_out/rules.conf" \
