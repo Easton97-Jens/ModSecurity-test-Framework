@@ -55,7 +55,7 @@ zugelassenen Upstreams, Releases und Commit-Identitäten sind:
 | `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Prüft eingeschränkte Draft-PRs oder führt Artefakt-Aufbewahrungsbereinigung aus. |
 | `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` | MIT | Erzeugt die kurzlebigen, auf das Repository begrenzten App-Tokens der Common-Version-, CPython-Version- und Workflow-Tool-Publisher. |
 | `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Erstellt eingeschränkte Common-Version- oder CPython-Version-Draft-PRs. |
-| `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | `v4.37.4` | `f205ea1c3313d32999d8d6a48b4f6530d4437b38` | MIT | Führt die begrenzte CodeQL-Analyse und den vertrauenswürdigen SARIF-Upload aus. |
+| `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | `v4.37.6` | `5595ccaf912efad79be6eef63a5619ff05969be3` | MIT | Führt die begrenzte CodeQL-Analyse und den vertrauenswürdigen SARIF-Upload aus. |
 | `actions/dependency-review-action` | [actions/dependency-review-action](https://github.com/actions/dependency-review-action) | `v5.0.0` | `a1d282b36b6f3519aa1f3fc636f609c47dddb294` | MIT | Prüft Abhängigkeitsänderungs-PRs ohne Remediation. |
 
 Der Vertrag weist Tags, Branches, verkürzte oder Großbuchstaben-SHAs,
