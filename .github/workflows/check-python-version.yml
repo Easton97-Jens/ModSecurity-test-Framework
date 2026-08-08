@@ -5,8 +5,7 @@ on:
   schedule:
     - cron: "17 6 * * 1"
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: framework-python-version-maintenance-${{ github.repository }}
@@ -20,7 +19,10 @@ jobs:
   resolve:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     outputs:
+      resolver_status: ${{ steps.resolve.outputs.status }}
       update_available: ${{ steps.resolve.outputs.update_available }}
       candidate: ${{ steps.resolve.outputs.candidate }}
     steps:
@@ -49,6 +51,8 @@ jobs:
     if: ${{ needs.resolve.outputs.update_available == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     env:
       CANDIDATE: ${{ needs.resolve.outputs.candidate }}
     outputs:
@@ -136,8 +140,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     env:
       CANDIDATE: ${{ needs.resolve.outputs.candidate }}
     steps:
@@ -162,21 +165,152 @@ jobs:
             --require-hashes -r requirements-ci.lock
           python3 -m pip check
 
-      - name: Independently revalidate and apply the candidate
+      - name: Verify CPython publisher GitHub App configuration
+        env:
+          WORKFLOW_UPDATER_APP_CLIENT_ID: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          WORKFLOW_UPDATER_APP_PRIVATE_KEY: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
         run: |
           set -euo pipefail
+          if [ -z "$WORKFLOW_UPDATER_APP_CLIENT_ID" ]; then
+            echo "::error::WORKFLOW_UPDATER_APP_CLIENT_ID repository variable is missing or empty" >&2
+            exit 1
+          fi
+          if [ -z "$WORKFLOW_UPDATER_APP_PRIVATE_KEY" ]; then
+            echo "::error::WORKFLOW_UPDATER_APP_PRIVATE_KEY repository secret is missing" >&2
+            exit 1
+          fi
+
+      - name: Mint repository-limited CPython publisher App token
+        id: publisher_app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          private-key: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Inspect matching CPython Draft maintenance pull request
+        id: maintenance_pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.publisher_app_token.outputs.token }}
+          script: |
+            const branch = "automation/update-framework-python-314";
+            const title = "chore: update reviewed CPython 3.14";
+            const marker = "<!-- framework-python-314-updater -->";
+            const { owner, repo } = context.repo;
+            const defaultBranch = context.payload.repository.default_branch;
+            if (defaultBranch !== "master") {
+              core.setFailed("the CPython maintenance publisher requires master as the default branch");
+              return;
+            }
+            const references = await github.rest.git.listMatchingRefs({
+              owner,
+              repo,
+              ref: "heads/" + branch,
+            });
+            const pullRequests = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              head: owner + ":" + branch,
+              state: "open",
+              per_page: 100,
+            });
+            if (references.data.length === 0) {
+              if (pullRequests.length !== 0) {
+                core.setFailed("a CPython maintenance pull request exists without its expected branch");
+              }
+              core.setOutput("existing", "false");
+              return;
+            }
+            if (
+              references.data.length !== 1 ||
+              references.data[0].ref !== "refs/heads/" + branch ||
+              pullRequests.length !== 1
+            ) {
+              core.setFailed("expected exactly one matching CPython maintenance branch and open pull request");
+              return;
+            }
+            const pullRequest = pullRequests[0];
+            if (
+              !pullRequest.draft ||
+              pullRequest.base.ref !== defaultBranch ||
+              pullRequest.title !== title ||
+              !pullRequest.body?.includes(marker)
+            ) {
+              core.setFailed("the existing CPython maintenance pull request is not the matching Draft updater PR");
+              return;
+            }
+            core.setOutput("existing", "true");
+
+      - name: Prepare the constrained CPython maintenance branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          MAINTENANCE_PR_EXISTS: ${{ steps.maintenance_pr.outputs.existing }}
+          PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
+        run: |
+          set -euo pipefail
+          UPDATE_BRANCH="automation/update-framework-python-314"
+          test "$DEFAULT_BRANCH" = "master"
+          git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
+          trap 'git config --local --unset-all credential.helper' EXIT
+          git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
+          case "$MAINTENANCE_PR_EXISTS" in
+            true)
+              git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
+              git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH"
+              changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH")"
+              test "$changed_paths" = ".python-version"
+              git diff --check "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH"
+              git switch --create "$UPDATE_BRANCH" --track "origin/$UPDATE_BRANCH"
+              ;;
+            false)
+              git switch --create "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
+              ;;
+            *)
+              echo "CPython maintenance PR state is invalid" >&2
+              exit 2
+              ;;
+          esac
+
+      - name: Revalidate the reusable CPython Draft branch before modifying it
+        if: steps.maintenance_pr.outputs.existing == 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$DEFAULT_BRANCH" = "master"
+          python3 ci/checks/security/check-python-version.py
+          python3 ci/checks/security/check-ci-security-contract.py
+          changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")"
+          test "$changed_paths" = ".python-version"
+          git diff --check "origin/$DEFAULT_BRANCH...HEAD"
+
+      - name: Independently revalidate and apply the candidate
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$DEFAULT_BRANCH" = "master"
           python3 ci/tools/update-python-version.py --check --expected-candidate "$CANDIDATE"
           python3 ci/tools/update-python-version.py --update --expected-candidate "$CANDIDATE"
           python3 ci/checks/security/check-python-version.py
-          changed_paths="$(git diff --name-only)"
+          python3 ci/checks/security/check-ci-security-contract.py
+          changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH")"
           test "$changed_paths" = ".python-version"
-          git diff --check
+          git diff --check "origin/$DEFAULT_BRANCH"
 
       - name: Build Draft pull request body
         run: |
           set -euo pipefail
           # shellcheck disable=SC2016
           printf '%s\n' \
+            '<!-- framework-python-314-updater -->' \
             '## English' \
             '' \
             'This Draft pull request was generated only after a read-only CPython 3.14 candidate validation.' \
@@ -193,7 +327,7 @@ jobs:
       - name: Create or update Draft pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ github.token }}
+          token: ${{ steps.publisher_app_token.outputs.token }}
           commit-message: "chore: update reviewed CPython 3.14"
           title: "chore: update reviewed CPython 3.14"
           body-path: ${{ runner.temp }}/framework-python-version-pr-body.md
@@ -202,3 +336,65 @@ jobs:
           draft: true
           add-paths: |
             .python-version
+
+  outcome:
+    needs:
+      - resolve
+      - candidate-validate
+      - publish
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    env:
+      RESOLVER_RESULT: ${{ needs.resolve.result }}
+      CANDIDATE_RESULT: ${{ needs.candidate-validate.result }}
+      PUBLISHER_RESULT: ${{ needs.publish.result }}
+      RESOLVER_STATUS: ${{ needs.resolve.outputs.resolver_status }}
+      UPDATE_AVAILABLE: ${{ needs.resolve.outputs.update_available }}
+      CANDIDATE: ${{ needs.resolve.outputs.candidate }}
+      CANDIDATE_VALIDATED: ${{ needs.candidate-validate.outputs.candidate_validated }}
+    steps:
+      - name: Report explicit CPython maintenance outcome
+        run: |
+          set -euo pipefail
+          if [ "$RESOLVER_RESULT" != success ]; then
+            echo "::error::CPython resolver did not produce a recognized successful result" >&2
+            exit 1
+          fi
+          case "$RESOLVER_STATUS:$UPDATE_AVAILABLE" in
+            current:false)
+              if [ -n "$CANDIDATE" ] || [ "$CANDIDATE_RESULT" != skipped ] || [ "$PUBLISHER_RESULT" != skipped ]; then
+                echo "::error::CPython no-update result has an unexpected candidate or publisher state" >&2
+                exit 1
+              fi
+              printf '%s\n' \
+                '## CPython maintenance outcome' \
+                '' \
+                'No reviewed CPython 3.14 update is currently available.' \
+                'No branch, commit, or pull request was created or modified.' \
+                '' \
+                'Derzeit ist keine geprüfte CPython-3.14-Aktualisierung verfügbar.' \
+                'Es wurde kein Branch, Commit oder Pull Request erstellt oder verändert.' \
+                >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            update_available:true)
+              if ! printf '%s\n' "$CANDIDATE" | grep -Eq '^3[.]14[.][0-9]+$' || [ "$CANDIDATE_RESULT" != success ] || [ "$CANDIDATE_VALIDATED" != true ] || [ "$PUBLISHER_RESULT" != success ]; then
+                echo "::error::CPython update was not fully validated and published" >&2
+                exit 1
+              fi
+              printf '%s\n' \
+                '## CPython maintenance outcome' \
+                '' \
+                'A reviewed CPython 3.14 update was independently validated and published through the constrained maintenance path.' \
+                'Maintenance branch: automation/update-framework-python-314. The matching Draft pull request was created or updated when a change remained.' \
+                '' \
+                'Eine geprüfte CPython-3.14-Aktualisierung wurde unabhängig validiert und über den eingeschränkten Wartungspfad veröffentlicht.' \
+                'Wartungs-Branch: automation/update-framework-python-314. Der passende Draft Pull Request wurde erstellt oder aktualisiert, sofern eine Änderung verblieb.' \
+                >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::CPython resolver status or update_available output is missing or unexpected" >&2
+              exit 1
+              ;;
+          esac

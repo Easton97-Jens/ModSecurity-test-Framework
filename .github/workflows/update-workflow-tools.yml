@@ -23,7 +23,9 @@ jobs:
     permissions:
       contents: read
     outputs:
+      resolver_status: ${{ steps.resolve.outputs.resolver_status }}
       candidate_b64: ${{ steps.resolve.outputs.candidate_b64 }}
+      candidate_sha256: ${{ steps.resolve.outputs.candidate_sha256 }}
       has_updates: ${{ steps.resolve.outputs.has_updates }}
     steps:
       - name: Checkout trusted default revision
@@ -84,12 +86,32 @@ jobs:
       - name: Validate candidate and changed tool assets
         env:
           CANDIDATE_B64: ${{ needs.resolver.outputs.candidate_b64 }}
+          CANDIDATE_SHA256: ${{ needs.resolver.outputs.candidate_sha256 }}
+          HAS_UPDATES: ${{ needs.resolver.outputs.has_updates }}
         run: |
           set -euo pipefail
-          python3 ci/tools/update-workflow-tools.py validate --root . \
-            --candidate-b64 "$CANDIDATE_B64" --verify-tool-assets \
-            --output-dir "$RUNNER_TEMP/framework-workflow-tool-validation" \
-            --validate-proposed-tree
+          case "$HAS_UPDATES" in
+            true)
+              python3 ci/tools/update-workflow-tools.py validate --root . \
+                --candidate-b64 "$CANDIDATE_B64" \
+                --expected-candidate-sha256 "$CANDIDATE_SHA256" \
+                --require-updates --verify-tool-assets \
+                --output-dir "$RUNNER_TEMP/framework-workflow-tool-validation" \
+                --validate-proposed-tree
+              ;;
+            false)
+              python3 ci/tools/update-workflow-tools.py validate --root . \
+                --candidate-b64 "$CANDIDATE_B64" \
+                --expected-candidate-sha256 "$CANDIDATE_SHA256" \
+                --verify-tool-assets \
+                --output-dir "$RUNNER_TEMP/framework-workflow-tool-validation" \
+                --validate-proposed-tree
+              ;;
+            *)
+              echo "::error::resolver has_updates output is missing or unexpected" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Validate immutable Action and tool contracts
         run: |
@@ -130,6 +152,21 @@ jobs:
           python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
             --require-hashes -r requirements-ci.lock
           python3 -m pip check
+
+      - name: Verify workflow publisher GitHub App configuration
+        env:
+          WORKFLOW_UPDATER_APP_CLIENT_ID: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
+          WORKFLOW_UPDATER_APP_PRIVATE_KEY: ${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$WORKFLOW_UPDATER_APP_CLIENT_ID" ]; then
+            echo "::error::WORKFLOW_UPDATER_APP_CLIENT_ID repository variable is missing or empty" >&2
+            exit 1
+          fi
+          if [ -z "$WORKFLOW_UPDATER_APP_PRIVATE_KEY" ]; then
+            echo "::error::WORKFLOW_UPDATER_APP_PRIVATE_KEY repository secret is missing" >&2
+            exit 1
+          fi
 
       - name: Mint repository-limited workflow publisher App token
         id: publisher_app_token
@@ -205,7 +242,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
-          trap 'git config --local --unset-all credential.helper || true' EXIT
+          trap 'git config --local --unset-all credential.helper' EXIT
           git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
           case "$MAINTENANCE_PR_EXISTS" in
             true)
@@ -239,14 +276,24 @@ jobs:
             --base "origin/$DEFAULT_BRANCH" --head HEAD
 
       - name: Re-resolve and narrowly apply current candidates
+        env:
+          CANDIDATE_B64: ${{ needs.resolver.outputs.candidate_b64 }}
+          CANDIDATE_SHA256: ${{ needs.resolver.outputs.candidate_sha256 }}
         run: |
           set -euo pipefail
           CANDIDATE="$RUNNER_TEMP/framework-workflow-tool-candidate.json"
+          python3 ci/tools/update-workflow-tools.py validate --root . \
+            --candidate-b64 "$CANDIDATE_B64" \
+            --expected-candidate-sha256 "$CANDIDATE_SHA256" \
+            --require-updates --verify-tool-assets \
+            --output-dir "$RUNNER_TEMP/framework-workflow-tool-resolver-validation"
           python3 ci/tools/update-workflow-tools.py resolve --root . --output "$CANDIDATE"
           python3 ci/tools/update-workflow-tools.py validate --root . --candidate "$CANDIDATE" \
-            --verify-tool-assets \
+            --expected-candidate-sha256 "$CANDIDATE_SHA256" \
+            --require-updates --verify-tool-assets \
             --output-dir "$RUNNER_TEMP/framework-workflow-tool-publisher-validation"
-          python3 ci/tools/update-workflow-tools.py apply --root . --candidate "$CANDIDATE"
+          python3 ci/tools/update-workflow-tools.py apply --root . --candidate "$CANDIDATE" \
+            --expected-candidate-sha256 "$CANDIDATE_SHA256" --require-updates
           python3 ci/checks/security/check-github-actions-workflows.py --check all
           python3 ci/checks/security/check-workflow-action-pins.py
           python3 ci/checks/security/check-ci-security-contract.py
@@ -288,7 +335,7 @@ jobs:
           git diff --cached --check
           git commit -m "chore(ci): update pinned workflow tools"
           git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
-          trap 'git config --local --unset-all credential.helper || true' EXIT
+          trap 'git config --local --unset-all credential.helper' EXIT
           git push origin "HEAD:refs/heads/$UPDATE_BRANCH"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
@@ -319,3 +366,69 @@ jobs:
               body,
               draft: true,
             });
+
+  outcome:
+    needs:
+      - resolver
+      - validator
+      - publisher
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    env:
+      RESOLVER_RESULT: ${{ needs.resolver.result }}
+      VALIDATOR_RESULT: ${{ needs.validator.result }}
+      PUBLISHER_RESULT: ${{ needs.publisher.result }}
+      RESOLVER_STATUS: ${{ needs.resolver.outputs.resolver_status }}
+      HAS_UPDATES: ${{ needs.resolver.outputs.has_updates }}
+      CANDIDATE_B64: ${{ needs.resolver.outputs.candidate_b64 }}
+      CANDIDATE_SHA256: ${{ needs.resolver.outputs.candidate_sha256 }}
+    steps:
+      - name: Report explicit workflow-tool maintenance outcome
+        run: |
+          set -euo pipefail
+          if [ "$RESOLVER_RESULT" != success ] || [ "$RESOLVER_STATUS" != resolved ]; then
+            echo "::error::workflow-tool resolver did not produce a recognized successful result" >&2
+            exit 1
+          fi
+          case "$HAS_UPDATES" in
+            false)
+              if { [ "$VALIDATOR_RESULT" != success ] && [ "$VALIDATOR_RESULT" != skipped ]; } || [ "$PUBLISHER_RESULT" != skipped ]; then
+                echo "::error::workflow-tool no-update result has an unexpected validator or publisher state" >&2
+                exit 1
+              fi
+              if [ -z "$CANDIDATE_B64" ] || ! printf '%s\n' "$CANDIDATE_SHA256" | grep -Eq '^[0-9a-f]{64}$'; then
+                echo "::error::workflow-tool resolver no-update output is missing or malformed" >&2
+                exit 1
+              fi
+              printf '%s\n' \
+                '## Maintenance updater outcome' \
+                '' \
+                'No reviewed workflow or tool updates are currently available.' \
+                'All immutable pins remain current. No branch, commit, or pull request was created or modified.' \
+                '' \
+                'Derzeit sind keine geprüften Workflow- oder Tool-Aktualisierungen verfügbar.' \
+                'Alle unveränderlichen Pins sind aktuell. Es wurde kein Branch, Commit oder Pull Request erstellt oder verändert.' \
+                >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            true)
+              if [ "$VALIDATOR_RESULT" != success ] || [ "$PUBLISHER_RESULT" != success ] || [ -z "$CANDIDATE_B64" ] || ! printf '%s\n' "$CANDIDATE_SHA256" | grep -Eq '^[0-9a-f]{64}$'; then
+                echo "::error::workflow-tool update was not fully validated and published" >&2
+                exit 1
+              fi
+              printf '%s\n' \
+                '## Maintenance updater outcome' \
+                '' \
+                'A reviewed workflow or tool update was validated and published through the constrained maintenance path.' \
+                'Maintenance branch: automation/update-framework-workflow-tools. The matching Draft pull request was created or updated when a change remained.' \
+                '' \
+                'Eine geprüfte Workflow- oder Tool-Aktualisierung wurde validiert und über den eingeschränkten Wartungspfad veröffentlicht.' \
+                'Wartungs-Branch: automation/update-framework-workflow-tools. Der passende Draft Pull Request wurde erstellt oder aktualisiert, sofern eine Änderung verblieb.' \
+                >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "::error::workflow-tool resolver has_updates output is missing or unexpected" >&2
+              exit 1
+              ;;
+          esac

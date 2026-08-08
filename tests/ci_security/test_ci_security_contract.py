@@ -413,7 +413,8 @@ jobs:
         )
         self.assertTrue(
             any(
-                "must define exactly resolver, validator, and publisher jobs" in error
+                "must define exactly resolver, validator, publisher, and outcome jobs"
+                in error
                 for error in errors
             ),
             "\n".join(errors),
@@ -589,11 +590,6 @@ jobs:
             '                --base "origin/$DEFAULT_BRANCH" \\\n'
             '                --head "origin/$UPDATE_BRANCH"\n'
         )
-        publisher_validation = (
-            '          python3 ci/tools/update-workflow-tools.py validate --root . --candidate "$CANDIDATE" \\\n'
-            "            --verify-tool-assets \\\n"
-            '            --output-dir "$RUNNER_TEMP/framework-workflow-tool-publisher-validation"\n'
-        )
         update_branch = (
             '          UPDATE_BRANCH="automation/update-framework-workflow-tools"'
         )
@@ -605,11 +601,8 @@ jobs:
                 1,
             ),
             "commented-tool-asset-verification": workflow.replace(
-                publisher_validation,
-                '          python3 ci/tools/update-workflow-tools.py validate --root . --candidate "$CANDIDATE" \\\n'
-                "            # --verify-tool-assets\n"
-                '            --output-dir "$RUNNER_TEMP/framework-workflow-tool-publisher-validation"\n',
-                1,
+                "--verify-tool-assets",
+                "--no-verify-tool-assets",
             ),
             "command-prefixed-force-push": workflow.replace(
                 '          git push origin "HEAD:refs/heads/$UPDATE_BRANCH"',
@@ -702,6 +695,141 @@ jobs:
                     ),
                     "\n".join(errors),
                 )
+
+    def test_workflow_tool_updater_rejects_identity_binding_and_outcome_regressions(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+            encoding="utf-8"
+        )
+        variants = {
+            "missing-resolver-digest": workflow.replace(
+                "      candidate_sha256: ${{ steps.resolve.outputs.candidate_sha256 }}\n",
+                "",
+                1,
+            ),
+            "validator-without-resolver-digest": workflow.replace(
+                "--expected-candidate-sha256",
+                "--resolver-candidate-sha256",
+                2,
+            ),
+            "publisher-without-required-update": workflow.replace(
+                "            --require-updates --verify-tool-assets \\\n",
+                "            --verify-tool-assets \\\n",
+                1,
+            ),
+            "masked-app-configuration-failure": workflow.replace(
+                'if [ -z "$WORKFLOW_UPDATER_APP_CLIENT_ID" ]; then',
+                "if false; then",
+                1,
+            ),
+            "missing-app-preflight": workflow.replace(
+                "Verify workflow publisher GitHub App configuration",
+                "Bypass workflow publisher GitHub App configuration",
+                1,
+            ),
+            "credential-cleanup-mask": workflow.replace(
+                "trap 'git config --local --unset-all credential.helper' EXIT",
+                "trap 'git config --local --unset-all credential.helper || true' EXIT",
+                1,
+            ),
+            "outcome-not-always": workflow.replace(
+                "if: ${{ always() }}", "if: ${{ success() }}", 1
+            ),
+            "outcome-write-permission": workflow.replace(
+                "    permissions: {}\n    env:\n      RESOLVER_RESULT:",
+                "    permissions:\n      contents: write\n    env:\n      RESOLVER_RESULT:",
+                1,
+            ),
+            "outcome-token-exposure": workflow.replace(
+                "    env:\n      RESOLVER_RESULT:",
+                "    env:\n      UNSAFE_TOKEN: ${{ secrets.UNSAFE_TOKEN }}\n"
+                "      RESOLVER_RESULT:",
+                1,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.workflow_tool_updater_errors(
+                    ROOT / ".github/workflows/update-workflow-tools.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(errors, "expected fail-closed updater rejection")
+
+    def test_python_version_publisher_rejects_app_token_scope_and_outcome_regressions(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/check-python-version.yml").read_text(
+            encoding="utf-8"
+        )
+        variants = {
+            "workflow-level-reader-permission": workflow.replace(
+                "permissions: {}\n\nconcurrency:",
+                "permissions:\n  contents: read\n\nconcurrency:",
+                1,
+            ),
+            "missing-reader-job-permission": workflow.replace(
+                "  resolve:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n"
+                "    permissions:\n      contents: read\n",
+                "  resolve:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n",
+                1,
+            ),
+            "native-token-fallback": workflow.replace(
+                "token: ${{ steps.publisher_app_token.outputs.token }}",
+                "token: ${{ github.token }}",
+                1,
+            ),
+            "broadened-app-scope": workflow.replace(
+                "          permission-pull-requests: write\n",
+                "          permission-pull-requests: write\n"
+                "          permission-workflows: write\n",
+                1,
+            ),
+            "missing-app-preflight": workflow.replace(
+                "Verify CPython publisher GitHub App configuration",
+                "Bypass CPython publisher GitHub App configuration",
+                1,
+            ),
+            "unconstrained-branch": workflow.replace(
+                'UPDATE_BRANCH="automation/update-framework-python-314"',
+                'UPDATE_BRANCH="master"',
+                1,
+            ),
+            "missing-draft-marker": workflow.replace(
+                "<!-- framework-python-314-updater -->",
+                "<!-- unsafe-python-updater -->",
+                1,
+            ),
+            "expanded-publish-path": workflow.replace(
+                "            .python-version\n",
+                "            .python-version\n            .github/workflows/check-python-version.yml\n",
+                1,
+            ),
+            "outcome-not-always": workflow.replace(
+                "if: ${{ always() }}", "if: ${{ success() }}", 1
+            ),
+            "outcome-write-permission": workflow.replace(
+                "    permissions: {}\n    env:\n      RESOLVER_RESULT:",
+                "    permissions:\n      contents: write\n    env:\n      RESOLVER_RESULT:",
+                1,
+            ),
+            "publisher-error-reported-green": workflow.replace(
+                '                echo "::error::CPython update was not fully validated and published" >&2\n'
+                "                exit 1\n",
+                '                echo "::error::CPython update was not fully validated and published" >&2\n'
+                "                exit 0\n",
+                1,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.workflow_contract_errors(
+                    ROOT / ".github/workflows/check-python-version.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(errors, "expected fail-closed CPython rejection")
 
     def test_common_version_publisher_rejects_privilege_and_scope_regressions(
         self,
