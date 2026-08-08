@@ -9,7 +9,7 @@
 | Change ID | 20260808-01-update-codeql-action-4374 |
 | UTC date | 2026-08-08 |
 | Framework base revision | `8362b569406cabc5237a41e4e46f0505fb04c51f` |
-| Issue or pull request | Replacement for Dependabot PRs #61 and #62; replacement pull request to be created after local validation |
+| Issue or pull request | Replacement PR #63 for Dependabot PRs #61 and #62 |
 
 ## Motivation and problem statement
 

@@ -9,7 +9,7 @@
 | Change-ID | 20260808-01-update-codeql-action-4374 |
 | UTC-Datum | 2026-08-08 |
 | Framework-Basisrevision | `8362b569406cabc5237a41e4e46f0505fb04c51f` |
-| Issue oder Pull Request | Ersatz für Dependabot-PRs #61 und #62; Ersatz-Pull-Request wird nach lokaler Validierung erstellt |
+| Issue oder Pull Request | Ersatz-PR #63 für Dependabot-PRs #61 und #62 |
 
 ## Motivation und Problemstellung
 
