@@ -25,6 +25,10 @@ OFFICIAL_TARBALL_HOST = "downloads.example.invalid"
 TEMP_PREFIX = "common-versions-provenance-"
 FIXTURE_NAME = "fixture.sh"
 COMMON_SH_NAME = "common.sh"
+APR_UTIL_VERSION = "1.6.4"
+APR_UTIL_SHA256 = "3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b"
+APR_UTIL_SOURCE_URL = f"https://downloads.apache.org/apr/apr-util-{APR_UTIL_VERSION}.tar.bz2"
+APR_UTIL_SHA256_URL = f"{APR_UTIL_SOURCE_URL}.sha256"
 
 
 def load_checker():
@@ -82,6 +86,28 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                 f'SOURCE_URL="${{SOURCE_URL:-{source_url}}}"',
                 f'SHA256="${{SHA256:-{CHECKSUM}}}"',
                 f'SHA_URL="${{SHA_URL:-{checksum_url}}}"',
+                "",
+            ]
+        )
+
+    @staticmethod
+    def apr_util_fixture(
+        *,
+        runtime_version: str = "$APR_UTIL_PINNED_VERSION",
+        runtime_source_url: str = "$APR_UTIL_PINNED_SOURCE_URL",
+        runtime_sha256: str = "$APR_UTIL_PINNED_SHA256",
+        runtime_sha256_url: str = "$APR_UTIL_PINNED_SHA256_URL",
+    ) -> str:
+        return "\n".join(
+            [
+                f'APR_UTIL_PINNED_VERSION="{APR_UTIL_VERSION}"',
+                f'APR_UTIL_PINNED_SOURCE_URL="{APR_UTIL_SOURCE_URL}"',
+                f'APR_UTIL_PINNED_SHA256="{APR_UTIL_SHA256}"',
+                f'APR_UTIL_PINNED_SHA256_URL="{APR_UTIL_SHA256_URL}"',
+                f'APR_UTIL_VERSION="${{APR_UTIL_VERSION-{runtime_version}}}"',
+                f'APR_UTIL_SOURCE_URL="${{APR_UTIL_SOURCE_URL-{runtime_source_url}}}"',
+                f'APR_UTIL_SHA256="${{APR_UTIL_SHA256-{runtime_sha256}}}"',
+                f'APR_UTIL_SHA256_URL="${{APR_UTIL_SHA256_URL-{runtime_sha256_url}}}"',
                 "",
             ]
         )
@@ -305,6 +331,53 @@ class CommonVersionProvenanceTests(unittest.TestCase):
         self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
         self.assertEqual(CHECKSUM, result.details["official_sha256"])
         self.assertEqual(client.urls, [listing_url, checksum_url, checksum_url])
+
+    def test_apr_util_pinned_tuple_uses_the_official_asset_and_checksum(self):
+        listing_url = "https://downloads.apache.org/apr/"
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            fixture = Path(temporary) / COMMON_SH_NAME
+            _, entries = self.parse_fixture(fixture, self.apr_util_fixture())
+            client = FixtureHttpClient(
+                {
+                    listing_url: f'<a href="apr-util-{APR_UTIL_VERSION}.tar.bz2">asset</a>',
+                    APR_UTIL_SHA256_URL: f"{APR_UTIL_SHA256}  apr-util-{APR_UTIL_VERSION}.tar.bz2\n",
+                }
+            )
+
+            result = CHECKER.check_apr_util_release_provenance(entries, client)
+
+        self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
+        self.assertEqual(result.current, APR_UTIL_VERSION)
+        self.assertEqual(result.details["official_sha256"], APR_UTIL_SHA256)
+        self.assertEqual(client.urls, [listing_url, APR_UTIL_SHA256_URL, APR_UTIL_SHA256_URL])
+
+    def test_apr_util_rejects_any_runtime_tuple_mismatch_before_http_lookup(self):
+        mismatches = {
+            "stale-version": {"runtime_version": "1.6.3"},
+            "foreign-host": {
+                "runtime_source_url": "https://mirror.example.invalid/apr-util-1.6.4.tar.bz2"
+            },
+            "wrong-path": {
+                "runtime_source_url": "https://downloads.apache.org/apr/other-apr-util-1.6.4.tar.bz2"
+            },
+            "missing-digest": {"runtime_sha256": ""},
+            "malformed-digest": {"runtime_sha256": "not-a-sha256"},
+            "mismatched-digest": {"runtime_sha256": "0" * 64},
+            "wrong-checksum-url": {
+                "runtime_sha256_url": "https://downloads.apache.org/apr/other.sha256"
+            },
+        }
+        for case, kwargs in mismatches.items():
+            with self.subTest(case=case):
+                with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+                    fixture = Path(temporary) / COMMON_SH_NAME
+                    _, entries = self.parse_fixture(fixture, self.apr_util_fixture(**kwargs))
+                    client = NoNetworkClient()
+
+                    result = CHECKER.check_apr_util_release_provenance(entries, client)
+
+                self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
+                self.assertEqual(client.urls, [])
 
     def test_outdated_tarball_only_plans_an_update_until_update_mode_is_requested(self):
         listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"

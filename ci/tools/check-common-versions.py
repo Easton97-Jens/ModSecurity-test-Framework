@@ -59,6 +59,10 @@ OPTIONAL_EMPTY_VARIABLES = {
     "PCRE2_SHA256_URL",
 }
 APPROVED_LITERAL_VARIABLES = {
+    "APR_UTIL_PINNED_VERSION",
+    "APR_UTIL_PINNED_SOURCE_URL",
+    "APR_UTIL_PINNED_SHA256",
+    "APR_UTIL_PINNED_SHA256_URL",
     "CRS_APPROVED_REPO_URL",
     "CRS_APPROVED_COMMIT",
     "CRS_RELEASE_TAG",
@@ -725,6 +729,76 @@ def official_tarball_check(
     )
 
 
+def check_apr_util_release_provenance(
+    entries: dict[str, VariableEntry], client: HttpClient
+) -> ComponentResult:
+    """Verify the reviewed APR-util provider, asset, and digest tuple.
+
+    APR-util can no longer be mechanically advanced because its runtime
+    provisioner accepts only the reviewed tuple.  A future release therefore
+    needs one explicit source, checksum, and compatibility review.
+    """
+
+    pinned_variables = [
+        "APR_UTIL_PINNED_VERSION",
+        "APR_UTIL_PINNED_SOURCE_URL",
+        "APR_UTIL_PINNED_SHA256",
+        "APR_UTIL_PINNED_SHA256_URL",
+    ]
+    runtime_variables = [
+        "APR_UTIL_VERSION",
+        "APR_UTIL_SOURCE_URL",
+        "APR_UTIL_SHA256",
+        "APR_UTIL_SHA256_URL",
+    ]
+    variables = [*pinned_variables, *runtime_variables]
+    missing_result = missing_variables_result("APR-util", entries, variables)
+    if missing_result is not None:
+        return missing_result
+
+    for pinned, runtime in zip(pinned_variables, runtime_variables, strict=True):
+        if value(entries, pinned) != value(entries, runtime):
+            return ComponentResult(
+                component="APR-util",
+                status=STATUS_UNKNOWN,
+                message="APR-util runtime configuration must equal the reviewed provenance tuple.",
+                variables=variables,
+                current=value(entries, "APR_UTIL_VERSION"),
+                source=value(entries, "APR_UTIL_SOURCE_URL"),
+                details={"pinned_variable": pinned, "runtime_variable": runtime},
+            )
+
+    result = official_tarball_check(
+        "APR-util",
+        entries,
+        client,
+        version_var="APR_UTIL_VERSION",
+        source_url_var="APR_UTIL_SOURCE_URL",
+        sha_var="APR_UTIL_SHA256",
+        sha_url_var="APR_UTIL_SHA256_URL",
+        filename_prefix="apr-util",
+        extension=ARCHIVE_BZ2_EXTENSION,
+        allowed_host=APACHE_DOWNLOAD_HOST,
+        restrict_to_current_series=True,
+    )
+    result.variables = variables
+    if result.status == STATUS_OUTDATED:
+        return ComponentResult(
+            component="APR-util",
+            status=STATUS_UNKNOWN,
+            message=(
+                "APR-util has changed upstream; update the full reviewed provider, asset, and "
+                "digest tuple together after an explicit compatibility review."
+            ),
+            variables=variables,
+            current=result.current,
+            latest=result.latest,
+            source=result.source,
+            details=result.details,
+        )
+    return result
+
+
 def haproxy_source_series(current_url: str, current_version: str) -> str | None:
     match = re.fullmatch(
         r"https://www\.haproxy\.org/download/(\d+\.\d+)/src/haproxy-(\d+\.\d+\.\d+)\.tar\.gz",
@@ -1386,19 +1460,7 @@ def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[Com
         ),
         (
             "APR-util",
-            lambda: official_tarball_check(
-                "APR-util",
-                entries,
-                client,
-                version_var="APR_UTIL_VERSION",
-                source_url_var="APR_UTIL_SOURCE_URL",
-                sha_var="APR_UTIL_SHA256",
-                sha_url_var="APR_UTIL_SHA256_URL",
-                filename_prefix="apr-util",
-                extension=ARCHIVE_BZ2_EXTENSION,
-                allowed_host=APACHE_DOWNLOAD_HOST,
-                restrict_to_current_series=True,
-            ),
+            lambda: check_apr_util_release_provenance(entries, client),
         ),
         ("PCRE2", lambda: check_pcre2(entries, client)),
         ("NGINX", nginx_check),

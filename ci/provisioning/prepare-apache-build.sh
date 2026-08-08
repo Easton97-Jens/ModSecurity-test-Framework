@@ -263,6 +263,31 @@ download_file() {
     fi
 }
 
+download_apr_util_file() {
+    label=$1
+    url=$2
+    dest=$3
+
+    ci_require_apr_util_pinned_provenance || blocked "unapproved APR-util provenance"
+    case "$url" in
+        "$APR_UTIL_SOURCE_URL"|"$APR_UTIL_SHA256_URL") : ;;
+        *) blocked "unapproved APR-util download endpoint: $url" ;;
+    esac
+
+    require_command curl "download $label"
+    mkdir -p "$DOWNLOAD_DIR"
+    # The reviewed Apache endpoint is direct. Do not follow a provider or
+    # mirror redirect; a 3xx body also cannot pass the literal digest below.
+    run_logged "$label-download" "$DOWNLOAD_DIR" curl \
+        --fail --retry 3 --retry-delay 2 \
+        --proto '=https' --proto-redir '=https' --max-redirs 0 \
+        -o "$dest" "$url"
+    if command -v sha256sum >/dev/null 2>&1; then
+        local_sha=$(sha256_digest "$dest")
+        echo "$label sha256(local)=$local_sha file=$dest" >> "$ARTIFACTS_FILE"
+    fi
+}
+
 verify_sha256_url() {
     label=$1
     file=$2
@@ -286,6 +311,29 @@ verify_sha256_url() {
     echo "pass: $label sha256 verified" >> "$STATUS_FILE"
 }
 
+verify_apr_util_sha256_url() {
+    label=$1
+    file=$2
+    sha_url=$3
+    [ -n "$sha_url" ] || blocked "missing SHA256 URL for $label"
+    require_command sha256sum "verify $label checksum"
+    sha_file="$DOWNLOAD_DIR/$label.sha256"
+    download_apr_util_file "$label-sha256" "$sha_url" "$sha_file"
+    expected=$(awk '{print $1; exit}' "$sha_file")
+    if [ -z "$expected" ]; then
+        blocked "empty SHA256 file for $label: $sha_file"
+    fi
+    actual=$(sha256_digest "$file")
+    {
+        echo "$label sha256(expected)=$expected"
+        echo "$label sha256(actual)=$actual"
+    } >> "$ARTIFACTS_FILE"
+    if [ "$actual" != "$expected" ]; then
+        blocked "SHA256 metadata mismatch for $label"
+    fi
+    echo "pass: $label sha256 metadata verified" >> "$STATUS_FILE"
+}
+
 verify_sha256_literal() {
     label=$1
     file=$2
@@ -303,12 +351,13 @@ verify_sha256_literal() {
     echo "pass: $label sha256 verified" >> "$STATUS_FILE"
 }
 
-verify_required_pcre2_sha256() {
-    archive=$1
-    expected=$2
-    invalid_sha256_message="invalid SHA256 digest for pcre2: expected exactly 64 hexadecimal characters"
+verify_required_sha256_literal() {
+    label=$1
+    archive=$2
+    expected=$3
+    invalid_sha256_message="invalid SHA256 digest for $label: expected exactly 64 hexadecimal characters"
     if [ -z "$expected" ]; then
-        blocked "missing required SHA256 digest for pcre2"
+        blocked "missing required SHA256 digest for $label"
     fi
     if [ "${#expected}" -ne 64 ]; then
         blocked "$invalid_sha256_message"
@@ -320,18 +369,30 @@ verify_required_pcre2_sha256() {
         *) : ;;
     esac
 
-    require_command tr "normalize pcre2 checksum"
-    require_command sha256sum "verify pcre2 checksum"
+    require_command tr "normalize $label checksum"
+    require_command sha256sum "verify $label checksum"
     expected=$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')
     actual=$(sha256_digest "$archive")
     {
-        echo "pcre2 sha256(expected)=$expected"
-        echo "pcre2 sha256(actual)=$actual"
+        echo "$label sha256(expected)=$expected"
+        echo "$label sha256(actual)=$actual"
     } >> "$ARTIFACTS_FILE"
     if [ "$actual" != "$expected" ]; then
-        blocked "SHA256 mismatch for pcre2"
+        blocked "SHA256 mismatch for $label"
     fi
-    echo "pass: pcre2 sha256 verified" >> "$STATUS_FILE"
+    echo "pass: $label sha256 verified" >> "$STATUS_FILE"
+}
+
+verify_required_pcre2_sha256() {
+    pcre2_archive=$1
+    pcre2_expected_sha256=$2
+    verify_required_sha256_literal pcre2 "$pcre2_archive" "$pcre2_expected_sha256"
+}
+
+verify_required_apr_util_sha256() {
+    apr_util_archive=$1
+    apr_util_expected_sha256=$2
+    verify_required_sha256_literal apr-util "$apr_util_archive" "$apr_util_expected_sha256"
 }
 
 extract_tar_strip() {
@@ -435,9 +496,9 @@ build_httpd_from_source() {
     download_file apr "$APR_SOURCE_URL" "$apr_archive"
     verify_sha256_literal apr "$apr_archive" "$APR_SHA256"
     verify_sha256_url apr "$apr_archive" "$APR_SHA256_URL"
-    download_file apr-util "$APR_UTIL_SOURCE_URL" "$apr_util_archive"
-    verify_sha256_literal apr-util "$apr_util_archive" "$APR_UTIL_SHA256"
-    verify_sha256_url apr-util "$apr_util_archive" "$APR_UTIL_SHA256_URL"
+    download_apr_util_file apr-util "$APR_UTIL_SOURCE_URL" "$apr_util_archive"
+    verify_required_apr_util_sha256 "$apr_util_archive" "$APR_UTIL_SHA256"
+    verify_apr_util_sha256_url apr-util "$apr_util_archive" "$APR_UTIL_SHA256_URL"
 
     mkdir -p "$HTTPD_BUILD_DIR"
     extract_tar_strip httpd "$httpd_archive" "$HTTPD_SOURCE_DIR"
@@ -586,6 +647,7 @@ if [ "$MODSECURITY_APACHE_SOURCE_DIR" = "$DEFAULT_APACHE_SOURCE_DIR" ]; then
     require_absolute_generated_path "$APACHE_MATERIALIZED_SOURCE_DIR" "APACHE_MATERIALIZED_SOURCE_DIR"
 fi
 
+ci_require_apr_util_pinned_provenance || blocked "unapproved APR-util provenance"
 ensure_modsecurity_v3_source
 [ -d "$MODSECURITY_APACHE_SOURCE_DIR" ] || blocked "missing MODSECURITY_APACHE_SOURCE_DIR: $MODSECURITY_APACHE_SOURCE_DIR"
 
