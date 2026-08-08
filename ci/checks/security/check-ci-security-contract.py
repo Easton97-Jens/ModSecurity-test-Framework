@@ -82,9 +82,7 @@ STEP_REVALIDATE_PYTHON_DRAFT_BRANCH = (
 )
 STEP_APPLY_PYTHON_CANDIDATE = "Independently revalidate and apply the candidate"
 STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY = "Build Draft pull request body"
-STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST = (
-    "Create or update Draft pull request"
-)
+STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST = "Create or update Draft pull request"
 STEP_REPORT_PYTHON_OUTCOME = "Report explicit CPython maintenance outcome"
 STEP_PREPARE_CONSTRAINED_MAINTENANCE_BRANCH = (
     "Prepare the constrained maintenance branch"
@@ -400,8 +398,7 @@ PYTHON_PUBLISHER_WITH_VALUES = {
 }
 PYTHON_PUBLISHER_WITH_KEYS = {
     **{
-        name: frozenset(values)
-        for name, values in PYTHON_PUBLISHER_WITH_VALUES.items()
+        name: frozenset(values) for name, values in PYTHON_PUBLISHER_WITH_VALUES.items()
     },
     STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST: frozenset(
         {"github-token", "script"}
@@ -1304,11 +1301,17 @@ def python_version_job_access_errors(
     errors: list[str] = []
     errors.extend(read_only_job_errors(path, "resolve", resolve))
     errors.extend(read_only_job_errors(path, "candidate-validate", candidate))
-    if not isinstance(publish, dict) or publish.get("permissions") != PYTHON_PUBLISHER_PERMISSIONS:
+    if (
+        not isinstance(publish, dict)
+        or publish.get("permissions") != PYTHON_PUBLISHER_PERMISSIONS
+    ):
         errors.append(
             f"{path}: Python maintenance publish job must retain only native contents: read"
         )
-    if not isinstance(outcome, dict) or outcome.get("permissions") != PYTHON_OUTCOME_PERMISSIONS:
+    if (
+        not isinstance(outcome, dict)
+        or outcome.get("permissions") != PYTHON_OUTCOME_PERMISSIONS
+    ):
         errors.append(
             f"{path}: Python maintenance outcome job must declare empty permissions"
         )
@@ -1340,7 +1343,9 @@ def python_version_job_access_errors(
     return errors
 
 
-def python_version_resolver_errors(path: Path, resolve: Any, resolve_run: str) -> list[str]:
+def python_version_resolver_errors(
+    path: Path, resolve: Any, resolve_run: str
+) -> list[str]:
     expected_outputs = {
         "resolver_status": "${{ steps.resolve.outputs.status }}",
         "update_available": "${{ steps.resolve.outputs.update_available }}",
@@ -1454,8 +1459,7 @@ def python_version_publisher_step_errors(
                 )
             script = with_values.get("script")
             if not isinstance(script, str) or (
-                publisher_body_digest(script)
-                != PYTHON_PUBLISHER_SCRIPT_SHA256[name]
+                publisher_body_digest(script) != PYTHON_PUBLISHER_SCRIPT_SHA256[name]
             ):
                 errors.append(
                     f"{path}: CPython Draft inspection script must match the reviewed SHA-256"
@@ -1485,13 +1489,17 @@ def python_version_publisher_profile_errors(path: Path, publish: Any) -> list[st
         return [f"{path}: CPython publisher job must be a mapping"]
     errors: list[str] = []
     if set(publish) != PYTHON_PUBLISHER_JOB_KEYS:
-        errors.append(f"{path}: CPython publisher job must match its reviewed key profile")
+        errors.append(
+            f"{path}: CPython publisher job must match its reviewed key profile"
+        )
     if publish.get("runs-on") != "ubuntu-latest":
         errors.append(f"{path}: CPython publisher must use the reviewed runner")
     if publish.get("timeout-minutes") != 15:
         errors.append(f"{path}: CPython publisher must use the reviewed timeout")
     if publish.get("env") != PYTHON_PUBLISHER_ENV_VALUES:
-        errors.append(f"{path}: CPython publisher must use the reviewed candidate input")
+        errors.append(
+            f"{path}: CPython publisher must use the reviewed candidate input"
+        )
     steps = publish.get("steps")
     if not isinstance(steps, list):
         return [*errors, f"{path}: CPython publisher steps must be a list"]
@@ -1544,14 +1552,19 @@ def python_version_outcome_errors(path: Path, outcome: Any) -> list[str]:
             f"{path}: CPython maintenance outcome step must match the reviewed profile"
         )
     run = step.get("run")
-    if not isinstance(run, str) or publisher_body_digest(run) != PYTHON_OUTCOME_RUN_SHA256:
+    if (
+        not isinstance(run, str)
+        or publisher_body_digest(run) != PYTHON_OUTCOME_RUN_SHA256
+    ):
         errors.append(
             f"{path}: CPython maintenance outcome must match the reviewed fail-closed report"
         )
     return errors
 
 
-def python_version_sensitive_reference_errors(path: Path, data: dict[str, Any]) -> list[str]:
+def python_version_sensitive_reference_errors(
+    path: Path, data: dict[str, Any]
+) -> list[str]:
     expected = {
         (
             "jobs",
@@ -2003,7 +2016,9 @@ def updater_outcome_profile_errors(path: Path, data: dict[str, Any]) -> list[str
     if outcome.get("timeout-minutes") != 5:
         errors.append(f"{path}: updater outcome must use the reviewed timeout")
     if outcome.get("env") != UPDATER_OUTCOME_ENV_VALUES:
-        errors.append(f"{path}: updater outcome must use reviewed terminal-state inputs")
+        errors.append(
+            f"{path}: updater outcome must use reviewed terminal-state inputs"
+        )
     steps = outcome.get("steps")
     if not isinstance(steps, list) or len(steps) != 1 or not isinstance(steps[0], dict):
         return [
@@ -2011,11 +2026,19 @@ def updater_outcome_profile_errors(path: Path, data: dict[str, Any]) -> list[str
             f"{path}: updater outcome must have exactly one reviewed report step",
         ]
     step = steps[0]
-    if set(step) != STEP_KEYS_RUN or step.get("name") != STEP_REPORT_WORKFLOW_TOOL_OUTCOME:
+    if (
+        set(step) != STEP_KEYS_RUN
+        or step.get("name") != STEP_REPORT_WORKFLOW_TOOL_OUTCOME
+    ):
         errors.append(f"{path}: updater outcome step must match the reviewed profile")
     run = step.get("run")
-    if not isinstance(run, str) or publisher_body_digest(run) != UPDATER_OUTCOME_RUN_SHA256:
-        errors.append(f"{path}: updater outcome must match the reviewed fail-closed report")
+    if (
+        not isinstance(run, str)
+        or publisher_body_digest(run) != UPDATER_OUTCOME_RUN_SHA256
+    ):
+        errors.append(
+            f"{path}: updater outcome must match the reviewed fail-closed report"
+        )
     return errors
 
 

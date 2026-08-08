@@ -112,6 +112,7 @@ force-style cleanup masking, and green publisher-error paths.
 | `make check-github-actions-workflows` | 0 | Source-controlled workflow pin and permission checks passed. | Local Framework task worktree. |
 | `make check-documentation` | 0 | Documentation, bilingual parity, and Change-Record checks passed before final record reconciliation. | Local Framework task worktree. |
 | `make lint` | 0 | Complete repository-defined local lint/CI-security aggregate passed. | Local Framework task worktree. |
+| Locked Ruff `0.15.22` lint and format checks | 0 | The exact hosted file set passed after the narrowly scoped format remediation. | Checksum-verified task-local tool retrieval. |
 | `ci/checks/security/check-ci-security-contract.py --root .` and YAML parse | 0 | The reviewed workflow contracts and both changed workflow YAML documents passed. | Local Framework task worktree. |
 | Codex Security working-tree diff scan | 0 | All 14 changed files received full-file receipts; no reportable finding survived discovery. | Sealed task-local scan evidence (not versioned). |
 
@@ -140,10 +141,13 @@ proof, or connector/MRTS runtime evidence was collected.
   not proven by the available command response.
 - Hosted PR checks, review state, branch protection, and SonarQube Cloud are
   exact-Draft-PR-head controls and are pending the authorized Draft PR push.
-- `actionlint`, `zizmor`, `ruff`, and `pyright` are not locally installed and
-  were not downloaded. The installed ShellCheck is the reviewed `0.11.0`, but
-  the repository-native workflow invocation requires actionlint integration,
-  so no non-equivalent standalone extraction check was substituted.
+- `actionlint`, `zizmor`, and `pyright` are not locally installed and were not
+  downloaded. After the initial Draft-PR check identified six Ruff-format-only
+  changes, the repository's checksum-verified fetcher supplied locked Ruff
+  `0.15.22` in task-local storage; its exact lint and format checks passed.
+  The installed ShellCheck is the reviewed `0.11.0`, but the repository-native
+  workflow invocation requires actionlint integration, so no non-equivalent
+  standalone extraction check was substituted.
 
 ## Limitations and residual risk
 
@@ -154,8 +158,10 @@ merge, auto-merge, PAT fallback, Parent change, or MRTS change is included.
 
 ## Final diff and review status
 
-The work is locally verified on the task branch. Focused and repository-defined
-checks listed above passed, and the sealed scoped security-diff scan found no
-reportable regression. The authorized commit, normal push, exactly one Draft
-PR, and current-head hosted checks remain pending. This record contains no
-credential value or raw hosted log.
+The original task commit was pushed and exactly one Draft PR was opened. Its
+initial `python-ci-security-quality` failure was confined to Ruff formatting;
+the exact pinned formatter produced a narrow six-file follow-up that passed
+local lint/format and the full local aggregate. The follow-up commit/push and
+new current-head hosted checks remain pending. The sealed scoped security-diff
+scan found no reportable regression. This record contains no credential value
+or raw hosted log.

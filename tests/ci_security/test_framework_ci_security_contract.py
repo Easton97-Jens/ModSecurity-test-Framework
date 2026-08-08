@@ -415,8 +415,7 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                "may use only the reviewed GitHub App private-key references"
-                in error
+                "may use only the reviewed GitHub App private-key references" in error
                 for error in errors
             )
         )
@@ -507,8 +506,7 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         errors = CHECKER.python_version_maintenance_errors(workflow, publisher_secret)
         self.assertTrue(
             any(
-                "may use only the reviewed GitHub App private-key references"
-                in error
+                "may use only the reviewed GitHub App private-key references" in error
                 for error in errors
             )
         )
@@ -522,8 +520,7 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                "may use only the reviewed GitHub App private-key references"
-                in error
+                "may use only the reviewed GitHub App private-key references" in error
                 for error in errors
             )
         )
@@ -537,8 +534,7 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                "may use only the reviewed GitHub App private-key references"
-                in error
+                "may use only the reviewed GitHub App private-key references" in error
                 for error in errors
             )
         )
@@ -552,8 +548,7 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         )
         self.assertTrue(
             any(
-                "may use only the reviewed GitHub App private-key references"
-                in error
+                "may use only the reviewed GitHub App private-key references" in error
                 for error in errors
             )
         )

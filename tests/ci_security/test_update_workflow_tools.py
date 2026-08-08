@@ -351,13 +351,13 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             UPDATER.run_resolve_command(args)
 
         values = dict(
-            line.split("=", 1)
-            for line in output.getvalue().splitlines()
-            if "=" in line
+            line.split("=", 1) for line in output.getvalue().splitlines() if "=" in line
         )
         self.assertEqual(values["resolver_status"], "resolved")
         self.assertEqual(values["candidate_b64"], UPDATER.candidate_b64(candidate))
-        self.assertEqual(values["candidate_sha256"], UPDATER.candidate_sha256(candidate))
+        self.assertEqual(
+            values["candidate_sha256"], UPDATER.candidate_sha256(candidate)
+        )
         self.assertEqual(values["has_updates"], "false")
 
     def test_apply_changes_only_lock_pins_and_paired_documentation(self) -> None:
@@ -814,7 +814,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         )
         self.assertIn("if: ${{ always() }}", workflow)
         self.assertIn("permissions: {}", workflow)
-        self.assertIn("No reviewed workflow or tool updates are currently available.", workflow)
+        self.assertIn(
+            "No reviewed workflow or tool updates are currently available.", workflow
+        )
         self.assertNotIn("|| true", workflow)
         self.assertNotIn("--force", workflow)
         self.assertNotIn("pull_request_target", workflow)

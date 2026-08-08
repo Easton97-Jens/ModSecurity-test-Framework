@@ -118,6 +118,7 @@ Cleanup-Maskierung und grüne Publisher-Fehlerpfade zurück.
 | `make check-github-actions-workflows` | 0 | Source-kontrollierte Workflow-Pin- und Berechtigungsprüfungen bestanden. | Lokaler Framework-Task-Worktree. |
 | `make check-documentation` | 0 | Dokumentation, zweisprachige Parität und Change-Record-Prüfungen bestanden vor der finalen Record-Abstimmung. | Lokaler Framework-Task-Worktree. |
 | `make lint` | 0 | Vollständige repository-definierte lokale Lint-/CI-Sicherheitsaggregation bestand. | Lokaler Framework-Task-Worktree. |
+| Gesperrte Ruff-`0.15.22`-Lint- und Format-Checks | 0 | Die exakte Hosted-Dateimenge bestand nach der eng begrenzten Format-Remediation. | Prüfsummenverifizierter task-lokaler Tool-Abruf. |
 | `ci/checks/security/check-ci-security-contract.py --root .` und YAML-Parse | 0 | Die überprüften Workflow-Verträge und beide geänderten Workflow-YAML-Dokumente bestanden. | Lokaler Framework-Task-Worktree. |
 | Codex-Security-Working-Tree-Diff-Scan | 0 | Alle 14 geänderten Dateien erhielten Full-File-Receipts; kein reportierbarer Fund überlebte Discovery. | Versiegelte task-lokale Scan-Evidenz (nicht versioniert). |
 
@@ -150,11 +151,14 @@ Connector-/MRTS-Runtime-Evidenz erfasst.
 - Hosted-PR-Checks, Review-Status, Branch-Protection und SonarQube Cloud sind
   Controls des exakten Draft-PR-Heads und bis zum autorisierten Draft-PR-Push
   ausstehend.
-- `actionlint`, `zizmor`, `ruff` und `pyright` sind lokal nicht installiert
-  und wurden nicht heruntergeladen. Das installierte ShellCheck ist das
-  überprüfte `0.11.0`, aber die repository-native Workflow-Ausführung benötigt
-  actionlint-Integration; daher wurde kein nicht gleichwertiger Standalone-
-  Extraktionscheck ersetzt.
+- `actionlint`, `zizmor` und `pyright` sind lokal nicht installiert und wurden
+  nicht heruntergeladen. Nachdem der initiale Draft-PR-Check sechs reine
+  Ruff-Formatänderungen meldete, lieferte der prüfsummenverifizierte Fetcher
+  des Repositories gesperrtes Ruff `0.15.22` im task-lokalen Speicher; seine
+  exakten Lint- und Format-Checks bestanden. Das installierte ShellCheck ist
+  das überprüfte `0.11.0`, aber die repository-native Workflow-Ausführung
+  benötigt actionlint-Integration; daher wurde kein nicht gleichwertiger
+  Standalone-Extraktionscheck ersetzt.
 
 ## Einschränkungen und Restrisiko
 
@@ -166,9 +170,11 @@ oder MRTS-Änderung ist enthalten.
 
 ## Finaler Diff- und Review-Status
 
-Die Arbeit ist auf dem Task-Branch lokal verifiziert. Die oben genannten
-fokussierten und repository-definierten Checks bestanden; der versiegelte
-eingegrenzte Security-Diff-Scan fand keine reportierbare Regression. Der
-autorisierte Commit, normale Push, genau ein Draft-PR und aktuelle Hosted-
-Head-Checks sind noch ausstehend. Dieser Record enthält keinen Credential-Wert
-und keinen rohen Hosted-Log.
+Der ursprüngliche Task-Commit wurde gepusht und genau ein Draft-PR geöffnet.
+Sein initialer Fehler `python-ci-security-quality` beschränkte sich auf
+Ruff-Formatierung; der exakte gesperrte Formatter erzeugte ein enges Follow-up
+für sechs Dateien, das lokale Lint-/Format-Checks und die vollständige lokale
+Aggregation bestand. Follow-up-Commit/-Push und neue aktuelle Hosted-Head-
+Checks sind noch ausstehend. Der versiegelte eingegrenzte Security-Diff-Scan
+fand keine reportierbare Regression. Dieser Record enthält keinen Credential-
+Wert und keinen rohen Hosted-Log.

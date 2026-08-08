@@ -1637,7 +1637,9 @@ def run_validate_command(args: argparse.Namespace) -> int:
     _lock_path, lock, lock_digest = load_lock(root)
     ensure_locked_action_workflow_coverage(root, lock)
     candidate = candidate_from_arguments(args)
-    require_candidate_sha256(candidate, getattr(args, "expected_candidate_sha256", None))
+    require_candidate_sha256(
+        candidate, getattr(args, "expected_candidate_sha256", None)
+    )
     changes = validate_candidate_shape(candidate, lock, lock_digest)
     require_candidate_updates(changes, getattr(args, "require_updates", False))
     if args.verify_tool_assets:
@@ -1652,7 +1654,9 @@ def run_validate_command(args: argparse.Namespace) -> int:
 
 def run_apply_command(args: argparse.Namespace) -> int:
     candidate = candidate_from_arguments(args)
-    require_candidate_sha256(candidate, getattr(args, "expected_candidate_sha256", None))
+    require_candidate_sha256(
+        candidate, getattr(args, "expected_candidate_sha256", None)
+    )
     _lock_path, lock, lock_digest = load_lock(resolve_root(args.root))
     changes = validate_candidate_shape(candidate, lock, lock_digest)
     require_candidate_updates(changes, getattr(args, "require_updates", False))

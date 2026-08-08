@@ -316,9 +316,7 @@ class UpdatePythonVersionTest(unittest.TestCase):
 
             current_output = runner_temp / "current-output"
             current_output.write_text("", encoding="ascii")
-            current = UPDATER.UpdateResult(
-                "current", "3.14.7", None, "fixture current"
-            )
+            current = UPDATER.UpdateResult("current", "3.14.7", None, "fixture current")
             with patch.dict(
                 os.environ,
                 {"RUNNER_TEMP": str(runner_temp), "GITHUB_OUTPUT": str(current_output)},

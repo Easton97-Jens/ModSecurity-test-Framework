@@ -803,9 +803,9 @@ jobs:
                 1,
             ),
             "publisher-error-reported-green": workflow.replace(
-                "                echo \"::error::CPython update was not fully validated and published\" >&2\n"
+                '                echo "::error::CPython update was not fully validated and published" >&2\n'
                 "                exit 1\n",
-                "                echo \"::error::CPython update was not fully validated and published\" >&2\n"
+                '                echo "::error::CPython update was not fully validated and published" >&2\n'
                 "                exit 0\n",
                 1,
             ),
