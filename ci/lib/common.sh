@@ -202,10 +202,19 @@ APR_VERSION="${APR_VERSION:-1.7.6}"
 APR_SOURCE_URL="${APR_SOURCE_URL:-https://downloads.apache.org/apr/apr-$APR_VERSION.tar.bz2}"
 APR_SHA256="${APR_SHA256:-49030d92d2575da735791b496dc322f3ce5cff9494779ba8cc28c7f46c5deb32}"
 APR_SHA256_URL="${APR_SHA256_URL:-$APR_SOURCE_URL.sha256}"
-APR_UTIL_VERSION="${APR_UTIL_VERSION:-1.6.3}"
-APR_UTIL_SOURCE_URL="${APR_UTIL_SOURCE_URL:-https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2}"
-APR_UTIL_SHA256="${APR_UTIL_SHA256:-a41076e3710746326c3945042994ad9a4fcac0ce0277dd8fea076fec3c9772b5}"
-APR_UTIL_SHA256_URL="${APR_UTIL_SHA256_URL:-$APR_UTIL_SOURCE_URL.sha256}"
+# APR-util is an atomic, reviewed provider tuple.  The active Apache download
+# service no longer hosts the former 1.6.3 asset, so do not retain it as a
+# fallback or accept an arbitrary mirror at runtime.
+APR_UTIL_PINNED_VERSION="1.6.4"
+APR_UTIL_PINNED_SOURCE_URL="https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2"
+APR_UTIL_PINNED_SHA256="3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b"
+APR_UTIL_PINNED_SHA256_URL="https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256"
+# Use no-colon expansion so an explicitly empty or mismatched caller value is
+# preserved for ci_require_apr_util_pinned_provenance to reject before use.
+APR_UTIL_VERSION="${APR_UTIL_VERSION-$APR_UTIL_PINNED_VERSION}"
+APR_UTIL_SOURCE_URL="${APR_UTIL_SOURCE_URL-$APR_UTIL_PINNED_SOURCE_URL}"
+APR_UTIL_SHA256="${APR_UTIL_SHA256-$APR_UTIL_PINNED_SHA256}"
+APR_UTIL_SHA256_URL="${APR_UTIL_SHA256_URL-$APR_UTIL_PINNED_SHA256_URL}"
 PCRE2_VERSION="${PCRE2_VERSION:-10.47}"
 PCRE2_SOURCE_URL="${PCRE2_SOURCE_URL:-https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-$PCRE2_VERSION.tar.bz2}"
 # The literal pin is required before the PCRE2 archive can be extracted.  Use
@@ -425,6 +434,57 @@ ci_require_https_github_repo_url_if_set() {
     ci_require_https_github_repo_url "$ci_url" "$ci_label"
 }
 
+ci_require_apr_util_pinned_provenance() {
+    ci_apr_util_expected_source="https://downloads.apache.org/apr/apr-util-$APR_UTIL_PINNED_VERSION.tar.bz2"
+    ci_apr_util_expected_sha_url="$ci_apr_util_expected_source.sha256"
+
+    case "$APR_UTIL_PINNED_VERSION" in
+        ''|.*|*..*|*[!0123456789.]*)
+            ci_blocked "APR_UTIL_PINNED_VERSION must be a non-empty dotted numeric version: $APR_UTIL_PINNED_VERSION"
+            return 77
+            ;;
+        *) : ;;
+    esac
+    if [ "$APR_UTIL_PINNED_SOURCE_URL" != "$ci_apr_util_expected_source" ]; then
+        ci_blocked "APR_UTIL_PINNED_SOURCE_URL must be the canonical Apache APR-util asset: $APR_UTIL_PINNED_SOURCE_URL"
+        return 77
+    fi
+    if [ "$APR_UTIL_PINNED_SHA256_URL" != "$ci_apr_util_expected_sha_url" ]; then
+        ci_blocked "APR_UTIL_PINNED_SHA256_URL must name the canonical APR-util asset checksum: $APR_UTIL_PINNED_SHA256_URL"
+        return 77
+    fi
+    if [ "${#APR_UTIL_PINNED_SHA256}" -ne 64 ]; then
+        ci_blocked "APR_UTIL_PINNED_SHA256 must contain exactly 64 hexadecimal characters"
+        return 77
+    fi
+    case "$APR_UTIL_PINNED_SHA256" in
+        *[!0123456789abcdefABCDEF]*)
+            ci_blocked "APR_UTIL_PINNED_SHA256 must contain exactly 64 hexadecimal characters"
+            return 77
+            ;;
+        *) : ;;
+    esac
+    if [ "$APR_UTIL_VERSION" != "$APR_UTIL_PINNED_VERSION" ]; then
+        ci_blocked "APR_UTIL_VERSION override is not permitted: $APR_UTIL_VERSION"
+        return 77
+    fi
+    if [ "$APR_UTIL_SOURCE_URL" != "$APR_UTIL_PINNED_SOURCE_URL" ]; then
+        ci_blocked "APR_UTIL_SOURCE_URL override is not permitted: $APR_UTIL_SOURCE_URL"
+        return 77
+    fi
+    if [ "$APR_UTIL_SHA256" != "$APR_UTIL_PINNED_SHA256" ]; then
+        ci_blocked "APR_UTIL_SHA256 override is not permitted"
+        return 77
+    fi
+    if [ "$APR_UTIL_SHA256_URL" != "$APR_UTIL_PINNED_SHA256_URL" ]; then
+        ci_blocked "APR_UTIL_SHA256_URL override is not permitted: $APR_UTIL_SHA256_URL"
+        return 77
+    fi
+    ci_require_https_url "$APR_UTIL_SOURCE_URL" APR_UTIL_SOURCE_URL || return 77
+    ci_require_https_url "$APR_UTIL_SHA256_URL" APR_UTIL_SHA256_URL || return 77
+    return 0
+}
+
 ci_validate_safe_ref_config() {
     for ci_ref_pair in \
         "CRS_GIT_REF:$CRS_GIT_REF" \
@@ -476,7 +536,7 @@ ci_validate_https_runtime_url_config() {
     ci_require_https_url "$HAPROXY_SOURCE_URL" HAPROXY_SOURCE_URL || return 77
     ci_require_https_url "$HTTPD_SOURCE_URL" HTTPD_SOURCE_URL || return 77
     ci_require_https_url "$APR_SOURCE_URL" APR_SOURCE_URL || return 77
-    ci_require_https_url "$APR_UTIL_SOURCE_URL" APR_UTIL_SOURCE_URL || return 77
+    ci_require_apr_util_pinned_provenance || return 77
     ci_require_https_url "$PCRE2_SOURCE_URL" PCRE2_SOURCE_URL || return 77
     return 0
 }
@@ -2126,5 +2186,5 @@ export DEFAULT_BRANCH FRAMEWORK_ROOT CONNECTOR_ROOT VERIFIED_RUN_ROOT VERIFIED_S
 export SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE DEFAULT_PYTHON HAPROXY_BIN_WAS_SET
 export CRS_REPO_URL CRS_GIT_REF MODSECURITY_REPO_URL MODSECURITY_GIT_REF MODSECURITY_V3_GIT_URL MODSECURITY_V3_GIT_REF
 export MODSECURITY_V3_APPROVED_REPO_URL MODSECURITY_V3_APPROVED_COMMIT MODSECURITY_V3_RELEASE_TAG
-export HTTPD_VERSION HTTPD_SOURCE_URL HTTPD_SHA256 HTTPD_SHA256_URL APR_VERSION APR_SOURCE_URL APR_SHA256 APR_SHA256_URL APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL PCRE2_VERSION PCRE2_SOURCE_URL PCRE2_SHA256 PCRE2_SHA256_URL
+export HTTPD_VERSION HTTPD_SOURCE_URL HTTPD_SHA256 HTTPD_SHA256_URL APR_VERSION APR_SOURCE_URL APR_SHA256 APR_SHA256_URL APR_UTIL_PINNED_VERSION APR_UTIL_PINNED_SOURCE_URL APR_UTIL_PINNED_SHA256 APR_UTIL_PINNED_SHA256_URL APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL PCRE2_VERSION PCRE2_SOURCE_URL PCRE2_SHA256 PCRE2_SHA256_URL
 export NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF NGINX_RELEASE_ASSET_NAME NGINX_SHA256 NGINX_SHA256_WAS_SET NGINX_SHA256_REQUESTED HAPROXY_VERSION HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256

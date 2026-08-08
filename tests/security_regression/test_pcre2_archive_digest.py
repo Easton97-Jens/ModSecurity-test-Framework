@@ -59,14 +59,16 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
         """)
         return adapter
 
-    def _create_framework_fixture(self, workspace):
-        """Copy the real Apache path with only a test-local Git host binding.
+    def _create_framework_fixture(self, workspace, apr_util_sha256):
+        """Copy the real Apache path with test-local provenance bindings.
 
         FND-FRAMEWORK-0054 separately verifies the production `/usr/bin/git`
         trust contract.  This PCRE2 test instead needs a non-network, exact
         approved V3 topology so that it can reach its archive-digest boundary.
         The copied helper preserves the production provenance checks and swaps
-        only the host-Git binding for the hermetic topology model.
+        only the host-Git binding and APR-util digest for the hermetic topology
+        model. The tuple retains the canonical APR-util version, host, path,
+        asset name, and checksum URL; only its fixture archive digest differs.
         """
 
         fixture_root = workspace / "framework-fixture"
@@ -81,6 +83,14 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / relative, destination)
         common_source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        production_apr_util_sha256 = (
+            'APR_UTIL_PINNED_SHA256="3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b"'
+        )
+        self.assertIn(production_apr_util_sha256, common_source)
+        common_source = common_source.replace(
+            production_apr_util_sha256,
+            f'APR_UTIL_PINNED_SHA256="{apr_util_sha256}"',
+        )
         common_fixture = fixture_root / "ci/lib/common.sh"
         common_fixture.write_text(
             common_source
@@ -162,9 +172,10 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=temporary_root) as temporary:
             workspace = Path(temporary)
             archive = self._build_archive(workspace)
+            digest_value = hashlib.sha256(archive.read_bytes()).hexdigest()
             adapter = self._create_adapter_source(workspace)
             fake_bin = self._create_fake_tools(workspace)
-            prepare_script = self._create_framework_fixture(workspace)
+            prepare_script = self._create_framework_fixture(workspace, digest_value)
             verified = workspace / "verified"
             build_root = verified / "build"
             shared_prefix = verified / "shared"
@@ -182,7 +193,6 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             tar_log = workspace / "pcre2-tar.log"
             git_log = workspace / "v3-git.log"
             git_log.touch()
-            digest_value = hashlib.sha256(archive.read_bytes()).hexdigest()
             if digest is None:
                 digest = digest_value
             environment = os.environ.copy()
@@ -217,13 +227,14 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                     "PCRE2_SHA256_URL": "",
                     "HTTPD_SOURCE_URL": "https://fixture.invalid/httpd.tar.bz2",
                     "APR_SOURCE_URL": "https://fixture.invalid/apr.tar.bz2",
-                    "APR_UTIL_SOURCE_URL": "https://fixture.invalid/apr-util.tar.bz2",
+                    "APR_UTIL_VERSION": "1.6.4",
+                    "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2",
                     "HTTPD_SHA256": digest_value,
                     "APR_SHA256": digest_value,
                     "APR_UTIL_SHA256": digest_value,
                     "HTTPD_SHA256_URL": "https://fixture.invalid/httpd.sha256",
                     "APR_SHA256_URL": "https://fixture.invalid/apr.sha256",
-                    "APR_UTIL_SHA256_URL": "https://fixture.invalid/apr-util.sha256",
+                    "APR_UTIL_SHA256_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256",
                     "PCRE2_FIXTURE_ARCHIVE": str(archive),
                     "PCRE2_ARCHIVE_PATH": str(verified / "downloads" / self.fixture["archive_file"]),
                     "PCRE2_TAR_LOG": str(tar_log),
