@@ -392,7 +392,7 @@ COMMON_VERSION_RESULT_NEEDS = {
     "candidate-validate",
     "publish",
 }
-COMMON_VERSION_RESULT_IF = "${{ always() }}"
+ALWAYS_CONDITION = "${{ always() }}"
 COMMON_VERSION_RESULT_ENV = {
     "RESOLVER_RESULT": "${{ needs.resolve.result }}",
     "UPDATE_AVAILABLE": "${{ needs.resolve.outputs.update_available }}",
@@ -1533,7 +1533,7 @@ def python_version_job_access_errors(
         errors.append(
             f"{path}: Python maintenance outcome job must need resolve, candidate-validate, and publish"
         )
-    if not isinstance(outcome, dict) or outcome.get("if") != "${{ always() }}":
+    if not isinstance(outcome, dict) or outcome.get("if") != ALWAYS_CONDITION:
         errors.append(
             f"{path}: Python maintenance outcome job must always report the terminal result"
         )
@@ -2075,7 +2075,7 @@ def updater_ordering_errors(path: Path, data: dict[str, Any]) -> list[str]:
         errors.append(
             f"{path}: updater outcome must need resolver, validator, and publisher"
         )
-    if outcome.get("if") != "${{ always() }}":
+    if outcome.get("if") != ALWAYS_CONDITION:
         errors.append(f"{path}: updater outcome must always report the terminal result")
     return errors
 
@@ -2880,7 +2880,7 @@ def common_version_result_job_setting_errors(
         errors.append(
             f"{path}: common-version result job must need resolver, validator, and publisher"
         )
-    if result.get("if") != COMMON_VERSION_RESULT_IF:
+    if result.get("if") != ALWAYS_CONDITION:
         errors.append(f"{path}: common-version result job must always run")
     if result.get("runs-on") != "ubuntu-latest":
         errors.append(f"{path}: common-version result job must use the reviewed runner")
