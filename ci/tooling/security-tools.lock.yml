@@ -72,9 +72,9 @@ actions:
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   github/codeql-action:
     name: github/codeql-action
-    version: v4.37.3
-    immutable_commit: e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81
-    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.3
+    version: v4.37.4
+    immutable_commit: f205ea1c3313d32999d8d6a48b4f6530d4437b38
+    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.4
     release_resolution: same-major-release
     license: MIT
     purpose: Initialize, analyze, and upload SARIF for bounded CodeQL jobs.
