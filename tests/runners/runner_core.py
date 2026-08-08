@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import re
 import shlex
+import stat
 import sys
 import time
 from typing import Any, Iterable, Mapping
@@ -20,6 +21,11 @@ from adapter_interface import ConnectorAdapter
 from case_roots import case_dirs, infer_runner_scope, path_is_in_extra_root
 from generated_report_utils import write_generated_report_file  # noqa: E402
 from msconnector_models import intervention_from_expect, operation_status
+from runtime_path_safety import (  # noqa: E402
+    absolute_path_without_traversal,
+    has_symlink_component,
+    private_runtime_root,
+)
 
 DEFAULT_RESPONSE_BODY = "TEST-OK-IF-YOU-SEE-THIS\n"
 READY_BODY = "ready\n"
@@ -605,6 +611,7 @@ def _validate_expect(case: Mapping[str, Any], where: str) -> None:
     _validate_expect_mapping(base_expect, where)
     variants = expect.get("variants")
     if variants is None:
+        _validate_portable_audit_configuration(case, where)
         return
     if not isinstance(variants, Mapping):
         raise ValueError(f"case expect.variants must be a mapping{where}")
@@ -619,15 +626,62 @@ def _validate_expect(case: Mapping[str, Any], where: str) -> None:
         merged = dict(base_expect)
         merged.update({str(key): value for key, value in override.items()})
         _validate_expect_mapping(merged, where)
+    _validate_portable_audit_configuration(case, where)
 
 
 def _validate_expect_audit_log(audit_log: Any, where: str) -> None:
     if audit_log is not None and not isinstance(audit_log, Mapping):
         raise ValueError(f"case expect.audit_log must be a mapping{where}")
     if isinstance(audit_log, Mapping):
+        required = audit_log.get("required")
+        if required is not None and not isinstance(required, bool):
+            raise ValueError(f"case expect.audit_log.required must be a boolean{where}")
         absent = audit_log.get("absent")
         if absent is not None and not isinstance(absent, bool):
             raise ValueError(f"case expect.audit_log.absent must be a boolean{where}")
+
+
+_PORTABLE_AUDIT_DIRECTIVES = (
+    ("SecAuditEngine On or RelevantOnly", r"(?m)^\s*SecAuditEngine\s+(?:On|RelevantOnly)\s*$"),
+    ("SecAuditLogType Serial", r"(?m)^\s*SecAuditLogType\s+Serial\s*$"),
+    ("SecAuditLogParts ABHZ", r"(?m)^\s*SecAuditLogParts\s+ABHZ\s*$"),
+    ("SecAuditLog \"@@AUDIT_LOG@@\"", r'(?m)^\s*SecAuditLog\s+"@@AUDIT_LOG@@"\s*$'),
+    (
+        "SecAuditLogStorageDir \"@@AUDIT_LOG_DIR@@\"",
+        r'(?m)^\s*SecAuditLogStorageDir\s+"@@AUDIT_LOG_DIR@@"\s*$',
+    ),
+)
+
+
+def _case_requires_audit_log(case: Mapping[str, Any]) -> bool:
+    expect = case.get("expect")
+    if not isinstance(expect, Mapping):
+        return False
+    base_expect = _expect_without_variants(expect)
+    expectations = [base_expect]
+    variants = expect.get("variants")
+    if isinstance(variants, Mapping):
+        for override in variants.values():
+            if isinstance(override, Mapping):
+                merged = dict(base_expect)
+                merged.update({str(key): value for key, value in override.items()})
+                expectations.append(merged)
+    return any(
+        isinstance(candidate.get("audit_log"), Mapping)
+        and candidate["audit_log"].get("required") is True
+        for candidate in expectations
+    )
+
+
+def _validate_portable_audit_configuration(case: Mapping[str, Any], where: str) -> None:
+    if not _case_requires_audit_log(case):
+        return
+    rules = str(case["rules"])
+    for directive, pattern in _PORTABLE_AUDIT_DIRECTIVES:
+        if re.search(pattern, rules) is None:
+            raise ValueError(
+                f"case requires portable audit directive {directive}{where}"
+            )
 
 
 def _validate_expect_phase4_log(phase4_log: Any, where: str) -> None:
@@ -651,7 +705,12 @@ def write_rules_file(
     rules_preamble_file: str | Path | None = None,
 ) -> None:
     _validate_rules_preamble(case, rules_preamble_file)
-    rules = _render_rules(case, audit_log_file, audit_log_dir)
+    rules = _render_rules(
+        case,
+        audit_log_file,
+        audit_log_dir,
+        output_root=output_root,
+    )
     preamble = _read_rules_preamble(rules_preamble_file)
     local_rules = rules if rules.endswith("\n") else f"{rules}\n"
     write_contained_text_file(path, f"{preamble}{local_rules}", output_root=output_root)
@@ -670,16 +729,75 @@ def _validate_rules_preamble(
 
 
 def _render_rules(
-    case: Mapping[str, Any], audit_log_file: str | Path | None, audit_log_dir: str | Path | None
+    case: Mapping[str, Any],
+    audit_log_file: str | Path | None,
+    audit_log_dir: str | Path | None,
+    *,
+    output_root: str | Path,
 ) -> str:
     rules = str(case["rules"])
-    if audit_log_file is not None:
-        rules = rules.replace("@@AUDIT_LOG@@", str(audit_log_file))
-    if audit_log_dir is not None:
-        rules = rules.replace("@@AUDIT_LOG_DIR@@", str(audit_log_dir))
-    if "@@AUDIT_LOG@@" in rules or "@@AUDIT_LOG_DIR@@" in rules:
-        raise ValueError("audit log placeholders require audit log paths")
+    has_audit_placeholders = "@@AUDIT_LOG@@" in rules or "@@AUDIT_LOG_DIR@@" in rules
+    if has_audit_placeholders:
+        audit_file, audit_dir = _validated_audit_render_paths(
+            audit_log_file,
+            audit_log_dir,
+            output_root=output_root,
+        )
+        rules = rules.replace("@@AUDIT_LOG@@", str(audit_file))
+        rules = rules.replace("@@AUDIT_LOG_DIR@@", str(audit_dir))
     return rules
+
+
+def _validated_audit_render_paths(
+    audit_log_file: str | Path | None,
+    audit_log_dir: str | Path | None,
+    *,
+    output_root: str | Path,
+) -> tuple[Path, Path]:
+    if audit_log_file is None or audit_log_dir is None:
+        raise ValueError("audit log placeholders require audit log paths")
+    root = private_runtime_root(output_root, "audit output root")
+    if not root.is_dir():
+        raise ValueError(f"audit output root must be an existing directory: {root}")
+    _require_owner_private_audit_directory(root, "audit output root")
+    audit_file = _private_audit_path(audit_log_file, root, "audit log file")
+    audit_dir = _private_audit_path(audit_log_dir, root, "audit log directory")
+    if not audit_dir.is_dir():
+        raise ValueError(f"audit log directory must be an existing directory: {audit_dir}")
+    private_runtime_root(audit_dir, "audit log directory")
+    _require_owner_private_audit_directory(audit_dir, "audit log directory")
+    if not audit_file.parent.is_dir():
+        raise ValueError(f"audit log parent must be an existing directory: {audit_file.parent}")
+    private_runtime_root(audit_file.parent, "audit log parent")
+    _require_owner_private_audit_directory(audit_file.parent, "audit log parent")
+    if audit_file == audit_dir:
+        raise ValueError("audit log file and directory must be distinct")
+    if audit_file.exists():
+        raise ValueError(f"audit log file must not already exist before runtime: {audit_file}")
+    return audit_file, audit_dir
+
+
+def _private_audit_path(value: str | Path, root: Path, label: str) -> Path:
+    candidate = absolute_path_without_traversal(value, label)
+    if has_symlink_component(candidate):
+        raise ValueError(f"{label} must not contain a symlink component: {candidate}")
+    try:
+        candidate.relative_to(root)
+    except ValueError as error:
+        raise ValueError(f"{label} must stay below audit output root: {candidate}") from error
+    if candidate == root:
+        raise ValueError(f"{label} must be a descendant of audit output root: {candidate}")
+    return candidate
+
+
+def _require_owner_private_audit_directory(path: Path, label: str) -> None:
+    metadata = os.lstat(path)
+    if not stat.S_ISDIR(metadata.st_mode):
+        raise ValueError(f"{label} must be a directory: {path}")
+    if metadata.st_uid != os.geteuid():
+        raise ValueError(f"{label} must be owned by the current user: {path}")
+    if stat.S_IMODE(metadata.st_mode) & (stat.S_IWGRP | stat.S_IWOTH):
+        raise ValueError(f"{label} must not be group- or world-writable: {path}")
 
 
 def _read_rules_preamble(rules_preamble_file: str | Path | None) -> str:
