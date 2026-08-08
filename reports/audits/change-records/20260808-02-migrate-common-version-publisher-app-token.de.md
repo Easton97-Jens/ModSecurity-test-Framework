@@ -195,11 +195,12 @@ aktualisieren.
 
 Die für das hash-gesperrte Pyright-Paket erforderliche repository-lokale
 Node-Runtime ist nicht vorhanden (`node` und `nodejs` fehlen); Pyright bleibt
-daher blockiert und wird nicht global installiert. Der erste gepushte PR-Head
-hat seine Hosted-Checks abgeschlossen, doch seine zwei offenen Sonar-Befunde
-erfordern dieses neue Source-Amendment; Exact-Head-Hosted-/Sonar-Evidenz für
-dieses Amendment und Post-Merge-Publisher-Evidenz bleiben ausstehend. Keine
-nicht verfügbare oder nicht ausgeführte Prüfung wird als bestanden dargestellt.
+daher blockiert und wird nicht global installiert. Exact-Head-Hosted-Check-
+und Sonar-Evidenz für PR #65 werden in seinem GitHub-Check-Set und in
+secret-freier Task-Lifecycle-Evidenz festgehalten. Sie darf einen kontrollierten
+Merge nur nach frischer Bestätigung für den dann aktuellen Head stützen;
+Post-Merge-App-Publisher-Evidenz bleibt ausstehend. Keine nicht verfügbare oder
+nicht ausgeführte Prüfung wird als bestanden dargestellt.
 
 ## Einschränkungen und Restrisiko
 
@@ -207,12 +208,15 @@ Die erforderlichen App-Konfigurationsnamen sind vorhanden, aber Installation
 und effektive Berechtigungen sind noch nicht durch einen erfolgreichen
 kurzlebigen Token-Mint belegt. Das normale Event-/Check-Verhalten eines vom
 App-Token erzeugten Draft-PRs bleibt unbeobachtet, bis der Source-Fix-PR mit
-separater Autorisierung gemergt ist. Das aktuelle Resolver-Preflight bedeutet
-auch, dass ein manueller Post-Merge-Lauf vor dem erlaubten Update- oder
-No-Update-Endzustand fehlschlagen würde, solange keine getrennt geprüfte
-Provenance-Entscheidung getroffen ist. Der Zustandscheck reduziert Branch-/PR-
-Übernahme- und Default-Branch-Drift-Risiko, autorisiert aber weder Merge,
-Branch-Protection-Bypass noch eine Änderung außerhalb von `ci/lib/common.sh`.
+aktueller Autorisierung gemergt ist. Das aktuelle Resolver-Preflight schlägt
+für die getrennte ModSecurity-v3-Provenance-Entscheidung fail-closed fehl; es
+darf nicht als No-Update dargestellt werden. Eine HAProxy-
+Versionsaktualisierung muss, falls sie später verfolgt wird, über einen
+separaten automatisch erzeugten, begrenzten Draft-PR erfolgen und ist keine
+Änderung von `ci/lib/common.sh` in PR #65. Der Zustandscheck reduziert
+Branch-/PR-Übernahme- und Default-Branch-Drift-Risiko, autorisiert aber weder
+einen Branch-Protection-Bypass noch eine Änderung außerhalb von
+`ci/lib/common.sh`.
 
 ## Finaler Diff- und Review-Status
 
@@ -222,11 +226,19 @@ Framework `master`, Parent, MRTS oder Gitlink ist autorisiert. Der finale
 Source-Review umfasst ein sauberes `git diff --check`, exakte statische
 Publisher-/Ergebnis-Profile, keinen nativen Token-Fallback, keinen `workflows`-
 Write-Request, keinen direkten/Force-Push und keinen ungeprüften App-Token-
-Consumer. Der erste normale Source-Push bei
-`0ba1e39d64baaa34cb9f2ae51b875609749f724e` legte die zwei neuen Sonar-Befunde
-offen; dieses begrenzte Amendment benötigt daher noch einen normalen Push,
-Current-Head-Hosted-Checks, Sonar-Evidenz ohne offene Befunde und alle
-erforderlichen Delivery-Gates, bevor PR #65 review-bereit werden kann. Er darf
-nicht gemergt werden, solange das bekannte Post-Merge-Resolver-Preflight ohne
-getrennte autorisierte Provenance-Entscheidung keinen der beiden erlaubten
-Endzustände erreichen kann.
+Consumer. Der frühere Source-Head
+`d3321ccd0d88049a35a5be0b5f2ae0fdf530c701` bestand die frischen anwendbaren
+Hosted-Gates einschließlich SonarCloud Quality Gate `OK` mit 0 offenen
+Befunden und 0 offenen Hotspots; jeder spätere Dokumentations-Commit benötigt
+seine eigene Exact-Head-Gate-Runde. Unter der aktuellen Nutzerautorisierung ist
+ein kontrollierter Merge ohne Admin- oder Auto-Merge nur nach diesen frischen
+Gates für den dann aktuellen Head zulässig. Diese Autorisierung deckt nur die
+geprüfte Publisher-Härtung ab und autorisiert keine Versions- oder
+Provenance-Änderung in `ci/lib/common.sh`.
+
+Die ModSecurity-v3-Provenance-Entscheidung bleibt getrennt. Jede HAProxy-
+Versionsaktualisierung erfordert, falls sie verfolgt wird, einen separaten
+automatisch erzeugten Draft-PR. `FND-FRAMEWORK-0059` kann erst nach Merge und
+der Source-Regression auf dem resultierenden `master` als `verified` gelten;
+`FND-FRAMEWORK-0060` bleibt `fixed`, solange kein reales Publisher-Update-E2E
+es verifiziert. Keines der Findings wird durch die Gates von PR #65 geschlossen.

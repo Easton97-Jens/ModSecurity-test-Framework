@@ -181,22 +181,24 @@ to update either pin in this PR.
 
 The repository-local Node runtime required by the hash-locked Pyright package
 is unavailable (`node` and `nodejs` are absent), so Pyright is blocked rather
-than installed globally. The first pushed PR head completed its hosted checks,
-but its two open Sonar findings require this new source amendment; exact-head
-hosted/Sonar evidence for that amendment and post-merge publisher evidence
-remain pending. No unavailable or unrun check is presented as passed.
+than installed globally. Exact-head hosted-check and Sonar evidence for PR #65
+is retained in its GitHub check set and in secret-free task lifecycle evidence.
+It may support a controlled merge only after being freshly reconfirmed for the
+then-current head; post-merge App-publisher evidence remains pending. No
+unavailable or unrun check is presented as passed.
 
 ## Limitations and residual risk
 
 Required App configuration names are present, but the installation and its
 effective permissions have not yet been proven by a successful short-lived
 token mint. The normal event/check behavior of an App-created Draft PR remains
-unobserved until the source-fix PR is merged with separate authorization. The
-current resolver preflight also means a post-merge manual run would fail before
-either the authorized update or no-update terminal case unless a separately
-reviewed provenance decision is made. The state check reduces branch/PR
-takeover and default-branch-drift risk but does not authorize a merge,
-branch-protection bypass, or a change outside `ci/lib/common.sh`.
+unobserved until the source-fix PR is merged under current authorization. The
+current resolver preflight fails closed for the separate ModSecurity v3
+provenance decision; it must not be represented as no update. A HAProxy version
+update, if pursued later, must use a separate automatically generated,
+constrained Draft PR and is not a `ci/lib/common.sh` change in PR #65. The
+state check reduces branch/PR takeover and default-branch-drift risk but does
+not authorize a branch-protection bypass or a change outside `ci/lib/common.sh`.
 
 ## Final diff and review status
 
@@ -205,10 +207,17 @@ The source-fix worktree is isolated on
 MRTS, or Gitlink change is authorized. The final source review includes a
 clean `git diff --check`, exact static publisher/result-profile checks, no
 native-token fallback, no `workflows` write request, no direct/force push, and
-no unreviewed App-token consumer. PR #65 already exists; the first normal
-source push at `0ba1e39d64baaa34cb9f2ae51b875609749f724e` exposed the two new
-Sonar findings, so this bounded amendment still requires a normal push,
-current-head hosted checks, zero-open-issue Sonar evidence, and all required
-delivery gates before it can become ready for review. It must not be merged
-while the known post-merge resolver preflight cannot reach either permitted
-terminal outcome without a separate approved provenance decision.
+no unreviewed App-token consumer. The prior source head
+`d3321ccd0d88049a35a5be0b5f2ae0fdf530c701` passed the fresh applicable hosted
+gates, including SonarCloud Quality Gate `OK` with 0 open issues and 0 open
+hotspots; any later documentation commit requires its own exact-head gate
+round. Under the current user authorization, a controlled non-admin,
+non-auto merge is permitted only after those fresh gates for the then-current
+head. This authorization covers only the reviewed publisher hardening and does
+not authorize a `ci/lib/common.sh` version or provenance change.
+
+The ModSecurity v3 provenance decision remains separate. Any HAProxy version
+update, if pursued, requires a separate automatically generated Draft PR.
+`FND-FRAMEWORK-0059` can become `verified` only after merge and the resulting-
+master source regression; `FND-FRAMEWORK-0060` remains `fixed` unless a real
+publisher update E2E verifies it. Neither finding is closed by PR #65's gates.
