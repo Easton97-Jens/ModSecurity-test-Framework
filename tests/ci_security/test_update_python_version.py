@@ -309,8 +309,24 @@ class UpdatePythonVersionTest(unittest.TestCase):
             ):
                 UPDATER.write_github_outputs(result)
                 UPDATER.write_candidate_file(UPDATER.PythonVersion(7))
-            self.assertIn("update_available=true", output.read_text(encoding="ascii"))
+            rendered = output.read_text(encoding="ascii")
+            self.assertIn("status=update_available", rendered)
+            self.assertIn("update_available=true", rendered)
             self.assertEqual(candidate_file.read_text(encoding="ascii"), "3.14.7\n")
+
+            current_output = runner_temp / "current-output"
+            current_output.write_text("", encoding="ascii")
+            current = UPDATER.UpdateResult("current", "3.14.7", None, "fixture current")
+            with patch.dict(
+                os.environ,
+                {"RUNNER_TEMP": str(runner_temp), "GITHUB_OUTPUT": str(current_output)},
+                clear=False,
+            ):
+                UPDATER.write_github_outputs(current)
+            current_rendered = current_output.read_text(encoding="ascii")
+            self.assertIn("status=current", current_rendered)
+            self.assertIn("update_available=false", current_rendered)
+            self.assertIn("candidate=", current_rendered)
 
     def test_runner_output_paths_remain_confined_and_regular(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

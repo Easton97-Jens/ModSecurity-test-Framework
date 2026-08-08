@@ -413,7 +413,12 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         errors = CHECKER.python_version_maintenance_errors(
             workflow, workflow_level_token
         )
-        self.assertTrue(any("only declare github.token" in error for error in errors))
+        self.assertTrue(
+            any(
+                "may use only the reviewed GitHub App private-key references" in error
+                for error in errors
+            )
+        )
 
         untrusted_trigger = copy.deepcopy(data)
         untrusted_trigger[True]["pull_request"] = None
@@ -424,12 +429,12 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         create_pr = broad_writer["jobs"]["publish"]["steps"][-1]["with"]
         create_pr["add-paths"] = ".python-version\nREADME.md"
         errors = CHECKER.python_version_maintenance_errors(workflow, broad_writer)
-        self.assertTrue(any("add-paths" in error for error in errors))
+        self.assertTrue(any("reviewed with values" in error for error in errors))
 
         auto_merge = copy.deepcopy(data)
         auto_merge["jobs"]["publish"]["steps"][-2]["run"] += "\ngh pr merge --auto"
         errors = CHECKER.python_version_maintenance_errors(workflow, auto_merge)
-        self.assertTrue(any("must not merge" in error for error in errors))
+        self.assertTrue(any("run body" in error for error in errors))
 
         reader_secret = copy.deepcopy(data)
         reader_secret["jobs"]["resolve"]["env"] = {
@@ -499,7 +504,12 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
             "TOKEN": "${{ github.token }}"
         }
         errors = CHECKER.python_version_maintenance_errors(workflow, publisher_secret)
-        self.assertTrue(any("only declare github.token" in error for error in errors))
+        self.assertTrue(
+            any(
+                "may use only the reviewed GitHub App private-key references" in error
+                for error in errors
+            )
+        )
 
         publisher_serialized_github = copy.deepcopy(data)
         publisher_serialized_github["jobs"]["publish"]["steps"][-2]["run"] += (
@@ -508,7 +518,12 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         errors = CHECKER.python_version_maintenance_errors(
             workflow, publisher_serialized_github
         )
-        self.assertTrue(any("only declare github.token" in error for error in errors))
+        self.assertTrue(
+            any(
+                "may use only the reviewed GitHub App private-key references" in error
+                for error in errors
+            )
+        )
 
         publisher_indexed_token = copy.deepcopy(data)
         publisher_indexed_token["jobs"]["publish"]["steps"][-2]["env"] = {
@@ -517,7 +532,12 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         errors = CHECKER.python_version_maintenance_errors(
             workflow, publisher_indexed_token
         )
-        self.assertTrue(any("only declare github.token" in error for error in errors))
+        self.assertTrue(
+            any(
+                "may use only the reviewed GitHub App private-key references" in error
+                for error in errors
+            )
+        )
 
         publisher_bracketed_secret = copy.deepcopy(data)
         publisher_bracketed_secret["jobs"]["publish"]["steps"][-2]["env"] = {
@@ -526,7 +546,12 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         errors = CHECKER.python_version_maintenance_errors(
             workflow, publisher_bracketed_secret
         )
-        self.assertTrue(any("only declare github.token" in error for error in errors))
+        self.assertTrue(
+            any(
+                "may use only the reviewed GitHub App private-key references" in error
+                for error in errors
+            )
+        )
 
         duplicate_pr_action = copy.deepcopy(data)
         duplicate_pr_action["jobs"]["publish"]["steps"].append(
@@ -535,14 +560,14 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         errors = CHECKER.python_version_maintenance_errors(
             workflow, duplicate_pr_action
         )
-        self.assertTrue(any("exactly one" in error for error in errors))
+        self.assertTrue(any("reviewed order and count" in error for error in errors))
 
         publisher_body = copy.deepcopy(data)
         publisher_body["jobs"]["publish"]["steps"][-1]["with"]["body-path"] = (
             "python-version-pr-body.md"
         )
         errors = CHECKER.python_version_maintenance_errors(workflow, publisher_body)
-        self.assertTrue(any("body-path" in error for error in errors))
+        self.assertTrue(any("reviewed with values" in error for error in errors))
 
     def test_sensitive_reference_detection_rejects_serialized_contexts(self) -> None:
         for value in (
