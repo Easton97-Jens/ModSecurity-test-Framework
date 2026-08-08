@@ -95,9 +95,7 @@ jobs:
 """,
                 encoding="utf-8",
             )
-            result = self.run_checker(
-                workflow_root, working_directory=workflow_root
-            )
+            result = self.run_checker(workflow_root, working_directory=workflow_root)
             self.assertEqual(result.returncode, 0, result.stderr)
 
             workflow.write_text(
@@ -111,6 +109,46 @@ jobs:
             )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("flow-style YAML collections", result.stderr)
+
+    def test_python_maintenance_scopes_read_permissions_to_jobs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_root:
+            workflow_root = Path(temporary_root)
+            workflow = workflow_root / "check-python-version.yml"
+            safe_workflow = """\
+name: Python maintenance fixture
+on: workflow_dispatch
+permissions: {}
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - run: true
+"""
+            workflow.write_text(safe_workflow, encoding="utf-8")
+            result = self.run_checker(
+                workflow_root, check="permissions", working_directory=workflow_root
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            workflow.write_text(
+                safe_workflow.replace("permissions: {}\n", "", 1),
+                encoding="utf-8",
+            )
+            result = self.run_checker(
+                workflow_root, check="permissions", working_directory=workflow_root
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("top-level permissions", result.stderr)
+
+            workflow.write_text(safe_workflow, encoding="utf-8")
+            workflow.rename(workflow_root / "other.yml")
+            result = self.run_checker(
+                workflow_root, check="permissions", working_directory=workflow_root
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("top-level permissions", result.stderr)
 
     def test_validator_rejects_workflow_roots_outside_the_repository(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_root:

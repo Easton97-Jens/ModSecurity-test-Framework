@@ -104,7 +104,8 @@ weisen fehlende Outcome-Jobs, nicht leere Outcome-Berechtigungen,
 Token-Exposition, unbekannte Terminalbedingungen, entfernte
 Kandidaten-Identitätsbindung, entfernte App-Vorprüfung, native Token-Fallbacks,
 breitere App-Scopes, abgeschwächte Draft-Kontrollen, force-artige
-Cleanup-Maskierung und grüne Publisher-Fehlerpfade zurück.
+Cleanup-Maskierung, grüne Publisher-Fehlerpfade, CPython-Read-Scope auf
+Workflow-Ebene und eine fehlende CPython-Reader-Job-Berechtigung zurück.
 
 ## Befehle und Ergebnisse
 
@@ -114,11 +115,12 @@ Cleanup-Maskierung und grüne Publisher-Fehlerpfade zurück.
 | Expliziter Unit-Befehl für vier Module | 0 | 80 Updater-/Contract-Tests bestanden. | Lokaler Framework-Task-Worktree. |
 | `make test-ci-security-contract` | 0 | 141 CI-Sicherheitsvertrags- und Regressionstests bestanden. | Lokaler Framework-Task-Worktree. |
 | `make test-workflow-action-pins` | 0 | 25 Tests für unveränderliche Action-Pins bestanden. | Lokaler Framework-Task-Worktree. |
-| `make test-workflow-security-contract` | 0 | 8 Workflow-Sicherheitsvertrags-Tests bestanden. | Lokaler Framework-Task-Worktree. |
+| `make test-workflow-security-contract` | 0 | 9 Workflow-Sicherheitsvertrags-Tests bestanden. | Lokaler Framework-Task-Worktree. |
 | `make check-github-actions-workflows` | 0 | Source-kontrollierte Workflow-Pin- und Berechtigungsprüfungen bestanden. | Lokaler Framework-Task-Worktree. |
 | `make check-documentation` | 0 | Dokumentation, zweisprachige Parität und Change-Record-Prüfungen bestanden vor der finalen Record-Abstimmung. | Lokaler Framework-Task-Worktree. |
 | `make lint` | 0 | Vollständige repository-definierte lokale Lint-/CI-Sicherheitsaggregation bestand. | Lokaler Framework-Task-Worktree. |
 | Gesperrte Ruff-`0.15.22`-Lint- und Format-Checks | 0 | Die exakte Hosted-Dateimenge bestand nach der eng begrenzten Format-Remediation. | Prüfsummenverifizierter task-lokaler Tool-Abruf. |
+| SonarCloud-Quality-Gate | 1 | Der aktuelle Head `72b2904` von PR #67 meldete nur die konkreten task-eigenen Static-Analysis-Anmerkungen, die dieses Follow-up behebt. | GitHub-Check-Run `93130371506`; kein roher Hosted-Log wird aufbewahrt. |
 | `ci/checks/security/check-ci-security-contract.py --root .` und YAML-Parse | 0 | Die überprüften Workflow-Verträge und beide geänderten Workflow-YAML-Dokumente bestanden. | Lokaler Framework-Task-Worktree. |
 | Codex-Security-Working-Tree-Diff-Scan | 0 | Alle 14 geänderten Dateien erhielten Full-File-Receipts; kein reportierbarer Fund überlebte Discovery. | Versiegelte task-lokale Scan-Evidenz (nicht versioniert). |
 
@@ -126,9 +128,12 @@ Cleanup-Maskierung und grüne Publisher-Fehlerpfade zurück.
 
 Dies ist eine Härtung der CI-Credential-Grenze und Ergebnisintegrität. Der
 ursprüngliche Workflow-Tool-Credential-Minting-Fehler bleibt rot; der CPython-
-Publisher verwendet das native Job-Token nicht mehr. Die Verträge pinnen
-Vorprüfung, App-Scope, Kandidaten-Identität, strikten Draft-PR-Zustand und
-terminale Report-Bodies. Fokussierte alternative Bypass-Mutationen wurden
+Publisher verwendet das native Job-Token nicht mehr zum Publishing und beginnt
+ohne eingebautes Workflow-Level-Token. Sein Resolver, Kandidatenvalidator und
+Publisher erhalten nur jeweils ihr eingebautes `contents: read`-Token, während
+das Outcome leer bleibt. Die Verträge pinnen Vorprüfung, App-Scope,
+Kandidaten-Identität, strikten Draft-PR-Zustand, job-begrenzten Read-Zugriff
+und terminale Report-Bodies. Fokussierte alternative Bypass-Mutationen wurden
 durch die statischen Vertrags-Tests erneut ausgeführt und zurückgewiesen. Die
 legitimen Kontrollen sind die unveränderten lokalen Workflows und ihre
 fokussierten Test-Suiten.
@@ -138,9 +143,10 @@ fokussierten Test-Suiten.
 Die englischen und deutschen Workflow-Sicherheitsleitfäden beschreiben jetzt
 die gemeinsamen App-Konfigurationsnamen, die No-Value-Vorprüfung,
 unterschiedliche App-Scopes, die No-Fallback-Regel, exakte No-Update-Zustände,
-strikten Draft-PR-Zustand und normale PR-Checks. Es wurden keine Credential-
-Werte, Repository-Setting-Änderungen, Hosted-App-Installationsnachweise oder
-Connector-/MRTS-Runtime-Evidenz erfasst.
+strikten Draft-PR-Zustand, job-begrenzte CPython-Reader-Berechtigungen und
+normale PR-Checks. Es wurden keine Credential-Werte, Repository-Setting-
+Änderungen, Hosted-App-Installationsnachweise oder Connector-/MRTS-Runtime-
+Evidenz erfasst.
 
 ## Nicht ausgeführte Prüfungen
 
@@ -149,8 +155,9 @@ Connector-/MRTS-Runtime-Evidenz erfasst.
   einen Repository-Owner und ist durch die verfügbare Command-Response nicht
   belegt.
 - Hosted-PR-Checks, Review-Status, Branch-Protection und SonarQube Cloud sind
-  Controls des exakten Draft-PR-Heads und bis zum autorisierten Draft-PR-Push
-  ausstehend.
+  Controls des exakten Draft-PR-Heads. Der bereits gepushte Head wurde
+  inspiziert; der exakte Head dieses Follow-ups muss vor einem Merge-Review
+  gepusht und erneut geprüft werden.
 - `actionlint`, `zizmor` und `pyright` sind lokal nicht installiert und wurden
   nicht heruntergeladen. Nachdem der initiale Draft-PR-Check sechs reine
   Ruff-Formatänderungen meldete, lieferte der prüfsummenverifizierte Fetcher
@@ -174,7 +181,10 @@ Der ursprüngliche Task-Commit wurde gepusht und genau ein Draft-PR geöffnet.
 Sein initialer Fehler `python-ci-security-quality` beschränkte sich auf
 Ruff-Formatierung; der exakte gesperrte Formatter erzeugte ein enges Follow-up
 für sechs Dateien, das lokale Lint-/Format-Checks und die vollständige lokale
-Aggregation bestand. Follow-up-Commit/-Push und neue aktuelle Hosted-Head-
-Checks sind noch ausstehend. Der versiegelte eingegrenzte Security-Diff-Scan
-fand keine reportierbare Regression. Dieser Record enthält keinen Credential-
-Wert und keinen rohen Hosted-Log.
+Aggregation bestand. Dessen Security-Quality-, Actionlint-/Contract-, Zizmor-,
+CodeQL-, Action-Version-, Secret-Scanning-, Scorecard-, OSV- und Common-
+Structure-Checks bestanden; SonarCloud meldete stattdessen die oben erfassten
+konkreten task-eigenen Anmerkungen. Dieses Follow-up behebt sie vor einem
+normalen Push und einem neuen Check des exakten Heads. Der versiegelte
+eingegrenzte Security-Diff-Scan fand keine reportierbare Regression. Dieser
+Record enthält keinen Credential-Wert und keinen rohen Hosted-Log.

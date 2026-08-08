@@ -36,6 +36,9 @@ COMMON_VERSION_WORKFLOW = "check-common-versions.yml"
 PYTHON_VERSION_MAINTENANCE_WORKFLOW = "check-python-version.yml"
 SETUP_PYTHON_ACTION = "actions/setup-python"
 SETUP_PYTHON_REFERENCE = f"{SETUP_PYTHON_ACTION}@"
+CHECKOUT_ACTION = "actions/checkout"
+GITHUB_SCRIPT_ACTION = "actions/github-script"
+CHECKOUT_REPOSITORY_STEP = "Checkout repository"
 GITHUB_TOKEN_EXPRESSION = "${{ github.token }}"
 DEFAULT_BRANCH_EXPRESSION = "${{ github.event.repository.default_branch }}"
 WORKFLOW_UPDATER_APP_TOKEN_ACTION = "actions/create-github-app-token"
@@ -245,11 +248,11 @@ UPDATER_PUBLISHER_STEP_PROFILE = (
     ),
 )
 UPDATER_PUBLISHER_ACTIONS = {
-    STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION: "actions/checkout",
+    STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION: CHECKOUT_ACTION,
     STEP_SETUP_REVIEWED_PYTHON: SETUP_PYTHON_ACTION,
     STEP_MINT_WORKFLOW_PUBLISHER_APP_TOKEN: WORKFLOW_UPDATER_APP_TOKEN_ACTION,
-    STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: "actions/github-script",
-    STEP_CREATE_DRAFT_PULL_REQUEST: "actions/github-script",
+    STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST: GITHUB_SCRIPT_ACTION,
+    STEP_CREATE_DRAFT_PULL_REQUEST: GITHUB_SCRIPT_ACTION,
 }
 UPDATER_PUBLISHER_WITH_VALUES = {
     STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION: {
@@ -337,8 +340,10 @@ UPDATER_OUTCOME_ENV_VALUES = {
 UPDATER_OUTCOME_RUN_SHA256 = (
     "e60c38e06b2bde55e19a6ea1cc62667863093b3b0c31edbe9e98d71cb62c1012"
 )
-PYTHON_PUBLISHER_PERMISSIONS = {"contents": "read"}
-PYTHON_OUTCOME_PERMISSIONS: dict[str, str] = {}
+PYTHON_READER_PERMISSIONS = UPDATER_READ_ONLY_PERMISSIONS
+PYTHON_PUBLISHER_PERMISSIONS = UPDATER_READ_ONLY_PERMISSIONS
+PYTHON_WORKFLOW_PERMISSIONS: dict[str, str] = {}
+PYTHON_OUTCOME_PERMISSIONS = PYTHON_WORKFLOW_PERMISSIONS
 PYTHON_JOB_NAMES = frozenset({"resolve", "candidate-validate", "publish", "outcome"})
 PYTHON_PUBLISHER_JOB_KEYS = frozenset(
     {"needs", "if", "runs-on", "timeout-minutes", "permissions", "env", "steps"}
@@ -347,7 +352,7 @@ PYTHON_PUBLISHER_ENV_VALUES = {
     "CANDIDATE": "${{ needs.resolve.outputs.candidate }}",
 }
 PYTHON_PUBLISHER_STEP_PROFILE = (
-    ("Checkout repository", STEP_KEYS_ACTION),
+    (CHECKOUT_REPOSITORY_STEP, STEP_KEYS_ACTION),
     (STEP_SETUP_REVIEWED_PYTHON, STEP_KEYS_ACTION),
     (STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY, STEP_KEYS_RUN),
     (STEP_VERIFY_PYTHON_PUBLISHER_APP_CONFIGURATION, STEP_KEYS_ENV_RUN),
@@ -360,14 +365,14 @@ PYTHON_PUBLISHER_STEP_PROFILE = (
     (STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST, STEP_KEYS_ACTION),
 )
 PYTHON_PUBLISHER_ACTIONS = {
-    "Checkout repository": "actions/checkout",
+    CHECKOUT_REPOSITORY_STEP: CHECKOUT_ACTION,
     STEP_SETUP_REVIEWED_PYTHON: SETUP_PYTHON_ACTION,
     STEP_MINT_PYTHON_PUBLISHER_APP_TOKEN: WORKFLOW_UPDATER_APP_TOKEN_ACTION,
-    STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST: "actions/github-script",
+    STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST: GITHUB_SCRIPT_ACTION,
     STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST: "peter-evans/create-pull-request",
 }
 PYTHON_PUBLISHER_WITH_VALUES = {
-    "Checkout repository": {
+    CHECKOUT_REPOSITORY_STEP: {
         "ref": "${{ github.sha }}",
         "fetch-depth": 1,
         "persist-credentials": False,
@@ -1246,8 +1251,7 @@ def normalized_needs(value: Any) -> set[str]:
 def read_only_job_errors(path: Path, job_name: str, job: Any) -> list[str]:
     if not isinstance(job, dict):
         return []
-    permissions = job.get("permissions")
-    if permissions is not None and permissions != {"contents": "read"}:
+    if job.get("permissions") != PYTHON_READER_PERMISSIONS:
         return [
             f"{path}: Python maintenance job {job_name!r} must remain contents: read only"
         ]
@@ -1423,65 +1427,123 @@ def python_version_publisher_gate_errors(path: Path, publish: Any) -> list[str]:
     return []
 
 
+def python_publisher_step_error(path: Path, name: str, detail: str) -> str:
+    return f"{path}: CPython publisher step {name!r} {detail}"
+
+
+def python_version_publisher_step_key_errors(
+    path: Path, step: dict[str, Any], name: str, expected_keys: frozenset[str]
+) -> list[str]:
+    if set(step) == expected_keys:
+        return []
+    return [
+        python_publisher_step_error(path, name, "must match its reviewed key profile")
+    ]
+
+
+def python_version_publisher_step_action_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    expected_action = PYTHON_PUBLISHER_ACTIONS.get(name)
+    if expected_action is None:
+        return []
+    uses = step.get("uses")
+    action = uses.split("@", 1)[0] if isinstance(uses, str) else None
+    if action == expected_action:
+        return []
+    return [python_publisher_step_error(path, name, f"must use {expected_action}")]
+
+
+def python_version_publisher_script_errors(
+    path: Path, name: str, with_values: dict[Any, Any]
+) -> list[str]:
+    if name != STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST:
+        return []
+    errors: list[str] = []
+    if with_values.get("github-token") != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION:
+        errors.append(
+            f"{path}: CPython Draft inspection must use the scoped GitHub App token"
+        )
+    script = with_values.get("script")
+    if not isinstance(script, str) or (
+        publisher_body_digest(script) != PYTHON_PUBLISHER_SCRIPT_SHA256[name]
+    ):
+        errors.append(
+            f"{path}: CPython Draft inspection script must match the reviewed SHA-256"
+        )
+    return errors
+
+
+def python_version_publisher_step_with_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    expected_with_keys = PYTHON_PUBLISHER_WITH_KEYS.get(name)
+    if expected_with_keys is None:
+        return []
+    errors: list[str] = []
+    with_values = step.get("with")
+    if not isinstance(with_values, dict) or set(with_values) != expected_with_keys:
+        errors.append(
+            python_publisher_step_error(
+                path, name, "must match its reviewed with profile"
+            )
+        )
+        with_values = {}
+    expected_with_values = PYTHON_PUBLISHER_WITH_VALUES.get(name)
+    if expected_with_values is not None and with_values != expected_with_values:
+        errors.append(
+            python_publisher_step_error(path, name, "must use reviewed with values")
+        )
+    errors.extend(python_version_publisher_script_errors(path, name, with_values))
+    return errors
+
+
+def python_version_publisher_step_environment_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    expected_environment = PYTHON_PUBLISHER_STEP_ENV_VALUES.get(name)
+    if expected_environment is None or step.get("env") == expected_environment:
+        return []
+    return [
+        python_publisher_step_error(path, name, "must use the reviewed environment")
+    ]
+
+
+def python_version_publisher_step_field_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    return [
+        python_publisher_step_error(path, name, f"must use the reviewed {field}")
+        for field, expected_value in PYTHON_PUBLISHER_FIELD_VALUES.get(name, {}).items()
+        if step.get(field) != expected_value
+    ]
+
+
+def python_version_publisher_step_run_errors(
+    path: Path, step: dict[str, Any], name: str
+) -> list[str]:
+    expected_digest = PYTHON_PUBLISHER_RUN_SHA256.get(name)
+    if expected_digest is None:
+        return []
+    run = step.get("run")
+    if isinstance(run, str) and publisher_body_digest(run) == expected_digest:
+        return []
+    return [
+        f"{path}: CPython publisher run body {name!r} must match the reviewed SHA-256"
+    ]
+
+
 def python_version_publisher_step_errors(
     path: Path, step: dict[str, Any], name: str, expected_keys: frozenset[str]
 ) -> list[str]:
-    errors: list[str] = []
-    if set(step) != expected_keys:
-        errors.append(
-            f"{path}: CPython publisher step {name!r} must match its reviewed key profile"
-        )
-    expected_action = PYTHON_PUBLISHER_ACTIONS.get(name)
-    if expected_action is not None:
-        uses = step.get("uses")
-        action = uses.split("@", 1)[0] if isinstance(uses, str) else None
-        if action != expected_action:
-            errors.append(
-                f"{path}: CPython publisher step {name!r} must use {expected_action}"
-            )
-    expected_with_keys = PYTHON_PUBLISHER_WITH_KEYS.get(name)
-    if expected_with_keys is not None:
-        with_values = step.get("with")
-        if not isinstance(with_values, dict) or set(with_values) != expected_with_keys:
-            errors.append(
-                f"{path}: CPython publisher step {name!r} must match its reviewed with profile"
-            )
-            with_values = {}
-        expected_with_values = PYTHON_PUBLISHER_WITH_VALUES.get(name)
-        if expected_with_values is not None and with_values != expected_with_values:
-            errors.append(
-                f"{path}: CPython publisher step {name!r} must use reviewed with values"
-            )
-        if name == STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST:
-            if with_values.get("github-token") != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION:
-                errors.append(
-                    f"{path}: CPython Draft inspection must use the scoped GitHub App token"
-                )
-            script = with_values.get("script")
-            if not isinstance(script, str) or (
-                publisher_body_digest(script) != PYTHON_PUBLISHER_SCRIPT_SHA256[name]
-            ):
-                errors.append(
-                    f"{path}: CPython Draft inspection script must match the reviewed SHA-256"
-                )
-    expected_environment = PYTHON_PUBLISHER_STEP_ENV_VALUES.get(name)
-    if expected_environment is not None and step.get("env") != expected_environment:
-        errors.append(
-            f"{path}: CPython publisher step {name!r} must use the reviewed environment"
-        )
-    for field, expected_value in PYTHON_PUBLISHER_FIELD_VALUES.get(name, {}).items():
-        if step.get(field) != expected_value:
-            errors.append(
-                f"{path}: CPython publisher step {name!r} must use the reviewed {field}"
-            )
-    expected_digest = PYTHON_PUBLISHER_RUN_SHA256.get(name)
-    if expected_digest is not None:
-        run = step.get("run")
-        if not isinstance(run, str) or publisher_body_digest(run) != expected_digest:
-            errors.append(
-                f"{path}: CPython publisher run body {name!r} must match the reviewed SHA-256"
-            )
-    return errors
+    return [
+        *python_version_publisher_step_key_errors(path, step, name, expected_keys),
+        *python_version_publisher_step_action_errors(path, step, name),
+        *python_version_publisher_step_with_errors(path, step, name),
+        *python_version_publisher_step_environment_errors(path, step, name),
+        *python_version_publisher_step_field_errors(path, step, name),
+        *python_version_publisher_step_run_errors(path, step, name),
+    ]
 
 
 def python_version_publisher_profile_errors(path: Path, publish: Any) -> list[str]:
@@ -1595,6 +1657,10 @@ def python_version_maintenance_errors(path: Path, data: dict[str, Any]) -> list[
         return []
 
     errors = python_version_trigger_errors(path, data)
+    if data.get("permissions") != PYTHON_WORKFLOW_PERMISSIONS:
+        errors.append(
+            f"{path}: Python maintenance must deny workflow-level permissions and scope read access to its jobs"
+        )
     jobs, job_errors = python_version_jobs(path, data)
     errors.extend(job_errors)
     if jobs is None:
@@ -1609,7 +1675,7 @@ def python_version_maintenance_errors(path: Path, data: dict[str, Any]) -> list[
     candidate_steps, candidate_step_errors = as_job_steps(
         path, "candidate-validate", candidate
     )
-    publish_steps, publish_step_errors = as_job_steps(path, "publish", publish)
+    _, publish_step_errors = as_job_steps(path, "publish", publish)
     _outcome_steps, outcome_step_errors = as_job_steps(path, "outcome", outcome)
     errors.extend(resolve_step_errors)
     errors.extend(candidate_step_errors)
@@ -2297,7 +2363,7 @@ def common_version_checkout_errors(
         step
         for step in steps
         if isinstance(step.get("uses"), str)
-        and step["uses"].split("@", 1)[0] == "actions/checkout"
+        and step["uses"].split("@", 1)[0] == CHECKOUT_ACTION
     ]
     if len(checkout_steps) != 1:
         return [

@@ -5,8 +5,7 @@ on:
   schedule:
     - cron: "17 6 * * 1"
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: framework-python-version-maintenance-${{ github.repository }}
@@ -20,6 +19,8 @@ jobs:
   resolve:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     outputs:
       resolver_status: ${{ steps.resolve.outputs.status }}
       update_available: ${{ steps.resolve.outputs.update_available }}
@@ -50,6 +51,8 @@ jobs:
     if: ${{ needs.resolve.outputs.update_available == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     env:
       CANDIDATE: ${{ needs.resolve.outputs.candidate }}
     outputs:

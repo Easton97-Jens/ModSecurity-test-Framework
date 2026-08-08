@@ -324,8 +324,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self.assertEqual(digest, UPDATER.candidate_sha256(deepcopy(candidate)))
         UPDATER.require_candidate_sha256(candidate, digest)
         UPDATER.require_candidate_sha256(candidate, None)
+        uppercase_digest = digest.upper()
         with self.assertRaisesRegex(UPDATER.UpdateError, "lowercase digest"):
-            UPDATER.require_candidate_sha256(candidate, digest.upper())
+            UPDATER.require_candidate_sha256(candidate, uppercase_digest)
         with self.assertRaisesRegex(
             UPDATER.UpdateError, "does not match the resolver result"
         ):

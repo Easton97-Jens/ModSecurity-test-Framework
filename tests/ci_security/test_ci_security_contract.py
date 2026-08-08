@@ -763,6 +763,17 @@ jobs:
             encoding="utf-8"
         )
         variants = {
+            "workflow-level-reader-permission": workflow.replace(
+                "permissions: {}\n\nconcurrency:",
+                "permissions:\n  contents: read\n\nconcurrency:",
+                1,
+            ),
+            "missing-reader-job-permission": workflow.replace(
+                "  resolve:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n"
+                "    permissions:\n      contents: read\n",
+                "  resolve:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n",
+                1,
+            ),
             "native-token-fallback": workflow.replace(
                 "token: ${{ steps.publisher_app_token.outputs.token }}",
                 "token: ${{ github.token }}",

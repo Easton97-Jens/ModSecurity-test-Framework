@@ -32,7 +32,7 @@ Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, gefilterter `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; er läuft nur lesend und ohne persistierte Checkout-Credentials. |
 | `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | Workflow-Standard `contents: read`; nur Publisher-Job effektiv `contents: write`, `pull-requests: write` | Resolver und Kandidatenjob bleiben read-only; ein Default-Branch-Publisher löst den Kandidaten unabhängig erneut auf, bindet dessen SHA-256 und erstellt oder aktualisiert nur einen Draft-PR auf festem Branch für `ci/lib/common.sh`. |
-| `check-python-version.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | alle eingebauten Tokens bleiben `contents: read`; das repository-begrenzte App-Token hat nur `contents`, `pull-requests`: write | Resolver- und Kandidatenjobs sind read-only. Der Default-Branch-Publisher löst einen stabilen Kandidaten unabhängig erneut auf, verifiziert genau einen festen Draft-Branch/PR und ändert nur `.python-version`; er merged nie. Ein finaler read-only-Outcome-Job macht nur den exakten No-Update-Zustand grün. |
+| `check-python-version.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | Workflow-Standard `permissions: {}`; nur Resolver, Kandidatenvalidierung und Publisher erhalten eingebaute `contents: read`; das repository-begrenzte App-Token hat nur `contents`, `pull-requests`: write | Resolver- und Kandidatenjobs sind read-only. Der Default-Branch-Publisher löst einen stabilen Kandidaten unabhängig erneut auf, verifiziert genau einen festen Draft-Branch/PR und ändert nur `.python-version`; er merged nie. Ein finaler read-only-Outcome-Job macht nur den exakten No-Update-Zustand grün. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, Zeitplan | `actions/github-script` | Workflow-Standard `contents: read`; Cleanup-Job effektiv `actions: write` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; sein Job kann nur Repository-Artefakte löschen. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode und seine Entwicklungsabhängigkeiten sind nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
@@ -76,30 +76,30 @@ nicht schreibenden PR-Vertrauensgrenze unterworfen.
 
 ## Berechtigungen und Pull-Request-Vertrauensgrenze
 
-Jeder Workflow beginnt genau mit:
+Jeder Workflow deklariert eine explizite Top-Level-Baseline. Die meisten beginnen mit:
 
 ```yaml
 permissions:
   contents: read
 ```
 
-Nur ein vertrauenswürdiger Job darf diese Baseline durch eine kleinere,
-zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions` gibt
-Repository-Content- und Pull-Request-Write-Rechte erst seinem Publisher-Job,
-nachdem Resolver und Kandidatenjob read-only geblieben sind;
-`check-python-version` und `update-workflow-tools` behalten dagegen
-`contents: read` für jedes eingebaute Job-Token und erzeugen
-repository-begrenzte App-Tokens nur in ihren Publisher-Jobs, nachdem die
-unabhängige Reader-Validierung bestanden hat. Das CPython-Token hat nur
+`check-python-version` ist die enge explizite Ausnahme: Es beginnt mit
+`permissions: {}` und gibt seinem Resolver, Kandidatenvalidator und Publisher
+jeweils ein separates eingebautes `contents: read`-Token; sein Outcome-Job
+bleibt leer. Dies vermeidet ambienten Tokenzugriff im finalen Statuspfad. Keine
+Workflow-Top-Level-Berechtigungszuordnung vergibt Write-Rechte.
+`check-common-versions` gibt Repository-Content- und Pull-Request-Write-Rechte
+erst seinem Publisher-Job, nachdem Resolver und Kandidatenjob read-only
+geblieben sind. `update-workflow-tools` behält `contents: read` für jedes
+eingebaute Job-Token und erzeugt erst nach unabhängiger Reader-Validierung ein
+repository-begrenztes App-Token in seinem Publisher. Das CPython-Token hat nur
 `contents`- und `pull-requests`-Write-Recht; das Workflow-Tool-Token erhält
-zusätzlich `workflows: write`, weil es Workflow-Dateien ändern kann. Der
-separate Publisher von `update-workflow-tools` erzeugt daher ein auf das
-Repository begrenztes GitHub-App-Token mit `contents`-, `pull-requests`- und
-`workflows`-Write-Recht; `cleanup-artifacts` benötigt nur `actions: write`, um
-Artefakte zu löschen; `update-submodules` gibt `contents`- und
-`pull-requests`-Write-Recht nur seinem validierten Default-Branch-Publisher;
-der vertrauenswürdige Nicht-PR-CodeQL-Upload-Job benötigt `security-events:
-write`. Kein PR-ausgelöster Job darf eine Write-Berechtigung vergeben.
+zusätzlich `workflows: write`, weil es Workflow-Dateien ändern kann.
+`cleanup-artifacts` benötigt nur `actions: write`, um Artefakte zu löschen;
+`update-submodules` gibt `contents`- und `pull-requests`-Write-Recht nur seinem
+validierten Default-Branch-Publisher; der vertrauenswürdige Nicht-PR-CodeQL-
+Upload-Job benötigt `security-events: write`. Kein PR-ausgelöster Job darf
+eine Write-Berechtigung vergeben.
 
 Jede direkte Verwendung von `actions/checkout` setzt:
 

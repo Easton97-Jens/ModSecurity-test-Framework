@@ -98,7 +98,8 @@ Positive coverage proves the real workflow profiles; negative mutations reject
 missing outcome jobs, non-empty outcome permissions, token exposure, unknown
 terminal conditions, removed candidate identity binding, removed App
 preflight, native-token fallback, broadened App scope, weakened Draft controls,
-force-style cleanup masking, and green publisher-error paths.
+force-style cleanup masking, green publisher-error paths, workflow-level
+CPython read scope, and a missing CPython reader-job permission.
 
 ## Commands and results
 
@@ -108,11 +109,12 @@ force-style cleanup masking, and green publisher-error paths.
 | Explicit four-module unit command | 0 | 80 updater/contract tests passed. | Local Framework task worktree. |
 | `make test-ci-security-contract` | 0 | 141 CI-security contract and regression tests passed. | Local Framework task worktree. |
 | `make test-workflow-action-pins` | 0 | 25 immutable Action-pin tests passed. | Local Framework task worktree. |
-| `make test-workflow-security-contract` | 0 | 8 workflow-security contract tests passed. | Local Framework task worktree. |
+| `make test-workflow-security-contract` | 0 | 9 workflow-security contract tests passed. | Local Framework task worktree. |
 | `make check-github-actions-workflows` | 0 | Source-controlled workflow pin and permission checks passed. | Local Framework task worktree. |
 | `make check-documentation` | 0 | Documentation, bilingual parity, and Change-Record checks passed before final record reconciliation. | Local Framework task worktree. |
 | `make lint` | 0 | Complete repository-defined local lint/CI-security aggregate passed. | Local Framework task worktree. |
 | Locked Ruff `0.15.22` lint and format checks | 0 | The exact hosted file set passed after the narrowly scoped format remediation. | Checksum-verified task-local tool retrieval. |
+| SonarCloud Quality Gate | 1 | PR #67 current head `72b2904` reported only the concrete task-owned static-analysis annotations remediated by this follow-up. | GitHub check run `93130371506`; no raw hosted log retained. |
 | `ci/checks/security/check-ci-security-contract.py --root .` and YAML parse | 0 | The reviewed workflow contracts and both changed workflow YAML documents passed. | Local Framework task worktree. |
 | Codex Security working-tree diff scan | 0 | All 14 changed files received full-file receipts; no reportable finding survived discovery. | Sealed task-local scan evidence (not versioned). |
 
@@ -120,19 +122,23 @@ force-style cleanup masking, and green publisher-error paths.
 
 This is a CI credential-boundary and outcome-integrity hardening. The original
 workflow-tool credential-mint failure remains red; the CPython publisher no
-longer uses the native job token. The contracts pin preflight behavior, App
-scope, candidate identity, strict Draft-PR state, and terminal report bodies.
-Focused alternate-bypass mutations were rerun through the static contract
-tests and were rejected. The legitimate controls are the unmodified local
-workflows and their focused test suites.
+longer uses the native job token for publishing and starts with no workflow-
+level built-in token. Its resolver, candidate-validator, and publisher receive
+only their individual `contents: read` built-in token, while the outcome stays
+empty. The contracts pin preflight behavior, App scope, candidate identity,
+strict Draft-PR state, job-scoped read access, and terminal report bodies.
+Focused alternate-bypass mutations were rerun through the static contract tests
+and were rejected. The legitimate controls are the unmodified local workflows
+and their focused test suites.
 
 ## Documentation and runtime evidence
 
 The English and German workflow-security guides now describe the shared App
 configuration names, no-value preflight, different App scopes, no-fallback
-rule, exact no-update states, strict Draft-PR state, and ordinary PR checks.
-No credential values, repository setting changes, hosted App-installation
-proof, or connector/MRTS runtime evidence was collected.
+rule, exact no-update states, strict Draft-PR state, job-scoped CPython reader
+permissions, and ordinary PR checks. No credential values, repository setting
+changes, hosted App-installation proof, or connector/MRTS runtime evidence was
+collected.
 
 ## Checks not run
 
@@ -140,7 +146,8 @@ proof, or connector/MRTS runtime evidence was collected.
   App installation/permission verification requires a repository owner and is
   not proven by the available command response.
 - Hosted PR checks, review state, branch protection, and SonarQube Cloud are
-  exact-Draft-PR-head controls and are pending the authorized Draft PR push.
+  exact-Draft-PR-head controls. The already pushed head was inspected; this
+  follow-up's exact head must be pushed and rechecked before any merge review.
 - `actionlint`, `zizmor`, and `pyright` are not locally installed and were not
   downloaded. After the initial Draft-PR check identified six Ruff-format-only
   changes, the repository's checksum-verified fetcher supplied locked Ruff
@@ -161,7 +168,10 @@ merge, auto-merge, PAT fallback, Parent change, or MRTS change is included.
 The original task commit was pushed and exactly one Draft PR was opened. Its
 initial `python-ci-security-quality` failure was confined to Ruff formatting;
 the exact pinned formatter produced a narrow six-file follow-up that passed
-local lint/format and the full local aggregate. The follow-up commit/push and
-new current-head hosted checks remain pending. The sealed scoped security-diff
-scan found no reportable regression. This record contains no credential value
-or raw hosted log.
+local lint/format and the full local aggregate. That follow-up's security-
+quality, actionlint/contract, zizmor, CodeQL, action-version, secret-scanning,
+Scorecard, OSV, and common-structure checks passed; SonarCloud instead reported
+the concrete task-owned annotations recorded above. This follow-up remediates
+them before one normal push and a new exact-head check. The sealed scoped
+security-diff scan found no reportable regression. This record contains no
+credential value or raw hosted log.

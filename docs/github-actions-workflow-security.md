@@ -30,7 +30,7 @@ write permission. No such behavior was removed by this hardening work.
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, filtered `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source is untrusted; it runs read-only with no persisted checkout credential. |
 | `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `peter-evans/create-pull-request` | workflow default `contents: read`; only publisher job effective `contents: write`, `pull-requests: write` | Resolver and candidate jobs remain read-only; a default-branch publisher independently re-resolves the candidate, binds its SHA-256, and creates or updates only one fixed-branch Draft PR for `ci/lib/common.sh`. |
-| `check-python-version.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | all built-in tokens remain `contents: read`; the repository-limited App token has only `contents`, `pull-requests`: write | Resolver and candidate jobs are read-only. The default-branch publisher independently re-resolves one stable candidate, verifies exactly one fixed Draft branch/PR and changes only `.python-version`; it never merges. A final read-only outcome job makes only the exact no-update state green. |
+| `check-python-version.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | workflow default `permissions: {}`; only resolver, candidate-validator, and publisher receive built-in `contents: read`; the repository-limited App token has only `contents`, `pull-requests`: write | Resolver and candidate jobs are read-only. The default-branch publisher independently re-resolves one stable candidate, verifies exactly one fixed Draft branch/PR and changes only `.python-version`; it never merges. A final read-only outcome job makes only the exact no-update state green. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, schedule | `actions/github-script` | workflow default `contents: read`; cleanup job effective `actions: write` | Scheduled/manual trusted-maintainer workflow; its job can delete repository artifacts only. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source and its development dependencies are untrusted; no write permission, secret, persisted credential, or submodule is configured. |
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source is untrusted; no write permission, secret, persisted credential, or submodule is configured. |
@@ -72,29 +72,29 @@ remains subject to the read-only PR trust boundary below.
 
 ## Permissions and pull-request trust boundary
 
-Every workflow starts with exactly:
+Every workflow declares an explicit top-level baseline. Most begin with:
 
 ```yaml
 permissions:
   contents: read
 ```
 
-Only a trusted job may replace that baseline with a smaller purpose-specific
-permission map. `check-common-versions` gives repository-content and
-pull-request writes only to its publisher job after a resolver and candidate
-job have remained read-only. `check-python-version` and
-`update-workflow-tools` retain `contents: read` for every built-in job token
-and mint repository-limited App tokens only in their publisher jobs, after
-their independent reader validation has passed. The CPython token has only
-`contents` and `pull-requests`: write; the workflow-tool token additionally
-has `workflows`: write because it may change workflow files. The separate
-`update-workflow-tools` publisher therefore mints a
-repository-limited GitHub App token with `contents`, `pull-requests`, and
-`workflows` write permission; `cleanup-artifacts` needs only `actions: write`
-to delete artifacts; `update-submodules` gives `contents` and
-`pull-requests` writes only to its validated default-branch publisher; the
-trusted non-PR CodeQL upload job needs `security-events: write`. No
-PR-triggered job may grant a write permission.
+`check-python-version` is the narrow explicit exception: it begins with
+`permissions: {}` and grants its resolver, candidate-validator, and publisher
+jobs their separate built-in `contents: read` token; its outcome job remains
+empty. This avoids ambient token access in the final status path. No
+workflow-level permission map grants write. `check-common-versions` gives
+repository-content and pull-request writes only to its publisher job after a
+resolver and candidate job have remained read-only. `update-workflow-tools`
+retains `contents: read` for every built-in job token and mints a
+repository-limited App token only in its publisher after independent reader
+validation. The CPython token has only `contents` and `pull-requests`: write;
+the workflow-tool token additionally has `workflows`: write because it may
+change workflow files. `cleanup-artifacts` needs only `actions: write` to
+delete artifacts; `update-submodules` gives `contents` and `pull-requests`
+writes only to its validated default-branch publisher; the trusted non-PR
+CodeQL upload job needs `security-events: write`. No PR-triggered job may
+grant a write permission.
 
 Each direct `actions/checkout` use sets:
 

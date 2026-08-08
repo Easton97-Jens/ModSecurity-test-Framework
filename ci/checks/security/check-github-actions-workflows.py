@@ -29,9 +29,7 @@ USES_LINE_RE = re.compile(
     r"(?P<comment>\s+#.*)?\s*$"
 )
 FLOW_COLLECTION_RE = re.compile(r"(?:^|[:\-,\[]\s*)[\[{]")
-EMPTY_PERMISSIONS_MAPPING_RE = re.compile(
-    r"^\s*permissions\s*:\s*\{\s*\}\s*(?:#.*)?$"
-)
+EMPTY_PERMISSIONS_MAPPING_RE = re.compile(r"^\s*permissions\s*:\s*\{\s*\}\s*(?:#.*)?$")
 EXPLICIT_MAPPING_KEY_RE = re.compile(r"^\s*(?:-\s*)?\?")
 ADVANCED_YAML_NODE_RE = re.compile(r"^\s*(?:-\s*)?(?:!|&|\*|<<\s*:)")
 YAML_DOCUMENT_MARKER_RE = re.compile(r"^\s*(?:---|\.\.\.)(?:\s|$)")
@@ -46,6 +44,8 @@ RELEASE_COMMENT_RE = re.compile(
 )
 WRITE_PERMISSION_VALUES = {"write", "admin", "write-all"}
 WORKFLOW_SUFFIXES = {".yaml", ".yml"}
+DEFAULT_TOP_LEVEL_PERMISSIONS = {"contents": "read"}
+ZERO_PERMISSION_TOP_LEVEL_WORKFLOWS = frozenset({"check-python-version.yml"})
 SECRET_REFERENCE_RE = re.compile(r"\bsecrets\s*[\[.]", re.IGNORECASE)
 GITHUB_TOKEN_REFERENCE_RE = re.compile(
     r"\bgithub\s*(?:\.\s*token|\[\s*['\"]token['\"]\s*\])",
@@ -117,7 +117,7 @@ def resolve_repository_path(path: Path) -> Path | None:
         repository_root = Path.cwd().resolve(strict=True)
         resolved_path = path.resolve(strict=True)
         resolved_path.relative_to(repository_root)
-    except (OSError, RuntimeError, ValueError):
+    except OSError, RuntimeError, ValueError:
         return None
     return resolved_path
 
@@ -274,39 +274,54 @@ def source_uses(path: Path) -> tuple[list[tuple[int, str, str | None]], list[str
     except (OSError, ValueError) as exc:
         return action_uses, [f"{path}: cannot read workflow safely: {exc}"]
     for line_number, line in enumerate(lines, 1):
-        if block_scalar_indent is not None and continues_block_scalar(
-            line, block_scalar_indent
-        ):
-            continue
-        block_scalar_indent = None
-        syntax_error = source_syntax_error(path, line_number, line)
-        if syntax_error is not None:
-            errors.append(syntax_error)
-            continue
-        block_scalar_indent = block_scalar_start_indentation(line)
-        entry, next_block_indent, entry_error = uses_entry(
+        entry, line_errors, block_scalar_indent = source_uses_line(
             path, line_number, line, block_scalar_indent
         )
-        if entry_error is not None:
-            errors.append(entry_error)
-            block_scalar_indent = next_block_indent
-            continue
+        errors.extend(line_errors)
         if entry is not None:
             action_uses.append(entry)
-            continue
-        if block_scalar_indent is not None:
-            continue
-        # GitHub Actions uses this exact spelling to deny every job permission.
-        # It is the sole safe flow-style mapping exception; all nonempty flow
-        # collections remain prohibited so action references stay reviewable.
-        if EMPTY_PERMISSIONS_MAPPING_RE.match(line) is not None:
-            continue
-        if FLOW_COLLECTION_RE.search(line) is not None:
-            errors.append(
-                f"{path}:{line_number}: flow-style YAML collections are prohibited in "
-                "workflows; use block mappings for reviewable action pins"
-            )
     return action_uses, errors
+
+
+def source_uses_line(
+    path: Path, line_number: int, line: str, block_scalar_indent: int | None
+) -> tuple[tuple[int, str, str | None] | None, list[str], int | None]:
+    if block_scalar_indent is not None and continues_block_scalar(
+        line, block_scalar_indent
+    ):
+        return None, [], block_scalar_indent
+    return source_uses_unblocked_line(path, line_number, line)
+
+
+def source_uses_unblocked_line(
+    path: Path, line_number: int, line: str
+) -> tuple[tuple[int, str, str | None] | None, list[str], int | None]:
+    syntax_error = source_syntax_error(path, line_number, line)
+    if syntax_error is not None:
+        return None, [syntax_error], None
+    block_scalar_indent = block_scalar_start_indentation(line)
+    entry, next_block_indent, entry_error = uses_entry(
+        path, line_number, line, block_scalar_indent
+    )
+    if entry_error is not None:
+        return None, [entry_error], next_block_indent
+    if entry is not None or block_scalar_indent is not None:
+        return entry, [], block_scalar_indent
+    # GitHub Actions uses this exact spelling to deny every job permission.
+    # It is the sole safe flow-style mapping exception; all nonempty flow
+    # collections remain prohibited so action references stay reviewable.
+    if EMPTY_PERMISSIONS_MAPPING_RE.match(line) is not None:
+        return None, [], None
+    if FLOW_COLLECTION_RE.search(line) is None:
+        return None, [], None
+    return (
+        None,
+        [
+            f"{path}:{line_number}: flow-style YAML collections are prohibited in "
+            "workflows; use block mappings for reviewable action pins"
+        ],
+        None,
+    )
 
 
 def validate_pins(path: Path) -> list[str]:
@@ -432,13 +447,19 @@ def checkout_steps(job: Mapping[str, Any]) -> Iterator[tuple[int, Mapping[str, A
 def validate_top_level_permissions(
     path: Path, document: Mapping[str, Any]
 ) -> list[str]:
-    errors: list[str] = []
+    expected_permissions = (
+        {}
+        if path.name in ZERO_PERMISSION_TOP_LEVEL_WORKFLOWS
+        else DEFAULT_TOP_LEVEL_PERMISSIONS
+    )
     top_permissions = as_mapping(document.get("permissions"))
-    if dict(top_permissions or {}) != {"contents": "read"}:
-        errors.append(
-            f"{path}: top-level permissions must be exactly '{{contents: read}}'"
-        )
-    return errors
+    if (
+        "permissions" in document
+        and dict(top_permissions or {}) == expected_permissions
+    ):
+        return []
+    expected = "{}" if not expected_permissions else "{contents: read}"
+    return [f"{path}: top-level permissions must be exactly '{expected}'"]
 
 
 def validate_workflow_trust_boundary(
