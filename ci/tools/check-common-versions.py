@@ -6,12 +6,14 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime as dt
+import hashlib
 import json
 import os
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -36,6 +38,8 @@ SHA256_VALUE_RE = re.compile(r"^[a-f0-9]{64}$")
 GIT_COMMIT_SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_REF_RE = re.compile(r"^(?!.*\.\.)(?!/)(?!.*//)[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
 SAFE_VERSION_RE = re.compile(r"^\d+(?:\.\d+)+$")
+RELEASE_TAG_RE = re.compile(r"^v\d+\.\d+\.\d+$")
+MODSECURITY_V3_RELEASE_TAG_RE = re.compile(r"^v3\.\d+\.\d+$")
 SAFE_HTTPS_HOST_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?$")
 SAFE_HTTPS_PATH_RE = re.compile(r"^/[A-Za-z0-9._~/-]*$")
 URL_PATH_DYNAMIC_VALUE_RE = re.compile(
@@ -77,6 +81,44 @@ STATUS_UNKNOWN = "unknown"
 STATUS_NOT_APPLICABLE = "not_applicable"
 STATUS_BLOCKED = "blocked"
 STATUS_ERROR = "error"
+STATUS_REVIEW_REQUIRED = "review_required"
+
+MAINTENANCE_OUTCOME_NO_UPDATES = "no_updates"
+MAINTENANCE_OUTCOME_MANUAL_REVIEW_ONLY = "manual_review_only"
+MAINTENANCE_OUTCOME_SAFE_UPDATES = "safe_updates"
+MAINTENANCE_OUTCOME_SAFE_UPDATES_WITH_MANUAL_REVIEW = "safe_updates_with_manual_review"
+MAINTENANCE_OUTCOME_FATAL = "fatal"
+MAINTENANCE_OUTCOMES = frozenset(
+    {
+        MAINTENANCE_OUTCOME_NO_UPDATES,
+        MAINTENANCE_OUTCOME_MANUAL_REVIEW_ONLY,
+        MAINTENANCE_OUTCOME_SAFE_UPDATES,
+        MAINTENANCE_OUTCOME_SAFE_UPDATES_WITH_MANUAL_REVIEW,
+        MAINTENANCE_OUTCOME_FATAL,
+    }
+)
+FATAL_STATUSES = frozenset({STATUS_UNKNOWN, STATUS_BLOCKED, STATUS_ERROR})
+CRS_COMPONENT = "OWASP Core Rule Set"
+CRS_APPROVED_REPOSITORY = "coreruleset/coreruleset"
+MODSECURITY_V3_APPROVED_REPOSITORY = "owasp-modsecurity/ModSecurity"
+MANUAL_REVIEW_VARIABLES = {
+    CRS_COMPONENT: (
+        "CRS_APPROVED_REPO_URL",
+        "CRS_RELEASE_TAG",
+        "CRS_APPROVED_COMMIT",
+        "CRS_REPO_URL",
+        "CRS_GIT_REF",
+    ),
+    MODSECURITY_V3_COMPONENT: (
+        "MODSECURITY_V3_APPROVED_REPO_URL",
+        "MODSECURITY_V3_RELEASE_TAG",
+        "MODSECURITY_V3_APPROVED_COMMIT",
+        "MODSECURITY_REPO_URL",
+        "MODSECURITY_GIT_REF",
+        "MODSECURITY_V3_GIT_URL",
+        "MODSECURITY_V3_GIT_REF",
+    ),
+}
 
 
 class UpstreamBlocked(RuntimeError):
@@ -123,11 +165,28 @@ class ComponentResult:
     details: dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
+@dataclasses.dataclass(frozen=True)
+class MaintenanceDisposition:
+    """Classify a checked candidate without relaxing fatal source states."""
+
+    outcome: str
+    safe_updates_available: bool
+    manual_review_required: bool
+    manual_review_components: tuple[str, ...]
+    fatal_components: tuple[str, ...]
+    automatic_updates: tuple[UpdateChange, ...]
+    automatic_update_variables: tuple[str, ...]
+
+
 def validate_entries(entries: dict[str, VariableEntry]) -> list[str]:
     """Return tracked variables that resolve to empty without being documented as optional."""
     missing: list[str] = []
     for item in sorted(entries.values(), key=lambda current: current.line):
-        if item.tracked and not item.resolved and item.name not in OPTIONAL_EMPTY_VARIABLES:
+        if (
+            item.tracked
+            and not item.resolved
+            and item.name not in OPTIONAL_EMPTY_VARIABLES
+        ):
             missing.append(item.name)
     return missing
 
@@ -208,8 +267,9 @@ def parse_common_assignment(line: str) -> tuple[str, str, str] | None:
     return "literal-assignment", name, match.group(2)
 
 
-def parse_common(common_sh: Path) -> tuple[list[str], dict[str, VariableEntry]]:
-    lines = common_sh.read_text(encoding="utf-8").splitlines()
+def parse_common_lines(lines: list[str]) -> dict[str, VariableEntry]:
+    """Parse already-rendered common.sh lines without touching a write target."""
+
     entries: dict[str, VariableEntry] = {}
     resolved: dict[str, str] = {}
 
@@ -230,7 +290,12 @@ def parse_common(common_sh: Path) -> tuple[list[str], dict[str, VariableEntry]]:
             tracked=tracked,
             style=style,
         )
-    return lines, entries
+    return entries
+
+
+def parse_common(common_sh: Path) -> tuple[list[str], dict[str, VariableEntry]]:
+    lines = common_sh.read_text(encoding="utf-8").splitlines()
+    return lines, parse_common_lines(lines)
 
 
 def entry(entries: dict[str, VariableEntry], name: str) -> VariableEntry | None:
@@ -259,7 +324,9 @@ def require_safe_https_update_url(
         port = parsed.port
         hostname = parsed.hostname
     except ValueError as exc:
-        raise UpstreamError(f"refusing invalid HTTPS URL for {variable}: {new_default!r}") from exc
+        raise UpstreamError(
+            f"refusing invalid HTTPS URL for {variable}: {new_default!r}"
+        ) from exc
     if (
         parsed.scheme != "https"
         or not parsed.netloc
@@ -275,7 +342,9 @@ def require_safe_https_update_url(
         or ".." in parsed.path
         or "//" in parsed.path
     ):
-        raise UpstreamError(f"refusing invalid HTTPS URL for {variable}: {new_default!r}")
+        raise UpstreamError(
+            f"refusing invalid HTTPS URL for {variable}: {new_default!r}"
+        )
     if trusted_default is None:
         return
     trusted = urlparse(trusted_default)
@@ -314,21 +383,51 @@ def require_shell_safe_default(
 ) -> None:
     if not isinstance(new_default, str) or not new_default:
         raise UpstreamError(f"refusing empty or non-text shell default for {variable}")
-    if any(ch in new_default for ch in (" ", "\t", "\n", "$", "`", "\"", "'", ";", "{", "}", "(", ")", "#", "&", "|", "<", ">", "\\")):
-        raise UpstreamError(f"refusing unsafe shell default for {variable}: {new_default!r}")
+    if any(
+        ch in new_default
+        for ch in (
+            " ",
+            "\t",
+            "\n",
+            "$",
+            "`",
+            '"',
+            "'",
+            ";",
+            "{",
+            "}",
+            "(",
+            ")",
+            "#",
+            "&",
+            "|",
+            "<",
+            ">",
+            "\\",
+        )
+    ):
+        raise UpstreamError(
+            f"refusing unsafe shell default for {variable}: {new_default!r}"
+        )
     if variable == "VERSION" or variable.endswith("_VERSION"):
         if not SAFE_VERSION_RE.fullmatch(new_default):
-            raise UpstreamError(f"refusing invalid version for {variable}: {new_default!r}")
+            raise UpstreamError(
+                f"refusing invalid version for {variable}: {new_default!r}"
+            )
         return
     if variable == "SHA256" or variable.endswith("_SHA256"):
         if not SHA256_VALUE_RE.fullmatch(new_default):
-            raise UpstreamError(f"refusing invalid SHA-256 value for {variable}: {new_default!r}")
+            raise UpstreamError(
+                f"refusing invalid SHA-256 value for {variable}: {new_default!r}"
+            )
         return
     if variable == "URL" or variable.endswith("_URL"):
         require_safe_https_update_url(variable, new_default, trusted_default)
         return
     if ".." in new_default or new_default.startswith("/") or "//" in new_default:
-        raise UpstreamError(f"refusing traversal-like shell default for {variable}: {new_default!r}")
+        raise UpstreamError(
+            f"refusing traversal-like shell default for {variable}: {new_default!r}"
+        )
 
 
 def plan_update(
@@ -344,7 +443,9 @@ def plan_update(
         return None
     if current.default == new_default:
         return None
-    return UpdateChange(variable=variable, line=current.line, old=current.default, new=new_default)
+    return UpdateChange(
+        variable=variable, line=current.line, old=current.default, new=new_default
+    )
 
 
 def is_template_value(raw_default: str, variable: str) -> bool:
@@ -364,10 +465,9 @@ def replace_default_line(line: str, variable: str, new_default: str) -> str:
     raise UpstreamError(f"cannot safely update line for {variable}: {line}")
 
 
-def apply_updates(common_sh: Path, lines: list[str], updates: list[UpdateChange]) -> None:
-    if not updates:
-        return
-    target = require_safe_common_sh_update_target(common_sh)
+def render_updated_lines(lines: list[str], updates: list[UpdateChange]) -> list[str]:
+    """Validate and render an update plan without mutating its target."""
+
     seen: set[str] = set()
     replacements: list[tuple[int, str]] = []
     for update in updates:
@@ -375,20 +475,42 @@ def apply_updates(common_sh: Path, lines: list[str], updates: list[UpdateChange]
             raise UpstreamError(f"duplicate update for {update.variable}")
         seen.add(update.variable)
         if update.line < 1:
-            raise UpstreamError(f"invalid update line for {update.variable}: {update.line}")
+            raise UpstreamError(
+                f"invalid update line for {update.variable}: {update.line}"
+            )
         index = update.line - 1
         try:
             current_line = lines[index]
         except IndexError as exc:
-            raise UpstreamError(f"invalid update line for {update.variable}: {update.line}") from exc
+            raise UpstreamError(
+                f"invalid update line for {update.variable}: {update.line}"
+            ) from exc
         assignment = parse_common_assignment(current_line)
-        if assignment is None or assignment[1] != update.variable or assignment[2] != update.old:
-            raise UpstreamError(f"update no longer matches {update.variable} at line {update.line}")
+        if (
+            assignment is None
+            or assignment[1] != update.variable
+            or assignment[2] != update.old
+        ):
+            raise UpstreamError(
+                f"update no longer matches {update.variable} at line {update.line}"
+            )
         require_shell_safe_default(update.variable, update.new, assignment[2])
-        replacements.append((index, replace_default_line(current_line, update.variable, update.new)))
+        replacements.append(
+            (index, replace_default_line(current_line, update.variable, update.new))
+        )
     updated_lines = list(lines)
     for index, replacement in replacements:
         updated_lines[index] = replacement
+    return updated_lines
+
+
+def apply_updates(
+    common_sh: Path, lines: list[str], updates: list[UpdateChange]
+) -> None:
+    if not updates:
+        return
+    target = require_safe_common_sh_update_target(common_sh)
+    updated_lines = render_updated_lines(lines, updates)
     target.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
 
 
@@ -440,7 +562,11 @@ def compare_versions(left: str, right: str) -> int:
 def same_series(left: str, right: str) -> bool:
     left_tuple = version_tuple(left)
     right_tuple = version_tuple(right)
-    return len(left_tuple) >= 2 and len(right_tuple) >= 2 and left_tuple[:2] == right_tuple[:2]
+    return (
+        len(left_tuple) >= 2
+        and len(right_tuple) >= 2
+        and left_tuple[:2] == right_tuple[:2]
+    )
 
 
 def markdown_escape(value_text: str) -> str:
@@ -528,9 +654,15 @@ def latest_from_listing(
     pattern = re.compile(
         rf"{re.escape(filename_prefix)}-(\d+(?:\.\d+)+){re.escape(extension)}"
     )
-    versions = sorted({match.group(1) for match in pattern.finditer(html)}, key=version_tuple)
+    versions = sorted(
+        {match.group(1) for match in pattern.finditer(html)}, key=version_tuple
+    )
     if restrict_to_current_series:
-        versions = [candidate for candidate in versions if same_series(candidate, current_version)]
+        versions = [
+            candidate
+            for candidate in versions
+            if same_series(candidate, current_version)
+        ]
     if not versions:
         raise UpstreamUnknown(
             f"No safe updater implemented for this source yet: no matching {filename_prefix} "
@@ -810,15 +942,24 @@ def haproxy_source_series(current_url: str, current_version: str) -> str | None:
     return match.group(1)
 
 
-def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> ComponentResult:
-    variables = ["HAPROXY_VERSION", "HAPROXY_SOURCE_URL", "HAPROXY_SHA256_URL", "HAPROXY_SHA256"]
+def check_haproxy(
+    entries: dict[str, VariableEntry], client: HttpClient
+) -> ComponentResult:
+    variables = [
+        "HAPROXY_VERSION",
+        "HAPROXY_SOURCE_URL",
+        "HAPROXY_SHA256_URL",
+        "HAPROXY_SHA256",
+    ]
     missing_result = missing_variables_result("HAProxy", entries, variables)
     if missing_result is not None:
         return missing_result
     current_version = value(entries, "HAPROXY_VERSION")
     current_url = value(entries, "HAPROXY_SOURCE_URL")
     configured_sha = value(entries, "HAPROXY_SHA256").lower()
-    current_sha_url = value(entries, "HAPROXY_SHA256_URL") or current_url + SHA256_SUFFIX
+    current_sha_url = (
+        value(entries, "HAPROXY_SHA256_URL") or current_url + SHA256_SUFFIX
+    )
     series = haproxy_source_series(current_url, current_version)
     if series is None:
         return ComponentResult(
@@ -828,7 +969,9 @@ def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> Comp
             variables=variables,
             current=current_version,
             source=current_url,
-            details={"reason": "source URL is not the expected official HAProxy tarball URL"},
+            details={
+                "reason": "source URL is not the expected official HAProxy tarball URL"
+            },
         )
     if not configured_sha:
         return ComponentResult(
@@ -894,7 +1037,9 @@ def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> Comp
             },
         )
 
-    official_current_sha = fetch_sha256(client, current_sha_url, f"haproxy-{current_version}.tar.gz")
+    official_current_sha = fetch_sha256(
+        client, current_sha_url, f"haproxy-{current_version}.tar.gz"
+    )
     if configured_sha != official_current_sha:
         updates: list[UpdateChange] = []
         append_planned_update(updates, entries, "HAPROXY_SHA256", official_current_sha)
@@ -927,7 +1072,12 @@ def check_haproxy(entries: dict[str, VariableEntry], client: HttpClient) -> Comp
 
 def github_repo_path(repo_url: str) -> str | None:
     parsed = urlparse(repo_url.strip())
-    if parsed.scheme != "https" or parsed.netloc != "github.com" or parsed.query or parsed.fragment:
+    if (
+        parsed.scheme != "https"
+        or parsed.netloc != "github.com"
+        or parsed.query
+        or parsed.fragment
+    ):
         return None
     repo = parsed.path.removeprefix("/").removesuffix(".git").strip("/")
     parts = repo.split("/")
@@ -940,17 +1090,25 @@ def latest_github_release(client: HttpClient, repo_path: str) -> dict[str, Any]:
     return client.get_json(f"https://api.github.com/repos/{repo_path}/releases/latest")
 
 
-def github_release_by_tag(client: HttpClient, repo_path: str, tag: str) -> dict[str, Any]:
-    return client.get_json(f"https://api.github.com/repos/{repo_path}/releases/tags/{tag}")
+def github_release_by_tag(
+    client: HttpClient, repo_path: str, tag: str
+) -> dict[str, Any]:
+    return client.get_json(
+        f"https://api.github.com/repos/{repo_path}/releases/tags/{tag}"
+    )
 
 
 def release_tag_name(release: dict[str, Any], repo_path: str) -> str:
     tag = release.get("tag_name")
     if not isinstance(tag, str) or not tag.strip():
-        raise UpstreamUnknown(f"GitHub latest release for {repo_path} did not include tag_name")
+        raise UpstreamUnknown(
+            f"GitHub latest release for {repo_path} did not include tag_name"
+        )
     tag = tag.strip()
     if not SAFE_REF_RE.fullmatch(tag):
-        raise UpstreamError(f"GitHub release tag for {repo_path} is not shell-safe: {tag!r}")
+        raise UpstreamError(
+            f"GitHub release tag for {repo_path} is not shell-safe: {tag!r}"
+        )
     return tag
 
 
@@ -975,7 +1133,11 @@ def check_github_release_ref(
             source=repo_url,
             details={"reason": "repository URL or ref is empty"},
         )
-    if not SAFE_REF_RE.fullmatch(current_ref) or current_ref in {"latest", "master", "main"} or "/" in current_ref:
+    if (
+        not SAFE_REF_RE.fullmatch(current_ref)
+        or current_ref in {"latest", "master", "main"}
+        or "/" in current_ref
+    ):
         return ComponentResult(
             component=component,
             status=STATUS_UNKNOWN,
@@ -983,7 +1145,9 @@ def check_github_release_ref(
             variables=variables,
             current=current_ref,
             source=repo_url,
-            details={"reason": "ref is branch-like or dynamic, not a concrete release tag"},
+            details={
+                "reason": "ref is branch-like or dynamic, not a concrete release tag"
+            },
         )
     repo_path = github_repo_path(repo_url)
     if not repo_path:
@@ -994,7 +1158,9 @@ def check_github_release_ref(
             variables=variables,
             current=current_ref,
             source=repo_url,
-            details={"reason": "repository URL is not an official github.com owner/repo URL"},
+            details={
+                "reason": "repository URL is not an official github.com owner/repo URL"
+            },
         )
     latest_ref = release_tag_name(latest_github_release(client, repo_path), repo_path)
     comparison = compare_versions(current_ref, latest_ref)
@@ -1034,39 +1200,163 @@ def check_github_release_ref(
     )
 
 
+def manual_release_provenance_precondition(
+    component: str,
+    entries: dict[str, VariableEntry],
+    *,
+    expected_repository: str,
+    release_tag_var: str,
+    approved_commit_var: str,
+    expected_tag: re.Pattern[str],
+    aliases: dict[str, str],
+    variables: list[str],
+) -> ComponentResult | None:
+    """Validate the fixed tuple before deferring an atomic manual decision."""
+
+    repository_var = next(name for name in variables if name.endswith("_REPO_URL"))
+    repository_url = value(entries, repository_var)
+    current_tag = value(entries, release_tag_var)
+    if github_repo_path(repository_url) != expected_repository:
+        return ComponentResult(
+            component=component,
+            status=STATUS_UNKNOWN,
+            message="Reviewed release provenance must use its fixed official repository.",
+            variables=variables,
+            current=current_tag,
+            source=repository_url,
+            details={
+                "reason": "approved repository does not match the reviewed identity"
+            },
+        )
+    if expected_tag.fullmatch(current_tag) is None:
+        return ComponentResult(
+            component=component,
+            status=STATUS_UNKNOWN,
+            message="Reviewed release provenance must use its expected immutable release-tag form.",
+            variables=variables,
+            current=current_tag,
+            source=repository_url,
+            details={
+                "reason": "release tag is not in the reviewed component-specific form"
+            },
+        )
+    approved_commit = value(entries, approved_commit_var)
+    if GIT_COMMIT_SHA1_RE.fullmatch(approved_commit) is None:
+        return ComponentResult(
+            component=component,
+            status=STATUS_BLOCKED,
+            message=f"{approved_commit_var} must be a reviewed 40-hex immutable commit.",
+            variables=variables,
+            current=current_tag,
+            source=repository_url,
+            details={
+                "reason": f"{approved_commit_var} is required before release provenance can be checked"
+            },
+        )
+    for alias, expected_value in aliases.items():
+        if value(entries, alias) != expected_value:
+            return ComponentResult(
+                component=component,
+                status=STATUS_UNKNOWN,
+                message="Runtime release metadata must remain bound to the reviewed provenance tuple.",
+                variables=variables,
+                current=current_tag,
+                source=repository_url,
+                details={
+                    "reason": f"{alias} does not match its reviewed provenance value"
+                },
+            )
+    return None
+
+
+def review_required_release_result(
+    result: ComponentResult,
+    *,
+    expected_tag: re.Pattern[str],
+    manual_variables: tuple[str, ...],
+    message: str,
+    reason: str,
+) -> ComponentResult:
+    """Convert only a validated newer tag into an explicit manual review state."""
+
+    if result.status != STATUS_OUTDATED:
+        return result
+    if expected_tag.fullmatch(result.latest) is None:
+        return cast(
+            ComponentResult,
+            dataclasses.replace(
+                result,
+                status=STATUS_UNKNOWN,
+                updates=[],
+                message="Latest upstream release tag is outside the reviewed component-specific form.",
+                details={
+                    "reason": "latest release tag is outside the reviewed update contract"
+                },
+            ),
+        )
+    return cast(
+        ComponentResult,
+        dataclasses.replace(
+            result,
+            status=STATUS_REVIEW_REQUIRED,
+            updates=[],
+            message=message,
+            details={"reason": reason, "manual_variables": list(manual_variables)},
+        ),
+    )
+
+
 def check_crs_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
-    """Refuse to synthesize a CRS release-tag-to-commit provenance update."""
+    """Classify a valid CRS tag/commit transition as explicitly manual only."""
+
+    variables = [
+        "CRS_APPROVED_REPO_URL",
+        "CRS_RELEASE_TAG",
+        "CRS_APPROVED_COMMIT",
+        "CRS_REPO_URL",
+        "CRS_GIT_REF",
+    ]
+    precondition = manual_release_provenance_precondition(
+        CRS_COMPONENT,
+        entries,
+        expected_repository=CRS_APPROVED_REPOSITORY,
+        release_tag_var="CRS_RELEASE_TAG",
+        approved_commit_var="CRS_APPROVED_COMMIT",
+        expected_tag=RELEASE_TAG_RE,
+        aliases={
+            "CRS_REPO_URL": value(entries, "CRS_APPROVED_REPO_URL"),
+            "CRS_GIT_REF": value(entries, "CRS_RELEASE_TAG"),
+        },
+        variables=variables,
+    )
+    if precondition is not None:
+        return precondition
     result = check_github_release_ref(
-        "OWASP Core Rule Set",
+        CRS_COMPONENT,
         entries,
         client,
         repo_var="CRS_APPROVED_REPO_URL",
         ref_var="CRS_RELEASE_TAG",
     )
-    result.variables = [
-        "CRS_APPROVED_REPO_URL",
-        "CRS_RELEASE_TAG",
-        "CRS_APPROVED_COMMIT",
-    ]
-    if result.status == STATUS_OUTDATED:
-        result.status = STATUS_UNKNOWN
-        result.updates = []
-        result.message = (
+    result.variables = variables
+    return review_required_release_result(
+        result,
+        expected_tag=RELEASE_TAG_RE,
+        manual_variables=MANUAL_REVIEW_VARIABLES[CRS_COMPONENT],
+        message=(
             "A newer CRS release is available, but updating its release tag and immutable "
             "commit requires a reviewed provenance change."
-        )
-        result.details = {
-            "reason": "update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after commit provenance review"
-        }
-    return result
+        ),
+        reason="update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after commit provenance review",
+    )
 
 
 def check_modsecurity_v3_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
-    """Refuse to synthesize a ModSecurity v3 release-tag-to-commit update."""
+    """Classify a valid ModSecurity-v3 tag/commit transition as manual only."""
     variables = [
         "MODSECURITY_V3_APPROVED_REPO_URL",
         "MODSECURITY_V3_RELEASE_TAG",
@@ -1076,19 +1366,25 @@ def check_modsecurity_v3_release_provenance(
         "MODSECURITY_V3_GIT_URL",
         "MODSECURITY_V3_GIT_REF",
     ]
-    approved_commit = value(entries, "MODSECURITY_V3_APPROVED_COMMIT")
-    if GIT_COMMIT_SHA1_RE.fullmatch(approved_commit) is None:
-        return ComponentResult(
-            component=MODSECURITY_V3_COMPONENT,
-            status=STATUS_BLOCKED,
-            message="MODSECURITY_V3_APPROVED_COMMIT must be a reviewed 40-hex immutable commit.",
-            variables=variables,
-            current=value(entries, "MODSECURITY_V3_RELEASE_TAG"),
-            source=value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"),
-            details={
-                "reason": "MODSECURITY_V3_APPROVED_COMMIT is required before release provenance can be checked"
-            },
-        )
+    precondition = manual_release_provenance_precondition(
+        MODSECURITY_V3_COMPONENT,
+        entries,
+        expected_repository=MODSECURITY_V3_APPROVED_REPOSITORY,
+        release_tag_var="MODSECURITY_V3_RELEASE_TAG",
+        approved_commit_var="MODSECURITY_V3_APPROVED_COMMIT",
+        expected_tag=MODSECURITY_V3_RELEASE_TAG_RE,
+        aliases={
+            "MODSECURITY_REPO_URL": value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"),
+            "MODSECURITY_GIT_REF": value(entries, "MODSECURITY_V3_RELEASE_TAG"),
+            "MODSECURITY_V3_GIT_URL": value(
+                entries, "MODSECURITY_V3_APPROVED_REPO_URL"
+            ),
+            "MODSECURITY_V3_GIT_REF": value(entries, "MODSECURITY_V3_RELEASE_TAG"),
+        },
+        variables=variables,
+    )
+    if precondition is not None:
+        return precondition
     result = check_github_release_ref(
         MODSECURITY_V3_COMPONENT,
         entries,
@@ -1097,17 +1393,19 @@ def check_modsecurity_v3_release_provenance(
         ref_var="MODSECURITY_V3_RELEASE_TAG",
     )
     result.variables = variables
-    if result.status == STATUS_OUTDATED:
-        result.status = STATUS_UNKNOWN
-        result.updates = []
-        result.message = (
+    return review_required_release_result(
+        result,
+        expected_tag=MODSECURITY_V3_RELEASE_TAG_RE,
+        manual_variables=MANUAL_REVIEW_VARIABLES[MODSECURITY_V3_COMPONENT],
+        message=(
             "A newer ModSecurity v3 release is available, but updating its release tag and "
             "immutable commit requires a reviewed provenance change."
-        )
-        result.details = {
-            "reason": "update MODSECURITY_V3_RELEASE_TAG and MODSECURITY_V3_APPROVED_COMMIT together after commit provenance review"
-        }
-    return result
+        ),
+        reason=(
+            "update MODSECURITY_V3_RELEASE_TAG and MODSECURITY_V3_APPROVED_COMMIT "
+            "together after commit provenance review"
+        ),
+    )
 
 
 def release_asset_metadata(release: dict[str, Any], asset_name: str) -> dict[str, Any]:
@@ -1131,7 +1429,9 @@ def find_release_asset(release: dict[str, Any], asset_name: str) -> str:
     asset = release_asset_metadata(release, asset_name)
     url = asset.get("browser_download_url")
     if not isinstance(url, str) or not url:
-        raise UpstreamUnknown(f"GitHub release asset {asset_name} has no browser download URL")
+        raise UpstreamUnknown(
+            f"GitHub release asset {asset_name} has no browser download URL"
+        )
     return url
 
 
@@ -1139,10 +1439,14 @@ def release_asset_sha256(release: dict[str, Any], asset_name: str) -> str:
     asset = release_asset_metadata(release, asset_name)
     digest = asset.get("digest")
     if not isinstance(digest, str):
-        raise UpstreamUnknown(f"GitHub release asset {asset_name} has no published digest")
+        raise UpstreamUnknown(
+            f"GitHub release asset {asset_name} has no published digest"
+        )
     match = re.fullmatch(r"sha256:([A-Fa-f0-9]{64})", digest.strip())
     if not match:
-        raise UpstreamUnknown(f"GitHub release asset {asset_name} has no usable SHA-256 digest")
+        raise UpstreamUnknown(
+            f"GitHub release asset {asset_name} has no usable SHA-256 digest"
+        )
     return match.group(1).lower()
 
 
@@ -1150,7 +1454,9 @@ def nginx_release_asset_name(release_tag: str) -> str:
     version = release_tag.removeprefix("release-")
     asset_name = f"nginx-{version}.tar.gz"
     if ".." in asset_name or not NGINX_RELEASE_ASSET_RE.fullmatch(asset_name):
-        raise UpstreamError(f"NGINX release tag cannot form a safe release asset name: {release_tag!r}")
+        raise UpstreamError(
+            f"NGINX release tag cannot form a safe release asset name: {release_tag!r}"
+        )
     return asset_name
 
 
@@ -1196,7 +1502,11 @@ def check_nginx_release_provenance(
             current=current,
             source=repo_url,
         )
-    if release_tag == "latest" or not SAFE_REF_RE.fullmatch(release_tag) or "/" in release_tag:
+    if (
+        release_tag == "latest"
+        or not SAFE_REF_RE.fullmatch(release_tag)
+        or "/" in release_tag
+    ):
         return ComponentResult(
             component="NGINX",
             status=STATUS_UNKNOWN,
@@ -1248,7 +1558,9 @@ def check_nginx_release_provenance(
             details={"resolved_release_tag": resolved_tag},
         )
     official_asset_url = find_release_asset(current_release, asset_name)
-    expected_asset_url = f"https://github.com/{repo_path}/releases/download/{release_tag}/{asset_name}"
+    expected_asset_url = (
+        f"https://github.com/{repo_path}/releases/download/{release_tag}/{asset_name}"
+    )
     if official_asset_url != expected_asset_url:
         return ComponentResult(
             component="NGINX",
@@ -1257,7 +1569,10 @@ def check_nginx_release_provenance(
             variables=variables,
             current=current,
             source=f"https://github.com/{repo_path}/releases/tag/{release_tag}",
-            details={"official_asset_url": official_asset_url, "expected_asset_url": expected_asset_url},
+            details={
+                "official_asset_url": official_asset_url,
+                "expected_asset_url": expected_asset_url,
+            },
         )
     official_sha256 = release_asset_sha256(current_release, asset_name)
     if configured_sha256 != official_sha256:
@@ -1283,12 +1598,22 @@ def check_nginx_release_provenance(
         current=current,
         latest=release_tag,
         source=f"https://github.com/{repo_path}/releases/tags/{release_tag}",
-        details={"official_asset_url": official_asset_url, "official_asset_sha256": official_sha256},
+        details={
+            "official_asset_url": official_asset_url,
+            "official_asset_sha256": official_sha256,
+        },
     )
 
 
-def check_pcre2(entries: dict[str, VariableEntry], client: HttpClient) -> ComponentResult:
-    variables = ["PCRE2_VERSION", "PCRE2_SOURCE_URL", "PCRE2_SHA256", "PCRE2_SHA256_URL"]
+def check_pcre2(
+    entries: dict[str, VariableEntry], client: HttpClient
+) -> ComponentResult:
+    variables = [
+        "PCRE2_VERSION",
+        "PCRE2_SOURCE_URL",
+        "PCRE2_SHA256",
+        "PCRE2_SHA256_URL",
+    ]
     missing = [name for name in variables if name not in entries]
     if missing:
         return ComponentResult(
@@ -1303,7 +1628,11 @@ def check_pcre2(entries: dict[str, VariableEntry], client: HttpClient) -> Compon
         r"https://github\.com/([^/]+/[^/]+)/releases/download/pcre2-(\d+(?:\.\d+)+)/pcre2-(\d+(?:\.\d+)+)\.tar\.bz2",
         current_url,
     )
-    if not match or match.group(2) != current_version or match.group(3) != current_version:
+    if (
+        not match
+        or match.group(2) != current_version
+        or match.group(3) != current_version
+    ):
         return ComponentResult(
             component="PCRE2",
             status=STATUS_UNKNOWN,
@@ -1311,7 +1640,9 @@ def check_pcre2(entries: dict[str, VariableEntry], client: HttpClient) -> Compon
             variables=variables,
             current=current_version,
             source=current_url,
-            details={"reason": "source URL is not the expected official GitHub release asset URL"},
+            details={
+                "reason": "source URL is not the expected official GitHub release asset URL"
+            },
         )
     repo_path = match.group(1)
     latest_release = latest_github_release(client, repo_path)
@@ -1354,8 +1685,12 @@ def check_pcre2(entries: dict[str, VariableEntry], client: HttpClient) -> Compon
             details={"latest_source_url": latest_asset_url},
         )
 
-    current_release = github_release_by_tag(client, repo_path, f"pcre2-{current_version}")
-    current_asset_url = find_release_asset(current_release, f"pcre2-{current_version}{ARCHIVE_BZ2_EXTENSION}")
+    current_release = github_release_by_tag(
+        client, repo_path, f"pcre2-{current_version}"
+    )
+    current_asset_url = find_release_asset(
+        current_release, f"pcre2-{current_version}{ARCHIVE_BZ2_EXTENSION}"
+    )
     if current_asset_url != current_url:
         update = plan_update(entries, "PCRE2_SOURCE_URL", current_asset_url)
         updates = [update] if update else []
@@ -1392,7 +1727,9 @@ def unknown_component(
         status=STATUS_UNKNOWN,
         message=NO_SAFE_UPDATER_MESSAGE,
         variables=variables,
-        current=", ".join(f"{name}={value(entries, name)}" for name in variables if name in entries),
+        current=", ".join(
+            f"{name}={value(entries, name)}" for name in variables if name in entries
+        ),
         details={"reason": reason},
     )
 
@@ -1417,9 +1754,14 @@ def not_applicable_component(
     )
 
 
-def check_all(entries: dict[str, VariableEntry], client: HttpClient) -> list[ComponentResult]:
+def check_all(
+    entries: dict[str, VariableEntry], client: HttpClient
+) -> list[ComponentResult]:
     checks: list[ComponentResult] = []
-    nginx_check = lambda: check_nginx_release_provenance(entries, client)
+
+    def nginx_check() -> ComponentResult:
+        return check_nginx_release_provenance(entries, client)
+
     component_calls = [
         (
             "OWASP Core Rule Set",
@@ -1561,6 +1903,288 @@ def flatten_updates(results: list[ComponentResult]) -> list[UpdateChange]:
     return sorted(ordered.values(), key=lambda update: update.line)
 
 
+def append_unique(values: list[str], value: str) -> None:
+    if value not in values:
+        values.append(value)
+
+
+def reviewed_manual_variables(result: ComponentResult) -> tuple[str, ...] | None:
+    """Return the only manual pin set that may be deferred by maintenance mode."""
+
+    expected = MANUAL_REVIEW_VARIABLES.get(result.component)
+    declared = result.details.get("manual_variables")
+    if (
+        expected is None
+        or result.updates
+        or not isinstance(declared, list)
+        or declared != list(expected)
+    ):
+        return None
+    return expected
+
+
+def manual_review_pin_values(
+    results: list[ComponentResult], entries: dict[str, VariableEntry]
+) -> dict[str, str]:
+    """Capture exact reviewed-pin source lines for a later byte-for-byte check."""
+
+    values: dict[str, str] = {}
+    for result in results:
+        if result.status != STATUS_REVIEW_REQUIRED:
+            continue
+        variables = reviewed_manual_variables(result)
+        if variables is None:
+            raise UpstreamError(
+                f"manual review metadata is invalid for {result.component}"
+            )
+        for variable in variables:
+            current = entry(entries, variable)
+            if current is None:
+                raise UpstreamError(
+                    f"manual review pin {variable} is missing for {result.component}"
+                )
+            previous = values.get(variable)
+            if previous is not None and previous != current.raw:
+                raise UpstreamError(
+                    f"manual review pin {variable} has conflicting source lines"
+                )
+            values[variable] = current.raw
+    return values
+
+
+def manual_review_pin_digest(
+    results: list[ComponentResult], entries: dict[str, VariableEntry]
+) -> str:
+    """Hash a canonical, non-secret proof of the exact manual pin source lines."""
+
+    pins = manual_review_pin_values(results, entries)
+    if not pins:
+        return ""
+    payload = "".join(f"{name}\0{pins[name]}\n" for name in sorted(pins))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def require_manual_review_pins_unchanged(
+    before: dict[str, str], after: dict[str, VariableEntry]
+) -> None:
+    """Reject a candidate if an automatic plan touched a manual source line."""
+
+    for variable, raw_line in before.items():
+        updated = entry(after, variable)
+        if updated is None or updated.raw != raw_line:
+            raise UpstreamError(
+                f"automatic candidate changed manual review pin {variable}"
+            )
+
+
+def manual_review_variable_names(results: list[ComponentResult]) -> set[str]:
+    """Return the declared manual variables from already-recognized review rows."""
+
+    names: set[str] = set()
+    for result in results:
+        if result.status != STATUS_REVIEW_REQUIRED:
+            continue
+        reviewed = reviewed_manual_variables(result)
+        if reviewed is not None:
+            names.update(reviewed)
+    return names
+
+
+def update_matches_automatic_plan(
+    update: UpdateChange,
+    result: ComponentResult,
+    entries: dict[str, VariableEntry],
+    manual_variables: set[str],
+) -> bool:
+    """Accept only an exact automatic update that cannot touch a manual pin."""
+
+    current = entry(entries, update.variable)
+    try:
+        require_shell_safe_default(
+            update.variable,
+            update.old,
+            current.default if current is not None else None,
+        )
+        require_shell_safe_default(
+            update.variable,
+            update.new,
+            current.default if current is not None else None,
+        )
+    except UpstreamError:
+        return False
+    return bool(
+        current is not None
+        and update.variable in result.variables
+        and update.line == current.line
+        and update.old == current.default
+        and update.variable not in manual_variables
+    )
+
+
+def automatic_plan_errors(
+    automatic_results: list[ComponentResult],
+    entries: dict[str, VariableEntry],
+    manual_variables: set[str],
+) -> list[str]:
+    """Return every component whose automatic update set is incomplete or unsafe."""
+
+    invalid_components: list[str] = []
+    seen_variables: dict[str, str] = {}
+    for result in automatic_results:
+        if not result.updates:
+            append_unique(invalid_components, result.component)
+            continue
+        for update in result.updates:
+            if not update_matches_automatic_plan(
+                update, result, entries, manual_variables
+            ):
+                append_unique(invalid_components, result.component)
+                continue
+            previous_component = seen_variables.get(update.variable)
+            if previous_component is not None:
+                append_unique(invalid_components, result.component)
+                append_unique(invalid_components, previous_component)
+                continue
+            seen_variables[update.variable] = result.component
+    return invalid_components
+
+
+def maintenance_update_plan(
+    results: list[ComponentResult], entries: dict[str, VariableEntry]
+) -> tuple[list[UpdateChange], list[str]]:
+    """Return only complete automatic plans, or their affected fatal components."""
+
+    automatic_results = [
+        result for result in results if result.status == STATUS_OUTDATED
+    ]
+    plan_errors = automatic_plan_errors(
+        automatic_results,
+        entries,
+        manual_review_variable_names(results),
+    )
+    if plan_errors:
+        return [], plan_errors
+    try:
+        updates = flatten_updates(automatic_results)
+    except UpstreamError:
+        return [], [result.component for result in automatic_results]
+    expected_count = sum(len(result.updates) for result in automatic_results)
+    if len(updates) != expected_count:
+        return [], [result.component for result in automatic_results]
+    return updates, []
+
+
+def reviewed_component_groups(
+    results: list[ComponentResult],
+) -> tuple[list[str], list[str]]:
+    """Separate fail-closed statuses from explicitly recognized manual review."""
+
+    fatal_components: list[str] = []
+    manual_components: list[str] = []
+    for result in results:
+        if result.status in FATAL_STATUSES:
+            append_unique(fatal_components, result.component)
+        elif result.status == STATUS_REVIEW_REQUIRED:
+            destination = (
+                manual_components
+                if reviewed_manual_variables(result) is not None
+                else fatal_components
+            )
+            append_unique(destination, result.component)
+    return fatal_components, manual_components
+
+
+def append_review_components_as_fatal(
+    fatal_components: list[str], results: list[ComponentResult]
+) -> None:
+    """Preserve failure when a reviewed pin snapshot cannot be proven exact."""
+
+    for result in results:
+        if result.status == STATUS_REVIEW_REQUIRED:
+            append_unique(fatal_components, result.component)
+
+
+def manual_review_pins_are_valid(
+    results: list[ComponentResult], entries: dict[str, VariableEntry]
+) -> bool:
+    try:
+        manual_review_pin_values(results, entries)
+    except UpstreamError:
+        return False
+    return True
+
+
+def append_unique_values(destination: list[str], values: list[str]) -> None:
+    for value in values:
+        append_unique(destination, value)
+
+
+def build_maintenance_disposition(
+    fatal_components: list[str],
+    manual_components: list[str],
+    automatic_updates: list[UpdateChange],
+) -> MaintenanceDisposition:
+    """Construct the sole terminal disposition after every safety check ran."""
+
+    if fatal_components:
+        return MaintenanceDisposition(
+            outcome=MAINTENANCE_OUTCOME_FATAL,
+            safe_updates_available=False,
+            manual_review_required=bool(manual_components),
+            manual_review_components=tuple(manual_components),
+            fatal_components=tuple(fatal_components),
+            automatic_updates=(),
+            automatic_update_variables=(),
+        )
+
+    safe_updates_available = bool(automatic_updates)
+    if safe_updates_available:
+        outcome = (
+            MAINTENANCE_OUTCOME_SAFE_UPDATES_WITH_MANUAL_REVIEW
+            if manual_components
+            else MAINTENANCE_OUTCOME_SAFE_UPDATES
+        )
+    else:
+        outcome = (
+            MAINTENANCE_OUTCOME_MANUAL_REVIEW_ONLY
+            if manual_components
+            else MAINTENANCE_OUTCOME_NO_UPDATES
+        )
+    return MaintenanceDisposition(
+        outcome=outcome,
+        safe_updates_available=safe_updates_available,
+        manual_review_required=bool(manual_components),
+        manual_review_components=tuple(manual_components),
+        fatal_components=(),
+        automatic_updates=tuple(automatic_updates),
+        automatic_update_variables=tuple(
+            update.variable for update in automatic_updates
+        ),
+    )
+
+
+def maintenance_disposition(
+    results: list[ComponentResult],
+    entries: dict[str, VariableEntry],
+    *,
+    defer_reviewed_provenance: bool,
+) -> MaintenanceDisposition:
+    """Classify maintenance work without converting unsafe states into success."""
+
+    fatal_components, manual_components = reviewed_component_groups(results)
+    if not manual_review_pins_are_valid(results, entries):
+        append_review_components_as_fatal(fatal_components, results)
+    if manual_components and not defer_reviewed_provenance:
+        append_unique_values(fatal_components, manual_components)
+    automatic_updates, plan_errors = maintenance_update_plan(results, entries)
+    append_unique_values(fatal_components, plan_errors)
+    return build_maintenance_disposition(
+        fatal_components,
+        manual_components,
+        automatic_updates,
+    )
+
+
 def result_to_dict(result: ComponentResult) -> dict[str, Any]:
     data = dataclasses.asdict(result)
     data["updates"] = [dataclasses.asdict(update) for update in result.updates]
@@ -1572,14 +2196,28 @@ def make_summary(
     entries: dict[str, VariableEntry],
     results: list[ComponentResult],
     updates_applied: list[UpdateChange],
+    disposition: MaintenanceDisposition,
 ) -> dict[str, Any]:
     counts: dict[str, int] = {}
     for result in results:
         counts[result.status] = counts.get(result.status, 0) + 1
     missing_required = validate_entries(entries)
+    manual_review_pins_sha256 = (
+        manual_review_pin_digest(results, entries)
+        if disposition.manual_review_required
+        else ""
+    )
     return {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "common_sh": str(common_sh),
+        "maintenance_outcome": disposition.outcome,
+        "safe_updates_available": disposition.safe_updates_available,
+        "manual_review_required": disposition.manual_review_required,
+        "manual_review_components": list(disposition.manual_review_components),
+        "manual_review_pins_preserved": disposition.manual_review_required,
+        "manual_review_pins_sha256": manual_review_pins_sha256,
+        "automatic_update_variables": list(disposition.automatic_update_variables),
+        "fatal_components": list(disposition.fatal_components),
         "status_counts": counts,
         "components": [result_to_dict(result) for result in results],
         "inventory": inventory(entries),
@@ -1588,57 +2226,69 @@ def make_summary(
     }
 
 
-def markdown_summary(summary: dict[str, Any]) -> str:
-    lines = [
-        "# common.sh version check",
-        "",
-        f"- Generated: `{summary['generated_at']}`",
-        f"- File: `{summary['common_sh']}`",
-        "",
-        "## Components",
-        "",
-        "| Komponente | aktuelle Version | neueste Version | Status | Aktion |",
-        "| --- | --- | --- | --- | --- |",
-    ]
-    for result in summary["components"]:
-        action = "none"
-        if result.get("updates"):
-            action = ", ".join(update["variable"] for update in result["updates"])
-        elif result["status"] == STATUS_UNKNOWN:
-            action = result.get("details", {}).get("reason") or "manual review"
-        elif result["status"] == STATUS_BLOCKED:
-            action = "retry when upstream is reachable"
+def markdown_component_action(result: dict[str, Any]) -> str:
+    """Describe a component action without changing its terminal status."""
+
+    if result.get("updates"):
+        return ", ".join(update["variable"] for update in result["updates"])
+    if result["status"] in {STATUS_UNKNOWN, STATUS_REVIEW_REQUIRED}:
+        return result.get("details", {}).get("reason") or "manual review"
+    if result["status"] == STATUS_BLOCKED:
+        return "retry when upstream is reachable"
+    return "none"
+
+
+def append_markdown_component_rows(
+    lines: list[str], components: list[dict[str, Any]]
+) -> None:
+    for result in components:
         lines.append(
             "| {component} | {current} | {latest} | `{status}` | {action} |".format(
                 component=markdown_escape(result["component"]),
                 current=markdown_escape(result.get("current") or ""),
                 latest=markdown_escape(result.get("latest") or ""),
                 status=markdown_escape(result["status"]),
-                action=markdown_escape(action),
+                action=markdown_escape(markdown_component_action(result)),
             )
         )
-    if summary["missing_required"]:
-        lines.extend(["", "## Missing required values", ""])
-        for name in summary["missing_required"]:
-            lines.append(f"- `{name}`")
-    updates = summary["updates_applied"]
-    if updates:
-        lines.extend(["", "## Applied Updates", ""])
-        lines.append("| Variable | Line | Before | After |")
-        lines.append("| --- | ---: | --- | --- |")
-        for update in updates:
-            lines.append(
-                "| {variable} | {line} | `{old}` | `{new}` |".format(
-                    variable=markdown_escape(update["variable"]),
-                    line=update["line"],
-                    old=markdown_escape(update["old"]),
-                    new=markdown_escape(update["new"]),
-                )
+
+
+def append_markdown_component_section(
+    lines: list[str], heading: str, components: list[str]
+) -> None:
+    if not components:
+        return
+    lines.extend(["", heading, ""])
+    for component in components:
+        lines.append(f"- `{markdown_escape(component)}`")
+
+
+def append_markdown_applied_updates(
+    lines: list[str], updates: list[dict[str, Any]]
+) -> None:
+    if not updates:
+        return
+    lines.extend(["", "## Applied Updates", ""])
+    lines.append("| Variable | Line | Before | After |")
+    lines.append("| --- | ---: | --- | --- |")
+    for update in updates:
+        lines.append(
+            "| {variable} | {line} | `{old}` | `{new}` |".format(
+                variable=markdown_escape(update["variable"]),
+                line=update["line"],
+                old=markdown_escape(update["old"]),
+                new=markdown_escape(update["new"]),
             )
+        )
+
+
+def append_markdown_inventory(
+    lines: list[str], inventory_rows: list[dict[str, Any]]
+) -> None:
     lines.extend(["", "## Inventory", ""])
     lines.append("| Variable | Line | Resolved value |")
     lines.append("| --- | ---: | --- |")
-    for item in summary["inventory"]:
+    for item in inventory_rows:
         lines.append(
             "| {name} | {line} | `{resolved}` |".format(
                 name=markdown_escape(item["name"]),
@@ -1646,12 +2296,46 @@ def markdown_summary(summary: dict[str, Any]) -> str:
                 resolved=markdown_escape(item["resolved"]),
             )
         )
+
+
+def markdown_summary(summary: dict[str, Any]) -> str:
+    lines = [
+        "# common.sh version check",
+        "",
+        f"- Generated: `{summary['generated_at']}`",
+        f"- File: `{summary['common_sh']}`",
+        f"- Maintenance outcome: `{summary['maintenance_outcome']}`",
+        "",
+        "## Components",
+        "",
+        "| Komponente | aktuelle Version | neueste Version | Status | Aktion |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    append_markdown_component_rows(lines, summary["components"])
+    if summary["missing_required"]:
+        lines.extend(["", "## Missing required values", ""])
+        lines.extend(f"- `{name}`" for name in summary["missing_required"])
+    append_markdown_component_section(
+        lines,
+        "## Manual provenance review required",
+        summary["manual_review_components"],
+    )
+    append_markdown_component_section(
+        lines,
+        "## Fatal components",
+        summary["fatal_components"],
+    )
+    append_markdown_applied_updates(lines, summary["updates_applied"])
+    append_markdown_inventory(lines, summary["inventory"])
     lines.append("")
     return "\n".join(lines)
 
 
 def plain_summary(summary: dict[str, Any]) -> str:
-    lines = [f"common.sh version check: {summary['common_sh']}"]
+    lines = [
+        f"common.sh version check: {summary['common_sh']}",
+        f"maintenance outcome: {summary['maintenance_outcome']}",
+    ]
     for result in summary["components"]:
         line = f"{result['status']}: {result['component']}"
         if result.get("current"):
@@ -1670,13 +2354,32 @@ def plain_summary(summary: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def exit_code(results: list[ComponentResult]) -> int:
-    statuses = {result.status for result in results}
-    if STATUS_ERROR in statuses or STATUS_BLOCKED in statuses or STATUS_UNKNOWN in statuses:
+def exit_code(
+    results: list[ComponentResult],
+    entries: dict[str, VariableEntry] | None = None,
+    *,
+    defer_reviewed_provenance: bool = False,
+) -> int:
+    """Keep the legacy default strict while exposing an explicit maintenance mode."""
+
+    if entries is None:
+        statuses = {result.status for result in results}
+        if statuses.intersection(FATAL_STATUSES) or (
+            STATUS_REVIEW_REQUIRED in statuses and not defer_reviewed_provenance
+        ):
+            return 2
+        if STATUS_OUTDATED in statuses:
+            return 1
+        return 0
+
+    disposition = maintenance_disposition(
+        results,
+        entries,
+        defer_reviewed_provenance=defer_reviewed_provenance,
+    )
+    if disposition.outcome == MAINTENANCE_OUTCOME_FATAL:
         return 2
-    if STATUS_OUTDATED in statuses:
-        return 1
-    return 0
+    return 1 if disposition.safe_updates_available else 0
 
 
 def write_summary_files(summary: dict[str, Any], markdown: str) -> None:
@@ -1700,14 +2403,34 @@ def common_path_from_args(path_text: str | None) -> Path:
 def parse_arguments(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--check", action="store_true", help="check common.sh without modifying it")
-    mode.add_argument("--update", action="store_true", help="apply safe updates to common.sh")
+    mode.add_argument(
+        "--check", action="store_true", help="check common.sh without modifying it"
+    )
+    mode.add_argument(
+        "--update", action="store_true", help="apply safe updates to common.sh"
+    )
     output = parser.add_mutually_exclusive_group()
     output.add_argument("--json", action="store_true", help="print JSON summary")
-    output.add_argument("--markdown", action="store_true", help="print Markdown summary")
-    parser.add_argument("--write-files", action="store_true", help="write summary files under BUILD_ROOT")
+    output.add_argument(
+        "--markdown", action="store_true", help="print Markdown summary"
+    )
+    parser.add_argument(
+        "--write-files",
+        action="store_true",
+        help="write summary files under BUILD_ROOT",
+    )
+    parser.add_argument(
+        "--defer-reviewed-provenance",
+        action="store_true",
+        help=(
+            "allow only explicitly classified manual provenance reviews to defer "
+            "while applying independent safe updates"
+        ),
+    )
     parser.add_argument("--common-sh", help=argparse.SUPPRESS)
-    parser.add_argument("--timeout", type=float, default=20.0, help="network timeout in seconds")
+    parser.add_argument(
+        "--timeout", type=float, default=20.0, help="network timeout in seconds"
+    )
     return parser.parse_args(argv)
 
 
@@ -1724,9 +2447,98 @@ def append_missing_required_result(
             message="Required tracked variables resolved to empty: "
             + ", ".join(missing_required),
             variables=missing_required,
-            details={"action": "define a value or add the variable to OPTIONAL_EMPTY_VARIABLES"},
+            details={
+                "action": "define a value or add the variable to OPTIONAL_EMPTY_VARIABLES"
+            },
         )
     )
+
+
+def prepare_update_candidate(
+    common_sh: Path,
+    lines: list[str],
+    updates: list[UpdateChange],
+    manual_pins: dict[str, str],
+) -> tuple[Path, list[str], dict[str, VariableEntry]]:
+    """Render and validate every local invariant before the first file write."""
+
+    target = require_safe_common_sh_update_target(common_sh)
+    candidate_lines = render_updated_lines(lines, updates)
+    candidate_entries = parse_common_lines(candidate_lines)
+    if validate_entries(candidate_entries):
+        raise UpstreamError(
+            "candidate common.sh leaves required tracked variables empty"
+        )
+    require_manual_review_pins_unchanged(manual_pins, candidate_entries)
+    return target, candidate_lines, candidate_entries
+
+
+def revalidate_update_candidate(
+    candidate_entries: dict[str, VariableEntry],
+    manual_pins: dict[str, str],
+    manual_components: tuple[str, ...],
+    *,
+    defer_reviewed_provenance: bool,
+    revalidate: Callable[[dict[str, VariableEntry]], list[ComponentResult]] | None,
+) -> None:
+    """Require a fresh candidate view to settle before a mutation is allowed."""
+
+    if revalidate is None:
+        return
+    candidate_results = revalidate(candidate_entries)
+    append_missing_required_result(candidate_results, candidate_entries)
+    candidate_disposition = maintenance_disposition(
+        candidate_results,
+        candidate_entries,
+        defer_reviewed_provenance=defer_reviewed_provenance,
+    )
+    if candidate_disposition.outcome not in {
+        MAINTENANCE_OUTCOME_NO_UPDATES,
+        MAINTENANCE_OUTCOME_MANUAL_REVIEW_ONLY,
+    }:
+        raise UpstreamError(
+            "candidate revalidation did not settle to no updates or manual review only"
+        )
+    if candidate_disposition.manual_review_components != manual_components:
+        raise UpstreamError("candidate revalidation changed manual review components")
+    require_manual_review_pins_unchanged(manual_pins, candidate_entries)
+
+
+def reversed_updates(updates: list[UpdateChange]) -> list[UpdateChange]:
+    """Return an exact inverse plan suitable for the existing safe write path."""
+
+    return [
+        UpdateChange(
+            variable=update.variable,
+            line=update.line,
+            old=update.new,
+            new=update.old,
+        )
+        for update in updates
+    ]
+
+
+def rollback_update_candidate(
+    target: Path, candidate_lines: list[str], updates: list[UpdateChange]
+) -> None:
+    """Rollback through the same BUILD_ROOT-checked update primitive as writes."""
+
+    apply_updates(target, candidate_lines, reversed_updates(updates))
+
+
+def verify_written_candidate(
+    common_sh: Path,
+    candidate_lines: list[str],
+    candidate_entries: dict[str, VariableEntry],
+    manual_pins: dict[str, str],
+) -> tuple[list[str], dict[str, VariableEntry]]:
+    """Reject any post-write mismatch before reporting the update as successful."""
+
+    updated_lines, updated_entries = parse_common(common_sh)
+    if updated_lines != candidate_lines or updated_entries != candidate_entries:
+        raise UpstreamError("written common.sh does not match its validated candidate")
+    require_manual_review_pins_unchanged(manual_pins, updated_entries)
+    return updated_lines, updated_entries
 
 
 def apply_requested_updates(
@@ -1736,25 +2548,63 @@ def apply_requested_updates(
     lines: list[str],
     entries: dict[str, VariableEntry],
     results: list[ComponentResult],
+    *,
+    defer_reviewed_provenance: bool = False,
+    revalidate: Callable[[dict[str, VariableEntry]], list[ComponentResult]]
+    | None = None,
 ) -> tuple[int, list[UpdateChange], list[str], dict[str, VariableEntry]] | None:
     if not update_requested:
         return rc, [], lines, entries
-    if rc == 2:
-        print("blocked: refusing to update while one or more upstream checks failed", file=sys.stderr)
+    disposition = maintenance_disposition(
+        results,
+        entries,
+        defer_reviewed_provenance=defer_reviewed_provenance,
+    )
+    if disposition.outcome == MAINTENANCE_OUTCOME_FATAL:
+        print(
+            "blocked: refusing to update while one or more upstream checks failed",
+            file=sys.stderr,
+        )
+        return 2, [], lines, entries
+    if not disposition.safe_updates_available:
         return rc, [], lines, entries
 
-    updates = flatten_updates(results)
-    if not updates:
-        if rc == 1:
-            print("outdated values found, but no safe update could be planned", file=sys.stderr)
-        return rc, [], lines, entries
+    updates = list(disposition.automatic_updates)
+    manual_pins = manual_review_pin_values(results, entries)
     try:
+        target, candidate_lines, candidate_entries = prepare_update_candidate(
+            common_sh,
+            lines,
+            updates,
+            manual_pins,
+        )
+        revalidate_update_candidate(
+            candidate_entries,
+            manual_pins,
+            disposition.manual_review_components,
+            defer_reviewed_provenance=defer_reviewed_provenance,
+            revalidate=revalidate,
+        )
         apply_updates(common_sh, lines, updates)
-    except UpstreamError as exc:
+    except (OSError, UpstreamError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return None
 
-    updated_lines, updated_entries = parse_common(common_sh)
+    try:
+        updated_lines, updated_entries = verify_written_candidate(
+            common_sh,
+            candidate_lines,
+            candidate_entries,
+            manual_pins,
+        )
+    except (OSError, UpstreamError) as exc:
+        try:
+            rollback_update_candidate(target, candidate_lines, updates)
+        except (OSError, UpstreamError) as rollback_exc:
+            print(f"error: {exc}; rollback failed: {rollback_exc}", file=sys.stderr)
+            return None
+        print(f"error: {exc}", file=sys.stderr)
+        return None
     print("applied updates:", file=sys.stderr)
     for update in updates:
         print(
@@ -1765,7 +2615,10 @@ def apply_requested_updates(
 
 
 def emit_summary(
-    summary: dict[str, Any], markdown: str, json_requested: bool, markdown_requested: bool
+    summary: dict[str, Any],
+    markdown: str,
+    json_requested: bool,
+    markdown_requested: bool,
 ) -> None:
     if json_requested:
         print(json.dumps(summary, indent=2, sort_keys=True))
@@ -1783,7 +2636,22 @@ def main(argv: list[str] | None = None) -> int:
     client = HttpClient(timeout=args.timeout)
     results = check_all(entries, client)
     append_missing_required_result(results, entries)
-    rc = exit_code(results)
+    disposition = maintenance_disposition(
+        results,
+        entries,
+        defer_reviewed_provenance=args.defer_reviewed_provenance,
+    )
+    rc = exit_code(
+        results,
+        entries,
+        defer_reviewed_provenance=args.defer_reviewed_provenance,
+    )
+
+    def revalidate(
+        candidate_entries: dict[str, VariableEntry],
+    ) -> list[ComponentResult]:
+        return check_all(candidate_entries, HttpClient(timeout=args.timeout))
+
     update_result = apply_requested_updates(
         args.update,
         rc,
@@ -1791,12 +2659,14 @@ def main(argv: list[str] | None = None) -> int:
         lines,
         entries,
         results,
+        defer_reviewed_provenance=args.defer_reviewed_provenance,
+        revalidate=revalidate,
     )
     if update_result is None:
         return 2
     rc, updates_applied, lines, entries = update_result
 
-    summary = make_summary(common_sh, entries, results, updates_applied)
+    summary = make_summary(common_sh, entries, results, updates_applied, disposition)
     markdown = markdown_summary(summary)
     if args.write_files:
         try:

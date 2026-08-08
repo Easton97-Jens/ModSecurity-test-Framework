@@ -972,10 +972,15 @@ jobs:
                 "          git push --force origin HEAD:refs/heads/automation/update-framework-common-versions\n",
                 1,
             ),
-            "missing-publisher-candidate-sha-comparison": workflow.replace(
-                '          test "$candidate_sha256" = "$CANDIDATE_SHA256"\n'
-                "          changed_paths",
-                "          changed_paths",
+            "missing-publisher-candidate-sha-comparison": replace_last(
+                workflow,
+                '          test "$candidate_sha256" = "$CANDIDATE_SHA256"\n',
+                "",
+            ),
+            "missing-candidate-validator-candidate-sha-comparison": workflow.replace(
+                '          if hashlib.sha256(candidate).hexdigest() != os.environ["CANDIDATE_SHA256"]:\n'
+                '              raise SystemExit("candidate validator candidate SHA-256 mismatch")\n',
+                "",
                 1,
             ),
             "short-publisher-candidate-sha": replace_last(
@@ -986,6 +991,21 @@ jobs:
             "candidate-from-resolver-artifact": workflow.replace(
                 "          python3 ci/tools/check-common-versions.py --common-sh ci/lib/common.sh \\\n",
                 '          cp "$RUNNER_TEMP/resolver-common.sh" ci/lib/common.sh\n',
+                1,
+            ),
+            "resolver-omits-explicit-reviewed-provenance-mode": workflow.replace(
+                "--update --defer-reviewed-provenance --json",
+                "--update --json",
+                1,
+            ),
+            "resolver-manual-review-output-is-removed": workflow.replace(
+                "      manual_review_required: ${{ steps.resolve.outputs.manual_review_required }}\n",
+                "",
+                1,
+            ),
+            "candidate-manual-pin-proof-is-unbound": workflow.replace(
+                "      MANUAL_REVIEW_PINS_SHA256: ${{ needs.resolve.outputs.manual_review_pins_sha256 }}\n",
+                "",
                 1,
             ),
             "publisher-untrusted-branch": workflow.replace(
@@ -1047,13 +1067,18 @@ jobs:
                 1,
             ),
             "result-accepts-empty-resolver-output": workflow.replace(
-                "            false)\n",
-                "            ''|false)\n",
+                "            no_updates:false:false)\n",
+                "            ''|no_updates:false:false)\n",
                 1,
             ),
             "result-accepts-unknown-resolver-output": workflow.replace(
-                "            false)\n",
-                "            unknown|false)\n",
+                "            no_updates:false:false)\n",
+                "            unknown|no_updates:false:false)\n",
+                1,
+            ),
+            "result-masks-manual-review-only": workflow.replace(
+                "            manual_review_only:false:true)\n",
+                "            no_updates:false:false)\n",
                 1,
             ),
             "result-runs-validator-for-no-update": workflow.replace(
@@ -1090,16 +1115,32 @@ jobs:
         workflow = CHECKER.yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
         result_run = workflow["jobs"]["result"]["steps"][0]["run"]
 
+        terminal_defaults = {
+            "MAINTENANCE_OUTCOME": "fatal",
+            "UPDATE_AVAILABLE": "",
+            "CANDIDATE_SHA256": "",
+            "MANUAL_REVIEW_REQUIRED": "",
+            "MANUAL_REVIEW_COMPONENTS_B64": "",
+            "MANUAL_REVIEW_PINS_SHA256": "",
+            "RESOLVER_RESULT": "failure",
+            "VALIDATOR_RESULT": "skipped",
+            "PUBLISHER_RESULT": "skipped",
+            "DRAFT_PULL_REQUEST_NUMBER": "",
+            "DRAFT_PULL_REQUEST_URL": "",
+        }
+        manual_components_b64 = "WyJNb2RTZWN1cml0eSB2MyJd"
         cases = (
             (
                 "no-update",
                 {
+                    **terminal_defaults,
                     "RESOLVER_RESULT": "success",
+                    "MAINTENANCE_OUTCOME": "no_updates",
                     "UPDATE_AVAILABLE": "false",
+                    "MANUAL_REVIEW_REQUIRED": "false",
+                    "MANUAL_REVIEW_COMPONENTS_B64": "W10=",
                     "VALIDATOR_RESULT": "skipped",
                     "PUBLISHER_RESULT": "skipped",
-                    "DRAFT_PULL_REQUEST_NUMBER": "",
-                    "DRAFT_PULL_REQUEST_URL": "",
                 },
                 0,
                 (
@@ -1109,10 +1150,33 @@ jobs:
                 ),
             ),
             (
+                "manual-review-only",
+                {
+                    **terminal_defaults,
+                    "RESOLVER_RESULT": "success",
+                    "MAINTENANCE_OUTCOME": "manual_review_only",
+                    "UPDATE_AVAILABLE": "false",
+                    "MANUAL_REVIEW_REQUIRED": "true",
+                    "MANUAL_REVIEW_COMPONENTS_B64": manual_components_b64,
+                    "MANUAL_REVIEW_PINS_SHA256": "a" * 64,
+                },
+                0,
+                (
+                    "A reviewed manual common.sh provenance decision is required.",
+                    "Eine geprüfte manuelle common.sh-Provenance-Entscheidung ist erforderlich.",
+                    "No automatic candidate, branch, commit, or pull request was created or modified.",
+                ),
+            ),
+            (
                 "published-update-with-url",
                 {
+                    **terminal_defaults,
                     "RESOLVER_RESULT": "success",
+                    "MAINTENANCE_OUTCOME": "safe_updates",
                     "UPDATE_AVAILABLE": "true",
+                    "CANDIDATE_SHA256": "a" * 64,
+                    "MANUAL_REVIEW_REQUIRED": "false",
+                    "MANUAL_REVIEW_COMPONENTS_B64": "W10=",
                     "VALIDATOR_RESULT": "success",
                     "PUBLISHER_RESULT": "success",
                     "DRAFT_PULL_REQUEST_NUMBER": "42",
@@ -1126,14 +1190,39 @@ jobs:
                 ),
             ),
             (
-                "published-update-without-action-output",
+                "published-update-with-manual-review",
                 {
+                    **terminal_defaults,
                     "RESOLVER_RESULT": "success",
+                    "MAINTENANCE_OUTCOME": "safe_updates_with_manual_review",
                     "UPDATE_AVAILABLE": "true",
+                    "CANDIDATE_SHA256": "b" * 64,
+                    "MANUAL_REVIEW_REQUIRED": "true",
+                    "MANUAL_REVIEW_COMPONENTS_B64": manual_components_b64,
+                    "MANUAL_REVIEW_PINS_SHA256": "c" * 64,
                     "VALIDATOR_RESULT": "success",
                     "PUBLISHER_RESULT": "success",
-                    "DRAFT_PULL_REQUEST_NUMBER": "",
-                    "DRAFT_PULL_REQUEST_URL": "",
+                },
+                0,
+                (
+                    "A separate manual provenance review remains required",
+                    "Eine getrennte manuelle Provenance-Prüfung bleibt erforderlich",
+                    "Draft pull request: created or updated; the action did not report a URL or number.",
+                    "Draft-Pull-Request: erstellt oder aktualisiert; die Action hat keine URL oder Nummer gemeldet.",
+                ),
+            ),
+            (
+                "published-update-without-action-output",
+                {
+                    **terminal_defaults,
+                    "RESOLVER_RESULT": "success",
+                    "MAINTENANCE_OUTCOME": "safe_updates",
+                    "UPDATE_AVAILABLE": "true",
+                    "CANDIDATE_SHA256": "a" * 64,
+                    "MANUAL_REVIEW_REQUIRED": "false",
+                    "MANUAL_REVIEW_COMPONENTS_B64": "W10=",
+                    "VALIDATOR_RESULT": "success",
+                    "PUBLISHER_RESULT": "success",
                 },
                 0,
                 (
@@ -1142,14 +1231,12 @@ jobs:
                 ),
             ),
             (
-                "unknown-resolver-output",
+                "unknown-maintenance-outcome",
                 {
+                    **terminal_defaults,
                     "RESOLVER_RESULT": "success",
+                    "MAINTENANCE_OUTCOME": "unknown",
                     "UPDATE_AVAILABLE": "unknown",
-                    "VALIDATOR_RESULT": "skipped",
-                    "PUBLISHER_RESULT": "skipped",
-                    "DRAFT_PULL_REQUEST_NUMBER": "",
-                    "DRAFT_PULL_REQUEST_URL": "",
                 },
                 1,
                 (),
@@ -1157,12 +1244,14 @@ jobs:
             (
                 "no-update-with-executed-publisher",
                 {
+                    **terminal_defaults,
                     "RESOLVER_RESULT": "success",
+                    "MAINTENANCE_OUTCOME": "no_updates",
                     "UPDATE_AVAILABLE": "false",
+                    "MANUAL_REVIEW_REQUIRED": "false",
+                    "MANUAL_REVIEW_COMPONENTS_B64": "W10=",
                     "VALIDATOR_RESULT": "skipped",
                     "PUBLISHER_RESULT": "success",
-                    "DRAFT_PULL_REQUEST_NUMBER": "",
-                    "DRAFT_PULL_REQUEST_URL": "",
                 },
                 1,
                 (),
@@ -1170,12 +1259,29 @@ jobs:
             (
                 "available-update-with-failed-validator",
                 {
+                    **terminal_defaults,
                     "RESOLVER_RESULT": "success",
+                    "MAINTENANCE_OUTCOME": "safe_updates",
                     "UPDATE_AVAILABLE": "true",
+                    "CANDIDATE_SHA256": "a" * 64,
+                    "MANUAL_REVIEW_REQUIRED": "false",
+                    "MANUAL_REVIEW_COMPONENTS_B64": "W10=",
                     "VALIDATOR_RESULT": "failure",
                     "PUBLISHER_RESULT": "skipped",
-                    "DRAFT_PULL_REQUEST_NUMBER": "",
-                    "DRAFT_PULL_REQUEST_URL": "",
+                },
+                1,
+                (),
+            ),
+            (
+                "manual-outcome-with-false-review-flag",
+                {
+                    **terminal_defaults,
+                    "RESOLVER_RESULT": "success",
+                    "MAINTENANCE_OUTCOME": "manual_review_only",
+                    "UPDATE_AVAILABLE": "false",
+                    "MANUAL_REVIEW_REQUIRED": "false",
+                    "MANUAL_REVIEW_COMPONENTS_B64": manual_components_b64,
+                    "MANUAL_REVIEW_PINS_SHA256": "a" * 64,
                 },
                 1,
                 (),

@@ -6,6 +6,7 @@ by a ``TemporaryDirectory`` created for the individual test.
 
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import os
 import sys
@@ -27,7 +28,9 @@ FIXTURE_NAME = "fixture.sh"
 COMMON_SH_NAME = "common.sh"
 APR_UTIL_VERSION = "1.6.4"
 APR_UTIL_SHA256 = "3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b"
-APR_UTIL_SOURCE_URL = f"https://downloads.apache.org/apr/apr-util-{APR_UTIL_VERSION}.tar.bz2"
+APR_UTIL_SOURCE_URL = (
+    f"https://downloads.apache.org/apr/apr-util-{APR_UTIL_VERSION}.tar.bz2"
+)
 APR_UTIL_SHA256_URL = f"{APR_UTIL_SOURCE_URL}.sha256"
 
 
@@ -140,7 +143,52 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             ]
         )
 
-    def test_shell_variable_expansion_accepts_ascii_names_and_rejects_invalid_names(self):
+    @staticmethod
+    def modsecurity_review_required(entries):
+        return CHECKER.ComponentResult(
+            component=CHECKER.MODSECURITY_V3_COMPONENT,
+            status=CHECKER.STATUS_REVIEW_REQUIRED,
+            message="manual immutable-provenance review is required",
+            variables=list(
+                CHECKER.MANUAL_REVIEW_VARIABLES[CHECKER.MODSECURITY_V3_COMPONENT]
+            ),
+            current=CHECKER.value(entries, "MODSECURITY_V3_RELEASE_TAG"),
+            latest="v3.0.16",
+            source=CHECKER.value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"),
+            details={
+                "reason": "test-only reviewed atomic transition",
+                "manual_variables": list(
+                    CHECKER.MANUAL_REVIEW_VARIABLES[CHECKER.MODSECURITY_V3_COMPONENT]
+                ),
+            },
+        )
+
+    @staticmethod
+    def haproxy_safe_update(entries):
+        version_update = CHECKER.plan_update(entries, "HAPROXY_VERSION", "3.2.22")
+        checksum_update = CHECKER.plan_update(entries, "HAPROXY_SHA256", "b" * 64)
+        if version_update is None or checksum_update is None:
+            raise AssertionError(
+                "test fixture must produce a complete HAProxy update plan"
+            )
+        return CHECKER.ComponentResult(
+            component="HAProxy",
+            status=CHECKER.STATUS_OUTDATED,
+            message="complete trusted HAProxy version and digest update",
+            variables=[
+                "HAPROXY_VERSION",
+                "HAPROXY_SOURCE_URL",
+                "HAPROXY_SHA256_URL",
+                "HAPROXY_SHA256",
+            ],
+            current=CHECKER.value(entries, "HAPROXY_VERSION"),
+            latest="3.2.22",
+            updates=[version_update, checksum_update],
+        )
+
+    def test_shell_variable_expansion_accepts_ascii_names_and_rejects_invalid_names(
+        self,
+    ):
         self.assertEqual(
             CHECKER.resolve_value("${FOO_1:-fallback}", {"FOO_1": "resolved"}),
             "resolved",
@@ -153,10 +201,14 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             CHECKER.resolve_value("$FOO_1", {"FOO_1": "plain-value"}),
             "plain-value",
         )
-        self.assertEqual(CHECKER.resolve_value("${1BAD:-fallback}", {}), "${1BAD:-fallback}")
+        self.assertEqual(
+            CHECKER.resolve_value("${1BAD:-fallback}", {}), "${1BAD:-fallback}"
+        )
         self.assertEqual(CHECKER.resolve_value("${é:-fallback}", {}), "${é:-fallback}")
 
-    def test_parse_common_resolves_modsecurity_v3_approved_literals_before_aliases(self):
+    def test_parse_common_resolves_modsecurity_v3_approved_literals_before_aliases(
+        self,
+    ):
         approved_repo = "https://github.com/owasp-modsecurity/ModSecurity.git"
         approved_commit = "0fb4aff98b4980cf6426697d5605c424e3d5bb60"
         release_tag = "v3.0.15"
@@ -179,12 +231,20 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             _, entries = self.parse_fixture(fixture, fixture_source)
             _, missing_entries = self.parse_fixture(fixture, missing_anchor_source)
 
-        self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"), approved_repo)
-        self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_APPROVED_COMMIT"), approved_commit)
-        self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_RELEASE_TAG"), release_tag)
+        self.assertEqual(
+            CHECKER.value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"), approved_repo
+        )
+        self.assertEqual(
+            CHECKER.value(entries, "MODSECURITY_V3_APPROVED_COMMIT"), approved_commit
+        )
+        self.assertEqual(
+            CHECKER.value(entries, "MODSECURITY_V3_RELEASE_TAG"), release_tag
+        )
         self.assertEqual(CHECKER.value(entries, "MODSECURITY_REPO_URL"), approved_repo)
         self.assertEqual(CHECKER.value(entries, "MODSECURITY_GIT_REF"), release_tag)
-        self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_GIT_URL"), approved_repo)
+        self.assertEqual(
+            CHECKER.value(entries, "MODSECURITY_V3_GIT_URL"), approved_repo
+        )
         self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_GIT_REF"), release_tag)
         self.assertEqual(CHECKER.validate_entries(entries), [])
         self.assertIsNone(
@@ -216,9 +276,17 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
         result = CHECKER.check_modsecurity_v3_release_provenance(entries, client)
 
-        self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
+        self.assertEqual(CHECKER.STATUS_REVIEW_REQUIRED, result.status)
         self.assertEqual(result.updates, [])
         self.assertEqual(CHECKER.exit_code([result]), 2)
+        self.assertEqual(
+            CHECKER.exit_code(
+                [result],
+                entries,
+                defer_reviewed_provenance=True,
+            ),
+            0,
+        )
         self.assertEqual(result.latest, "v3.0.16")
         self.assertEqual(
             result.variables,
@@ -237,11 +305,19 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             "update MODSECURITY_V3_RELEASE_TAG and MODSECURITY_V3_APPROVED_COMMIT together after commit provenance review",
         )
         self.assertEqual(
+            result.details["manual_variables"],
+            list(CHECKER.MANUAL_REVIEW_VARIABLES[CHECKER.MODSECURITY_V3_COMPONENT]),
+        )
+        self.assertEqual(
             client.urls,
-            ["https://api.github.com/repos/owasp-modsecurity/ModSecurity/releases/latest"],
+            [
+                "https://api.github.com/repos/owasp-modsecurity/ModSecurity/releases/latest"
+            ],
         )
 
-    def test_unknown_results_fail_closed_while_local_policy_entries_are_not_applicable(self):
+    def test_unknown_results_fail_closed_while_local_policy_entries_are_not_applicable(
+        self,
+    ):
         unknown = CHECKER.unknown_component(
             "unresolved source",
             {},
@@ -272,7 +348,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
         class UnexpectedNetworkClient:
             def get_json(self, url: str) -> dict[str, str]:
-                raise AssertionError(f"provenance check must block before network access: {url}")
+                raise AssertionError(
+                    f"provenance check must block before network access: {url}"
+                )
 
         for anchor in (None, "not-a-commit"):
             with self.subTest(anchor=anchor):
@@ -288,7 +366,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                 self.assertEqual(CHECKER.STATUS_BLOCKED, result.status)
                 self.assertIn("MODSECURITY_V3_APPROVED_COMMIT", result.message)
 
-    def test_dotted_version_parser_keeps_legacy_match_boundaries_without_regex_backtracking(self):
+    def test_dotted_version_parser_keeps_legacy_match_boundaries_without_regex_backtracking(
+        self,
+    ):
         self.assertEqual(CHECKER.version_tuple("release-1.2.3"), (1, 2, 3))
         self.assertEqual(CHECKER.version_tuple("release-1.2..3"), (1, 2))
         self.assertEqual(CHECKER.version_tuple("build-123-release-5.6"), (5, 6))
@@ -305,7 +385,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             ("/releases/static/package.tar.gz", "/releases/static/"),
         ):
             with self.subTest(path=path):
-                self.assertEqual(expected_prefix, CHECKER.trusted_https_path_prefix(path))
+                self.assertEqual(
+                    expected_prefix, CHECKER.trusted_https_path_prefix(path)
+                )
 
     def test_unofficial_tarball_host_is_rejected_before_any_http_lookup(self):
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
@@ -328,13 +410,17 @@ class CommonVersionProvenanceTests(unittest.TestCase):
         self.assertIn("expected official tarball URL", result.details["reason"])
         self.assertEqual(client.urls, [])
 
-    def test_official_tarball_host_and_checksum_are_checked_with_fixture_responses(self):
+    def test_official_tarball_host_and_checksum_are_checked_with_fixture_responses(
+        self,
+    ):
         listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"
         source_url = f"{listing_url}package-1.2.3{TARBALL_EXTENSION}"
         checksum_url = source_url + SHA256_SUFFIX
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
             fixture = Path(temporary) / FIXTURE_NAME
-            _, entries = self.parse_fixture(fixture, self.tarball_fixture(source_url, checksum_url))
+            _, entries = self.parse_fixture(
+                fixture, self.tarball_fixture(source_url, checksum_url)
+            )
             client = FixtureHttpClient(
                 {
                     listing_url: (
@@ -368,7 +454,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
         self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
         self.assertEqual(result.current, APR_UTIL_VERSION)
         self.assertEqual(result.details["official_sha256"], APR_UTIL_SHA256)
-        self.assertEqual(client.urls, [listing_url, APR_UTIL_SHA256_URL, APR_UTIL_SHA256_URL])
+        self.assertEqual(
+            client.urls, [listing_url, APR_UTIL_SHA256_URL, APR_UTIL_SHA256_URL]
+        )
 
     def test_apr_util_rejects_any_runtime_tuple_mismatch_before_http_lookup(self):
         mismatches = {
@@ -390,7 +478,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             with self.subTest(case=case):
                 with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
                     fixture = Path(temporary) / COMMON_SH_NAME
-                    _, entries = self.parse_fixture(fixture, self.apr_util_fixture(**kwargs))
+                    _, entries = self.parse_fixture(
+                        fixture, self.apr_util_fixture(**kwargs)
+                    )
                     client = NoNetworkClient()
 
                     result = CHECKER.check_apr_util_release_provenance(entries, client)
@@ -400,9 +490,13 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
     def test_outdated_tarball_only_plans_an_update_until_update_mode_is_requested(self):
         listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"
-        latest_checksum_url = f"{listing_url}package-1.2.4{TARBALL_EXTENSION}{SHA256_SUFFIX}"
+        latest_checksum_url = (
+            f"{listing_url}package-1.2.4{TARBALL_EXTENSION}{SHA256_SUFFIX}"
+        )
         source_template = f"{listing_url}package-$VERSION{TARBALL_EXTENSION}"
-        listing_text = f"package-1.2.3{TARBALL_EXTENSION} package-1.2.4{TARBALL_EXTENSION}"
+        listing_text = (
+            f"package-1.2.3{TARBALL_EXTENSION} package-1.2.4{TARBALL_EXTENSION}"
+        )
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
             fixture = Path(temporary) / FIXTURE_NAME
             original = "\n".join(
@@ -426,7 +520,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
             self.assertEqual(CHECKER.STATUS_OUTDATED, result.status)
             self.assertTrue(result.updates)
-            self.assertNotIn("SOURCE_URL", [update.variable for update in result.updates])
+            self.assertNotIn(
+                "SOURCE_URL", [update.variable for update in result.updates]
+            )
             self.assertNotIn("SHA_URL", [update.variable for update in result.updates])
             self.assertEqual(original, fixture.read_text(encoding="utf-8"))
 
@@ -511,7 +607,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
                 CHECKER.apply_updates(fixture, lines, [update])
 
-            self.assertEqual(fixture.read_text(encoding="utf-8"), 'VERSION="${VERSION:-2.0}"\n')
+            self.assertEqual(
+                fixture.read_text(encoding="utf-8"), 'VERSION="${VERSION:-2.0}"\n'
+            )
 
     def test_update_accepts_strict_version_sha_and_https_url_values(self):
         listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"
@@ -525,7 +623,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             build_root = temporary_path / "build"
             fixture = build_root / "fixtures" / COMMON_SH_NAME
             fixture.parent.mkdir(parents=True)
-            lines, entries = self.parse_fixture(fixture, self.tarball_fixture(source_url, checksum_url))
+            lines, entries = self.parse_fixture(
+                fixture, self.tarball_fixture(source_url, checksum_url)
+            )
             updates = [
                 CHECKER.plan_update(entries, "VERSION", "1.2.4"),
                 CHECKER.plan_update(entries, "SOURCE_URL", updated_source_url),
@@ -565,10 +665,22 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                 ("VERSION", "1.2.4;touch"),
                 ("SHA256", "not-a-sha256"),
                 ("SOURCE_URL", insecure_source_url),
-                ("SOURCE_URL", f"https://foreign.example.invalid/package-1.2.4{TARBALL_EXTENSION}"),
-                ("SOURCE_URL", f"https://{OFFICIAL_TARBALL_HOST}/other/package-1.2.4{TARBALL_EXTENSION}"),
-                ("SOURCE_URL", f"https://{OFFICIAL_TARBALL_HOST}/releases/../package-1.2.4{TARBALL_EXTENSION}"),
-                ("SHA_URL", f"https://{OFFICIAL_TARBALL_HOST}/package-1.2.4{TARBALL_EXTENSION}?redirect=1"),
+                (
+                    "SOURCE_URL",
+                    f"https://foreign.example.invalid/package-1.2.4{TARBALL_EXTENSION}",
+                ),
+                (
+                    "SOURCE_URL",
+                    f"https://{OFFICIAL_TARBALL_HOST}/other/package-1.2.4{TARBALL_EXTENSION}",
+                ),
+                (
+                    "SOURCE_URL",
+                    f"https://{OFFICIAL_TARBALL_HOST}/releases/../package-1.2.4{TARBALL_EXTENSION}",
+                ),
+                (
+                    "SHA_URL",
+                    f"https://{OFFICIAL_TARBALL_HOST}/package-1.2.4{TARBALL_EXTENSION}?redirect=1",
+                ),
             ):
                 with self.subTest(variable=variable):
                     with self.assertRaises(CHECKER.UpstreamError):
@@ -580,7 +692,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             ):
                 with self.subTest(write_sink=invalid_source_url):
                     updates = [
-                        CHECKER.UpdateChange("VERSION", entries["VERSION"].line, "1.2.3", "1.2.4"),
+                        CHECKER.UpdateChange(
+                            "VERSION", entries["VERSION"].line, "1.2.3", "1.2.4"
+                        ),
                         CHECKER.UpdateChange(
                             "SOURCE_URL",
                             entries["SOURCE_URL"].line,
@@ -588,7 +702,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                             invalid_source_url,
                         ),
                     ]
-                    with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                    with patch.dict(
+                        os.environ, {"BUILD_ROOT": str(build_root)}, clear=False
+                    ):
                         with self.assertRaises(CHECKER.UpstreamError):
                             CHECKER.apply_updates(fixture, lines, updates)
 
@@ -610,6 +726,376 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                     CHECKER.apply_updates(rejected_fixture, lines, [update])
 
             self.assertEqual(rejected_fixture.read_text(encoding="utf-8"), original)
+
+    def test_maintenance_mode_classifies_all_permitted_outcomes(self):
+        _, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
+        manual = self.modsecurity_review_required(entries)
+        safe = self.haproxy_safe_update(entries)
+        current = CHECKER.ComponentResult(
+            component="current fixture",
+            status=CHECKER.STATUS_CURRENT,
+            message="current",
+            variables=[],
+        )
+
+        cases = (
+            ("no-updates", [current], CHECKER.MAINTENANCE_OUTCOME_NO_UPDATES, False),
+            (
+                "manual-only",
+                [manual],
+                CHECKER.MAINTENANCE_OUTCOME_MANUAL_REVIEW_ONLY,
+                False,
+            ),
+            ("safe-only", [safe], CHECKER.MAINTENANCE_OUTCOME_SAFE_UPDATES, True),
+            (
+                "safe-with-manual",
+                [manual, safe],
+                CHECKER.MAINTENANCE_OUTCOME_SAFE_UPDATES_WITH_MANUAL_REVIEW,
+                True,
+            ),
+        )
+        for name, results, expected_outcome, expected_safe_updates in cases:
+            with self.subTest(name=name):
+                disposition = CHECKER.maintenance_disposition(
+                    results,
+                    entries,
+                    defer_reviewed_provenance=True,
+                )
+                self.assertEqual(disposition.outcome, expected_outcome)
+                self.assertEqual(
+                    disposition.safe_updates_available,
+                    expected_safe_updates,
+                )
+                self.assertEqual(
+                    disposition.manual_review_required,
+                    manual in results,
+                )
+
+        strict = CHECKER.maintenance_disposition(
+            [manual, safe],
+            entries,
+            defer_reviewed_provenance=False,
+        )
+        self.assertEqual(strict.outcome, CHECKER.MAINTENANCE_OUTCOME_FATAL)
+        self.assertIn(CHECKER.MODSECURITY_V3_COMPONENT, strict.fatal_components)
+
+    def test_safe_partial_update_preserves_all_manual_provenance_lines_and_revalidates(
+        self,
+    ):
+        source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            temporary_path = Path(temporary)
+            build_root = temporary_path / "build"
+            fixture = build_root / COMMON_SH_NAME
+            fixture.parent.mkdir(parents=True)
+            lines, entries = self.parse_fixture(fixture, source)
+            manual = self.modsecurity_review_required(entries)
+            safe = self.haproxy_safe_update(entries)
+            manual_before = CHECKER.manual_review_pin_values([manual], entries)
+
+            def revalidate(candidate_entries):
+                return [self.modsecurity_review_required(candidate_entries)]
+
+            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                rc, applied, _, updated_entries = CHECKER.apply_requested_updates(
+                    True,
+                    CHECKER.exit_code(
+                        [manual, safe],
+                        entries,
+                        defer_reviewed_provenance=True,
+                    ),
+                    fixture,
+                    lines,
+                    entries,
+                    [manual, safe],
+                    defer_reviewed_provenance=True,
+                    revalidate=revalidate,
+                )
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(
+            [update.variable for update in applied],
+            ["HAPROXY_VERSION", "HAPROXY_SHA256"],
+        )
+        self.assertEqual(CHECKER.value(updated_entries, "HAPROXY_VERSION"), "3.2.22")
+        self.assertEqual(CHECKER.value(updated_entries, "HAPROXY_SHA256"), "b" * 64)
+        CHECKER.require_manual_review_pins_unchanged(manual_before, updated_entries)
+        self.assertEqual(
+            CHECKER.manual_review_pin_digest([manual], updated_entries),
+            CHECKER.manual_review_pin_digest([manual], entries),
+        )
+
+    def test_post_write_validation_failure_rolls_back_through_safe_update_path(self):
+        source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            temporary_path = Path(temporary)
+            build_root = temporary_path / "build"
+            fixture = build_root / COMMON_SH_NAME
+            fixture.parent.mkdir(parents=True)
+            lines, entries = self.parse_fixture(fixture, source)
+            manual = self.modsecurity_review_required(entries)
+            safe = self.haproxy_safe_update(entries)
+            original = fixture.read_text(encoding="utf-8")
+
+            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                with patch.object(
+                    CHECKER,
+                    "parse_common",
+                    side_effect=CHECKER.UpstreamError("forced post-write verification"),
+                ):
+                    outcome = CHECKER.apply_requested_updates(
+                        True,
+                        CHECKER.exit_code(
+                            [manual, safe],
+                            entries,
+                            defer_reviewed_provenance=True,
+                        ),
+                        fixture,
+                        lines,
+                        entries,
+                        [manual, safe],
+                        defer_reviewed_provenance=True,
+                    )
+
+            restored = fixture.read_text(encoding="utf-8")
+
+        self.assertIsNone(outcome)
+        self.assertEqual(restored, original)
+
+    def test_markdown_summary_preserves_manual_and_fatal_sections(self):
+        summary = {
+            "generated_at": "2026-08-08T00:00:00Z",
+            "common_sh": "/safe/build/common.sh",
+            "maintenance_outcome": CHECKER.MAINTENANCE_OUTCOME_FATAL,
+            "components": [
+                {
+                    "component": "manual component",
+                    "current": "1.0",
+                    "latest": "1.1",
+                    "status": CHECKER.STATUS_REVIEW_REQUIRED,
+                    "updates": [],
+                    "details": {"reason": "review immutable commit"},
+                },
+                {
+                    "component": "safe component",
+                    "current": "2.0",
+                    "latest": "2.1",
+                    "status": CHECKER.STATUS_OUTDATED,
+                    "updates": [{"variable": "SAFE_VERSION"}],
+                    "details": {},
+                },
+            ],
+            "missing_required": ["REQUIRED_VALUE"],
+            "manual_review_components": ["manual component"],
+            "fatal_components": ["fatal component"],
+            "updates_applied": [
+                {
+                    "variable": "SAFE_VERSION",
+                    "line": 7,
+                    "old": "2.0",
+                    "new": "2.1",
+                }
+            ],
+            "inventory": [{"name": "SAFE_VERSION", "line": 7, "resolved": "2.1"}],
+        }
+
+        markdown = CHECKER.markdown_summary(summary)
+
+        self.assertIn(
+            "| manual component | 1.0 | 1.1 | `review_required` | review immutable commit |",
+            markdown,
+        )
+        self.assertIn("## Missing required values", markdown)
+        self.assertIn("## Manual provenance review required", markdown)
+        self.assertIn("## Fatal components", markdown)
+        self.assertIn("| SAFE_VERSION | 7 | `2.0` | `2.1` |", markdown)
+        self.assertIn("| SAFE_VERSION | 7 | `2.1` |", markdown)
+        self.assertLess(
+            markdown.index("## Missing required values"),
+            markdown.index("## Manual provenance review required"),
+        )
+        self.assertLess(
+            markdown.index("## Manual provenance review required"),
+            markdown.index("## Fatal components"),
+        )
+
+    def test_maintenance_rejects_a_nonreversible_automatic_source_value(self):
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            temporary_path = Path(temporary)
+            build_root = temporary_path / "build"
+            fixture = build_root / COMMON_SH_NAME
+            fixture.parent.mkdir(parents=True)
+            original = 'VERSION="${VERSION:-1.0;unsafe}"\n'
+            lines, entries = self.parse_fixture(fixture, original)
+            unsafe_update = CHECKER.UpdateChange(
+                variable="VERSION",
+                line=entries["VERSION"].line,
+                old="1.0;unsafe",
+                new="2.0",
+            )
+            unsafe_result = CHECKER.ComponentResult(
+                component="unsafe rollback fixture",
+                status=CHECKER.STATUS_OUTDATED,
+                message="must not write an irreversible candidate",
+                variables=["VERSION"],
+                updates=[unsafe_update],
+            )
+
+            disposition = CHECKER.maintenance_disposition(
+                [unsafe_result],
+                entries,
+                defer_reviewed_provenance=True,
+            )
+            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                rc, applied, _, _ = CHECKER.apply_requested_updates(
+                    True,
+                    1,
+                    fixture,
+                    lines,
+                    entries,
+                    [unsafe_result],
+                    defer_reviewed_provenance=True,
+                )
+            unchanged = fixture.read_text(encoding="utf-8")
+
+        self.assertEqual(disposition.outcome, CHECKER.MAINTENANCE_OUTCOME_FATAL)
+        self.assertEqual(rc, 2)
+        self.assertEqual(applied, [])
+        self.assertEqual(unchanged, original)
+
+    def test_maintenance_mode_rejects_fatal_statuses_and_variable_overlap_without_writing(
+        self,
+    ):
+        source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            temporary_path = Path(temporary)
+            build_root = temporary_path / "build"
+            fixture = build_root / COMMON_SH_NAME
+            fixture.parent.mkdir(parents=True)
+            lines, entries = self.parse_fixture(fixture, source)
+            manual = self.modsecurity_review_required(entries)
+            original = fixture.read_text(encoding="utf-8")
+
+            for status in (
+                CHECKER.STATUS_UNKNOWN,
+                CHECKER.STATUS_BLOCKED,
+                CHECKER.STATUS_ERROR,
+            ):
+                with self.subTest(fatal_status=status):
+                    fatal = CHECKER.ComponentResult(
+                        component=f"{status} fixture",
+                        status=status,
+                        message="fatal fixture",
+                        variables=[],
+                    )
+                    disposition = CHECKER.maintenance_disposition(
+                        [manual, fatal],
+                        entries,
+                        defer_reviewed_provenance=True,
+                    )
+                    self.assertEqual(
+                        disposition.outcome, CHECKER.MAINTENANCE_OUTCOME_FATAL
+                    )
+                    self.assertIn(fatal.component, disposition.fatal_components)
+
+            overlap_update = CHECKER.plan_update(
+                entries,
+                "MODSECURITY_V3_RELEASE_TAG",
+                "v3.0.16",
+            )
+            self.assertIsNotNone(overlap_update)
+            overlap = CHECKER.ComponentResult(
+                component="unsafe overlapping updater",
+                status=CHECKER.STATUS_OUTDATED,
+                message="must not touch manual provenance",
+                variables=["MODSECURITY_V3_RELEASE_TAG"],
+                updates=[overlap_update],
+            )
+            disposition = CHECKER.maintenance_disposition(
+                [manual, overlap],
+                entries,
+                defer_reviewed_provenance=True,
+            )
+            self.assertEqual(disposition.outcome, CHECKER.MAINTENANCE_OUTCOME_FATAL)
+            self.assertIn(overlap.component, disposition.fatal_components)
+
+            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                rc, applied, _, _ = CHECKER.apply_requested_updates(
+                    True,
+                    2,
+                    fixture,
+                    lines,
+                    entries,
+                    [manual, overlap],
+                    defer_reviewed_provenance=True,
+                )
+            unchanged = fixture.read_text(encoding="utf-8")
+
+        self.assertEqual(rc, 2)
+        self.assertEqual(applied, [])
+        self.assertEqual(unchanged, original)
+
+    def test_manual_review_classification_requires_fixed_identity_and_byte_exact_pins(
+        self,
+    ):
+        source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+
+        class NoReleaseLookup:
+            def get_json(self, url):
+                raise AssertionError(
+                    f"unsafe configuration reached release lookup: {url}"
+                )
+
+        invalid_cases = (
+            (
+                "foreign-modsecurity-repository",
+                'MODSECURITY_V3_APPROVED_REPO_URL="https://github.com/attacker/ModSecurity.git"',
+            ),
+            (
+                "branch-like-modsecurity-tag",
+                'MODSECURITY_V3_RELEASE_TAG="main"',
+            ),
+            (
+                "malformed-crs-commit",
+                'CRS_APPROVED_COMMIT="not-an-immutable-commit"',
+            ),
+        )
+        for name, replacement in invalid_cases:
+            with self.subTest(name=name):
+                if name == "malformed-crs-commit":
+                    original = (
+                        'CRS_APPROVED_COMMIT="55b09f5acfd16413e7b31041100711ceb7adc89c"'
+                    )
+                    check = CHECKER.check_crs_release_provenance
+                    expected_status = CHECKER.STATUS_BLOCKED
+                else:
+                    original = (
+                        'MODSECURITY_V3_APPROVED_REPO_URL="https://github.com/'
+                        'owasp-modsecurity/ModSecurity.git"'
+                        if name == "foreign-modsecurity-repository"
+                        else 'MODSECURITY_V3_RELEASE_TAG="v3.0.15"'
+                    )
+                    check = CHECKER.check_modsecurity_v3_release_provenance
+                    expected_status = CHECKER.STATUS_UNKNOWN
+                with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+                    fixture = Path(temporary) / COMMON_SH_NAME
+                    _, invalid_entries = self.parse_fixture(
+                        fixture,
+                        source.replace(original, replacement, 1),
+                    )
+                    result = check(invalid_entries, NoReleaseLookup())
+                self.assertEqual(result.status, expected_status)
+
+        _, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
+        manual = self.modsecurity_review_required(entries)
+        before = CHECKER.manual_review_pin_values([manual], entries)
+        changed_entries = dict(entries)
+        changed_entries["MODSECURITY_V3_RELEASE_TAG"] = dataclasses.replace(
+            changed_entries["MODSECURITY_V3_RELEASE_TAG"],
+            raw='MODSECURITY_V3_RELEASE_TAG="v3.0.16"',
+        )
+        with self.assertRaises(CHECKER.UpstreamError):
+            CHECKER.require_manual_review_pins_unchanged(before, changed_entries)
 
 
 if __name__ == "__main__":
