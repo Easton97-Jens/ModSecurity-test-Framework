@@ -13,7 +13,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from git_provenance_test_support import assert_immutable_commit_fetch_control
+
+from tests.security_regression.git_provenance_test_support import (
+    assert_immutable_commit_fetch_control,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
