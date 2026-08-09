@@ -25,6 +25,7 @@ crs_git() (
         git -c core.hooksPath=/dev/null -c protocol.file.allow=never \
             -c fetch.recurseSubmodules=false -c submodule.recurse=false \
             -c http.sslVerify=true "$@"
+    return $?
 )
 
 crs_verify_checked_out_submodule_state() {
@@ -55,6 +56,9 @@ crs_verify_checked_out_submodule_state() {
                 crs_provenance_blocked "approved CRS tree contains a nested .gitmodules entry"
                 return 1
                 ;;
+            *)
+                :
+                ;;
         esac
     done <<EOF
 $tree_entries
@@ -74,6 +78,9 @@ EOF
             160000\ *)
                 crs_provenance_blocked "checked-out CRS index contains a Gitlink"
                 return 1
+                ;;
+            *)
+                :
                 ;;
         esac
     done <<EOF
