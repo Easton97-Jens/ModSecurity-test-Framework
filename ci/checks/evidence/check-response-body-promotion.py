@@ -143,6 +143,25 @@ def response_body_case_from_cells(headers: list[str], cells: list[str], cases: d
     return is_response_body_related(case, case.get("path"))
 
 
+def markdown_response_body_pass_errors(
+    path: Path,
+    line_number: int,
+    headers: list[str],
+    cells: list[str],
+    cases: dict[str, dict[str, Any]],
+) -> list[str]:
+    """Reject plain PASS cells for one complete RESPONSE_BODY table row."""
+
+    if len(cells) != len(headers) or not response_body_case_from_cells(headers, cells, cases):
+        return []
+    row = dict(zip(headers, cells))
+    return [
+        f"{path}:{line_number}: RESPONSE_BODY row must not render plain PASS in {column}"
+        for column in ("matrix_status", "status", "result")
+        if row.get(column) == "PASS"
+    ]
+
+
 def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) -> list[str]:
     if not path.exists():
         return []
@@ -155,16 +174,13 @@ def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) ->
         if any(header in cells for header in ("case_id", "case", "case_name")):
             headers = cells
             continue
-        if not headers or len(cells) != len(headers):
+        if not headers:
             continue
-        if not response_body_case_from_cells(headers, cells, cases):
-            continue
-        row = dict(zip(headers, cells))
-        for column in ("matrix_status", "status", "result"):
-            if row.get(column) == "PASS":
-                errors.append(
-                    f"{path}:{line_number}: RESPONSE_BODY row must not render plain PASS in {column}"
-                )
+        errors.extend(
+            markdown_response_body_pass_errors(
+                path, line_number, headers, cells, cases
+            )
+        )
     return errors
 
 
