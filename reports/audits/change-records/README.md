@@ -13,6 +13,7 @@ described in [change traceability](../../../docs/change-traceability.md).
 
 ## Current records
 
+- [Fix Common-version post-apply test-fixture invariance (2026-08-09)](20260809-01-fix-common-version-post-apply-test-invariance.md)
 - [Migrate the Common-version publisher to a GitHub App token (2026-08-08)](20260808-02-migrate-common-version-publisher-app-token.md)
 - [PR #50 CI and SonarQube Cloud follow-up (2026-07-26)](20260726-04-remediate-pr50-ci-sonar-followup.md)
 - [Restore exact ModSecurity v3 recursive topology provenance validation (2026-07-23)](20260723-02-remediate-modsecurity-v3-topology-provenance.md)

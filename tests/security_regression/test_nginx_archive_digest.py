@@ -22,9 +22,12 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from git_provenance_test_support import (
+from tests.security_regression.git_provenance_test_support import (
     create_approved_modsecurity_v3_topology,
     fake_git_script,
+)
+from tests.security_regression.common_version_fixture_support import (
+    rewrite_common_assignments,
 )
 
 
@@ -32,7 +35,11 @@ ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "ci/provisioning/prepare-nginx-build.sh"
 FIXTURES = ROOT / "tests/fixtures/nginx-archive-digest"
 APPROVED_MODSECURITY_V3_REPO = "https://github.com/owasp-modsecurity/ModSecurity.git"
-APPROVED_MODSECURITY_V3_COMMIT = "0fb4aff98b4980cf6426697d5605c424e3d5bb60"
+APPROVED_MODSECURITY_V3_COMMIT = "c" * 40
+APPROVED_MODSECURITY_V3_RELEASE_TAG = "v3.900.0"
+TEST_NGINX_RELEASE_TAG = "release-9.900.1"
+TEST_NGINX_RELEASE_ASSET_NAME = "nginx-9.900.1.tar.gz"
+TEST_NGINX_SHA256 = "a" * 64
 
 
 class NginxArchiveDigestRegressionTests(unittest.TestCase):
@@ -49,8 +56,12 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             ("nginx-fixture/README.fixture", payload.encode("utf-8"), 0o644),
         )
         with path.open("wb") as raw:
-            with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0) as compressed:
-                with tarfile.open(fileobj=compressed, mode="w", format=tarfile.GNU_FORMAT) as archive:
+            with gzip.GzipFile(
+                filename="", mode="wb", fileobj=raw, mtime=0
+            ) as compressed:
+                with tarfile.open(
+                    fileobj=compressed, mode="w", format=tarfile.GNU_FORMAT
+                ) as archive:
                     for name, content, mode in entries:
                         member = tarfile.TarInfo(name)
                         member.size = len(content)
@@ -144,13 +155,25 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         (framework_root / "ci/lib").mkdir(parents=True)
         (framework_root / "ci/provisioning").mkdir(parents=True)
         (framework_root / "tests").mkdir()
-        (framework_root / "Makefile").write_text("# test-only framework root\n", encoding="utf-8")
+        (framework_root / "Makefile").write_text(
+            "# test-only framework root\n", encoding="utf-8"
+        )
         shutil.copy2(ROOT / "ci/lib/path.sh", framework_root / "ci/lib/path.sh")
         shutil.copy2(
-            ROOT / "ci/lib/path-bootstrap.sh", framework_root / "ci/lib/path-bootstrap.sh"
+            ROOT / "ci/lib/path-bootstrap.sh",
+            framework_root / "ci/lib/path-bootstrap.sh",
         )
         shutil.copy2(SCRIPT, framework_root / "ci/provisioning/prepare-nginx-build.sh")
-        common_source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        common_source = rewrite_common_assignments(
+            (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8"),
+            {
+                "MODSECURITY_V3_APPROVED_COMMIT": APPROVED_MODSECURITY_V3_COMMIT,
+                "MODSECURITY_V3_RELEASE_TAG": APPROVED_MODSECURITY_V3_RELEASE_TAG,
+                "NGINX_RELEASE_TAG": TEST_NGINX_RELEASE_TAG,
+                "NGINX_RELEASE_ASSET_NAME": TEST_NGINX_RELEASE_ASSET_NAME,
+                "NGINX_SHA256": TEST_NGINX_SHA256,
+            },
+        )
         (framework_root / "ci/lib/common.sh").write_text(
             common_source
             + "\n# Test-only host-Git override; production common.sh has no such escape.\n"
@@ -174,7 +197,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         archive = root / "good.tar.gz"
         replacement = root / "replacement.tar.gz"
         self.write_archive(archive, self.fixture_text("archive-good.payload"))
-        self.write_archive(replacement, self.fixture_text("archive-replacement.payload"))
+        self.write_archive(
+            replacement, self.fixture_text("archive-replacement.payload")
+        )
 
         build_root = root / "build-root"
         v3 = build_root / "v3"
@@ -187,9 +212,13 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         cache.mkdir()
         shared_prefix = build_root / "shared"
         (shared_prefix / "include/modsecurity").mkdir(parents=True)
-        (shared_prefix / "include/modsecurity/modsecurity.h").write_text("fixture\n", encoding="utf-8")
+        (shared_prefix / "include/modsecurity/modsecurity.h").write_text(
+            "fixture\n", encoding="utf-8"
+        )
         (shared_prefix / "lib").mkdir()
-        (shared_prefix / "lib/libmodsecurity.so").write_text("fixture\n", encoding="utf-8")
+        (shared_prefix / "lib/libmodsecurity.so").write_text(
+            "fixture\n", encoding="utf-8"
+        )
 
         curl_log = root / "curl.log"
         tar_log = root / "tar.log"
@@ -289,7 +318,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         )
         self.write_executable(
             tools_dir / "git",
-            fake_git_script(APPROVED_MODSECURITY_V3_REPO, APPROVED_MODSECURITY_V3_COMMIT),
+            fake_git_script(
+                APPROVED_MODSECURITY_V3_REPO, APPROVED_MODSECURITY_V3_COMMIT
+            ),
         )
 
         nginx_build = build_root / "nginx-build"
@@ -389,7 +420,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             if "verified-archives/" in line or expected_candidate in line
         ]
 
-    def assert_no_nginx_source_io(self, harness: dict[str, Path | dict[str, str]]) -> None:
+    def assert_no_nginx_source_io(
+        self, harness: dict[str, Path | dict[str, str]]
+    ) -> None:
         """Assert a rejected tuple cannot allocate a new cache or consume an archive."""
 
         cache = harness["cache"]
@@ -407,6 +440,12 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         return hashlib.sha256(harness["archive"].read_bytes()).hexdigest()
 
     def test_default_release_provenance_is_a_complete_release_asset_sha_tuple(self):
+        root = Path(
+            tempfile.mkdtemp(
+                prefix="nginx-archive-default-provenance-",
+                dir=os.environ.get("TEST_TMPDIR"),
+            )
+        )
         environment = os.environ.copy()
         for name in (
             "NGINX_SOURCE_MODE",
@@ -418,33 +457,37 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             "NGINX_SHA256",
         ):
             environment.pop(name, None)
-        result = subprocess.run(
-            [
-                "sh",
-                "-c",
-                '. "$1"; printf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" "$NGINX_SOURCE_MODE" "$NGINX_SOURCE_REPO_URL" "$NGINX_RELEASE_TAG" "$NGINX_SOURCE_GIT_REF" "$NGINX_RELEASE_ASSET_NAME" "$NGINX_SHA256"',
-                "sh",
-                str(ROOT / "ci/lib/common.sh"),
-            ],
-            cwd=ROOT,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            env=environment,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(
-            result.stdout.splitlines(),
-            [
-                "github-release",
-                "https://github.com/nginx/nginx",
-                "release-1.31.3",
-                "release-1.31.3",
-                "nginx-1.31.3.tar.gz",
-                "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
-            ],
-        )
+        try:
+            fixture_script = self.make_test_framework_copy(root)
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-c",
+                    '. "$1"; printf "%s\\n%s\\n%s\\n%s\\n%s\\n%s\\n" "$NGINX_SOURCE_MODE" "$NGINX_SOURCE_REPO_URL" "$NGINX_RELEASE_TAG" "$NGINX_SOURCE_GIT_REF" "$NGINX_RELEASE_ASSET_NAME" "$NGINX_SHA256"',
+                    "sh",
+                    str(fixture_script.parents[1] / "lib/common.sh"),
+                ],
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=environment,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(
+                result.stdout.splitlines(),
+                [
+                    "github-release",
+                    "https://github.com/nginx/nginx",
+                    TEST_NGINX_RELEASE_TAG,
+                    TEST_NGINX_RELEASE_TAG,
+                    TEST_NGINX_RELEASE_ASSET_NAME,
+                    TEST_NGINX_SHA256,
+                ],
+            )
+        finally:
+            shutil.rmtree(root)
 
     def test_explicit_empty_release_tag_stops_before_cache_network_or_extraction(self):
         harness = self.make_harness()
@@ -455,7 +498,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 NGINX_RELEASE_TAG="",
             )
             self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
-            self.assertIn("NGINX_RELEASE_TAG must be an explicit reviewed release tag", result.stdout)
+            self.assertIn(
+                "NGINX_RELEASE_TAG must be an explicit reviewed release tag",
+                result.stdout,
+            )
             self.assert_no_nginx_source_io(harness)
         finally:
             self.remove_harness(harness)
@@ -468,7 +514,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 self.archive_digest(harness),
                 NGINX_RELEASE_TAG=None,
                 NGINX_SOURCE_GIT_REF=None,
-                NGINX_RELEASE_ASSET_NAME="nginx-1.31.3.tar.gz",
+                NGINX_RELEASE_ASSET_NAME=TEST_NGINX_RELEASE_ASSET_NAME,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             calls = harness["curl_log"].read_text(encoding="utf-8").splitlines()
@@ -476,7 +522,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 calls,
                 [
                     "=https|=https|https://github.com/nginx/nginx/releases/download/"
-                    "release-1.31.3/nginx-1.31.3.tar.gz"
+                    f"{TEST_NGINX_RELEASE_TAG}/{TEST_NGINX_RELEASE_ASSET_NAME}"
                 ],
             )
             self.assertEqual(len(self.tar_invocations(harness)), 1)
@@ -490,7 +536,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 "NGINX_SHA256 must not be explicitly empty",
             ),
             "whitespace": (
-                self.fixture_text("digest-whitespace.txt").rstrip("\n").encode("ascii").decode("unicode_escape"),
+                self.fixture_text("digest-whitespace.txt")
+                .rstrip("\n")
+                .encode("ascii")
+                .decode("unicode_escape"),
                 "NGINX_SHA256 must be a pinned 64-character SHA-256 value",
             ),
             "invalid": (
@@ -511,7 +560,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 harness = self.make_harness()
                 try:
                     result = self.run_prepare(harness, digest)
-                    self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                    self.assertEqual(
+                        result.returncode, 77, result.stdout + result.stderr
+                    )
                     self.assertIn(expected_message, result.stdout)
                     self.assert_no_nginx_source_io(harness)
                 finally:
@@ -521,7 +572,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         try:
             result = self.run_prepare(harness, f"{self.archive_digest(harness)}\n")
             self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
-            self.assertIn("NGINX_SHA256 must be a pinned 64-character SHA-256 value", result.stdout)
+            self.assertIn(
+                "NGINX_SHA256 must be a pinned 64-character SHA-256 value",
+                result.stdout,
+            )
             self.assert_no_nginx_source_io(harness)
         finally:
             self.remove_harness(harness)
@@ -542,8 +596,12 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             with self.subTest(label=label):
                 harness = self.make_harness()
                 try:
-                    result = self.run_prepare(harness, self.archive_digest(harness), **overrides)
-                    self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                    result = self.run_prepare(
+                        harness, self.archive_digest(harness), **overrides
+                    )
+                    self.assertEqual(
+                        result.returncode, 77, result.stdout + result.stderr
+                    )
                     self.assertIn(message, result.stdout)
                     self.assert_no_nginx_source_io(harness)
                 finally:
@@ -570,7 +628,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                     self.assertIsInstance(cache, Path)
                     legacy_metadata = cache / "nginx-latest-release.json"
                     legacy_archive = cache / "nginx-fixture-latest.tar.gz"
-                    legacy_metadata.write_text('{"tag_name":"fixture-latest"}\n', encoding="utf-8")
+                    legacy_metadata.write_text(
+                        '{"tag_name":"fixture-latest"}\n', encoding="utf-8"
+                    )
                     shutil.copy2(harness["replacement"], legacy_archive)
 
                     result = self.run_prepare(
@@ -579,7 +639,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                         **overrides,
                     )
 
-                    self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                    self.assertEqual(
+                        result.returncode, 77, result.stdout + result.stderr
+                    )
                     self.assertIn(message, result.stdout)
                     self.assert_no_nginx_source_io(harness)
                     self.assertTrue(legacy_metadata.is_file())
@@ -593,7 +655,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
     def test_mismatch_is_blocked_before_tar(self):
         harness = self.make_harness()
         try:
-            result = self.run_prepare(harness, self.fixture_text("digest-mismatch.txt").strip())
+            result = self.run_prepare(
+                harness, self.fixture_text("digest-mismatch.txt").strip()
+            )
             self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
             self.assertIn("NGINX_SHA256 mismatch", result.stdout)
             self.assertEqual(self.tar_invocations(harness), [])
@@ -603,9 +667,15 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
     def test_tar_observation_identifies_direct_use_of_candidate_archive(self):
         harness = self.make_harness()
         try:
-            direct_candidate_invocation = f"-xf {harness['candidate']} -C {harness['root']}"
-            harness["tar_log"].write_text(f"{direct_candidate_invocation}\n", encoding="utf-8")
-            self.assertEqual(self.tar_invocations(harness), [direct_candidate_invocation])
+            direct_candidate_invocation = (
+                f"-xf {harness['candidate']} -C {harness['root']}"
+            )
+            harness["tar_log"].write_text(
+                f"{direct_candidate_invocation}\n", encoding="utf-8"
+            )
+            self.assertEqual(
+                self.tar_invocations(harness), [direct_candidate_invocation]
+            )
         finally:
             self.remove_harness(harness)
 
@@ -640,7 +710,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         finally:
             self.remove_harness(harness)
 
-    def test_fixed_release_download_requires_https_only_redirects_and_never_latest(self):
+    def test_fixed_release_download_requires_https_only_redirects_and_never_latest(
+        self,
+    ):
         harness = self.make_harness()
         try:
             result = self.run_prepare(
@@ -676,7 +748,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         cases = (
             (
                 "direct-override",
-                {"NGINX_SOURCE_REPO_URL": "https://github.com/fixture-owner/fixture-nginx"},
+                {
+                    "NGINX_SOURCE_REPO_URL": "https://github.com/fixture-owner/fixture-nginx"
+                },
             ),
             (
                 "legacy-alias",
@@ -690,8 +764,12 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             with self.subTest(label=label):
                 harness = self.make_harness()
                 try:
-                    result = self.run_prepare(harness, self.archive_digest(harness), **overrides)
-                    self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                    result = self.run_prepare(
+                        harness, self.archive_digest(harness), **overrides
+                    )
+                    self.assertEqual(
+                        result.returncode, 77, result.stdout + result.stderr
+                    )
                     self.assertIn("NGINX_SOURCE_REPO_URL", result.stdout)
                     self.assert_no_nginx_source_io(harness)
                 finally:
@@ -761,7 +839,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             self.assertIsInstance(candidate, Path)
             legacy_metadata = cache / "nginx-latest-release.json"
             legacy_archive = cache / "nginx-fixture-latest.tar.gz"
-            legacy_metadata.write_text('{"tag_name":"fixture-latest"}\n', encoding="utf-8")
+            legacy_metadata.write_text(
+                '{"tag_name":"fixture-latest"}\n', encoding="utf-8"
+            )
             shutil.copy2(harness["replacement"], legacy_archive)
 
             result = self.run_prepare(harness, self.archive_digest(harness))
@@ -797,7 +877,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
             self.assertIn("NGINX_SHA256 mismatch", result.stdout)
             self.assertEqual(self.tar_invocations(cached), [])
-            self.assertFalse(cached["curl_log"].exists(), "pre-existing archive was not reused")
+            self.assertFalse(
+                cached["curl_log"].exists(), "pre-existing archive was not reused"
+            )
         finally:
             self.remove_harness(cached)
 
@@ -805,7 +887,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         try:
             self.write_cache_manifest(refreshed)
             shutil.copy2(refreshed["replacement"], refreshed["candidate"])
-            result = self.run_prepare(refreshed, self.archive_digest(refreshed), REFRESH="1")
+            result = self.run_prepare(
+                refreshed, self.archive_digest(refreshed), REFRESH="1"
+            )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             urls = refreshed["curl_log"].read_text(encoding="utf-8")
             self.assertIn(
@@ -835,7 +919,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 }
             )
 
-            result = self.run_prepare(harness, self.archive_digest(harness), REFRESH="1")
+            result = self.run_prepare(
+                harness, self.archive_digest(harness), REFRESH="1"
+            )
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertTrue(nginx_build.is_dir())
@@ -855,7 +941,12 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                     component_cache = root / "component-cache"
                     owner_root = component_cache / "builds" / "connectors"
                     outside_target = (
-                        component_cache / "builds" / "not-connectors" / "nginx" / "cache-key" / "build"
+                        component_cache
+                        / "builds"
+                        / "not-connectors"
+                        / "nginx"
+                        / "cache-key"
+                        / "build"
                     )
                     outside_target.mkdir(parents=True)
                     nginx_build = outside_target
@@ -871,10 +962,17 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                         }
                     )
 
-                    result = self.run_prepare(harness, self.archive_digest(harness), REFRESH="1")
+                    result = self.run_prepare(
+                        harness, self.archive_digest(harness), REFRESH="1"
+                    )
 
-                    self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
-                    self.assertIn("NGINX REFRESH target remove target outside owner root", result.stdout)
+                    self.assertEqual(
+                        result.returncode, 77, result.stdout + result.stderr
+                    )
+                    self.assertIn(
+                        "NGINX REFRESH target remove target outside owner root",
+                        result.stdout,
+                    )
                     self.assertTrue(outside_target.is_dir())
                     self.assertFalse(harness["curl_log"].exists())
                 finally:

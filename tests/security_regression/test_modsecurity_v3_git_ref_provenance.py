@@ -7,17 +7,14 @@ They never contact upstream or build a real ModSecurity checkout.
 import os
 import shlex
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-
-TEST_SUPPORT_ROOT = Path(__file__).resolve().parent
-if str(TEST_SUPPORT_ROOT) not in sys.path:
-    sys.path.insert(0, str(TEST_SUPPORT_ROOT))
-
-from git_provenance_test_support import (
+from tests.security_regression.common_version_fixture_support import (
+    write_common_fixture,
+)
+from tests.security_regression.git_provenance_test_support import (
     create_approved_modsecurity_v3_topology,
     fake_git_script,
 )
@@ -29,8 +26,8 @@ PREPARE_APACHE = ROOT / "ci/provisioning/prepare-apache-build.sh"
 PREPARE_NGINX = ROOT / "ci/provisioning/prepare-nginx-build.sh"
 BUILD_V3 = ROOT / "ci/provisioning/build-v3-under-src.sh"
 APPROVED_REPO = "https://github.com/owasp-modsecurity/ModSecurity.git"
-APPROVED_COMMIT = "0fb4aff98b4980cf6426697d5605c424e3d5bb60"
-APPROVED_RELEASE_TAG = "v3.0.15"
+APPROVED_COMMIT = "c" * 40
+APPROVED_RELEASE_TAG = "v3.900.0"
 ALTERNATE_COMMIT = "a" * 40
 # A full valid graph invokes the hermetic fake Git once per verification step
 # across the root and eight approved children.  Python 3.14 process startup
@@ -80,9 +77,14 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             while arguments:
                 if arguments[0] == "--no-optional-locks":
                     arguments = arguments[1:]
-                elif arguments[0].startswith("--git-dir=") or arguments[0].startswith("--work-tree="):
+                elif arguments[0].startswith("--git-dir=") or arguments[0].startswith(
+                    "--work-tree="
+                ):
                     arguments = arguments[1:]
-                elif len(arguments) >= 2 and arguments[0] in {"--git-dir", "--work-tree"}:
+                elif len(arguments) >= 2 and arguments[0] in {
+                    "--git-dir",
+                    "--work-tree",
+                }:
                     arguments = arguments[2:]
                 elif len(arguments) >= 2 and arguments[0] in {"-c", "-C"}:
                     arguments = arguments[2:]
@@ -122,14 +124,22 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             timeout=PROVENANCE_COMMAND_TIMEOUT_SECONDS,
         )
 
-    def create_real_commit_origin(self, temporary_path, name, payload_name="payload.txt"):
+    def create_real_commit_origin(
+        self, temporary_path, name, payload_name="payload.txt"
+    ):
         origin = temporary_path / f"{name}-origin.git"
         worktree = temporary_path / f"{name}-seed"
         self.run_system_git("init", "--bare", str(origin))
         self.run_system_git("init", str(worktree))
-        self.run_system_git("-C", str(worktree), "config", "user.name", "Framework Test")
         self.run_system_git(
-            "-C", str(worktree), "config", "user.email", "framework-test@example.invalid"
+            "-C", str(worktree), "config", "user.name", "Framework Test"
+        )
+        self.run_system_git(
+            "-C",
+            str(worktree),
+            "config",
+            "user.email",
+            "framework-test@example.invalid",
         )
         (worktree / payload_name).write_text(f"{name} payload\n", encoding="utf-8")
         self.run_system_git("-C", str(worktree), "add", payload_name)
@@ -143,10 +153,21 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
 
     def initialize_real_checkout(self, destination, origin, commit):
         self.run_system_git("init", str(destination))
-        self.run_system_git("-C", str(destination), "remote", "add", "origin", str(origin))
+        self.run_system_git(
+            "-C", str(destination), "remote", "add", "origin", str(origin)
+        )
         self.run_system_git("-C", str(destination), "fetch", "origin", commit)
 
     def create_fixture(self, temporary_path, *, trap_build_commands=False):
+        framework_root = temporary_path / "framework-fixture"
+        write_common_fixture(
+            framework_root,
+            (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8"),
+            {
+                "MODSECURITY_V3_APPROVED_COMMIT": APPROVED_COMMIT,
+                "MODSECURITY_V3_RELEASE_TAG": APPROVED_RELEASE_TAG,
+            },
+        )
         verified_root = temporary_path / "verified"
         source_root = verified_root / "src"
         source_root.mkdir(parents=True)
@@ -157,8 +178,12 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         fake_bin = temporary_path / "bin"
         fake_bin.mkdir()
         self.write_executable(fake_bin / "git", FAKE_GIT)
-        self.write_executable(fake_bin / "provision-approved-v3", FAKE_PROVISION_HARNESS)
-        self.write_executable(fake_bin / "require-approved-v3", FAKE_DIRECT_CHECKOUT_HARNESS)
+        self.write_executable(
+            fake_bin / "provision-approved-v3", FAKE_PROVISION_HARNESS
+        )
+        self.write_executable(
+            fake_bin / "require-approved-v3", FAKE_DIRECT_CHECKOUT_HARNESS
+        )
         git_log = temporary_path / "git.log"
         git_log.touch()
         build_log = temporary_path / "build.log"
@@ -170,8 +195,8 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         environment = os.environ.copy()
         environment.update(
             {
-                "CI_ROOT": str(ROOT / "ci"),
-                "FRAMEWORK_ROOT": str(ROOT),
+                "CI_ROOT": str(framework_root / "ci"),
+                "FRAMEWORK_ROOT": str(framework_root),
                 "CONNECTOR_ROOT": str(ROOT),
                 "REPO_ROOT": str(ROOT),
                 "VERIFIED_RUN_ROOT": str(verified_root),
@@ -199,16 +224,24 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
 
     @staticmethod
     def read_commands(git_log):
-        return [line.rstrip() for line in git_log.read_text(encoding="utf-8").splitlines() if line.strip()]
+        return [
+            line.rstrip()
+            for line in git_log.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
 
     def invoke_fetch(self, *, overrides=None, existing_source=False):
-        with tempfile.TemporaryDirectory(prefix="modsecurity-v3-provenance-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="modsecurity-v3-provenance-"
+        ) as temporary:
             temporary_path = Path(temporary)
             environment, source_dir, _, git_log, _ = self.create_fixture(temporary_path)
             sentinel = source_dir / "untrusted-source-marker"
             if existing_source:
                 (source_dir / ".git").mkdir(parents=True)
-                sentinel.write_text("existing source must not be reused", encoding="utf-8")
+                sentinel.write_text(
+                    "existing source must not be reused", encoding="utf-8"
+                )
             environment.update(overrides or {})
             result = subprocess.run(
                 [environment["FAKE_PROVISION_HARNESS"], str(source_dir)],
@@ -248,16 +281,22 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         )
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn(f"fetch --depth 1 --no-tags origin {APPROVED_COMMIT}", command_text)
+        self.assertIn(
+            f"fetch --depth 1 --no-tags origin {APPROVED_COMMIT}", command_text
+        )
         self.assertNotIn(APPROVED_RELEASE_TAG, command_text)
 
-    def test_fresh_control_fetches_only_the_reviewed_commit_then_initializes_the_static_topology(self):
+    def test_fresh_control_fetches_only_the_reviewed_commit_then_initializes_the_static_topology(
+        self,
+    ):
         result, commands, _ = self.invoke_fetch()
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("init ", command_text)
         self.assertIn(f"remote add origin {APPROVED_REPO}", command_text)
-        self.assertIn(f"fetch --depth 1 --no-tags origin {APPROVED_COMMIT}", command_text)
+        self.assertIn(
+            f"fetch --depth 1 --no-tags origin {APPROVED_COMMIT}", command_text
+        )
         self.assertIn(f"checkout --detach {APPROVED_COMMIT}", command_text)
         self.assertIn("submodule update --init --recursive --checkout", command_text)
         self.assertLess(
@@ -280,8 +319,12 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         )
         self.assertNotIn("ci_modsecurity_v3_git", provision_function)
 
-    def test_ignores_a_fake_git_earlier_in_path_and_uses_the_verified_system_binary(self):
-        with tempfile.TemporaryDirectory(prefix="modsecurity-v3-host-git-") as temporary:
+    def test_ignores_a_fake_git_earlier_in_path_and_uses_the_verified_system_binary(
+        self,
+    ):
+        with tempfile.TemporaryDirectory(
+            prefix="modsecurity-v3-host-git-"
+        ) as temporary:
             temporary_path = Path(temporary)
             environment, _, _, git_log, _ = self.create_fixture(temporary_path)
             attacker_bin = temporary_path / "attacker-bin"
@@ -311,17 +354,19 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             self.assertEqual(self.read_commands(git_log), [])
 
     def test_public_provisioning_scrubs_dynamic_loader_state_before_processes(self):
-        with tempfile.TemporaryDirectory(prefix="modsecurity-v3-loader-environment-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="modsecurity-v3-loader-environment-"
+        ) as temporary:
             temporary_path = Path(temporary)
             environment, source_dir, _, git_log, _ = self.create_fixture(temporary_path)
             result = self.run_common_function(
                 environment,
-                'export LD_TRACE_LOADED_OBJECTS=1\n'
+                "export LD_TRACE_LOADED_OBJECTS=1\n"
                 '. "$FRAMEWORK_ROOT/ci/lib/common.sh"\n'
-                'ci_modsecurity_v3_require_host_git() {\n'
-                '    ci_v3_host_git_bin=$FAKE_GIT_BIN\n'
-                '    return 0\n'
-                '}\n'
+                "ci_modsecurity_v3_require_host_git() {\n"
+                "    ci_v3_host_git_bin=$FAKE_GIT_BIN\n"
+                "    return 0\n"
+                "}\n"
                 'ci_provision_approved_modsecurity_v3_checkout "$1"',
                 source_dir,
             )
@@ -331,7 +376,9 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             self.assertIn("checkout", self.git_verbs(commands))
 
     def test_rejects_a_symlinked_fresh_destination_parent_before_git(self):
-        with tempfile.TemporaryDirectory(prefix="modsecurity-v3-parent-symlink-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="modsecurity-v3-parent-symlink-"
+        ) as temporary:
             temporary_path = Path(temporary)
             environment, _, _, git_log, _ = self.create_fixture(temporary_path)
             real_parent = temporary_path / "real-parent"
@@ -353,7 +400,9 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             self.assertFalse((real_parent / "ModSecurity_V3").exists())
 
     def test_fresh_root_checkout_contains_worktree_and_suppresses_attributes(self):
-        with tempfile.TemporaryDirectory(prefix="modsecurity-v3-fresh-root-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="modsecurity-v3-fresh-root-"
+        ) as temporary:
             temporary_path = Path(temporary)
             environment, _, _, _, _ = self.create_fixture(temporary_path)
             origin, _, commit = self.create_real_commit_origin(temporary_path, "root")
@@ -363,7 +412,9 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             attributes.write_text("payload.txt filter=evil\n", encoding="utf-8")
             marker = temporary_path / "smudge-ran"
             smudge = temporary_path / "smudge.sh"
-            self.write_executable(smudge, f"#!/bin/sh\n: > {shlex.quote(str(marker))}\ncat\n")
+            self.write_executable(
+                smudge, f"#!/bin/sh\n: > {shlex.quote(str(marker))}\ncat\n"
+            )
             self.initialize_real_checkout(destination, origin, commit)
             git_dir = destination / ".git"
             self.run_system_git(
@@ -395,16 +446,25 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
                 commit,
             )
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertEqual((destination / "payload.txt").read_text(encoding="utf-8"), "root payload\n")
+            self.assertEqual(
+                (destination / "payload.txt").read_text(encoding="utf-8"),
+                "root payload\n",
+            )
             self.assertFalse((redirected_worktree / "payload.txt").exists())
             self.assertFalse(marker.exists(), result.stdout + result.stderr)
 
-    def test_scrubs_local_custom_submodule_update_and_executes_real_fresh_submodule_helper(self):
-        with tempfile.TemporaryDirectory(prefix="modsecurity-v3-submodule-config-") as temporary:
+    def test_scrubs_local_custom_submodule_update_and_executes_real_fresh_submodule_helper(
+        self,
+    ):
+        with tempfile.TemporaryDirectory(
+            prefix="modsecurity-v3-submodule-config-"
+        ) as temporary:
             temporary_path = Path(temporary)
             environment, _, _, _, _ = self.create_fixture(temporary_path)
             child_origin, _, _ = self.create_real_commit_origin(temporary_path, "child")
-            root_origin, root_worktree, _ = self.create_real_commit_origin(temporary_path, "parent")
+            root_origin, root_worktree, _ = self.create_real_commit_origin(
+                temporary_path, "parent"
+            )
             self.run_system_git(
                 "-C",
                 str(root_worktree),
@@ -415,15 +475,21 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
                 str(child_origin),
                 "vendor/child",
             )
-            self.run_system_git("-C", str(root_worktree), "add", ".gitmodules", "vendor/child")
-            self.run_system_git("-C", str(root_worktree), "commit", "-m", "add child fixture")
+            self.run_system_git(
+                "-C", str(root_worktree), "add", ".gitmodules", "vendor/child"
+            )
+            self.run_system_git(
+                "-C", str(root_worktree), "commit", "-m", "add child fixture"
+            )
             root_commit = self.run_system_git(
                 "-C", str(root_worktree), "rev-parse", "HEAD", capture_output=True
             ).stdout.strip()
             self.run_system_git("-C", str(root_worktree), "push", "origin", "HEAD:main")
             destination = temporary_path / "fresh-parent-checkout"
             self.initialize_real_checkout(destination, root_origin, root_commit)
-            self.run_system_git("-C", str(destination), "checkout", "--detach", root_commit)
+            self.run_system_git(
+                "-C", str(destination), "checkout", "--detach", root_commit
+            )
             preinitialized = subprocess.run(
                 [
                     "/usr/bin/git",
@@ -442,7 +508,11 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 timeout=PROVENANCE_COMMAND_TIMEOUT_SECONDS,
             )
-            self.assertEqual(preinitialized.returncode, 0, preinitialized.stdout + preinitialized.stderr)
+            self.assertEqual(
+                preinitialized.returncode,
+                0,
+                preinitialized.stdout + preinitialized.stderr,
+            )
             marker = temporary_path / "custom-update-ran"
             custom_update = temporary_path / "custom-update.sh"
             self.write_executable(
@@ -478,7 +548,11 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            self.assertEqual(configured_update.returncode, 1, configured_update.stdout + configured_update.stderr)
+            self.assertEqual(
+                configured_update.returncode,
+                1,
+                configured_update.stdout + configured_update.stderr,
+            )
             self.assertTrue((destination / "vendor/child/payload.txt").is_file())
             self.assertFalse(marker.exists(), result.stdout + result.stderr)
 
@@ -515,7 +589,9 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             "FAKE_GIT_HEAD_COMMIT",
         ):
             with self.subTest(variable=variable):
-                result, commands, _ = self.invoke_fetch(overrides={variable: ALTERNATE_COMMIT})
+                result, commands, _ = self.invoke_fetch(
+                    overrides={variable: ALTERNATE_COMMIT}
+                )
                 self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
                 self.assertIn("fetch", self.git_verbs(commands))
                 self.assertNotIn("submodule", self.git_verbs(commands))
@@ -549,20 +625,26 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         self.assertNotIn("submodule", self.git_verbs(commands))
 
     def invoke_existing_source_consumer(self, script):
-        with tempfile.TemporaryDirectory(prefix="modsecurity-v3-consumer-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="modsecurity-v3-consumer-"
+        ) as temporary:
             temporary_path = Path(temporary)
-            environment, source_dir, adapter_source, git_log, build_log = self.create_fixture(
-                temporary_path, trap_build_commands=True
+            environment, source_dir, adapter_source, git_log, build_log = (
+                self.create_fixture(temporary_path, trap_build_commands=True)
             )
             (source_dir / ".git").mkdir(parents=True)
-            (source_dir / "untrusted-source-marker").write_text("unapproved", encoding="utf-8")
+            (source_dir / "untrusted-source-marker").write_text(
+                "unapproved", encoding="utf-8"
+            )
             environment.update(
                 {
                     "FAKE_GIT_ORIGIN": "https://github.com/attacker/ModSecurity.git",
                     "MODSECURITY_APACHE_SOURCE_DIR": str(adapter_source),
                     "MODSECURITY_NGINX_SOURCE_DIR": str(adapter_source),
                     "BUILD_NGINX_FROM_SOURCE": "0",
-                    "MODSECURITY_V3_DIR": str(temporary_path / "verified" / "build" / "v3-copy"),
+                    "MODSECURITY_V3_DIR": str(
+                        temporary_path / "verified" / "build" / "v3-copy"
+                    ),
                 }
             )
             result = subprocess.run(
@@ -574,12 +656,20 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 timeout=PROVENANCE_COMMAND_TIMEOUT_SECONDS,
             )
-            return result, self.read_commands(git_log), build_log.read_text(encoding="utf-8")
+            return (
+                result,
+                self.read_commands(git_log),
+                build_log.read_text(encoding="utf-8"),
+            )
 
-    def test_unapproved_existing_checkout_is_rejected_by_all_v3_build_paths_before_build(self):
+    def test_unapproved_existing_checkout_is_rejected_by_all_v3_build_paths_before_build(
+        self,
+    ):
         for script in (PREPARE_APACHE, PREPARE_NGINX, BUILD_V3):
             with self.subTest(script=script.name):
-                result, commands, build_commands = self.invoke_existing_source_consumer(script)
+                result, commands, build_commands = self.invoke_existing_source_consumer(
+                    script
+                )
                 self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
                 self.assertNotIn("fetch", self.git_verbs(commands))
                 self.assertNotIn("submodule", self.git_verbs(commands))
@@ -589,10 +679,14 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         build_source = BUILD_V3.read_text(encoding="utf-8")
         guard = 'ci_require_approved_modsecurity_v3_checkout "$MODSECURITY_V3_SOURCE_DIR" || exit 77'
         self.assertIn(guard, build_source)
-        self.assertLess(build_source.index(guard), build_source.index("run_logged copy-source"))
+        self.assertLess(
+            build_source.index(guard), build_source.index("run_logged copy-source")
+        )
 
     def test_approved_fake_checkout_is_a_legitimate_direct_guard_control(self):
-        with tempfile.TemporaryDirectory(prefix="modsecurity-v3-approved-build-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="modsecurity-v3-approved-build-"
+        ) as temporary:
             temporary_path = Path(temporary)
             environment, source_dir, _, git_log, _ = self.create_fixture(temporary_path)
             create_approved_modsecurity_v3_topology(source_dir)

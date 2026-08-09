@@ -4,16 +4,21 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+
+from tests.security_regression.common_version_fixture_support import (
+    write_common_fixture,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER_PATH = ROOT / "ci/tools/check-common-versions.py"
 REPOSITORY = "nginx/nginx"
-RELEASE_TAG = "release-1.31.3"
-ASSET_NAME = "nginx-1.31.3.tar.gz"
-PUBLISHED_SHA256 = "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
+RELEASE_TAG = "release-9.900.1"
+ASSET_NAME = "nginx-9.900.1.tar.gz"
+PUBLISHED_SHA256 = "a" * 64
 
 
 def load_checker():
@@ -50,16 +55,35 @@ class FakeGitHubClient:
 
     def get_json(self, url: str) -> dict[str, object]:
         self.urls.append(url)
-        if url == f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}":
+        if (
+            url
+            == f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}"
+        ):
             return self.current_release
         if url.endswith("/releases/latest"):
-            raise AssertionError("NGINX provenance must never query GitHub's floating latest endpoint")
+            raise AssertionError(
+                "NGINX provenance must never query GitHub's floating latest endpoint"
+            )
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
 
 class NginxReleaseProvenanceTests(unittest.TestCase):
     def entries(self):
-        _, parsed = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
+        fixture_source = "\n".join(
+            [
+                'NGINX_SOURCE_REPO_URL="${NGINX_SOURCE_REPO_URL-https://github.com/nginx/nginx}"',
+                f'NGINX_RELEASE_TAG="${{NGINX_RELEASE_TAG-{RELEASE_TAG}}}"',
+                'NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF-$NGINX_RELEASE_TAG}"',
+                f'NGINX_RELEASE_ASSET_NAME="${{NGINX_RELEASE_ASSET_NAME-{ASSET_NAME}}}"',
+                f'NGINX_SHA256="${{NGINX_SHA256:-{PUBLISHED_SHA256}}}"',
+                "",
+            ]
+        )
+        with tempfile.TemporaryDirectory(
+            prefix="nginx-release-provenance-"
+        ) as temporary:
+            fixture = write_common_fixture(Path(temporary), fixture_source, {})
+            _, parsed = CHECKER.parse_common(fixture)
         return parsed
 
     def test_current_release_asset_and_digest_are_verified_together(self):

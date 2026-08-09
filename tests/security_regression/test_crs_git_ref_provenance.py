@@ -7,6 +7,7 @@ It never contacts a remote or creates a real CRS checkout.
 import importlib.util
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,6 +15,9 @@ import unittest
 from pathlib import Path
 
 
+from tests.security_regression.common_version_fixture_support import (
+    write_common_fixture,
+)
 from tests.security_regression.git_provenance_test_support import (
     assert_immutable_commit_fetch_control,
 )
@@ -23,8 +27,8 @@ ROOT = Path(__file__).resolve().parents[2]
 FETCH_CRS = ROOT / "ci/provisioning/fetch-crs.sh"
 CHECK_COMMON_VERSIONS = ROOT / "ci/tools/check-common-versions.py"
 APPROVED_REPO = "https://github.com/coreruleset/coreruleset.git"
-APPROVED_COMMIT = "55b09f5acfd16413e7b31041100711ceb7adc89c"
-APPROVED_RELEASE_TAG = "v4.28.0"
+APPROVED_COMMIT = "c" * 40
+APPROVED_RELEASE_TAG = "v4.900.0"
 ALTERNATE_COMMIT = "a" * 40
 ANNOTATED_TAG_OBJECT = "5d2bd9a1ad7e607813f9e19cc73fa44dd5dd2ceb"
 
@@ -44,13 +48,13 @@ def load_common_version_checker():
 COMMON_VERSION_CHECKER = load_common_version_checker()
 
 
-FAKE_GIT = """#!/usr/bin/env python3
+FAKE_GIT = f"""#!/usr/bin/env python3
 import os
 from pathlib import Path
 import sys
 
-approved_repo = "https://github.com/coreruleset/coreruleset.git"
-approved_commit = "55b09f5acfd16413e7b31041100711ceb7adc89c"
+approved_repo = {APPROVED_REPO!r}
+approved_commit = {APPROVED_COMMIT!r}
 log = Path(os.environ["FAKE_GIT_LOG"])
 with log.open("a", encoding="utf-8") as handle:
     handle.write(" ".join(sys.argv[1:]) + "\\n")
@@ -105,6 +109,30 @@ class FetchCrsProvenanceTests(unittest.TestCase):
     maxDiff = None
 
     @staticmethod
+    def create_framework_fixture(root: Path) -> Path:
+        """Copy the entrypoint boundary so bootstrap derives fixture-local paths."""
+
+        (root / "ci/lib").mkdir(parents=True)
+        (root / "ci/provisioning").mkdir(parents=True)
+        (root / "tests").mkdir()
+        (root / "Makefile").write_text("# test-only framework root\n", encoding="utf-8")
+        shutil.copy2(ROOT / "ci/lib/path.sh", root / "ci/lib/path.sh")
+        shutil.copy2(
+            ROOT / "ci/lib/path-bootstrap.sh", root / "ci/lib/path-bootstrap.sh"
+        )
+        shutil.copy2(FETCH_CRS, root / "ci/provisioning/fetch-crs.sh")
+        source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        write_common_fixture(
+            root,
+            source,
+            {
+                "CRS_APPROVED_COMMIT": APPROVED_COMMIT,
+                "CRS_RELEASE_TAG": APPROVED_RELEASE_TAG,
+            },
+        )
+        return root / "ci/provisioning/fetch-crs.sh"
+
+    @staticmethod
     def git_verbs(commands):
         verbs = []
         for command_line in commands:
@@ -119,6 +147,9 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         """Run the real fetch script with only its Git executable mocked."""
         with tempfile.TemporaryDirectory(prefix="crs-provenance-") as temporary:
             temporary_path = Path(temporary)
+            fixture_script = self.create_framework_fixture(
+                temporary_path / "framework-fixture"
+            )
             verified_root = temporary_path / "verified"
             source_root = verified_root / "src"
             source_root.mkdir(parents=True)
@@ -139,8 +170,8 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             environment = os.environ.copy()
             environment.update(
                 {
-                    "CI_ROOT": str(ROOT / "ci"),
-                    "FRAMEWORK_ROOT": str(ROOT),
+                    "CI_ROOT": str(fixture_script.parents[1]),
+                    "FRAMEWORK_ROOT": str(fixture_script.parents[2]),
                     "CONNECTOR_ROOT": str(ROOT),
                     "REPO_ROOT": str(ROOT),
                     "VERIFIED_RUN_ROOT": str(verified_root),
@@ -157,7 +188,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             )
             environment.update(overrides or {})
             result = subprocess.run(
-                ["sh", str(FETCH_CRS)],
+                ["sh", str(fixture_script)],
                 cwd=ROOT,
                 env=environment,
                 text=True,
@@ -179,9 +210,9 @@ class FetchCrsProvenanceTests(unittest.TestCase):
 
     def test_rejects_mutable_ref_forms_before_git(self):
         for rejected_ref in (
-            "v4.27.0",
+            "v4.8999",
             "main",
-            "refs/tags/v4.28.0",
+            "refs/tags/v4.900.0",
             "refs/heads/main",
             "refs/remotes/origin/main",
             "55b09f5",
@@ -305,11 +336,20 @@ class FetchCrsProvenanceTests(unittest.TestCase):
 
             def get_json(self, url):
                 self.urls.append(url)
-                return {"tag_name": "v4.29.0"}
+                return {"tag_name": "v4.900.1"}
 
-        _, entries = COMMON_VERSION_CHECKER.parse_common(ROOT / "ci/lib/common.sh")
-        client = FakeGithubClient()
-        result = COMMON_VERSION_CHECKER.check_crs_release_provenance(entries, client)
+        with tempfile.TemporaryDirectory(prefix="crs-provenance-") as temporary:
+            fixture = (
+                self.create_framework_fixture(
+                    Path(temporary) / "framework-fixture"
+                ).parents[1]
+                / "lib/common.sh"
+            )
+            _, entries = COMMON_VERSION_CHECKER.parse_common(fixture)
+            client = FakeGithubClient()
+            result = COMMON_VERSION_CHECKER.check_crs_release_provenance(
+                entries, client
+            )
 
         self.assertEqual(
             COMMON_VERSION_CHECKER.value(entries, "CRS_APPROVED_REPO_URL"),

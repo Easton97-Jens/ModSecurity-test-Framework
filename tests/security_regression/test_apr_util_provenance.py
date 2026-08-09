@@ -9,22 +9,46 @@ import textwrap
 import unittest
 from pathlib import Path
 
+from tests.security_regression.common_version_fixture_support import (
+    write_common_fixture,
+)
+
 
 ROOT = Path(__file__).resolve().parents[2]
-COMMON = ROOT / "ci" / "lib" / "common.sh"
+COMMON_SOURCE = ROOT / "ci" / "lib" / "common.sh"
 PREPARE_APACHE = ROOT / "ci" / "provisioning" / "prepare-apache-build.sh"
 PINNED = {
-    "APR_UTIL_VERSION": "1.6.4",
-    "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2",
-    "APR_UTIL_SHA256": "3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b",
-    "APR_UTIL_SHA256_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256",
+    "APR_UTIL_VERSION": "1.6.9000",
+    "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/apr/apr-util-1.6.9000.tar.bz2",
+    "APR_UTIL_SHA256": "a" * 64,
+    "APR_UTIL_SHA256_URL": "https://downloads.apache.org/apr/apr-util-1.6.9000.tar.bz2.sha256",
 }
 
 
 class AprUtilProvenanceTests(unittest.TestCase):
     maxDiff = None
 
-    def run_guard(self, overrides: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    def setUp(self) -> None:
+        temporary_root = os.environ.get("TEST_TMPDIR")
+        self.temporary = tempfile.TemporaryDirectory(
+            prefix="apr-util-provenance-", dir=temporary_root
+        )
+        self.fixture_root = Path(self.temporary.name) / "framework-fixture"
+        self.common = write_common_fixture(
+            self.fixture_root,
+            COMMON_SOURCE.read_text(encoding="utf-8"),
+            {
+                name.replace("APR_UTIL_", "APR_UTIL_PINNED_"): value
+                for name, value in PINNED.items()
+            },
+        )
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    def run_guard(
+        self, overrides: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         for name in PINNED:
             environment.pop(name, None)
@@ -35,7 +59,7 @@ class AprUtilProvenanceTests(unittest.TestCase):
                 "sh",
                 "-eu",
                 "-c",
-                f'. "{COMMON}"\nci_require_apr_util_pinned_provenance',
+                f'. "{self.common}"\nci_require_apr_util_pinned_provenance',
             ],
             cwd=ROOT,
             env=environment,
@@ -49,11 +73,14 @@ class AprUtilProvenanceTests(unittest.TestCase):
         path.write_text(textwrap.dedent(contents).lstrip(), encoding="utf-8")
         path.chmod(0o755)
 
-    def test_current_central_tuple_is_exact_and_accepted(self):
-        source = COMMON.read_text(encoding="utf-8")
+    def test_synthetic_reviewed_tuple_is_exact_and_accepted(self):
+        source = self.common.read_text(encoding="utf-8")
         for name, expected in PINNED.items():
             with self.subTest(name=name):
-                self.assertIn(f'{name.replace("APR_UTIL_", "APR_UTIL_PINNED_")}="{expected}"', source)
+                self.assertIn(
+                    f'{name.replace("APR_UTIL_", "APR_UTIL_PINNED_")}="{expected}"',
+                    source,
+                )
 
         completed = self.run_guard()
 
@@ -63,13 +90,19 @@ class AprUtilProvenanceTests(unittest.TestCase):
         invalid_values = {
             "stale-version": {"APR_UTIL_VERSION": "1.6.3"},
             "foreign-host": {
-                "APR_UTIL_SOURCE_URL": "https://mirror.example.invalid/apr-util-1.6.4.tar.bz2"
+                "APR_UTIL_SOURCE_URL": (
+                    "https://mirror.example.invalid/apr-util-"
+                    f"{PINNED['APR_UTIL_VERSION']}.tar.bz2"
+                )
             },
             "wrong-asset": {
-                "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/apr/apr-util-1.6.3.tar.bz2"
+                "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/apr/apr-util-1.6.8999.tar.bz2"
             },
             "wrong-path": {
-                "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/other/apr-util-1.6.4.tar.bz2"
+                "APR_UTIL_SOURCE_URL": (
+                    "https://downloads.apache.org/other/apr-util-"
+                    f"{PINNED['APR_UTIL_VERSION']}.tar.bz2"
+                )
             },
             "missing-digest": {"APR_UTIL_SHA256": ""},
             "malformed-digest": {"APR_UTIL_SHA256": "not-a-sha256"},
@@ -88,7 +121,9 @@ class AprUtilProvenanceTests(unittest.TestCase):
 
     def test_invalid_tuple_stops_the_real_preparer_before_network_commands(self):
         temporary_root = os.environ.get("TEST_TMPDIR")
-        with tempfile.TemporaryDirectory(prefix="apr-util-provenance-", dir=temporary_root) as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="apr-util-provenance-", dir=temporary_root
+        ) as temporary:
             root = Path(temporary)
             fake_bin = root / "fake-bin"
             fake_bin.mkdir()
@@ -109,7 +144,7 @@ class AprUtilProvenanceTests(unittest.TestCase):
                     "PATH": f"{fake_bin}{os.pathsep}{environment['PATH']}",
                     "MARKER": str(marker),
                     "FRAMEWORK_ROOT": str(ROOT),
-                    "CI_ROOT": str(ROOT / "ci"),
+                    "CI_ROOT": str(self.fixture_root / "ci"),
                     "CONNECTOR_ROOT": str(ROOT),
                     "VERIFIED_RUN_ROOT": str(root / "verified"),
                     "BUILD_ROOT": str(root / "build"),
@@ -118,7 +153,10 @@ class AprUtilProvenanceTests(unittest.TestCase):
                     "MODSECURITY_V3_SOURCE_DIR": str(root / "missing-v3"),
                     "MODSECURITY_APACHE_SOURCE_DIR": str(root / "missing-apache"),
                     "AUTO_FETCH_SMOKE_SOURCES": "0",
-                    "APR_UTIL_SOURCE_URL": "https://mirror.example.invalid/apr-util-1.6.4.tar.bz2",
+                    "APR_UTIL_SOURCE_URL": (
+                        "https://mirror.example.invalid/apr-util-"
+                        f"{PINNED['APR_UTIL_VERSION']}.tar.bz2"
+                    ),
                 }
             )
             completed = subprocess.run(
@@ -152,7 +190,9 @@ class AprUtilProvenanceTests(unittest.TestCase):
             apache_build.index("extract_tar_strip apr-util"),
         )
         guard_index = source.index("ci_require_apr_util_pinned_provenance || blocked")
-        self.assertLess(guard_index, source.index("ensure_modsecurity_v3_source", guard_index))
+        self.assertLess(
+            guard_index, source.index("ensure_modsecurity_v3_source", guard_index)
+        )
 
     def test_apr_util_download_does_not_follow_unreviewed_redirects(self):
         source = PREPARE_APACHE.read_text(encoding="utf-8")
