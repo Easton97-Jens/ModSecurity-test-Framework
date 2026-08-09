@@ -6,6 +6,10 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$FRAMEWORK_ROOT}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
+# shellcheck disable=SC2034 # Consumed by the sourceable shared verifier.
+CRS_PROVENANCE_CONTEXT=prepare_crs
+# shellcheck source=ci/provisioning/crs-provenance.sh
+. "$SCRIPT_DIR/crs-provenance.sh"
 
 blocked() {
     ci_blocked "prepare_crs $*"
@@ -19,6 +23,9 @@ assert_runtime_path_under_root "$CRS_RUNTIME_DIR" "$BUILD_ROOT" CRS_RUNTIME_DIR 
 assert_safe_runtime_path "$CRS_RUNTIME_DIR" CRS_RUNTIME_DIR || exit 77
 
 [ -d "$CRS_SOURCE_DIR" ] || blocked "missing CRS_SOURCE_DIR: $CRS_SOURCE_DIR; run make fetch-crs"
+if ! crs_verify_checked_out_provenance; then
+    exit 77
+fi
 [ -f "$CRS_SOURCE_DIR/crs-setup.conf.example" ] || blocked "missing CRS setup template: $CRS_SOURCE_DIR/crs-setup.conf.example"
 [ -d "$CRS_SOURCE_DIR/rules" ] || blocked "missing CRS rules directory: $CRS_SOURCE_DIR/rules"
 

@@ -117,6 +117,15 @@ submodule processing. A newer upstream tag is reported as `unknown`
 with no automatic update: changing the release tag and immutable commit remains
 a reviewed provenance change. It requires no network or connector runtime and
 proves the provisioning identity control only, not a CRS runtime support claim.
+The legitimate control accepts an absent manifest and the exact root empty
+`.gitmodules` blob `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` only after
+tree, index, worktree, Gitlink, local configuration, and registry checks. It
+rejects non-empty, wrong-mode, symlinked, special, mismatched, nested, or
+Gitlink-bearing states without invoking `git submodule`.
+The same verifier runs in `prepare-crs.sh` immediately before it reads source
+templates, rules, or plugins or writes runtime files. Therefore a replacement
+after a successful fetch is rejected before source consumption; this remains a
+provisioning-boundary result, not connector-runtime evidence.
 
 ## ModSecurity v3 source provenance contract
 

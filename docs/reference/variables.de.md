@@ -181,10 +181,19 @@ wiederverwendet, sondern abgewiesen. Der Fetch-Pfad initialisiert ein frisches
 Repository, setzt und liest den exakten HTTPS-Origin zurück, lädt nur den
 freigegebenen vollständigen Commit ohne Tags oder rekursive Submodule und
 vergleicht `FETCH_HEAD^{commit}`, das aufgelöste Commit-Objekt und das finale
-`HEAD^{commit}` mit derselben Identität. Ein `.gitmodules`-Manifest wird
-fail-closed abgewiesen, bis eine separat freigegebene
-Submodule-Provenance-Regel existiert. `CRS_RUNTIME_DIR` und
-`MODSECURITY_RULE_PREAMBLE_FILE` bleiben Runtime-Pfadeingaben. CRS-Pins nicht
+`HEAD^{commit}` mit derselben Identität. Ein fehlender `.gitmodules`-Pfad wird
+akzeptiert. Der eine vorhandene Root-Pfad `.gitmodules` wird nur als reguläre,
+nicht verlinkte, null Byte große Git-Empty-Blob
+`e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` im freigegebenen Tree, Checkout-
+Index und Worktree akzeptiert. Der freigegebene Tree und Checkout-Index dürfen
+keinen Gitlink enthalten; es darf kein verschachteltes Manifest, keine lokale
+`submodule.*`-Konfiguration und keine `.git/modules`-Registry existieren.
+Jeder andere Manifest- oder Submodule-Zustand wird vor der Nutzung abgewiesen;
+eine rekursive Submodule-Initialisierung findet nicht statt. Derselbe Checkout-
+Verifier läuft in `prepare-crs.sh` unmittelbar bevor es Source-Templates,
+Rules oder Plugins liest oder Runtime-Dateien schreibt; eine Ersetzung nach
+dem Fetch wird daher an der Source-Consumption-Grenze abgewiesen.
+`CRS_RUNTIME_DIR` und `MODSECURITY_RULE_PREAMBLE_FILE` bleiben Runtime-Pfadeingaben. CRS-Pins nicht
 in Workflows duplizieren. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE` und
 `CONNECTOR_COMPONENT_CACHE` sind Cache-Pfade und benötigen Herkunftsprüfungen.
 

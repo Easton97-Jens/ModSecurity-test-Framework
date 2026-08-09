@@ -6,6 +6,10 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$FRAMEWORK_ROOT}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
+# shellcheck disable=SC2034 # Consumed by the sourceable shared verifier.
+CRS_PROVENANCE_CONTEXT=fetch_crs
+# shellcheck source=ci/provisioning/crs-provenance.sh
+. "$SCRIPT_DIR/crs-provenance.sh"
 
 notice() {
     message=$1
@@ -43,22 +47,6 @@ require_approved_crs_provenance() {
     fi
 }
 
-crs_git() (
-    unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
-    unset GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_EXEC_PATH
-    unset GIT_TEMPLATE_DIR GIT_PROXY_COMMAND GIT_CONFIG_NOSYSTEM GIT_CONFIG_GLOBAL
-    unset GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
-    unset GIT_SSL_NO_VERIFY GIT_SSL_CAINFO GIT_SSL_CAPATH GIT_ASKPASS SSH_ASKPASS
-    unset GIT_SSH GIT_SSH_COMMAND
-    GIT_CONFIG_NOSYSTEM=1 \
-    GIT_CONFIG_GLOBAL=/dev/null \
-    GIT_CONFIG_COUNT=0 \
-    GIT_TERMINAL_PROMPT=0 \
-        git -c core.hooksPath=/dev/null -c protocol.file.allow=never \
-            -c fetch.recurseSubmodules=false -c submodule.recurse=false \
-            -c http.sslVerify=true "$@"
-)
-
 cleanup_failed_crs_provision() {
     safe_remove_runtime_path "$CRS_SOURCE_DIR" "$SOURCE_ROOT" "failed CRS provisioning" || true
 }
@@ -84,14 +72,6 @@ verify_fetched_crs_commit() {
     fetched_commit=$(crs_git -C "$CRS_SOURCE_DIR" rev-parse --verify "FETCH_HEAD^{commit}" 2>/dev/null || true)
     if [ "$fetched_commit" != "$CRS_APPROVED_COMMIT" ]; then
         ci_blocked "fetch_crs fetched CRS commit does not match the approved commit"
-        exit 77
-    fi
-}
-
-verify_checked_out_crs_commit() {
-    checked_out_commit=$(crs_git -C "$CRS_SOURCE_DIR" rev-parse --verify "HEAD^{commit}" 2>/dev/null || true)
-    if [ "$checked_out_commit" != "$CRS_APPROVED_COMMIT" ]; then
-        ci_blocked "fetch_crs checked-out CRS commit does not match the approved commit"
         exit 77
     fi
 }
@@ -131,10 +111,7 @@ provision_fresh_crs() {
         ci_blocked "fetch_crs could not checkout the approved CRS commit"
         exit 77
     fi
-    verify_checked_out_crs_commit
-
-    if [ -e "$CRS_SOURCE_DIR/.gitmodules" ] || [ -L "$CRS_SOURCE_DIR/.gitmodules" ]; then
-        ci_blocked "fetch_crs approved CRS commit declares submodules without an approved provenance rule"
+    if ! crs_verify_checked_out_provenance; then
         exit 77
     fi
 }
