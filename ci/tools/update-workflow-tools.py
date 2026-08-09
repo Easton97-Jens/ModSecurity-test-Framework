@@ -130,6 +130,18 @@ class RepositoryIdentity:
         return f"{self.owner}/{self.repository}"
 
 
+def release_url(identity: RepositoryIdentity, tag: str) -> str:
+    """Build one official release URL from a reviewed repository identity."""
+
+    return f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{tag}"
+
+
+def release_asset_url(identity: RepositoryIdentity, tag: str, asset: str) -> str:
+    """Build one official release-asset URL from a reviewed release tuple."""
+
+    return f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{tag}/{asset}"
+
+
 def framework_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -331,10 +343,7 @@ def validate_tool_baseline_provenance(
     asset = record.get("asset")
     if not isinstance(asset, str) or not is_safe_component(asset):
         raise UpdateError(f"tool {tool!r} has an unsafe current asset record")
-    expected_url = (
-        f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/"
-        f"{identity.current_tag}/{asset}"
-    )
+    expected_url = release_asset_url(identity, identity.current_tag, asset)
     if record.get("asset_url") != expected_url:
         raise UpdateError(
             f"tool {tool!r} asset URL does not match its release owner/repository/tag"
@@ -620,9 +629,7 @@ def selected_release_asset(
     sha256 = require_sha256(
         digest.removeprefix("sha256:"), f"tool {tool!r} release asset"
     )
-    asset_url = (
-        f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{tag}/{asset_name}"
-    )
+    asset_url = release_asset_url(identity, tag, asset_name)
     if asset.get("browser_download_url") != asset_url:
         raise UpdateError(
             f"tool {tool!r} release asset URL does not match the official release tuple"
@@ -642,7 +649,7 @@ def action_candidate(name: str, record: dict[str, Any]) -> dict[str, str] | None
     return {
         "version": tag,
         "immutable_commit": commit,
-        "upstream_release": f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{tag}",
+        "upstream_release": release_url(identity, tag),
     }
 
 
@@ -655,9 +662,9 @@ def tool_candidate(name: str, record: dict[str, Any]) -> dict[str, str] | None:
     candidate = {
         "version": tag,
         "immutable_commit": commit,
-        "upstream_release": f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{tag}",
+        "upstream_release": release_url(identity, tag),
         "asset": asset,
-        "asset_url": f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{tag}/{asset}",
+        "asset_url": release_asset_url(identity, tag, asset),
         "sha256": asset_digest,
     }
     if all(candidate[field] == record[field] for field in TOOL_MUTABLE_FIELDS):
@@ -696,16 +703,20 @@ def canonical_candidate(candidate: dict[str, Any]) -> str:
     return json.dumps(candidate, sort_keys=True, separators=(",", ":"))
 
 
+def canonical_candidate_bytes(candidate: dict[str, Any]) -> bytes:
+    """Encode the exact canonical candidate representation once."""
+
+    return canonical_candidate(candidate).encode("utf-8")
+
+
 def candidate_b64(candidate: dict[str, Any]) -> str:
-    return base64.b64encode(canonical_candidate(candidate).encode("utf-8")).decode(
-        "ascii"
-    )
+    return base64.b64encode(canonical_candidate_bytes(candidate)).decode("ascii")
 
 
 def candidate_sha256(candidate: dict[str, Any]) -> str:
     """Return the immutable identity digest for one canonical candidate."""
 
-    return hashlib.sha256(canonical_candidate(candidate).encode("utf-8")).hexdigest()
+    return hashlib.sha256(canonical_candidate_bytes(candidate)).hexdigest()
 
 
 def require_candidate_sha256(candidate: dict[str, Any], expected: str | None) -> None:
@@ -832,9 +843,9 @@ def write_candidate(path: Path, candidate: dict[str, Any]) -> None:
     # Resolve immediately at the filesystem sink as a defense in depth layer
     # for CLI-provided paths; runner_temp_path already checked containment.
     destination = destination.resolve(strict=False)
-    with destination.open("x", encoding="utf-8") as output:
+    with destination.open("xb") as output:
         os.fchmod(output.fileno(), 0o600)
-        output.write(canonical_candidate(candidate) + "\n")
+        output.write(canonical_candidate_bytes(candidate) + b"\n")
 
 
 def read_candidate(path: Path) -> dict[str, Any]:
@@ -921,7 +932,7 @@ def validate_changed_record(
             f"candidate {group} {name!r} version is not a supported stable tag"
         )
     require_sha40(changes["immutable_commit"], f"candidate {group} {name!r} commit")
-    expected_release = f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{version}"
+    expected_release = release_url(identity, version)
     if changes["upstream_release"] != expected_release:
         raise UpdateError(f"candidate {group} {name!r} has an untrusted release URL")
     if group == "actions":
@@ -935,9 +946,7 @@ def validate_changed_record(
         raise UpdateError(
             f"candidate tool {name!r} asset does not match its reviewed naming rule"
         )
-    expected_url = (
-        f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/download/{version}/{asset}"
-    )
+    expected_url = release_asset_url(identity, version, asset)
     if changes["asset_url"] != expected_url:
         raise UpdateError(f"candidate tool {name!r} has an untrusted asset URL")
     require_sha256(changes["sha256"], f"candidate tool {name!r} asset")

@@ -6,6 +6,7 @@ by a ``TemporaryDirectory`` created for the individual test.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import importlib.util
 import os
@@ -14,7 +15,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
@@ -66,6 +69,22 @@ def load_checker():
 
 
 CHECKER = load_checker()
+
+
+@dataclasses.dataclass
+class AppliedHaproxyUpdateFixture:
+    """One temporary safe-plus-manual update application for regression tests."""
+
+    source: str
+    temporary_path: Path
+    build_root: Path
+    fixture: Path
+    lines: list[str]
+    entries: dict[str, Any]
+    manual_source_lines: dict[str, str]
+    manual: Any
+    manual_before: dict[str, str]
+    result: tuple[int, list[Any], list[str], dict[str, Any]] | None
 
 
 class FixtureHttpClient:
@@ -206,6 +225,54 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             ):
                 raise AssertionError(f"test fixture changed manual pin {name}")
         return fixture, fixture_lines, fixture_entries, manual_before
+
+    @contextlib.contextmanager
+    def applied_haproxy_update_fixture(
+        self,
+    ) -> Iterator[AppliedHaproxyUpdateFixture]:
+        """Yield the common safe-update path with manual provenance revalidation."""
+
+        source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            temporary_path = Path(temporary)
+            build_root = temporary_path / "build"
+            fixture, lines, entries, manual_source_lines = (
+                self.build_common_fixture_with_haproxy_baseline(build_root, source)
+            )
+            manual = self.modsecurity_review_required(entries)
+            safe = self.haproxy_safe_update(entries)
+            manual_before = CHECKER.manual_review_pin_values([manual], entries)
+
+            def revalidate(candidate_entries):
+                return [self.modsecurity_review_required(candidate_entries)]
+
+            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                result = CHECKER.apply_requested_updates(
+                    True,
+                    CHECKER.exit_code(
+                        [manual, safe],
+                        entries,
+                        defer_reviewed_provenance=True,
+                    ),
+                    fixture,
+                    lines,
+                    entries,
+                    [manual, safe],
+                    defer_reviewed_provenance=True,
+                    revalidate=revalidate,
+                )
+            yield AppliedHaproxyUpdateFixture(
+                source,
+                temporary_path,
+                build_root,
+                fixture,
+                lines,
+                entries,
+                manual_source_lines,
+                manual,
+                manual_before,
+                result,
+            )
 
     @staticmethod
     def tarball_fixture(source_url: str, checksum_url: str) -> str:
@@ -951,60 +1018,37 @@ class CommonVersionProvenanceTests(unittest.TestCase):
     def test_safe_partial_update_preserves_all_manual_provenance_lines_and_revalidates(
         self,
     ):
-        source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
-        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
-            temporary_path = Path(temporary)
-            build_root = temporary_path / "build"
-            fixture, lines, entries, manual_source_lines = (
-                self.build_common_fixture_with_haproxy_baseline(build_root, source)
-            )
-            manual = self.modsecurity_review_required(entries)
-            safe = self.haproxy_safe_update(entries)
-            manual_before = CHECKER.manual_review_pin_values([manual], entries)
+        with self.applied_haproxy_update_fixture() as state:
+            result = state.result
+            self.assertIsNotNone(result)
+            if result is None:
+                return
+            rc, applied, updated_lines, updated_entries = result
 
-            def revalidate(candidate_entries):
-                return [self.modsecurity_review_required(candidate_entries)]
-
-            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
-                rc, applied, updated_lines, updated_entries = (
-                    CHECKER.apply_requested_updates(
-                        True,
-                        CHECKER.exit_code(
-                            [manual, safe],
-                            entries,
-                            defer_reviewed_provenance=True,
-                        ),
-                        fixture,
-                        lines,
-                        entries,
-                        [manual, safe],
-                        defer_reviewed_provenance=True,
-                        revalidate=revalidate,
-                    )
-                )
-
-        self.assertEqual(rc, 0)
-        self.assertEqual(
-            [update.variable for update in applied],
-            ["HAPROXY_VERSION", "HAPROXY_SHA256"],
-        )
-        self.assertEqual(
-            CHECKER.value(updated_entries, "HAPROXY_VERSION"),
-            TEST_HAPROXY_TARGET_VERSION,
-        )
-        self.assertEqual(
-            CHECKER.value(updated_entries, "HAPROXY_SHA256"),
-            TEST_HAPROXY_TARGET_SHA256,
-        )
-        CHECKER.require_manual_review_pins_unchanged(manual_before, updated_entries)
-        self.assertEqual(
-            CHECKER.manual_review_pin_digest([manual], updated_entries),
-            CHECKER.manual_review_pin_digest([manual], entries),
-        )
-        for name, expected_line in manual_source_lines.items():
+            self.assertEqual(rc, 0)
             self.assertEqual(
-                updated_lines[updated_entries[name].line - 1], expected_line
+                [update.variable for update in applied],
+                ["HAPROXY_VERSION", "HAPROXY_SHA256"],
             )
+            self.assertEqual(
+                CHECKER.value(updated_entries, "HAPROXY_VERSION"),
+                TEST_HAPROXY_TARGET_VERSION,
+            )
+            self.assertEqual(
+                CHECKER.value(updated_entries, "HAPROXY_SHA256"),
+                TEST_HAPROXY_TARGET_SHA256,
+            )
+            CHECKER.require_manual_review_pins_unchanged(
+                state.manual_before, updated_entries
+            )
+            self.assertEqual(
+                CHECKER.manual_review_pin_digest([state.manual], updated_entries),
+                CHECKER.manual_review_pin_digest([state.manual], state.entries),
+            )
+            for name, expected_line in state.manual_source_lines.items():
+                self.assertEqual(
+                    updated_lines[updated_entries[name].line - 1], expected_line
+                )
 
     def test_post_write_validation_failure_rolls_back_through_safe_update_path(self):
         source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
@@ -1069,44 +1113,21 @@ class CommonVersionProvenanceTests(unittest.TestCase):
     def test_common_version_regressions_are_invariant_after_candidate_application(
         self,
     ):
-        source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
-        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
-            temporary_path = Path(temporary)
-            build_root = temporary_path / "build"
-            fixture, lines, entries, manual_source_lines = (
-                self.build_common_fixture_with_haproxy_baseline(build_root, source)
-            )
-            manual = self.modsecurity_review_required(entries)
-            safe = self.haproxy_safe_update(entries)
-            manual_before = CHECKER.manual_review_pin_values([manual], entries)
-
-            def revalidate(candidate_entries):
-                return [self.modsecurity_review_required(candidate_entries)]
-
-            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
-                result = CHECKER.apply_requested_updates(
-                    True,
-                    CHECKER.exit_code(
-                        [manual, safe],
-                        entries,
-                        defer_reviewed_provenance=True,
-                    ),
-                    fixture,
-                    lines,
-                    entries,
-                    [manual, safe],
-                    defer_reviewed_provenance=True,
-                    revalidate=revalidate,
-                )
+        with self.applied_haproxy_update_fixture() as state:
+            result = state.result
             self.assertIsNotNone(result)
+            if result is None:
+                return
             rc, applied, updated_lines, updated_entries = result
             self.assertEqual(rc, 0)
             self.assertEqual(
                 [update.variable for update in applied],
                 ["HAPROXY_VERSION", "HAPROXY_SHA256"],
             )
-            CHECKER.require_manual_review_pins_unchanged(manual_before, updated_entries)
-            for name, expected_line in manual_source_lines.items():
+            CHECKER.require_manual_review_pins_unchanged(
+                state.manual_before, updated_entries
+            )
+            for name, expected_line in state.manual_source_lines.items():
                 self.assertEqual(
                     updated_lines[updated_entries[name].line - 1], expected_line
                 )
@@ -1136,8 +1157,10 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                 post_apply_disposition.outcome,
                 CHECKER.MAINTENANCE_OUTCOME_MANUAL_REVIEW_ONLY,
             )
-            unchanged = fixture.read_text(encoding="utf-8")
-            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+            unchanged = state.fixture.read_text(encoding="utf-8")
+            with patch.dict(
+                os.environ, {"BUILD_ROOT": str(state.build_root)}, clear=False
+            ):
                 no_op_result = CHECKER.apply_requested_updates(
                     True,
                     CHECKER.exit_code(
@@ -1145,7 +1168,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                         updated_entries,
                         defer_reviewed_provenance=True,
                     ),
-                    fixture,
+                    state.fixture,
                     updated_lines,
                     updated_entries,
                     [post_apply_manual],
@@ -1155,11 +1178,11 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             no_op_rc, no_op_updates, _, _ = no_op_result
             self.assertEqual(no_op_rc, 0)
             self.assertEqual(no_op_updates, [])
-            self.assertEqual(fixture.read_text(encoding="utf-8"), unchanged)
+            self.assertEqual(state.fixture.read_text(encoding="utf-8"), unchanged)
 
             _, _, future_entries, _ = self.build_common_fixture_with_haproxy_baseline(
-                temporary_path / "future-build",
-                source,
+                state.temporary_path / "future-build",
+                state.source,
                 "3.2.9100",
                 "c" * 64,
             )
@@ -1174,7 +1197,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             )
 
         self.assertEqual(
-            (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8"), source
+            (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8"), state.source
         )
 
     @unittest.skipIf(
