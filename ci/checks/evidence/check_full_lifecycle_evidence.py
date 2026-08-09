@@ -10,7 +10,6 @@ full-lifecycle run.
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
 import sys
 from typing import Any, Mapping
@@ -19,11 +18,17 @@ from typing import Any, Mapping
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[3]
 RUNNER_ROOT = FRAMEWORK_ROOT / "tests" / "runners"
 CATALOG_ROOT = FRAMEWORK_ROOT / "ci" / "checks" / "catalog"
-for path in (CATALOG_ROOT, RUNNER_ROOT):
+LIB_ROOT = FRAMEWORK_ROOT / "ci" / "lib"
+for path in (CATALOG_ROOT, RUNNER_ROOT, LIB_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
 import no_crs_baseline as no_crs  # noqa: E402
+from no_crs_evidence_common import (  # noqa: E402
+    CANONICAL_BASE_CHECKS,
+    canonical_base_errors,
+    load_json_object,
+)
 from synchronized_upstream import first_byte_evidence_errors  # noqa: E402
 
 
@@ -43,35 +48,15 @@ FIRST_BYTE_EVENT_FIELDS = (
     "body_bytes_inspected",
 )
 WORKLOAD_IDENTITY_FIELDS = ("connector", "run_id", "integration_mode")
-BASE_CHECKS = (
-    "schema",
-    "completeness",
-    "capability",
-    "claim-policy",
-    "layout",
-    "body-payload",
-    "protocol-client",
-    "status",
-)
+BASE_CHECKS = CANONICAL_BASE_CHECKS
 
 
 def _load_object(path: Path, label: str) -> tuple[dict[str, Any] | None, list[str]]:
-    try:
-        payload = no_crs.load_json(path)
-    except Exception as exc:  # no_crs has a precise error but keep this CLI stable
-        return None, [f"{label}: cannot read JSON: {exc}"]
-    if not isinstance(payload, dict):
-        return None, [f"{label}: must be a JSON object"]
-    return payload, []
+    return load_json_object(no_crs, path, label)
 
 
 def _canonical_base_errors(run_dir: Path, connector: str) -> list[str]:
-    capabilities_path = run_dir / "inventory" / "capabilities.json"
-    try:
-        capabilities = no_crs.load_capability_manifest(capabilities_path, connector)
-    except Exception as exc:
-        return [f"inventory/capabilities.json: {exc}"]
-    return no_crs.validate_run(run_dir, connector, capabilities, BASE_CHECKS)
+    return canonical_base_errors(no_crs, run_dir, connector, BASE_CHECKS)
 
 
 def _first_byte_artifact(
