@@ -771,7 +771,11 @@ jobs:
               state: "open",
               per_page: 100,
             });
-            const matchingPulls = openPulls.filter((pull) => pull.head?.ref === branch);
+            const matchingPulls = openPulls.filter(
+              (pull) =>
+                pull.head?.repo?.full_name === repositoryName &&
+                pull.head?.ref === branch,
+            );
 
             if (matchingRefs.length === 0 && matchingPulls.length === 0) {
               core.info("common-version publisher state A: no maintenance branch or open pull request");

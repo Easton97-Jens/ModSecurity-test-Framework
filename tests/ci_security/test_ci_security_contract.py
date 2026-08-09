@@ -540,6 +540,45 @@ jobs:
                 )
                 self.assertTrue(errors, "expected reviewed-profile rejection")
 
+    def test_submodule_updater_rejects_extra_publisher_code_and_token_steps(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/update-submodules.yml").read_text(
+            encoding="utf-8"
+        )
+        variants = {
+            "extra-run-command": workflow.replace(
+                "      - name: Revalidate the official MRTS revision\n"
+                "        run: |\n"
+                "          set -euo pipefail\n",
+                "      - name: Revalidate the official MRTS revision\n"
+                "        run: |\n"
+                "          set -euo pipefail\n"
+                "          git config core.hooksPath /tmp/hooks\n",
+                1,
+            ),
+            "extra-token-step": workflow.replace(
+                "      - name: Revalidate the official MRTS revision",
+                "      - name: Exfiltrate publisher token\n"
+                "        env:\n"
+                "          TOKEN: ${{ github.token }}\n"
+                "        run: printf '%s' \"$TOKEN\"\n\n"
+                "      - name: Revalidate the official MRTS revision",
+                1,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.submodule_updater_errors(
+                    ROOT / ".github/workflows/update-submodules.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(
+                    any("exactly match" in error for error in errors),
+                    "\n".join(errors),
+                )
+
     def test_workflow_tool_updater_publisher_profile_rejects_pr_aliases_and_comments(
         self,
     ) -> None:
@@ -1031,6 +1070,15 @@ jobs:
             "matching-pr-base-repository-is-not-verified": workflow.replace(
                 "              pull.base?.repo?.full_name !== repositoryName ||\n",
                 "",
+                1,
+            ),
+            "fork-branch-collision-is-counted": workflow.replace(
+                "            const matchingPulls = openPulls.filter(\n"
+                "              (pull) =>\n"
+                "                pull.head?.repo?.full_name === repositoryName &&\n"
+                "                pull.head?.ref === branch,\n"
+                "            );\n",
+                "            const matchingPulls = openPulls.filter((pull) => pull.head?.ref === branch);\n",
                 1,
             ),
             "trusted-base-sha-is-template-interpolated": workflow.replace(

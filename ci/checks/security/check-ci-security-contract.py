@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 from pathlib import Path, PurePosixPath
 import re
 from typing import Any, Iterable
@@ -30,6 +31,12 @@ SECURITY_TOOL_DOWNLOADER = "ci/tools/fetch-security-tool.py"
 HASH_LOCKED_CI_REQUIREMENTS = "--require-hashes -r requirements-ci.lock"
 WORKFLOW_TOOL_UPDATER = "update-workflow-tools.yml"
 SUBMODULE_UPDATER = "update-submodules.yml"
+# Canonical JSON SHA-256 of jobs.create-submodule-update-pr. The publisher has
+# repository write permissions, so every key, step, action input, environment,
+# and run body must remain review-bound rather than merely contain snippets.
+SUBMODULE_UPDATER_PUBLISHER_SHA256 = (
+    "8be2dc3f6e837524937aeff6c6b8d4571202923c20603e1d93016a7850b402af"
+)
 CHECKOUT_WITHOUT_SUBMODULES = "submodules: false"
 CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS = "persist-credentials: false"
 COMMON_VERSION_WORKFLOW = "check-common-versions.yml"
@@ -398,7 +405,7 @@ COMMON_VERSION_PUBLISHER_RUN_SHA256 = {
     STEP_FAIL_CLOSED_COMMON_VERSION_APP_CONFIGURATION: "89dbee536c4566a0f64ee9ae5f1363fbeca67f6a7f6b2b02d86158b5955ede1b",
 }
 COMMON_VERSION_PUBLISHER_SCRIPT_SHA256 = {
-    STEP_INSPECT_COMMON_VERSION_DRAFT_PULL_REQUEST: "05ee3b62db43df522e9e58917b1a9b8b8c472d6d7c3c979fb19e5af98ec2bda1"
+    STEP_INSPECT_COMMON_VERSION_DRAFT_PULL_REQUEST: "dbc2602d7b9ba62c2310792d53b12a6bc0fdab637b02f8ea3c2945db6a599071"
 }
 COMMON_VERSION_EXPECTED_SENSITIVE_PATHS = frozenset(
     {
@@ -2476,6 +2483,15 @@ def submodule_updater_publisher_errors(path: Path, jobs: dict[str, Any]) -> list
     publisher = jobs["create-submodule-update-pr"]
     if not isinstance(publisher, dict):
         return [f"{path}: MRTS publisher must be a job mapping"]
+    canonical_publisher = json.dumps(
+        publisher, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    )
+    if hashlib.sha256(canonical_publisher.encode("utf-8")).hexdigest() != (
+        SUBMODULE_UPDATER_PUBLISHER_SHA256
+    ):
+        errors.append(
+            f"{path}: MRTS publisher must exactly match the reviewed write-capable profile"
+        )
     if publisher.get("permissions") != {
         "contents": "write",
         "pull-requests": "write",

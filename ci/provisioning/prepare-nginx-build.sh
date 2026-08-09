@@ -654,6 +654,8 @@ download_nginx_source() {
     NGINX_ARCHIVE_CACHE_DIR="$DOWNLOAD_DIR/nginx-archives/$NGINX_ARCHIVE_CACHE_KEY"
     NGINX_ARCHIVE="$NGINX_ARCHIVE_CACHE_DIR/$RESOLVED_NGINX_RELEASE_ASSET_NAME"
     NGINX_ARCHIVE_CACHE_MANIFEST="$NGINX_ARCHIVE_CACHE_DIR/nginx-archive-cache.manifest"
+    assert_runtime_path_under_root \
+        "$NGINX_ARCHIVE_CACHE_DIR" "$DOWNLOAD_DIR" "NGINX archive cache directory" || exit 77
     mkdir -p "$NGINX_ARCHIVE_CACHE_DIR"
     echo "nginx_poc: resolved nginx release tag=$RESOLVED_NGINX_RELEASE_TAG"
     echo "nginx_poc: resolved nginx release asset=$RESOLVED_NGINX_RELEASE_ASSET_NAME"
