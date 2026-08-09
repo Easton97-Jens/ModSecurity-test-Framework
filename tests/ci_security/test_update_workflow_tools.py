@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import contextlib
 from copy import deepcopy
+import hashlib
 import importlib.util
 import io
 import os
@@ -54,18 +56,22 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         return {
             "version": version,
             "immutable_commit": sha,
-            "upstream_release": f"https://github.com/{upstream.slug}/releases/tag/{version}",
+            "upstream_release": UPDATER.release_url(upstream, version),
         }
 
     def candidate_for(
-        self, root: Path, actions: dict[str, dict[str, str]]
+        self,
+        root: Path,
+        actions: dict[str, dict[str, str]] | None = None,
+        *,
+        tools: dict[str, dict[str, str]] | None = None,
     ) -> dict[str, object]:
         _path, _lock, digest = UPDATER.load_lock(root)
         return {
             "schema_version": UPDATER.CANDIDATE_SCHEMA_VERSION,
             "lock_sha256": digest,
-            "actions": actions,
-            "tools": {},
+            "actions": {} if actions is None else actions,
+            "tools": {} if tools is None else tools,
         }
 
     def test_resolver_uses_only_release_and_tag_identity(self) -> None:
@@ -266,16 +272,14 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
 
     def test_codeql_candidate_rejects_a_major_upgrade(self) -> None:
         _path, lock, digest = UPDATER.load_lock(ROOT)
-        candidate = {
-            "schema_version": UPDATER.CANDIDATE_SCHEMA_VERSION,
-            "lock_sha256": digest,
-            "actions": {
+        candidate = self.candidate_for(
+            ROOT,
+            {
                 "github/codeql-action": self.changed_action(
                     lock, "github/codeql-action", "v5.0.0", "a" * 40
                 )
             },
-            "tools": {},
-        }
+        )
         with self.assertRaisesRegex(UPDATER.UpdateError, "reviewed major"):
             UPDATER.validate_candidate_shape(candidate, lock, digest)
 
@@ -301,12 +305,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
     def test_candidate_rejects_unapproved_fields_and_stale_lock_digest(self) -> None:
         _path, lock, digest = UPDATER.load_lock(ROOT)
         valid = self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)
-        candidate = {
-            "schema_version": UPDATER.CANDIDATE_SCHEMA_VERSION,
-            "lock_sha256": digest,
-            "actions": {"actions/checkout": {**valid, "license": "untrusted"}},
-            "tools": {},
-        }
+        candidate = self.candidate_for(
+            ROOT, {"actions/checkout": {**valid, "license": "untrusted"}}
+        )
         with self.assertRaisesRegex(UPDATER.UpdateError, "unapproved field"):
             UPDATER.validate_candidate_shape(candidate, lock, digest)
 
@@ -320,7 +321,16 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
     ) -> None:
         candidate = self.candidate_for(ROOT, {})
         digest = UPDATER.candidate_sha256(candidate)
+        canonical_bytes = UPDATER.canonical_candidate_bytes(candidate)
 
+        self.assertEqual(
+            UPDATER.canonical_candidate(candidate).encode("utf-8"),
+            canonical_bytes,
+        )
+        self.assertEqual(
+            base64.b64decode(UPDATER.candidate_b64(candidate)), canonical_bytes
+        )
+        self.assertEqual(hashlib.sha256(canonical_bytes).hexdigest(), digest)
         self.assertEqual(digest, UPDATER.candidate_sha256(deepcopy(candidate)))
         UPDATER.require_candidate_sha256(candidate, digest)
         UPDATER.require_candidate_sha256(candidate, None)
@@ -437,21 +447,21 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         _path, lock, digest = UPDATER.load_lock(ROOT)
         baseline = lock["tools"]["actionlint"]
         identity = UPDATER.release_identity(baseline, "actionlint")
-        candidate = {
-            "schema_version": UPDATER.CANDIDATE_SCHEMA_VERSION,
-            "lock_sha256": digest,
-            "actions": {},
-            "tools": {
+        candidate = self.candidate_for(
+            ROOT,
+            tools={
                 "actionlint": {
                     "version": "v9.9.9",
                     "immutable_commit": "c" * 40,
-                    "upstream_release": f"https://github.com/{identity.slug}/releases/tag/v9.9.9",
+                    "upstream_release": UPDATER.release_url(identity, "v9.9.9"),
                     "asset": "arbitrary-release-asset.tar.gz",
-                    "asset_url": f"https://github.com/{identity.slug}/releases/download/v9.9.9/arbitrary-release-asset.tar.gz",
+                    "asset_url": UPDATER.release_asset_url(
+                        identity, "v9.9.9", "arbitrary-release-asset.tar.gz"
+                    ),
                     "sha256": "d" * 64,
                 }
             },
-        }
+        )
         with self.assertRaisesRegex(UPDATER.UpdateError, "reviewed naming rule"):
             UPDATER.validate_candidate_shape(candidate, lock, digest)
 
@@ -512,6 +522,10 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 candidate_path = runner_temp / "nested" / "candidate.json"
                 candidate = {"safe": True}
                 UPDATER.write_candidate(candidate_path, candidate)
+                self.assertEqual(
+                    candidate_path.read_bytes(),
+                    UPDATER.canonical_candidate_bytes(candidate) + b"\n",
+                )
                 self.assertEqual(candidate, UPDATER.read_candidate(candidate_path))
                 self.assertEqual(candidate_path.stat().st_mode & 0o777, 0o600)
                 with self.assertRaisesRegex(UPDATER.UpdateError, "overwrite"):
@@ -648,14 +662,12 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         baseline = base["tools"]["actionlint"]
         identity = UPDATER.release_identity(baseline, "actionlint")
         asset = "actionlint_9.9.9_linux_amd64.tar.gz"
-        asset_url = (
-            f"https://github.com/{identity.slug}/releases/download/v9.9.9/{asset}"
-        )
+        asset_url = UPDATER.release_asset_url(identity, "v9.9.9", asset)
         head["tools"]["actionlint"].update(
             {
                 "version": "v9.9.9",
                 "immutable_commit": "c" * 40,
-                "upstream_release": f"https://github.com/{identity.slug}/releases/tag/v9.9.9",
+                "upstream_release": UPDATER.release_url(identity, "v9.9.9"),
                 "asset": asset,
                 "asset_url": asset_url,
                 "sha256": "d" * 64,
@@ -731,12 +743,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         checkout = self.changed_action(
             base_lock, "actions/checkout", "v9.9.9", "a" * 40
         )
-        candidate = {
-            "schema_version": UPDATER.CANDIDATE_SCHEMA_VERSION,
-            "lock_sha256": UPDATER.hashlib.sha256(base_lock_blob).hexdigest(),
-            "actions": {"actions/checkout": checkout},
-            "tools": {},
-        }
+        candidate = self.candidate_for(ROOT, {"actions/checkout": checkout})
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
             expected_root = self.copied_update_root(temporary_root / "expected")

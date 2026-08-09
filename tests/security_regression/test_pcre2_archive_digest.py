@@ -10,9 +10,12 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from git_provenance_test_support import (
+from tests.security_regression.git_provenance_test_support import (
     create_approved_modsecurity_v3_topology,
     fake_git_script,
+)
+from tests.security_regression.common_version_fixture_support import (
+    rewrite_common_assignments,
 )
 
 
@@ -20,13 +23,21 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_ROOT = ROOT / "tests" / "fixtures" / "pcre2-digest"
 PREPARE_SCRIPT = ROOT / "ci" / "provisioning" / "prepare-apache-build.sh"
 APPROVED_V3_REPOSITORY = "https://github.com/owasp-modsecurity/ModSecurity.git"
-APPROVED_V3_COMMIT = "0fb4aff98b4980cf6426697d5605c424e3d5bb60"
+APPROVED_V3_COMMIT = "c" * 40
+APPROVED_V3_RELEASE_TAG = "v3.900.0"
+TEST_APR_UTIL_VERSION = "1.6.9000"
+TEST_APR_UTIL_SOURCE_URL = (
+    f"https://downloads.apache.org/apr/apr-util-{TEST_APR_UTIL_VERSION}.tar.bz2"
+)
+TEST_APR_UTIL_SHA256_URL = f"{TEST_APR_UTIL_SOURCE_URL}.sha256"
 
 
 class Pcre2ArchiveDigestTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.fixture = json.loads((FIXTURE_ROOT / "cases.json").read_text(encoding="utf-8"))
+        cls.fixture = json.loads(
+            (FIXTURE_ROOT / "cases.json").read_text(encoding="utf-8")
+        )
         cls.real_tar = shutil.which("tar")
         if cls.real_tar is None:
             raise unittest.SkipTest("tar is required for the isolated archive fixture")
@@ -38,7 +49,9 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
 
     def _build_archive(self, workspace):
         archive = workspace / self.fixture["archive_file"]
-        configure = (FIXTURE_ROOT / self.fixture["archive_root"] / "configure").read_bytes()
+        configure = (
+            FIXTURE_ROOT / self.fixture["archive_root"] / "configure"
+        ).read_bytes()
         info = tarfile.TarInfo(f"{self.fixture['archive_root']}/configure")
         info.mode = 0o755
         info.mtime = 0
@@ -49,14 +62,20 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
 
     def _create_adapter_source(self, workspace):
         adapter = workspace / "apache-adapter"
-        self._write_executable(adapter / "autogen.sh", """
+        self._write_executable(
+            adapter / "autogen.sh",
+            """
             #!/bin/sh
             exit 0
-        """)
-        self._write_executable(adapter / "configure", """
+        """,
+        )
+        self._write_executable(
+            adapter / "configure",
+            """
             #!/bin/sh
             exit 0
-        """)
+        """,
+        )
         return adapter
 
     def _create_framework_fixture(self, workspace, apr_util_sha256):
@@ -67,8 +86,8 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
         approved V3 topology so that it can reach its archive-digest boundary.
         The copied helper preserves the production provenance checks and swaps
         only the host-Git binding and APR-util digest for the hermetic topology
-        model. The tuple retains the canonical APR-util version, host, path,
-        asset name, and checksum URL; only its fixture archive digest differs.
+        model. The fixture gives APR-util and ModSecurity v3 synthetic values
+        while preserving their structural provenance contracts.
         """
 
         fixture_root = workspace / "framework-fixture"
@@ -82,14 +101,16 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             destination = fixture_root / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / relative, destination)
-        common_source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
-        production_apr_util_sha256 = (
-            'APR_UTIL_PINNED_SHA256="3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b"'
-        )
-        self.assertIn(production_apr_util_sha256, common_source)
-        common_source = common_source.replace(
-            production_apr_util_sha256,
-            f'APR_UTIL_PINNED_SHA256="{apr_util_sha256}"',
+        common_source = rewrite_common_assignments(
+            (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8"),
+            {
+                "MODSECURITY_V3_APPROVED_COMMIT": APPROVED_V3_COMMIT,
+                "MODSECURITY_V3_RELEASE_TAG": APPROVED_V3_RELEASE_TAG,
+                "APR_UTIL_PINNED_VERSION": TEST_APR_UTIL_VERSION,
+                "APR_UTIL_PINNED_SOURCE_URL": TEST_APR_UTIL_SOURCE_URL,
+                "APR_UTIL_PINNED_SHA256": apr_util_sha256,
+                "APR_UTIL_PINNED_SHA256_URL": TEST_APR_UTIL_SHA256_URL,
+            },
         )
         common_fixture = fixture_root / "ci/lib/common.sh"
         common_fixture.write_text(
@@ -105,7 +126,9 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
 
     def _create_fake_tools(self, workspace):
         fake_bin = workspace / "fake-bin"
-        self._write_executable(fake_bin / "curl", """
+        self._write_executable(
+            fake_bin / "curl",
+            """
             #!/bin/sh
             set -eu
             output=
@@ -128,8 +151,11 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                     cp "$PCRE2_FIXTURE_ARCHIVE" "$output"
                     ;;
             esac
-        """)
-        self._write_executable(fake_bin / "tar", """
+        """,
+        )
+        self._write_executable(
+            fake_bin / "tar",
+            """
             #!/bin/sh
             set -eu
             for argument in "$@"; do
@@ -138,16 +164,25 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                 fi
             done
             exec "$REAL_TAR" "$@"
-        """)
-        self._write_executable(fake_bin / "cc", """
+        """,
+        )
+        self._write_executable(
+            fake_bin / "cc",
+            """
             #!/bin/sh
             exit 0
-        """)
-        self._write_executable(fake_bin / "perl", """
+        """,
+        )
+        self._write_executable(
+            fake_bin / "perl",
+            """
             #!/bin/sh
             exit 0
-        """)
-        self._write_executable(fake_bin / "make", """
+        """,
+        )
+        self._write_executable(
+            fake_bin / "make",
+            """
             #!/bin/sh
             set -eu
             if [ "${1:-}" = "install" ]; then
@@ -160,7 +195,8 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             mkdir -p "$FAKE_MODULE_DIR"
             : > "$FAKE_MODULE_PATH"
             exit 0
-        """)
+        """,
+        )
         self._write_executable(
             fake_bin / "git",
             fake_git_script(APPROVED_V3_REPOSITORY, APPROVED_V3_COMMIT),
@@ -184,12 +220,21 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                 "/* local fixture */\n", encoding="utf-8"
             )
             (shared_prefix / "lib").mkdir(parents=True)
-            (shared_prefix / "lib" / "libmodsecurity.so").write_text("fixture\n", encoding="utf-8")
+            (shared_prefix / "lib" / "libmodsecurity.so").write_text(
+                "fixture\n", encoding="utf-8"
+            )
             v3_source = workspace / "v3-source"
             create_approved_modsecurity_v3_topology(v3_source)
             connector_root = workspace / "connector"
             connector_root.mkdir()
-            module_path = verified / "apache-build" / "ModSecurity-apache" / "src" / ".libs" / "mod_security3.so"
+            module_path = (
+                verified
+                / "apache-build"
+                / "ModSecurity-apache"
+                / "src"
+                / ".libs"
+                / "mod_security3.so"
+            )
             tar_log = workspace / "pcre2-tar.log"
             git_log = workspace / "v3-git.log"
             git_log.touch()
@@ -227,16 +272,18 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                     "PCRE2_SHA256_URL": "",
                     "HTTPD_SOURCE_URL": "https://fixture.invalid/httpd.tar.bz2",
                     "APR_SOURCE_URL": "https://fixture.invalid/apr.tar.bz2",
-                    "APR_UTIL_VERSION": "1.6.4",
-                    "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2",
+                    "APR_UTIL_VERSION": TEST_APR_UTIL_VERSION,
+                    "APR_UTIL_SOURCE_URL": TEST_APR_UTIL_SOURCE_URL,
                     "HTTPD_SHA256": digest_value,
                     "APR_SHA256": digest_value,
                     "APR_UTIL_SHA256": digest_value,
                     "HTTPD_SHA256_URL": "https://fixture.invalid/httpd.sha256",
                     "APR_SHA256_URL": "https://fixture.invalid/apr.sha256",
-                    "APR_UTIL_SHA256_URL": "https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256",
+                    "APR_UTIL_SHA256_URL": TEST_APR_UTIL_SHA256_URL,
                     "PCRE2_FIXTURE_ARCHIVE": str(archive),
-                    "PCRE2_ARCHIVE_PATH": str(verified / "downloads" / self.fixture["archive_file"]),
+                    "PCRE2_ARCHIVE_PATH": str(
+                        verified / "downloads" / self.fixture["archive_file"]
+                    ),
                     "PCRE2_TAR_LOG": str(tar_log),
                     "FIXTURE_SHA256": digest_value,
                     "REAL_TAR": self.real_tar,
@@ -258,17 +305,25 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 check=False,
             )
-            log_contents = tar_log.read_text(encoding="utf-8") if tar_log.exists() else ""
+            log_contents = (
+                tar_log.read_text(encoding="utf-8") if tar_log.exists() else ""
+            )
             status_file = build_root / "logs" / "apache" / "status.txt"
-            status_contents = status_file.read_text(encoding="utf-8") if status_file.exists() else ""
-            pcre2_config_exists = (verified / "pcre2" / "bin" / "pcre2-config").is_file()
+            status_contents = (
+                status_file.read_text(encoding="utf-8") if status_file.exists() else ""
+            )
+            pcre2_config_exists = (
+                verified / "pcre2" / "bin" / "pcre2-config"
+            ).is_file()
             return completed, log_contents, status_contents, pcre2_config_exists
 
     def test_invalid_digests_never_reach_pcre2_tar(self):
         for case, digest in self.fixture["negative_digests"].items():
             with self.subTest(case=case):
                 completed, tar_log, status, _ = self._run_case(digest)
-                self.assertEqual(completed.returncode, 77, completed.stdout + completed.stderr)
+                self.assertEqual(
+                    completed.returncode, 77, completed.stdout + completed.stderr
+                )
                 self.assertEqual(tar_log, "")
                 if case == "empty":
                     self.assertIn("missing required SHA256 digest for pcre2", status)

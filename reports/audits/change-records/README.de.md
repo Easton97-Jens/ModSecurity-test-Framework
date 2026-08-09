@@ -16,6 +16,7 @@ beschrieben.
 
 ## Aktuelle Records
 
+- [Invarianz der Common-Version-Post-Apply-Test-Fixture beheben (2026-08-09)](20260809-01-fix-common-version-post-apply-test-invariance.de.md)
 - [Migration des Common-Version-Publishers auf ein GitHub-App-Token (2026-08-08)](20260808-02-migrate-common-version-publisher-app-token.de.md)
 - [PR-#50-Follow-up für CI und SonarQube Cloud (2026-07-26)](20260726-04-remediate-pr50-ci-sonar-followup.de.md)
 - [Wiederherstellung der exakten ModSecurity-v3-Provenance-Prüfung für rekursive Topologie (2026-07-23)](20260723-02-remediate-modsecurity-v3-topology-provenance.de.md)
