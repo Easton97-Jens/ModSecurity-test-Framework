@@ -46,7 +46,10 @@ SUPPORTED_ARCHIVE_TYPES = {ARCHIVE_TYPE_TAR_GZ, ARCHIVE_TYPE_RAW}
 # tar extraction. A checksum authenticates bytes, but does not prevent a
 # compromised or incorrectly updated lock entry from exhausting runner storage.
 MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024
-MAX_ARCHIVE_MEMBERS = 4096
+# Pyright's locked npm release currently contains 5,423 entries. Keep a
+# conservative ceiling above that reviewed artifact while still bounding
+# metadata and inode exhaustion from archive bombs.
+MAX_ARCHIVE_MEMBERS = 8192
 MAX_EXPANDED_ARCHIVE_BYTES = 512 * 1024 * 1024
 ABSOLUTE_PATHS_ERROR = "output directory and RUNNER_TEMP must be absolute paths"
 RUNNER_TEMP_DIRECTORY_ERROR = "RUNNER_TEMP must be an existing non-symlink directory"
@@ -296,9 +299,7 @@ def checked_download(record: dict[str, Any], staging_dir: Path) -> Path:
 def checked_members(archive: tarfile.TarFile) -> list[tarfile.TarInfo]:
     members = archive.getmembers()
     if len(members) > MAX_ARCHIVE_MEMBERS:
-        raise ToolError(
-            f"archive contains more than {MAX_ARCHIVE_MEMBERS} members"
-        )
+        raise ToolError(f"archive contains more than {MAX_ARCHIVE_MEMBERS} members")
     expanded_bytes = 0
     for member in members:
         if not is_safe_archive_member(member.name):

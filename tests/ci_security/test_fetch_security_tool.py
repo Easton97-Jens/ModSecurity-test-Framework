@@ -291,6 +291,11 @@ class ArchiveResourceLimitTest(unittest.TestCase):
                 with self.assertRaisesRegex(FETCHER.ToolError, "more than 1"):
                     FETCHER.checked_members(archive)
 
+    def test_default_member_limit_accommodates_locked_pyright_release(self) -> None:
+        # pyright.tgz 1.1.411 has 5,423 members. This guards the real CI input
+        # that exposed an overly restrictive first version of the limit.
+        self.assertGreaterEqual(FETCHER.MAX_ARCHIVE_MEMBERS, 5423)
+
     def test_rejects_excessive_expanded_archive_size(self) -> None:
         with self.archive_with_members(("one", 4), ("two", 5)) as archive:
             with patch.object(FETCHER, "MAX_EXPANDED_ARCHIVE_BYTES", 8):
