@@ -265,6 +265,10 @@ find_runtime_binary() {
             printf '%s\n' "$env_value"
             return 0
         fi
+        # Every reviewed runtime component declares path_fallback_allowed=false.
+        # A missing configured/default binary must therefore fail closed rather
+        # than selecting a same-named executable from a writable build root.
+        return 1
     fi
 
     for root in \
