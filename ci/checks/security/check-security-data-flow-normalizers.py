@@ -89,6 +89,17 @@ def body_payload_errors(security_event_normalizer: ModuleType) -> list[str]:
     ]
 
 
+def duplicate_key_errors(security_event_normalizer: ModuleType) -> list[str]:
+    """Require raw JSONL with hidden duplicate fields to fail closed."""
+
+    rows, errors = security_event_normalizer.parse_jsonl(
+        '{"payload":"secret body bytes","payload":""}\n'
+    )
+    if not rows and any("duplicate JSON object key" in error for error in errors):
+        return []
+    return ["duplicate JSON object keys were not rejected"]
+
+
 def integrity_hash_chain_errors(integrity_hash_chain: ModuleType) -> list[str]:
     """Prove that a minimal canonical hash-chain record rejects tampering."""
 
@@ -117,6 +128,7 @@ def main() -> int:
     security_event_normalizer, _, integrity_hash_chain = modules
     errors.extend(self_test_errors(modules))
     errors.extend(body_payload_errors(security_event_normalizer))
+    errors.extend(duplicate_key_errors(security_event_normalizer))
     errors.extend(integrity_hash_chain_errors(integrity_hash_chain))
     if errors:
         print("\n".join(errors), file=sys.stderr)

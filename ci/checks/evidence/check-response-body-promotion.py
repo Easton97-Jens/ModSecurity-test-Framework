@@ -159,6 +159,12 @@ def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) ->
             continue
         if not response_body_case_from_cells(headers, cells, cases):
             continue
+        row = dict(zip(headers, cells))
+        for column in ("matrix_status", "status", "result"):
+            if row.get(column) == "PASS":
+                errors.append(
+                    f"{path}:{line_number}: RESPONSE_BODY row must not render plain PASS in {column}"
+                )
     return errors
 
 

@@ -431,7 +431,11 @@ def _command_url_safety_errors(arguments: Sequence[str]) -> list[str]:
 
     errors: list[str] = []
     for argument in arguments:
-        parsed = urlsplit(argument)
+        try:
+            parsed = urlsplit(argument)
+        except ValueError:
+            errors.append("client command contains a malformed URL")
+            continue
         if parsed.scheme not in {"http", "https"}:
             continue
         if parsed.username is not None or parsed.password is not None:

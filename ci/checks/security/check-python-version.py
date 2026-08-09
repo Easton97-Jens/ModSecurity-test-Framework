@@ -85,7 +85,7 @@ def canonical_version_errors(root: Path) -> list[str]:
         return errors
     try:
         content = path.read_text(encoding="utf-8")
-    except OSError, UnicodeError:
+    except (OSError, UnicodeError):
         return [f"{path}: {CANONICAL_VERSION_FILE} cannot be decoded as UTF-8"]
     if CANONICAL_VERSION_VALUE.fullmatch(content) is None:
         return [
@@ -230,7 +230,7 @@ def makefile_uses_python(root: Path) -> bool:
     path = root / "Makefile"
     try:
         content = path.read_text(encoding="utf-8")
-    except OSError, UnicodeError:
+    except (OSError, UnicodeError):
         return False
     return "$(PYTHON)" in content or "python3" in content or "python -m" in content
 
@@ -463,7 +463,7 @@ def job_errors(
 def workflow_errors(root: Path, path: Path, *, indirect_make_python: bool) -> list[str]:
     try:
         text = path.read_text(encoding="utf-8")
-    except OSError, UnicodeError:
+    except (OSError, UnicodeError):
         return [f"{path}: workflow cannot be decoded as UTF-8"]
     document, errors = load_yaml(path)
     errors.extend(setup_reference_errors(path, text))

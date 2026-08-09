@@ -6,14 +6,23 @@ from typing import Any
 BODY_PAYLOAD_FIELDS = {"request_body", "response_body", "body_payload", "raw_body", "payload"}
 _VOLATILE = [(re.compile(r"\b\d{4}-\d{2}-\d{2}[T ][0-9:.+-]+Z?\b"), "<timestamp>"),(re.compile(r"\b(?:127\.0\.0\.1|localhost):\d+\b"), "<host>:<port>"),(re.compile(r"/[A-Za-z0-9._/-]*(?:ModSecurity|workspace)[A-Za-z0-9._/-]*"), "<path>")]
 
+def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result={}
+    for key,value in pairs:
+        if key in result: raise ValueError(f"duplicate JSON object key: {key}")
+        result[key]=value
+    return result
+
 def parse_jsonl(text: str) -> tuple[list[dict[str, Any]], list[str]]:
     rows=[]; errors=[]
     for no,line in enumerate(text.splitlines(),1):
         if not line.strip(): continue
         try:
-            obj=json.loads(line)
+            obj=json.loads(line, object_pairs_hook=reject_duplicate_keys)
         except json.JSONDecodeError as e:
             errors.append(f"line {no}: invalid JSONL: {e.msg}"); continue
+        except ValueError as e:
+            errors.append(f"line {no}: invalid JSONL: {e}"); continue
         if not isinstance(obj,dict): errors.append(f"line {no}: JSONL record must be an object"); continue
         rows.append(obj)
     return rows, errors
@@ -48,6 +57,8 @@ def self_test() -> None:
     normalized, errors = normalize_jsonl('{"timestamp":"2026-07-02T00:00:00Z","transaction_id":"abc","payload":"secret"}\n')
     assert "<timestamp>" in normalized
     assert any("payload" in e for e in errors)
+    _, duplicate_errors = normalize_jsonl('{"payload":"secret","payload":""}\n')
+    assert any("duplicate JSON object key" in e for e in duplicate_errors)
 
 if __name__ == "__main__":
     import sys

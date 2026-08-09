@@ -29,6 +29,28 @@ def load_module():
 
 
 class ResponseBodyPromotionPathSafetyTests(unittest.TestCase):
+    def test_generated_markdown_rejects_plain_response_body_pass(self) -> None:
+        module = load_module()
+        with tempfile.TemporaryDirectory() as temporary:
+            report = Path(temporary) / "runtime.md"
+            report.write_text(
+                "| case_id | matrix_status |\n"
+                "|---|---|\n"
+                "| response_body_fixture | PASS |\n",
+                encoding="utf-8",
+            )
+            cases = {
+                "response_body_fixture": {
+                    "name": "response_body_fixture",
+                    "variables": ["RESPONSE_BODY"],
+                }
+            }
+
+            errors = module.validate_generated_markdown(report, cases)
+
+            self.assertEqual(len(errors), 1)
+            self.assertIn("must not render plain PASS", errors[0])
+
     def test_report_root_is_contained_by_selected_repository(self) -> None:
         module = load_module()
         with tempfile.TemporaryDirectory() as temporary:
