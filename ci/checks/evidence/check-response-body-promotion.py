@@ -15,7 +15,14 @@ LIB_DIR = Path(__file__).resolve().parents[3] / "ci" / "lib"
 if str(LIB_DIR) not in sys.path:
     sys.path.insert(0, str(LIB_DIR))
 
-from response_body_status import RESPONSE_BODY_EVIDENCE_NOTE, is_response_body_related
+from report_output_paths import (  # noqa: E402
+    report_root_for as shared_report_root_for,
+    resolve_root,
+)
+from response_body_status import (  # noqa: E402
+    RESPONSE_BODY_EVIDENCE_NOTE,
+    is_response_body_related,
+)
 
 
 FRAMEWORK_REPORT_DIR = "docs/testing"
@@ -27,19 +34,14 @@ LEGACY_RESPONSE_BODY_EVIDENCE_NOTE = (
 )
 
 
-def resolve_root(root: str | Path, *, label: str) -> Path:
-    try:
-        return Path(root).expanduser().resolve()
-    except Exception as exc:
-        raise ValueError(f"{label} is not a valid path: {root}") from exc
-
-
 def report_root_for(framework_root: Path, connector_root: Path, output_root: Path) -> Path:
-    if output_root == framework_root:
-        return output_root / FRAMEWORK_REPORT_DIR
-    if output_root == connector_root:
-        return output_root / CONNECTOR_REPORT_DIR
-    raise ValueError(f"output root must be the framework root or connector root: {output_root}")
+    return shared_report_root_for(
+        output_root,
+        framework_root=framework_root,
+        connector_root=connector_root,
+        framework_report_dir=FRAMEWORK_REPORT_DIR,
+        connector_report_dir=CONNECTOR_REPORT_DIR,
+    )
 
 
 def read_yaml(path: Path) -> dict[str, Any]:
@@ -141,6 +143,25 @@ def response_body_case_from_cells(headers: list[str], cells: list[str], cases: d
     return is_response_body_related(case, case.get("path"))
 
 
+def markdown_response_body_pass_errors(
+    path: Path,
+    line_number: int,
+    headers: list[str],
+    cells: list[str],
+    cases: dict[str, dict[str, Any]],
+) -> list[str]:
+    """Reject plain PASS cells for one complete RESPONSE_BODY table row."""
+
+    if len(cells) != len(headers) or not response_body_case_from_cells(headers, cells, cases):
+        return []
+    row = dict(zip(headers, cells))
+    return [
+        f"{path}:{line_number}: RESPONSE_BODY row must not render plain PASS in {column}"
+        for column in ("matrix_status", "status", "result")
+        if row.get(column) == "PASS"
+    ]
+
+
 def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) -> list[str]:
     if not path.exists():
         return []
@@ -153,10 +174,13 @@ def validate_generated_markdown(path: Path, cases: dict[str, dict[str, Any]]) ->
         if any(header in cells for header in ("case_id", "case", "case_name")):
             headers = cells
             continue
-        if not headers or len(cells) != len(headers):
+        if not headers:
             continue
-        if not response_body_case_from_cells(headers, cells, cases):
-            continue
+        errors.extend(
+            markdown_response_body_pass_errors(
+                path, line_number, headers, cells, cases
+            )
+        )
     return errors
 
 

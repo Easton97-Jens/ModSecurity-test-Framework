@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import tarfile
 import unittest
 from unittest.mock import patch
 
@@ -248,6 +249,22 @@ class ReleaseAssetRedirectTest(unittest.TestCase):
                     FETCHER.checked_download(record, staging)
             self.assertFalse((staging / "fixture.bin").exists())
 
+    def test_rejects_an_oversized_download_and_removes_partial_asset(self) -> None:
+        payload = b"oversized response"
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            staging = Path(temporary_directory)
+            response = self.Response(
+                "https://release-assets.githubusercontent.com/fixture", payload
+            )
+            record = self.record(payload)
+            with (
+                patch.object(FETCHER, "MAX_DOWNLOAD_BYTES", len(payload) - 1),
+                patch.object(FETCHER, "urlopen", return_value=response),
+            ):
+                with self.assertRaisesRegex(FETCHER.ToolError, "safety limit"):
+                    FETCHER.checked_download(record, staging)
+            self.assertFalse((staging / "fixture.bin").exists())
+
     def test_rejects_a_static_asset_url_from_a_different_release_identity(self) -> None:
         record = FETCHER.read_tool_record(LOCK_PATH, "actionlint")
         record["asset_url"] = (
@@ -256,6 +273,34 @@ class ReleaseAssetRedirectTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(FETCHER.ToolError, "provenance"):
             FETCHER._validate_release_asset_url(record, "actionlint")
+
+
+class ArchiveResourceLimitTest(unittest.TestCase):
+    @staticmethod
+    def archive_with_members(*members: tuple[str, int]) -> tarfile.TarFile:
+        archive = tarfile.open(fileobj=io.BytesIO(), mode="w")
+        for name, size in members:
+            member = tarfile.TarInfo(name)
+            member.size = size
+            archive.addfile(member, io.BytesIO(b"x" * size))
+        return archive
+
+    def test_rejects_too_many_archive_members(self) -> None:
+        with self.archive_with_members(("one", 1), ("two", 1)) as archive:
+            with patch.object(FETCHER, "MAX_ARCHIVE_MEMBERS", 1):
+                with self.assertRaisesRegex(FETCHER.ToolError, "more than 1"):
+                    FETCHER.checked_members(archive)
+
+    def test_default_member_limit_accommodates_locked_pyright_release(self) -> None:
+        # pyright.tgz 1.1.411 has 5,423 members. This guards the real CI input
+        # that exposed an overly restrictive first version of the limit.
+        self.assertGreaterEqual(FETCHER.MAX_ARCHIVE_MEMBERS, 5423)
+
+    def test_rejects_excessive_expanded_archive_size(self) -> None:
+        with self.archive_with_members(("one", 4), ("two", 5)) as archive:
+            with patch.object(FETCHER, "MAX_EXPANDED_ARCHIVE_BYTES", 8):
+                with self.assertRaisesRegex(FETCHER.ToolError, "expands beyond"):
+                    FETCHER.checked_members(archive)
 
 
 if __name__ == "__main__":

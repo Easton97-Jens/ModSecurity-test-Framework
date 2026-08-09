@@ -24,6 +24,38 @@ def run_common_shell(script: str) -> subprocess.CompletedProcess[str]:
 
 
 class CommonShellSonarContractsTest(unittest.TestCase):
+    def test_runtime_staging_rejects_a_symlink_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tools = root / "tools"
+            destination = root / "cache" / "bin" / "fixture-runtime"
+            outside = root / "outside"
+            tools.mkdir()
+            destination.parent.mkdir(parents=True)
+            outside.write_text("do not overwrite", encoding="utf-8")
+            binary = tools / "fixture-runtime"
+            binary.write_text("#!/bin/sh\necho 'fixture 1.2.3'\n", encoding="utf-8")
+            binary.chmod(0o755)
+            destination.symlink_to(outside)
+            script = textwrap.dedent(
+                f"""
+                VERIFIED_RUN_ROOT={shlex.quote(str(root))}
+                CONNECTOR_COMPONENT_CACHE={shlex.quote(str(root / 'cache'))}
+                PATH={shlex.quote(str(tools))}:$PATH
+                . {shlex.quote(str(COMMON))}
+                ci_stage_matching_runtime_binary fixture-runtime 1.2.3 --version \
+                    {shlex.quote(str(destination))} >/dev/null 2>&1
+                [ "$?" -eq 77 ] || exit 1
+                [ -L {shlex.quote(str(destination))} ] || exit 1
+                exit 0
+                """
+            )
+
+            result = run_common_shell(script)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(outside.read_text(encoding="utf-8"), "do not overwrite")
+
     def test_library_helpers_return_expected_statuses_without_exiting_caller(self) -> None:
         script = textwrap.dedent(
             f"""

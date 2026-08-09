@@ -117,7 +117,7 @@ def resolve_repository_path(path: Path) -> Path | None:
         repository_root = Path.cwd().resolve(strict=True)
         resolved_path = path.resolve(strict=True)
         resolved_path.relative_to(repository_root)
-    except OSError, RuntimeError, ValueError:
+    except (OSError, RuntimeError, ValueError):
         return None
     return resolved_path
 

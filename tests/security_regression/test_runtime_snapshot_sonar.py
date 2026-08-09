@@ -61,7 +61,7 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
         self.assertFalse(rows[0]["promotion_allowed"])
         self.assertFalse(rows[0]["runtime_verified"])
 
-    def test_response_body_display_pass_remains_non_promotable(self) -> None:
+    def test_response_body_pass_is_not_rendered_as_plain_pass(self) -> None:
         summary = {
             "apache": {
                 "cases": {
@@ -82,7 +82,7 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
             rows = self.snapshot.case_rows(summary, "apache", Path("/safe/results/apache-summary.json"))
 
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["matrix_status"], "PASS")
+        self.assertEqual(rows[0]["matrix_status"], "NOT_EXECUTABLE")
         self.assertTrue(rows[0]["not_auto_promoted"])
         self.assertTrue(rows[0]["response_body_non_verified"])
         self.assertFalse(rows[0]["promotion_allowed"])

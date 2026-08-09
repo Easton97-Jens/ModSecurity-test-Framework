@@ -42,6 +42,15 @@ TOOL_FIELDS = {
 ARCHIVE_TYPE_TAR_GZ = "tar.gz"
 ARCHIVE_TYPE_RAW = "raw"
 SUPPORTED_ARCHIVE_TYPES = {ARCHIVE_TYPE_TAR_GZ, ARCHIVE_TYPE_RAW}
+# Bound attacker-controlled release responses before checksum verification and
+# tar extraction. A checksum authenticates bytes, but does not prevent a
+# compromised or incorrectly updated lock entry from exhausting runner storage.
+MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024
+# Pyright's locked npm release currently contains 5,423 entries. Keep a
+# conservative ceiling above that reviewed artifact while still bounding
+# metadata and inode exhaustion from archive bombs.
+MAX_ARCHIVE_MEMBERS = 8192
+MAX_EXPANDED_ARCHIVE_BYTES = 512 * 1024 * 1024
 ABSOLUTE_PATHS_ERROR = "output directory and RUNNER_TEMP must be absolute paths"
 RUNNER_TEMP_DIRECTORY_ERROR = "RUNNER_TEMP must be an existing non-symlink directory"
 STRICT_CHILD_ERROR = (
@@ -249,6 +258,7 @@ def checked_download(record: dict[str, Any], staging_dir: Path) -> Path:
         str(record["asset_url"]), headers={"User-Agent": "framework-ci-security/1"}
     )
     digest = hashlib.sha256()
+    downloaded_bytes = 0
     try:
         with urlopen(request, timeout=30) as response, archive.open("wb") as output:
             final_url = urlparse(response.geturl())
@@ -264,6 +274,12 @@ def checked_download(record: dict[str, Any], staging_dir: Path) -> Path:
                 chunk = response.read(1024 * 1024)
                 if not chunk:
                     break
+                downloaded_bytes += len(chunk)
+                if downloaded_bytes > MAX_DOWNLOAD_BYTES:
+                    raise ToolError(
+                        f"download for {record['name']} exceeds the "
+                        f"{MAX_DOWNLOAD_BYTES}-byte safety limit"
+                    )
                 digest.update(chunk)
                 output.write(chunk)
     except ToolError:
@@ -282,6 +298,9 @@ def checked_download(record: dict[str, Any], staging_dir: Path) -> Path:
 
 def checked_members(archive: tarfile.TarFile) -> list[tarfile.TarInfo]:
     members = archive.getmembers()
+    if len(members) > MAX_ARCHIVE_MEMBERS:
+        raise ToolError(f"archive contains more than {MAX_ARCHIVE_MEMBERS} members")
+    expanded_bytes = 0
     for member in members:
         if not is_safe_archive_member(member.name):
             raise ToolError(f"archive contains unsafe path {member.name!r}")
@@ -291,6 +310,13 @@ def checked_members(archive: tarfile.TarFile) -> list[tarfile.TarInfo]:
             )
         if not (member.isdir() or member.isfile()):
             raise ToolError(f"archive contains unsupported member {member.name!r}")
+        if member.isfile():
+            expanded_bytes += member.size
+            if expanded_bytes > MAX_EXPANDED_ARCHIVE_BYTES:
+                raise ToolError(
+                    "archive expands beyond the "
+                    f"{MAX_EXPANDED_ARCHIVE_BYTES}-byte safety limit"
+                )
     return members
 
 

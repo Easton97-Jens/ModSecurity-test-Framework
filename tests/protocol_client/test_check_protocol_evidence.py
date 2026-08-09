@@ -382,6 +382,12 @@ class ProtocolEvidenceTest(unittest.TestCase):
             self.assertTrue(any("unredacted URL query" in error for error in errors))
             self.assertTrue(any("leaks the value for --resolve" in error for error in errors))
 
+    def test_malformed_command_url_is_a_validation_error(self) -> None:
+        errors = check_protocol_evidence._command_url_safety_errors(
+            ["https://[unterminated"]
+        )
+        self.assertEqual(errors, ["client command contains a malformed URL"])
+
     def test_rejects_overridden_or_payload_capturing_client_output_options(self) -> None:
         unsafe_options = (
             "--output /tmp/leaked-body",

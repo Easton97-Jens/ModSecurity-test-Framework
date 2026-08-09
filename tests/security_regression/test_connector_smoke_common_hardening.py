@@ -71,6 +71,27 @@ class ConnectorSmokeCommonHardeningTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_missing_configured_binary_does_not_fall_back_to_build_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            planted = root / "build" / "bin" / "envoy"
+            planted.parent.mkdir(parents=True)
+            planted.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            planted.chmod(0o755)
+            result = self.run_shell(
+                f"""
+                {source_smoke_common()}
+                ENVOY_BIN={shlex.quote(str(root / 'missing' / 'envoy'))}
+                ENVOY_BIN_WAS_SET=0
+                BUILD_ROOT={shlex.quote(str(root / 'build'))}
+                if find_runtime_binary ENVOY_BIN envoy; then
+                    exit 1
+                fi
+                """,
+                environment={"FRAMEWORK_ROOT": str(ROOT)},
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_foreign_ci_root_cannot_supply_common_helper(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

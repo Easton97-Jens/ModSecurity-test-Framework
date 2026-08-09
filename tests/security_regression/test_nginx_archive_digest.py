@@ -978,6 +978,31 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 finally:
                     self.remove_harness(harness)
 
+    def test_archive_cache_rejects_symlinked_cache_key_directory(self):
+        harness = self.make_harness()
+        try:
+            root = harness["root"]
+            cache = harness["cache"]
+            cache_key = harness["cache_key"]
+            self.assertIsInstance(root, Path)
+            self.assertIsInstance(cache, Path)
+            self.assertIsInstance(cache_key, str)
+            outside = root / "outside-archive-cache"
+            outside.mkdir()
+            archive_cache_root = cache / "nginx-archives"
+            archive_cache_root.mkdir()
+            (archive_cache_root / cache_key).symlink_to(
+                outside, target_is_directory=True
+            )
+
+            result = self.run_prepare(harness, self.archive_digest(harness))
+
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertIn("must stay under", result.stdout)
+            self.assertEqual(list(outside.iterdir()), [])
+        finally:
+            self.remove_harness(harness)
+
     def test_explicit_nginx_build_owner_root_must_be_an_absolute_safe_path(self):
         harness = self.make_harness()
         try:

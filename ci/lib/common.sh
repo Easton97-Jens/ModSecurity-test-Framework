@@ -708,8 +708,23 @@ ci_stage_matching_runtime_binary() {
 
     assert_safe_runtime_path "$(dirname "$ci_runtime_destination")" "${ci_runtime_name} staging directory" || return 1
     mkdir -p "$(dirname "$ci_runtime_destination")"
-    cp "$ci_runtime_system_path" "$ci_runtime_destination"
-    chmod 0755 "$ci_runtime_destination"
+    if [ -e "$ci_runtime_destination" ] || [ -L "$ci_runtime_destination" ]; then
+        ci_blocked "${ci_runtime_name} staging destination already exists or is a symlink"
+        return 77
+    fi
+    ci_runtime_stage=$(mktemp "${ci_runtime_destination}.tmp.XXXXXX") || return 1
+    if ! cp "$ci_runtime_system_path" "$ci_runtime_stage"; then
+        rm -f "$ci_runtime_stage"
+        return 1
+    fi
+    chmod 0755 "$ci_runtime_stage" || {
+        rm -f "$ci_runtime_stage"
+        return 1
+    }
+    if ! mv "$ci_runtime_stage" "$ci_runtime_destination"; then
+        rm -f "$ci_runtime_stage"
+        return 1
+    fi
     printf '%s\n' "$ci_runtime_destination"
 }
 
