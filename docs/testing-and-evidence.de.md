@@ -122,7 +122,18 @@ finalen `HEAD` vor der Submodul-Verarbeitung stoppt. Ein neueres Upstream-Tag wi
 automatische Änderung gemeldet: Die Änderung von Release-Tag und
 unveränderlichem Commit bleibt eine geprüfte Provenance-Änderung. Der Test
 benötigt weder Netzwerk noch Connector-Runtime und beweist nur die
-Provisionierungs-Identitätskontrolle, keinen CRS-Runtime-Support-Claim.
+Provisionierungs-Identitätskontrolle, keinen CRS-Runtime-Support-Claim. Die
+legitime Kontrolle akzeptiert ein fehlendes Manifest und die exakte Root-
+Empty-Blob `.gitmodules` `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` nur nach
+Tree-, Index-, Worktree-, Gitlink-, lokaler Konfigurations- und Registry-
+Prüfung. Sie weist nichtleere, falsche Mode-, verlinkte, spezielle,
+abweichende, verschachtelte oder Gitlink-haltige Zustände ohne Aufruf von
+`git submodule` ab.
+Der gleiche Verifier läuft in `prepare-crs.sh` unmittelbar bevor es Source-
+Templates, Rules oder Plugins liest oder Runtime-Dateien schreibt. Daher wird
+eine Ersetzung nach erfolgreichem Fetch vor dem Source-Verbrauch abgewiesen;
+dies bleibt ein Ergebnis der Provisionierungsgrenze und keine Connector-
+Runtime-Evidenz.
 
 ## ModSecurity-v3-Quellherkunftsvertrag
 

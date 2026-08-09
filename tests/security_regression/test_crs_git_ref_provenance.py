@@ -31,6 +31,9 @@ APPROVED_COMMIT = "c" * 40
 APPROVED_RELEASE_TAG = "v4.900.0"
 ALTERNATE_COMMIT = "a" * 40
 ANNOTATED_TAG_OBJECT = "5d2bd9a1ad7e607813f9e19cc73fa44dd5dd2ceb"
+EMPTY_GIT_BLOB = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+NONEMPTY_GIT_BLOB = "f" * 40
+GITLINK_OBJECT = "d" * 40
 
 
 def load_common_version_checker():
@@ -48,13 +51,16 @@ def load_common_version_checker():
 COMMON_VERSION_CHECKER = load_common_version_checker()
 
 
-FAKE_GIT = f"""#!/usr/bin/env python3
+FAKE_GIT = """#!/usr/bin/env python3
 import os
 from pathlib import Path
 import sys
 
-approved_repo = {APPROVED_REPO!r}
-approved_commit = {APPROVED_COMMIT!r}
+approved_repo = __APPROVED_REPO__
+approved_commit = __APPROVED_COMMIT__
+empty_blob = __EMPTY_GIT_BLOB__
+nonempty_blob = __NONEMPTY_GIT_BLOB__
+gitlink_object = __GITLINK_OBJECT__
 log = Path(os.environ["FAKE_GIT_LOG"])
 with log.open("a", encoding="utf-8") as handle:
     handle.write(" ".join(sys.argv[1:]) + "\\n")
@@ -82,27 +88,203 @@ while arguments:
 
 command = arguments[0] if arguments else ""
 arguments = arguments[1:]
+
+gitmodules_case = os.environ.get("FAKE_GIT_GITMODULES_CASE", "absent")
+failure = os.environ.get("FAKE_GIT_FAIL")
+
+
+def is_scoped_gitmodules_query():
+    return ".gitmodules" in arguments
+
+
+def should_fail():
+    if failure == command:
+        return True
+    if failure == "rev-parse-gitmodules":
+        return command == "rev-parse" and any(
+            ":.gitmodules" in argument for argument in arguments
+        )
+    if failure == "ls-files-index":
+        return command == "ls-files" and not is_scoped_gitmodules_query()
+    if failure == "ls-files-scoped":
+        return command == "ls-files" and is_scoped_gitmodules_query()
+    if failure == "config-submodule":
+        return command == "config" and "--get-regexp" in arguments
+    if failure == "ls-files-untracked":
+        return command == "ls-files" and "--others" in arguments
+    if failure == "diff-gitmodules":
+        return command == "diff" and ".gitmodules" in arguments
+    if failure == "diff-worktree":
+        return command == "diff" and "--cached" not in arguments and ".gitmodules" not in arguments
+    if failure == "diff-index":
+        return command == "diff" and "--cached" in arguments
+    return False
+
+
+if should_fail():
+    sys.exit(2)
+
+
+def gitmodules_content(case):
+    return {
+        "empty": b"",
+        "newline": b"\\n",
+        "whitespace": b" \\t\\n",
+        "comment": b"# not empty\\n",
+        "declaration": b"[submodule \\\"attacker\\\"]\\npath = attacker\\n",
+        "worktree-mismatch": b"",
+        "symlink": b"",
+        "special": b"",
+        "wrong-mode": b"",
+    }.get(case, b"")
+
+
+def gitmodules_blob(case):
+    if case in {"newline", "whitespace", "comment", "declaration"}:
+        return nonempty_blob
+    return empty_blob
+
+
+def has_checkout_gitmodules(case):
+    return case != "absent"
+
+
+def has_tree_gitmodules(case):
+    return case not in {"absent", "untracked"}
+
+
+def tree_entry(case):
+    if not has_tree_gitmodules(case):
+        return ""
+    mode = "100755" if case == "wrong-mode" else "100644"
+    return f"{mode} blob {gitmodules_blob(case)}\\t.gitmodules"
+
+
+def write_gitmodules_checkout(path, case):
+    gitmodules = path / ".gitmodules"
+    if not has_checkout_gitmodules(case):
+        return
+    if case == "symlink":
+        target = path.parent / "gitmodules-target"
+        target.write_bytes(b"")
+        os.symlink(target, gitmodules)
+        return
+    if case == "special":
+        gitmodules.mkdir()
+        return
+    content = gitmodules_content(case)
+    if case == "worktree-mismatch":
+        content = b"tampered"
+    gitmodules.write_bytes(content)
+    if case == "wrong-mode":
+        gitmodules.chmod(0o755)
+    if case == "worktree-wrong-mode":
+        gitmodules.chmod(0o755)
+
+
+def gitmodules_checkout_matches_tree(path, case):
+    gitmodules = path / ".gitmodules"
+    if not has_tree_gitmodules(case):
+        return not os.path.lexists(gitmodules)
+    if gitmodules.is_symlink() or not gitmodules.is_file():
+        return False
+    if gitmodules.read_bytes() != gitmodules_content(case):
+        return False
+    expected_mode = 0o755 if case == "wrong-mode" else 0o644
+    return gitmodules.stat().st_mode & 0o777 == expected_mode
+
+
+def tree_lines(recursive):
+    lines = []
+    entry = tree_entry(gitmodules_case)
+    if entry:
+        lines.append(entry)
+    if recursive and os.environ.get("FAKE_GIT_TREE_GITLINK") == "1":
+        lines.append(f"160000 commit {gitlink_object}\\tmodules/real")
+    if recursive and os.environ.get("FAKE_GIT_NESTED_GITMODULES") == "1":
+        lines.append(f"100644 blob {empty_blob}\\tnested/.gitmodules")
+    if recursive and os.environ.get("FAKE_GIT_TRAVERSAL_GITMODULES") == "1":
+        lines.append(f"100644 blob {empty_blob}\\t../.gitmodules")
+    return lines
+
+
 if command == "init":
     Path(arguments[-1], ".git").mkdir(parents=True, exist_ok=True)
 elif command == "config":
-    print(os.environ.get("FAKE_GIT_ORIGIN", approved_repo))
+    if "--get-regexp" in arguments:
+        if os.environ.get("FAKE_GIT_SUBMODULE_CONFIG") == "1":
+            print("submodule.attacker.path attacker")
+        else:
+            sys.exit(1)
+    else:
+        print(os.environ.get("FAKE_GIT_ORIGIN", approved_repo))
 elif command == "clone":
     Path(arguments[-1], ".git").mkdir(parents=True, exist_ok=True)
 elif command == "fetch":
     sys.exit(int(os.environ.get("FAKE_GIT_FETCH_RC", "0")))
 elif command == "checkout":
-    if os.environ.get("FAKE_GIT_CREATE_GITMODULES") == "1" and repository:
-        Path(repository, ".gitmodules").touch()
+    if repository:
+        checkout = Path(repository)
+        write_gitmodules_checkout(checkout, gitmodules_case)
+        if os.environ.get("FAKE_GIT_MODULES_REGISTRY") == "1":
+            (checkout / ".git" / "modules").mkdir(parents=True, exist_ok=True)
 elif command == "rev-parse":
-    if any(argument.startswith("FETCH_HEAD") for argument in arguments):
+    if any(":.gitmodules" in argument for argument in arguments):
+        print(gitmodules_blob(gitmodules_case))
+    elif any(argument.startswith("FETCH_HEAD") for argument in arguments):
         print(os.environ.get("FAKE_GIT_FETCH_HEAD_COMMIT", approved_commit))
     elif any(argument.startswith("HEAD") for argument in arguments):
         print(os.environ.get("FAKE_GIT_HEAD_COMMIT", approved_commit))
     else:
         print(os.environ.get("FAKE_GIT_RESOLVED_COMMIT", approved_commit))
+elif command == "ls-tree":
+    recursive = "-r" in arguments
+    for line in tree_lines(recursive):
+        print(line)
+elif command == "cat-file":
+    if "-s" in arguments:
+        print(len(gitmodules_content(gitmodules_case)))
+elif command == "show":
+    sys.stdout.buffer.write(gitmodules_content(gitmodules_case))
+elif command == "hash-object":
+    if gitmodules_case == "worktree-mismatch":
+        print(nonempty_blob)
+    else:
+        print(gitmodules_blob(gitmodules_case))
+elif command == "ls-files":
+    if "--others" in arguments:
+        if os.environ.get("FAKE_GIT_UNTRACKED") == "1":
+            print("rules/untrusted.conf")
+    else:
+        if (
+            has_tree_gitmodules(gitmodules_case)
+            or os.environ.get("FAKE_GIT_INDEX_UNTRACKED") == "1"
+        ):
+            blob = (
+                nonempty_blob
+                if os.environ.get("FAKE_GIT_INDEX_MISMATCH") == "1"
+                else gitmodules_blob(gitmodules_case)
+            )
+            print(f"100644 {blob} 0\\t.gitmodules")
+            if os.environ.get("FAKE_GIT_INDEX_DUPLICATE") == "1":
+                print(f"100644 {blob} 1\\t.gitmodules")
+        if (
+            not is_scoped_gitmodules_query()
+            and os.environ.get("FAKE_GIT_INDEX_GITLINK") == "1"
+        ):
+            print(f"160000 {gitlink_object} 0\\tmodules/real")
+elif command == "diff":
+    if repository and not gitmodules_checkout_matches_tree(
+        Path(repository), gitmodules_case
+    ):
+        sys.exit(1)
 elif command == "submodule":
     sys.exit(int(os.environ.get("FAKE_GIT_SUBMODULE_RC", "0")))
-"""
+""".replace("__APPROVED_REPO__", repr(APPROVED_REPO)).replace(
+    "__APPROVED_COMMIT__", repr(APPROVED_COMMIT)
+).replace("__EMPTY_GIT_BLOB__", repr(EMPTY_GIT_BLOB)).replace(
+    "__NONEMPTY_GIT_BLOB__", repr(NONEMPTY_GIT_BLOB)
+).replace("__GITLINK_OBJECT__", repr(GITLINK_OBJECT))
 
 
 class FetchCrsProvenanceTests(unittest.TestCase):
@@ -121,6 +303,14 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             ROOT / "ci/lib/path-bootstrap.sh", root / "ci/lib/path-bootstrap.sh"
         )
         shutil.copy2(FETCH_CRS, root / "ci/provisioning/fetch-crs.sh")
+        shutil.copy2(
+            ROOT / "ci/provisioning/crs-provenance.sh",
+            root / "ci/provisioning/crs-provenance.sh",
+        )
+        shutil.copy2(
+            ROOT / "ci/provisioning/prepare-crs.sh",
+            root / "ci/provisioning/prepare-crs.sh",
+        )
         source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
         write_common_fixture(
             root,
@@ -143,7 +333,14 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                 verbs.append(arguments[0])
         return verbs
 
-    def invoke_fetch(self, *, overrides=None, existing_source=False):
+    def invoke_fetch(
+        self,
+        *,
+        overrides=None,
+        existing_source=False,
+        source_location="source",
+        after_fetch=None,
+    ):
         """Run the real fetch script with only its Git executable mocked."""
         with tempfile.TemporaryDirectory(prefix="crs-provenance-") as temporary:
             temporary_path = Path(temporary)
@@ -153,7 +350,14 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             verified_root = temporary_path / "verified"
             source_root = verified_root / "src"
             source_root.mkdir(parents=True)
-            source_dir = source_root / "coreruleset"
+            if source_location == "source":
+                source_dir = source_root / "coreruleset"
+            elif source_location == "cache":
+                source_dir = verified_root / "component-cache" / "coreruleset"
+            elif source_location == "outside":
+                source_dir = temporary_path / "outside" / "coreruleset"
+            else:
+                raise AssertionError(f"unsupported source location: {source_location}")
             sentinel = source_dir / "untrusted-rules.conf"
             if existing_source:
                 (source_dir / ".git").mkdir(parents=True)
@@ -181,6 +385,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                     "LOG_ROOT": str(verified_root / "logs"),
                     "CRS_SOURCE_DIR": str(source_dir),
                     "CRS_RUNTIME_DIR": str(verified_root / "build" / "crs"),
+                    "CONNECTOR_COMPONENT_CACHE": str(verified_root / "component-cache"),
                     "FAKE_GIT_LOG": str(git_log),
                     "FAKE_GIT_ORIGIN": APPROVED_REPO,
                     "PATH": f"{fake_bin}{os.pathsep}{environment['PATH']}",
@@ -196,11 +401,21 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 timeout=15,
             )
+            after_fetch_result = None
+            if after_fetch is not None:
+                after_fetch_result = after_fetch(
+                    source_dir,
+                    Path(environment["CRS_RUNTIME_DIR"]),
+                    fixture_script.with_name("prepare-crs.sh"),
+                    environment,
+                )
             commands = [
                 line.rstrip()
                 for line in git_log.read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
+            if after_fetch is not None:
+                return result, commands, sentinel.exists(), after_fetch_result
             return result, commands, sentinel.exists()
 
     def assert_blocked_before_git(self, overrides):
@@ -292,6 +507,15 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         self.assertEqual(commands, [], result.stdout + result.stderr)
         self.assertTrue(sentinel_exists)
 
+    def test_rejects_a_cache_or_outside_source_before_git(self):
+        for source_location in ("cache", "outside"):
+            with self.subTest(source_location=source_location):
+                result, commands, _ = self.invoke_fetch(
+                    source_location=source_location
+                )
+                self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                self.assertEqual(commands, [], result.stdout + result.stderr)
+
     def test_rejects_resolved_commit_or_final_head_mismatch_before_submodules(self):
         result, commands, _ = self.invoke_fetch(
             overrides={"FAKE_GIT_FETCH_HEAD_COMMIT": ALTERNATE_COMMIT}
@@ -320,14 +544,139 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         self.assertIn("rev-parse --verify HEAD^{commit}", command_text)
         self.assertNotIn("submodule", self.git_verbs(commands))
 
-    def test_rejects_submodule_manifest_after_parent_verification(self):
+    def test_accepts_an_exactly_empty_regular_gitmodules_without_gitlinks(self):
         result, commands, _ = self.invoke_fetch(
-            overrides={"FAKE_GIT_CREATE_GITMODULES": "1"}
+            overrides={"FAKE_GIT_GITMODULES_CASE": "empty"}
         )
+        command_text = "\n".join(commands)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"ls-tree -r {APPROVED_COMMIT}", command_text)
+        self.assertIn("ls-files --stage", command_text)
+        self.assertIn("ls-files --stage -- .gitmodules", command_text)
+        self.assertIn(
+            f"rev-parse --verify {APPROVED_COMMIT}:.gitmodules", command_text
+        )
+        self.assertIn(f"cat-file -s {APPROVED_COMMIT}:.gitmodules", command_text)
+        self.assertIn("hash-object --no-filters -- ", command_text)
+        self.assertIn(
+            "diff --quiet --no-ext-diff --no-textconv -- .gitmodules", command_text
+        )
+        self.assertIn("config --local --get-regexp ^submodule\\.", command_text)
+        self.assertIn("rev-parse --verify HEAD^{commit}", command_text)
+        self.assertNotIn("submodule", self.git_verbs(commands))
+
+    def test_prepare_rejects_a_post_fetch_gitmodules_replacement_before_runtime_writes(
+        self,
+    ):
+        def replace_then_prepare(source_dir, runtime_dir, prepare_script, environment):
+            (source_dir / ".gitmodules").write_text(
+                "[submodule \\\"attacker\\\"]\\npath = attacker\\n",
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                ["sh", str(prepare_script)],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=15,
+            )
+            entries = (
+                sorted(path.name for path in runtime_dir.iterdir())
+                if runtime_dir.exists()
+                else []
+            )
+            return result, entries
+
+        fetch_result, commands, _, prepare_state = self.invoke_fetch(
+            overrides={"FAKE_GIT_GITMODULES_CASE": "empty"},
+            after_fetch=replace_then_prepare,
+        )
+        prepare_result, runtime_entries = prepare_state
+        self.assertEqual(
+            fetch_result.returncode, 0, fetch_result.stdout + fetch_result.stderr
+        )
+        self.assertEqual(
+            prepare_result.returncode, 77, prepare_result.stdout + prepare_result.stderr
+        )
+        self.assertIn(
+            "prepare_crs checked-out .gitmodules is not an empty regular file",
+            prepare_result.stdout + prepare_result.stderr,
+        )
+        self.assertEqual(runtime_entries, [])
+        self.assertNotIn("submodule", self.git_verbs(commands))
+
+    def assert_gitmodules_case_blocked(self, overrides):
+        result, commands, _ = self.invoke_fetch(overrides=overrides)
         command_text = "\n".join(commands)
         self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
         self.assertIn("rev-parse --verify HEAD^{commit}", command_text)
         self.assertNotIn("submodule", self.git_verbs(commands))
+
+    def test_rejects_empty_gitmodules_when_the_tree_or_index_has_a_gitlink(self):
+        for override in (
+            {"FAKE_GIT_GITMODULES_CASE": "empty", "FAKE_GIT_TREE_GITLINK": "1"},
+            {"FAKE_GIT_GITMODULES_CASE": "empty", "FAKE_GIT_INDEX_GITLINK": "1"},
+        ):
+            with self.subTest(override=override):
+                self.assert_gitmodules_case_blocked(override)
+
+    def test_rejects_nonempty_gitmodules_forms(self):
+        for gitmodules_case in ("newline", "whitespace", "comment", "declaration"):
+            with self.subTest(gitmodules_case=gitmodules_case):
+                self.assert_gitmodules_case_blocked(
+                    {"FAKE_GIT_GITMODULES_CASE": gitmodules_case}
+                )
+
+    def test_rejects_gitmodules_symlink_special_or_wrong_tree_mode(self):
+        for gitmodules_case in ("symlink", "special", "wrong-mode"):
+            with self.subTest(gitmodules_case=gitmodules_case):
+                self.assert_gitmodules_case_blocked(
+                    {"FAKE_GIT_GITMODULES_CASE": gitmodules_case}
+                )
+
+    def test_rejects_gitmodules_checkout_or_index_mismatch(self):
+        for override in (
+            {"FAKE_GIT_GITMODULES_CASE": "worktree-mismatch"},
+            {"FAKE_GIT_GITMODULES_CASE": "worktree-wrong-mode"},
+            {"FAKE_GIT_GITMODULES_CASE": "empty", "FAKE_GIT_INDEX_MISMATCH": "1"},
+            {"FAKE_GIT_GITMODULES_CASE": "empty", "FAKE_GIT_INDEX_DUPLICATE": "1"},
+            {"FAKE_GIT_GITMODULES_CASE": "untracked"},
+            {"FAKE_GIT_INDEX_UNTRACKED": "1"},
+        ):
+            with self.subTest(override=override):
+                self.assert_gitmodules_case_blocked(override)
+
+    def test_rejects_submodule_configuration_registry_or_extra_gitmodules_path(self):
+        for override in (
+            {"FAKE_GIT_GITMODULES_CASE": "empty", "FAKE_GIT_SUBMODULE_CONFIG": "1"},
+            {"FAKE_GIT_GITMODULES_CASE": "empty", "FAKE_GIT_MODULES_REGISTRY": "1"},
+            {"FAKE_GIT_GITMODULES_CASE": "empty", "FAKE_GIT_NESTED_GITMODULES": "1"},
+            {"FAKE_GIT_TRAVERSAL_GITMODULES": "1"},
+            {"FAKE_GIT_UNTRACKED": "1"},
+        ):
+            with self.subTest(override=override):
+                self.assert_gitmodules_case_blocked(override)
+
+    def test_rejects_git_inspection_errors_after_the_approved_checkout(self):
+        for failure in (
+            "ls-tree",
+            "ls-files-index",
+            "config-submodule",
+            "ls-files-scoped",
+            "rev-parse-gitmodules",
+            "cat-file",
+            "hash-object",
+            "diff-gitmodules",
+            "diff-worktree",
+            "diff-index",
+            "ls-files-untracked",
+        ):
+            with self.subTest(failure=failure):
+                self.assert_gitmodules_case_blocked(
+                    {"FAKE_GIT_GITMODULES_CASE": "empty", "FAKE_GIT_FAIL": failure}
+                )
 
     def test_version_checker_requires_reviewed_release_tag_and_commit_pair(self):
         class FakeGithubClient:

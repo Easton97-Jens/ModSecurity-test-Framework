@@ -175,8 +175,17 @@ definition.
 The fetch path initializes a fresh repository, sets and reads back the exact
 HTTPS origin, fetches only the approved full commit without tags or recursive
 submodules, and compares `FETCH_HEAD^{commit}`, the resolved commit object,
-and final `HEAD^{commit}` with that same identity. A `.gitmodules` manifest
-is fail-closed pending a separately approved submodule provenance rule.
+and final `HEAD^{commit}` with that same identity. An absent `.gitmodules`
+path is accepted. The one present root `.gitmodules` path is accepted only as
+the regular, non-symlinked, zero-byte Git empty blob
+`e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` in the approved tree, checkout
+index, and worktree. The approved tree and checkout index must contain no
+Gitlink, and no nested manifest, local `submodule.*` configuration, or
+`.git/modules` registry may exist. Every other manifest or submodule state is
+rejected before use; no recursive submodule initialization occurs. The same
+checkout verifier runs in `prepare-crs.sh` immediately before it reads source
+templates, rules, or plugins or writes runtime files, so a replacement after
+fetch is rejected at the source-consumption boundary.
 `CRS_RUNTIME_DIR` and `MODSECURITY_RULE_PREAMBLE_FILE` remain runtime-path
 inputs. Do not duplicate CRS pins in workflows. `CACHE_ROOT`,
 `VERIFIED_COMPONENT_CACHE`, and `CONNECTOR_COMPONENT_CACHE` are cache paths
