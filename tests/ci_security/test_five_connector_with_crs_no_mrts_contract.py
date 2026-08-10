@@ -6,12 +6,16 @@ import hashlib
 import importlib.util
 import io
 import json
+import multiprocessing
+from multiprocessing.connection import Connection
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from typing import Callable
 from unittest import mock
@@ -52,6 +56,74 @@ assert RUNNER_SPEC is not None
 assert RUNNER_SPEC.loader is not None
 make_runner = importlib.util.module_from_spec(RUNNER_SPEC)
 RUNNER_SPEC.loader.exec_module(make_runner)
+
+
+FIFO_DIAGNOSTIC_ATTEMPTS = 3
+FIFO_DIAGNOSTIC_READY_TIMEOUT_SECONDS = 2.0
+FIFO_DIAGNOSTIC_SINK_TIMEOUT_SECONDS = 1.0
+FIFO_DIAGNOSTIC_JOIN_TIMEOUT_SECONDS = 1.0
+
+
+def _fifo_preopen_diagnostic_child(
+    evidence_root_text: str,
+    expected_relative_text: str,
+    artifact: dict[str, str],
+    ready_sender: Connection,
+    result_sender: Connection,
+) -> None:
+    """Replace an already-validated leaf with a writerless FIFO in a child."""
+    evidence_root = Path(evidence_root_text)
+    expected_relative = Path(expected_relative_text)
+    evidence_path = evidence_root / expected_relative
+    original_relative_path = contract._relative_path
+    original_open = contract.os.open
+    replaced = False
+
+    def replace_after_path_validation(value: object, root: Path, label: str) -> Path:
+        nonlocal replaced
+        candidate = original_relative_path(value, root, label)
+        if candidate == evidence_path:
+            if replaced:
+                raise AssertionError("diagnostic evidence leaf was replaced twice")
+            evidence_path.unlink()
+            os.mkfifo(evidence_path, 0o600)
+            os.chmod(evidence_path, 0o600)
+            replaced = True
+            ready_sender.send(("fifo-created", candidate.as_posix(), 0))
+        return candidate
+
+    def observe_leaf_open(
+        name: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        if os.fspath(name) == evidence_path.name and dir_fd is not None:
+            ready_sender.send(("fifo-open", flags))
+        return original_open(name, flags, mode, dir_fd=dir_fd)
+
+    try:
+        contract._relative_path = replace_after_path_validation
+        contract.os.open = observe_leaf_open
+        path, content, digest = contract._bounded_evidence_file(
+            evidence_root,
+            artifact,
+            "FIFO pre-open diagnostic evidence",
+            expected_relative,
+            {"evidence_path", "evidence_sha256"},
+        )
+    except contract.ContractError as exc:
+        result_sender.send(("contract-error", str(exc)))
+    except BaseException as exc:
+        result_sender.send(("unexpected-error", type(exc).__name__, str(exc)))
+    else:
+        result_sender.send(("returned", path.as_posix(), content, digest))
+    finally:
+        contract._relative_path = original_relative_path
+        contract.os.open = original_open
+        ready_sender.close()
+        result_sender.close()
 
 
 class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
@@ -355,6 +427,149 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
         os.chmod(root, 0o700)
         return root
 
+    def _fifo_preopen_diagnostic_attempt(self, attempt: int) -> tuple[bool, str]:
+        """Run one bounded child reproduction attempt and always clean it up."""
+        with tempfile.TemporaryDirectory(prefix="five-crs-fifo-preopen-") as temporary:
+            parent = Path(temporary)
+            root = self._private_evidence_root(parent)
+            expected_relative = Path(f"fifo-preopen-{attempt}.log")
+            artifact = self._artifact(
+                root, expected_relative, "record=fifo-pre-open-diagnostic\n"
+            )
+            evidence_path = root / expected_relative
+            context = multiprocessing.get_context("spawn")
+            ready_receiver, ready_sender = context.Pipe(duplex=False)
+            result_receiver, result_sender = context.Pipe(duplex=False)
+            process = context.Process(
+                target=_fifo_preopen_diagnostic_child,
+                args=(
+                    str(root),
+                    expected_relative.as_posix(),
+                    artifact,
+                    ready_sender,
+                    result_sender,
+                ),
+            )
+            ready_messages: list[tuple[object, ...]] = []
+            result_message: object | None = None
+            timed_out = False
+            alive_before_cleanup = False
+            started = False
+            fifo_was_present = False
+            fifo_absent_after_cleanup = False
+            alive_after_cleanup = False
+            process_pid: int | None = None
+            try:
+                process.start()
+                started = True
+                process_pid = process.pid
+                ready_sender.close()
+                result_sender.close()
+                ready_deadline = (
+                    time.monotonic() + FIFO_DIAGNOSTIC_READY_TIMEOUT_SECONDS
+                )
+                while time.monotonic() < ready_deadline:
+                    remaining = max(0.0, ready_deadline - time.monotonic())
+                    if not ready_receiver.poll(remaining):
+                        break
+                    try:
+                        message = ready_receiver.recv()
+                    except EOFError:
+                        break
+                    if isinstance(message, tuple):
+                        ready_messages.append(message)
+                    else:
+                        ready_messages.append(("invalid-ready-message", repr(message)))
+                    if ready_messages[-1][0] == "fifo-open":
+                        break
+
+                open_messages = [
+                    message
+                    for message in ready_messages
+                    if message and message[0] == "fifo-open"
+                ]
+                if open_messages:
+                    sink_deadline = (
+                        time.monotonic() + FIFO_DIAGNOSTIC_SINK_TIMEOUT_SECONDS
+                    )
+                    remaining = max(0.0, sink_deadline - time.monotonic())
+                    if result_receiver.poll(remaining):
+                        try:
+                            result_message = result_receiver.recv()
+                        except EOFError:
+                            result_message = ("result-pipe-closed",)
+                    else:
+                        timed_out = True
+                        alive_before_cleanup = process.is_alive()
+                else:
+                    result_message = ("fifo-open-not-observed",)
+            finally:
+                if started and process.is_alive():
+                    process.terminate()
+                if started:
+                    process.join(FIFO_DIAGNOSTIC_JOIN_TIMEOUT_SECONDS)
+                    if process.is_alive():
+                        process.kill()
+                        process.join(FIFO_DIAGNOSTIC_JOIN_TIMEOUT_SECONDS)
+                    alive_after_cleanup = process.is_alive()
+                try:
+                    fifo_was_present = stat.S_ISFIFO(evidence_path.lstat().st_mode)
+                except FileNotFoundError:
+                    fifo_was_present = False
+                if fifo_was_present:
+                    evidence_path.unlink()
+                fifo_absent_after_cleanup = not evidence_path.exists()
+                ready_receiver.close()
+                ready_sender.close()
+                result_receiver.close()
+                result_sender.close()
+
+            open_messages = [
+                message
+                for message in ready_messages
+                if message and message[0] == "fifo-open"
+            ]
+            flags = (
+                open_messages[-1][1]
+                if open_messages and len(open_messages[-1]) > 1
+                else None
+            )
+            uses_read_only = (
+                isinstance(flags, int) and flags & os.O_ACCMODE == os.O_RDONLY
+            )
+            uses_read_write = isinstance(flags, int) and bool(flags & os.O_RDWR)
+            uses_nonblocking = isinstance(flags, int) and bool(flags & os.O_NONBLOCK)
+            reproduced = (
+                len(ready_messages) >= 2
+                and ready_messages[0][0] == "fifo-created"
+                and bool(open_messages)
+                and uses_read_only
+                and not uses_read_write
+                and not uses_nonblocking
+                and timed_out
+                and alive_before_cleanup
+                and fifo_was_present
+                and fifo_absent_after_cleanup
+                and not alive_after_cleanup
+            )
+            details = (
+                f"attempt={attempt}; ready={ready_messages!r}; "
+                f"result={result_message!r}; "
+                f"timed_out={timed_out}; alive_before_cleanup={alive_before_cleanup}; "
+                f"fifo_was_present={fifo_was_present}; "
+                f"fifo_absent_after_cleanup={fifo_absent_after_cleanup}; "
+                f"alive_after_cleanup={alive_after_cleanup}; flags={flags!r}; "
+                f"read_only={uses_read_only}; read_write={uses_read_write}; "
+                f"nonblocking={uses_nonblocking}; pid={process_pid!r}; "
+                f"exitcode={process.exitcode!r}"
+            )
+            if alive_after_cleanup:
+                raise AssertionError(
+                    "bounded FIFO diagnostic cleanup left its own child alive: "
+                    f"pid={process_pid!r}; exitcode={process.exitcode!r}"
+                )
+            return reproduced, details
+
     def _validate_all(
         self,
         root: Path,
@@ -623,6 +838,24 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
             self.assertTrue(replaced)
             self.assertIn("changed while it was being read", str(raised.exception))
             self.assertEqual(path.read_text(encoding="utf-8"), replacement_content)
+
+    def test_diagnostic_fifo_preopen_hang_is_bounded_and_reproduced(self) -> None:
+        outcomes = [
+            self._fifo_preopen_diagnostic_attempt(attempt)
+            for attempt in range(1, FIFO_DIAGNOSTIC_ATTEMPTS + 1)
+        ]
+        details = "\n".join(detail for _, detail in outcomes)
+        if not all(reproduced for reproduced, _ in outcomes):
+            self.fail(
+                "bounded FIFO pre-open diagnostic did not establish the expected "
+                f"writerless-open timeout:\n{details}"
+            )
+        self.fail(
+            "FIFO pre-open startup hang reproduced in "
+            f"{FIFO_DIAGNOSTIC_ATTEMPTS}/{FIFO_DIAGNOSTIC_ATTEMPTS} bounded "
+            "writerless-FIFO attempts; no child process or FIFO was retained:\n"
+            f"{details}"
+        )
 
     def test_fixture_provenance_rejects_a_checkout_name_swap_during_rule_read(
         self,
