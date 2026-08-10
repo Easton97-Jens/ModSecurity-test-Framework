@@ -1,11 +1,13 @@
 #!/bin/sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 SCRIPT_PATH="$SCRIPT_DIR/check-crs-version-pinning.sh"
+# shellcheck source=ci/lib/path-bootstrap.sh
 . "$SCRIPT_DIR/../../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-${REPO_ROOT:-$(pwd)}}"
 REPO_ROOT="$CONNECTOR_ROOT"
+# shellcheck source=ci/lib/common.sh
 . "$CI_ROOT/lib/common.sh"
 
 status=0

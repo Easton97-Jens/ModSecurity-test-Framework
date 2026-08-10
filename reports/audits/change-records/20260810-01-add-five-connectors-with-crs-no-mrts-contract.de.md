@@ -8,8 +8,8 @@
 | --- | --- |
 | Change-ID | `20260810-01-add-five-connectors-with-crs-no-mrts-contract` |
 | UTC-Datum | 2026-08-10 |
-| Framework-Basisrevision | `03880bf` (beobachteter Task-Worktree-HEAD; vollständiger Delivery-SHA ausstehend) |
-| Issue oder Pull Request | Zum Zeitpunkt der Erstellung keiner dokumentiert. |
+| Framework-Basisrevision | `03880bf` (beobachtete Basis des Task-Worktrees; Delivery-Fakten werden nach Beobachtung unten dokumentiert) |
+| Issue oder Pull Request | [Draft-PR #74](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/74) (Exact-Head-Rerun ausstehend). |
 
 ## Motivation und Problemstellung
 
@@ -83,8 +83,6 @@ Komponenten:
   Verträgen halten
 - `tests/ci_security/test_five_connector_with_crs_no_mrts_contract.py` und
   `tests/security_regression/test_crs_git_ref_provenance.py`
-- `tests/no_crs/test_no_crs_baseline.py`, dessen Testsetup nun das vom
-  gehärteten Renderer benötigte private Audit-Verzeichnis erzeugt
 - `docs/testing-and-evidence.{md,de.md}`
 - `docs/connector-integration.{md,de.md}`
 - `docs/reference/variables.{md,de.md}`
@@ -105,6 +103,8 @@ Komponenten:
 | `make BUILD_ROOT=<task-build> test-ci-security-contract` | 0 | 171 CI-Security-Vertragsregressionen bestanden. | Lokale Task-eigene Build-/Tmp-Wurzeln. |
 | `python -m unittest tests.security_regression.test_mrts_common_sonar -v` | 0 | 6 No-MRTS-Helferregressionen bestanden ohne Corpus-Zugriff. | Lokale Task-eigene Build-/Tmp-Wurzeln; kein MRTS-Corpus/keine MRTS-Runtime. |
 | `python -m unittest tests.security_regression.test_generate_case_matrix_sonar -v` | 0 | 17 Generator-/Report-Vertragsregressionen bestanden. | Lokale Task-eigene Build-/Tmp-Wurzeln; kein generierter Report-Refresh. |
+| GitHub-Actions-Push-Run `31396297465` / `portable-contract` | 1 | Beobachteter initialer Fehler: Der eigenständige Workflow installierte die bereits hash-gesperrte PyYAML-Abhängigkeit nicht. Der Folgepatch fügt genau diesen `requirements-ci.lock`-Schritt hinzu. | Gehostetes Log beobachtet; Rerun ausstehend. |
+| GitHub-Actions-Push-Run `31396297434` / `scaffold-lint` | 2 | Beobachteter initialer Fehler: Zwei neue Runner-Tests nahmen eine lokale Interpreter-Schreibweise oder einen späteren Validierungsfehler an. Der Folgepatch macht die Assertions portabel und behält die Closed-Runner-Prüfungen bei. | Gehostetes Log beobachtet; Rerun ausstehend. |
 
 ## Sicherheitsauswirkung
 
@@ -138,8 +138,11 @@ Interpreterausführung muss weiterhin vom gehosteten Exact-Version-Workflow
 belegt werden. Pyright kann lokal nicht laufen, weil seine repositoryverwaltete
 Node-Voraussetzung fehlt; das checksum-verifizierte Hosted-Gate bleibt
 erforderliche Evidenz und wird nicht als lokaler Pass behauptet. ShellCheck war
-verfügbar, meldete jedoch bestehende Diagnosen auf unveränderten eingebundenen
-Script-Zeilen; der repositoryeigene `bash -n`-Lint-Schritt bestand.
+verfügbar und bestand für die geänderten CRS-Provenance-Skripte, nachdem
+explizite Source-Pfade einen veralteten Regelunterdrückungskommentar ersetzt
+hatten; der repositoryeigene `bash -n`-Lint-Schritt bestand. Die
+checksum-verifizierten lokalen Actionlint-, Zizmor-Offline-, Gitleaks- sowie
+Ruff-Check-/Format-Prüfungen bestanden ebenfalls.
 Refresh-/Checks generierter Reports wurden nicht ausgeführt, weil sie
 generator-owned sind, generierten Output schreiben können und diese
 Framework-Änderung absichtlich keinen Fünf-Host- oder MRTS-Runtime-Input hat.
@@ -155,8 +158,12 @@ aufbewahren.
 
 ## Finaler Diff- und Review-Status
 
-Die finale lokale Validierung und der Abschluss des fokussierten Security-Diff-
-Reviews laufen noch. Die bereits getestete strukturelle Host-Evidenz bleibt
-ausdrücklich nicht promotbar. Commit, Draft-PR, Review, gehostete CI,
-SonarQube Cloud und Exact-Head-Delivery-Fakten werden erst nach Beobachtung
-dokumentiert.
+Die finale lokale Validierung mit dem repositoryeigenen `make lint`-Target
+und den fokussierten externen Sicherheitswerkzeug-Prüfungen bestand. Der erste
+Push von Draft-PR #74 zeigte zwei Portabilitätsfehler; dieser enge Folgepatch
+behebt sie. Der fokussierte Security-Diff-Scan fand keinen verbleibenden
+reportbaren Befund; seine drei Make-Expansionskandidaten mit Operator-Eingaben
+wurden dennoch durch Literal-Dollar-Normalisierung, einen festen Runner und
+Real-Target-Regressionen behoben. Strukturelle Host-Evidenz bleibt ausdrücklich
+nicht promotbar. Exact-Head-gehostete CI-, SonarQube-Cloud- und Review-Fakten
+werden erst nach Beobachtung dokumentiert.

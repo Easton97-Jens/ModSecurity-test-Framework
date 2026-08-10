@@ -1011,8 +1011,7 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 self.assertNotIn(marker, result.stderr)
                 self.assertNotIn(marker, result.stdout)
                 self.assertIn(
-                    f"{sys.executable} {MAKE_RUNNER_PATH.relative_to(ROOT)} {command}",
-                    result.stdout,
+                    f"{MAKE_RUNNER_PATH.relative_to(ROOT)} {command}", result.stdout
                 )
 
     def test_fixed_make_runner_accepts_only_closed_argument_vectors(self) -> None:
@@ -1081,7 +1080,7 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(result.returncode, 2, result.stderr)
-            self.assertIn("Framework verifier checkout must be clean", result.stderr)
+            self.assertIn("five-connectors-with-crs-no-mrts:", result.stderr)
             self.assertNotIn("ModuleNotFoundError", result.stderr)
 
     def test_make_runner_rejects_invalid_cli_and_missing_environment(self) -> None:
@@ -1164,6 +1163,13 @@ class FiveConnectorWorkflowSecurityContractTest(unittest.TestCase):
         self.assertIn("github.event.pull_request.head.sha || github.sha", text)
         self.assertIn("test-five-connectors-with-crs-no-mrts-contract", text)
         self.assertIn("test-crs-provenance-contract", text)
+        self.assertIn("Install hash-locked CI dependency", text)
+        self.assertIn("--disable-pip-version-check", text)
+        self.assertIn("--no-input", text)
+        self.assertIn("--only-binary=:all:", text)
+        self.assertIn("--require-hashes -r requirements-ci.lock", text)
+        self.assertIn("python3 -m pip check", text)
+        self.assertEqual(text.count('"requirements-ci.lock"'), 2)
         self.assertIn("ci/checks/catalog/five_connectors_with_crs_no_mrts.py", text)
         self.assertEqual(
             text.count("ci/tools/run-five-connectors-with-crs-no-mrts.py"), 2

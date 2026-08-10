@@ -1,12 +1,13 @@
 #!/bin/sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
+# shellcheck source=ci/lib/path-bootstrap.sh
 . "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$FRAMEWORK_ROOT}"
 REPO_ROOT="$CONNECTOR_ROOT"
+# shellcheck source=ci/lib/common.sh
 . "$CI_ROOT/lib/common.sh"
-# shellcheck disable=SC2034 # Consumed by the sourceable shared verifier.
 CRS_PROVENANCE_CONTEXT=fetch_crs
 # shellcheck source=ci/provisioning/crs-provenance.sh
 . "$SCRIPT_DIR/crs-provenance.sh"

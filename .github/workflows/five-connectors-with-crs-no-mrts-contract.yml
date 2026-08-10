@@ -14,6 +14,7 @@ on:
       - "tests/schemas/five-connectors-with-crs-no-mrts/**"
       - "tests/cases/security/crs/crs_sqli_anomaly_block.yaml"
       - "Makefile"
+      - "requirements-ci.lock"
   pull_request:
     paths:
       - ".github/workflows/five-connectors-with-crs-no-mrts-contract.yml"
@@ -27,6 +28,7 @@ on:
       - "tests/schemas/five-connectors-with-crs-no-mrts/**"
       - "tests/cases/security/crs/crs_sqli_anomaly_block.yaml"
       - "Makefile"
+      - "requirements-ci.lock"
 
 permissions:
   contents: read
@@ -57,6 +59,13 @@ jobs:
         with:
           python-version-file: ".python-version"
           check-latest: false
+
+      - name: Install hash-locked CI dependency
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
 
       - name: Validate portable closed contract
         run: |

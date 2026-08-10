@@ -8,8 +8,8 @@
 | --- | --- |
 | Change ID | `20260810-01-add-five-connectors-with-crs-no-mrts-contract` |
 | UTC date | 2026-08-10 |
-| Framework base revision | `03880bf` (observed task-worktree HEAD; full delivery SHA pending) |
-| Issue or pull request | None recorded at authoring time. |
+| Framework base revision | `03880bf` (observed task-worktree base; delivery facts are recorded below after observation) |
+| Issue or pull request | [Draft PR #74](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/74) (exact-head rerun pending). |
 
 ## Motivation and problem statement
 
@@ -76,8 +76,6 @@ This change adds or updates the following Framework-owned components:
   contracts
 - `tests/ci_security/test_five_connector_with_crs_no_mrts_contract.py` and
   `tests/security_regression/test_crs_git_ref_provenance.py`
-- `tests/no_crs/test_no_crs_baseline.py`, whose test setup now creates the
-  private audit directory required by the hardened renderer
 - `docs/testing-and-evidence.{md,de.md}`
 - `docs/connector-integration.{md,de.md}`
 - `docs/reference/variables.{md,de.md}`
@@ -98,6 +96,8 @@ This change adds or updates the following Framework-owned components:
 | `make BUILD_ROOT=<task-build> test-ci-security-contract` | 0 | 171 CI-security contract regressions passed. | Local task-owned build/tmp roots. |
 | `python -m unittest tests.security_regression.test_mrts_common_sonar -v` | 0 | 6 No-MRTS helper regressions passed without corpus access. | Local task-owned build/tmp roots; no MRTS corpus/runtime. |
 | `python -m unittest tests.security_regression.test_generate_case_matrix_sonar -v` | 0 | 17 generator/report-contract regressions passed. | Local task-owned build/tmp roots; no generated report refresh. |
+| GitHub Actions push run `31396297465` / `portable-contract` | 1 | Observed initial failure: the standalone workflow had not installed the existing hash-locked PyYAML dependency. The follow-up adds that exact `requirements-ci.lock` step. | Hosted log observed; rerun pending. |
+| GitHub Actions push run `31396297434` / `scaffold-lint` | 2 | Observed initial failure: two new runner tests assumed a local interpreter spelling or a later validation error. The follow-up makes those assertions portable while retaining the closed-runner checks. | Hosted log observed; rerun pending. |
 
 ## Security impact
 
@@ -128,8 +128,10 @@ The local interpreter is Python `3.14.4`, while `.python-version` requires
 execution must still be evidenced by the hosted exact-version workflow. Pyright
 cannot run locally because its repository-managed Node prerequisite is absent;
 the checksum-verified hosted gate remains required evidence and is not claimed
-as a local pass. ShellCheck was available but reported existing diagnostics on
-unchanged sourced-script lines; the repository's `bash -n` lint step passed.
+as a local pass. Checksum-verified Actionlint, Zizmor (offline), Gitleaks, and
+Ruff checks/format checks passed locally. ShellCheck also passed for the
+changed CRS provenance scripts after explicit source paths replaced a stale
+rule-suppression comment; the repository's `bash -n` lint step passed.
 Generated report refresh/checks were not run because they are generator-owned,
 can write generated output, and the Framework change intentionally has no
 five-host or MRTS runtime input. Parent-owned five-host composition E2E,
@@ -143,7 +145,12 @@ lifecycle, and operational evidence for any runtime or promotion claim.
 
 ## Final diff and review status
 
-Final local validation and focused security-diff closure are in progress. The
-already-tested structural host evidence remains explicitly non-promoting.
-Commit, Draft PR, review, hosted CI, SonarQube Cloud, and exact-head delivery
-facts are recorded only after they are observed.
+The final local validation completed with the repository-native `make lint`
+target and focused external security-tool checks passing. Draft PR #74's first
+push observed two portability defects; this narrow follow-up remediates them.
+The focused security-diff scan found no surviving reportable finding, while
+its three operator-input Make-expansion candidates were still remediated with
+literal-dollar normalization, a fixed runner, and real-target regression
+coverage. Structural host evidence remains explicitly non-promoting. Exact-head
+hosted CI, SonarQube Cloud, and review facts are recorded only after they are
+observed.
