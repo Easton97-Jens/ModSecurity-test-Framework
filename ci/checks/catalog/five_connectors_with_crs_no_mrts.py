@@ -466,12 +466,31 @@ def _validate_json_schema_instance(
 def _validate_json_schema_value_constraints(
     value: object, schema: Mapping[str, Any], label: str
 ) -> None:
+    _validate_json_schema_constant(value, schema, label)
+    _validate_json_schema_enumeration(value, schema, label)
+    _validate_json_schema_type(value, schema, label)
+    _validate_json_schema_pattern(value, schema, label)
+
+
+def _validate_json_schema_constant(
+    value: object, schema: Mapping[str, Any], label: str
+) -> None:
     if "const" in schema and value != schema["const"]:
         raise _contract_error(f"{label} does not match its schema constant")
+
+
+def _validate_json_schema_enumeration(
+    value: object, schema: Mapping[str, Any], label: str
+) -> None:
     enumeration = schema.get("enum")
     if enumeration is not None:
         if not isinstance(enumeration, list) or value not in enumeration:
             raise _contract_error(f"{label} is not one of its schema values")
+
+
+def _validate_json_schema_type(
+    value: object, schema: Mapping[str, Any], label: str
+) -> None:
     schema_type = schema.get("type")
     if schema_type is not None:
         allowed_types = [schema_type] if isinstance(schema_type, str) else schema_type
@@ -482,6 +501,11 @@ def _validate_json_schema_value_constraints(
             or not any(_matches_schema_type(value, item) for item in allowed_types)
         ):
             raise _contract_error(f"{label} does not match its schema type")
+
+
+def _validate_json_schema_pattern(
+    value: object, schema: Mapping[str, Any], label: str
+) -> None:
     if isinstance(value, str) and "pattern" in schema:
         pattern = schema["pattern"]
         if not isinstance(pattern, str):
@@ -1375,12 +1399,12 @@ def _read_event(
 ) -> tuple[Mapping[str, Any], Path, str]:
     normalized_relative = normalized_event_relative_path(connector, run_id)
     normalized_path = _relative_path(
-        normalized_relative.as_posix(), evidence_root, "normalized evidence"
+        normalized_relative.as_posix(), evidence_root, NORMALIZED_EVIDENCE_LABEL
     )
     event, normalized_sha256 = _read_json_snapshot(
-        normalized_path, "normalized evidence"
+        normalized_path, NORMALIZED_EVIDENCE_LABEL
     )
-    _exact_keys(event, EVENT_FIELDS, "normalized evidence")
+    _exact_keys(event, EVENT_FIELDS, NORMALIZED_EVIDENCE_LABEL)
     _validate_event_schema(event)
     return event, normalized_path, normalized_sha256
 
