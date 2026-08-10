@@ -1133,9 +1133,10 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
         )
 
     def test_cli_rejects_a_caller_supplied_framework_commit(self) -> None:
+        parser = contract._parser()
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
-                contract._parser().parse_args(
+                parser.parse_args(
                     [
                         "validate",
                         "--evidence-root",

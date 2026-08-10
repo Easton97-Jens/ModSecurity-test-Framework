@@ -50,6 +50,13 @@ FIXTURE_ID = "crs_sqli_anomaly_block"
 ALLOW_PATH = "/?id=42"
 BLOCK_PATH = "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
 CORRELATION_HEADER = "X-Framework-Run-ID"
+NORMALIZED_EVIDENCE_LABEL = "normalized evidence"
+CANONICAL_BLOCK_REQUEST_LABEL = "canonical_block.request"
+HOST_CONFIGURATION_LABEL = "event.host_configuration"
+ALLOW_CASE_LABEL = "event.allow_case"
+BLOCK_EVIDENCE_LABEL = "event.block_evidence"
+CLEANUP_LABEL = "event.cleanup"
+RESULT_FILE_NAME = "result.json"
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[3]
 FIXTURE_PATH = FRAMEWORK_ROOT / "tests/cases/security/crs/crs_sqli_anomaly_block.yaml"
 SCHEMA_DIRECTORY = FRAMEWORK_ROOT / "tests/schemas/five-connectors-with-crs-no-mrts"
@@ -447,6 +454,18 @@ def _validate_json_schema_instance(
             value, _schema_reference(schema, root, label), label, root
         )
         return
+    _validate_json_schema_value_constraints(value, schema, label)
+    if isinstance(value, Mapping):
+        _validate_json_schema_mapping(value, schema, label, root)
+    if isinstance(value, list) and "items" in schema:
+        item_schema = _mapping(schema["items"], f"{label} item schema")
+        for index, item in enumerate(value):
+            _validate_json_schema_instance(item, item_schema, f"{label}[{index}]", root)
+
+
+def _validate_json_schema_value_constraints(
+    value: object, schema: Mapping[str, Any], label: str
+) -> None:
     if "const" in schema and value != schema["const"]:
         raise _contract_error(f"{label} does not match its schema constant")
     enumeration = schema.get("enum")
@@ -473,40 +492,39 @@ def _validate_json_schema_instance(
             raise _contract_error(f"{label} schema pattern is invalid: {exc}") from exc
         if not valid:
             raise _contract_error(f"{label} does not match its schema pattern")
-    if isinstance(value, Mapping):
-        required = schema.get("required", [])
-        if not isinstance(required, list) or not all(
-            isinstance(item, str) for item in required
-        ):
-            raise _contract_error(f"{label} schema required fields are invalid")
-        if len(set(required)) != len(required):
-            raise _contract_error(f"{label} schema repeats required fields")
-        missing = [item for item in required if item not in value]
-        if missing:
+
+
+def _validate_json_schema_mapping(
+    value: Mapping[str, Any],
+    schema: Mapping[str, Any],
+    label: str,
+    root: Mapping[str, Any],
+) -> None:
+    required = schema.get("required", [])
+    if not isinstance(required, list) or not all(
+        isinstance(item, str) for item in required
+    ):
+        raise _contract_error(f"{label} schema required fields are invalid")
+    if len(set(required)) != len(required):
+        raise _contract_error(f"{label} schema repeats required fields")
+    missing = [item for item in required if item not in value]
+    if missing:
+        raise _contract_error(f"{label} is missing schema-required fields: {missing!r}")
+    properties = _mapping(schema.get("properties", {}), f"{label} schema properties")
+    if schema.get("additionalProperties") is False:
+        extra = set(value).difference(properties)
+        if extra:
             raise _contract_error(
-                f"{label} is missing schema-required fields: {missing!r}"
+                f"{label} has schema-forbidden fields: {sorted(extra)!r}"
             )
-        properties = _mapping(
-            schema.get("properties", {}), f"{label} schema properties"
-        )
-        if schema.get("additionalProperties") is False:
-            extra = set(value).difference(properties)
-            if extra:
-                raise _contract_error(
-                    f"{label} has schema-forbidden fields: {sorted(extra)!r}"
-                )
-        for name, property_schema in properties.items():
-            if name in value:
-                _validate_json_schema_instance(
-                    value[name],
-                    _mapping(property_schema, f"{label}.{name} schema"),
-                    f"{label}.{name}",
-                    root,
-                )
-    if isinstance(value, list) and "items" in schema:
-        item_schema = _mapping(schema["items"], f"{label} item schema")
-        for index, item in enumerate(value):
-            _validate_json_schema_instance(item, item_schema, f"{label}[{index}]", root)
+    for name, property_schema in properties.items():
+        if name in value:
+            _validate_json_schema_instance(
+                value[name],
+                _mapping(property_schema, f"{label}.{name} schema"),
+                f"{label}.{name}",
+                root,
+            )
 
 
 def _load_event_schema() -> Mapping[str, Any]:
@@ -559,7 +577,7 @@ def _load_event_schema() -> Mapping[str, Any]:
 
 def _validate_event_schema(event: Mapping[str, Any]) -> None:
     schema = _load_event_schema()
-    _validate_json_schema_instance(event, schema, "normalized evidence", schema)
+    _validate_json_schema_instance(event, schema, NORMALIZED_EVIDENCE_LABEL, schema)
 
 
 def _load_output_schema(
@@ -613,6 +631,67 @@ def _validate_output_schema(
     _validate_json_schema_instance(payload, schema, label, schema)
 
 
+def _validate_adapter(connector: str) -> None:
+    adapter = _mapping(ADAPTERS[connector], f"adapter {connector}")
+    _exact_keys(
+        adapter,
+        {
+            "adapter_id",
+            "integration_mode",
+            "framework_entrypoint",
+            "framework_entrypoint_role",
+            "host_contract_owner",
+            "evidence_types",
+        },
+        f"adapter {connector}",
+    )
+    _text(adapter.get("adapter_id"), f"adapter {connector}.adapter_id")
+    _text(adapter.get("integration_mode"), f"adapter {connector}.integration_mode")
+    _exact(
+        adapter.get("framework_entrypoint_role"),
+        "compatibility-only",
+        f"adapter {connector}.framework_entrypoint_role",
+    )
+    _exact(
+        adapter.get("host_contract_owner"),
+        "parent",
+        f"adapter {connector}.host_contract_owner",
+    )
+    entrypoint = adapter.get("framework_entrypoint")
+    if (
+        not isinstance(entrypoint, str)
+        or FRAMEWORK_ENTRYPOINT.fullmatch(entrypoint) is None
+    ):
+        raise _contract_error(f"adapter {connector}.framework_entrypoint is invalid")
+    _exact(
+        entrypoint,
+        EXPECTED_FRAMEWORK_ENTRYPOINTS[connector],
+        f"adapter {connector}.framework_entrypoint",
+    )
+    entrypoint_path = PurePosixPath(entrypoint)
+    if entrypoint_path.is_absolute() or any(
+        part in {"", ".", ".."} for part in entrypoint_path.parts
+    ):
+        raise _contract_error(f"adapter {connector}.framework_entrypoint is unsafe")
+    source = FRAMEWORK_ROOT.joinpath(*entrypoint_path.parts)
+    assert_no_symlink_components(source)
+    try:
+        metadata = source.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise _contract_error(
+            f"adapter {connector}.framework_entrypoint is missing: {exc}"
+        ) from exc
+    if not stat.S_ISREG(metadata.st_mode):
+        raise _contract_error(
+            f"adapter {connector}.framework_entrypoint must be a regular file"
+        )
+    evidence_types = adapter.get("evidence_types")
+    if not isinstance(evidence_types, tuple) or not evidence_types:
+        raise _contract_error(f"adapter {connector}.evidence_types is invalid")
+    for evidence_type in evidence_types:
+        _text(evidence_type, f"adapter {connector}.evidence_type")
+
+
 def validate_profile() -> None:
     """Validate the checked-in, closed adapter inventory before any evidence use."""
     if tuple(ADAPTERS) != CONNECTORS:
@@ -620,66 +699,7 @@ def validate_profile() -> None:
             "adapter inventory is not the exact ordered five-connector set"
         )
     for connector in CONNECTORS:
-        adapter = _mapping(ADAPTERS[connector], f"adapter {connector}")
-        _exact_keys(
-            adapter,
-            {
-                "adapter_id",
-                "integration_mode",
-                "framework_entrypoint",
-                "framework_entrypoint_role",
-                "host_contract_owner",
-                "evidence_types",
-            },
-            f"adapter {connector}",
-        )
-        _text(adapter.get("adapter_id"), f"adapter {connector}.adapter_id")
-        _text(adapter.get("integration_mode"), f"adapter {connector}.integration_mode")
-        _exact(
-            adapter.get("framework_entrypoint_role"),
-            "compatibility-only",
-            f"adapter {connector}.framework_entrypoint_role",
-        )
-        _exact(
-            adapter.get("host_contract_owner"),
-            "parent",
-            f"adapter {connector}.host_contract_owner",
-        )
-        entrypoint = adapter.get("framework_entrypoint")
-        if (
-            not isinstance(entrypoint, str)
-            or FRAMEWORK_ENTRYPOINT.fullmatch(entrypoint) is None
-        ):
-            raise _contract_error(
-                f"adapter {connector}.framework_entrypoint is invalid"
-            )
-        _exact(
-            entrypoint,
-            EXPECTED_FRAMEWORK_ENTRYPOINTS[connector],
-            f"adapter {connector}.framework_entrypoint",
-        )
-        entrypoint_path = PurePosixPath(entrypoint)
-        if entrypoint_path.is_absolute() or any(
-            part in {"", ".", ".."} for part in entrypoint_path.parts
-        ):
-            raise _contract_error(f"adapter {connector}.framework_entrypoint is unsafe")
-        source = FRAMEWORK_ROOT.joinpath(*entrypoint_path.parts)
-        assert_no_symlink_components(source)
-        try:
-            metadata = source.stat(follow_symlinks=False)
-        except OSError as exc:
-            raise _contract_error(
-                f"adapter {connector}.framework_entrypoint is missing: {exc}"
-            ) from exc
-        if not stat.S_ISREG(metadata.st_mode):
-            raise _contract_error(
-                f"adapter {connector}.framework_entrypoint must be a regular file"
-            )
-        evidence_types = adapter.get("evidence_types")
-        if not isinstance(evidence_types, tuple) or not evidence_types:
-            raise _contract_error(f"adapter {connector}.evidence_types is invalid")
-        for evidence_type in evidence_types:
-            _text(evidence_type, f"adapter {connector}.evidence_type")
+        _validate_adapter(connector)
     _load_event_schema()
     _load_output_schema(
         MANIFEST_SCHEMA_PATH,
@@ -867,8 +887,8 @@ def validate_fixture(fixture: Mapping[str, Any]) -> None:
     block = _mapping(contract.get("canonical_block"), "canonical_block")
     _validate_request(
         block.get("request"),
-        "canonical_block.request",
-        path="/?id=1%20UNION%20SELECT%20password%20FROM%20users",
+        CANONICAL_BLOCK_REQUEST_LABEL,
+        path=BLOCK_PATH,
     )
     _integer(
         block.get("expected_status"), "canonical_block.expected_status", expected=403
@@ -886,12 +906,12 @@ def validate_fixture(fixture: Mapping[str, Any]) -> None:
     _exact(block.get("crs_mode"), "enabled", "canonical_block.crs_mode")
     _exact(
         top_level_request.get("method"),
-        _mapping(block.get("request"), "canonical_block.request").get("method"),
+        _mapping(block.get("request"), CANONICAL_BLOCK_REQUEST_LABEL).get("method"),
         "canonical_block.request.method mirrors request",
     )
     _exact(
         top_level_request.get("path"),
-        _mapping(block.get("request"), "canonical_block.request").get("path"),
+        _mapping(block.get("request"), CANONICAL_BLOCK_REQUEST_LABEL).get("path"),
         "canonical_block.request.path mirrors request",
     )
     _integer(
@@ -1157,10 +1177,8 @@ def _require_host_configuration(
     connector: str,
     run_id: str,
 ) -> tuple[Path, str]:
-    configuration = _mapping(
-        event.get("host_configuration"), "event.host_configuration"
-    )
-    _exact_keys(configuration, HOST_CONFIGURATION_FIELDS, "event.host_configuration")
+    configuration = _mapping(event.get("host_configuration"), HOST_CONFIGURATION_LABEL)
+    _exact_keys(configuration, HOST_CONFIGURATION_FIELDS, HOST_CONFIGURATION_LABEL)
     _exact(
         configuration.get("config_test_status"),
         "passed",
@@ -1174,13 +1192,13 @@ def _require_host_configuration(
     path, content, digest = _bounded_evidence_file(
         evidence_root,
         configuration,
-        "event.host_configuration",
+        HOST_CONFIGURATION_LABEL,
         host_configuration_relative_path(connector, run_id),
         HOST_CONFIGURATION_FIELDS,
     )
     _require_evidence_record(
         content,
-        "event.host_configuration",
+        HOST_CONFIGURATION_LABEL,
         {
             "schema_version": SCHEMA_VERSION,
             "record_type": "host_configuration",
@@ -1201,8 +1219,8 @@ def _require_allow_control(
     connector: str,
     run_id: str,
 ) -> tuple[Path, str]:
-    allow = _mapping(event.get("allow_case"), "event.allow_case")
-    _exact_keys(allow, ALLOW_FIELDS, "event.allow_case")
+    allow = _mapping(event.get("allow_case"), ALLOW_CASE_LABEL)
+    _exact_keys(allow, ALLOW_FIELDS, ALLOW_CASE_LABEL)
     _exact(
         allow.get("fixture_id"), f"{FIXTURE_ID}:allow", "event.allow_case.fixture_id"
     )
@@ -1220,13 +1238,13 @@ def _require_allow_control(
     path, content, digest = _bounded_evidence_file(
         evidence_root,
         allow,
-        "event.allow_case",
+        ALLOW_CASE_LABEL,
         allow_evidence_relative_path(connector, run_id),
         ALLOW_FIELDS,
     )
     _require_evidence_record(
         content,
-        "event.allow_case",
+        ALLOW_CASE_LABEL,
         {
             "schema_version": SCHEMA_VERSION,
             "record_type": "allow_request",
@@ -1254,18 +1272,18 @@ def _require_block_evidence(
     connector: str,
     run_id: str,
 ) -> tuple[Path, str]:
-    block = _mapping(event.get("block_evidence"), "event.block_evidence")
-    _exact_keys(block, BLOCK_EVIDENCE_FIELDS, "event.block_evidence")
+    block = _mapping(event.get("block_evidence"), BLOCK_EVIDENCE_LABEL)
+    _exact_keys(block, BLOCK_EVIDENCE_FIELDS, BLOCK_EVIDENCE_LABEL)
     path, content, digest = _bounded_evidence_file(
         evidence_root,
         block,
-        "event.block_evidence",
+        BLOCK_EVIDENCE_LABEL,
         block_evidence_relative_path(connector, run_id),
         BLOCK_EVIDENCE_FIELDS,
     )
     _require_evidence_record(
         content,
-        "event.block_evidence",
+        BLOCK_EVIDENCE_LABEL,
         {
             "schema_version": SCHEMA_VERSION,
             "record_type": "block_audit",
@@ -1305,8 +1323,8 @@ def _require_cleanup(
     connector: str,
     run_id: str,
 ) -> tuple[Path, str]:
-    cleanup = _mapping(event.get("cleanup"), "event.cleanup")
-    _exact_keys(cleanup, CLEANUP_FIELDS, "event.cleanup")
+    cleanup = _mapping(event.get("cleanup"), CLEANUP_LABEL)
+    _exact_keys(cleanup, CLEANUP_FIELDS, CLEANUP_LABEL)
     _exact(cleanup.get("status"), "passed", "event.cleanup.status")
     for field in (
         "host_processes_remaining",
@@ -1321,13 +1339,13 @@ def _require_cleanup(
     path, content, digest = _bounded_evidence_file(
         evidence_root,
         cleanup,
-        "event.cleanup",
+        CLEANUP_LABEL,
         cleanup_evidence_relative_path(connector, run_id),
         CLEANUP_FIELDS,
     )
     _require_evidence_record(
         content,
-        "event.cleanup",
+        CLEANUP_LABEL,
         {
             "schema_version": SCHEMA_VERSION,
             "record_type": "cleanup",
@@ -1665,7 +1683,7 @@ def validate_connector_run(
         "manifest_sha256": manifest_sha256,
         "receipt_sha256": receipt_sha256,
     }
-    result_path = output / "result.json"
+    result_path = output / RESULT_FILE_NAME
     _json_write(
         result_path,
         result,
@@ -1688,7 +1706,7 @@ def _bundle(
     output = result_directory(root, connector, run_id)
     _source_directory(output, f"result directory for {connector}")
     result, result_sha256 = _read_json_snapshot(
-        output / "result.json", f"{connector} result"
+        output / RESULT_FILE_NAME, f"{connector} result"
     )
     manifest, manifest_sha256 = _read_json_snapshot(
         output / "manifest.json", f"{connector} manifest"
