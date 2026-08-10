@@ -789,7 +789,12 @@ def _read_bounded_regular_text(
         raise _contract_error(f"cannot open {label} parent directory: {exc}") from exc
     descriptor: int | None = None
     try:
-        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+        flags = (
+            os.O_RDONLY
+            | os.O_NONBLOCK
+            | getattr(os, "O_NOFOLLOW", 0)
+            | getattr(os, "O_CLOEXEC", 0)
+        )
         descriptor = os.open(path.name, flags, dir_fd=parent_descriptor)
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
