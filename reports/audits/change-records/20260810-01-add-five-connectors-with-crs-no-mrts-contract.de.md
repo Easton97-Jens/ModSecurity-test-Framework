@@ -105,6 +105,7 @@ Komponenten:
 | `python -m unittest tests.security_regression.test_generate_case_matrix_sonar -v` | 0 | 17 Generator-/Report-Vertragsregressionen bestanden. | Lokale Task-eigene Build-/Tmp-Wurzeln; kein generierter Report-Refresh. |
 | GitHub-Actions-Push-Run `31396297465` / `portable-contract` | 1 | Beobachteter initialer Fehler: Der eigenständige Workflow installierte die bereits hash-gesperrte PyYAML-Abhängigkeit nicht. Der Folgepatch fügt genau diesen `requirements-ci.lock`-Schritt hinzu. | Gehostetes Log beobachtet; Rerun ausstehend. |
 | GitHub-Actions-Push-Run `31396297434` / `scaffold-lint` | 2 | Beobachteter initialer Fehler: Zwei neue Runner-Tests nahmen eine lokale Interpreter-Schreibweise oder einen späteren Validierungsfehler an. Der Folgepatch macht die Assertions portabel und behält die Closed-Runner-Prüfungen bei. | Gehostetes Log beobachtet; Rerun ausstehend. |
+| GitHub-Actions-Pull-Request-Run `31399120871` / `python-ci-security-quality` | 1 | Beobachteter späterer Fehler: Pyright lehnte 11 direkte verschachtelte Objektmutationen im fokussierten Test ab. Diese enge test-only-Korrektur verwendet runtime-geprüfte verschachtelte Mappings; ein Exact-Head-Rerun bleibt erforderlich. | Gehostetes Log beobachtet; keine Umgehung eines Sicherheitskontrollmechanismus behauptet. |
 
 ## Sicherheitsauswirkung
 
@@ -137,12 +138,11 @@ fordert. Der repositoryeigene Konfigurationsvertrag besteht, doch die exakte
 Interpreterausführung muss weiterhin vom gehosteten Exact-Version-Workflow
 belegt werden. Pyright kann lokal nicht laufen, weil seine repositoryverwaltete
 Node-Voraussetzung fehlt; das checksum-verifizierte Hosted-Gate bleibt
-erforderliche Evidenz und wird nicht als lokaler Pass behauptet. ShellCheck war
-verfügbar und bestand für die geänderten CRS-Provenance-Skripte, nachdem
-explizite Source-Pfade einen veralteten Regelunterdrückungskommentar ersetzt
-hatten; der repositoryeigene `bash -n`-Lint-Schritt bestand. Die
-checksum-verifizierten lokalen Actionlint-, Zizmor-Offline-, Gitleaks- sowie
-Ruff-Check-/Format-Prüfungen bestanden ebenfalls.
+erforderliche Evidenz und wird nicht als lokaler Pass behauptet. Actionlint,
+Zizmor, Gitleaks und Ruff sind lokal nicht verfügbar; ihre checksum-verifizierten
+Hosted-Gates bleiben erforderliche Evidenz und werden nicht als lokale Pässe
+behauptet. ShellCheck meldet bestehende Diagnosen auf unveränderten
+Sourced-Script-Zeilen; nur der repositoryeigene `bash -n`-Lint-Schritt bestand.
 Refresh-/Checks generierter Reports wurden nicht ausgeführt, weil sie
 generator-owned sind, generierten Output schreiben können und diese
 Framework-Änderung absichtlich keinen Fünf-Host- oder MRTS-Runtime-Input hat.
@@ -158,10 +158,11 @@ aufbewahren.
 
 ## Finaler Diff- und Review-Status
 
-Die finale lokale Validierung mit dem repositoryeigenen `make lint`-Target
-und den fokussierten externen Sicherheitswerkzeug-Prüfungen bestand. Der erste
-Push von Draft-PR #74 zeigte zwei Portabilitätsfehler; dieser enge Folgepatch
-behebt sie. Der fokussierte Security-Diff-Scan fand keinen verbleibenden
+Die initiale vollständige lokale Validierung mit dem repositoryeigenen `make
+lint`-Target bestand. Der erste Push von Draft-PR #74 zeigte zwei
+Portabilitätsfehler; dieser enge Folgepatch behebt sie. Ein späterer
+Exact-Head-Pyright-Fehler hat eine enge test-only-Korrektur, deren gehosteter
+Rerun aussteht. Der fokussierte Security-Diff-Scan fand keinen verbleibenden
 reportbaren Befund; seine drei Make-Expansionskandidaten mit Operator-Eingaben
 wurden dennoch durch Literal-Dollar-Normalisierung, einen festen Runner und
 Real-Target-Regressionen behoben. Strukturelle Host-Evidenz bleibt ausdrücklich

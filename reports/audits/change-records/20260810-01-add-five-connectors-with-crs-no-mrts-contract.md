@@ -98,6 +98,7 @@ This change adds or updates the following Framework-owned components:
 | `python -m unittest tests.security_regression.test_generate_case_matrix_sonar -v` | 0 | 17 generator/report-contract regressions passed. | Local task-owned build/tmp roots; no generated report refresh. |
 | GitHub Actions push run `31396297465` / `portable-contract` | 1 | Observed initial failure: the standalone workflow had not installed the existing hash-locked PyYAML dependency. The follow-up adds that exact `requirements-ci.lock` step. | Hosted log observed; rerun pending. |
 | GitHub Actions push run `31396297434` / `scaffold-lint` | 2 | Observed initial failure: two new runner tests assumed a local interpreter spelling or a later validation error. The follow-up makes those assertions portable while retaining the closed-runner checks. | Hosted log observed; rerun pending. |
+| GitHub Actions pull-request run `31399120871` / `python-ci-security-quality` | 1 | Observed later failure: Pyright rejected 11 direct nested-object mutations in the focused test. This narrow test-only correction uses runtime-checked nested mappings; exact-head rerun remains required. | Hosted log observed; no security-control bypass claimed. |
 
 ## Security impact
 
@@ -128,10 +129,10 @@ The local interpreter is Python `3.14.4`, while `.python-version` requires
 execution must still be evidenced by the hosted exact-version workflow. Pyright
 cannot run locally because its repository-managed Node prerequisite is absent;
 the checksum-verified hosted gate remains required evidence and is not claimed
-as a local pass. Checksum-verified Actionlint, Zizmor (offline), Gitleaks, and
-Ruff checks/format checks passed locally. ShellCheck also passed for the
-changed CRS provenance scripts after explicit source paths replaced a stale
-rule-suppression comment; the repository's `bash -n` lint step passed.
+as a local pass. Actionlint, Zizmor, Gitleaks, and Ruff are unavailable locally;
+their checksum-verified hosted gates remain required evidence and are not
+claimed as local passes. ShellCheck reports existing diagnostics on unchanged
+sourced-script lines; only the repository's `bash -n` lint step passed.
 Generated report refresh/checks were not run because they are generator-owned,
 can write generated output, and the Framework change intentionally has no
 five-host or MRTS runtime input. Parent-owned five-host composition E2E,
@@ -145,10 +146,11 @@ lifecycle, and operational evidence for any runtime or promotion claim.
 
 ## Final diff and review status
 
-The final local validation completed with the repository-native `make lint`
-target and focused external security-tool checks passing. Draft PR #74's first
-push observed two portability defects; this narrow follow-up remediates them.
-The focused security-diff scan found no surviving reportable finding, while
+The initial full local validation completed with the repository-native `make
+lint` target. Draft PR #74's first push observed two portability defects; this
+narrow follow-up remediates them. A later exact-head Pyright failure has a
+narrow test-only correction, whose hosted rerun remains pending. The focused
+security-diff scan found no surviving reportable finding, while
 its three operator-input Make-expansion candidates were still remediated with
 literal-dollar normalization, a fixed runner, and real-target regression
 coverage. Structural host evidence remains explicitly non-promoting. Exact-head

@@ -80,6 +80,17 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
         return hashlib.sha256(path.read_bytes()).hexdigest()
 
     @staticmethod
+    def _nested_mapping(event: dict[str, object], section: str) -> dict[str, object]:
+        value = event[section]
+        assert isinstance(value, dict)
+        return value
+
+    def _set_nested(
+        self, event: dict[str, object], section: str, field: str, value: object
+    ) -> None:
+        self._nested_mapping(event, section)[field] = value
+
+    @staticmethod
     def _raw_record(fields: dict[str, object]) -> str:
         return (
             "\n".join(
@@ -783,8 +794,8 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
         for field in contract.NO_MRTS_FIELDS:
             with self.subTest(no_mrts_field=field):
                 self._single_validation_error(
-                    lambda event, root, field=field: event["no_mrts"].__setitem__(
-                        field, True
+                    lambda event, root, field=field: self._set_nested(
+                        event, "no_mrts", field, True
                     )
                 )
         for field in (
@@ -798,17 +809,17 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
         ):
             with self.subTest(cleanup_field=field):
                 self._single_validation_error(
-                    lambda event, root, field=field: event["cleanup"].__setitem__(
-                        field, 1
+                    lambda event, root, field=field: self._set_nested(
+                        event, "cleanup", field, 1
                     )
                 )
         self._single_validation_error(
-            lambda event, root: event["host_configuration"].__setitem__(
-                "config_test_status", "failed"
+            lambda event, root: self._set_nested(
+                event, "host_configuration", "config_test_status", "failed"
             )
         )
         self._single_validation_error(
-            lambda event, root: event["cleanup"].__setitem__("status", "failed")
+            lambda event, root: self._set_nested(event, "cleanup", "status", "failed")
         )
 
         def raw_mrts_marker(event: dict[str, object], root: Path) -> None:
@@ -820,26 +831,29 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                     "mrts_runner_invoked=true",
                 ),
             )
-            event["cleanup"]["evidence_sha256"] = self._sha256(path)
+            self._set_nested(event, "cleanup", "evidence_sha256", self._sha256(path))
 
         self._single_validation_error(raw_mrts_marker)
 
     def test_rejects_stale_empty_hashed_and_symlink_evidence(self) -> None:
         self._single_validation_error(
-            lambda event, root: event["block_evidence"].__setitem__(
-                "evidence_path", "raw/apache/old/block-audit.log"
+            lambda event, root: self._set_nested(
+                event,
+                "block_evidence",
+                "evidence_path",
+                "raw/apache/old/block-audit.log",
             )
         )
         self._single_validation_error(
-            lambda event, root: event["block_evidence"].__setitem__(
-                "evidence_sha256", "0" * 64
+            lambda event, root: self._set_nested(
+                event, "block_evidence", "evidence_sha256", "0" * 64
             )
         )
 
         def empty_allow(event: dict[str, object], root: Path) -> None:
             path = root / contract.allow_evidence_relative_path("apache", self.run_id)
             self._write_text(path, "")
-            event["allow_case"]["evidence_sha256"] = self._sha256(path)
+            self._set_nested(event, "allow_case", "evidence_sha256", self._sha256(path))
 
         self._single_validation_error(empty_allow)
         if hasattr(os, "symlink"):
@@ -852,7 +866,9 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 )
                 path.unlink()
                 path.symlink_to(target)
-                event["block_evidence"]["evidence_sha256"] = self._sha256(target)
+                self._set_nested(
+                    event, "block_evidence", "evidence_sha256", self._sha256(target)
+                )
 
             self._single_validation_error(symlink_block)
 
@@ -899,13 +915,16 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 with self.assertRaises(contract.ContractError):
                     contract.validate_fixture(artificial)
                 missing_rule_id = copy.deepcopy(fixture)
-                del missing_rule_id["with_crs_no_mrts"]["canonical_block"][
-                    "expected_rule_id"
-                ]
+                missing_profile = self._nested_mapping(
+                    missing_rule_id, "with_crs_no_mrts"
+                )
+                missing_block = self._nested_mapping(missing_profile, "canonical_block")
+                del missing_block["expected_rule_id"]
                 with self.assertRaises(contract.ContractError):
                     contract.validate_fixture(missing_rule_id)
                 moving_ref = copy.deepcopy(fixture)
-                moving_ref["with_crs_no_mrts"]["provenance"]["release_tag"] = "main"
+                moving_profile = self._nested_mapping(moving_ref, "with_crs_no_mrts")
+                self._set_nested(moving_profile, "provenance", "release_tag", "main")
                 with self.assertRaises(contract.ContractError):
                     contract.validate_fixture(moving_ref)
                 self._write_text(source_root / "cached-copy", "not a fresh topology\n")
