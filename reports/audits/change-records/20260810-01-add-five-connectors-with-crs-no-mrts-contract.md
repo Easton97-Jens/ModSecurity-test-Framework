@@ -9,7 +9,7 @@
 | Change ID | `20260810-01-add-five-connectors-with-crs-no-mrts-contract` |
 | UTC date | 2026-08-10 |
 | Framework base revision | `03880bf` (observed task-worktree base; delivery facts are recorded below after observation) |
-| Issue or pull request | [Draft PR #74](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/74) (exact-head rerun pending). |
+| Issue or pull request | [Draft PR #74](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/74); observed exact head `58e8d410ba15f1a96538362e7ce259dbd5a335cd` passed the listed hosted checks before this record update. The PR was a Draft at observation and no merge was requested. |
 
 ## Motivation and problem statement
 
@@ -96,9 +96,10 @@ This change adds or updates the following Framework-owned components:
 | `make BUILD_ROOT=<task-build> test-ci-security-contract` | 0 | 171 CI-security contract regressions passed. | Local task-owned build/tmp roots. |
 | `python -m unittest tests.security_regression.test_mrts_common_sonar -v` | 0 | 6 No-MRTS helper regressions passed without corpus access. | Local task-owned build/tmp roots; no MRTS corpus/runtime. |
 | `python -m unittest tests.security_regression.test_generate_case_matrix_sonar -v` | 0 | 17 generator/report-contract regressions passed. | Local task-owned build/tmp roots; no generated report refresh. |
-| GitHub Actions push run `31396297465` / `portable-contract` | 1 | Observed initial failure: the standalone workflow had not installed the existing hash-locked PyYAML dependency. The follow-up adds that exact `requirements-ci.lock` step. | Hosted log observed; rerun pending. |
-| GitHub Actions push run `31396297434` / `scaffold-lint` | 2 | Observed initial failure: two new runner tests assumed a local interpreter spelling or a later validation error. The follow-up makes those assertions portable while retaining the closed-runner checks. | Hosted log observed; rerun pending. |
-| GitHub Actions pull-request run `31399120871` / `python-ci-security-quality` | 1 | Observed later failure: Pyright rejected 11 direct nested-object mutations in the focused test. This narrow test-only correction uses runtime-checked nested mappings; exact-head rerun remains required. | Hosted log observed; no security-control bypass claimed. |
+| GitHub Actions push run `31396297465` / `portable-contract` | 1 | Observed initial failure: the standalone workflow had not installed the existing hash-locked PyYAML dependency. The follow-up adds that exact `requirements-ci.lock` step. | Hosted log observed; replacement exact-head profile run `31401586813` passed. |
+| GitHub Actions push run `31396297434` / `scaffold-lint` | 2 | Observed initial failure: two new runner tests assumed a local interpreter spelling or a later validation error. The follow-up makes those assertions portable while retaining the closed-runner checks. | Hosted log observed; replacement exact-head lint runs `31401578475` and `31401582775` passed. |
+| GitHub Actions pull-request run `31399120871` / `python-ci-security-quality` | 1 | Observed later failure: Pyright rejected 11 direct nested-object mutations in the focused test. This narrow test-only correction uses runtime-checked nested mappings. | Hosted log observed; replacement exact-head quality run `31401582724` passed; no security-control bypass claimed. |
+| GitHub exact-head status for `58e8d410ba15f1a96538362e7ce259dbd5a335cd` | 0 | Both lint runs, profile contract, Python quality, Actionlint/Zizmor, Gitleaks, CodeQL, SonarCloud, OSV, Scorecard, action-version, and common-structure checks passed. | Observed PR #74 status checks: profile `31401586813`, quality `31401582724`, workflow lint `31401582893`, CodeQL `31401582980`, Gitleaks `31401583111`, lint `31401578475` / `31401582775`, action versions `31401582705`, OSV `31401582870`, Scorecard `31401582653`, common structure `31401578605` / `31401582669`; SonarCloud status check passed. |
 
 ## Security impact
 
@@ -125,18 +126,19 @@ collected by this documentation change.
 ## Checks not run
 
 The local interpreter is Python `3.14.4`, while `.python-version` requires
-`3.14.6`. The repository's configuration contract passes, but exact interpreter
-execution must still be evidenced by the hosted exact-version workflow. Pyright
-cannot run locally because its repository-managed Node prerequisite is absent;
-the checksum-verified hosted gate remains required evidence and is not claimed
-as a local pass. Actionlint, Zizmor, Gitleaks, and Ruff are unavailable locally;
-their checksum-verified hosted gates remain required evidence and are not
-claimed as local passes. ShellCheck reports existing diagnostics on unchanged
-sourced-script lines; only the repository's `bash -n` lint step passed.
-Generated report refresh/checks were not run because they are generator-owned,
-can write generated output, and the Framework change intentionally has no
-five-host or MRTS runtime input. Parent-owned five-host composition E2E,
-runtime matrix, and production evidence are out of Framework scope.
+`3.14.6`. The repository's configuration contract passes; exact interpreter
+execution is evidenced by the observed hosted exact-version quality run
+`31401582724`. Pyright cannot run locally because its repository-managed Node
+prerequisite is absent; its checksum-verified hosted gate passed, but is not
+claimed as a local pass. Actionlint, Zizmor, Gitleaks, and Ruff are unavailable
+locally; the observed hosted Actionlint/Zizmor/Gitleaks gates passed, but are
+not claimed as local passes. ShellCheck reports existing diagnostics on
+unchanged sourced-script lines; only the repository's `bash -n` lint step
+passed. Generated report refresh/checks were not run because they are
+generator-owned, can write generated output, and the Framework change
+intentionally has no five-host or MRTS runtime input. Parent-owned five-host
+composition E2E, runtime matrix, and production evidence are out of Framework
+scope.
 
 ## Limitations and residual risk
 
@@ -147,12 +149,15 @@ lifecycle, and operational evidence for any runtime or promotion claim.
 ## Final diff and review status
 
 The initial full local validation completed with the repository-native `make
-lint` target. Draft PR #74's first push observed two portability defects; this
-narrow follow-up remediates them. A later exact-head Pyright failure has a
-narrow test-only correction, whose hosted rerun remains pending. The focused
-security-diff scan found no surviving reportable finding, while
-its three operator-input Make-expansion candidates were still remediated with
+lint` target. Draft PR #74's first push observed two portability defects; the
+narrow follow-up remediated them. A later exact-head Pyright failure received a
+narrow test-only correction, and its exact-head hosted quality rerun passed.
+The focused security-diff scan found no surviving reportable finding, while its
+three operator-input Make-expansion candidates were still remediated with
 literal-dollar normalization, a fixed runner, and real-target regression
-coverage. Structural host evidence remains explicitly non-promoting. Exact-head
-hosted CI, SonarQube Cloud, and review facts are recorded only after they are
-observed.
+coverage. The exact head `58e8d410ba15f1a96538362e7ce259dbd5a335cd` has
+successful hosted lint, profile, quality, Actionlint/Zizmor, Gitleaks, CodeQL,
+SonarCloud, OSV, Scorecard, action-version, and common-structure checks. At
+that observation, Draft PR #74 was a Draft with clean merge state; no review
+decision, merge, or host-runtime result is claimed. Structural host evidence
+remains explicitly non-promoting.

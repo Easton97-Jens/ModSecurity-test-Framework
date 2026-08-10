@@ -9,7 +9,7 @@
 | Change-ID | `20260810-01-add-five-connectors-with-crs-no-mrts-contract` |
 | UTC-Datum | 2026-08-10 |
 | Framework-Basisrevision | `03880bf` (beobachtete Basis des Task-Worktrees; Delivery-Fakten werden nach Beobachtung unten dokumentiert) |
-| Issue oder Pull Request | [Draft-PR #74](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/74) (Exact-Head-Rerun ausstehend). |
+| Issue oder Pull Request | [Draft-PR #74](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/74); der beobachtete Exact-Head `58e8d410ba15f1a96538362e7ce259dbd5a335cd` bestand die aufgeführten Hosted-Checks vor diesem Record-Update. Der PR war bei der Beobachtung Draft, ein Merge war nicht angefordert. |
 
 ## Motivation und Problemstellung
 
@@ -93,7 +93,7 @@ Komponenten:
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- | --- |
-| `make BUILD_ROOT=<task-build> test-five-connectors-with-crs-no-mrts-contract` | 0 | 24 fokussierte positive und adversarielle Vertragstests bestanden, einschließlich der Ablehnung von Gleich-UID-Namenswechseln, Top-Level-Fixture-Semantikdrift, ungültigem Runner-argv/fehlender Umgebung, tatsächlicher Make-Target-Importabdeckung sowie Make-Dollar-Normalisierung ohne Shell. | Lokale externe Task-Build-/Tmp-Wurzeln; keine Runtime-Evidenz. |
+| `make BUILD_ROOT=<task-build> test-five-connectors-with-crs-no-mrts-contract` | 0 | 24 fokussierte positive und adversarielle Vertragstests bestanden, einschließlich der Ablehnung von Gleich-UID-Namenswechseln in Evidenz und CRS-Checkout, Top-Level-Fixture-Semantikdrift, ungültigem Runner-argv/fehlender Umgebung, tatsächlicher Make-Target-Importabdeckung sowie Make-Dollar-Normalisierung ohne Shell. | Lokale externe Task-Build-/Tmp-Wurzeln; keine Runtime-Evidenz. |
 | `make BUILD_ROOT=<task-build> SOURCE_ROOT=<task-build>/runtime/src check-five-connectors-with-crs-no-mrts-fixture` | 0 | Ein frischer Checkout holte den überprüften Tag `v4.28.0`, prüfte seinen Peel zu `55b09f…c89c` und fand Regel `942270`. | Task-eigene lokale `fixture-verify-final`-Source-Wurzel. |
 | `python -m unittest …test_default_release_tag_is_fetched_and_peeled_to_the_approved_commit …test_rejects_missing_or_moved_reviewed_release_tag -v` | 0 | Beide gezielten CRS-Tag-Provenance-Regressionen bestanden. | Lokale externe Task-Build-/Tmp-Wurzeln; Fake-Git-Transportfixture. |
 | `make BUILD_ROOT=<task-build> TMP_ROOT=<task-build>/tmp test-no-crs-contract` | 0 | 98 No-CRS-Vertrags- und Transport-Hardening-Regressionen bestanden. | Lokale Task-eigene Build-/Tmp-Wurzeln; keine Host-Runtime. |
@@ -103,9 +103,10 @@ Komponenten:
 | `make BUILD_ROOT=<task-build> test-ci-security-contract` | 0 | 171 CI-Security-Vertragsregressionen bestanden. | Lokale Task-eigene Build-/Tmp-Wurzeln. |
 | `python -m unittest tests.security_regression.test_mrts_common_sonar -v` | 0 | 6 No-MRTS-Helferregressionen bestanden ohne Corpus-Zugriff. | Lokale Task-eigene Build-/Tmp-Wurzeln; kein MRTS-Corpus/keine MRTS-Runtime. |
 | `python -m unittest tests.security_regression.test_generate_case_matrix_sonar -v` | 0 | 17 Generator-/Report-Vertragsregressionen bestanden. | Lokale Task-eigene Build-/Tmp-Wurzeln; kein generierter Report-Refresh. |
-| GitHub-Actions-Push-Run `31396297465` / `portable-contract` | 1 | Beobachteter initialer Fehler: Der eigenständige Workflow installierte die bereits hash-gesperrte PyYAML-Abhängigkeit nicht. Der Folgepatch fügt genau diesen `requirements-ci.lock`-Schritt hinzu. | Gehostetes Log beobachtet; Rerun ausstehend. |
-| GitHub-Actions-Push-Run `31396297434` / `scaffold-lint` | 2 | Beobachteter initialer Fehler: Zwei neue Runner-Tests nahmen eine lokale Interpreter-Schreibweise oder einen späteren Validierungsfehler an. Der Folgepatch macht die Assertions portabel und behält die Closed-Runner-Prüfungen bei. | Gehostetes Log beobachtet; Rerun ausstehend. |
-| GitHub-Actions-Pull-Request-Run `31399120871` / `python-ci-security-quality` | 1 | Beobachteter späterer Fehler: Pyright lehnte 11 direkte verschachtelte Objektmutationen im fokussierten Test ab. Diese enge test-only-Korrektur verwendet runtime-geprüfte verschachtelte Mappings; ein Exact-Head-Rerun bleibt erforderlich. | Gehostetes Log beobachtet; keine Umgehung eines Sicherheitskontrollmechanismus behauptet. |
+| GitHub-Actions-Push-Run `31396297465` / `portable-contract` | 1 | Beobachteter initialer Fehler: Der eigenständige Workflow installierte die bereits hash-gesperrte PyYAML-Abhängigkeit nicht. Der Folgepatch fügt genau diesen `requirements-ci.lock`-Schritt hinzu. | Gehostetes Log beobachtet; der Ersatz-Exact-Head-Profilrun `31401586813` bestand. |
+| GitHub-Actions-Push-Run `31396297434` / `scaffold-lint` | 2 | Beobachteter initialer Fehler: Zwei neue Runner-Tests nahmen eine lokale Interpreter-Schreibweise oder einen späteren Validierungsfehler an. Der Folgepatch macht die Assertions portabel und behält die Closed-Runner-Prüfungen bei. | Gehostetes Log beobachtet; die Ersatz-Exact-Head-Lintruns `31401578475` und `31401582775` bestanden. |
+| GitHub-Actions-Pull-Request-Run `31399120871` / `python-ci-security-quality` | 1 | Beobachteter späterer Fehler: Pyright lehnte 11 direkte verschachtelte Objektmutationen im fokussierten Test ab. Diese enge test-only-Korrektur verwendet runtime-geprüfte verschachtelte Mappings. | Gehostetes Log beobachtet; der Ersatz-Exact-Head-Quality-Run `31401582724` bestand; keine Umgehung eines Sicherheitskontrollmechanismus behauptet. |
+| GitHub-Exact-Head-Status für `58e8d410ba15f1a96538362e7ce259dbd5a335cd` | 0 | Beide Lintruns, Profilvertrag, Python-Quality, Actionlint/Zizmor, Gitleaks, CodeQL, SonarCloud, OSV, Scorecard, Action-Versionen und Common-Structure-Checks bestanden. | Beobachtete PR-#74-Statuschecks: Profil `31401586813`, Quality `31401582724`, Workflow-Lint `31401582893`, CodeQL `31401582980`, Gitleaks `31401583111`, Lint `31401578475` / `31401582775`, Action-Versionen `31401582705`, OSV `31401582870`, Scorecard `31401582653`, Common Structure `31401578605` / `31401582669`; SonarCloud-Statuscheck bestand. |
 
 ## Sicherheitsauswirkung
 
@@ -134,13 +135,13 @@ Lifecycle- oder MRTS-Prozess-Evidenz erhoben.
 ## Nicht ausgeführte Prüfungen
 
 Der lokale Interpreter ist Python `3.14.4`, während `.python-version` `3.14.6`
-fordert. Der repositoryeigene Konfigurationsvertrag besteht, doch die exakte
-Interpreterausführung muss weiterhin vom gehosteten Exact-Version-Workflow
-belegt werden. Pyright kann lokal nicht laufen, weil seine repositoryverwaltete
-Node-Voraussetzung fehlt; das checksum-verifizierte Hosted-Gate bleibt
-erforderliche Evidenz und wird nicht als lokaler Pass behauptet. Actionlint,
-Zizmor, Gitleaks und Ruff sind lokal nicht verfügbar; ihre checksum-verifizierten
-Hosted-Gates bleiben erforderliche Evidenz und werden nicht als lokale Pässe
+fordert. Der repositoryeigene Konfigurationsvertrag besteht; die exakte
+Interpreterausführung belegt der beobachtete Hosted-Exact-Version-Quality-Run
+`31401582724`. Pyright kann lokal nicht laufen, weil seine repositoryverwaltete
+Node-Voraussetzung fehlt; sein checksum-verifiziertes Hosted-Gate bestand, wird
+aber nicht als lokaler Pass behauptet. Actionlint, Zizmor, Gitleaks und Ruff
+sind lokal nicht verfügbar; die beobachteten Hosted-Gates für
+Actionlint/Zizmor/Gitleaks bestanden, werden aber nicht als lokale Pässe
 behauptet. ShellCheck meldet bestehende Diagnosen auf unveränderten
 Sourced-Script-Zeilen; nur der repositoryeigene `bash -n`-Lint-Schritt bestand.
 Refresh-/Checks generierter Reports wurden nicht ausgeführt, weil sie
@@ -160,11 +161,16 @@ aufbewahren.
 
 Die initiale vollständige lokale Validierung mit dem repositoryeigenen `make
 lint`-Target bestand. Der erste Push von Draft-PR #74 zeigte zwei
-Portabilitätsfehler; dieser enge Folgepatch behebt sie. Ein späterer
-Exact-Head-Pyright-Fehler hat eine enge test-only-Korrektur, deren gehosteter
-Rerun aussteht. Der fokussierte Security-Diff-Scan fand keinen verbleibenden
-reportbaren Befund; seine drei Make-Expansionskandidaten mit Operator-Eingaben
-wurden dennoch durch Literal-Dollar-Normalisierung, einen festen Runner und
-Real-Target-Regressionen behoben. Strukturelle Host-Evidenz bleibt ausdrücklich
-nicht promotbar. Exact-Head-gehostete CI-, SonarQube-Cloud- und Review-Fakten
-werden erst nach Beobachtung dokumentiert.
+Portabilitätsfehler; der enge Folgepatch behob sie. Ein späterer
+Exact-Head-Pyright-Fehler erhielt eine enge test-only-Korrektur, und sein
+gehosteter Exact-Head-Quality-Rerun bestand. Der fokussierte Security-Diff-Scan
+fand keinen verbleibenden reportbaren Befund; seine drei
+Make-Expansionskandidaten mit Operator-Eingaben wurden dennoch durch
+Literal-Dollar-Normalisierung, einen festen Runner und Real-Target-Regressionen
+behoben. Der Exact-Head `58e8d410ba15f1a96538362e7ce259dbd5a335cd` hat
+erfolgreiche Hosted-Lint-, Profil-, Quality-, Actionlint/Zizmor-, Gitleaks-,
+CodeQL-, SonarCloud-, OSV-, Scorecard-, Action-Version- und
+Common-Structure-Checks. Bei dieser Beobachtung war Draft-PR #74 Draft mit
+sauberem Merge-Status; keine Review-Entscheidung, kein Merge und kein
+Host-Runtime-Ergebnis werden behauptet. Strukturelle Host-Evidenz bleibt
+ausdrücklich nicht promotbar.
