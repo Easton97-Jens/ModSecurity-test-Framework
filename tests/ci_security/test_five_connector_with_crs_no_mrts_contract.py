@@ -104,7 +104,7 @@ def _fifo_preopen_regression_child(
         return original_open(name, flags, mode, dir_fd=dir_fd)
 
     try:
-        contract._relative_path = replace_after_path_validation
+        setattr(contract, "_relative_path", replace_after_path_validation)
         contract.os.open = observe_leaf_open
         path, content, digest = contract._bounded_evidence_file(
             evidence_root,
@@ -120,7 +120,7 @@ def _fifo_preopen_regression_child(
     else:
         result_sender.send(("returned", path.as_posix(), content, digest))
     finally:
-        contract._relative_path = original_relative_path
+        setattr(contract, "_relative_path", original_relative_path)
         contract.os.open = original_open
         ready_sender.close()
         result_sender.close()
