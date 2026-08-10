@@ -16,6 +16,7 @@ beschrieben.
 
 ## Aktuelle Records
 
+- [Fünf-Connector-With-CRS-/No-MRTS-Evidenzvertrag hinzufügen (2026-08-10)](20260810-01-add-five-connectors-with-crs-no-mrts-contract.de.md)
 - [Nur kanonische leere CRS-`.gitmodules`-Provenance-Metadaten zulassen (2026-08-09)](20260809-02-allow-exact-empty-crs-gitmodules-provenance.de.md)
 - [Invarianz der Common-Version-Post-Apply-Test-Fixture beheben (2026-08-09)](20260809-01-fix-common-version-post-apply-test-invariance.de.md)
 - [Migration des Common-Version-Publishers auf ein GitHub-App-Token (2026-08-08)](20260808-02-migrate-common-version-publisher-app-token.de.md)

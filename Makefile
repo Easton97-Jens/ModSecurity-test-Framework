@@ -35,6 +35,9 @@ endif
 ifneq ($(origin BUILD_ROOT),undefined)
 override BUILD_ROOT := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value BUILD_ROOT))
 endif
+ifneq ($(origin SOURCE_ROOT),undefined)
+override SOURCE_ROOT := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value SOURCE_ROOT))
+endif
 ifneq ($(origin EVIDENCE_ROOT),undefined)
 override EVIDENCE_ROOT := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value EVIDENCE_ROOT))
 endif
@@ -43,6 +46,15 @@ override NO_CRS_RUN_ID := $(subst $(no_crs_literal_dollar),$(no_crs_literal_doll
 endif
 ifneq ($(origin CI_ROOT),undefined)
 override CI_ROOT := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value CI_ROOT))
+endif
+ifneq ($(origin FIVE_CONNECTORS_WITH_CRS_NO_MRTS_EVIDENCE_ROOT),undefined)
+override FIVE_CONNECTORS_WITH_CRS_NO_MRTS_EVIDENCE_ROOT := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value FIVE_CONNECTORS_WITH_CRS_NO_MRTS_EVIDENCE_ROOT))
+endif
+ifneq ($(origin FIVE_CONNECTORS_WITH_CRS_NO_MRTS_RUN_ID),undefined)
+override FIVE_CONNECTORS_WITH_CRS_NO_MRTS_RUN_ID := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value FIVE_CONNECTORS_WITH_CRS_NO_MRTS_RUN_ID))
+endif
+ifneq ($(origin FIVE_CONNECTORS_WITH_CRS_NO_MRTS_CONNECTOR),undefined)
+override FIVE_CONNECTORS_WITH_CRS_NO_MRTS_CONNECTOR := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value FIVE_CONNECTORS_WITH_CRS_NO_MRTS_CONNECTOR))
 endif
 
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
@@ -150,7 +162,14 @@ export NO_CRS_STAGE_REASON
 export NO_CRS_FINALIZE_ARGS
 export NO_CRS_PROTOCOL_CLIENT_ARTIFACT_DIR
 
-.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-python-version check-github-actions-workflows check-github-actions-pins check-github-actions-permissions test-workflow-security-contract check-doc-links check-bilingual-docs check-variable-documentation check-repository-path-references check-change-records check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-makefile-contract test-ci-security-contract test-change-record-contract test-crs-provenance-contract test-workflow-action-pins test-workflow-contract test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
+FIVE_CONNECTORS_WITH_CRS_NO_MRTS_EVIDENCE_ROOT ?= $(EVIDENCE_ROOT)/five-connectors-with-crs-no-mrts
+FIVE_CONNECTORS_WITH_CRS_NO_MRTS_RUN_ID ?=
+FIVE_CONNECTORS_WITH_CRS_NO_MRTS_CONNECTOR ?=
+export FIVE_CONNECTORS_WITH_CRS_NO_MRTS_EVIDENCE_ROOT
+export FIVE_CONNECTORS_WITH_CRS_NO_MRTS_RUN_ID
+export FIVE_CONNECTORS_WITH_CRS_NO_MRTS_CONNECTOR
+
+.PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-python-version check-github-actions-workflows check-github-actions-pins check-github-actions-permissions test-workflow-security-contract check-doc-links check-bilingual-docs check-variable-documentation check-repository-path-references check-change-records check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-makefile-contract test-ci-security-contract test-five-connectors-with-crs-no-mrts-contract check-five-connectors-with-crs-no-mrts-fixture five-connectors-with-crs-no-mrts-validate five-connectors-with-crs-no-mrts-aggregate test-change-record-contract test-crs-provenance-contract test-workflow-action-pins test-workflow-contract test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
 .PHONY: test-modsecurity-v3-provenance-contract test-apr-util-provenance test-nginx-archive-digest
 
 define RUN_WITH_FRAMEWORK_REPORT_REFRESH
@@ -173,6 +192,7 @@ lint:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py $(CI_PYTHON_FILES)
 	$(MAKE) test-makefile-contract
 	$(MAKE) test-ci-security-contract
+	$(MAKE) test-five-connectors-with-crs-no-mrts-contract
 	$(MAKE) test-change-record-contract
 	$(MAKE) test-crs-provenance-contract
 	$(MAKE) test-modsecurity-v3-provenance-contract
@@ -236,6 +256,19 @@ test-makefile-contract:
 
 test-ci-security-contract:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest discover -s tests/ci_security -v
+
+test-five-connectors-with-crs-no-mrts-contract:
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest tests.ci_security.test_five_connector_with_crs_no_mrts_contract -v
+
+check-five-connectors-with-crs-no-mrts-fixture:
+	MODSECURITY_TEST_VARIANT=with-crs MODSECURITY_MRTS_VARIANT=no-mrts $(MAKE) fetch-crs
+	PYTHONPATH="$(CURDIR)/ci/checks/catalog:$(CURDIR)" $(PYTHON) ci/tools/run-five-connectors-with-crs-no-mrts.py verify-fixture
+
+five-connectors-with-crs-no-mrts-validate:
+	PYTHONPATH="$(CURDIR)/ci/checks/catalog:$(CURDIR)" $(PYTHON) ci/tools/run-five-connectors-with-crs-no-mrts.py validate
+
+five-connectors-with-crs-no-mrts-aggregate:
+	PYTHONPATH="$(CURDIR)/ci/checks/catalog:$(CURDIR)" $(PYTHON) ci/tools/run-five-connectors-with-crs-no-mrts.py aggregate
 
 test-change-record-contract:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest tests.ci_security.test_change_record_contract -v

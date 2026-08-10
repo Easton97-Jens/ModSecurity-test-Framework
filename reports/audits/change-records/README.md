@@ -13,6 +13,7 @@ described in [change traceability](../../../docs/change-traceability.md).
 
 ## Current records
 
+- [Add five-connector With-CRS/No-MRTS evidence contract (2026-08-10)](20260810-01-add-five-connectors-with-crs-no-mrts-contract.md)
 - [Allow only canonical empty CRS `.gitmodules` provenance metadata (2026-08-09)](20260809-02-allow-exact-empty-crs-gitmodules-provenance.md)
 - [Fix Common-version post-apply test-fixture invariance (2026-08-09)](20260809-01-fix-common-version-post-apply-test-invariance.md)
 - [Migrate the Common-version publisher to a GitHub App token (2026-08-08)](20260808-02-migrate-common-version-publisher-app-token.md)

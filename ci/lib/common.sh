@@ -144,8 +144,9 @@ MODSECURITY_V3_ROOT="${MODSECURITY_V3_ROOT:-$MODSECURITY_SOURCE_DIR}"
 # OWASP Core Rule Set provenance and release metadata.
 #
 # CRS_APPROVED_* is deliberately assigned literally rather than derived from
-# the environment. CRS_GIT_REF remains release metadata for version reporting;
-# fetch-crs.sh must never use it to select a Git object.
+# the environment. fetch-crs.sh fetches this exact reviewed release tag only
+# to prove that its peeled object is the immutable approved commit; it never
+# accepts the tag as a caller-selectable source identity.
 CRS_APPROVED_REPO_URL="https://github.com/coreruleset/coreruleset.git"
 CRS_APPROVED_COMMIT="55b09f5acfd16413e7b31041100711ceb7adc89c"
 CRS_RELEASE_TAG="v4.28.0"

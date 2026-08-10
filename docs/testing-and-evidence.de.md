@@ -117,8 +117,10 @@ Release-Client. Es verifiziert, dass mutable Tags, Branches, Ref-Namespaces,
 kurze Hashes und ein nicht zugehöriger vollständiger Hash vor einer Git-Nutzung
 abgelehnt werden; dass der geprüfte vollständige Commit nur einen frischen
 Checkout bereitstellt und ein bereits vorhandener Source-Pfad vor der Git-
-Nutzung abgelehnt wird; und dass eine Abweichung im gefetchten, aufgelösten oder
-finalen `HEAD` vor der Submodul-Verarbeitung stoppt. Ein neueres Upstream-Tag wird als `unknown` ohne
+Nutzung abgelehnt wird; dass der exakte geprüfte Release-Tag geladen wird und
+zum selben Commit aufgelöst werden muss; und dass ein fehlender, verschobener,
+gefetchter, aufgelöster oder finaler `HEAD`-Mismatch vor der Submodul-
+Verarbeitung stoppt. Ein neueres Upstream-Tag wird als `unknown` ohne
 automatische Änderung gemeldet: Die Änderung von Release-Tag und
 unveränderlichem Commit bleibt eine geprüfte Provenance-Änderung. Der Test
 benötigt weder Netzwerk noch Connector-Runtime und beweist nur die
@@ -177,6 +179,72 @@ Validator-Eingaben und der Promotion-Policy.
 die erforderliche stabile Connector-Evidence vorliegt. Eine Pass-Through-Response,
 ein Late-Intervention-Log, eine leere Antwort oder ein quellabgeleiteter
 Upstream-Test ist für sich kein Response-Body-Blocking-Beweis.
+
+## Fünf-Connector-With-CRS-/No-MRTS-Evidenzvertrag
+
+`ci/checks/catalog/five_connectors_with_crs_no_mrts.py` definiert das separate,
+fail-closed Profil `five-connectors-with-crs-no-mrts`. Seine geschlossene
+Inventarliste besteht exakt und in dieser Reihenfolge aus Apache, HAProxy,
+Envoy, Traefik und lighttpd. NGINX ist nur von diesem Profil ausgeschlossen;
+es bleibt Teil der allgemeinen Sechs-Connector-Grenze und ihrer übrigen
+Bewertungspflichten.
+
+Die kanonische Fixture ist
+`tests/cases/security/crs/crs_sqli_anomaly_block.yaml`. Sie bindet die
+Allow-Kontrolle (`200`) und die SQL-Injection-Blockierung (`403`, Intervention
+`deny`) an die OWASP-CRS-Regel `942270`, aus CRS `v4.28.0` Commit
+`55b09f5acfd16413e7b31041100711ceb7adc89c` und dem gepinnten Digest von
+`rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf`. Die Fixture definiert keine
+lokale Ersatzregel. Ihre frische Source muss außerdem
+`refs/tags/v4.28.0^{}` enthalten und dieser Tag muss zum selben geprüften
+Commit aufgelöst werden.
+
+| Connector | Geschlossene Adapteridentität | Vertragsmodus | Akzeptierte Raw-Evidenz |
+| --- | --- | --- | --- |
+| Apache | `apache-native-httpd-module` | `native-httpd-module` | Audit |
+| HAProxy | `haproxy-native-htx-filter` | `native-htx-filter` | Event |
+| Envoy | `envoy-ext-proc-service` | `ext_proc` | Event |
+| Traefik | `traefik-native-middleware` | `native-traefik-middleware` | Event |
+| lighttpd | `lighttpd-patched-native-module` | `patched-native-lighttpd` | Audit oder Event |
+
+Dies sind geschlossene Evidenzidentitäten. Die aufgeführten Framework-Smoke-
+Entrypoints sind als `compatibility-only` markiert und gehören zum Parent-
+Hostvertrag; sie dürfen daher nicht als native Hostausführung umbenannt oder
+zur Promotion dieses Profils verwendet werden.
+
+Das Catalog-Tool hat vier getrennte Operationen:
+
+```sh
+python ci/checks/catalog/five_connectors_with_crs_no_mrts.py profile
+python ci/checks/catalog/five_connectors_with_crs_no_mrts.py verify-fixture --source-root <fresh-source-root>
+python ci/checks/catalog/five_connectors_with_crs_no_mrts.py validate --evidence-root <private-root> --source-root <fresh-source-root> --connector <fixed-connector> --run-id <id>
+python ci/checks/catalog/five_connectors_with_crs_no_mrts.py aggregate --evidence-root <private-root> --source-root <fresh-source-root> --run-id <id>
+```
+
+`validate` akzeptiert nur ein Mitglied der geschlossenen Liste sowie
+hash-adressierte, vom Host bereitgestellte Raw-Evidenz und nicht mutierend
+normalisierte Evidenz. Es verlangt beide Korrelationsidentitäten, die gepinnte
+CRS-Identität, eine Allow-Kontrolle, das beobachtete `942270`-`deny`-Ergebnis,
+die geschlossenen No-MRTS-Felder und abgeschlossenen Cleanup. `aggregate`
+akzeptiert exakt ein validiertes Same-Run-Bundle für jeden der fünf Connectors
+und weist ein partielles, doppeltes oder NGINX enthaltendes Inventar zurück.
+Die Evidenzwurzel muss privat und außerhalb des Checkouts liegen; Ergebniswege
+werden nie überschrieben.
+
+Die vier Raw-Eingaben haben feste, Run-gebundene Orte für Hostkonfiguration,
+Allow-Request, Block-Audit und Cleanup. Sie werden als strenge Key/Value-
+Records geparst und per Hash an das normalisierte Event gebunden. `validate`
+und `aggregate` leiten die Framework-Revision aus einem sauberen
+Verifier-Checkout ab, statt ein vom Aufrufer geliefertes Commit-Argument
+anzunehmen. Ihre erfolgreichen Ausgaben sind `CONTRACT_VALIDATED` mit
+`host_runtime_status: UNATTESTED`, niemals ein Connector-Host-`PASS`.
+
+Die fokussierte lokale Regressionprüfung prüft Fixtures, Schemas,
+Closed-Set-Zurückweisung, Provenance-Bindung, Receipt-Validierung und negative
+Fälle. Weder diese Prüfung noch ein Catalog-Befehl startet einen Connector-Host,
+beweist einen Runtime-Erfolg von fünf Hosts, Produktionsreife oder einen realen
+MRTS-Prozesszustand. Ein späterer Connector-eigener Lauf muss eigene Host- und
+Lifecycle-Evidenz liefern, bevor eine Runtime-Aussage möglich ist.
 
 ## Fallvarianten und Imports
 

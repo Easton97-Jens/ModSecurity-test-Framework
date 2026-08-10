@@ -51,7 +51,8 @@ def load_common_version_checker():
 COMMON_VERSION_CHECKER = load_common_version_checker()
 
 
-FAKE_GIT = """#!/usr/bin/env python3
+FAKE_GIT = (
+    """#!/usr/bin/env python3
 import os
 from pathlib import Path
 import sys
@@ -221,6 +222,8 @@ elif command == "config":
 elif command == "clone":
     Path(arguments[-1], ".git").mkdir(parents=True, exist_ok=True)
 elif command == "fetch":
+    if any(argument.startswith("refs/tags/") for argument in arguments):
+        sys.exit(int(os.environ.get("FAKE_GIT_TAG_FETCH_RC", "0")))
     sys.exit(int(os.environ.get("FAKE_GIT_FETCH_RC", "0")))
 elif command == "checkout":
     if repository:
@@ -233,6 +236,8 @@ elif command == "rev-parse":
         print(gitmodules_blob(gitmodules_case))
     elif any(argument.startswith("FETCH_HEAD") for argument in arguments):
         print(os.environ.get("FAKE_GIT_FETCH_HEAD_COMMIT", approved_commit))
+    elif any(argument.startswith("refs/tags/") for argument in arguments):
+        print(os.environ.get("FAKE_GIT_TAG_COMMIT", approved_commit))
     elif any(argument.startswith("HEAD") for argument in arguments):
         print(os.environ.get("FAKE_GIT_HEAD_COMMIT", approved_commit))
     else:
@@ -280,11 +285,12 @@ elif command == "diff":
         sys.exit(1)
 elif command == "submodule":
     sys.exit(int(os.environ.get("FAKE_GIT_SUBMODULE_RC", "0")))
-""".replace("__APPROVED_REPO__", repr(APPROVED_REPO)).replace(
-    "__APPROVED_COMMIT__", repr(APPROVED_COMMIT)
-).replace("__EMPTY_GIT_BLOB__", repr(EMPTY_GIT_BLOB)).replace(
-    "__NONEMPTY_GIT_BLOB__", repr(NONEMPTY_GIT_BLOB)
-).replace("__GITLINK_OBJECT__", repr(GITLINK_OBJECT))
+""".replace("__APPROVED_REPO__", repr(APPROVED_REPO))
+    .replace("__APPROVED_COMMIT__", repr(APPROVED_COMMIT))
+    .replace("__EMPTY_GIT_BLOB__", repr(EMPTY_GIT_BLOB))
+    .replace("__NONEMPTY_GIT_BLOB__", repr(NONEMPTY_GIT_BLOB))
+    .replace("__GITLINK_OBJECT__", repr(GITLINK_OBJECT))
+)
 
 
 class FetchCrsProvenanceTests(unittest.TestCase):
@@ -436,7 +442,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             with self.subTest(ref=rejected_ref):
                 self.assert_blocked_before_git({"CRS_GIT_REF": rejected_ref})
 
-    def test_default_release_tag_is_metadata_not_a_git_selector(self):
+    def test_default_release_tag_is_fetched_and_peeled_to_the_approved_commit(self):
         result, commands, _ = self.invoke_fetch(
             overrides={"CRS_GIT_REF": APPROVED_RELEASE_TAG}
         )
@@ -445,9 +451,37 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         self.assertIn(
             f"fetch --depth 1 --no-tags origin {APPROVED_COMMIT}", command_text
         )
-        self.assertNotIn(APPROVED_RELEASE_TAG, command_text)
+        self.assertIn(
+            "fetch --depth 1 --no-tags origin "
+            f"refs/tags/{APPROVED_RELEASE_TAG}:refs/tags/{APPROVED_RELEASE_TAG}",
+            command_text,
+        )
+        self.assertIn(
+            f"rev-parse --verify refs/tags/{APPROVED_RELEASE_TAG}^{{}}",
+            command_text,
+        )
         self.assertNotIn("--branch", command_text)
         self.assertNotIn("checkout --detach FETCH_HEAD", command_text)
+
+    def test_rejects_missing_or_moved_reviewed_release_tag(self):
+        for overrides in (
+            {"FAKE_GIT_TAG_FETCH_RC": "2"},
+            {"FAKE_GIT_TAG_COMMIT": ALTERNATE_COMMIT},
+        ):
+            with self.subTest(overrides=overrides):
+                result, commands, _ = self.invoke_fetch(overrides=overrides)
+                command_text = "\n".join(commands)
+                self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                self.assertIn(
+                    f"refs/tags/{APPROVED_RELEASE_TAG}:refs/tags/{APPROVED_RELEASE_TAG}",
+                    command_text,
+                )
+                if "FAKE_GIT_TAG_COMMIT" in overrides:
+                    self.assertIn(
+                        f"rev-parse --verify refs/tags/{APPROVED_RELEASE_TAG}^{{}}",
+                        command_text,
+                    )
+                self.assertNotIn("checkout", self.git_verbs(commands))
 
     def test_rejects_runtime_url_and_ref_overrides_or_ignores_approved_commit_override(
         self,
@@ -510,9 +544,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
     def test_rejects_a_cache_or_outside_source_before_git(self):
         for source_location in ("cache", "outside"):
             with self.subTest(source_location=source_location):
-                result, commands, _ = self.invoke_fetch(
-                    source_location=source_location
-                )
+                result, commands, _ = self.invoke_fetch(source_location=source_location)
                 self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
                 self.assertEqual(commands, [], result.stdout + result.stderr)
 
@@ -553,9 +585,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         self.assertIn(f"ls-tree -r {APPROVED_COMMIT}", command_text)
         self.assertIn("ls-files --stage", command_text)
         self.assertIn("ls-files --stage -- .gitmodules", command_text)
-        self.assertIn(
-            f"rev-parse --verify {APPROVED_COMMIT}:.gitmodules", command_text
-        )
+        self.assertIn(f"rev-parse --verify {APPROVED_COMMIT}:.gitmodules", command_text)
         self.assertIn(f"cat-file -s {APPROVED_COMMIT}:.gitmodules", command_text)
         self.assertIn("hash-object --no-filters -- ", command_text)
         self.assertIn(
@@ -570,7 +600,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
     ):
         def replace_then_prepare(source_dir, runtime_dir, prepare_script, environment):
             (source_dir / ".gitmodules").write_text(
-                "[submodule \\\"attacker\\\"]\\npath = attacker\\n",
+                '[submodule \\"attacker\\"]\\npath = attacker\\n',
                 encoding="utf-8",
             )
             result = subprocess.run(

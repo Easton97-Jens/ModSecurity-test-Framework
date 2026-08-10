@@ -92,7 +92,7 @@ if [ "$CRS_REPO_URL" != "$CRS_APPROVED_REPO_URL" ]; then
     exit 77
 fi
 if [ "$CRS_GIT_REF" != "$CRS_RELEASE_TAG" ]; then
-    ci_error "CRS_GIT_REF must remain release metadata and equal CRS_RELEASE_TAG"
+    ci_error "CRS_GIT_REF must equal the reviewed CRS_RELEASE_TAG"
     exit 77
 fi
 

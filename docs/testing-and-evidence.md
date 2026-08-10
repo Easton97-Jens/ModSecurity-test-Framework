@@ -112,8 +112,9 @@ exercises the update decision with a fake GitHub release client. It verifies
 that mutable tags, branches, ref namespaces, short hashes, and an unrelated
 full hash are rejected before Git use; that the reviewed full commit provisions
 only a fresh checkout and a pre-existing source path is rejected before Git
-use; and that a mismatch in the fetched, resolved, or final `HEAD` stops before
-submodule processing. A newer upstream tag is reported as `unknown`
+use; that the exact reviewed release tag is fetched and must peel to that
+commit; and that a missing, moved, fetched, resolved, or final `HEAD` mismatch
+stops before submodule processing. A newer upstream tag is reported as `unknown`
 with no automatic update: changing the release tag and immutable commit remains
 a reviewed provenance change. It requires no network or connector runtime and
 proves the provisioning identity control only, not a CRS runtime support claim.
@@ -167,6 +168,68 @@ validator inputs and promotion policy.
 required stable connector evidence exists. A pass-through response, a
 late-intervention log, an empty reply, or a source-derived upstream test is not
 by itself response-body blocking proof.
+
+## Five-connector With-CRS / No-MRTS evidence contract
+
+`ci/checks/catalog/five_connectors_with_crs_no_mrts.py` defines the separate,
+fail-closed profile `five-connectors-with-crs-no-mrts`. Its closed inventory is
+exactly Apache, HAProxy, Envoy, Traefik, and lighttpd, in that order. NGINX is
+excluded from this profile only; it remains part of the general six-connector
+boundary and its other assessment obligations.
+
+The canonical fixture is
+`tests/cases/security/crs/crs_sqli_anomaly_block.yaml`. It binds the allow
+control (`200`) and SQL-injection block (`403`, intervention `deny`) to OWASP
+CRS rule `942270`, from CRS `v4.28.0` commit
+`55b09f5acfd16413e7b31041100711ceb7adc89c` and the pinned
+`rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf` digest. The fixture does not
+define a local substitute rule. Its fresh source must also retain
+`refs/tags/v4.28.0^{}` and that tag must peel to the same reviewed commit.
+
+| Connector | Closed adapter identity | Contract mode | Accepted raw evidence |
+| --- | --- | --- | --- |
+| Apache | `apache-native-httpd-module` | `native-httpd-module` | audit |
+| HAProxy | `haproxy-native-htx-filter` | `native-htx-filter` | event |
+| Envoy | `envoy-ext-proc-service` | `ext_proc` | event |
+| Traefik | `traefik-native-middleware` | `native-traefik-middleware` | event |
+| lighttpd | `lighttpd-patched-native-module` | `patched-native-lighttpd` | audit or event |
+
+These are closed evidence identities. The listed Framework smoke entrypoints
+are marked `compatibility-only` and owned by the Parent host contract, so they
+cannot be relabelled as native host execution or used to promote this profile.
+
+The catalog tool has four distinct operations:
+
+```sh
+python ci/checks/catalog/five_connectors_with_crs_no_mrts.py profile
+python ci/checks/catalog/five_connectors_with_crs_no_mrts.py verify-fixture --source-root <fresh-source-root>
+python ci/checks/catalog/five_connectors_with_crs_no_mrts.py validate --evidence-root <private-root> --source-root <fresh-source-root> --connector <fixed-connector> --run-id <id>
+python ci/checks/catalog/five_connectors_with_crs_no_mrts.py aggregate --evidence-root <private-root> --source-root <fresh-source-root> --run-id <id>
+```
+
+`validate` accepts only one member of the closed set and hash-addressed,
+host-provided raw evidence plus non-mutating normalized evidence. It requires
+both correlation identities, the pinned CRS identity, an allow control, the
+observed `942270` deny result, the closed No-MRTS fields, and completed
+cleanup. `aggregate` accepts exactly one validated same-run bundle for each of
+the five connectors and refuses a partial, duplicate, or NGINX-containing
+inventory. The evidence root must be private and outside the checkout; result
+paths are never overwritten.
+
+The four raw inputs have fixed, run-bound locations for host configuration,
+the allow request, the block audit, and cleanup. They are parsed as strict
+key/value records and are hash-bound to the normalized event. `validate` and
+`aggregate` derive the Framework revision from a clean verifier checkout
+rather than accepting a caller-supplied commit argument. Their successful
+outputs are `CONTRACT_VALIDATED` with `host_runtime_status: UNATTESTED`, never
+a connector-host `PASS`.
+
+The focused local regression check exercises fixtures, schemas, closed-set
+rejection, provenance binding, receipt validation, and negative cases. Neither
+that check nor any catalog command starts a connector host, proves a five-host
+runtime success, proves production readiness, or proves a real MRTS process
+state. A later connector-owned run must supply its own host and lifecycle
+evidence before any runtime claim can be made.
 
 ## Case variants and imports
 

@@ -22,6 +22,8 @@ Namen.
 | [`CONNECTOR`](#connector-capabilities_file-evidence_stage-und-no_crs_artifact_profile) | No-CRS | Connector-Ziele | keiner | Connector-Schlüssel | Auswahl des Capability-Manifests |
 | [`PYTHON`](#werkzeuge-statuswerte-und-sensible-daten) | Werkzeuge | Nein | `.venv/bin/python` oder `python3` | Pfad zu ausführbarem Programm | Interpreter für Make |
 | [`PROTOCOL_URL`](#protocol_url) | Protokoll | `protocol-client` | keiner | `http(s)://`-URL | explizites Client-Ziel |
+| `<fresh-source-root>` | Fünf-Connector-CRS-Fixture | `verify-fixture` und `validate` | keines | absolutes Verzeichnis | Frische CRS-Source-Wurzel mit `coreruleset/` |
+| `<private-root>` | Fünf-Connector-Evidenz | `validate` und `aggregate` | keines | privates absolutes Verzeichnis | Extern erzeugte Evidenz und Validator-Ausgaben |
 
 ## Repository-, Build- und Runtime-Pfade
 
@@ -70,6 +72,32 @@ Die Beispiele sind temporäre Runtime-Pfade, keine repository-relativen Pfade
 und keine verpflichtenden Host-Standards.
 
 ## Evidence und No-CRS
+
+### Fünf-Connector-With-CRS-/No-MRTS-Befehlsplatzhalter
+
+`ci/checks/catalog/five_connectors_with_crs_no_mrts.py` verwendet explizite,
+validierte Befehlsargumente. Sein geschlossenes Profil ist
+`five-connectors-with-crs-no-mrts` für `apache`,
+`haproxy`, `envoy`, `traefik` und `lighttpd`; `nginx` wird absichtlich nur für
+dieses Profil zurückgewiesen.
+
+| Platzhalter | Erforderlich für | Bedeutung und Einschränkung |
+|---|---|---|
+| `<fresh-source-root>` | `verify-fixture`, `validate`, `aggregate` | Absolute Source-Wurzel mit frischem `coreruleset/`-Checkout. Der Validator prüft die gepinnte CRS-Regeldatei; er lädt keine unkontrollierte Source herunter und verwendet keine wieder. |
+| `<private-root>` | `validate`, `aggregate` | Absolutes, nicht verlinktes, nicht gruppen-/weltlesbares Verzeichnis außerhalb des Framework-Checkouts. Es enthält vom Host bereitgestellte Eingaben und erhält neue Ergebnisartefakte; vorhandene Ergebniswege werden abgelehnt. |
+| `<fixed-connector>` | `validate` | Genau eines von `apache`, `haproxy`, `envoy`, `traefik` oder `lighttpd`. |
+| `<id>` | `validate`, `aggregate` | Sicheres Korrelationstoken, das nur von den fünf zu validierenden Evidenz-Bundles geteilt wird. Keine Secrets, personenbezogenen Daten oder Kundenkennungen verwenden. |
+
+Der Validator leitet das Framework-Commit aus seinem sauberen Checkout ab und
+weist eine vom Aufrufer gelieferte Überschreibung zurück. Diese Argumente
+validieren nur Evidenz. Sie provisionieren kein CRS, starten keinen Connector,
+führen kein MRTS aus und begründen keinen Connector-Runtime-PASS.
+
+| Make-Variable | Verwendet von | Bedeutung und Einschränkung |
+|---|---|---|
+| `FIVE_CONNECTORS_WITH_CRS_NO_MRTS_EVIDENCE_ROOT` | `five-connectors-with-crs-no-mrts-validate`, `five-connectors-with-crs-no-mrts-aggregate` | Private Evidence-Wurzel für den festen Validator; sie muss dieselben Pfad- und Berechtigungsanforderungen wie `<private-root>` erfüllen. |
+| `FIVE_CONNECTORS_WITH_CRS_NO_MRTS_RUN_ID` | `five-connectors-with-crs-no-mrts-validate`, `five-connectors-with-crs-no-mrts-aggregate` | Erforderliche sichere Run-ID. |
+| `FIVE_CONNECTORS_WITH_CRS_NO_MRTS_CONNECTOR` | `five-connectors-with-crs-no-mrts-validate` | Erforderliches Mitglied der geschlossenen Liste; die Python-CLI weist jeden anderen Connector zurück. |
 
 ### `EVIDENCE_ROOT`
 
@@ -169,19 +197,21 @@ aktiviert optionale Demo-Inhalte erst nach Kollisionsprüfungen.
 Provenance-Werte in `ci/lib/common.sh`, derzeit
 `https://github.com/coreruleset/coreruleset.git` und
 `55b09f5acfd16413e7b31041100711ceb7adc89c`. Sie sind keine Caller-Eingaben.
-`CRS_GIT_REF=v4.28.0` bleibt zentrale Release-Metadaten für die
-Versionsberichterstattung; es ist niemals ein Git-Selektor. `fetch-crs.sh`
-weist eine abweichende `CRS_REPO_URL` oder `CRS_GIT_REF` vor der
-Git-Ausführung ab, und Umgebungsversuche zum Ersetzen der beiden freigegebenen
+`CRS_GIT_REF=v4.28.0` ist der feste Release-Tag-Teil dieses geprüften Tupels.
+`fetch-crs.sh` weist eine abweichende `CRS_REPO_URL` oder `CRS_GIT_REF` vor der
+Git-Ausführung ab, lädt nur die exakte zentrale Tag-Ref und verlangt, dass ihr
+aufgelöstes Objekt `CRS_APPROVED_COMMIT` entspricht; eine Caller-selektierte Ref
+wird nie akzeptiert. Umgebungsversuche zum Ersetzen der beiden freigegebenen
 Provenance-Literale werden durch die zentrale Definition überschrieben.
 
 `CRS_SOURCE_DIR` muss ein nicht vorhandener Pfad unter dem zulässigen externen
 `SOURCE_ROOT` sein; ein vorhandenes Verzeichnis oder ein Link wird nicht
 wiederverwendet, sondern abgewiesen. Der Fetch-Pfad initialisiert ein frisches
-Repository, setzt und liest den exakten HTTPS-Origin zurück, lädt nur den
-freigegebenen vollständigen Commit ohne Tags oder rekursive Submodule und
-vergleicht `FETCH_HEAD^{commit}`, das aufgelöste Commit-Objekt und das finale
-`HEAD^{commit}` mit derselben Identität. Ein fehlender `.gitmodules`-Pfad wird
+Repository, setzt und liest den exakten HTTPS-Origin zurück, lädt den
+freigegebenen vollständigen Commit ohne automatische Tags oder rekursive
+Submodule, lädt danach nur die exakte geprüfte Tag-Ref und vergleicht ihr
+aufgelöstes Objekt, `FETCH_HEAD^{commit}`, das aufgelöste Commit-Objekt und das
+finale `HEAD^{commit}` mit derselben Identität. Ein fehlender `.gitmodules`-Pfad wird
 akzeptiert. Der eine vorhandene Root-Pfad `.gitmodules` wird nur als reguläre,
 nicht verlinkte, null Byte große Git-Empty-Blob
 `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` im freigegebenen Tree, Checkout-

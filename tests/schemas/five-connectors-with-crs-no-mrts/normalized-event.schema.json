@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Five-connector With-CRS/No-MRTS normalized event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile",
+    "connector",
+    "adapter_id",
+    "integration_mode",
+    "fixture_id",
+    "run_id",
+    "framework_commit",
+    "connector_commit",
+    "request_id",
+    "transaction_id",
+    "evidence_type",
+    "evidence_origin",
+    "crs_repository",
+    "crs_release_tag",
+    "crs_commit",
+    "crs_rule_file",
+    "crs_rule_file_sha256",
+    "crs_source_kind",
+    "crs_git_ref",
+    "expected_rule_id",
+    "observed_rule_id",
+    "expected_status",
+    "observed_status",
+    "intervention",
+    "allow_case",
+    "host_configuration",
+    "block_evidence",
+    "no_mrts",
+    "cleanup",
+    "status",
+    "failure_count",
+    "mismatch_count"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "profile": {"const": "five-connectors-with-crs-no-mrts"},
+    "connector": {"enum": ["apache", "haproxy", "envoy", "traefik", "lighttpd"]},
+    "adapter_id": {"$ref": "#/$defs/token"},
+    "integration_mode": {"$ref": "#/$defs/token"},
+    "fixture_id": {"const": "crs_sqli_anomaly_block"},
+    "run_id": {"$ref": "#/$defs/token"},
+    "framework_commit": {"$ref": "#/$defs/commit"},
+    "connector_commit": {"$ref": "#/$defs/commit"},
+    "request_id": {"$ref": "#/$defs/token"},
+    "transaction_id": {"$ref": "#/$defs/token"},
+    "evidence_type": {"enum": ["audit", "event"]},
+    "evidence_origin": {"const": "connector-host"},
+    "crs_repository": {"const": "https://github.com/coreruleset/coreruleset.git"},
+    "crs_release_tag": {"const": "v4.28.0"},
+    "crs_commit": {"const": "55b09f5acfd16413e7b31041100711ceb7adc89c"},
+    "crs_rule_file": {"const": "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"},
+    "crs_rule_file_sha256": {
+      "const": "db756f71e8270280c5ae74d09c11250fad8c118f6a905c6a6794d5643d27cd00"
+    },
+    "crs_source_kind": {"const": "fresh"},
+    "crs_git_ref": {"const": "v4.28.0"},
+    "expected_rule_id": {"const": 942270},
+    "observed_rule_id": {"const": 942270},
+    "expected_status": {"const": 403},
+    "observed_status": {"const": 403},
+    "intervention": {"const": "deny"},
+    "allow_case": {"$ref": "#/$defs/allow_case"},
+    "host_configuration": {"$ref": "#/$defs/host_configuration"},
+    "block_evidence": {"$ref": "#/$defs/block_evidence"},
+    "no_mrts": {"$ref": "#/$defs/no_mrts"},
+    "cleanup": {"$ref": "#/$defs/cleanup"},
+    "status": {"const": "PASS"},
+    "failure_count": {"const": 0},
+    "mismatch_count": {"const": 0}
+  },
+  "$defs": {
+    "token": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "evidence_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_path", "evidence_sha256"],
+      "properties": {
+        "evidence_path": {"type": "string"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "allow_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture_id",
+        "run_id",
+        "request_id",
+        "transaction_id",
+        "expected_status",
+        "observed_status",
+        "observed_rule_id",
+        "evidence_path",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "fixture_id": {"const": "crs_sqli_anomaly_block:allow"},
+        "run_id": {"$ref": "#/$defs/token"},
+        "request_id": {"$ref": "#/$defs/token"},
+        "transaction_id": {"$ref": "#/$defs/token"},
+        "expected_status": {"const": 200},
+        "observed_status": {"const": 200},
+        "observed_rule_id": {"type": "null"},
+        "evidence_path": {"type": "string"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "host_configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config_test_status",
+        "host_start_status",
+        "evidence_path",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "config_test_status": {"const": "passed"},
+        "host_start_status": {"const": "passed"},
+        "evidence_path": {"type": "string"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "block_evidence": {"$ref": "#/$defs/evidence_reference"},
+    "no_mrts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runner_invoked",
+        "case_inventory_loaded",
+        "process_started",
+        "socket_or_listener_created",
+        "artifact_used"
+      ],
+      "properties": {
+        "runner_invoked": {"const": false},
+        "case_inventory_loaded": {"const": false},
+        "process_started": {"const": false},
+        "socket_or_listener_created": {"const": false},
+        "artifact_used": {"const": false}
+      }
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "host_processes_remaining",
+        "helper_processes_remaining",
+        "listeners_remaining",
+        "sockets_remaining",
+        "pid_files_remaining",
+        "runtime_fixtures_remaining",
+        "temporary_paths_remaining",
+        "evidence_path",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "status": {"const": "passed"},
+        "host_processes_remaining": {"const": 0},
+        "helper_processes_remaining": {"const": 0},
+        "listeners_remaining": {"const": 0},
+        "sockets_remaining": {"const": 0},
+        "pid_files_remaining": {"const": 0},
+        "runtime_fixtures_remaining": {"const": 0},
+        "temporary_paths_remaining": {"const": 0},
+        "evidence_path": {"type": "string"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}
