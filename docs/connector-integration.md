@@ -93,6 +93,28 @@ and lifecycle result belong to the connector repository. This avoids treating
 documentation-only, compatibility, or prototype material as a native runtime
 implementation.
 
+### With-CRS / No-MRTS five-connector profile
+
+The Framework also defines a narrow evidence-validation profile named
+`five-connectors-with-crs-no-mrts`. It is not a replacement for the
+six-connector boundary above: it selects only Apache, HAProxy, Envoy, Traefik,
+and lighttpd, and excludes NGINX only from this profile.
+
+For each selected connector, the connector owner must produce bounded raw and
+normalized evidence for the canonical CRS allow and block controls. The
+Framework validator checks the configured adapter identity, request and
+transaction correlation, pinned CRS provenance, the `942270` deny result,
+explicit No-MRTS receipt fields, and cleanup receipt fields. It accepts no
+dynamic adapter selection and no incomplete five-connector aggregate.
+
+This is a host-provided-evidence validation boundary, not a Framework host
+harness. The profile and a successful validator result do not demonstrate that
+five hosts were run, that a connector is production-ready, or that MRTS
+processes were absent outside the supplied evidence contract. The connector
+repository retains responsibility for those runtime facts. A successful
+Framework output is explicitly `CONTRACT_VALIDATED` with
+`host_runtime_status: UNATTESTED`, not a connector-host `PASS`.
+
 ## Compatibility paths
 
 Historical HAProxy SPOE/SPOA discovery, disabled-key, report-schema, and

@@ -170,6 +170,14 @@ crs_verify_checked_out_provenance() {
         crs_provenance_blocked "CRS checkout has unexpected origin: $remote_url"
         return 1
     fi
+    if ! checked_out_tag_commit=$(crs_git -C "$CRS_SOURCE_DIR" rev-parse --verify "refs/tags/$CRS_RELEASE_TAG^{}" 2>/dev/null); then
+        crs_provenance_blocked "could not resolve the reviewed CRS release tag"
+        return 1
+    fi
+    if [ "$checked_out_tag_commit" != "$CRS_APPROVED_COMMIT" ]; then
+        crs_provenance_blocked "reviewed CRS release tag does not peel to the approved commit"
+        return 1
+    fi
     if ! crs_verify_checked_out_submodule_state; then
         return 1
     fi

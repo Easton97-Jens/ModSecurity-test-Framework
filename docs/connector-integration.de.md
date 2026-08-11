@@ -97,6 +97,29 @@ Konfigurationsreferenz und das Lifecycle-Ergebnis gehören zum
 Connector-Repository. Dadurch wird Dokumentations-, Compatibility- oder
 Prototyp-Material nicht als native Runtime-Implementierung behandelt.
 
+### With-CRS-/No-MRTS-Fünf-Connector-Profil
+
+Das Framework definiert außerdem ein enges Evidenzvalidierungsprofil mit dem
+Namen `five-connectors-with-crs-no-mrts`. Es ersetzt die obige
+Sechs-Connector-Grenze nicht: Es wählt nur Apache, HAProxy, Envoy, Traefik und
+lighttpd und schließt NGINX nur von diesem Profil aus.
+
+Für jeden ausgewählten Connector muss der Connector-Owner begrenzte Raw- und
+normalisierte Evidenz für die kanonischen CRS-Allow- und Block-Kontrollen
+erzeugen. Der Framework-Validator prüft die konfigurierte Adapteridentität,
+Request- und Transaktionskorrelation, gepinnte CRS-Provenance, das
+`942270`-`deny`-Ergebnis, explizite No-MRTS-Receipt-Felder und
+Cleanup-Receipt-Felder. Er akzeptiert weder dynamische Adapterauswahl noch ein
+unvollständiges Fünf-Connector-Aggregat.
+
+Dies ist eine Validierungsgrenze für vom Host bereitgestellte Evidenz, kein
+Framework-Host-Harness. Das Profil und ein erfolgreicher Validatorlauf belegen
+nicht, dass fünf Hosts liefen, ein Connector produktionsreif ist oder MRTS-
+Prozesse außerhalb des gelieferten Evidenzvertrags fehlten. Diese Runtime-
+Fakten bleiben Verantwortung des Connector-Repositories. Eine erfolgreiche
+Framework-Ausgabe ist ausdrücklich `CONTRACT_VALIDATED` mit
+`host_runtime_status: UNATTESTED`, kein Connector-Host-`PASS`.
+
 ## Compatibility-Pfade
 
 Historische HAProxy-SPOE/SPOA-Discovery-, Disabled-Key-, Report-Schema- und

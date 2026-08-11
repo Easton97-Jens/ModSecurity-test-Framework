@@ -1,10 +1,11 @@
 origin:
   - repo: coreruleset/coreruleset
     path: rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf
-    reason: CRS SQL injection anomaly scoring should block a basic UNION SELECT probe.
+    reason: Pinned OWASP CRS rule 942270 blocks the canonical UNION SELECT FROM probe.
 category: crs
 portable: true
 requires_crs: true
+fixture_id: crs_sqli_anomaly_block
 name: crs_sqli_anomaly_block
 capabilities:
   query_args: true
@@ -12,10 +13,53 @@ capabilities:
   intervention: true
 rules: |
   SecRuleEngine On
-  SecAction "id:199901,phase:2,pass,nolog"
 request:
   method: GET
   path: "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
 expect:
   status: 403
   intervention: deny
+with_crs_no_mrts:
+  schema_version: 1
+  profile: five-connectors-with-crs-no-mrts
+  connectors:
+    - apache
+    - haproxy
+    - envoy
+    - traefik
+    - lighttpd
+  canonical_allow:
+    request:
+      method: GET
+      path: "/?id=42"
+      headers:
+        X-Framework-Run-ID: "{run_id}"
+      body: ""
+    expected_status: 200
+  canonical_block:
+    request:
+      method: GET
+      path: "/?id=1%20UNION%20SELECT%20password%20FROM%20users"
+      headers:
+        X-Framework-Run-ID: "{run_id}"
+      body: ""
+    expected_status: 403
+    expected_intervention: deny
+    expected_rule_id: 942270
+    crs_mode: enabled
+  provenance:
+    repository: https://github.com/coreruleset/coreruleset.git
+    release_tag: v4.28.0
+    commit: 55b09f5acfd16413e7b31041100711ceb7adc89c
+    rule_file: rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf
+    rule_file_sha256: db756f71e8270280c5ae74d09c11250fad8c118f6a905c6a6794d5643d27cd00
+    expected_rule_id: 942270
+    git_ref_mode: release-tag-peeled-to-commit
+  evidence:
+    correlation_header: X-Framework-Run-ID
+    request_id: required
+    transaction_id: required
+    raw_evidence: hash-addressed
+    normalization: non-mutating
+    no_mrts: required
+    cleanup: required

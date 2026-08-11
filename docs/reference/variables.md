@@ -21,6 +21,8 @@ reference for repeated names.
 | [`CONNECTOR`](#connector-capabilities_file-evidence_stage-and-no_crs_artifact_profile) | No-CRS | Connector targets | none | connector key | Capability-manifest selector |
 | [`PYTHON`](#tooling-status-values-and-sensitive-data) | tooling | No | `.venv/bin/python` or `python3` | executable path | Interpreter used by Make |
 | [`PROTOCOL_URL`](#protocol_url) | protocol | `protocol-client` | none | `http(s)://` URL | Explicit client target |
+| `<fresh-source-root>` | five-connector CRS fixture | `verify-fixture` and `validate` | none | absolute directory | Fresh CRS source root containing `coreruleset/` |
+| `<private-root>` | five-connector evidence | `validate` and `aggregate` | none | private absolute directory | Externally produced evidence and validator outputs |
 
 ## Repository, build, and runtime paths
 
@@ -69,6 +71,32 @@ The examples are temporary runtime paths, not repository-relative paths or
 required host defaults.
 
 ## Evidence and No-CRS
+
+### Five-connector With-CRS / No-MRTS command placeholders
+
+`ci/checks/catalog/five_connectors_with_crs_no_mrts.py` uses explicit,
+validated command arguments. Its closed profile is
+`five-connectors-with-crs-no-mrts` for `apache`, `haproxy`, `envoy`,
+`traefik`, and `lighttpd`; `nginx` is deliberately rejected for this profile
+only.
+
+| Placeholder | Required by | Meaning and constraint |
+|---|---|---|
+| `<fresh-source-root>` | `verify-fixture`, `validate`, `aggregate` | Absolute source root with a fresh `coreruleset/` checkout. The validator checks the pinned CRS rule file; it does not fetch or reuse an uncontrolled source. |
+| `<private-root>` | `validate`, `aggregate` | Absolute, non-symlink, group/world-inaccessible directory outside the Framework checkout. It contains host-provided input and receives new result artifacts; existing result paths are refused. |
+| `<fixed-connector>` | `validate` | Exactly one of `apache`, `haproxy`, `envoy`, `traefik`, or `lighttpd`. |
+| `<id>` | `validate`, `aggregate` | Safe correlation token shared only by the five evidence bundles being validated. Do not use secrets, personal data, or customer identifiers. |
+
+The validator derives the Framework commit from its clean checkout and rejects
+a caller-supplied override. These arguments validate evidence only. They do
+not provision CRS, start a connector, run MRTS, or establish a
+connector-runtime PASS.
+
+| Make variable | Used by | Meaning and constraint |
+|---|---|---|
+| `FIVE_CONNECTORS_WITH_CRS_NO_MRTS_EVIDENCE_ROOT` | `five-connectors-with-crs-no-mrts-validate`, `five-connectors-with-crs-no-mrts-aggregate` | Private evidence root passed to the fixed validator; it must meet the same path and permission requirements as `<private-root>`. |
+| `FIVE_CONNECTORS_WITH_CRS_NO_MRTS_RUN_ID` | `five-connectors-with-crs-no-mrts-validate`, `five-connectors-with-crs-no-mrts-aggregate` | Required safe run ID. |
+| `FIVE_CONNECTORS_WITH_CRS_NO_MRTS_CONNECTOR` | `five-connectors-with-crs-no-mrts-validate` | Required closed-set member; the Python CLI rejects every other connector. |
 
 ### `EVIDENCE_ROOT`
 
@@ -164,18 +192,20 @@ content only after collision checks.
 provenance values in `ci/lib/common.sh`, currently
 `https://github.com/coreruleset/coreruleset.git` and
 `55b09f5acfd16413e7b31041100711ceb7adc89c`. They are not caller inputs.
-`CRS_GIT_REF=v4.28.0` remains central release metadata for version reporting;
-it is never a Git selector. `fetch-crs.sh` rejects a differing
-`CRS_REPO_URL` or `CRS_GIT_REF` before Git runs, and environment attempts to
-replace either approved provenance literal are overwritten by the central
-definition.
+`CRS_GIT_REF=v4.28.0` is the fixed release-tag leg of that reviewed tuple.
+`fetch-crs.sh` rejects a differing `CRS_REPO_URL` or `CRS_GIT_REF` before Git
+runs, fetches only the exact central tag ref, and requires its peeled object to
+equal `CRS_APPROVED_COMMIT`; it never accepts a caller-selected ref. Environment
+attempts to replace either approved provenance literal are overwritten by the
+central definition.
 
 `CRS_SOURCE_DIR` must be an absent path below the permitted external
 `SOURCE_ROOT`; an existing directory or link is rejected rather than reused.
 The fetch path initializes a fresh repository, sets and reads back the exact
-HTTPS origin, fetches only the approved full commit without tags or recursive
-submodules, and compares `FETCH_HEAD^{commit}`, the resolved commit object,
-and final `HEAD^{commit}` with that same identity. An absent `.gitmodules`
+HTTPS origin, fetches the approved full commit without automatic tags or
+recursive submodules, then fetches only the exact reviewed tag ref and compares
+its peeled object, `FETCH_HEAD^{commit}`, the resolved commit object, and final
+`HEAD^{commit}` with that same identity. An absent `.gitmodules`
 path is accepted. The one present root `.gitmodules` path is accepted only as
 the regular, non-symlinked, zero-byte Git empty blob
 `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` in the approved tree, checkout

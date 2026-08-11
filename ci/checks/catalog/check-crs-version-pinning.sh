@@ -1,11 +1,13 @@
 #!/bin/sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 SCRIPT_PATH="$SCRIPT_DIR/check-crs-version-pinning.sh"
+# shellcheck source=ci/lib/path-bootstrap.sh
 . "$SCRIPT_DIR/../../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-${REPO_ROOT:-$(pwd)}}"
 REPO_ROOT="$CONNECTOR_ROOT"
+# shellcheck source=ci/lib/common.sh
 . "$CI_ROOT/lib/common.sh"
 
 status=0
@@ -92,7 +94,7 @@ if [ "$CRS_REPO_URL" != "$CRS_APPROVED_REPO_URL" ]; then
     exit 77
 fi
 if [ "$CRS_GIT_REF" != "$CRS_RELEASE_TAG" ]; then
-    ci_error "CRS_GIT_REF must remain release metadata and equal CRS_RELEASE_TAG"
+    ci_error "CRS_GIT_REF must equal the reviewed CRS_RELEASE_TAG"
     exit 77
 fi
 

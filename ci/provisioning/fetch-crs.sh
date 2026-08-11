@@ -1,12 +1,13 @@
 #!/bin/sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
+# shellcheck source=ci/lib/path-bootstrap.sh
 . "$SCRIPT_DIR/../lib/path-bootstrap.sh"
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$FRAMEWORK_ROOT}"
 REPO_ROOT="$CONNECTOR_ROOT"
+# shellcheck source=ci/lib/common.sh
 . "$CI_ROOT/lib/common.sh"
-# shellcheck disable=SC2034 # Consumed by the sourceable shared verifier.
 CRS_PROVENANCE_CONTEXT=fetch_crs
 # shellcheck source=ci/provisioning/crs-provenance.sh
 . "$SCRIPT_DIR/crs-provenance.sh"
@@ -42,7 +43,11 @@ require_approved_crs_provenance() {
         exit 77
     fi
     if [ "$CRS_GIT_REF" != "$CRS_RELEASE_TAG" ]; then
-        ci_blocked "fetch_crs CRS_GIT_REF is release metadata and cannot select a Git object: $CRS_GIT_REF"
+        ci_blocked "fetch_crs CRS_GIT_REF must equal the reviewed release tag: $CRS_GIT_REF"
+        exit 77
+    fi
+    if ! ci_require_safe_ref "$CRS_RELEASE_TAG" "CRS_RELEASE_TAG"; then
+        ci_blocked "fetch_crs CRS_RELEASE_TAG must be a safe reviewed release tag"
         exit 77
     fi
 }
@@ -72,6 +77,14 @@ verify_fetched_crs_commit() {
     fetched_commit=$(crs_git -C "$CRS_SOURCE_DIR" rev-parse --verify "FETCH_HEAD^{commit}" 2>/dev/null || true)
     if [ "$fetched_commit" != "$CRS_APPROVED_COMMIT" ]; then
         ci_blocked "fetch_crs fetched CRS commit does not match the approved commit"
+        exit 77
+    fi
+}
+
+verify_fetched_crs_release_tag() {
+    peeled_tag_commit=$(crs_git -C "$CRS_SOURCE_DIR" rev-parse --verify "refs/tags/$CRS_RELEASE_TAG^{}" 2>/dev/null || true)
+    if [ "$peeled_tag_commit" != "$CRS_APPROVED_COMMIT" ]; then
+        ci_blocked "fetch_crs approved release tag does not peel to the approved commit"
         exit 77
     fi
 }
@@ -106,6 +119,13 @@ provision_fresh_crs() {
     fi
     verify_fetched_crs_commit
     verify_resolved_crs_commit
+    ci_info "fetch_crs fetching reviewed release tag $CRS_RELEASE_TAG"
+    if ! crs_git -C "$CRS_SOURCE_DIR" fetch --depth 1 --no-tags origin "refs/tags/$CRS_RELEASE_TAG:refs/tags/$CRS_RELEASE_TAG"; then
+        cleanup_failed_crs_provision
+        notice "CRS fetch blocked for reviewed release tag $CRS_RELEASE_TAG"
+        exit 77
+    fi
+    verify_fetched_crs_release_tag
     if ! crs_git -C "$CRS_SOURCE_DIR" checkout --detach "$CRS_APPROVED_COMMIT" >/dev/null 2>&1; then
         cleanup_failed_crs_provision
         ci_blocked "fetch_crs could not checkout the approved CRS commit"

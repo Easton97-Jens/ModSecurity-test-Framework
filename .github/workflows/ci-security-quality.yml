@@ -6,6 +6,8 @@ on:
       - master
     paths:
       - "ci/checks/security/**"
+      - "ci/checks/catalog/five_connectors_with_crs_no_mrts.py"
+      - "ci/tools/run-five-connectors-with-crs-no-mrts.py"
       - "ci/checks/documentation/check-change-records.py"
       - "ci/tools/fetch-security-tool.py"
       - "ci/tools/update-python-version.py"
@@ -18,6 +20,8 @@ on:
   pull_request:
     paths:
       - "ci/checks/security/**"
+      - "ci/checks/catalog/five_connectors_with_crs_no_mrts.py"
+      - "ci/tools/run-five-connectors-with-crs-no-mrts.py"
       - "ci/checks/documentation/check-change-records.py"
       - "ci/tools/fetch-security-tool.py"
       - "ci/tools/update-python-version.py"
@@ -89,6 +93,8 @@ jobs:
         run: |
           set -euo pipefail
           "$TOOLS_DIR/ruff" check ci/checks/security/check-ci-security-contract.py \
+            ci/checks/catalog/five_connectors_with_crs_no_mrts.py \
+            ci/tools/run-five-connectors-with-crs-no-mrts.py \
             ci/checks/security/check-python-version.py \
             ci/checks/security/check-ci-security-evidence-contract.py \
             ci/checks/security/check-json-result.py \
@@ -98,6 +104,8 @@ jobs:
             ci/tools/fetch-security-tool.py ci/tools/update-python-version.py \
             ci/tools/update-workflow-tools.py tests/ci_security
           "$TOOLS_DIR/ruff" format --check ci/checks/security/check-ci-security-contract.py \
+            ci/checks/catalog/five_connectors_with_crs_no_mrts.py \
+            ci/tools/run-five-connectors-with-crs-no-mrts.py \
             ci/checks/security/check-python-version.py \
             ci/checks/security/check-ci-security-evidence-contract.py \
             ci/checks/security/check-json-result.py \

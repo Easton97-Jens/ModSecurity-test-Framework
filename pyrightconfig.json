@@ -1,6 +1,8 @@
 {
   "include": [
     "ci/checks/security/check-ci-security-contract.py",
+    "ci/checks/catalog/five_connectors_with_crs_no_mrts.py",
+    "ci/tools/run-five-connectors-with-crs-no-mrts.py",
     "ci/checks/security/check-ci-security-evidence-contract.py",
     "ci/checks/security/check-json-result.py",
     "ci/checks/security/compare-osv-results.py",

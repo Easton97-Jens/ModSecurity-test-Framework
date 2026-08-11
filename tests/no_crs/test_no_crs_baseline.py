@@ -756,6 +756,8 @@ class NoCrsBaselineTest(unittest.TestCase):
     def test_all_declared_runner_cases_materialize_the_full_ruleset_once(self) -> None:
         with tempfile.TemporaryDirectory(prefix="no-crs-test-") as temporary:
             root = Path(temporary)
+            audit_log_dir = root / "audit"
+            audit_log_dir.mkdir(mode=0o700)
             for catalog_case in no_crs.catalog_cases(no_crs.load_catalog()):
                 runner_case = catalog_case.get("runner_case")
                 if not runner_case:
@@ -767,7 +769,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                     output,
                     output_root=root,
                     audit_log_file=root / "audit.log",
-                    audit_log_dir=root / "audit",
+                    audit_log_dir=audit_log_dir,
                     rules_preamble_file=no_crs.RULES_PATH,
                 )
                 content = output.read_text(encoding="utf-8")
