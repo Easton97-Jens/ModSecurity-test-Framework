@@ -9,7 +9,7 @@
 | Change-ID | `20260812-01-add-atomic-common-version-provenance-resolver` |
 | UTC-Datum | 2026-08-12 |
 | Framework-Basisrevision | `209389022c942d83113f6be88bf31d25637352f0` |
-| Issue oder Pull Request | Der Draft-[PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) ist offen und zielt von `agent/common-version-atomic-provenance` auf `master`. Sein aktuell veröffentlichter Head ist `581e1cb2a5f971e5a5b0d83ef2b63ce4f3923795`; dies ist keine finale Remediation-SHA. |
+| Issue oder Pull Request | Der Draft-[PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) ist offen und zielt von `agent/common-version-atomic-provenance` auf `master`. Zum Zeitpunkt der erfassten Sonar-Evidenz lösten lokaler Checkout, `origin/agent/common-version-atomic-provenance` und PR-Head alle zu `fae3b81db491944a21395de80e3c928f82077143` auf. |
 
 ## Motivation und Problemstellung
 
@@ -87,13 +87,16 @@ nicht genau einen Datensatz auswählt.
   URLs, CLI und Workflow-Auswahl.
 - Dieser gepaarte Record bewahrt die Framework-eigene Entscheidung und den
   aktuellen Validierungsstatus.
-- Die veröffentlichte PR-Historie enthält derzeit
+- Zum Zeitpunkt der erfassten Sonar-Evidenz enthielt die veröffentlichte PR-Historie
   `e23152be008c52ecc5b5e8bcc6c7357d7a083408` (`Add atomic common-version
   provenance resolver`) und
   `581e1cb2a5f971e5a5b0d83ef2b63ce4f3923795` (`Format CI security contract
-  updates`). Die verhaltensbewahrende Remediation für einen Sonar-Code-Smell
-  hat die lokale Validierung bestanden; finaler Commit, veröffentlichter Head
-  und Hosted-Validierung stehen noch aus.
+  updates`), gefolgt von
+  `ba348a7c28b13edcdc253aef7389c89b8285b241` (`Resolve Sonar code smells in
+  provenance resolver`) und dem damals aktuellen exakten Head
+  `fae3b81db491944a21395de80e3c928f82077143` (`Reduce release URL validation
+  complexity`). Die beiden letzten Commits bilden die verhaltensbewahrende
+  Sonar-Remediation; ihre lokale Validierung bestand.
 
 ## Befehle und Ergebnisse
 
@@ -103,13 +106,16 @@ nicht genau einen Datensatz auswählt.
 | `make check-documentation` | 0 | Dokumentationslinks, Variablendokumentation, Repository-Pfade und Change-Record-Vertrag bestanden vor dem Hinzufügen dieses Record-Paars. | Framework-Working-Tree |
 | `git diff --check -- reports/audits/change-records/20260812-01-add-atomic-common-version-provenance-resolver.md reports/audits/change-records/20260812-01-add-atomic-common-version-provenance-resolver.de.md` | 0 | Keine Whitespace-Fehler im gepaarten Change Record. | Framework-Working-Tree |
 | `make check-documentation` | 0 | Dokumentationslinks, Variablendokumentation, Repository-Pfade und der finale Change-Record-Vertrag bestanden mit diesem Record-Paar. | Framework-Working-Tree |
-| `gh pr view 76 --json number,url,state,isDraft,headRefName,headRefOid,baseRefName,commits,statusCheckRollup,reviewDecision,mergeStateStatus` | 0 | Draft-PR #76 auf `agent/common-version-atomic-provenance`, Ziel `master`, mit den zwei oben genannten veröffentlichten Commits und veröffentlichtem Head `581e1cb…` beobachtet. | [PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) |
+| `gh pr view 76 --json number,url,state,isDraft,headRefName,headRefOid,baseRefName,commits,reviewDecision,mergeStateStatus` | 0 | Draft-PR #76 auf `agent/common-version-atomic-provenance`, Ziel `master`, mit damals aktuellem PR-Head `fae3b81db491944a21395de80e3c928f82077143` und den vier oben genannten veröffentlichten Commits beobachtet. | [PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) |
 | Lokale Suiten `test_common_versions_sonar_provenance` + `test_common_version_atomic_provenance` | 0 | 44 verhaltensbewahrende Sonar-Remediation-Tests bestanden in `749.688s`. | Framework-Working-Tree |
 | Direkte Suite `test_common_version_atomic_provenance` | 0 | 15 atomare Provenance-Tests bestanden. | Framework-Working-Tree |
 | `make test-ci-security-contract` | 0 | 173 CI-Security-Contract-Tests bestanden in `54.902s`. | Framework-Working-Tree |
 | Lokale `py_compile`-Validierung | 0 | Geänderter Python-Validierungscode wurde erfolgreich kompiliert. | Framework-Working-Tree |
 | `make check-documentation` | 0 | Dokumentationsvalidierung bestand nach der lokalen Sonar-Remediation-Validierung. | Framework-Working-Tree |
 | `git diff --check` | 0 | Der lokale Remediation-Diff hatte keine Whitespace-Fehler. | Framework-Working-Tree |
+| Exact-Head-`SonarCloud Code Analysis` für PR #76 | success | Abgeschlossen um `2026-08-12T20:31:29Z`. | [PR-#76-SonarCloud-Analyse](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=76) |
+| SonarQube-Cloud-Bot-Kommentar zu PR #76 | beobachtet | Um `2026-08-12T20:31:32Z` meldete er Quality Gate passed, `0 New issues`, `0 Accepted issues` und `0 Security Hotspots`. | [PR-#76-Kommentar](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76#issuecomment-5272463046) |
+| SonarQube-Cloud-API-Issue-Suche für PR #76 | 0 | Die begrenzte PR-Abfrage lieferte insgesamt `0`; dies behauptet nichts über nicht zugehörige Projekt- oder künftige Head-Issues. | PR-#76-Exact-Head-Evidenz |
 
 ## Sicherheitsauswirkung
 
@@ -123,13 +129,15 @@ oder Deployment-Aktion ausgeführt.
 ## Dokumentation und Runtime-Evidenz
 
 Die gepaarte Variablenreferenz dokumentiert den neuen Resolver-Vertrag auf
-Englisch und Deutsch. Draft-PR #76 sowie sein aktuell veröffentlichter
+Englisch und Deutsch. Draft-PR #76 sowie sein damals veröffentlichter
 Branch/Head wurden beobachtet. Keine Host-Runtime, kein Connector-Lifecycle,
 kein Merge, keine Parent-Aktion, MRTS-Aktion oder Gitlink-Update wurde
 beobachtet oder als Evidenz gesammelt. Eine verhaltensbewahrende Remediation
 für einen Sonar-Code-Smell hat die oben erfasste lokale Validierung bestanden.
-Ihr finaler Commit, veröffentlichter Head und die Hosted-Validierung für die
-aktuelle SHA wurden noch nicht beobachtet.
+Der Exact-Head-SonarCloud-Check war um `2026-08-12T20:31:29Z` erfolgreich; der
+nachfolgende Bot-Kommentar und die begrenzte API-Abfrage meldeten die oben
+erfassten Null-Issue-Fakten. Diese Sonar-Fakten schließen die noch laufende
+Hosted-CI für den aktuellen Head nicht ab.
 
 ## Nicht ausgeführte Prüfungen
 
@@ -137,11 +145,13 @@ aktuelle SHA wurden noch nicht beobachtet.
   die oben erfassten bestandenen Suiten hinaus wurden von diesem reinen
   Record-Subtask nicht ausgeführt; ihre Ausführung obliegt dem
   Implementierungs-Owner.
-- Die verhaltensbewahrende Sonar-Code-Smell-Remediation bestand die lokale
-  Validierung, hat aber noch keinen finalen Commit, keinen finalen
-  veröffentlichten Remediation-Head, kein Hosted-Check-Ergebnis für die
-  aktuelle SHA, Review oder Branch-Protection-Disposition. Diese müssen für
-  ihren späteren exakten Head erneut bewertet werden.
+- Zum Beobachtungszeitpunkt hat die Hosted-CI für den aktuellen Head noch
+  laufende Checks. Der frühere OSV-Versuch auf
+  `ba348a7c28b13edcdc253aef7389c89b8285b241` traf beim Tool-Download auf einen
+  externen HTTP 503; er ist keine Evidenz für
+  `fae3b81db491944a21395de80e3c928f82077143`. Der OSV-Status für den finalen
+  Head, verbleibende CI-Checks, Review und Branch-Protection-Disposition
+  bleiben getrennt ausstehend.
 
 ## Einschränkungen und Restrisiko
 
@@ -153,11 +163,11 @@ Connector-Kompatibilität oder Runtime-Reife.
 
 ## Finaler Diff- und Review-Status
 
-Dieser Record war Teil der oben beschriebenen veröffentlichten PR-#76-
-Historie. Der aktuell veröffentlichte Branch und
-`origin/agent/common-version-atomic-provenance` lösen beide zu `581e1cb…` auf,
-doch die verhaltensbewahrende Sonar-Code-Smell-Remediation hat die lokale
-Validierung bestanden und macht diesen Head nicht final. Finaler Commit,
-veröffentlichte SHA, Hosted-Checks für die aktuelle SHA, Review und
-Merge-Status stehen aus. Es werden keine Parent-Änderung, MRTS-Änderung oder
-Gitlink-Update behauptet.
+Dieser Record ist Teil der oben beschriebenen veröffentlichten PR-#76-
+Historie. Zum Zeitpunkt der erfassten Sonar-Evidenz lösten lokaler Branch,
+sein `origin`-Gegenstück und der PR-Head alle zu
+`fae3b81db491944a21395de80e3c928f82077143` auf. Exact-Head-Sonar-Evidenz
+bestand mit den oben genannten begrenzten Null-Issue-Fakten, doch Hosted-CI
+lief noch; OSV-Status für den finalen Head, verbleibende CI, Review,
+Branch-Protection und Merge-Status stehen aus. Es werden kein Merge, keine
+Parent-Änderung, MRTS-Änderung oder Gitlink-Update behauptet.
