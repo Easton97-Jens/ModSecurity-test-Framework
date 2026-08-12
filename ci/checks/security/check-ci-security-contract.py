@@ -2651,6 +2651,27 @@ def common_version_checkout_errors(
     return []
 
 
+def common_version_resolver_component_errors(path: Path, resolve: Any) -> list[str]:
+    resolve_steps = resolve.get("steps") if isinstance(resolve, dict) else None
+    resolver_steps = (
+        [
+            step
+            for step in resolve_steps
+            if isinstance(step, dict)
+            and step.get("name") == STEP_RESOLVE_EPHEMERAL_COMMON_SH_CANDIDATE
+        ]
+        if isinstance(resolve_steps, list)
+        else []
+    )
+    if len(resolver_steps) != 1 or resolver_steps[0].get("env") != {
+        "REQUESTED_COMPONENT": "${{ inputs.component }}"
+    }:
+        return [
+            f"{path}: common-version resolver must pass the optional dispatch component only through its reviewed environment"
+        ]
+    return []
+
+
 def common_version_candidate_errors(
     path: Path, resolve: Any, candidate: Any, resolve_run: str, candidate_run: str
 ) -> list[str]:
@@ -2673,23 +2694,7 @@ def common_version_candidate_errors(
         errors.append(
             f"{path}: common-version candidate job must use the reviewed resolver-bound environment"
         )
-    resolve_steps = resolve.get("steps") if isinstance(resolve, dict) else None
-    resolver_steps = (
-        [
-            step
-            for step in resolve_steps
-            if isinstance(step, dict)
-            and step.get("name") == STEP_RESOLVE_EPHEMERAL_COMMON_SH_CANDIDATE
-        ]
-        if isinstance(resolve_steps, list)
-        else []
-    )
-    if len(resolver_steps) != 1 or resolver_steps[0].get("env") != {
-        "REQUESTED_COMPONENT": "${{ inputs.component }}"
-    }:
-        errors.append(
-            f"{path}: common-version resolver must pass the optional dispatch component only through its reviewed environment"
-        )
+    errors.extend(common_version_resolver_component_errors(path, resolve))
     candidate_if = candidate.get("if") if isinstance(candidate, dict) else None
     if (
         not isinstance(candidate_if, str)

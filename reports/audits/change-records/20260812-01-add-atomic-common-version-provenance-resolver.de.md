@@ -9,7 +9,7 @@
 | Change-ID | `20260812-01-add-atomic-common-version-provenance-resolver` |
 | UTC-Datum | 2026-08-12 |
 | Framework-Basisrevision | `209389022c942d83113f6be88bf31d25637352f0` |
-| Issue oder Pull Request | Zum Zeitpunkt der Record-Erstellung keiner; Framework-Delivery und Pull-Request-Erstellung sind ausstehend. |
+| Issue oder Pull Request | Der Draft-[PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) ist offen und zielt von `agent/common-version-atomic-provenance` auf `master`. Sein aktuell veröffentlichter Head ist `581e1cb2a5f971e5a5b0d83ef2b63ce4f3923795`; dies ist keine finale Remediation-SHA. |
 
 ## Motivation und Problemstellung
 
@@ -87,6 +87,13 @@ nicht genau einen Datensatz auswählt.
   URLs, CLI und Workflow-Auswahl.
 - Dieser gepaarte Record bewahrt die Framework-eigene Entscheidung und den
   aktuellen Validierungsstatus.
+- Die veröffentlichte PR-Historie enthält derzeit
+  `e23152be008c52ecc5b5e8bcc6c7357d7a083408` (`Add atomic common-version
+  provenance resolver`) und
+  `581e1cb2a5f971e5a5b0d83ef2b63ce4f3923795` (`Format CI security contract
+  updates`). Die verhaltensbewahrende Remediation für einen Sonar-Code-Smell
+  hat die lokale Validierung bestanden; finaler Commit, veröffentlichter Head
+  und Hosted-Validierung stehen noch aus.
 
 ## Befehle und Ergebnisse
 
@@ -96,6 +103,13 @@ nicht genau einen Datensatz auswählt.
 | `make check-documentation` | 0 | Dokumentationslinks, Variablendokumentation, Repository-Pfade und Change-Record-Vertrag bestanden vor dem Hinzufügen dieses Record-Paars. | Framework-Working-Tree |
 | `git diff --check -- reports/audits/change-records/20260812-01-add-atomic-common-version-provenance-resolver.md reports/audits/change-records/20260812-01-add-atomic-common-version-provenance-resolver.de.md` | 0 | Keine Whitespace-Fehler im gepaarten Change Record. | Framework-Working-Tree |
 | `make check-documentation` | 0 | Dokumentationslinks, Variablendokumentation, Repository-Pfade und der finale Change-Record-Vertrag bestanden mit diesem Record-Paar. | Framework-Working-Tree |
+| `gh pr view 76 --json number,url,state,isDraft,headRefName,headRefOid,baseRefName,commits,statusCheckRollup,reviewDecision,mergeStateStatus` | 0 | Draft-PR #76 auf `agent/common-version-atomic-provenance`, Ziel `master`, mit den zwei oben genannten veröffentlichten Commits und veröffentlichtem Head `581e1cb…` beobachtet. | [PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) |
+| Lokale Suiten `test_common_versions_sonar_provenance` + `test_common_version_atomic_provenance` | 0 | 44 verhaltensbewahrende Sonar-Remediation-Tests bestanden in `749.688s`. | Framework-Working-Tree |
+| Direkte Suite `test_common_version_atomic_provenance` | 0 | 15 atomare Provenance-Tests bestanden. | Framework-Working-Tree |
+| `make test-ci-security-contract` | 0 | 173 CI-Security-Contract-Tests bestanden in `54.902s`. | Framework-Working-Tree |
+| Lokale `py_compile`-Validierung | 0 | Geänderter Python-Validierungscode wurde erfolgreich kompiliert. | Framework-Working-Tree |
+| `make check-documentation` | 0 | Dokumentationsvalidierung bestand nach der lokalen Sonar-Remediation-Validierung. | Framework-Working-Tree |
+| `git diff --check` | 0 | Der lokale Remediation-Diff hatte keine Whitespace-Fehler. | Framework-Working-Tree |
 
 ## Sicherheitsauswirkung
 
@@ -109,17 +123,25 @@ oder Deployment-Aktion ausgeführt.
 ## Dokumentation und Runtime-Evidenz
 
 Die gepaarte Variablenreferenz dokumentiert den neuen Resolver-Vertrag auf
-Englisch und Deutsch. Keine Host-Runtime, Connector-Lifecycle, GitHub-Actions-
-Ausführung, kein Pull Request, Review, Merge, Parent-Aktion, MRTS-Aktion oder
-Gitlink-Update wurde beobachtet oder als Evidenz gesammelt.
+Englisch und Deutsch. Draft-PR #76 sowie sein aktuell veröffentlichter
+Branch/Head wurden beobachtet. Keine Host-Runtime, kein Connector-Lifecycle,
+kein Merge, keine Parent-Aktion, MRTS-Aktion oder Gitlink-Update wurde
+beobachtet oder als Evidenz gesammelt. Eine verhaltensbewahrende Remediation
+für einen Sonar-Code-Smell hat die oben erfasste lokale Validierung bestanden.
+Ihr finaler Commit, veröffentlichter Head und die Hosted-Validierung für die
+aktuelle SHA wurden noch nicht beobachtet.
 
 ## Nicht ausgeführte Prüfungen
 
-- Fokussierte Resolver-, CI-Security- und Regressionstests wurden von diesem
-  reinen Record-Subtask nicht ausgeführt; ihre Ausführung obliegt dem
+- Zusätzliche fokussierte Resolver-, CI-Security- und Regressionstests über
+  die oben erfassten bestandenen Suiten hinaus wurden von diesem reinen
+  Record-Subtask nicht ausgeführt; ihre Ausführung obliegt dem
   Implementierungs-Owner.
-- Hosted-Checks, SonarQube, Review und Branch-Protection-Checks sind bis zu
-  einem künftigen autorisierten Pull Request ausstehend.
+- Die verhaltensbewahrende Sonar-Code-Smell-Remediation bestand die lokale
+  Validierung, hat aber noch keinen finalen Commit, keinen finalen
+  veröffentlichten Remediation-Head, kein Hosted-Check-Ergebnis für die
+  aktuelle SHA, Review oder Branch-Protection-Disposition. Diese müssen für
+  ihren späteren exakten Head erneut bewertet werden.
 
 ## Einschränkungen und Restrisiko
 
@@ -131,7 +153,11 @@ Connector-Kompatibilität oder Runtime-Reife.
 
 ## Finaler Diff- und Review-Status
 
-Dieser Record ist eine uncommittete lokale Framework-Ergänzung. Seine gepaarte
-Übersetzung, finale Whitespace-Prüfung und finale Dokumentationsprüfung haben
-bestanden. Es werden kein Commit, Push, Pull Request, Hosted-Check, Review,
-Merge, Parent-Änderung, MRTS-Änderung oder Gitlink-Update behauptet.
+Dieser Record war Teil der oben beschriebenen veröffentlichten PR-#76-
+Historie. Der aktuell veröffentlichte Branch und
+`origin/agent/common-version-atomic-provenance` lösen beide zu `581e1cb…` auf,
+doch die verhaltensbewahrende Sonar-Code-Smell-Remediation hat die lokale
+Validierung bestanden und macht diesen Head nicht final. Finaler Commit,
+veröffentlichte SHA, Hosted-Checks für die aktuelle SHA, Review und
+Merge-Status stehen aus. Es werden keine Parent-Änderung, MRTS-Änderung oder
+Gitlink-Update behauptet.

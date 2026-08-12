@@ -9,7 +9,7 @@
 | Change ID | `20260812-01-add-atomic-common-version-provenance-resolver` |
 | UTC date | 2026-08-12 |
 | Framework base revision | `209389022c942d83113f6be88bf31d25637352f0` |
-| Issue or pull request | None at record creation; Framework delivery and pull-request creation are pending. |
+| Issue or pull request | Draft, open [PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) targets `master` from `agent/common-version-atomic-provenance`. Its currently published head is `581e1cb2a5f971e5a5b0d83ef2b63ce4f3923795`; this is not a final remediation SHA. |
 
 ## Motivation and problem statement
 
@@ -81,6 +81,13 @@ workflow resolves all records unless its optional `workflow_dispatch`
   workflow selection.
 - This paired record preserves the Framework-only decision and current
   validation disposition.
+- The published PR history currently contains
+  `e23152be008c52ecc5b5e8bcc6c7357d7a083408` (`Add atomic common-version
+  provenance resolver`) and
+  `581e1cb2a5f971e5a5b0d83ef2b63ce4f3923795` (`Format CI security contract
+  updates`). The behavior-preserving Sonar code-smell remediation has passed
+  local validation; its final commit, published head, and hosted validation
+  remain pending.
 
 ## Commands and results
 
@@ -90,6 +97,13 @@ workflow resolves all records unless its optional `workflow_dispatch`
 | `make check-documentation` | 0 | Documentation links, variable documentation, repository paths, and Change Record contract passed before this record pair was added. | Framework working tree |
 | `git diff --check -- reports/audits/change-records/20260812-01-add-atomic-common-version-provenance-resolver.md reports/audits/change-records/20260812-01-add-atomic-common-version-provenance-resolver.de.md` | 0 | No whitespace errors in the paired Change Record. | Framework working tree |
 | `make check-documentation` | 0 | Documentation links, variable documentation, repository paths, and the final Change Record contract passed with this record pair present. | Framework working tree |
+| `gh pr view 76 --json number,url,state,isDraft,headRefName,headRefOid,baseRefName,commits,statusCheckRollup,reviewDecision,mergeStateStatus` | 0 | Observed Draft, open PR #76 on `agent/common-version-atomic-provenance`, targeting `master`, with the two published commits listed above and published head `581e1cb…`. | [PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) |
+| Local `test_common_versions_sonar_provenance` + `test_common_version_atomic_provenance` suites | 0 | 44 behavior-preserving Sonar-remediation tests passed in `749.688s`. | Framework working tree |
+| Direct `test_common_version_atomic_provenance` suite | 0 | 15 atomic provenance tests passed. | Framework working tree |
+| `make test-ci-security-contract` | 0 | 173 CI-security-contract tests passed in `54.902s`. | Framework working tree |
+| Local `py_compile` validation | 0 | Changed Python validation code compiled successfully. | Framework working tree |
+| `make check-documentation` | 0 | Documentation validation passed after the local Sonar-remediation validation. | Framework working tree |
+| `git diff --check` | 0 | The local remediation diff had no whitespace errors. | Framework working tree |
 
 ## Security impact
 
@@ -102,16 +116,22 @@ runtime claim, or deployment action was performed in this record subtask.
 ## Documentation and runtime evidence
 
 The paired variable reference documents the new resolver contract in English
-and German. No host runtime, connector lifecycle, GitHub Actions run, pull
-request, review, merge, Parent action, MRTS action, or Gitlink update was
-observed or collected as evidence.
+and German. Draft PR #76 and its current published branch/head were observed.
+No host runtime, connector lifecycle, merge, Parent action, MRTS action, or
+Gitlink update was observed or collected as evidence. A behavior-preserving
+remediation for a Sonar code smell has passed the local validation recorded
+above. Its final commit, published head, and current-SHA hosted validation have
+not yet been observed.
 
 ## Checks not run
 
-- Focused resolver, CI-security, and regression tests were not run by this
-  record-only subtask; their execution belongs to the implementation owner.
-- Hosted checks, SonarQube, review, and branch-protection checks are pending a
-  future authorized pull request.
+- Additional focused resolver, CI-security, and regression tests beyond the
+  passed suites recorded above were not run by this record-only subtask; their
+  execution belongs to the implementation owner.
+- The behavior-preserving Sonar code-smell remediation passed local validation,
+  but it has no final commit, final published remediation head, current-SHA
+  hosted check result, review, or branch-protection disposition yet. Those
+  must be re-evaluated against its eventual exact head.
 
 ## Limitations and residual risk
 
@@ -123,7 +143,10 @@ runtime readiness.
 
 ## Final diff and review status
 
-This record is an uncommitted local Framework addition. Its paired translation,
-final whitespace review, and final documentation check have passed. No commit,
-push, pull request, hosted check, review, merge, Parent change, MRTS change,
-or Gitlink update is claimed.
+This record was included in the published PR #76 history described above. The
+currently published branch and `origin/agent/common-version-atomic-provenance`
+both resolve to `581e1cb…`, but the behavior-preserving Sonar code-smell
+remediation has passed local validation and makes that head non-final. Its
+final commit, published SHA, current-SHA hosted checks, review, and merge
+status are pending. No Parent change, MRTS change, or Gitlink update is
+claimed.

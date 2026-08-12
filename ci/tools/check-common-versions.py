@@ -16,7 +16,7 @@ from http.client import HTTPException
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
-from urllib.error import HTTPError, URLError
+from urllib.error import HTTPError
 from urllib.parse import quote, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
@@ -28,6 +28,32 @@ SHA256_SUFFIX = ".sha256"
 ARCHIVE_BZ2_EXTENSION = ".tar.bz2"
 APACHE_DOWNLOAD_HOST = "downloads.apache.org"
 MODSECURITY_V3_COMPONENT = "ModSecurity v3"
+GITHUB_WEB_ORIGIN = "https://github.com"
+ENVOY_COMPONENT = "Envoy"
+TRAEFIK_COMPONENT = "Traefik"
+GITHUB_RELEASES_SOURCE_COMPONENTS = frozenset(
+    {ENVOY_COMPONENT, TRAEFIK_COMPONENT}
+)
+NGINX_COMPONENT = "NGINX"
+NGINX_GITHUB_REPOSITORY_VARIABLE = "NGINX_GITHUB_REPO"
+NGINX_SOURCE_GIT_REF_VARIABLE = "NGINX_SOURCE_GIT_REF"
+NGINX_RELEASE_TAG_VARIABLE = "NGINX_RELEASE_TAG"
+AUTOMATIC_UPDATE_POLICY = "automatic"
+GITHUB_RELEASE_MANIFEST_RESOLVER = "github_release_manifest"
+GITHUB_RELEASE_HOSTS = ("github.com", "api.github.com")
+GITHUB_STABLE_RELEASE_POLICY = (
+    "GitHub non-draft, non-prerelease stable v<version> release"
+)
+VERSION_TAG_PATTERN = r"^v\d+(?:\.\d+)+$"
+APACHE_APR_SOURCE_PATH_PREFIX = "/apr/"
+NO_HIDDEN_SERIES_RESTRICTION = "latest stable release; no hidden series restriction"
+APACHE_LISTING_RESOLVER = "apache_listing"
+APACHE_STABLE_RELEASE_POLICY = "official Apache numeric release listing"
+SAME_MAJOR_MINOR_COMPATIBILITY_POLICY = (
+    "same major/minor series documented in this descriptor"
+)
+OFFICIAL_ASSET_SHA256_FILE_STRATEGY = "official_asset_sha256_file"
+SHA256_CAPTURE_RE = r"([a-f0-9]{64})"
 
 # The inventory deliberately limits itself to provenance inputs rather than
 # incidental runtime paths such as ``*_SOURCE_ROOT``.  A new matching variable
@@ -189,8 +215,8 @@ class ComponentDefinition:
 # cannot silently turn them into an updater input.
 COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
     ComponentDefinition(
-        name="Envoy",
-        resolver="github_release_manifest",
+        name=ENVOY_COMPONENT,
+        resolver=GITHUB_RELEASE_MANIFEST_RESOLVER,
         variables=(
             "ENVOY_VERSION",
             "ENVOY_SOURCE_URL",
@@ -205,10 +231,10 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "ENVOY_SHA256",
             "ENVOY_SHA256_URL",
         ),
-        update_policy="automatic",
-        stable_policy="GitHub non-draft, non-prerelease stable v<version> release",
-        compatibility_policy="latest stable release; no hidden series restriction",
-        authorized_hosts=("github.com", "api.github.com"),
+        update_policy=AUTOMATIC_UPDATE_POLICY,
+        stable_policy=GITHUB_STABLE_RELEASE_POLICY,
+        compatibility_policy=NO_HIDDEN_SERIES_RESTRICTION,
+        authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository="envoyproxy/envoy",
         version_variable="ENVOY_VERSION",
         source_url_variable="ENVOY_SOURCE_URL",
@@ -219,11 +245,11 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         checksum_asset_template="checksums.txt.asc",
         checksum_strategy="github_release_asset_digest_or_official_manifest",
         tag_prefix="v",
-        tag_pattern=r"^v\d+(?:\.\d+)+$",
+        tag_pattern=VERSION_TAG_PATTERN,
     ),
     ComponentDefinition(
-        name="Traefik",
-        resolver="github_release_manifest",
+        name=TRAEFIK_COMPONENT,
+        resolver=GITHUB_RELEASE_MANIFEST_RESOLVER,
         variables=(
             "TRAEFIK_VERSION",
             "TRAEFIK_SOURCE_URL",
@@ -238,10 +264,10 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "TRAEFIK_SHA256",
             "TRAEFIK_SHA256_URL",
         ),
-        update_policy="automatic",
-        stable_policy="GitHub non-draft, non-prerelease stable v<version> release",
-        compatibility_policy="latest stable release; no hidden series restriction",
-        authorized_hosts=("github.com", "api.github.com"),
+        update_policy=AUTOMATIC_UPDATE_POLICY,
+        stable_policy=GITHUB_STABLE_RELEASE_POLICY,
+        compatibility_policy=NO_HIDDEN_SERIES_RESTRICTION,
+        authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository="traefik/traefik",
         version_variable="TRAEFIK_VERSION",
         source_url_variable="TRAEFIK_SOURCE_URL",
@@ -252,7 +278,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         checksum_asset_template="traefik_v{version}_checksums.txt",
         checksum_strategy="github_release_asset_digest_or_official_manifest",
         tag_prefix="v",
-        tag_pattern=r"^v\d+(?:\.\d+)+$",
+        tag_pattern=VERSION_TAG_PATTERN,
     ),
     ComponentDefinition(
         name="lighttpd",
@@ -275,7 +301,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "LIGHTTPD_SHA256",
             "LIGHTTPD_SHA256_URL",
         ),
-        update_policy="automatic",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="official releases-1.4.x latest.txt stable numeric release",
         compatibility_policy="the explicitly configured releases-1.4.x line",
         authorized_hosts=("download.lighttpd.net",),
@@ -301,14 +327,14 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         ),
         atomic_group=("CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"),
         update_policy="manual_review",
-        stable_policy="GitHub non-draft, non-prerelease stable v<version> release",
+        stable_policy=GITHUB_STABLE_RELEASE_POLICY,
         compatibility_policy="latest stable release requires immutable peeled-commit review",
-        authorized_hosts=("github.com", "api.github.com"),
+        authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository=CRS_APPROVED_REPOSITORY,
         release_tag_variable="CRS_RELEASE_TAG",
         git_commit_variable="CRS_APPROVED_COMMIT",
         checksum_strategy="peeled_git_tag_commit",
-        tag_pattern=r"^v\d+(?:\.\d+)+$",
+        tag_pattern=VERSION_TAG_PATTERN,
         alias_bindings=(
             ("CRS_REPO_URL", "CRS_APPROVED_REPO_URL"),
             ("CRS_GIT_REF", "CRS_RELEASE_TAG"),
@@ -333,7 +359,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         update_policy="manual_review",
         stable_policy="GitHub non-draft, non-prerelease stable v3.<version> release",
         compatibility_policy="latest stable v3 release requires immutable peeled-commit review",
-        authorized_hosts=("github.com", "api.github.com"),
+        authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository=MODSECURITY_V3_APPROVED_REPOSITORY,
         release_tag_variable="MODSECURITY_V3_RELEASE_TAG",
         git_commit_variable="MODSECURITY_V3_APPROVED_COMMIT",
@@ -376,7 +402,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
     ),
     ComponentDefinition(
         name="Apache httpd",
-        resolver="apache_listing",
+        resolver=APACHE_LISTING_RESOLVER,
         variables=("HTTPD_VERSION", "HTTPD_SOURCE_URL", "HTTPD_SHA256", "HTTPD_SHA256_URL"),
         atomic_group=(
             "HTTPD_VERSION",
@@ -384,40 +410,40 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "HTTPD_SHA256",
             "HTTPD_SHA256_URL",
         ),
-        update_policy="automatic",
-        stable_policy="official Apache numeric release listing",
-        compatibility_policy="same major/minor series documented in this descriptor",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
+        stable_policy=APACHE_STABLE_RELEASE_POLICY,
+        compatibility_policy=SAME_MAJOR_MINOR_COMPATIBILITY_POLICY,
         authorized_hosts=(APACHE_DOWNLOAD_HOST,),
         version_variable="HTTPD_VERSION",
         source_url_variable="HTTPD_SOURCE_URL",
         sha256_variable="HTTPD_SHA256",
         sha256_url_variable="HTTPD_SHA256_URL",
-        checksum_strategy="official_asset_sha256_file",
+        checksum_strategy=OFFICIAL_ASSET_SHA256_FILE_STRATEGY,
         filename_prefix="httpd",
         archive_extension=ARCHIVE_BZ2_EXTENSION,
         source_path_prefix="/httpd/",
     ),
     ComponentDefinition(
         name="APR",
-        resolver="apache_listing",
+        resolver=APACHE_LISTING_RESOLVER,
         variables=("APR_VERSION", "APR_SOURCE_URL", "APR_SHA256", "APR_SHA256_URL"),
         atomic_group=("APR_VERSION", "APR_SOURCE_URL", "APR_SHA256", "APR_SHA256_URL"),
-        update_policy="automatic",
-        stable_policy="official Apache numeric release listing",
-        compatibility_policy="same major/minor series documented in this descriptor",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
+        stable_policy=APACHE_STABLE_RELEASE_POLICY,
+        compatibility_policy=SAME_MAJOR_MINOR_COMPATIBILITY_POLICY,
         authorized_hosts=(APACHE_DOWNLOAD_HOST,),
         version_variable="APR_VERSION",
         source_url_variable="APR_SOURCE_URL",
         sha256_variable="APR_SHA256",
         sha256_url_variable="APR_SHA256_URL",
-        checksum_strategy="official_asset_sha256_file",
+        checksum_strategy=OFFICIAL_ASSET_SHA256_FILE_STRATEGY,
         filename_prefix="apr",
         archive_extension=ARCHIVE_BZ2_EXTENSION,
-        source_path_prefix="/apr/",
+        source_path_prefix=APACHE_APR_SOURCE_PATH_PREFIX,
     ),
     ComponentDefinition(
         name="APR-util",
-        resolver="apache_listing",
+        resolver=APACHE_LISTING_RESOLVER,
         variables=(
             "APR_UTIL_VERSION",
             "APR_UTIL_SOURCE_URL",
@@ -430,18 +456,18 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "APR_UTIL_SHA256",
             "APR_UTIL_SHA256_URL",
         ),
-        update_policy="automatic",
-        stable_policy="official Apache numeric release listing",
-        compatibility_policy="same major/minor series documented in this descriptor",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
+        stable_policy=APACHE_STABLE_RELEASE_POLICY,
+        compatibility_policy=SAME_MAJOR_MINOR_COMPATIBILITY_POLICY,
         authorized_hosts=(APACHE_DOWNLOAD_HOST,),
         version_variable="APR_UTIL_VERSION",
         source_url_variable="APR_UTIL_SOURCE_URL",
         sha256_variable="APR_UTIL_SHA256",
         sha256_url_variable="APR_UTIL_SHA256_URL",
-        checksum_strategy="official_asset_sha256_file",
+        checksum_strategy=OFFICIAL_ASSET_SHA256_FILE_STRATEGY,
         filename_prefix="apr-util",
         archive_extension=ARCHIVE_BZ2_EXTENSION,
-        source_path_prefix="/apr/",
+        source_path_prefix=APACHE_APR_SOURCE_PATH_PREFIX,
     ),
     ComponentDefinition(
         name="PCRE2",
@@ -453,10 +479,10 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "PCRE2_SHA256",
             "PCRE2_SHA256_URL",
         ),
-        update_policy="automatic",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="GitHub non-draft, non-prerelease pcre2-<version> release",
-        compatibility_policy="latest stable release; no hidden series restriction",
-        authorized_hosts=("github.com", "api.github.com"),
+        compatibility_policy=NO_HIDDEN_SERIES_RESTRICTION,
+        authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository="PCRE2Project/pcre2",
         version_variable="PCRE2_VERSION",
         source_url_variable="PCRE2_SOURCE_URL",
@@ -468,7 +494,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         tag_pattern=r"^pcre2-\d+(?:\.\d+)+$",
     ),
     ComponentDefinition(
-        name="NGINX",
+        name=NGINX_COMPONENT,
         resolver="github_release_digest",
         variables=(
             "NGINX_SOURCE_REPO_URL",
@@ -484,10 +510,10 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "NGINX_RELEASE_ASSET_NAME",
             "NGINX_SHA256",
         ),
-        update_policy="automatic",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="GitHub non-draft, non-prerelease release-<version> release",
-        compatibility_policy="latest stable release; no hidden series restriction",
-        authorized_hosts=("github.com", "api.github.com"),
+        compatibility_policy=NO_HIDDEN_SERIES_RESTRICTION,
+        authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository="nginx/nginx",
         release_tag_variable="NGINX_RELEASE_TAG",
         source_url_variable="NGINX_SOURCE_REPO_URL",
@@ -511,10 +537,10 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "NGINX_QUIC_TLS_SOURCE_URL",
             "NGINX_QUIC_TLS_SOURCE_SHA256",
         ),
-        update_policy="automatic",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="GitHub non-draft, non-prerelease openssl-<version> release",
-        compatibility_policy="latest stable release; no hidden series restriction",
-        authorized_hosts=("github.com", "api.github.com"),
+        compatibility_policy=NO_HIDDEN_SERIES_RESTRICTION,
+        authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository="openssl/openssl",
         version_variable="NGINX_QUIC_TLS_VERSION",
         source_url_variable="NGINX_QUIC_TLS_SOURCE_URL",
@@ -534,15 +560,15 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "HAPROXY_SHA256_URL",
             "HAPROXY_SHA256",
         ),
-        update_policy="automatic",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="official HAProxy numeric series release directory",
-        compatibility_policy="same major/minor series documented in this descriptor",
+        compatibility_policy=SAME_MAJOR_MINOR_COMPATIBILITY_POLICY,
         authorized_hosts=("www.haproxy.org",),
         version_variable="HAPROXY_VERSION",
         source_url_variable="HAPROXY_SOURCE_URL",
         sha256_variable="HAPROXY_SHA256",
         sha256_url_variable="HAPROXY_SHA256_URL",
-        checksum_strategy="official_asset_sha256_file",
+        checksum_strategy=OFFICIAL_ASSET_SHA256_FILE_STRATEGY,
         filename_prefix="haproxy",
         archive_extension=".tar.gz",
     ),
@@ -1272,10 +1298,10 @@ class HttpClient:
                 raise UpstreamUnknown(f"{url}: HTTP 404") from exc
             raise UpstreamError(f"{url}: HTTP {exc.code}") from exc
         # urllib can surface a peer disconnect directly as an HTTPException
-        # (for example ``RemoteDisconnected``) rather than wrapping it in a
-        # URLError.  Keep every transport failure inside the fail-closed
+        # (for example ``RemoteDisconnected``) or OSError. Keep every
+        # transport failure inside the fail-closed
         # resolver model so the caller still emits its diagnostic summary.
-        except (HTTPException, OSError, URLError) as exc:
+        except (HTTPException, OSError) as exc:
             raise UpstreamBlocked(f"{url}: {exc}") from exc
 
     def get_text(self, url: str, accept: str | None = None) -> str:
@@ -1316,9 +1342,12 @@ def parse_sha256(text: str, expected_filename: str) -> str:
         raise UpstreamUnknown("official checksum response appears to be HTML")
     matches: list[str] = []
     matching_but_invalid = False
-    gnu_line = re.compile(r"^\s*([A-Fa-f0-9]{64})[ \t]+\*?([^\s]+)\s*$")
+    gnu_line = re.compile(
+        r"^\s*" + SHA256_CAPTURE_RE + r"[ \t]+\*?([^\s]+)\s*$",
+        re.IGNORECASE,
+    )
     bsd_line = re.compile(
-        r"^\s*SHA256 \(([^)]+)\) = ([A-Fa-f0-9]{64})\s*$",
+        r"^\s*SHA256 \(([^)]+)\) = " + SHA256_CAPTURE_RE + r"\s*$",
         re.IGNORECASE,
     )
     for line in text.splitlines():
@@ -1645,7 +1674,7 @@ def check_apr_util_release_provenance(
         extension=ARCHIVE_BZ2_EXTENSION,
         allowed_host=APACHE_DOWNLOAD_HOST,
         restrict_to_current_series=True,
-        source_path_prefix="/apr/",
+        source_path_prefix=APACHE_APR_SOURCE_PATH_PREFIX,
     )
 
 
@@ -2270,7 +2299,7 @@ def expected_github_asset_url(repo_path: str, tag: str, asset_name: str) -> str:
     if not SAFE_REF_RE.fullmatch(tag) or not SAFE_ASSET_NAME_RE.fullmatch(asset_name):
         raise UpstreamError("GitHub release tag or asset name is not shell-safe")
     return (
-        f"https://github.com/{repo_path}/releases/download/"
+        f"{GITHUB_WEB_ORIGIN}/{repo_path}/releases/download/"
         f"{quote(tag, safe='')}/{quote(asset_name, safe='')}"
     )
 
@@ -2421,6 +2450,70 @@ def required_component_variables(
     return missing_variables_result(definition.name, entries, list(definition.variables))
 
 
+def configured_release_url_error(
+    definition: ComponentDefinition,
+    *,
+    message: str,
+    tag: str,
+    source: str = "",
+    asset_name: str = "",
+    details: dict[str, str] | None = None,
+) -> ComponentResult:
+    """Return the shared fail-closed result for a mismatched release alias."""
+
+    return ComponentResult(
+        component=definition.name,
+        status=STATUS_UNKNOWN,
+        message=message,
+        variables=list(definition.variables),
+        current=tag,
+        source=source,
+        asset_name=asset_name,
+        details=details or {},
+    )
+
+
+def expected_configured_source_url(
+    definition: ComponentDefinition,
+    repo_path: str,
+    expected_asset_url: str,
+) -> str:
+    """Return the declared source alias for a release component."""
+
+    repository_url = f"{GITHUB_WEB_ORIGIN}/{repo_path}"
+    if definition.name in GITHUB_RELEASES_SOURCE_COMPONENTS:
+        return f"{repository_url}/releases"
+    if definition.name == NGINX_COMPONENT:
+        return repository_url
+    return expected_asset_url
+
+
+def configured_nginx_release_aliases_are_bound(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    *,
+    repo_path: str,
+    tag: str,
+) -> ComponentResult | None:
+    """Check the extra NGINX aliases tied to its repository and release tag."""
+
+    if value(entries, NGINX_GITHUB_REPOSITORY_VARIABLE) != (
+        f"{GITHUB_WEB_ORIGIN}/{repo_path}"
+    ):
+        return configured_release_url_error(
+            definition,
+            message="NGINX_GITHUB_REPO must match NGINX_SOURCE_REPO_URL.",
+            tag=tag,
+        )
+    if value(entries, NGINX_SOURCE_GIT_REF_VARIABLE) != tag:
+        return configured_release_url_error(
+            definition,
+            message="NGINX_SOURCE_GIT_REF must equal NGINX_RELEASE_TAG.",
+            tag=tag,
+        )
+    return None
+
+
 def configured_github_release_urls_are_bound(
     definition: ComponentDefinition,
     entries: dict[str, VariableEntry],
@@ -2435,74 +2528,129 @@ def configured_github_release_urls_are_bound(
     expected_asset_url = expected_github_asset_url(repo_path, tag, asset_name)
     if definition.source_url_variable:
         configured_source = value(entries, definition.source_url_variable)
-        if definition.name in {"Envoy", "Traefik"}:
-            expected_source = f"https://github.com/{repo_path}/releases"
-        elif definition.name == "NGINX":
-            expected_source = f"https://github.com/{repo_path}"
-        else:
-            expected_source = expected_asset_url
+        expected_source = expected_configured_source_url(
+            definition, repo_path, expected_asset_url
+        )
         if configured_source != expected_source:
-            return ComponentResult(
-                component=definition.name,
-                status=STATUS_UNKNOWN,
+            return configured_release_url_error(
+                definition,
                 message="Configured source URL is not bound to the declared official release identity.",
-                variables=list(definition.variables),
-                current=tag,
+                tag=tag,
                 source=configured_source,
                 details={"expected_source_url": expected_source},
             )
-    if definition.download_url_variable and (
-        value(entries, definition.download_url_variable) != expected_asset_url
-    ):
-        return ComponentResult(
-            component=definition.name,
-            status=STATUS_UNKNOWN,
-            message="Configured download URL is not bound to the declared official release asset.",
-            variables=list(definition.variables),
-            current=tag,
-            source=value(entries, definition.download_url_variable),
-            details={"expected_download_url": expected_asset_url},
-        )
-    if definition.asset_variable and value(entries, definition.asset_variable) != asset_name:
-        return ComponentResult(
-            component=definition.name,
-            status=STATUS_UNKNOWN,
-            message="Configured release asset is not derived from the declared release tag.",
-            variables=list(definition.variables),
-            current=tag,
-            asset_name=value(entries, definition.asset_variable),
-            details={"expected_asset_name": asset_name},
-        )
-    if definition.name == "NGINX":
-        if value(entries, "NGINX_GITHUB_REPO") != f"https://github.com/{repo_path}":
-            return ComponentResult(
-                component=definition.name,
-                status=STATUS_UNKNOWN,
-                message="NGINX_GITHUB_REPO must match NGINX_SOURCE_REPO_URL.",
-                variables=list(definition.variables),
-                current=tag,
+    if definition.download_url_variable:
+        configured_download = value(entries, definition.download_url_variable)
+        if configured_download != expected_asset_url:
+            return configured_release_url_error(
+                definition,
+                message="Configured download URL is not bound to the declared official release asset.",
+                tag=tag,
+                source=configured_download,
+                details={"expected_download_url": expected_asset_url},
             )
-        if value(entries, "NGINX_SOURCE_GIT_REF") != tag:
-            return ComponentResult(
-                component=definition.name,
-                status=STATUS_UNKNOWN,
-                message="NGINX_SOURCE_GIT_REF must equal NGINX_RELEASE_TAG.",
-                variables=list(definition.variables),
-                current=tag,
+    if definition.asset_variable:
+        configured_asset = value(entries, definition.asset_variable)
+        if configured_asset != asset_name:
+            return configured_release_url_error(
+                definition,
+                message="Configured release asset is not derived from the declared release tag.",
+                tag=tag,
+                asset_name=configured_asset,
+                details={"expected_asset_name": asset_name},
             )
+    if definition.name == NGINX_COMPONENT:
+        nginx_alias_error = configured_nginx_release_aliases_are_bound(
+            definition, entries, repo_path=repo_path, tag=tag
+        )
+        if nginx_alias_error is not None:
+            return nginx_alias_error
     if definition.sha256_url_variable and definition.checksum_asset_template:
         checksum_asset = release_checksum_asset_name(definition, version)
         expected_checksum_url = expected_github_asset_url(repo_path, tag, checksum_asset)
         if value(entries, definition.sha256_url_variable) != expected_checksum_url:
-            return ComponentResult(
-                component=definition.name,
-                status=STATUS_UNKNOWN,
+            return configured_release_url_error(
+                definition,
                 message="Configured checksum URL is not bound to the declared official release asset.",
-                variables=list(definition.variables),
-                current=tag,
+                tag=tag,
                 details={"expected_sha256_url": expected_checksum_url},
             )
     return None
+
+
+def add_release_identity_updates(
+    desired: dict[str, str],
+    definition: ComponentDefinition,
+    *,
+    latest_tag: str,
+    latest_version: str,
+    latest_sha256: str,
+) -> None:
+    """Add the direct version, tag, and digest members of a release group."""
+
+    if definition.version_variable:
+        desired[definition.version_variable] = latest_version
+    if definition.release_tag_variable:
+        desired[definition.release_tag_variable] = latest_tag
+    if definition.sha256_variable:
+        desired[definition.sha256_variable] = latest_sha256
+
+
+def add_non_template_release_update(
+    desired: dict[str, str],
+    entries: dict[str, VariableEntry],
+    variable: str | None,
+    identity_variable: str,
+    replacement: str,
+) -> None:
+    """Retain reviewed templates; update only an equivalent literal alias."""
+
+    if variable and not is_template_value(entries[variable].default, identity_variable):
+        desired[variable] = replacement
+
+
+def add_github_release_url_updates(
+    desired: dict[str, str],
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    *,
+    latest_tag: str,
+    latest_version: str,
+    latest_asset_name: str,
+) -> None:
+    """Add literal GitHub asset aliases without expanding safe shell templates."""
+
+    repository = cast(str, definition.github_repository)
+    identity_variable = definition.version_variable or ""
+    asset_url = expected_github_asset_url(repository, latest_tag, latest_asset_name)
+    if definition.name not in GITHUB_RELEASES_SOURCE_COMPONENTS | {NGINX_COMPONENT}:
+        add_non_template_release_update(
+            desired,
+            entries,
+            definition.source_url_variable,
+            identity_variable,
+            asset_url,
+        )
+    add_non_template_release_update(
+        desired,
+        entries,
+        definition.download_url_variable,
+        identity_variable,
+        asset_url,
+    )
+    if definition.checksum_asset_template:
+        checksum_url = expected_github_asset_url(
+            repository,
+            latest_tag,
+            release_checksum_asset_name(definition, latest_version),
+        )
+        add_non_template_release_update(
+            desired,
+            entries,
+            definition.sha256_url_variable,
+            identity_variable,
+            checksum_url,
+        )
 
 
 def collect_github_release_updates(
@@ -2517,48 +2665,45 @@ def collect_github_release_updates(
     """Build only the changed members of one otherwise fully checked group."""
 
     desired: dict[str, str] = {}
-    if definition.version_variable:
-        desired[definition.version_variable] = latest_version
-    if definition.release_tag_variable:
-        desired[definition.release_tag_variable] = latest_tag
-    if definition.name == "NGINX":
-        ref_entry = entries["NGINX_SOURCE_GIT_REF"]
-        if not is_template_value(ref_entry.default, "NGINX_RELEASE_TAG"):
-            desired["NGINX_SOURCE_GIT_REF"] = latest_tag
+    add_release_identity_updates(
+        desired,
+        definition,
+        latest_tag=latest_tag,
+        latest_version=latest_version,
+        latest_sha256=latest_sha256,
+    )
+    if definition.name == NGINX_COMPONENT:
+        add_non_template_release_update(
+            desired,
+            entries,
+            NGINX_SOURCE_GIT_REF_VARIABLE,
+            NGINX_RELEASE_TAG_VARIABLE,
+            latest_tag,
+        )
     if definition.asset_variable:
-        asset_entry = entries[definition.asset_variable]
         identity_variable = (
             definition.release_tag_variable or definition.version_variable or ""
         )
-        if not is_template_value(asset_entry.default, identity_variable):
-            desired[definition.asset_variable] = latest_asset_name
-    if definition.sha256_variable:
-        desired[definition.sha256_variable] = latest_sha256
+        add_non_template_release_update(
+            desired,
+            entries,
+            definition.asset_variable,
+            identity_variable,
+            latest_asset_name,
+        )
 
     # Preserve safe, version/tag-derived shell templates rather than rendering
     # them into duplicate literal URLs.  A non-template legacy URL is updated
     # alongside its identity/digest only after the exact official endpoint was
     # derived above.
-    if definition.source_url_variable and definition.name not in {"Envoy", "Traefik", "NGINX"}:
-        source_entry = entries[definition.source_url_variable]
-        if not is_template_value(source_entry.default, definition.version_variable or ""):
-            desired[definition.source_url_variable] = expected_github_asset_url(
-                cast(str, definition.github_repository), latest_tag, latest_asset_name
-            )
-    if definition.download_url_variable:
-        download_entry = entries[definition.download_url_variable]
-        if not is_template_value(download_entry.default, definition.version_variable or ""):
-            desired[definition.download_url_variable] = expected_github_asset_url(
-                cast(str, definition.github_repository), latest_tag, latest_asset_name
-            )
-    if definition.sha256_url_variable and definition.checksum_asset_template:
-        checksum_entry = entries[definition.sha256_url_variable]
-        if not is_template_value(checksum_entry.default, definition.version_variable or ""):
-            desired[definition.sha256_url_variable] = expected_github_asset_url(
-                cast(str, definition.github_repository),
-                latest_tag,
-                release_checksum_asset_name(definition, latest_version),
-            )
+    add_github_release_url_updates(
+        desired,
+        definition,
+        entries,
+        latest_tag=latest_tag,
+        latest_version=latest_version,
+        latest_asset_name=latest_asset_name,
+    )
 
     updates: list[UpdateChange] = []
     for variable, desired_value in desired.items():
@@ -2988,15 +3133,18 @@ def decorate_component_result(
         details["atomic_changed_variables"] = [
             update.variable for update in result.updates
         ]
-    return dataclasses.replace(
-        result,
-        component=definition.name,
-        variables=list(definition.variables),
-        latest_upstream=result.latest_upstream or result.latest,
-        latest_compatible=result.latest_compatible or result.latest,
-        update_policy=definition.update_policy,
-        atomic_group=definition.atomic_group,
-        details=details,
+    return cast(
+        ComponentResult,
+        dataclasses.replace(
+            result,
+            component=definition.name,
+            variables=list(definition.variables),
+            latest_upstream=result.latest_upstream or result.latest,
+            latest_compatible=result.latest_compatible or result.latest,
+            update_policy=definition.update_policy,
+            atomic_group=definition.atomic_group,
+            details=details,
+        ),
     )
 
 
@@ -3272,6 +3420,60 @@ def update_matches_automatic_plan(
     )
 
 
+def automatic_updates_are_valid(
+    result: ComponentResult,
+    entries: dict[str, VariableEntry],
+    manual_variables: set[str],
+    seen_variables: dict[str, str],
+    invalid_components: list[str],
+) -> bool:
+    """Validate each planned update and retain duplicate ownership failures."""
+
+    valid = True
+    for update in result.updates:
+        if not update_matches_automatic_plan(
+            update, result, entries, manual_variables
+        ):
+            append_unique(invalid_components, result.component)
+            valid = False
+            continue
+        previous_component = seen_variables.get(update.variable)
+        if previous_component is not None:
+            append_unique(invalid_components, result.component)
+            append_unique(invalid_components, previous_component)
+            valid = False
+            continue
+        seen_variables[update.variable] = result.component
+    return valid
+
+
+def automatic_atomic_group_matches_plan(
+    result: ComponentResult,
+    entries: dict[str, VariableEntry],
+) -> bool:
+    """Require an automatic result to update every changed atomic member."""
+
+    if not result.atomic_group:
+        return True
+    expected_values = result.details.get("atomic_expected_values")
+    if not isinstance(expected_values, dict):
+        return False
+    expected_changes: dict[str, str] = {}
+    for variable in result.atomic_group:
+        current = entry(entries, variable)
+        expected = expected_values.get(variable)
+        if (
+            current is None
+            or not isinstance(expected, str)
+            or variable not in result.variables
+        ):
+            return False
+        if current.default != expected:
+            expected_changes[variable] = expected
+    actual_changes = {update.variable: update.new for update in result.updates}
+    return expected_changes == actual_changes
+
+
 def automatic_plan_errors(
     automatic_results: list[ComponentResult],
     entries: dict[str, VariableEntry],
@@ -3285,40 +3487,15 @@ def automatic_plan_errors(
         if not result.updates:
             append_unique(invalid_components, result.component)
             continue
-        for update in result.updates:
-            if not update_matches_automatic_plan(
-                update, result, entries, manual_variables
-            ):
-                append_unique(invalid_components, result.component)
-                continue
-            previous_component = seen_variables.get(update.variable)
-            if previous_component is not None:
-                append_unique(invalid_components, result.component)
-                append_unique(invalid_components, previous_component)
-                continue
-            seen_variables[update.variable] = result.component
-        atomic_group = result.atomic_group
-        expected_values = result.details.get("atomic_expected_values")
-        if atomic_group:
-            if not isinstance(expected_values, dict):
-                append_unique(invalid_components, result.component)
-                continue
-            expected_changes: dict[str, str] = {}
-            for variable in atomic_group:
-                current = entry(entries, variable)
-                expected = expected_values.get(variable)
-                if (
-                    current is None
-                    or not isinstance(expected, str)
-                    or variable not in result.variables
-                ):
-                    append_unique(invalid_components, result.component)
-                    continue
-                if current.default != expected:
-                    expected_changes[variable] = expected
-            actual_changes = {update.variable: update.new for update in result.updates}
-            if expected_changes != actual_changes:
-                append_unique(invalid_components, result.component)
+        updates_valid = automatic_updates_are_valid(
+            result,
+            entries,
+            manual_variables,
+            seen_variables,
+            invalid_components,
+        )
+        if not updates_valid or not automatic_atomic_group_matches_plan(result, entries):
+            append_unique(invalid_components, result.component)
     return invalid_components
 
 
