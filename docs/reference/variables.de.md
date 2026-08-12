@@ -259,6 +259,81 @@ und löschen lokale Redirect-, Attributes-, Sparse-Checkout- und
 benutzerdefinierte Recursive-Update-Konfiguration vor der Submodule-
 Verarbeitung.
 
+## Common-Version-Resolver
+
+`ci/tools/check-common-versions.py` ist der datengetriebene, atomare Resolver
+für die externen Komponenten-Provenance-Standards in `ci/lib/common.sh`. Seine
+Registry `COMPONENT_DEFINITIONS` ist das einzige Inventar: Jeder Datensatz
+benennt Komponentenvariablen, vertrauenswürdigen Upstream und Hosts, Regeln für
+stabile Releases und Kompatibilität, Prüfsummenstrategie, Resolver-Adapter,
+Update-Policy und eine atomare Update-Gruppe. Resolver-Adapter enthalten keine
+unabhängige Komponenten-Policy. Eine relevante Provenance-Variable ohne
+Registry-Eigentümer ist ein Fehler; ebenso wird eine Variable mit mehr als
+einem Eigentümer abgewiesen.
+
+Der Resolver verwendet nur den im Datensatz bezeichneten offiziellen Upstream.
+Er weist Redirects und unerwartete finale URLs ab und prüft den offiziellen
+Asset-Digest oder den aufgelösten Commit eines Git-Tags, bevor er einen
+Kandidaten akzeptiert. Ändert sich ein automatischer Datensatz, aktualisiert
+er jedes geänderte Mitglied dessen atomarer Gruppe gemeinsam: Version/Tag,
+abgeleitete Source- oder Download-URL, gegebenenfalls Asset-Name, Checksum-URL
+und SHA-256. URLs mit einer Versionsvariablen werden aus der aktualisierten
+Gruppe erzeugt und nicht unabhängig ausgewählt.
+
+| Komponente | Policy | Strategie für offizielles Latest und Provenance |
+|---|---|---|
+| Envoy | automatic | Neuestes GitHub-Release `v<version>` ohne Draft und Prerelease; Linux-Asset und Release-Digest oder offizielles Checksum-Manifest. |
+| Traefik | automatic | Neuestes GitHub-Release `v<version>` ohne Draft und Prerelease; Linux-Archiv und GitHub-Release-Digest oder offizielles Checksum-Manifest. |
+| lighttpd | automatic | Neueste stabile numerische Version aus dem offiziellen `releases-1.4.x/latest.txt`; offizielles Archiv und SHA-256-Manifest, auf diese konfigurierte Linie begrenzt. |
+| Apache httpd | automatic | Neueste numerische Version in der offiziellen Apache-Liste, auf die dokumentierte aktuelle Major/Minor-Serie begrenzt; offizielle SHA-256-Datei pro Asset. |
+| APR | automatic | Neueste numerische Version in der offiziellen Apache-Liste, auf die dokumentierte aktuelle Major/Minor-Serie begrenzt; offizielle SHA-256-Datei pro Asset. |
+| APR-util | automatic | Neueste numerische Version in der offiziellen Apache-Liste, auf die dokumentierte aktuelle Major/Minor-Serie begrenzt; offizielle SHA-256-Datei pro Asset. |
+| PCRE2 | automatic | Neuestes GitHub-Release `pcre2-<version>` ohne Draft und Prerelease; Digest des Release-Assets. |
+| NGINX | automatic | Neuestes GitHub-Release `release-<version>` ohne Draft und Prerelease; Digest des Release-Assets und passendes Release-Tag/Ref/Asset-Tupel. |
+| OpenSSL for NGINX QUIC/TLS | automatic | Neuestes GitHub-Release `openssl-<version>` ohne Draft und Prerelease; Digest des Release-Assets. |
+| HAProxy | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis, auf die dokumentierte aktuelle Major/Minor-Serie begrenzt; offizielle SHA-256-Datei pro Asset. |
+| OWASP Core Rule Set | manual_review | Neuestes stabiles GitHub-Release und dessen unveränderlicher aufgelöster Git-Tag-Commit werden zur Prüfung gemeldet; der geprüfte Tag/Commit-Pin wird nicht automatisch geändert. |
+| ModSecurity v3 | manual_review | Neuestes stabiles GitHub-Release `v3.<version>` und dessen unveränderlicher aufgelöster Git-Tag-Commit werden zur Prüfung gemeldet; der geprüfte Tag/Commit-Pin wird nicht automatisch geändert. |
+| ModSecurity Apache connector | not_applicable | Repository-lokale Connector-Quelle, solange sie nicht ausdrücklich konfiguriert wird; kein Common-Version-Abrufvertrag existiert. |
+| ModSecurity NGINX connector | not_applicable | Repository-lokale Connector-Quelle, solange sie nicht ausdrücklich konfiguriert wird; kein Common-Version-Abrufvertrag existiert. |
+| go-ftw | not_applicable | Von einem lokal geprüften ausführbaren Programm geliefert, kein Framework-Fetch-Vertrag. |
+| Albedo | not_applicable | Von einem lokal geprüften ausführbaren Programm geliefert, kein Framework-Fetch-Vertrag. |
+| Expat | not_applicable | Legacy-Metadaten haben keinen Framework-Source-Abrufverbraucher. |
+| Default branch | not_applicable | Lokaler Policy-Standard, keine Upstream-Release-Quelle. |
+
+`manual_review` ist eine beabsichtigte Erhaltungsgrenze, kein fehlgeschlagenes
+Update: Der Resolver meldet das neueste Release und beweist, dass Review-Pins
+unverändert bleiben, während unabhängige automatische Gruppen mit
+`--defer-reviewed-provenance` aktualisiert werden. `not_applicable` verhindert,
+dass ein künftiger lokaler Hinweis oder Connector-Standard unbemerkt zu einer
+Updater-Eingabe wird. `unknown`, `blocked` und `error` sind fail-closed und
+verhindern einen Update-Kandidaten.
+
+`--list-components` gibt die exakten auswählbaren Namen der Registry aus. Mit
+einer oder mehreren exakten Optionen `--component <name>` werden nur die
+ausgewählten Datensätze aufgelöst; ein unbekannter Name wird abgewiesen.
+
+```sh
+python3 ci/tools/check-common-versions.py --list-components
+python3 ci/tools/check-common-versions.py --check --json \
+  --component 'Envoy' --component 'HAProxy'
+```
+
+Ohne `--component` verarbeitet der Resolver jeden Registry-Datensatz in
+deterministischer Reihenfolge. `--check` berichtet nur; `--update` darf nur
+validierte automatische atomare Gruppen schreiben. `--write-files` schreibt
+zusätzlich JSON- und Markdown-Zusammenfassungen unter `BUILD_ROOT`; es ändert
+weder Auswahl noch Policy.
+
+Der Workflow `Check common.sh versions` führt nach Zeitplan die vollständige
+Registry aus. Seine optionale `workflow_dispatch`-Eingabe `component` behält
+bei leerem Wert dieses Verhalten für alle Komponenten bei; ein nichtleerer Wert
+wird als genau eine Auswahl `--component` übergeben. Resolver- und
+Kandidatenjobs bleiben bezüglich des Checkouts read-only; der separat
+geschützte Publisher löst einen per SHA-256 gebundenen Kandidaten erneut auf
+und validiert ihn, bevor er seinen Draft Pull Request erstellen oder
+aktualisieren kann.
+
 ## Werkzeuge, Statuswerte und sensible Daten
 
 `PYTHON` verwendet `.venv/bin/python`, falls vorhanden, sonst `python3`.

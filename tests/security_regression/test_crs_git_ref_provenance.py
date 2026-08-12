@@ -715,7 +715,21 @@ class FetchCrsProvenanceTests(unittest.TestCase):
 
             def get_json(self, url):
                 self.urls.append(url)
-                return {"tag_name": "v4.900.1"}
+                responses = {
+                    "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/"
+                    + APPROVED_RELEASE_TAG: {
+                        "object": {"type": "commit", "sha": APPROVED_COMMIT}
+                    },
+                    "https://api.github.com/repos/coreruleset/coreruleset/releases/latest": {
+                        "tag_name": "v4.900.1",
+                        "draft": False,
+                        "prerelease": False,
+                    },
+                    "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/v4.900.1": {
+                        "object": {"type": "commit", "sha": "d" * 40}
+                    },
+                }
+                return responses[url]
 
         with tempfile.TemporaryDirectory(prefix="crs-provenance-") as temporary:
             fixture = (
@@ -756,7 +770,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         )
         self.assertEqual(
             result.details["reason"],
-            "update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after commit provenance review",
+            "update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after peeled-commit provenance review",
         )
         self.assertEqual(
             result.details["manual_variables"],
@@ -773,7 +787,11 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         )
         self.assertEqual(
             client.urls,
-            ["https://api.github.com/repos/coreruleset/coreruleset/releases/latest"],
+            [
+                "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/v4.900.0",
+                "https://api.github.com/repos/coreruleset/coreruleset/releases/latest",
+                "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/v4.900.1",
+            ],
         )
 
 

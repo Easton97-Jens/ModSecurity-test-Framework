@@ -26,10 +26,6 @@ APPROVED_V3_REPOSITORY = "https://github.com/owasp-modsecurity/ModSecurity.git"
 APPROVED_V3_COMMIT = "c" * 40
 APPROVED_V3_RELEASE_TAG = "v3.900.0"
 TEST_APR_UTIL_VERSION = "1.6.9000"
-TEST_APR_UTIL_SOURCE_URL = (
-    f"https://downloads.apache.org/apr/apr-util-{TEST_APR_UTIL_VERSION}.tar.bz2"
-)
-TEST_APR_UTIL_SHA256_URL = f"{TEST_APR_UTIL_SOURCE_URL}.sha256"
 
 
 class Pcre2ArchiveDigestTests(unittest.TestCase):
@@ -106,10 +102,8 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             {
                 "MODSECURITY_V3_APPROVED_COMMIT": APPROVED_V3_COMMIT,
                 "MODSECURITY_V3_RELEASE_TAG": APPROVED_V3_RELEASE_TAG,
-                "APR_UTIL_PINNED_VERSION": TEST_APR_UTIL_VERSION,
-                "APR_UTIL_PINNED_SOURCE_URL": TEST_APR_UTIL_SOURCE_URL,
-                "APR_UTIL_PINNED_SHA256": apr_util_sha256,
-                "APR_UTIL_PINNED_SHA256_URL": TEST_APR_UTIL_SHA256_URL,
+                "APR_UTIL_VERSION": TEST_APR_UTIL_VERSION,
+                "APR_UTIL_SHA256": apr_util_sha256,
             },
         )
         common_fixture = fixture_root / "ci/lib/common.sh"
@@ -272,14 +266,10 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                     "PCRE2_SHA256_URL": "",
                     "HTTPD_SOURCE_URL": "https://fixture.invalid/httpd.tar.bz2",
                     "APR_SOURCE_URL": "https://fixture.invalid/apr.tar.bz2",
-                    "APR_UTIL_VERSION": TEST_APR_UTIL_VERSION,
-                    "APR_UTIL_SOURCE_URL": TEST_APR_UTIL_SOURCE_URL,
                     "HTTPD_SHA256": digest_value,
                     "APR_SHA256": digest_value,
-                    "APR_UTIL_SHA256": digest_value,
                     "HTTPD_SHA256_URL": "https://fixture.invalid/httpd.sha256",
                     "APR_SHA256_URL": "https://fixture.invalid/apr.sha256",
-                    "APR_UTIL_SHA256_URL": TEST_APR_UTIL_SHA256_URL,
                     "PCRE2_FIXTURE_ARCHIVE": str(archive),
                     "PCRE2_ARCHIVE_PATH": str(
                         verified / "downloads" / self.fixture["archive_file"]

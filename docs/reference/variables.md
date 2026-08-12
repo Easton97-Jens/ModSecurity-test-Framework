@@ -249,6 +249,76 @@ unset for Git's recursive helper, and clear local redirect, attributes,
 sparse-checkout, and custom recursive-update
 configuration before submodule processing.
 
+## Common-version resolver
+
+`ci/tools/check-common-versions.py` is the data-driven, atomic resolver for
+the external-component provenance defaults in `ci/lib/common.sh`. Its
+`COMPONENT_DEFINITIONS` registry is the single inventory: each record names
+the component variables, trusted upstream and hosts, stable-release and
+compatibility policies, checksum strategy, resolver adapter, update policy,
+and one atomic update group. Resolver adapters contain no independent
+component policy. A relevant provenance variable that has no registry owner
+is an error; a variable with more than one owner is also rejected.
+
+The resolver uses only the official upstream indicated by the record. It
+rejects redirects and unexpected final URLs, and verifies the official asset
+digest or peeled Git-tag commit before accepting a candidate. When an
+automatic record changes, it writes every changed member of that record's
+atomic group together: version/tag, derived source or download URL, asset name
+where applicable, checksum URL, and SHA-256. URLs that contain a version
+variable are rendered from the updated group rather than chosen independently.
+
+| Component | Policy | Official latest and provenance strategy |
+|---|---|---|
+| Envoy | automatic | Latest non-draft, non-prerelease `v<version>` GitHub release; Linux asset and release digest or official checksum manifest. |
+| Traefik | automatic | Latest non-draft, non-prerelease `v<version>` GitHub release; Linux archive and GitHub release digest or official checksum manifest. |
+| lighttpd | automatic | Latest stable numeric release from official `releases-1.4.x/latest.txt`; official archive and SHA-256 manifest, constrained to that configured line. |
+| Apache httpd | automatic | Latest numeric official Apache listing release, constrained to the documented current major/minor series; official per-asset SHA-256 file. |
+| APR | automatic | Latest numeric official Apache listing release, constrained to the documented current major/minor series; official per-asset SHA-256 file. |
+| APR-util | automatic | Latest numeric official Apache listing release, constrained to the documented current major/minor series; official per-asset SHA-256 file. |
+| PCRE2 | automatic | Latest non-draft, non-prerelease `pcre2-<version>` GitHub release; release-asset digest. |
+| NGINX | automatic | Latest non-draft, non-prerelease `release-<version>` GitHub release; release-asset digest and matching release tag/ref/asset tuple. |
+| OpenSSL for NGINX QUIC/TLS | automatic | Latest non-draft, non-prerelease `openssl-<version>` GitHub release; release-asset digest. |
+| HAProxy | automatic | Latest numeric official HAProxy-directory release, constrained to the documented current major/minor series; official per-asset SHA-256 file. |
+| OWASP Core Rule Set | manual_review | Latest stable GitHub release and immutable peeled Git-tag commit are reported for review; the reviewed tag/commit pin is not automatically changed. |
+| ModSecurity v3 | manual_review | Latest stable `v3.<version>` GitHub release and immutable peeled Git-tag commit are reported for review; the reviewed tag/commit pin is not automatically changed. |
+| ModSecurity Apache connector | not_applicable | Repo-local connector source unless explicitly configured; no common-version acquisition contract exists. |
+| ModSecurity NGINX connector | not_applicable | Repo-local connector source unless explicitly configured; no common-version acquisition contract exists. |
+| go-ftw | not_applicable | Locally probed executable, not a Framework fetch contract. |
+| Albedo | not_applicable | Locally probed executable, not a Framework fetch contract. |
+| Expat | not_applicable | Legacy metadata has no Framework source-acquisition consumer. |
+| Default branch | not_applicable | Local policy default, not an upstream release source. |
+
+`manual_review` is an intentional preservation boundary, not a failed update:
+the resolver reports the latest release and proves the review pins remain
+unchanged while independent automatic groups are updated with
+`--defer-reviewed-provenance`. `not_applicable` prevents a future local hint
+or connector default from silently becoming an updater input. `unknown`,
+`blocked`, and `error` are fail-closed and prevent an update candidate.
+
+Use `--list-components` to print the registry's exact selectable names. Use
+one or more exact `--component <name>` options to resolve only selected
+records; an unknown name is rejected.
+
+```sh
+python3 ci/tools/check-common-versions.py --list-components
+python3 ci/tools/check-common-versions.py --check --json \
+  --component 'Envoy' --component 'HAProxy'
+```
+
+Without `--component`, the resolver processes every registry record in
+deterministic order. `--check` reports only; `--update` may write only
+validated automatic atomic groups. `--write-files` also records JSON and
+Markdown summaries below `BUILD_ROOT`; it does not change selection or policy.
+
+The `Check common.sh versions` workflow runs the complete registry on its
+schedule. Its optional `workflow_dispatch` `component` input keeps that
+all-component behavior when empty; a non-empty value is passed as one exact
+`--component` selection. Resolver and candidate jobs are read-only with
+respect to the checkout; the separately guarded publisher re-resolves and
+validates a SHA-256-bound candidate before it can create or update its Draft
+pull request.
+
 ## Tooling, status values, and sensitive data
 
 `PYTHON` defaults to `.venv/bin/python` when present, otherwise `python3`.

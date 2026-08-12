@@ -11,12 +11,14 @@ import json
 import os
 import re
 import sys
+import tempfile
+from http.client import HTTPException
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.parse import quote, urlparse
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 DEFAULT_BUILD_ROOT = Path("/src/ModSecurity-conector-build")
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -27,12 +29,21 @@ ARCHIVE_BZ2_EXTENSION = ".tar.bz2"
 APACHE_DOWNLOAD_HOST = "downloads.apache.org"
 MODSECURITY_V3_COMPONENT = "ModSecurity v3"
 
-TRACKED_NAME_RE = re.compile(
-    r"VERSION|RELEASE|TAG|SOURCE_URL|GIT_URL|SHA256|CHECKSUM|REF|BRANCH|COMMIT|URL"
+# The inventory deliberately limits itself to provenance inputs rather than
+# incidental runtime paths such as ``*_SOURCE_ROOT``.  A new matching variable
+# has to be registered below or explicitly classified as not applicable.
+RELEVANT_PROVENANCE_VARIABLE_RE = re.compile(
+    r"(?:_VERSION|_RELEASE_TAG|_GIT_REF|_APPROVED_COMMIT|_SOURCE_URL|"
+    r"_DOWNLOAD_URL|_RELEASE_ASSET_NAME|_SHA256|_SOURCE_SHA256|"
+    r"_SHA256_URL|_CHECKSUM(?:_[A-Z0-9_]+)?|_REPO_URL|_GITHUB_REPO|"
+    r"_GIT_URL|_RELEASE_INDEX_URL|_LATEST_URL|_PROMPT_EXPECTED_LATEST"
+    r")$"
 )
+TRACKED_NAME_RE = RELEVANT_PROVENANCE_VARIABLE_RE
 PARAM_EXPANSION_RE = re.compile(r"\$\{((?!\d)\w+):?[-=]([^{}]*)\}", re.ASCII)
 BRACED_VAR_RE = re.compile(r"\$\{((?!\d)\w+)\}", re.ASCII)
 PLAIN_VAR_RE = re.compile(r"\$((?!\d)\w+)", re.ASCII)
+PARAM_REMOVE_PREFIX_RE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)#([^{}]*)\}")
 SHA256_RE = re.compile(r"\b([A-Fa-f0-9]{64})\b")
 SHA256_VALUE_RE = re.compile(r"^[a-f0-9]{64}$")
 GIT_COMMIT_SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -46,6 +57,11 @@ URL_PATH_DYNAMIC_VALUE_RE = re.compile(
     r"\$(?:\{[A-Za-z_](?a:\w)*\}|[A-Za-z_](?a:\w)*)|\d+\.\d+(?:\.\d+)*"
 )
 NGINX_RELEASE_ASSET_RE = re.compile(r"^nginx-([A-Za-z0-9][A-Za-z0-9._-]*)\.tar\.gz$")
+SAFE_ASSET_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*$")
+GITHUB_RELEASE_URL_RE = re.compile(
+    r"^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/releases/download/"
+    r"([^/]+)/([^/?#]+)$"
+)
 OPTIONAL_EMPTY_VARIABLES = {
     "APACHE_BIN",
     "APACHECTL_BIN",
@@ -73,6 +89,14 @@ APPROVED_LITERAL_VARIABLES = {
     "MODSECURITY_V3_APPROVED_REPO_URL",
     "MODSECURITY_V3_APPROVED_COMMIT",
     "MODSECURITY_V3_RELEASE_TAG",
+    # APR-util deliberately rejects environment overrides, so its authoritative
+    # version/digest are literals and its URLs are safe, parser-visible
+    # derivations.  Keeping the former PINNED names accepted preserves a clear
+    # error for legacy fixtures without reintroducing dual source-of-truth data.
+    "APR_UTIL_VERSION",
+    "APR_UTIL_SOURCE_URL",
+    "APR_UTIL_SHA256",
+    "APR_UTIL_SHA256_URL",
 }
 
 STATUS_CURRENT = "current"
@@ -121,6 +145,496 @@ MANUAL_REVIEW_VARIABLES = {
 }
 
 
+@dataclasses.dataclass(frozen=True)
+class ComponentDefinition:
+    """One auditable external-component provenance contract.
+
+    Resolver adapters are intentionally small; all component identity,
+    expected variables, trusted upstream, stable-selection rule, compatibility
+    policy, checksum strategy, and atomic update group live in this table.
+    """
+
+    name: str
+    resolver: str
+    variables: tuple[str, ...]
+    atomic_group: tuple[str, ...]
+    update_policy: str
+    stable_policy: str
+    compatibility_policy: str
+    authorized_hosts: tuple[str, ...] = ()
+    github_repository: str | None = None
+    version_variable: str | None = None
+    release_tag_variable: str | None = None
+    source_url_variable: str | None = None
+    download_url_variable: str | None = None
+    asset_variable: str | None = None
+    sha256_variable: str | None = None
+    sha256_url_variable: str | None = None
+    git_commit_variable: str | None = None
+    asset_template: str | None = None
+    checksum_asset_template: str | None = None
+    checksum_strategy: str = ""
+    tag_prefix: str = ""
+    tag_pattern: str = ""
+    filename_prefix: str = ""
+    archive_extension: str = ""
+    source_path_prefix: str = ""
+    alias_bindings: tuple[tuple[str, str], ...] = ()
+    not_applicable_reason: str = ""
+
+
+# This registry is the source of truth for the common.sh provenance inventory.
+# ``not_applicable`` records are intentional: they document metadata consumed
+# only as local hints or repo-local connector defaults, so a future consumer
+# cannot silently turn them into an updater input.
+COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
+    ComponentDefinition(
+        name="Envoy",
+        resolver="github_release_manifest",
+        variables=(
+            "ENVOY_VERSION",
+            "ENVOY_SOURCE_URL",
+            "ENVOY_DOWNLOAD_URL",
+            "ENVOY_SHA256",
+            "ENVOY_SHA256_URL",
+        ),
+        atomic_group=(
+            "ENVOY_VERSION",
+            "ENVOY_SOURCE_URL",
+            "ENVOY_DOWNLOAD_URL",
+            "ENVOY_SHA256",
+            "ENVOY_SHA256_URL",
+        ),
+        update_policy="automatic",
+        stable_policy="GitHub non-draft, non-prerelease stable v<version> release",
+        compatibility_policy="latest stable release; no hidden series restriction",
+        authorized_hosts=("github.com", "api.github.com"),
+        github_repository="envoyproxy/envoy",
+        version_variable="ENVOY_VERSION",
+        source_url_variable="ENVOY_SOURCE_URL",
+        download_url_variable="ENVOY_DOWNLOAD_URL",
+        sha256_variable="ENVOY_SHA256",
+        sha256_url_variable="ENVOY_SHA256_URL",
+        asset_template="envoy-{version}-linux-x86_64",
+        checksum_asset_template="checksums.txt.asc",
+        checksum_strategy="github_release_asset_digest_or_official_manifest",
+        tag_prefix="v",
+        tag_pattern=r"^v\d+(?:\.\d+)+$",
+    ),
+    ComponentDefinition(
+        name="Traefik",
+        resolver="github_release_manifest",
+        variables=(
+            "TRAEFIK_VERSION",
+            "TRAEFIK_SOURCE_URL",
+            "TRAEFIK_DOWNLOAD_URL",
+            "TRAEFIK_SHA256",
+            "TRAEFIK_SHA256_URL",
+        ),
+        atomic_group=(
+            "TRAEFIK_VERSION",
+            "TRAEFIK_SOURCE_URL",
+            "TRAEFIK_DOWNLOAD_URL",
+            "TRAEFIK_SHA256",
+            "TRAEFIK_SHA256_URL",
+        ),
+        update_policy="automatic",
+        stable_policy="GitHub non-draft, non-prerelease stable v<version> release",
+        compatibility_policy="latest stable release; no hidden series restriction",
+        authorized_hosts=("github.com", "api.github.com"),
+        github_repository="traefik/traefik",
+        version_variable="TRAEFIK_VERSION",
+        source_url_variable="TRAEFIK_SOURCE_URL",
+        download_url_variable="TRAEFIK_DOWNLOAD_URL",
+        sha256_variable="TRAEFIK_SHA256",
+        sha256_url_variable="TRAEFIK_SHA256_URL",
+        asset_template="traefik_v{version}_linux_amd64.tar.gz",
+        checksum_asset_template="traefik_v{version}_checksums.txt",
+        checksum_strategy="github_release_asset_digest_or_official_manifest",
+        tag_prefix="v",
+        tag_pattern=r"^v\d+(?:\.\d+)+$",
+    ),
+    ComponentDefinition(
+        name="lighttpd",
+        resolver="lighttpd_latest",
+        variables=(
+            "LIGHTTPD_VERSION",
+            "LIGHTTPD_SOURCE_URL",
+            "LIGHTTPD_RELEASE_INDEX_URL",
+            "LIGHTTPD_LATEST_URL",
+            "LIGHTTPD_DOWNLOAD_URL",
+            "LIGHTTPD_SHA256",
+            "LIGHTTPD_SHA256_URL",
+        ),
+        atomic_group=(
+            "LIGHTTPD_VERSION",
+            "LIGHTTPD_SOURCE_URL",
+            "LIGHTTPD_RELEASE_INDEX_URL",
+            "LIGHTTPD_LATEST_URL",
+            "LIGHTTPD_DOWNLOAD_URL",
+            "LIGHTTPD_SHA256",
+            "LIGHTTPD_SHA256_URL",
+        ),
+        update_policy="automatic",
+        stable_policy="official releases-1.4.x latest.txt stable numeric release",
+        compatibility_policy="the explicitly configured releases-1.4.x line",
+        authorized_hosts=("download.lighttpd.net",),
+        version_variable="LIGHTTPD_VERSION",
+        source_url_variable="LIGHTTPD_SOURCE_URL",
+        download_url_variable="LIGHTTPD_DOWNLOAD_URL",
+        sha256_variable="LIGHTTPD_SHA256",
+        sha256_url_variable="LIGHTTPD_SHA256_URL",
+        asset_template="lighttpd-{version}.tar.xz",
+        checksum_strategy="official_sha256sum_manifest",
+        filename_prefix="lighttpd",
+        archive_extension=".tar.xz",
+    ),
+    ComponentDefinition(
+        name=CRS_COMPONENT,
+        resolver="github_tag_commit",
+        variables=(
+            "CRS_APPROVED_REPO_URL",
+            "CRS_RELEASE_TAG",
+            "CRS_APPROVED_COMMIT",
+            "CRS_REPO_URL",
+            "CRS_GIT_REF",
+        ),
+        atomic_group=("CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"),
+        update_policy="manual_review",
+        stable_policy="GitHub non-draft, non-prerelease stable v<version> release",
+        compatibility_policy="latest stable release requires immutable peeled-commit review",
+        authorized_hosts=("github.com", "api.github.com"),
+        github_repository=CRS_APPROVED_REPOSITORY,
+        release_tag_variable="CRS_RELEASE_TAG",
+        git_commit_variable="CRS_APPROVED_COMMIT",
+        checksum_strategy="peeled_git_tag_commit",
+        tag_pattern=r"^v\d+(?:\.\d+)+$",
+        alias_bindings=(
+            ("CRS_REPO_URL", "CRS_APPROVED_REPO_URL"),
+            ("CRS_GIT_REF", "CRS_RELEASE_TAG"),
+        ),
+    ),
+    ComponentDefinition(
+        name=MODSECURITY_V3_COMPONENT,
+        resolver="github_tag_commit",
+        variables=(
+            "MODSECURITY_V3_APPROVED_REPO_URL",
+            "MODSECURITY_V3_RELEASE_TAG",
+            "MODSECURITY_V3_APPROVED_COMMIT",
+            "MODSECURITY_REPO_URL",
+            "MODSECURITY_GIT_REF",
+            "MODSECURITY_V3_GIT_URL",
+            "MODSECURITY_V3_GIT_REF",
+        ),
+        atomic_group=(
+            "MODSECURITY_V3_RELEASE_TAG",
+            "MODSECURITY_V3_APPROVED_COMMIT",
+        ),
+        update_policy="manual_review",
+        stable_policy="GitHub non-draft, non-prerelease stable v3.<version> release",
+        compatibility_policy="latest stable v3 release requires immutable peeled-commit review",
+        authorized_hosts=("github.com", "api.github.com"),
+        github_repository=MODSECURITY_V3_APPROVED_REPOSITORY,
+        release_tag_variable="MODSECURITY_V3_RELEASE_TAG",
+        git_commit_variable="MODSECURITY_V3_APPROVED_COMMIT",
+        checksum_strategy="peeled_git_tag_commit",
+        tag_pattern=r"^v3\.\d+\.\d+$",
+        alias_bindings=(
+            ("MODSECURITY_REPO_URL", "MODSECURITY_V3_APPROVED_REPO_URL"),
+            ("MODSECURITY_GIT_REF", "MODSECURITY_V3_RELEASE_TAG"),
+            ("MODSECURITY_V3_GIT_URL", "MODSECURITY_V3_APPROVED_REPO_URL"),
+            ("MODSECURITY_V3_GIT_REF", "MODSECURITY_V3_RELEASE_TAG"),
+        ),
+    ),
+    ComponentDefinition(
+        name="ModSecurity Apache connector",
+        resolver="not_applicable",
+        variables=(
+            "MODSECURITY_APACHE_REPO_URL",
+            "MODSECURITY_APACHE_GIT_URL",
+            "MODSECURITY_APACHE_GIT_REF",
+        ),
+        atomic_group=(),
+        update_policy="not_applicable",
+        stable_policy="none",
+        compatibility_policy="repo-local connector source",
+        not_applicable_reason="connector source is repo-local unless explicitly configured",
+    ),
+    ComponentDefinition(
+        name="ModSecurity NGINX connector",
+        resolver="not_applicable",
+        variables=(
+            "MODSECURITY_NGINX_REPO_URL",
+            "MODSECURITY_NGINX_GIT_URL",
+            "MODSECURITY_NGINX_GIT_REF",
+        ),
+        atomic_group=(),
+        update_policy="not_applicable",
+        stable_policy="none",
+        compatibility_policy="repo-local connector source",
+        not_applicable_reason="connector source is repo-local unless explicitly configured",
+    ),
+    ComponentDefinition(
+        name="Apache httpd",
+        resolver="apache_listing",
+        variables=("HTTPD_VERSION", "HTTPD_SOURCE_URL", "HTTPD_SHA256", "HTTPD_SHA256_URL"),
+        atomic_group=(
+            "HTTPD_VERSION",
+            "HTTPD_SOURCE_URL",
+            "HTTPD_SHA256",
+            "HTTPD_SHA256_URL",
+        ),
+        update_policy="automatic",
+        stable_policy="official Apache numeric release listing",
+        compatibility_policy="same major/minor series documented in this descriptor",
+        authorized_hosts=(APACHE_DOWNLOAD_HOST,),
+        version_variable="HTTPD_VERSION",
+        source_url_variable="HTTPD_SOURCE_URL",
+        sha256_variable="HTTPD_SHA256",
+        sha256_url_variable="HTTPD_SHA256_URL",
+        checksum_strategy="official_asset_sha256_file",
+        filename_prefix="httpd",
+        archive_extension=ARCHIVE_BZ2_EXTENSION,
+        source_path_prefix="/httpd/",
+    ),
+    ComponentDefinition(
+        name="APR",
+        resolver="apache_listing",
+        variables=("APR_VERSION", "APR_SOURCE_URL", "APR_SHA256", "APR_SHA256_URL"),
+        atomic_group=("APR_VERSION", "APR_SOURCE_URL", "APR_SHA256", "APR_SHA256_URL"),
+        update_policy="automatic",
+        stable_policy="official Apache numeric release listing",
+        compatibility_policy="same major/minor series documented in this descriptor",
+        authorized_hosts=(APACHE_DOWNLOAD_HOST,),
+        version_variable="APR_VERSION",
+        source_url_variable="APR_SOURCE_URL",
+        sha256_variable="APR_SHA256",
+        sha256_url_variable="APR_SHA256_URL",
+        checksum_strategy="official_asset_sha256_file",
+        filename_prefix="apr",
+        archive_extension=ARCHIVE_BZ2_EXTENSION,
+        source_path_prefix="/apr/",
+    ),
+    ComponentDefinition(
+        name="APR-util",
+        resolver="apache_listing",
+        variables=(
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ),
+        atomic_group=(
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ),
+        update_policy="automatic",
+        stable_policy="official Apache numeric release listing",
+        compatibility_policy="same major/minor series documented in this descriptor",
+        authorized_hosts=(APACHE_DOWNLOAD_HOST,),
+        version_variable="APR_UTIL_VERSION",
+        source_url_variable="APR_UTIL_SOURCE_URL",
+        sha256_variable="APR_UTIL_SHA256",
+        sha256_url_variable="APR_UTIL_SHA256_URL",
+        checksum_strategy="official_asset_sha256_file",
+        filename_prefix="apr-util",
+        archive_extension=ARCHIVE_BZ2_EXTENSION,
+        source_path_prefix="/apr/",
+    ),
+    ComponentDefinition(
+        name="PCRE2",
+        resolver="github_release_digest",
+        variables=("PCRE2_VERSION", "PCRE2_SOURCE_URL", "PCRE2_SHA256", "PCRE2_SHA256_URL"),
+        atomic_group=(
+            "PCRE2_VERSION",
+            "PCRE2_SOURCE_URL",
+            "PCRE2_SHA256",
+            "PCRE2_SHA256_URL",
+        ),
+        update_policy="automatic",
+        stable_policy="GitHub non-draft, non-prerelease pcre2-<version> release",
+        compatibility_policy="latest stable release; no hidden series restriction",
+        authorized_hosts=("github.com", "api.github.com"),
+        github_repository="PCRE2Project/pcre2",
+        version_variable="PCRE2_VERSION",
+        source_url_variable="PCRE2_SOURCE_URL",
+        sha256_variable="PCRE2_SHA256",
+        sha256_url_variable="PCRE2_SHA256_URL",
+        asset_template="pcre2-{version}.tar.bz2",
+        checksum_strategy="github_release_asset_digest",
+        tag_prefix="pcre2-",
+        tag_pattern=r"^pcre2-\d+(?:\.\d+)+$",
+    ),
+    ComponentDefinition(
+        name="NGINX",
+        resolver="github_release_digest",
+        variables=(
+            "NGINX_SOURCE_REPO_URL",
+            "NGINX_GITHUB_REPO",
+            "NGINX_RELEASE_TAG",
+            "NGINX_SOURCE_GIT_REF",
+            "NGINX_RELEASE_ASSET_NAME",
+            "NGINX_SHA256",
+        ),
+        atomic_group=(
+            "NGINX_RELEASE_TAG",
+            "NGINX_SOURCE_GIT_REF",
+            "NGINX_RELEASE_ASSET_NAME",
+            "NGINX_SHA256",
+        ),
+        update_policy="automatic",
+        stable_policy="GitHub non-draft, non-prerelease release-<version> release",
+        compatibility_policy="latest stable release; no hidden series restriction",
+        authorized_hosts=("github.com", "api.github.com"),
+        github_repository="nginx/nginx",
+        release_tag_variable="NGINX_RELEASE_TAG",
+        source_url_variable="NGINX_SOURCE_REPO_URL",
+        asset_variable="NGINX_RELEASE_ASSET_NAME",
+        sha256_variable="NGINX_SHA256",
+        asset_template="nginx-{version}.tar.gz",
+        checksum_strategy="github_release_asset_digest",
+        tag_prefix="release-",
+        tag_pattern=r"^release-\d+(?:\.\d+)+$",
+    ),
+    ComponentDefinition(
+        name="OpenSSL for NGINX QUIC/TLS",
+        resolver="github_release_digest",
+        variables=(
+            "NGINX_QUIC_TLS_VERSION",
+            "NGINX_QUIC_TLS_SOURCE_URL",
+            "NGINX_QUIC_TLS_SOURCE_SHA256",
+        ),
+        atomic_group=(
+            "NGINX_QUIC_TLS_VERSION",
+            "NGINX_QUIC_TLS_SOURCE_URL",
+            "NGINX_QUIC_TLS_SOURCE_SHA256",
+        ),
+        update_policy="automatic",
+        stable_policy="GitHub non-draft, non-prerelease openssl-<version> release",
+        compatibility_policy="latest stable release; no hidden series restriction",
+        authorized_hosts=("github.com", "api.github.com"),
+        github_repository="openssl/openssl",
+        version_variable="NGINX_QUIC_TLS_VERSION",
+        source_url_variable="NGINX_QUIC_TLS_SOURCE_URL",
+        sha256_variable="NGINX_QUIC_TLS_SOURCE_SHA256",
+        asset_template="openssl-{version}.tar.gz",
+        checksum_strategy="github_release_asset_digest",
+        tag_prefix="openssl-",
+        tag_pattern=r"^openssl-\d+(?:\.\d+)+$",
+    ),
+    ComponentDefinition(
+        name="HAProxy",
+        resolver="haproxy_series",
+        variables=("HAPROXY_VERSION", "HAPROXY_SOURCE_URL", "HAPROXY_SHA256_URL", "HAPROXY_SHA256"),
+        atomic_group=(
+            "HAPROXY_VERSION",
+            "HAPROXY_SOURCE_URL",
+            "HAPROXY_SHA256_URL",
+            "HAPROXY_SHA256",
+        ),
+        update_policy="automatic",
+        stable_policy="official HAProxy numeric series release directory",
+        compatibility_policy="same major/minor series documented in this descriptor",
+        authorized_hosts=("www.haproxy.org",),
+        version_variable="HAPROXY_VERSION",
+        source_url_variable="HAPROXY_SOURCE_URL",
+        sha256_variable="HAPROXY_SHA256",
+        sha256_url_variable="HAPROXY_SHA256_URL",
+        checksum_strategy="official_asset_sha256_file",
+        filename_prefix="haproxy",
+        archive_extension=".tar.gz",
+    ),
+    ComponentDefinition(
+        name="go-ftw",
+        resolver="not_applicable",
+        variables=(
+            "GO_FTW_SOURCE_URL",
+            "GO_FTW_PROMPT_EXPECTED_LATEST",
+            "GO_FTW_GIT_REF",
+        ),
+        atomic_group=(),
+        update_policy="not_applicable",
+        stable_policy="stable tag is documented, but no Framework fetch consumer exists",
+        compatibility_policy="local executable probe only",
+        not_applicable_reason="go-ftw is supplied by a locally probed executable; common.sh metadata is not a fetch contract",
+    ),
+    ComponentDefinition(
+        name="Albedo",
+        resolver="not_applicable",
+        variables=(
+            "ALBEDO_SOURCE_URL",
+            "ALBEDO_PROMPT_EXPECTED_LATEST",
+            "ALBEDO_GIT_REF",
+        ),
+        atomic_group=(),
+        update_policy="not_applicable",
+        stable_policy="stable tag is documented, but no Framework fetch consumer exists",
+        compatibility_policy="local executable probe only",
+        not_applicable_reason="Albedo is supplied by a locally probed executable; common.sh metadata is not a fetch contract",
+    ),
+    ComponentDefinition(
+        name="Expat",
+        resolver="not_applicable",
+        variables=(
+            "EXPAT_SOURCE_URL",
+            "EXPAT_GIT_REF",
+            "EXPAT_GIT_URL",
+            "EXPAT_PROMPT_EXPECTED_LATEST",
+        ),
+        atomic_group=(),
+        update_policy="not_applicable",
+        stable_policy="not fetched by this Framework",
+        compatibility_policy="legacy metadata is unused by an acquisition path",
+        not_applicable_reason="Expat metadata has no Framework source-acquisition consumer and is intentionally not an updater input",
+    ),
+    ComponentDefinition(
+        name="Default branch",
+        resolver="not_applicable",
+        variables=("DEFAULT_BRANCH",),
+        atomic_group=(),
+        update_policy="not_applicable",
+        stable_policy="none",
+        compatibility_policy="local policy default",
+        not_applicable_reason="DEFAULT_BRANCH is a local policy default, not an upstream release source",
+    ),
+)
+
+COMPONENT_DEFINITION_BY_NAME = {item.name: item for item in COMPONENT_DEFINITIONS}
+
+
+def canonical_component_selection(requested: list[str] | None) -> tuple[str, ...]:
+    """Validate exact CLI component names and preserve registry order."""
+
+    if not requested:
+        return ()
+    requested_names = set(requested)
+    unknown = sorted(requested_names.difference(COMPONENT_DEFINITION_BY_NAME))
+    if unknown:
+        raise UpstreamError(
+            "unknown component selector(s): "
+            + ", ".join(repr(name) for name in unknown)
+        )
+    return tuple(
+        definition.name
+        for definition in COMPONENT_DEFINITIONS
+        if definition.name in requested_names
+    )
+
+
+def component_definition_for_variable(variable: str) -> ComponentDefinition | None:
+    """Return the sole declared component owner for a provenance variable."""
+
+    owners = [item for item in COMPONENT_DEFINITIONS if variable in item.variables]
+    if len(owners) > 1:
+        raise UpstreamError(
+            f"provenance variable {variable} has multiple component owners: "
+            + ", ".join(item.name for item in owners)
+        )
+    return owners[0] if owners else None
+
+
 class UpstreamBlocked(RuntimeError):
     """The upstream source could not be checked right now."""
 
@@ -160,7 +674,14 @@ class ComponentResult:
     variables: list[str]
     current: str = ""
     latest: str = ""
+    latest_upstream: str = ""
+    latest_compatible: str = ""
     source: str = ""
+    asset_name: str = ""
+    official_sha256: str = ""
+    sha256_source: str = ""
+    update_policy: str = ""
+    atomic_group: tuple[str, ...] = ()
     updates: list[UpdateChange] = dataclasses.field(default_factory=list)
     details: dict[str, Any] = dataclasses.field(default_factory=dict)
 
@@ -238,6 +759,14 @@ def resolve_value(raw_value: str, resolved: dict[str, str]) -> str:
         value = PARAM_EXPANSION_RE.sub(replace_param, value)
         if value == before:
             break
+    value = PARAM_REMOVE_PREFIX_RE.sub(
+        lambda match: (
+            resolved.get(match.group(1), "").removeprefix(match.group(2))
+            if resolved.get(match.group(1), "").startswith(match.group(2))
+            else resolved.get(match.group(1), "")
+        ),
+        value,
+    )
     value = BRACED_VAR_RE.sub(lambda match: resolved.get(match.group(1), ""), value)
     value = PLAIN_VAR_RE.sub(lambda match: resolved.get(match.group(1), ""), value)
     return value
@@ -247,7 +776,11 @@ def parse_common_assignment(line: str) -> tuple[str, str, str] | None:
     assign_re = re.compile(r'^([A-Z][A-Z0-9_]*)="\$\{\1:-(.*)\}"\s*$')
     unset_assign_re = re.compile(r'^([A-Z][A-Z0-9_]*)="\$\{\1-(.*)\}"\s*$')
     colon_re = re.compile(r'^:\s+"\$\{([A-Z][A-Z0-9_]*):=(.*)\}"\s*$')
-    literal_re = re.compile(r'^([A-Z][A-Z0-9_]*)="([^"$`]*)"\s*$')
+    # A selected small set of reviewed literals may contain a simple variable
+    # reference (for example APR-util's URL derived from its one version).  The
+    # parser only substitutes already-parsed variables; it never evaluates shell
+    # syntax, command substitution, or environment values.
+    literal_re = re.compile(r'^([A-Z][A-Z0-9_]*)="([^"`]*)"\s*$')
 
     for style, pattern in (
         ("colon-default", colon_re),
@@ -280,7 +813,10 @@ def parse_common_lines(lines: list[str]) -> dict[str, VariableEntry]:
         style, name, default = assignment
         value = resolve_value(default, resolved)
         resolved[name] = value
-        tracked = bool(TRACKED_NAME_RE.search(name) or TRACKED_NAME_RE.search(default))
+        # A runtime path may interpolate a version (for example
+        # ``ENVOY_SOURCE_ROOT``).  That does not make the path itself an
+        # upstream-provenance input, so classify only the assignment name.
+        tracked = bool(TRACKED_NAME_RE.search(name))
         entries[name] = VariableEntry(
             name=name,
             line=line_no,
@@ -449,7 +985,11 @@ def plan_update(
 
 
 def is_template_value(raw_default: str, variable: str) -> bool:
-    return f"${variable}" in raw_default or f"${{{variable}}}" in raw_default
+    return (
+        f"${variable}" in raw_default
+        or f"${{{variable}}}" in raw_default
+        or f"${{{variable}#" in raw_default
+    )
 
 
 def replace_default_line(line: str, variable: str, new_default: str) -> str:
@@ -458,7 +998,8 @@ def replace_default_line(line: str, variable: str, new_default: str) -> str:
     assign_re = re.compile(rf'^({escaped}\s*=\s*"\$\{{{escaped}:=)(.*)(\}}"\s*)$')
     default_re = re.compile(rf'^({escaped}\s*=\s*"\$\{{{escaped}:-)(.*)(\}}"\s*)$')
     unset_default_re = re.compile(rf'^({escaped}\s*=\s*"\$\{{{escaped}-)(.*)(\}}"\s*)$')
-    for pattern in (colon_re, assign_re, default_re, unset_default_re):
+    literal_re = re.compile(rf'^({escaped}\s*=\s*")(.*)("\s*)$')
+    for pattern in (colon_re, assign_re, default_re, unset_default_re, literal_re):
         match = pattern.match(line)
         if match:
             return f"{match.group(1)}{new_default}{match.group(3)}"
@@ -511,7 +1052,45 @@ def apply_updates(
         return
     target = require_safe_common_sh_update_target(common_sh)
     updated_lines = render_updated_lines(lines, updates)
-    target.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
+    payload = ("\n".join(updated_lines) + "\n").encode("utf-8")
+    original_mode = target.stat().st_mode & 0o777
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".tmp",
+        dir=target.parent,
+    )
+    temporary = Path(temporary_name)
+    try:
+        try:
+            os.fchmod(descriptor, original_mode)
+            with os.fdopen(descriptor, "wb") as handle:
+                descriptor = -1
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+        finally:
+            if descriptor != -1:
+                os.close(descriptor)
+        # Persist the replacement directory entry where the platform exposes a
+        # directory file descriptor.  The replacement itself is already
+        # atomic; filesystems that do not allow directory fsync retain that
+        # property without turning a completed write into a false no-write.
+        try:
+            directory_descriptor = os.open(target.parent, os.O_RDONLY)
+        except OSError:
+            directory_descriptor = -1
+        if directory_descriptor != -1:
+            try:
+                try:
+                    os.fsync(directory_descriptor)
+                except OSError:
+                    pass
+            finally:
+                os.close(directory_descriptor)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def consume_decimal_digits(text: str, start: int) -> int:
@@ -569,13 +1148,73 @@ def same_series(left: str, right: str) -> bool:
     )
 
 
+def is_stable_version(value_text: str) -> bool:
+    """Accept only a plain numeric release identity, never prerelease text."""
+
+    return SAFE_VERSION_RE.fullmatch(value_text) is not None
+
+
+def latest_versions_from_listing(
+    html: str,
+    filename_prefix: str,
+    extension: str,
+    current_version: str,
+    restrict_to_current_series: bool,
+) -> tuple[str, str]:
+    """Return latest upstream and the explicitly compatible candidate."""
+
+    pattern = re.compile(
+        rf"{re.escape(filename_prefix)}-(\d+(?:\.\d+)+){re.escape(extension)}"
+    )
+    upstream_versions = sorted(
+        {match.group(1) for match in pattern.finditer(html) if is_stable_version(match.group(1))},
+        key=version_tuple,
+    )
+    if not upstream_versions:
+        raise UpstreamUnknown(
+            f"No safe updater implemented for this source yet: no matching {filename_prefix} "
+            "stable versions found in official listing."
+        )
+    compatible_versions = (
+        [
+            candidate
+            for candidate in upstream_versions
+            if same_series(candidate, current_version)
+        ]
+        if restrict_to_current_series
+        else upstream_versions
+    )
+    if not compatible_versions:
+        raise UpstreamUnknown(
+            f"no latest compatible {filename_prefix} version is available under the documented policy"
+        )
+    return upstream_versions[-1], compatible_versions[-1]
+
+
 def markdown_escape(value_text: str) -> str:
     return value_text.replace("|", "\\|").replace("\n", "<br>")
+
+
+class NoRedirectHandler(HTTPRedirectHandler):
+    """Refuse redirects before urllib can follow them or copy request headers."""
+
+    def redirect_request(  # type: ignore[override]
+        self,
+        request: Request,
+        fp: Any,
+        code: int,
+        message: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        del request, fp, code, message, headers, newurl
+        return None
 
 
 class HttpClient:
     def __init__(self, timeout: float) -> None:
         self.timeout = timeout
+        self._opener = build_opener(NoRedirectHandler())
 
     def _headers(self, url: str, accept: str | None = None) -> dict[str, str]:
         headers = {
@@ -590,13 +1229,37 @@ class HttpClient:
             headers["X-GitHub-Api-Version"] = "2022-11-28"
         return headers
 
-    def get_text(self, url: str, accept: str | None = None) -> str:
+    def _get_text(
+        self,
+        url: str,
+        accept: str | None = None,
+        *,
+        allowed_content_types: frozenset[str] | None = None,
+    ) -> str:
         request = Request(url, headers=self._headers(url, accept))
         try:
-            with urlopen(request, timeout=self.timeout) as response:  # nosec B310
+            with self._opener.open(request, timeout=self.timeout) as response:  # nosec B310
+                final_url = response.geturl()
+                if final_url != url:
+                    raise UpstreamUnknown(
+                        f"{url}: redirect or final URL change is not permitted"
+                    )
+                content_type = response.headers.get_content_type().lower()
+                if (
+                    allowed_content_types is not None
+                    and content_type not in allowed_content_types
+                ):
+                    raise UpstreamUnknown(
+                        f"{url}: unexpected content type {content_type!r}"
+                    )
                 raw = response.read()
                 charset = response.headers.get_content_charset() or "utf-8"
-                return raw.decode(charset, errors="replace")
+                try:
+                    return raw.decode(charset, errors="replace")
+                except (LookupError, UnicodeError) as exc:
+                    raise UpstreamUnknown(
+                        f"{url}: response declares an unsupported character encoding"
+                    ) from exc
         except HTTPError as exc:
             if exc.code in {403, 429}:
                 remaining = exc.headers.get("x-ratelimit-remaining")
@@ -608,11 +1271,37 @@ class HttpClient:
             if exc.code == 404:
                 raise UpstreamUnknown(f"{url}: HTTP 404") from exc
             raise UpstreamError(f"{url}: HTTP {exc.code}") from exc
-        except (TimeoutError, URLError) as exc:
+        # urllib can surface a peer disconnect directly as an HTTPException
+        # (for example ``RemoteDisconnected``) rather than wrapping it in a
+        # URLError.  Keep every transport failure inside the fail-closed
+        # resolver model so the caller still emits its diagnostic summary.
+        except (HTTPException, OSError, URLError) as exc:
             raise UpstreamBlocked(f"{url}: {exc}") from exc
 
+    def get_text(self, url: str, accept: str | None = None) -> str:
+        return self._get_text(url, accept)
+
+    def get_checksum_text(self, url: str) -> str:
+        """Read only a non-HTML official checksum/manifest response."""
+
+        return self._get_text(
+            url,
+            allowed_content_types=frozenset(
+                {
+                    "text/plain",
+                    "application/octet-stream",
+                    "application/pgp-signature",
+                    "application/x-pgp-signature",
+                }
+            ),
+        )
+
     def get_json(self, url: str) -> dict[str, Any]:
-        text = self.get_text(url, accept="application/vnd.github+json")
+        text = self._get_text(
+            url,
+            accept="application/vnd.github+json",
+            allowed_content_types=frozenset({"application/json"}),
+        )
         try:
             data = json.loads(text)
         except json.JSONDecodeError as exc:
@@ -623,25 +1312,45 @@ class HttpClient:
 
 
 def parse_sha256(text: str, expected_filename: str) -> str:
+    if "<html" in text.lower() or "<!doctype html" in text.lower():
+        raise UpstreamUnknown("official checksum response appears to be HTML")
     matches: list[str] = []
+    matching_but_invalid = False
+    gnu_line = re.compile(r"^\s*([A-Fa-f0-9]{64})[ \t]+\*?([^\s]+)\s*$")
+    bsd_line = re.compile(
+        r"^\s*SHA256 \(([^)]+)\) = ([A-Fa-f0-9]{64})\s*$",
+        re.IGNORECASE,
+    )
     for line in text.splitlines():
-        match = SHA256_RE.search(line)
-        if not match:
+        gnu_match = gnu_line.fullmatch(line)
+        bsd_match = bsd_line.fullmatch(line)
+        if gnu_match and gnu_match.group(2) == expected_filename:
+            matches.append(gnu_match.group(1).lower())
             continue
-        fields = line.split()
-        names = [field.lstrip("*") for field in fields[1:]]
-        if not names or expected_filename in names or expected_filename in line:
-            matches.append(match.group(1).lower())
-    unique = sorted(set(matches))
-    if not unique:
+        if bsd_match and bsd_match.group(1) == expected_filename:
+            matches.append(bsd_match.group(2).lower())
+            continue
+        if expected_filename in line:
+            matching_but_invalid = True
+    if matching_but_invalid:
+        raise UpstreamUnknown(
+            f"official checksum entry for {expected_filename} is malformed or uses an unsupported algorithm"
+        )
+    if not matches:
         raise UpstreamBlocked(f"official checksum did not name {expected_filename}")
-    if len(unique) != 1:
+    if len(matches) != 1:
         raise UpstreamBlocked(f"official checksum for {expected_filename} is ambiguous")
-    return unique[0]
+    return matches[0]
 
 
 def fetch_sha256(client: HttpClient, checksum_url: str, expected_filename: str) -> str:
-    return parse_sha256(client.get_text(checksum_url), expected_filename)
+    get_checksum_text = getattr(client, "get_checksum_text", None)
+    text = (
+        get_checksum_text(checksum_url)
+        if callable(get_checksum_text)
+        else client.get_text(checksum_url)
+    )
+    return parse_sha256(text, expected_filename)
 
 
 def latest_from_listing(
@@ -651,24 +1360,14 @@ def latest_from_listing(
     current_version: str,
     restrict_to_current_series: bool,
 ) -> str:
-    pattern = re.compile(
-        rf"{re.escape(filename_prefix)}-(\d+(?:\.\d+)+){re.escape(extension)}"
+    _, latest_compatible = latest_versions_from_listing(
+        html,
+        filename_prefix,
+        extension,
+        current_version,
+        restrict_to_current_series,
     )
-    versions = sorted(
-        {match.group(1) for match in pattern.finditer(html)}, key=version_tuple
-    )
-    if restrict_to_current_series:
-        versions = [
-            candidate
-            for candidate in versions
-            if same_series(candidate, current_version)
-        ]
-    if not versions:
-        raise UpstreamUnknown(
-            f"No safe updater implemented for this source yet: no matching {filename_prefix} "
-            f"versions found in official listing."
-        )
-    return versions[-1]
+    return latest_compatible
 
 
 def missing_variables_result(
@@ -691,12 +1390,22 @@ def is_expected_tarball_url(
     current_url: str,
     allowed_host: str,
     filename: str,
+    source_path_prefix: str | None = None,
 ) -> bool:
     parsed = urlparse(current_url)
     return (
         parsed.scheme == "https"
-        and parsed.netloc == allowed_host
+        and parsed.hostname == allowed_host
+        and parsed.port is None
+        and parsed.username is None
+        and parsed.password is None
+        and not parsed.query
+        and not parsed.fragment
         and parsed.path.endswith("/" + filename)
+        and (
+            source_path_prefix is None
+            or parsed.path.startswith(source_path_prefix)
+        )
     )
 
 
@@ -730,8 +1439,10 @@ def collect_tarball_updates(
         append_planned_update(updates, entries, source_url_var, latest_url)
     if not is_template_value(entries[sha_url_var].default, source_url_var):
         append_planned_update(updates, entries, sha_url_var, latest_sha_url)
-    if current_sha:
-        append_planned_update(updates, entries, sha_var, latest_sha)
+    del current_sha
+    # A literal digest is the integrity identity of this group.  Do not permit
+    # the historical "new version, old digest" partial-plan failure mode.
+    append_planned_update(updates, entries, sha_var, latest_sha)
     return updates
 
 
@@ -748,6 +1459,7 @@ def official_tarball_check(
     extension: str,
     allowed_host: str,
     restrict_to_current_series: bool,
+    source_path_prefix: str | None = None,
 ) -> ComponentResult:
     variables = [version_var, source_url_var, sha_var, sha_url_var]
     missing_result = missing_variables_result(component, entries, variables)
@@ -759,7 +1471,12 @@ def official_tarball_check(
     current_sha = value(entries, sha_var)
     current_sha_url = value(entries, sha_url_var)
     filename = f"{filename_prefix}-{current_version}{extension}"
-    if not is_expected_tarball_url(current_url, allowed_host, filename):
+    if not is_expected_tarball_url(
+        current_url,
+        allowed_host,
+        filename,
+        source_path_prefix,
+    ):
         return ComponentResult(
             component=component,
             status=STATUS_UNKNOWN,
@@ -770,8 +1487,34 @@ def official_tarball_check(
             details={"reason": "source URL is not the expected official tarball URL"},
         )
 
+    expected_current_sha_url = current_url + SHA256_SUFFIX
+    if current_sha_url != expected_current_sha_url:
+        return ComponentResult(
+            component=component,
+            status=STATUS_UNKNOWN,
+            message="Configured checksum URL is not bound to the configured official source asset.",
+            variables=variables,
+            current=current_version,
+            source=current_url,
+            details={
+                "expected_sha256_url": expected_current_sha_url,
+                "configured_sha256_url": current_sha_url,
+            },
+        )
+
+    if SHA256_VALUE_RE.fullmatch(current_sha.lower()) is None:
+        return ComponentResult(
+            component=component,
+            status=STATUS_UNKNOWN,
+            message=f"{sha_var} must be a non-empty 64-character SHA-256 value.",
+            variables=variables,
+            current=current_version,
+            source=current_url,
+            details={"reason": "configured SHA-256 is missing or malformed"},
+        )
+
     listing_url = current_url.rsplit("/", 1)[0] + "/"
-    latest_version = latest_from_listing(
+    latest_upstream, latest_version = latest_versions_from_listing(
         client.get_text(listing_url),
         filename_prefix,
         extension,
@@ -792,6 +1535,8 @@ def official_tarball_check(
             variables=variables,
             current=current_version,
             latest=latest_version,
+            latest_upstream=latest_upstream,
+            latest_compatible=latest_version,
             source=listing_url,
         )
 
@@ -815,18 +1560,26 @@ def official_tarball_check(
             variables=variables,
             current=current_version,
             latest=latest_version,
+            latest_upstream=latest_upstream,
+            latest_compatible=latest_version,
             source=listing_url,
+            asset_name=latest_filename,
+            official_sha256=latest_sha,
+            sha256_source="official_asset_sha256_file",
             updates=updates,
             details={
                 "latest_source_url": latest_url,
                 "latest_sha256_url": latest_sha_url,
                 "latest_sha256": latest_sha,
+                "latest_upstream": latest_upstream,
+                "latest_compatible": latest_version,
+                "compatibility_review_required": latest_upstream != latest_version,
             },
         )
 
     official_current_sha = fetch_sha256(
         client,
-        current_sha_url or latest_sha_url,
+        expected_current_sha_url,
         filename,
     )
     if current_sha and current_sha.lower() != official_current_sha:
@@ -839,7 +1592,12 @@ def official_tarball_check(
             variables=variables,
             current=current_version,
             latest=latest_version,
+            latest_upstream=latest_upstream,
+            latest_compatible=latest_version,
             source=listing_url,
+            asset_name=filename,
+            official_sha256=official_current_sha,
+            sha256_source="official_asset_sha256_file",
             updates=updates,
             details={
                 "official_sha256": official_current_sha,
@@ -854,10 +1612,18 @@ def official_tarball_check(
         variables=variables,
         current=current_version,
         latest=latest_version,
+        latest_upstream=latest_upstream,
+        latest_compatible=latest_version,
         source=listing_url,
+        asset_name=filename,
+        official_sha256=official_current_sha,
+        sha256_source="official_asset_sha256_file",
         details={
             "sha256_mode": "literal" if current_sha else "sha256_url",
             "official_sha256": official_current_sha,
+            "latest_upstream": latest_upstream,
+            "latest_compatible": latest_version,
+            "compatibility_review_required": latest_upstream != latest_version,
         },
     )
 
@@ -865,43 +1631,9 @@ def official_tarball_check(
 def check_apr_util_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
-    """Verify the reviewed APR-util provider, asset, and digest tuple.
+    """Resolve one APR-util version/digest group from official Apache files."""
 
-    APR-util can no longer be mechanically advanced because its runtime
-    provisioner accepts only the reviewed tuple.  A future release therefore
-    needs one explicit source, checksum, and compatibility review.
-    """
-
-    pinned_variables = [
-        "APR_UTIL_PINNED_VERSION",
-        "APR_UTIL_PINNED_SOURCE_URL",
-        "APR_UTIL_PINNED_SHA256",
-        "APR_UTIL_PINNED_SHA256_URL",
-    ]
-    runtime_variables = [
-        "APR_UTIL_VERSION",
-        "APR_UTIL_SOURCE_URL",
-        "APR_UTIL_SHA256",
-        "APR_UTIL_SHA256_URL",
-    ]
-    variables = [*pinned_variables, *runtime_variables]
-    missing_result = missing_variables_result("APR-util", entries, variables)
-    if missing_result is not None:
-        return missing_result
-
-    for pinned, runtime in zip(pinned_variables, runtime_variables, strict=True):
-        if value(entries, pinned) != value(entries, runtime):
-            return ComponentResult(
-                component="APR-util",
-                status=STATUS_UNKNOWN,
-                message="APR-util runtime configuration must equal the reviewed provenance tuple.",
-                variables=variables,
-                current=value(entries, "APR_UTIL_VERSION"),
-                source=value(entries, "APR_UTIL_SOURCE_URL"),
-                details={"pinned_variable": pinned, "runtime_variable": runtime},
-            )
-
-    result = official_tarball_check(
+    return official_tarball_check(
         "APR-util",
         entries,
         client,
@@ -913,23 +1645,8 @@ def check_apr_util_release_provenance(
         extension=ARCHIVE_BZ2_EXTENSION,
         allowed_host=APACHE_DOWNLOAD_HOST,
         restrict_to_current_series=True,
+        source_path_prefix="/apr/",
     )
-    result.variables = variables
-    if result.status == STATUS_OUTDATED:
-        return ComponentResult(
-            component="APR-util",
-            status=STATUS_UNKNOWN,
-            message=(
-                "APR-util has changed upstream; update the full reviewed provider, asset, and "
-                "digest tuple together after an explicit compatibility review."
-            ),
-            variables=variables,
-            current=result.current,
-            latest=result.latest,
-            source=result.source,
-            details=result.details,
-        )
-    return result
 
 
 def haproxy_source_series(current_url: str, current_version: str) -> str | None:
@@ -957,9 +1674,7 @@ def check_haproxy(
     current_version = value(entries, "HAPROXY_VERSION")
     current_url = value(entries, "HAPROXY_SOURCE_URL")
     configured_sha = value(entries, "HAPROXY_SHA256").lower()
-    current_sha_url = (
-        value(entries, "HAPROXY_SHA256_URL") or current_url + SHA256_SUFFIX
-    )
+    current_sha_url = value(entries, "HAPROXY_SHA256_URL")
     series = haproxy_source_series(current_url, current_version)
     if series is None:
         return ComponentResult(
@@ -982,9 +1697,32 @@ def check_haproxy(
             current=current_version,
             source=current_url,
         )
+    if SHA256_VALUE_RE.fullmatch(configured_sha) is None:
+        return ComponentResult(
+            component="HAProxy",
+            status=STATUS_BLOCKED,
+            message="HAPROXY_SHA256 must be a 64-character SHA-256 value.",
+            variables=variables,
+            current=current_version,
+            source=current_url,
+        )
+    expected_current_sha_url = current_url + SHA256_SUFFIX
+    if current_sha_url != expected_current_sha_url:
+        return ComponentResult(
+            component="HAProxy",
+            status=STATUS_UNKNOWN,
+            message="Configured HAProxy checksum URL is not bound to the configured official source asset.",
+            variables=variables,
+            current=current_version,
+            source=current_url,
+            details={
+                "expected_sha256_url": expected_current_sha_url,
+                "configured_sha256_url": current_sha_url,
+            },
+        )
 
     listing_url = f"https://www.haproxy.org/download/{series}/src/"
-    latest_version = latest_from_listing(
+    latest_upstream, latest_version = latest_versions_from_listing(
         client.get_text(listing_url),
         "haproxy",
         ".tar.gz",
@@ -1005,6 +1743,8 @@ def check_haproxy(
             variables=variables,
             current=current_version,
             latest=latest_version,
+            latest_upstream=latest_upstream,
+            latest_compatible=latest_version,
             source=listing_url,
         )
 
@@ -1028,12 +1768,20 @@ def check_haproxy(
             variables=variables,
             current=current_version,
             latest=latest_version,
+            latest_upstream=latest_upstream,
+            latest_compatible=latest_version,
             source=listing_url,
+            asset_name=latest_filename,
+            official_sha256=latest_sha,
+            sha256_source="official_asset_sha256_file",
             updates=updates,
             details={
                 "latest_source_url": latest_url,
                 "latest_sha256_url": latest_sha_url,
                 "latest_sha256": latest_sha,
+                "latest_upstream": latest_upstream,
+                "latest_compatible": latest_version,
+                "compatibility_review_required": latest_upstream != latest_version,
             },
         )
 
@@ -1050,7 +1798,12 @@ def check_haproxy(
             variables=variables,
             current=current_version,
             latest=latest_version,
+            latest_upstream=latest_upstream,
+            latest_compatible=latest_version,
             source=listing_url,
+            asset_name=f"haproxy-{current_version}.tar.gz",
+            official_sha256=official_current_sha,
+            sha256_source="official_asset_sha256_file",
             updates=updates,
             details={
                 "official_sha256": official_current_sha,
@@ -1065,8 +1818,18 @@ def check_haproxy(
         variables=variables,
         current=current_version,
         latest=latest_version,
+        latest_upstream=latest_upstream,
+        latest_compatible=latest_version,
         source=listing_url,
-        details={"official_sha256": official_current_sha},
+        asset_name=f"haproxy-{current_version}.tar.gz",
+        official_sha256=official_current_sha,
+        sha256_source="official_asset_sha256_file",
+        details={
+            "official_sha256": official_current_sha,
+            "latest_upstream": latest_upstream,
+            "latest_compatible": latest_version,
+            "compatibility_review_required": latest_upstream != latest_version,
+        },
     )
 
 
@@ -1162,7 +1925,9 @@ def check_github_release_ref(
                 "reason": "repository URL is not an official github.com owner/repo URL"
             },
         )
-    latest_ref = release_tag_name(latest_github_release(client, repo_path), repo_path)
+    latest_ref = require_stable_github_release(
+        latest_github_release(client, repo_path), repo_path, ""
+    )
     comparison = compare_versions(current_ref, latest_ref)
     if comparison > 0:
         return ComponentResult(
@@ -1269,6 +2034,141 @@ def manual_release_provenance_precondition(
     return None
 
 
+def resolve_github_peeled_commit(
+    client: HttpClient, repo_path: str, tag: str
+) -> str:
+    """Resolve lightweight or annotated tags to one immutable commit SHA."""
+
+    if not SAFE_REF_RE.fullmatch(tag):
+        raise UpstreamUnknown(f"unsafe release tag cannot be resolved: {tag!r}")
+    payload = client.get_json(
+        f"https://api.github.com/repos/{repo_path}/git/ref/tags/{quote(tag, safe='')}"
+    )
+    for _ in range(4):
+        target = payload.get("object")
+        if not isinstance(target, dict):
+            raise UpstreamUnknown("GitHub tag response did not include an object")
+        object_type = target.get("type")
+        object_sha = target.get("sha")
+        if not isinstance(object_sha, str) or GIT_COMMIT_SHA1_RE.fullmatch(object_sha) is None:
+            raise UpstreamUnknown("GitHub tag response did not include a 40-hex object SHA")
+        if object_type == "commit":
+            return object_sha
+        if object_type != "tag":
+            raise UpstreamUnknown("GitHub tag object is neither a commit nor an annotated tag")
+        payload = client.get_json(
+            f"https://api.github.com/repos/{repo_path}/git/tags/{object_sha}"
+        )
+    raise UpstreamUnknown("GitHub annotated tag chain exceeded the safe resolution limit")
+
+
+def check_manual_git_provenance(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    client: HttpClient,
+) -> ComponentResult:
+    """Report manual tag/peeled-commit transitions without weakening pins."""
+
+    release_tag_var = cast(str, definition.release_tag_variable)
+    commit_var = cast(str, definition.git_commit_variable)
+    expected_tag = re.compile(definition.tag_pattern)
+    aliases = {
+        alias: value(entries, expected_variable)
+        for alias, expected_variable in definition.alias_bindings
+    }
+    precondition = manual_release_provenance_precondition(
+        definition.name,
+        entries,
+        expected_repository=cast(str, definition.github_repository),
+        release_tag_var=release_tag_var,
+        approved_commit_var=commit_var,
+        expected_tag=expected_tag,
+        aliases=aliases,
+        variables=list(definition.variables),
+    )
+    if precondition is not None:
+        return precondition
+    current_tag = value(entries, release_tag_var)
+    current_commit = value(entries, commit_var)
+    resolved_current_commit = resolve_github_peeled_commit(
+        client, cast(str, definition.github_repository), current_tag
+    )
+    if resolved_current_commit != current_commit:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message="Configured immutable commit does not equal the configured release tag's peeled commit.",
+            variables=list(definition.variables),
+            current=current_tag,
+            source=f"https://github.com/{definition.github_repository}",
+            details={
+                "configured_commit": current_commit,
+                "resolved_peeled_commit": resolved_current_commit,
+            },
+        )
+    latest_release = latest_github_release(client, cast(str, definition.github_repository))
+    latest_tag = require_stable_github_release(
+        latest_release, cast(str, definition.github_repository), definition.tag_pattern
+    )
+    latest_commit = resolve_github_peeled_commit(
+        client, cast(str, definition.github_repository), latest_tag
+    )
+    comparison = compare_versions(current_tag, latest_tag)
+    if comparison > 0:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message="Configured release tag is newer than the latest stable official release; refusing to guess.",
+            variables=list(definition.variables),
+            current=current_tag,
+            latest=latest_tag,
+            latest_upstream=latest_tag,
+            latest_compatible=latest_tag,
+            source=f"https://github.com/{definition.github_repository}/releases/latest",
+        )
+    if comparison < 0:
+        manual_variables = MANUAL_REVIEW_VARIABLES[definition.name]
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_REVIEW_REQUIRED,
+            message=(
+                f"A newer {definition.name} release is available, but its release tag and "
+                "immutable peeled commit require a reviewed provenance change."
+            ),
+            variables=list(definition.variables),
+            current=current_tag,
+            latest=latest_tag,
+            latest_upstream=latest_tag,
+            latest_compatible=latest_tag,
+            source=f"https://github.com/{definition.github_repository}/releases/latest",
+            official_sha256=latest_commit,
+            sha256_source="peeled_git_tag_commit",
+            details={
+                "reason": (
+                    f"update {release_tag_var} and {commit_var} together after "
+                    "peeled-commit provenance review"
+                ),
+                "manual_variables": list(manual_variables),
+                "current_peeled_commit": resolved_current_commit,
+                "latest_peeled_commit": latest_commit,
+            },
+        )
+    return ComponentResult(
+        component=definition.name,
+        status=STATUS_CURRENT,
+        message="Configured release tag and immutable peeled commit are current.",
+        variables=list(definition.variables),
+        current=current_tag,
+        latest=latest_tag,
+        latest_upstream=latest_tag,
+        latest_compatible=latest_tag,
+        source=f"https://github.com/{definition.github_repository}/releases/latest",
+        official_sha256=resolved_current_commit,
+        sha256_source="peeled_git_tag_commit",
+        details={"peeled_commit": resolved_current_commit},
+    )
+
+
 def review_required_release_result(
     result: ComponentResult,
     *,
@@ -1310,46 +2210,8 @@ def check_crs_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
     """Classify a valid CRS tag/commit transition as explicitly manual only."""
-
-    variables = [
-        "CRS_APPROVED_REPO_URL",
-        "CRS_RELEASE_TAG",
-        "CRS_APPROVED_COMMIT",
-        "CRS_REPO_URL",
-        "CRS_GIT_REF",
-    ]
-    precondition = manual_release_provenance_precondition(
-        CRS_COMPONENT,
-        entries,
-        expected_repository=CRS_APPROVED_REPOSITORY,
-        release_tag_var="CRS_RELEASE_TAG",
-        approved_commit_var="CRS_APPROVED_COMMIT",
-        expected_tag=RELEASE_TAG_RE,
-        aliases={
-            "CRS_REPO_URL": value(entries, "CRS_APPROVED_REPO_URL"),
-            "CRS_GIT_REF": value(entries, "CRS_RELEASE_TAG"),
-        },
-        variables=variables,
-    )
-    if precondition is not None:
-        return precondition
-    result = check_github_release_ref(
-        CRS_COMPONENT,
-        entries,
-        client,
-        repo_var="CRS_APPROVED_REPO_URL",
-        ref_var="CRS_RELEASE_TAG",
-    )
-    result.variables = variables
-    return review_required_release_result(
-        result,
-        expected_tag=RELEASE_TAG_RE,
-        manual_variables=MANUAL_REVIEW_VARIABLES[CRS_COMPONENT],
-        message=(
-            "A newer CRS release is available, but updating its release tag and immutable "
-            "commit requires a reviewed provenance change."
-        ),
-        reason="update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after commit provenance review",
+    return check_manual_git_provenance(
+        COMPONENT_DEFINITION_BY_NAME[CRS_COMPONENT], entries, client
     )
 
 
@@ -1357,54 +2219,8 @@ def check_modsecurity_v3_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
     """Classify a valid ModSecurity-v3 tag/commit transition as manual only."""
-    variables = [
-        "MODSECURITY_V3_APPROVED_REPO_URL",
-        "MODSECURITY_V3_RELEASE_TAG",
-        "MODSECURITY_V3_APPROVED_COMMIT",
-        "MODSECURITY_REPO_URL",
-        "MODSECURITY_GIT_REF",
-        "MODSECURITY_V3_GIT_URL",
-        "MODSECURITY_V3_GIT_REF",
-    ]
-    precondition = manual_release_provenance_precondition(
-        MODSECURITY_V3_COMPONENT,
-        entries,
-        expected_repository=MODSECURITY_V3_APPROVED_REPOSITORY,
-        release_tag_var="MODSECURITY_V3_RELEASE_TAG",
-        approved_commit_var="MODSECURITY_V3_APPROVED_COMMIT",
-        expected_tag=MODSECURITY_V3_RELEASE_TAG_RE,
-        aliases={
-            "MODSECURITY_REPO_URL": value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"),
-            "MODSECURITY_GIT_REF": value(entries, "MODSECURITY_V3_RELEASE_TAG"),
-            "MODSECURITY_V3_GIT_URL": value(
-                entries, "MODSECURITY_V3_APPROVED_REPO_URL"
-            ),
-            "MODSECURITY_V3_GIT_REF": value(entries, "MODSECURITY_V3_RELEASE_TAG"),
-        },
-        variables=variables,
-    )
-    if precondition is not None:
-        return precondition
-    result = check_github_release_ref(
-        MODSECURITY_V3_COMPONENT,
-        entries,
-        client,
-        repo_var="MODSECURITY_V3_APPROVED_REPO_URL",
-        ref_var="MODSECURITY_V3_RELEASE_TAG",
-    )
-    result.variables = variables
-    return review_required_release_result(
-        result,
-        expected_tag=MODSECURITY_V3_RELEASE_TAG_RE,
-        manual_variables=MANUAL_REVIEW_VARIABLES[MODSECURITY_V3_COMPONENT],
-        message=(
-            "A newer ModSecurity v3 release is available, but updating its release tag and "
-            "immutable commit requires a reviewed provenance change."
-        ),
-        reason=(
-            "update MODSECURITY_V3_RELEASE_TAG and MODSECURITY_V3_APPROVED_COMMIT "
-            "together after commit provenance review"
-        ),
+    return check_manual_git_provenance(
+        COMPONENT_DEFINITION_BY_NAME[MODSECURITY_V3_COMPONENT], entries, client
     )
 
 
@@ -1450,6 +2266,466 @@ def release_asset_sha256(release: dict[str, Any], asset_name: str) -> str:
     return match.group(1).lower()
 
 
+def expected_github_asset_url(repo_path: str, tag: str, asset_name: str) -> str:
+    if not SAFE_REF_RE.fullmatch(tag) or not SAFE_ASSET_NAME_RE.fullmatch(asset_name):
+        raise UpstreamError("GitHub release tag or asset name is not shell-safe")
+    return (
+        f"https://github.com/{repo_path}/releases/download/"
+        f"{quote(tag, safe='')}/{quote(asset_name, safe='')}"
+    )
+
+
+def verified_release_asset_url(
+    release: dict[str, Any], repo_path: str, tag: str, asset_name: str
+) -> str:
+    actual_url = find_release_asset(release, asset_name)
+    expected_url = expected_github_asset_url(repo_path, tag, asset_name)
+    if actual_url != expected_url:
+        raise UpstreamUnknown(
+            f"GitHub release asset {asset_name} URL does not bind the expected "
+            "repository, tag, and asset"
+        )
+    return actual_url
+
+
+def require_stable_github_release(
+    release: dict[str, Any],
+    repo_path: str,
+    tag_pattern: str,
+) -> str:
+    """Reject draft/prerelease metadata even when GitHub's endpoint filters it."""
+
+    if release.get("draft") is True or release.get("prerelease") is True:
+        raise UpstreamUnknown(
+            f"GitHub latest release for {repo_path} is draft or prerelease"
+        )
+    tag = release_tag_name(release, repo_path)
+    if tag_pattern and re.fullmatch(tag_pattern, tag) is None:
+        raise UpstreamUnknown(
+            f"GitHub release tag {tag!r} is outside the component stable-release policy"
+        )
+    return tag
+
+
+def release_version_from_tag(definition: ComponentDefinition, tag: str) -> str:
+    if definition.tag_pattern and re.fullmatch(definition.tag_pattern, tag) is None:
+        raise UpstreamUnknown(
+            f"{definition.name} release tag {tag!r} is outside its declared stable policy"
+        )
+    if definition.tag_prefix and not tag.startswith(definition.tag_prefix):
+        raise UpstreamUnknown(
+            f"{definition.name} release tag does not use its declared prefix: {tag!r}"
+        )
+    version = tag.removeprefix(definition.tag_prefix)
+    if not is_stable_version(version):
+        raise UpstreamUnknown(
+            f"{definition.name} release tag does not contain a stable numeric version: {tag!r}"
+        )
+    return version
+
+
+def release_tag_from_component(
+    definition: ComponentDefinition, entries: dict[str, VariableEntry]
+) -> str:
+    if definition.release_tag_variable:
+        tag = value(entries, definition.release_tag_variable)
+    elif definition.version_variable:
+        version = value(entries, definition.version_variable)
+        if not is_stable_version(version):
+            raise UpstreamUnknown(
+                f"{definition.version_variable} must be a stable numeric version"
+            )
+        tag = f"{definition.tag_prefix}{version}"
+    else:
+        raise UpstreamError(f"{definition.name} has no release identity variable")
+    if not SAFE_REF_RE.fullmatch(tag) or tag in {"latest", "main", "master"}:
+        raise UpstreamUnknown(
+            f"{definition.name} release identity is branch-like or unsafe: {tag!r}"
+        )
+    if definition.tag_pattern and re.fullmatch(definition.tag_pattern, tag) is None:
+        raise UpstreamUnknown(
+            f"{definition.name} release identity does not match its stable tag policy: {tag!r}"
+        )
+    return tag
+
+
+def release_asset_name(definition: ComponentDefinition, version: str) -> str:
+    if not definition.asset_template:
+        raise UpstreamError(f"{definition.name} has no release asset template")
+    asset_name = definition.asset_template.format(version=version)
+    if not SAFE_ASSET_NAME_RE.fullmatch(asset_name):
+        raise UpstreamError(
+            f"{definition.name} asset template rendered an unsafe filename: {asset_name!r}"
+        )
+    return asset_name
+
+
+def release_checksum_asset_name(definition: ComponentDefinition, version: str) -> str:
+    if not definition.checksum_asset_template:
+        raise UpstreamError(f"{definition.name} has no checksum asset template")
+    asset_name = definition.checksum_asset_template.format(version=version)
+    if not SAFE_ASSET_NAME_RE.fullmatch(asset_name):
+        raise UpstreamError(
+            f"{definition.name} checksum template rendered an unsafe filename: {asset_name!r}"
+        )
+    return asset_name
+
+
+def github_release_checksum(
+    definition: ComponentDefinition,
+    release: dict[str, Any],
+    client: HttpClient,
+    *,
+    repo_path: str,
+    tag: str,
+    version: str,
+    asset_name: str,
+) -> tuple[str, str, str]:
+    """Return one official digest, its source label, and its source URL."""
+
+    if definition.checksum_strategy == "github_release_asset_digest":
+        verified_release_asset_url(release, repo_path, tag, asset_name)
+        return (
+            release_asset_sha256(release, asset_name),
+            "github_release_asset_digest",
+            f"https://api.github.com/repos/{repo_path}/releases/tags/{tag}",
+        )
+
+    if definition.checksum_strategy == "github_release_asset_digest_or_official_manifest":
+        verified_release_asset_url(release, repo_path, tag, asset_name)
+        try:
+            return (
+                release_asset_sha256(release, asset_name),
+                "github_release_asset_digest",
+                f"https://api.github.com/repos/{repo_path}/releases/tags/{tag}",
+            )
+        except UpstreamUnknown:
+            # Some releases publish an exact official manifest instead of a
+            # per-asset GitHub digest.  It remains a trusted fallback after
+            # its release-asset URL has been bound below.
+            pass
+
+    checksum_asset = release_checksum_asset_name(definition, version)
+    checksum_url = verified_release_asset_url(release, repo_path, tag, checksum_asset)
+    return (
+        fetch_sha256(client, checksum_url, asset_name),
+        "official_release_checksum_manifest",
+        checksum_url,
+    )
+
+
+def required_component_variables(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+) -> ComponentResult | None:
+    return missing_variables_result(definition.name, entries, list(definition.variables))
+
+
+def configured_github_release_urls_are_bound(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    *,
+    repo_path: str,
+    tag: str,
+    version: str,
+    asset_name: str,
+) -> ComponentResult | None:
+    """Validate all configured URL/asset aliases before any upstream lookup."""
+
+    expected_asset_url = expected_github_asset_url(repo_path, tag, asset_name)
+    if definition.source_url_variable:
+        configured_source = value(entries, definition.source_url_variable)
+        if definition.name in {"Envoy", "Traefik"}:
+            expected_source = f"https://github.com/{repo_path}/releases"
+        elif definition.name == "NGINX":
+            expected_source = f"https://github.com/{repo_path}"
+        else:
+            expected_source = expected_asset_url
+        if configured_source != expected_source:
+            return ComponentResult(
+                component=definition.name,
+                status=STATUS_UNKNOWN,
+                message="Configured source URL is not bound to the declared official release identity.",
+                variables=list(definition.variables),
+                current=tag,
+                source=configured_source,
+                details={"expected_source_url": expected_source},
+            )
+    if definition.download_url_variable and (
+        value(entries, definition.download_url_variable) != expected_asset_url
+    ):
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message="Configured download URL is not bound to the declared official release asset.",
+            variables=list(definition.variables),
+            current=tag,
+            source=value(entries, definition.download_url_variable),
+            details={"expected_download_url": expected_asset_url},
+        )
+    if definition.asset_variable and value(entries, definition.asset_variable) != asset_name:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message="Configured release asset is not derived from the declared release tag.",
+            variables=list(definition.variables),
+            current=tag,
+            asset_name=value(entries, definition.asset_variable),
+            details={"expected_asset_name": asset_name},
+        )
+    if definition.name == "NGINX":
+        if value(entries, "NGINX_GITHUB_REPO") != f"https://github.com/{repo_path}":
+            return ComponentResult(
+                component=definition.name,
+                status=STATUS_UNKNOWN,
+                message="NGINX_GITHUB_REPO must match NGINX_SOURCE_REPO_URL.",
+                variables=list(definition.variables),
+                current=tag,
+            )
+        if value(entries, "NGINX_SOURCE_GIT_REF") != tag:
+            return ComponentResult(
+                component=definition.name,
+                status=STATUS_UNKNOWN,
+                message="NGINX_SOURCE_GIT_REF must equal NGINX_RELEASE_TAG.",
+                variables=list(definition.variables),
+                current=tag,
+            )
+    if definition.sha256_url_variable and definition.checksum_asset_template:
+        checksum_asset = release_checksum_asset_name(definition, version)
+        expected_checksum_url = expected_github_asset_url(repo_path, tag, checksum_asset)
+        if value(entries, definition.sha256_url_variable) != expected_checksum_url:
+            return ComponentResult(
+                component=definition.name,
+                status=STATUS_UNKNOWN,
+                message="Configured checksum URL is not bound to the declared official release asset.",
+                variables=list(definition.variables),
+                current=tag,
+                details={"expected_sha256_url": expected_checksum_url},
+            )
+    return None
+
+
+def collect_github_release_updates(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    *,
+    latest_tag: str,
+    latest_version: str,
+    latest_asset_name: str,
+    latest_sha256: str,
+) -> tuple[list[UpdateChange], dict[str, str]]:
+    """Build only the changed members of one otherwise fully checked group."""
+
+    desired: dict[str, str] = {}
+    if definition.version_variable:
+        desired[definition.version_variable] = latest_version
+    if definition.release_tag_variable:
+        desired[definition.release_tag_variable] = latest_tag
+    if definition.name == "NGINX":
+        ref_entry = entries["NGINX_SOURCE_GIT_REF"]
+        if not is_template_value(ref_entry.default, "NGINX_RELEASE_TAG"):
+            desired["NGINX_SOURCE_GIT_REF"] = latest_tag
+    if definition.asset_variable:
+        asset_entry = entries[definition.asset_variable]
+        identity_variable = (
+            definition.release_tag_variable or definition.version_variable or ""
+        )
+        if not is_template_value(asset_entry.default, identity_variable):
+            desired[definition.asset_variable] = latest_asset_name
+    if definition.sha256_variable:
+        desired[definition.sha256_variable] = latest_sha256
+
+    # Preserve safe, version/tag-derived shell templates rather than rendering
+    # them into duplicate literal URLs.  A non-template legacy URL is updated
+    # alongside its identity/digest only after the exact official endpoint was
+    # derived above.
+    if definition.source_url_variable and definition.name not in {"Envoy", "Traefik", "NGINX"}:
+        source_entry = entries[definition.source_url_variable]
+        if not is_template_value(source_entry.default, definition.version_variable or ""):
+            desired[definition.source_url_variable] = expected_github_asset_url(
+                cast(str, definition.github_repository), latest_tag, latest_asset_name
+            )
+    if definition.download_url_variable:
+        download_entry = entries[definition.download_url_variable]
+        if not is_template_value(download_entry.default, definition.version_variable or ""):
+            desired[definition.download_url_variable] = expected_github_asset_url(
+                cast(str, definition.github_repository), latest_tag, latest_asset_name
+            )
+    if definition.sha256_url_variable and definition.checksum_asset_template:
+        checksum_entry = entries[definition.sha256_url_variable]
+        if not is_template_value(checksum_entry.default, definition.version_variable or ""):
+            desired[definition.sha256_url_variable] = expected_github_asset_url(
+                cast(str, definition.github_repository),
+                latest_tag,
+                release_checksum_asset_name(definition, latest_version),
+            )
+
+    updates: list[UpdateChange] = []
+    for variable, desired_value in desired.items():
+        append_planned_update(updates, entries, variable, desired_value)
+    return updates, desired
+
+
+def check_github_release_component(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    client: HttpClient,
+) -> ComponentResult:
+    """Resolve a complete GitHub release asset/digest tuple from one descriptor."""
+
+    missing = required_component_variables(definition, entries)
+    if missing is not None:
+        return missing
+    repo_path = cast(str, definition.github_repository)
+    if definition.name == "NGINX":
+        configured_repo = github_repo_path(value(entries, "NGINX_SOURCE_REPO_URL"))
+        if configured_repo != repo_path:
+            return ComponentResult(
+                component=definition.name,
+                status=STATUS_UNKNOWN,
+                message="NGINX source is not the declared official GitHub repository.",
+                variables=list(definition.variables),
+                source=value(entries, "NGINX_SOURCE_REPO_URL"),
+            )
+
+    current_tag = release_tag_from_component(definition, entries)
+    current_version = release_version_from_tag(definition, current_tag)
+    current_asset = release_asset_name(definition, current_version)
+    bound = configured_github_release_urls_are_bound(
+        definition,
+        entries,
+        repo_path=repo_path,
+        tag=current_tag,
+        version=current_version,
+        asset_name=current_asset,
+    )
+    if bound is not None:
+        return bound
+    configured_sha = value(entries, cast(str, definition.sha256_variable)).lower()
+    if SHA256_VALUE_RE.fullmatch(configured_sha) is None:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_BLOCKED,
+            message=f"{definition.sha256_variable} must be a non-empty 64-character SHA-256 value.",
+            variables=list(definition.variables),
+            current=current_tag,
+        )
+
+    latest_release = latest_github_release(client, repo_path)
+    latest_tag = require_stable_github_release(
+        latest_release, repo_path, definition.tag_pattern
+    )
+    latest_version = release_version_from_tag(definition, latest_tag)
+    latest_asset = release_asset_name(definition, latest_version)
+    latest_sha, sha_source, sha_source_url = github_release_checksum(
+        definition,
+        latest_release,
+        client,
+        repo_path=repo_path,
+        tag=latest_tag,
+        version=latest_version,
+        asset_name=latest_asset,
+    )
+    comparison = compare_versions(current_version, latest_version)
+    if comparison > 0:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message="Configured release is newer than the latest stable official release; refusing to guess.",
+            variables=list(definition.variables),
+            current=current_tag,
+            latest=latest_tag,
+            latest_upstream=latest_tag,
+            latest_compatible=latest_tag,
+            source=f"https://github.com/{repo_path}/releases/latest",
+        )
+
+    if comparison < 0:
+        updates, desired = collect_github_release_updates(
+            definition,
+            entries,
+            latest_tag=latest_tag,
+            latest_version=latest_version,
+            latest_asset_name=latest_asset,
+            latest_sha256=latest_sha,
+        )
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_OUTDATED,
+            message="A newer stable official GitHub release with a trusted digest is available.",
+            variables=list(definition.variables),
+            current=current_tag,
+            latest=latest_tag,
+            latest_upstream=latest_tag,
+            latest_compatible=latest_tag,
+            source=f"https://github.com/{repo_path}/releases/latest",
+            asset_name=latest_asset,
+            official_sha256=latest_sha,
+            sha256_source=sha_source,
+            updates=updates,
+            details={
+                "official_asset_url": expected_github_asset_url(repo_path, latest_tag, latest_asset),
+                "official_asset_sha256": latest_sha,
+                "sha256_source": sha_source,
+                "sha256_source_url": sha_source_url,
+                "atomic_expected_values": desired,
+            },
+        )
+
+    if configured_sha != latest_sha:
+        updates, desired = collect_github_release_updates(
+            definition,
+            entries,
+            latest_tag=current_tag,
+            latest_version=current_version,
+            latest_asset_name=current_asset,
+            latest_sha256=latest_sha,
+        )
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_OUTDATED,
+            message="Configured digest differs from the trusted official release digest.",
+            variables=list(definition.variables),
+            current=current_tag,
+            latest=latest_tag,
+            latest_upstream=latest_tag,
+            latest_compatible=latest_tag,
+            source=f"https://github.com/{repo_path}/releases/tags/{current_tag}",
+            asset_name=current_asset,
+            official_sha256=latest_sha,
+            sha256_source=sha_source,
+            updates=updates,
+            details={
+                "official_asset_url": expected_github_asset_url(repo_path, current_tag, current_asset),
+                "official_asset_sha256": latest_sha,
+                "sha256_source": sha_source,
+                "sha256_source_url": sha_source_url,
+                "atomic_expected_values": desired,
+            },
+        )
+
+    return ComponentResult(
+        component=definition.name,
+        status=STATUS_CURRENT,
+        message="Configured release asset and trusted official digest are current.",
+        variables=list(definition.variables),
+        current=current_tag,
+        latest=latest_tag,
+        latest_upstream=latest_tag,
+        latest_compatible=latest_tag,
+        source=f"https://github.com/{repo_path}/releases/latest",
+        asset_name=current_asset,
+        official_sha256=latest_sha,
+        sha256_source=sha_source,
+        details={
+            "official_asset_url": expected_github_asset_url(repo_path, current_tag, current_asset),
+            "official_asset_sha256": latest_sha,
+            "sha256_source": sha_source,
+            "sha256_source_url": sha_source_url,
+        },
+    )
+
+
 def nginx_release_asset_name(release_tag: str) -> str:
     version = release_tag.removeprefix("release-")
     asset_name = f"nginx-{version}.tar.gz"
@@ -1463,256 +2739,187 @@ def nginx_release_asset_name(release_tag: str) -> str:
 def check_nginx_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
-    """Verify the reviewed NGINX tag, official release asset, and SHA-256 tuple.
+    """Resolve NGINX's latest stable tag/ref/asset/digest tuple atomically."""
 
-    This check intentionally never produces update edits. A new upstream tag
-    changes both the asset identity and its digest, so it must be reviewed and
-    changed as one provenance tuple rather than mechanically updating a tag.
-    """
-
-    variables = [
-        "NGINX_SOURCE_REPO_URL",
-        "NGINX_RELEASE_TAG",
-        "NGINX_SOURCE_GIT_REF",
-        "NGINX_RELEASE_ASSET_NAME",
-        "NGINX_SHA256",
-    ]
-    missing = [name for name in variables if name not in entries]
-    if missing:
-        return ComponentResult(
-            component="NGINX",
-            status=STATUS_UNKNOWN,
-            message=f"missing variables: {', '.join(missing)}",
-            variables=variables,
-        )
-
-    repo_url = value(entries, "NGINX_SOURCE_REPO_URL")
-    release_tag = value(entries, "NGINX_RELEASE_TAG")
-    source_ref = value(entries, "NGINX_SOURCE_GIT_REF")
-    asset_name = value(entries, "NGINX_RELEASE_ASSET_NAME")
-    configured_sha256 = value(entries, "NGINX_SHA256").lower()
-    current = f"{release_tag} / {asset_name} / {configured_sha256}"
-    repo_path = github_repo_path(repo_url)
-    if not repo_path:
-        return ComponentResult(
-            component="NGINX",
-            status=STATUS_UNKNOWN,
-            message="NGINX source is not an official HTTPS GitHub owner/repo URL.",
-            variables=variables,
-            current=current,
-            source=repo_url,
-        )
-    if (
-        release_tag == "latest"
-        or not SAFE_REF_RE.fullmatch(release_tag)
-        or "/" in release_tag
-    ):
-        return ComponentResult(
-            component="NGINX",
-            status=STATUS_UNKNOWN,
-            message="NGINX_RELEASE_TAG must be a fixed release tag for provenance verification.",
-            variables=variables,
-            current=current,
-            source=repo_url,
-        )
-    if source_ref != release_tag:
-        return ComponentResult(
-            component="NGINX",
-            status=STATUS_UNKNOWN,
-            message="NGINX_SOURCE_GIT_REF must equal NGINX_RELEASE_TAG for a fixed release asset.",
-            variables=variables,
-            current=current,
-            source=repo_url,
-        )
-    expected_asset_name = nginx_release_asset_name(release_tag)
-    if asset_name != expected_asset_name:
-        return ComponentResult(
-            component="NGINX",
-            status=STATUS_UNKNOWN,
-            message="NGINX release tag and release asset name are not an atomic expected pair.",
-            variables=variables,
-            current=current,
-            source=repo_url,
-            details={"expected_asset_name": expected_asset_name},
-        )
-    if not re.fullmatch(r"[a-f0-9]{64}", configured_sha256):
-        return ComponentResult(
-            component="NGINX",
-            status=STATUS_UNKNOWN,
-            message="NGINX_SHA256 must be a non-empty 64-character SHA-256 value.",
-            variables=variables,
-            current=current,
-            source=repo_url,
-        )
-
-    current_release = github_release_by_tag(client, repo_path, release_tag)
-    resolved_tag = release_tag_name(current_release, repo_path)
-    if resolved_tag != release_tag:
-        return ComponentResult(
-            component="NGINX",
-            status=STATUS_UNKNOWN,
-            message="GitHub release metadata did not resolve to the configured NGINX release tag.",
-            variables=variables,
-            current=current,
-            source=f"https://github.com/{repo_path}/releases/tag/{release_tag}",
-            details={"resolved_release_tag": resolved_tag},
-        )
-    official_asset_url = find_release_asset(current_release, asset_name)
-    expected_asset_url = (
-        f"https://github.com/{repo_path}/releases/download/{release_tag}/{asset_name}"
-    )
-    if official_asset_url != expected_asset_url:
-        return ComponentResult(
-            component="NGINX",
-            status=STATUS_UNKNOWN,
-            message="GitHub release asset URL does not match the configured tag/asset download endpoint.",
-            variables=variables,
-            current=current,
-            source=f"https://github.com/{repo_path}/releases/tag/{release_tag}",
-            details={
-                "official_asset_url": official_asset_url,
-                "expected_asset_url": expected_asset_url,
-            },
-        )
-    official_sha256 = release_asset_sha256(current_release, asset_name)
-    if configured_sha256 != official_sha256:
-        return ComponentResult(
-            component="NGINX",
-            status=STATUS_UNKNOWN,
-            message="Configured NGINX_SHA256 does not match the official GitHub release asset digest.",
-            variables=variables,
-            current=current,
-            source=f"https://github.com/{repo_path}/releases/tag/{release_tag}",
-            details={"official_asset_sha256": official_sha256},
-        )
-
-    return ComponentResult(
-        component="NGINX",
-        status=STATUS_CURRENT,
-        message=(
-            "Configured release tag, official release asset, and published SHA-256 digest "
-            "match the reviewed NGINX provenance tuple. New NGINX releases require a "
-            "separate atomic review update."
-        ),
-        variables=variables,
-        current=current,
-        latest=release_tag,
-        source=f"https://github.com/{repo_path}/releases/tags/{release_tag}",
-        details={
-            "official_asset_url": official_asset_url,
-            "official_asset_sha256": official_sha256,
-        },
+    return check_github_release_component(
+        COMPONENT_DEFINITION_BY_NAME["NGINX"], entries, client
     )
 
 
 def check_pcre2(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
-    variables = [
-        "PCRE2_VERSION",
-        "PCRE2_SOURCE_URL",
-        "PCRE2_SHA256",
-        "PCRE2_SHA256_URL",
-    ]
-    missing = [name for name in variables if name not in entries]
-    if missing:
-        return ComponentResult(
-            component="PCRE2",
-            status=STATUS_UNKNOWN,
-            message=f"missing variables: {', '.join(missing)}",
-            variables=variables,
-        )
-    current_version = value(entries, "PCRE2_VERSION")
-    current_url = value(entries, "PCRE2_SOURCE_URL")
-    match = re.fullmatch(
-        r"https://github\.com/([^/]+/[^/]+)/releases/download/pcre2-(\d+(?:\.\d+)+)/pcre2-(\d+(?:\.\d+)+)\.tar\.bz2",
-        current_url,
-    )
-    if (
-        not match
-        or match.group(2) != current_version
-        or match.group(3) != current_version
-    ):
-        return ComponentResult(
-            component="PCRE2",
-            status=STATUS_UNKNOWN,
-            message=NO_SAFE_UPDATER_MESSAGE,
-            variables=variables,
-            current=current_version,
-            source=current_url,
-            details={
-                "reason": "source URL is not the expected official GitHub release asset URL"
-            },
-        )
-    repo_path = match.group(1)
-    latest_release = latest_github_release(client, repo_path)
-    latest_tag = release_tag_name(latest_release, repo_path)
-    latest_version = re.sub(r"^pcre2-", "", latest_tag)
-    version_tuple(latest_version)
-    latest_asset_name = f"pcre2-{latest_version}{ARCHIVE_BZ2_EXTENSION}"
-    latest_asset_url = find_release_asset(latest_release, latest_asset_name)
-    comparison = compare_versions(current_version, latest_version)
+    """Resolve PCRE2 version and GitHub-published asset digest as one group."""
 
+    return check_github_release_component(
+        COMPONENT_DEFINITION_BY_NAME["PCRE2"], entries, client
+    )
+
+
+def lighttpd_series_base_url(version: str) -> str:
+    parts = version_tuple(version)
+    if len(parts) < 2:
+        raise UpstreamUnknown("lighttpd version must contain a major/minor series")
+    return f"https://download.lighttpd.net/lighttpd/releases-{parts[0]}.{parts[1]}.x/"
+
+
+def latest_lighttpd_version(text: str) -> str:
+    candidates = sorted(
+        {
+            match.group(1)
+            for match in re.finditer(r"\b(?:lighttpd-)?(\d+(?:\.\d+)+)(?:\.tar\.xz)?\b", text)
+            if is_stable_version(match.group(1))
+        },
+        key=version_tuple,
+    )
+    if len(candidates) != 1:
+        raise UpstreamUnknown("official lighttpd latest.txt is missing or ambiguous")
+    return candidates[0]
+
+
+def check_lighttpd(
+    entries: dict[str, VariableEntry], client: HttpClient
+) -> ComponentResult:
+    definition = COMPONENT_DEFINITION_BY_NAME["lighttpd"]
+    missing = required_component_variables(definition, entries)
+    if missing is not None:
+        return missing
+    version = value(entries, "LIGHTTPD_VERSION")
+    if not is_stable_version(version):
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message="LIGHTTPD_VERSION must be a stable numeric release version.",
+            variables=list(definition.variables),
+            current=version,
+        )
+    base = lighttpd_series_base_url(version)
+    asset = f"lighttpd-{version}.tar.xz"
+    expected = {
+        "LIGHTTPD_SOURCE_URL": base,
+        "LIGHTTPD_RELEASE_INDEX_URL": base,
+        "LIGHTTPD_LATEST_URL": base + "latest.txt",
+        "LIGHTTPD_DOWNLOAD_URL": base + asset,
+        "LIGHTTPD_SHA256_URL": base + f"lighttpd-{version}.sha256sum",
+    }
+    mismatches = {
+        variable: expected_value
+        for variable, expected_value in expected.items()
+        if value(entries, variable) != expected_value
+    }
+    if mismatches:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message="Configured lighttpd URLs are not bound to the declared release series and asset.",
+            variables=list(definition.variables),
+            current=version,
+            source=value(entries, "LIGHTTPD_SOURCE_URL"),
+            details={"expected_urls": mismatches},
+        )
+    configured_sha = value(entries, "LIGHTTPD_SHA256").lower()
+    if SHA256_VALUE_RE.fullmatch(configured_sha) is None:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_BLOCKED,
+            message="LIGHTTPD_SHA256 must be a non-empty 64-character SHA-256 value.",
+            variables=list(definition.variables),
+            current=version,
+        )
+
+    latest_version = latest_lighttpd_version(client.get_text(expected["LIGHTTPD_LATEST_URL"]))
+    if not same_series(version, latest_version):
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_CURRENT,
+            message="A newer lighttpd release is outside the explicitly configured release series and requires compatibility review.",
+            variables=list(definition.variables),
+            current=version,
+            latest=version,
+            latest_upstream=latest_version,
+            latest_compatible=version,
+            source=expected["LIGHTTPD_LATEST_URL"],
+            details={"compatibility_review_required": True},
+        )
+    latest_asset = f"lighttpd-{latest_version}.tar.xz"
+    latest_sha_url = base + f"lighttpd-{latest_version}.sha256sum"
+    latest_sha = fetch_sha256(client, latest_sha_url, latest_asset)
+    comparison = compare_versions(version, latest_version)
     if comparison > 0:
         return ComponentResult(
-            component="PCRE2",
+            component=definition.name,
             status=STATUS_UNKNOWN,
-            message="Configured version is newer than the latest GitHub release; refusing to guess.",
-            variables=variables,
-            current=current_version,
+            message="Configured lighttpd version is newer than official latest.txt; refusing to guess.",
+            variables=list(definition.variables),
+            current=version,
             latest=latest_version,
-            source=f"https://github.com/{repo_path}",
+            latest_upstream=latest_version,
+            latest_compatible=latest_version,
+            source=expected["LIGHTTPD_LATEST_URL"],
         )
     if comparison < 0:
         updates: list[UpdateChange] = []
-        update = plan_update(entries, "PCRE2_VERSION", latest_version)
-        if update:
-            updates.append(update)
-        source_entry = entries["PCRE2_SOURCE_URL"]
-        if not is_template_value(source_entry.default, "PCRE2_VERSION"):
-            update = plan_update(entries, "PCRE2_SOURCE_URL", latest_asset_url)
-            if update:
-                updates.append(update)
+        append_planned_update(updates, entries, "LIGHTTPD_VERSION", latest_version)
+        append_planned_update(updates, entries, "LIGHTTPD_SHA256", latest_sha)
         return ComponentResult(
-            component="PCRE2",
+            component=definition.name,
             status=STATUS_OUTDATED,
-            message="A newer official GitHub release asset is available.",
-            variables=variables,
-            current=current_version,
+            message="A newer official lighttpd release and checksum are available.",
+            variables=list(definition.variables),
+            current=version,
             latest=latest_version,
-            source=f"https://github.com/{repo_path}/releases/latest",
+            latest_upstream=latest_version,
+            latest_compatible=latest_version,
+            source=expected["LIGHTTPD_LATEST_URL"],
+            asset_name=latest_asset,
+            official_sha256=latest_sha,
+            sha256_source="official_sha256sum_manifest",
             updates=updates,
-            details={"latest_source_url": latest_asset_url},
+            details={
+                "latest_download_url": base + latest_asset,
+                "latest_sha256_url": latest_sha_url,
+                "official_sha256": latest_sha,
+                "atomic_expected_values": {
+                    "LIGHTTPD_VERSION": latest_version,
+                    "LIGHTTPD_SHA256": latest_sha,
+                },
+            },
         )
-
-    current_release = github_release_by_tag(
-        client, repo_path, f"pcre2-{current_version}"
-    )
-    current_asset_url = find_release_asset(
-        current_release, f"pcre2-{current_version}{ARCHIVE_BZ2_EXTENSION}"
-    )
-    if current_asset_url != current_url:
-        update = plan_update(entries, "PCRE2_SOURCE_URL", current_asset_url)
-        updates = [update] if update else []
+    if configured_sha != latest_sha:
+        update = plan_update(entries, "LIGHTTPD_SHA256", latest_sha)
         return ComponentResult(
-            component="PCRE2",
+            component=definition.name,
             status=STATUS_OUTDATED,
-            message="Configured PCRE2 source URL differs from the official GitHub release asset.",
-            variables=variables,
-            current=current_version,
+            message="Configured lighttpd digest differs from its official checksum manifest.",
+            variables=list(definition.variables),
+            current=version,
             latest=latest_version,
-            source=f"https://github.com/{repo_path}/releases/tag/pcre2-{current_version}",
-            updates=updates,
-            details={"official_source_url": current_asset_url},
+            latest_upstream=latest_version,
+            latest_compatible=latest_version,
+            source=expected["LIGHTTPD_LATEST_URL"],
+            asset_name=asset,
+            official_sha256=latest_sha,
+            sha256_source="official_sha256sum_manifest",
+            updates=[update] if update else [],
+            details={
+                "official_sha256": latest_sha,
+                "atomic_expected_values": {"LIGHTTPD_SHA256": latest_sha},
+            },
         )
     return ComponentResult(
-        component="PCRE2",
+        component=definition.name,
         status=STATUS_CURRENT,
-        message="Version and release asset URL are current.",
-        variables=variables,
-        current=current_version,
+        message="Configured lighttpd release and official checksum are current.",
+        variables=list(definition.variables),
+        current=version,
         latest=latest_version,
-        source=f"https://github.com/{repo_path}/releases/latest",
+        latest_upstream=latest_version,
+        latest_compatible=latest_version,
+        source=expected["LIGHTTPD_LATEST_URL"],
+        asset_name=asset,
+        official_sha256=latest_sha,
+        sha256_source="official_sha256sum_manifest",
+        details={"official_sha256": latest_sha},
     )
 
 
@@ -1754,128 +2961,165 @@ def not_applicable_component(
     )
 
 
+def decorate_component_result(
+    definition: ComponentDefinition,
+    result: ComponentResult,
+    entries: dict[str, VariableEntry],
+) -> ComponentResult:
+    """Attach descriptor evidence and atomic-group state to every report row."""
+
+    details = dict(result.details)
+    details.setdefault("resolver", definition.resolver)
+    details.setdefault("authorized_hosts", list(definition.authorized_hosts))
+    details.setdefault("github_repository", definition.github_repository or "")
+    details.setdefault("checksum_strategy", definition.checksum_strategy)
+    details.setdefault("stable_policy", definition.stable_policy)
+    details.setdefault("compatibility_policy", definition.compatibility_policy)
+    details.setdefault("atomic_group", list(definition.atomic_group))
+    if result.status == STATUS_OUTDATED and definition.update_policy == "automatic":
+        expected_values = dict(details.get("atomic_expected_values", {}))
+        planned_values = {update.variable: update.new for update in result.updates}
+        for variable in definition.atomic_group:
+            current = entry(entries, variable)
+            if current is None:
+                continue
+            expected_values[variable] = planned_values.get(variable, current.default)
+        details["atomic_expected_values"] = expected_values
+        details["atomic_changed_variables"] = [
+            update.variable for update in result.updates
+        ]
+    return dataclasses.replace(
+        result,
+        component=definition.name,
+        variables=list(definition.variables),
+        latest_upstream=result.latest_upstream or result.latest,
+        latest_compatible=result.latest_compatible or result.latest,
+        update_policy=definition.update_policy,
+        atomic_group=definition.atomic_group,
+        details=details,
+    )
+
+
+def resolve_component_definition(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    client: HttpClient,
+) -> ComponentResult:
+    if definition.resolver == "not_applicable":
+        return not_applicable_component(
+            definition.name,
+            entries,
+            list(definition.variables),
+            definition.not_applicable_reason,
+        )
+    if definition.resolver == "apache_listing":
+        return official_tarball_check(
+            definition.name,
+            entries,
+            client,
+            version_var=cast(str, definition.version_variable),
+            source_url_var=cast(str, definition.source_url_variable),
+            sha_var=cast(str, definition.sha256_variable),
+            sha_url_var=cast(str, definition.sha256_url_variable),
+            filename_prefix=definition.filename_prefix,
+            extension=definition.archive_extension,
+            allowed_host=definition.authorized_hosts[0],
+            restrict_to_current_series=True,
+            source_path_prefix=definition.source_path_prefix or None,
+        )
+    if definition.resolver in {"github_release_manifest", "github_release_digest"}:
+        return check_github_release_component(definition, entries, client)
+    if definition.resolver == "github_tag_commit":
+        return check_manual_git_provenance(definition, entries, client)
+    if definition.resolver == "lighttpd_latest":
+        return check_lighttpd(entries, client)
+    if definition.resolver == "haproxy_series":
+        return check_haproxy(entries, client)
+    raise UpstreamError(f"unknown resolver strategy for {definition.name}: {definition.resolver}")
+
+
 def check_all(
-    entries: dict[str, VariableEntry], client: HttpClient
+    entries: dict[str, VariableEntry],
+    client: HttpClient,
+    component_names: tuple[str, ...] | None = None,
 ) -> list[ComponentResult]:
-    checks: list[ComponentResult] = []
+    """Check registry-selected component descriptors in deterministic order."""
 
-    def nginx_check() -> ComponentResult:
-        return check_nginx_release_provenance(entries, client)
-
-    component_calls = [
-        (
-            "OWASP Core Rule Set",
-            lambda: check_crs_release_provenance(entries, client),
-        ),
-        (
-            MODSECURITY_V3_COMPONENT,
-            lambda: check_modsecurity_v3_release_provenance(entries, client),
-        ),
-        (
-            "ModSecurity Apache connector",
-            lambda: not_applicable_component(
-                "ModSecurity Apache connector",
-                entries,
-                ["MODSECURITY_APACHE_GIT_URL", "MODSECURITY_APACHE_GIT_REF"],
-                "connector source is repo-local unless explicitly configured",
-            ),
-        ),
-        (
-            "ModSecurity NGINX connector",
-            lambda: not_applicable_component(
-                "ModSecurity NGINX connector",
-                entries,
-                ["MODSECURITY_NGINX_GIT_URL", "MODSECURITY_NGINX_GIT_REF"],
-                "connector source is repo-local unless explicitly configured",
-            ),
-        ),
-        (
-            "Apache httpd",
-            lambda: official_tarball_check(
-                "Apache httpd",
-                entries,
-                client,
-                version_var="HTTPD_VERSION",
-                source_url_var="HTTPD_SOURCE_URL",
-                sha_var="HTTPD_SHA256",
-                sha_url_var="HTTPD_SHA256_URL",
-                filename_prefix="httpd",
-                extension=ARCHIVE_BZ2_EXTENSION,
-                allowed_host=APACHE_DOWNLOAD_HOST,
-                restrict_to_current_series=True,
-            ),
-        ),
-        (
-            "APR",
-            lambda: official_tarball_check(
-                "APR",
-                entries,
-                client,
-                version_var="APR_VERSION",
-                source_url_var="APR_SOURCE_URL",
-                sha_var="APR_SHA256",
-                sha_url_var="APR_SHA256_URL",
-                filename_prefix="apr",
-                extension=ARCHIVE_BZ2_EXTENSION,
-                allowed_host=APACHE_DOWNLOAD_HOST,
-                restrict_to_current_series=True,
-            ),
-        ),
-        (
-            "APR-util",
-            lambda: check_apr_util_release_provenance(entries, client),
-        ),
-        ("PCRE2", lambda: check_pcre2(entries, client)),
-        ("NGINX", nginx_check),
-        ("HAProxy", lambda: check_haproxy(entries, client)),
-        (
-            "Default branch",
-            lambda: not_applicable_component(
-                "Default branch",
-                entries,
-                ["DEFAULT_BRANCH"],
-                "DEFAULT_BRANCH is a local policy default, not an upstream release source",
-            ),
-        ),
+    selected = set(component_names or ())
+    definitions = [
+        definition
+        for definition in COMPONENT_DEFINITIONS
+        if not selected or definition.name in selected
     ]
-    for component, call in component_calls:
+    checks: list[ComponentResult] = []
+    for definition in definitions:
         try:
-            checks.append(call())
+            result = resolve_component_definition(definition, entries, client)
+            checks.append(decorate_component_result(definition, result, entries))
         except UpstreamUnknown as exc:
             checks.append(
-                ComponentResult(
-                    component=component,
-                    status=STATUS_UNKNOWN,
-                    message=str(exc),
-                    variables=[],
+                decorate_component_result(
+                    definition,
+                    ComponentResult(
+                        component=definition.name,
+                        status=STATUS_UNKNOWN,
+                        message=str(exc),
+                        variables=list(definition.variables),
+                    ),
+                    entries,
                 )
             )
         except UpstreamBlocked as exc:
             checks.append(
-                ComponentResult(
-                    component=component,
-                    status=STATUS_BLOCKED,
-                    message=str(exc),
-                    variables=[],
+                decorate_component_result(
+                    definition,
+                    ComponentResult(
+                        component=definition.name,
+                        status=STATUS_BLOCKED,
+                        message=str(exc),
+                        variables=list(definition.variables),
+                    ),
+                    entries,
                 )
             )
         except UpstreamError as exc:
             checks.append(
-                ComponentResult(
-                    component=component,
-                    status=STATUS_ERROR,
-                    message=str(exc),
-                    variables=[],
+                decorate_component_result(
+                    definition,
+                    ComponentResult(
+                        component=definition.name,
+                        status=STATUS_ERROR,
+                        message=str(exc),
+                        variables=list(definition.variables),
+                    ),
+                    entries,
                 )
             )
     return checks
 
 
+def relevant_inventory_entries(
+    entries: dict[str, VariableEntry],
+) -> list[VariableEntry]:
+    return [
+        item
+        for item in sorted(entries.values(), key=lambda current: current.line)
+        if item.tracked or item.name == "DEFAULT_BRANCH"
+    ]
+
+
+def unassigned_provenance_variables(entries: dict[str, VariableEntry]) -> list[str]:
+    return [
+        item.name
+        for item in relevant_inventory_entries(entries)
+        if component_definition_for_variable(item.name) is None
+    ]
+
+
 def inventory(entries: dict[str, VariableEntry]) -> list[dict[str, Any]]:
     rows = []
-    for item in sorted(entries.values(), key=lambda current: current.line):
-        if not item.tracked:
-            continue
+    for item in relevant_inventory_entries(entries):
+        definition = component_definition_for_variable(item.name)
         rows.append(
             {
                 "name": item.name,
@@ -1883,6 +3127,13 @@ def inventory(entries: dict[str, VariableEntry]) -> list[dict[str, Any]]:
                 "default": item.default,
                 "resolved": item.resolved,
                 "style": item.style,
+                "component": definition.name if definition else "",
+                "classification": (
+                    definition.update_policy if definition else "unassigned"
+                ),
+                "resolver": definition.resolver if definition else "",
+                "atomic_group": list(definition.atomic_group) if definition else [],
+                "reason": definition.not_applicable_reason if definition else "",
             }
         )
     return rows
@@ -2046,6 +3297,28 @@ def automatic_plan_errors(
                 append_unique(invalid_components, previous_component)
                 continue
             seen_variables[update.variable] = result.component
+        atomic_group = result.atomic_group
+        expected_values = result.details.get("atomic_expected_values")
+        if atomic_group:
+            if not isinstance(expected_values, dict):
+                append_unique(invalid_components, result.component)
+                continue
+            expected_changes: dict[str, str] = {}
+            for variable in atomic_group:
+                current = entry(entries, variable)
+                expected = expected_values.get(variable)
+                if (
+                    current is None
+                    or not isinstance(expected, str)
+                    or variable not in result.variables
+                ):
+                    append_unique(invalid_components, result.component)
+                    continue
+                if current.default != expected:
+                    expected_changes[variable] = expected
+            actual_changes = {update.variable: update.new for update in result.updates}
+            if expected_changes != actual_changes:
+                append_unique(invalid_components, result.component)
     return invalid_components
 
 
@@ -2197,6 +3470,7 @@ def make_summary(
     results: list[ComponentResult],
     updates_applied: list[UpdateChange],
     disposition: MaintenanceDisposition,
+    selected_components: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     counts: dict[str, int] = {}
     for result in results:
@@ -2210,6 +3484,7 @@ def make_summary(
     return {
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "common_sh": str(common_sh),
+        "selected_components": list(selected_components),
         "maintenance_outcome": disposition.outcome,
         "safe_updates_available": disposition.safe_updates_available,
         "manual_review_required": disposition.manual_review_required,
@@ -2304,6 +3579,13 @@ def markdown_summary(summary: dict[str, Any]) -> str:
         "",
         f"- Generated: `{summary['generated_at']}`",
         f"- File: `{summary['common_sh']}`",
+        "- Components: `all`"
+        if not summary.get("selected_components")
+        else "- Components: "
+        + ", ".join(
+            f"`{markdown_escape(component)}`"
+            for component in summary["selected_components"]
+        ),
         f"- Maintenance outcome: `{summary['maintenance_outcome']}`",
         "",
         "## Components",
@@ -2427,6 +3709,16 @@ def parse_arguments(argv: list[str] | None) -> argparse.Namespace:
             "while applying independent safe updates"
         ),
     )
+    parser.add_argument(
+        "--component",
+        action="append",
+        help="check exactly this canonical component name (may be repeated)",
+    )
+    parser.add_argument(
+        "--list-components",
+        action="store_true",
+        help="print canonical component names and exit",
+    )
     parser.add_argument("--common-sh", help=argparse.SUPPRESS)
     parser.add_argument(
         "--timeout", type=float, default=20.0, help="network timeout in seconds"
@@ -2450,6 +3742,26 @@ def append_missing_required_result(
             details={
                 "action": "define a value or add the variable to OPTIONAL_EMPTY_VARIABLES"
             },
+        )
+    )
+
+
+def append_unassigned_inventory_result(
+    results: list[ComponentResult], entries: dict[str, VariableEntry]
+) -> None:
+    """Fail closed if common.sh gains a provenance input outside the registry."""
+
+    unassigned = unassigned_provenance_variables(entries)
+    if not unassigned:
+        return
+    results.append(
+        ComponentResult(
+            component="common.sh provenance inventory",
+            status=STATUS_ERROR,
+            message="Relevant provenance variables lack a resolver or not_applicable classification: "
+            + ", ".join(unassigned),
+            variables=unassigned,
+            details={"unassigned_variables": unassigned},
         )
     )
 
@@ -2631,11 +3943,23 @@ def emit_summary(
 def main(argv: list[str] | None = None) -> int:
     args = parse_arguments(argv)
 
+    if args.list_components:
+        for definition in COMPONENT_DEFINITIONS:
+            print(definition.name)
+        return 0
+
+    try:
+        selected_components = canonical_component_selection(args.component)
+    except UpstreamError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
     common_sh = common_path_from_args(args.common_sh)
     lines, entries = parse_common(common_sh)
     client = HttpClient(timeout=args.timeout)
-    results = check_all(entries, client)
+    results = check_all(entries, client, selected_components)
     append_missing_required_result(results, entries)
+    append_unassigned_inventory_result(results, entries)
     disposition = maintenance_disposition(
         results,
         entries,
@@ -2650,7 +3974,14 @@ def main(argv: list[str] | None = None) -> int:
     def revalidate(
         candidate_entries: dict[str, VariableEntry],
     ) -> list[ComponentResult]:
-        return check_all(candidate_entries, HttpClient(timeout=args.timeout))
+        candidate_results = check_all(
+            candidate_entries,
+            HttpClient(timeout=args.timeout),
+            selected_components,
+        )
+        append_missing_required_result(candidate_results, candidate_entries)
+        append_unassigned_inventory_result(candidate_results, candidate_entries)
+        return candidate_results
 
     update_result = apply_requested_updates(
         args.update,
@@ -2666,7 +3997,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     rc, updates_applied, lines, entries = update_result
 
-    summary = make_summary(common_sh, entries, results, updates_applied, disposition)
+    summary = make_summary(
+        common_sh,
+        entries,
+        results,
+        updates_applied,
+        disposition,
+        selected_components,
+    )
     markdown = markdown_summary(summary)
     if args.write_files:
         try:

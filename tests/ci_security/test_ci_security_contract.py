@@ -883,6 +883,63 @@ jobs:
             return prefix + new + suffix
 
         variants = {
+            "dispatch-component-input-removed": workflow.replace(
+                "    inputs:\n"
+                "      component:\n"
+                "        description: \"Optional exact common-version component name to resolve\"\n"
+                "        required: false\n"
+                "        type: string\n"
+                "        default: \"\"\n",
+                "",
+                1,
+            ),
+            "dispatch-component-is-interpolated-into-shell": workflow.replace(
+                "        env:\n"
+                "          REQUESTED_COMPONENT: ${{ inputs.component }}\n",
+                "",
+                1,
+            ),
+            "dispatch-component-is-not-passed-as-an-argv-element": workflow.replace(
+                '            component_args+=(--component "$REQUESTED_COMPONENT")\n',
+                '            component_args+=("$REQUESTED_COMPONENT")\n',
+                1,
+            ),
+            "publisher-dispatch-component-is-not-bound": workflow.replace(
+                "          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools\n"
+                "          REQUESTED_COMPONENT: ${{ inputs.component }}\n",
+                "          TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools\n",
+                1,
+            ),
+            "publisher-dispatch-component-is-not-passed-as-an-argv-element": workflow.replace(
+                '            "${component_args[@]}" > "$RUNNER_TEMP/common-version-check.stdout.json"\n',
+                '            "$REQUESTED_COMPONENT" > "$RUNNER_TEMP/common-version-check.stdout.json"\n',
+                1,
+            ),
+            "candidate-validator-omits-atomic-provenance-regression": workflow.replace(
+                "            tests.security_regression.test_common_version_atomic_provenance \\\n",
+                "",
+                1,
+            ),
+            "publisher-omits-atomic-provenance-regression": replace_last(
+                workflow,
+                "            tests.security_regression.test_common_version_atomic_provenance \\\n",
+                "",
+            ),
+            "resolver-exit-is-not-captured": workflow.replace(
+                " || resolver_exit=$?\n",
+                "\n",
+                1,
+            ),
+            "resolver-markdown-summary-is-not-preserved": workflow.replace(
+                '          cp "$BUILD_ROOT/results/common-version-check/summary.md" \\\n',
+                "          # summary.md preservation removed\n",
+                1,
+            ),
+            "resolver-failure-annotation-loses-component-and-reason": workflow.replace(
+                "::error title=Common-version resolver failed for {command_component}::{command_reason}",
+                "::error::Common-version resolver failed",
+                1,
+            ),
             "reader-write-permission": workflow.replace(
                 "  resolve:\n    runs-on: ubuntu-latest\n    timeout-minutes: 30\n"
                 "    permissions:\n      contents: read",
@@ -891,11 +948,15 @@ jobs:
                 1,
             ),
             "reader-token-exposure": workflow.replace(
-                "      - name: Resolve an ephemeral common.sh candidate\n        id: resolve\n",
                 "      - name: Resolve an ephemeral common.sh candidate\n"
+                "        id: resolve\n"
                 "        env:\n"
-                "          GITHUB_TOKEN: ${{ github.token }}\n"
-                "        id: resolve\n",
+                "          REQUESTED_COMPONENT: ${{ inputs.component }}\n",
+                "      - name: Resolve an ephemeral common.sh candidate\n"
+                "        id: resolve\n"
+                "        env:\n"
+                "          REQUESTED_COMPONENT: ${{ inputs.component }}\n"
+                "          GITHUB_TOKEN: ${{ github.token }}\n",
                 1,
             ),
             "stale-default-checkout": workflow.replace(

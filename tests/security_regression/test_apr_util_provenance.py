@@ -18,10 +18,8 @@ ROOT = Path(__file__).resolve().parents[2]
 COMMON_SOURCE = ROOT / "ci" / "lib" / "common.sh"
 PREPARE_APACHE = ROOT / "ci" / "provisioning" / "prepare-apache-build.sh"
 PINNED = {
-    "APR_UTIL_VERSION": "1.6.9000",
-    "APR_UTIL_SOURCE_URL": "https://downloads.apache.org/apr/apr-util-1.6.9000.tar.bz2",
+    "APR_UTIL_VERSION": "1.6.5",
     "APR_UTIL_SHA256": "a" * 64,
-    "APR_UTIL_SHA256_URL": "https://downloads.apache.org/apr/apr-util-1.6.9000.tar.bz2.sha256",
 }
 
 
@@ -37,10 +35,7 @@ class AprUtilProvenanceTests(unittest.TestCase):
         self.common = write_common_fixture(
             self.fixture_root,
             COMMON_SOURCE.read_text(encoding="utf-8"),
-            {
-                name.replace("APR_UTIL_", "APR_UTIL_PINNED_"): value
-                for name, value in PINNED.items()
-            },
+            PINNED,
         )
 
     def tearDown(self) -> None:
@@ -50,7 +45,12 @@ class AprUtilProvenanceTests(unittest.TestCase):
         self, overrides: dict[str, str] | None = None
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
-        for name in PINNED:
+        for name in (
+            "APR_UTIL_VERSION",
+            "APR_UTIL_SOURCE_URL",
+            "APR_UTIL_SHA256",
+            "APR_UTIL_SHA256_URL",
+        ):
             environment.pop(name, None)
         if overrides:
             environment.update(overrides)
@@ -73,20 +73,23 @@ class AprUtilProvenanceTests(unittest.TestCase):
         path.write_text(textwrap.dedent(contents).lstrip(), encoding="utf-8")
         path.chmod(0o755)
 
-    def test_synthetic_reviewed_tuple_is_exact_and_accepted(self):
+    def test_offline_reviewed_tuple_is_derived_and_accepted(self):
         source = self.common.read_text(encoding="utf-8")
         for name, expected in PINNED.items():
             with self.subTest(name=name):
-                self.assertIn(
-                    f'{name.replace("APR_UTIL_", "APR_UTIL_PINNED_")}="{expected}"',
-                    source,
-                )
+                self.assertIn(f'{name}="{expected}"', source)
+        self.assertIn(
+            'APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"',
+            source,
+        )
+        self.assertIn('APR_UTIL_SHA256_URL="$APR_UTIL_SOURCE_URL.sha256"', source)
+        self.assertNotIn("APR_UTIL_PINNED_", source)
 
         completed = self.run_guard()
 
         self.assertEqual(completed.returncode, 0, completed.stdout)
 
-    def test_noncanonical_runtime_values_fail_closed(self):
+    def test_environment_tuple_overrides_fail_closed(self):
         invalid_values = {
             "stale-version": {"APR_UTIL_VERSION": "1.6.3"},
             "foreign-host": {
@@ -115,6 +118,30 @@ class AprUtilProvenanceTests(unittest.TestCase):
         for case, overrides in invalid_values.items():
             with self.subTest(case=case):
                 completed = self.run_guard(overrides)
+
+                self.assertEqual(completed.returncode, 77, completed.stdout)
+                self.assertIn("BLOCKED:", completed.stdout)
+
+    def test_invalid_derived_source_or_checksum_url_fails_closed(self):
+        source = self.common.read_text(encoding="utf-8")
+        invalid_fixtures = {
+            "foreign-source": source.replace(
+                'APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"',
+                'APR_UTIL_SOURCE_URL="https://mirror.example.invalid/apr-util-$APR_UTIL_VERSION.tar.bz2"',
+            ),
+            "wrong-checksum-url": source.replace(
+                'APR_UTIL_SHA256_URL="$APR_UTIL_SOURCE_URL.sha256"',
+                'APR_UTIL_SHA256_URL="https://downloads.apache.org/apr/other.sha256"',
+            ),
+            "malformed-digest": source.replace(
+                f'APR_UTIL_SHA256="{PINNED["APR_UTIL_SHA256"]}"',
+                'APR_UTIL_SHA256="not-a-sha256"',
+            ),
+        }
+        for case, fixture in invalid_fixtures.items():
+            with self.subTest(case=case):
+                self.common.write_text(fixture, encoding="utf-8")
+                completed = self.run_guard()
 
                 self.assertEqual(completed.returncode, 77, completed.stdout)
                 self.assertIn("BLOCKED:", completed.stdout)

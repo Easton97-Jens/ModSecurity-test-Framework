@@ -51,6 +51,7 @@ RUN_17_HAPROXY_SHA256 = (
 )
 FOCUSED_PUBLISHER_TEST_MODULES = (
     "tests.security_regression.test_common_versions_sonar_provenance",
+    "tests.security_regression.test_common_version_atomic_provenance",
     "tests.security_regression.test_nginx_release_provenance",
     "tests.security_regression.test_crs_git_ref_provenance",
     "tests.security_regression.test_modsecurity_v3_git_ref_provenance",
@@ -289,21 +290,25 @@ class CommonVersionProvenanceTests(unittest.TestCase):
     @staticmethod
     def apr_util_fixture(
         *,
-        runtime_version: str = "$APR_UTIL_PINNED_VERSION",
-        runtime_source_url: str = "$APR_UTIL_PINNED_SOURCE_URL",
-        runtime_sha256: str = "$APR_UTIL_PINNED_SHA256",
-        runtime_sha256_url: str = "$APR_UTIL_PINNED_SHA256_URL",
+        version: str = APR_UTIL_VERSION,
+        source_url: str | None = None,
+        sha256: str = APR_UTIL_SHA256,
+        sha256_url: str | None = None,
     ) -> str:
+        source_default = (
+            source_url
+            if source_url is not None
+            else "https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"
+        )
+        sha_url_default = (
+            sha256_url if sha256_url is not None else "$APR_UTIL_SOURCE_URL.sha256"
+        )
         return "\n".join(
             [
-                f'APR_UTIL_PINNED_VERSION="{APR_UTIL_VERSION}"',
-                f'APR_UTIL_PINNED_SOURCE_URL="{APR_UTIL_SOURCE_URL}"',
-                f'APR_UTIL_PINNED_SHA256="{APR_UTIL_SHA256}"',
-                f'APR_UTIL_PINNED_SHA256_URL="{APR_UTIL_SHA256_URL}"',
-                f'APR_UTIL_VERSION="${{APR_UTIL_VERSION-{runtime_version}}}"',
-                f'APR_UTIL_SOURCE_URL="${{APR_UTIL_SOURCE_URL-{runtime_source_url}}}"',
-                f'APR_UTIL_SHA256="${{APR_UTIL_SHA256-{runtime_sha256}}}"',
-                f'APR_UTIL_SHA256_URL="${{APR_UTIL_SHA256_URL-{runtime_sha256_url}}}"',
+                f'APR_UTIL_VERSION="{version}"',
+                f'APR_UTIL_SOURCE_URL="{source_default}"',
+                f'APR_UTIL_SHA256="{sha256}"',
+                f'APR_UTIL_SHA256_URL="{sha_url_default}"',
                 "",
             ]
         )
@@ -469,9 +474,20 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             def __init__(self) -> None:
                 self.urls: list[str] = []
 
-            def get_json(self, url: str) -> dict[str, str]:
+            def get_json(self, url: str) -> dict[str, object]:
                 self.urls.append(url)
-                return {"tag_name": newer_tag}
+                responses: dict[str, dict[str, object]] = {
+                    "https://api.github.com/repos/owasp-modsecurity/ModSecurity/git/ref/tags/"
+                    + reviewed_tag: {"object": {"type": "commit", "sha": approved_commit}},
+                    "https://api.github.com/repos/owasp-modsecurity/ModSecurity/releases/latest": {
+                        "tag_name": newer_tag,
+                        "draft": False,
+                        "prerelease": False,
+                    },
+                    "https://api.github.com/repos/owasp-modsecurity/ModSecurity/git/ref/tags/"
+                    + newer_tag: {"object": {"type": "commit", "sha": "d" * 40}},
+                }
+                return responses[url]
 
         fixture_source = "\n".join(
             [
@@ -517,7 +533,7 @@ class CommonVersionProvenanceTests(unittest.TestCase):
         )
         self.assertEqual(
             result.details["reason"],
-            "update MODSECURITY_V3_RELEASE_TAG and MODSECURITY_V3_APPROVED_COMMIT together after commit provenance review",
+            "update MODSECURITY_V3_RELEASE_TAG and MODSECURITY_V3_APPROVED_COMMIT together after peeled-commit provenance review",
         )
         self.assertEqual(
             result.details["manual_variables"],
@@ -526,7 +542,9 @@ class CommonVersionProvenanceTests(unittest.TestCase):
         self.assertEqual(
             client.urls,
             [
-                "https://api.github.com/repos/owasp-modsecurity/ModSecurity/releases/latest"
+                "https://api.github.com/repos/owasp-modsecurity/ModSecurity/git/ref/tags/v3.900.0",
+                "https://api.github.com/repos/owasp-modsecurity/ModSecurity/releases/latest",
+                "https://api.github.com/repos/owasp-modsecurity/ModSecurity/git/ref/tags/v3.900.1",
             ],
         )
 
@@ -673,26 +691,24 @@ class CommonVersionProvenanceTests(unittest.TestCase):
             client.urls, [listing_url, APR_UTIL_SHA256_URL, APR_UTIL_SHA256_URL]
         )
 
-    def test_apr_util_rejects_any_runtime_tuple_mismatch_before_http_lookup(self):
+    def test_apr_util_rejects_invalid_local_provenance_before_http_lookup(self):
         mismatches = {
-            "stale-version": {"runtime_version": "1.6.8999"},
             "foreign-host": {
-                "runtime_source_url": (
+                "source_url": (
                     "https://mirror.example.invalid/"
                     f"apr-util-{APR_UTIL_VERSION}.tar.bz2"
                 )
             },
             "wrong-path": {
-                "runtime_source_url": (
+                "source_url": (
                     "https://downloads.apache.org/apr/"
                     f"other-apr-util-{APR_UTIL_VERSION}.tar.bz2"
                 )
             },
-            "missing-digest": {"runtime_sha256": ""},
-            "malformed-digest": {"runtime_sha256": "not-a-sha256"},
-            "mismatched-digest": {"runtime_sha256": "0" * 64},
+            "missing-digest": {"sha256": ""},
+            "malformed-digest": {"sha256": "not-a-sha256"},
             "wrong-checksum-url": {
-                "runtime_sha256_url": "https://downloads.apache.org/apr/other.sha256"
+                "sha256_url": "https://downloads.apache.org/apr/other.sha256"
             },
         }
         for case, kwargs in mismatches.items():
@@ -1270,7 +1286,10 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                         text=True,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
-                        timeout=300,
+                        # The copied suite includes isolated Git-topology
+                        # fixtures.  On slower CI filesystems it can exceed
+                        # the former five-minute ceiling without being stuck.
+                        timeout=600,
                     )
                     self.assertEqual(
                         completed.returncode,

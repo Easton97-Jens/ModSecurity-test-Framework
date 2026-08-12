@@ -40,6 +40,14 @@ SUBMODULE_UPDATER_PUBLISHER_SHA256 = (
 CHECKOUT_WITHOUT_SUBMODULES = "submodules: false"
 CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS = "persist-credentials: false"
 COMMON_VERSION_WORKFLOW = "check-common-versions.yml"
+COMMON_VERSION_DISPATCH_INPUTS = {
+    "component": {
+        "description": "Optional exact common-version component name to resolve",
+        "required": False,
+        "type": "string",
+        "default": "",
+    }
+}
 PYTHON_VERSION_MAINTENANCE_WORKFLOW = "check-python-version.yml"
 SETUP_PYTHON_ACTION = "actions/setup-python"
 SETUP_PYTHON_REFERENCE = f"{SETUP_PYTHON_ACTION}@"
@@ -63,6 +71,9 @@ STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY = "Install hash-locked CI dependency"
 STEP_FETCH_CHECKSUM_VERIFIED_SHELLCHECK = "Fetch checksum-verified ShellCheck"
 STEP_VALIDATE_EPHEMERAL_COMMON_SH_CANDIDATE = (
     "Validate an ephemeral common.sh candidate"
+)
+STEP_RESOLVE_EPHEMERAL_COMMON_SH_CANDIDATE = (
+    "Resolve an ephemeral common.sh candidate"
 )
 STEP_SYNTAX_AND_SHELLCHECK = "Syntax and ShellCheck"
 STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST = (
@@ -376,7 +387,8 @@ COMMON_VERSION_PUBLISHER_ENV_VALUES = {
         "TOOLS_DIR": "${{ runner.temp }}/framework-ci-security-tools"
     },
     STEP_REVALIDATE_COMMON_VERSION_CANDIDATE: {
-        "TOOLS_DIR": "${{ runner.temp }}/framework-ci-security-tools"
+        "TOOLS_DIR": "${{ runner.temp }}/framework-ci-security-tools",
+        "REQUESTED_COMPONENT": "${{ inputs.component }}",
     },
     STEP_FAIL_CLOSED_COMMON_VERSION_APP_CONFIGURATION: COMMON_VERSION_APP_CONFIG_ENV,
     STEP_INSPECT_COMMON_VERSION_DRAFT_PULL_REQUEST: {
@@ -400,7 +412,7 @@ COMMON_VERSION_PUBLISHER_OUTPUTS = {
 COMMON_VERSION_PUBLISHER_RUN_SHA256 = {
     STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
     STEP_FETCH_CHECKSUM_VERIFIED_SHELLCHECK: "f4e26f8af7f41a9e425a9416c78f0ff7ca2b4e8faa0837acd94c91b26a4ecb7d",
-    STEP_REVALIDATE_COMMON_VERSION_CANDIDATE: "0efb644c2ea0e081bd506aeb1675389e4d7c220ab6eddc4365789482e2bd3476",
+    STEP_REVALIDATE_COMMON_VERSION_CANDIDATE: "67d99000eaf72e26d8d8999994c53d42db77f7fe31b4652881be5a411448f6da",
     STEP_BUILD_BOUNDED_COMMON_VERSION_PR_BODY: "d32906bb8fff4feb518395fcfedb566b32a80930084ec3489577ba3c4e6da609",
     STEP_FAIL_CLOSED_COMMON_VERSION_APP_CONFIGURATION: "89dbee536c4566a0f64ee9ae5f1363fbeca67f6a7f6b2b02d86158b5955ede1b",
 }
@@ -2573,6 +2585,12 @@ def common_version_trigger_errors(path: Path, data: dict[str, Any]) -> list[str]
         ]
     if not isinstance(events.get("schedule"), list) or not events["schedule"]:
         return [f"{path}: common-version maintenance must declare a schedule"]
+    if events.get("workflow_dispatch") != {
+        "inputs": COMMON_VERSION_DISPATCH_INPUTS
+    }:
+        return [
+            f"{path}: common-version maintenance must expose only the reviewed optional component dispatch input"
+        ]
     return []
 
 
@@ -2659,6 +2677,23 @@ def common_version_candidate_errors(
         errors.append(
             f"{path}: common-version candidate job must use the reviewed resolver-bound environment"
         )
+    resolve_steps = resolve.get("steps") if isinstance(resolve, dict) else None
+    resolver_steps = (
+        [
+            step
+            for step in resolve_steps
+            if isinstance(step, dict)
+            and step.get("name") == STEP_RESOLVE_EPHEMERAL_COMMON_SH_CANDIDATE
+        ]
+        if isinstance(resolve_steps, list)
+        else []
+    )
+    if len(resolver_steps) != 1 or resolver_steps[0].get("env") != {
+        "REQUESTED_COMPONENT": "${{ inputs.component }}"
+    }:
+        errors.append(
+            f"{path}: common-version resolver must pass the optional dispatch component only through its reviewed environment"
+        )
     candidate_if = candidate.get("if") if isinstance(candidate, dict) else None
     if (
         not isinstance(candidate_if, str)
@@ -2679,6 +2714,16 @@ def common_version_candidate_errors(
         "automatic_update_variables_b64",
         "manual_review_pins_sha256",
         '"update_available": str(safe_updates).lower()',
+        "component_args=()",
+        'component_args+=(--component "$REQUESTED_COMPONENT")',
+        '"${component_args[@]}"',
+        "resolver_exit=0",
+        "|| resolver_exit=$?",
+        'cp "$BUILD_ROOT/results/common-version-check/summary.md"',
+        "Common-version resolver diagnostic",
+        "::error title=Common-version resolver failed for",
+        'if (( resolver_exit != 0 )); then',
+        'exit "$resolver_exit"',
     )
     if any(requirement not in resolve_run for requirement in resolver_requirements):
         errors.append(
@@ -2698,6 +2743,7 @@ def common_version_candidate_errors(
         "candidate validator manual-pin proof mismatch",
         "candidate validator candidate SHA-256 mismatch",
         '"$TOOLS_DIR/shellcheck" -x "$BUILD_ROOT/common.sh"',
+        "tests.security_regression.test_common_version_atomic_provenance",
         "candidate_validated=true",
     )
     if any(requirement not in candidate_run for requirement in candidate_requirements):
