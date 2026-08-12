@@ -2514,6 +2514,30 @@ def configured_nginx_release_aliases_are_bound(
     return None
 
 
+def configured_release_checksum_url_is_bound(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    *,
+    repo_path: str,
+    tag: str,
+    version: str,
+) -> ComponentResult | None:
+    """Check a configured checksum URL against its declared release asset."""
+
+    if not definition.sha256_url_variable or not definition.checksum_asset_template:
+        return None
+    checksum_asset = release_checksum_asset_name(definition, version)
+    expected_checksum_url = expected_github_asset_url(repo_path, tag, checksum_asset)
+    if value(entries, definition.sha256_url_variable) != expected_checksum_url:
+        return configured_release_url_error(
+            definition,
+            message="Configured checksum URL is not bound to the declared official release asset.",
+            tag=tag,
+            details={"expected_sha256_url": expected_checksum_url},
+        )
+    return None
+
+
 def configured_github_release_urls_are_bound(
     definition: ComponentDefinition,
     entries: dict[str, VariableEntry],
@@ -2565,16 +2589,15 @@ def configured_github_release_urls_are_bound(
         )
         if nginx_alias_error is not None:
             return nginx_alias_error
-    if definition.sha256_url_variable and definition.checksum_asset_template:
-        checksum_asset = release_checksum_asset_name(definition, version)
-        expected_checksum_url = expected_github_asset_url(repo_path, tag, checksum_asset)
-        if value(entries, definition.sha256_url_variable) != expected_checksum_url:
-            return configured_release_url_error(
-                definition,
-                message="Configured checksum URL is not bound to the declared official release asset.",
-                tag=tag,
-                details={"expected_sha256_url": expected_checksum_url},
-            )
+    checksum_url_error = configured_release_checksum_url_is_bound(
+        definition,
+        entries,
+        repo_path=repo_path,
+        tag=tag,
+        version=version,
+    )
+    if checksum_url_error is not None:
+        return checksum_url_error
     return None
 
 
