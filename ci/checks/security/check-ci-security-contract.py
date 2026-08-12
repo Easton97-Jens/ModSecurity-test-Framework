@@ -72,9 +72,7 @@ STEP_FETCH_CHECKSUM_VERIFIED_SHELLCHECK = "Fetch checksum-verified ShellCheck"
 STEP_VALIDATE_EPHEMERAL_COMMON_SH_CANDIDATE = (
     "Validate an ephemeral common.sh candidate"
 )
-STEP_RESOLVE_EPHEMERAL_COMMON_SH_CANDIDATE = (
-    "Resolve an ephemeral common.sh candidate"
-)
+STEP_RESOLVE_EPHEMERAL_COMMON_SH_CANDIDATE = "Resolve an ephemeral common.sh candidate"
 STEP_SYNTAX_AND_SHELLCHECK = "Syntax and ShellCheck"
 STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST = (
     "Inspect matching Draft maintenance pull request"
@@ -2585,9 +2583,7 @@ def common_version_trigger_errors(path: Path, data: dict[str, Any]) -> list[str]
         ]
     if not isinstance(events.get("schedule"), list) or not events["schedule"]:
         return [f"{path}: common-version maintenance must declare a schedule"]
-    if events.get("workflow_dispatch") != {
-        "inputs": COMMON_VERSION_DISPATCH_INPUTS
-    }:
+    if events.get("workflow_dispatch") != {"inputs": COMMON_VERSION_DISPATCH_INPUTS}:
         return [
             f"{path}: common-version maintenance must expose only the reviewed optional component dispatch input"
         ]
@@ -2722,7 +2718,7 @@ def common_version_candidate_errors(
         'cp "$BUILD_ROOT/results/common-version-check/summary.md"',
         "Common-version resolver diagnostic",
         "::error title=Common-version resolver failed for",
-        'if (( resolver_exit != 0 )); then',
+        "if (( resolver_exit != 0 )); then",
         'exit "$resolver_exit"',
     )
     if any(requirement not in resolve_run for requirement in resolver_requirements):

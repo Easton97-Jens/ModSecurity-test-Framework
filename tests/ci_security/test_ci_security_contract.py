@@ -886,10 +886,10 @@ jobs:
             "dispatch-component-input-removed": workflow.replace(
                 "    inputs:\n"
                 "      component:\n"
-                "        description: \"Optional exact common-version component name to resolve\"\n"
+                '        description: "Optional exact common-version component name to resolve"\n'
                 "        required: false\n"
                 "        type: string\n"
-                "        default: \"\"\n",
+                '        default: ""\n',
                 "",
                 1,
             ),
