@@ -61,9 +61,7 @@ class FakeGitHubClient:
         ):
             return self.current_release
         if url.endswith("/releases/latest"):
-            raise AssertionError(
-                "NGINX provenance must never query GitHub's floating latest endpoint"
-            )
+            return self.current_release
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
 
@@ -102,10 +100,11 @@ class NginxReleaseProvenanceTests(unittest.TestCase):
         )
         self.assertEqual(
             client.urls,
-            [f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}"],
+            [f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}",
+             f"https://api.github.com/repos/{REPOSITORY}/releases/latest"],
         )
 
-    def test_provenance_check_uses_only_the_configured_fixed_tag_endpoint(self):
+    def test_provenance_check_validates_fixed_tag_before_latest_selection(self):
         client = FakeGitHubClient(release_payload(RELEASE_TAG))
         result = CHECKER.check_nginx_release_provenance(
             self.entries(),
@@ -115,9 +114,9 @@ class NginxReleaseProvenanceTests(unittest.TestCase):
         self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
         self.assertEqual(
             client.urls,
-            [f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}"],
+            [f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}",
+             f"https://api.github.com/repos/{REPOSITORY}/releases/latest"],
         )
-        self.assertNotIn("/releases/latest", "\n".join(client.urls))
 
     def test_digest_mismatch_never_generates_an_automatic_update(self):
         client = FakeGitHubClient(release_payload(RELEASE_TAG, "b" * 64))

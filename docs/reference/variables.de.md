@@ -299,7 +299,7 @@ eine Herkunftsprüfung.
 | `ALLOW_EXTERNAL_CONNECTOR_REPOS` | Boolean zur Quellenbeschaffung | `0`; Aufrufer oder CI | `1` stimmt externen Source-Fetches zu; Repository vorher prüfen. |
 | `BUILD_HTTPD_FROM_SOURCE`, `BUILD_NGINX_FROM_SOURCE`, `BUILD_PCRE2_FROM_SOURCE`, `XDG_STATE_HOME` | Build-Boolean oder State-Home-Pfad | Target-Standard oder Host-State-Home; Aufrufer | `1` aktiviert den benannten Source-Build; `XDG_STATE_HOME=<temporary-work-root>/state` wählt ein State-Home außerhalb von Git. |
 | `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, `HTTPD_PREFIX`, `HTTPD_VERSION`, `APR_VERSION` | Apache-Programm-, Pfad- oder Versionsüberschreibung | zentraler Pin oder Host-Erkennung | `/opt/httpd/bin/httpd`; eine Host-Installation ist keine portable Evidence. |
-| `APR_UTIL_PINNED_VERSION`, `APR_UTIL_PINNED_SOURCE_URL`, `APR_UTIL_PINNED_SHA256`, `APR_UTIL_PINNED_SHA256_URL`, `APR_UTIL_VERSION`, `APR_UTIL_SOURCE_URL`, `APR_UTIL_SHA256`, `APR_UTIL_SHA256_URL` | überprüftes APR-util-Provider-, Asset- und SHA-256-Tupel | zentrales unveränderliches `downloads.apache.org`-Tupel für `apr-util-1.6.4.tar.bz2` | Die Runtime-Werte müssen exakt dem überprüften Provider, der Version, dem Asset, dem Literal-Digest und der Checksum-URL desselben Assets entsprechen. Leere, fehlerhafte, abweichende, Mirror-, Host-, Pfad- oder Versionswerte blockieren vor Apache-Provisionierung, Download, Cache-Nutzung oder Extraktion. Der direkte kanonische Endpunkt folgt keinen Provider- oder Mirror-Redirects. Die Checksum-URL ist ergänzende Metadaten und niemals ein Digest-Fallback. |
+| `APR_UTIL_PINNED_VERSION`, `APR_UTIL_PINNED_SOURCE_URL`, `APR_UTIL_PINNED_SHA256`, `APR_UTIL_PINNED_SHA256_URL`, `APR_UTIL_VERSION`, `APR_UTIL_SOURCE_URL`, `APR_UTIL_SHA256`, `APR_UTIL_SHA256_URL` | atomares APR-util-Provider-, Asset- und SHA-256-Tupel | Version plus literaler Digest; URLs werden abgeleitet | Der Updater wählt aus `downloads.apache.org/apr/` das neueste stabile kompatible Release und akzeptiert exakt einen passenden Eintrag aus `<Asset>.sha256`. Version und Digest werden gemeinsam geändert; Runtime-Aliase und beide URLs bleiben abgeleitet. Host-, Pfad- und Override-Prüfungen blockieren weiterhin vor Netzwerkzugriff oder Extraktion. |
 | `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SHA256` | NGINX-Programm-, Kompatibilitäts-GitHub-URL-Alias-, fester Release-Tag/-Ref-, Release-Asset-Name-, Source-Mode- oder SHA-256-Digest-Eingabe | überprüftes festes Source-Tupel; siehe [feste NGINX-Release-Provenance](#feste-nginx-release-provenance) | NGINX akzeptiert nur den überprüften Provenance-Pfad `github-release`. Ein fließender `latest`-Tag oder -Ref wird abgewiesen und ist kein unterstützter Kompatibilitätsmodus. |
 | `PCRE2_VERSION`, `PCRE_CONFIG` | Abhängigkeitsversion oder Programm | zentraler Pin oder Host-Erkennung | `PCRE_CONFIG=/usr/bin/pcre2-config`; ein Host-Pfad ist nur ein Beispiel. |
 | `PCRE2_VERSION`, `PCRE2_SOURCE_URL`, `PCRE2_SHA256`, `PCRE2_SHA256_URL`, `PCRE_CONFIG` | Abhängigkeitsversion, HTTPS-Quell-URL, 64-hex SHA-256, Versionswerkzeug-Metadaten oder Programm | zentraler Pin oder Host-Erkennung | `PCRE2_SHA256=<64-hex>` muss nicht leer, syntaktisch gültig und exakt passend zum Archiv sein, bevor die Extraktion erfolgt. Leere, nur aus Whitespace bestehende, fehlerhafte oder nicht passende Werte blockieren vor `tar`; `PCRE2_SHA256_URL` ist kein Fallback. |
@@ -366,3 +366,16 @@ Connector- oder Produktionsruntime-Ergebnis.
 | `<TAG>` | vorhandenes Upstream-Tag | geprüftes Upstream-Tag verwenden, zum Beispiel `v1.27.0`. |
 | `<local-paths>`, `<system-paths>`, `<local-build-root>` und `<Location>` | Dokumentationsplatzhalter für Listen oder Konfigurationsabschnitt | mit lokal verwendeten Pfaden oder Abschnitt ersetzen; zum Beispiel `<temporary-work-root>/build` oder `<Location /protected>`. |
 | `<secret-from-secure-store>` | nicht ausführbarer Secret-Platzhalter | über den freigegebenen Secret Store abrufen; niemals als commitbares Literal verwenden. |
+
+### Wartung der Upstream-Versionen
+
+`ci/tools/check-common-versions.py --list-components` gibt die kanonischen Namen
+aus; `--component NAME` kann für eine begrenzte Auswahl wiederholt werden.
+Apache/httpd/APR/APR-util verwenden offizielle Asset-`.sha256`-Dateien, HAProxy
+das offizielle Serienverzeichnis, Envoy, Traefik, PCRE2, NGINX und OpenSSL exakte
+GitHub-Release-Assets mit Upstream-Digest oder exakt passendem offiziellem
+Checksum-Manifest und lighttpd `latest.txt` plus `.sha256sum` vom offiziellen
+Host. CRS und ModSecurity v3 bleiben manuell, weil Release-Tag und gepeelter,
+unveränderlicher Git-Commit gemeinsam geprüft werden müssen. Repo-lokale
+Connector-Sourcen, reine Prompt-Metadaten für go-ftw/Albedo/Expat und
+`DEFAULT_BRANCH` sind ausdrücklich nicht anwendbar.

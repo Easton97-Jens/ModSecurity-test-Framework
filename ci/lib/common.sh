@@ -206,10 +206,10 @@ APR_SHA256_URL="${APR_SHA256_URL:-$APR_SOURCE_URL.sha256}"
 # APR-util is an atomic, reviewed provider tuple.  The active Apache download
 # service no longer hosts the former 1.6.3 asset, so do not retain it as a
 # fallback or accept an arbitrary mirror at runtime.
-APR_UTIL_PINNED_VERSION="1.6.4"
-APR_UTIL_PINNED_SOURCE_URL="https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2"
-APR_UTIL_PINNED_SHA256="3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b"
-APR_UTIL_PINNED_SHA256_URL="https://downloads.apache.org/apr/apr-util-1.6.4.tar.bz2.sha256"
+APR_UTIL_PINNED_VERSION="1.6.5"
+APR_UTIL_PINNED_SHA256="96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"
+APR_UTIL_PINNED_SOURCE_URL="https://downloads.apache.org/apr/apr-util-$APR_UTIL_PINNED_VERSION.tar.bz2"
+APR_UTIL_PINNED_SHA256_URL="$APR_UTIL_PINNED_SOURCE_URL.sha256"
 # Use no-colon expansion so an explicitly empty or mismatched caller value is
 # preserved for ci_require_apr_util_pinned_provenance to reject before use.
 APR_UTIL_VERSION="${APR_UTIL_VERSION-$APR_UTIL_PINNED_VERSION}"
@@ -234,7 +234,7 @@ NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF-$NGINX_RELEASE_TAG}"
 # NGINX source provenance is an atomic binding: the official GitHub release
 # tag, its exact release asset, and the digest GitHub publishes for that asset
 # are reviewed together.  Do not update one member of this tuple alone.
-NGINX_RELEASE_ASSET_NAME="${NGINX_RELEASE_ASSET_NAME-nginx-1.31.3.tar.gz}"
+NGINX_RELEASE_ASSET_NAME="${NGINX_RELEASE_ASSET_NAME-nginx-${NGINX_RELEASE_TAG#release-}.tar.gz}"
 if [ "${NGINX_SHA256+x}" = x ]; then
     NGINX_SHA256_WAS_SET=1
 else
@@ -252,7 +252,7 @@ NGINX_SHA256="${NGINX_SHA256:-a7657c50811c2d92d9895395e8b873ef60398142c4db21eb64
 NGINX_PROTOCOL_PROFILE="${NGINX_PROTOCOL_PROFILE:-h1}"
 NGINX_QUIC_TLS_LIBRARY="${NGINX_QUIC_TLS_LIBRARY:-openssl}"
 NGINX_QUIC_TLS_VERSION="${NGINX_QUIC_TLS_VERSION:-3.5.1}"
-NGINX_QUIC_TLS_SOURCE_URL="${NGINX_QUIC_TLS_SOURCE_URL:-https://github.com/openssl/openssl/releases/download/openssl-3.5.1/openssl-3.5.1.tar.gz}"
+NGINX_QUIC_TLS_SOURCE_URL="${NGINX_QUIC_TLS_SOURCE_URL:-https://github.com/openssl/openssl/releases/download/openssl-$NGINX_QUIC_TLS_VERSION/openssl-$NGINX_QUIC_TLS_VERSION.tar.gz}"
 NGINX_QUIC_TLS_SOURCE_SHA256="${NGINX_QUIC_TLS_SOURCE_SHA256:-529043b15cffa5f36077a4d0af83f3de399807181d607441d734196d889b641f}"
 # Optional explicit archive location, normally supplied by the managed
 # runtime-component cache.  An empty value means prepare-nginx-build.sh uses

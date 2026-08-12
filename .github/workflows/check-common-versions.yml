@@ -2,6 +2,11 @@ name: Check common.sh versions
 
 on:
   workflow_dispatch:
+    inputs:
+      component:
+        description: "Optional canonical component name (blank checks all)"
+        required: false
+        type: string
   schedule:
     - cron: "0 6 * * 1"
 
@@ -54,6 +59,8 @@ jobs:
 
       - name: Resolve an ephemeral common.sh candidate
         id: resolve
+        env:
+          REQUESTED_COMPONENT: ${{ inputs.component || '' }}
         run: |
           set -euo pipefail
           export VERIFIED_RUN_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified"
@@ -61,12 +68,26 @@ jobs:
           export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
           mkdir -p "$BUILD_ROOT"
           cp ci/lib/common.sh "$BUILD_ROOT/common.sh"
+          component_args=()
+          if [[ -n "$REQUESTED_COMPONENT" ]]; then
+            component_args=(--component "$REQUESTED_COMPONENT")
+          fi
+          set +e
           python3 ci/tools/check-common-versions.py --common-sh "$BUILD_ROOT/common.sh" \
             --update --defer-reviewed-provenance --json --write-files --timeout 20 \
+            "${component_args[@]}" \
             > "$RUNNER_TEMP/common-version-check.json"
+          resolver_rc=$?
+          set -e
+          if [[ -s "$RUNNER_TEMP/common-version-check.json" ]]; then
+            cat "$RUNNER_TEMP/common-version-check.json" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if (( resolver_rc == 2 )); then
+            printf '::error title=Common version resolver failed::See the component report in the step summary.\n'
+            exit 2
+          fi
           cmp -s "$RUNNER_TEMP/common-version-check.json" \
             "$BUILD_ROOT/results/common-version-check/summary.json"
-          cat "$RUNNER_TEMP/common-version-check.json" >> "$GITHUB_STEP_SUMMARY"
           python3 - "$RUNNER_TEMP/common-version-check.json" ci/lib/common.sh \
             "$BUILD_ROOT/common.sh" "$GITHUB_OUTPUT" <<'PY'
           import base64
@@ -196,6 +217,7 @@ jobs:
       - name: Fetch checksum-verified ShellCheck
         env:
           TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+          REQUESTED_COMPONENT: ${{ inputs.component || '' }}
         run: |
           set -euo pipefail
           python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
@@ -205,6 +227,7 @@ jobs:
         id: candidate_validation
         env:
           TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+          REQUESTED_COMPONENT: ${{ inputs.component || '' }}
         run: |
           set -euo pipefail
           export VERIFIED_RUN_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified"
@@ -212,8 +235,11 @@ jobs:
           export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
           mkdir -p "$BUILD_ROOT"
           cp ci/lib/common.sh "$BUILD_ROOT/common.sh"
+          component_args=()
+          if [[ -n "$REQUESTED_COMPONENT" ]]; then component_args=(--component "$REQUESTED_COMPONENT"); fi
           python3 ci/tools/check-common-versions.py --common-sh "$BUILD_ROOT/common.sh" \
             --update --defer-reviewed-provenance --json --write-files --timeout 20 \
+            "${component_args[@]}" \
             > "$RUNNER_TEMP/common-version-check.json"
           cmp -s "$RUNNER_TEMP/common-version-check.json" \
             "$BUILD_ROOT/results/common-version-check/summary.json"
@@ -359,6 +385,7 @@ jobs:
       - name: Fetch checksum-verified ShellCheck
         env:
           TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+          REQUESTED_COMPONENT: ${{ inputs.component || '' }}
         run: |
           set -euo pipefail
           python3 ci/tools/fetch-security-tool.py --lock ci/tooling/security-tools.lock.yml \
@@ -368,14 +395,18 @@ jobs:
         id: candidate_revalidation
         env:
           TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+          REQUESTED_COMPONENT: ${{ inputs.component || '' }}
         run: |
           set -euo pipefail
           export VERIFIED_RUN_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified"
           export XDG_STATE_HOME="${RUNNER_TEMP}/state"
           export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
           mkdir -p "$BUILD_ROOT"
+          component_args=()
+          if [[ -n "$REQUESTED_COMPONENT" ]]; then component_args=(--component "$REQUESTED_COMPONENT"); fi
           python3 ci/tools/check-common-versions.py --common-sh ci/lib/common.sh \
             --update --defer-reviewed-provenance --json --write-files --timeout 20 \
+            "${component_args[@]}" \
             > "$RUNNER_TEMP/common-version-check.stdout.json"
           cp "$BUILD_ROOT/results/common-version-check/summary.json" \
             "$RUNNER_TEMP/common-version-check.json"

@@ -286,7 +286,7 @@ review before use.
 | `ALLOW_EXTERNAL_CONNECTOR_REPOS` | source acquisition boolean | `0`; caller or CI | `1` opts in to external source fetches; review the repository first. |
 | `BUILD_HTTPD_FROM_SOURCE`, `BUILD_NGINX_FROM_SOURCE`, `BUILD_PCRE2_FROM_SOURCE`, `XDG_STATE_HOME` | build boolean or state-home path | target default or host state home; caller | `1` enables the named source build; `XDG_STATE_HOME=<temporary-work-root>/state` selects a state-home outside Git. |
 | `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, `HTTPD_PREFIX`, `HTTPD_VERSION`, `APR_VERSION` | Apache executable/path or version override | central pin or host discovery | `/opt/httpd/bin/httpd`; do not treat a host installation as portable evidence. |
-| `APR_UTIL_PINNED_VERSION`, `APR_UTIL_PINNED_SOURCE_URL`, `APR_UTIL_PINNED_SHA256`, `APR_UTIL_PINNED_SHA256_URL`, `APR_UTIL_VERSION`, `APR_UTIL_SOURCE_URL`, `APR_UTIL_SHA256`, `APR_UTIL_SHA256_URL` | reviewed APR-util provider, asset, and SHA-256 tuple | central immutable `downloads.apache.org` tuple for `apr-util-1.6.4.tar.bz2` | The runtime values must exactly equal the reviewed provider, version, asset, literal digest, and same-asset checksum URL. Empty, malformed, mismatched, mirror, host, path, or version values block before Apache provisioning, download, cache use, or extraction. The direct canonical endpoint does not follow provider or mirror redirects. The checksum URL is supplementary metadata, never a digest fallback. |
+| `APR_UTIL_PINNED_VERSION`, `APR_UTIL_PINNED_SOURCE_URL`, `APR_UTIL_PINNED_SHA256`, `APR_UTIL_PINNED_SHA256_URL`, `APR_UTIL_VERSION`, `APR_UTIL_SOURCE_URL`, `APR_UTIL_SHA256`, `APR_UTIL_SHA256_URL` | atomic APR-util provider, asset, and SHA-256 tuple | version plus literal digest; URLs are derived | The updater selects the newest stable compatible release from `downloads.apache.org/apr/` and accepts exactly one matching entry from `<asset>.sha256`. It changes version and digest together; runtime aliases and both URLs remain derived. Host/path/override validation still blocks before network or extraction. |
 | `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SHA256` | NGINX executable, compatibility GitHub URL alias, fixed release tag/ref, release-asset name, source mode, or SHA-256 digest input | reviewed fixed source tuple; see [NGINX fixed-release provenance](#nginx-fixed-release-provenance) | NGINX accepts only the reviewed `github-release` provenance path. A floating `latest` tag or ref is rejected; it is not a supported compatibility mode. |
 | `PCRE2_VERSION`, `PCRE_CONFIG` | dependency version or executable | central pin or host discovery | `PCRE_CONFIG=/usr/bin/pcre2-config`; a host path is only an example. |
 | `PCRE2_VERSION`, `PCRE2_SOURCE_URL`, `PCRE2_SHA256`, `PCRE2_SHA256_URL`, `PCRE_CONFIG` | dependency version, HTTPS source URL, 64-hex SHA-256, version-tooling metadata, or executable | central pin or host discovery | `PCRE2_SHA256=<64-hex>` must be non-empty, syntactically valid, and exactly match the archive before extraction. Empty, whitespace-only, malformed, or mismatching values block before `tar`; `PCRE2_SHA256_URL` is not a fallback. |
@@ -350,3 +350,16 @@ a connector or production-runtime result.
 | `<TAG>` | Existing upstream tag | use a reviewed upstream tag, for example `v1.27.0`. |
 | `<local-paths>`, `<system-paths>`, `<local-build-root>`, and `<Location>` | Documentation placeholders for lists or a configuration section | replace with the local paths or section actually used; for example `<temporary-work-root>/build` or `<Location /protected>`. |
 | `<secret-from-secure-store>` | Non-executable secret placeholder | retrieve it through the approved secret store; it must never become a committed literal. |
+
+### Upstream version maintenance
+
+`ci/tools/check-common-versions.py --list-components` lists canonical names; repeat
+`--component NAME` to run a bounded subset. Apache/httpd/APR/APR-util use official
+per-asset `.sha256` files; HAProxy uses its official series directory; Envoy,
+Traefik, PCRE2, NGINX, and OpenSSL use exact GitHub release assets with an
+upstream asset digest or exact official checksum manifest; lighttpd uses its
+official `latest.txt` and `.sha256sum`. Compatibility-series restrictions are
+reported as update policies rather than being implicit. CRS and ModSecurity v3
+remain manual: their release tag must be reviewed together with the peeled,
+immutable Git commit. Connector-local sources, prompt-only go-ftw/Albedo/Expat
+metadata, and `DEFAULT_BRANCH` are explicitly not applicable.

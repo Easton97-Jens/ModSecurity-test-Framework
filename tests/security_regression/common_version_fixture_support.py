@@ -36,7 +36,7 @@ def replace_single_common_assignment(
             re.MULTILINE,
         ),
         re.compile(
-            rf"^(?P<prefix>{escaped}\s*=\s*\")(?P<value>[^\"$`]*)(?P<suffix>\"\s*)$",
+            rf"^(?P<prefix>{escaped}\s*=\s*\")(?P<value>[^\"`]*)(?P<suffix>\"\s*)$",
             re.MULTILINE,
         ),
     )

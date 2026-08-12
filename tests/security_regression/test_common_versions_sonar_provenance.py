@@ -709,6 +709,26 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                 self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
                 self.assertEqual(client.urls, [])
 
+    def test_apr_util_164_to_165_is_one_offline_atomic_update(self):
+        old_sha = "3e2ae08f40efa0c3701e54a954cefa08242de22a69f91a8ae44fc1e624ba309b"
+        new_sha = "96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"
+        source = self.apr_util_fixture().replace(APR_UTIL_VERSION, "1.6.4").replace(APR_UTIL_SHA256, old_sha)
+        listing = "https://downloads.apache.org/apr/"
+        checksum_url = listing + "apr-util-1.6.5.tar.bz2.sha256"
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            _, entries = self.parse_fixture(Path(temporary) / COMMON_SH_NAME, source)
+            client = FixtureHttpClient({
+                listing: '<a href="apr-util-1.6.4.tar.bz2">old</a><a href="apr-util-1.6.5.tar.bz2">new</a>',
+                checksum_url: f"{new_sha}  apr-util-1.6.5.tar.bz2\n",
+            })
+            result = CHECKER.check_apr_util_release_provenance(entries, client)
+        self.assertEqual(CHECKER.STATUS_OUTDATED, result.status)
+        self.assertEqual("1.6.5", result.latest)
+        self.assertEqual(
+            {"APR_UTIL_PINNED_VERSION": "1.6.5", "APR_UTIL_PINNED_SHA256": new_sha},
+            {update.variable: update.new for update in result.updates},
+        )
+
     def test_outdated_tarball_only_plans_an_update_until_update_mode_is_requested(self):
         listing_url = f"https://{OFFICIAL_TARBALL_HOST}/releases/"
         latest_checksum_url = (
