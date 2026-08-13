@@ -204,33 +204,52 @@ APR_SOURCE_URL="${APR_SOURCE_URL:-https://downloads.apache.org/apr/apr-$APR_VERS
 APR_SHA256="${APR_SHA256:-49030d92d2575da735791b496dc322f3ce5cff9494779ba8cc28c7f46c5deb32}"
 APR_SHA256_URL="${APR_SHA256_URL:-$APR_SOURCE_URL.sha256}"
 # APR-util is one atomic, reviewed provider tuple.  The version is declared
-# exactly once; both provider URLs are derived from it.  Record an environment
-# attempt before assigning the authoritative values so sourcing cannot quietly
-# discard an unreviewed override.
-if [ "${APR_UTIL_VERSION+x}" = x ]; then
-    APR_UTIL_VERSION_WAS_SET=1
-else
-    APR_UTIL_VERSION_WAS_SET=0
-fi
-if [ "${APR_UTIL_SOURCE_URL+x}" = x ]; then
-    APR_UTIL_SOURCE_URL_WAS_SET=1
-else
-    APR_UTIL_SOURCE_URL_WAS_SET=0
-fi
-if [ "${APR_UTIL_SHA256+x}" = x ]; then
-    APR_UTIL_SHA256_WAS_SET=1
-else
-    APR_UTIL_SHA256_WAS_SET=0
-fi
-if [ "${APR_UTIL_SHA256_URL+x}" = x ]; then
-    APR_UTIL_SHA256_URL_WAS_SET=1
-else
-    APR_UTIL_SHA256_URL_WAS_SET=0
-fi
+# exactly once; both provider URLs are derived from it.  Keep the assignments
+# at column zero so the common-version resolver can update the version and
+# digest atomically without evaluating shell code.
+ci_apr_util_set_canonical_tuple() {
 APR_UTIL_VERSION="1.6.5"
 APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"
 APR_UTIL_SHA256="96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"
 APR_UTIL_SHA256_URL="$APR_UTIL_SOURCE_URL.sha256"
+}
+
+# Capture the exact inherited state before overwriting it with the reviewed
+# tuple.  The snapshots distinguish an unset field from an explicit empty
+# field, are reset on every source, and are intentionally not exported.
+unset CI_APR_UTIL_VERSION_WAS_SET CI_APR_UTIL_VERSION_BEFORE_SOURCE
+unset CI_APR_UTIL_SOURCE_URL_WAS_SET CI_APR_UTIL_SOURCE_URL_BEFORE_SOURCE
+unset CI_APR_UTIL_SHA256_WAS_SET CI_APR_UTIL_SHA256_BEFORE_SOURCE
+unset CI_APR_UTIL_SHA256_URL_WAS_SET CI_APR_UTIL_SHA256_URL_BEFORE_SOURCE
+if [ "${APR_UTIL_VERSION+x}" = x ]; then
+    CI_APR_UTIL_VERSION_WAS_SET=1
+    CI_APR_UTIL_VERSION_BEFORE_SOURCE=$APR_UTIL_VERSION
+else
+    CI_APR_UTIL_VERSION_WAS_SET=0
+    CI_APR_UTIL_VERSION_BEFORE_SOURCE=
+fi
+if [ "${APR_UTIL_SOURCE_URL+x}" = x ]; then
+    CI_APR_UTIL_SOURCE_URL_WAS_SET=1
+    CI_APR_UTIL_SOURCE_URL_BEFORE_SOURCE=$APR_UTIL_SOURCE_URL
+else
+    CI_APR_UTIL_SOURCE_URL_WAS_SET=0
+    CI_APR_UTIL_SOURCE_URL_BEFORE_SOURCE=
+fi
+if [ "${APR_UTIL_SHA256+x}" = x ]; then
+    CI_APR_UTIL_SHA256_WAS_SET=1
+    CI_APR_UTIL_SHA256_BEFORE_SOURCE=$APR_UTIL_SHA256
+else
+    CI_APR_UTIL_SHA256_WAS_SET=0
+    CI_APR_UTIL_SHA256_BEFORE_SOURCE=
+fi
+if [ "${APR_UTIL_SHA256_URL+x}" = x ]; then
+    CI_APR_UTIL_SHA256_URL_WAS_SET=1
+    CI_APR_UTIL_SHA256_URL_BEFORE_SOURCE=$APR_UTIL_SHA256_URL
+else
+    CI_APR_UTIL_SHA256_URL_WAS_SET=0
+    CI_APR_UTIL_SHA256_URL_BEFORE_SOURCE=
+fi
+ci_apr_util_set_canonical_tuple
 PCRE2_VERSION="${PCRE2_VERSION:-10.47}"
 PCRE2_SOURCE_URL="${PCRE2_SOURCE_URL:-https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-$PCRE2_VERSION.tar.bz2}"
 # The literal pin is required before the PCRE2 archive can be extracted.  Use
@@ -451,8 +470,99 @@ ci_require_https_github_repo_url_if_set() {
 }
 
 ci_require_apr_util_pinned_provenance() {
+    if [ "${APR_UTIL_VERSION+x}" = x ]; then
+        ci_apr_util_live_version_was_set=1
+        ci_apr_util_live_version=$APR_UTIL_VERSION
+    else
+        ci_apr_util_live_version_was_set=0
+        ci_apr_util_live_version=
+    fi
+    if [ "${APR_UTIL_SOURCE_URL+x}" = x ]; then
+        ci_apr_util_live_source_url_was_set=1
+        ci_apr_util_live_source_url=$APR_UTIL_SOURCE_URL
+    else
+        ci_apr_util_live_source_url_was_set=0
+        ci_apr_util_live_source_url=
+    fi
+    if [ "${APR_UTIL_SHA256+x}" = x ]; then
+        ci_apr_util_live_sha256_was_set=1
+        ci_apr_util_live_sha256=$APR_UTIL_SHA256
+    else
+        ci_apr_util_live_sha256_was_set=0
+        ci_apr_util_live_sha256=
+    fi
+    if [ "${APR_UTIL_SHA256_URL+x}" = x ]; then
+        ci_apr_util_live_sha256_url_was_set=1
+        ci_apr_util_live_sha256_url=$APR_UTIL_SHA256_URL
+    else
+        ci_apr_util_live_sha256_url_was_set=0
+        ci_apr_util_live_sha256_url=
+    fi
+
+    # Reassert the same parser-visible reviewed tuple before comparing.  This
+    # prevents a post-source coherent replacement from becoming the source of
+    # truth for the expected URLs or digest.
+    ci_apr_util_set_canonical_tuple
     ci_apr_util_expected_source="https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"
     ci_apr_util_expected_sha_url="$ci_apr_util_expected_source.sha256"
+
+    ci_apr_util_inherited_version_was_set=${CI_APR_UTIL_VERSION_WAS_SET-}
+    ci_apr_util_inherited_source_url_was_set=${CI_APR_UTIL_SOURCE_URL_WAS_SET-}
+    ci_apr_util_inherited_sha256_was_set=${CI_APR_UTIL_SHA256_WAS_SET-}
+    ci_apr_util_inherited_sha256_url_was_set=${CI_APR_UTIL_SHA256_URL_WAS_SET-}
+    for ci_apr_util_inherited_flag in \
+        "$ci_apr_util_inherited_version_was_set" \
+        "$ci_apr_util_inherited_source_url_was_set" \
+        "$ci_apr_util_inherited_sha256_was_set" \
+        "$ci_apr_util_inherited_sha256_url_was_set"
+    do
+        case "$ci_apr_util_inherited_flag" in
+            0|1) : ;;
+            *)
+                ci_blocked "APR-util inherited-state snapshot is invalid"
+                return 77
+                ;;
+        esac
+    done
+    if [ "$ci_apr_util_inherited_version_was_set" = "1" ] && [ "${CI_APR_UTIL_VERSION_BEFORE_SOURCE-}" != "$APR_UTIL_VERSION" ]; then
+        ci_blocked "APR_UTIL_VERSION override is not permitted"
+        return 77
+    fi
+    if [ "$ci_apr_util_inherited_source_url_was_set" = "1" ] && [ "${CI_APR_UTIL_SOURCE_URL_BEFORE_SOURCE-}" != "$APR_UTIL_SOURCE_URL" ]; then
+        ci_blocked "APR_UTIL_SOURCE_URL override is not permitted"
+        return 77
+    fi
+    if [ "$ci_apr_util_inherited_sha256_was_set" = "1" ] && [ "${CI_APR_UTIL_SHA256_BEFORE_SOURCE-}" != "$APR_UTIL_SHA256" ]; then
+        ci_blocked "APR_UTIL_SHA256 override is not permitted"
+        return 77
+    fi
+    if [ "$ci_apr_util_inherited_sha256_url_was_set" = "1" ] && [ "${CI_APR_UTIL_SHA256_URL_BEFORE_SOURCE-}" != "$APR_UTIL_SHA256_URL" ]; then
+        ci_blocked "APR_UTIL_SHA256_URL override is not permitted"
+        return 77
+    fi
+    case "$ci_apr_util_inherited_version_was_set:$ci_apr_util_inherited_source_url_was_set:$ci_apr_util_inherited_sha256_was_set:$ci_apr_util_inherited_sha256_url_was_set" in
+        0:0:0:0|1:1:1:1) : ;;
+        *)
+            ci_blocked "APR-util inherited tuple must set all four canonical fields or none"
+            return 77
+            ;;
+    esac
+    if [ "$ci_apr_util_live_version_was_set" != "1" ] || [ "$ci_apr_util_live_version" != "$APR_UTIL_VERSION" ]; then
+        ci_blocked "APR_UTIL_VERSION must remain the canonical reviewed value"
+        return 77
+    fi
+    if [ "$ci_apr_util_live_source_url_was_set" != "1" ] || [ "$ci_apr_util_live_source_url" != "$APR_UTIL_SOURCE_URL" ]; then
+        ci_blocked "APR_UTIL_SOURCE_URL must remain the canonical Apache APR-util asset"
+        return 77
+    fi
+    if [ "$ci_apr_util_live_sha256_was_set" != "1" ] || [ "$ci_apr_util_live_sha256" != "$APR_UTIL_SHA256" ]; then
+        ci_blocked "APR_UTIL_SHA256 must remain the canonical reviewed value"
+        return 77
+    fi
+    if [ "$ci_apr_util_live_sha256_url_was_set" != "1" ] || [ "$ci_apr_util_live_sha256_url" != "$APR_UTIL_SHA256_URL" ]; then
+        ci_blocked "APR_UTIL_SHA256_URL must remain the canonical APR-util checksum asset"
+        return 77
+    fi
 
     case "$APR_UTIL_VERSION" in
         ''|.*|*..*|*[!0123456789.]*)
@@ -472,22 +582,6 @@ ci_require_apr_util_pinned_provenance() {
             ;;
         *) : ;;
     esac
-    if [ "$APR_UTIL_VERSION_WAS_SET" = "1" ]; then
-        ci_blocked "APR_UTIL_VERSION override is not permitted"
-        return 77
-    fi
-    if [ "$APR_UTIL_SOURCE_URL_WAS_SET" = "1" ]; then
-        ci_blocked "APR_UTIL_SOURCE_URL override is not permitted"
-        return 77
-    fi
-    if [ "$APR_UTIL_SHA256_WAS_SET" = "1" ]; then
-        ci_blocked "APR_UTIL_SHA256 override is not permitted"
-        return 77
-    fi
-    if [ "$APR_UTIL_SHA256_URL_WAS_SET" = "1" ]; then
-        ci_blocked "APR_UTIL_SHA256_URL override is not permitted"
-        return 77
-    fi
     if [ "$APR_UTIL_SOURCE_URL" != "$ci_apr_util_expected_source" ]; then
         ci_blocked "APR_UTIL_SOURCE_URL must be the canonical Apache APR-util asset: $APR_UTIL_SOURCE_URL"
         return 77

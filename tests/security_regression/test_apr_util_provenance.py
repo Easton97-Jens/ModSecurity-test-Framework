@@ -44,6 +44,13 @@ class AprUtilProvenanceTests(unittest.TestCase):
     def run_guard(
         self, overrides: dict[str, str] | None = None
     ) -> subprocess.CompletedProcess[str]:
+        return self.run_shell(
+            '. "$COMMON_SH"\nci_require_apr_util_pinned_provenance', overrides
+        )
+
+    def run_shell(
+        self, script: str, overrides: dict[str, str] | None = None
+    ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         for name in (
             "APR_UTIL_VERSION",
@@ -52,15 +59,11 @@ class AprUtilProvenanceTests(unittest.TestCase):
             "APR_UTIL_SHA256_URL",
         ):
             environment.pop(name, None)
+        environment["COMMON_SH"] = str(self.common)
         if overrides:
             environment.update(overrides)
         return subprocess.run(
-            [
-                "sh",
-                "-eu",
-                "-c",
-                f'. "{self.common}"\nci_require_apr_util_pinned_provenance',
-            ],
+            ["sh", "-eu", "-c", script],
             cwd=ROOT,
             env=environment,
             text=True,
@@ -72,6 +75,24 @@ class AprUtilProvenanceTests(unittest.TestCase):
     def write_executable(self, path: Path, contents: str) -> None:
         path.write_text(textwrap.dedent(contents).lstrip(), encoding="utf-8")
         path.chmod(0o755)
+
+    def write_preparer_fixture(self) -> Path:
+        fixture_prepare = self.fixture_root / "ci" / "provisioning" / "prepare-apache-build.sh"
+        fixture_path_bootstrap = self.fixture_root / "ci" / "lib" / "path-bootstrap.sh"
+        fixture_path_helper = self.fixture_root / "ci" / "lib" / "path.sh"
+        fixture_prepare.parent.mkdir(parents=True, exist_ok=True)
+        fixture_prepare.write_text(PREPARE_APACHE.read_text(encoding="utf-8"), encoding="utf-8")
+        fixture_path_bootstrap.write_text(
+            (ROOT / "ci" / "lib" / "path-bootstrap.sh").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        fixture_path_helper.write_text(
+            (ROOT / "ci" / "lib" / "path.sh").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (self.fixture_root / "Makefile").write_text("# test fixture\n", encoding="utf-8")
+        (self.fixture_root / "tests").mkdir(exist_ok=True)
+        return fixture_prepare
 
     def test_offline_reviewed_tuple_is_derived_and_accepted(self):
         source = self.common.read_text(encoding="utf-8")
@@ -89,9 +110,93 @@ class AprUtilProvenanceTests(unittest.TestCase):
 
         self.assertEqual(completed.returncode, 0, completed.stdout)
 
+    def test_re_source_and_exported_reviewed_tuple_are_accepted(self):
+        completed = self.run_shell(
+            "\n".join(
+                (
+                    '. "$COMMON_SH"',
+                    "ci_require_apr_util_pinned_provenance",
+                    '. "$COMMON_SH"',
+                    "ci_require_apr_util_pinned_provenance",
+                    "export APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL",
+                    "sh -eu -c '. \"$COMMON_SH\"; ci_require_apr_util_pinned_provenance'",
+                )
+            )
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stdout)
+
+    def test_exported_reviewed_tuple_reaches_child_preparer_provenance_guard(self):
+        fixture_prepare = self.write_preparer_fixture()
+        temporary_root = os.environ.get("TEST_TMPDIR")
+        with tempfile.TemporaryDirectory(
+            prefix="apr-util-provenance-", dir=temporary_root
+        ) as temporary:
+            root = Path(temporary)
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir()
+            marker = root / "network-command-invoked"
+            for command in ("curl", "git", "tar", "sha256sum"):
+                self.write_executable(
+                    fake_bin / command,
+                    """
+                    #!/bin/sh
+                    printf '%s\\n' "$0" >> "$MARKER"
+                    exit 99
+                    """,
+                )
+
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{environment['PATH']}",
+                    "MARKER": str(marker),
+                    "COMMON_SH": str(self.common),
+                    "PREPARE_APACHE": str(fixture_prepare),
+                    "FRAMEWORK_ROOT": str(ROOT),
+                    "CONNECTOR_ROOT": str(ROOT),
+                    "VERIFIED_RUN_ROOT": str(root / "verified"),
+                    "BUILD_ROOT": str(root / "build"),
+                    "APACHE_BUILD_ROOT": str(root / "build" / "apache-build"),
+                    "APACHE_DOWNLOAD_DIR": str(root / "build" / "downloads"),
+                    "MODSECURITY_V3_SOURCE_DIR": str(root / "missing-v3"),
+                    "MODSECURITY_APACHE_SOURCE_DIR": str(root / "missing-apache"),
+                    "AUTO_FETCH_SMOKE_SOURCES": "0",
+                }
+            )
+            completed = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    "\n".join(
+                        (
+                            '. "$COMMON_SH"',
+                            "ci_require_apr_util_pinned_provenance",
+                            "export APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL",
+                            'sh "$PREPARE_APACHE"',
+                        )
+                    ),
+                ],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            network_command_invoked = marker.exists()
+
+        self.assertEqual(completed.returncode, 77, completed.stdout)
+        self.assertIn("missing MODSECURITY_V3_SOURCE_DIR", completed.stdout)
+        self.assertNotIn("APR_UTIL_", completed.stdout)
+        self.assertFalse(network_command_invoked, completed.stdout)
+
     def test_environment_tuple_overrides_fail_closed(self):
         invalid_values = {
             "stale-version": {"APR_UTIL_VERSION": "1.6.3"},
+            "empty-version": {"APR_UTIL_VERSION": ""},
+            "empty-source-url": {"APR_UTIL_SOURCE_URL": ""},
             "foreign-host": {
                 "APR_UTIL_SOURCE_URL": (
                     "https://mirror.example.invalid/apr-util-"
@@ -114,6 +219,16 @@ class AprUtilProvenanceTests(unittest.TestCase):
             "wrong-checksum-url": {
                 "APR_UTIL_SHA256_URL": "https://downloads.apache.org/apr/other.sha256"
             },
+            "self-consistent-replacement": {
+                "APR_UTIL_VERSION": "1.6.999",
+                "APR_UTIL_SOURCE_URL": (
+                    "https://downloads.apache.org/apr/apr-util-1.6.999.tar.bz2"
+                ),
+                "APR_UTIL_SHA256": "b" * 64,
+                "APR_UTIL_SHA256_URL": (
+                    "https://downloads.apache.org/apr/apr-util-1.6.999.tar.bz2.sha256"
+                ),
+            },
         }
         for case, overrides in invalid_values.items():
             with self.subTest(case=case):
@@ -121,6 +236,91 @@ class AprUtilProvenanceTests(unittest.TestCase):
 
                 self.assertEqual(completed.returncode, 77, completed.stdout)
                 self.assertIn("BLOCKED:", completed.stdout)
+
+    def test_only_a_complete_canonical_inherited_tuple_is_accepted(self):
+        canonical_tuple = {
+            "APR_UTIL_VERSION": PINNED["APR_UTIL_VERSION"],
+            "APR_UTIL_SOURCE_URL": (
+                "https://downloads.apache.org/apr/apr-util-"
+                f"{PINNED['APR_UTIL_VERSION']}.tar.bz2"
+            ),
+            "APR_UTIL_SHA256": PINNED["APR_UTIL_SHA256"],
+            "APR_UTIL_SHA256_URL": (
+                "https://downloads.apache.org/apr/apr-util-"
+                f"{PINNED['APR_UTIL_VERSION']}.tar.bz2.sha256"
+            ),
+        }
+
+        accepted = self.run_guard(canonical_tuple)
+        partial = self.run_guard(
+            {"APR_UTIL_VERSION": PINNED["APR_UTIL_VERSION"]}
+        )
+
+        self.assertEqual(accepted.returncode, 0, accepted.stdout)
+        self.assertEqual(partial.returncode, 77, partial.stdout)
+        self.assertIn("BLOCKED:", partial.stdout)
+
+    def test_post_source_mutations_fail_closed(self):
+        replacement_digest = "b" * 64
+        mutations = {
+            "version": 'APR_UTIL_VERSION="1.6.999"',
+            "source-url": (
+                'APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/'
+                'apr-util-1.6.999.tar.bz2"'
+            ),
+            "sha256": f'APR_UTIL_SHA256="{replacement_digest}"',
+            "sha256-url": (
+                'APR_UTIL_SHA256_URL="https://downloads.apache.org/apr/'
+                'apr-util-1.6.999.tar.bz2.sha256"'
+            ),
+        }
+        for case, mutation in mutations.items():
+            with self.subTest(case=case):
+                completed = self.run_shell(
+                    "\n".join(
+                        (
+                            '. "$COMMON_SH"',
+                            mutation,
+                            "ci_require_apr_util_pinned_provenance",
+                        )
+                    )
+                )
+
+                self.assertEqual(completed.returncode, 77, completed.stdout)
+                self.assertIn("BLOCKED:", completed.stdout)
+
+    def test_post_source_self_consistent_replacement_and_re_source_fail_closed(self):
+        replacement_digest = "b" * 64
+        completed = self.run_shell(
+            "\n".join(
+                (
+                    '. "$COMMON_SH"',
+                    'APR_UTIL_VERSION="1.6.999"',
+                    'APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"',
+                    f'APR_UTIL_SHA256="{replacement_digest}"',
+                    'APR_UTIL_SHA256_URL="$APR_UTIL_SOURCE_URL.sha256"',
+                    '. "$COMMON_SH"',
+                    "ci_require_apr_util_pinned_provenance",
+                )
+            )
+        )
+
+        self.assertEqual(completed.returncode, 77, completed.stdout)
+        self.assertIn("BLOCKED:", completed.stdout)
+
+    def test_invalid_internal_snapshot_fails_closed_without_readonly(self):
+        completed = self.run_shell(
+            "\n".join(
+                (
+                    '. "$COMMON_SH"',
+                    "unset CI_APR_UTIL_SHA256_WAS_SET",
+                    "ci_require_apr_util_pinned_provenance",
+                )
+            )
+        )
+
+        self.assertEqual(completed.returncode, 77, completed.stdout)
+        self.assertIn("APR-util inherited-state snapshot is invalid", completed.stdout)
 
     def test_invalid_derived_source_or_checksum_url_fails_closed(self):
         source = self.common.read_text(encoding="utf-8")
@@ -199,6 +399,67 @@ class AprUtilProvenanceTests(unittest.TestCase):
 
         self.assertEqual(completed.returncode, 77, completed.stdout)
         self.assertIn("APR_UTIL_SOURCE_URL override is not permitted", completed.stdout)
+        self.assertFalse(network_command_invoked, completed.stdout)
+
+    def test_post_source_mutation_stops_the_real_preparer_before_network_commands(self):
+        source = self.common.read_text(encoding="utf-8")
+        replacement_digest = "b" * 64
+        self.common.write_text(
+            source
+            + "\nAPR_UTIL_VERSION=\"1.6.999\"\n"
+            + "APR_UTIL_SOURCE_URL=\"https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2\"\n"
+            + f"APR_UTIL_SHA256=\"{replacement_digest}\"\n"
+            + "APR_UTIL_SHA256_URL=\"$APR_UTIL_SOURCE_URL.sha256\"\n",
+            encoding="utf-8",
+        )
+        fixture_prepare = self.write_preparer_fixture()
+        temporary_root = os.environ.get("TEST_TMPDIR")
+        with tempfile.TemporaryDirectory(
+            prefix="apr-util-provenance-", dir=temporary_root
+        ) as temporary:
+            root = Path(temporary)
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir()
+            marker = root / "network-command-invoked"
+            for command in ("curl", "git", "tar", "sha256sum"):
+                self.write_executable(
+                    fake_bin / command,
+                    """
+                    #!/bin/sh
+                    printf '%s\\n' "$0" >> "$MARKER"
+                    exit 99
+                    """,
+                )
+
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{environment['PATH']}",
+                    "MARKER": str(marker),
+                    "FRAMEWORK_ROOT": str(self.fixture_root),
+                    "CONNECTOR_ROOT": str(ROOT),
+                    "VERIFIED_RUN_ROOT": str(root / "verified"),
+                    "BUILD_ROOT": str(root / "build"),
+                    "APACHE_BUILD_ROOT": str(root / "build" / "apache-build"),
+                    "APACHE_DOWNLOAD_DIR": str(root / "build" / "downloads"),
+                    "MODSECURITY_V3_SOURCE_DIR": str(root / "missing-v3"),
+                    "MODSECURITY_APACHE_SOURCE_DIR": str(root / "missing-apache"),
+                    "AUTO_FETCH_SMOKE_SOURCES": "0",
+                }
+            )
+            completed = subprocess.run(
+                ["sh", str(fixture_prepare)],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            network_command_invoked = marker.exists()
+
+        self.assertEqual(completed.returncode, 77, completed.stdout)
+        self.assertIn("APR_UTIL_VERSION must remain the canonical reviewed value", completed.stdout)
         self.assertFalse(network_command_invoked, completed.stdout)
 
     def test_literal_digest_guard_precedes_apr_util_extraction(self):

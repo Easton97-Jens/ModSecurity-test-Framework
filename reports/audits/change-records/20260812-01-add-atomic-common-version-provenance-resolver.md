@@ -67,10 +67,27 @@ repeated exact `--component` options restrict resolution. The scheduled
 workflow resolves all records unless its optional `workflow_dispatch`
 `component` input selects one exact record.
 
+### APR-util inherited-provenance follow-up
+
+The APR-util sourceable shell guard now distinguishes a reviewed tuple exported
+by an earlier source from an unreviewed environment override. It records both
+presence and pre-assignment value under internal `CI_APR_UTIL_*` names, resets
+that state on every source, then reasserts the resolver-visible canonical tuple
+before deriving expected URLs. Only no inherited APR-util fields or all four
+exact canonical fields are accepted. Empty, partial, changed, malformed, and
+fully self-consistent alternate tuples fail closed with exit `77` before the
+Apache preparer reaches a download or archive command. The four public
+provenance fields and resolver-maintained literal/derived structure remain
+unchanged; no `APR_UTIL_PINNED_*`, `readonly`, `eval`, or Bash-only behavior was
+introduced.
+
 ## Changed files and tests
 
 - `ci/lib/common.sh` contains the tracked provenance defaults consumed by the
-  resolver.
+  resolver and the APR-util inherited-state guard.
+- `tests/security_regression/test_apr_util_provenance.py` adds repeat-source,
+  exact inherited child tuple, post-source mutation, coherent replacement, and
+  fake-tool-before-network regression coverage.
 - `ci/tools/check-common-versions.py` contains the component registry,
   resolver dispatch, atomic candidate handling, and CLI selection contract.
 - `.github/workflows/check-common-versions.yml` carries the optional manual
@@ -110,14 +127,25 @@ workflow resolves all records unless its optional `workflow_dispatch`
 | Exact-head `SonarCloud Code Analysis` for PR #76 | success | Completed at `2026-08-12T20:31:29Z`. | [PR #76 SonarCloud analysis](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=76) |
 | SonarQube Cloud bot comment on PR #76 | observed | At `2026-08-12T20:31:32Z`, it reported Quality Gate passed, `0 New issues`, `0 Accepted issues`, and `0 Security Hotspots`. | [PR #76 comment](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76#issuecomment-5272463046) |
 | SonarQube Cloud API issue search for PR #76 | 0 | The scoped PR query returned total `0`; it is not a claim about unrelated project or future-head issues. | PR #76 exact-head evidence |
+| `sh -n ci/lib/common.sh ci/provisioning/prepare-apache-build.sh` | 0 | Updated sourceable guard and Apache preparer have valid shell syntax. | Task-owned local validation root |
+| `python3 -m unittest tests.security_regression.test_apr_util_provenance -v` | 0 | 13 APR-util inheritance/provenance tests passed in `1.755s`. | Task-owned local validation root |
+| `python3 -m py_compile ci/tools/check-common-versions.py` | 0 | Common-version checker compiled. | Task-owned local validation root |
+| Atomic, common-version provenance, NGINX, and PCRE2 focused suites | 0 | 15 atomic, 29 common-version, 4 NGINX, and 3 PCRE2 tests passed; the common-version suite completed in `735.288s`. | Task-owned local validation root |
+| `make test-ci-security-contract` | 0 | 173 CI-security tests passed in `53.682s`. | Task-owned local validation root |
+| `make check-documentation` | 0 | Documentation and Change Record contract passed before this follow-up record edit. | Task-owned local validation root |
+| `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh` | 0 | No ShellCheck finding. | Task-owned local validation root |
+| `make lint` | 0 | Final full local aggregate passed after the initial APR-util record edit, including its documentation and `git diff --check` stages. | Task-owned local validation root |
 
 ## Security impact
 
 This is provenance and CI-maintenance boundary work. It strengthens the
 mapping from official metadata to candidate values by centralizing ownership,
 enforcing atomic groups, and retaining manual review for immutable Git
-provenance. No runtime security remediation, exploit reproduction, connector
-runtime claim, or deployment action was performed in this record subtask.
+provenance. The APR-util follow-up hardens source/child-source tuple binding
+without weakening HTTPS, digest, redirect, or archive controls. A hermetic
+preparer fixture confirms invalid inherited or post-source state stops before
+network/archive tools. No connector runtime claim or deployment action was
+performed.
 
 ## Documentation and runtime evidence
 
@@ -131,11 +159,19 @@ the subsequent bot comment and scoped API query reported the bounded zero-issue
 facts recorded above. Those Sonar facts do not complete the still-running
 current-head hosted CI.
 
+The APR-util follow-up has only local source, regression, and static evidence
+at this record revision. Its eventual commit, pushed exact head, hosted CI,
+Sonar, review, branch protection, and any resulting-master evidence remain
+separate observations and are not claimed here.
+
 ## Checks not run
 
 - Additional focused resolver, CI-security, and regression tests beyond the
-  passed suites recorded above were not run by this record-only subtask; their
-  execution belongs to the implementation owner.
+  passed suites recorded above were not run by the earlier record-only subtask;
+  the APR-util implementation owner subsequently ran the focused suites listed
+  above. The final full local `make lint` aggregate then completed with exit
+  `0`, including its documentation and `git diff --check` stages. No local
+  test gap is claimed here; hosted exact-head evidence remains separate.
 - At this observation point, current-head hosted CI still has in-progress
   checks. The earlier OSV attempt on
   `ba348a7c28b13edcdc253aef7389c89b8285b241` encountered an external HTTP 503
@@ -162,3 +198,8 @@ with the bounded zero-issue facts above, but hosted CI was still in progress;
 the final-head OSV status, remaining CI, review, branch protection, and merge
 status remain pending. No merge, Parent change, MRTS change, or Gitlink update
 is claimed.
+
+The APR-util guard follow-up is presently an uncommitted local modification on
+the same selected PR branch. It intentionally does not replace the historical
+published-head facts above with an unobserved new SHA; delivery evidence will
+be reconciled only after a normal follow-up commit and push.

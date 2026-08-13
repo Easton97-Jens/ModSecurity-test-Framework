@@ -72,10 +72,28 @@ Optionen `--component` begrenzen die Auflösung. Der geplante Workflow löst all
 Datensätze auf, sofern seine optionale `workflow_dispatch`-Eingabe `component`
 nicht genau einen Datensatz auswählt.
 
+### APR-util-Inherited-Provenance-Follow-up
+
+Der sourcebare APR-util-Shell-Guard unterscheidet nun ein von einem früheren
+Source exportiertes geprüftes Tupel von einem ungeprüften Environment-Override.
+Er erfasst sowohl Präsenz als auch Pre-Assignment-Wert unter internen
+`CI_APR_UTIL_*`-Namen, setzt diesen Zustand bei jedem Source zurück und
+reassertet anschließend das resolver-sichtbare kanonische Tupel vor der
+Expected-URL-Ableitung. Nur keine geerbten APR-util-Felder oder alle vier
+exakten kanonischen Felder werden akzeptiert. Leere, partielle, geänderte,
+fehlerhafte und vollständig self-consistent alternative Tupel scheitern
+fail-closed mit Exit `77`, bevor der Apache-Preparer einen Download- oder
+Archivbefehl erreicht. Die vier öffentlichen Provenance-Felder und die
+resolver-verwaltete Literal-/Derived-Struktur bleiben unverändert; kein
+`APR_UTIL_PINNED_*`, `readonly`, `eval` oder Bash-only-Verhalten wurde ergänzt.
+
 ## Geänderte Dateien und Tests
 
 - `ci/lib/common.sh` enthält die vom Resolver verwendeten erfassten
-  Provenance-Standards.
+  Provenance-Standards und den APR-util-Inherited-State-Guard.
+- `tests/security_regression/test_apr_util_provenance.py` ergänzt Repeat-
+  Source-, exaktes-Inherited-Child-Tuple-, Post-Source-Mutation-, coherent-
+  replacement- und Fake-Tool-before-network-Regression-Coverage.
 - `ci/tools/check-common-versions.py` enthält Komponenten-Registry,
   Resolver-Dispatch, atomare Kandidatenbehandlung und den CLI-Auswahlvertrag.
 - `.github/workflows/check-common-versions.yml` übergibt die optionale
@@ -116,15 +134,25 @@ nicht genau einen Datensatz auswählt.
 | Exact-Head-`SonarCloud Code Analysis` für PR #76 | success | Abgeschlossen um `2026-08-12T20:31:29Z`. | [PR-#76-SonarCloud-Analyse](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=76) |
 | SonarQube-Cloud-Bot-Kommentar zu PR #76 | beobachtet | Um `2026-08-12T20:31:32Z` meldete er Quality Gate passed, `0 New issues`, `0 Accepted issues` und `0 Security Hotspots`. | [PR-#76-Kommentar](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76#issuecomment-5272463046) |
 | SonarQube-Cloud-API-Issue-Suche für PR #76 | 0 | Die begrenzte PR-Abfrage lieferte insgesamt `0`; dies behauptet nichts über nicht zugehörige Projekt- oder künftige Head-Issues. | PR-#76-Exact-Head-Evidenz |
+| `sh -n ci/lib/common.sh ci/provisioning/prepare-apache-build.sh` | 0 | Aktualisierter sourcebarer Guard und Apache-Preparer besitzen gültige Shell-Syntax. | Task-eigene lokale Validierungswurzel |
+| `python3 -m unittest tests.security_regression.test_apr_util_provenance -v` | 0 | 13 APR-util-Inheritance-/Provenance-Tests bestanden in `1.755s`. | Task-eigene lokale Validierungswurzel |
+| `python3 -m py_compile ci/tools/check-common-versions.py` | 0 | Common-Version-Checker kompiliert. | Task-eigene lokale Validierungswurzel |
+| Atomare, Common-Version-Provenance-, NGINX- und PCRE2-fokussierte Suiten | 0 | 15 atomare, 29 Common-Version-, 4 NGINX- und 3 PCRE2-Tests bestanden; die Common-Version-Suite endete in `735.288s`. | Task-eigene lokale Validierungswurzel |
+| `make test-ci-security-contract` | 0 | 173 CI-Security-Tests bestanden in `53.682s`. | Task-eigene lokale Validierungswurzel |
+| `make check-documentation` | 0 | Dokumentation und Change-Record-Vertrag bestanden vor diesem Follow-up-Record-Edit. | Task-eigene lokale Validierungswurzel |
+| `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh` | 0 | Kein ShellCheck-Finding. | Task-eigene lokale Validierungswurzel |
+| `make lint` | 0 | Finales vollständiges lokales Aggregat bestand nach dem initialen APR-util-Record-Edit, einschließlich seiner Dokumentations- und `git diff --check`-Stufen. | Task-eigene lokale Validierungswurzel |
 
 ## Sicherheitsauswirkung
 
 Dies betrifft die Provenance- und CI-Wartungsgrenze. Es stärkt die Abbildung
 von offiziellen Metadaten zu Kandidatenwerten durch zentralisierte Ownership,
 Erzwingung atomarer Gruppen und Beibehaltung manueller Prüfung für
-unveränderliche Git-Provenance. In diesem Record-Subtask wurden keine
-Runtime-Security-Remediation, Exploit-Reproduktion, Connector-Runtime-Behauptung
-oder Deployment-Aktion ausgeführt.
+unveränderliche Git-Provenance. Das APR-util-Follow-up härtet Source-/Child-
+Source-Tuple-Bindung ohne Lockerung von HTTPS-, Digest-, Redirect- oder Archiv-
+Controls. Eine hermetische Preparer-Fixture bestätigt, dass ungültiger
+Inherited- oder Post-Source-Zustand vor Network-/Archivtools stoppt. Keine
+Connector-Runtime-Behauptung oder Deployment-Aktion wurde ausgeführt.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -139,12 +167,20 @@ nachfolgende Bot-Kommentar und die begrenzte API-Abfrage meldeten die oben
 erfassten Null-Issue-Fakten. Diese Sonar-Fakten schließen die noch laufende
 Hosted-CI für den aktuellen Head nicht ab.
 
+Das APR-util-Follow-up besitzt bei dieser Record-Revision nur lokale Source-,
+Regression- und Static-Evidence. Sein späterer Commit, gepushter exakter Head,
+Hosted-CI, Sonar, Review, Branch Protection und jede Resulting-Master-Evidence
+bleiben getrennte Beobachtungen und werden hier nicht behauptet.
+
 ## Nicht ausgeführte Prüfungen
 
 - Zusätzliche fokussierte Resolver-, CI-Security- und Regressionstests über
-  die oben erfassten bestandenen Suiten hinaus wurden von diesem reinen
-  Record-Subtask nicht ausgeführt; ihre Ausführung obliegt dem
-  Implementierungs-Owner.
+  die oben erfassten bestandenen Suiten hinaus wurden vom früheren reinen
+  Record-Subtask nicht ausgeführt; der APR-util-Implementierungs-Owner führte
+  anschließend die oben gelisteten fokussierten Suiten aus. Das finale volle
+  lokale `make lint`-Aggregat endete anschließend mit Exit `0`, einschließlich
+  seiner Dokumentations- und `git diff --check`-Stufen. Es wird hier keine
+  lokale Testlücke behauptet; Hosted-Exact-Head-Evidenz bleibt getrennt.
 - Zum Beobachtungszeitpunkt hat die Hosted-CI für den aktuellen Head noch
   laufende Checks. Der frühere OSV-Versuch auf
   `ba348a7c28b13edcdc253aef7389c89b8285b241` traf beim Tool-Download auf einen
@@ -171,3 +207,9 @@ bestand mit den oben genannten begrenzten Null-Issue-Fakten, doch Hosted-CI
 lief noch; OSV-Status für den finalen Head, verbleibende CI, Review,
 Branch-Protection und Merge-Status stehen aus. Es werden kein Merge, keine
 Parent-Änderung, MRTS-Änderung oder Gitlink-Update behauptet.
+
+Das APR-util-Guard-Follow-up ist derzeit eine uncommittete lokale Modifikation
+auf demselben ausgewählten PR-Branch. Es ersetzt die historischen
+Published-Head-Fakten oben absichtlich nicht durch eine unbeobachtete neue SHA;
+Delivery-Evidence wird erst nach einem normalen Follow-up-Commit und Push
+abgeglichen.
