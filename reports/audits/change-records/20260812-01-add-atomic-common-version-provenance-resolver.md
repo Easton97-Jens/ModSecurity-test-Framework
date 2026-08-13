@@ -9,7 +9,7 @@
 | Change ID | `20260812-01-add-atomic-common-version-provenance-resolver` |
 | UTC date | 2026-08-12 |
 | Framework base revision | `209389022c942d83113f6be88bf31d25637352f0` |
-| Issue or pull request | Draft, open [PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) targets `master` from `agent/common-version-atomic-provenance`. At the recorded Sonar evidence observation, the local checkout, `origin/agent/common-version-atomic-provenance`, and PR head all resolved to `fae3b81db491944a21395de80e3c928f82077143`. |
+| Issue or pull request | Draft, open [PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) targets `master` from `agent/common-version-atomic-provenance`. The current supplied PR-head evidence is `5fce355eb10e590557e5efb8b5282c0fb3af3f54`; earlier recorded observations remain historical evidence only. |
 
 ## Motivation and problem statement
 
@@ -154,6 +154,8 @@ or reader-facing behavior changes.
 | `make lint` | 0 | Final full local aggregate passed after the initial APR-util record edit, including its documentation and `git diff --check` stages. | Task-owned local validation root |
 | SonarQube Cloud PR measures and duplication APIs | 0 | Pre-remediation PR head `59240c5ac321831dbc72fdd515fd574b6c07b4e4` had 48 new duplicated lines (`1.4444778814324406%`) only in the APR-util provenance regression file; the identified duplicated spans were used for the focused refactor. | [PR #76 SonarCloud analysis](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=76) |
 | `make BUILD_ROOT=<task-owned external root> TMP_ROOT=<task-owned external root> test-apr-util-provenance` | 0 | The post-refactor APR-util provenance suite passed all 13 tests in `1.715s`, including clean/re-source controls and fail-closed no-network cases. | Framework task run `20260813T071713Z-framework-pr76-sonar-duplication-master` |
+| Current PR #76 SonarQube Cloud measures and Quality Gate (supplied evidence) | observed | At head `5fce355eb10e590557e5efb8b5282c0fb3af3f54`, `new_duplicated_lines` is `0`, `new_duplicated_lines_density` is `0.0`, and the Quality Gate is `OK`. | [PR #76 SonarCloud analysis](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=76) |
+| Current-head PR #76 hosted checks (supplied observed evidence) | passed | All non-skipped checks passed. The `push` and `pull_request` `scaffold-lint` workflows passed in `6m36s` and `7m20s`, respectively; advisory jobs were skipped. | PR #76 current-head check evidence |
 
 ## Security impact
 
@@ -169,14 +171,13 @@ performed.
 ## Documentation and runtime evidence
 
 The paired variable reference documents the new resolver contract in English
-and German. Draft PR #76 and its then-current published branch/head were observed.
-No host runtime, connector lifecycle, merge, Parent action, MRTS action, or
-Gitlink update was observed or collected as evidence. A behavior-preserving
-remediation for a Sonar code smell has passed the local validation recorded
-above. The exact-head SonarCloud check succeeded at `2026-08-12T20:31:29Z`;
-the subsequent bot comment and scoped API query reported the bounded zero-issue
-facts recorded above. Those Sonar facts do not complete the still-running
-current-head hosted CI.
+and German. Draft PR #76 is currently evidenced at head
+`5fce355eb10e590557e5efb8b5282c0fb3af3f54`. Its supplied current SonarQube
+Cloud PR measures show `new_duplicated_lines` `0` and
+`new_duplicated_lines_density` `0.0`; its Quality Gate is `OK`. No host
+runtime, connector lifecycle, merge, Parent action, MRTS action, or Gitlink
+update was observed or collected as evidence. These bounded Sonar facts prove
+the duplication remediation only; they do not finalize hosted CI or delivery.
 
 The APR-util guard implementation was committed and pushed as
 `b3dc9aeda0fda59aae65e0c54785e6b9500d025b` on the same selected Draft PR #76
@@ -185,11 +186,12 @@ follow-up; its eventual exact PR head, hosted CI, Sonar, review, branch
 protection, and any resulting-master evidence remain separate observations and
 are not claimed here.
 
-The current duplication-only follow-up is local until its normal task-branch
-commit and push. The user has explicitly requested that PR #76 be brought to
-`master`, but the required new current-head Sonar, checks, reviews, ruleset,
-and exact-head squash-merge evidence remain pending; no merge is claimed by
-this record update.
+The current duplication remediation is represented by the supplied PR-head
+evidence above. All non-skipped current-head PR checks passed; the `push` and
+`pull_request` `scaffold-lint` workflows passed in `6m36s` and `7m20s`,
+respectively, while advisory jobs were skipped. Review, ruleset, merge, and
+final-`master` evidence remain pending. No merge is claimed by this record
+update.
 
 ## Checks not run
 
@@ -199,13 +201,11 @@ this record update.
   above. The final full local `make lint` aggregate then completed with exit
   `0`, including its documentation and `git diff --check` stages. No local
   test gap is claimed here; hosted exact-head evidence remains separate.
-- At this observation point, current-head hosted CI still has in-progress
-  checks. The earlier OSV attempt on
-  `ba348a7c28b13edcdc253aef7389c89b8285b241` encountered an external HTTP 503
-  while downloading tooling; it is not evidence for
-  `fae3b81db491944a21395de80e3c928f82077143`. The final-head OSV status,
-  remaining CI checks, review, and branch-protection disposition remain
-  separately pending.
+- All non-skipped current-head checks passed; advisory jobs were skipped. The
+  earlier OSV attempt on `ba348a7c28b13edcdc253aef7389c89b8285b241` encountered
+  an external HTTP 503 while downloading tooling and is not evidence for the
+  current PR head `5fce355eb10e590557e5efb8b5282c0fb3af3f54`. Review, ruleset,
+  merge, and final-`master` evidence remain separately pending.
 
 ## Limitations and residual risk
 
@@ -217,23 +217,24 @@ runtime readiness.
 
 ## Final diff and review status
 
-This record is included in the published PR #76 history described above. At
-the recorded Sonar evidence observation, the local branch, its `origin`
-counterpart, and the PR head all resolved to
-`fae3b81db491944a21395de80e3c928f82077143`. Exact-head Sonar evidence passed
-with the bounded zero-issue facts above, but hosted CI was still in progress;
-the final-head OSV status, remaining CI, review, branch protection, and merge
-status remain pending. No merge, Parent change, MRTS change, or Gitlink update
-is claimed.
+This record is included in the published PR #76 history described above. The
+current supplied PR-head evidence is
+`5fce355eb10e590557e5efb8b5282c0fb3af3f54`. Current SonarQube Cloud PR
+measures show `0` new duplicated lines and `0.0` new-duplicated-lines density;
+the Quality Gate is `OK`. All non-skipped current-head checks passed, while
+advisory jobs were skipped. Review, ruleset, merge, and final-`master` status
+remain pending. No merge, Parent change, MRTS change, or Gitlink update is
+claimed.
 
 The APR-util guard implementation is committed and pushed as
 `b3dc9aeda0fda59aae65e0c54785e6b9500d025b` on the same selected PR branch.
 This documentation-only reconciliation deliberately does not claim the
 subsequent exact PR head before its own normal follow-up commit and push.
 
-The duplication-only test refactor and this paired record update are local at
-the current observation point. The pre-remediation PR head was
-`59240c5ac321831dbc72fdd515fd574b6c07b4e4`; its next exact head, hosted
-checks/Sonar result, review/ruleset disposition, and user-authorized normal
-`--squash` integration into `master` remain pending. No Parent change, MRTS
-change, Gitlink update, or merge is claimed.
+The pre-remediation PR head was `59240c5ac321831dbc72fdd515fd574b6c07b4e4`;
+the current supplied remediation head is
+`5fce355eb10e590557e5efb8b5282c0fb3af3f54`. All non-skipped current-head
+checks passed and advisory jobs were skipped; review/ruleset disposition, any
+user-authorized normal `--squash` integration into `master`, and final-
+`master` evidence remain pending. No Parent change, MRTS change, Gitlink
+update, or merge is claimed.

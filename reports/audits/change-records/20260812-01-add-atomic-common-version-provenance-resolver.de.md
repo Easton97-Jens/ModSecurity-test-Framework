@@ -9,7 +9,7 @@
 | Change-ID | `20260812-01-add-atomic-common-version-provenance-resolver` |
 | UTC-Datum | 2026-08-12 |
 | Framework-Basisrevision | `209389022c942d83113f6be88bf31d25637352f0` |
-| Issue oder Pull Request | Der Draft-[PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) ist offen und zielt von `agent/common-version-atomic-provenance` auf `master`. Zum Zeitpunkt der erfassten Sonar-Evidenz lösten lokaler Checkout, `origin/agent/common-version-atomic-provenance` und PR-Head alle zu `fae3b81db491944a21395de80e3c928f82077143` auf. |
+| Issue oder Pull Request | Der Draft-[PR #76](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/76) ist offen und zielt von `agent/common-version-atomic-provenance` auf `master`. Die aktuelle bereitgestellte PR-Head-Evidenz ist `5fce355eb10e590557e5efb8b5282c0fb3af3f54`; frühere erfasste Beobachtungen bleiben ausschließlich historische Evidenz. |
 
 ## Motivation und Problemstellung
 
@@ -162,6 +162,8 @@ Exclusion, Suppression oder Reader-facing-Verhalten.
 | `make lint` | 0 | Finales vollständiges lokales Aggregat bestand nach dem initialen APR-util-Record-Edit, einschließlich seiner Dokumentations- und `git diff --check`-Stufen. | Task-eigene lokale Validierungswurzel |
 | SonarQube-Cloud-PR-Measures- und Duplikat-APIs | 0 | Der Pre-Remediation-PR-Head `59240c5ac321831dbc72fdd515fd574b6c07b4e4` hatte 48 neue duplizierte Zeilen (`1.4444778814324406%`) ausschließlich in der APR-util-Provenance-Regression-Datei; die identifizierten Duplikatspannen wurden für das fokussierte Refactoring verwendet. | [PR-#76-SonarCloud-Analyse](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=76) |
 | `make BUILD_ROOT=<task-owned external root> TMP_ROOT=<task-owned external root> test-apr-util-provenance` | 0 | Die APR-util-Provenance-Suite nach dem Refactoring bestand alle 13 Tests in `1.715s`, einschließlich Clean-/Re-Source-Controls und fail-closed No-Network-Cases. | Framework-Task-Run `20260813T071713Z-framework-pr76-sonar-duplication-master` |
+| Aktuelle SonarQube-Cloud-Measures und Quality Gate von PR #76 (bereitgestellte Evidenz) | beobachtet | Beim Head `5fce355eb10e590557e5efb8b5282c0fb3af3f54` sind `new_duplicated_lines` `0`, `new_duplicated_lines_density` `0.0` und das Quality Gate `OK`. | [PR-#76-SonarCloud-Analyse](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=76) |
+| Current-Head-gehostete Checks von PR #76 (bereitgestellte beobachtete Evidenz) | bestanden | Alle nicht übersprungenen Checks bestanden. Die `push`- und `pull_request`-`scaffold-lint`-Workflows bestanden in `6m36s` beziehungsweise `7m20s`; Advisory-Jobs wurden übersprungen. | Current-Head-Check-Evidenz von PR #76 |
 
 ## Sicherheitsauswirkung
 
@@ -177,15 +179,14 @@ Connector-Runtime-Behauptung oder Deployment-Aktion wurde ausgeführt.
 ## Dokumentation und Runtime-Evidenz
 
 Die gepaarte Variablenreferenz dokumentiert den neuen Resolver-Vertrag auf
-Englisch und Deutsch. Draft-PR #76 sowie sein damals veröffentlichter
-Branch/Head wurden beobachtet. Keine Host-Runtime, kein Connector-Lifecycle,
-kein Merge, keine Parent-Aktion, MRTS-Aktion oder Gitlink-Update wurde
-beobachtet oder als Evidenz gesammelt. Eine verhaltensbewahrende Remediation
-für einen Sonar-Code-Smell hat die oben erfasste lokale Validierung bestanden.
-Der Exact-Head-SonarCloud-Check war um `2026-08-12T20:31:29Z` erfolgreich; der
-nachfolgende Bot-Kommentar und die begrenzte API-Abfrage meldeten die oben
-erfassten Null-Issue-Fakten. Diese Sonar-Fakten schließen die noch laufende
-Hosted-CI für den aktuellen Head nicht ab.
+Englisch und Deutsch. Draft-PR #76 ist aktuell beim Head
+`5fce355eb10e590557e5efb8b5282c0fb3af3f54` belegt. Seine bereitgestellten
+aktuellen SonarQube-Cloud-PR-Measures zeigen `new_duplicated_lines` `0` und
+`new_duplicated_lines_density` `0.0`; sein Quality Gate ist `OK`. Keine Host-
+Runtime, kein Connector-Lifecycle, kein Merge, keine Parent-Aktion,
+MRTS-Aktion oder Gitlink-Update wurde beobachtet oder als Evidenz gesammelt.
+Diese begrenzten Sonar-Fakten belegen nur die Duplikat-Remediation; sie
+finalisieren weder Hosted-CI noch Delivery.
 
 Die APR-util-Guard-Implementierung wurde als
 `b3dc9aeda0fda59aae65e0c54785e6b9500d025b` auf demselben ausgewählten
@@ -195,11 +196,12 @@ PR-Head, Hosted-CI, Sonar, Review, Branch Protection und jede
 Resulting-Master-Evidence bleiben getrennte Beobachtungen und werden hier nicht
 behauptet.
 
-Das aktuelle Duplikat-Only-Follow-up ist lokal, bis sein normaler
-Task-Branch-Commit und Push erfolgt. Der User hat ausdrücklich angefordert,
-dass PR #76 nach `master` gebracht wird, doch die erforderliche neue
-Current-Head-Sonar-, Check-, Review-, Ruleset- und Exact-Head-Squash-Merge-
-Evidenz steht noch aus; dieses Record-Update behauptet keinen Merge.
+Die aktuelle Duplikat-Remediation wird durch die bereitgestellte PR-Head-
+Evidenz oben abgebildet. Alle nicht übersprungenen Current-Head-PR-Checks
+bestanden; die `push`- und `pull_request`-`scaffold-lint`-Workflows bestanden
+in `6m36s` beziehungsweise `7m20s`, während Advisory-Jobs übersprungen wurden.
+Review-, Ruleset-, Merge- und finale-`master`-Evidenz bleiben ausstehend.
+Dieses Record-Update behauptet keinen Merge.
 
 ## Nicht ausgeführte Prüfungen
 
@@ -210,13 +212,12 @@ Evidenz steht noch aus; dieses Record-Update behauptet keinen Merge.
   lokale `make lint`-Aggregat endete anschließend mit Exit `0`, einschließlich
   seiner Dokumentations- und `git diff --check`-Stufen. Es wird hier keine
   lokale Testlücke behauptet; Hosted-Exact-Head-Evidenz bleibt getrennt.
-- Zum Beobachtungszeitpunkt hat die Hosted-CI für den aktuellen Head noch
-  laufende Checks. Der frühere OSV-Versuch auf
+- Alle nicht übersprungenen Current-Head-Checks bestanden; Advisory-Jobs
+  wurden übersprungen. Der frühere OSV-Versuch auf
   `ba348a7c28b13edcdc253aef7389c89b8285b241` traf beim Tool-Download auf einen
-  externen HTTP 503; er ist keine Evidenz für
-  `fae3b81db491944a21395de80e3c928f82077143`. Der OSV-Status für den finalen
-  Head, verbleibende CI-Checks, Review und Branch-Protection-Disposition
-  bleiben getrennt ausstehend.
+  externen HTTP 503 und ist keine Evidenz für den aktuellen PR-Head
+  `5fce355eb10e590557e5efb8b5282c0fb3af3f54`. Review-, Ruleset-, Merge- und
+  finale-`master`-Evidenz bleiben getrennt ausstehend.
 
 ## Einschränkungen und Restrisiko
 
@@ -229,13 +230,14 @@ Connector-Kompatibilität oder Runtime-Reife.
 ## Finaler Diff- und Review-Status
 
 Dieser Record ist Teil der oben beschriebenen veröffentlichten PR-#76-
-Historie. Zum Zeitpunkt der erfassten Sonar-Evidenz lösten lokaler Branch,
-sein `origin`-Gegenstück und der PR-Head alle zu
-`fae3b81db491944a21395de80e3c928f82077143` auf. Exact-Head-Sonar-Evidenz
-bestand mit den oben genannten begrenzten Null-Issue-Fakten, doch Hosted-CI
-lief noch; OSV-Status für den finalen Head, verbleibende CI, Review,
-Branch-Protection und Merge-Status stehen aus. Es werden kein Merge, keine
-Parent-Änderung, MRTS-Änderung oder Gitlink-Update behauptet.
+Historie. Die aktuelle bereitgestellte PR-Head-Evidenz ist
+`5fce355eb10e590557e5efb8b5282c0fb3af3f54`. Aktuelle SonarQube-Cloud-PR-
+Measures zeigen `0` neue duplizierte Zeilen und eine
+New-Duplicated-Lines-Density von `0.0`; das Quality Gate ist `OK`. Alle nicht
+übersprungenen Current-Head-Checks bestanden, während Advisory-Jobs übersprungen
+wurden. Review-, Ruleset-, Merge- und finaler-`master`-Status bleiben
+ausstehend. Es werden kein Merge, keine Parent-Änderung, MRTS-Änderung oder
+Gitlink-Update behauptet.
 
 Die APR-util-Guard-Implementierung ist als
 `b3dc9aeda0fda59aae65e0c54785e6b9500d025b` auf demselben ausgewählten
@@ -243,10 +245,11 @@ PR-Branch committed und gepusht. Diese ausschließlich dokumentarische
 Abgleichung behauptet den nachfolgenden exakten PR-Head absichtlich nicht vor
 ihrem eigenen normalen Follow-up-Commit und Push.
 
-Das Duplikat-Only-Test-Refactoring und dieses gepaarte Record-Update sind zum
-aktuellen Beobachtungszeitpunkt lokal. Der Pre-Remediation-PR-Head war
-`59240c5ac321831dbc72fdd515fd574b6c07b4e4`; sein nächster exakter Head,
-Hosted-Checks/Sonar-Ergebnis, Review-/Ruleset-Disposition und die vom User
-autorisierte normale `--squash`-Integration nach `master` stehen noch aus. Es
+Der Pre-Remediation-PR-Head war `59240c5ac321831dbc72fdd515fd574b6c07b4e4`;
+der aktuelle bereitgestellte Remediation-Head ist
+`5fce355eb10e590557e5efb8b5282c0fb3af3f54`. Alle nicht übersprungenen
+Current-Head-Checks bestanden und Advisory-Jobs wurden übersprungen; die
+Review-/Ruleset-Disposition, jede vom User autorisierte normale `--squash`-
+Integration nach `master` und finale-`master`-Evidenz bleiben ausstehend. Es
 werden keine Parent-Änderung, MRTS-Änderung, Gitlink-Aktualisierung oder Merge
 behauptet.
