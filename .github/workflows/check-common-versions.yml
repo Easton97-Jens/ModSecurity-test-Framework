@@ -2,6 +2,12 @@ name: Check common.sh versions
 
 on:
   workflow_dispatch:
+    inputs:
+      component:
+        description: "Optional exact common-version component name to resolve"
+        required: false
+        type: string
+        default: ""
   schedule:
     - cron: "0 6 * * 1"
 
@@ -54,6 +60,8 @@ jobs:
 
       - name: Resolve an ephemeral common.sh candidate
         id: resolve
+        env:
+          REQUESTED_COMPONENT: ${{ inputs.component }}
         run: |
           set -euo pipefail
           export VERIFIED_RUN_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified"
@@ -61,12 +69,64 @@ jobs:
           export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
           mkdir -p "$BUILD_ROOT"
           cp ci/lib/common.sh "$BUILD_ROOT/common.sh"
+          component_args=()
+          if [[ -n "$REQUESTED_COMPONENT" ]]; then
+            component_args+=(--component "$REQUESTED_COMPONENT")
+          fi
+          resolver_exit=0
           python3 ci/tools/check-common-versions.py --common-sh "$BUILD_ROOT/common.sh" \
             --update --defer-reviewed-provenance --json --write-files --timeout 20 \
-            > "$RUNNER_TEMP/common-version-check.json"
+            "${component_args[@]}" > "$RUNNER_TEMP/common-version-check.json" || resolver_exit=$?
           cmp -s "$RUNNER_TEMP/common-version-check.json" \
             "$BUILD_ROOT/results/common-version-check/summary.json"
-          cat "$RUNNER_TEMP/common-version-check.json" >> "$GITHUB_STEP_SUMMARY"
+          cp "$BUILD_ROOT/results/common-version-check/summary.md" \
+            "$RUNNER_TEMP/common-version-check.md"
+          test -s "$RUNNER_TEMP/common-version-check.json"
+          test -s "$RUNNER_TEMP/common-version-check.md"
+          cat "$RUNNER_TEMP/common-version-check.md" >> "$GITHUB_STEP_SUMMARY"
+          python3 - "$RUNNER_TEMP/common-version-check.json" "$GITHUB_STEP_SUMMARY" \
+            "$resolver_exit" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          summary_path, step_summary_path = map(Path, sys.argv[1:3])
+          resolver_exit = int(sys.argv[3])
+          summary = json.loads(summary_path.read_text(encoding="utf-8"))
+          fatal_statuses = {"unknown", "blocked", "error"}
+          fatal_component = next(
+              (
+                  component
+                  for component in summary.get("components", [])
+                  if isinstance(component, dict)
+                  and component.get("status") in fatal_statuses
+              ),
+              {},
+          )
+
+          def bounded_text(value, fallback):
+              if not isinstance(value, str) or not value:
+                  value = fallback
+              return value.replace("\r", " ").replace("\n", " ")[:240]
+
+          component = bounded_text(fatal_component.get("component"), "unidentified component")
+          reason = bounded_text(fatal_component.get("message"), "resolver returned a fatal state")
+          markdown_component = component.replace("`", "\\`")
+          markdown_reason = reason.replace("|", "\\|")
+          command_component = component.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          command_reason = reason.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          if resolver_exit:
+              with step_summary_path.open("a", encoding="utf-8") as step_summary:
+                  step_summary.write("\n## Common-version resolver diagnostic\n\n")
+                  step_summary.write(f"- Component: `{markdown_component}`\n")
+                  step_summary.write(f"- Reason: {markdown_reason}\n")
+              print(
+                  f"::error title=Common-version resolver failed for {command_component}::{command_reason}"
+              )
+          PY
+          if (( resolver_exit != 0 )); then
+            exit "$resolver_exit"
+          fi
           python3 - "$RUNNER_TEMP/common-version-check.json" ci/lib/common.sh \
             "$BUILD_ROOT/common.sh" "$GITHUB_OUTPUT" <<'PY'
           import base64
@@ -302,6 +362,7 @@ jobs:
           python3 -m py_compile ci/tools/check-common-versions.py
           python3 -m unittest \
             tests.security_regression.test_common_versions_sonar_provenance \
+            tests.security_regression.test_common_version_atomic_provenance \
             tests.security_regression.test_nginx_release_provenance \
             tests.security_regression.test_crs_git_ref_provenance \
             tests.security_regression.test_modsecurity_v3_git_ref_provenance \
@@ -368,15 +429,20 @@ jobs:
         id: candidate_revalidation
         env:
           TOOLS_DIR: ${{ runner.temp }}/framework-ci-security-tools
+          REQUESTED_COMPONENT: ${{ inputs.component }}
         run: |
           set -euo pipefail
           export VERIFIED_RUN_ROOT="${RUNNER_TEMP}/ModSecurity-conector-verified"
           export XDG_STATE_HOME="${RUNNER_TEMP}/state"
           export BUILD_ROOT="${VERIFIED_RUN_ROOT}/build"
           mkdir -p "$BUILD_ROOT"
+          component_args=()
+          if [[ -n "$REQUESTED_COMPONENT" ]]; then
+            component_args+=(--component "$REQUESTED_COMPONENT")
+          fi
           python3 ci/tools/check-common-versions.py --common-sh ci/lib/common.sh \
             --update --defer-reviewed-provenance --json --write-files --timeout 20 \
-            > "$RUNNER_TEMP/common-version-check.stdout.json"
+            "${component_args[@]}" > "$RUNNER_TEMP/common-version-check.stdout.json"
           cp "$BUILD_ROOT/results/common-version-check/summary.json" \
             "$RUNNER_TEMP/common-version-check.json"
           cmp -s "$RUNNER_TEMP/common-version-check.stdout.json" \
@@ -469,6 +535,7 @@ jobs:
           python3 -m py_compile ci/tools/check-common-versions.py
           python3 -m unittest \
             tests.security_regression.test_common_versions_sonar_provenance \
+            tests.security_regression.test_common_version_atomic_provenance \
             tests.security_regression.test_nginx_release_provenance \
             tests.security_regression.test_crs_git_ref_provenance \
             tests.security_regression.test_modsecurity_v3_git_ref_provenance \

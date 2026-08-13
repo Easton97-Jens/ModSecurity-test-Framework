@@ -55,26 +55,27 @@ class FakeGitHubClient:
 
     def get_json(self, url: str) -> dict[str, object]:
         self.urls.append(url)
-        if (
-            url
-            == f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}"
-        ):
+        if url == f"https://api.github.com/repos/{REPOSITORY}/releases/latest":
             return self.current_release
-        if url.endswith("/releases/latest"):
-            raise AssertionError(
-                "NGINX provenance must never query GitHub's floating latest endpoint"
-            )
         raise AssertionError(f"unexpected GitHub API URL: {url}")
 
 
 class NginxReleaseProvenanceTests(unittest.TestCase):
-    def entries(self):
+    def entries(self, tag: str = RELEASE_TAG, *, dynamic_aliases: bool = True):
+        asset_name = f"nginx-{tag.removeprefix('release-')}.tar.gz"
+        source_ref = (
+            'NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF-$NGINX_RELEASE_TAG}"'
+            if dynamic_aliases
+            else f'NGINX_SOURCE_GIT_REF="${{NGINX_SOURCE_GIT_REF-{tag}}}"'
+        )
         fixture_source = "\n".join(
             [
                 'NGINX_SOURCE_REPO_URL="${NGINX_SOURCE_REPO_URL-https://github.com/nginx/nginx}"',
-                f'NGINX_RELEASE_TAG="${{NGINX_RELEASE_TAG-{RELEASE_TAG}}}"',
-                'NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF-$NGINX_RELEASE_TAG}"',
-                f'NGINX_RELEASE_ASSET_NAME="${{NGINX_RELEASE_ASSET_NAME-{ASSET_NAME}}}"',
+                'NGINX_GITHUB_REPO="${NGINX_GITHUB_REPO-$NGINX_SOURCE_REPO_URL}"',
+                f'NGINX_RELEASE_TAG="${{NGINX_RELEASE_TAG-{tag}}}"',
+                source_ref,
+                f'NGINX_RELEASE_ASSET_NAME="${{NGINX_RELEASE_ASSET_NAME-{asset_name}}}"',
+                f'NGINX_SHA256_REQUESTED="${{NGINX_SHA256_REQUESTED:-{PUBLISHED_SHA256}}}"',
                 f'NGINX_SHA256="${{NGINX_SHA256:-{PUBLISHED_SHA256}}}"',
                 "",
             ]
@@ -102,10 +103,10 @@ class NginxReleaseProvenanceTests(unittest.TestCase):
         )
         self.assertEqual(
             client.urls,
-            [f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}"],
+            [f"https://api.github.com/repos/{REPOSITORY}/releases/latest"],
         )
 
-    def test_provenance_check_uses_only_the_configured_fixed_tag_endpoint(self):
+    def test_provenance_check_uses_only_the_official_latest_release_endpoint(self):
         client = FakeGitHubClient(release_payload(RELEASE_TAG))
         result = CHECKER.check_nginx_release_provenance(
             self.entries(),
@@ -115,23 +116,49 @@ class NginxReleaseProvenanceTests(unittest.TestCase):
         self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
         self.assertEqual(
             client.urls,
-            [f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}"],
+            [f"https://api.github.com/repos/{REPOSITORY}/releases/latest"],
         )
-        self.assertNotIn("/releases/latest", "\n".join(client.urls))
+        self.assertNotIn("/releases/tags/", "\n".join(client.urls))
 
-    def test_digest_mismatch_never_generates_an_automatic_update(self):
+    def test_digest_mismatch_generates_only_a_complete_atomic_repair_plan(self):
         client = FakeGitHubClient(release_payload(RELEASE_TAG, "b" * 64))
         result = CHECKER.check_nginx_release_provenance(
             self.entries(),
             client,
         )
 
-        self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
-        self.assertEqual(result.updates, [])
-        self.assertIn("does not match", result.message)
+        self.assertEqual(CHECKER.STATUS_OUTDATED, result.status)
+        self.assertEqual(
+            {update.variable for update in result.updates},
+            {"NGINX_SHA256"},
+        )
+        self.assertIn("differs", result.message)
         self.assertEqual(
             client.urls,
-            [f"https://api.github.com/repos/{REPOSITORY}/releases/tags/{RELEASE_TAG}"],
+            [f"https://api.github.com/repos/{REPOSITORY}/releases/latest"],
+        )
+
+    def test_newer_release_updates_tag_ref_asset_and_digest_as_one_group(self):
+        previous_tag = "release-9.900.0"
+        result = CHECKER.check_all(
+            self.entries(previous_tag, dynamic_aliases=False),
+            FakeGitHubClient(release_payload(RELEASE_TAG, "b" * 64)),
+            ("NGINX",),
+        )[0]
+
+        self.assertEqual(CHECKER.STATUS_OUTDATED, result.status)
+        self.assertEqual(
+            {update.variable: update.new for update in result.updates},
+            {
+                "NGINX_RELEASE_TAG": RELEASE_TAG,
+                "NGINX_SOURCE_GIT_REF": RELEASE_TAG,
+                "NGINX_RELEASE_ASSET_NAME": ASSET_NAME,
+                "NGINX_SHA256": "b" * 64,
+            },
+        )
+        self.assertEqual(
+            result.details["atomic_expected_values"],
+            {update.variable: update.new for update in result.updates},
         )
 
 
