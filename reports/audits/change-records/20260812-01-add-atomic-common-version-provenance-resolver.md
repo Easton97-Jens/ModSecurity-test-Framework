@@ -159,10 +159,12 @@ the subsequent bot comment and scoped API query reported the bounded zero-issue
 facts recorded above. Those Sonar facts do not complete the still-running
 current-head hosted CI.
 
-The APR-util follow-up has only local source, regression, and static evidence
-at this record revision. Its eventual commit, pushed exact head, hosted CI,
-Sonar, review, branch protection, and any resulting-master evidence remain
-separate observations and are not claimed here.
+The APR-util guard implementation was committed and pushed as
+`b3dc9aeda0fda59aae65e0c54785e6b9500d025b` on the same selected Draft PR #76
+branch. This traceability reconciliation is a separate, documentation-only
+follow-up; its eventual exact PR head, hosted CI, Sonar, review, branch
+protection, and any resulting-master evidence remain separate observations and
+are not claimed here.
 
 ## Checks not run
 
@@ -199,7 +201,7 @@ the final-head OSV status, remaining CI, review, branch protection, and merge
 status remain pending. No merge, Parent change, MRTS change, or Gitlink update
 is claimed.
 
-The APR-util guard follow-up is presently an uncommitted local modification on
-the same selected PR branch. It intentionally does not replace the historical
-published-head facts above with an unobserved new SHA; delivery evidence will
-be reconciled only after a normal follow-up commit and push.
+The APR-util guard implementation is committed and pushed as
+`b3dc9aeda0fda59aae65e0c54785e6b9500d025b` on the same selected PR branch.
+This documentation-only reconciliation deliberately does not claim the
+subsequent exact PR head before its own normal follow-up commit and push.

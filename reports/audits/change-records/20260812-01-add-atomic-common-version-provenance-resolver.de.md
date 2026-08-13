@@ -167,10 +167,13 @@ nachfolgende Bot-Kommentar und die begrenzte API-Abfrage meldeten die oben
 erfassten Null-Issue-Fakten. Diese Sonar-Fakten schließen die noch laufende
 Hosted-CI für den aktuellen Head nicht ab.
 
-Das APR-util-Follow-up besitzt bei dieser Record-Revision nur lokale Source-,
-Regression- und Static-Evidence. Sein späterer Commit, gepushter exakter Head,
-Hosted-CI, Sonar, Review, Branch Protection und jede Resulting-Master-Evidence
-bleiben getrennte Beobachtungen und werden hier nicht behauptet.
+Die APR-util-Guard-Implementierung wurde als
+`b3dc9aeda0fda59aae65e0c54785e6b9500d025b` auf demselben ausgewählten
+Draft-PR-#76-Branch committed und gepusht. Diese Traceability-Abgleichung ist
+ein separates, ausschließlich dokumentarisches Follow-up; ihr späterer exakter
+PR-Head, Hosted-CI, Sonar, Review, Branch Protection und jede
+Resulting-Master-Evidence bleiben getrennte Beobachtungen und werden hier nicht
+behauptet.
 
 ## Nicht ausgeführte Prüfungen
 
@@ -208,8 +211,8 @@ lief noch; OSV-Status für den finalen Head, verbleibende CI, Review,
 Branch-Protection und Merge-Status stehen aus. Es werden kein Merge, keine
 Parent-Änderung, MRTS-Änderung oder Gitlink-Update behauptet.
 
-Das APR-util-Guard-Follow-up ist derzeit eine uncommittete lokale Modifikation
-auf demselben ausgewählten PR-Branch. Es ersetzt die historischen
-Published-Head-Fakten oben absichtlich nicht durch eine unbeobachtete neue SHA;
-Delivery-Evidence wird erst nach einem normalen Follow-up-Commit und Push
-abgeglichen.
+Die APR-util-Guard-Implementierung ist als
+`b3dc9aeda0fda59aae65e0c54785e6b9500d025b` auf demselben ausgewählten
+PR-Branch committed und gepusht. Diese ausschließlich dokumentarische
+Abgleichung behauptet den nachfolgenden exakten PR-Head absichtlich nicht vor
+ihrem eigenen normalen Follow-up-Commit und Push.
