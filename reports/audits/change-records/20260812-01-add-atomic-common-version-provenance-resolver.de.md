@@ -87,13 +87,31 @@ Archivbefehl erreicht. Die vier öffentlichen Provenance-Felder und die
 resolver-verwaltete Literal-/Derived-Struktur bleiben unverändert; kein
 `APR_UTIL_PINNED_*`, `readonly`, `eval` oder Bash-only-Verhalten wurde ergänzt.
 
+### SonarQube-Cloud-Duplikat-Follow-up
+
+Beim Pre-Remediation-PR-Head
+`59240c5ac321831dbc72fdd515fd574b6c07b4e4` meldete die öffentliche
+PR-Analyse `48` neue duplizierte Zeilen (`1.4444778814324406%`) in genau einer
+task-eigenen Datei, `tests/security_regression/test_apr_util_provenance.py`.
+Ihre Duplikat-API identifiziert die drei Fake-Network-Preparer-Setups in den
+Zeilen 130–153, 350–372 und 415–438; der erste und dritte Block sind neu,
+während der mittlere Block Baseline-Kontext ist. Der Test nutzt dieses
+Fixture-Setup nun über einen privaten Helper gemeinsam, während jeder Test
+seinen eigenen Befehl, seine Provenance-Eingabe, das erwartete Exit `77` oder
+legitime Ergebnis sowie die No-Network-Marker-Assertion behält. Es ändern sich
+weder der produktive Provenance-Guard noch Sonar-Regel, Quality Gate,
+Exclusion, Suppression oder Reader-facing-Verhalten.
+
 ## Geänderte Dateien und Tests
 
 - `ci/lib/common.sh` enthält die vom Resolver verwendeten erfassten
   Provenance-Standards und den APR-util-Inherited-State-Guard.
 - `tests/security_regression/test_apr_util_provenance.py` ergänzt Repeat-
   Source-, exaktes-Inherited-Child-Tuple-, Post-Source-Mutation-, coherent-
-  replacement- und Fake-Tool-before-network-Regression-Coverage.
+  replacement- und Fake-Tool-before-network-Regression-Coverage; seine drei
+  Fake-Network-Preparer-Tests verwenden nun einen privaten Fixture-Helper
+  gemeinsam, um das task-eigene SonarQube-Cloud-Duplikat zu entfernen, ohne
+  ihre unterschiedlichen Security-Assertions zu verringern.
 - `ci/tools/check-common-versions.py` enthält Komponenten-Registry,
   Resolver-Dispatch, atomare Kandidatenbehandlung und den CLI-Auswahlvertrag.
 - `.github/workflows/check-common-versions.yml` übergibt die optionale
@@ -142,6 +160,8 @@ resolver-verwaltete Literal-/Derived-Struktur bleiben unverändert; kein
 | `make check-documentation` | 0 | Dokumentation und Change-Record-Vertrag bestanden vor diesem Follow-up-Record-Edit. | Task-eigene lokale Validierungswurzel |
 | `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh` | 0 | Kein ShellCheck-Finding. | Task-eigene lokale Validierungswurzel |
 | `make lint` | 0 | Finales vollständiges lokales Aggregat bestand nach dem initialen APR-util-Record-Edit, einschließlich seiner Dokumentations- und `git diff --check`-Stufen. | Task-eigene lokale Validierungswurzel |
+| SonarQube-Cloud-PR-Measures- und Duplikat-APIs | 0 | Der Pre-Remediation-PR-Head `59240c5ac321831dbc72fdd515fd574b6c07b4e4` hatte 48 neue duplizierte Zeilen (`1.4444778814324406%`) ausschließlich in der APR-util-Provenance-Regression-Datei; die identifizierten Duplikatspannen wurden für das fokussierte Refactoring verwendet. | [PR-#76-SonarCloud-Analyse](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=76) |
+| `make BUILD_ROOT=<task-owned external root> TMP_ROOT=<task-owned external root> test-apr-util-provenance` | 0 | Die APR-util-Provenance-Suite nach dem Refactoring bestand alle 13 Tests in `1.715s`, einschließlich Clean-/Re-Source-Controls und fail-closed No-Network-Cases. | Framework-Task-Run `20260813T071713Z-framework-pr76-sonar-duplication-master` |
 
 ## Sicherheitsauswirkung
 
@@ -174,6 +194,12 @@ ein separates, ausschließlich dokumentarisches Follow-up; ihr späterer exakter
 PR-Head, Hosted-CI, Sonar, Review, Branch Protection und jede
 Resulting-Master-Evidence bleiben getrennte Beobachtungen und werden hier nicht
 behauptet.
+
+Das aktuelle Duplikat-Only-Follow-up ist lokal, bis sein normaler
+Task-Branch-Commit und Push erfolgt. Der User hat ausdrücklich angefordert,
+dass PR #76 nach `master` gebracht wird, doch die erforderliche neue
+Current-Head-Sonar-, Check-, Review-, Ruleset- und Exact-Head-Squash-Merge-
+Evidenz steht noch aus; dieses Record-Update behauptet keinen Merge.
 
 ## Nicht ausgeführte Prüfungen
 
@@ -216,3 +242,11 @@ Die APR-util-Guard-Implementierung ist als
 PR-Branch committed und gepusht. Diese ausschließlich dokumentarische
 Abgleichung behauptet den nachfolgenden exakten PR-Head absichtlich nicht vor
 ihrem eigenen normalen Follow-up-Commit und Push.
+
+Das Duplikat-Only-Test-Refactoring und dieses gepaarte Record-Update sind zum
+aktuellen Beobachtungszeitpunkt lokal. Der Pre-Remediation-PR-Head war
+`59240c5ac321831dbc72fdd515fd574b6c07b4e4`; sein nächster exakter Head,
+Hosted-Checks/Sonar-Ergebnis, Review-/Ruleset-Disposition und die vom User
+autorisierte normale `--squash`-Integration nach `master` stehen noch aus. Es
+werden keine Parent-Änderung, MRTS-Änderung, Gitlink-Aktualisierung oder Merge
+behauptet.

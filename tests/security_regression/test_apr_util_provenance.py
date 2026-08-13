@@ -94,6 +94,55 @@ class AprUtilProvenanceTests(unittest.TestCase):
         (self.fixture_root / "tests").mkdir(exist_ok=True)
         return fixture_prepare
 
+    def run_preparer_with_fake_network(
+        self, argv: list[str], environment_overrides: dict[str, str]
+    ) -> tuple[subprocess.CompletedProcess[str], bool]:
+        temporary_root = os.environ.get("TEST_TMPDIR")
+        with tempfile.TemporaryDirectory(
+            prefix="apr-util-provenance-", dir=temporary_root
+        ) as temporary:
+            root = Path(temporary)
+            fake_bin = root / "fake-bin"
+            fake_bin.mkdir()
+            marker = root / "network-command-invoked"
+            for fake_command in ("curl", "git", "tar", "sha256sum"):
+                self.write_executable(
+                    fake_bin / fake_command,
+                    """
+                    #!/bin/sh
+                    printf '%s\\n' "$0" >> "$MARKER"
+                    exit 99
+                    """,
+                )
+
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{environment['PATH']}",
+                    "MARKER": str(marker),
+                    "VERIFIED_RUN_ROOT": str(root / "verified"),
+                    "BUILD_ROOT": str(root / "build"),
+                    "APACHE_BUILD_ROOT": str(root / "build" / "apache-build"),
+                    "APACHE_DOWNLOAD_DIR": str(root / "build" / "downloads"),
+                    "MODSECURITY_V3_SOURCE_DIR": str(root / "missing-v3"),
+                    "MODSECURITY_APACHE_SOURCE_DIR": str(root / "missing-apache"),
+                    "AUTO_FETCH_SMOKE_SOURCES": "0",
+                }
+            )
+            environment.update(environment_overrides)
+            completed = subprocess.run(
+                argv,
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+            network_command_invoked = marker.exists()
+
+        return completed, network_command_invoked
+
     def test_offline_reviewed_tuple_is_derived_and_accepted(self):
         source = self.common.read_text(encoding="utf-8")
         for name, expected in PINNED.items():
@@ -128,64 +177,27 @@ class AprUtilProvenanceTests(unittest.TestCase):
 
     def test_exported_reviewed_tuple_reaches_child_preparer_provenance_guard(self):
         fixture_prepare = self.write_preparer_fixture()
-        temporary_root = os.environ.get("TEST_TMPDIR")
-        with tempfile.TemporaryDirectory(
-            prefix="apr-util-provenance-", dir=temporary_root
-        ) as temporary:
-            root = Path(temporary)
-            fake_bin = root / "fake-bin"
-            fake_bin.mkdir()
-            marker = root / "network-command-invoked"
-            for command in ("curl", "git", "tar", "sha256sum"):
-                self.write_executable(
-                    fake_bin / command,
-                    """
-                    #!/bin/sh
-                    printf '%s\\n' "$0" >> "$MARKER"
-                    exit 99
-                    """,
-                )
-
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "PATH": f"{fake_bin}{os.pathsep}{environment['PATH']}",
-                    "MARKER": str(marker),
-                    "COMMON_SH": str(self.common),
-                    "PREPARE_APACHE": str(fixture_prepare),
-                    "FRAMEWORK_ROOT": str(ROOT),
-                    "CONNECTOR_ROOT": str(ROOT),
-                    "VERIFIED_RUN_ROOT": str(root / "verified"),
-                    "BUILD_ROOT": str(root / "build"),
-                    "APACHE_BUILD_ROOT": str(root / "build" / "apache-build"),
-                    "APACHE_DOWNLOAD_DIR": str(root / "build" / "downloads"),
-                    "MODSECURITY_V3_SOURCE_DIR": str(root / "missing-v3"),
-                    "MODSECURITY_APACHE_SOURCE_DIR": str(root / "missing-apache"),
-                    "AUTO_FETCH_SMOKE_SOURCES": "0",
-                }
-            )
-            completed = subprocess.run(
-                [
-                    "sh",
-                    "-eu",
-                    "-c",
-                    "\n".join(
-                        (
-                            '. "$COMMON_SH"',
-                            "ci_require_apr_util_pinned_provenance",
-                            "export APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL",
-                            'sh "$PREPARE_APACHE"',
-                        )
-                    ),
-                ],
-                cwd=ROOT,
-                env=environment,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
-            network_command_invoked = marker.exists()
+        completed, network_command_invoked = self.run_preparer_with_fake_network(
+            [
+                "sh",
+                "-eu",
+                "-c",
+                "\n".join(
+                    (
+                        '. "$COMMON_SH"',
+                        "ci_require_apr_util_pinned_provenance",
+                        "export APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL",
+                        'sh "$PREPARE_APACHE"',
+                    )
+                ),
+            ],
+            {
+                "COMMON_SH": str(self.common),
+                "PREPARE_APACHE": str(fixture_prepare),
+                "FRAMEWORK_ROOT": str(ROOT),
+                "CONNECTOR_ROOT": str(ROOT),
+            },
+        )
 
         self.assertEqual(completed.returncode, 77, completed.stdout)
         self.assertIn("missing MODSECURITY_V3_SOURCE_DIR", completed.stdout)
@@ -347,55 +359,18 @@ class AprUtilProvenanceTests(unittest.TestCase):
                 self.assertIn("BLOCKED:", completed.stdout)
 
     def test_invalid_tuple_stops_the_real_preparer_before_network_commands(self):
-        temporary_root = os.environ.get("TEST_TMPDIR")
-        with tempfile.TemporaryDirectory(
-            prefix="apr-util-provenance-", dir=temporary_root
-        ) as temporary:
-            root = Path(temporary)
-            fake_bin = root / "fake-bin"
-            fake_bin.mkdir()
-            marker = root / "network-command-invoked"
-            for command in ("curl", "git", "tar", "sha256sum"):
-                self.write_executable(
-                    fake_bin / command,
-                    """
-                    #!/bin/sh
-                    printf '%s\\n' "$0" >> "$MARKER"
-                    exit 99
-                    """,
-                )
-
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "PATH": f"{fake_bin}{os.pathsep}{environment['PATH']}",
-                    "MARKER": str(marker),
-                    "FRAMEWORK_ROOT": str(ROOT),
-                    "CI_ROOT": str(self.fixture_root / "ci"),
-                    "CONNECTOR_ROOT": str(ROOT),
-                    "VERIFIED_RUN_ROOT": str(root / "verified"),
-                    "BUILD_ROOT": str(root / "build"),
-                    "APACHE_BUILD_ROOT": str(root / "build" / "apache-build"),
-                    "APACHE_DOWNLOAD_DIR": str(root / "build" / "downloads"),
-                    "MODSECURITY_V3_SOURCE_DIR": str(root / "missing-v3"),
-                    "MODSECURITY_APACHE_SOURCE_DIR": str(root / "missing-apache"),
-                    "AUTO_FETCH_SMOKE_SOURCES": "0",
-                    "APR_UTIL_SOURCE_URL": (
-                        "https://mirror.example.invalid/apr-util-"
-                        f"{PINNED['APR_UTIL_VERSION']}.tar.bz2"
-                    ),
-                }
-            )
-            completed = subprocess.run(
-                ["sh", str(PREPARE_APACHE)],
-                cwd=ROOT,
-                env=environment,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
-            network_command_invoked = marker.exists()
+        completed, network_command_invoked = self.run_preparer_with_fake_network(
+            ["sh", str(PREPARE_APACHE)],
+            {
+                "FRAMEWORK_ROOT": str(ROOT),
+                "CI_ROOT": str(self.fixture_root / "ci"),
+                "CONNECTOR_ROOT": str(ROOT),
+                "APR_UTIL_SOURCE_URL": (
+                    "https://mirror.example.invalid/apr-util-"
+                    f"{PINNED['APR_UTIL_VERSION']}.tar.bz2"
+                ),
+            },
+        )
 
         self.assertEqual(completed.returncode, 77, completed.stdout)
         self.assertIn("APR_UTIL_SOURCE_URL override is not permitted", completed.stdout)
@@ -413,50 +388,13 @@ class AprUtilProvenanceTests(unittest.TestCase):
             encoding="utf-8",
         )
         fixture_prepare = self.write_preparer_fixture()
-        temporary_root = os.environ.get("TEST_TMPDIR")
-        with tempfile.TemporaryDirectory(
-            prefix="apr-util-provenance-", dir=temporary_root
-        ) as temporary:
-            root = Path(temporary)
-            fake_bin = root / "fake-bin"
-            fake_bin.mkdir()
-            marker = root / "network-command-invoked"
-            for command in ("curl", "git", "tar", "sha256sum"):
-                self.write_executable(
-                    fake_bin / command,
-                    """
-                    #!/bin/sh
-                    printf '%s\\n' "$0" >> "$MARKER"
-                    exit 99
-                    """,
-                )
-
-            environment = os.environ.copy()
-            environment.update(
-                {
-                    "PATH": f"{fake_bin}{os.pathsep}{environment['PATH']}",
-                    "MARKER": str(marker),
-                    "FRAMEWORK_ROOT": str(self.fixture_root),
-                    "CONNECTOR_ROOT": str(ROOT),
-                    "VERIFIED_RUN_ROOT": str(root / "verified"),
-                    "BUILD_ROOT": str(root / "build"),
-                    "APACHE_BUILD_ROOT": str(root / "build" / "apache-build"),
-                    "APACHE_DOWNLOAD_DIR": str(root / "build" / "downloads"),
-                    "MODSECURITY_V3_SOURCE_DIR": str(root / "missing-v3"),
-                    "MODSECURITY_APACHE_SOURCE_DIR": str(root / "missing-apache"),
-                    "AUTO_FETCH_SMOKE_SOURCES": "0",
-                }
-            )
-            completed = subprocess.run(
-                ["sh", str(fixture_prepare)],
-                cwd=ROOT,
-                env=environment,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                check=False,
-            )
-            network_command_invoked = marker.exists()
+        completed, network_command_invoked = self.run_preparer_with_fake_network(
+            ["sh", str(fixture_prepare)],
+            {
+                "FRAMEWORK_ROOT": str(self.fixture_root),
+                "CONNECTOR_ROOT": str(ROOT),
+            },
+        )
 
         self.assertEqual(completed.returncode, 77, completed.stdout)
         self.assertIn("APR_UTIL_VERSION must remain the canonical reviewed value", completed.stdout)

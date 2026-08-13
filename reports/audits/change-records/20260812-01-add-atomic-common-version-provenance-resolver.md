@@ -81,13 +81,30 @@ provenance fields and resolver-maintained literal/derived structure remain
 unchanged; no `APR_UTIL_PINNED_*`, `readonly`, `eval`, or Bash-only behavior was
 introduced.
 
+### SonarQube Cloud duplication follow-up
+
+At pre-remediation PR head
+`59240c5ac321831dbc72fdd515fd574b6c07b4e4`, the public PR analysis reported
+`48` new duplicated lines (`1.4444778814324406%`) in exactly one task-owned
+file, `tests/security_regression/test_apr_util_provenance.py`. Its duplication
+API identifies the three fake-network preparer setups at lines 130–153,
+350–372, and 415–438; the first and third blocks are new while the middle
+block is baseline context. The test now shares that fixture setup through one
+private helper while each test retains its distinct command, provenance input,
+expected exit `77` or legitimate result, and no-network marker assertion. No
+production provenance guard, Sonar rule, Quality Gate, exclusion, suppression,
+or reader-facing behavior changes.
+
 ## Changed files and tests
 
 - `ci/lib/common.sh` contains the tracked provenance defaults consumed by the
   resolver and the APR-util inherited-state guard.
 - `tests/security_regression/test_apr_util_provenance.py` adds repeat-source,
   exact inherited child tuple, post-source mutation, coherent replacement, and
-  fake-tool-before-network regression coverage.
+  fake-tool-before-network regression coverage; its three fake-network
+  preparer tests now reuse one private fixture helper to remove the
+  task-owned SonarQube Cloud duplication without reducing their distinct
+  security assertions.
 - `ci/tools/check-common-versions.py` contains the component registry,
   resolver dispatch, atomic candidate handling, and CLI selection contract.
 - `.github/workflows/check-common-versions.yml` carries the optional manual
@@ -135,6 +152,8 @@ introduced.
 | `make check-documentation` | 0 | Documentation and Change Record contract passed before this follow-up record edit. | Task-owned local validation root |
 | `shellcheck -x ci/lib/common.sh ci/checks/catalog/check-common-helpers.sh` | 0 | No ShellCheck finding. | Task-owned local validation root |
 | `make lint` | 0 | Final full local aggregate passed after the initial APR-util record edit, including its documentation and `git diff --check` stages. | Task-owned local validation root |
+| SonarQube Cloud PR measures and duplication APIs | 0 | Pre-remediation PR head `59240c5ac321831dbc72fdd515fd574b6c07b4e4` had 48 new duplicated lines (`1.4444778814324406%`) only in the APR-util provenance regression file; the identified duplicated spans were used for the focused refactor. | [PR #76 SonarCloud analysis](https://sonarcloud.io/dashboard?id=Easton97-Jens_ModSecurity-test-Framework&pullRequest=76) |
+| `make BUILD_ROOT=<task-owned external root> TMP_ROOT=<task-owned external root> test-apr-util-provenance` | 0 | The post-refactor APR-util provenance suite passed all 13 tests in `1.715s`, including clean/re-source controls and fail-closed no-network cases. | Framework task run `20260813T071713Z-framework-pr76-sonar-duplication-master` |
 
 ## Security impact
 
@@ -165,6 +184,12 @@ branch. This traceability reconciliation is a separate, documentation-only
 follow-up; its eventual exact PR head, hosted CI, Sonar, review, branch
 protection, and any resulting-master evidence remain separate observations and
 are not claimed here.
+
+The current duplication-only follow-up is local until its normal task-branch
+commit and push. The user has explicitly requested that PR #76 be brought to
+`master`, but the required new current-head Sonar, checks, reviews, ruleset,
+and exact-head squash-merge evidence remain pending; no merge is claimed by
+this record update.
 
 ## Checks not run
 
@@ -205,3 +230,10 @@ The APR-util guard implementation is committed and pushed as
 `b3dc9aeda0fda59aae65e0c54785e6b9500d025b` on the same selected PR branch.
 This documentation-only reconciliation deliberately does not claim the
 subsequent exact PR head before its own normal follow-up commit and push.
+
+The duplication-only test refactor and this paired record update are local at
+the current observation point. The pre-remediation PR head was
+`59240c5ac321831dbc72fdd515fd574b6c07b4e4`; its next exact head, hosted
+checks/Sonar result, review/ruleset disposition, and user-authorized normal
+`--squash` integration into `master` remain pending. No Parent change, MRTS
+change, Gitlink update, or merge is claimed.
