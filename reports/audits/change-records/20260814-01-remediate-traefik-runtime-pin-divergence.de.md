@@ -10,7 +10,7 @@
 | UTC-Datum | 2026-08-14 |
 | Framework-Basisrevision | `1260aaae411ecf88cf50dc480b80e2e20ac47901` |
 | Finding | `FND-FRAMEWORK-0069` (`fixed`) |
-| Issue oder Pull Request | [Framework-Draft-PR #78](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/78) von `fix/fnd-framework-0069-traefik-runtime-pin` nach `master` ist offen und ungemergt. Der initiale Implementierungs-Commit `741dd30287d9d5fd38946ee317da4d1f91494b19` wurde normal gepusht; jedes spätere PR-Update benötigt eine frische Exact-Head-Prüfung. Kein Merge ist autorisiert. |
+| Issue oder Pull Request | [Framework-PR #78](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/78) von `fix/fnd-framework-0069-traefik-runtime-pin` nach `master` ist die task-eigene Delivery-Einheit. Der initiale Implementierungs-Commit `741dd30287d9d5fd38946ee317da4d1f91494b19` wurde normal gepusht; jeder spätere PR-Head benötigt eine frische Exact-Head-Prüfung. Merge-Fakten werden nur bei beobachteter PR- und Task-Lifecycle-Evidenz festgehalten. |
 
 ## Motivation und Problemstellung
 
@@ -81,24 +81,24 @@ URL-Ableitung akzeptiert.
 
 ## Dokumentation und Runtime-Evidenz
 
-Englisch-/deutschsprachige Connector- und Compiler-Anleitung kopieren den veralteten Pin nicht mehr und beschreiben Framework-Preparation. Es gab keinen externen Archivdownload und keinen Live-Traefik-Smoke-/Native-Run. Draft-PR #78 ist offen; Hosted-Checks müssen gegen seinen exakten aktuellen Head gelesen werden und gelten nicht als Evidenz einer Live-Release-Akquisition.
+Englisch-/deutschsprachige Connector- und Compiler-Anleitung kopieren den veralteten Pin nicht mehr und beschreiben Framework-Preparation. Es gab keinen externen Archivdownload und keinen Live-Traefik-Smoke-/Native-Run. Hosted-Checks für Framework-PR #78 müssen gegen seinen exakten aktuellen Head gelesen werden und gelten nicht als Evidenz einer Live-Release-Akquisition.
 
 ## Nicht ausgeführte Prüfungen
 
 - Offizieller gepinnter Archivdownload und Digest-Check: kein aufbewahrtes Archiv und keine separate Autorisierung für Netzwerkanfrage.
 - Live-Smoke-/Native-Connector-Control: benötigt das echte Archiv und lokale Runtime-Voraussetzungen.
-- Exact-Head-Hosted-Check-Revalidierung nach jedem PR-Update und Resulting-Master-Revalidierung: Der PR ist offen und ungemergt, daher ist beides keine finale Integrations-Evidenz.
+- Exact-Head-Hosted-Check-Revalidierung nach jedem PR-Update und Resulting-Master-Revalidierung: Dies sind getrennte Delivery-Prüfungen; ihre Ergebnisse werden nur bei beobachteter PR- und Task-Lifecycle-Evidenz festgehalten.
 - Parent-Gitlink-Update: hier nicht autorisiert. Die Cross-Repository-Policy verlangt erst einen gemergten, verifizierten Framework-Master-SHA vor einer separaten Parent-Pointer-Änderung.
 
 ## Einschränkungen und Restrisiko
 
-Der Guard schützt nicht gegen Code-Ausführung, die Framework-Source bereits ändern oder beliebige Shell innerhalb derselben Vertrauensgrenze aufrufen kann. Das reale Upstream-Artefakt und Resulting Master bleiben ungeprüft. MRTS wurde nicht berührt.
+Der Guard schützt nicht gegen Code-Ausführung, die Framework-Source bereits ändern oder beliebige Shell innerhalb derselben Vertrauensgrenze aufrufen kann. Das reale Upstream-Artefakt bleibt ungeprüft; Resulting-Master-Evidenz wird nur bei Beobachtung in PR- und Task-Lifecycle-Evidenz festgehalten. MRTS wurde nicht berührt.
 
 ## Finaler Diff- und Review-Status
 
-Task-eigene Framework- und Parent-Diffs erhielten begrenzte Whitespace-Checks ohne Fehler. `FND-FRAMEWORK-0069` bleibt `fixed`, nicht `verified` oder `closed`. Die Framework-Implementierung wurde über den offenen Draft-PR #78 committed und normal gepusht; Merge, Parent-Gitlink-Update, Produktions-Delivery und MRTS-Aktionen sind durch diesen Record nicht autorisiert.
+Task-eigene Framework- und Parent-Diffs erhielten begrenzte Whitespace-Checks ohne Fehler. `FND-FRAMEWORK-0069` bleibt `fixed`, nicht `verified` oder `closed`. Die Framework-Implementierung wurde über Framework-PR #78 committed und normal gepusht. Die aktuelle Nutzerformulierung `bringe ihn in den master` wählt nur diesen task-eigenen Framework-PR für die kontrollierte Framework-Master-Integration; dieser Record autorisiert kein Parent-Gitlink-Update, keine Produktions-Delivery und keine MRTS-Aktionen.
 
-Das dokumentierte SonarQube-Cloud-Source-/Test-Follow-up ist Teil des offenen
-Draft-PR #78. Sein Exact-Head-Delivery-Status ist in PR- und Task-Evidenz
-festgehalten, nicht in diesem Change Record; jeder spätere Head benötigt
+Das dokumentierte SonarQube-Cloud-Source-/Test-Follow-up ist Teil von
+Framework-PR #78. Sein Exact-Head-Delivery-Status ist in PR- und Task-Evidenz
+festgehalten, nicht in diesem Change Record; jeder spätere PR-Head benötigt
 weiterhin eine frische Exact-Head-Verifikation.

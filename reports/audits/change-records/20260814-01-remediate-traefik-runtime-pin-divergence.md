@@ -10,7 +10,7 @@
 | UTC date | 2026-08-14 |
 | Framework base revision | `1260aaae411ecf88cf50dc480b80e2e20ac47901` |
 | Finding | `FND-FRAMEWORK-0069` (`fixed`) |
-| Issue or pull request | [Framework Draft PR #78](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/78) from `fix/fnd-framework-0069-traefik-runtime-pin` to `master` is open and unmerged. The initial implementation commit `741dd30287d9d5fd38946ee317da4d1f91494b19` was pushed normally; every later PR update requires a fresh exact-head check. No merge is authorized. |
+| Issue or pull request | [Framework PR #78](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/78) from `fix/fnd-framework-0069-traefik-runtime-pin` to `master` is the task-owned delivery unit. The initial implementation commit `741dd30287d9d5fd38946ee317da4d1f91494b19` was pushed normally; every later PR head requires a fresh exact-head check. Merge facts are retained only when observed in PR and task lifecycle evidence. |
 
 ## Motivation and problem statement
 
@@ -79,24 +79,24 @@ accepting confusable release digits in the archive and URL derivation path.
 
 ## Documentation and runtime evidence
 
-English/German connector and compiler guidance no longer copy the stale pin and instead describe Framework preparation. No external archive download or live Traefik smoke/native run was performed. Draft PR #78 is open; hosted checks must be read against its exact current head and are not treated as evidence of a live release acquisition.
+English/German connector and compiler guidance no longer copy the stale pin and instead describe Framework preparation. No external archive download or live Traefik smoke/native run was performed. Hosted checks for Framework PR #78 must be read against its exact current head and are not treated as evidence of a live release acquisition.
 
 ## Checks not run
 
 - Official pinned archive download and digest check: no retained archive and no separate network acquisition authorization.
 - Live smoke/native connector control: depends on the actual archive and local runtime prerequisites.
-- Exact-head hosted-check revalidation after each PR update and resulting-master revalidation: the PR is open and unmerged, so neither is final integration evidence.
+- Exact-head hosted-check revalidation after each PR update and resulting-master revalidation: these are distinct delivery checks, and their results are retained only when observed in PR and task lifecycle evidence.
 - Parent Gitlink update: not authorized here. Cross-repository policy requires a merged, verified Framework-master SHA before a separate Parent pointer change.
 
 ## Limitations and residual risk
 
-The guard cannot protect against code execution already able to change Framework source or invoke arbitrary shell in the same trust boundary. The real upstream artifact and resulting master remain unverified. MRTS was not touched.
+The guard cannot protect against code execution already able to change Framework source or invoke arbitrary shell in the same trust boundary. The real upstream artifact remains unverified; resulting-master evidence is retained only when observed in PR and task lifecycle evidence. MRTS was not touched.
 
 ## Final diff and review status
 
-Task-owned Framework and Parent diffs received scoped whitespace checks with no errors. `FND-FRAMEWORK-0069` remains `fixed`, not `verified` or `closed`. The Framework implementation was committed and normally pushed through open Draft PR #78; no merge, Parent Gitlink update, production delivery, or MRTS action is authorized by this record.
+Task-owned Framework and Parent diffs received scoped whitespace checks with no errors. `FND-FRAMEWORK-0069` remains `fixed`, not `verified` or `closed`. The Framework implementation was committed and normally pushed through Framework PR #78. The current user wording `bringe ihn in den master` selects only this task-owned Framework PR for controlled Framework-master integration; this record does not authorize a Parent Gitlink update, production delivery, or MRTS action.
 
-The documented SonarQube Cloud source/test follow-up is part of open Draft
-PR #78. Its exact-head delivery status is retained in PR and task evidence
-rather than this Change Record; any later head still requires fresh exact-head
+The documented SonarQube Cloud source/test follow-up is part of Framework PR
+#78. Its exact-head delivery status is retained in PR and task evidence rather
+than this Change Record; any later PR head still requires fresh exact-head
 verification.
