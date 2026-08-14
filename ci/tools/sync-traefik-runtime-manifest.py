@@ -42,7 +42,7 @@ LITERAL_CANONICAL_FIELDS = (
     "TRAEFIK_ARTIFACT_PLATFORM",
     "TRAEFIK_SHA256",
 )
-VERSION_RE = re.compile(r"^[0-9]+(?:\.[0-9]+){2}$")
+VERSION_RE = re.compile(r"^\d+(?:\.\d+){2}$", re.ASCII)
 SHA256_RE = re.compile(r"^[0-9A-Fa-f]{64}$")
 LITERAL_ASSIGNMENT_RE = {
     name: re.compile(rf"^{re.escape(name)}=\"([^\"$`]*)\"\s*$", re.MULTILINE)

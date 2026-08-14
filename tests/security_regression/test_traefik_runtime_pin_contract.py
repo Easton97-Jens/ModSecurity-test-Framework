@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import textwrap
@@ -32,6 +34,18 @@ PINNED_SHA256 = "01811bb12d44f17280550f425f5e3128d6c325f2665c09e67a651ca535f490c
 STALE_SHA256 = "9da81a928fde965c2c4678698bbc28bc3f600223b14c32b35bd480bf5ec863dc"
 PINNED_PLATFORM = "linux_amd64"
 PINNED_ARCHIVE = f"traefik_v{PINNED_VERSION}_{PINNED_PLATFORM}.tar.gz"
+
+
+def load_sync_manifest():
+    spec = importlib.util.spec_from_file_location(
+        "sync_traefik_runtime_manifest_contract", SYNC_MANIFEST
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("unable to load Traefik manifest synchronizer")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 class TraefikRuntimePinContractTests(unittest.TestCase):
@@ -447,6 +461,29 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
                 self.assertEqual(divergent.returncode, 1, divergent.stdout)
                 self.assertIn("expected", divergent.stdout)
                 self.assertIn("found", divergent.stdout)
+
+    def test_manifest_validator_preserves_the_ascii_version_boundary(self) -> None:
+        synchronizer = load_sync_manifest()
+        values = synchronizer.load_canonical_tuple(COMMON_SOURCE)
+        synchronizer.validate_canonical_tuple(values)
+
+        unicode_version = "٣.٧.١٠"
+        unicode_values = dict(values)
+        archive = f"traefik_v{unicode_version}_{PINNED_PLATFORM}.tar.gz"
+        source_url = unicode_values["TRAEFIK_SOURCE_URL"]
+        unicode_values.update(
+            {
+                "TRAEFIK_VERSION": unicode_version,
+                "TRAEFIK_ARCHIVE_NAME": archive,
+                "TRAEFIK_DOWNLOAD_URL": f"{source_url}/download/v{unicode_version}/{archive}",
+                "TRAEFIK_SHA256_URL": f"{source_url}/download/v{unicode_version}/traefik_v{unicode_version}_checksums.txt",
+            }
+        )
+
+        self.assertIsNotNone(synchronizer.VERSION_RE.fullmatch(PINNED_VERSION))
+        self.assertIsNone(synchronizer.VERSION_RE.fullmatch(unicode_version))
+        with self.assertRaisesRegex(synchronizer.ManifestSyncError, "exact dotted release"):
+            synchronizer.validate_canonical_tuple(unicode_values)
 
     def test_manifest_tool_rejects_duplicate_manual_pin_and_invalid_source_metadata(self) -> None:
         manifest = self.temporary_root / "runtime-components.manifest.json"

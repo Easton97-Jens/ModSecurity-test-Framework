@@ -39,25 +39,45 @@ Der Catalog-Guard läuft in Framework-Lint; Parent-Lint und der bestehende PR-si
 
 Der Resolver erhält ein blockiertes (`77`) Preparation-Ergebnis, statt es zu einem generischen Fehler abzuflachen. Der Parent-Lifecycle inventarisiert die kanonische Cache-Binärdatei nur nach erfolgreichem Staging, sodass ein geerbtes `TRAEFIK_BIN` nicht zu einer Prozesssenke nach einem Fehler werden kann.
 
+### SonarQube-Cloud-Follow-up
+
+Die SonarQube-Cloud-Analyse für PR #78 mit dem Head
+`18da86f34827f34a5a99877796e21532fd31f824` meldete zwei task-eigene
+`python:S6353`-Maintainability-Findings für den Versionsausdruck im neuen
+Manifest-Synchronisierer. Der knappe `\d`-Ausdruck verwendet nun `re.ASCII`:
+Er beseitigt beide Findings, ohne die bisherige ASCII-only-Grenze für
+Release-Versionen zu erweitern. Die fokussierte Regression beweist, dass die
+kanonische ASCII-Version akzeptiert wird, während eine selbstkonsistente
+Version mit Arabic-Indic-Unicode-Ziffern vor der Archivnamen- oder URL-Ableitung
+abgewiesen wird.
+
 ## Geänderte Dateien und Tests
 
 - Framework-Runtime und Catalog: `ci/lib/common.sh`, `ci/provisioning/prepare-traefik-runtime.sh`, `ci/lib/connector-smoke-common.sh`, `ci/provisioning/runtime-components.manifest.json`, `ci/tools/sync-traefik-runtime-manifest.py`, `ci/checks/catalog/check-open-runtime-provisioning-contract.sh`, `ci/tools/check-common-versions.py` und `Makefile`.
 - Framework-Regression: `tests/security_regression/test_traefik_runtime_pin_contract.py`.
+- Das SonarQube-Cloud-Follow-up ändert nur den Versionsausdruck des
+  Synchronisierers, diese fokussierte Regression und das englisch/deutsche
+  Change-Record-Paar.
 - Parent-Consumer-Bridge, Direkt-Entry-Tests, Workflow-Wiring und bilinguale Anleitung sind koordinierte Änderungen, keine zusätzlichen Framework-Pin-Autoritäten.
 
 ## Befehle und Ergebnisse
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | ---: | --- | --- |
-| `python3 -m unittest tests.security_regression.test_traefik_runtime_pin_contract -v` | 0 | Neun fokussierte positive/negative Pin-Contract-Tests einschließlich Blocked-Status-Weitergabe bestanden. | Isolierter Framework-Worktree, 2026-08-14 |
+| `PYTHON=/usr/bin/python3 make test-traefik-runtime-pin-contract` | 0 | Zehn fokussierte positive/negative Pin-Contract-Tests einschließlich Blocked-Status-Weitergabe sowie ASCII-Akzeptanz und Unicode-Ziffern-Ablehnung bestanden. | Isolierter Framework-Worktree mit task-eigenen externen Build-/Tmp-Roots, 2026-08-14 |
 | `python3 ci/tools/sync-traefik-runtime-manifest.py --write` zweimal, danach `--check` | 0 | Beide Schreibvorgänge erzeugten `7ea22e43269c85566ad86564171bb74fcbbd86800a3d861cbaf93b473ec12e1b`; der Check bestand. | Isolierter Framework-Worktree, 2026-08-14 |
 | `sh ci/checks/catalog/check-open-runtime-provisioning-contract.sh` | 0 | Kanonisches Tupel, Archivpfad/-Export und Manifest-Vertrag bestanden. | Isolierter Framework-Worktree, 2026-08-14 |
-| `make lint` | 0 | Vollständiges Framework-Lint einschließlich Security-, Dokumentations-, Change-Record-, Traefik-Contract- und Whitespace-Verträgen bestand. | Isolierter Framework-Build-Root, 2026-08-14 |
+| `PYTHON=/usr/bin/python3 make lint` | 0 | Vollständiges Framework-Lint nach dem Source-/Test-Follow-up einschließlich Security-, Dokumentations-, Change-Record-, Traefik-Contract- und Whitespace-Verträgen bestand. | Isolierter Framework-Build-Root, 2026-08-14 |
 | Parent-Compiler-Guide- und Runtime-Environment-Contract-Suiten | 0 | Beide fokussierten Suiten bestanden je 21 Tests; der Runtime-Snapshot-Test deckt die kanonische Cache-Zuweisung nach Staging ab. | Separater isolierter Parent-Worktree, 2026-08-14 |
 
 ## Sicherheitsauswirkung
 
 Die ursprüngliche statische Abweichung ist über den generierten Manifest-Check nicht mehr reproduzierbar. Negative Controls weisen veraltete/fehlerhafte/partielle/alternative Tupel, falsche Plattform, Caller-`TRAEFIK_BIN` und eine gleichversionierte Bare-Binary vor Archiv-Extraktion oder Runtime-Setup ab. Ein synthetisches exaktes Archiv wird als legitimer Control gestagt. Dies ist Dependency-Provenance-Hardening; es behauptet keine Ausführung eines bösartigen Artefakts oder eine Kompromittierung einer externen Quelle.
+
+Das SonarQube-Cloud-Follow-up erhält die ASCII-only-Versionsinvariante des
+Manifest-Parsers. `re.ASCII` verhindert, dass Pythons standardmäßiges Unicode-
+`\d`-Verhalten verwechslungsanfällige Release-Ziffern im Pfad der Archiv- und
+URL-Ableitung akzeptiert.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -77,3 +97,7 @@ Der Guard schützt nicht gegen Code-Ausführung, die Framework-Source bereits ä
 ## Finaler Diff- und Review-Status
 
 Task-eigene Framework- und Parent-Diffs erhielten begrenzte Whitespace-Checks ohne Fehler. `FND-FRAMEWORK-0069` bleibt `fixed`, nicht `verified` oder `closed`. Die Framework-Implementierung wurde über den offenen Draft-PR #78 committed und normal gepusht; Merge, Parent-Gitlink-Update, Produktions-Delivery und MRTS-Aktionen sind durch diesen Record nicht autorisiert.
+
+Das dokumentierte SonarQube-Cloud-Source-/Test-Follow-up benötigt einen neuen
+normalen Push und eine frische Exact-Head-Hosted-Verifikation; kein vorheriges
+Sonar-Ergebnis gilt als Evidenz für dieses Follow-up.

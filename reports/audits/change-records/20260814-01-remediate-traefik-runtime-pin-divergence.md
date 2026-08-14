@@ -39,25 +39,43 @@ The catalog guard runs in Framework lint; Parent lint and the existing PR-visibl
 
 The resolver preserves a blocked (`77`) preparation result instead of flattening it to a generic failure. The Parent lifecycle only inventories the canonical cache binary after a successful staging result, so an inherited `TRAEFIK_BIN` cannot become a post-failure process sink.
 
+### SonarQube Cloud follow-up
+
+SonarQube Cloud analysis for PR #78 head
+`18da86f34827f34a5a99877796e21532fd31f824` reported two task-owned
+`python:S6353` maintainability findings on the version expression in the new
+manifest synchronizer. The concise `\d` expression now uses `re.ASCII`: it
+removes both findings without broadening the prior ASCII-only release-version
+boundary. The focused regression proves that the canonical ASCII version is
+accepted while a self-consistent version written with Arabic-Indic Unicode
+digits is rejected before archive-name or URL derivation.
+
 ## Changed files and tests
 
 - Framework runtime and catalog: `ci/lib/common.sh`, `ci/provisioning/prepare-traefik-runtime.sh`, `ci/lib/connector-smoke-common.sh`, `ci/provisioning/runtime-components.manifest.json`, `ci/tools/sync-traefik-runtime-manifest.py`, `ci/checks/catalog/check-open-runtime-provisioning-contract.sh`, `ci/tools/check-common-versions.py`, and `Makefile`.
 - Framework regression: `tests/security_regression/test_traefik_runtime_pin_contract.py`.
+- The SonarQube Cloud follow-up changes only the synchronizer's version
+  expression, that focused regression, and this English/German Change Record
+  pair.
 - The Parent consumer bridge, direct-entry tests, workflow wiring, and bilingual guidance are coordinated changes, not separate Framework pin authorities.
 
 ## Commands and results
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | ---: | --- | --- |
-| `python3 -m unittest tests.security_regression.test_traefik_runtime_pin_contract -v` | 0 | Nine focused positive/negative pin-contract tests passed, including blocked-status propagation. | Isolated Framework worktree, 2026-08-14 |
+| `PYTHON=/usr/bin/python3 make test-traefik-runtime-pin-contract` | 0 | Ten focused positive/negative pin-contract tests passed, including blocked-status propagation plus ASCII acceptance and Unicode-digit rejection. | Isolated Framework worktree with task-owned external build/tmp roots, 2026-08-14 |
 | `python3 ci/tools/sync-traefik-runtime-manifest.py --write` twice, then `--check` | 0 | Both writes produced `7ea22e43269c85566ad86564171bb74fcbbd86800a3d861cbaf93b473ec12e1b`; the check passed. | Isolated Framework worktree, 2026-08-14 |
 | `sh ci/checks/catalog/check-open-runtime-provisioning-contract.sh` | 0 | Canonical tuple, archive path/export, and manifest contract passed. | Isolated Framework worktree, 2026-08-14 |
-| `make lint` | 0 | Full Framework lint passed, including security, documentation, Change Record, Traefik contract, and whitespace contracts. | Isolated Framework build root, 2026-08-14 |
+| `PYTHON=/usr/bin/python3 make lint` | 0 | Full Framework lint passed after the source/test follow-up, including security, documentation, Change Record, Traefik contract, and whitespace contracts. | Isolated Framework build root, 2026-08-14 |
 | Parent compiler-guide and runtime-environment contract suites | 0 | Each focused suite passed 21 tests; the runtime snapshot test covers the post-stage canonical-cache assignment. | Separate isolated Parent worktree, 2026-08-14 |
 
 ## Security impact
 
 The original static mismatch is no longer reproducible through the generated manifest check. Negative controls reject stale/malformed/partial/alternate tuples, wrong platform, a caller `TRAEFIK_BIN`, and a same-version bare binary before archive extraction or runtime setup. A synthetic exact archive stages as the legitimate control. This is dependency-provenance hardening; it does not claim that a malicious artifact executed or that an external source was compromised.
+
+The SonarQube Cloud follow-up retains the manifest parser's ASCII-only version
+invariant. `re.ASCII` prevents Python's default Unicode `\d` behavior from
+accepting confusable release digits in the archive and URL derivation path.
 
 ## Documentation and runtime evidence
 
@@ -77,3 +95,7 @@ The guard cannot protect against code execution already able to change Framework
 ## Final diff and review status
 
 Task-owned Framework and Parent diffs received scoped whitespace checks with no errors. `FND-FRAMEWORK-0069` remains `fixed`, not `verified` or `closed`. The Framework implementation was committed and normally pushed through open Draft PR #78; no merge, Parent Gitlink update, production delivery, or MRTS action is authorized by this record.
+
+The documented SonarQube Cloud source/test follow-up requires a new normal
+push and fresh exact-head hosted verification; no prior Sonar result is used
+as evidence for that follow-up.
