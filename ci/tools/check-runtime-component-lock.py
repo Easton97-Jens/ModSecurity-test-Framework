@@ -25,6 +25,44 @@ EXPECTED_ASSET_TEMPLATE = {
 }
 
 
+def framework_source_root(common: Path) -> Path:
+    """Return this checker's canonical Framework root for reviewed files."""
+    source_root = Path(__file__).resolve().parents[2]
+    try:
+        common_resolved = common.resolve(strict=True)
+        relative = common_resolved.relative_to(source_root)
+    except OSError as exc:
+        raise ValueError(f"common file cannot be resolved: {exc}") from exc
+    except ValueError as exc:
+        raise ValueError("common must be below this checker's Framework source root") from exc
+    if relative != Path("ci/lib/common.sh"):
+        raise ValueError("common must be Framework ci/lib/common.sh")
+    if not source_root.is_dir() or common.is_symlink():
+        raise ValueError("common must be a regular file in the Framework source root")
+    return source_root
+
+
+def read_framework_text(path: Path, source_root: Path, label: str) -> str:
+    """Read only a regular, non-symlinked file below the Framework root."""
+    try:
+        resolved = path.resolve(strict=True)
+        relative = resolved.relative_to(source_root)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"{label} must be below the Framework source root") from exc
+    if not relative.parts or not resolved.is_file() or path.is_symlink():
+        raise ValueError(f"{label} must be a regular file below the Framework source root")
+    candidate = path.absolute()
+    while candidate != source_root:
+        if candidate.is_symlink():
+            raise ValueError(f"{label} contains a symlinked path component")
+        candidate = candidate.parent
+    try:
+        with resolved.open(encoding="utf-8") as handle:
+            return handle.read()
+    except OSError as exc:
+        raise ValueError(f"{label} cannot be read: {exc}") from exc
+
+
 def environment_values(raw_values: list[str]) -> dict[str, str]:
     values: dict[str, str] = {}
     for raw in raw_values:
@@ -94,9 +132,9 @@ def require_environment_profile(
             raise ValueError(f"environment profile {profile_id} {name} drift")
 
 
-def defaults(path: Path) -> dict[str, str]:
+def defaults(path: Path, source_root: Path) -> dict[str, str]:
     values: dict[str, str] = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
+    for raw in read_framework_text(path, source_root, "common").splitlines():
         match = ASSIGNMENT.match(raw.strip())
         if not match:
             continue
@@ -152,6 +190,37 @@ def require_profile_shape(item: dict[str, object], version: str, digest: str) ->
         raise ValueError(f"{identifier} lacks source provenance")
 
 
+def validate_lock(
+    lock: dict[str, object], values: dict[str, str]
+) -> list[dict[str, object]]:
+    if lock.get("schema_version") != 1:
+        raise ValueError("lock schema_version must be 1")
+    if lock.get("platform") != "linux-amd64":
+        raise ValueError("lock platform must be linux-amd64")
+    components = lock.get("profiles")
+    if not isinstance(components, list):
+        raise ValueError("lock profiles must be a list")
+    expected_ids = {
+        "nginx-h1", "haproxy-htx", "haproxy-spoe-spop",
+        "envoy-ext-authz", "envoy-ext-proc", "traefik-forwardauth",
+        "traefik-native",
+    }
+    ids = [item.get("id") for item in components if isinstance(item, dict)]
+    if set(ids) != expected_ids or len(ids) != len(expected_ids):
+        raise ValueError(f"lock profiles mismatch: {sorted(str(item) for item in ids)}")
+    for item in components:
+        if not isinstance(item, dict):
+            raise ValueError("lock profile must be an object")
+        name = str(item["component"])
+        version, digest = expected_tuple(item, values)
+        if item["version"] != version:
+            raise ValueError(f"{item['id']} version drift: lock={item['version']} common={version}")
+        if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise ValueError(f"{item['id']} canonical SHA-256 is invalid")
+        require_profile_shape(item, version, digest)
+    return components
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--lock", type=Path, required=True)
@@ -161,31 +230,12 @@ def main() -> int:
     parser.add_argument("--environment-value", action="append", default=[])
     args = parser.parse_args()
     try:
-        lock = json.loads(args.lock.read_text(encoding="utf-8"))
-        values = defaults(args.common)
-        components = lock["profiles"]
-        if lock.get("schema_version") != 1:
-            raise ValueError("lock schema_version must be 1")
-        if lock.get("platform") != "linux-amd64":
-            raise ValueError("lock platform must be linux-amd64")
-        expected_ids = {
-            "nginx-h1", "haproxy-htx", "haproxy-spoe-spop",
-            "envoy-ext-authz", "envoy-ext-proc", "traefik-forwardauth",
-            "traefik-native",
-        }
-        ids = [item.get("id") for item in components]
-        if set(ids) != expected_ids or len(ids) != len(expected_ids):
-            raise ValueError(f"lock profiles mismatch: {sorted(str(item) for item in ids)}")
-        for item in components:
-            name = item["component"]
-            version, digest = expected_tuple(item, values)
-            if item["version"] != version:
-                raise ValueError(f"{item['id']} version drift: lock={item['version']} common={version}")
-            if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
-                raise ValueError(f"{item['id']} canonical SHA-256 is invalid")
-            require_profile_shape(item, version, digest)
+        source_root = framework_source_root(args.common)
+        lock = json.loads(read_framework_text(args.lock, source_root, "lock"))
+        values = defaults(args.common, source_root)
+        components = validate_lock(lock, values)
         if args.manifest:
-            manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+            manifest = json.loads(read_framework_text(args.manifest, source_root, "manifest"))
             entries = {entry["name"]: entry for entry in manifest["components"]}
             for name in ("envoy", "traefik"):
                 entry = entries.get(name)
@@ -203,7 +253,7 @@ def main() -> int:
                 components, args.environment_profile, args.environment_value
             )
         print("runtime-component-lock: PASS")
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, KeyError, TypeError, ValueError) as exc:
         print(f"runtime-component-lock: BLOCKED: {exc}", file=sys.stderr)
         return 77
     return 0

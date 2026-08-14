@@ -280,10 +280,6 @@ download_runtime_artifact_under_root() {
     rc_max_redirects=${5:-}
 
     ci_require_https_url "$rc_url" "$rc_name download url" || return 77
-    case "$rc_max_redirects" in
-        ""|*[!0-9]*) ;;
-        *) : ;;
-    esac
     if [ -n "$rc_max_redirects" ] && ! printf '%s\n' "$rc_max_redirects" | grep -Eq '^[0-9]+$'; then
         runtime_component_diagnostic "$rc_name" download redirect_limit_invalid "$rc_dest" "$rc_url" 0 not_available not_available not_available "provide_a_nonnegative_redirect_limit" not_attempted
         return 77

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -17,6 +18,7 @@ MANIFEST = ROOT / "ci/provisioning/runtime-components.manifest.json"
 class RuntimeComponentLockTests(unittest.TestCase):
     def run_checker(
         self,
+        checker: Path = CHECKER,
         lock: Path = LOCK,
         common: Path = COMMON,
         manifest: Path = MANIFEST,
@@ -25,7 +27,7 @@ class RuntimeComponentLockTests(unittest.TestCase):
         return subprocess.run(
             [
                 "python3",
-                str(CHECKER),
+                str(checker),
                 "--lock",
                 str(lock),
                 "--common",
@@ -42,11 +44,21 @@ class RuntimeComponentLockTests(unittest.TestCase):
 
     def mutate_lock(self, mutation) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as directory:
-            lock = Path(directory) / "lock.json"
+            fixture = Path(directory)
+            (fixture / "ci/lib").mkdir(parents=True)
+            (fixture / "ci/provisioning").mkdir()
+            (fixture / "ci/tools").mkdir()
+            common = fixture / "ci/lib/common.sh"
+            checker = fixture / "ci/tools/check-runtime-component-lock.py"
+            manifest = fixture / "ci/provisioning/runtime-components.manifest.json"
+            lock = fixture / "ci/provisioning/runtime-component-lock.json"
+            shutil.copy2(COMMON, common)
+            shutil.copy2(CHECKER, checker)
+            shutil.copy2(MANIFEST, manifest)
             value = json.loads(LOCK.read_text(encoding="utf-8"))
             mutation(value)
             lock.write_text(json.dumps(value), encoding="utf-8")
-            return self.run_checker(lock)
+            return self.run_checker(checker, lock, common, manifest)
 
     @staticmethod
     def profile(value: dict[str, object], identifier: str) -> dict[str, object]:
@@ -108,15 +120,53 @@ class RuntimeComponentLockTests(unittest.TestCase):
 
     def test_runtime_manifest_drift_is_blocked(self):
         with tempfile.TemporaryDirectory() as directory:
-            manifest = Path(directory) / "manifest.json"
+            fixture = Path(directory)
+            (fixture / "ci/lib").mkdir(parents=True)
+            (fixture / "ci/provisioning").mkdir()
+            (fixture / "ci/tools").mkdir()
+            common = fixture / "ci/lib/common.sh"
+            checker = fixture / "ci/tools/check-runtime-component-lock.py"
+            lock = fixture / "ci/provisioning/runtime-component-lock.json"
+            manifest = fixture / "ci/provisioning/runtime-components.manifest.json"
+            shutil.copy2(COMMON, common)
+            shutil.copy2(CHECKER, checker)
+            shutil.copy2(LOCK, lock)
             value = json.loads(MANIFEST.read_text(encoding="utf-8"))
             next(item for item in value["components"] if item["name"] == "envoy")[
                 "version"
             ] = "1.38.2"
             manifest.write_text(json.dumps(value), encoding="utf-8")
-            result = self.run_checker(manifest=manifest)
+            result = self.run_checker(checker, lock, common, manifest)
         self.assertEqual(result.returncode, 77)
         self.assertIn("manifest envoy version drift", result.stderr)
+
+    def test_lock_and_manifest_must_stay_under_the_framework_source_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            outside = Path(directory) / "outside.json"
+            outside.write_text(LOCK.read_text(encoding="utf-8"), encoding="utf-8")
+            result = self.run_checker(lock=outside)
+        self.assertEqual(result.returncode, 77)
+        self.assertIn("below the Framework source root", result.stderr)
+
+    def test_symlinked_lock_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            (fixture / "ci/lib").mkdir(parents=True)
+            (fixture / "ci/provisioning").mkdir()
+            (fixture / "ci/tools").mkdir()
+            common = fixture / "ci/lib/common.sh"
+            checker = fixture / "ci/tools/check-runtime-component-lock.py"
+            manifest = fixture / "ci/provisioning/runtime-components.manifest.json"
+            lock = fixture / "ci/provisioning/runtime-component-lock.json"
+            target = fixture / "lock-target.json"
+            shutil.copy2(COMMON, common)
+            shutil.copy2(CHECKER, checker)
+            shutil.copy2(MANIFEST, manifest)
+            shutil.copy2(LOCK, target)
+            lock.symlink_to(target)
+            result = self.run_checker(checker, lock, common, manifest)
+        self.assertEqual(result.returncode, 77)
+        self.assertIn("below the Framework source root", result.stderr)
 
     def test_runtime_environment_overrides_must_match_the_locked_profile(self):
         accepted = self.run_checker(
