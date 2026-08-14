@@ -6,6 +6,7 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
+. "$CI_ROOT/lib/runtime-component-common.sh"
 
 if [ "$CI_SOURCE_ROOT_WAS_SET" = "0" ]; then
     SOURCE_ROOT="${RUNNER_TEMP:-$BUILD_ROOT}/sources"
@@ -275,9 +276,14 @@ ensure_quic_tls_source() {
     require_command sha256sum "verify pinned NGINX QUIC TLS source"
 
     if [ ! -f "$NGINX_QUIC_TLS_ARCHIVE" ]; then
-        require_command curl "download pinned NGINX QUIC TLS source"
-        run_blocked nginx-quic-tls-source-download "$DOWNLOAD_DIR" \
-            curl --proto =https --proto-redir =https -L --fail --retry 3 --retry-delay 2 -o "$NGINX_QUIC_TLS_ARCHIVE" "$NGINX_QUIC_TLS_SOURCE_URL"
+        if ! download_runtime_artifact_under_root nginx-quic-tls \
+            "$NGINX_QUIC_TLS_SOURCE_URL" "$NGINX_QUIC_TLS_ARCHIVE" "$DOWNLOAD_DIR" >/dev/null; then
+            exit 77
+        fi
+        if ! verify_runtime_artifact_sha256 nginx-quic-tls \
+            "$NGINX_QUIC_TLS_SOURCE_SHA256" "$NGINX_QUIC_TLS_ARCHIVE"; then
+            exit 77
+        fi
     fi
     NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL=$(sha256sum "$NGINX_QUIC_TLS_ARCHIVE" | awk '{print $1}')
     if [ "$NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL" != "$NGINX_QUIC_TLS_SOURCE_SHA256" ]; then
@@ -645,6 +651,12 @@ download_nginx_source() {
     # Defend the archive trust boundary again at the point of use before cache
     # selection, archive download, or extraction.
     validate_nginx_archive_configuration
+    runtime_component_require_locked_profile \
+        nginx-h1 \
+        "NGINX_RELEASE_TAG=$NGINX_RELEASE_TAG" \
+        "NGINX_RELEASE_ASSET_NAME=$NGINX_RELEASE_ASSET_NAME" \
+        "NGINX_SHA256=$NGINX_SHA256_CANONICAL" || \
+        blocked "NGINX runtime configuration does not match the reviewed component lock"
     require_command curl "download NGINX GitHub archive"
     require_command tar "extract NGINX GitHub archive"
     require_command sha256sum "verify NGINX archive checksum"
@@ -664,11 +676,13 @@ download_nginx_source() {
     if [ "$REFRESH" != "1" ] && nginx_archive_cache_manifest_matches; then
         echo "nginx_poc: reusing cached nginx archive=$NGINX_ARCHIVE"
     else
-        download_tmp="$NGINX_ARCHIVE_CACHE_DIR/.$RESOLVED_NGINX_RELEASE_ASSET_NAME.download.$$"
-        run_blocked nginx-source-download "$NGINX_ARCHIVE_CACHE_DIR" \
-            curl --proto =https --proto-redir =https -L --fail --retry 3 --retry-delay 2 -o "$download_tmp" "$NGINX_ARCHIVE_URL"
-        if ! mv "$download_tmp" "$NGINX_ARCHIVE"; then
-            blocked "could not place downloaded NGINX archive: $NGINX_ARCHIVE"
+        if ! download_runtime_artifact_under_root nginx \
+            "$NGINX_ARCHIVE_URL" "$NGINX_ARCHIVE" "$DOWNLOAD_DIR" >/dev/null; then
+            exit 77
+        fi
+        if ! verify_runtime_artifact_sha256 nginx \
+            "$NGINX_SHA256_CANONICAL" "$NGINX_ARCHIVE"; then
+            exit 77
         fi
     fi
 

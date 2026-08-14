@@ -334,6 +334,9 @@ HAPROXY_VERSION="${HAPROXY_VERSION:-3.2.22}"
 HAPROXY_SOURCE_URL="${HAPROXY_SOURCE_URL:-https://www.haproxy.org/download/3.2/src/haproxy-$HAPROXY_VERSION.tar.gz}"
 HAPROXY_SHA256_URL="${HAPROXY_SHA256_URL:-$HAPROXY_SOURCE_URL.sha256}"
 HAPROXY_SHA256="${HAPROXY_SHA256:-afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da}"
+HAPROXY_HTX_VERSION="${HAPROXY_HTX_VERSION:-3.2.21}"
+HAPROXY_HTX_SOURCE_URL="${HAPROXY_HTX_SOURCE_URL:-https://www.haproxy.org/download/3.2/src/haproxy-$HAPROXY_HTX_VERSION.tar.gz}"
+HAPROXY_HTX_SHA256="${HAPROXY_HTX_SHA256:-0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339}"
 HAPROXY_SOURCE_ROOT="${HAPROXY_SOURCE_ROOT:-$SOURCE_ROOT/haproxy}"
 HAPROXY_DOWNLOAD_DIR="${HAPROXY_DOWNLOAD_DIR:-$HAPROXY_SOURCE_ROOT/downloads}"
 HAPROXY_SOURCE_DIR="${HAPROXY_SOURCE_DIR:-$HAPROXY_SOURCE_ROOT/haproxy-$HAPROXY_VERSION}"
@@ -400,13 +403,26 @@ ci_is_https_url() {
     esac
 }
 
+ci_safe_url_host() {
+    ci_safe_url=$1
+    ci_safe_without_scheme=${ci_safe_url#*://}
+    ci_safe_without_query=${ci_safe_without_scheme%%[?#]*}
+    ci_safe_without_userinfo=${ci_safe_without_query##*@}
+    ci_safe_host=${ci_safe_without_userinfo%%/*}
+    if [ -z "$ci_safe_host" ]; then
+        printf '%s\n' invalid
+        return 0
+    fi
+    printf '%s\n' "$ci_safe_host"
+}
+
 ci_require_https_url() {
     ci_url=$1
     ci_label=${2:-url}
     if ci_is_https_url "$ci_url"; then
         return 0
     fi
-    ci_blocked "$ci_label must use https:// only: $ci_url"
+    ci_blocked "$ci_label must use https:// only (host=$(ci_safe_url_host "$ci_url"))"
     return 77
 }
 
@@ -426,14 +442,14 @@ ci_require_https_github_repo_url() {
     case "$ci_url" in
         https://github.com/*) ;;
         *)
-            ci_blocked "$ci_label must use https://github.com/... only: $ci_url"
+            ci_blocked "$ci_label must use https://github.com/... only (host=$(ci_safe_url_host "$ci_url"))"
             return 77
             ;;
     esac
 
     case "$ci_url" in
         *" "*|*"	"*|*"#"*|*"?"*)
-            ci_blocked "$ci_label contains invalid characters: $ci_url"
+            ci_blocked "$ci_label contains invalid characters (host=$(ci_safe_url_host "$ci_url"))"
             return 77
             ;;
     esac
@@ -443,7 +459,7 @@ ci_require_https_github_repo_url() {
     ci_repo=${ci_repo%/}
     case "$ci_repo" in
         */*/*|/*|*/)
-            ci_blocked "$ci_label must be https://github.com/owner/repo only: $ci_url"
+            ci_blocked "$ci_label must be https://github.com/owner/repo only (host=$(ci_safe_url_host "$ci_url"))"
             return 77
             ;;
         */*)
@@ -456,7 +472,7 @@ ci_require_https_github_repo_url() {
         *) ;;
     esac
 
-    ci_blocked "$ci_label must be https://github.com/owner/repo only: $ci_url"
+    ci_blocked "$ci_label must be https://github.com/owner/repo only (host=$(ci_safe_url_host "$ci_url"))"
     return 77
 }
 
@@ -2312,4 +2328,4 @@ export SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE DEFAUL
 export CRS_REPO_URL CRS_GIT_REF MODSECURITY_REPO_URL MODSECURITY_GIT_REF MODSECURITY_V3_GIT_URL MODSECURITY_V3_GIT_REF
 export MODSECURITY_V3_APPROVED_REPO_URL MODSECURITY_V3_APPROVED_COMMIT MODSECURITY_V3_RELEASE_TAG
 export HTTPD_VERSION HTTPD_SOURCE_URL HTTPD_SHA256 HTTPD_SHA256_URL APR_VERSION APR_SOURCE_URL APR_SHA256 APR_SHA256_URL APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL PCRE2_VERSION PCRE2_SOURCE_URL PCRE2_SHA256 PCRE2_SHA256_URL
-export NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF NGINX_RELEASE_ASSET_NAME NGINX_SHA256 NGINX_SHA256_WAS_SET NGINX_SHA256_REQUESTED HAPROXY_VERSION HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256
+export NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF NGINX_RELEASE_ASSET_NAME NGINX_SHA256 NGINX_SHA256_WAS_SET NGINX_SHA256_REQUESTED HAPROXY_VERSION HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256 HAPROXY_HTX_VERSION HAPROXY_HTX_SOURCE_URL HAPROXY_HTX_SHA256
