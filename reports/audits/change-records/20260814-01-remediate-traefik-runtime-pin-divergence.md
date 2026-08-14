@@ -10,7 +10,7 @@
 | UTC date | 2026-08-14 |
 | Framework base revision | `1260aaae411ecf88cf50dc480b80e2e20ac47901` |
 | Finding | `FND-FRAMEWORK-0069` (`fixed`) |
-| Issue or pull request | Framework feature-branch commit, normal push, and Draft PR are authorized; no exact remote reference existed when this record was committed. |
+| Issue or pull request | [Framework Draft PR #78](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/78) from `fix/fnd-framework-0069-traefik-runtime-pin` to `master` is open and unmerged. The initial implementation commit `741dd30287d9d5fd38946ee317da4d1f91494b19` was pushed normally; every later PR update requires a fresh exact-head check. No merge is authorized. |
 
 ## Motivation and problem statement
 
@@ -61,13 +61,13 @@ The original static mismatch is no longer reproducible through the generated man
 
 ## Documentation and runtime evidence
 
-English/German connector and compiler guidance no longer copy the stale pin and instead describe Framework preparation. No external archive download, live Traefik smoke/native run, or hosted workflow was performed. The local evidence therefore proves the static/synthetic controls, not a live release acquisition.
+English/German connector and compiler guidance no longer copy the stale pin and instead describe Framework preparation. No external archive download or live Traefik smoke/native run was performed. Draft PR #78 is open; hosted checks must be read against its exact current head and are not treated as evidence of a live release acquisition.
 
 ## Checks not run
 
 - Official pinned archive download and digest check: no retained archive and no separate network acquisition authorization.
 - Live smoke/native connector control: depends on the actual archive and local runtime prerequisites.
-- Hosted CI and resulting-master revalidation: not yet observed locally; this record does not claim their result.
+- Exact-head hosted-check revalidation after each PR update and resulting-master revalidation: the PR is open and unmerged, so neither is final integration evidence.
 - Parent Gitlink update: not authorized here. Cross-repository policy requires a merged, verified Framework-master SHA before a separate Parent pointer change.
 
 ## Limitations and residual risk
@@ -76,4 +76,4 @@ The guard cannot protect against code execution already able to change Framework
 
 ## Final diff and review status
 
-Task-owned Framework and Parent diffs received scoped whitespace checks with no errors. `FND-FRAMEWORK-0069` remains `fixed`, not `verified` or `closed`. The Framework commit, normal push, and Draft PR are authorized; no merge, Parent Gitlink update, production delivery, or MRTS action is authorized by this record.
+Task-owned Framework and Parent diffs received scoped whitespace checks with no errors. `FND-FRAMEWORK-0069` remains `fixed`, not `verified` or `closed`. The Framework implementation was committed and normally pushed through open Draft PR #78; no merge, Parent Gitlink update, production delivery, or MRTS action is authorized by this record.

@@ -10,7 +10,7 @@
 | UTC-Datum | 2026-08-14 |
 | Framework-Basisrevision | `1260aaae411ecf88cf50dc480b80e2e20ac47901` |
 | Finding | `FND-FRAMEWORK-0069` (`fixed`) |
-| Issue oder Pull Request | Framework-Feature-Branch-Commit, normaler Push und Draft-PR sind autorisiert; beim Commit dieses Records existierte noch keine konkrete Remote-Referenz. |
+| Issue oder Pull Request | [Framework-Draft-PR #78](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/78) von `fix/fnd-framework-0069-traefik-runtime-pin` nach `master` ist offen und ungemergt. Der initiale Implementierungs-Commit `741dd30287d9d5fd38946ee317da4d1f91494b19` wurde normal gepusht; jedes spätere PR-Update benötigt eine frische Exact-Head-Prüfung. Kein Merge ist autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -61,13 +61,13 @@ Die ursprüngliche statische Abweichung ist über den generierten Manifest-Check
 
 ## Dokumentation und Runtime-Evidenz
 
-Englisch-/deutschsprachige Connector- und Compiler-Anleitung kopieren den veralteten Pin nicht mehr und beschreiben Framework-Preparation. Es gab keinen externen Archivdownload, keinen Live-Traefik-Smoke-/Native-Run und keinen gehosteten Workflow. Die lokale Evidenz belegt daher statische/synthetische Controls, keine Live-Release-Akquisition.
+Englisch-/deutschsprachige Connector- und Compiler-Anleitung kopieren den veralteten Pin nicht mehr und beschreiben Framework-Preparation. Es gab keinen externen Archivdownload und keinen Live-Traefik-Smoke-/Native-Run. Draft-PR #78 ist offen; Hosted-Checks müssen gegen seinen exakten aktuellen Head gelesen werden und gelten nicht als Evidenz einer Live-Release-Akquisition.
 
 ## Nicht ausgeführte Prüfungen
 
 - Offizieller gepinnter Archivdownload und Digest-Check: kein aufbewahrtes Archiv und keine separate Autorisierung für Netzwerkanfrage.
 - Live-Smoke-/Native-Connector-Control: benötigt das echte Archiv und lokale Runtime-Voraussetzungen.
-- Hosted-CI und Resulting-Master-Revalidierung: lokal noch nicht beobachtet; dieser Record behauptet kein Ergebnis.
+- Exact-Head-Hosted-Check-Revalidierung nach jedem PR-Update und Resulting-Master-Revalidierung: Der PR ist offen und ungemergt, daher ist beides keine finale Integrations-Evidenz.
 - Parent-Gitlink-Update: hier nicht autorisiert. Die Cross-Repository-Policy verlangt erst einen gemergten, verifizierten Framework-Master-SHA vor einer separaten Parent-Pointer-Änderung.
 
 ## Einschränkungen und Restrisiko
@@ -76,4 +76,4 @@ Der Guard schützt nicht gegen Code-Ausführung, die Framework-Source bereits ä
 
 ## Finaler Diff- und Review-Status
 
-Task-eigene Framework- und Parent-Diffs erhielten begrenzte Whitespace-Checks ohne Fehler. `FND-FRAMEWORK-0069` bleibt `fixed`, nicht `verified` oder `closed`. Framework-Commit, normaler Push und Draft-PR sind autorisiert; Merge, Parent-Gitlink-Update, Produktions-Delivery und MRTS-Aktionen sind durch diesen Record nicht autorisiert.
+Task-eigene Framework- und Parent-Diffs erhielten begrenzte Whitespace-Checks ohne Fehler. `FND-FRAMEWORK-0069` bleibt `fixed`, nicht `verified` oder `closed`. Die Framework-Implementierung wurde über den offenen Draft-PR #78 committed und normal gepusht; Merge, Parent-Gitlink-Update, Produktions-Delivery und MRTS-Aktionen sind durch diesen Record nicht autorisiert.
