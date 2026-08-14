@@ -98,6 +98,7 @@ Der Guard schützt nicht gegen Code-Ausführung, die Framework-Source bereits ä
 
 Task-eigene Framework- und Parent-Diffs erhielten begrenzte Whitespace-Checks ohne Fehler. `FND-FRAMEWORK-0069` bleibt `fixed`, nicht `verified` oder `closed`. Die Framework-Implementierung wurde über den offenen Draft-PR #78 committed und normal gepusht; Merge, Parent-Gitlink-Update, Produktions-Delivery und MRTS-Aktionen sind durch diesen Record nicht autorisiert.
 
-Das dokumentierte SonarQube-Cloud-Source-/Test-Follow-up benötigt einen neuen
-normalen Push und eine frische Exact-Head-Hosted-Verifikation; kein vorheriges
-Sonar-Ergebnis gilt als Evidenz für dieses Follow-up.
+Das dokumentierte SonarQube-Cloud-Source-/Test-Follow-up ist Teil des offenen
+Draft-PR #78. Sein Exact-Head-Delivery-Status ist in PR- und Task-Evidenz
+festgehalten, nicht in diesem Change Record; jeder spätere Head benötigt
+weiterhin eine frische Exact-Head-Verifikation.

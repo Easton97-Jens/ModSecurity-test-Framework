@@ -96,6 +96,7 @@ The guard cannot protect against code execution already able to change Framework
 
 Task-owned Framework and Parent diffs received scoped whitespace checks with no errors. `FND-FRAMEWORK-0069` remains `fixed`, not `verified` or `closed`. The Framework implementation was committed and normally pushed through open Draft PR #78; no merge, Parent Gitlink update, production delivery, or MRTS action is authorized by this record.
 
-The documented SonarQube Cloud source/test follow-up requires a new normal
-push and fresh exact-head hosted verification; no prior Sonar result is used
-as evidence for that follow-up.
+The documented SonarQube Cloud source/test follow-up is part of open Draft
+PR #78. Its exact-head delivery status is retained in PR and task evidence
+rather than this Change Record; any later head still requires fresh exact-head
+verification.
