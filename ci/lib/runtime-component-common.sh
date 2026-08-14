@@ -14,11 +14,15 @@ runtime_component_sha_status() {
 }
 
 runtime_component_url_host() {
-    ci_safe_url_host "$1"
+    rc_url=$1
+    ci_safe_url_host "$rc_url"
+    return $?
 }
 
 runtime_component_safe_diagnostic_value() {
-    printf '%s' "$1" | tr -c 'A-Za-z0-9._:-' '_'
+    rc_value=$1
+    printf '%s' "$rc_value" | tr -c 'A-Za-z0-9._:-' '_'
+    return $?
 }
 
 runtime_component_artifact_id() {
@@ -59,6 +63,7 @@ runtime_component_diagnostic() {
         "$(runtime_component_safe_diagnostic_value "$rc_host")" \
         "$(runtime_component_artifact_id "$rc_artifact")" \
         "$(runtime_component_safe_diagnostic_value "$rc_remediation")" >&2
+    return $?
 }
 
 runtime_component_read_download_metrics() {
@@ -70,6 +75,7 @@ runtime_component_read_download_metrics() {
     if [ -s "$rc_metrics" ]; then
         IFS='|' read -r RUNTIME_COMPONENT_HTTP_STATUS RUNTIME_COMPONENT_REDIRECTS RUNTIME_COMPONENT_BYTES RUNTIME_COMPONENT_DURATION < "$rc_metrics" || true
     fi
+    return 0
 }
 
 runtime_component_curl_failure_reason() {
@@ -92,6 +98,7 @@ runtime_component_curl_failure_reason() {
             ;;
         *) printf '%s\n' curl_failed ;;
     esac
+    return $?
 }
 
 runtime_component_curl_remediation() {
@@ -110,6 +117,7 @@ runtime_component_curl_remediation() {
             printf '%s\n' inspect_safe_download_diagnostics
             ;;
     esac
+    return $?
 }
 
 write_prepare_blocked_message() {
@@ -193,6 +201,7 @@ runtime_component_require_locked_profile() {
         --environment-value "$rc_lock_version" \
         --environment-value "$rc_lock_download_url" \
         --environment-value "$rc_lock_sha256"
+    return $?
 }
 
 runtime_component_require_under_root() {
@@ -355,6 +364,7 @@ download_runtime_artifact_without_redirects_under_root() {
     rc_no_redirect_dest=$3
     rc_no_redirect_root=$4
     download_runtime_artifact_under_root "$rc_no_redirect_name" "$rc_no_redirect_url" "$rc_no_redirect_dest" "$rc_no_redirect_root" 0
+    return $?
 }
 
 download_runtime_artifact() {
@@ -362,6 +372,7 @@ download_runtime_artifact() {
     rc_url=$2
     rc_dest=$3
     download_runtime_artifact_under_root "$rc_name" "$rc_url" "$rc_dest" "$CONNECTOR_COMPONENT_CACHE"
+    return $?
 }
 
 verify_runtime_artifact_sha256() {

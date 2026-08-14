@@ -21,6 +21,12 @@ Downloader hatte außerdem keinen begrenzten Connect- oder Gesamt-Timeout,
 konnte leere oder checksum-invalidierte Artefakte behalten und gab in einigen
 BLOCKED-Diagnosen vollständige vom Aufrufer kontrollierte URLs aus.
 
+Der PR-Follow-up wurde erforderlich, weil SonarCloud dreizehn offene neue
+Maintainability-Befunde im auftragseigenen Shared Helper und Lock-Checker
+meldete. Die Bereinigung darf diese Befunde ohne Suppressions, Quality-Profile-
+Änderungen oder Lockerung eines fail-closed Runtime-Provisioning-Controls
+entfernen.
+
 ## Betroffene Komponenten und Sicherheitsgrenzen
 
 Der Framework-eigene Scope umfasst den geprüften Runtime-Lock, den gemeinsamen
@@ -46,6 +52,9 @@ globale Installationen und Deployment bleiben außerhalb dieser Änderung.
    fehlende-Pin- und checksum-invalidierte Artefakte vor jedem Staging.
 5. Lokale Fehler-Fixtures und ein legitimer geprüfter Download-Control-Pfad
    bestehen ohne Netzwerkzugriff oder globale Installation.
+6. Der Follow-up-PR-Head hat für diese Änderung null offene neue SonarCloud-
+   Befunde, ohne Rule-Suppression, Quality-Gate-Änderung oder Lockerung eines
+   Sicherheits-Controls.
 
 ## Untersuchte Alternativen
 
@@ -86,6 +95,15 @@ verwenden denselben begrenzten geprüften Transfer. APR-util behält den
 geprüften No-Redirect-Modus. URL-Userinfo und Query-Inhalt werden auch bei
 abgelehnten HTTPS-URL-Prüfungen nicht in Diagnosen behalten.
 
+Der reine SonarCloud-Follow-up gibt den zwei positionellen Shell-Parametern
+lokale Namen, lässt jede betroffene Helper-Funktion bewusst zurückkehren und
+erhält delegierte Fehlerwerte mit `return $?`. Der optionale Metrics-Reader
+gibt erst nach Initialisierung seiner dokumentierten Defaults Erfolg zurück.
+Der Lock-Checker entfernt eine unbenutzte lokale Variable und verschiebt den
+unveränderten Envoy-/Traefik-Manifestvergleich in einen benannten Helper;
+root-gebundene Dateizugriffe, Validierungsbedingungen, Fehlermeldungen und
+das Exit-`77`-Mapping bleiben unverändert.
+
 ## Geänderte Dateien und Tests
 
 - `ci/lib/common.sh` definiert und exportiert das exakte HAProxy-HTX-Tupel.
@@ -108,6 +126,10 @@ abgelehnten HTTPS-URL-Prüfungen nicht in Diagnosen behalten.
   Provenance-/No-Redirect-Contract über den gemeinsamen Downloader bei.
 - `Makefile` bietet die fokussierten Lock- und Download-Testtargets und
   schließt sie in normales Lint ein.
+- Der SonarCloud-Follow-up ändert nur
+  `ci/lib/runtime-component-common.sh` und
+  `ci/tools/check-runtime-component-lock.py` sowie dieses gepaarte Change
+  Record: Er fügt keine Suppression hinzu und ändert kein Quality Profile.
 
 ## Befehle und Ergebnisse
 
@@ -121,6 +143,9 @@ abgelehnten HTTPS-URL-Prüfungen nicht in Diagnosen behalten.
 | `make BUILD_ROOT=<task-owned-external-root>/build TMP_ROOT=<task-owned-external-root>/tmp test-nginx-archive-digest` | 0 | Einundzwanzig NGINX-Archivcache-, Provenance-, HTTPS-only-Redirect-, Lock-, Checksum- und Extraktionsregressionen bestanden über den Shared Downloader. | `f-gs-004-framework-20260814` |
 | `shellcheck -x ci/lib/runtime-component-common.sh` | 0 | Der geänderte Shared Downloader hat keine ShellCheck-Befunde. | `f-gs-004-framework-20260814` |
 | `make BUILD_ROOT=<task-owned-external-root>/lint-build-final TMP_ROOT=<task-owned-external-root>/lint-tmp-final lint` | 0 | Die vollständige Framework-Lint- und Contract-Suite bestand nach der Apache-, Lock-Enforcement- und TLS-Status-Härtung. | `f-gs-004-framework-20260814` |
+| `make PYTHON=<task-owned-venv>/bin/python BUILD_ROOT=<task-owned-external-root>/build TMP_ROOT=<task-owned-external-root>/tmp test-runtime-component-lock` | 0 | Zehn Lock-/Profil-Akzeptanz- und Drift-Ablehnungstests bestanden nach dem SonarCloud-Refactoring. | `pr-79-sonar-new-issues` |
+| `make PYTHON=<task-owned-venv>/bin/python BUILD_ROOT=<task-owned-external-root>/build TMP_ROOT=<task-owned-external-root>/tmp test-runtime-component-download` | 0 | Zehn Downloader-Erfolgs-/Fehler-, Redirect-, Timeout-, Cleanup-, Redaction- und Wrapper-Tests bestanden nach der Explicit-Return-Bereinigung. | `pr-79-sonar-new-issues` |
+| `make PYTHON=<task-owned-venv>/bin/python BUILD_ROOT=<task-owned-external-root>/build TMP_ROOT=<task-owned-external-root>/tmp lint` | 0 | Die vollständige Framework-Lint- und Contract-Suite bestand; der Response-Body-Promotion-Guard lief zusätzlich mit expliziten Framework-Wurzeln. | `pr-79-sonar-new-issues` |
 
 ## Sicherheitsauswirkung
 
@@ -135,6 +160,13 @@ Overrides sind abgedeckt. TLS- und SHA-256-Erzwingung wurden verstärkt, nicht
 gelockert; ein TLS-Fehler meldet `tls_verification=failed` statt eines
 falschen Erfolgs. Kein Secret, Token, private URL oder netzwerkgeladenes
 Artefakt wird erfasst.
+
+Der Follow-up ist nur eine Maintainability-Bereinigung. Seine expliziten
+Returns erhalten die Lock-Checker- und Downloader-Fehlerstatus; der eine
+erfolgreiche Default-Pfad gehört zu optionalen bereits initialisierten
+Metrics. Der fokussierte Security-Diff-Review fand keine reportable Regression
+bei Root-Confinement, TLS, Checksum, Timeout, Cleanup oder Diagnostic-
+Redaction.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -166,7 +198,8 @@ aufgezeichneter Submodule-Revision vorhanden.
 
 ## Finaler Diff- und Review-Status
 
-Der auftragseigene Diff-, Whitespace-, Secret- und Dokumentations-Review
-bestand nach der finalen Härtung vor der Delivery. Kein Commit, Push, PR,
-Merge, Parent-Change, MRTS-Change oder Gitlink-Update wird durch dieses Record
-behauptet.
+Der auftragseigene Diff-, Whitespace-, Secret-, Dokumentations- und fokussierte
+Security-Diff-Review bestand nach der SonarCloud-Bereinigung. Hosted
+SonarCloud muss den exakten gepushten Head noch analysieren, bevor das
+Null-offene-neue-Befunde-Kriterium behauptet wird. Dieses Record autorisiert
+oder behauptet keinen Merge, Parent-Change, MRTS-Change oder Gitlink-Update.

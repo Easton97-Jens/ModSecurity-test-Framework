@@ -190,6 +190,23 @@ def require_profile_shape(item: dict[str, object], version: str, digest: str) ->
         raise ValueError(f"{identifier} lacks source provenance")
 
 
+def require_manifest_matches_lock(
+    manifest: dict[str, object], components: list[dict[str, object]]
+) -> None:
+    entries = {entry["name"]: entry for entry in manifest["components"]}
+    for name in ("envoy", "traefik"):
+        entry = entries.get(name)
+        if entry is None:
+            raise ValueError(f"manifest is missing {name}")
+        profile = next(item for item in components if item["component"] == name)
+        if entry.get("version") != profile["version"]:
+            raise ValueError(f"manifest {name} version drift")
+        if entry.get("sha256", "").lower() != profile["sha256"].lower():
+            raise ValueError(f"manifest {name} SHA-256 drift")
+        if entry.get("download_url") != profile["download_url"]:
+            raise ValueError(f"manifest {name} asset/download drift")
+
+
 def validate_lock(
     lock: dict[str, object], values: dict[str, str]
 ) -> list[dict[str, object]]:
@@ -211,7 +228,6 @@ def validate_lock(
     for item in components:
         if not isinstance(item, dict):
             raise ValueError("lock profile must be an object")
-        name = str(item["component"])
         version, digest = expected_tuple(item, values)
         if item["version"] != version:
             raise ValueError(f"{item['id']} version drift: lock={item['version']} common={version}")
@@ -236,18 +252,7 @@ def main() -> int:
         components = validate_lock(lock, values)
         if args.manifest:
             manifest = json.loads(read_framework_text(args.manifest, source_root, "manifest"))
-            entries = {entry["name"]: entry for entry in manifest["components"]}
-            for name in ("envoy", "traefik"):
-                entry = entries.get(name)
-                if entry is None:
-                    raise ValueError(f"manifest is missing {name}")
-                profile = next(item for item in components if item["component"] == name)
-                if entry.get("version") != profile["version"]:
-                    raise ValueError(f"manifest {name} version drift")
-                if entry.get("sha256", "").lower() != profile["sha256"].lower():
-                    raise ValueError(f"manifest {name} SHA-256 drift")
-                if entry.get("download_url") != profile["download_url"]:
-                    raise ValueError(f"manifest {name} asset/download drift")
+            require_manifest_matches_lock(manifest, components)
         if args.environment_profile:
             require_environment_profile(
                 components, args.environment_profile, args.environment_value
