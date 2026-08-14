@@ -70,18 +70,97 @@ ENVOY_UPSTREAM_PORT="${ENVOY_UPSTREAM_PORT:-18081}"
 ENVOY_AUTHZ_PORT="${ENVOY_AUTHZ_PORT:-18082}"
 ENVOY_INTEGRATION_MODE="${ENVOY_INTEGRATION_MODE:-ext_authz}"
 
-TRAEFIK_VERSION="${TRAEFIK_VERSION:-3.7.10}"
-TRAEFIK_SOURCE_URL="${TRAEFIK_SOURCE_URL:-https://github.com/traefik/traefik/releases}"
-TRAEFIK_INSTALL_DOCS_URL="${TRAEFIK_INSTALL_DOCS_URL:-https://doc.traefik.io/traefik/getting-started/install-traefik/}"
-TRAEFIK_DOWNLOAD_URL="${TRAEFIK_DOWNLOAD_URL:-https://github.com/traefik/traefik/releases/download/v$TRAEFIK_VERSION/traefik_v${TRAEFIK_VERSION}_linux_amd64.tar.gz}"
-TRAEFIK_SHA256="${TRAEFIK_SHA256:-01811bb12d44f17280550f425f5e3128d6c325f2665c09e67a651ca535f490ce}"
-TRAEFIK_SHA256_URL="${TRAEFIK_SHA256_URL:-https://github.com/traefik/traefik/releases/download/v$TRAEFIK_VERSION/traefik_v${TRAEFIK_VERSION}_checksums.txt}"
+# Traefik is one reviewed release-archive tuple.  The selected artifact is
+# exactly the upstream Linux amd64 tarball; its SHA-256 must never be reused
+# for a binary, OCI image, manifest index, or another platform.  Keep these
+# assignments at column zero so the common-version resolver can update the
+# version and digest together without evaluating shell code.
+ci_traefik_set_canonical_tuple() {
+TRAEFIK_VERSION="3.7.10"
+TRAEFIK_SOURCE_URL="https://github.com/traefik/traefik/releases"
+TRAEFIK_INSTALL_DOCS_URL="https://doc.traefik.io/traefik/getting-started/install-traefik/"
+TRAEFIK_ARTIFACT_PLATFORM="linux_amd64"
+TRAEFIK_ARCHIVE_NAME="traefik_v${TRAEFIK_VERSION}_${TRAEFIK_ARTIFACT_PLATFORM}.tar.gz"
+TRAEFIK_DOWNLOAD_URL="$TRAEFIK_SOURCE_URL/download/v$TRAEFIK_VERSION/$TRAEFIK_ARCHIVE_NAME"
+TRAEFIK_SHA256="01811bb12d44f17280550f425f5e3128d6c325f2665c09e67a651ca535f490ce"
+TRAEFIK_SHA256_URL="$TRAEFIK_SOURCE_URL/download/v$TRAEFIK_VERSION/traefik_v${TRAEFIK_VERSION}_checksums.txt"
+}
+
+# Capture the exact inherited state before overwriting it with the reviewed
+# tuple.  The snapshots distinguish an unset field from an explicit empty
+# field, are reset on every source, and are intentionally not exported.
+unset CI_TRAEFIK_VERSION_WAS_SET CI_TRAEFIK_VERSION_BEFORE_SOURCE
+unset CI_TRAEFIK_SOURCE_URL_WAS_SET CI_TRAEFIK_SOURCE_URL_BEFORE_SOURCE
+unset CI_TRAEFIK_DOWNLOAD_URL_WAS_SET CI_TRAEFIK_DOWNLOAD_URL_BEFORE_SOURCE
+unset CI_TRAEFIK_SHA256_WAS_SET CI_TRAEFIK_SHA256_BEFORE_SOURCE
+unset CI_TRAEFIK_SHA256_URL_WAS_SET CI_TRAEFIK_SHA256_URL_BEFORE_SOURCE
+unset CI_TRAEFIK_ARTIFACT_PLATFORM_WAS_SET CI_TRAEFIK_ARTIFACT_PLATFORM_BEFORE_SOURCE
+unset CI_TRAEFIK_ARCHIVE_NAME_WAS_SET CI_TRAEFIK_ARCHIVE_NAME_BEFORE_SOURCE
+unset CI_TRAEFIK_BIN_WAS_SET CI_TRAEFIK_BIN_BEFORE_SOURCE
+if [ "${TRAEFIK_VERSION+x}" = x ]; then
+    CI_TRAEFIK_VERSION_WAS_SET=1
+    CI_TRAEFIK_VERSION_BEFORE_SOURCE=$TRAEFIK_VERSION
+else
+    CI_TRAEFIK_VERSION_WAS_SET=0
+    CI_TRAEFIK_VERSION_BEFORE_SOURCE=
+fi
+if [ "${TRAEFIK_SOURCE_URL+x}" = x ]; then
+    CI_TRAEFIK_SOURCE_URL_WAS_SET=1
+    CI_TRAEFIK_SOURCE_URL_BEFORE_SOURCE=$TRAEFIK_SOURCE_URL
+else
+    CI_TRAEFIK_SOURCE_URL_WAS_SET=0
+    CI_TRAEFIK_SOURCE_URL_BEFORE_SOURCE=
+fi
+if [ "${TRAEFIK_DOWNLOAD_URL+x}" = x ]; then
+    CI_TRAEFIK_DOWNLOAD_URL_WAS_SET=1
+    CI_TRAEFIK_DOWNLOAD_URL_BEFORE_SOURCE=$TRAEFIK_DOWNLOAD_URL
+else
+    CI_TRAEFIK_DOWNLOAD_URL_WAS_SET=0
+    CI_TRAEFIK_DOWNLOAD_URL_BEFORE_SOURCE=
+fi
+if [ "${TRAEFIK_SHA256+x}" = x ]; then
+    CI_TRAEFIK_SHA256_WAS_SET=1
+    CI_TRAEFIK_SHA256_BEFORE_SOURCE=$TRAEFIK_SHA256
+else
+    CI_TRAEFIK_SHA256_WAS_SET=0
+    CI_TRAEFIK_SHA256_BEFORE_SOURCE=
+fi
+if [ "${TRAEFIK_SHA256_URL+x}" = x ]; then
+    CI_TRAEFIK_SHA256_URL_WAS_SET=1
+    CI_TRAEFIK_SHA256_URL_BEFORE_SOURCE=$TRAEFIK_SHA256_URL
+else
+    CI_TRAEFIK_SHA256_URL_WAS_SET=0
+    CI_TRAEFIK_SHA256_URL_BEFORE_SOURCE=
+fi
+if [ "${TRAEFIK_ARTIFACT_PLATFORM+x}" = x ]; then
+    CI_TRAEFIK_ARTIFACT_PLATFORM_WAS_SET=1
+    CI_TRAEFIK_ARTIFACT_PLATFORM_BEFORE_SOURCE=$TRAEFIK_ARTIFACT_PLATFORM
+else
+    CI_TRAEFIK_ARTIFACT_PLATFORM_WAS_SET=0
+    CI_TRAEFIK_ARTIFACT_PLATFORM_BEFORE_SOURCE=
+fi
+if [ "${TRAEFIK_ARCHIVE_NAME+x}" = x ]; then
+    CI_TRAEFIK_ARCHIVE_NAME_WAS_SET=1
+    CI_TRAEFIK_ARCHIVE_NAME_BEFORE_SOURCE=$TRAEFIK_ARCHIVE_NAME
+else
+    CI_TRAEFIK_ARCHIVE_NAME_WAS_SET=0
+    CI_TRAEFIK_ARCHIVE_NAME_BEFORE_SOURCE=
+fi
+if [ "${TRAEFIK_BIN+x}" = x ]; then
+    CI_TRAEFIK_BIN_WAS_SET=1
+    CI_TRAEFIK_BIN_BEFORE_SOURCE=$TRAEFIK_BIN
+else
+    CI_TRAEFIK_BIN_WAS_SET=0
+    CI_TRAEFIK_BIN_BEFORE_SOURCE=
+fi
+ci_traefik_set_canonical_tuple
 TRAEFIK_COMPONENT_ROOT="${TRAEFIK_COMPONENT_ROOT:-$CONNECTOR_COMPONENT_CACHE/traefik}"
 TRAEFIK_RUNTIME_ROOT="${TRAEFIK_RUNTIME_ROOT:-$VERIFIED_RUN_ROOT/traefik-smoke}"
 TRAEFIK_CONFIG_ROOT="${TRAEFIK_CONFIG_ROOT:-$TRAEFIK_RUNTIME_ROOT/config}"
 TRAEFIK_LOG_ROOT="${TRAEFIK_LOG_ROOT:-$VERIFIED_LOG_ROOT/traefik-smoke}"
 TRAEFIK_RESULT_ROOT="${TRAEFIK_RESULT_ROOT:-$VERIFIED_RUN_ROOT/traefik-smoke}"
-TRAEFIK_BIN="${TRAEFIK_BIN:-$TRAEFIK_COMPONENT_ROOT/bin/traefik}"
+TRAEFIK_BIN="$TRAEFIK_COMPONENT_ROOT/bin/traefik"
+TRAEFIK_ARCHIVE="$TRAEFIK_COMPONENT_ROOT/downloads/$TRAEFIK_ARCHIVE_NAME"
 TRAEFIK_SOURCE_ROOT="${TRAEFIK_SOURCE_ROOT:-$TRAEFIK_COMPONENT_ROOT/src/traefik-$TRAEFIK_VERSION}"
 TRAEFIK_BUILD_ROOT="${TRAEFIK_BUILD_ROOT:-$BUILD_ROOT/traefik-connector}"
 TRAEFIK_SMOKE_PORT="${TRAEFIK_SMOKE_PORT:-18180}"
@@ -595,6 +674,231 @@ ci_require_apr_util_pinned_provenance() {
     return 0
 }
 
+ci_require_traefik_pinned_provenance() {
+    if [ "${TRAEFIK_VERSION+x}" = x ]; then
+        ci_traefik_live_version_was_set=1
+        ci_traefik_live_version=$TRAEFIK_VERSION
+    else
+        ci_traefik_live_version_was_set=0
+        ci_traefik_live_version=
+    fi
+    if [ "${TRAEFIK_SOURCE_URL+x}" = x ]; then
+        ci_traefik_live_source_url_was_set=1
+        ci_traefik_live_source_url=$TRAEFIK_SOURCE_URL
+    else
+        ci_traefik_live_source_url_was_set=0
+        ci_traefik_live_source_url=
+    fi
+    if [ "${TRAEFIK_DOWNLOAD_URL+x}" = x ]; then
+        ci_traefik_live_download_url_was_set=1
+        ci_traefik_live_download_url=$TRAEFIK_DOWNLOAD_URL
+    else
+        ci_traefik_live_download_url_was_set=0
+        ci_traefik_live_download_url=
+    fi
+    if [ "${TRAEFIK_SHA256+x}" = x ]; then
+        ci_traefik_live_sha256_was_set=1
+        ci_traefik_live_sha256=$TRAEFIK_SHA256
+    else
+        ci_traefik_live_sha256_was_set=0
+        ci_traefik_live_sha256=
+    fi
+    if [ "${TRAEFIK_SHA256_URL+x}" = x ]; then
+        ci_traefik_live_sha256_url_was_set=1
+        ci_traefik_live_sha256_url=$TRAEFIK_SHA256_URL
+    else
+        ci_traefik_live_sha256_url_was_set=0
+        ci_traefik_live_sha256_url=
+    fi
+    if [ "${TRAEFIK_ARTIFACT_PLATFORM+x}" = x ]; then
+        ci_traefik_live_artifact_platform_was_set=1
+        ci_traefik_live_artifact_platform=$TRAEFIK_ARTIFACT_PLATFORM
+    else
+        ci_traefik_live_artifact_platform_was_set=0
+        ci_traefik_live_artifact_platform=
+    fi
+    if [ "${TRAEFIK_ARCHIVE_NAME+x}" = x ]; then
+        ci_traefik_live_archive_name_was_set=1
+        ci_traefik_live_archive_name=$TRAEFIK_ARCHIVE_NAME
+    else
+        ci_traefik_live_archive_name_was_set=0
+        ci_traefik_live_archive_name=
+    fi
+    if [ "${TRAEFIK_BIN+x}" = x ]; then
+        ci_traefik_live_bin_was_set=1
+        ci_traefik_live_bin=$TRAEFIK_BIN
+    else
+        ci_traefik_live_bin_was_set=0
+        ci_traefik_live_bin=
+    fi
+    if [ "${TRAEFIK_ARCHIVE+x}" = x ]; then
+        ci_traefik_live_archive_was_set=1
+        ci_traefik_live_archive=$TRAEFIK_ARCHIVE
+    else
+        ci_traefik_live_archive_was_set=0
+        ci_traefik_live_archive=
+    fi
+
+    # Reassert the parser-visible reviewed tuple before comparing.  This
+    # prevents a post-source coherent replacement from becoming the source of
+    # truth for the archive identity or digest.
+    ci_traefik_set_canonical_tuple
+    ci_traefik_expected_archive_name="traefik_v${TRAEFIK_VERSION}_${TRAEFIK_ARTIFACT_PLATFORM}.tar.gz"
+    ci_traefik_expected_download_url="$TRAEFIK_SOURCE_URL/download/v$TRAEFIK_VERSION/$ci_traefik_expected_archive_name"
+    ci_traefik_expected_sha256_url="$TRAEFIK_SOURCE_URL/download/v$TRAEFIK_VERSION/traefik_v${TRAEFIK_VERSION}_checksums.txt"
+    ci_traefik_expected_bin="$TRAEFIK_COMPONENT_ROOT/bin/traefik"
+    ci_traefik_expected_archive="$TRAEFIK_COMPONENT_ROOT/downloads/$ci_traefik_expected_archive_name"
+
+    ci_traefik_inherited_version_was_set=${CI_TRAEFIK_VERSION_WAS_SET-}
+    ci_traefik_inherited_source_url_was_set=${CI_TRAEFIK_SOURCE_URL_WAS_SET-}
+    ci_traefik_inherited_download_url_was_set=${CI_TRAEFIK_DOWNLOAD_URL_WAS_SET-}
+    ci_traefik_inherited_sha256_was_set=${CI_TRAEFIK_SHA256_WAS_SET-}
+    ci_traefik_inherited_sha256_url_was_set=${CI_TRAEFIK_SHA256_URL_WAS_SET-}
+    ci_traefik_inherited_artifact_platform_was_set=${CI_TRAEFIK_ARTIFACT_PLATFORM_WAS_SET-}
+    ci_traefik_inherited_archive_name_was_set=${CI_TRAEFIK_ARCHIVE_NAME_WAS_SET-}
+    for ci_traefik_inherited_flag in \
+        "$ci_traefik_inherited_version_was_set" \
+        "$ci_traefik_inherited_source_url_was_set" \
+        "$ci_traefik_inherited_download_url_was_set" \
+        "$ci_traefik_inherited_sha256_was_set" \
+        "$ci_traefik_inherited_sha256_url_was_set" \
+        "$ci_traefik_inherited_artifact_platform_was_set" \
+        "$ci_traefik_inherited_archive_name_was_set"
+    do
+        case "$ci_traefik_inherited_flag" in
+            0|1) : ;;
+            *)
+                ci_blocked "Traefik inherited-state snapshot is invalid"
+                return 77
+                ;;
+        esac
+    done
+    if [ "$ci_traefik_inherited_version_was_set" = "1" ] && [ "${CI_TRAEFIK_VERSION_BEFORE_SOURCE-}" != "$TRAEFIK_VERSION" ]; then
+        ci_blocked "TRAEFIK_VERSION override is not permitted"
+        return 77
+    fi
+    if [ "$ci_traefik_inherited_source_url_was_set" = "1" ] && [ "${CI_TRAEFIK_SOURCE_URL_BEFORE_SOURCE-}" != "$TRAEFIK_SOURCE_URL" ]; then
+        ci_blocked "TRAEFIK_SOURCE_URL override is not permitted"
+        return 77
+    fi
+    if [ "$ci_traefik_inherited_download_url_was_set" = "1" ] && [ "${CI_TRAEFIK_DOWNLOAD_URL_BEFORE_SOURCE-}" != "$ci_traefik_expected_download_url" ]; then
+        ci_blocked "TRAEFIK_DOWNLOAD_URL override is not permitted"
+        return 77
+    fi
+    if [ "$ci_traefik_inherited_sha256_was_set" = "1" ] && [ "${CI_TRAEFIK_SHA256_BEFORE_SOURCE-}" != "$TRAEFIK_SHA256" ]; then
+        ci_blocked "TRAEFIK_SHA256 override is not permitted"
+        return 77
+    fi
+    if [ "$ci_traefik_inherited_sha256_url_was_set" = "1" ] && [ "${CI_TRAEFIK_SHA256_URL_BEFORE_SOURCE-}" != "$ci_traefik_expected_sha256_url" ]; then
+        ci_blocked "TRAEFIK_SHA256_URL override is not permitted"
+        return 77
+    fi
+    if [ "$ci_traefik_inherited_artifact_platform_was_set" = "1" ] && [ "${CI_TRAEFIK_ARTIFACT_PLATFORM_BEFORE_SOURCE-}" != "$TRAEFIK_ARTIFACT_PLATFORM" ]; then
+        ci_blocked "TRAEFIK_ARTIFACT_PLATFORM override is not permitted"
+        return 77
+    fi
+    if [ "$ci_traefik_inherited_archive_name_was_set" = "1" ] && [ "${CI_TRAEFIK_ARCHIVE_NAME_BEFORE_SOURCE-}" != "$ci_traefik_expected_archive_name" ]; then
+        ci_blocked "TRAEFIK_ARCHIVE_NAME override is not permitted"
+        return 77
+    fi
+    case "$ci_traefik_inherited_version_was_set:$ci_traefik_inherited_source_url_was_set:$ci_traefik_inherited_download_url_was_set:$ci_traefik_inherited_sha256_was_set:$ci_traefik_inherited_sha256_url_was_set:$ci_traefik_inherited_artifact_platform_was_set:$ci_traefik_inherited_archive_name_was_set" in
+        0:0:0:0:0:0:0|1:1:1:1:1:1:1) : ;;
+        *)
+            ci_blocked "Traefik inherited tuple must set all seven canonical fields or none"
+            return 77
+            ;;
+    esac
+
+    case "${CI_TRAEFIK_BIN_WAS_SET-}" in
+        0|1) : ;;
+        *)
+            ci_blocked "Traefik binary inherited-state snapshot is invalid"
+            return 77
+            ;;
+    esac
+    if [ "${CI_TRAEFIK_BIN_WAS_SET-}" = "1" ] && [ "${CI_TRAEFIK_BIN_BEFORE_SOURCE-}" != "$ci_traefik_expected_bin" ]; then
+        ci_blocked "TRAEFIK_BIN override is not permitted; stage the verified canonical archive instead"
+        return 77
+    fi
+
+    if [ "$ci_traefik_live_version_was_set" != "1" ] || [ "$ci_traefik_live_version" != "$TRAEFIK_VERSION" ]; then
+        ci_blocked "TRAEFIK_VERSION must remain the canonical reviewed value"
+        return 77
+    fi
+    if [ "$ci_traefik_live_source_url_was_set" != "1" ] || [ "$ci_traefik_live_source_url" != "$TRAEFIK_SOURCE_URL" ]; then
+        ci_blocked "TRAEFIK_SOURCE_URL must remain the canonical Traefik release endpoint"
+        return 77
+    fi
+    if [ "$ci_traefik_live_download_url_was_set" != "1" ] || [ "$ci_traefik_live_download_url" != "$ci_traefik_expected_download_url" ]; then
+        ci_blocked "TRAEFIK_DOWNLOAD_URL must name the canonical Traefik archive"
+        return 77
+    fi
+    if [ "$ci_traefik_live_sha256_was_set" != "1" ] || [ "$ci_traefik_live_sha256" != "$TRAEFIK_SHA256" ]; then
+        ci_blocked "TRAEFIK_SHA256 must remain the canonical reviewed archive digest"
+        return 77
+    fi
+    if [ "$ci_traefik_live_sha256_url_was_set" != "1" ] || [ "$ci_traefik_live_sha256_url" != "$ci_traefik_expected_sha256_url" ]; then
+        ci_blocked "TRAEFIK_SHA256_URL must name the canonical Traefik checksum asset"
+        return 77
+    fi
+    if [ "$ci_traefik_live_artifact_platform_was_set" != "1" ] || [ "$ci_traefik_live_artifact_platform" != "$TRAEFIK_ARTIFACT_PLATFORM" ]; then
+        ci_blocked "TRAEFIK_ARTIFACT_PLATFORM must remain the canonical linux_amd64 archive platform"
+        return 77
+    fi
+    if [ "$ci_traefik_live_archive_name_was_set" != "1" ] || [ "$ci_traefik_live_archive_name" != "$ci_traefik_expected_archive_name" ]; then
+        ci_blocked "TRAEFIK_ARCHIVE_NAME must remain the canonical Traefik archive name"
+        return 77
+    fi
+    if [ "$ci_traefik_live_bin_was_set" != "1" ] || [ "$ci_traefik_live_bin" != "$ci_traefik_expected_bin" ]; then
+        ci_blocked "TRAEFIK_BIN must remain the canonical verified-cache destination"
+        return 77
+    fi
+    if [ "$ci_traefik_live_archive_was_set" != "1" ] || [ "$ci_traefik_live_archive" != "$ci_traefik_expected_archive" ]; then
+        ci_blocked "TRAEFIK_ARCHIVE must remain the canonical verified-cache archive path"
+        return 77
+    fi
+
+    case "$TRAEFIK_VERSION" in
+        ''|.*|*..*|*[!0123456789.]*)
+            ci_blocked "TRAEFIK_VERSION must be a non-empty dotted numeric version: $TRAEFIK_VERSION"
+            return 77
+            ;;
+        *) : ;;
+    esac
+    if [ "${#TRAEFIK_SHA256}" -ne 64 ]; then
+        ci_blocked "TRAEFIK_SHA256 must contain exactly 64 hexadecimal characters"
+        return 77
+    fi
+    case "$TRAEFIK_SHA256" in
+        *[!0123456789abcdefABCDEF]*)
+            ci_blocked "TRAEFIK_SHA256 must contain exactly 64 hexadecimal characters"
+            return 77
+            ;;
+        *) : ;;
+    esac
+    if [ "$TRAEFIK_ARTIFACT_PLATFORM" != "linux_amd64" ]; then
+        ci_blocked "TRAEFIK_ARTIFACT_PLATFORM must be linux_amd64 for the reviewed archive: $TRAEFIK_ARTIFACT_PLATFORM"
+        return 77
+    fi
+    if [ "$TRAEFIK_ARCHIVE_NAME" != "$ci_traefik_expected_archive_name" ]; then
+        ci_blocked "TRAEFIK_ARCHIVE_NAME expected $ci_traefik_expected_archive_name, got $TRAEFIK_ARCHIVE_NAME"
+        return 77
+    fi
+    if [ "$TRAEFIK_DOWNLOAD_URL" != "$ci_traefik_expected_download_url" ]; then
+        ci_blocked "TRAEFIK_DOWNLOAD_URL expected $ci_traefik_expected_download_url, got $TRAEFIK_DOWNLOAD_URL"
+        return 77
+    fi
+    if [ "$TRAEFIK_SHA256_URL" != "$ci_traefik_expected_sha256_url" ]; then
+        ci_blocked "TRAEFIK_SHA256_URL expected $ci_traefik_expected_sha256_url, got $TRAEFIK_SHA256_URL"
+        return 77
+    fi
+    ci_require_https_url "$TRAEFIK_SOURCE_URL" TRAEFIK_SOURCE_URL || return 77
+    ci_require_https_url "$TRAEFIK_INSTALL_DOCS_URL" TRAEFIK_INSTALL_DOCS_URL || return 77
+    ci_require_https_url "$TRAEFIK_DOWNLOAD_URL" TRAEFIK_DOWNLOAD_URL || return 77
+    ci_require_https_url "$TRAEFIK_SHA256_URL" TRAEFIK_SHA256_URL || return 77
+    return 0
+}
+
 ci_validate_safe_ref_config() {
     for ci_ref_pair in \
         "CRS_GIT_REF:$CRS_GIT_REF" \
@@ -634,10 +938,7 @@ ci_validate_https_runtime_url_config() {
     ci_require_https_url "$ENVOY_INSTALL_DOCS_URL" ENVOY_INSTALL_DOCS_URL || return 77
     ci_require_https_url_if_set "$ENVOY_DOWNLOAD_URL" ENVOY_DOWNLOAD_URL || return 77
     ci_require_https_url_if_set "$ENVOY_SHA256_URL" ENVOY_SHA256_URL || return 77
-    ci_require_https_url "$TRAEFIK_SOURCE_URL" TRAEFIK_SOURCE_URL || return 77
-    ci_require_https_url "$TRAEFIK_INSTALL_DOCS_URL" TRAEFIK_INSTALL_DOCS_URL || return 77
-    ci_require_https_url_if_set "$TRAEFIK_DOWNLOAD_URL" TRAEFIK_DOWNLOAD_URL || return 77
-    ci_require_https_url_if_set "$TRAEFIK_SHA256_URL" TRAEFIK_SHA256_URL || return 77
+    ci_require_traefik_pinned_provenance || return 77
     ci_require_https_url "$LIGHTTPD_SOURCE_URL" LIGHTTPD_SOURCE_URL || return 77
     ci_require_https_url_if_set "$LIGHTTPD_RELEASE_INDEX_URL" LIGHTTPD_RELEASE_INDEX_URL || return 77
     ci_require_https_url_if_set "$LIGHTTPD_LATEST_URL" LIGHTTPD_LATEST_URL || return 77
@@ -848,11 +1149,12 @@ envoy_build_paths() {
 }
 
 traefik_build_paths() {
-    export TRAEFIK_COMPONENT_ROOT TRAEFIK_SOURCE_ROOT TRAEFIK_BUILD_ROOT TRAEFIK_BIN
+    export TRAEFIK_COMPONENT_ROOT TRAEFIK_SOURCE_ROOT TRAEFIK_BUILD_ROOT TRAEFIK_BIN TRAEFIK_ARCHIVE
     printf 'TRAEFIK_COMPONENT_ROOT=%s\n' "$TRAEFIK_COMPONENT_ROOT"
     printf 'TRAEFIK_SOURCE_ROOT=%s\n' "$TRAEFIK_SOURCE_ROOT"
     printf 'TRAEFIK_BUILD_ROOT=%s\n' "$TRAEFIK_BUILD_ROOT"
     printf 'TRAEFIK_BIN=%s\n' "$TRAEFIK_BIN"
+    printf 'TRAEFIK_ARCHIVE=%s\n' "$TRAEFIK_ARCHIVE"
     return $?
 }
 
@@ -890,7 +1192,7 @@ require_or_provision_envoy() {
         echo "FAIL: Envoy provisioning requires ALLOW_RUNTIME_DOWNLOADS=1" >&2
         return 1
     fi
-    if env ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+    if env ALLOW_RUNTIME_DOWNLOADS="${ALLOW_RUNTIME_DOWNLOADS:-0}" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-envoy-runtime.sh" >&2 \
         && ci_runtime_binary_matches_version "$ENVOY_BIN" "$ENVOY_VERSION" --version; then
         printf '%s\n' "$ENVOY_BIN"
@@ -901,31 +1203,19 @@ require_or_provision_envoy() {
 }
 
 require_or_provision_traefik() {
+    ci_require_traefik_pinned_provenance || return 77
     traefik_build_paths >/dev/null
-    if [ -x "$TRAEFIK_BIN" ]; then
+    if env ALLOW_RUNTIME_DOWNLOADS="${ALLOW_RUNTIME_DOWNLOADS:-0}" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+        sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-traefik-runtime.sh" >&2; then
         if ci_runtime_binary_matches_version "$TRAEFIK_BIN" "$TRAEFIK_VERSION" version; then
             printf '%s\n' "$TRAEFIK_BIN"
             return 0
         fi
-        echo "FAIL: Traefik binary does not match pinned version $TRAEFIK_VERSION: $TRAEFIK_BIN" >&2
-        return 1
-    fi
-    ci_staged_runtime=$(ci_stage_matching_runtime_binary traefik "$TRAEFIK_VERSION" version "$TRAEFIK_COMPONENT_ROOT/bin/traefik" 2>/dev/null || true)
-    if [ -n "$ci_staged_runtime" ]; then
-        TRAEFIK_BIN=$ci_staged_runtime
-        export TRAEFIK_BIN
-        printf '%s\n' "$TRAEFIK_BIN"
-        return 0
-    fi
-    if [ "${ALLOW_RUNTIME_DOWNLOADS:-0}" != "1" ]; then
-        echo "FAIL: Traefik provisioning requires ALLOW_RUNTIME_DOWNLOADS=1" >&2
-        return 1
-    fi
-    if env ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
-        sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-traefik-runtime.sh" >&2 \
-        && ci_runtime_binary_matches_version "$TRAEFIK_BIN" "$TRAEFIK_VERSION" version; then
-        printf '%s\n' "$TRAEFIK_BIN"
-        return 0
+    else
+        ci_traefik_prepare_status=$?
+        if [ "$ci_traefik_prepare_status" -eq 77 ]; then
+            return 77
+        fi
     fi
     echo "FAIL: Traefik provisioning did not produce $TRAEFIK_BIN" >&2
     return 1
