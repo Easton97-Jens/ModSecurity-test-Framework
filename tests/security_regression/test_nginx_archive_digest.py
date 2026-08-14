@@ -13,6 +13,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import io
+import json
 import os
 import shutil
 import subprocess
@@ -33,6 +34,7 @@ from tests.security_regression.common_version_fixture_support import (
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "ci/provisioning/prepare-nginx-build.sh"
+RUNTIME_COMPONENT_HELPER = ROOT / "ci/lib/runtime-component-common.sh"
 FIXTURES = ROOT / "tests/fixtures/nginx-archive-digest"
 APPROVED_MODSECURITY_V3_REPO = "https://github.com/owasp-modsecurity/ModSecurity.git"
 APPROVED_MODSECURITY_V3_COMMIT = "c" * 40
@@ -104,9 +106,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         self,
         harness: dict[str, Path | dict[str, str]],
         *,
-        release_tag: str = "fixture-release",
-        source_ref: str = "fixture-release",
-        asset_name: str = "nginx-fixture-release.tar.gz",
+        release_tag: str = TEST_NGINX_RELEASE_TAG,
+        source_ref: str = TEST_NGINX_RELEASE_TAG,
+        asset_name: str = TEST_NGINX_RELEASE_ASSET_NAME,
         digest: str | None = None,
     ) -> None:
         """Create the exact trusted cache-manifest payload for a test fixture."""
@@ -148,30 +150,29 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def make_test_framework_copy(self, root: Path) -> Path:
-        """Copy only the sourced entrypoint dependencies into task-local test state."""
+    def write_test_runtime_lock(
+        self,
+        framework_root: Path,
+        *,
+        release_tag: str,
+        asset_name: str,
+        digest: str,
+    ) -> None:
+        """Synchronize the copied common defaults and lock for one fixture tuple.
 
-        framework_root = root / "framework-copy"
-        (framework_root / "ci/lib").mkdir(parents=True)
-        (framework_root / "ci/provisioning").mkdir(parents=True)
-        (framework_root / "tests").mkdir()
-        (framework_root / "Makefile").write_text(
-            "# test-only framework root\n", encoding="utf-8"
-        )
-        shutil.copy2(ROOT / "ci/lib/path.sh", framework_root / "ci/lib/path.sh")
-        shutil.copy2(
-            ROOT / "ci/lib/path-bootstrap.sh",
-            framework_root / "ci/lib/path-bootstrap.sh",
-        )
-        shutil.copy2(SCRIPT, framework_root / "ci/provisioning/prepare-nginx-build.sh")
+        Archive-boundary cases deliberately use several safe, test-only release
+        tuples.  Keep the copied production entrypoint's lock enforcement active
+        by making that tuple canonical only inside the disposable fixture.
+        """
+
         common_source = rewrite_common_assignments(
             (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8"),
             {
                 "MODSECURITY_V3_APPROVED_COMMIT": APPROVED_MODSECURITY_V3_COMMIT,
                 "MODSECURITY_V3_RELEASE_TAG": APPROVED_MODSECURITY_V3_RELEASE_TAG,
-                "NGINX_RELEASE_TAG": TEST_NGINX_RELEASE_TAG,
-                "NGINX_RELEASE_ASSET_NAME": TEST_NGINX_RELEASE_ASSET_NAME,
-                "NGINX_SHA256": TEST_NGINX_SHA256,
+                "NGINX_RELEASE_TAG": release_tag,
+                "NGINX_RELEASE_ASSET_NAME": asset_name,
+                "NGINX_SHA256": digest,
             },
         )
         (framework_root / "ci/lib/common.sh").write_text(
@@ -182,6 +183,84 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             + "    return 0\n"
             + "}\n",
             encoding="utf-8",
+        )
+
+        lock_path = framework_root / "ci/provisioning/runtime-component-lock.json"
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        nginx_profile = next(
+            profile for profile in lock["profiles"] if profile["id"] == "nginx-h1"
+        )
+        nginx_profile.update(
+            {
+                "version": release_tag.removeprefix("release-"),
+                "asset_name": asset_name,
+                "download_url": (
+                    "https://github.com/nginx/nginx/releases/download/"
+                    f"{release_tag}/{asset_name}"
+                ),
+                "sha256": digest.lower(),
+                "source_provenance": f"github-release:{release_tag}",
+            }
+        )
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+
+    def make_test_framework_copy(self, root: Path) -> Path:
+        """Copy only the sourced entrypoint dependencies into task-local test state."""
+
+        framework_root = root / "framework-copy"
+        (framework_root / "ci/lib").mkdir(parents=True)
+        (framework_root / "ci/provisioning").mkdir(parents=True)
+        (framework_root / "ci/tools").mkdir(parents=True)
+        (framework_root / "tests").mkdir()
+        (framework_root / "Makefile").write_text(
+            "# test-only framework root\n", encoding="utf-8"
+        )
+        shutil.copy2(ROOT / "ci/lib/path.sh", framework_root / "ci/lib/path.sh")
+        shutil.copy2(
+            ROOT / "ci/lib/path-bootstrap.sh",
+            framework_root / "ci/lib/path-bootstrap.sh",
+        )
+        shutil.copy2(
+            ROOT / "ci/lib/runtime-component-common.sh",
+            framework_root / "ci/lib/runtime-component-common.sh",
+        )
+        shutil.copy2(SCRIPT, framework_root / "ci/provisioning/prepare-nginx-build.sh")
+        shutil.copy2(
+            ROOT / "ci/tools/check-runtime-component-lock.py",
+            framework_root / "ci/tools/check-runtime-component-lock.py",
+        )
+        shutil.copy2(
+            ROOT / "ci/provisioning/runtime-components.manifest.json",
+            framework_root / "ci/provisioning/runtime-components.manifest.json",
+        )
+        lock = json.loads(
+            (ROOT / "ci/provisioning/runtime-component-lock.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        nginx_profile = next(
+            profile for profile in lock["profiles"] if profile["id"] == "nginx-h1"
+        )
+        nginx_profile.update(
+            {
+                "version": TEST_NGINX_RELEASE_TAG.removeprefix("release-"),
+                "asset_name": TEST_NGINX_RELEASE_ASSET_NAME,
+                "download_url": (
+                    "https://github.com/nginx/nginx/releases/download/"
+                    f"{TEST_NGINX_RELEASE_TAG}/{TEST_NGINX_RELEASE_ASSET_NAME}"
+                ),
+                "sha256": TEST_NGINX_SHA256,
+                "source_provenance": f"github-release:{TEST_NGINX_RELEASE_TAG}",
+            }
+        )
+        (framework_root / "ci/provisioning/runtime-component-lock.json").write_text(
+            json.dumps(lock), encoding="utf-8"
+        )
+        self.write_test_runtime_lock(
+            framework_root,
+            release_tag=TEST_NGINX_RELEASE_TAG,
+            asset_name=TEST_NGINX_RELEASE_ASSET_NAME,
+            digest=TEST_NGINX_SHA256,
         )
         return framework_root / "ci/provisioning/prepare-nginx-build.sh"
 
@@ -325,10 +404,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
 
         nginx_build = build_root / "nginx-build"
         nginx_prefix = build_root / "nginx-prefix"
-        tag = "fixture-release"
+        tag = TEST_NGINX_RELEASE_TAG
         source_repository = "https://github.com/nginx/nginx"
         source_mode = "github-release"
-        asset_name = f"nginx-{tag}.tar.gz"
+        asset_name = TEST_NGINX_RELEASE_ASSET_NAME
         digest = hashlib.sha256(archive.read_bytes()).hexdigest()
         cache_key = self.nginx_archive_cache_key(
             source_repository=source_repository,
@@ -389,6 +468,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         self,
         harness: dict[str, Path | dict[str, str]],
         digest: str,
+        synchronize_runtime_lock: bool = True,
         **overrides: str | None,
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
@@ -399,6 +479,17 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 environment.pop(name, None)
             else:
                 environment[name] = value
+        if synchronize_runtime_lock:
+            script = harness["script"]
+            self.assertIsInstance(script, Path)
+            self.write_test_runtime_lock(
+                script.parents[2],
+                release_tag=environment.get("NGINX_RELEASE_TAG", TEST_NGINX_RELEASE_TAG),
+                asset_name=environment.get(
+                    "NGINX_RELEASE_ASSET_NAME", TEST_NGINX_RELEASE_ASSET_NAME
+                ),
+                digest=environment.get("NGINX_SHA256", TEST_NGINX_SHA256),
+            )
         return subprocess.run(
             ["sh", str(harness["script"])],
             cwd=ROOT,
@@ -526,6 +617,25 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 ],
             )
             self.assertEqual(len(self.tar_invocations(harness)), 1)
+        finally:
+            self.remove_harness(harness)
+
+    def test_effective_tuple_outside_the_lock_is_blocked_before_network_or_tar(self):
+        harness = self.make_harness()
+        try:
+            result = self.run_prepare(
+                harness,
+                self.archive_digest(harness),
+                synchronize_runtime_lock=False,
+            )
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertIn(
+                "NGINX runtime configuration does not match the reviewed component lock",
+                result.stdout,
+            )
+            self.assertIn("environment profile nginx-h1", result.stderr)
+            self.assertIn("drift", result.stderr)
+            self.assert_no_nginx_source_io(harness)
         finally:
             self.remove_harness(harness)
 
@@ -659,7 +769,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 harness, self.fixture_text("digest-mismatch.txt").strip()
             )
             self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
-            self.assertIn("NGINX_SHA256 mismatch", result.stdout)
+            self.assertIn("nginx SHA256 verification failed", result.stdout)
             self.assertEqual(self.tar_invocations(harness), [])
         finally:
             self.remove_harness(harness)
@@ -726,7 +836,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 curl_calls,
                 [
                     "=https|=https|https://github.com/nginx/nginx/releases/download/"
-                    "fixture-release/nginx-fixture-release.tar.gz",
+                    f"{TEST_NGINX_RELEASE_TAG}/{TEST_NGINX_RELEASE_ASSET_NAME}",
                 ],
             )
             self.assertEqual(len(self.tar_invocations(harness)), 1)
@@ -736,12 +846,12 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
     def test_all_redirecting_curl_commands_limit_protocols_to_https(self):
         curl_calls = [
             line.strip()
-            for line in SCRIPT.read_text(encoding="utf-8").splitlines()
+            for line in RUNTIME_COMPONENT_HELPER.read_text(encoding="utf-8").splitlines()
             if line.lstrip().startswith(("curl ", "if curl "))
         ]
         self.assertEqual(len(curl_calls), 2)
         for call in curl_calls:
-            self.assertIn("curl --proto =https --proto-redir =https", call)
+            self.assertIn("curl --disable --proto =https --proto-redir =https", call)
         self.assertNotIn("/releases/latest", SCRIPT.read_text(encoding="utf-8"))
 
     def test_noncanonical_source_repository_is_rejected_before_network_or_tar(self):
@@ -791,8 +901,8 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             self.assertTrue(default_candidate.is_file())
             self.assertTrue(default_manifest.is_file())
 
-            alternate_tag = "fixture-alternate"
-            alternate_asset = "nginx-fixture-alternate.tar.gz"
+            alternate_tag = "release-9.900.2"
+            alternate_asset = "nginx-9.900.2.tar.gz"
             alternate_key = self.nginx_archive_cache_key(
                 source_repository="https://github.com/nginx/nginx",
                 source_mode="github-release",
@@ -822,9 +932,9 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 harness["curl_log"].read_text(encoding="utf-8").splitlines(),
                 [
                     "=https|=https|https://github.com/nginx/nginx/releases/download/"
-                    "fixture-release/nginx-fixture-release.tar.gz",
+                    f"{TEST_NGINX_RELEASE_TAG}/{TEST_NGINX_RELEASE_ASSET_NAME}",
                     "=https|=https|https://github.com/nginx/nginx/releases/download/"
-                    "fixture-alternate/nginx-fixture-alternate.tar.gz",
+                    "release-9.900.2/nginx-9.900.2.tar.gz",
                 ],
             )
         finally:
@@ -851,7 +961,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 harness["curl_log"].read_text(encoding="utf-8").splitlines(),
                 [
                     "=https|=https|https://github.com/nginx/nginx/releases/download/"
-                    "fixture-release/nginx-fixture-release.tar.gz"
+                    f"{TEST_NGINX_RELEASE_TAG}/{TEST_NGINX_RELEASE_ASSET_NAME}"
                 ],
             )
             self.assertTrue(candidate.is_file())
@@ -893,7 +1003,8 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             urls = refreshed["curl_log"].read_text(encoding="utf-8")
             self.assertIn(
-                "https://github.com/nginx/nginx/releases/download/fixture-release/nginx-fixture-release.tar.gz",
+                "https://github.com/nginx/nginx/releases/download/"
+                f"{TEST_NGINX_RELEASE_TAG}/{TEST_NGINX_RELEASE_ASSET_NAME}",
                 urls,
             )
             self.assertEqual(len(self.tar_invocations(refreshed)), 1)
