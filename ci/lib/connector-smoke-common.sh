@@ -255,6 +255,14 @@ find_runtime_binary() {
     binary_name=$2
     env_value=$(connector_smoke_runtime_env_value "$env_var") || return 1
     connector=$(connector_smoke_connector_name_for_env_var "$env_var") || return 1
+    if [ "$env_var" = "TRAEFIK_BIN" ]; then
+        # Traefik is a reviewed archive-only runtime.  Do not let the generic
+        # local-path discovery turn an arbitrary same-version binary into an
+        # execution candidate; require_or_provision_traefik verifies and stages
+        # the exact canonical archive first.
+        require_or_provision_traefik
+        return $?
+    fi
     if [ -n "$env_value" ]; then
         if connector_smoke_runtime_env_was_set "$env_var"; then
             connector_smoke_require_local_binary_path "$env_value" "$env_var" || return 1

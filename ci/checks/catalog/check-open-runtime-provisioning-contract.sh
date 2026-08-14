@@ -6,6 +6,9 @@ SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../../lib/path-bootstrap.sh"
 COMMON_SH="$CI_ROOT/lib/common.sh"
 LIGHTTPD_PREPARE_SH="$CI_ROOT/provisioning/prepare-lighttpd-runtime.sh"
+TRAEFIK_MANIFEST_SYNC_TOOL="$CI_ROOT/tools/sync-traefik-runtime-manifest.py"
+TRAEFIK_RUNTIME_MANIFEST="$CI_ROOT/provisioning/runtime-components.manifest.json"
+PYTHON_BIN=${PYTHON:-python3}
 CHECK_ROOT="${TMPDIR:-/tmp}/modsecurity-open-runtime-contract-$$"
 
 failures=0
@@ -110,9 +113,25 @@ assert_function_contains() {
     fi
 }
 
+assert_function_not_contains() {
+    function_name=$1
+    forbidden_text=$2
+    label=$3
+    if awk -v function_name="$function_name" '
+            $0 == function_name "() {" { in_function = 1 }
+            in_function { print }
+            in_function && $0 == "}" { exit }
+        ' "$COMMON_SH" | grep -F -- "$forbidden_text" >/dev/null
+    then
+        fail "$label"
+    fi
+}
+
 # Ignore caller overrides so this check verifies the repository defaults.
 unset ENVOY_VERSION ENVOY_SHA256 ENVOY_COMPONENT_ROOT ENVOY_SOURCE_ROOT ENVOY_BUILD_ROOT ENVOY_BIN
-unset TRAEFIK_VERSION TRAEFIK_SHA256 TRAEFIK_COMPONENT_ROOT TRAEFIK_SOURCE_ROOT TRAEFIK_BUILD_ROOT TRAEFIK_BIN
+unset TRAEFIK_VERSION TRAEFIK_SOURCE_URL TRAEFIK_DOWNLOAD_URL TRAEFIK_SHA256 TRAEFIK_SHA256_URL
+unset TRAEFIK_ARTIFACT_PLATFORM TRAEFIK_ARCHIVE_NAME TRAEFIK_ARCHIVE TRAEFIK_COMPONENT_ROOT
+unset TRAEFIK_SOURCE_ROOT TRAEFIK_BUILD_ROOT TRAEFIK_BIN
 unset LIGHTTPD_VERSION LIGHTTPD_SHA256 LIGHTTPD_COMPONENT_ROOT LIGHTTPD_SOURCE_DIR LIGHTTPD_BUILD_ROOT
 unset LIGHTTPD_INCLUDE_DIR LIGHTTPD_CONNECTOR_BUILD_ROOT LIGHTTPD_MODULE_DIR LIGHTTPD_BIN
 unset CACHE_ROOT VERIFIED_COMPONENT_CACHE CONNECTOR_COMPONENT_CACHE VERIFIED_RUN_ROOT BUILD_ROOT
@@ -129,7 +148,8 @@ export FRAMEWORK_ROOT CONNECTOR_ROOT VERIFIED_RUN_ROOT BUILD_ROOT
 
 for function_name in \
     envoy_build_paths traefik_build_paths lighttpd_build_paths \
-    require_or_provision_envoy require_or_provision_traefik require_or_provision_lighttpd
+    require_or_provision_envoy require_or_provision_traefik require_or_provision_lighttpd \
+    ci_require_traefik_pinned_provenance
 do
     assert_function "$function_name"
 done
@@ -137,6 +157,17 @@ done
 for component in ENVOY TRAEFIK LIGHTTPD; do
     assert_pin "$component"
 done
+
+if ! ci_require_traefik_pinned_provenance; then
+    fail 'canonical Traefik provenance guard rejected repository defaults'
+fi
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+    fail "missing Python interpreter for Traefik manifest guard: $PYTHON_BIN"
+elif ! PYTHONDONTWRITEBYTECODE=1 "$PYTHON_BIN" "$TRAEFIK_MANIFEST_SYNC_TOOL" --check \
+    --common-sh "$COMMON_SH" --manifest "$TRAEFIK_RUNTIME_MANIFEST"
+then
+    fail 'Traefik runtime manifest does not match the canonical common.sh tuple'
+fi
 
 if ! ci_runtime_version_matches 1.2.3 'runtime v1.2.3'; then
     fail 'exact runtime version matching rejected v1.2.3'
@@ -159,6 +190,12 @@ assert_function_contains require_or_provision_envoy \
 assert_function_contains require_or_provision_traefik \
     'ci_runtime_binary_matches_version "$TRAEFIK_BIN" "$TRAEFIK_VERSION" version' \
     'require_or_provision_traefik does not verify the cached binary version'
+assert_function_contains require_or_provision_traefik \
+    'ci_require_traefik_pinned_provenance || return 77' \
+    'require_or_provision_traefik does not require canonical archive provenance'
+assert_function_not_contains require_or_provision_traefik \
+    'ci_stage_matching_runtime_binary traefik' \
+    'require_or_provision_traefik still accepts a PATH-discovered same-version binary'
 assert_function_contains require_or_provision_lighttpd \
     'ci_runtime_binary_matches_version "$LIGHTTPD_BIN" "$LIGHTTPD_VERSION" -v' \
     'require_or_provision_lighttpd does not verify the cached binary version'
@@ -176,10 +213,13 @@ traefik_paths=$(traefik_build_paths)
 traefik_build_paths >/dev/null
 assert_equal "$TRAEFIK_SOURCE_ROOT" "$TRAEFIK_COMPONENT_ROOT/src/traefik-$TRAEFIK_VERSION" TRAEFIK_SOURCE_ROOT
 assert_equal "$TRAEFIK_BUILD_ROOT" "$BUILD_ROOT/traefik-connector" TRAEFIK_BUILD_ROOT
+assert_equal "$TRAEFIK_ARCHIVE" "$TRAEFIK_COMPONENT_ROOT/downloads/$TRAEFIK_ARCHIVE_NAME" TRAEFIK_ARCHIVE
 assert_exported TRAEFIK_SOURCE_ROOT "$TRAEFIK_SOURCE_ROOT"
 assert_exported TRAEFIK_BUILD_ROOT "$TRAEFIK_BUILD_ROOT"
+assert_exported TRAEFIK_ARCHIVE "$TRAEFIK_ARCHIVE"
 assert_output_line "$traefik_paths" "TRAEFIK_SOURCE_ROOT=$TRAEFIK_SOURCE_ROOT"
 assert_output_line "$traefik_paths" "TRAEFIK_BUILD_ROOT=$TRAEFIK_BUILD_ROOT"
+assert_output_line "$traefik_paths" "TRAEFIK_ARCHIVE=$TRAEFIK_ARCHIVE"
 
 lighttpd_paths=$(lighttpd_build_paths)
 lighttpd_build_paths >/dev/null
