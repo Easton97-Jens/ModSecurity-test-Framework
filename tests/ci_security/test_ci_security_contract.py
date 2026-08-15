@@ -877,7 +877,9 @@ jobs:
             encoding="utf-8"
         )
         variants = {
-            "missing-explicit-pr-base": workflow.replace("          base: master\n", "", 1),
+            "missing-explicit-pr-base": workflow.replace(
+                "          base: master\n", "", 1
+            ),
             "pr-base-equals-maintenance-branch": workflow.replace(
                 "          base: master\n",
                 "          base: automation/update-framework-python-314\n",
@@ -909,27 +911,27 @@ jobs:
                 1,
             ),
             "missing-clean-base-tree-check": workflow.replace(
-                "          test -z \"$(git status --porcelain)\"\n\n"
+                '          test -z "$(git status --porcelain)"\n\n'
                 "      - name: Independently revalidate and apply the candidate\n",
                 "      - name: Independently revalidate and apply the candidate\n",
                 1,
             ),
             "candidate-does-not-prove-master": workflow.replace(
-                "          test \"$(git branch --show-current)\" = \"master\"\n"
-                "          test -z \"$(git status --porcelain)\"\n"
+                '          test "$(git branch --show-current)" = "master"\n'
+                '          test -z "$(git status --porcelain)"\n'
                 "          python3 ci/tools/update-python-version.py --check",
-                "          test -z \"$(git status --porcelain)\"\n"
+                '          test -z "$(git status --porcelain)"\n'
                 "          python3 ci/tools/update-python-version.py --check",
                 1,
             ),
             "candidate-diff-is-not-bound-to-master": workflow.replace(
-                "          changed_paths=\"$(git diff --name-only origin/master)\"\n",
+                '          changed_paths="$(git diff --name-only origin/master)"\n',
                 '          changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH")"\n',
                 1,
             ),
             "candidate-does-not-prove-master-after-update": workflow.replace(
                 "          git diff --check origin/master\n"
-                "          test \"$(git branch --show-current)\" = \"master\"\n",
+                '          test "$(git branch --show-current)" = "master"\n',
                 "          git diff --check origin/master\n",
                 1,
             ),
@@ -944,7 +946,10 @@ jobs:
                 self.assertTrue(errors, "expected fail-closed CPython rejection")
                 if name == "pr-base-equals-maintenance-branch":
                     self.assertTrue(
-                        any("distinct base and maintenance branches" in error for error in errors),
+                        any(
+                            "distinct base and maintenance branches" in error
+                            for error in errors
+                        ),
                         "\n".join(errors),
                     )
 
