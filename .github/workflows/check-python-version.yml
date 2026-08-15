@@ -267,10 +267,9 @@ jobs:
               changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH")"
               test "$changed_paths" = ".python-version"
               git diff --check "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH"
-              git switch --create "$UPDATE_BRANCH" --track "origin/$UPDATE_BRANCH"
+              git switch --detach "origin/$UPDATE_BRANCH"
               ;;
             false)
-              git switch --create "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"
               ;;
             *)
               echo "CPython maintenance PR state is invalid" >&2
@@ -285,11 +284,23 @@ jobs:
         run: |
           set -euo pipefail
           test "$DEFAULT_BRANCH" = "master"
+          test -z "$(git branch --show-current)"
           python3 ci/checks/security/check-python-version.py
           python3 ci/checks/security/check-ci-security-contract.py
           changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")"
           test "$changed_paths" = ".python-version"
           git diff --check "origin/$DEFAULT_BRANCH...HEAD"
+
+      - name: Restore the trusted CPython publisher base
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$DEFAULT_BRANCH" = "master"
+          git switch --force-create master origin/master
+          git reset --hard origin/master
+          test "$(git branch --show-current)" = "master"
+          test -z "$(git status --porcelain)"
 
       - name: Independently revalidate and apply the candidate
         env:
@@ -297,13 +308,16 @@ jobs:
         run: |
           set -euo pipefail
           test "$DEFAULT_BRANCH" = "master"
+          test "$(git branch --show-current)" = "master"
+          test -z "$(git status --porcelain)"
           python3 ci/tools/update-python-version.py --check --expected-candidate "$CANDIDATE"
           python3 ci/tools/update-python-version.py --update --expected-candidate "$CANDIDATE"
           python3 ci/checks/security/check-python-version.py
           python3 ci/checks/security/check-ci-security-contract.py
-          changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH")"
+          changed_paths="$(git diff --name-only origin/master)"
           test "$changed_paths" = ".python-version"
-          git diff --check "origin/$DEFAULT_BRANCH"
+          git diff --check origin/master
+          test "$(git branch --show-current)" = "master"
 
       - name: Build Draft pull request body
         run: |
@@ -331,6 +345,7 @@ jobs:
           commit-message: "chore: update reviewed CPython 3.14"
           title: "chore: update reviewed CPython 3.14"
           body-path: ${{ runner.temp }}/framework-python-version-pr-body.md
+          base: master
           branch: automation/update-framework-python-314
           delete-branch: false
           draft: true

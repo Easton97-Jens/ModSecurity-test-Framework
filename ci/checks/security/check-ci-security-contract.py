@@ -99,6 +99,7 @@ STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH = (
 STEP_REVALIDATE_PYTHON_DRAFT_BRANCH = (
     "Revalidate the reusable CPython Draft branch before modifying it"
 )
+STEP_RESTORE_PYTHON_PUBLISHER_BASE = "Restore the trusted CPython publisher base"
 STEP_APPLY_PYTHON_CANDIDATE = "Independently revalidate and apply the candidate"
 STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY = "Build Draft pull request body"
 STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST = "Create or update Draft pull request"
@@ -608,6 +609,7 @@ PYTHON_PUBLISHER_STEP_PROFILE = (
     (STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST, STEP_KEYS_SCRIPT),
     (STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH, STEP_KEYS_ENV_RUN),
     (STEP_REVALIDATE_PYTHON_DRAFT_BRANCH, STEP_KEYS_CONDITIONAL_ENV_RUN),
+    (STEP_RESTORE_PYTHON_PUBLISHER_BASE, STEP_KEYS_ENV_RUN),
     (STEP_APPLY_PYTHON_CANDIDATE, STEP_KEYS_ENV_RUN),
     (STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY, STEP_KEYS_RUN),
     (STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST, STEP_KEYS_ACTION),
@@ -643,6 +645,7 @@ PYTHON_PUBLISHER_WITH_VALUES = {
         "commit-message": "chore: update reviewed CPython 3.14",
         "title": "chore: update reviewed CPython 3.14",
         "body-path": PYTHON_VERSION_PR_BODY_FILE,
+        "base": "master",
         "branch": "automation/update-framework-python-314",
         "delete-branch": False,
         "draft": True,
@@ -670,6 +673,9 @@ PYTHON_PUBLISHER_STEP_ENV_VALUES = {
     STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: {
         "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
     },
+    STEP_RESTORE_PYTHON_PUBLISHER_BASE: {
+        "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
+    },
     STEP_APPLY_PYTHON_CANDIDATE: {
         "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
     },
@@ -684,9 +690,10 @@ PYTHON_PUBLISHER_FIELD_VALUES = {
 PYTHON_PUBLISHER_RUN_SHA256 = {
     STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
     STEP_VERIFY_PYTHON_PUBLISHER_APP_CONFIGURATION: "c01127376f95819c3abb8f99815aa9877ed4c5fd6ab248f0968feb458bdec033",
-    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "9522f8355efc316b33f40b0a463277da726aa17c94f005b74668fb65b5f6cd9b",
-    STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: "6f18681cce504e91519c59b8f443f296f6f6761a45292e60062b714451a8fe4c",
-    STEP_APPLY_PYTHON_CANDIDATE: "4a60b0c705c41d62bc8d16b3f663a6f862a8ffb37f9e9bd35ceb3c8896b0fa8e",
+    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "789cb7e075b8a3a06616e491faf3a3951ca60f53abe9d8aaa5f298e9fe1ddeac",
+    STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: "5850d1e13c0d09f9147c8cb5e8932cc81bcae7df6a17dd53b625f5b3cf1ee449",
+    STEP_RESTORE_PYTHON_PUBLISHER_BASE: "dd3deb33caa76d77617755ad6ea7d7f64e940dd9114a97586cd035a567a01e54",
+    STEP_APPLY_PYTHON_CANDIDATE: "6270d199b6e838192fbb6a7cd5160efbf6de687ffadcdda27de756ced9869d28",
     STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY: "8a00f20abc0833931fa04b2723b739e5c27285eecf5955b25566d0a597929d37",
 }
 PYTHON_PUBLISHER_SCRIPT_SHA256 = {
@@ -1742,6 +1749,15 @@ def python_version_publisher_step_with_errors(
         errors.append(
             python_publisher_step_error(path, name, "must use reviewed with values")
         )
+    if name == STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST:
+        base = with_values.get("base")
+        branch = with_values.get("branch")
+        if isinstance(base, str) and isinstance(branch, str) and base == branch:
+            errors.append(
+                python_publisher_step_error(
+                    path, name, "must use distinct base and maintenance branches"
+                )
+            )
     errors.extend(python_version_publisher_script_errors(path, name, with_values))
     return errors
 
