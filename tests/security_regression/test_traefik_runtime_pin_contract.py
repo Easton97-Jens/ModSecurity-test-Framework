@@ -187,7 +187,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         lock_profiles = [
             profile for profile in lock["profiles"] if profile["component"] == "traefik"
         ]
-        self.assertEqual(2, len(lock_profiles))
+        self.assertEqual(len(lock_profiles), 2)
         for profile in lock_profiles:
             profile["sha256"] = sha256
         lock_path.write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
@@ -199,7 +199,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
             for component in manifest["components"]
             if component["name"] == "traefik"
         ]
-        self.assertEqual(1, len(manifest_components))
+        self.assertEqual(len(manifest_components), 1)
         manifest_components[0]["sha256"] = sha256
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
