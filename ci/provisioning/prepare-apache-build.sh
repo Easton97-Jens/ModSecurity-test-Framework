@@ -6,6 +6,7 @@ SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 CONNECTOR_ROOT="${CONNECTOR_ROOT:-$(pwd)}"
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
+. "$CI_ROOT/lib/runtime-component-common.sh"
 
 if [ "$CI_SOURCE_ROOT_WAS_SET" = "0" ]; then
     SOURCE_ROOT="${RUNNER_TEMP:-$BUILD_ROOT}/sources"
@@ -253,10 +254,8 @@ download_file() {
     label=$1
     url=$2
     dest=$3
-    ci_require_https_url "$url" "$label source URL" || blocked "$label source URL must use HTTPS"
-    require_command curl "download $label"
-    mkdir -p "$DOWNLOAD_DIR"
-    run_logged "$label-download" "$DOWNLOAD_DIR" curl -L --fail --retry 3 --retry-delay 2 -o "$dest" "$url"
+    download_runtime_artifact_under_root "$label" "$url" "$dest" "$DOWNLOAD_DIR" >/dev/null || \
+        blocked "could not download the reviewed $label artifact"
     if command -v sha256sum >/dev/null 2>&1; then
         local_sha=$(sha256_digest "$dest")
         echo "$label sha256(local)=$local_sha file=$dest" >> "$ARTIFACTS_FILE"
@@ -274,14 +273,11 @@ download_apr_util_file() {
         *) blocked "unapproved APR-util download endpoint: $url" ;;
     esac
 
-    require_command curl "download $label"
-    mkdir -p "$DOWNLOAD_DIR"
     # The reviewed Apache endpoint is direct. Do not follow a provider or
     # mirror redirect; a 3xx body also cannot pass the literal digest below.
-    run_logged "$label-download" "$DOWNLOAD_DIR" curl \
-        --fail --retry 3 --retry-delay 2 \
-        --proto '=https' --proto-redir '=https' --max-redirs 0 \
-        -o "$dest" "$url"
+    download_runtime_artifact_without_redirects_under_root \
+        "$label" "$url" "$dest" "$DOWNLOAD_DIR" >/dev/null || \
+        blocked "could not download the reviewed direct $label artifact"
     if command -v sha256sum >/dev/null 2>&1; then
         local_sha=$(sha256_digest "$dest")
         echo "$label sha256(local)=$local_sha file=$dest" >> "$ARTIFACTS_FILE"
@@ -298,16 +294,11 @@ verify_sha256_url() {
     download_file "$label-sha256" "$sha_url" "$sha_file"
     expected=$(awk '{print $1; exit}' "$sha_file")
     if [ -z "$expected" ]; then
+        rm -f "$sha_file"
         blocked "empty SHA256 file for $label: $sha_file"
     fi
-    actual=$(sha256_digest "$file")
-    {
-        echo "$label sha256(expected)=$expected"
-        echo "$label sha256(actual)=$actual"
-    } >> "$ARTIFACTS_FILE"
-    if [ "$actual" != "$expected" ]; then
+    verify_runtime_artifact_sha256 "$label" "$expected" "$file" || \
         blocked "SHA256 mismatch for $label"
-    fi
     echo "pass: $label sha256 verified" >> "$STATUS_FILE"
 }
 
@@ -321,16 +312,11 @@ verify_apr_util_sha256_url() {
     download_apr_util_file "$label-sha256" "$sha_url" "$sha_file"
     expected=$(awk '{print $1; exit}' "$sha_file")
     if [ -z "$expected" ]; then
+        rm -f "$sha_file"
         blocked "empty SHA256 file for $label: $sha_file"
     fi
-    actual=$(sha256_digest "$file")
-    {
-        echo "$label sha256(expected)=$expected"
-        echo "$label sha256(actual)=$actual"
-    } >> "$ARTIFACTS_FILE"
-    if [ "$actual" != "$expected" ]; then
+    verify_runtime_artifact_sha256 "$label" "$expected" "$file" || \
         blocked "SHA256 metadata mismatch for $label"
-    fi
     echo "pass: $label sha256 metadata verified" >> "$STATUS_FILE"
 }
 
@@ -339,15 +325,8 @@ verify_sha256_literal() {
     file=$2
     expected=$3
     [ -n "$expected" ] || return 0
-    require_command sha256sum "verify $label checksum"
-    actual=$(sha256_digest "$file")
-    {
-        echo "$label sha256(expected)=$expected"
-        echo "$label sha256(actual)=$actual"
-    } >> "$ARTIFACTS_FILE"
-    if [ "$actual" != "$expected" ]; then
+    verify_runtime_artifact_sha256 "$label" "$expected" "$file" || \
         blocked "SHA256 mismatch for $label"
-    fi
     echo "pass: $label sha256 verified" >> "$STATUS_FILE"
 }
 
@@ -370,16 +349,9 @@ verify_required_sha256_literal() {
     esac
 
     require_command tr "normalize $label checksum"
-    require_command sha256sum "verify $label checksum"
     expected=$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')
-    actual=$(sha256_digest "$archive")
-    {
-        echo "$label sha256(expected)=$expected"
-        echo "$label sha256(actual)=$actual"
-    } >> "$ARTIFACTS_FILE"
-    if [ "$actual" != "$expected" ]; then
+    verify_runtime_artifact_sha256 "$label" "$expected" "$archive" || \
         blocked "SHA256 mismatch for $label"
-    fi
     echo "pass: $label sha256 verified" >> "$STATUS_FILE"
 }
 

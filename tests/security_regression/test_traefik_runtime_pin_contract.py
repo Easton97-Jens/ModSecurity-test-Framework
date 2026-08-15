@@ -27,6 +27,9 @@ PATH_BOOTSTRAP = ROOT / "ci" / "lib" / "path-bootstrap.sh"
 PATH_HELPER = ROOT / "ci" / "lib" / "path.sh"
 RUNTIME_COMPONENT_HELPER = ROOT / "ci" / "lib" / "runtime-component-common.sh"
 CONNECTOR_SMOKE_HELPER = ROOT / "ci" / "lib" / "connector-smoke-common.sh"
+RUNTIME_COMPONENT_LOCK_CHECKER = ROOT / "ci" / "tools" / "check-runtime-component-lock.py"
+RUNTIME_COMPONENT_LOCK = ROOT / "ci" / "provisioning" / "runtime-component-lock.json"
+RUNTIME_COMPONENT_MANIFEST = ROOT / "ci" / "provisioning" / "runtime-components.manifest.json"
 PREPARE_TRAEFIK = ROOT / "ci" / "provisioning" / "prepare-traefik-runtime.sh"
 SYNC_MANIFEST = ROOT / "ci" / "tools" / "sync-traefik-runtime-manifest.py"
 PINNED_VERSION = "3.7.10"
@@ -109,11 +112,16 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         )
         lib_root = fixture_root / "ci" / "lib"
         provisioning_root = fixture_root / "ci" / "provisioning"
+        tools_root = fixture_root / "ci" / "tools"
         provisioning_root.mkdir(parents=True, exist_ok=True)
+        tools_root.mkdir(parents=True, exist_ok=True)
         shutil.copy2(PATH_BOOTSTRAP, lib_root / "path-bootstrap.sh")
         shutil.copy2(PATH_HELPER, lib_root / "path.sh")
         shutil.copy2(RUNTIME_COMPONENT_HELPER, lib_root / "runtime-component-common.sh")
         shutil.copy2(CONNECTOR_SMOKE_HELPER, lib_root / "connector-smoke-common.sh")
+        shutil.copy2(RUNTIME_COMPONENT_LOCK_CHECKER, tools_root / "check-runtime-component-lock.py")
+        shutil.copy2(RUNTIME_COMPONENT_LOCK, provisioning_root / "runtime-component-lock.json")
+        shutil.copy2(RUNTIME_COMPONENT_MANIFEST, provisioning_root / "runtime-components.manifest.json")
         fixture_prepare = provisioning_root / "prepare-traefik-runtime.sh"
         shutil.copy2(PREPARE_TRAEFIK, fixture_prepare)
         (fixture_root / "Makefile").write_text("# fixture\n", encoding="utf-8")
@@ -164,6 +172,36 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
 
     def fixture_verified_root(self, fixture_root: Path) -> Path:
         return self.temporary_root / f"{fixture_root.name}-verified"
+
+    def set_fixture_traefik_sha256(
+        self, fixture_root: Path, common: Path, sha256: str
+    ) -> None:
+        common.write_text(
+            replace_single_common_assignment(
+                common.read_text(encoding="utf-8"), "TRAEFIK_SHA256", sha256
+            ),
+            encoding="utf-8",
+        )
+        lock_path = fixture_root / "ci" / "provisioning" / "runtime-component-lock.json"
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        lock_profiles = [
+            profile for profile in lock["profiles"] if profile["component"] == "traefik"
+        ]
+        self.assertEqual(len(lock_profiles), 2)
+        for profile in lock_profiles:
+            profile["sha256"] = sha256
+        lock_path.write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
+
+        manifest_path = fixture_root / "ci" / "provisioning" / "runtime-components.manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest_components = [
+            component
+            for component in manifest["components"]
+            if component["name"] == "traefik"
+        ]
+        self.assertEqual(len(manifest_components), 1)
+        manifest_components[0]["sha256"] = sha256
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
     def run_preparer(
         self, fixture_root: Path, prepare: Path
@@ -317,10 +355,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
             / PINNED_ARCHIVE
         )
         digest = self.write_fake_traefik_archive(fixture_root, archive)
-        common_source = replace_single_common_assignment(
-            common.read_text(encoding="utf-8"), "TRAEFIK_SHA256", digest
-        )
-        common.write_text(common_source, encoding="utf-8")
+        self.set_fixture_traefik_sha256(fixture_root, common, digest)
 
         completed = self.run_preparer(fixture_root, prepare)
         staged = archive.parents[1] / "bin" / "traefik"
@@ -348,12 +383,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
             / PINNED_ARCHIVE
         )
         self.write_fake_traefik_archive(fixture_root, archive)
-        common.write_text(
-            replace_single_common_assignment(
-                common.read_text(encoding="utf-8"), "TRAEFIK_SHA256", "0" * 64
-            ),
-            encoding="utf-8",
-        )
+        self.set_fixture_traefik_sha256(fixture_root, common, "0" * 64)
 
         completed = self.run_preparer(fixture_root, prepare)
         component_root = archive.parents[1]

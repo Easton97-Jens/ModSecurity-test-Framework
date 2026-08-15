@@ -12,6 +12,29 @@ else
 fi
 REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
+. "$CI_ROOT/lib/runtime-component-common.sh"
+
+runtime_component_require_locked_profile \
+    haproxy-spoe-spop \
+    "HAPROXY_VERSION=$HAPROXY_VERSION" \
+    "HAPROXY_SOURCE_URL=$HAPROXY_SOURCE_URL" \
+    "HAPROXY_SHA256=$HAPROXY_SHA256" || {
+    ci_blocked "HAProxy runtime configuration does not match the reviewed component lock"
+    exit 77
+}
+
+# Keep the HTX host-runtime pin independent from the generic SPOE/SPOP
+# provisioner tuple.  A caller must not be able to replace the reviewed HTX
+# source provenance merely because this script also prepares the generic
+# HAProxy runtime dependencies.
+runtime_component_require_locked_profile \
+    haproxy-htx \
+    "HAPROXY_HTX_VERSION=$HAPROXY_HTX_VERSION" \
+    "HAPROXY_HTX_SOURCE_URL=$HAPROXY_HTX_SOURCE_URL" \
+    "HAPROXY_HTX_SHA256=$HAPROXY_HTX_SHA256" || {
+    ci_blocked "HAProxy HTX runtime configuration does not match the reviewed component lock"
+    exit 77
+}
 
 LOG_DIR="${LOG_DIR:-$BUILD_ROOT/logs/haproxy-prepare}"
 STATUS_FILE="$LOG_DIR/status.txt"
@@ -171,19 +194,21 @@ download_and_verify() {
     ci_require_https_url "$HAPROXY_SHA256_URL" HAPROXY_SHA256_URL || blocked "HAPROXY_SHA256_URL must use HTTPS"
     ci_require_https_url "$HAPROXY_SOURCE_URL" HAPROXY_SOURCE_URL || blocked "HAPROXY_SOURCE_URL must use HTTPS"
     mkdir -p "$HAPROXY_DOWNLOAD_DIR"
-    run_logged haproxy-sha256-download "$HAPROXY_DOWNLOAD_DIR" \
-        curl -fsSL --retry 3 --retry-delay 2 -o "$SHA256_PATH" "$HAPROXY_SHA256_URL"
+    download_runtime_artifact_under_root haproxy "$HAPROXY_SHA256_URL" "$SHA256_PATH" "$HAPROXY_DOWNLOAD_DIR" >/dev/null || \
+        blocked "could not download the pinned HAProxy checksum"
     official_sha=$(awk -v file="$ARCHIVE_NAME" '$2 == file {print $1}' "$SHA256_PATH" | head -n 1)
-    [ -n "$official_sha" ] || blocked "official HAProxy sha256 file does not name $ARCHIVE_NAME"
+    if [ -z "$official_sha" ]; then
+        rm -f "$SHA256_PATH"
+        blocked "official HAProxy sha256 file does not name $ARCHIVE_NAME"
+    fi
     if [ "$official_sha" != "$HAPROXY_SHA256" ]; then
+        rm -f "$SHA256_PATH"
         blocked "HAPROXY_SHA256 does not match official checksum for $ARCHIVE_NAME"
     fi
-    run_logged haproxy-source-download "$HAPROXY_DOWNLOAD_DIR" \
-        curl -L --fail --retry 3 --retry-delay 2 -o "$ARCHIVE_PATH" "$HAPROXY_SOURCE_URL"
-    local_sha=$(sha256sum "$ARCHIVE_PATH" | awk '{print $1}')
-    if [ "$local_sha" != "$HAPROXY_SHA256" ]; then
+    download_runtime_artifact_under_root haproxy "$HAPROXY_SOURCE_URL" "$ARCHIVE_PATH" "$HAPROXY_DOWNLOAD_DIR" >/dev/null || \
+        blocked "could not download the pinned HAProxy source archive"
+    verify_runtime_artifact_sha256 haproxy "$HAPROXY_SHA256" "$ARCHIVE_PATH" || \
         blocked "downloaded HAProxy archive sha256 mismatch"
-    fi
     {
         echo "haproxy_version=$HAPROXY_VERSION"
         echo "haproxy_source_url=$HAPROXY_SOURCE_URL"

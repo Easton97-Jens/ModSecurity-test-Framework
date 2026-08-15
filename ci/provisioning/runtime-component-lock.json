@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "platform": "linux-amd64",
+  "profiles": [
+    {
+      "id": "nginx-h1",
+      "component": "nginx",
+      "profile": "http/1.1",
+      "version": "1.31.3",
+      "os": "linux",
+      "arch": "amd64",
+      "asset_name": "nginx-1.31.3.tar.gz",
+      "download_url": "https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz",
+      "sha256": "a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+      "source_url": "https://github.com/nginx/nginx",
+      "source_provenance": "github-release:release-1.31.3"
+    },
+    {
+      "id": "haproxy-htx",
+      "component": "haproxy",
+      "profile": "htx",
+      "version": "3.2.21",
+      "os": "linux",
+      "arch": "amd64",
+      "asset_name": "haproxy-3.2.21.tar.gz",
+      "download_url": "https://www.haproxy.org/download/3.2/src/haproxy-3.2.21.tar.gz",
+      "sha256": "0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339",
+      "source_url": "https://www.haproxy.org/",
+      "source_provenance": "haproxy-release:3.2.21"
+    },
+    {
+      "id": "haproxy-spoe-spop",
+      "component": "haproxy",
+      "profile": "spoe/spop",
+      "version": "3.2.22",
+      "os": "linux",
+      "arch": "amd64",
+      "asset_name": "haproxy-3.2.22.tar.gz",
+      "download_url": "https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz",
+      "sha256": "afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da",
+      "source_url": "https://www.haproxy.org/",
+      "source_provenance": "haproxy-release:3.2.22"
+    },
+    {
+      "id": "envoy-ext-authz",
+      "component": "envoy",
+      "profile": "ext_authz",
+      "version": "1.39.0",
+      "os": "linux",
+      "arch": "amd64",
+      "asset_name": "envoy-1.39.0-linux-x86_64",
+      "download_url": "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64",
+      "sha256": "4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218",
+      "source_url": "https://github.com/envoyproxy/envoy",
+      "source_provenance": "github-release:v1.39.0"
+    },
+    {
+      "id": "envoy-ext-proc",
+      "component": "envoy",
+      "profile": "ext_proc",
+      "version": "1.39.0",
+      "os": "linux",
+      "arch": "amd64",
+      "asset_name": "envoy-1.39.0-linux-x86_64",
+      "download_url": "https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64",
+      "sha256": "4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218",
+      "source_url": "https://github.com/envoyproxy/envoy",
+      "source_provenance": "github-release:v1.39.0"
+    },
+    {
+      "id": "traefik-forwardauth",
+      "component": "traefik",
+      "profile": "forwardauth",
+      "version": "3.7.10",
+      "os": "linux",
+      "arch": "amd64",
+      "asset_name": "traefik_v3.7.10_linux_amd64.tar.gz",
+      "download_url": "https://github.com/traefik/traefik/releases/download/v3.7.10/traefik_v3.7.10_linux_amd64.tar.gz",
+      "sha256": "01811bb12d44f17280550f425f5e3128d6c325f2665c09e67a651ca535f490ce",
+      "source_url": "https://github.com/traefik/traefik",
+      "source_provenance": "github-release:v3.7.10"
+    },
+    {
+      "id": "traefik-native",
+      "component": "traefik",
+      "profile": "native",
+      "version": "3.7.10",
+      "os": "linux",
+      "arch": "amd64",
+      "asset_name": "traefik_v3.7.10_linux_amd64.tar.gz",
+      "download_url": "https://github.com/traefik/traefik/releases/download/v3.7.10/traefik_v3.7.10_linux_amd64.tar.gz",
+      "sha256": "01811bb12d44f17280550f425f5e3128d6c325f2665c09e67a651ca535f490ce",
+      "source_url": "https://github.com/traefik/traefik",
+      "source_provenance": "github-release:v3.7.10"
+    }
+  ]
+}

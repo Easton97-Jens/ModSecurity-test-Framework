@@ -17,6 +17,23 @@ fi
 ci_validate_https_runtime_url_config || exit 77
 ci_require_traefik_pinned_provenance || exit 77
 
+case "$TRAEFIK_INTEGRATION_MODE" in
+    forwardAuth|forwardauth) traefik_lock_profile=traefik-forwardauth ;;
+    native|native-middleware) traefik_lock_profile=traefik-native ;;
+    *)
+        ci_blocked "unsupported TRAEFIK_INTEGRATION_MODE for the reviewed component lock"
+        exit 77
+        ;;
+esac
+runtime_component_require_locked_profile \
+    "$traefik_lock_profile" \
+    "TRAEFIK_VERSION=$TRAEFIK_VERSION" \
+    "TRAEFIK_DOWNLOAD_URL=$TRAEFIK_DOWNLOAD_URL" \
+    "TRAEFIK_SHA256=$TRAEFIK_SHA256" || {
+    ci_blocked "Traefik runtime configuration does not match the reviewed component lock"
+    exit 77
+}
+
 sha_status=$(runtime_component_sha_status "$TRAEFIK_SHA256")
 blocked_extra="Stage the reviewed Traefik Linux amd64 release archive at:
   $TRAEFIK_ARCHIVE

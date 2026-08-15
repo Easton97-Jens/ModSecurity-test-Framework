@@ -17,6 +17,7 @@ from tests.security_regression.common_version_fixture_support import (
 ROOT = Path(__file__).resolve().parents[2]
 COMMON_SOURCE = ROOT / "ci" / "lib" / "common.sh"
 PREPARE_APACHE = ROOT / "ci" / "provisioning" / "prepare-apache-build.sh"
+RUNTIME_COMPONENT_HELPER = ROOT / "ci" / "lib" / "runtime-component-common.sh"
 PINNED = {
     "APR_UTIL_VERSION": "1.6.5",
     "APR_UTIL_SHA256": "a" * 64,
@@ -80,6 +81,7 @@ class AprUtilProvenanceTests(unittest.TestCase):
         fixture_prepare = self.fixture_root / "ci" / "provisioning" / "prepare-apache-build.sh"
         fixture_path_bootstrap = self.fixture_root / "ci" / "lib" / "path-bootstrap.sh"
         fixture_path_helper = self.fixture_root / "ci" / "lib" / "path.sh"
+        fixture_runtime_component_helper = self.fixture_root / "ci" / "lib" / "runtime-component-common.sh"
         fixture_prepare.parent.mkdir(parents=True, exist_ok=True)
         fixture_prepare.write_text(PREPARE_APACHE.read_text(encoding="utf-8"), encoding="utf-8")
         fixture_path_bootstrap.write_text(
@@ -88,6 +90,10 @@ class AprUtilProvenanceTests(unittest.TestCase):
         )
         fixture_path_helper.write_text(
             (ROOT / "ci" / "lib" / "path.sh").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        fixture_runtime_component_helper.write_text(
+            RUNTIME_COMPONENT_HELPER.read_text(encoding="utf-8"),
             encoding="utf-8",
         )
         (self.fixture_root / "Makefile").write_text("# test fixture\n", encoding="utf-8")
@@ -427,8 +433,11 @@ class AprUtilProvenanceTests(unittest.TestCase):
         helper = source[helper_start:helper_end]
 
         self.assertIn("ci_require_apr_util_pinned_provenance", helper)
-        self.assertIn("--proto '=https' --proto-redir '=https' --max-redirs 0", helper)
+        self.assertIn("download_runtime_artifact_without_redirects_under_root", helper)
         self.assertNotIn("curl -L", helper)
+        runtime_helper = RUNTIME_COMPONENT_HELPER.read_text(encoding="utf-8")
+        self.assertIn("--proto =https --proto-redir =https", runtime_helper)
+        self.assertIn('--max-redirs "$rc_curl_max_redirects"', runtime_helper)
 
 
 if __name__ == "__main__":

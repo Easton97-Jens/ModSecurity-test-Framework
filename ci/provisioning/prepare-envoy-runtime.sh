@@ -16,6 +16,23 @@ fi
 
 ci_validate_https_runtime_url_config || exit 77
 
+case "$ENVOY_INTEGRATION_MODE" in
+    ext_authz) envoy_lock_profile=envoy-ext-authz ;;
+    ext_proc) envoy_lock_profile=envoy-ext-proc ;;
+    *)
+        ci_blocked "unsupported ENVOY_INTEGRATION_MODE for the reviewed component lock"
+        exit 77
+        ;;
+esac
+runtime_component_require_locked_profile \
+    "$envoy_lock_profile" \
+    "ENVOY_VERSION=$ENVOY_VERSION" \
+    "ENVOY_DOWNLOAD_URL=$ENVOY_DOWNLOAD_URL" \
+    "ENVOY_SHA256=$ENVOY_SHA256" || {
+    ci_blocked "Envoy runtime configuration does not match the reviewed component lock"
+    exit 77
+}
+
 sha_status=$(runtime_component_sha_status "$ENVOY_SHA256")
 blocked_extra="Stage a prepared Envoy binary at:
   $ENVOY_COMPONENT_ROOT/bin/envoy
