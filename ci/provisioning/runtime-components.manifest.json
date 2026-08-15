@@ -81,7 +81,11 @@
       "global_install_allowed": false,
       "path_fallback_allowed": false,
       "enabled": true,
-      "status": "source_pinned_download_opt_in_required"
+      "status": "source_pinned_download_opt_in_required",
+      "artifact_digest_type": "sha256_release_archive",
+      "artifact_platform": "linux/amd64",
+      "archive_name": "traefik_v3.7.10_linux_amd64.tar.gz",
+      "pin_source": "ci/lib/common.sh:ci_traefik_set_canonical_tuple"
     },
     {
       "name": "lighttpd",

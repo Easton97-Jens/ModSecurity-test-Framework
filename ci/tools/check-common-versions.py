@@ -123,6 +123,18 @@ APPROVED_LITERAL_VARIABLES = {
     "APR_UTIL_SOURCE_URL",
     "APR_UTIL_SHA256",
     "APR_UTIL_SHA256_URL",
+    # Traefik likewise has one fail-closed reviewed archive tuple.  Its
+    # version/digest are literals; URLs and archive identity are parser-visible
+    # derivations so an automated candidate update cannot create a second
+    # handwritten pin source.
+    "TRAEFIK_VERSION",
+    "TRAEFIK_SOURCE_URL",
+    "TRAEFIK_INSTALL_DOCS_URL",
+    "TRAEFIK_ARTIFACT_PLATFORM",
+    "TRAEFIK_ARCHIVE_NAME",
+    "TRAEFIK_DOWNLOAD_URL",
+    "TRAEFIK_SHA256",
+    "TRAEFIK_SHA256_URL",
 }
 
 STATUS_CURRENT = "current"

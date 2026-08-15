@@ -170,7 +170,7 @@ export FIVE_CONNECTORS_WITH_CRS_NO_MRTS_RUN_ID
 export FIVE_CONNECTORS_WITH_CRS_NO_MRTS_CONNECTOR
 
 .PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-python-version check-github-actions-workflows check-github-actions-pins check-github-actions-permissions test-workflow-security-contract check-doc-links check-bilingual-docs check-variable-documentation check-repository-path-references check-change-records check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-makefile-contract test-ci-security-contract test-five-connectors-with-crs-no-mrts-contract check-five-connectors-with-crs-no-mrts-fixture five-connectors-with-crs-no-mrts-validate five-connectors-with-crs-no-mrts-aggregate test-change-record-contract test-crs-provenance-contract test-workflow-action-pins test-workflow-contract test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
-.PHONY: test-modsecurity-v3-provenance-contract test-apr-util-provenance test-nginx-archive-digest check-runtime-component-lock test-runtime-component-lock test-runtime-component-download
+.PHONY: test-modsecurity-v3-provenance-contract test-apr-util-provenance test-nginx-archive-digest check-runtime-component-lock test-runtime-component-lock test-runtime-component-download test-traefik-runtime-pin-contract
 
 check-runtime-component-lock:
 	$(PYTHON) ci/tools/check-runtime-component-lock.py --lock ci/provisioning/runtime-component-lock.json --common ci/lib/common.sh --manifest ci/provisioning/runtime-components.manifest.json
@@ -209,6 +209,7 @@ lint:
 	$(MAKE) test-nginx-archive-digest
 	$(MAKE) test-runtime-component-lock
 	$(MAKE) test-runtime-component-download
+	$(MAKE) test-traefik-runtime-pin-contract
 	$(MAKE) test-workflow-action-pins
 	$(MAKE) test-workflow-contract
 	$(PYTHON) ci/tools/check-python-deps.py
@@ -299,6 +300,10 @@ test-apr-util-provenance:
 test-nginx-archive-digest:
 	mkdir -p "$(TMP_ROOT)"
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" TMPDIR="$(TMP_ROOT)" $(PYTHON) -m unittest discover -s tests/security_regression -p 'test_nginx_archive_digest.py' -v
+
+test-traefik-runtime-pin-contract:
+	mkdir -p "$(TMP_ROOT)"
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" TMPDIR="$(TMP_ROOT)" $(PYTHON) -m unittest discover -s tests/security_regression -p 'test_traefik_runtime_pin_contract.py' -v
 
 test-workflow-action-pins:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m unittest discover -s tests/security_regression -p test_workflow_action_pins.py -v
