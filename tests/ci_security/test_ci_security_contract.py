@@ -870,6 +870,84 @@ jobs:
                 )
                 self.assertTrue(errors, "expected fail-closed CPython rejection")
 
+    def test_python_version_publisher_rejects_untrusted_base_lifecycle_regressions(
+        self,
+    ) -> None:
+        workflow = (ROOT / ".github/workflows/check-python-version.yml").read_text(
+            encoding="utf-8"
+        )
+        variants = {
+            "missing-explicit-pr-base": workflow.replace("          base: master\n", "", 1),
+            "pr-base-equals-maintenance-branch": workflow.replace(
+                "          base: master\n",
+                "          base: automation/update-framework-python-314\n",
+                1,
+            ),
+            "pr-branch-equals-base": workflow.replace(
+                "          branch: automation/update-framework-python-314\n",
+                "          branch: master\n",
+                1,
+            ),
+            "existing-branch-is-not-detached": workflow.replace(
+                '              git switch --detach "origin/$UPDATE_BRANCH"\n',
+                '              git switch --create "$UPDATE_BRANCH" --track "origin/$UPDATE_BRANCH"\n',
+                1,
+            ),
+            "new-update-precreates-maintenance-branch": workflow.replace(
+                "            false)\n              ;;\n",
+                "            false)\n"
+                '              git switch --create "$UPDATE_BRANCH" "origin/$DEFAULT_BRANCH"\n'
+                "              ;;\n",
+                1,
+            ),
+            "missing-trusted-master-switch": workflow.replace(
+                "          git switch --force-create master origin/master\n", "", 1
+            ),
+            "master-is-not-reset-to-trusted-origin": workflow.replace(
+                "          git reset --hard origin/master\n",
+                "          git reset --hard HEAD\n",
+                1,
+            ),
+            "missing-clean-base-tree-check": workflow.replace(
+                "          test -z \"$(git status --porcelain)\"\n\n"
+                "      - name: Independently revalidate and apply the candidate\n",
+                "      - name: Independently revalidate and apply the candidate\n",
+                1,
+            ),
+            "candidate-does-not-prove-master": workflow.replace(
+                "          test \"$(git branch --show-current)\" = \"master\"\n"
+                "          test -z \"$(git status --porcelain)\"\n"
+                "          python3 ci/tools/update-python-version.py --check",
+                "          test -z \"$(git status --porcelain)\"\n"
+                "          python3 ci/tools/update-python-version.py --check",
+                1,
+            ),
+            "candidate-diff-is-not-bound-to-master": workflow.replace(
+                "          changed_paths=\"$(git diff --name-only origin/master)\"\n",
+                '          changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH")"\n',
+                1,
+            ),
+            "candidate-does-not-prove-master-after-update": workflow.replace(
+                "          git diff --check origin/master\n"
+                "          test \"$(git branch --show-current)\" = \"master\"\n",
+                "          git diff --check origin/master\n",
+                1,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.workflow_contract_errors(
+                    ROOT / ".github/workflows/check-python-version.yml",
+                    unsafe,
+                    CHECKER.yaml.safe_load(unsafe),
+                )
+                self.assertTrue(errors, "expected fail-closed CPython rejection")
+                if name == "pr-base-equals-maintenance-branch":
+                    self.assertTrue(
+                        any("distinct base and maintenance branches" in error for error in errors),
+                        "\n".join(errors),
+                    )
+
     def test_common_version_publisher_rejects_privilege_and_scope_regressions(
         self,
     ) -> None:
