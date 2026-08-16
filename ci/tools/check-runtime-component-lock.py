@@ -4,25 +4,24 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import sys
 from pathlib import Path
 
-ASSIGNMENT = re.compile(r"^(?P<name>[A-Z][A-Z0-9_]*)=\"(?P<value>[^\"]*)\"$")
-DEFAULTS = {
-    "nginx": ("NGINX_RELEASE_TAG", "NGINX_SHA256"),
-    "haproxy": ("HAPROXY_VERSION", "HAPROXY_SHA256"),
-    "envoy": ("ENVOY_VERSION", "ENVOY_SHA256"),
-    "traefik": ("TRAEFIK_VERSION", "TRAEFIK_SHA256"),
-}
-HTX_DEFAULTS = ("HAPROXY_HTX_VERSION", "HAPROXY_HTX_SHA256")
-EXPECTED_ASSET_TEMPLATE = {
-    "nginx": "nginx-{version}.tar.gz",
-    "haproxy": "haproxy-{version}.tar.gz",
-    "envoy": "envoy-{version}-linux-x86_64",
-    "traefik": "traefik_v{version}_linux_amd64.tar.gz",
-}
+
+def synchronizer(source_root: Path):
+    """Load the generic runtime descriptor API from this Framework checkout."""
+    path = source_root / "ci/tools/sync-runtime-components.py"
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("generic runtime synchronizer is missing or not a regular file")
+    spec = importlib.util.spec_from_file_location("runtime_component_sync", path)
+    if spec is None or spec.loader is None:
+        raise ValueError("generic runtime synchronizer cannot be loaded")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def framework_source_root(common: Path) -> Path:
@@ -78,53 +77,31 @@ def environment_values(raw_values: list[str]) -> dict[str, str]:
 
 
 def require_environment_profile(
-    components: list[dict[str, object]], profile_id: str, raw_values: list[str]
+    components: list[dict[str, object]], profile_id: str, raw_values: list[str], canonical: dict[str, str], descriptors
 ) -> None:
     profile = next((item for item in components if item.get("id") == profile_id), None)
     if profile is None:
         raise ValueError(f"environment profile {profile_id} is not locked")
-    values = environment_values(raw_values)
-    version = str(profile["version"])
-    asset = str(profile["asset_name"])
-    digest = str(profile["sha256"])
-    download_url = str(profile["download_url"])
-    expected: dict[str, str]
-    if profile_id == "nginx-h1":
-        expected = {
-            "NGINX_RELEASE_TAG": f"release-{version}",
-            "NGINX_RELEASE_ASSET_NAME": asset,
-            "NGINX_SHA256": digest,
-        }
-    elif profile_id == "haproxy-htx":
-        expected = {
-            "HAPROXY_HTX_VERSION": version,
-            "HAPROXY_HTX_SOURCE_URL": download_url,
-            "HAPROXY_HTX_SHA256": digest,
-        }
-    elif profile_id == "haproxy-spoe-spop":
-        expected = {
-            "HAPROXY_VERSION": version,
-            "HAPROXY_SOURCE_URL": download_url,
-            "HAPROXY_SHA256": digest,
-        }
-    elif profile_id.startswith("envoy-"):
-        expected = {
-            "ENVOY_VERSION": version,
-            "ENVOY_DOWNLOAD_URL": download_url,
-            "ENVOY_SHA256": digest,
-        }
-    elif profile_id.startswith("traefik-"):
-        expected = {
-            "TRAEFIK_VERSION": version,
-            "TRAEFIK_DOWNLOAD_URL": download_url,
-            "TRAEFIK_SHA256": digest,
-        }
-    else:
-        raise ValueError(f"environment profile {profile_id} is unsupported")
-    if set(values) != set(expected):
+    descriptor = descriptors.get(profile_id)
+    if descriptor is None:
+        raise ValueError(f"environment profile {profile_id} is not described by the generic synchronizer")
+    supplied = environment_values(raw_values)
+    expected_names = {
+        str(descriptor[key])
+        for key in ("version", "url", "sha", "asset")
+        if descriptor.get(key)
+    }
+    if len(supplied) != 3 or not set(supplied).issubset(expected_names):
         raise ValueError(f"environment profile {profile_id} fields mismatch")
-    for name, expected_value in expected.items():
-        actual = values[name]
+    expected_values = {
+        str(descriptor["version"]): str(canonical[str(descriptor["version"])]),
+        str(descriptor["url"]): str(profile["download_url"]),
+        str(descriptor["sha"]): str(profile["sha256"]).lower(),
+    }
+    if descriptor.get("asset"):
+        expected_values[str(descriptor["asset"])] = str(profile["asset_name"])
+    for name, actual in supplied.items():
+        expected_value = expected_values[name]
         if name.endswith("SHA256"):
             actual = actual.lower()
             expected_value = expected_value.lower()
@@ -132,72 +109,69 @@ def require_environment_profile(
             raise ValueError(f"environment profile {profile_id} {name} drift")
 
 
-def defaults(path: Path, source_root: Path) -> dict[str, str]:
-    values: dict[str, str] = {}
-    for raw in read_framework_text(path, source_root, "common").splitlines():
-        match = ASSIGNMENT.match(raw.strip())
-        if not match:
-            continue
-        value = match.group("value")
-        if value.startswith("${") and value.endswith("}"):
-            inner = value[2:-1]
-            if ":-" in inner:
-                value = inner.split(":-", 1)[1]
-            elif "-" in inner:
-                value = inner.split("-", 1)[1]
-            else:
-                value = ""
-        if "${" not in value:
-            values[match.group("name")] = value
-    return values
+def expected_tuple(item: dict[str, str], values: dict[str, str], descriptors) -> tuple[str, str]:
+    descriptor = descriptors[item["id"]]
+    version = values[str(descriptor["version"])].removeprefix(str(descriptor.get("prefix", "")))
+    return version, values[str(descriptor["sha"])].lower()
 
 
-def expected_version(name: str, values: dict[str, str]) -> str:
-    value = values[DEFAULTS[name][0]]
-    if name == "nginx":
-        if not value.startswith("release-"):
-            raise ValueError("NGINX_RELEASE_TAG must use release-X.Y.Z")
-        return value.removeprefix("release-")
-    return value
-
-
-def expected_tuple(item: dict[str, str], values: dict[str, str]) -> tuple[str, str]:
-    if item["id"] == "haproxy-htx":
-        return values[HTX_DEFAULTS[0]], values[HTX_DEFAULTS[1]].lower()
-    name = item["component"]
-    return expected_version(name, values), values[DEFAULTS[name][1]].lower()
-
-
-def require_profile_shape(item: dict[str, object], version: str, digest: str) -> None:
+def require_profile_shape(item: dict[str, object], version: str, digest: str, descriptor, values, sync) -> None:
     identifier = str(item.get("id", "unknown"))
-    component = str(item.get("component", ""))
-    if component not in EXPECTED_ASSET_TEMPLATE:
-        raise ValueError(f"{identifier} has an unsupported component")
+    expected_component = str(descriptor["component"])
+    if item.get("component") != expected_component:
+        raise ValueError(f"{identifier} component does not match its descriptor")
     actual_digest = str(item.get("sha256", "")).lower()
     if re.fullmatch(r"[0-9a-f]{64}", actual_digest) is None:
         raise ValueError(f"{identifier} SHA-256 is missing or invalid")
     if actual_digest != digest:
         raise ValueError(f"{identifier} SHA-256 drift")
-    if item.get("os") != "linux" or item.get("arch") != "amd64":
+    expected_os, expected_arch = sync.runtime_profile_platform(values)
+    if item.get("os") != expected_os or item.get("arch") != expected_arch:
         raise ValueError(f"{identifier} has an unsupported platform")
-    expected_asset = EXPECTED_ASSET_TEMPLATE[component].format(version=version)
+    expected_asset = sync.normalized_asset(descriptor, values)
     if item.get("asset_name") != expected_asset:
         raise ValueError(f"{identifier} asset does not match locked version and architecture")
     download_url = str(item.get("download_url", ""))
+    expected_download_url = str(values[str(descriptor["url"])])
+    if download_url != expected_download_url:
+        raise ValueError(f"{identifier} download URL drift")
     if not download_url.startswith("https://") or not download_url.endswith(f"/{expected_asset}"):
         raise ValueError(f"{identifier} download URL does not bind the locked asset")
+    expected_source = sync.source_root_url(str(values[str(descriptor["source"])]))
+    if item.get("source_url") != expected_source:
+        raise ValueError(f"{identifier} source URL does not match its descriptor")
     if not item.get("source_url") or not item.get("source_provenance"):
         raise ValueError(f"{identifier} lacks source provenance")
 
 
 def require_manifest_matches_lock(
-    manifest: dict[str, object], components: list[dict[str, object]]
+    manifest: dict[str, object], components: list[dict[str, object]], descriptors
 ) -> None:
-    entries = {entry["name"]: entry for entry in manifest["components"]}
-    for name in ("envoy", "traefik"):
-        entry = entries.get(name)
-        if entry is None:
-            raise ValueError(f"manifest is missing {name}")
+    expected_manifest_components = {
+        str(descriptor["component"])
+        for descriptor in descriptors.values()
+        if descriptor.get("manifest") == "true"
+    }
+    if not expected_manifest_components:
+        raise ValueError("generic synchronizer declares no manifest components")
+    entries: dict[str, dict[str, object]] = {}
+    for entry in manifest["components"]:
+        if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
+            raise ValueError("manifest component must be an object with a name")
+        name = str(entry["name"])
+        if name in entries:
+            raise ValueError(f"manifest contains duplicate component {name}")
+        if name not in expected_manifest_components:
+            raise ValueError(f"manifest contains unknown component {name}")
+        entries[name] = entry
+    missing = expected_manifest_components - set(entries)
+    if missing:
+        raise ValueError("manifest is missing " + ", ".join(sorted(missing)))
+    unexpected = set(entries) - expected_manifest_components
+    if unexpected:
+        raise ValueError("manifest contains unknown component " + ", ".join(sorted(unexpected)))
+    for name in expected_manifest_components:
+        entry = entries[name]
         profile = next(item for item in components if item["component"] == name)
         if entry.get("version") != profile["version"]:
             raise ValueError(f"manifest {name} version drift")
@@ -208,32 +182,32 @@ def require_manifest_matches_lock(
 
 
 def validate_lock(
-    lock: dict[str, object], values: dict[str, str]
+    lock: dict[str, object], values: dict[str, str], descriptors, sync
 ) -> list[dict[str, object]]:
     if lock.get("schema_version") != 1:
         raise ValueError("lock schema_version must be 1")
-    if lock.get("platform") != "linux-amd64":
-        raise ValueError("lock platform must be linux-amd64")
+    expected_os, expected_arch = sync.runtime_profile_platform(values)
+    if lock.get("platform") != f"{expected_os}-{expected_arch}":
+        raise ValueError(f"lock platform must be {expected_os}-{expected_arch}")
     components = lock.get("profiles")
     if not isinstance(components, list):
         raise ValueError("lock profiles must be a list")
-    expected_ids = {
-        "nginx-h1", "haproxy-htx", "haproxy-spoe-spop",
-        "envoy-ext-authz", "envoy-ext-proc", "traefik-forwardauth",
-        "traefik-native",
-    }
+    expected_ids = set(descriptors)
     ids = [item.get("id") for item in components if isinstance(item, dict)]
     if set(ids) != expected_ids or len(ids) != len(expected_ids):
         raise ValueError(f"lock profiles mismatch: {sorted(str(item) for item in ids)}")
     for item in components:
         if not isinstance(item, dict):
             raise ValueError("lock profile must be an object")
-        version, digest = expected_tuple(item, values)
+        identifier = item.get("id")
+        if identifier not in descriptors:
+            raise ValueError(f"unknown lock profile {identifier}")
+        version, digest = expected_tuple(item, values, descriptors)
         if item["version"] != version:
             raise ValueError(f"{item['id']} version drift: lock={item['version']} common={version}")
         if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
             raise ValueError(f"{item['id']} canonical SHA-256 is invalid")
-        require_profile_shape(item, version, digest)
+        require_profile_shape(item, version, digest, descriptors[identifier], values, sync)
     return components
 
 
@@ -248,14 +222,16 @@ def main() -> int:
     try:
         source_root = framework_source_root(args.common)
         lock = json.loads(read_framework_text(args.lock, source_root, "lock"))
-        values = defaults(args.common, source_root)
-        components = validate_lock(lock, values)
+        sync = synchronizer(source_root)
+        values = sync.common_values(args.common)
+        descriptors = sync.DESCRIPTORS
+        components = validate_lock(lock, values, descriptors, sync)
         if args.manifest:
             manifest = json.loads(read_framework_text(args.manifest, source_root, "manifest"))
-            require_manifest_matches_lock(manifest, components)
+            require_manifest_matches_lock(manifest, components, descriptors)
         if args.environment_profile:
             require_environment_profile(
-                components, args.environment_profile, args.environment_value
+                components, args.environment_profile, args.environment_value, values, descriptors
             )
         print("runtime-component-lock: PASS")
     except (OSError, KeyError, TypeError, ValueError) as exc:

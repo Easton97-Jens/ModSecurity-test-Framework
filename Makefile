@@ -2,11 +2,36 @@
 # to early $(shell ...) calls. Escape dollars before the first such call so
 # finalizer inputs can become only wrapper argv data, never Make functions.
 no_crs_literal_dollar := $$
+# Values supplied through the environment or command line can otherwise be
+# expanded by Make and then interpreted by a recipe shell.  Keep the normal
+# path/interpreter forms compatible, but reject shell syntax and whitespace
+# before any recipe interpolation occurs.
+make_open_paren := (
+make_close_paren := )
+make_double_quote := "
+make_backslash := \\
+make_unsafe_chars := $$ ` ' $(make_double_quote) ; & | < > $(make_open_paren) $(make_close_paren) $(make_backslash)
+define make_first_unsafe_char
+$(foreach ch,$(make_unsafe_chars),$(if $(findstring $(ch),$(value $(1))),$(ch)))
+endef
+$(foreach v,PYTHON MAKE HOME XDG_STATE_HOME STATE_HOME BUILD_ROOT PYTHONPYCACHEPREFIX TMP_ROOT LOG_ROOT MRTS_BUILD_ROOT FRAMEWORK_ROOT CONNECTOR_ROOT OUTPUT_ROOT CI_ROOT SOURCE_ROOT EVIDENCE_ROOT CONNECTOR CAPABILITIES_FILE NO_CRS_TOOL NO_CRS_RUN_DIR NO_CRS_RUN_ID NO_CRS_FINALIZE_ARGS NO_CRS_ARTIFACT_PROFILE PLAN_FILE NO_CRS_SUMMARY_ROOT EVIDENCE_STAGE REPORTS_DIR WORKFLOW_SECURITY_TOOL PYTHON_VERSION_CONTRACT_TOOL FULL_LIFECYCLE_EVIDENCE_TOOL TRANSPORT_HARDENING_EVIDENCE_TOOL PROTOCOL_CLIENT_TOOL PROTOCOL_EVIDENCE_TOOL PROTOCOL_STRICT PROTOCOL_INSECURE PROTOCOL_QUIC_UDP_OBSERVED SKIP_ROOT_SUMMARY CI_SHELL_FILES CI_PYTHON_FILES PROTOCOL_URL PROTOCOL_PROFILE PROTOCOL_ARTIFACT_DIR PROTOCOL_CACERT PROTOCOL_CONNECTOR PROTOCOL_INTEGRATION_MODE PROTOCOL_RUN_ID PROTOCOL_TRANSACTION_ID PROTOCOL_TRANSPORT_CASE_ID PROTOCOL_RULE_ID PROTOCOL_PHASE PROTOCOL_FOLLOWUP_URL PROTOCOL_STREAM_ID PROTOCOL_UPSTREAM_PROTOCOL PROTOCOL_OBSERVATION_SIDECAR,$(if $(filter-out file default,$(origin $(v))),$(if $(strip $(call make_first_unsafe_char,$(v))),$(error $(v) contains unsupported shell syntax))))
+
+# Recursive Framework checks must not honor an inherited or command-line MAKE
+# path (for example MAKE=/bin/true).  Only this fixed system path is allowed
+# to drive the top-level Make graph.
+ifneq ($(wildcard /usr/bin/make),)
+override MAKE := /usr/bin/make
+else
+override MAKE := /bin/make
+endif
 ifneq ($(origin NO_CRS_TOOL),undefined)
 override NO_CRS_TOOL := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value NO_CRS_TOOL))
 endif
 ifneq ($(origin CONNECTOR),undefined)
 override CONNECTOR := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value CONNECTOR))
+endif
+ifneq ($(origin PYTHONPYCACHEPREFIX),undefined)
+override PYTHONPYCACHEPREFIX := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value PYTHONPYCACHEPREFIX))
 endif
 ifneq ($(origin NO_CRS_RUN_DIR),undefined)
 override NO_CRS_RUN_DIR := $(subst $(no_crs_literal_dollar),$(no_crs_literal_dollar)$(no_crs_literal_dollar),$(value NO_CRS_RUN_DIR))
@@ -145,8 +170,6 @@ export MRTS_FTW_OUT
 export MRTS_LOAD_FILE
 export MRTS_CASE_ROOT
 export MRTS_BUILD_ROOT
-export CRS_REPO_URL
-export CRS_GIT_REF
 export CRS_SOURCE_DIR
 export CRS_RUNTIME_DIR
 export MODSECURITY_RULE_PREAMBLE_FILE
@@ -170,13 +193,37 @@ export FIVE_CONNECTORS_WITH_CRS_NO_MRTS_RUN_ID
 export FIVE_CONNECTORS_WITH_CRS_NO_MRTS_CONNECTOR
 
 .PHONY: lint quick-check codex-check setup-dev install-dev-deps check-security-data-flow-cases check-security-data-flow-normalizers check-python-version check-github-actions-workflows check-github-actions-pins check-github-actions-permissions test-workflow-security-contract check-doc-links check-bilingual-docs check-variable-documentation check-repository-path-references check-change-records check-documentation generate-test-matrix refresh-framework-reports check-test-matrix runtime-matrix runtime-matrix-all runtime-matrix-haproxy runtime-matrix-haproxy-all smoke-apache smoke-nginx smoke-haproxy smoke-all test test-no-crs test-with-crs fetch-deps fetch-modsecurity-v3 fetch-crs prepare-crs prepare-haproxy-runtime mrts-generate mrts-load mrts-import test-no-mrts test-with-mrts test-with-mrts-feature-demo test-mrts-matrix mrts-ftw check-no-crs-catalog test-makefile-contract test-ci-security-contract test-five-connectors-with-crs-no-mrts-contract check-five-connectors-with-crs-no-mrts-fixture five-connectors-with-crs-no-mrts-validate five-connectors-with-crs-no-mrts-aggregate test-change-record-contract test-crs-provenance-contract test-workflow-action-pins test-workflow-contract test-no-crs-contract no-crs-plan no-crs-init no-crs-finalize no-crs-summary check-no-crs-evidence check-no-crs-result-schema check-no-crs-evidence-completeness check-no-crs-capability-consistency check-no-crs-claim-policy check-no-crs-artifact-layout check-no-crs-body-payload-absence check-no-crs-status-consistency check-no-crs-protocol-client check-no-crs-doc-consistency check-first-byte-before-response-end check-no-full-response-buffering check-full-lifecycle-event-privacy check-full-lifecycle-promotion check-transport-hardening-evidence protocol-client check-protocol-evidence test-protocol-client
-.PHONY: test-modsecurity-v3-provenance-contract test-apr-util-provenance test-nginx-archive-digest check-runtime-component-lock test-runtime-component-lock test-runtime-component-download test-traefik-runtime-pin-contract
+.PHONY: test-modsecurity-v3-provenance-contract test-apr-util-provenance test-nginx-archive-digest check-runtime-component-lock check-runtime-components check-canonical-common-pins check-canonical-python-pins check-canonical-workflow-pins check-canonical-crs-contract-pins test-runtime-component-lock test-runtime-component-sync test-runtime-component-download test-canonical-pin-sync test-canonical-crs-contract-pins test-traefik-runtime-pin-contract
 
 check-runtime-component-lock:
 	$(PYTHON) ci/tools/check-runtime-component-lock.py --lock ci/provisioning/runtime-component-lock.json --common ci/lib/common.sh --manifest ci/provisioning/runtime-components.manifest.json
 
+check-runtime-components:
+	$(PYTHON) ci/tools/sync-runtime-components.py --check
+
+check-canonical-common-pins:
+	$(PYTHON) ci/tools/check-common-versions.py --validate-canonical
+
+check-canonical-python-pins:
+	$(PYTHON) ci/tools/sync-canonical-python-pins.py --check --root "$(FRAMEWORK_ROOT)"
+
+check-canonical-workflow-pins:
+	$(PYTHON) ci/tools/sync-canonical-workflow-pins.py --check --root "$(FRAMEWORK_ROOT)"
+
+check-canonical-crs-contract-pins:
+	$(PYTHON) ci/tools/sync-crs-contract-views.py --check --root "$(FRAMEWORK_ROOT)"
+
 test-runtime-component-lock: check-runtime-component-lock
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" TMPDIR="$(TMP_ROOT)" $(PYTHON) -m unittest discover -s tests/security_regression -p 'test_runtime_component_lock.py' -v
+
+test-runtime-component-sync: check-runtime-components
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" TMPDIR="$(TMP_ROOT)" $(PYTHON) -m unittest discover -s tests/security_regression -p 'test_runtime_component_sync.py' -v
+
+test-canonical-pin-sync: check-canonical-python-pins check-canonical-workflow-pins
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" TMPDIR="$(TMP_ROOT)" $(PYTHON) -m unittest tests.ci_security.test_sync_canonical_python_pins tests.ci_security.test_sync_canonical_workflow_pins -v
+
+test-canonical-crs-contract-pins: check-canonical-crs-contract-pins
+	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" TMPDIR="$(TMP_ROOT)" $(PYTHON) -m unittest tests.ci_security.test_sync_crs_contract_views -v
 
 test-runtime-component-download:
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" TMPDIR="$(TMP_ROOT)" $(PYTHON) -m unittest discover -s tests/security_regression -p 'test_runtime_component_download.py' -v
@@ -199,6 +246,8 @@ lint:
 	sh -n $(CI_SHELL_FILES)
 	if command -v bash >/dev/null 2>&1; then bash -n $(CI_SHELL_FILES); else echo "bash unavailable"; fi
 	PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -m py_compile tests/normalizers/*.py tests/runners/*.py $(CI_PYTHON_FILES)
+	$(MAKE) check-canonical-common-pins
+	$(MAKE) check-canonical-crs-contract-pins
 	$(MAKE) test-makefile-contract
 	$(MAKE) test-ci-security-contract
 	$(MAKE) test-five-connectors-with-crs-no-mrts-contract
@@ -208,8 +257,11 @@ lint:
 	$(MAKE) test-apr-util-provenance
 	$(MAKE) test-nginx-archive-digest
 	$(MAKE) test-runtime-component-lock
+	$(MAKE) test-runtime-component-sync
 	$(MAKE) test-runtime-component-download
 	$(MAKE) test-traefik-runtime-pin-contract
+	$(MAKE) test-canonical-pin-sync
+	$(MAKE) test-canonical-crs-contract-pins
 	$(MAKE) test-workflow-action-pins
 	$(MAKE) test-workflow-contract
 	$(PYTHON) ci/tools/check-python-deps.py

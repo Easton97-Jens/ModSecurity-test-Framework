@@ -8,6 +8,7 @@ REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
 
 PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
+SAFE_MAKE="$SCRIPT_DIR/safe-make.sh"
 
 status=0
 
@@ -47,9 +48,9 @@ run_blockable() {
   return 0
 }
 
-run_pass_fail "make lint" make lint
-run_blockable "make doctor-quick" make doctor-quick
-run_pass_fail "make quick-check" make quick-check
+run_pass_fail "make lint" "$SAFE_MAKE" lint
+run_blockable "make doctor-quick" "$SAFE_MAKE" doctor-quick
+run_pass_fail "make quick-check" "$SAFE_MAKE" quick-check
 run_blockable "framework smoke-installed" sh "$FRAMEWORK_ROOT/ci/runtime/smoke-installed.sh"
 run_pass_fail "$PYTHON_BIN -m py_compile framework tests/runners, tests/normalizers, ci" \
   "$PYTHON_BIN" -m py_compile "$FRAMEWORK_ROOT"/tests/normalizers/*.py "$FRAMEWORK_ROOT"/tests/runners/*.py $(find "$FRAMEWORK_ROOT/ci" -type f -name '*.py' -print | sort)

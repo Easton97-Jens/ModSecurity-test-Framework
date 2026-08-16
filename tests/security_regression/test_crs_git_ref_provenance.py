@@ -483,30 +483,18 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                     )
                 self.assertNotIn("checkout", self.git_verbs(commands))
 
-    def test_rejects_runtime_url_and_ref_overrides_or_ignores_approved_commit_override(
+    def test_rejects_runtime_and_approved_provenance_overrides_before_git(
         self,
     ):
         self.assert_blocked_before_git(
             {"CRS_REPO_URL": "https://github.com/attacker/crs.git"}
         )
+        self.assert_blocked_before_git(
+            {"CRS_APPROVED_REPO_URL": "https://github.com/attacker/approved-crs.git"}
+        )
+        self.assert_blocked_before_git({"CRS_RELEASE_TAG": "v0.0.0"})
         self.assert_blocked_before_git({"CRS_GIT_REF": "main"})
-
-        result, commands, _ = self.invoke_fetch(
-            overrides={"CRS_APPROVED_COMMIT": ALTERNATE_COMMIT}
-        )
-        command_text = "\n".join(commands)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn(APPROVED_COMMIT, command_text)
-        self.assertNotIn(ALTERNATE_COMMIT, command_text)
-
-        alternate_repo = "https://github.com/attacker/approved-crs.git"
-        result, commands, _ = self.invoke_fetch(
-            overrides={"CRS_APPROVED_REPO_URL": alternate_repo}
-        )
-        command_text = "\n".join(commands)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn(APPROVED_REPO, command_text)
-        self.assertNotIn(alternate_repo, command_text)
+        self.assert_blocked_before_git({"CRS_APPROVED_COMMIT": ALTERNATE_COMMIT})
 
     def test_crs_git_sanitizes_untrusted_git_environment(self):
         result, commands, _ = self.invoke_fetch(

@@ -11,6 +11,11 @@ CRS_PROVENANCE_CONTEXT=prepare_crs
 # shellcheck source=ci/provisioning/crs-provenance.sh
 . "$SCRIPT_DIR/crs-provenance.sh"
 
+# A caller must not be able to smuggle a conflicting active pin through this
+# source-consumption boundary, even though common.sh subsequently normalizes
+# its public variables to the reviewed values.
+ci_require_inherited_canonical_upstream_pins || exit 77
+
 blocked() {
     ci_blocked "prepare_crs $*"
     exit 77

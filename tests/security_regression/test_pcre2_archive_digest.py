@@ -74,7 +74,7 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
         )
         return adapter
 
-    def _create_framework_fixture(self, workspace, apr_util_sha256):
+    def _create_framework_fixture(self, workspace, archive_sha256, pcre2_sha256):
         """Copy the real Apache path with test-local provenance bindings.
 
         FND-FRAMEWORK-0054 separately verifies the production `/usr/bin/git`
@@ -92,6 +92,7 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
         for relative in (
             "ci/lib/path-bootstrap.sh",
             "ci/lib/path.sh",
+            "ci/lib/runtime-component-common.sh",
             "ci/provisioning/prepare-apache-build.sh",
         ):
             destination = fixture_root / relative
@@ -103,7 +104,10 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                 "MODSECURITY_V3_APPROVED_COMMIT": APPROVED_V3_COMMIT,
                 "MODSECURITY_V3_RELEASE_TAG": APPROVED_V3_RELEASE_TAG,
                 "APR_UTIL_VERSION": TEST_APR_UTIL_VERSION,
-                "APR_UTIL_SHA256": apr_util_sha256,
+                "APR_UTIL_SHA256": archive_sha256,
+                "HTTPD_SHA256": archive_sha256,
+                "APR_SHA256": archive_sha256,
+                "PCRE2_SHA256": pcre2_sha256,
             },
         )
         common_fixture = fixture_root / "ci/lib/common.sh"
@@ -203,9 +207,12 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             workspace = Path(temporary)
             archive = self._build_archive(workspace)
             digest_value = hashlib.sha256(archive.read_bytes()).hexdigest()
+            expected_digest = digest_value if digest is None else digest
             adapter = self._create_adapter_source(workspace)
             fake_bin = self._create_fake_tools(workspace)
-            prepare_script = self._create_framework_fixture(workspace, digest_value)
+            prepare_script = self._create_framework_fixture(
+                workspace, digest_value, expected_digest
+            )
             verified = workspace / "verified"
             build_root = verified / "build"
             shared_prefix = verified / "shared"
@@ -232,8 +239,6 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
             tar_log = workspace / "pcre2-tar.log"
             git_log = workspace / "v3-git.log"
             git_log.touch()
-            if digest is None:
-                digest = digest_value
             environment = os.environ.copy()
             environment.update(
                 {
@@ -261,15 +266,6 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                     "BUILD_PCRE2_FROM_SOURCE": "1",
                     "AUTO_FETCH_SMOKE_SOURCES": "0",
                     "MAKE_JOBS": "1",
-                    "PCRE2_SOURCE_URL": "https://fixture.invalid/pcre2.tar.bz2",
-                    "PCRE2_SHA256": digest,
-                    "PCRE2_SHA256_URL": "",
-                    "HTTPD_SOURCE_URL": "https://fixture.invalid/httpd.tar.bz2",
-                    "APR_SOURCE_URL": "https://fixture.invalid/apr.tar.bz2",
-                    "HTTPD_SHA256": digest_value,
-                    "APR_SHA256": digest_value,
-                    "HTTPD_SHA256_URL": "https://fixture.invalid/httpd.sha256",
-                    "APR_SHA256_URL": "https://fixture.invalid/apr.sha256",
                     "PCRE2_FIXTURE_ARCHIVE": str(archive),
                     "PCRE2_ARCHIVE_PATH": str(
                         verified / "downloads" / self.fixture["archive_file"]

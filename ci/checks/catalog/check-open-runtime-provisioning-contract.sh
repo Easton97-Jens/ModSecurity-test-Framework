@@ -6,7 +6,7 @@ SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../../lib/path-bootstrap.sh"
 COMMON_SH="$CI_ROOT/lib/common.sh"
 LIGHTTPD_PREPARE_SH="$CI_ROOT/provisioning/prepare-lighttpd-runtime.sh"
-TRAEFIK_MANIFEST_SYNC_TOOL="$CI_ROOT/tools/sync-traefik-runtime-manifest.py"
+RUNTIME_COMPONENT_SYNC_TOOL="$CI_ROOT/tools/sync-runtime-components.py"
 TRAEFIK_RUNTIME_MANIFEST="$CI_ROOT/provisioning/runtime-components.manifest.json"
 PYTHON_BIN=${PYTHON:-python3}
 CHECK_ROOT="${TMPDIR:-/tmp}/modsecurity-open-runtime-contract-$$"
@@ -72,12 +72,21 @@ assert_pin() {
 assert_exported() {
     variable_name=$1
     expected_value=$2
-    if ! CHECK_VARIABLE="$variable_name" CHECK_EXPECTED="$expected_value" \
-        sh -eu -c '
-            eval "actual=\${$CHECK_VARIABLE-}"
-            [ "$actual" = "$CHECK_EXPECTED" ]
-        '
-    then
+    case "$variable_name" in
+        ENVOY_SOURCE_ROOT) actual_value=${ENVOY_SOURCE_ROOT-} ;;
+        ENVOY_BUILD_ROOT) actual_value=${ENVOY_BUILD_ROOT-} ;;
+        TRAEFIK_SOURCE_ROOT) actual_value=${TRAEFIK_SOURCE_ROOT-} ;;
+        TRAEFIK_BUILD_ROOT) actual_value=${TRAEFIK_BUILD_ROOT-} ;;
+        TRAEFIK_ARCHIVE) actual_value=${TRAEFIK_ARCHIVE-} ;;
+        LIGHTTPD_SOURCE_DIR) actual_value=${LIGHTTPD_SOURCE_DIR-} ;;
+        LIGHTTPD_INCLUDE_DIR) actual_value=${LIGHTTPD_INCLUDE_DIR-} ;;
+        *)
+            fail "assert_exported received an unsupported variable: $variable_name"
+            return
+            ;;
+    esac
+    if [ "$actual_value" != "$expected_value" ] \
+        || ! env | grep -Fx -- "$variable_name=$expected_value" >/dev/null; then
         fail "$variable_name is not exported with value '$expected_value'"
     fi
 }
@@ -163,10 +172,11 @@ if ! ci_require_traefik_pinned_provenance; then
 fi
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
     fail "missing Python interpreter for Traefik manifest guard: $PYTHON_BIN"
-elif ! PYTHONDONTWRITEBYTECODE=1 "$PYTHON_BIN" "$TRAEFIK_MANIFEST_SYNC_TOOL" --check \
-    --common-sh "$COMMON_SH" --manifest "$TRAEFIK_RUNTIME_MANIFEST"
+elif ! PYTHONDONTWRITEBYTECODE=1 "$PYTHON_BIN" "$RUNTIME_COMPONENT_SYNC_TOOL" --check \
+    --common-sh "$COMMON_SH" --manifest "$TRAEFIK_RUNTIME_MANIFEST" \
+    --lock "$CI_ROOT/provisioning/runtime-component-lock.json"
 then
-    fail 'Traefik runtime manifest does not match the canonical common.sh tuple'
+    fail 'runtime manifest/lock do not match the canonical common.sh tuples'
 fi
 
 if ! ci_runtime_version_matches 1.2.3 'runtime v1.2.3'; then
@@ -223,7 +233,7 @@ assert_output_line "$traefik_paths" "TRAEFIK_ARCHIVE=$TRAEFIK_ARCHIVE"
 
 lighttpd_paths=$(lighttpd_build_paths)
 lighttpd_build_paths >/dev/null
-assert_equal "$LIGHTTPD_SOURCE_DIR" "$LIGHTTPD_COMPONENT_ROOT/src/lighttpd-$LIGHTTPD_VERSION" LIGHTTPD_SOURCE_DIR
+assert_equal "$LIGHTTPD_SOURCE_DIR" "$LIGHTTPD_CONNECTOR_BUILD_ROOT/src/lighttpd-$LIGHTTPD_VERSION" LIGHTTPD_SOURCE_DIR
 assert_equal "$LIGHTTPD_INCLUDE_DIR" "$LIGHTTPD_SOURCE_DIR/src" LIGHTTPD_INCLUDE_DIR
 assert_exported LIGHTTPD_SOURCE_DIR "$LIGHTTPD_SOURCE_DIR"
 assert_exported LIGHTTPD_INCLUDE_DIR "$LIGHTTPD_INCLUDE_DIR"

@@ -49,14 +49,48 @@ else
     HAPROXY_BIN_WAS_SET=0
 fi
 
-# Open connector runtime component defaults. These are passive local paths only:
-# checks, downloads, installs, and directory creation happen outside common.sh.
-ENVOY_VERSION="${ENVOY_VERSION:-1.39.0}"
-ENVOY_SOURCE_URL="${ENVOY_SOURCE_URL:-https://github.com/envoyproxy/envoy/releases}"
-ENVOY_INSTALL_DOCS_URL="${ENVOY_INSTALL_DOCS_URL:-https://www.envoyproxy.io/docs/envoy/latest/start/install}"
-ENVOY_DOWNLOAD_URL="${ENVOY_DOWNLOAD_URL:-https://github.com/envoyproxy/envoy/releases/download/v$ENVOY_VERSION/envoy-$ENVOY_VERSION-linux-x86_64}"
-ENVOY_SHA256="${ENVOY_SHA256:-4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218}"
-ENVOY_SHA256_URL="${ENVOY_SHA256_URL:-https://github.com/envoyproxy/envoy/releases/download/v$ENVOY_VERSION/checksums.txt.asc}"
+# Keep the inherited process environment as an inert byte-for-byte snapshot
+# before any canonical assignment below can overwrite an exported shell
+# variable.  Use only fixed system paths: a caller-defined `env` shell
+# function or PATH entry must not execute merely because common.sh is sourced.
+# The snapshot is consulted only by ci_require_canonical_active_upstream_pins;
+# it is never evaluated as shell code.  This provides one generic guard for
+# every active pin instead of a caller-controlled value silently disappearing
+# when this file is sourced.
+if [ -x /usr/bin/env ]; then
+    CI_INHERITED_UPSTREAM_ENV=$(/usr/bin/env)
+    CI_INHERITED_UPSTREAM_ENV_STATUS=0
+elif [ -x /bin/env ]; then
+    CI_INHERITED_UPSTREAM_ENV=$(/bin/env)
+    CI_INHERITED_UPSTREAM_ENV_STATUS=0
+else
+    CI_INHERITED_UPSTREAM_ENV=
+    CI_INHERITED_UPSTREAM_ENV_STATUS=77
+fi
+
+# Canonical active upstream pins.  This file is the only manually maintained
+# authority for active versions, release identities, assets, URLs, platforms,
+# commits, and digests.  Consumers may derive, generate, or validate values
+# from these assignments, but must not introduce another active authority.
+#
+# These are passive local values only: checks, downloads, installs, and
+# directory creation happen outside common.sh.  In particular, upstream tuple
+# variables deliberately do not use ${VAR:-...}; an exported environment value
+# must never replace the reviewed source identity.
+# Do not pass GNU Make's pre-parser control variables into child Make calls
+# from shell entrypoints that source this library.  The trusted top-level
+# wrapper clears these before Make starts; this covers the remaining shell
+# boundary without changing filesystem state or normal command arguments.
+unset MAKE MAKEFLAGS GNUMAKEFLAGS MAKEFILES MAKEOVERRIDES MFLAGS MAKELEVEL
+
+ENVOY_VERSION="1.39.0"
+ENVOY_SOURCE_URL="https://github.com/envoyproxy/envoy/releases"
+ENVOY_INSTALL_DOCS_URL="https://www.envoyproxy.io/docs/envoy/latest/start/install"
+ENVOY_ARTIFACT_PLATFORM="linux-x86_64"
+ENVOY_ASSET_NAME="envoy-$ENVOY_VERSION-$ENVOY_ARTIFACT_PLATFORM"
+ENVOY_DOWNLOAD_URL="$ENVOY_SOURCE_URL/download/v$ENVOY_VERSION/$ENVOY_ASSET_NAME"
+ENVOY_SHA256="4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218"
+ENVOY_SHA256_URL="$ENVOY_SOURCE_URL/download/v$ENVOY_VERSION/checksums.txt.asc"
 ENVOY_COMPONENT_ROOT="${ENVOY_COMPONENT_ROOT:-$CONNECTOR_COMPONENT_CACHE/envoy}"
 ENVOY_RUNTIME_ROOT="${ENVOY_RUNTIME_ROOT:-$VERIFIED_RUN_ROOT/envoy-smoke}"
 ENVOY_CONFIG_ROOT="${ENVOY_CONFIG_ROOT:-$ENVOY_RUNTIME_ROOT/config}"
@@ -159,32 +193,33 @@ TRAEFIK_RUNTIME_ROOT="${TRAEFIK_RUNTIME_ROOT:-$VERIFIED_RUN_ROOT/traefik-smoke}"
 TRAEFIK_CONFIG_ROOT="${TRAEFIK_CONFIG_ROOT:-$TRAEFIK_RUNTIME_ROOT/config}"
 TRAEFIK_LOG_ROOT="${TRAEFIK_LOG_ROOT:-$VERIFIED_LOG_ROOT/traefik-smoke}"
 TRAEFIK_RESULT_ROOT="${TRAEFIK_RESULT_ROOT:-$VERIFIED_RUN_ROOT/traefik-smoke}"
-TRAEFIK_BIN="$TRAEFIK_COMPONENT_ROOT/bin/traefik"
 TRAEFIK_ARCHIVE="$TRAEFIK_COMPONENT_ROOT/downloads/$TRAEFIK_ARCHIVE_NAME"
 TRAEFIK_SOURCE_ROOT="${TRAEFIK_SOURCE_ROOT:-$TRAEFIK_COMPONENT_ROOT/src/traefik-$TRAEFIK_VERSION}"
 TRAEFIK_BUILD_ROOT="${TRAEFIK_BUILD_ROOT:-$BUILD_ROOT/traefik-connector}"
+TRAEFIK_BIN="$TRAEFIK_BUILD_ROOT/bin/traefik"
 TRAEFIK_SMOKE_PORT="${TRAEFIK_SMOKE_PORT:-18180}"
 TRAEFIK_UPSTREAM_PORT="${TRAEFIK_UPSTREAM_PORT:-18181}"
 TRAEFIK_AUTHZ_PORT="${TRAEFIK_AUTHZ_PORT:-18182}"
 TRAEFIK_INTEGRATION_MODE="${TRAEFIK_INTEGRATION_MODE:-forwardAuth}"
 
-LIGHTTPD_VERSION="${LIGHTTPD_VERSION:-1.4.85}"
-LIGHTTPD_SOURCE_URL="${LIGHTTPD_SOURCE_URL:-https://download.lighttpd.net/lighttpd/releases-1.4.x/}"
-LIGHTTPD_RELEASE_INDEX_URL="${LIGHTTPD_RELEASE_INDEX_URL:-$LIGHTTPD_SOURCE_URL}"
-LIGHTTPD_LATEST_URL="${LIGHTTPD_LATEST_URL:-https://download.lighttpd.net/lighttpd/releases-1.4.x/latest.txt}"
-LIGHTTPD_DOWNLOAD_URL="${LIGHTTPD_DOWNLOAD_URL:-https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$LIGHTTPD_VERSION.tar.xz}"
-LIGHTTPD_SHA256="${LIGHTTPD_SHA256:-18de51b393bac4a6827879e1a7ff377c169e414bae92cd245091d80fc2601d13}"
-LIGHTTPD_SHA256_URL="${LIGHTTPD_SHA256_URL:-https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-$LIGHTTPD_VERSION.sha256sum}"
+LIGHTTPD_VERSION="1.4.85"
+LIGHTTPD_SOURCE_URL="https://download.lighttpd.net/lighttpd/releases-1.4.x/"
+LIGHTTPD_RELEASE_INDEX_URL="$LIGHTTPD_SOURCE_URL"
+LIGHTTPD_LATEST_URL="$LIGHTTPD_SOURCE_URL/latest.txt"
+LIGHTTPD_ARCHIVE_NAME="lighttpd-$LIGHTTPD_VERSION.tar.xz"
+LIGHTTPD_DOWNLOAD_URL="$LIGHTTPD_SOURCE_URL$LIGHTTPD_ARCHIVE_NAME"
+LIGHTTPD_SHA256="18de51b393bac4a6827879e1a7ff377c169e414bae92cd245091d80fc2601d13"
+LIGHTTPD_SHA256_URL="${LIGHTTPD_SOURCE_URL}lighttpd-$LIGHTTPD_VERSION.sha256sum"
 LIGHTTPD_COMPONENT_ROOT="${LIGHTTPD_COMPONENT_ROOT:-$CONNECTOR_COMPONENT_CACHE/lighttpd}"
 LIGHTTPD_RUNTIME_ROOT="${LIGHTTPD_RUNTIME_ROOT:-$VERIFIED_RUN_ROOT/lighttpd-smoke}"
 LIGHTTPD_CONFIG_ROOT="${LIGHTTPD_CONFIG_ROOT:-$LIGHTTPD_RUNTIME_ROOT/config}"
 LIGHTTPD_LOG_ROOT="${LIGHTTPD_LOG_ROOT:-$VERIFIED_LOG_ROOT/lighttpd-smoke}"
 LIGHTTPD_RESULT_ROOT="${LIGHTTPD_RESULT_ROOT:-$VERIFIED_RUN_ROOT/lighttpd-smoke}"
-LIGHTTPD_BIN="${LIGHTTPD_BIN:-$LIGHTTPD_COMPONENT_ROOT/bin/lighttpd}"
-LIGHTTPD_SOURCE_DIR="${LIGHTTPD_SOURCE_DIR:-$LIGHTTPD_COMPONENT_ROOT/src/lighttpd-$LIGHTTPD_VERSION}"
-LIGHTTPD_BUILD_ROOT="${LIGHTTPD_BUILD_ROOT:-$LIGHTTPD_COMPONENT_ROOT/build/lighttpd-$LIGHTTPD_VERSION}"
-LIGHTTPD_INCLUDE_DIR="${LIGHTTPD_INCLUDE_DIR:-$LIGHTTPD_SOURCE_DIR/src}"
 LIGHTTPD_CONNECTOR_BUILD_ROOT="${LIGHTTPD_CONNECTOR_BUILD_ROOT:-$BUILD_ROOT/lighttpd-connector}"
+LIGHTTPD_BIN="${LIGHTTPD_BIN:-$LIGHTTPD_CONNECTOR_BUILD_ROOT/bin/lighttpd}"
+LIGHTTPD_SOURCE_DIR="${LIGHTTPD_SOURCE_DIR:-$LIGHTTPD_CONNECTOR_BUILD_ROOT/src/lighttpd-$LIGHTTPD_VERSION}"
+LIGHTTPD_BUILD_ROOT="${LIGHTTPD_BUILD_ROOT:-$LIGHTTPD_CONNECTOR_BUILD_ROOT/build/lighttpd-$LIGHTTPD_VERSION}"
+LIGHTTPD_INCLUDE_DIR="${LIGHTTPD_INCLUDE_DIR:-$LIGHTTPD_SOURCE_DIR/src}"
 LIGHTTPD_MODULE_DIR="${LIGHTTPD_MODULE_DIR:-$LIGHTTPD_CONNECTOR_BUILD_ROOT/modules}"
 LIGHTTPD_SMOKE_PORT="${LIGHTTPD_SMOKE_PORT:-18280}"
 LIGHTTPD_UPSTREAM_PORT="${LIGHTTPD_UPSTREAM_PORT:-18281}"
@@ -229,8 +264,8 @@ MODSECURITY_V3_ROOT="${MODSECURITY_V3_ROOT:-$MODSECURITY_SOURCE_DIR}"
 CRS_APPROVED_REPO_URL="https://github.com/coreruleset/coreruleset.git"
 CRS_APPROVED_COMMIT="55b09f5acfd16413e7b31041100711ceb7adc89c"
 CRS_RELEASE_TAG="v4.28.0"
-: "${CRS_REPO_URL:=$CRS_APPROVED_REPO_URL}"
-: "${CRS_GIT_REF:=$CRS_RELEASE_TAG}"
+CRS_REPO_URL="$CRS_APPROVED_REPO_URL"
+CRS_GIT_REF="$CRS_RELEASE_TAG"
 
 # CRS paths
 : "${CRS_SOURCE_DIR:=${SOURCE_ROOT}/coreruleset}"
@@ -258,10 +293,10 @@ MODSECURITY_NGINX_SOURCE_DIR="${MODSECURITY_NGINX_SOURCE_DIR:-$DEFAULT_MODSECURI
 MODSECURITY_V3_APPROVED_REPO_URL="https://github.com/owasp-modsecurity/ModSecurity.git"
 MODSECURITY_V3_APPROVED_COMMIT="0fb4aff98b4980cf6426697d5605c424e3d5bb60"
 MODSECURITY_V3_RELEASE_TAG="v3.0.15"
-MODSECURITY_REPO_URL="${MODSECURITY_REPO_URL:-$MODSECURITY_V3_APPROVED_REPO_URL}"
-MODSECURITY_GIT_REF="${MODSECURITY_GIT_REF:-$MODSECURITY_V3_RELEASE_TAG}"
-MODSECURITY_V3_GIT_URL="${MODSECURITY_V3_GIT_URL:-$MODSECURITY_V3_APPROVED_REPO_URL}"
-MODSECURITY_V3_GIT_REF="${MODSECURITY_V3_GIT_REF:-$MODSECURITY_V3_RELEASE_TAG}"
+MODSECURITY_REPO_URL="$MODSECURITY_V3_APPROVED_REPO_URL"
+MODSECURITY_GIT_REF="$MODSECURITY_V3_RELEASE_TAG"
+MODSECURITY_V3_GIT_URL="$MODSECURITY_V3_APPROVED_REPO_URL"
+MODSECURITY_V3_GIT_REF="$MODSECURITY_V3_RELEASE_TAG"
 
 ALLOW_EXTERNAL_CONNECTOR_REPOS="${ALLOW_EXTERNAL_CONNECTOR_REPOS:-0}"
 # Optional: external connector repositories are empty by default because this repository
@@ -274,21 +309,24 @@ MODSECURITY_NGINX_REPO_URL="${MODSECURITY_NGINX_REPO_URL:-${MODSECURITY_NGINX_GI
 MODSECURITY_NGINX_GIT_URL="${MODSECURITY_NGINX_GIT_URL:-$MODSECURITY_NGINX_REPO_URL}"
 MODSECURITY_NGINX_GIT_REF="${MODSECURITY_NGINX_GIT_REF:-$DEFAULT_BRANCH}"
 
-HTTPD_VERSION="${HTTPD_VERSION:-2.4.68}"
-HTTPD_SOURCE_URL="${HTTPD_SOURCE_URL:-https://downloads.apache.org/httpd/httpd-$HTTPD_VERSION.tar.bz2}"
-HTTPD_SHA256="${HTTPD_SHA256:-68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06}"
-HTTPD_SHA256_URL="${HTTPD_SHA256_URL:-$HTTPD_SOURCE_URL.sha256}"
-APR_VERSION="${APR_VERSION:-1.7.6}"
-APR_SOURCE_URL="${APR_SOURCE_URL:-https://downloads.apache.org/apr/apr-$APR_VERSION.tar.bz2}"
-APR_SHA256="${APR_SHA256:-49030d92d2575da735791b496dc322f3ce5cff9494779ba8cc28c7f46c5deb32}"
-APR_SHA256_URL="${APR_SHA256_URL:-$APR_SOURCE_URL.sha256}"
+HTTPD_VERSION="2.4.68"
+HTTPD_ARCHIVE_NAME="httpd-$HTTPD_VERSION.tar.bz2"
+HTTPD_SOURCE_URL="https://downloads.apache.org/httpd/$HTTPD_ARCHIVE_NAME"
+HTTPD_SHA256="68c74d4df38c26bed4dfbdb8f3baf1eb532f3872357becc1bba5d136f6b63c06"
+HTTPD_SHA256_URL="$HTTPD_SOURCE_URL.sha256"
+APR_VERSION="1.7.6"
+APR_ARCHIVE_NAME="apr-$APR_VERSION.tar.bz2"
+APR_SOURCE_URL="https://downloads.apache.org/apr/$APR_ARCHIVE_NAME"
+APR_SHA256="49030d92d2575da735791b496dc322f3ce5cff9494779ba8cc28c7f46c5deb32"
+APR_SHA256_URL="$APR_SOURCE_URL.sha256"
 # APR-util is one atomic, reviewed provider tuple.  The version is declared
 # exactly once; both provider URLs are derived from it.  Keep the assignments
 # at column zero so the common-version resolver can update the version and
 # digest atomically without evaluating shell code.
 ci_apr_util_set_canonical_tuple() {
 APR_UTIL_VERSION="1.6.5"
-APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"
+APR_UTIL_ARCHIVE_NAME="apr-util-$APR_UTIL_VERSION.tar.bz2"
+APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/$APR_UTIL_ARCHIVE_NAME"
 APR_UTIL_SHA256="96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"
 APR_UTIL_SHA256_URL="$APR_UTIL_SOURCE_URL.sha256"
 }
@@ -329,32 +367,34 @@ else
     CI_APR_UTIL_SHA256_URL_BEFORE_SOURCE=
 fi
 ci_apr_util_set_canonical_tuple
-PCRE2_VERSION="${PCRE2_VERSION:-10.47}"
-PCRE2_SOURCE_URL="${PCRE2_SOURCE_URL:-https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-$PCRE2_VERSION.tar.bz2}"
+PCRE2_VERSION="10.47"
+PCRE2_ARCHIVE_NAME="pcre2-$PCRE2_VERSION.tar.bz2"
+PCRE2_SOURCE_URL="https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$PCRE2_VERSION/$PCRE2_ARCHIVE_NAME"
 # The literal pin is required before the PCRE2 archive can be extracted.  Use
 # the no-colon expansion so an explicitly empty caller override fails closed.
-PCRE2_SHA256="${PCRE2_SHA256-47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9ca03fd08d7bc7}"
+PCRE2_SHA256="47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9ca03fd08d7bc7"
 # PCRE2 release assets do not publish a stable per-asset SHA256 URL.  This
 # metadata variable is retained for version tooling; it is not an extraction
 # verification fallback.
-PCRE2_SHA256_URL="${PCRE2_SHA256_URL:-}"
+PCRE2_SHA256_URL=""
 
-NGINX_SOURCE_MODE="${NGINX_SOURCE_MODE-github-release}"
-NGINX_SOURCE_REPO_URL="${NGINX_SOURCE_REPO_URL-${NGINX_GITHUB_REPO-https://github.com/nginx/nginx}}"
-NGINX_GITHUB_REPO="${NGINX_GITHUB_REPO-$NGINX_SOURCE_REPO_URL}"
-NGINX_RELEASE_TAG="${NGINX_RELEASE_TAG-release-1.31.3}"
-NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF-$NGINX_RELEASE_TAG}"
+NGINX_SOURCE_MODE="github-release"
+NGINX_SOURCE_REPO_URL="https://github.com/nginx/nginx"
+NGINX_GITHUB_REPO="$NGINX_SOURCE_REPO_URL"
+NGINX_RELEASE_TAG="release-1.31.3"
+NGINX_SOURCE_GIT_REF="$NGINX_RELEASE_TAG"
 # NGINX source provenance is an atomic binding: the official GitHub release
 # tag, its exact release asset, and the digest GitHub publishes for that asset
 # are reviewed together.  Do not update one member of this tuple alone.
-NGINX_RELEASE_ASSET_NAME="${NGINX_RELEASE_ASSET_NAME-nginx-${NGINX_RELEASE_TAG#release-}.tar.gz}"
+NGINX_RELEASE_ASSET_NAME="nginx-${NGINX_RELEASE_TAG#release-}.tar.gz"
+NGINX_DOWNLOAD_URL="$NGINX_SOURCE_REPO_URL/releases/download/$NGINX_RELEASE_TAG/$NGINX_RELEASE_ASSET_NAME"
 if [ "${NGINX_SHA256+x}" = x ]; then
     NGINX_SHA256_WAS_SET=1
 else
     NGINX_SHA256_WAS_SET=0
 fi
 NGINX_SHA256_REQUESTED="${NGINX_SHA256-}"
-NGINX_SHA256="${NGINX_SHA256:-a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525}"
+NGINX_SHA256="a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525"
 
 # Managed NGINX protocol builds are deliberately explicit.  The default keeps
 # the established clear-text HTTP/1.1 smoke path unchanged; H2/H3 are opted in
@@ -364,9 +404,10 @@ NGINX_SHA256="${NGINX_SHA256:-a7657c50811c2d92d9895395e8b873ef60398142c4db21eb64
 # when that profile is selected.
 NGINX_PROTOCOL_PROFILE="${NGINX_PROTOCOL_PROFILE:-h1}"
 NGINX_QUIC_TLS_LIBRARY="${NGINX_QUIC_TLS_LIBRARY:-openssl}"
-NGINX_QUIC_TLS_VERSION="${NGINX_QUIC_TLS_VERSION:-4.0.1}"
-NGINX_QUIC_TLS_SOURCE_URL="${NGINX_QUIC_TLS_SOURCE_URL:-https://github.com/openssl/openssl/releases/download/openssl-$NGINX_QUIC_TLS_VERSION/openssl-$NGINX_QUIC_TLS_VERSION.tar.gz}"
-NGINX_QUIC_TLS_SOURCE_SHA256="${NGINX_QUIC_TLS_SOURCE_SHA256:-2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09}"
+NGINX_QUIC_TLS_VERSION="4.0.1"
+NGINX_QUIC_TLS_ARCHIVE_NAME="openssl-$NGINX_QUIC_TLS_VERSION.tar.gz"
+NGINX_QUIC_TLS_SOURCE_URL="https://github.com/openssl/openssl/releases/download/openssl-$NGINX_QUIC_TLS_VERSION/$NGINX_QUIC_TLS_ARCHIVE_NAME"
+NGINX_QUIC_TLS_SOURCE_SHA256="2db3f3a0d6ea4b59e1f094ace2c8cd536dffb87cdc39084c5afa1e6f7f37dd09"
 # Optional explicit archive location, normally supplied by the managed
 # runtime-component cache.  An empty value means prepare-nginx-build.sh uses
 # the URL basename below NGINX_DOWNLOAD_DIR.
@@ -409,13 +450,15 @@ nginx_protocol_profile_configure_flags() {
     esac
 }
 
-HAPROXY_VERSION="${HAPROXY_VERSION:-3.2.22}"
-HAPROXY_SOURCE_URL="${HAPROXY_SOURCE_URL:-https://www.haproxy.org/download/3.2/src/haproxy-$HAPROXY_VERSION.tar.gz}"
-HAPROXY_SHA256_URL="${HAPROXY_SHA256_URL:-$HAPROXY_SOURCE_URL.sha256}"
-HAPROXY_SHA256="${HAPROXY_SHA256:-afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da}"
-HAPROXY_HTX_VERSION="${HAPROXY_HTX_VERSION:-3.2.21}"
-HAPROXY_HTX_SOURCE_URL="${HAPROXY_HTX_SOURCE_URL:-https://www.haproxy.org/download/3.2/src/haproxy-$HAPROXY_HTX_VERSION.tar.gz}"
-HAPROXY_HTX_SHA256="${HAPROXY_HTX_SHA256:-0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339}"
+HAPROXY_VERSION="3.2.22"
+HAPROXY_ARCHIVE_NAME="haproxy-$HAPROXY_VERSION.tar.gz"
+HAPROXY_SOURCE_URL="https://www.haproxy.org/download/3.2/src/$HAPROXY_ARCHIVE_NAME"
+HAPROXY_SHA256_URL="$HAPROXY_SOURCE_URL.sha256"
+HAPROXY_SHA256="afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da"
+HAPROXY_HTX_VERSION="3.2.21"
+HAPROXY_HTX_ARCHIVE_NAME="haproxy-$HAPROXY_HTX_VERSION.tar.gz"
+HAPROXY_HTX_SOURCE_URL="https://www.haproxy.org/download/3.2/src/$HAPROXY_HTX_ARCHIVE_NAME"
+HAPROXY_HTX_SHA256="0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339"
 HAPROXY_SOURCE_ROOT="${HAPROXY_SOURCE_ROOT:-$SOURCE_ROOT/haproxy}"
 HAPROXY_DOWNLOAD_DIR="${HAPROXY_DOWNLOAD_DIR:-$HAPROXY_SOURCE_ROOT/downloads}"
 HAPROXY_SOURCE_DIR="${HAPROXY_SOURCE_DIR:-$HAPROXY_SOURCE_ROOT/haproxy-$HAPROXY_VERSION}"
@@ -424,20 +467,183 @@ HAPROXY_RUNTIME_BUILD_WORKTREE="${HAPROXY_RUNTIME_BUILD_WORKTREE:-$HAPROXY_RUNTI
 HAPROXY_RUNTIME_DIR="${HAPROXY_RUNTIME_DIR:-$BUILD_ROOT/haproxy-runtime/haproxy}"
 HAPROXY_BIN="${HAPROXY_BIN:-$HAPROXY_RUNTIME_DIR/sbin/haproxy}"
 
-GO_FTW_SOURCE_URL="${GO_FTW_SOURCE_URL:-https://github.com/coreruleset/go-ftw}"
-GO_FTW_PROMPT_EXPECTED_LATEST="${GO_FTW_PROMPT_EXPECTED_LATEST:-v2.2.0}"
-GO_FTW_GIT_REF="${GO_FTW_GIT_REF:-$GO_FTW_PROMPT_EXPECTED_LATEST}"
+GO_FTW_SOURCE_URL="https://github.com/coreruleset/go-ftw"
+GO_FTW_PROMPT_EXPECTED_LATEST="v2.2.0"
+GO_FTW_GIT_REF="$GO_FTW_PROMPT_EXPECTED_LATEST"
 GO_FTW_BIN="${GO_FTW_BIN:-go-ftw}"
 
-ALBEDO_SOURCE_URL="${ALBEDO_SOURCE_URL:-https://github.com/coreruleset/albedo}"
-ALBEDO_PROMPT_EXPECTED_LATEST="${ALBEDO_PROMPT_EXPECTED_LATEST:-v0.3.0}"
-ALBEDO_GIT_REF="${ALBEDO_GIT_REF:-$ALBEDO_PROMPT_EXPECTED_LATEST}"
+ALBEDO_SOURCE_URL="https://github.com/coreruleset/albedo"
+ALBEDO_PROMPT_EXPECTED_LATEST="v0.3.0"
+ALBEDO_GIT_REF="$ALBEDO_PROMPT_EXPECTED_LATEST"
 ALBEDO_BIN="${ALBEDO_BIN:-albedo}"
 
-EXPAT_SOURCE_URL="${EXPAT_SOURCE_URL:-https://github.com/libexpat/libexpat}"
-EXPAT_GIT_REF="${EXPAT_GIT_REF:-master}"
-EXPAT_GIT_URL="${EXPAT_GIT_URL:-$EXPAT_SOURCE_URL}"
-EXPAT_PROMPT_EXPECTED_LATEST="${EXPAT_PROMPT_EXPECTED_LATEST:-$EXPAT_GIT_REF}"
+EXPAT_SOURCE_URL="https://github.com/libexpat/libexpat"
+# Expat is maintenance metadata only; no active Framework provisioning path
+# consumes it.  Keep the existing branch marker immutable to this task rather
+# than fabricating a new upstream commit without a reviewed dependency update.
+EXPAT_GIT_REF="master"
+EXPAT_GIT_URL="$EXPAT_SOURCE_URL"
+EXPAT_PROMPT_EXPECTED_LATEST="$EXPAT_GIT_REF"
+
+# CI workflow, native-tool, and interpreter provenance is also canonical here.
+# YAML and documentation cannot source shell at runtime, so the checked-in
+# representations are deterministic generated views validated by the sync
+# tools.  Repository identifiers are part of the upstream identity; keep
+# release and asset URLs derived from them rather than duplicating URLs in
+# workflow or lock files.
+CI_CANONICAL_PYTHON_VERSION="3.14.6"
+CI_CANONICAL_PYYAML_VERSION="6.0.3"
+CI_CANONICAL_PYYAML_SHA256="c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5"
+CI_CANONICAL_NODE_VERSION="24.18.0"
+# The pull-request OSV workflow has one compatibility exception for the
+# historical base revision that predates the current Python line.  Keep this
+# exact revision/version tuple canonical here; the workflow synchronizer emits
+# the two env fields as a generated view and never sources this file at run
+# time.
+CI_OSV_LEGACY_BASE_SHA="f73f8842f45318e2df8aff1d31855eeb7c20a22f"
+CI_OSV_LEGACY_BASE_VERSION="3.13.14"
+
+CI_ACTION_CHECKOUT_REPOSITORY="actions/checkout"
+CI_ACTION_CHECKOUT_VERSION="v7.0.1"
+CI_ACTION_CHECKOUT_COMMIT="3d3c42e5aac5ba805825da76410c181273ba90b1"
+CI_ACTION_SETUP_PYTHON_REPOSITORY="actions/setup-python"
+CI_ACTION_SETUP_PYTHON_VERSION="v7.0.0"
+CI_ACTION_SETUP_PYTHON_COMMIT="5fda3b95a4ea91299a34e894583c3862153e4b97"
+CI_ACTION_SETUP_NODE_REPOSITORY="actions/setup-node"
+CI_ACTION_SETUP_NODE_VERSION="v7.0.0"
+CI_ACTION_SETUP_NODE_COMMIT="820762786026740c76f36085b0efc47a31fe5020"
+CI_ACTION_UPLOAD_ARTIFACT_REPOSITORY="actions/upload-artifact"
+CI_ACTION_UPLOAD_ARTIFACT_VERSION="v7.0.1"
+CI_ACTION_UPLOAD_ARTIFACT_COMMIT="043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+CI_ACTION_GITHUB_SCRIPT_REPOSITORY="actions/github-script"
+CI_ACTION_GITHUB_SCRIPT_VERSION="v9.0.0"
+CI_ACTION_GITHUB_SCRIPT_COMMIT="3a2844b7e9c422d3c10d287c895573f7108da1b3"
+CI_ACTION_CREATE_GITHUB_APP_TOKEN_REPOSITORY="actions/create-github-app-token"
+CI_ACTION_CREATE_GITHUB_APP_TOKEN_VERSION="v3.2.0"
+CI_ACTION_CREATE_GITHUB_APP_TOKEN_COMMIT="bcd2ba49218906704ab6c1aa796996da409d3eb1"
+CI_ACTION_CREATE_PULL_REQUEST_REPOSITORY="peter-evans/create-pull-request"
+CI_ACTION_CREATE_PULL_REQUEST_VERSION="v8.1.1"
+CI_ACTION_CREATE_PULL_REQUEST_COMMIT="5f6978faf089d4d20b00c7766989d076bb2fc7f1"
+CI_ACTION_CODEQL_REPOSITORY="github/codeql-action"
+CI_ACTION_CODEQL_VERSION="v4.37.6"
+CI_ACTION_CODEQL_COMMIT="5595ccaf912efad79be6eef63a5619ff05969be3"
+CI_ACTION_DEPENDENCY_REVIEW_REPOSITORY="actions/dependency-review-action"
+CI_ACTION_DEPENDENCY_REVIEW_VERSION="v5.0.0"
+CI_ACTION_DEPENDENCY_REVIEW_COMMIT="a1d282b36b6f3519aa1f3fc636f609c47dddb294"
+
+CI_SECURITY_TOOL_SCORECARD_REPOSITORY="ossf/scorecard"
+CI_SECURITY_TOOL_SCORECARD_VERSION="v5.5.0"
+CI_SECURITY_TOOL_SCORECARD_COMMIT="c395761df6afe1a69e476bc60a013a94bcbc153f"
+CI_SECURITY_TOOL_SCORECARD_ASSET_NAME="scorecard_${CI_SECURITY_TOOL_SCORECARD_VERSION#v}_linux_amd64.tar.gz"
+CI_SECURITY_TOOL_SCORECARD_SHA256="83b90a05c1540ef1390db1cd5711e5fd04be9c1d8537fb84d39d02092d6a8dff"
+CI_SECURITY_TOOL_OSV_SCANNER_REPOSITORY="google/osv-scanner"
+CI_SECURITY_TOOL_OSV_SCANNER_VERSION="v2.5.0"
+CI_SECURITY_TOOL_OSV_SCANNER_COMMIT="a258868211a57052da6bd323f758b8388dee02bb"
+CI_SECURITY_TOOL_OSV_SCANNER_ASSET_NAME="osv-scanner_linux_amd64"
+CI_SECURITY_TOOL_OSV_SCANNER_SHA256="edcfc41d257db36148f065055655fe3fcfc434b0b423ea67468a84c207524e0c"
+CI_SECURITY_TOOL_ACTIONLINT_REPOSITORY="rhysd/actionlint"
+CI_SECURITY_TOOL_ACTIONLINT_VERSION="v1.7.12"
+CI_SECURITY_TOOL_ACTIONLINT_COMMIT="914e7df21a07ef503a81201c76d2b11c789d3fca"
+CI_SECURITY_TOOL_ACTIONLINT_ASSET_NAME="actionlint_${CI_SECURITY_TOOL_ACTIONLINT_VERSION#v}_linux_amd64.tar.gz"
+CI_SECURITY_TOOL_ACTIONLINT_SHA256="8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+CI_SECURITY_TOOL_SHELLCHECK_REPOSITORY="koalaman/shellcheck"
+CI_SECURITY_TOOL_SHELLCHECK_VERSION="v0.11.0"
+CI_SECURITY_TOOL_SHELLCHECK_COMMIT="aac0823e6b58f8a499e856e93738082691cbf212"
+CI_SECURITY_TOOL_SHELLCHECK_ASSET_NAME="shellcheck-${CI_SECURITY_TOOL_SHELLCHECK_VERSION}.linux.x86_64.tar.gz"
+CI_SECURITY_TOOL_SHELLCHECK_SHA256="b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6"
+CI_SECURITY_TOOL_ZIZMOR_REPOSITORY="zizmorcore/zizmor"
+CI_SECURITY_TOOL_ZIZMOR_VERSION="v1.29.0"
+CI_SECURITY_TOOL_ZIZMOR_COMMIT="3c116961091b50bd1a08ffefe916469d4d90093c"
+CI_SECURITY_TOOL_ZIZMOR_ASSET_NAME="zizmor-x86_64-unknown-linux-gnu.tar.gz"
+CI_SECURITY_TOOL_ZIZMOR_SHA256="dd96df044a6e8538d5f423790f453bdd03d49e5b2bcc38214acc41a2f1297839"
+CI_SECURITY_TOOL_GITLEAKS_REPOSITORY="gitleaks/gitleaks"
+CI_SECURITY_TOOL_GITLEAKS_VERSION="v8.30.1"
+CI_SECURITY_TOOL_GITLEAKS_COMMIT="83d9cd684c87d95d656c1458ef04895a7f1cbd8e"
+CI_SECURITY_TOOL_GITLEAKS_ASSET_NAME="gitleaks_${CI_SECURITY_TOOL_GITLEAKS_VERSION#v}_linux_x64.tar.gz"
+CI_SECURITY_TOOL_GITLEAKS_SHA256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+CI_SECURITY_TOOL_RUFF_REPOSITORY="astral-sh/ruff"
+CI_SECURITY_TOOL_RUFF_VERSION="0.16.2"
+CI_SECURITY_TOOL_RUFF_COMMIT="5b48a040974781ba90b47c8df628f8fd9b6c95dd"
+CI_SECURITY_TOOL_RUFF_ASSET_NAME="ruff-x86_64-unknown-linux-gnu.tar.gz"
+CI_SECURITY_TOOL_RUFF_SHA256="3d2c355e641ceb5b608a158c603768fcc908c5009c56c6e78da7487da033b92a"
+CI_SECURITY_TOOL_PYRIGHT_REPOSITORY="microsoft/pyright"
+CI_SECURITY_TOOL_PYRIGHT_VERSION="1.1.411"
+CI_SECURITY_TOOL_PYRIGHT_COMMIT="9a9205fc32a2685767f38f348f5d9232701d4b0b"
+CI_SECURITY_TOOL_PYRIGHT_ASSET_NAME="pyright.tgz"
+CI_SECURITY_TOOL_PYRIGHT_SHA256="bd5c488fc20fa237a944279bf32cae2f986cf10d5d5d9e8705819859daeb2f4a"
+
+# Retain the values established by this source operation as derived runtime
+# expectations.  They contain no second manually maintained pin and allow a
+# consumer to reject a post-source mutation before it reaches a download,
+# extraction, compilation, or executable sink.
+ci_capture_canonical_active_upstream_pins() {
+    CI_ACTIVE_PIN_ENVOY_VERSION=$ENVOY_VERSION
+    CI_ACTIVE_PIN_ENVOY_SOURCE_URL=$ENVOY_SOURCE_URL
+    CI_ACTIVE_PIN_ENVOY_ARTIFACT_PLATFORM=$ENVOY_ARTIFACT_PLATFORM
+    CI_ACTIVE_PIN_ENVOY_ASSET_NAME=$ENVOY_ASSET_NAME
+    CI_ACTIVE_PIN_ENVOY_DOWNLOAD_URL=$ENVOY_DOWNLOAD_URL
+    CI_ACTIVE_PIN_ENVOY_SHA256=$ENVOY_SHA256
+    CI_ACTIVE_PIN_ENVOY_SHA256_URL=$ENVOY_SHA256_URL
+    CI_ACTIVE_PIN_LIGHTTPD_VERSION=$LIGHTTPD_VERSION
+    CI_ACTIVE_PIN_LIGHTTPD_SOURCE_URL=$LIGHTTPD_SOURCE_URL
+    CI_ACTIVE_PIN_LIGHTTPD_ARCHIVE_NAME=$LIGHTTPD_ARCHIVE_NAME
+    CI_ACTIVE_PIN_LIGHTTPD_DOWNLOAD_URL=$LIGHTTPD_DOWNLOAD_URL
+    CI_ACTIVE_PIN_LIGHTTPD_SHA256=$LIGHTTPD_SHA256
+    CI_ACTIVE_PIN_LIGHTTPD_SHA256_URL=$LIGHTTPD_SHA256_URL
+    CI_ACTIVE_PIN_CRS_APPROVED_REPO_URL=$CRS_APPROVED_REPO_URL
+    CI_ACTIVE_PIN_CRS_RELEASE_TAG=$CRS_RELEASE_TAG
+    CI_ACTIVE_PIN_CRS_REPO_URL=$CRS_REPO_URL
+    CI_ACTIVE_PIN_CRS_APPROVED_COMMIT=$CRS_APPROVED_COMMIT
+    CI_ACTIVE_PIN_CRS_GIT_REF=$CRS_GIT_REF
+    CI_ACTIVE_PIN_MODSECURITY_REPO_URL=$MODSECURITY_REPO_URL
+    CI_ACTIVE_PIN_MODSECURITY_APPROVED_COMMIT=$MODSECURITY_V3_APPROVED_COMMIT
+    CI_ACTIVE_PIN_MODSECURITY_GIT_REF=$MODSECURITY_GIT_REF
+    CI_ACTIVE_PIN_MODSECURITY_V3_GIT_URL=$MODSECURITY_V3_GIT_URL
+    CI_ACTIVE_PIN_MODSECURITY_V3_GIT_REF=$MODSECURITY_V3_GIT_REF
+    CI_ACTIVE_PIN_HTTPD_VERSION=$HTTPD_VERSION
+    CI_ACTIVE_PIN_HTTPD_ARCHIVE_NAME=$HTTPD_ARCHIVE_NAME
+    CI_ACTIVE_PIN_HTTPD_SOURCE_URL=$HTTPD_SOURCE_URL
+    CI_ACTIVE_PIN_HTTPD_SHA256=$HTTPD_SHA256
+    CI_ACTIVE_PIN_HTTPD_SHA256_URL=$HTTPD_SHA256_URL
+    CI_ACTIVE_PIN_APR_VERSION=$APR_VERSION
+    CI_ACTIVE_PIN_APR_ARCHIVE_NAME=$APR_ARCHIVE_NAME
+    CI_ACTIVE_PIN_APR_SOURCE_URL=$APR_SOURCE_URL
+    CI_ACTIVE_PIN_APR_SHA256=$APR_SHA256
+    CI_ACTIVE_PIN_APR_SHA256_URL=$APR_SHA256_URL
+    CI_ACTIVE_PIN_APR_UTIL_VERSION=$APR_UTIL_VERSION
+    CI_ACTIVE_PIN_APR_UTIL_ARCHIVE_NAME=$APR_UTIL_ARCHIVE_NAME
+    CI_ACTIVE_PIN_APR_UTIL_SOURCE_URL=$APR_UTIL_SOURCE_URL
+    CI_ACTIVE_PIN_APR_UTIL_SHA256=$APR_UTIL_SHA256
+    CI_ACTIVE_PIN_APR_UTIL_SHA256_URL=$APR_UTIL_SHA256_URL
+    CI_ACTIVE_PIN_PCRE2_VERSION=$PCRE2_VERSION
+    CI_ACTIVE_PIN_PCRE2_ARCHIVE_NAME=$PCRE2_ARCHIVE_NAME
+    CI_ACTIVE_PIN_PCRE2_SOURCE_URL=$PCRE2_SOURCE_URL
+    CI_ACTIVE_PIN_PCRE2_SHA256=$PCRE2_SHA256
+    CI_ACTIVE_PIN_PCRE2_SHA256_URL=$PCRE2_SHA256_URL
+    CI_ACTIVE_PIN_NGINX_SOURCE_MODE=$NGINX_SOURCE_MODE
+    CI_ACTIVE_PIN_NGINX_SOURCE_REPO_URL=$NGINX_SOURCE_REPO_URL
+    CI_ACTIVE_PIN_NGINX_GITHUB_REPO=$NGINX_GITHUB_REPO
+    CI_ACTIVE_PIN_NGINX_RELEASE_TAG=$NGINX_RELEASE_TAG
+    CI_ACTIVE_PIN_NGINX_SOURCE_GIT_REF=$NGINX_SOURCE_GIT_REF
+    CI_ACTIVE_PIN_NGINX_RELEASE_ASSET_NAME=$NGINX_RELEASE_ASSET_NAME
+    CI_ACTIVE_PIN_NGINX_DOWNLOAD_URL=$NGINX_DOWNLOAD_URL
+    CI_ACTIVE_PIN_NGINX_SHA256=$NGINX_SHA256
+    CI_ACTIVE_PIN_NGINX_QUIC_TLS_LIBRARY=$NGINX_QUIC_TLS_LIBRARY
+    CI_ACTIVE_PIN_NGINX_QUIC_TLS_VERSION=$NGINX_QUIC_TLS_VERSION
+    CI_ACTIVE_PIN_NGINX_QUIC_TLS_ARCHIVE_NAME=$NGINX_QUIC_TLS_ARCHIVE_NAME
+    CI_ACTIVE_PIN_NGINX_QUIC_TLS_SOURCE_URL=$NGINX_QUIC_TLS_SOURCE_URL
+    CI_ACTIVE_PIN_NGINX_QUIC_TLS_SOURCE_SHA256=$NGINX_QUIC_TLS_SOURCE_SHA256
+    CI_ACTIVE_PIN_HAPROXY_VERSION=$HAPROXY_VERSION
+    CI_ACTIVE_PIN_HAPROXY_ARCHIVE_NAME=$HAPROXY_ARCHIVE_NAME
+    CI_ACTIVE_PIN_HAPROXY_SOURCE_URL=$HAPROXY_SOURCE_URL
+    CI_ACTIVE_PIN_HAPROXY_SHA256_URL=$HAPROXY_SHA256_URL
+    CI_ACTIVE_PIN_HAPROXY_SHA256=$HAPROXY_SHA256
+    CI_ACTIVE_PIN_HAPROXY_HTX_VERSION=$HAPROXY_HTX_VERSION
+    CI_ACTIVE_PIN_HAPROXY_HTX_ARCHIVE_NAME=$HAPROXY_HTX_ARCHIVE_NAME
+    CI_ACTIVE_PIN_HAPROXY_HTX_SOURCE_URL=$HAPROXY_HTX_SOURCE_URL
+    CI_ACTIVE_PIN_HAPROXY_HTX_SHA256=$HAPROXY_HTX_SHA256
+}
+ci_capture_canonical_active_upstream_pins
 
 # Optional tool override variables intentionally default to empty and are resolved by probes.
 APACHE_BIN="${APACHE_BIN:-}"
@@ -480,6 +686,72 @@ ci_is_https_url() {
         https://*) return 0 ;;
         *) return 1 ;;
     esac
+}
+
+# Runtime provenance validation must not resolve checksum tooling through a
+# caller-controlled PATH.  The Framework's supported Linux runners provide
+# GNU coreutils at one of these fixed system locations; no caller override is
+# accepted here.
+ci_trusted_sha256_tool() {
+    ci_sha_candidate=
+    for ci_sha_candidate in /usr/bin/sha256sum /bin/sha256sum; do
+        if [ -x "$ci_sha_candidate" ]; then
+            printf '%s\n' "$ci_sha_candidate"
+            return 0
+        fi
+    done
+    ci_blocked "trusted sha256sum is unavailable at /usr/bin/sha256sum or /bin/sha256sum" >&2
+    return 77
+}
+
+ci_trusted_sha256_file() {
+    ci_sha_file=$1
+    ci_sha_tool=$(ci_trusted_sha256_tool) || return 77
+    if [ ! -f "$ci_sha_file" ]; then
+        ci_blocked "cannot hash a non-regular runtime artifact: $ci_sha_file" >&2
+        return 77
+    fi
+    ci_sha_line=$("$ci_sha_tool" "$ci_sha_file" 2>/dev/null) || {
+        ci_blocked "trusted sha256sum failed for runtime artifact: $ci_sha_file" >&2
+        return 77
+    }
+    ci_sha_value=${ci_sha_line%%[[:space:]]*}
+    case "$ci_sha_value" in
+        *[!0-9A-Fa-f]*|'')
+            ci_blocked "trusted sha256sum returned an invalid digest for runtime artifact: $ci_sha_file" >&2
+            return 77
+            ;;
+    esac
+    if [ "${#ci_sha_value}" -ne 64 ]; then
+        ci_blocked "trusted sha256sum returned a non-SHA-256 digest for runtime artifact: $ci_sha_file" >&2
+        return 77
+    fi
+    printf '%s\n' "$ci_sha_value"
+    return 0
+}
+
+# Hash a pipeline through the same fixed checksum binary.  This is only for
+# deterministic cache/provenance identifiers; release archives themselves
+# must use ci_trusted_sha256_file before extraction.
+ci_trusted_sha256_stream() {
+    ci_sha_tool=$(ci_trusted_sha256_tool) || return 77
+    ci_sha_line=$("$ci_sha_tool" 2>/dev/null) || {
+        ci_blocked "trusted sha256sum failed for runtime data stream" >&2
+        return 77
+    }
+    ci_sha_value=${ci_sha_line%%[[:space:]]*}
+    case "$ci_sha_value" in
+        *[!0-9A-Fa-f]*|'')
+            ci_blocked "trusted sha256sum returned an invalid digest for runtime data stream" >&2
+            return 77
+            ;;
+    esac
+    if [ "${#ci_sha_value}" -ne 64 ]; then
+        ci_blocked "trusted sha256sum returned a non-SHA-256 digest for runtime data stream" >&2
+        return 77
+    fi
+    printf '%s\n' "$ci_sha_value"
+    return 0
 }
 
 ci_safe_url_host() {
@@ -565,6 +837,7 @@ ci_require_https_github_repo_url_if_set() {
 }
 
 ci_require_apr_util_pinned_provenance() {
+    ci_require_inherited_canonical_upstream_pins || return 77
     if [ "${APR_UTIL_VERSION+x}" = x ]; then
         ci_apr_util_live_version_was_set=1
         ci_apr_util_live_version=$APR_UTIL_VERSION
@@ -691,6 +964,7 @@ ci_require_apr_util_pinned_provenance() {
 }
 
 ci_require_traefik_pinned_provenance() {
+    ci_require_inherited_canonical_upstream_pins || return 77
     if [ "${TRAEFIK_VERSION+x}" = x ]; then
         ci_traefik_live_version_was_set=1
         ci_traefik_live_version=$TRAEFIK_VERSION
@@ -762,7 +1036,7 @@ ci_require_traefik_pinned_provenance() {
     ci_traefik_expected_archive_name="traefik_v${TRAEFIK_VERSION}_${TRAEFIK_ARTIFACT_PLATFORM}.tar.gz"
     ci_traefik_expected_download_url="$TRAEFIK_SOURCE_URL/download/v$TRAEFIK_VERSION/$ci_traefik_expected_archive_name"
     ci_traefik_expected_sha256_url="$TRAEFIK_SOURCE_URL/download/v$TRAEFIK_VERSION/traefik_v${TRAEFIK_VERSION}_checksums.txt"
-    ci_traefik_expected_bin="$TRAEFIK_COMPONENT_ROOT/bin/traefik"
+    ci_traefik_expected_bin="$TRAEFIK_BUILD_ROOT/bin/traefik"
     ci_traefik_expected_archive="$TRAEFIK_COMPONENT_ROOT/downloads/$ci_traefik_expected_archive_name"
 
     ci_traefik_inherited_version_was_set=${CI_TRAEFIK_VERSION_WAS_SET-}
@@ -866,7 +1140,7 @@ ci_require_traefik_pinned_provenance() {
         return 77
     fi
     if [ "$ci_traefik_live_bin_was_set" != "1" ] || [ "$ci_traefik_live_bin" != "$ci_traefik_expected_bin" ]; then
-        ci_blocked "TRAEFIK_BIN must remain the canonical verified-cache destination"
+        ci_blocked "TRAEFIK_BIN must remain the canonical task-private destination"
         return 77
     fi
     if [ "$ci_traefik_live_archive_was_set" != "1" ] || [ "$ci_traefik_live_archive" != "$ci_traefik_expected_archive" ]; then
@@ -935,7 +1209,220 @@ ci_validate_safe_ref_config() {
     return 0
 }
 
+ci_require_canonical_active_pin() {
+    ci_active_pin_label=$1
+    ci_active_pin_value=$2
+    ci_active_pin_expected=$3
+    if [ "$ci_active_pin_value" != "$ci_active_pin_expected" ]; then
+        if [ "$ci_active_pin_label" = "APR_UTIL_VERSION" ]; then
+            ci_blocked "APR_UTIL_VERSION must remain the canonical reviewed value (differs from the canonical common.sh pin)"
+            return 77
+        fi
+        ci_blocked "$ci_active_pin_label differs from the canonical common.sh pin"
+        return 77
+    fi
+    return 0
+}
+
+ci_require_inherited_canonical_pin() {
+    ci_inherited_pin_name=$1
+    ci_inherited_pin_expected=$2
+    ci_inherited_pin_line=$(printf '%s\n' "$CI_INHERITED_UPSTREAM_ENV" | awk -v key="$ci_inherited_pin_name" '
+        index($0, key "=") == 1 {
+            count++
+            line = $0
+        }
+        END {
+            if (count > 1) {
+                exit 2
+            }
+            if (count == 1) {
+                print line
+            }
+        }
+    ')
+    ci_inherited_pin_status=$?
+    if [ "$ci_inherited_pin_status" -eq 2 ]; then
+        ci_blocked "$ci_inherited_pin_name is duplicated in the inherited environment"
+        return 77
+    fi
+    if [ "$ci_inherited_pin_status" -ne 0 ]; then
+        ci_blocked "$ci_inherited_pin_name inherited-state snapshot is invalid"
+        return 77
+    fi
+    if [ -z "$ci_inherited_pin_line" ]; then
+        return 0
+    fi
+    ci_inherited_pin_value=${ci_inherited_pin_line#*=}
+    case "$ci_inherited_pin_name:$ci_inherited_pin_value" in
+        MODSECURITY_REPO_URL:|MODSECURITY_GIT_REF:|MODSECURITY_V3_GIT_URL:|MODSECURITY_V3_GIT_REF:)
+            # Empty legacy aliases are compatibility metadata.  common.sh
+            # normalizes them to the reviewed v3 tuple; only non-empty caller
+            # values are treated as attempted source-identity overrides.
+            return 0
+            ;;
+    esac
+    if [ "$ci_inherited_pin_value" != "$ci_inherited_pin_expected" ]; then
+        ci_blocked "$ci_inherited_pin_name override is not permitted"
+        return 77
+    fi
+    return 0
+}
+
+ci_require_inherited_canonical_upstream_pins() {
+    if [ "${CI_INHERITED_UPSTREAM_ENV_STATUS:-77}" -ne 0 ]; then
+        ci_blocked "trusted env is unavailable for inherited active-pin validation"
+        return 77
+    fi
+    # Keep this list aligned with the canonical active-pin arguments below.
+    # Entries use the first ':' only as a separator; the reviewed URLs retain
+    # their embedded ':' and are never interpreted.
+    for ci_inherited_pin_entry in \
+        "ENVOY_VERSION:$ENVOY_VERSION" \
+        "ENVOY_SOURCE_URL:$ENVOY_SOURCE_URL" \
+        "ENVOY_ARTIFACT_PLATFORM:$ENVOY_ARTIFACT_PLATFORM" \
+        "ENVOY_ASSET_NAME:$ENVOY_ASSET_NAME" \
+        "ENVOY_DOWNLOAD_URL:$ENVOY_DOWNLOAD_URL" \
+        "ENVOY_SHA256:$ENVOY_SHA256" \
+        "ENVOY_SHA256_URL:$ENVOY_SHA256_URL" \
+        "LIGHTTPD_VERSION:$LIGHTTPD_VERSION" \
+        "LIGHTTPD_SOURCE_URL:$LIGHTTPD_SOURCE_URL" \
+        "LIGHTTPD_ARCHIVE_NAME:$LIGHTTPD_ARCHIVE_NAME" \
+        "LIGHTTPD_DOWNLOAD_URL:$LIGHTTPD_DOWNLOAD_URL" \
+        "LIGHTTPD_SHA256:$LIGHTTPD_SHA256" \
+        "LIGHTTPD_SHA256_URL:$LIGHTTPD_SHA256_URL" \
+        "CRS_APPROVED_REPO_URL:$CRS_APPROVED_REPO_URL" \
+        "CRS_RELEASE_TAG:$CRS_RELEASE_TAG" \
+        "CRS_REPO_URL:$CRS_REPO_URL" \
+        "CRS_APPROVED_COMMIT:$CRS_APPROVED_COMMIT" \
+        "CRS_GIT_REF:$CRS_GIT_REF" \
+        "MODSECURITY_REPO_URL:$MODSECURITY_REPO_URL" \
+        "MODSECURITY_V3_APPROVED_COMMIT:$MODSECURITY_V3_APPROVED_COMMIT" \
+        "MODSECURITY_GIT_REF:$MODSECURITY_GIT_REF" \
+        "MODSECURITY_V3_GIT_URL:$MODSECURITY_V3_GIT_URL" \
+        "MODSECURITY_V3_GIT_REF:$MODSECURITY_V3_GIT_REF" \
+        "HTTPD_VERSION:$HTTPD_VERSION" \
+        "HTTPD_ARCHIVE_NAME:$HTTPD_ARCHIVE_NAME" \
+        "HTTPD_SOURCE_URL:$HTTPD_SOURCE_URL" \
+        "HTTPD_SHA256:$HTTPD_SHA256" \
+        "HTTPD_SHA256_URL:$HTTPD_SHA256_URL" \
+        "APR_VERSION:$APR_VERSION" \
+        "APR_ARCHIVE_NAME:$APR_ARCHIVE_NAME" \
+        "APR_SOURCE_URL:$APR_SOURCE_URL" \
+        "APR_SHA256:$APR_SHA256" \
+        "APR_SHA256_URL:$APR_SHA256_URL" \
+        "APR_UTIL_VERSION:$APR_UTIL_VERSION" \
+        "APR_UTIL_ARCHIVE_NAME:$APR_UTIL_ARCHIVE_NAME" \
+        "APR_UTIL_SOURCE_URL:$APR_UTIL_SOURCE_URL" \
+        "APR_UTIL_SHA256:$APR_UTIL_SHA256" \
+        "APR_UTIL_SHA256_URL:$APR_UTIL_SHA256_URL" \
+        "PCRE2_VERSION:$PCRE2_VERSION" \
+        "PCRE2_ARCHIVE_NAME:$PCRE2_ARCHIVE_NAME" \
+        "PCRE2_SOURCE_URL:$PCRE2_SOURCE_URL" \
+        "PCRE2_SHA256:$PCRE2_SHA256" \
+        "PCRE2_SHA256_URL:$PCRE2_SHA256_URL" \
+        "NGINX_SOURCE_MODE:$NGINX_SOURCE_MODE" \
+        "NGINX_SOURCE_REPO_URL:$NGINX_SOURCE_REPO_URL" \
+        "NGINX_GITHUB_REPO:$NGINX_GITHUB_REPO" \
+        "NGINX_RELEASE_TAG:$NGINX_RELEASE_TAG" \
+        "NGINX_SOURCE_GIT_REF:$NGINX_SOURCE_GIT_REF" \
+        "NGINX_RELEASE_ASSET_NAME:$NGINX_RELEASE_ASSET_NAME" \
+        "NGINX_DOWNLOAD_URL:$NGINX_DOWNLOAD_URL" \
+        "NGINX_SHA256:$NGINX_SHA256" \
+        "NGINX_QUIC_TLS_LIBRARY:$NGINX_QUIC_TLS_LIBRARY" \
+        "NGINX_QUIC_TLS_VERSION:$NGINX_QUIC_TLS_VERSION" \
+        "NGINX_QUIC_TLS_ARCHIVE_NAME:$NGINX_QUIC_TLS_ARCHIVE_NAME" \
+        "NGINX_QUIC_TLS_SOURCE_URL:$NGINX_QUIC_TLS_SOURCE_URL" \
+        "NGINX_QUIC_TLS_SOURCE_SHA256:$NGINX_QUIC_TLS_SOURCE_SHA256" \
+        "HAPROXY_VERSION:$HAPROXY_VERSION" \
+        "HAPROXY_ARCHIVE_NAME:$HAPROXY_ARCHIVE_NAME" \
+        "HAPROXY_SOURCE_URL:$HAPROXY_SOURCE_URL" \
+        "HAPROXY_SHA256_URL:$HAPROXY_SHA256_URL" \
+        "HAPROXY_SHA256:$HAPROXY_SHA256" \
+        "HAPROXY_HTX_VERSION:$HAPROXY_HTX_VERSION" \
+        "HAPROXY_HTX_ARCHIVE_NAME:$HAPROXY_HTX_ARCHIVE_NAME" \
+        "HAPROXY_HTX_SOURCE_URL:$HAPROXY_HTX_SOURCE_URL" \
+        "HAPROXY_HTX_SHA256:$HAPROXY_HTX_SHA256"
+    do
+        ci_inherited_pin_name=${ci_inherited_pin_entry%%:*}
+        ci_inherited_pin_expected=${ci_inherited_pin_entry#*:}
+        ci_require_inherited_canonical_pin "$ci_inherited_pin_name" "$ci_inherited_pin_expected" || return 77
+    done
+    return 0
+}
+
+ci_require_canonical_active_upstream_pins() {
+    ci_require_inherited_canonical_upstream_pins || return 77
+    ci_require_canonical_active_pin ENVOY_VERSION "$ENVOY_VERSION" "$CI_ACTIVE_PIN_ENVOY_VERSION" || return 77
+    ci_require_canonical_active_pin ENVOY_SOURCE_URL "$ENVOY_SOURCE_URL" "$CI_ACTIVE_PIN_ENVOY_SOURCE_URL" || return 77
+    ci_require_canonical_active_pin ENVOY_ARTIFACT_PLATFORM "$ENVOY_ARTIFACT_PLATFORM" "$CI_ACTIVE_PIN_ENVOY_ARTIFACT_PLATFORM" || return 77
+    ci_require_canonical_active_pin ENVOY_ASSET_NAME "$ENVOY_ASSET_NAME" "$CI_ACTIVE_PIN_ENVOY_ASSET_NAME" || return 77
+    ci_require_canonical_active_pin ENVOY_DOWNLOAD_URL "$ENVOY_DOWNLOAD_URL" "$CI_ACTIVE_PIN_ENVOY_DOWNLOAD_URL" || return 77
+    ci_require_canonical_active_pin ENVOY_SHA256 "$ENVOY_SHA256" "$CI_ACTIVE_PIN_ENVOY_SHA256" || return 77
+    ci_require_canonical_active_pin ENVOY_SHA256_URL "$ENVOY_SHA256_URL" "$CI_ACTIVE_PIN_ENVOY_SHA256_URL" || return 77
+    ci_require_canonical_active_pin LIGHTTPD_VERSION "$LIGHTTPD_VERSION" "$CI_ACTIVE_PIN_LIGHTTPD_VERSION" || return 77
+    ci_require_canonical_active_pin LIGHTTPD_SOURCE_URL "$LIGHTTPD_SOURCE_URL" "$CI_ACTIVE_PIN_LIGHTTPD_SOURCE_URL" || return 77
+    ci_require_canonical_active_pin LIGHTTPD_ARCHIVE_NAME "$LIGHTTPD_ARCHIVE_NAME" "$CI_ACTIVE_PIN_LIGHTTPD_ARCHIVE_NAME" || return 77
+    ci_require_canonical_active_pin LIGHTTPD_DOWNLOAD_URL "$LIGHTTPD_DOWNLOAD_URL" "$CI_ACTIVE_PIN_LIGHTTPD_DOWNLOAD_URL" || return 77
+    ci_require_canonical_active_pin LIGHTTPD_SHA256 "$LIGHTTPD_SHA256" "$CI_ACTIVE_PIN_LIGHTTPD_SHA256" || return 77
+    ci_require_canonical_active_pin LIGHTTPD_SHA256_URL "$LIGHTTPD_SHA256_URL" "$CI_ACTIVE_PIN_LIGHTTPD_SHA256_URL" || return 77
+    ci_require_canonical_active_pin CRS_APPROVED_REPO_URL "$CRS_APPROVED_REPO_URL" "$CI_ACTIVE_PIN_CRS_APPROVED_REPO_URL" || return 77
+    ci_require_canonical_active_pin CRS_RELEASE_TAG "$CRS_RELEASE_TAG" "$CI_ACTIVE_PIN_CRS_RELEASE_TAG" || return 77
+    ci_require_canonical_active_pin CRS_REPO_URL "$CRS_REPO_URL" "$CI_ACTIVE_PIN_CRS_REPO_URL" || return 77
+    ci_require_canonical_active_pin CRS_APPROVED_COMMIT "$CRS_APPROVED_COMMIT" "$CI_ACTIVE_PIN_CRS_APPROVED_COMMIT" || return 77
+    ci_require_canonical_active_pin CRS_GIT_REF "$CRS_GIT_REF" "$CI_ACTIVE_PIN_CRS_GIT_REF" || return 77
+    ci_require_canonical_active_pin MODSECURITY_REPO_URL "$MODSECURITY_REPO_URL" "$CI_ACTIVE_PIN_MODSECURITY_REPO_URL" || return 77
+    ci_require_canonical_active_pin MODSECURITY_V3_APPROVED_COMMIT "$MODSECURITY_V3_APPROVED_COMMIT" "$CI_ACTIVE_PIN_MODSECURITY_APPROVED_COMMIT" || return 77
+    ci_require_canonical_active_pin MODSECURITY_GIT_REF "$MODSECURITY_GIT_REF" "$CI_ACTIVE_PIN_MODSECURITY_GIT_REF" || return 77
+    ci_require_canonical_active_pin MODSECURITY_V3_GIT_URL "$MODSECURITY_V3_GIT_URL" "$CI_ACTIVE_PIN_MODSECURITY_V3_GIT_URL" || return 77
+    ci_require_canonical_active_pin MODSECURITY_V3_GIT_REF "$MODSECURITY_V3_GIT_REF" "$CI_ACTIVE_PIN_MODSECURITY_V3_GIT_REF" || return 77
+    ci_require_canonical_active_pin HTTPD_VERSION "$HTTPD_VERSION" "$CI_ACTIVE_PIN_HTTPD_VERSION" || return 77
+    ci_require_canonical_active_pin HTTPD_ARCHIVE_NAME "$HTTPD_ARCHIVE_NAME" "$CI_ACTIVE_PIN_HTTPD_ARCHIVE_NAME" || return 77
+    ci_require_canonical_active_pin HTTPD_SOURCE_URL "$HTTPD_SOURCE_URL" "$CI_ACTIVE_PIN_HTTPD_SOURCE_URL" || return 77
+    ci_require_canonical_active_pin HTTPD_SHA256 "$HTTPD_SHA256" "$CI_ACTIVE_PIN_HTTPD_SHA256" || return 77
+    ci_require_canonical_active_pin HTTPD_SHA256_URL "$HTTPD_SHA256_URL" "$CI_ACTIVE_PIN_HTTPD_SHA256_URL" || return 77
+    ci_require_canonical_active_pin APR_VERSION "$APR_VERSION" "$CI_ACTIVE_PIN_APR_VERSION" || return 77
+    ci_require_canonical_active_pin APR_ARCHIVE_NAME "$APR_ARCHIVE_NAME" "$CI_ACTIVE_PIN_APR_ARCHIVE_NAME" || return 77
+    ci_require_canonical_active_pin APR_SOURCE_URL "$APR_SOURCE_URL" "$CI_ACTIVE_PIN_APR_SOURCE_URL" || return 77
+    ci_require_canonical_active_pin APR_SHA256 "$APR_SHA256" "$CI_ACTIVE_PIN_APR_SHA256" || return 77
+    ci_require_canonical_active_pin APR_SHA256_URL "$APR_SHA256_URL" "$CI_ACTIVE_PIN_APR_SHA256_URL" || return 77
+    ci_require_canonical_active_pin APR_UTIL_VERSION "$APR_UTIL_VERSION" "$CI_ACTIVE_PIN_APR_UTIL_VERSION" || return 77
+    ci_require_canonical_active_pin APR_UTIL_ARCHIVE_NAME "$APR_UTIL_ARCHIVE_NAME" "$CI_ACTIVE_PIN_APR_UTIL_ARCHIVE_NAME" || return 77
+    ci_require_canonical_active_pin APR_UTIL_SOURCE_URL "$APR_UTIL_SOURCE_URL" "$CI_ACTIVE_PIN_APR_UTIL_SOURCE_URL" || return 77
+    ci_require_canonical_active_pin APR_UTIL_SHA256 "$APR_UTIL_SHA256" "$CI_ACTIVE_PIN_APR_UTIL_SHA256" || return 77
+    ci_require_canonical_active_pin APR_UTIL_SHA256_URL "$APR_UTIL_SHA256_URL" "$CI_ACTIVE_PIN_APR_UTIL_SHA256_URL" || return 77
+    ci_require_canonical_active_pin PCRE2_VERSION "$PCRE2_VERSION" "$CI_ACTIVE_PIN_PCRE2_VERSION" || return 77
+    ci_require_canonical_active_pin PCRE2_ARCHIVE_NAME "$PCRE2_ARCHIVE_NAME" "$CI_ACTIVE_PIN_PCRE2_ARCHIVE_NAME" || return 77
+    ci_require_canonical_active_pin PCRE2_SOURCE_URL "$PCRE2_SOURCE_URL" "$CI_ACTIVE_PIN_PCRE2_SOURCE_URL" || return 77
+    ci_require_canonical_active_pin PCRE2_SHA256 "$PCRE2_SHA256" "$CI_ACTIVE_PIN_PCRE2_SHA256" || return 77
+    ci_require_canonical_active_pin PCRE2_SHA256_URL "$PCRE2_SHA256_URL" "$CI_ACTIVE_PIN_PCRE2_SHA256_URL" || return 77
+    ci_require_canonical_active_pin NGINX_SOURCE_MODE "$NGINX_SOURCE_MODE" "$CI_ACTIVE_PIN_NGINX_SOURCE_MODE" || return 77
+    ci_require_canonical_active_pin NGINX_SOURCE_REPO_URL "$NGINX_SOURCE_REPO_URL" "$CI_ACTIVE_PIN_NGINX_SOURCE_REPO_URL" || return 77
+    ci_require_canonical_active_pin NGINX_GITHUB_REPO "$NGINX_GITHUB_REPO" "$CI_ACTIVE_PIN_NGINX_GITHUB_REPO" || return 77
+    ci_require_canonical_active_pin NGINX_RELEASE_TAG "$NGINX_RELEASE_TAG" "$CI_ACTIVE_PIN_NGINX_RELEASE_TAG" || return 77
+    ci_require_canonical_active_pin NGINX_SOURCE_GIT_REF "$NGINX_SOURCE_GIT_REF" "$CI_ACTIVE_PIN_NGINX_SOURCE_GIT_REF" || return 77
+    ci_require_canonical_active_pin NGINX_RELEASE_ASSET_NAME "$NGINX_RELEASE_ASSET_NAME" "$CI_ACTIVE_PIN_NGINX_RELEASE_ASSET_NAME" || return 77
+    ci_require_canonical_active_pin NGINX_DOWNLOAD_URL "$NGINX_DOWNLOAD_URL" "$CI_ACTIVE_PIN_NGINX_DOWNLOAD_URL" || return 77
+    ci_require_canonical_active_pin NGINX_SHA256 "$NGINX_SHA256" "$CI_ACTIVE_PIN_NGINX_SHA256" || return 77
+    ci_require_canonical_active_pin NGINX_QUIC_TLS_LIBRARY "$NGINX_QUIC_TLS_LIBRARY" "$CI_ACTIVE_PIN_NGINX_QUIC_TLS_LIBRARY" || return 77
+    ci_require_canonical_active_pin NGINX_QUIC_TLS_VERSION "$NGINX_QUIC_TLS_VERSION" "$CI_ACTIVE_PIN_NGINX_QUIC_TLS_VERSION" || return 77
+    ci_require_canonical_active_pin NGINX_QUIC_TLS_ARCHIVE_NAME "$NGINX_QUIC_TLS_ARCHIVE_NAME" "$CI_ACTIVE_PIN_NGINX_QUIC_TLS_ARCHIVE_NAME" || return 77
+    ci_require_canonical_active_pin NGINX_QUIC_TLS_SOURCE_URL "$NGINX_QUIC_TLS_SOURCE_URL" "$CI_ACTIVE_PIN_NGINX_QUIC_TLS_SOURCE_URL" || return 77
+    ci_require_canonical_active_pin NGINX_QUIC_TLS_SOURCE_SHA256 "$NGINX_QUIC_TLS_SOURCE_SHA256" "$CI_ACTIVE_PIN_NGINX_QUIC_TLS_SOURCE_SHA256" || return 77
+    ci_require_canonical_active_pin HAPROXY_VERSION "$HAPROXY_VERSION" "$CI_ACTIVE_PIN_HAPROXY_VERSION" || return 77
+    ci_require_canonical_active_pin HAPROXY_ARCHIVE_NAME "$HAPROXY_ARCHIVE_NAME" "$CI_ACTIVE_PIN_HAPROXY_ARCHIVE_NAME" || return 77
+    ci_require_canonical_active_pin HAPROXY_SOURCE_URL "$HAPROXY_SOURCE_URL" "$CI_ACTIVE_PIN_HAPROXY_SOURCE_URL" || return 77
+    ci_require_canonical_active_pin HAPROXY_SHA256_URL "$HAPROXY_SHA256_URL" "$CI_ACTIVE_PIN_HAPROXY_SHA256_URL" || return 77
+    ci_require_canonical_active_pin HAPROXY_SHA256 "$HAPROXY_SHA256" "$CI_ACTIVE_PIN_HAPROXY_SHA256" || return 77
+    ci_require_canonical_active_pin HAPROXY_HTX_VERSION "$HAPROXY_HTX_VERSION" "$CI_ACTIVE_PIN_HAPROXY_HTX_VERSION" || return 77
+    ci_require_canonical_active_pin HAPROXY_HTX_ARCHIVE_NAME "$HAPROXY_HTX_ARCHIVE_NAME" "$CI_ACTIVE_PIN_HAPROXY_HTX_ARCHIVE_NAME" || return 77
+    ci_require_canonical_active_pin HAPROXY_HTX_SOURCE_URL "$HAPROXY_HTX_SOURCE_URL" "$CI_ACTIVE_PIN_HAPROXY_HTX_SOURCE_URL" || return 77
+    ci_require_canonical_active_pin HAPROXY_HTX_SHA256 "$HAPROXY_HTX_SHA256" "$CI_ACTIVE_PIN_HAPROXY_HTX_SHA256" || return 77
+    return 0
+}
+
 ci_validate_https_runtime_url_config() {
+    ci_require_canonical_active_upstream_pins || return 77
     ci_validate_safe_ref_config || return 77
     ci_require_https_github_repo_url "$CRS_REPO_URL" CRS_REPO_URL || return 77
     ci_require_https_github_repo_url "$MODSECURITY_REPO_URL" MODSECURITY_REPO_URL || return 77
@@ -946,6 +1433,7 @@ ci_validate_https_runtime_url_config() {
     ci_require_https_github_repo_url_if_set "$MODSECURITY_NGINX_GIT_URL" MODSECURITY_NGINX_GIT_URL || return 77
     ci_require_https_github_repo_url "$NGINX_SOURCE_REPO_URL" NGINX_SOURCE_REPO_URL || return 77
     ci_require_https_github_repo_url "$NGINX_GITHUB_REPO" NGINX_GITHUB_REPO || return 77
+    ci_require_https_url "$NGINX_DOWNLOAD_URL" NGINX_DOWNLOAD_URL || return 77
     ci_require_https_url "$NGINX_QUIC_TLS_SOURCE_URL" NGINX_QUIC_TLS_SOURCE_URL || return 77
     ci_require_https_github_repo_url "$GO_FTW_SOURCE_URL" GO_FTW_SOURCE_URL || return 77
     ci_require_https_github_repo_url "$ALBEDO_SOURCE_URL" ALBEDO_SOURCE_URL || return 77
@@ -1208,7 +1696,7 @@ require_or_provision_envoy() {
         echo "FAIL: Envoy provisioning requires ALLOW_RUNTIME_DOWNLOADS=1" >&2
         return 1
     fi
-    if env ALLOW_RUNTIME_DOWNLOADS="${ALLOW_RUNTIME_DOWNLOADS:-0}" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+    if ALLOW_RUNTIME_DOWNLOADS="${ALLOW_RUNTIME_DOWNLOADS:-0}" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-envoy-runtime.sh" >&2 \
         && ci_runtime_binary_matches_version "$ENVOY_BIN" "$ENVOY_VERSION" --version; then
         printf '%s\n' "$ENVOY_BIN"
@@ -1221,7 +1709,7 @@ require_or_provision_envoy() {
 require_or_provision_traefik() {
     ci_require_traefik_pinned_provenance || return 77
     traefik_build_paths >/dev/null
-    if env ALLOW_RUNTIME_DOWNLOADS="${ALLOW_RUNTIME_DOWNLOADS:-0}" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
+    if ALLOW_RUNTIME_DOWNLOADS="${ALLOW_RUNTIME_DOWNLOADS:-0}" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-traefik-runtime.sh" >&2; then
         if ci_runtime_binary_matches_version "$TRAEFIK_BIN" "$TRAEFIK_VERSION" version; then
             printf '%s\n' "$TRAEFIK_BIN"
@@ -1245,7 +1733,7 @@ require_or_provision_lighttpd() {
             return 1
         fi
     else
-        ci_staged_runtime=$(ci_stage_matching_runtime_binary lighttpd "$LIGHTTPD_VERSION" -v "$LIGHTTPD_COMPONENT_ROOT/bin/lighttpd" 2>/dev/null || true)
+        ci_staged_runtime=$(ci_stage_matching_runtime_binary lighttpd "$LIGHTTPD_VERSION" -v "$LIGHTTPD_CONNECTOR_BUILD_ROOT/bin/lighttpd" 2>/dev/null || true)
         if [ -n "$ci_staged_runtime" ]; then
             LIGHTTPD_BIN=$ci_staged_runtime
             export LIGHTTPD_BIN
@@ -1259,7 +1747,7 @@ require_or_provision_lighttpd() {
         echo "FAIL: lighttpd provisioning requires ALLOW_RUNTIME_DOWNLOADS=1 and ALLOW_RUNTIME_BUILDS=1" >&2
         return 1
     fi
-    if env ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" ALLOW_RUNTIME_BUILDS="$ALLOW_RUNTIME_BUILDS" \
+    if ALLOW_RUNTIME_DOWNLOADS="$ALLOW_RUNTIME_DOWNLOADS" ALLOW_RUNTIME_BUILDS="$ALLOW_RUNTIME_BUILDS" \
         LIGHTTPD_BIN='' \
         FRAMEWORK_ROOT="$FRAMEWORK_ROOT" CONNECTOR_ROOT="$CONNECTOR_ROOT" \
         sh "$FRAMEWORK_ROOT/ci/provisioning/prepare-lighttpd-runtime.sh" >&2 \
@@ -2101,6 +2589,7 @@ ci_modsecurity_v3_require_fresh_destination() {
 }
 
 ci_require_approved_modsecurity_v3_provenance() {
+    ci_require_inherited_canonical_upstream_pins || return 77
     ci_modsecurity_v3_scrub_dynamic_loader_environment
     ci_require_https_github_repo_url "$MODSECURITY_V3_APPROVED_REPO_URL" "MODSECURITY_V3_APPROVED_REPO_URL" || return 77
     ci_require_full_git_commit "$MODSECURITY_V3_APPROVED_COMMIT" "MODSECURITY_V3_APPROVED_COMMIT" || return 77
@@ -2617,5 +3106,12 @@ export DEFAULT_BRANCH FRAMEWORK_ROOT CONNECTOR_ROOT VERIFIED_RUN_ROOT VERIFIED_S
 export SOURCE_ROOT BUILD_ROOT TMP_ROOT LOG_ROOT CONNECTOR_COMPONENT_CACHE DEFAULT_PYTHON HAPROXY_BIN_WAS_SET
 export CRS_REPO_URL CRS_GIT_REF MODSECURITY_REPO_URL MODSECURITY_GIT_REF MODSECURITY_V3_GIT_URL MODSECURITY_V3_GIT_REF
 export MODSECURITY_V3_APPROVED_REPO_URL MODSECURITY_V3_APPROVED_COMMIT MODSECURITY_V3_RELEASE_TAG
-export HTTPD_VERSION HTTPD_SOURCE_URL HTTPD_SHA256 HTTPD_SHA256_URL APR_VERSION APR_SOURCE_URL APR_SHA256 APR_SHA256_URL APR_UTIL_VERSION APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL PCRE2_VERSION PCRE2_SOURCE_URL PCRE2_SHA256 PCRE2_SHA256_URL
-export NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF NGINX_RELEASE_ASSET_NAME NGINX_SHA256 NGINX_SHA256_WAS_SET NGINX_SHA256_REQUESTED HAPROXY_VERSION HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256 HAPROXY_HTX_VERSION HAPROXY_HTX_SOURCE_URL HAPROXY_HTX_SHA256
+export ENVOY_VERSION ENVOY_SOURCE_URL ENVOY_ARTIFACT_PLATFORM ENVOY_ASSET_NAME ENVOY_DOWNLOAD_URL ENVOY_SHA256 ENVOY_SHA256_URL
+export LIGHTTPD_VERSION LIGHTTPD_SOURCE_URL LIGHTTPD_ARCHIVE_NAME LIGHTTPD_DOWNLOAD_URL LIGHTTPD_SHA256 LIGHTTPD_SHA256_URL
+export HTTPD_VERSION HTTPD_ARCHIVE_NAME HTTPD_SOURCE_URL HTTPD_SHA256 HTTPD_SHA256_URL APR_VERSION APR_ARCHIVE_NAME APR_SOURCE_URL APR_SHA256 APR_SHA256_URL APR_UTIL_VERSION APR_UTIL_ARCHIVE_NAME APR_UTIL_SOURCE_URL APR_UTIL_SHA256 APR_UTIL_SHA256_URL PCRE2_VERSION PCRE2_ARCHIVE_NAME PCRE2_SOURCE_URL PCRE2_SHA256 PCRE2_SHA256_URL
+export NGINX_SOURCE_MODE NGINX_SOURCE_REPO_URL NGINX_GITHUB_REPO NGINX_RELEASE_TAG NGINX_SOURCE_GIT_REF NGINX_RELEASE_ASSET_NAME NGINX_DOWNLOAD_URL NGINX_SHA256 NGINX_SHA256_WAS_SET NGINX_SHA256_REQUESTED NGINX_QUIC_TLS_LIBRARY NGINX_QUIC_TLS_VERSION NGINX_QUIC_TLS_ARCHIVE_NAME NGINX_QUIC_TLS_SOURCE_URL NGINX_QUIC_TLS_SOURCE_SHA256
+export HAPROXY_VERSION HAPROXY_ARCHIVE_NAME HAPROXY_SOURCE_URL HAPROXY_SHA256_URL HAPROXY_SHA256 HAPROXY_HTX_VERSION HAPROXY_HTX_ARCHIVE_NAME HAPROXY_HTX_SOURCE_URL HAPROXY_HTX_SHA256
+export CI_CANONICAL_PYTHON_VERSION CI_CANONICAL_PYYAML_VERSION CI_CANONICAL_PYYAML_SHA256 CI_CANONICAL_NODE_VERSION
+export CI_OSV_LEGACY_BASE_SHA CI_OSV_LEGACY_BASE_VERSION
+export CI_ACTION_CHECKOUT_REPOSITORY CI_ACTION_CHECKOUT_VERSION CI_ACTION_CHECKOUT_COMMIT CI_ACTION_SETUP_PYTHON_REPOSITORY CI_ACTION_SETUP_PYTHON_VERSION CI_ACTION_SETUP_PYTHON_COMMIT CI_ACTION_SETUP_NODE_REPOSITORY CI_ACTION_SETUP_NODE_VERSION CI_ACTION_SETUP_NODE_COMMIT CI_ACTION_UPLOAD_ARTIFACT_REPOSITORY CI_ACTION_UPLOAD_ARTIFACT_VERSION CI_ACTION_UPLOAD_ARTIFACT_COMMIT CI_ACTION_GITHUB_SCRIPT_REPOSITORY CI_ACTION_GITHUB_SCRIPT_VERSION CI_ACTION_GITHUB_SCRIPT_COMMIT CI_ACTION_CREATE_GITHUB_APP_TOKEN_REPOSITORY CI_ACTION_CREATE_GITHUB_APP_TOKEN_VERSION CI_ACTION_CREATE_GITHUB_APP_TOKEN_COMMIT CI_ACTION_CREATE_PULL_REQUEST_REPOSITORY CI_ACTION_CREATE_PULL_REQUEST_VERSION CI_ACTION_CREATE_PULL_REQUEST_COMMIT CI_ACTION_CODEQL_REPOSITORY CI_ACTION_CODEQL_VERSION CI_ACTION_CODEQL_COMMIT CI_ACTION_DEPENDENCY_REVIEW_REPOSITORY CI_ACTION_DEPENDENCY_REVIEW_VERSION CI_ACTION_DEPENDENCY_REVIEW_COMMIT
+export CI_SECURITY_TOOL_SCORECARD_REPOSITORY CI_SECURITY_TOOL_SCORECARD_VERSION CI_SECURITY_TOOL_SCORECARD_COMMIT CI_SECURITY_TOOL_SCORECARD_ASSET_NAME CI_SECURITY_TOOL_SCORECARD_SHA256 CI_SECURITY_TOOL_OSV_SCANNER_REPOSITORY CI_SECURITY_TOOL_OSV_SCANNER_VERSION CI_SECURITY_TOOL_OSV_SCANNER_COMMIT CI_SECURITY_TOOL_OSV_SCANNER_ASSET_NAME CI_SECURITY_TOOL_OSV_SCANNER_SHA256 CI_SECURITY_TOOL_ACTIONLINT_REPOSITORY CI_SECURITY_TOOL_ACTIONLINT_VERSION CI_SECURITY_TOOL_ACTIONLINT_COMMIT CI_SECURITY_TOOL_ACTIONLINT_ASSET_NAME CI_SECURITY_TOOL_ACTIONLINT_SHA256 CI_SECURITY_TOOL_SHELLCHECK_REPOSITORY CI_SECURITY_TOOL_SHELLCHECK_VERSION CI_SECURITY_TOOL_SHELLCHECK_COMMIT CI_SECURITY_TOOL_SHELLCHECK_ASSET_NAME CI_SECURITY_TOOL_SHELLCHECK_SHA256 CI_SECURITY_TOOL_ZIZMOR_REPOSITORY CI_SECURITY_TOOL_ZIZMOR_VERSION CI_SECURITY_TOOL_ZIZMOR_COMMIT CI_SECURITY_TOOL_ZIZMOR_ASSET_NAME CI_SECURITY_TOOL_ZIZMOR_SHA256 CI_SECURITY_TOOL_GITLEAKS_REPOSITORY CI_SECURITY_TOOL_GITLEAKS_VERSION CI_SECURITY_TOOL_GITLEAKS_COMMIT CI_SECURITY_TOOL_GITLEAKS_ASSET_NAME CI_SECURITY_TOOL_GITLEAKS_SHA256 CI_SECURITY_TOOL_RUFF_REPOSITORY CI_SECURITY_TOOL_RUFF_VERSION CI_SECURITY_TOOL_RUFF_COMMIT CI_SECURITY_TOOL_RUFF_ASSET_NAME CI_SECURITY_TOOL_RUFF_SHA256 CI_SECURITY_TOOL_PYRIGHT_REPOSITORY CI_SECURITY_TOOL_PYRIGHT_VERSION CI_SECURITY_TOOL_PYRIGHT_COMMIT CI_SECURITY_TOOL_PYRIGHT_ASSET_NAME CI_SECURITY_TOOL_PYRIGHT_SHA256

@@ -6,6 +6,7 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import sys
 import tempfile
 from http.client import RemoteDisconnected
@@ -72,11 +73,24 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
     def github_entries(self, component: str, version: str = "1.0.0"):
         definition = CHECKER.COMPONENT_DEFINITION_BY_NAME[component]
         tag = f"{definition.tag_prefix}{version}"
-        asset = definition.asset_template.format(version=version)
+        asset = definition.asset_template.format(
+            version=version,
+            platform=(
+                "linux-x86_64"
+                if definition.asset_platform_variable == "ENVOY_ARTIFACT_PLATFORM"
+                else "linux_amd64"
+            ),
+        )
         values = {}
         for variable in definition.variables:
             if variable == definition.version_variable:
                 values[variable] = version
+            elif variable.endswith("ARTIFACT_PLATFORM"):
+                values[variable] = "linux_amd64" if component == "Traefik" else "linux-x86_64"
+            elif variable.endswith("ARCHIVE_NAME"):
+                values[variable] = asset
+            elif variable.endswith("ASSET_NAME"):
+                values[variable] = asset
             elif variable == definition.source_url_variable:
                 values[variable] = (
                     f"https://github.com/{definition.github_repository}/releases"
@@ -103,7 +117,14 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
 
     def latest_release(self, definition, version="1.0.1", *, draft=False, prerelease=False):
         tag = f"{definition.tag_prefix}{version}"
-        asset = definition.asset_template.format(version=version)
+        asset = definition.asset_template.format(
+            version=version,
+            platform=(
+                "linux-x86_64"
+                if definition.asset_platform_variable == "ENVOY_ARTIFACT_PLATFORM"
+                else "linux_amd64"
+            ),
+        )
         assets = [{"name": asset, "browser_download_url": github_asset(definition.github_repository, tag, asset), "digest": f"sha256:{LATEST_DIGEST}"}]
         if definition.checksum_asset_template:
             checksum = definition.checksum_asset_template.format(version=version)
@@ -118,7 +139,13 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                 manifests = {}
                 if definition.checksum_asset_template:
                     checksum = definition.checksum_asset_template.format(version="1.0.1")
-                    manifests[github_asset(definition.github_repository, tag, checksum)] = f"{LATEST_DIGEST}  {definition.asset_template.format(version='1.0.1')}\n"
+                    manifest_platform = "linux_amd64" if component == "Traefik" else "linux-x86_64"
+                    manifest_asset = definition.asset_template.format(
+                        version="1.0.1", platform=manifest_platform
+                    )
+                    manifests[github_asset(definition.github_repository, tag, checksum)] = (
+                        f"{LATEST_DIGEST}  {manifest_asset}\n"
+                    )
                 client = FixtureClient(
                     {f"https://api.github.com/repos/{definition.github_repository}/releases/latest": release}, manifests
                 )
@@ -169,6 +196,7 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             assignment("LIGHTTPD_SOURCE_URL", "https://download.lighttpd.net/lighttpd/releases-1.4.x/"),
             assignment("LIGHTTPD_RELEASE_INDEX_URL", "https://download.lighttpd.net/lighttpd/releases-1.4.x/"),
             assignment("LIGHTTPD_LATEST_URL", "https://download.lighttpd.net/lighttpd/releases-1.4.x/latest.txt"),
+            assignment("LIGHTTPD_ARCHIVE_NAME", "lighttpd-1.4.80.tar.xz"),
             assignment("LIGHTTPD_DOWNLOAD_URL", "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.80.tar.xz"),
             assignment("LIGHTTPD_SHA256", CURRENT_DIGEST),
             assignment("LIGHTTPD_SHA256_URL", "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.80.sha256sum"),
@@ -184,6 +212,7 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         expected_digest = "96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"
         entries = parse_entries("\n".join((
             assignment("APR_UTIL_VERSION", "1.6.4"),
+            assignment("APR_UTIL_ARCHIVE_NAME", "apr-util-1.6.4.tar.bz2"),
             assignment("APR_UTIL_SOURCE_URL", "https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"),
             assignment("APR_UTIL_SHA256", CURRENT_DIGEST),
             assignment("APR_UTIL_SHA256_URL", "$APR_UTIL_SOURCE_URL.sha256"),
@@ -217,6 +246,7 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         apr_source = "https://downloads.apache.org/apr/"
         entries = parse_entries("\n".join((
             assignment("APR_UTIL_VERSION", "1.6.4"),
+            assignment("APR_UTIL_ARCHIVE_NAME", "apr-util-1.6.4.tar.bz2"),
             assignment("APR_UTIL_SOURCE_URL", "https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"),
             assignment("APR_UTIL_SHA256", CURRENT_DIGEST),
             assignment("APR_UTIL_SHA256_URL", "$APR_UTIL_SOURCE_URL.sha256"),
@@ -349,6 +379,86 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         self.assertNotIn("NGINX_SHA256_REQUESTED", nginx.variables)
         self.assertEqual({item.name for item in CHECKER.COMPONENT_DEFINITIONS}, set(CHECKER.COMPONENT_DEFINITION_BY_NAME))
 
+    def test_canonical_contract_is_complete_and_offline(self):
+        lines, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
+        self.assertEqual(CHECKER.canonical_contract_errors(lines, entries), [])
+        self.assertIn("CI_OSV_LEGACY_BASE_SHA", CHECKER.CI_CANONICAL_PIN_VARIABLES)
+        self.assertIn("CI_OSV_LEGACY_BASE_VERSION", CHECKER.CI_CANONICAL_PIN_VARIABLES)
+        self.assertTrue(CHECKER.GIT_COMMIT_SHA1_RE.fullmatch(entries["CI_OSV_LEGACY_BASE_SHA"].resolved))
+        self.assertTrue(CHECKER.SAFE_VERSION_RE.fullmatch(entries["CI_OSV_LEGACY_BASE_VERSION"].resolved))
+
+    def test_canonical_contract_rejects_missing_and_duplicate_pin_assignments(self):
+        lines, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
+        duplicate_lines = lines + ['HTTPD_VERSION="2.4.68"']
+        duplicate_errors = CHECKER.canonical_contract_errors(duplicate_lines, entries)
+        self.assertTrue(any("duplicate canonical assignment for HTTPD_VERSION" in item for item in duplicate_errors))
+
+        missing_lines = [line for line in lines if not line.startswith("NGINX_QUIC_TLS_ARCHIVE_NAME=")]
+        missing_errors = CHECKER.canonical_contract_errors(missing_lines, CHECKER.parse_common_lines(missing_lines))
+        self.assertTrue(any("missing canonical assignments" in item and "NGINX_QUIC_TLS_ARCHIVE_NAME" in item for item in missing_errors))
+
+    def test_validate_canonical_mode_never_constructs_http_client(self):
+        with patch.object(CHECKER, "HttpClient", side_effect=AssertionError("network forbidden")):
+            self.assertEqual(CHECKER.main(["--validate-canonical", "--common-sh", str(ROOT / "ci/lib/common.sh")]), 0)
+
+    def test_validate_canonical_rejects_environment_default_pin_even_with_attacker_env(self):
+        with tempfile.TemporaryDirectory(prefix="canonical-env-default-") as temporary:
+            common = Path(temporary) / "common.sh"
+            common.write_text('HTTPD_VERSION="${HTTPD_VERSION:-9.9.9}"\n', encoding="utf-8")
+            with patch.dict(os.environ, {"HTTPD_VERSION": "2.4.68"}, clear=False):
+                self.assertEqual(CHECKER.main(["--validate-canonical", "--common-sh", str(common)]), 1)
+
+    def test_active_consumer_scan_rejects_a_copied_current_pin(self):
+        with tempfile.TemporaryDirectory(prefix="canonical-consumer-scan-") as temporary:
+            root = Path(temporary)
+            common = root / "ci/lib/common.sh"
+            common.parent.mkdir(parents=True)
+            common.write_text('HTTPD_VERSION="2.4.68"\n', encoding="utf-8")
+            consumer = root / "ci/provisioning/consumer.sh"
+            consumer.parent.mkdir(parents=True)
+            consumer.write_text('httpd_version="2.4.68"\n', encoding="utf-8")
+            findings = CHECKER.active_consumer_pin_literals(common, root)
+            self.assertEqual(findings, ["ci/provisioning/consumer.sh:1: HTTPD_VERSION=2.4.68"])
+
+            shutil.copy2(consumer, root / "ci/provisioning/runtime-component-lock.json")
+            (root / "ci/provisioning/runtime-component-lock.json").write_text(
+                '{"version":"2.4.68"}\n', encoding="utf-8"
+            )
+            self.assertEqual(CHECKER.active_consumer_pin_literals(common, root), findings)
+
+    def test_active_consumer_scan_rejects_copied_identity_fields(self):
+        with tempfile.TemporaryDirectory(prefix="canonical-identity-scan-") as temporary:
+            root = Path(temporary)
+            common = root / "ci/lib/common.sh"
+            common.parent.mkdir(parents=True)
+            common.write_text(
+                '\n'.join(
+                    (
+                        'HTTPD_VERSION="2.4.68"',
+                        'HTTPD_SOURCE_URL="https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"',
+                        'HTTPD_ARCHIVE_NAME="httpd-2.4.68.tar.bz2"',
+                        'ENVOY_ARTIFACT_PLATFORM="linux-x86_64"',
+                    )
+                )
+                + '\n',
+                encoding="utf-8",
+            )
+            consumer = root / "src/consumer.py"
+            consumer.parent.mkdir(parents=True)
+            consumer.write_text(
+                'URL="https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"\n'
+                'ASSET="httpd-2.4.68.tar.bz2"\n'
+                'PLATFORM="linux-x86_64"\n',
+                encoding="utf-8",
+            )
+            findings = CHECKER.active_consumer_pin_literals(common, root)
+            self.assertIn(
+                "src/consumer.py:1: HTTPD_SOURCE_URL=https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2",
+                findings,
+            )
+            self.assertIn("src/consumer.py:2: HTTPD_ARCHIVE_NAME=httpd-2.4.68.tar.bz2", findings)
+            self.assertIn("src/consumer.py:3: ENVOY_ARTIFACT_PLATFORM=linux-x86_64", findings)
+
     def test_production_open_ssl_and_nginx_asset_urls_remain_version_derived(self):
         _, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
         open_ssl_source = entries["NGINX_QUIC_TLS_SOURCE_URL"]
@@ -369,6 +479,12 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             nginx_asset.resolved,
             "nginx-" + CHECKER.value(entries, "NGINX_RELEASE_TAG").removeprefix("release-") + ".tar.gz",
         )
+
+    def test_neutral_repository_and_platform_descriptors_bind_from_common_values(self):
+        definition, entries = self.github_entries("Traefik")
+        bound = CHECKER.canonicalize_github_repository(definition, entries)
+        self.assertEqual(bound.github_repository, "traefik/traefik")
+        self.assertIn("{platform}", bound.asset_template)
 
     def test_fatal_result_never_writes_and_second_application_is_idempotent(self):
         with tempfile.TemporaryDirectory(prefix="atomic-provenance-") as temporary:
@@ -438,6 +554,7 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             target.parent.mkdir(parents=True)
             target.write_text("\n".join((
                 assignment("APR_UTIL_VERSION", "1.6.4"),
+                assignment("APR_UTIL_ARCHIVE_NAME", "apr-util-1.6.4.tar.bz2"),
                 assignment("APR_UTIL_SOURCE_URL", "https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"),
                 assignment("APR_UTIL_SHA256", CURRENT_DIGEST),
                 assignment("APR_UTIL_SHA256_URL", "$APR_UTIL_SOURCE_URL.sha256"),

@@ -8,6 +8,7 @@ REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
 
 PYTHON_BIN="${PYTHON_BIN:-}"
+SAFE_MAKE="$SCRIPT_DIR/safe-make.sh"
 status=0
 
 run_required() {
@@ -23,12 +24,12 @@ run_required() {
   status=1
 }
 
-run_required "make setup-dev" make setup-dev
+run_required "make setup-dev" "$SAFE_MAKE" setup-dev
 PYTHON_BIN="${PYTHON_BIN:-$(ci_python)}"
-run_required "make lint" make lint
-run_required "make refresh-framework-reports" make refresh-framework-reports
-run_required "make check-test-matrix" make check-test-matrix
-run_required "make quick-check" make quick-check
+run_required "make lint" "$SAFE_MAKE" lint
+run_required "make refresh-framework-reports" "$SAFE_MAKE" refresh-framework-reports
+run_required "make check-test-matrix" "$SAFE_MAKE" check-test-matrix
+run_required "make quick-check" "$SAFE_MAKE" quick-check
 run_required "$PYTHON_BIN -m py_compile framework tests/runners, tests/normalizers, ci" \
   "$PYTHON_BIN" -m py_compile "$FRAMEWORK_ROOT"/tests/normalizers/*.py "$FRAMEWORK_ROOT"/tests/runners/*.py $(find "$FRAMEWORK_ROOT/ci" -type f -name '*.py' -print | sort)
 run_required "git diff --check" git diff --check

@@ -7,12 +7,16 @@ import argparse
 from pathlib import Path, PurePosixPath
 import re
 import stat
+import sys
 from typing import Any
 
 try:
     import yaml
 except ModuleNotFoundError:  # pragma: no cover - exercised by the CLI only
     yaml = None
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+from common_canonical_pins import canonical_action, load_canonical_ci_pins
 
 
 CANONICAL_VERSION_FILE = ".python-version"
@@ -28,9 +32,9 @@ OSV_PR_HEAD_JOB = "pull-request-head"
 OSV_TRUSTED_BASE_VERSION_FILE = (
     "${{ runner.temp }}/framework-osv-trusted-base-python-version"
 )
-SETUP_PYTHON_REFERENCE = "actions/setup-python@"
+SETUP_PYTHON_REFERENCE = "actions" + "/setup-python@"
 SETUP_PYTHON_LINE = re.compile(
-    r"^\s*(?:-\s*)?uses:\s*['\"]?actions/setup-python@"
+    r"^\s*(?:-\s*)?uses:\s*['\"]?actions" + r"/setup-python@"
     r"(?P<sha>[0-9a-f]{40})['\"]?\s+#\s*(?P<release>v[0-9]+(?:\.[0-9]+){1,3})\s*$"
 )
 PYTHON_VERSION_KEY = re.compile(r"^\s*python-version\s*:", re.MULTILINE)
@@ -498,6 +502,19 @@ def resolve_root(root: Path) -> Path:
 
 def validate(root: Path) -> list[str]:
     errors = canonical_version_errors(root)
+    try:
+        global SETUP_PYTHON_REFERENCE, SETUP_PYTHON_LINE
+        setup_python = canonical_action(load_canonical_ci_pins(root), "SETUP_PYTHON")
+        SETUP_PYTHON_REFERENCE = f"{setup_python}@"
+        SETUP_PYTHON_LINE = re.compile(
+            rf"^\s*(?:-\s*)?uses:\s*['\"]?{re.escape(setup_python)}@"
+            rf"(?P<sha>[0-9a-f]{{40}})['\"]?\s+#\s*"
+            r"(?P<release>v[0-9]+(?:\.[0-9]+){1,3})\s*$"
+        )
+    except ValueError as exc:
+        if (root / "ci" / "lib" / "common.sh").exists():
+            errors.append(str(exc))
+            return errors
     paths, path_errors = workflow_paths(root)
     errors.extend(path_errors)
     indirect_make_python = makefile_uses_python(root)

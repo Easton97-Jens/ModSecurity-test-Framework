@@ -8,6 +8,10 @@ REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
 . "$CI_ROOT/lib/runtime-component-common.sh"
 
+# NGINX and optional QUIC TLS archives must retain their common.sh-derived
+# release identity before this preparer evaluates any build input.
+ci_validate_https_runtime_url_config || exit 77
+
 if [ "$CI_SOURCE_ROOT_WAS_SET" = "0" ]; then
     SOURCE_ROOT="${RUNNER_TEMP:-$BUILD_ROOT}/sources"
     DEFAULT_MODSECURITY_V3_SOURCE_DIR="$SOURCE_ROOT/ModSecurity_V3"
@@ -163,8 +167,8 @@ validate_nginx_archive_configuration() {
     if [ "$NGINX_SOURCE_MODE" != "github-release" ]; then
         blocked "NGINX_SOURCE_MODE must be github-release for the reviewed NGINX provenance tuple"
     fi
-    if [ "$NGINX_SOURCE_REPO_URL" != "https://github.com/nginx/nginx" ]; then
-        blocked "NGINX_SOURCE_REPO_URL must be https://github.com/nginx/nginx for the reviewed NGINX provenance tuple"
+    if ! ci_require_https_github_repo_url "$NGINX_SOURCE_REPO_URL" NGINX_SOURCE_REPO_URL; then
+        blocked "NGINX_SOURCE_REPO_URL must be a safe HTTPS GitHub repository URL"
     fi
     if [ -z "$NGINX_RELEASE_TAG" ]; then
         blocked "NGINX_RELEASE_TAG must be an explicit reviewed release tag"
@@ -204,7 +208,7 @@ verify_nginx_archive_digest() {
     archive=$1
     label=$2
     [ -f "$archive" ] || blocked "$label is not a regular NGINX archive: $archive"
-    NGINX_ARCHIVE_SHA256_LOCAL=$(sha256sum "$archive" | awk '{print $1}')
+    NGINX_ARCHIVE_SHA256_LOCAL=$(ci_trusted_sha256_file "$archive") || exit 77
     validate_pinned_sha256 "$NGINX_ARCHIVE_SHA256_LOCAL" "$label local SHA-256"
     if [ "$NGINX_ARCHIVE_SHA256_LOCAL" != "$NGINX_SHA256_CANONICAL" ]; then
         blocked "NGINX_SHA256 mismatch for $archive"
@@ -273,7 +277,6 @@ ensure_quic_tls_source() {
     fi
     require_absolute_generated_path "$NGINX_QUIC_TLS_ARCHIVE" NGINX_QUIC_TLS_ARCHIVE
     require_command tar "extract pinned NGINX QUIC TLS source"
-    require_command sha256sum "verify pinned NGINX QUIC TLS source"
 
     if [ ! -f "$NGINX_QUIC_TLS_ARCHIVE" ]; then
         if ! download_runtime_artifact_under_root nginx-quic-tls \
@@ -285,7 +288,7 @@ ensure_quic_tls_source() {
             exit 77
         fi
     fi
-    NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL=$(sha256sum "$NGINX_QUIC_TLS_ARCHIVE" | awk '{print $1}')
+    NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL=$(ci_trusted_sha256_file "$NGINX_QUIC_TLS_ARCHIVE") || exit 77
     if [ "$NGINX_QUIC_TLS_ARCHIVE_SHA256_LOCAL" != "$NGINX_QUIC_TLS_SOURCE_SHA256" ]; then
         blocked "NGINX_QUIC_TLS_SOURCE_SHA256 mismatch for $NGINX_QUIC_TLS_ARCHIVE; refusing an H3 fallback build"
     fi
@@ -348,7 +351,7 @@ write_protocol_build_provenance() {
             echo "cxxflags=${CXXFLAGS:-}"
             echo "ldflags=${LDFLAGS:-}"
             echo "libs=${LIBS:-}"
-        } | sha256sum | awk '{print $1}'
+        } | ci_trusted_sha256_stream
     )
     {
         echo "nginx_protocol_profile=$NGINX_PROTOCOL_PROFILE"
@@ -611,7 +614,7 @@ nginx_archive_cache_key() {
         "$NGINX_RELEASE_TAG" \
         "$NGINX_SOURCE_GIT_REF" \
         "$NGINX_RELEASE_ASSET_NAME" \
-        "$NGINX_SHA256_CANONICAL" | sha256sum) || \
+        "$NGINX_SHA256_CANONICAL" | ci_trusted_sha256_stream) || \
         blocked "could not calculate NGINX archive cache key"
     NGINX_ARCHIVE_CACHE_KEY=${cache_identity%% *}
     validate_pinned_sha256 "$NGINX_ARCHIVE_CACHE_KEY" "NGINX archive cache key"
@@ -659,7 +662,6 @@ download_nginx_source() {
         blocked "NGINX runtime configuration does not match the reviewed component lock"
     require_command curl "download NGINX GitHub archive"
     require_command tar "extract NGINX GitHub archive"
-    require_command sha256sum "verify NGINX archive checksum"
     mkdir -p "$DOWNLOAD_DIR"
     resolve_nginx_release_tag
     nginx_archive_cache_key

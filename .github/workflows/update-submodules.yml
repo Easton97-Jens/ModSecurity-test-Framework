@@ -111,7 +111,7 @@ jobs:
           git -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"
 
       - name: Run Framework quick check without write permissions
-        run: make quick-check
+        run: ./ci/tools/safe-make.sh quick-check
 
   create-submodule-update-pr:
     name: Create MRTS submodule update pull request

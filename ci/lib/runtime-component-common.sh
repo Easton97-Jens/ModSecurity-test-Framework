@@ -221,6 +221,76 @@ runtime_component_require_under_cache() {
     return 0
 }
 
+# Write small, cache-local provenance metadata without following a pre-existing
+# final symlink.  The target is replaced atomically only after its root and
+# final entry have been checked; the temporary file is private and created in
+# the target directory so the rename cannot cross a filesystem boundary.
+# Content is read from standard input.
+runtime_component_write_provenance_file() (
+    rc_provenance_target=${1:-}
+    rc_provenance_root=${2:-}
+    rc_provenance_label=${3:-runtime provenance file}
+    rc_provenance_dir=
+    rc_provenance_base=
+    rc_provenance_tmp=
+
+    if [ "$#" -ne 3 ]; then
+        ci_blocked "runtime provenance writer requires target, root, and label"
+        return 77
+    fi
+    runtime_component_require_under_root \
+        "$rc_provenance_target" "$rc_provenance_root" "$rc_provenance_label" || return 77
+    rc_provenance_dir=$(dirname "$rc_provenance_target")
+    runtime_component_require_under_root \
+        "$rc_provenance_dir" "$rc_provenance_root" "$rc_provenance_label directory" || return 77
+    if [ -L "$rc_provenance_target" ]; then
+        ci_blocked "$rc_provenance_label must not be a symlink: $rc_provenance_target"
+        return 77
+    fi
+    if [ -e "$rc_provenance_target" ] && [ ! -f "$rc_provenance_target" ]; then
+        ci_blocked "$rc_provenance_label must be a regular file when it exists: $rc_provenance_target"
+        return 77
+    fi
+    command -v mktemp >/dev/null 2>&1 || {
+        ci_blocked "mktemp is required for safe runtime provenance writes"
+        return 77
+    }
+    mkdir -p "$rc_provenance_dir" || {
+        ci_blocked "cannot create $rc_provenance_label directory: $rc_provenance_dir"
+        return 77
+    }
+    rc_provenance_base=$(basename "$rc_provenance_target")
+    umask 077
+    rc_provenance_tmp=$(mktemp "$rc_provenance_dir/.${rc_provenance_base}.tmp.XXXXXX") || {
+        ci_blocked "cannot create private $rc_provenance_label staging file"
+        return 77
+    }
+    trap 'rm -f "$rc_provenance_tmp"' 0 HUP INT TERM
+    if ! cat > "$rc_provenance_tmp"; then
+        ci_blocked "cannot write $rc_provenance_label staging file"
+        return 77
+    fi
+    if [ ! -f "$rc_provenance_tmp" ] || [ -L "$rc_provenance_tmp" ]; then
+        ci_blocked "$rc_provenance_label staging file is not regular"
+        return 77
+    fi
+    # A race that swaps in a symlink after the first check is still safe: mv
+    # replaces the directory entry rather than writing through its target.
+    if [ -L "$rc_provenance_target" ]; then
+        ci_blocked "$rc_provenance_label became a symlink before staging"
+        return 77
+    fi
+    if ! mv -f "$rc_provenance_tmp" "$rc_provenance_target"; then
+        ci_blocked "cannot atomically publish $rc_provenance_label"
+        return 77
+    fi
+    if [ ! -f "$rc_provenance_target" ] || [ -L "$rc_provenance_target" ]; then
+        ci_blocked "$rc_provenance_label was not published as a regular file"
+        return 77
+    fi
+    return 0
+)
+
 runtime_component_require_bounded_timeout() {
     rc_timeout_value=$1
     rc_timeout_name=$2
@@ -379,8 +449,6 @@ verify_runtime_artifact_sha256() {
     rc_name=$1
     rc_expected=$2
     rc_file=$3
-    rc_file_dir=$(dirname "$rc_file")
-    rc_file_base=$(basename "$rc_file")
 
     [ -f "$rc_file" ] && [ -s "$rc_file" ] || {
         rm -f "$rc_file"
@@ -400,13 +468,13 @@ verify_runtime_artifact_sha256() {
         ci_blocked "$rc_name SHA256 is not a 64-character hex digest"
         return 77
     fi
-    command -v sha256sum >/dev/null 2>&1 || {
+    rc_actual=$(ci_trusted_sha256_file "$rc_file") || {
         rm -f "$rc_file"
-        runtime_component_diagnostic "$rc_name" verify sha256_tool_missing "$rc_file" "" 0 not_available not_available not_available "provide_sha256sum_before_staging" not_attempted
-        ci_blocked "sha256sum is required before staging runtime artifacts"
+        runtime_component_diagnostic "$rc_name" verify sha256_verification_unavailable "$rc_file" "" 0 not_available not_available not_available "provide_a_trusted_sha256sum_before_staging" not_attempted
+        ci_blocked "$rc_name SHA256 verification could not use the trusted system tool"
         return 77
     }
-    if ! (cd "$rc_file_dir" && printf '%s  %s\n' "$rc_expected" "$rc_file_base" | sha256sum -c -); then
+    if [ "$rc_actual" != "$rc_expected" ]; then
         rm -f "$rc_file"
         runtime_component_diagnostic "$rc_name" verify sha256_mismatch "$rc_file" "" 0 not_available not_available not_available "replace_with_the_pinned_verified_artifact" not_attempted
         ci_blocked "$rc_name SHA256 verification failed"
@@ -415,10 +483,67 @@ verify_runtime_artifact_sha256() {
     return 0
 }
 
+# Freeze a verified archive into a task-local path before extraction. A shared
+# component-cache writer may replace the source after its first digest check;
+# the private copy is rehashed and is the only archive returned to callers.
+runtime_component_stage_verified_archive() {
+    rc_name=$1
+    rc_expected=$2
+    rc_source=$3
+    rc_destination=$4
+    rc_root=$5
+    rc_destination_dir=$(dirname "$rc_destination")
+    rc_destination_base=$(basename "$rc_destination")
+    rc_tmp=
+
+    runtime_component_require_under_root "$rc_destination" "$rc_root" "$rc_name verified archive" || return 77
+    [ -f "$rc_source" ] && [ ! -L "$rc_source" ] || {
+        ci_blocked "$rc_name source archive is not a regular file: $rc_source"
+        return 77
+    }
+    verify_runtime_artifact_sha256 "$rc_name" "$rc_expected" "$rc_source" || return 77
+    mkdir -p "$rc_destination_dir" || {
+        ci_blocked "cannot create $rc_name verified archive directory: $rc_destination_dir"
+        return 77
+    }
+    command -v mktemp >/dev/null 2>&1 || {
+        ci_blocked "mktemp is required for a private $rc_name verified archive"
+        return 77
+    }
+    umask 077
+    rc_tmp=$(mktemp "$rc_destination_dir/.${rc_destination_base}.tmp.XXXXXX") || {
+        ci_blocked "cannot create private $rc_name verified archive staging file"
+        return 77
+    }
+    trap 'rm -f "$rc_tmp"' 0 HUP INT TERM
+    if ! cp "$rc_source" "$rc_tmp"; then
+        ci_blocked "could not copy $rc_name archive into the private build root"
+        return 77
+    fi
+    [ -f "$rc_tmp" ] && [ ! -L "$rc_tmp" ] || {
+        ci_blocked "$rc_name private archive staging file is not regular"
+        return 77
+    }
+    verify_runtime_artifact_sha256 "$rc_name" "$rc_expected" "$rc_tmp" || return 77
+    if [ -L "$rc_destination" ]; then
+        ci_blocked "$rc_name verified archive destination must not be a symlink: $rc_destination"
+        return 77
+    fi
+    mv -f "$rc_tmp" "$rc_destination" || {
+        ci_blocked "could not publish private $rc_name verified archive"
+        return 77
+    }
+    verify_runtime_artifact_sha256 "$rc_name" "$rc_expected" "$rc_destination" || return 77
+    trap - 0 HUP INT TERM
+    printf '%s\n' "$rc_destination"
+    return 0
+}
+
 stage_executable_binary() {
     rc_name=$1
     rc_src=$2
     rc_dest=$3
+    rc_dest_root=${4:-$CONNECTOR_COMPONENT_CACHE}
     rc_dest_dir=$(dirname "$rc_dest")
     rc_tmp="$rc_dest.tmp.$$"
 
@@ -426,7 +551,7 @@ stage_executable_binary() {
         ci_blocked "$rc_name source binary missing: $rc_src"
         return 77
     }
-    runtime_component_require_under_cache "$rc_dest" "$rc_name staged binary" || return 77
+    runtime_component_require_under_root "$rc_dest" "$rc_dest_root" "$rc_name staged binary" || return 77
     assert_safe_runtime_path "$rc_dest_dir" "$rc_name staged binary directory" || return 77
 
     mkdir -p "$rc_dest_dir"
@@ -485,13 +610,14 @@ extract_single_binary_from_tar() {
     rc_archive=$2
     rc_binary_name=$3
     rc_extract_root=$4
+    rc_extract_root_base=${5:-$CONNECTOR_COMPONENT_CACHE}
     rc_member_list="$rc_extract_root.members"
 
     [ -f "$rc_archive" ] || {
         ci_blocked "$rc_name archive missing: $rc_archive"
         return 77
     }
-    runtime_component_require_under_cache "$rc_extract_root" "$rc_name extract root" || return 77
+    runtime_component_require_under_root "$rc_extract_root" "$rc_extract_root_base" "$rc_name extract root" || return 77
     assert_safe_runtime_path "$rc_extract_root" "$rc_name extract root" || return 77
     command -v tar >/dev/null 2>&1 || {
         ci_blocked "tar is required to extract runtime archives"
@@ -526,13 +652,14 @@ extract_runtime_source_tar() {
     rc_archive=$2
     rc_source_parent=$3
     rc_expected_dirname=$4
+    rc_source_root=${5:-$CONNECTOR_COMPONENT_CACHE}
     rc_member_list="$rc_source_parent.members"
 
     [ -f "$rc_archive" ] || {
         ci_blocked "$rc_name source archive missing: $rc_archive"
         return 77
     }
-    runtime_component_require_under_cache "$rc_source_parent" "$rc_name source parent" || return 77
+    runtime_component_require_under_root "$rc_source_parent" "$rc_source_root" "$rc_name source parent" || return 77
     assert_safe_runtime_path "$rc_source_parent" "$rc_name source parent" || return 77
     command -v tar >/dev/null 2>&1 || {
         ci_blocked "tar is required to extract runtime source archives"

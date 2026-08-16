@@ -179,12 +179,12 @@ boundary and its other assessment obligations.
 
 The canonical fixture is
 `tests/cases/security/crs/crs_sqli_anomaly_block.yaml`. It binds the allow
-control (`200`) and SQL-injection block (`403`, intervention `deny`) to OWASP
-CRS rule `942270`, from CRS `v4.28.0` commit
-`55b09f5acfd16413e7b31041100711ceb7adc89c` and the pinned
+control (`200`) and SQL-injection block (`403`, intervention `deny`) to the
+canonical CRS rule `942270`, using the `CRS_GIT_REF` and
+`CRS_APPROVED_COMMIT` tuple from `ci/lib/common.sh` and the pinned
 `rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf` digest. The fixture does not
-define a local substitute rule. Its fresh source must also retain
-`refs/tags/v4.28.0^{}` and that tag must peel to the same reviewed commit.
+define a local substitute rule. Its fresh source must retain the canonical tag
+ref and that tag must peel to `CRS_APPROVED_COMMIT`.
 
 | Connector | Closed adapter identity | Contract mode | Accepted raw evidence |
 | --- | --- | --- | --- |

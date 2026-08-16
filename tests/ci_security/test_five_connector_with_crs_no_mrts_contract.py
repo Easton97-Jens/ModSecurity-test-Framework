@@ -41,6 +41,7 @@ RESULT_SCHEMA_PATH = (
     ROOT / "tests/schemas/five-connectors-with-crs-no-mrts/result.schema.json"
 )
 MAKE_RUNNER_PATH = ROOT / "ci/tools/run-five-connectors-with-crs-no-mrts.py"
+SAFE_MAKE_PATH = ROOT / "ci/tools/safe-make.sh"
 
 if str(CATALOG_DIRECTORY) not in sys.path:
     sys.path.insert(0, str(CATALOG_DIRECTORY))
@@ -1282,7 +1283,7 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
         ):
             with self.subTest(target=target):
                 result = subprocess.run(
-                    ["make", "-n", target],
+                    [str(SAFE_MAKE_PATH), "-n", target],
                     cwd=ROOT,
                     env=environment,
                     stdout=subprocess.PIPE,
@@ -1290,12 +1291,10 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                     text=True,
                     check=False,
                 )
-                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertNotEqual(result.returncode, 0, result.stderr)
+                self.assertIn("unsupported shell syntax", result.stderr)
                 self.assertNotIn(marker, result.stderr)
                 self.assertNotIn(marker, result.stdout)
-                self.assertIn(
-                    f"{MAKE_RUNNER_PATH.relative_to(ROOT)} {command}", result.stdout
-                )
 
     def test_fixed_make_runner_accepts_only_closed_argument_vectors(self) -> None:
         environment = {

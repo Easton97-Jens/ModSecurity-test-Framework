@@ -23,6 +23,10 @@ from typing import Any, Mapping
 
 import yaml
 
+TOOLS_DIRECTORY = Path(__file__).resolve().parents[3] / "ci/tools"
+sys.path.insert(0, str(TOOLS_DIRECTORY))
+from crs_contract_pins import load_crs_pins  # noqa: E402
+
 from no_crs_baseline import (
     ContractError,
     assert_no_symlink_components,
@@ -38,9 +42,6 @@ from no_crs_baseline import (
 PROFILE = "five-connectors-with-crs-no-mrts"
 SCHEMA_VERSION = 1
 CONNECTORS = ("apache", "haproxy", "envoy", "traefik", "lighttpd")
-CRS_REPOSITORY = "https://github.com/coreruleset/coreruleset.git"
-CRS_RELEASE_TAG = "v4.28.0"
-CRS_COMMIT = "55b09f5acfd16413e7b31041100711ceb7adc89c"
 CRS_RULE_FILE = "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
 CRS_RULE_FILE_SHA256 = (
     "db756f71e8270280c5ae74d09c11250fad8c118f6a905c6a6794d5643d27cd00"
@@ -58,6 +59,10 @@ BLOCK_EVIDENCE_LABEL = "event.block_evidence"
 CLEANUP_LABEL = "event.cleanup"
 RESULT_FILE_NAME = "result.json"
 FRAMEWORK_ROOT = Path(__file__).resolve().parents[3]
+_CRS_PINS = load_crs_pins(FRAMEWORK_ROOT / "ci/lib/common.sh", root=FRAMEWORK_ROOT)
+CRS_REPOSITORY = _CRS_PINS.repository
+CRS_RELEASE_TAG = _CRS_PINS.release_tag
+CRS_COMMIT = _CRS_PINS.commit
 FIXTURE_PATH = FRAMEWORK_ROOT / "tests/cases/security/crs/crs_sqli_anomaly_block.yaml"
 SCHEMA_DIRECTORY = FRAMEWORK_ROOT / "tests/schemas/five-connectors-with-crs-no-mrts"
 EVENT_SCHEMA_PATH = SCHEMA_DIRECTORY / "normalized-event.schema.json"
@@ -122,7 +127,7 @@ RULE_FINGERPRINTS = (
     "@rx (?i)union.*?select.*?from",
     "id:942270",
     "Looking for basic sql injection. Common attack string for mysql, oracle and others",
-    "ver:'OWASP_CRS/4.28.0'",
+    f"ver:'OWASP_CRS/{CRS_RELEASE_TAG[1:]}'",
 )
 TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}\Z")
 COMMIT = re.compile(r"[0-9a-f]{40}\Z")

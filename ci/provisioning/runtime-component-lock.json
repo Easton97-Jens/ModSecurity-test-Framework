@@ -25,7 +25,7 @@
       "asset_name": "haproxy-3.2.21.tar.gz",
       "download_url": "https://www.haproxy.org/download/3.2/src/haproxy-3.2.21.tar.gz",
       "sha256": "0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339",
-      "source_url": "https://www.haproxy.org/",
+      "source_url": "https://www.haproxy.org/download/3.2/src/haproxy-3.2.21.tar.gz",
       "source_provenance": "haproxy-release:3.2.21"
     },
     {
@@ -38,7 +38,7 @@
       "asset_name": "haproxy-3.2.22.tar.gz",
       "download_url": "https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz",
       "sha256": "afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da",
-      "source_url": "https://www.haproxy.org/",
+      "source_url": "https://www.haproxy.org/download/3.2/src/haproxy-3.2.22.tar.gz",
       "source_provenance": "haproxy-release:3.2.22"
     },
     {
@@ -92,6 +92,19 @@
       "sha256": "01811bb12d44f17280550f425f5e3128d6c325f2665c09e67a651ca535f490ce",
       "source_url": "https://github.com/traefik/traefik",
       "source_provenance": "github-release:v3.7.10"
+    },
+    {
+      "id": "lighttpd-sidecar",
+      "component": "lighttpd",
+      "profile": "sidecar_proxy",
+      "version": "1.4.85",
+      "os": "linux",
+      "arch": "amd64",
+      "asset_name": "lighttpd-1.4.85.tar.xz",
+      "download_url": "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.85.tar.xz",
+      "sha256": "18de51b393bac4a6827879e1a7ff377c169e414bae92cd245091d80fc2601d13",
+      "source_url": "https://download.lighttpd.net/lighttpd/releases-1.4.x/",
+      "source_provenance": "lighttpd-release:1.4.85"
     }
   ]
 }

@@ -193,11 +193,9 @@ MRTS-Eingaben oder generierte Pfade. `MODSECURITY_MRTS_VARIANT` akzeptiert
 `no-mrts` oder `with-mrts`; `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1`
 aktiviert optionale Demo-Inhalte erst nach Kollisionsprüfungen.
 
-`CRS_APPROVED_REPO_URL` und `CRS_APPROVED_COMMIT` sind zentrale literale
-Provenance-Werte in `ci/lib/common.sh`, derzeit
-`https://github.com/coreruleset/coreruleset.git` und
-`55b09f5acfd16413e7b31041100711ceb7adc89c`. Sie sind keine Caller-Eingaben.
-`CRS_GIT_REF=v4.28.0` ist der feste Release-Tag-Teil dieses geprüften Tupels.
+`CRS_APPROVED_REPO_URL`, `CRS_APPROVED_COMMIT` und `CRS_GIT_REF` bilden das
+zentrale Provenance-Tupel in `ci/lib/common.sh`; sie sind keine
+Caller-Eingaben.
 `fetch-crs.sh` weist eine abweichende `CRS_REPO_URL` oder `CRS_GIT_REF` vor der
 Git-Ausführung ab, lädt nur die exakte zentrale Tag-Ref und verlangt, dass ihr
 aufgelöstes Objekt `CRS_APPROVED_COMMIT` entspricht; eine Caller-selektierte Ref
@@ -228,10 +226,8 @@ in Workflows duplizieren. `CACHE_ROOT`, `VERIFIED_COMPONENT_CACHE` und
 `CONNECTOR_COMPONENT_CACHE` sind Cache-Pfade und benötigen Herkunftsprüfungen.
 
 `MODSECURITY_V3_APPROVED_REPO_URL` und `MODSECURITY_V3_APPROVED_COMMIT` sind
-literale ModSecurity-v3-Provenance-Werte in `ci/lib/common.sh`, derzeit
-`https://github.com/owasp-modsecurity/ModSecurity.git` und
-`0fb4aff98b4980cf6426697d5605c424e3d5bb60`.
-`MODSECURITY_V3_RELEASE_TAG=v3.0.15` sind nur Release-Metadaten. Die
+die kanonischen ModSecurity-v3-Provenance-Werte in `ci/lib/common.sh`.
+`MODSECURITY_V3_RELEASE_TAG` ist nur Release-Metadatum. Die
 Legacy-Aliase `MODSECURITY_REPO_URL`, `MODSECURITY_V3_GIT_URL`,
 `MODSECURITY_GIT_REF` und `MODSECURITY_V3_GIT_REF` normalisieren bei leeren
 oder nicht gesetzten Werten zu diesen geprüften Werten; ein nichtleerer
@@ -340,9 +336,12 @@ aktualisieren kann.
 `PYTHONDONTWRITEBYTECODE=1` ist Repository-Standard. `REFRESH`, `SMOKE_CASES`,
 `CASE_SCOPE`, `FORCE_ALL_CASES`, `EXTRA_CASE_ROOTS`, `RESULTS_DIR` und die
 `VERIFIED_*`-Wurzeln begrenzen vorhandene Läufe; sie fügen keine Fähigkeiten
-oder Fälle hinzu. Connector-Familienüberschreibungen (`APXS_*`, `NGINX_*`,
-`HAPROXY_*`, `ENVOY_*`, `TRAEFIK_*` und `LIGHTTPD_*`) sind optionale
-Überschreibungen der gepinnten Standards in `ci/lib/common.sh`.
+oder Fälle hinzu. Connector-Familienvariablen (`APXS_*`, `NGINX_*`,
+`HAPROXY_*`, `ENVOY_*`, `TRAEFIK_*` und `LIGHTTPD_*`) sind Target-Eingaben und
+Kompatibilitätsaliase. Geprüfte Upstream-Version/URL/Asset/Digest-Tupel sind
+kanonische Literale in `ci/lib/common.sh`; Versuche, diese Tupelfelder zu
+ersetzen, werden abgewiesen. Runtime-Pfade und vom Host ermittelte Programme
+bleiben dort Aufrufer-Eingaben, wo das Target sie ausdrücklich erlaubt.
 
 `make lint` ist statische Validierung, kein Runtime-Beweis.
 `make check-no-crs-catalog` validiert die Katalogstruktur.
@@ -358,28 +357,39 @@ und Client-Secrets niemals in kanonische Evidence committen, loggen oder
 kopieren. In einem nicht ausführbaren Beispiel `<secret-from-secure-store>`
 statt eines Wertes verwenden.
 
+## Kanonische Python-CI-Pins
+
+`CI_CANONICAL_PYTHON_VERSION`, `CI_CANONICAL_PYYAML_VERSION` und
+`CI_CANONICAL_PYYAML_SHA256` in `ci/lib/common.sh` sind die einzigen manuell
+gepflegten Werte für den CI-Interpreter und sein geprüftes PyYAML-Wheel. Die
+committeten Dateien `.python-version` und `requirements-ci.lock` sind
+generierte Ansichten. Mit
+`ci/tools/sync-canonical-python-pins.py --check` werden sie netzwerkfrei
+geprüft; `--write` aktualisiert sie atomar.
+
 ## Weitere dokumentierte Eingaben und Platzhalter
 
 Die folgenden Werte erscheinen in fokussierten Build-, Import-, Test- oder
-historischen Kompatibilitäts-Guides. Sie sind optionale Überschreibungen, sofern
-das benannte Target nichts anderes verlangt. Ihre Quelle der Wahrheit ist das
-Target oder `ci/lib/common.sh`; ein leerer oder nicht verfügbarer Wert muss zu
-einem klaren Voraussetzung-Fehler führen, nicht zu einem angenommenen PASS.
-Build-Pfade sind absolute Runtime-Pfade und sollen außerhalb des Git-Worktrees
-liegen. Versions-, URL- und Prüfsummenüberschreibungen benötigen vor der Nutzung
-eine Herkunftsprüfung.
+historischen Kompatibilitäts-Guides. Sie sind Target-Eingaben, sofern das
+benannte Target nichts anderes verlangt. Aktive Upstream-Tupelfelder werden aus
+den kanonischen Definitionen in `ci/lib/common.sh` und generierten Ansichten
+gelesen; sie sind keine unabhängigen Dokumentationsstandards. Ein leerer oder
+nicht verfügbarer Wert muss zu einem klaren Voraussetzung-Fehler führen, nicht
+zu einem angenommenen PASS. Build-Pfade sind absolute Runtime-Pfade und sollen
+außerhalb des Git-Worktrees liegen. Ausdrücklich erlaubte Source-Eingaben
+benötigen weiterhin eine Herkunftsprüfung.
 
 | Namen | Bereich und Format | Standard / gesetzt durch | Beispiel und Sicherheitshinweis |
 |---|---|---|---|
 | `ALLOW_EXTERNAL_CONNECTOR_REPOS` | Boolean zur Quellenbeschaffung | `0`; Aufrufer oder CI | `1` stimmt externen Source-Fetches zu; Repository vorher prüfen. |
 | `BUILD_HTTPD_FROM_SOURCE`, `BUILD_NGINX_FROM_SOURCE`, `BUILD_PCRE2_FROM_SOURCE`, `XDG_STATE_HOME` | Build-Boolean oder State-Home-Pfad | Target-Standard oder Host-State-Home; Aufrufer | `1` aktiviert den benannten Source-Build; `XDG_STATE_HOME=<temporary-work-root>/state` wählt ein State-Home außerhalb von Git. |
-| `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, `HTTPD_PREFIX`, `HTTPD_VERSION`, `APR_VERSION` | Apache-Programm-, Pfad- oder Versionsüberschreibung | zentraler Pin oder Host-Erkennung | `/opt/httpd/bin/httpd`; eine Host-Installation ist keine portable Evidence. |
-| `APR_UTIL_PINNED_VERSION`, `APR_UTIL_PINNED_SOURCE_URL`, `APR_UTIL_PINNED_SHA256`, `APR_UTIL_PINNED_SHA256_URL`, `APR_UTIL_VERSION`, `APR_UTIL_SOURCE_URL`, `APR_UTIL_SHA256`, `APR_UTIL_SHA256_URL` | überprüftes APR-util-Provider-, Asset- und SHA-256-Tupel | zentrales unveränderliches `downloads.apache.org`-Tupel für `apr-util-1.6.4.tar.bz2` | Die Runtime-Werte müssen exakt dem überprüften Provider, der Version, dem Asset, dem Literal-Digest und der Checksum-URL desselben Assets entsprechen. Leere, fehlerhafte, abweichende, Mirror-, Host-, Pfad- oder Versionswerte blockieren vor Apache-Provisionierung, Download, Cache-Nutzung oder Extraktion. Der direkte kanonische Endpunkt folgt keinen Provider- oder Mirror-Redirects. Die Checksum-URL ist ergänzende Metadaten und niemals ein Digest-Fallback. |
+| `APACHE_BIN`, `APACHECTL_BIN`, `APXS_BIN`, `HTTPD_PREFIX`, `HTTPD_VERSION`, `APR_VERSION` | Apache-Programm-/Pfad-Eingabe oder kanonisches Versionsfeld | kanonisches Tupel in `ci/lib/common.sh` oder Host-Erkennung für Programme | `/opt/httpd/bin/httpd`; eine Host-Installation ist keine portable Evidence. |
+| `APR_UTIL_PINNED_VERSION`, `APR_UTIL_PINNED_SOURCE_URL`, `APR_UTIL_PINNED_SHA256`, `APR_UTIL_PINNED_SHA256_URL`, `APR_UTIL_VERSION`, `APR_UTIL_SOURCE_URL`, `APR_UTIL_SHA256`, `APR_UTIL_SHA256_URL` | überprüftes APR-util-Provider-, Asset- und SHA-256-Tupel | kanonisches Tupel in `ci/lib/common.sh`; generierte Lock-/Manifest-Ansichten werden dagegen geprüft | Runtime-Werte müssen exakt Provider, Version, Asset, Digest und Checksum-URL des kanonischen Tupels entsprechen. Leere, fehlerhafte, abweichende, Mirror-, Host-, Pfad- oder Versionswerte blockieren vor Apache-Provisionierung, Download, Cache-Nutzung oder Extraktion. Die Checksum-URL ist ergänzende Metadaten und niemals ein Digest-Fallback. |
 | `NGINX_BIN`, `NGINX_GITHUB_REPO`, `NGINX_RELEASE_TAG`, `NGINX_SOURCE_GIT_REF`, `NGINX_RELEASE_ASSET_NAME`, `NGINX_SOURCE_MODE`, `NGINX_SOURCE_REPO_URL`, `NGINX_SHA256` | NGINX-Programm-, Kompatibilitäts-GitHub-URL-Alias-, fester Release-Tag/-Ref-, Release-Asset-Name-, Source-Mode- oder SHA-256-Digest-Eingabe | überprüftes festes Source-Tupel; siehe [feste NGINX-Release-Provenance](#feste-nginx-release-provenance) | NGINX akzeptiert nur den überprüften Provenance-Pfad `github-release`. Ein fließender `latest`-Tag oder -Ref wird abgewiesen und ist kein unterstützter Kompatibilitätsmodus. |
 | `PCRE2_VERSION`, `PCRE_CONFIG` | Abhängigkeitsversion oder Programm | zentraler Pin oder Host-Erkennung | `PCRE_CONFIG=/usr/bin/pcre2-config`; ein Host-Pfad ist nur ein Beispiel. |
 | `PCRE2_VERSION`, `PCRE2_SOURCE_URL`, `PCRE2_SHA256`, `PCRE2_SHA256_URL`, `PCRE_CONFIG` | Abhängigkeitsversion, HTTPS-Quell-URL, 64-hex SHA-256, Versionswerkzeug-Metadaten oder Programm | zentraler Pin oder Host-Erkennung | `PCRE2_SHA256=<64-hex>` muss nicht leer, syntaktisch gültig und exakt passend zum Archiv sein, bevor die Extraktion erfolgt. Leere, nur aus Whitespace bestehende, fehlerhafte oder nicht passende Werte blockieren vor `tar`; `PCRE2_SHA256_URL` ist kein Fallback. |
 | `MODSECURITY_APACHE_SOURCE_DIR`, `MODSECURITY_NGINX_SOURCE_DIR`, `MODSECURITY_SOURCE_DIR`, `MODSECURITY_V3_SOURCE_DIR`, `MODSECURITY_V3_DIR`, `MODSECURITY_V3_ROOT` | absoluter Source-/Build-Pfad | unter `SOURCE_ROOT` oder `BUILD_ROOT` | `<temporary-work-root>/src/libmodsecurity`; V3-Source muss ein geprüfter eigenständiger Checkout sein, nie ein nicht vertrauenswürdiger Checkout. |
-| `MODSECURITY_GIT_REF`, `MODSECURITY_V3_GIT_REF`, `LIBMODSECURITY_VERSION`, `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INC`, `MODSECURITY_LIB`, `MODSECURITY_PKG_CONFIG` | Release-Metadaten, Versions-, Include-/Lib-/pkg-config-Überschreibung | zentraler Pin oder Erkennung | `MODSECURITY_GIT_REF=MODSECURITY_V3_GIT_REF=v3.0.15`; der vollständige geprüfte Commit, nicht einer der Aliase, selektiert die V3-Quelle. |
+| `MODSECURITY_GIT_REF`, `MODSECURITY_V3_GIT_REF`, `LIBMODSECURITY_VERSION`, `MODSECURITY_INCLUDE_DIR`, `MODSECURITY_LIB_DIR`, `MODSECURITY_INC`, `MODSECURITY_LIB`, `MODSECURITY_PKG_CONFIG` | Release-Metadaten, Versions-, Include-/Lib-/pkg-config-Eingabe | kanonischer Pin oder Erkennung | Leere Legacy-Aliase normalisieren zum kanonischen V3-Tupel; der vollständige geprüfte Commit, nicht ein Alias, selektiert die V3-Quelle. |
 | `MODSECURITY_TEST_VARIANT` | Testvarianten-Enum | `no-crs` oder Target-Auswahl | `with-crs` lädt CRS vor lokalen Regeln; die Katalogsemantik bleibt unverändert. |
 | `MRTS_NATIVE_ROOT` | absoluter MRTS-Source-Pfad | aus `MRTS_ROOT` abgeleitet | `<temporary-work-root>/src/MRTS`; generierte Ausgabe bleibt unter `MRTS_BUILD_ROOT`. |
 | `FORCE_ALL_CASES`, `REFRESH`, `RESPONSE_BODY_PROBE_REPEAT` | Test-/Report-Boolean oder positive Anzahl | Target-Standard | `FORCE_ALL_CASES=1`; Evidence wird nicht automatisch promotet. |
@@ -400,17 +410,17 @@ aus dem expliziten überprüften `NGINX_RELEASE_TAG` abgeleitet werden.
 
 | Tupelfeld | Erforderlicher überprüfter Wert |
 |---|---|
-| `NGINX_SOURCE_MODE` | `github-release` |
-| `NGINX_SOURCE_REPO_URL` | `https://github.com/nginx/nginx` |
-| `NGINX_RELEASE_TAG` | `release-1.31.3` |
-| `NGINX_SOURCE_GIT_REF` | `release-1.31.3` |
-| `NGINX_RELEASE_ASSET_NAME` | `nginx-1.31.3.tar.gz` |
-| `NGINX_SHA256` | `a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525` |
+| `NGINX_SOURCE_MODE` | kanonisches `NGINX_SOURCE_MODE` in `ci/lib/common.sh` |
+| `NGINX_SOURCE_REPO_URL` | kanonisches `NGINX_SOURCE_REPO_URL` in `ci/lib/common.sh` |
+| `NGINX_RELEASE_TAG` | kanonisches `NGINX_RELEASE_TAG` in `ci/lib/common.sh` |
+| `NGINX_SOURCE_GIT_REF` | aus dem kanonischen Release-Tag abgeleitet |
+| `NGINX_RELEASE_ASSET_NAME` | abgeleitetes kanonisches Asset-Feld |
+| `NGINX_SHA256` | kanonischer Digest in `ci/lib/common.sh` |
 
 `NGINX_GITHUB_REPO` ist nur ein Kompatibilitätsalias; er kann keinen anderen
-Origin als `https://github.com/nginx/nginx` wählen. Der resultierende
-Archivendpunkt lautet
-`https://github.com/nginx/nginx/releases/download/release-1.31.3/nginx-1.31.3.tar.gz`.
+Origin als das kanonische NGINX-Repository wählen. Archivendpunkt und Assetname
+werden aus dem kanonischen Release-Tupel abgeleitet; siehe `ci/lib/common.sh`
+und die generierte Runtime-Manifestansicht.
 
 Für NGINX ist `latest` sowohl als `NGINX_RELEASE_TAG` als auch als
 `NGINX_SOURCE_GIT_REF` verboten. Diese Werte, ein fehlender Tag/Ref/Asset/Digest,

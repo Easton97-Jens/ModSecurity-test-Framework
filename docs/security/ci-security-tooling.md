@@ -139,11 +139,11 @@ publishes only a verified gitlink-only Draft PR. Its publisher uses no App
 private key, force push,
 default-branch push, merge, or PR-triggered execution.
 
-`requirements-ci.lock` pins the CI PyYAML CP314 wheel
-`PyYAML-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl`
-for reviewed CPython 3.14.6 on Linux x86_64 and requires its official PyPI
-SHA-256
-`c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5`.
+`requirements-ci.lock` is a generated view of the canonical CI Python and
+PyYAML fields in `ci/lib/common.sh` (`CI_CANONICAL_PYTHON_VERSION`,
+`CI_CANONICAL_PYYAML_VERSION`, and `CI_CANONICAL_PYYAML_SHA256`). The generated
+lock carries the exact CP314 wheel and official PyPI SHA-256; it is checked
+network-free by `ci/tools/sync-canonical-python-pins.py --check`.
 Workflows select the exact reviewed patch with `check-latest: false`, then
 install it with `--require-hashes`, `--only-binary=:all:`, and `pip check`.
 Dependabot monitors both `github-actions` and `pip`, but a proposed update
@@ -189,7 +189,7 @@ change path. It never auto-merges or uses a floating version selector.
 The static-tool baselines follow the same contract: `pyproject.toml` declares
 Ruff `target-version = "py314"`, and `pyrightconfig.json` declares
 `"pythonVersion": "3.14"`. These are analysis baselines, not a claim that a
-local or hosted CPython 3.14.6 validation run has completed.
+local or hosted validation run for `CI_CANONICAL_PYTHON_VERSION` has completed.
 
 OSV's current scope is deliberately explicit. Its `.lock` suffix is not a
 Python-requirements filename that OSV Scanner accepts directly, so the workflow

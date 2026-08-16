@@ -36,6 +36,7 @@ require_fetch_path() {
 }
 
 require_approved_crs_provenance() {
+    ci_require_inherited_canonical_upstream_pins || exit 77
     ci_require_https_github_repo_url "$CRS_APPROVED_REPO_URL" "CRS_APPROVED_REPO_URL" || exit 77
     ci_require_full_git_commit "$CRS_APPROVED_COMMIT" "CRS_APPROVED_COMMIT" || exit 77
     if [ "$CRS_REPO_URL" != "$CRS_APPROVED_REPO_URL" ]; then

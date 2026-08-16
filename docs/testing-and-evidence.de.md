@@ -192,12 +192,12 @@ Bewertungspflichten.
 Die kanonische Fixture ist
 `tests/cases/security/crs/crs_sqli_anomaly_block.yaml`. Sie bindet die
 Allow-Kontrolle (`200`) und die SQL-Injection-Blockierung (`403`, Intervention
-`deny`) an die OWASP-CRS-Regel `942270`, aus CRS `v4.28.0` Commit
-`55b09f5acfd16413e7b31041100711ceb7adc89c` und dem gepinnten Digest von
-`rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf`. Die Fixture definiert keine
-lokale Ersatzregel. Ihre frische Source muss außerdem
-`refs/tags/v4.28.0^{}` enthalten und dieser Tag muss zum selben geprüften
-Commit aufgelöst werden.
+`deny`) an die kanonische OWASP-CRS-Regel `942270`, mit dem Tupel aus
+`CRS_GIT_REF` und `CRS_APPROVED_COMMIT` in `ci/lib/common.sh` und dem
+gepinnten Digest von `rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf`. Die
+Fixture definiert keine lokale Ersatzregel. Ihre frische Source muss den
+kanonischen Tag-Ref enthalten und dieser Tag muss zu `CRS_APPROVED_COMMIT`
+aufgelöst werden.
 
 | Connector | Geschlossene Adapteridentität | Vertragsmodus | Akzeptierte Raw-Evidenz |
 | --- | --- | --- | --- |

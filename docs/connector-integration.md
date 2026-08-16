@@ -44,7 +44,7 @@ metadata drift checks validate them.
 |---|---|---|---|---|---|---|
 | ModSecurity-apache | https://github.com/owasp-modsecurity/ModSecurity-apache | master | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 | `connectors/apache` |
 | ModSecurity-nginx | https://github.com/owasp-modsecurity/ModSecurity-nginx | master | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 | `connectors/nginx` |
-| ModSecurity v3 | https://github.com/owasp-modsecurity/ModSecurity | `v3.0.15` metadata; commit-only fetch | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 | configured engine source |
+| ModSecurity v3 | `MODSECURITY_V3_APPROVED_REPO_URL` | `MODSECURITY_V3_RELEASE_TAG` metadata; commit-only fetch | `MODSECURITY_V3_APPROVED_COMMIT` | `LIBMODSECURITY_VERSION` metadata | Apache-2.0 | configured engine source |
 | ModSecurity v2 | https://github.com/owasp-modsecurity/ModSecurity | v2/master | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache-2.0 | historical semantics reference |
 
 Apache and NGINX productive adapter sources are deliberately
@@ -52,8 +52,8 @@ connector-specific. Their attribution, license, origin, and source maps also
 remain in the connector repository. The Framework validates documentation
 metadata without linking to connector C code.
 
-ModSecurity v3 acquisition accepts only the literal OWASP HTTPS origin and
-the reviewed full commit above. `v3.0.15` is release metadata rather than a
+ModSecurity v3 acquisition accepts only the canonical HTTPS origin and reviewed
+full commit from `ci/lib/common.sh`. The release tag is metadata rather than a
 Git selector: empty legacy `MODSECURITY_*` aliases normalize to the reviewed
 identity, while a non-empty differing value fails before Git use. The fetch
 path always creates a fresh checkout and verifies the pinned root before it

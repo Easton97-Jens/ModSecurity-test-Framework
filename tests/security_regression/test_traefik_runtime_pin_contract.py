@@ -28,6 +28,7 @@ PATH_HELPER = ROOT / "ci" / "lib" / "path.sh"
 RUNTIME_COMPONENT_HELPER = ROOT / "ci" / "lib" / "runtime-component-common.sh"
 CONNECTOR_SMOKE_HELPER = ROOT / "ci" / "lib" / "connector-smoke-common.sh"
 RUNTIME_COMPONENT_LOCK_CHECKER = ROOT / "ci" / "tools" / "check-runtime-component-lock.py"
+RUNTIME_COMPONENT_SYNCHRONIZER = ROOT / "ci" / "tools" / "sync-runtime-components.py"
 RUNTIME_COMPONENT_LOCK = ROOT / "ci" / "provisioning" / "runtime-component-lock.json"
 RUNTIME_COMPONENT_MANIFEST = ROOT / "ci" / "provisioning" / "runtime-components.manifest.json"
 PREPARE_TRAEFIK = ROOT / "ci" / "provisioning" / "prepare-traefik-runtime.sh"
@@ -120,6 +121,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         shutil.copy2(RUNTIME_COMPONENT_HELPER, lib_root / "runtime-component-common.sh")
         shutil.copy2(CONNECTOR_SMOKE_HELPER, lib_root / "connector-smoke-common.sh")
         shutil.copy2(RUNTIME_COMPONENT_LOCK_CHECKER, tools_root / "check-runtime-component-lock.py")
+        shutil.copy2(RUNTIME_COMPONENT_SYNCHRONIZER, tools_root / "sync-runtime-components.py")
         shutil.copy2(RUNTIME_COMPONENT_LOCK, provisioning_root / "runtime-component-lock.json")
         shutil.copy2(RUNTIME_COMPONENT_MANIFEST, provisioning_root / "runtime-components.manifest.json")
         fixture_prepare = provisioning_root / "prepare-traefik-runtime.sh"
@@ -297,6 +299,14 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
                 self.assertEqual(completed.returncode, 77, completed.stdout)
                 self.assertIn("BLOCKED:", completed.stdout)
 
+    def test_other_active_pin_environment_overrides_fail_closed(self) -> None:
+        completed = self.run_common_guard(
+            {"PCRE2_SHA256_URL": "https://mirror.example.invalid/pcre2.sha256"}
+        )
+
+        self.assertEqual(completed.returncode, 77, completed.stdout)
+        self.assertIn("PCRE2_SHA256_URL override is not permitted", completed.stdout)
+
     def test_post_source_mutations_and_internal_missing_metadata_fail_closed(self) -> None:
         post_source = subprocess.run(
             [
@@ -358,7 +368,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         self.set_fixture_traefik_sha256(fixture_root, common, digest)
 
         completed = self.run_preparer(fixture_root, prepare)
-        staged = archive.parents[1] / "bin" / "traefik"
+        staged = self.fixture_verified_root(fixture_root) / "build" / "traefik-connector" / "bin" / "traefik"
 
         self.assertEqual(completed.returncode, 0, completed.stdout)
         self.assertTrue(staged.is_file(), completed.stdout)

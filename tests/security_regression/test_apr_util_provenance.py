@@ -155,7 +155,7 @@ class AprUtilProvenanceTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIn(f'{name}="{expected}"', source)
         self.assertIn(
-            'APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"',
+            'APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/$APR_UTIL_ARCHIVE_NAME"',
             source,
         )
         self.assertIn('APR_UTIL_SHA256_URL="$APR_UTIL_SOURCE_URL.sha256"', source)
@@ -344,8 +344,8 @@ class AprUtilProvenanceTests(unittest.TestCase):
         source = self.common.read_text(encoding="utf-8")
         invalid_fixtures = {
             "foreign-source": source.replace(
-                'APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"',
-                'APR_UTIL_SOURCE_URL="https://mirror.example.invalid/apr-util-$APR_UTIL_VERSION.tar.bz2"',
+                'APR_UTIL_SOURCE_URL="https://downloads.apache.org/apr/$APR_UTIL_ARCHIVE_NAME"',
+                'APR_UTIL_SOURCE_URL="https://mirror.example.invalid/apr/$APR_UTIL_ARCHIVE_NAME"',
             ),
             "wrong-checksum-url": source.replace(
                 'APR_UTIL_SHA256_URL="$APR_UTIL_SOURCE_URL.sha256"',
