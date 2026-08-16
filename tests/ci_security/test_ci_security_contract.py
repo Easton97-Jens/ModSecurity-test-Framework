@@ -841,8 +841,24 @@ jobs:
                 1,
             ),
             "expanded-publish-path": workflow.replace(
-                "            .python-version\n",
-                "            .python-version\n            .github/workflows/check-python-version.yml\n",
+                "            ci/lib/common.sh\n            .python-version\n",
+                "            ci/lib/common.sh\n            .python-version\n"
+                "            .github/workflows/check-python-version.yml\n",
+                1,
+            ),
+            "publisher-omits-generated-view-write": workflow.replace(
+                "          python3 ci/tools/sync-canonical-python-pins.py --write --root .\n",
+                "",
+                1,
+            ),
+            "publisher-allows-generated-view-only": workflow.replace(
+                "          expected_paths=$'.python-version\\nci/lib/common.sh'\n",
+                "          expected_paths='.python-version'\n",
+                1,
+            ),
+            "publisher-allows-unbounded-common-source": workflow.replace(
+                '              if git_diff("--numstat") != "1\\t1\\tci/lib/common.sh\\n":\n',
+                "              if False:\n",
                 1,
             ),
             "outcome-not-always": workflow.replace(
@@ -1019,6 +1035,120 @@ jobs:
                     workflow_path, mutated, CHECKER.yaml.safe_load(mutated)
                 )
                 self.assertTrue(errors, name)
+
+    def test_unified_common_maintenance_rejects_unprepared_resolvers(self) -> None:
+        workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+        setup = (
+            "          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \\\n"
+            "            --require-hashes -r requirements-ci.lock\n"
+            "          python3 -m pip check\n"
+        )
+
+        def replace_in_job(
+            text: str, job: str, next_job: str, old: str, new: str
+        ) -> str:
+            start = text.index(f"\n  {job}:\n")
+            end = text.index(f"\n  {next_job}:\n", start)
+            section = text[start:end]
+            self.assertIn(old, section)
+            return text[:start] + section.replace(old, new, 1) + text[end:]
+
+        next_jobs = {
+            "canonical-maintenance": "reconcile-trusted",
+            "reconcile-trusted": "candidate",
+            "candidate": "publish",
+            "publish": "result",
+        }
+        for job, next_job in next_jobs.items():
+            variants = {
+                "omits-hash-locked-install": replace_in_job(
+                    workflow,
+                    job,
+                    next_job,
+                    setup,
+                    setup.replace("--require-hashes", "--no-deps"),
+                ),
+                "omits-pip-check": replace_in_job(
+                    workflow,
+                    job,
+                    next_job,
+                    setup,
+                    setup.replace("          python3 -m pip check\n", ""),
+                ),
+                "comments-out-bootstrap": replace_in_job(
+                    workflow,
+                    job,
+                    next_job,
+                    setup,
+                    setup.replace(
+                        "          python3 -m pip install",
+                        "          # python3 -m pip install",
+                        1,
+                    ).replace(
+                        "          python3 -m pip check\n",
+                        "          # python3 -m pip check\n",
+                        1,
+                    ),
+                ),
+                "echoes-bootstrap": replace_in_job(
+                    workflow,
+                    job,
+                    next_job,
+                    setup,
+                    "          printf '%s\\n' 'python3 -m pip install --require-hashes -r requirements-ci.lock'\n"
+                    "          printf '%s\\n' 'python3 -m pip check'\n",
+                ),
+            }
+            for mutation, mutated in variants.items():
+                with self.subTest(job=job, mutation=mutation):
+                    errors = CHECKER.workflow_contract_errors(
+                        workflow_path, mutated, CHECKER.yaml.safe_load(mutated)
+                    )
+                    self.assertTrue(errors, "\n".join(errors))
+
+    def test_unified_common_maintenance_rejects_resolvers_outside_reviewed_runs(
+        self,
+    ) -> None:
+        workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+        resolver = (
+            "          python3 ci/tools/resolve-canonical-maintenance.py "
+            "--root . --check\n"
+        )
+        foreign_step_markers = {
+            "canonical-maintenance": (
+                "          python3 ci/tools/reconcile-common-version-review-issues.py "
+                '--plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --validate-only\n'
+            ),
+            "reconcile-trusted": (
+                '          [[ -n "$ISSUE_APP_CLIENT_ID" && -n "$ISSUE_APP_PRIVATE_KEY" ]] '
+                "|| { echo 'review-issue App configuration is required' >&2; exit 1; }\n"
+            ),
+            "candidate": (
+                "          allowed='^(.github/workflows/[^/]+\\.yml|ci/lib/common\\.sh|"
+                "ci/provisioning/runtime-(components\\.manifest|component-lock)\\.json|"
+                "ci/tooling/security-tools\\.lock\\.yml|\\.python-version|"
+                "requirements-ci\\.lock|docs/(reference/variables|"
+                "github-actions-workflow-security)(\\.de)?\\.md|tests/schemas/"
+                "five-connectors-with-crs-no-mrts/(normalized-event|manifest|receipt)"
+                "\\.schema\\.json|tests/cases/security/crs/"
+                "crs_sqli_anomaly_block\\.yaml)$'\n"
+            ),
+            "publish": (
+                '          [[ -n "$PUBLISHER_CLIENT_ID" && -n "$PUBLISHER_PRIVATE_KEY" ]] '
+                "|| { echo 'publisher App configuration is required' >&2; exit 1; }\n"
+            ),
+            "result": '          cat >> "$GITHUB_STEP_SUMMARY" <<EOF\n',
+        }
+        for job, marker in foreign_step_markers.items():
+            with self.subTest(job=job):
+                self.assertIn(marker, workflow)
+                mutated = workflow.replace(marker, resolver + marker, 1)
+                errors = CHECKER.workflow_contract_errors(
+                    workflow_path, mutated, CHECKER.yaml.safe_load(mutated)
+                )
+                self.assertTrue(errors, "\n".join(errors))
 
     def _legacy_common_version_publisher_rejects_privilege_and_scope_regressions(
         self,

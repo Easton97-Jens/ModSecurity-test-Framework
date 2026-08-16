@@ -57,6 +57,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
           args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --markdown "$RUNNER_TEMP/canonical-maintenance-plan.md")
           if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
           python3 ci/tools/resolve-canonical-maintenance.py "${args[@]}"
@@ -144,6 +147,9 @@ jobs:
           ISSUE_APP_TOKEN: ${{ steps.issue_app_token.outputs.token }}
         run: |
           set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
           args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --expected-plan-sha256 "$PLAN_SHA256")
           if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
           python3 ci/tools/resolve-canonical-maintenance.py "${args[@]}"
@@ -181,6 +187,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
           args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --expected-plan-sha256 "$PLAN_SHA256")
           if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
           python3 ci/tools/resolve-canonical-maintenance.py "${args[@]}"
@@ -241,6 +250,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
           args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --expected-plan-sha256 "$PLAN_SHA256")
           if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
           python3 ci/tools/resolve-canonical-maintenance.py "${args[@]}"

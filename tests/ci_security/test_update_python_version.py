@@ -76,7 +76,11 @@ def response_for(records: list[dict[str, object]]) -> FakeResponse:
 class UpdatePythonVersionTest(unittest.TestCase):
     def make_root(self, directory: Path, version: str = "3.14.6\n") -> Path:
         root = directory / "framework"
-        root.mkdir()
+        (root / "ci/lib").mkdir(parents=True)
+        canonical = version.removesuffix("\n")
+        (root / "ci/lib/common.sh").write_text(
+            f'CI_CANONICAL_PYTHON_VERSION="{canonical}"\n', encoding="utf-8"
+        )
         (root / ".python-version").write_text(version, encoding="utf-8")
         return root
 
@@ -94,6 +98,10 @@ class UpdatePythonVersionTest(unittest.TestCase):
             self.assertEqual(result.candidate, "3.14.7")
             self.assertEqual(
                 (root / ".python-version").read_text(encoding="utf-8"), "3.14.6\n"
+            )
+            self.assertIn(
+                'CI_CANONICAL_PYTHON_VERSION="3.14.6"',
+                (root / "ci/lib/common.sh").read_text(encoding="utf-8"),
             )
 
     def test_equal_downgrade_and_missing_stable_results_are_fail_closed(self) -> None:
@@ -269,22 +277,64 @@ class UpdatePythonVersionTest(unittest.TestCase):
                 root, UPDATER.PythonVersion(6), UPDATER.PythonVersion(7)
             )
             self.assertEqual(
-                (root / ".python-version").read_text(encoding="utf-8"), "3.14.7\n"
+                (root / "ci/lib/common.sh").read_text(encoding="utf-8"),
+                'CI_CANONICAL_PYTHON_VERSION="3.14.7"\n',
+            )
+            self.assertEqual(
+                (root / ".python-version").read_text(encoding="utf-8"), "3.14.6\n"
             )
             self.assertEqual(unrelated.read_text(encoding="utf-8"), "unchanged\n")
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             directory = Path(temporary_directory)
             outside = directory / "outside-version"
-            outside.write_text("3.14.6\n", encoding="utf-8")
+            outside.write_text(
+                'CI_CANONICAL_PYTHON_VERSION="3.14.6"\n', encoding="utf-8"
+            )
             root = directory / "framework"
-            root.mkdir()
-            (root / ".python-version").symlink_to(outside)
+            (root / "ci/lib").mkdir(parents=True)
+            (root / "ci/lib/common.sh").symlink_to(outside)
             expected = UPDATER.PythonVersion(6)
             candidate = UPDATER.PythonVersion(7)
-            with self.assertRaisesRegex(UPDATER.UpdaterFailure, "non-symlink"):
+            with self.assertRaisesRegex(UPDATER.UpdaterFailure, "symlink"):
                 UPDATER.atomic_write_canonical_version(root, expected, candidate)
-            self.assertEqual(outside.read_text(encoding="utf-8"), "3.14.6\n")
+            self.assertEqual(
+                outside.read_text(encoding="utf-8"),
+                'CI_CANONICAL_PYTHON_VERSION="3.14.6"\n',
+            )
+
+    def test_duplicate_malformed_and_stale_canonical_sources_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = self.make_root(Path(temporary_directory))
+            common = root / "ci/lib/common.sh"
+            common.write_text(
+                'CI_CANONICAL_PYTHON_VERSION="3.14.6"\n'
+                'CI_CANONICAL_PYTHON_VERSION="3.14.7"\n',
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                UPDATER.resolve_update(root).status, "invalid_current_version"
+            )
+
+            common.write_text(
+                "CI_CANONICAL_PYTHON_VERSION=3.14.6\n", encoding="utf-8"
+            )
+            self.assertEqual(
+                UPDATER.resolve_update(root).status, "invalid_current_version"
+            )
+
+            common.write_text(
+                'CI_CANONICAL_PYTHON_VERSION="3.14.6"\n', encoding="utf-8"
+            )
+            UPDATER.atomic_write_canonical_version(
+                root, UPDATER.PythonVersion(6), UPDATER.PythonVersion(7)
+            )
+            with self.assertRaisesRegex(
+                UPDATER.UpdaterFailure, "changed during update"
+            ):
+                UPDATER.atomic_write_canonical_version(
+                    root, UPDATER.PythonVersion(6), UPDATER.PythonVersion(8)
+                )
 
     def test_expected_candidate_and_runner_outputs_are_constrained(self) -> None:
         result = UPDATER.UpdateResult(

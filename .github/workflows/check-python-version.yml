@@ -250,6 +250,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           MAINTENANCE_PR_EXISTS: ${{ steps.maintenance_pr.outputs.existing }}
           PUBLISH_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
+          CANDIDATE: ${{ needs.resolve.outputs.candidate }}
         run: |
           set -euo pipefail
           UPDATE_BRANCH="automation/update-framework-python-314"
@@ -265,7 +266,57 @@ jobs:
               git fetch --no-tags origin "refs/heads/$UPDATE_BRANCH:refs/remotes/origin/$UPDATE_BRANCH"
               git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" "origin/$UPDATE_BRANCH"
               changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH")"
-              test "$changed_paths" = ".python-version"
+              expected_paths=$'.python-version\nci/lib/common.sh'
+              test "$changed_paths" = "$expected_paths"
+              python3 - "$DEFAULT_BRANCH" "$UPDATE_BRANCH" "$CANDIDATE" <<'PY'
+              import re
+              import subprocess
+              import sys
+
+              base, head, candidate = sys.argv[1:]
+              version = re.compile(r"^3\.14\.(?:0|[1-9][0-9]*)$", re.ASCII)
+              if version.fullmatch(candidate) is None:
+                  raise SystemExit("resolved CPython candidate is malformed")
+              revision_range = f"origin/{base}...origin/{head}"
+              common_path = "ci/lib/common.sh"
+
+              def git_diff(*arguments: str) -> str:
+                  return subprocess.run(
+                      ["git", "diff", "--no-ext-diff", *arguments, revision_range,
+                       "--", common_path],
+                      check=True,
+                      capture_output=True,
+                      text=True,
+                  ).stdout
+
+              if git_diff("--numstat") != "1\t1\tci/lib/common.sh\n":
+                  raise SystemExit(
+                      "existing CPython Draft must change exactly one canonical common.sh line"
+                  )
+              if git_diff("--summary"):
+                  raise SystemExit("existing CPython Draft must not change common.sh metadata")
+              payload = [
+                  line
+                  for line in git_diff("--unified=0").splitlines()
+                  if line[:1] in {"+", "-"} and not line.startswith(("+++", "---"))
+              ]
+              assignment = re.compile(
+                  r'^CI_CANONICAL_PYTHON_VERSION="3\.14\.(?:0|[1-9][0-9]*)"$',
+                  re.ASCII,
+              )
+              expected = f'CI_CANONICAL_PYTHON_VERSION="{candidate}"'
+              if (
+                  len(payload) != 2
+                  or not payload[0].startswith("-")
+                  or not payload[1].startswith("+")
+                  or assignment.fullmatch(payload[0][1:]) is None
+                  or payload[1][1:] != expected
+                  or payload[0][1:] == expected
+              ):
+                  raise SystemExit(
+                      "existing CPython Draft common.sh diff is not the reviewed canonical assignment update"
+                  )
+              PY
               git diff --check "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH"
               git switch --detach "origin/$UPDATE_BRANCH"
               ;;
@@ -285,10 +336,12 @@ jobs:
           set -euo pipefail
           test "$DEFAULT_BRANCH" = "master"
           test -z "$(git branch --show-current)"
+          python3 ci/tools/sync-canonical-python-pins.py --check --root .
           python3 ci/checks/security/check-python-version.py
           python3 ci/checks/security/check-ci-security-contract.py
           changed_paths="$(git diff --name-only "origin/$DEFAULT_BRANCH...HEAD")"
-          test "$changed_paths" = ".python-version"
+          expected_paths=$'.python-version\nci/lib/common.sh'
+          test "$changed_paths" = "$expected_paths"
           git diff --check "origin/$DEFAULT_BRANCH...HEAD"
 
       - name: Restore the trusted CPython publisher base
@@ -312,10 +365,13 @@ jobs:
           test -z "$(git status --porcelain)"
           python3 ci/tools/update-python-version.py --check --expected-candidate "$CANDIDATE"
           python3 ci/tools/update-python-version.py --update --expected-candidate "$CANDIDATE"
+          python3 ci/tools/sync-canonical-python-pins.py --write --root .
+          python3 ci/tools/sync-canonical-python-pins.py --check --root .
           python3 ci/checks/security/check-python-version.py
           python3 ci/checks/security/check-ci-security-contract.py
           changed_paths="$(git diff --name-only origin/master)"
-          test "$changed_paths" = ".python-version"
+          expected_paths=$'.python-version\nci/lib/common.sh'
+          test "$changed_paths" = "$expected_paths"
           git diff --check origin/master
           test "$(git branch --show-current)" = "master"
 
@@ -329,13 +385,13 @@ jobs:
             '' \
             'This Draft pull request was generated only after a read-only CPython 3.14 candidate validation.' \
             '' \
-            'The publisher independently re-resolved the official Python.org metadata and verified that only `.python-version` changed.' \
+            'The publisher independently re-resolved the official Python.org metadata and verified the canonical `ci/lib/common.sh` pin plus its generated `.python-version` view.' \
             '' \
             '## Deutsch' \
             '' \
             'Dieser Draft Pull Request wurde erst nach einer schreibgeschützten CPython-3.14-Kandidatenvalidierung erzeugt.' \
             '' \
-            'Der Publisher hat die offiziellen Python.org-Metadaten unabhängig erneut aufgelöst und geprüft, dass sich nur `.python-version` änderte.' \
+            'Der Publisher hat die offiziellen Python.org-Metadaten unabhängig erneut aufgelöst und den kanonischen Pin in `ci/lib/common.sh` sowie die daraus generierte Ansicht `.python-version` geprüft.' \
             > "$RUNNER_TEMP/framework-python-version-pr-body.md"
 
       - name: Create or update Draft pull request
@@ -350,6 +406,7 @@ jobs:
           delete-branch: false
           draft: true
           add-paths: |
+            ci/lib/common.sh
             .python-version
 
   outcome:

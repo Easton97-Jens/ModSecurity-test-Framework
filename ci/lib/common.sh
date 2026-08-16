@@ -503,7 +503,7 @@ EXPAT_PROMPT_EXPECTED_LATEST="$EXPAT_GIT_REF"
 # tools.  Repository identifiers are part of the upstream identity; keep
 # release and asset URLs derived from them rather than duplicating URLs in
 # workflow or lock files.
-CI_CANONICAL_PYTHON_VERSION="3.14.6"
+CI_CANONICAL_PYTHON_VERSION="3.14.7"
 CI_CANONICAL_PYYAML_VERSION="6.0.3"
 CI_CANONICAL_PYYAML_SHA256="c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5"
 CI_CANONICAL_PYYAML_ARTIFACT="pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
