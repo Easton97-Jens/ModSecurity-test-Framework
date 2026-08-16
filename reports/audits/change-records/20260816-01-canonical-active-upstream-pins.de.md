@@ -51,9 +51,10 @@ Claims, MRTS, globale Installation und Deployment sind ausgeschlossen.
    vollständige native Unit-Test-Evidenz bestehen ohne Netzwerk-Pin-Discovery
    oder Dependency-Installation.
 6. Parent-Gitlink und MRTS bleiben unverändert.
-7. CRS-View-Tooling akzeptiert nur nicht-symlinkierte, enthaltene Fixture-
-   Roots und verwendet an jedem Dateisystem-Sink den validierten aufgelösten
-   Pfad.
+7. Python- und CRS-View-Tooling akzeptieren nur nicht-symlinkierte,
+   enthaltene Roots und verwenden an jedem Dateisystem-Sink den validierten
+   Pfad; das Python-Synchronizer-`--root` muss dem Checkout entsprechen, der
+   das Tool enthält.
 
 ## Untersuchte Alternativen
 
@@ -90,6 +91,13 @@ geprüften aufgelösten Pfad zurück; alle CRS-Lese-, Vergleichs- und atomaren
 Schreibzugriffe verwenden diesen Wert, sodass kein roher CLI-abgeleiteter Pfad
 einen dieser Dateisystem-Sinks erreicht.
 
+Der Python-Pin-Synchronizer verwendet den Checkout, der das Tool enthält, als
+vertrauenswürdigen Root: `--root` wird nur akzeptiert, wenn er diesem Root
+entspricht, und `read_utf8()` wiederholt die Containment- und
+Nicht-Symlink-Pfadvalidierung unmittelbar vor jedem Text-Lesezugriff. Die
+temporären Fixture-Tests kopieren das Tool in die Fixture, sodass akzeptierter
+Root und Tool-Provenienz übereinstimmen.
+
 ### SonarQube-Cloud-Remediation-Follow-up
 
 Die vorhergehende PR-Analyse meldete 44 neue Code Smells und 16 duplizierte
@@ -106,6 +114,14 @@ Assignment-Expression wird ohne Ausführung verworfen. Er wird bewusst nicht
 als vollständiger Interpreter oder Verifizierer beliebiger späterer
 Shell-Ausführung dargestellt; die PR- und Wartungs-Workflow-Trust-Boundaries
 stellen den getrennten Ausführungsschutz bereit.
+
+Die erste Exact-Head-Analyse nach diesem Refactoring identifizierte fünf
+Restbefunde. Dieses source-native Follow-up beseitigt die beiden
+Fixed-Condition-Meldungen, den leeren f-String und den
+Lock-Checker-Complexity-Befund und macht zugleich Root-Provenienz und direkte
+Read-Sink-Grenze des Python-Synchronizers explizit. Es verwendet weder
+Accepted-Issue-Status, Suppression, Scanner-Exclusion noch eine Änderung des
+Quality Gates.
 
 ## Geänderte Dateien und Tests
 
@@ -145,6 +161,7 @@ stellen den getrennten Ausführungsschutz bereit.
 | Fokussierte CRS-Root-Containment-, Canonical-Python- und Workflow-Synchronizer-Tests | 0 | 26 Tests bestanden, einschließlich Traversal- und Symlink-Root-Negativfällen. | Draft-PR-Remediation-Validierung |
 | Framework-safe-make lint mit dem ausgewählten absoluten Virtual-Environment-Python | 0 | Vollständige native Lint-, Contract-, Provenance-, Runtime-, Workflow-, Dokumentations- und Whitespace-Kette bestand. | Lokale Sonar-Remediation-Validierung |
 | Fokussierte Runtime-Sync-/Lock-/Traefik-Testmodule plus generischer Runtime-Synchronizer-Check | 0 | 35 Tests bestanden; direkte unzulässige Deklaration und No-Execution-Controls bestanden. | Lokale Sonar-Remediation-Validierung |
+| Follow-up Canonical-Python-/CRS-/Runtime-/Workflow-Module | 0 | 66 fokussierte Tests bestanden, einschließlich Checkout-Root-Bindung und direkter Symlink-Read-Rejection. | Lokale Sonar-Residual-Remediation-Validierung |
 
 ## Sicherheitsauswirkung
 
@@ -157,6 +174,12 @@ weiterhin. Sie decken außerdem CRS-Root-Traversal und Symlink-Root-
 Substitution ab, bevor eine View gelesen oder geschrieben werden kann. Der
 finale Review fand keine bestätigte High- oder Critical-Impact-Schwachstelle
 in unterstützten aktiven Einstiegspunkten.
+
+Der Python-Synchronizer bindet seinen akzeptierten Root nun an den Checkout,
+der das Tool enthält, und wiederholt Root-Containment, Komponenten-
+Symlink-Rejection und Regular-File-Validierung am direkten Text-Read-Sink.
+Damit wird die verbleibende Pfad-Provenienz-Mehrdeutigkeit beseitigt, ohne
+einem Caller eine beliebige `--root`-Auswahl zu gewähren.
 
 Das Follow-up bestätigte nach den Maintainability-Refactorings unabhängig
 lexikalisches Containment und ASCII-only-Release-/Tag-Validierung. Die
@@ -189,19 +212,24 @@ Ein direkter Aufruf von `/usr/bin/make` bleibt Caller-Autorität außerhalb der
 unterstützten `safe-make.sh`-/CI-/Helper-Grenze. Der task-private Build-Root
 muss nach dem finalen Hash für einen Angreifer nicht schreibbar bleiben. Ein
 neues Plattform- oder Runtime-Profil benötigt ein geprüftes kanonisches Tupel
-und Regression-Abdeckung. Das `--root`-Fixture-Verzeichnis bleibt Caller-
-Autorität; die Containment-Garantie setzt voraus, dass kein gleichzeitiger
-feindlicher Writer die geprüften Dateien zwischen Validierung und
-Dateisystemoperation ersetzt.
+und Regression-Abdeckung. Das Python-Synchronizer-`--root` ist absichtlich
+kein beliebiger Fixture-Selektor: es muss den Checkout bezeichnen, der dieses
+Tool enthält, und Fixture-Tests kopieren das Tool in ihren kontrollierten
+Checkout. Wie bei den anderen lokalen Dateiprüfungen setzt die
+Containment-Garantie voraus, dass kein gleichzeitiger feindlicher Writer eine
+geprüfte Datei zwischen Validierung und Dateisystemoperation ersetzt.
 
 ## Finaler Diff- und Review-Status
 
 Der ursprüngliche kanonische Diff, die CRS-Root-Containment-Remediation und
 die native Sonar-Remediation bestanden auftragsbezogenen Whitespace-Review,
 Generated-View-Idempotenz, fokussierten Security-Review und vollständiges
-lokales Lint. Draft-PR #82 ist offen; der nächste Commit und normale Push
-werden nach der Delivery gegen die Remote- und PR-Heads verifiziert. Die
-vorhergehende Hosted-Analyse bestand ihr Quality Gate, meldete aber weiterhin
-44 neue Code Smells und 0,3 % New-Code-Duplizierung; ein Zero-Issue-Ergebnis
-für den aktuellen Head wird erst nach Abschluss der Hosted-Analyse behauptet.
-Dieses Record beansprucht kein Merge-, Parent-, MRTS- oder Gitlink-Ergebnis.
+lokales Lint. Das erste ausgelieferte Follow-up beseitigte die ursprünglichen
+44 Code Smells und die Duplizierung, aber sein exakter Hosted-Head meldete
+fünf Restbefunde, einschließlich eines High-Security-
+Path-Provenance-Reports; er wird nicht als sauber behauptet. Dieses zweite
+source-native Follow-up bestand die vollständige lokale Lint-Kette. Draft-PR
+#82 bleibt offen; normaler Push, Remote-/PR-Head-Identität und die
+Exact-Head-Hosted-Analyse sind noch erforderlich, bevor dieses Record ein
+Zero-Issue-Ergebnis beanspruchen kann. Dieses Record beansprucht kein Merge-,
+Parent-, MRTS- oder Gitlink-Ergebnis.

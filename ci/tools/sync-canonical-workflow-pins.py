@@ -365,7 +365,7 @@ def _rewrite_node_line(line: str, values: dict[str, str]) -> tuple[str | None, s
         return None, None
     match = NODE_VERSION_LINE.fullmatch(line.rstrip("\n"))
     if match is None:
-        return line, f"node-version must be a literal canonical value"
+        return line, "node-version must be a literal canonical value"
     quote = match.group("quote")
     newline = "\n" if line.endswith("\n") else ""
     return (

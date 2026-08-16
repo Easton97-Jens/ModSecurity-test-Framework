@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -35,15 +36,29 @@ class CanonicalPythonPinsTest(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         root = Path(directory.name)
         (root / "ci/lib").mkdir(parents=True)
+        fixture_tool = root / "ci/tools/sync-canonical-python-pins.py"
+        fixture_tool.parent.mkdir()
+        shutil.copy2(TOOL, fixture_tool)
         (root / "ci/lib/common.sh").write_text(COMMON, encoding="utf-8")
         (root / ".python-version").write_text("3.14.6\n", encoding="utf-8")
         (root / "requirements-ci.lock").write_text(REQUIREMENTS, encoding="utf-8")
         return root
 
     def run_tool(
-        self, root: Path, mode: str, *, common: Path | None = None
+        self,
+        root: Path,
+        mode: str,
+        *,
+        common: Path | None = None,
+        root_argument: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
-        command = [sys.executable, str(TOOL), mode, "--root", str(root)]
+        command = [
+            sys.executable,
+            str(root / "ci/tools/sync-canonical-python-pins.py"),
+            mode,
+            "--root",
+            str(root_argument or root),
+        ]
         if common is not None:
             command.extend(("--common", str(common)))
         return subprocess.run(
@@ -51,6 +66,7 @@ class CanonicalPythonPinsTest(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
+            cwd=root,
         )
 
     def test_check_passes_and_does_not_write(self) -> None:
@@ -106,6 +122,24 @@ class CanonicalPythonPinsTest(unittest.TestCase):
         result = self.run_tool(root, "--check")
         self.assertEqual(result.returncode, 2)
         self.assertIn("symlink", result.stderr)
+
+    def test_read_helpers_reject_symlink_before_access(self) -> None:
+        root = self.make_root()
+        outside = Path(tempfile.mkdtemp()) / "common.sh"
+        outside.write_text(COMMON, encoding="utf-8")
+        link = root / "common-link.sh"
+        link.symlink_to(outside)
+        with self.assertRaises(MODULE.PinError):
+            MODULE.read_utf8(link, root, "common pin source")
+        with self.assertRaises(MODULE.PinError):
+            MODULE.read_bytes(link, root, "common pin source")
+
+    def test_root_must_match_the_tool_checkout(self) -> None:
+        root = self.make_root()
+        outside = Path(tempfile.mkdtemp())
+        result = self.run_tool(root, "--check", root_argument=outside)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("must match this tool's repository root", result.stderr)
 
     def test_common_override_outside_root_is_rejected(self) -> None:
         root = self.make_root()

@@ -23,6 +23,7 @@ PIN_NAMES = (
     "CI_CANONICAL_PYYAML_VERSION",
     "CI_CANONICAL_PYYAML_SHA256",
 )
+TOOL_ROOT = Path(__file__).resolve().parents[2]
 ASSIGNMENT = re.compile(
     r"^\s*(?P<name>CI_CANONICAL_(?:PYTHON_VERSION|PYYAML_VERSION|PYYAML_SHA256))"
     r"\s*=\s*(?:\"(?P<double>[^\"\n]*)\"|'(?P<single>[^'\n]*)'|"
@@ -75,15 +76,20 @@ def path_in_root(path: Path, root: Path, label: str) -> Path:
 
 
 def validate_root(root: Path) -> Path:
-    root = lexical_path(root)
-    reject_symlink_components(root, "repository root")
+    supplied = lexical_path(root)
+    expected = lexical_path(TOOL_ROOT)
+    if supplied != expected:
+        raise PinError(
+            f"{supplied}: --root must match this tool's repository root {expected}"
+        )
+    reject_symlink_components(expected, "repository root")
     try:
-        details = root.lstat()
+        details = expected.lstat()
     except OSError as exc:
-        raise PinError(f"{root}: repository root is unavailable: {exc}") from exc
+        raise PinError(f"{expected}: repository root is unavailable: {exc}") from exc
     if stat.S_ISLNK(details.st_mode) or not stat.S_ISDIR(details.st_mode):
-        raise PinError(f"{root}: repository root must be a real directory")
-    return root
+        raise PinError(f"{expected}: repository root must be a real directory")
+    return expected
 
 
 def regular_file(path: Path, label: str) -> None:
@@ -95,16 +101,28 @@ def regular_file(path: Path, label: str) -> None:
         raise PinError(f"{path}: {label} must be a regular non-symlink file")
 
 
-def read_utf8(path: Path, label: str) -> str:
-    regular_file(path, label)
+def read_utf8(path: Path, root: Path, label: str) -> str:
+    """Read one regular, non-symlink UTF-8 file confined to ``root``."""
+    validated = path_in_root(path, root, label)
+    regular_file(validated, label)
     try:
-        return path.read_text(encoding="utf-8")
+        return validated.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
         raise PinError(f"{path}: {label} is not readable UTF-8: {exc}") from exc
 
 
-def canonical_values(common: Path) -> dict[str, str]:
-    text = read_utf8(common, "common pin source")
+def read_bytes(path: Path, root: Path, label: str) -> bytes:
+    """Read one regular, non-symlink byte stream confined to ``root``."""
+    validated = path_in_root(path, root, label)
+    regular_file(validated, label)
+    try:
+        return validated.read_bytes()
+    except OSError as exc:
+        raise PinError(f"{path}: {label} is not readable: {exc}") from exc
+
+
+def canonical_values(common: Path, root: Path) -> dict[str, str]:
+    text = read_utf8(common, root, "common pin source")
     values: dict[str, str] = {}
     for line_number, line in enumerate(text.splitlines(), start=1):
         match = ASSIGNMENT.fullmatch(line)
@@ -135,10 +153,10 @@ def expected_views(root: Path, values: dict[str, str]) -> dict[Path, bytes]:
     requirements_label = "requirements-ci.lock"
     python_path = path_in_root(root / python_label, root, python_label)
     requirements_path = path_in_root(root / requirements_label, root, requirements_label)
-    python_text = read_utf8(python_path, python_label)
+    python_text = read_utf8(python_path, root, python_label)
     if PYTHON_VIEW.fullmatch(python_text) is None:
         raise PinError(f"{python_path}: expected exactly one newline-terminated stable version")
-    requirements = read_utf8(requirements_path, requirements_label)
+    requirements = read_utf8(requirements_path, root, requirements_label)
     lines = requirements.splitlines(keepends=True)
     version_indexes = [
         index for index, line in enumerate(lines) if PYAML_VERSION_LINE.fullmatch(line)
@@ -168,16 +186,16 @@ def expected_views(root: Path, values: dict[str, str]) -> dict[Path, bytes]:
     }
 
 
-def atomic_write(path: Path, data: bytes) -> bool:
-    regular_file(path, "generated view")
-    current = path.read_bytes()
+def atomic_write(path: Path, root: Path, data: bytes) -> bool:
+    validated = path_in_root(path, root, "generated view")
+    current = read_bytes(validated, root, "generated view")
     if current == data:
         return False
-    directory = path.parent
+    directory = validated.parent
     directory_details = directory.lstat()
     if stat.S_ISLNK(directory_details.st_mode) or not stat.S_ISDIR(directory_details.st_mode):
         raise PinError(f"{directory}: target directory must be a real directory")
-    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=directory)
+    fd, temporary = tempfile.mkstemp(prefix=f".{validated.name}.", dir=directory)
     temporary_path = Path(temporary)
     try:
         os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
@@ -185,10 +203,10 @@ def atomic_write(path: Path, data: bytes) -> bool:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary_path, path)
+        os.replace(temporary_path, validated)
         return True
     except OSError as exc:
-        raise PinError(f"{path}: atomic update failed: {exc}") from exc
+        raise PinError(f"{validated}: atomic update failed: {exc}") from exc
     finally:
         temporary_path.unlink(missing_ok=True)
 
@@ -198,7 +216,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--check", action="store_true", help="validate generated views without writing")
     mode.add_argument("--write", action="store_true", help="atomically update generated views")
-    parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=TOOL_ROOT,
+        help="repository root; must match the checkout containing this tool",
+    )
     parser.add_argument("--common", type=Path, default=None)
     return parser.parse_args(argv)
 
@@ -208,9 +231,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         root = validate_root(args.root)
         common = path_in_root(args.common or root / "ci/lib/common.sh", root, "common pin source")
-        values = canonical_values(common)
+        values = canonical_values(common, root)
         views = expected_views(root, values)
-        mismatches = [path for path, expected in views.items() if path.read_bytes() != expected]
+        mismatches = [
+            path
+            for path, expected in views.items()
+            if read_bytes(path, root, "generated view") != expected
+        ]
         if args.check:
             if mismatches:
                 for path in mismatches:
@@ -218,7 +245,9 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
             print("canonical Python pins: PASS")
             return 0
-        changed = [path for path, data in views.items() if atomic_write(path, data)]
+        changed = [
+            path for path, data in views.items() if atomic_write(path, root, data)
+        ]
         print("canonical Python pins: UPDATED" if changed else "canonical Python pins: PASS")
         return 0
     except (OSError, PinError) as exc:

@@ -47,8 +47,9 @@ host-runtime claims, MRTS, global installation, and deployment are excluded.
 5. Focused regression, generic checker, idempotence, lint, and full native
    unit-test evidence pass without network pin discovery or dependency install.
 6. Parent gitlink and MRTS remain unchanged.
-7. CRS view tooling accepts only non-symlink contained fixture roots and uses
-   the validated resolved path at every filesystem sink.
+7. Python and CRS view tooling accept only non-symlink contained roots and use
+   the validated path at every filesystem sink; the Python synchronizer's
+   `--root` must match the checkout containing that tool.
 
 ## Alternatives considered
 
@@ -83,6 +84,12 @@ file type. The validator returns only the checked resolved path, which is then
 used for all CRS reads, comparisons, and atomic writes; no raw CLI-derived
 path reaches those filesystem sinks.
 
+The Python pin synchronizer uses the checkout containing the tool as its
+trusted root: `--root` is accepted only when it matches that root, and
+`read_utf8()` repeats contained non-symlink path validation immediately before
+each text read. Its temporary-fixture tests copy the tool into the fixture so
+the accepted root and tool provenance remain aligned.
+
 ### SonarQube Cloud remediation follow-up
 
 The preceding PR analysis reported 44 new code smells and 16 duplicated
@@ -98,6 +105,13 @@ rejected without execution. It intentionally is not represented as a complete
 interpreter or verifier for arbitrary later shell execution; the PR and
 maintenance workflow trust boundaries provide the separate execution
 protection.
+
+The first exact-head analysis after that refactor identified five residual
+findings. This source-native follow-up removes the two fixed-condition reports,
+the empty f-string, and the lock-checker complexity report, while making the
+Python synchronizer's root provenance and direct read-sink boundary explicit.
+It uses no accepted-issue state, suppression, scanner exclusion, or quality
+gate change.
 
 ## Changed files and tests
 
@@ -134,6 +148,7 @@ protection.
 | Focused CRS root-containment, canonical Python, and workflow synchronizer tests | 0 | 26 tests passed, including traversal and symlink-root negatives. | Draft-PR remediation validation |
 | Framework safe-make lint with the selected absolute virtual-environment Python | 0 | Full native lint, contracts, provenance, runtime, workflow, documentation, and whitespace chain passed. | Sonar remediation local validation |
 | Focused runtime sync/lock/Traefik test modules plus generic runtime synchronizer check | 0 | 35 tests passed; direct disallowed declaration and no-execution controls passed. | Sonar remediation local validation |
+| Follow-up canonical-Python/CRS/runtime/workflow modules | 0 | 66 focused tests passed, including checkout-root binding and direct symlink-read rejection. | Sonar residual remediation local validation |
 
 ## Security impact
 
@@ -145,6 +160,12 @@ They also cover CRS root traversal and symlink-root substitution before a view
 can be read or written. Legitimate controlled inputs continue to pass. The
 final review found no confirmed high- or critical-impact issue in supported
 active entrypoints.
+
+The Python synchronizer now binds its accepted root to the checkout containing
+the tool and repeats root containment, component symlink rejection, and
+regular-file validation at the direct text-read sink. This removes the
+residual path-provenance ambiguity without granting an arbitrary `--root`
+selection to a caller.
 
 The follow-up independently confirmed lexical containment and ASCII-only
 release/tag validation after the maintainability refactors. The reviewed
@@ -175,17 +196,21 @@ Direct raw `/usr/bin/make` invocation remains caller authority outside the
 supported `safe-make.sh`/CI/helper boundary. The task-private build root must
 remain non-writable to an attacker after final hashing. A new platform or
 runtime profile requires a reviewed canonical tuple and regression coverage.
-The `--root` fixture directory remains caller authority; the containment
-guarantee assumes no concurrent hostile writer can replace its checked files
-between validation and the filesystem operation.
+The Python synchronizer's `--root` is intentionally not an arbitrary fixture
+selector: it must identify the checkout containing that tool, and fixture
+tests copy the tool into their controlled checkout. As with the other local
+file checks, the containment guarantee assumes no concurrent hostile writer
+can replace a checked file between validation and the filesystem operation.
 
 ## Final diff and review status
 
 The original canonical diff, CRS root-containment remediation, and native
 Sonar remediation passed task-owned whitespace, generated-view idempotence,
-focused security review, and full local lint. Draft PR #82 is open; the next
-commit and normal push will be verified against the remote and PR heads after
-delivery. The preceding hosted analysis passed its Quality Gate but still
-reported 44 new code smells and 0.3% new-code duplication; no zero-issue
-current-head result is claimed until the delivered head completes hosted
-analysis. This record does not claim a merge, Parent, MRTS, or gitlink outcome.
+focused security review, and full local lint. The first delivered follow-up
+removed the original 44 code smells and duplication but its exact hosted head
+reported five residual findings, including one high-security path-provenance
+report; it is not claimed as clean. This second source-native follow-up passed
+the complete local lint chain. Draft PR #82 remains open; its new normal push,
+remote/PR-head identity, and exact-head hosted analysis remain required before
+this record can claim a zero-issue result. This record does not claim a merge,
+Parent, MRTS, or gitlink outcome.

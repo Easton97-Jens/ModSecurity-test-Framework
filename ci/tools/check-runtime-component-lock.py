@@ -195,33 +195,54 @@ def require_manifest_matches_lock(
             raise ValueError(f"manifest {name} asset/download drift")
 
 
-def validate_lock(
-    lock: dict[str, object], values: dict[str, str], descriptors, sync
-) -> list[dict[str, object]]:
+def _validate_lock_header(lock: dict[str, object], values: dict[str, str], sync) -> None:
     if lock.get("schema_version") != 1:
         raise ValueError("lock schema_version must be 1")
     expected_os, expected_arch = sync.runtime_profile_platform(values)
     if lock.get("platform") != f"{expected_os}-{expected_arch}":
         raise ValueError(f"lock platform must be {expected_os}-{expected_arch}")
+
+
+def _lock_profiles(lock: dict[str, object]) -> list[dict[str, object]]:
     components = lock.get("profiles")
     if not isinstance(components, list):
         raise ValueError("lock profiles must be a list")
+    if not all(isinstance(item, dict) for item in components):
+        raise ValueError("lock profile must be an object")
+    return components
+
+
+def _validate_profile_inventory(
+    components: list[dict[str, object]], descriptors
+) -> None:
     expected_ids = set(descriptors)
-    ids = [item.get("id") for item in components if isinstance(item, dict)]
+    ids = [item.get("id") for item in components]
     if set(ids) != expected_ids or len(ids) != len(expected_ids):
         raise ValueError(f"lock profiles mismatch: {sorted(str(item) for item in ids)}")
+
+
+def _validate_profile(
+    item: dict[str, object], values: dict[str, str], descriptors, sync
+) -> None:
+    identifier = item.get("id")
+    if identifier not in descriptors:
+        raise ValueError(f"unknown lock profile {identifier}")
+    version, digest = expected_tuple(item, values, descriptors)
+    if item["version"] != version:
+        raise ValueError(f"{item['id']} version drift: lock={item['version']} common={version}")
+    if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+        raise ValueError(f"{item['id']} canonical SHA-256 is invalid")
+    require_profile_shape(item, digest, descriptors[identifier], values, sync)
+
+
+def validate_lock(
+    lock: dict[str, object], values: dict[str, str], descriptors, sync
+) -> list[dict[str, object]]:
+    _validate_lock_header(lock, values, sync)
+    components = _lock_profiles(lock)
+    _validate_profile_inventory(components, descriptors)
     for item in components:
-        if not isinstance(item, dict):
-            raise ValueError("lock profile must be an object")
-        identifier = item.get("id")
-        if identifier not in descriptors:
-            raise ValueError(f"unknown lock profile {identifier}")
-        version, digest = expected_tuple(item, values, descriptors)
-        if item["version"] != version:
-            raise ValueError(f"{item['id']} version drift: lock={item['version']} common={version}")
-        if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
-            raise ValueError(f"{item['id']} canonical SHA-256 is invalid")
-        require_profile_shape(item, digest, descriptors[identifier], values, sync)
+        _validate_profile(item, values, descriptors, sync)
     return components
 
 
