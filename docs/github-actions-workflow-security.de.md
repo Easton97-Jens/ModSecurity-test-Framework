@@ -214,6 +214,16 @@ Fehlende, fehlerhafte oder unbekannte Outputs sowie jeder Resolver-, Validator-,
 Publisher-, App-Konfigurations- oder App-Token-Fehler lassen den terminalen Job
 fehlschlagen, statt als No-Update dargestellt zu werden.
 
+Der kanonische Common-Maintenance-Resolver prüft bei einer fatalen Auflösung,
+dass seine erzeugten maschinenlesbaren und Markdown-Plan-Dateien vorhanden
+sind. Nur der Markdown-Plan wird an `GITHUB_STEP_SUMMARY` angehängt; der
+JSON-Plan bleibt runner-lokal und wird nicht dauerhaft aufbewahrt. Der
+Workflow merkt sich den Resolver-Exit-Code und gibt anschließend denselben
+Nicht-Null-Code zurück. Ein fataler Plan bleibt damit in der Hosted-Job-
+Zusammenfassung sichtbar, wird aber weder zu einem erfolgreichen noch zu einem
+veröffentlichbaren Ergebnis; Digest-, Inventar- und Publisher-Gates bleiben
+fail-closed.
+
 Bei einem Update gibt der Workflow-Tool-Resolver eine kanonische Kandidaten-
 Base64- und SHA-256-Identität aus. Validator und Publisher validieren genau
 diese Identität unabhängig, und der Publisher verlangt eine nicht leere

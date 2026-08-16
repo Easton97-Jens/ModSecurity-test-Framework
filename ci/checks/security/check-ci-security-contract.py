@@ -247,7 +247,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "canonical-maintenance",
         "Resolve mandatory global and selected runtime scopes",
-    ): "075c35a49fc3aac6c9b452369e1658196b57daadaa89bb7f1210e3b1a549c49a",
+    ): "671e37c65ab0314dfe0ef383126deed805d449e5b746f94a37c382564654d403",
     (
         "canonical-maintenance",
         "Validate review issue reconciliation without writes",

@@ -199,6 +199,14 @@ modified. Missing, malformed, or unknown output—and any resolver, validator,
 publisher, App-configuration, or App-token failure—causes the terminal job to
 fail rather than being represented as no update.
 
+The canonical common-maintenance resolver verifies that its generated
+machine-readable and Markdown plan files exist when resolution is fatal. Only
+the Markdown plan is appended to `GITHUB_STEP_SUMMARY`; the JSON plan remains
+runner-local and is not durably retained. The workflow records the resolver
+exit code and then returns that same non-zero code. A fatal plan is therefore
+visible in the hosted job summary without becoming a successful or publishable
+outcome; digest, inventory, and publisher gates remain fail-closed.
+
 For an update, the workflow-tool resolver emits canonical candidate Base64 and
 SHA-256 identity. The validator and publisher independently validate that exact
 identity, and the publisher requires a non-empty reviewed change before it can

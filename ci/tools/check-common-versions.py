@@ -1950,7 +1950,18 @@ class HttpClient:
             headers["Accept"] = accept
         parsed = urlparse(url)
         token = os.environ.get("GITHUB_TOKEN")
-        if token and parsed.netloc == GITHUB_API_HOST:
+        if token and any(character in token for character in "\r\n"):
+            raise UpstreamUnknown("GITHUB_TOKEN contains prohibited control characters")
+        is_github_repository_api = (
+            parsed.scheme == "https"
+            and parsed.netloc == GITHUB_API_HOST
+            and parsed.path.startswith("/repos/")
+            and not parsed.params
+            and ";" not in parsed.path
+            and not parsed.fragment
+            and not any(part in {".", ".."} for part in parsed.path.split("/"))
+        )
+        if token and is_github_repository_api:
             headers["Authorization"] = f"Bearer {token}"
             headers["X-GitHub-Api-Version"] = "2022-11-28"
         return headers

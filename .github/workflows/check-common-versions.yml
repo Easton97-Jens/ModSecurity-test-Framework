@@ -62,10 +62,14 @@ jobs:
           python3 -m pip check
           args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --markdown "$RUNNER_TEMP/canonical-maintenance-plan.md")
           if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
-          python3 ci/tools/resolve-canonical-maintenance.py "${args[@]}"
+          resolver_exit=0
+          python3 ci/tools/resolve-canonical-maintenance.py "${args[@]}" || resolver_exit=$?
           test -s "$RUNNER_TEMP/canonical-maintenance-plan.json"
           test -s "$RUNNER_TEMP/canonical-maintenance-plan.md"
           cat "$RUNNER_TEMP/canonical-maintenance-plan.md" >> "$GITHUB_STEP_SUMMARY"
+          if (( resolver_exit != 0 )); then
+            exit "$resolver_exit"
+          fi
           python3 - "$RUNNER_TEMP/canonical-maintenance-plan.json" "$GITHUB_OUTPUT" <<'PY'
           import hashlib, json, sys
           from pathlib import Path

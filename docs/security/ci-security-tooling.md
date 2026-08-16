@@ -141,6 +141,13 @@ cross authorities, and the token is never emitted in plans, summaries, or
 diagnostics. This does not change the workflow permissions or the existing
 repository-limited publisher App-token boundary.
 
+The canonical common-maintenance job verifies that the generated JSON and
+Markdown plans exist even when the resolver returns a fatal result. Only the
+Markdown plan is appended to the hosted `GITHUB_STEP_SUMMARY`; the JSON plan
+remains runner-local and is not durably retained. The job then returns the
+original non-zero resolver code, so the failure remains diagnosable without
+weakening the fail-closed resolver, inventory, digest, or publisher gates.
+
 `update-submodules.yml` is intentionally separate from the lock/tool updater:
 it updates only the Framework-owned `tools/MRTS` gitlink, never MRTS content.
 It accepts only a full SHA from the named MRTS `main` branch, explicitly
