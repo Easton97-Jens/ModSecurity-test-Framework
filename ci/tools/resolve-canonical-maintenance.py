@@ -9,7 +9,6 @@ create or mutate review issues.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import importlib.util
 import json
 import os
@@ -170,11 +169,14 @@ def _json_bytes(plan: dict[str, Any]) -> bytes:
     ).encode("utf-8")
 
 
-def _validate_args(
-    args: argparse.Namespace, parser: argparse.ArgumentParser
-) -> argparse.Namespace:
+def _validate_timeout(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     if args.timeout <= 0 or args.timeout > 300:
         parser.error("--timeout must be greater than 0 and at most 300 seconds")
+
+
+def _validate_apply_options(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> None:
     if args.apply_safe_updates and not args.plan:
         parser.error("--apply-safe-updates requires --plan PATH")
     if args.apply_safe_updates and args.plan == "-":
@@ -185,6 +187,9 @@ def _validate_args(
         parser.error("--apply-safe-updates cannot be combined with --check")
     if args.apply_safe_updates and args.component:
         parser.error("--apply-safe-updates cannot be combined with --component")
+
+
+def _validate_digest(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     if (
         args.expected_plan_sha256 is not None
         and SHA256_RE.fullmatch(args.expected_plan_sha256) is None
@@ -192,8 +197,22 @@ def _validate_args(
         parser.error("--expected-plan-sha256 must be a lowercase SHA-256")
     if args.apply_safe_updates and args.expected_plan_sha256 is None:
         parser.error("--apply-safe-updates requires --expected-plan-sha256")
+
+
+def _validate_output_options(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> None:
     if args.markdown is not None and args.plan == "-":
         parser.error("--markdown cannot share --plan stdout")
+
+
+def _validate_args(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> argparse.Namespace:
+    _validate_timeout(args, parser)
+    _validate_apply_options(args, parser)
+    _validate_digest(args, parser)
+    _validate_output_options(args, parser)
     return args
 
 

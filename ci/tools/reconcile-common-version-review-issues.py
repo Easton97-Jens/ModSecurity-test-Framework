@@ -17,7 +17,6 @@ import stat
 import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional, Sequence
-from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -173,7 +172,7 @@ def _relative_path(value: Any, field: str) -> str:
     return path
 
 
-def _component_result(value: Any, index: int) -> Dict[str, Any]:
+def _component_result_base(value: Any, index: int) -> Dict[str, Any]:
     if not isinstance(value, dict):
         raise PlanError(f"component_results[{index}] must be an object")
     allowed = {
@@ -200,7 +199,7 @@ def _component_result(value: Any, index: int) -> Dict[str, Any]:
     } <= set(value):
         raise PlanError(f"component_results[{index}] has an invalid field set")
     component = _slug(value["component_id"], f"component_results[{index}].component_id")
-    result = {
+    return {
         "component_id": component,
         "component_name": _bounded(
             value["component_name"], f"component_results[{index}].component_name", 128
@@ -219,13 +218,11 @@ def _component_result(value: Any, index: int) -> Dict[str, Any]:
             )
         ],
     }
-    if any(
-        SHELL_VARIABLE_RE.fullmatch(item) is None
-        for item in result["canonical_variables"]
-    ):
-        raise PlanError(
-            "component_results canonical_variables must be shell variable names"
-        )
+
+
+def _component_result_optional(
+    value: Mapping[str, Any], index: int, result: Dict[str, Any]
+) -> Dict[str, Any]:
     for field in ("current", "latest_compatible", "latest_upstream", "source"):
         if field in value:
             result[field] = _bounded(
@@ -237,36 +234,50 @@ def _component_result(value: Any, index: int) -> Dict[str, Any]:
         and not URL_RE.fullmatch(result["source"])
     ):
         raise PlanError("component_results source must be HTTPS")
-    if "updates" in value:
-        updates = _list(value["updates"], f"component_results[{index}].updates", 64)
-        normalized = []
-        for update_index, update in enumerate(updates):
-            if not isinstance(update, dict) or set(update) != {
-                "variable",
-                "old",
-                "new",
-            }:
-                raise PlanError(
-                    f"component_results[{index}].updates[{update_index}] is invalid"
-                )
-            variable = _bounded(
-                update["variable"], "component result update variable", 128
-            )
-            if SHELL_VARIABLE_RE.fullmatch(variable) is None:
-                raise PlanError("component result update variable is unsafe")
-            normalized.append(
-                {
-                    "variable": variable,
-                    "old": _bounded(update["old"], "component result old"),
-                    "new": _bounded(update["new"], "component result new"),
-                }
-            )
-        result["updates"] = normalized
     if "details" in value:
         result["details"] = _safe_value(
             value["details"], f"component_results[{index}].details"
         )
     return result
+
+
+def _component_result_updates(
+    value: Mapping[str, Any], index: int, result: Dict[str, Any]
+) -> Dict[str, Any]:
+    if "updates" not in value:
+        return result
+    updates = _list(value["updates"], f"component_results[{index}].updates", 64)
+    normalized = []
+    for update_index, update in enumerate(updates):
+        if not isinstance(update, dict) or set(update) != {"variable", "old", "new"}:
+            raise PlanError(
+                f"component_results[{index}].updates[{update_index}] is invalid"
+            )
+        variable = _bounded(update["variable"], "component result update variable", 128)
+        if SHELL_VARIABLE_RE.fullmatch(variable) is None:
+            raise PlanError("component result update variable is unsafe")
+        normalized.append(
+            {
+                "variable": variable,
+                "old": _bounded(update["old"], "component result old"),
+                "new": _bounded(update["new"], "component result new"),
+            }
+        )
+    result["updates"] = normalized
+    return result
+
+
+def _component_result(value: Any, index: int) -> Dict[str, Any]:
+    result = _component_result_base(value, index)
+    if any(
+        SHELL_VARIABLE_RE.fullmatch(item) is None
+        for item in result["canonical_variables"]
+    ):
+        raise PlanError(
+            "component_results canonical_variables must be shell variable names"
+        )
+    result = _component_result_optional(value, index, result)
+    return _component_result_updates(value, index, result)
 
 
 def _safe_update(value: Any, index: int) -> Dict[str, str]:
@@ -309,9 +320,7 @@ def _generated_view_status(value: Any, index: int) -> Dict[str, Any]:
     return result
 
 
-def validate_plan(plan: Any) -> Dict[str, Any]:
-    if not isinstance(plan, dict):
-        raise PlanError("plan must be an object")
+def _validate_plan_header(plan: Mapping[str, Any]) -> Mapping[str, Any]:
     allowed = {
         "schema_version",
         "maintenance_outcome",
@@ -345,6 +354,10 @@ def validate_plan(plan: Any) -> Dict[str, Any]:
         digest = plan.get(digest_field)
         if not isinstance(digest, str) or not SHA256_RE.fullmatch(digest):
             raise PlanError(f"{digest_field} must be a lowercase SHA-256")
+    return plan
+
+
+def _validate_plan_scope(plan: Mapping[str, Any]) -> list[str]:
     scope = plan.get("scope")
     if not isinstance(scope, dict) or set(scope) != {"mode", "checked_components"}:
         raise PlanError("scope must contain mode and checked_components")
@@ -364,6 +377,18 @@ def validate_plan(plan: Any) -> Dict[str, Any]:
     ]
     if top_checked != checked:
         raise PlanError("checked_components must match scope")
+    return checked
+
+
+def _validate_plan_collections(
+    plan: Mapping[str, Any], checked: Sequence[str]
+) -> tuple[
+    list[str],
+    list[Dict[str, str]],
+    list[Dict[str, Any]],
+    list[Dict[str, Any]],
+    list[Dict[str, Any]],
+]:
     views = [
         _relative_path(item, "generated_views")
         for item in _list(plan.get("generated_views"), "generated_views")
@@ -372,10 +397,9 @@ def validate_plan(plan: Any) -> Dict[str, Any]:
         _safe_update(item, index)
         for index, item in enumerate(_list(plan.get("safe_updates"), "safe_updates"))
     ]
-    reviews = _list(plan.get("manual_reviews"), "manual_reviews")
-    normalized: list = []
+    normalized = []
     keys = set()
-    for index, review in enumerate(reviews):
+    for index, review in enumerate(_list(plan.get("manual_reviews"), "manual_reviews")):
         normalized.append(_validate_review(review, index, checked, keys))
     component_results = [
         _component_result(item, index)
@@ -389,10 +413,21 @@ def validate_plan(plan: Any) -> Dict[str, Any]:
             _list(plan.get("generated_view_status", []), "generated_view_status")
         )
     ]
+    return views, safe_updates, normalized, component_results, generated_status
+
+
+def validate_plan(plan: Any) -> Dict[str, Any]:
+    if not isinstance(plan, dict):
+        raise PlanError("plan must be an object")
+    _validate_plan_header(plan)
+    checked = _validate_plan_scope(plan)
+    views, safe_updates, normalized, component_results, generated_status = (
+        _validate_plan_collections(plan, checked)
+    )
     if plan["plan_sha256"] != _plan_digest(plan):
         raise PlanError("plan_sha256 does not match canonical plan")
     result = dict(plan)
-    result["scope"] = {"mode": scope["mode"], "checked_components": checked}
+    result["scope"] = {"mode": plan["scope"]["mode"], "checked_components": checked}
     result["checked_components"] = checked
     result["generated_views"] = views
     result["safe_updates"] = safe_updates
@@ -404,11 +439,9 @@ def validate_plan(plan: Any) -> Dict[str, Any]:
     return result
 
 
-def _validate_review(
-    review: Any, index: int, checked: Sequence[str], keys: set
-) -> Dict[str, Any]:
-    if not isinstance(review, dict):
-        raise PlanError(f"manual_reviews[{index}] must be an object")
+def _review_header(
+    review: Mapping[str, Any], index: int, checked: Sequence[str], keys: set
+) -> tuple[str, str, str, str]:
     required = {
         "review_key",
         "component_id",
@@ -440,6 +473,12 @@ def _validate_review(
     name = _bounded(
         review["component_name"], f"manual_reviews[{index}].component_name", 128
     )
+    return component, key, kind, name
+
+
+def _review_identities(
+    review: Mapping[str, Any], index: int
+) -> tuple[Dict[str, str], Dict[str, str], str, str, list[str]]:
     current = _identity(
         review["current_identity"], f"manual_reviews[{index}].current_identity"
     )
@@ -458,6 +497,12 @@ def _validate_review(
     ]
     if any(SHELL_VARIABLE_RE.fullmatch(item) is None for item in variables):
         raise PlanError("canonical_variables must be canonical shell variable names")
+    return current, candidate, compatible, upstream, variables
+
+
+def _review_metadata(
+    review: Mapping[str, Any], index: int
+) -> tuple[str, str, list[str], bool, str, Any]:
     reason_code = _bounded(
         review["reason_code"], f"manual_reviews[{index}].reason_code", 64
     )
@@ -468,45 +513,61 @@ def _validate_review(
     ]
     if any(not URL_RE.fullmatch(item) for item in evidence):
         raise PlanError("evidence_urls must be official HTTPS URLs")
-    if not isinstance(review["automatic_update_also_available"], bool):
+    automatic = review["automatic_update_also_available"]
+    if not isinstance(automatic, bool):
         raise PlanError("automatic_update_also_available must be boolean")
     state = review.get("state", "active")
     if state not in REVIEW_STATES:
         raise PlanError("invalid review state")
     lifecycle = review.get("lifecycle_evidence")
-    if state != "active":
-        if not isinstance(lifecycle, dict) or set(lifecycle) - {
-            "reason",
-            "maintenance_run",
-            "verified_identity",
-            "withdrawal_url",
-        }:
-            raise PlanError("non-active reviews require bounded lifecycle_evidence")
-        _bounded(lifecycle.get("reason"), "lifecycle_evidence.reason", MAX_REASON)
-        _bounded(
-            lifecycle.get("maintenance_run"), "lifecycle_evidence.maintenance_run", 256
+    _validate_lifecycle(lifecycle, state)
+    return reason_code, reason, evidence, automatic, state, lifecycle
+
+
+def _validate_lifecycle(lifecycle: Any, state: str) -> None:
+    if state == "active":
+        return
+    if not isinstance(lifecycle, dict) or set(lifecycle) - {
+        "reason",
+        "maintenance_run",
+        "verified_identity",
+        "withdrawal_url",
+    }:
+        raise PlanError("non-active reviews require bounded lifecycle_evidence")
+    _bounded(lifecycle.get("reason"), "lifecycle_evidence.reason", MAX_REASON)
+    _bounded(
+        lifecycle.get("maintenance_run"), "lifecycle_evidence.maintenance_run", 256
+    )
+    if "verified_identity" in lifecycle:
+        _identity(
+            lifecycle["verified_identity"], "lifecycle_evidence.verified_identity"
         )
-        if "verified_identity" in lifecycle:
-            _identity(
-                lifecycle["verified_identity"], "lifecycle_evidence.verified_identity"
+    if "withdrawal_url" in lifecycle:
+        url = _bounded(
+            lifecycle["withdrawal_url"], "lifecycle_evidence.withdrawal_url", 512
+        )
+        if not URL_RE.fullmatch(url):
+            raise PlanError("withdrawal_url must be HTTPS")
+
+
+def _review_target_key(
+    key: str, component: str, kind: str, candidate: Mapping[str, str]
+) -> None:
+    target = next(
+        (
+            candidate.get(field)
+            for field in (
+                "series",
+                "tag",
+                "version",
+                "commit",
+                "provider",
+                "asset",
+                "digest",
             )
-        if "withdrawal_url" in lifecycle:
-            url = _bounded(
-                lifecycle["withdrawal_url"], "lifecycle_evidence.withdrawal_url", 512
-            )
-            if not URL_RE.fullmatch(url):
-                raise PlanError("withdrawal_url must be HTTPS")
-    # The resolver chooses the stable target identity for the review kind;
-    # series transitions therefore key on series even when a concrete release
-    # version is also present.
-    target = (
-        candidate.get("series")
-        or candidate.get("tag")
-        or candidate.get("version")
-        or candidate.get("commit")
-        or candidate.get("provider")
-        or candidate.get("asset")
-        or candidate.get("digest")
+            if candidate.get(field)
+        ),
+        None,
     )
     if not target:
         raise PlanError("review_key is not deterministic for the candidate identity")
@@ -517,14 +578,33 @@ def _validate_review(
     )
     if key != f"{component}:{kind}:{target_slug}":
         raise PlanError("review_key is not deterministic for the candidate identity")
-    generated_views = None
-    if "generated_views" in review:
-        generated_views = [
-            _relative_path(item, f"manual_reviews[{index}].generated_views")
-            for item in _list(
-                review["generated_views"], f"manual_reviews[{index}].generated_views"
-            )
-        ]
+
+
+def _review_views(review: Mapping[str, Any], index: int) -> list[str] | None:
+    if "generated_views" not in review:
+        return None
+    return [
+        _relative_path(item, f"manual_reviews[{index}].generated_views")
+        for item in _list(
+            review["generated_views"], f"manual_reviews[{index}].generated_views"
+        )
+    ]
+
+
+def _validate_review(
+    review: Any, index: int, checked: Sequence[str], keys: set
+) -> Dict[str, Any]:
+    if not isinstance(review, dict):
+        raise PlanError(f"manual_reviews[{index}] must be an object")
+    component, key, kind, name = _review_header(review, index, checked, keys)
+    current, candidate, compatible, upstream, variables = _review_identities(
+        review, index
+    )
+    reason_code, reason, evidence, automatic, state, lifecycle = _review_metadata(
+        review, index
+    )
+    _review_target_key(key, component, kind, candidate)
+    generated_views = _review_views(review, index)
     return {
         "review_key": key,
         "component_id": component,
@@ -538,7 +618,7 @@ def _validate_review(
         "reason_code": reason_code,
         "reason": reason,
         "evidence_urls": evidence,
-        "automatic_update_also_available": review["automatic_update_also_available"],
+        "automatic_update_also_available": automatic,
         "state": state,
         **({"lifecycle_evidence": lifecycle} if lifecycle is not None else {}),
         **({"generated_views": generated_views} if generated_views is not None else {}),
@@ -752,73 +832,88 @@ def _same_content(issue: Mapping[str, Any], review: Mapping[str, Any]) -> bool:
     ) == issue_body(review)
 
 
-def _reconcile_review(
+def _create_review(
     review: Mapping[str, Any],
-    issue: Mapping[str, Any] | None,
     client: Any,
     dry_run: bool,
     repository: str,
     maintenance_run: str,
 ) -> Dict[str, Any]:
     key = review["review_key"]
-    state = review.get("state", "active")
-    if issue is None:
-        if state in {"completed", "superseded", "withdrawn"}:
-            return {"action": "noop", "review_key": key}
-        payload = {
-            "title": issue_title(review),
-            "body": issue_body(review, maintenance_run),
-            "labels": list(FIXED_LABELS) + [f"component:{review['component_id']}"],
-        }
-        if dry_run:
-            return {"action": "create", "review_key": key, "title": payload["title"]}
-        created = client.create_issue(repository, payload)
-        return {
-            "action": "create",
-            "review_key": key,
-            "url": created.get("html_url") if isinstance(created, dict) else None,
-        }
+    if review.get("state", "active") in {"completed", "superseded", "withdrawn"}:
+        return {"action": "noop", "review_key": key}
+    payload = {
+        "title": issue_title(review),
+        "body": issue_body(review, maintenance_run),
+        "labels": list(FIXED_LABELS) + [f"component:{review['component_id']}"],
+    }
+    if dry_run:
+        return {"action": "create", "review_key": key, "title": payload["title"]}
+    created = client.create_issue(repository, payload)
+    return {
+        "action": "create",
+        "review_key": key,
+        "url": created.get("html_url") if isinstance(created, dict) else None,
+    }
+
+
+def _reconcile_active(
+    review: Mapping[str, Any],
+    issue: Mapping[str, Any],
+    client: Any,
+    dry_run: bool,
+    repository: str,
+    maintenance_run: str,
+) -> Dict[str, Any]:
+    key = review["review_key"]
     number = issue.get("number")
-    if state == "active":
-        if issue.get("state") == "closed" and issue.get("state_reason") == "completed":
-            if not dry_run:
-                client.update_issue(
-                    repository,
-                    number,
-                    {
-                        "state": "open",
-                        "state_reason": "reopened",
-                        "body": issue_body(review, maintenance_run),
-                        "title": issue_title(review),
-                    },
-                )
-            return {"action": "reopen", "review_key": key, "number": number}
-        if _same_content(issue, review):
-            return {"action": "noop", "review_key": key, "number": number}
+    if issue.get("state") == "closed" and issue.get("state_reason") == "completed":
         if not dry_run:
             client.update_issue(
                 repository,
                 number,
                 {
-                    "title": issue_title(review),
+                    "state": "open",
+                    "state_reason": "reopened",
                     "body": issue_body(review, maintenance_run),
+                    "title": issue_title(review),
                 },
             )
-            client.comment(
-                repository,
-                number,
-                "Validated candidate changed; review plan now targets "
-                f"`{_display_identity(review['candidate_identity'])}`.",
-            )
-        return {"action": "update", "review_key": key, "number": number}
-    reason = "completed" if state == "completed" else "not_planned"
+        return {"action": "reopen", "review_key": key, "number": number}
+    if _same_content(issue, review):
+        return {"action": "noop", "review_key": key, "number": number}
+    if not dry_run:
+        client.update_issue(
+            repository,
+            number,
+            {"title": issue_title(review), "body": issue_body(review, maintenance_run)},
+        )
+        client.comment(
+            repository,
+            number,
+            "Validated candidate changed; review plan now targets "
+            f"`{_display_identity(review['candidate_identity'])}`.",
+        )
+    return {"action": "update", "review_key": key, "number": number}
+
+
+def _reconcile_inactive(
+    review: Mapping[str, Any],
+    issue: Mapping[str, Any],
+    client: Any,
+    dry_run: bool,
+    repository: str,
+) -> Dict[str, Any]:
+    key = review["review_key"]
+    reason = "completed" if review.get("state") == "completed" else "not_planned"
+    number = issue.get("number")
     if issue.get("state") == "closed" and issue.get("state_reason") == reason:
         return {"action": "noop", "review_key": key, "number": number}
     if not dry_run:
         client.comment(
             repository,
             number,
-            f"Review marked `{state}` by the validated maintenance plan.",
+            f"Review marked `{review.get('state')}` by the validated maintenance plan.",
         )
         client.update_issue(
             repository, number, {"state": "closed", "state_reason": reason}
@@ -829,6 +924,23 @@ def _reconcile_review(
         "number": number,
         "state_reason": reason,
     }
+
+
+def _reconcile_review(
+    review: Mapping[str, Any],
+    issue: Mapping[str, Any] | None,
+    client: Any,
+    dry_run: bool,
+    repository: str,
+    maintenance_run: str,
+) -> Dict[str, Any]:
+    if issue is None:
+        return _create_review(review, client, dry_run, repository, maintenance_run)
+    if review.get("state", "active") == "active":
+        return _reconcile_active(
+            review, issue, client, dry_run, repository, maintenance_run
+        )
+    return _reconcile_inactive(review, issue, client, dry_run, repository)
 
 
 def _reconcile_absent(
@@ -998,23 +1110,37 @@ def _read_validated_plan(path: str) -> Dict[str, Any]:
     """Read one bounded plan and apply the canonical schema/digest checks."""
     candidate = _approved_plan_path(path)
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    directory_flags = (
+        os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    )
     try:
-        descriptor = os.open(candidate, flags)
+        directory_descriptor = os.open(candidate.parent, directory_flags)
     except OSError as error:
-        raise PlanError(f"cannot open approved plan path: {candidate}") from error
+        raise PlanError(
+            f"cannot open approved plan directory: {candidate.parent}"
+        ) from error
     try:
-        stat_result = os.fstat(descriptor)
-        candidate_stat = os.stat(candidate, follow_symlinks=False)
-        if not stat.S_ISREG(stat_result.st_mode) or not os.path.samestat(
-            stat_result, candidate_stat
-        ):
-            raise PlanError("plan path must be a regular non-symlink file")
-        with os.fdopen(descriptor, "rb") as handle:
-            descriptor = -1
-            raw = handle.read(MAX_PLAN_BYTES + 1)
+        try:
+            descriptor = os.open(PLAN_FILENAME, flags, dir_fd=directory_descriptor)
+        except OSError as error:
+            raise PlanError(f"cannot open approved plan path: {candidate}") from error
+        try:
+            stat_result = os.fstat(descriptor)
+            candidate_stat = os.stat(
+                PLAN_FILENAME, dir_fd=directory_descriptor, follow_symlinks=False
+            )
+            if not stat.S_ISREG(stat_result.st_mode) or not os.path.samestat(
+                stat_result, candidate_stat
+            ):
+                raise PlanError("plan path must be a regular non-symlink file")
+            with os.fdopen(descriptor, "rb") as handle:
+                descriptor = -1
+                raw = handle.read(MAX_PLAN_BYTES + 1)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
     finally:
-        if descriptor >= 0:
-            os.close(descriptor)
+        os.close(directory_descriptor)
     if len(raw) > MAX_PLAN_BYTES:
         raise PlanError("plan exceeds size bound")
     return validate_plan(json.loads(raw.decode("utf-8")))

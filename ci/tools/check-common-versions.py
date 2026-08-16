@@ -28,6 +28,8 @@ NO_SAFE_UPDATER_MESSAGE = "No safe updater implemented for this source yet."
 SHA256_SUFFIX = ".sha256"
 ARCHIVE_BZ2_EXTENSION = ".tar.bz2"
 APACHE_DOWNLOAD_HOST = "downloads.apache.org"
+HAPROXY_WEB_HOST = "www.haproxy.org"
+HAPROXY_WEB_HOST_RE = re.escape(HAPROXY_WEB_HOST)
 MODSECURITY_V3_COMPONENT = "ModSecurity v3"
 GITHUB_WEB_HOST = "github.com"
 GITHUB_API_HOST = "api.github.com"
@@ -851,7 +853,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="official HAProxy numeric series release directory",
         compatibility_policy=SAME_MAJOR_MINOR_COMPATIBILITY_POLICY,
-        authorized_hosts=("www.haproxy.org",),
+        authorized_hosts=(HAPROXY_WEB_HOST,),
         version_variable="HAPROXY_VERSION",
         source_url_variable="HAPROXY_SOURCE_URL",
         sha256_variable="HAPROXY_SHA256",
@@ -883,7 +885,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="official HAProxy numeric series release directory",
         compatibility_policy=SAME_MAJOR_MINOR_COMPATIBILITY_POLICY,
-        authorized_hosts=("www.haproxy.org",),
+        authorized_hosts=(HAPROXY_WEB_HOST,),
         version_variable="HAPROXY_HTX_VERSION",
         source_url_variable="HAPROXY_HTX_SOURCE_URL",
         sha256_variable="HAPROXY_HTX_SHA256",
@@ -2391,7 +2393,7 @@ def check_apr_util_release_provenance(
 
 def haproxy_source_series(current_url: str, current_version: str) -> str | None:
     match = re.fullmatch(
-        rf"https://www\.haproxy\.org/download/(\d+\.\d+)/src/haproxy-(\d+\.\d+\.\d+){re.escape(TAR_GZ_EXTENSION)}",
+        rf"https://{HAPROXY_WEB_HOST_RE}/download/(\d+\.\d+)/src/haproxy-(\d+\.\d+\.\d+){re.escape(TAR_GZ_EXTENSION)}",
         current_url,
     )
     if match is None or match.group(2) != current_version:
@@ -2407,7 +2409,7 @@ def _is_official_haproxy_root(root: str) -> bool:
         return False
     return (
         parsed.scheme == "https"
-        and parsed.hostname == "www.haproxy.org"
+        and parsed.hostname == HAPROXY_WEB_HOST
         and parsed.username is None
         and parsed.password is None
         and port is None

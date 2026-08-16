@@ -155,7 +155,7 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             "manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
         )
         candidate_wheel = current_wheel.replace("6.0.3", "6.0.4")
-        payload = {
+        payload: dict[str, object] = {
             "releases": {
                 "6.0.3": [{"filename": current_wheel, "digests": {"sha256": "a" * 64}}],
                 "6.0.4": [

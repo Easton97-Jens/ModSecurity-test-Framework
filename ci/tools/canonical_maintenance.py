@@ -1403,6 +1403,109 @@ def _tool_candidate_updates(
     return (proposed if matches else [], matches)
 
 
+def _tool_pin_release_data(
+    updater: Any,
+    identity: Any,
+    record: dict[str, Any],
+    current: str,
+    current_commit: str,
+    current_asset: str,
+    current_digest: str,
+) -> tuple[str, str, str, str, str]:
+    updater.validate_tool_baseline_provenance(record, identity, record["name"])
+    if updater.release_tag_commit(identity, current) != current_commit:
+        raise MaintenanceError(
+            "canonical CI-tool commit differs from its official release tag"
+        )
+    current_release = updater.release_by_tag(identity, current)
+    current_tag, official_asset, official_digest = updater.selected_release_asset(
+        identity, current_release, record, record["name"]
+    )
+    if (
+        current_tag != current
+        or official_asset != current_asset
+        or official_digest != current_digest
+    ):
+        raise MaintenanceError(
+            "canonical CI-tool asset/digest differs from its official release tuple"
+        )
+    latest_upstream = updater.stable_release_tag(
+        updater.latest_release(identity), "latest CI-tool release"
+    )
+    compatible_release = _tool_compatible_release(updater, identity, current)
+    latest_compatible, candidate_asset, candidate_digest = updater.selected_release_asset(
+        identity, compatible_release, record, record["name"]
+    )
+    if compare_versions(current, latest_upstream) > 0:
+        raise MaintenanceError(
+            "canonical CI-tool version is newer than official latest release"
+        )
+    if compare_versions(current, latest_compatible) < 0:
+        candidate_commit = updater.release_tag_commit(identity, latest_compatible)
+    else:
+        candidate_commit = current_commit
+    return latest_upstream, latest_compatible, candidate_asset, candidate_digest, candidate_commit
+
+
+def _tool_pin_transition_reviews(
+    component_id: str,
+    repository: str,
+    current: str,
+    current_asset: str,
+    latest_compatible: str,
+    latest_upstream: str,
+    variables: list[str],
+    updates: list[dict[str, str]],
+) -> list[dict[str, Any]]:
+    if latest_upstream == latest_compatible:
+        return []
+    if version_tuple(current)[0] == 0:
+        series_parts = 2
+        review_kind = "minor_version_transition"
+    else:
+        series_parts = 1
+        review_kind = "major_version_transition"
+    return [
+        _review(
+            component_id=component_id,
+            component_name=repository,
+            review_kind=review_kind,
+            current_identity={
+                "version": current,
+                "asset": current_asset,
+                "series": ".".join(
+                    current.removeprefix("v").split(".")[:series_parts]
+                ),
+            },
+            candidate_identity={"version": latest_upstream},
+            latest_compatible=latest_compatible,
+            latest_upstream=latest_upstream,
+            variables=variables,
+            reason_code="ci_tool_compatibility_transition",
+            reason="The latest CI-tool release is outside the reviewed automatic compatibility line.",
+            evidence_urls=[f"https://github.com/{repository}/releases/latest"],
+            generated_views=(SECURITY_TOOLS_LOCK_PATH,),
+            automatic_update_also_available=bool(updates),
+        )
+    ]
+
+
+def _tool_pin_status(
+    updates: list[dict[str, str]],
+    reviews: list[dict[str, Any]],
+    current: str,
+    latest_compatible: str,
+) -> tuple[str, str]:
+    if updates:
+        return "outdated", "A compatible verified CI-tool update is available."
+    if reviews and compare_versions(current, latest_compatible) < 0:
+        return (
+            "review_required",
+            "The canonical asset expression does not produce the official candidate artifact; manual artifact-layout review is required.",
+        )
+    return "current", "Canonical CI-tool tuple is current."
+
+
 def _resolve_tool_pin(
     entries: dict[str, Any],
     updater: Any,
@@ -1423,6 +1526,193 @@ def _resolve_tool_pin(
     current_commit = _entry_value(entries, fields["COMMIT"])
     current_asset = _entry_value(entries, fields["ASSET_NAME"])
     current_digest = _entry_value(entries, fields["SHA256"])
+    try:
+        return _resolve_tool_pin_checked(
+            entries,
+            updater,
+            lock,
+            suffix,
+            fields,
+            checker=checker,
+            common_lines=common_lines,
+            component_id=component_id,
+            variables=variables,
+            repository=repository,
+            current=current,
+            current_commit=current_commit,
+            current_asset=current_asset,
+            current_digest=current_digest,
+        )
+    except Exception as exc:
+        return _check_result(
+            component_id=component_id,
+            component_name=repository,
+            scope="ci-security-tools",
+            status="blocked",
+            message=str(exc),
+            variables=variables,
+            current=current,
+        ), []
+
+
+def _resolve_tool_pin_checked(
+    entries: dict[str, Any],
+    updater: Any,
+    lock: dict[str, Any],
+    suffix: str,
+    fields: dict[str, str],
+    *,
+    checker: Any,
+    common_lines: list[str],
+    component_id: str,
+    variables: list[str],
+    repository: str,
+    current: str,
+    current_commit: str,
+    current_asset: str,
+    current_digest: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    lock_name = safe_component_id(suffix)
+    record = _workflow_lock_record(lock, "tools", lock_name)
+    if record.get("name") != lock_name:
+        raise MaintenanceError(
+            "canonical CI tool group has no matching stable lock name"
+        )
+    identity, provider_transition = _tool_provider_identity(
+        updater, record, str(record["name"]), repository
+    )
+    if provider_transition:
+        review = _tool_provider_review(
+            component_id, repository, current, record, variables
+        )
+        result = _check_result(
+            component_id=component_id,
+            component_name=repository,
+            scope="ci-security-tools",
+            status="review_required",
+            message="Canonical CI-tool provider transition requires manual review before any release lookup or update.",
+            variables=variables,
+            current=current,
+            latest_compatible=current,
+            latest_upstream=current,
+            source=str(record.get("upstream_release", "")),
+            details={
+                "provider_transition": True,
+                "locked_repository": record["repository"],
+            },
+        )
+        return result, [review]
+    if (
+        record.get("version") != current
+        or record.get("immutable_commit") != current_commit
+        or record.get("asset") != current_asset
+        or record.get("sha256") != current_digest
+    ):
+        raise MaintenanceError(
+            "canonical CI-tool tuple differs from the generated reviewed lock"
+        )
+    latest_upstream, latest_compatible, candidate_asset, candidate_digest, candidate_commit = (
+        _tool_pin_release_data(
+            updater,
+            identity,
+            record,
+            current,
+            current_commit,
+            current_asset,
+            current_digest,
+        )
+    )
+    updates, matches = _tool_candidate_updates(
+        checker,
+        common_lines,
+        entries,
+        fields,
+        current,
+        current_commit,
+        current_asset,
+        current_digest,
+        latest_compatible,
+        candidate_asset,
+        candidate_digest,
+        candidate_commit,
+    )
+    reviews: list[dict[str, Any]] = []
+    if compare_versions(current, latest_compatible) < 0 and not matches:
+        reviews.append(
+            _review(
+                component_id=component_id,
+                component_name=repository,
+                review_kind="artifact_layout_transition",
+                current_identity={"version": current, "asset": current_asset},
+                candidate_identity={
+                    "version": latest_compatible,
+                    "asset": candidate_asset,
+                },
+                latest_compatible=latest_compatible,
+                latest_upstream=latest_upstream,
+                variables=variables,
+                reason_code="ci_tool_asset_expression_mismatch",
+                reason="The existing canonical asset expression cannot be proven to select the official compatible artifact.",
+                evidence_urls=[
+                    f"https://github.com/{repository}/releases/tag/{latest_compatible}"
+                ],
+                generated_views=(SECURITY_TOOLS_LOCK_PATH,),
+                automatic_update_also_available=False,
+            )
+        )
+    reviews.extend(
+        _tool_pin_transition_reviews(
+            component_id,
+            repository,
+            current,
+            current_asset,
+            latest_compatible,
+            latest_upstream,
+            variables,
+            updates,
+        )
+    )
+    status, message = _tool_pin_status(
+        updates, reviews, current, latest_compatible
+    )
+    result = _check_result(
+        component_id=component_id,
+        component_name=repository,
+        scope="ci-security-tools",
+        status=status,
+        message=message,
+        variables=variables,
+        current=current,
+        latest_compatible=latest_compatible,
+        latest_upstream=latest_upstream,
+        source=f"https://github.com/{repository}/releases/latest",
+        updates=updates,
+        details={
+            "update_policy": "zero_same_minor"
+            if version_tuple(current)[0] == 0
+            else "same_major"
+        },
+    )
+    return result, reviews
+
+
+def _resolve_tool_pin_legacy(
+    entries: dict[str, Any],
+    updater: Any,
+    lock: dict[str, Any],
+    suffix: str,
+    fields: dict[str, str],
+    *,
+    checker: Any,
+    common_lines: list[str],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Retained only as an implementation marker during migration."""
+    del entries, updater, lock, suffix, fields, checker, common_lines
+    raise AssertionError("legacy resolver is not callable")
+
+
+'''LEGACY_RESOLVER_BODY_REMOVED
+
     try:
         lock_name = safe_component_id(suffix)
         record = _workflow_lock_record(lock, "tools", lock_name)
@@ -1610,6 +1900,7 @@ def _resolve_tool_pin(
             variables=variables,
             current=current,
         ), []
+'''
 
 
 def resolve_workflow_pins(

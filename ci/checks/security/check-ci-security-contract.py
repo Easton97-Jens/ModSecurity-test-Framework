@@ -3322,8 +3322,8 @@ def _common_version_setup_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
     return errors
 
 
-def _common_version_token_errors(
-    path: Path, data: dict[str, Any], jobs: dict[str, Any]
+def _common_version_token_reference_errors(
+    path: Path, data: dict[str, Any]
 ) -> list[str]:
     allowed_sensitive_paths = frozenset(
         {
@@ -3337,14 +3337,18 @@ def _common_version_token_errors(
             ("jobs", "publish", "steps", "4", "with", "private-key"),
         }
     )
-    errors: list[str] = []
     if (
         frozenset(tuple(item) for item in sensitive_reference_paths(data))
         != allowed_sensitive_paths
     ):
-        errors.append(
+        return [
             f"{path}: common-version secret or token references are outside the reviewed read-token and App-token profiles"
-        )
+        ]
+    return []
+
+
+def _common_version_job_token_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
     for name, step_index in (
         ("canonical-maintenance", 2),
         ("reconcile-trusted", 4),
@@ -3363,6 +3367,15 @@ def _common_version_token_errors(
                 f"{path}: common-version read-token environment must use the exact github.token expression"
             )
     return errors
+
+
+def _common_version_token_errors(
+    path: Path, data: dict[str, Any], jobs: dict[str, Any]
+) -> list[str]:
+    return [
+        *_common_version_token_reference_errors(path, data),
+        *_common_version_job_token_errors(path, jobs),
+    ]
 
 
 def _common_version_canonical_candidate_errors(
@@ -3415,8 +3428,7 @@ def _common_version_canonical_candidate_errors(
     return errors
 
 
-def _common_version_reconcile_errors(path: Path, reconcile: Any) -> list[str]:
-    errors: list[str] = []
+def _common_version_reconcile_profile_text(reconcile: Any) -> str:
     reconcile_text = (
         job_run_text(reconcile.get("steps", [])) if isinstance(reconcile, dict) else ""
     )
@@ -3431,15 +3443,26 @@ def _common_version_reconcile_errors(path: Path, reconcile: Any) -> list[str]:
                 profile_text += "\n" + "\n".join(
                     f"{key}: {value}" for key, value in sorted(step["with"].items())
                 )
+    return profile_text
+
+
+def _common_version_reconcile_condition_errors(path: Path, reconcile: Any) -> list[str]:
     reconcile_if = str(reconcile.get("if", "")) if isinstance(reconcile, dict) else ""
     if (
         "github.event_name == 'schedule'" not in reconcile_if
         or "github.event_name == 'workflow_dispatch'" not in reconcile_if
         or DEFAULT_BRANCH_CONTEXT not in reconcile_if
     ):
-        errors.append(
+        return [
             f"{path}: reconcile-trusted must be scheduled/manual and default-branch gated"
-        )
+        ]
+    return []
+
+
+def _common_version_reconcile_required_errors(
+    path: Path, profile_text: str
+) -> list[str]:
+    errors: list[str] = []
     for required in (
         "MAINTENANCE_ISSUE_APP_CLIENT_ID",
         "MAINTENANCE_ISSUE_APP_PRIVATE_KEY",
@@ -3457,6 +3480,10 @@ def _common_version_reconcile_errors(path: Path, reconcile: Any) -> list[str]:
         errors.append(
             f"{path}: reconcile-trusted may use only issue-reconciler credentials"
         )
+    return errors
+
+
+def _common_version_reconcile_token_errors(path: Path, reconcile: Any) -> list[str]:
     issue_token = next(
         (
             step
@@ -3473,12 +3500,20 @@ def _common_version_reconcile_errors(path: Path, reconcile: Any) -> list[str]:
         "repositories": "${{ github.event.repository.name }}",
         "permission-issues": "write",
     }:
-        errors.append(f"{path}: reconcile-trusted App token input profile changed")
-    return errors
+        return [f"{path}: reconcile-trusted App token input profile changed"]
+    return []
 
 
-def _common_version_publish_errors(path: Path, publish: Any) -> list[str]:
-    errors: list[str] = []
+def _common_version_reconcile_errors(path: Path, reconcile: Any) -> list[str]:
+    profile_text = _common_version_reconcile_profile_text(reconcile)
+    return [
+        *_common_version_reconcile_condition_errors(path, reconcile),
+        *_common_version_reconcile_required_errors(path, profile_text),
+        *_common_version_reconcile_token_errors(path, reconcile),
+    ]
+
+
+def _common_version_publish_profile_text(publish: Any) -> tuple[str, str]:
     publish_text = (
         job_run_text(publish.get("steps", [])) if isinstance(publish, dict) else ""
     )
@@ -3493,13 +3528,24 @@ def _common_version_publish_errors(path: Path, publish: Any) -> list[str]:
                 profile_text += "\n" + "\n".join(
                     f"{key}: {value}" for key, value in sorted(step["with"].items())
                 )
-    publish_if = str(publish.get("if", "")) if isinstance(publish, dict) else ""
+    return publish_text, profile_text
+
+
+def _common_version_publish_dependency_errors(path: Path, publish: Any) -> list[str]:
     if not isinstance(publish, dict) or normalized_needs(publish.get("needs")) != {
         "canonical-maintenance",
         "candidate",
         "reconcile-trusted",
     }:
-        errors.append(f"{path}: publisher dependency profile changed")
+        return [f"{path}: publisher dependency profile changed"]
+    return []
+
+
+def _common_version_publish_required_errors(
+    path: Path, publish: Any, publish_text: str, profile_text: str
+) -> list[str]:
+    publish_if = str(publish.get("if", "")) if isinstance(publish, dict) else ""
+    errors: list[str] = []
     for required in (
         "github.repository == 'Easton97-Jens/ModSecurity-test-Framework'",
         DEFAULT_BRANCH_CONTEXT,
@@ -3529,6 +3575,10 @@ def _common_version_publish_errors(path: Path, publish: Any) -> list[str]:
         errors.append(
             f"{path}: publisher contains an unapproved token or merge/push control"
         )
+    return errors
+
+
+def _common_version_publish_token_errors(path: Path, publish: Any) -> list[str]:
     publisher_token = next(
         (
             step
@@ -3546,7 +3596,11 @@ def _common_version_publish_errors(path: Path, publish: Any) -> list[str]:
         "permission-contents": "write",
         "permission-pull-requests": "write",
     }:
-        errors.append(f"{path}: publisher App token input profile changed")
+        return [f"{path}: publisher App token input profile changed"]
+    return []
+
+
+def _common_version_publish_pr_errors(path: Path, publish: Any) -> list[str]:
     create_pr = next(
         (
             step
@@ -3576,7 +3630,7 @@ def _common_version_publish_errors(path: Path, publish: Any) -> list[str]:
             for key, value in expected_create_pr.items()
         )
     ):
-        errors.append(f"{path}: publisher Draft PR input profile changed")
+        return [f"{path}: publisher Draft PR input profile changed"]
     add_paths = next(
         (
             step.get("with", {}).get("add-paths")
@@ -3593,8 +3647,20 @@ def _common_version_publish_errors(path: Path, publish: Any) -> list[str]:
         else None
     )
     if actual_paths != set(COMMON_VERSION_GENERATED_PATHS):
-        errors.append(f"{path}: publisher generated-path allowlist changed")
-    return errors
+        return [f"{path}: publisher generated-path allowlist changed"]
+    return []
+
+
+def _common_version_publish_errors(path: Path, publish: Any) -> list[str]:
+    publish_text, profile_text = _common_version_publish_profile_text(publish)
+    return [
+        *_common_version_publish_dependency_errors(path, publish),
+        *_common_version_publish_required_errors(
+            path, publish, publish_text, profile_text
+        ),
+        *_common_version_publish_token_errors(path, publish),
+        *_common_version_publish_pr_errors(path, publish),
+    ]
 
 
 def _common_version_result_profile_errors(path: Path, result: Any) -> list[str]:

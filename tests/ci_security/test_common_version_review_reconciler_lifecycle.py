@@ -8,9 +8,11 @@ SPEC = importlib.util.spec_from_file_location(
     "review_reconciler_lifecycle",
     ROOT / "ci/tools/reconcile-common-version-review-issues.py",
 )
+assert SPEC is not None
 reconciler = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-SPEC.loader.exec_module(reconciler)
+loader = SPEC.loader
+assert loader is not None
+loader.exec_module(reconciler)
 
 
 class FakeClient:
