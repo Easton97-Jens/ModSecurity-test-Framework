@@ -162,7 +162,10 @@ class CanonicalPythonPinsTest(unittest.TestCase):
         root = self.make_root()
         common = root / "ci/lib/common.sh"
         common.write_text(
-            COMMON.replace('CI_CANONICAL_PYTHON_VERSION="3.14.6"', 'CI_CANONICAL_PYTHON_VERSION="١.14.6"'),
+            COMMON.replace(
+                'CI_CANONICAL_PYTHON_VERSION="3.14.6"',
+                'CI_CANONICAL_PYTHON_VERSION="١.14.6"',
+            ),
             encoding="utf-8",
         )
         result = self.run_tool(root, "--check")
@@ -170,7 +173,10 @@ class CanonicalPythonPinsTest(unittest.TestCase):
         self.assertIn("malformed", result.stderr)
 
         common.write_text(
-            COMMON.replace('CI_CANONICAL_PYYAML_VERSION="6.0.3"', 'CI_CANONICAL_PYYAML_VERSION="٦.0.3"'),
+            COMMON.replace(
+                'CI_CANONICAL_PYYAML_VERSION="6.0.3"',
+                'CI_CANONICAL_PYYAML_VERSION="٦.0.3"',
+            ),
             encoding="utf-8",
         )
         result = self.run_tool(root, "--check")

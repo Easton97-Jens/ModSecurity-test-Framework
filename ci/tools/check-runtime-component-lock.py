@@ -158,16 +158,20 @@ def require_profile_shape(item: dict[str, object], digest: str, descriptor, valu
     _require_profile_provenance(item, descriptor, values, sync)
 
 
-def require_manifest_matches_lock(
-    manifest: dict[str, object], components: list[dict[str, object]], descriptors
-) -> None:
-    expected_manifest_components = {
+def _expected_manifest_components(descriptors) -> set[str]:
+    expected = {
         str(descriptor["component"])
         for descriptor in descriptors.values()
         if descriptor.get("manifest") == "true"
     }
-    if not expected_manifest_components:
+    if not expected:
         raise ValueError("generic synchronizer declares no manifest components")
+    return expected
+
+
+def _manifest_entries(
+    manifest: dict[str, object], expected: set[str]
+) -> dict[str, dict[str, object]]:
     entries: dict[str, dict[str, object]] = {}
     for entry in manifest["components"]:
         if not isinstance(entry, dict) or not isinstance(entry.get("name"), str):
@@ -175,24 +179,34 @@ def require_manifest_matches_lock(
         name = str(entry["name"])
         if name in entries:
             raise ValueError(f"manifest contains duplicate component {name}")
-        if name not in expected_manifest_components:
+        if name not in expected:
             raise ValueError(f"manifest contains unknown component {name}")
         entries[name] = entry
-    missing = expected_manifest_components - set(entries)
+    missing = expected - set(entries)
     if missing:
         raise ValueError("manifest is missing " + ", ".join(sorted(missing)))
-    unexpected = set(entries) - expected_manifest_components
-    if unexpected:
-        raise ValueError("manifest contains unknown component " + ", ".join(sorted(unexpected)))
-    for name in expected_manifest_components:
-        entry = entries[name]
-        profile = next(item for item in components if item["component"] == name)
-        if entry.get("version") != profile["version"]:
-            raise ValueError(f"manifest {name} version drift")
-        if entry.get("sha256", "").lower() != profile["sha256"].lower():
-            raise ValueError(f"manifest {name} SHA-256 drift")
-        if entry.get("download_url") != profile["download_url"]:
-            raise ValueError(f"manifest {name} asset/download drift")
+    return entries
+
+
+def _require_manifest_profile(
+    name: str, entry: dict[str, object], components: list[dict[str, object]]
+) -> None:
+    profile = next(item for item in components if item["component"] == name)
+    if entry.get("version") != profile["version"]:
+        raise ValueError(f"manifest {name} version drift")
+    if entry.get("sha256", "").lower() != profile["sha256"].lower():
+        raise ValueError(f"manifest {name} SHA-256 drift")
+    if entry.get("download_url") != profile["download_url"]:
+        raise ValueError(f"manifest {name} asset/download drift")
+
+
+def require_manifest_matches_lock(
+    manifest: dict[str, object], components: list[dict[str, object]], descriptors
+) -> None:
+    expected = _expected_manifest_components(descriptors)
+    entries = _manifest_entries(manifest, expected)
+    for name in expected:
+        _require_manifest_profile(name, entries[name], components)
 
 
 def _validate_lock_header(lock: dict[str, object], values: dict[str, str], sync) -> None:

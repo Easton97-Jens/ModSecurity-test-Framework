@@ -24,6 +24,7 @@ PIN_NAMES = (
     "CI_CANONICAL_PYYAML_SHA256",
 )
 TOOL_ROOT = Path(__file__).resolve().parents[2]
+GENERATED_VIEW_LABEL = "generated view"
 ASSIGNMENT = re.compile(
     r"^\s*(?P<name>CI_CANONICAL_(?:PYTHON_VERSION|PYYAML_VERSION|PYYAML_SHA256))"
     r"\s*=\s*(?:\"(?P<double>[^\"\n]*)\"|'(?P<single>[^'\n]*)'|"
@@ -132,7 +133,12 @@ def canonical_values(common: Path, root: Path) -> dict[str, str]:
         if name in values:
             raise PinError(f"{common}:{line_number}: duplicate {name}")
         value = next(
-            value for value in (match.group("double"), match.group("single"), match.group("bare"))
+            value
+            for value in (
+                match.group("double"),
+                match.group("single"),
+                match.group("bare"),
+            )
             if value is not None
         )
         values[name] = value
@@ -144,7 +150,9 @@ def canonical_values(common: Path, root: Path) -> dict[str, str]:
     if not VERSION.fullmatch(values[PIN_NAMES[1]]):
         raise PinError(f"{common}: CI_CANONICAL_PYYAML_VERSION is malformed")
     if not SHA256.fullmatch(values[PIN_NAMES[2]]):
-        raise PinError(f"{common}: CI_CANONICAL_PYYAML_SHA256 must be 64 lowercase hex characters")
+        raise PinError(
+            f"{common}: CI_CANONICAL_PYYAML_SHA256 must be 64 lowercase hex characters"
+        )
     return values
 
 
@@ -152,18 +160,26 @@ def expected_views(root: Path, values: dict[str, str]) -> dict[Path, bytes]:
     python_label = ".python-version"
     requirements_label = "requirements-ci.lock"
     python_path = path_in_root(root / python_label, root, python_label)
-    requirements_path = path_in_root(root / requirements_label, root, requirements_label)
+    requirements_path = path_in_root(
+        root / requirements_label, root, requirements_label
+    )
     python_text = read_utf8(python_path, root, python_label)
     if PYTHON_VIEW.fullmatch(python_text) is None:
-        raise PinError(f"{python_path}: expected exactly one newline-terminated stable version")
+        raise PinError(
+            f"{python_path}: expected exactly one newline-terminated stable version"
+        )
     requirements = read_utf8(requirements_path, root, requirements_label)
     lines = requirements.splitlines(keepends=True)
     version_indexes = [
         index for index, line in enumerate(lines) if PYAML_VERSION_LINE.fullmatch(line)
     ]
-    hash_indexes = [index for index, line in enumerate(lines) if PYAML_HASH_LINE.fullmatch(line)]
+    hash_indexes = [
+        index for index, line in enumerate(lines) if PYAML_HASH_LINE.fullmatch(line)
+    ]
     if len(version_indexes) != 1:
-        raise PinError(f"{requirements_path}: expected exactly one PyYAML requirement line")
+        raise PinError(
+            f"{requirements_path}: expected exactly one PyYAML requirement line"
+        )
     if len(hash_indexes) != 1:
         raise PinError(f"{requirements_path}: expected exactly one PyYAML SHA-256 line")
     if hash_indexes[0] <= version_indexes[0]:
@@ -187,13 +203,15 @@ def expected_views(root: Path, values: dict[str, str]) -> dict[Path, bytes]:
 
 
 def atomic_write(path: Path, root: Path, data: bytes) -> bool:
-    validated = path_in_root(path, root, "generated view")
-    current = read_bytes(validated, root, "generated view")
+    validated = path_in_root(path, root, GENERATED_VIEW_LABEL)
+    current = read_bytes(validated, root, GENERATED_VIEW_LABEL)
     if current == data:
         return False
     directory = validated.parent
     directory_details = directory.lstat()
-    if stat.S_ISLNK(directory_details.st_mode) or not stat.S_ISDIR(directory_details.st_mode):
+    if stat.S_ISLNK(directory_details.st_mode) or not stat.S_ISDIR(
+        directory_details.st_mode
+    ):
         raise PinError(f"{directory}: target directory must be a real directory")
     fd, temporary = tempfile.mkstemp(prefix=f".{validated.name}.", dir=directory)
     temporary_path = Path(temporary)
@@ -214,8 +232,12 @@ def atomic_write(path: Path, root: Path, data: bytes) -> bool:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--check", action="store_true", help="validate generated views without writing")
-    mode.add_argument("--write", action="store_true", help="atomically update generated views")
+    mode.add_argument(
+        "--check", action="store_true", help="validate generated views without writing"
+    )
+    mode.add_argument(
+        "--write", action="store_true", help="atomically update generated views"
+    )
     parser.add_argument(
         "--root",
         type=Path,
@@ -230,13 +252,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     try:
         root = validate_root(args.root)
-        common = path_in_root(args.common or root / "ci/lib/common.sh", root, "common pin source")
+        common = path_in_root(
+            args.common or root / "ci/lib/common.sh", root, "common pin source"
+        )
         values = canonical_values(common, root)
         views = expected_views(root, values)
         mismatches = [
             path
             for path, expected in views.items()
-            if read_bytes(path, root, "generated view") != expected
+            if read_bytes(path, root, GENERATED_VIEW_LABEL) != expected
         ]
         if args.check:
             if mismatches:
@@ -248,7 +272,11 @@ def main(argv: list[str] | None = None) -> int:
         changed = [
             path for path, data in views.items() if atomic_write(path, root, data)
         ]
-        print("canonical Python pins: UPDATED" if changed else "canonical Python pins: PASS")
+        print(
+            "canonical Python pins: UPDATED"
+            if changed
+            else "canonical Python pins: PASS"
+        )
         return 0
     except (OSError, PinError) as exc:
         print(f"canonical Python pins: ERROR: {exc}", file=sys.stderr)
