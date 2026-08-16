@@ -74,9 +74,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                         self.assertEqual(UPDATER.github_payload(path), {"ok": True})
                 assert opener.request is not None
                 headers = opener.request.headers
-                self.assertEqual(
-                    headers.get("X-github-api-version"), "2022-11-28"
-                )
+                self.assertEqual(headers.get("X-github-api-version"), "2022-11-28")
                 if token is None:
                     self.assertNotIn("Authorization", headers)
                 else:
@@ -145,7 +143,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         handler = UPDATER.NoRedirectHandler()
         request = UPDATER.Request("https://api.github.com/repos/example/project")
         self.assertIsNone(
-            handler.redirect_request(request, None, 302, "Found", {}, "https://evil.example")
+            handler.redirect_request(
+                request, None, 302, "Found", {}, "https://evil.example"
+            )
         )
 
     def test_current_tool_pins_have_explicit_provider_identity(self) -> None:

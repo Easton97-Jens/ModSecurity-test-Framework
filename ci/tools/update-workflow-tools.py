@@ -535,9 +535,7 @@ def github_json(path: str) -> dict[str, Any]:
     return payload
 
 
-def github_json_list(
-    path: str, *, query: str | None = None
-) -> list[dict[str, Any]]:
+def github_json_list(path: str, *, query: str | None = None) -> list[dict[str, Any]]:
     """Read one bounded list response and reject malformed release entries."""
 
     payload = github_payload(path, query=query)
