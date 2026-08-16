@@ -1048,8 +1048,8 @@ def _apply_allowed(args: argparse.Namespace) -> None:
         raise PlanError("--apply requires the trusted default-branch ref")
 
 
-def _approved_plan_path(path: str) -> Path:
-    """Return a plan path inside the fixed runner/fixture boundary.
+def _approved_plan_root(path: str) -> Path:
+    """Return the validated directory for the fixed plan artifact.
 
     The plan is consumed by both an untrusted validation job and a trusted
     publisher.  O_NOFOLLOW protects the final open, but it does not make an
@@ -1100,7 +1100,7 @@ def _approved_plan_path(path: str) -> Path:
             or root_stat.st_uid != os.getuid()
         ):
             continue
-        return candidate
+        return root
     raise PlanError(
         "plan path is outside the approved runner or canonical fixture boundary"
     )
@@ -1108,22 +1108,20 @@ def _approved_plan_path(path: str) -> Path:
 
 def _read_validated_plan(path: str) -> Dict[str, Any]:
     """Read one bounded plan and apply the canonical schema/digest checks."""
-    candidate = _approved_plan_path(path)
+    approved_root = _approved_plan_root(path)
     flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
     directory_flags = (
         os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     )
     try:
-        directory_descriptor = os.open(candidate.parent, directory_flags)
+        directory_descriptor = os.open(approved_root, directory_flags)
     except OSError as error:
-        raise PlanError(
-            f"cannot open approved plan directory: {candidate.parent}"
-        ) from error
+        raise PlanError("cannot open approved plan directory") from error
     try:
         try:
             descriptor = os.open(PLAN_FILENAME, flags, dir_fd=directory_descriptor)
         except OSError as error:
-            raise PlanError(f"cannot open approved plan path: {candidate}") from error
+            raise PlanError("cannot open approved plan artifact") from error
         try:
             stat_result = os.fstat(descriptor)
             candidate_stat = os.stat(

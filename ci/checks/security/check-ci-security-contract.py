@@ -3256,51 +3256,65 @@ def _common_version_permission_errors(path: Path, jobs: dict[str, Any]) -> list[
     return errors
 
 
+def _common_version_checkout_errors(
+    path: Path, name: str, steps: list[Any]
+) -> list[str]:
+    checkouts = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and str(step.get("uses", "")).split("@", 1)[0] == CHECKOUT_ACTION
+    ]
+    if len(checkouts) != 1:
+        return [f"{path}: {name} must contain exactly one checkout"]
+    expected = {
+        "ref": DEFAULT_BRANCH_EXPRESSION,
+        "fetch-depth": 1,
+        "persist-credentials": False,
+        "submodules": False,
+    }
+    if checkouts[0].get("with") != expected:
+        return [
+            f"{path}: {name} checkout must match the trusted default-revision profile"
+        ]
+    return []
+
+
+def _common_version_action_reference_errors(
+    path: Path, name: str, steps: list[Any]
+) -> list[str]:
+    errors: list[str] = []
+    allowed_actions = {
+        CHECKOUT_ACTION,
+        SETUP_PYTHON_ACTION,
+        WORKFLOW_UPDATER_APP_TOKEN_ACTION,
+        CREATE_PULL_REQUEST_ACTION,
+    }
+    for step in steps:
+        if not isinstance(step, dict) or "uses" not in step:
+            continue
+        reference = step["uses"]
+        action = reference.split("@", 1)[0] if isinstance(reference, str) else ""
+        if action not in allowed_actions:
+            errors.append(f"{path}: {name} contains an unreviewed Action identity")
+        elif (
+            not isinstance(reference, str)
+            or "@" not in reference
+            or not SHA.fullmatch(reference.rsplit("@", 1)[1].split(" ", 1)[0])
+        ):
+            errors.append(
+                f"{path}: {name} Action references must use a full immutable commit SHA"
+            )
+    return errors
+
+
 def _common_version_action_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     for name in ("canonical-maintenance", "candidate", "reconcile-trusted", "publish"):
         job = jobs[name]
         steps = job.get("steps", []) if isinstance(job, dict) else []
-        checkouts = [
-            step
-            for step in steps
-            if isinstance(step, dict)
-            and str(step.get("uses", "")).split("@", 1)[0] == CHECKOUT_ACTION
-        ]
-        if len(checkouts) != 1:
-            errors.append(f"{path}: {name} must contain exactly one checkout")
-        else:
-            values = checkouts[0].get("with")
-            expected = {
-                "ref": DEFAULT_BRANCH_EXPRESSION,
-                "fetch-depth": 1,
-                "persist-credentials": False,
-                "submodules": False,
-            }
-            if values != expected:
-                errors.append(
-                    f"{path}: {name} checkout must match the trusted default-revision profile"
-                )
-        for step in steps:
-            if not isinstance(step, dict) or "uses" not in step:
-                continue
-            reference = step["uses"]
-            action = reference.split("@", 1)[0] if isinstance(reference, str) else ""
-            if action not in {
-                CHECKOUT_ACTION,
-                SETUP_PYTHON_ACTION,
-                WORKFLOW_UPDATER_APP_TOKEN_ACTION,
-                CREATE_PULL_REQUEST_ACTION,
-            }:
-                errors.append(f"{path}: {name} contains an unreviewed Action identity")
-            elif (
-                not isinstance(reference, str)
-                or "@" not in reference
-                or not SHA.fullmatch(reference.rsplit("@", 1)[1].split(" ", 1)[0])
-            ):
-                errors.append(
-                    f"{path}: {name} Action references must use a full immutable commit SHA"
-                )
+        errors.extend(_common_version_checkout_errors(path, name, steps))
+        errors.extend(_common_version_action_reference_errors(path, name, steps))
     return errors
 
 

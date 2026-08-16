@@ -1433,8 +1433,10 @@ def _tool_pin_release_data(
         updater.latest_release(identity), "latest CI-tool release"
     )
     compatible_release = _tool_compatible_release(updater, identity, current)
-    latest_compatible, candidate_asset, candidate_digest = updater.selected_release_asset(
-        identity, compatible_release, record, record["name"]
+    latest_compatible, candidate_asset, candidate_digest = (
+        updater.selected_release_asset(
+            identity, compatible_release, record, record["name"]
+        )
     )
     if compare_versions(current, latest_upstream) > 0:
         raise MaintenanceError(
@@ -1444,7 +1446,13 @@ def _tool_pin_release_data(
         candidate_commit = updater.release_tag_commit(identity, latest_compatible)
     else:
         candidate_commit = current_commit
-    return latest_upstream, latest_compatible, candidate_asset, candidate_digest, candidate_commit
+    return (
+        latest_upstream,
+        latest_compatible,
+        candidate_asset,
+        candidate_digest,
+        candidate_commit,
+    )
 
 
 def _tool_pin_transition_reviews(
@@ -1473,9 +1481,7 @@ def _tool_pin_transition_reviews(
             current_identity={
                 "version": current,
                 "asset": current_asset,
-                "series": ".".join(
-                    current.removeprefix("v").split(".")[:series_parts]
-                ),
+                "series": ".".join(current.removeprefix("v").split(".")[:series_parts]),
             },
             candidate_identity={"version": latest_upstream},
             latest_compatible=latest_compatible,
@@ -1504,6 +1510,26 @@ def _tool_pin_status(
             "The canonical asset expression does not produce the official candidate artifact; manual artifact-layout review is required.",
         )
     return "current", "Canonical CI-tool tuple is current."
+
+
+class _ToolPinContext:
+    def __init__(
+        self,
+        component_id: str,
+        variables: list[str],
+        repository: str,
+        current: str,
+        current_commit: str,
+        current_asset: str,
+        current_digest: str,
+    ) -> None:
+        self.component_id = component_id
+        self.variables = variables
+        self.repository = repository
+        self.current = current
+        self.current_commit = current_commit
+        self.current_asset = current_asset
+        self.current_digest = current_digest
 
 
 def _resolve_tool_pin(
@@ -1535,13 +1561,15 @@ def _resolve_tool_pin(
             fields,
             checker=checker,
             common_lines=common_lines,
-            component_id=component_id,
-            variables=variables,
-            repository=repository,
-            current=current,
-            current_commit=current_commit,
-            current_asset=current_asset,
-            current_digest=current_digest,
+            context=_ToolPinContext(
+                component_id=component_id,
+                variables=variables,
+                repository=repository,
+                current=current,
+                current_commit=current_commit,
+                current_asset=current_asset,
+                current_digest=current_digest,
+            ),
         )
     except Exception as exc:
         return _check_result(
@@ -1564,14 +1592,15 @@ def _resolve_tool_pin_checked(
     *,
     checker: Any,
     common_lines: list[str],
-    component_id: str,
-    variables: list[str],
-    repository: str,
-    current: str,
-    current_commit: str,
-    current_asset: str,
-    current_digest: str,
+    context: _ToolPinContext,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    component_id = context.component_id
+    variables = context.variables
+    repository = context.repository
+    current = context.current
+    current_commit = context.current_commit
+    current_asset = context.current_asset
+    current_digest = context.current_digest
     lock_name = safe_component_id(suffix)
     record = _workflow_lock_record(lock, "tools", lock_name)
     if record.get("name") != lock_name:
@@ -1611,16 +1640,20 @@ def _resolve_tool_pin_checked(
         raise MaintenanceError(
             "canonical CI-tool tuple differs from the generated reviewed lock"
         )
-    latest_upstream, latest_compatible, candidate_asset, candidate_digest, candidate_commit = (
-        _tool_pin_release_data(
-            updater,
-            identity,
-            record,
-            current,
-            current_commit,
-            current_asset,
-            current_digest,
-        )
+    (
+        latest_upstream,
+        latest_compatible,
+        candidate_asset,
+        candidate_digest,
+        candidate_commit,
+    ) = _tool_pin_release_data(
+        updater,
+        identity,
+        record,
+        current,
+        current_commit,
+        current_asset,
+        current_digest,
     )
     updates, matches = _tool_candidate_updates(
         checker,
@@ -1672,9 +1705,7 @@ def _resolve_tool_pin_checked(
             updates,
         )
     )
-    status, message = _tool_pin_status(
-        updates, reviews, current, latest_compatible
-    )
+    status, message = _tool_pin_status(updates, reviews, current, latest_compatible)
     result = _check_result(
         component_id=component_id,
         component_name=repository,
@@ -1711,7 +1742,7 @@ def _resolve_tool_pin_legacy(
     raise AssertionError("legacy resolver is not callable")
 
 
-'''LEGACY_RESOLVER_BODY_REMOVED
+"""LEGACY_RESOLVER_BODY_REMOVED
 
     try:
         lock_name = safe_component_id(suffix)
@@ -1900,7 +1931,7 @@ def _resolve_tool_pin_legacy(
             variables=variables,
             current=current,
         ), []
-'''
+"""
 
 
 def resolve_workflow_pins(
