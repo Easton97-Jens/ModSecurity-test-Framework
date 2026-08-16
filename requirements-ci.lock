@@ -1,9 +1,12 @@
+# generated view; canonical authority is ci/lib/common.sh
+# PyYAML artifact: pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+# PyYAML platform: manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64
 # CI dependency contract for Ubuntu x86_64 with the exact reviewed CPython
 # patch declared only in .python-version.
 #
 # The canonical values are maintained in ci/lib/common.sh; this file is a
 # generated, reviewed PyPI view. The hash is the official PyPI digest for:
-# PyYAML-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+# pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
 # Update only with a reviewed release, its official artifact digest, and the
 # corresponding CI/runtime validation described in docs/security/ci-security-tooling.md.
 PyYAML==6.0.3 \

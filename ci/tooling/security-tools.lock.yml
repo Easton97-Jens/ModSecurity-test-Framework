@@ -94,6 +94,7 @@ actions:
 tools:
   scorecard:
     name: scorecard
+    repository: ossf/scorecard
     version: v5.5.0
     immutable_commit: c395761df6afe1a69e476bc60a013a94bcbc153f
     upstream_release: https://github.com/ossf/scorecard/releases/tag/v5.5.0
@@ -110,6 +111,7 @@ tools:
     update_procedure: Verify the annotated release tag-to-commit identity, official release checksum, archive member, and Apache-2.0 license before updating this record and its validation evidence.
   osv-scanner:
     name: osv-scanner
+    repository: google/osv-scanner
     version: v2.5.0
     immutable_commit: a258868211a57052da6bd323f758b8388dee02bb
     upstream_release: https://github.com/google/osv-scanner/releases/tag/v2.5.0
@@ -125,6 +127,7 @@ tools:
     update_procedure: Verify the release tag-to-commit identity, official release checksum, raw executable asset name, and Apache-2.0 license before updating this record and its validation evidence.
   actionlint:
     name: actionlint
+    repository: rhysd/actionlint
     version: v1.7.12
     immutable_commit: 914e7df21a07ef503a81201c76d2b11c789d3fca
     upstream_release: https://github.com/rhysd/actionlint/releases/tag/v1.7.12
@@ -141,6 +144,7 @@ tools:
     update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and MIT license before updating this record and its validation evidence.
   shellcheck:
     name: shellcheck
+    repository: koalaman/shellcheck
     version: v0.11.0
     immutable_commit: aac0823e6b58f8a499e856e93738082691cbf212
     upstream_release: https://github.com/koalaman/shellcheck/releases/tag/v0.11.0
@@ -157,6 +161,7 @@ tools:
     update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and GPL-3.0 license before updating this record and its validation evidence.
   zizmor:
     name: zizmor
+    repository: zizmorcore/zizmor
     version: v1.29.0
     immutable_commit: 3c116961091b50bd1a08ffefe916469d4d90093c
     upstream_release: https://github.com/zizmorcore/zizmor/releases/tag/v1.29.0
@@ -173,6 +178,7 @@ tools:
     update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and MIT license before updating this record and its validation evidence.
   gitleaks:
     name: gitleaks
+    repository: gitleaks/gitleaks
     version: v8.30.1
     immutable_commit: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e
     upstream_release: https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1
@@ -189,6 +195,7 @@ tools:
     update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and MIT license before updating this record and its validation evidence.
   ruff:
     name: ruff
+    repository: astral-sh/ruff
     version: 0.16.2
     immutable_commit: 5b48a040974781ba90b47c8df628f8fd9b6c95dd
     upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.2
@@ -205,6 +212,7 @@ tools:
     update_procedure: Verify the release tag-to-commit identity, release asset SHA-256, archive member, and MIT license before updating this record and its validation evidence.
   pyright:
     name: pyright
+    repository: microsoft/pyright
     version: 1.1.411
     immutable_commit: 9a9205fc32a2685767f38f348f5d9232701d4b0b
     upstream_release: https://github.com/microsoft/pyright/releases/tag/1.1.411

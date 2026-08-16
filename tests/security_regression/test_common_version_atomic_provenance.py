@@ -191,19 +191,23 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                 self.assertEqual(results[0].updates, [])
 
     def test_lighttpd_series_update_is_atomic_and_uses_only_official_urls(self):
+        root = "https://download.lighttpd.net/lighttpd"
+        base = root + "/releases-1.4.x"
         source = "\n".join((
+            assignment("LIGHTTPD_SERIES", "1.4"),
+            assignment("LIGHTTPD_RELEASE_ROOT_URL", root),
+            assignment("LIGHTTPD_SERIES_BASE_URL", base),
             assignment("LIGHTTPD_VERSION", "1.4.80"),
-            assignment("LIGHTTPD_SOURCE_URL", "https://download.lighttpd.net/lighttpd/releases-1.4.x/"),
-            assignment("LIGHTTPD_RELEASE_INDEX_URL", "https://download.lighttpd.net/lighttpd/releases-1.4.x/"),
-            assignment("LIGHTTPD_LATEST_URL", "https://download.lighttpd.net/lighttpd/releases-1.4.x/latest.txt"),
+            assignment("LIGHTTPD_SOURCE_URL", base + "/"),
+            assignment("LIGHTTPD_RELEASE_INDEX_URL", base + "/"),
+            assignment("LIGHTTPD_LATEST_URL", base + "/latest.txt"),
             assignment("LIGHTTPD_ARCHIVE_NAME", "lighttpd-1.4.80.tar.xz"),
-            assignment("LIGHTTPD_DOWNLOAD_URL", "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.80.tar.xz"),
+            assignment("LIGHTTPD_DOWNLOAD_URL", base + "/lighttpd-1.4.80.tar.xz"),
             assignment("LIGHTTPD_SHA256", CURRENT_DIGEST),
-            assignment("LIGHTTPD_SHA256_URL", "https://download.lighttpd.net/lighttpd/releases-1.4.x/lighttpd-1.4.80.sha256sum"),
+            assignment("LIGHTTPD_SHA256_URL", base + "/lighttpd-1.4.80.sha256sum"),
         ))
         entries = parse_entries(source)
-        base = "https://download.lighttpd.net/lighttpd/releases-1.4.x/"
-        result = CHECKER.check_lighttpd(entries, FixtureClient(text_responses={base + "latest.txt": "lighttpd-1.4.81.tar.xz\n", base + "lighttpd-1.4.81.sha256sum": f"{LATEST_DIGEST}  lighttpd-1.4.81.tar.xz\n"}))
+        result = CHECKER.check_lighttpd(entries, FixtureClient(text_responses={base + "/latest.txt": "lighttpd-1.4.81.tar.xz\n", base + "/lighttpd-1.4.81.sha256sum": f"{LATEST_DIGEST}  lighttpd-1.4.81.tar.xz\n"}))
         self.assertEqual(CHECKER.STATUS_OUTDATED, result.status)
         self.assertEqual({item.variable for item in result.updates}, {"LIGHTTPD_VERSION", "LIGHTTPD_SHA256"})
 
@@ -401,6 +405,22 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         with patch.object(CHECKER, "HttpClient", side_effect=AssertionError("network forbidden")):
             self.assertEqual(CHECKER.main(["--validate-canonical", "--common-sh", str(ROOT / "ci/lib/common.sh")]), 0)
 
+    def test_update_rejects_nested_symlinked_common_source_parent(self):
+        with tempfile.TemporaryDirectory(prefix="common-source-symlink-") as temporary:
+            root = Path(temporary)
+            outside = root / "outside"
+            (outside / "lib").mkdir(parents=True)
+            source = outside / "lib" / "common.sh"
+            source.write_text('HTTPD_VERSION="2.4.68"\n', encoding="utf-8")
+            (root / "ci").mkdir()
+            (root / "ci" / "linked").symlink_to(outside, target_is_directory=True)
+            selected = root / "ci" / "linked" / "lib" / "common.sh"
+            self.assertEqual(
+                CHECKER.main(["--update", "--common-sh", str(selected)]),
+                2,
+            )
+            self.assertEqual(source.read_text(encoding="utf-8"), 'HTTPD_VERSION="2.4.68"\n')
+
     def test_validate_canonical_rejects_environment_default_pin_even_with_attacker_env(self):
         with tempfile.TemporaryDirectory(prefix="canonical-env-default-") as temporary:
             common = Path(temporary) / "common.sh"
@@ -480,6 +500,16 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             "nginx-" + CHECKER.value(entries, "NGINX_RELEASE_TAG").removeprefix("release-") + ".tar.gz",
         )
 
+    def test_json_accept_header_is_specific_to_github_api(self):
+        self.assertEqual(
+            CHECKER.json_accept_header("https://api.github.com/repos/example/tool/releases/latest"),
+            "application/vnd.github+json",
+        )
+        self.assertEqual(
+            CHECKER.json_accept_header("https://www.python.org/api/v2/downloads/release/"),
+            "application/json",
+        )
+
     def test_neutral_repository_and_platform_descriptors_bind_from_common_values(self):
         definition, entries = self.github_entries("Traefik")
         bound = CHECKER.canonicalize_github_repository(definition, entries)
@@ -552,14 +582,13 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             build_root = Path(temporary) / "build"
             target = build_root / "common.sh"
             target.parent.mkdir(parents=True)
-            target.write_text("\n".join((
-                assignment("APR_UTIL_VERSION", "1.6.4"),
-                assignment("APR_UTIL_ARCHIVE_NAME", "apr-util-1.6.4.tar.bz2"),
-                assignment("APR_UTIL_SOURCE_URL", "https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"),
-                assignment("APR_UTIL_SHA256", CURRENT_DIGEST),
-                assignment("APR_UTIL_SHA256_URL", "$APR_UTIL_SOURCE_URL.sha256"),
-                "",
-            )), encoding="utf-8")
+            source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+            source = source.replace('APR_UTIL_VERSION="1.6.5"', 'APR_UTIL_VERSION="1.6.4"')
+            source = source.replace(
+                'APR_UTIL_SHA256="96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"',
+                f'APR_UTIL_SHA256="{CURRENT_DIGEST}"',
+            )
+            target.write_text(source, encoding="utf-8")
             initial_bytes = target.read_bytes()
             output = io.StringIO()
             errors = io.StringIO()
@@ -586,7 +615,7 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             second_summary = json.loads(output.getvalue())
             second_bytes = target.read_bytes()
 
-        self.assertEqual(check_rc, 1)
+        self.assertEqual(check_rc, 1, errors.getvalue())
         self.assertEqual(check_summary["maintenance_outcome"], "safe_updates")
         self.assertEqual(checked_bytes, initial_bytes)
         self.assertEqual(first_rc, 0)

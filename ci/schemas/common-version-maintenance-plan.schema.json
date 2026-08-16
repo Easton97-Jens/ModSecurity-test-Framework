@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Easton97-Jens/ModSecurity-test-Framework/schemas/common-version-maintenance-plan.schema.json",
+  "title": "Common-version maintenance review plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "maintenance_outcome", "scope", "safe_updates", "manual_reviews", "checked_components", "generated_views", "source_common_sha256", "candidate_common_sha256", "plan_sha256"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "maintenance_outcome": {"enum": ["no_updates", "manual_review_only", "safe_updates", "safe_updates_with_manual_review", "fatal"]},
+    "global_inventory_complete": {"type": "boolean"},
+    "source_common_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "candidate_common_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "scope": {"$ref": "#/$defs/scope"},
+    "checked_components": {"$ref": "#/$defs/components"},
+    "generated_views": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/relative_path"}},
+    "safe_updates": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/safe_update"}},
+    "manual_reviews": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/review"}},
+    "component_results": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/component_result"}},
+    "generated_view_status": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/generated_view_status"}}
+  },
+  "$defs": {
+    "component": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"},
+    "components": {"type": "array", "minItems": 1, "maxItems": 256, "uniqueItems": true, "items": {"$ref": "#/$defs/component"}},
+    "scope": {"type": "object", "additionalProperties": false, "required": ["mode", "checked_components"], "properties": {"mode": {"enum": ["full", "component"]}, "checked_components": {"$ref": "#/$defs/components"}}},
+    "relative_path": {"type": "string", "minLength": 1, "maxLength": 256, "pattern": "^(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.?/)[^\\u0000-\\u001f\\u007f]+$"},
+    "identity_value": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[^\\u0000-\\u001f\\u007f]+$"},
+    "identity": {"type": "object", "minProperties": 1, "maxProperties": 9, "additionalProperties": false, "properties": {"version": {"$ref": "#/$defs/identity_value"}, "tag": {"$ref": "#/$defs/identity_value"}, "commit": {"$ref": "#/$defs/identity_value"}, "repository": {"$ref": "#/$defs/identity_value"}, "asset": {"$ref": "#/$defs/identity_value"}, "digest": {"$ref": "#/$defs/identity_value"}, "series": {"$ref": "#/$defs/identity_value"}, "provider": {"$ref": "#/$defs/identity_value"}, "platform": {"$ref": "#/$defs/identity_value"}}},
+    "safe_update": {"type": "object", "additionalProperties": false, "required": ["variable", "old", "new"], "properties": {"variable": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,127}$"}, "old": {"$ref": "#/$defs/identity_value", "maxLength": 240}, "new": {"$ref": "#/$defs/identity_value", "maxLength": 240}}},
+    "component_result": {"type": "object", "additionalProperties": false, "required": ["component_id", "component_name", "scope", "status", "message", "canonical_variables"], "properties": {"component_id": {"$ref": "#/$defs/component"}, "component_name": {"type": "string", "maxLength": 240}, "scope": {"$ref": "#/$defs/component"}, "status": {"type": "string", "maxLength": 32}, "message": {"type": "string", "maxLength": 2000}, "canonical_variables": {"type": "array", "maxItems": 64, "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,127}$"}}, "current": {"type": "string", "maxLength": 240}, "latest_compatible": {"type": "string", "maxLength": 240}, "latest_upstream": {"type": "string", "maxLength": 240}, "source": {"type": "string", "pattern": "^https://", "maxLength": 512}, "updates": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/safe_update"}}, "details": {"type": "object", "maxProperties": 64, "additionalProperties": true}}},
+    "generated_view_status": {"type": "object", "additionalProperties": false, "required": ["name", "status"], "properties": {"name": {"type": "string", "maxLength": 128}, "status": {"enum": ["current", "blocked", "unknown", "error"]}, "message": {"type": "string", "maxLength": 2000}}},
+    "review": {"type": "object", "additionalProperties": false, "required": ["review_key", "component_id", "component_name", "review_kind", "current_identity", "candidate_identity", "latest_compatible", "latest_upstream", "canonical_variables", "reason_code", "reason", "evidence_urls", "automatic_update_also_available"], "properties": {"review_key": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._:-]{0,159}$"}, "component_id": {"$ref": "#/$defs/component"}, "component_name": {"type": "string", "maxLength": 128}, "review_kind": {"enum": ["series_transition", "major_version_transition", "minor_version_transition", "release_commit_provenance", "provider_transition", "artifact_layout_transition", "platform_transition", "manual_digest_verification", "runtime_compatibility_review", "ci_runtime_transition"]}, "current_identity": {"$ref": "#/$defs/identity"}, "candidate_identity": {"$ref": "#/$defs/identity"}, "latest_compatible": {"type": "string", "maxLength": 512}, "latest_upstream": {"type": "string", "maxLength": 512}, "canonical_variables": {"type": "array", "maxItems": 64, "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,127}$"}}, "reason_code": {"type": "string", "maxLength": 64}, "reason": {"type": "string", "maxLength": 2000}, "evidence_urls": {"type": "array", "maxItems": 16, "items": {"type": "string", "pattern": "^https://"}}, "automatic_update_also_available": {"type": "boolean"}, "state": {"enum": ["active", "completed", "superseded", "withdrawn"]}, "generated_views": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/relative_path"}}, "lifecycle_evidence": {"type": "object", "additionalProperties": false, "required": ["reason", "maintenance_run"], "properties": {"reason": {"type": "string", "maxLength": 2000}, "maintenance_run": {"type": "string", "maxLength": 256}, "verified_identity": {"$ref": "#/$defs/identity"}, "withdrawal_url": {"type": "string", "pattern": "^https://", "maxLength": 512}}}}}
+  }
+}

@@ -22,9 +22,13 @@ COMMON = """\
 CI_CANONICAL_PYTHON_VERSION="3.14.6"
 CI_CANONICAL_PYYAML_VERSION="6.0.3"
 CI_CANONICAL_PYYAML_SHA256="c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5"
+CI_CANONICAL_PYYAML_ARTIFACT="pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+CI_CANONICAL_PYYAML_PLATFORM="manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64"
 """
 REQUIREMENTS = """\
 # generated view; authority is ci/lib/common.sh
+# PyYAML artifact: pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+# PyYAML platform: manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64
 PyYAML==6.0.3 \\
     --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5
 """

@@ -42,13 +42,16 @@ PIN_VARIABLES = frozenset(
         "TRAEFIK_VERSION", "TRAEFIK_SOURCE_URL", "TRAEFIK_INSTALL_DOCS_URL",
         "TRAEFIK_ARTIFACT_PLATFORM", "TRAEFIK_ARCHIVE_NAME",
         "TRAEFIK_DOWNLOAD_URL", "TRAEFIK_SHA256", "TRAEFIK_SHA256_URL",
+        "LIGHTTPD_SERIES", "LIGHTTPD_RELEASE_ROOT_URL", "LIGHTTPD_SERIES_BASE_URL",
         "LIGHTTPD_VERSION", "LIGHTTPD_SOURCE_URL", "LIGHTTPD_RELEASE_INDEX_URL",
         "LIGHTTPD_LATEST_URL", "LIGHTTPD_ARCHIVE_NAME", "LIGHTTPD_DOWNLOAD_URL",
         "LIGHTTPD_SHA256", "LIGHTTPD_SHA256_URL",
         "NGINX_SOURCE_REPO_URL", "NGINX_RELEASE_TAG", "NGINX_RELEASE_ASSET_NAME",
         "NGINX_SHA256",
+        "HAPROXY_SERIES", "HAPROXY_RELEASE_ROOT_URL", "HAPROXY_SERIES_BASE_URL",
         "HAPROXY_VERSION", "HAPROXY_ARCHIVE_NAME", "HAPROXY_SOURCE_URL",
-        "HAPROXY_SHA256", "HAPROXY_HTX_VERSION", "HAPROXY_HTX_ARCHIVE_NAME",
+        "HAPROXY_SHA256", "HAPROXY_HTX_SERIES", "HAPROXY_HTX_SERIES_BASE_URL",
+        "HAPROXY_HTX_VERSION", "HAPROXY_HTX_ARCHIVE_NAME",
         "HAPROXY_HTX_SOURCE_URL", "HAPROXY_HTX_SHA256",
     }
 )
@@ -62,6 +65,7 @@ LOCK_DESCRIPTORS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "haproxy-htx", "component": "haproxy", "profile": "htx",
+        "series": "HAPROXY_HTX_SERIES",
         "version": "HAPROXY_HTX_VERSION", "asset": "HAPROXY_HTX_ARCHIVE_NAME",
         "url": "HAPROXY_HTX_SOURCE_URL", "sha": "HAPROXY_HTX_SHA256",
         # HTX is an independently pinned tuple; never substitute generic HAProxy.
@@ -70,6 +74,7 @@ LOCK_DESCRIPTORS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "haproxy-spoe-spop", "component": "haproxy", "profile": "spoe/spop",
+        "series": "HAPROXY_SERIES",
         "version": "HAPROXY_VERSION", "asset": "HAPROXY_ARCHIVE_NAME",
         "url": "HAPROXY_SOURCE_URL", "sha": "HAPROXY_SHA256",
         "source": "HAPROXY_SOURCE_URL", "version_prefix": "",
@@ -105,6 +110,7 @@ LOCK_DESCRIPTORS: tuple[dict[str, str], ...] = (
     },
     {
         "id": "lighttpd-sidecar", "component": "lighttpd", "profile": "sidecar_proxy",
+        "series": "LIGHTTPD_SERIES",
         "version": "LIGHTTPD_VERSION", "asset": "LIGHTTPD_ARCHIVE_NAME",
         "url": "LIGHTTPD_DOWNLOAD_URL", "sha": "LIGHTTPD_SHA256",
         "source": "LIGHTTPD_SOURCE_URL", "version_prefix": "",
@@ -134,7 +140,7 @@ ManifestSyncError = SyncError
 
 
 def _framework_root_for_common(path: Path) -> Path:
-    resolved = path.resolve(strict=True)
+    resolved = _reject_symlink_path(path, "common", require_file=True)
     if resolved.name == "common.sh" and resolved.parent.name == "lib" and resolved.parent.parent.name == "ci":
         return resolved.parents[2]
     # Parser-only test fixtures may use a differently named temporary source;
@@ -142,13 +148,38 @@ def _framework_root_for_common(path: Path) -> Path:
     return resolved.parent
 
 
+def _reject_symlink_path(path: Path, label: str, *, require_file: bool = False) -> Path:
+    """Return an absolute path only when every existing component is trusted."""
+
+    absolute = Path(os.path.abspath(path))
+    current = absolute
+    while True:
+        try:
+            details = current.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise SyncError(f"cannot inspect {label}: {current}") from exc
+        else:
+            if current.is_symlink():
+                raise SyncError(f"{label} contains a symlink path component: {current}")
+            if current != absolute and not current.is_dir():
+                raise SyncError(f"{label} contains a non-directory ancestor: {current}")
+        if current == Path(current.anchor):
+            break
+        current = current.parent
+    if require_file and (not absolute.is_file() or absolute.is_symlink()):
+        raise SyncError(f"{label} must be a regular file")
+    return absolute
+
+
 def require_regular(path: Path, root: Path, label: str) -> Path:
     try:
-        resolved = path.resolve(strict=True)
-        resolved.relative_to(root)
+        resolved = _reject_symlink_path(path, label, require_file=True)
+        resolved.relative_to(_reject_symlink_path(root, "Framework source root"))
     except (OSError, ValueError) as exc:
         raise SyncError(f"{label} must be below the Framework source root") from exc
-    if path.is_symlink() or not resolved.is_file():
+    if not resolved.is_file() or resolved.is_symlink():
         raise SyncError(f"{label} must be a regular file below the Framework source root")
     return resolved
 
@@ -225,6 +256,46 @@ def _validate_pin_values(values: dict[str, str]) -> None:
     nginx_tag = values["NGINX_RELEASE_TAG"]
     if not nginx_tag.startswith("release-") or not VERSION_RE.fullmatch(nginx_tag[8:]):
         raise SyncError("NGINX_RELEASE_TAG must use release-X.Y.Z")
+    _validate_series_binding(
+        values["LIGHTTPD_SERIES"], values["LIGHTTPD_VERSION"], "LIGHTTPD"
+    )
+    if values["LIGHTTPD_SERIES_BASE_URL"] != (
+        f"{values['LIGHTTPD_RELEASE_ROOT_URL']}/releases-{values['LIGHTTPD_SERIES']}.x"
+    ):
+        raise SyncError("LIGHTTPD_SERIES_BASE_URL is not derived from its release root and series")
+    if values["LIGHTTPD_SOURCE_URL"] != f"{values['LIGHTTPD_SERIES_BASE_URL']}/":
+        raise SyncError("LIGHTTPD_SOURCE_URL must be the series base URL with one trailing slash")
+    if values["LIGHTTPD_LATEST_URL"] != f"{values['LIGHTTPD_SERIES_BASE_URL']}/latest.txt":
+        raise SyncError("LIGHTTPD_LATEST_URL must be derived from the series base URL")
+    if "//" in values["LIGHTTPD_LATEST_URL"].removeprefix("https://"):
+        raise SyncError("LIGHTTPD_LATEST_URL contains a double slash")
+    _validate_series_binding(values["HAPROXY_SERIES"], values["HAPROXY_VERSION"], "HAPROXY")
+    _validate_series_binding(
+        values["HAPROXY_HTX_SERIES"], values["HAPROXY_HTX_VERSION"], "HAPROXY_HTX"
+    )
+    if values["HAPROXY_SERIES_BASE_URL"] != (
+        f"{values['HAPROXY_RELEASE_ROOT_URL']}/{values['HAPROXY_SERIES']}/src"
+    ):
+        raise SyncError("HAPROXY_SERIES_BASE_URL is not derived from its release root and series")
+    if values["HAPROXY_HTX_SERIES_BASE_URL"] != (
+        f"{values['HAPROXY_RELEASE_ROOT_URL']}/{values['HAPROXY_HTX_SERIES']}/src"
+    ):
+        raise SyncError("HAPROXY_HTX_SERIES_BASE_URL is not derived from its release root and series")
+    if values["HAPROXY_SOURCE_URL"] != (
+        f"{values['HAPROXY_SERIES_BASE_URL']}/{values['HAPROXY_ARCHIVE_NAME']}"
+    ):
+        raise SyncError("HAPROXY_SOURCE_URL is not derived from its series base URL")
+    if values["HAPROXY_HTX_SOURCE_URL"] != (
+        f"{values['HAPROXY_HTX_SERIES_BASE_URL']}/{values['HAPROXY_HTX_ARCHIVE_NAME']}"
+    ):
+        raise SyncError("HAPROXY_HTX_SOURCE_URL is not derived from its series base URL")
+
+
+def _validate_series_binding(series: str, version: str, label: str) -> None:
+    if not re.fullmatch(r"\d+\.\d+", series):
+        raise SyncError(f"{label} series must be an exact numeric major.minor value")
+    if not VERSION_RE.fullmatch(version) or not version.startswith(f"{series}."):
+        raise SyncError(f"{label} version {version!r} does not match declared series {series!r}")
 
 
 def _expand_pin_values(raw: dict[str, str]) -> dict[str, str]:
@@ -335,6 +406,7 @@ def render_lock(values: dict[str, str]) -> dict[str, Any]:
             {
                 "id": descriptor["id"], "component": descriptor["component"],
                 "profile": descriptor["profile"], "version": version,
+                "series": values[descriptor["series"]] if descriptor.get("series") else "",
                 "os": operating_system, "arch": architecture,
                 "asset_name": values[descriptor["asset"]],
                 "download_url": values[descriptor["url"]],
@@ -377,6 +449,11 @@ def expected_manifest_fields(component: str, values: dict[str, str]) -> dict[str
         return {
             "artifact_type": "source_tarball", "artifact_digest_type": "sha256_source_archive",
             "archive_name": values["LIGHTTPD_ARCHIVE_NAME"], "pin_source": "ci/lib/common.sh:LIGHTTPD_VERSION",
+            "series_env": "LIGHTTPD_SERIES", "series": values["LIGHTTPD_SERIES"],
+            "release_root_url_env": "LIGHTTPD_RELEASE_ROOT_URL",
+            "release_root_url": values["LIGHTTPD_RELEASE_ROOT_URL"],
+            "series_base_url_env": "LIGHTTPD_SERIES_BASE_URL",
+            "series_base_url": values["LIGHTTPD_SERIES_BASE_URL"],
             "version_env": "LIGHTTPD_VERSION", "version": version,
             "source_url_env": "LIGHTTPD_SOURCE_URL", "source_url": values["LIGHTTPD_SOURCE_URL"],
             "release_index_url_env": "LIGHTTPD_RELEASE_INDEX_URL", "release_index_url": values["LIGHTTPD_RELEASE_INDEX_URL"],
@@ -436,6 +513,9 @@ def _read_json(path: Path, label: str) -> Any:
 
 
 def atomic_write(path: Path, content: str) -> None:
+    _reject_symlink_path(path.parent, "atomic output parent")
+    if path.exists() or path.is_symlink():
+        _reject_symlink_path(path, "atomic output")
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent, text=True)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:

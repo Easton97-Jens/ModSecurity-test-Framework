@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 from http.client import HTTPException
@@ -64,7 +65,8 @@ RELEVANT_PROVENANCE_VARIABLE_RE = re.compile(
     r"_DOWNLOAD_URL|_RELEASE_ASSET_NAME|_SHA256|_SOURCE_SHA256|"
     r"_SHA256_URL|_CHECKSUM(?:_[A-Z0-9_]+)?|_REPO_URL|_GITHUB_REPO|"
     r"_GIT_URL|_RELEASE_INDEX_URL|_LATEST_URL|_PROMPT_EXPECTED_LATEST|"
-    r"_ARCHIVE_NAME|_ASSET_NAME|_ARTIFACT_PLATFORM|_PLATFORM|_SOURCE_MODE|"
+    r"_ARCHIVE_NAME|_ASSET_NAME|_ARTIFACT|_ARTIFACT_PLATFORM|_PLATFORM|_SOURCE_MODE|"
+    r"_SERIES|_RELEASE_ROOT_URL|_SERIES_BASE_URL|"
     r"_REPOSITORY|_COMMIT|_SHA"
     r")$"
 )
@@ -146,6 +148,7 @@ CANONICAL_PIN_VARIABLE_RE = re.compile(
     r"(?:_VERSION|_RELEASE_TAG|_GIT_REF|_COMMIT|_SHA256|_SOURCE_SHA256|"
     r"_SOURCE_URL|_DOWNLOAD_URL|_REPO_URL|_GITHUB_REPO|_GIT_URL|"
     r"_ARCHIVE_NAME|_ASSET_NAME|_ARTIFACT_PLATFORM|_PLATFORM|_SOURCE_MODE|"
+    r"_SERIES|_RELEASE_ROOT_URL|_SERIES_BASE_URL|"
     r"_REPOSITORY)$"
 )
 GENERIC_CANONICAL_PIN_VALUES = frozenset({"", "master", "main", "github-release"})
@@ -228,10 +231,19 @@ CRS_COMPONENT = "OWASP Core Rule Set"
 CANONICAL_REPOSITORY_MARKER = "canonical/repository"
 CRS_APPROVED_REPOSITORY = CANONICAL_REPOSITORY_MARKER
 MODSECURITY_V3_APPROVED_REPOSITORY = CANONICAL_REPOSITORY_MARKER
+# Digest of the fixed upstream repository identity.  Keep the readable URL in
+# common.sh as the canonical authority; this immutable trust anchor prevents a
+# candidate from redirecting the ModSecurity v3 provenance lookup without
+# reintroducing a copied active URL pin in this consumer.
+MODSECURITY_V3_APPROVED_REPOSITORY_SHA256 = (
+    "3aa7b655ad2eec501e97cbc4a76fa820dd20cb4c95696ca41d0b1280ab8fa0fd"
+)
 CI_CANONICAL_PIN_VARIABLES = (
     "CI_CANONICAL_PYTHON_VERSION",
     "CI_CANONICAL_PYYAML_VERSION",
     "CI_CANONICAL_PYYAML_SHA256",
+    "CI_CANONICAL_PYYAML_WHEEL",
+    "CI_CANONICAL_PYYAML_PLATFORM",
     "CI_CANONICAL_NODE_VERSION",
     "CI_OSV_LEGACY_BASE_SHA",
     "CI_OSV_LEGACY_BASE_VERSION",
@@ -253,6 +265,97 @@ CI_CANONICAL_PIN_VARIABLES = (
         for field in ("REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256")
     ),
 )
+# The legacy tuple above is retained for compatibility with older imports, but
+# its generated projections are intentionally replaced by the artifact name
+# used by the live common.sh contract.  Action and security-tool groups are
+# extended from parsed prefixes below rather than relying on this snapshot.
+CI_CANONICAL_PIN_VARIABLES = tuple(
+    name for name in CI_CANONICAL_PIN_VARIABLES
+    if name != "CI_CANONICAL_PYYAML_WHEEL"
+)
+CI_CANONICAL_REQUIRED_FIELDS = {
+    "PYTHON": frozenset({"VERSION"}),
+    "PYYAML": frozenset({"VERSION", "SHA256", "ARTIFACT", "PLATFORM"}),
+    "NODE": frozenset({"VERSION"}),
+}
+CI_ACTION_REQUIRED_FIELDS = frozenset({"REPOSITORY", "VERSION", "COMMIT"})
+CI_SECURITY_TOOL_REQUIRED_FIELDS = frozenset(
+    {"REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256"}
+)
+
+
+def canonical_ci_group_inventory(
+    entries: dict[str, "VariableEntry"] | None = None,
+) -> tuple[tuple[str, ...], list[str]]:
+    """Discover CI pin groups from parsed names and validate their shape."""
+
+    if entries is None:
+        return (), []
+    names = {name for name in entries if name.startswith("CI_")}
+    groups: dict[tuple[str, str], set[str]] = {}
+    errors: list[str] = []
+    for name in sorted(names):
+        if name.startswith("CI_ACTION_"):
+            prefix, suffix = "CI_ACTION_", "action"
+        elif name.startswith("CI_SECURITY_TOOL_"):
+            prefix, suffix = "CI_SECURITY_TOOL_", "security tool"
+        elif name.startswith("CI_CANONICAL_"):
+            prefix, suffix = "CI_CANONICAL_", "canonical"
+        else:
+            continue
+        tail = name[len(prefix):]
+        fields = set(CI_ACTION_REQUIRED_FIELDS)
+        fields.update(CI_SECURITY_TOOL_REQUIRED_FIELDS)
+        fields.update(field for group_fields in CI_CANONICAL_REQUIRED_FIELDS.values() for field in group_fields)
+        field = next(
+            (candidate for candidate in sorted(fields, key=len, reverse=True)
+             if tail.endswith("_" + candidate)),
+            None,
+        )
+        if field is None:
+            errors.append(f"unsupported {suffix} variable {name}")
+            continue
+        group = tail[: -(len(field) + 1)]
+        if not group:
+            errors.append(f"unsupported {suffix} variable {name}")
+            continue
+        groups.setdefault((suffix, group), set()).add(field)
+
+    expected = {
+        ("canonical", group): set(fields)
+        for group, fields in CI_CANONICAL_REQUIRED_FIELDS.items()
+    }
+    for key, fields in sorted(groups.items()):
+        if key[0] == "action":
+            required = set(CI_ACTION_REQUIRED_FIELDS)
+        elif key[0] == "security tool":
+            required = set(CI_SECURITY_TOOL_REQUIRED_FIELDS)
+        else:
+            required = expected.get(key)
+            if required is None:
+                errors.append(f"unsupported canonical CI group {key[1]}")
+                continue
+        unsupported = sorted(fields - required)
+        missing = sorted(required - fields)
+        if unsupported:
+            errors.append(
+                f"unsupported fields in {key[0]} group {key[1]}: "
+                + ", ".join(unsupported)
+            )
+        if missing:
+            errors.append(
+                f"incomplete {key[0]} group {key[1]}; missing: "
+                + ", ".join(missing)
+            )
+
+    expected_names = set(CI_CANONICAL_PIN_VARIABLES)
+    expected_names.update(
+        name for name in entries if name.startswith("CI_ACTION_")
+    )
+    expected_names.update(
+        name for name in entries if name.startswith("CI_SECURITY_TOOL_")
+    )
+    return tuple(sorted(expected_names)), errors
 MANUAL_REVIEW_VARIABLES = {
     CRS_COMPONENT: (
         "CRS_APPROVED_REPO_URL",
@@ -393,6 +496,9 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         name="lighttpd",
         resolver="lighttpd_latest",
         variables=(
+            "LIGHTTPD_SERIES",
+            "LIGHTTPD_RELEASE_ROOT_URL",
+            "LIGHTTPD_SERIES_BASE_URL",
             "LIGHTTPD_VERSION",
             "LIGHTTPD_SOURCE_URL",
             "LIGHTTPD_ARCHIVE_NAME",
@@ -403,6 +509,9 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "LIGHTTPD_SHA256_URL",
         ),
         atomic_group=(
+            "LIGHTTPD_SERIES",
+            "LIGHTTPD_RELEASE_ROOT_URL",
+            "LIGHTTPD_SERIES_BASE_URL",
             "LIGHTTPD_VERSION",
             "LIGHTTPD_SOURCE_URL",
             "LIGHTTPD_RELEASE_INDEX_URL",
@@ -668,11 +777,12 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         name="HAProxy",
         resolver="haproxy_series",
         variables=(
+            "HAPROXY_SERIES", "HAPROXY_RELEASE_ROOT_URL", "HAPROXY_SERIES_BASE_URL",
             "HAPROXY_VERSION", "HAPROXY_ARCHIVE_NAME", "HAPROXY_SOURCE_URL",
-            "HAPROXY_SHA256_URL", "HAPROXY_SHA256", "HAPROXY_HTX_VERSION",
-            "HAPROXY_HTX_ARCHIVE_NAME", "HAPROXY_HTX_SOURCE_URL", "HAPROXY_HTX_SHA256",
+            "HAPROXY_SHA256_URL", "HAPROXY_SHA256",
         ),
         atomic_group=(
+            "HAPROXY_SERIES", "HAPROXY_RELEASE_ROOT_URL", "HAPROXY_SERIES_BASE_URL",
             "HAPROXY_VERSION",
             "HAPROXY_SOURCE_URL",
             "HAPROXY_SHA256_URL",
@@ -691,32 +801,61 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         archive_extension=".tar.gz",
     ),
     ComponentDefinition(
+        name="HAProxy HTX",
+        resolver="haproxy_htx_series",
+        variables=(
+            "HAPROXY_RELEASE_ROOT_URL", "HAPROXY_HTX_SERIES",
+            "HAPROXY_HTX_SERIES_BASE_URL", "HAPROXY_HTX_VERSION",
+            "HAPROXY_HTX_ARCHIVE_NAME", "HAPROXY_HTX_SOURCE_URL",
+            "HAPROXY_HTX_SHA256",
+        ),
+        atomic_group=(
+            "HAPROXY_HTX_SERIES", "HAPROXY_HTX_SERIES_BASE_URL",
+            "HAPROXY_HTX_VERSION", "HAPROXY_HTX_ARCHIVE_NAME",
+            "HAPROXY_HTX_SOURCE_URL", "HAPROXY_HTX_SHA256",
+        ),
+        update_policy=AUTOMATIC_UPDATE_POLICY,
+        stable_policy="official HAProxy numeric series release directory",
+        compatibility_policy=SAME_MAJOR_MINOR_COMPATIBILITY_POLICY,
+        authorized_hosts=("www.haproxy.org",),
+        version_variable="HAPROXY_HTX_VERSION",
+        source_url_variable="HAPROXY_HTX_SOURCE_URL",
+        sha256_variable="HAPROXY_HTX_SHA256",
+        checksum_strategy=OFFICIAL_ASSET_SHA256_FILE_STRATEGY,
+        filename_prefix="haproxy",
+        archive_extension=".tar.gz",
+    ),
+    ComponentDefinition(
         name="go-ftw",
-        resolver="not_applicable",
+        resolver="unified_orchestrator",
         variables=(
             "GO_FTW_SOURCE_URL",
             "GO_FTW_PROMPT_EXPECTED_LATEST",
             "GO_FTW_GIT_REF",
+            "GO_FTW_RELEASE_TAG",
+            "GO_FTW_APPROVED_COMMIT",
         ),
         atomic_group=(),
-        update_policy="not_applicable",
+        update_policy="manual_review",
         stable_policy="stable tag is documented, but no Framework fetch consumer exists",
         compatibility_policy="local executable probe only",
-        not_applicable_reason="go-ftw is supplied by a locally probed executable; common.sh metadata is not a fetch contract",
+        not_applicable_reason="resolved by the unified canonical maintenance orchestrator",
     ),
     ComponentDefinition(
         name="Albedo",
-        resolver="not_applicable",
+        resolver="unified_orchestrator",
         variables=(
             "ALBEDO_SOURCE_URL",
             "ALBEDO_PROMPT_EXPECTED_LATEST",
             "ALBEDO_GIT_REF",
+            "ALBEDO_RELEASE_TAG",
+            "ALBEDO_APPROVED_COMMIT",
         ),
         atomic_group=(),
-        update_policy="not_applicable",
+        update_policy="manual_review",
         stable_policy="stable tag is documented, but no Framework fetch consumer exists",
         compatibility_policy="local executable probe only",
-        not_applicable_reason="Albedo is supplied by a locally probed executable; common.sh metadata is not a fetch contract",
+        not_applicable_reason="resolved by the unified canonical maintenance orchestrator",
     ),
     ComponentDefinition(
         name="Expat",
@@ -735,13 +874,13 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
     ),
     ComponentDefinition(
         name="Canonical CI pins",
-        resolver="not_applicable",
+        resolver="unified_orchestrator",
         variables=CI_CANONICAL_PIN_VARIABLES,
         atomic_group=(),
-        update_policy="not_applicable",
+        update_policy="manual_review",
         stable_policy="exact reviewed action/tool/interpreter release and digest",
         compatibility_policy="generated workflow, lock, and documentation views",
-        not_applicable_reason="CI pins are consumed by generated views and are not runtime component updater inputs",
+        not_applicable_reason="resolved by the unified canonical maintenance orchestrator and generated-view checks",
     ),
     ComponentDefinition(
         name="Default branch",
@@ -779,6 +918,11 @@ def canonical_component_selection(requested: list[str] | None) -> tuple[str, ...
 
 def component_definition_for_variable(variable: str) -> ComponentDefinition | None:
     """Return the sole declared component owner for a provenance variable."""
+
+    if variable.startswith(("CI_CANONICAL_", "CI_ACTION_", "CI_SECURITY_TOOL_")):
+        return COMPONENT_DEFINITION_BY_NAME["Canonical CI pins"]
+    if variable == "HAPROXY_RELEASE_ROOT_URL":
+        return COMPONENT_DEFINITION_BY_NAME["HAProxy"]
 
     owners = [item for item in COMPONENT_DEFINITIONS if variable in item.variables]
     if len(owners) > 1:
@@ -867,28 +1011,52 @@ def validate_entries(entries: dict[str, VariableEntry]) -> list[str]:
 
 
 def build_root() -> Path:
-    return Path(os.environ.get("BUILD_ROOT", str(DEFAULT_BUILD_ROOT))).resolve()
+    return Path(os.path.abspath(os.environ.get("BUILD_ROOT", str(DEFAULT_BUILD_ROOT))))
+
+
+def require_no_symlink_ancestors(path: Path, label: str) -> Path:
+    """Reject symlinked path components before any read, mkdir, or replace."""
+
+    absolute = Path(os.path.abspath(path))
+    current = absolute
+    while True:
+        try:
+            details = current.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise UpstreamError(f"cannot inspect {label}: {current}") from exc
+        else:
+            if stat.S_ISLNK(details.st_mode):
+                raise UpstreamError(f"{label} contains a symlink path component: {current}")
+            if current != absolute and not stat.S_ISDIR(details.st_mode):
+                raise UpstreamError(f"{label} contains a non-directory ancestor: {current}")
+        if current == Path(current.anchor):
+            break
+        current = current.parent
+    return absolute
 
 
 def is_under(path: Path, root: Path) -> bool:
     try:
-        path.resolve().relative_to(root.resolve())
+        Path(os.path.abspath(path)).relative_to(Path(os.path.abspath(root)))
     except ValueError:
         return False
     return True
 
 
 def require_safe_build_write_target(path: Path) -> Path:
-    target = path.resolve()
+    target = require_no_symlink_ancestors(path, "BUILD_ROOT output")
     root = build_root()
+    require_no_symlink_ancestors(root, "BUILD_ROOT")
     if is_under(target, root):
         return target
     raise UpstreamError(f"refusing to write outside BUILD_ROOT ({root}): {target}")
 
 
 def require_safe_common_sh_update_target(path: Path) -> Path:
-    target = path.resolve()
-    canonical_common_sh = DEFAULT_COMMON_SH.resolve()
+    target = require_no_symlink_ancestors(path, "common.sh update target")
+    canonical_common_sh = require_no_symlink_ancestors(DEFAULT_COMMON_SH, "canonical common.sh")
     if target == canonical_common_sh:
         return target
     if target.name == canonical_common_sh.name:
@@ -1031,7 +1199,9 @@ def _canonical_registry_errors() -> list[str]:
         for name in definition.variables:
             owners.setdefault(name, []).append(definition.name)
     duplicate_owners = {
-        name: names for name, names in owners.items() if len(names) > 1
+        name: names
+        for name, names in owners.items()
+        if len(names) > 1 and name != "HAPROXY_RELEASE_ROOT_URL"
     }
     for name, names in sorted(duplicate_owners.items()):
         errors.append(f"duplicate registry ownership for {name}: {', '.join(names)}")
@@ -1045,6 +1215,9 @@ def _canonical_assignment_errors(
     expected = {
         name for definition in COMPONENT_DEFINITIONS for name in definition.variables
     }
+    dynamic_ci_names, ci_group_errors = canonical_ci_group_inventory(entries)
+    expected.update(dynamic_ci_names)
+    errors.extend(ci_group_errors)
 
     missing = sorted(name for name in expected if name not in entries)
     if missing:
@@ -1335,7 +1508,12 @@ def require_shell_safe_default(
             f"refusing unsafe shell default for {variable}: {new_default!r}"
         )
     if variable == "VERSION" or variable.endswith("_VERSION"):
-        if not SAFE_VERSION_RE.fullmatch(new_default):
+        tagged_version = (
+            isinstance(trusted_default, str)
+            and trusted_default.startswith("v")
+            and re.fullmatch(r"v\d+(?:\.\d+)+", new_default) is not None
+        )
+        if not SAFE_VERSION_RE.fullmatch(new_default) and not tagged_version:
             raise UpstreamError(
                 f"refusing invalid version for {variable}: {new_default!r}"
             )
@@ -1378,6 +1556,38 @@ def is_template_value(raw_default: str, variable: str) -> bool:
         f"${variable}" in raw_default
         or f"${{{variable}}}" in raw_default
         or f"${{{variable}#" in raw_default
+    )
+
+
+def default_transitively_depends_on(
+    entries: dict[str, VariableEntry],
+    variable: str,
+    dependency: str,
+    seen: set[str] | None = None,
+) -> bool:
+    """Return whether a canonical assignment will track another assignment."""
+
+    if variable == dependency:
+        return True
+    if seen is None:
+        seen = set()
+    if variable in seen:
+        return False
+    seen.add(variable)
+    current = entries.get(variable)
+    if current is None:
+        return False
+    references = set(BRACED_VAR_RE.findall(current.default))
+    references.update(PLAIN_VAR_RE.findall(current.default))
+    references.update(PARAM_EXPANSION_RE.findall(current.default))
+    references.update(PARAM_REMOVE_PREFIX_RE.findall(current.default))
+    names = {
+        reference[0] if isinstance(reference, tuple) else reference
+        for reference in references
+    }
+    return any(
+        default_transitively_depends_on(entries, name, dependency, seen)
+        for name in names
     )
 
 
@@ -1600,6 +1810,16 @@ class NoRedirectHandler(HTTPRedirectHandler):
         return None
 
 
+def json_accept_header(url: str) -> str:
+    """Use GitHub's media type only for GitHub's API endpoints."""
+
+    return (
+        "application/vnd.github+json"
+        if urlparse(url).hostname == "api.github.com"
+        else "application/json"
+    )
+
+
 class HttpClient:
     def __init__(self, timeout: float) -> None:
         self.timeout = timeout
@@ -1688,7 +1908,7 @@ class HttpClient:
     def get_json(self, url: str) -> dict[str, Any]:
         text = self._get_text(
             url,
-            accept="application/vnd.github+json",
+            accept=json_accept_header(url),
             allowed_content_types=frozenset({"application/json"}),
         )
         try:
@@ -1697,6 +1917,22 @@ class HttpClient:
             raise UpstreamError(f"{url}: invalid JSON") from exc
         if not isinstance(data, dict):
             raise UpstreamError(f"{url}: JSON response is not an object")
+        return data
+
+    def get_json_list(self, url: str) -> list[Any]:
+        """Read an official JSON array without weakening transport checks."""
+
+        text = self._get_text(
+            url,
+            accept=json_accept_header(url),
+            allowed_content_types=frozenset({"application/json"}),
+        )
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise UpstreamError(f"{url}: invalid JSON") from exc
+        if not isinstance(data, list):
+            raise UpstreamError(f"{url}: JSON response is not an array")
         return data
 
 
@@ -1827,9 +2063,9 @@ def collect_tarball_updates(
 ) -> list[UpdateChange]:
     updates: list[UpdateChange] = []
     append_planned_update(updates, entries, version_var, latest_version)
-    if not is_template_value(entries[source_url_var].default, version_var):
+    if not default_transitively_depends_on(entries, source_url_var, version_var):
         append_planned_update(updates, entries, source_url_var, latest_url)
-    if not is_template_value(entries[sha_url_var].default, source_url_var):
+    if not default_transitively_depends_on(entries, sha_url_var, source_url_var):
         append_planned_update(updates, entries, sha_url_var, latest_sha_url)
     del current_sha
     # A literal digest is the integrity identity of this group.  Do not permit
@@ -2054,12 +2290,7 @@ def haproxy_source_series(current_url: str, current_version: str) -> str | None:
 def check_haproxy(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
-    variables = [
-        "HAPROXY_VERSION",
-        "HAPROXY_SOURCE_URL",
-        "HAPROXY_SHA256_URL",
-        "HAPROXY_SHA256",
-    ]
+    variables = list(COMPONENT_DEFINITION_BY_NAME["HAProxy"].variables)
     missing_result = missing_variables_result("HAProxy", entries, variables)
     if missing_result is not None:
         return missing_result
@@ -2067,8 +2298,71 @@ def check_haproxy(
     current_url = value(entries, "HAPROXY_SOURCE_URL")
     configured_sha = value(entries, "HAPROXY_SHA256").lower()
     current_sha_url = value(entries, "HAPROXY_SHA256_URL")
-    series = haproxy_source_series(current_url, current_version)
-    if series is None:
+    series = value(entries, "HAPROXY_SERIES")
+    release_root = value(entries, "HAPROXY_RELEASE_ROOT_URL")
+    series_base = value(entries, "HAPROXY_SERIES_BASE_URL")
+    htx_series = value(entries, "HAPROXY_HTX_SERIES")
+    htx_series_base = value(entries, "HAPROXY_HTX_SERIES_BASE_URL")
+    htx_version = value(entries, "HAPROXY_HTX_VERSION")
+    htx_archive = value(entries, "HAPROXY_HTX_ARCHIVE_NAME")
+    htx_url = value(entries, "HAPROXY_HTX_SOURCE_URL")
+    if re.fullmatch(r"\d+\.\d+", series) is None or re.fullmatch(r"\d+\.\d+", htx_series) is None:
+        return ComponentResult(
+            component="HAProxy",
+            status=STATUS_BLOCKED,
+            message="HAProxy series pins must be numeric major.minor values.",
+            variables=variables,
+            current=current_version,
+        )
+    parsed_root = urlparse(release_root)
+    if (
+        parsed_root.scheme != "https"
+        or parsed_root.hostname != COMPONENT_DEFINITION_BY_NAME["HAProxy"].authorized_hosts[0]
+        or parsed_root.path != "/download"
+        or parsed_root.query
+        or parsed_root.fragment
+    ):
+        return ComponentResult(
+            component="HAProxy",
+            status=STATUS_UNKNOWN,
+            message="HAPROXY_RELEASE_ROOT_URL is not the authorized official root.",
+            variables=variables,
+            current=current_version,
+            source=release_root,
+        )
+    expected_base = f"{release_root}/{series}/src"
+    expected_htx_base = f"{release_root}/{htx_series}/src"
+    if series_base != expected_base or htx_series_base != expected_htx_base:
+        return ComponentResult(
+            component="HAProxy",
+            status=STATUS_UNKNOWN,
+            message="HAProxy series base URLs are not derived from their explicit series pins.",
+            variables=variables,
+            current=current_version,
+            details={
+                "expected_series_base_url": expected_base,
+                "expected_htx_series_base_url": expected_htx_base,
+            },
+        )
+    expected_htx_archive = f"haproxy-{htx_version}.tar.gz"
+    if htx_archive != expected_htx_archive or htx_url != f"{htx_series_base}/{htx_archive}":
+        return ComponentResult(
+            component="HAProxy",
+            status=STATUS_UNKNOWN,
+            message="HAProxy HTX source tuple is not bound to its independent series and asset.",
+            variables=variables,
+            current=current_version,
+            source=htx_url,
+        )
+    if version_tuple(current_version)[:2] != version_tuple(series) or version_tuple(htx_version)[:2] != version_tuple(htx_series):
+        return ComponentResult(
+            component="HAProxy",
+            status=STATUS_UNKNOWN,
+            message="HAProxy version pins are outside their explicitly configured series.",
+            variables=variables,
+            current=current_version,
+        )
+    if haproxy_source_series(current_url, current_version) != series:
         return ComponentResult(
             component="HAProxy",
             status=STATUS_UNKNOWN,
@@ -2076,9 +2370,7 @@ def check_haproxy(
             variables=variables,
             current=current_version,
             source=current_url,
-            details={
-                "reason": "source URL is not the expected official HAProxy tarball URL"
-            },
+            details={"reason": "source URL is not the expected official HAProxy tarball URL"},
         )
     if not configured_sha:
         return ComponentResult(
@@ -2098,6 +2390,16 @@ def check_haproxy(
             current=current_version,
             source=current_url,
         )
+    configured_htx_sha = value(entries, "HAPROXY_HTX_SHA256").lower()
+    if SHA256_VALUE_RE.fullmatch(configured_htx_sha) is None:
+        return ComponentResult(
+            component="HAProxy",
+            status=STATUS_BLOCKED,
+            message="HAPROXY_HTX_SHA256 must be a 64-character SHA-256 value.",
+            variables=variables,
+            current=current_version,
+            source=htx_url,
+        )
     expected_current_sha_url = current_url + SHA256_SUFFIX
     if current_sha_url != expected_current_sha_url:
         return ComponentResult(
@@ -2113,7 +2415,7 @@ def check_haproxy(
             },
         )
 
-    listing_url = f"https://www.haproxy.org/download/{series}/src/"
+    listing_url = f"{series_base}/"
     latest_upstream, latest_version = latest_versions_from_listing(
         client.get_text(listing_url),
         "haproxy",
@@ -2223,6 +2525,80 @@ def check_haproxy(
             "compatibility_review_required": latest_upstream != latest_version,
         },
     )
+
+
+def check_haproxy_htx(
+    entries: dict[str, VariableEntry], client: HttpClient
+) -> ComponentResult:
+    """Verify the HTX tarball as an independently owned canonical tuple."""
+
+    definition = COMPONENT_DEFINITION_BY_NAME["HAProxy HTX"]
+    missing = required_component_variables(definition, entries)
+    if missing is not None:
+        return missing
+    root = value(entries, "HAPROXY_RELEASE_ROOT_URL")
+    series = value(entries, "HAPROXY_HTX_SERIES")
+    base = value(entries, "HAPROXY_HTX_SERIES_BASE_URL")
+    version = value(entries, "HAPROXY_HTX_VERSION")
+    archive = value(entries, "HAPROXY_HTX_ARCHIVE_NAME")
+    source = value(entries, "HAPROXY_HTX_SOURCE_URL")
+    configured_sha = value(entries, "HAPROXY_HTX_SHA256").lower()
+    if re.fullmatch(r"\d+\.\d+", series) is None:
+        return ComponentResult(component=definition.name, status=STATUS_BLOCKED,
+                               message="HAProxy HTX series pin must be numeric major.minor.",
+                               variables=list(definition.variables), current=version)
+    if urlparse(root).path != "/download" or base != f"{root}/{series}/src":
+        return ComponentResult(component=definition.name, status=STATUS_UNKNOWN,
+                               message="HAProxy HTX URLs are not derived from the official root and series.",
+                               variables=list(definition.variables), current=version, source=source)
+    expected_archive = f"haproxy-{version}.tar.gz"
+    expected_source = f"{base}/{expected_archive}"
+    if archive != expected_archive or source != expected_source:
+        return ComponentResult(component=definition.name, status=STATUS_UNKNOWN,
+                               message="HAProxy HTX source tuple is not bound to its independent series and asset.",
+                               variables=list(definition.variables), current=version, source=source)
+    if version_tuple(version)[:2] != version_tuple(series) or SHA256_VALUE_RE.fullmatch(configured_sha) is None:
+        return ComponentResult(component=definition.name, status=STATUS_BLOCKED,
+                               message="HAProxy HTX version or checksum is invalid.",
+                               variables=list(definition.variables), current=version, source=source)
+    listing_url = f"{base}/"
+    latest_upstream, latest_version = latest_versions_from_listing(
+        client.get_text(listing_url), "haproxy", ".tar.gz", version,
+        restrict_to_current_series=True,
+    )
+    latest_asset = f"haproxy-{latest_version}.tar.gz"
+    latest_url = f"{base}/{latest_asset}"
+    latest_sha_url = latest_url + SHA256_SUFFIX
+    latest_sha = fetch_sha256(client, latest_sha_url, latest_asset)
+    comparison = compare_versions(version, latest_version)
+    if comparison > 0:
+        raise UpstreamUnknown("configured HAProxy HTX version is newer than the official series listing")
+    if comparison < 0:
+        updates = collect_tarball_updates(
+            entries, version_var="HAPROXY_HTX_VERSION",
+            source_url_var="HAPROXY_HTX_SOURCE_URL",
+            sha_var="HAPROXY_HTX_SHA256", sha_url_var="HAPROXY_HTX_SOURCE_URL",
+            current_sha=configured_sha, latest_version=latest_version,
+            latest_url=latest_url, latest_sha_url=latest_sha_url, latest_sha=latest_sha,
+        )
+        return ComponentResult(component=definition.name, status=STATUS_OUTDATED,
+                               message="A newer official HAProxy HTX tarball and checksum are available.",
+                               variables=list(definition.variables), current=version,
+                               latest=latest_version, latest_upstream=latest_upstream,
+                               latest_compatible=latest_version, source=listing_url,
+                               asset_name=latest_asset, official_sha256=latest_sha,
+                               sha256_source="official_asset_sha256_file", updates=updates)
+    official_sha = fetch_sha256(client, value(entries, "HAPROXY_HTX_SOURCE_URL") + SHA256_SUFFIX, archive)
+    if configured_sha != official_sha:
+        update = plan_update(entries, "HAPROXY_HTX_SHA256", official_sha)
+        return ComponentResult(component=definition.name, status=STATUS_OUTDATED,
+                               message="Configured HAProxy HTX checksum differs from the official checksum.",
+                               variables=list(definition.variables), current=version,
+                               latest=latest_version, official_sha256=official_sha,
+                               updates=[update] if update else [])
+    return ComponentResult(component=definition.name, status=STATUS_CURRENT,
+                           message="HAProxy HTX release and official checksum are current.",
+                           variables=list(definition.variables), current=version, latest=latest_version)
 
 
 def github_repo_path(repo_url: str) -> str | None:
@@ -2645,8 +3021,27 @@ def check_modsecurity_v3_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
     """Classify a valid ModSecurity-v3 tag/commit transition as manual only."""
+    base_definition = COMPONENT_DEFINITION_BY_NAME[MODSECURITY_V3_COMPONENT]
+    try:
+        definition = canonicalize_github_repository(base_definition, entries)
+    except UpstreamUnknown as exc:
+        return ComponentResult(
+            component=base_definition.name,
+            status=STATUS_UNKNOWN,
+            message=str(exc),
+            variables=list(base_definition.variables),
+        )
+    repository = cast(str, definition.github_repository)
+    if hashlib.sha256(repository.encode("ascii")).hexdigest() != MODSECURITY_V3_APPROVED_REPOSITORY_SHA256:
+        return ComponentResult(
+            component=base_definition.name,
+            status=STATUS_UNKNOWN,
+            message="ModSecurity v3 canonical repository identity is not approved.",
+            variables=list(base_definition.variables),
+            source=value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"),
+        )
     return check_manual_git_provenance(
-        COMPONENT_DEFINITION_BY_NAME[MODSECURITY_V3_COMPONENT], entries, client
+        definition, entries, client
     )
 
 
@@ -3337,13 +3732,6 @@ def check_pcre2(
     )
 
 
-def lighttpd_series_base_url(version: str) -> str:
-    parts = version_tuple(version)
-    if len(parts) < 2:
-        raise UpstreamUnknown("lighttpd version must contain a major/minor series")
-    return f"https://download.lighttpd.net/lighttpd/releases-{parts[0]}.{parts[1]}.x/"
-
-
 def latest_lighttpd_version(text: str) -> str:
     candidates = sorted(
         {
@@ -3374,14 +3762,61 @@ def check_lighttpd(
             variables=list(definition.variables),
             current=version,
         )
-    base = lighttpd_series_base_url(version)
+    series = value(entries, "LIGHTTPD_SERIES")
+    release_root = value(entries, "LIGHTTPD_RELEASE_ROOT_URL")
+    series_base = value(entries, "LIGHTTPD_SERIES_BASE_URL")
+    if re.fullmatch(r"\d+\.\d+", series) is None:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_BLOCKED,
+            message="LIGHTTPD_SERIES must be a numeric major.minor series.",
+            variables=list(definition.variables),
+            current=version,
+        )
+    parsed_root = urlparse(release_root)
+    if (
+        parsed_root.scheme != "https"
+        or parsed_root.hostname != definition.authorized_hosts[0]
+        or parsed_root.path != "/lighttpd"
+        or parsed_root.query
+        or parsed_root.fragment
+    ):
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message="LIGHTTPD_RELEASE_ROOT_URL is not the authorized official root.",
+            variables=list(definition.variables),
+            current=version,
+            source=release_root,
+        )
+    expected_series_base = f"{release_root}/releases-{series}.x"
+    if series_base != expected_series_base or "/../" in series_base or "//" in urlparse(series_base).path:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message="LIGHTTPD_SERIES_BASE_URL is malformed or contains a duplicate slash.",
+            variables=list(definition.variables),
+            current=version,
+            source=series_base,
+            details={"expected_series_base_url": expected_series_base},
+        )
+    if version_tuple(version)[:2] != version_tuple(series):
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message="LIGHTTPD_VERSION is outside the explicitly configured LIGHTTPD_SERIES.",
+            variables=list(definition.variables),
+            current=version,
+            source=series_base,
+        )
+    base = series_base
     asset = f"lighttpd-{version}.tar.xz"
     expected = {
-        "LIGHTTPD_SOURCE_URL": base,
-        "LIGHTTPD_RELEASE_INDEX_URL": base,
-        "LIGHTTPD_LATEST_URL": base + "latest.txt",
-        "LIGHTTPD_DOWNLOAD_URL": base + asset,
-        "LIGHTTPD_SHA256_URL": base + f"lighttpd-{version}.sha256sum",
+        "LIGHTTPD_SOURCE_URL": base + "/",
+        "LIGHTTPD_RELEASE_INDEX_URL": base + "/",
+        "LIGHTTPD_LATEST_URL": base + "/latest.txt",
+        "LIGHTTPD_DOWNLOAD_URL": base + "/" + asset,
+        "LIGHTTPD_SHA256_URL": base + f"/lighttpd-{version}.sha256sum",
     }
     mismatches = {
         variable: expected_value
@@ -3423,7 +3858,7 @@ def check_lighttpd(
             details={"compatibility_review_required": True},
         )
     latest_asset = f"lighttpd-{latest_version}.tar.xz"
-    latest_sha_url = base + f"lighttpd-{latest_version}.sha256sum"
+    latest_sha_url = base + f"/lighttpd-{latest_version}.sha256sum"
     latest_sha = fetch_sha256(client, latest_sha_url, latest_asset)
     comparison = compare_versions(version, latest_version)
     if comparison > 0:
@@ -3457,7 +3892,7 @@ def check_lighttpd(
             sha256_source="official_sha256sum_manifest",
             updates=updates,
             details={
-                "latest_download_url": base + latest_asset,
+                "latest_download_url": base + "/" + latest_asset,
                 "latest_sha256_url": latest_sha_url,
                 "official_sha256": latest_sha,
                 "atomic_expected_values": {
@@ -3584,6 +4019,36 @@ def decorate_component_result(
     )
 
 
+def unified_orchestrator_component(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+) -> ComponentResult:
+    """Keep global sources visible while delegating resolution to the shared plan."""
+
+    missing = [name for name in definition.variables if name not in entries]
+    if missing:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_BLOCKED,
+            message=(
+                "Unified canonical maintenance ownership is incomplete; missing: "
+                + ", ".join(missing)
+            ),
+            variables=list(definition.variables),
+            details={"owner": "ci/tools/canonical_maintenance.py"},
+        )
+    return ComponentResult(
+        component=definition.name,
+        status=STATUS_REVIEW_REQUIRED,
+        message=(
+            "This global source is resolved by the unified canonical maintenance "
+            "orchestrator; run resolve-canonical-maintenance.py."
+        ),
+        variables=list(definition.variables),
+        details={"owner": "ci/tools/canonical_maintenance.py"},
+    )
+
+
 def resolve_component_definition(
     definition: ComponentDefinition,
     entries: dict[str, VariableEntry],
@@ -3602,6 +4067,8 @@ def resolve_component_definition(
             list(definition.variables),
             definition.not_applicable_reason,
         )
+    if definition.resolver == "unified_orchestrator":
+        return unified_orchestrator_component(definition, entries)
     if definition.resolver == "apache_listing":
         return official_tarball_check(
             definition.name,
@@ -3625,6 +4092,8 @@ def resolve_component_definition(
         return check_lighttpd(entries, client)
     if definition.resolver == "haproxy_series":
         return check_haproxy(entries, client)
+    if definition.resolver == "haproxy_htx_series":
+        return check_haproxy_htx(entries, client)
     raise UpstreamError(f"unknown resolver strategy for {definition.name}: {definition.resolver}")
 
 
@@ -3636,10 +4105,14 @@ def check_all(
     """Check registry-selected component descriptors in deterministic order."""
 
     selected = set(component_names or ())
+    # The unified orchestrator resolves Go-FTW, Albedo, and CI pins before it
+    # delegates runtime/source descriptors here.  A selector for this low-level
+    # checker therefore remains scoped to those runtime/source descriptors.
     definitions = [
         definition
         for definition in COMPONENT_DEFINITIONS
-        if not selected or definition.name in selected
+        if not selected
+        or definition.name in selected
     ]
     checks: list[ComponentResult] = []
     for definition in definitions:
@@ -4287,6 +4760,7 @@ def write_summary_files(summary: dict[str, Any], markdown: str) -> None:
     root = build_root()
     output_dir = root / "results" / "common-version-check"
     require_safe_build_write_target(output_dir)
+    require_no_symlink_ancestors(output_dir, "summary output directory")
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
@@ -4297,8 +4771,8 @@ def write_summary_files(summary: dict[str, Any], markdown: str) -> None:
 
 def common_path_from_args(path_text: str | None) -> Path:
     if path_text:
-        return Path(path_text).resolve()
-    return DEFAULT_COMMON_SH.resolve()
+        return require_no_symlink_ancestors(Path(path_text), "common.sh source")
+    return require_no_symlink_ancestors(DEFAULT_COMMON_SH, "canonical common.sh")
 
 
 def parse_arguments(argv: list[str] | None) -> argparse.Namespace:
@@ -4674,7 +5148,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
-    common_sh = common_path_from_args(args.common_sh)
+    try:
+        common_sh = common_path_from_args(args.common_sh)
+    except UpstreamError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     if args.validate_canonical:
         return _validate_canonical(args, common_sh)
     return _run_version_checks(args, common_sh, selected_components)

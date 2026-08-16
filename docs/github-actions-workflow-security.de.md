@@ -253,6 +253,29 @@ scope-anwendbare SonarQube-/Branch-Protection-Checks am tatsächlichen PR-Head
 beobachtet werden, bevor ein Mensch merged. Der Workflow selbst genehmigt,
 merged oder aktiviert niemals Auto-Merge.
 
+### Einheitlicher Scope der Common-Version-Wartung
+
+`ci/tools/resolve-canonical-maintenance.py` ist der einzige read-only
+Planungs-Entry-Point für geplante, `workflow_dispatch`-, vollständige und
+komponentenbezogene Läufe. Jeder Aufruf löst die obligatorischen globalen
+Scopes auf: go-ftw, Albedo, die kanonischen Python-/PyYAML-/Node-Pins, jede
+kanonische Workflow-Action und alle CI-Security-Tool-Pins. Eine
+`--component`-Angabe filtert ausschließlich zusätzliche Runtime-/Source-
+Datensätze; sie entfernt niemals einen obligatorischen globalen Check. Das
+Ergebnis ist ein deterministischer JSON-Plan mit typisierten sicheren Updates,
+Manual-Review-Einträgen, Quell-/Kandidaten-Hashes und dem Status generierter
+Views.
+
+Der Plan prüft Runtime-Manifest/-Lock, Python-, Workflow- und CRS-Views
+gemeinsam. Vor jedem Schreiben durch einen vertrauenswürdigen Publisher wird
+er erneut validiert. Manual-Review-Issues werden ausschließlich durch einen
+Default-Branch-Job mit eng begrenztem Issue-Schreibrecht und dem validierten
+Plan abgeglichen; Resolver- und Pull-Request-Jobs bleiben read-only. Der
+Publisher erstellt oder aktualisiert nur den festen Draft-PR und merged nie
+oder aktiviert Auto-Merge. Ein fehlendes globales Ergebnis, eine unvollständige
+CI-Pin-Gruppe, Drift generierter Views, ein fehlerhafter Review-Eintrag oder
+ein Hash-Mismatch führt fail-closed zum Abbruch.
+
 Für jeden `pull_request`-Workflow weist der Checker `pull_request_target`,
 Write-Berechtigungen, Referenzen `secrets.` und `secrets[...]`, Secret-
 Weitergabe an wiederverwendbare Workflows, direkte Checkouts ohne

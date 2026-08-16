@@ -19,6 +19,9 @@ from urllib.request import Request, urlopen
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from common_canonical_pins import load_canonical_ci_pins
+
 
 class ToolError(RuntimeError):
     """Raised when a tool record or its downloaded archive is unsafe."""
@@ -26,6 +29,7 @@ class ToolError(RuntimeError):
 
 TOOL_FIELDS = {
     "name",
+    "repository",
     "version",
     "immutable_commit",
     "upstream_release",
@@ -151,11 +155,22 @@ def _tool_record(tools: dict[str, Any], tool: str) -> dict[str, Any]:
 def _validate_tool_identity(record: dict[str, Any], tool: str) -> None:
     missing = sorted(TOOL_FIELDS.difference(record))
     if missing:
+        identity_detail = (
+            " (including immutable repository identity)"
+            if "repository" in missing
+            else ""
+        )
         raise ToolError(
-            f"tool {tool!r} lacks required lock fields: {', '.join(missing)}"
+            f"tool {tool!r} lacks required lock fields{identity_detail}: "
+            + ", ".join(missing)
         )
     if record.get("name") != tool:
         raise ToolError(f"tool {tool!r} has a mismatched name field")
+    repository = record.get("repository")
+    if not isinstance(repository, str) or not re.fullmatch(
+        rf"{GITHUB_COMPONENT}/{GITHUB_COMPONENT}", repository
+    ):
+        raise ToolError(f"tool {tool!r} has no valid immutable repository identity")
     if not is_safe_path_component(str(record.get("asset", ""))):
         raise ToolError(f"tool {tool!r} has an unsafe release asset name")
     if not isinstance(record.get("sha256"), str) or len(record["sha256"]) != 64:
@@ -195,12 +210,36 @@ def _validate_release_asset_url(record: dict[str, Any], tool: str) -> None:
     if (
         not isinstance(version, str)
         or release_identity[2] != version
+        or record.get("repository")
+        != f"{release_identity[0]}/{release_identity[1]}"
         or asset_identity != release_identity
         or asset_match.group("asset") != record["asset"]
     ):
         raise ToolError(
             f"tool {tool!r} release asset provenance does not match its locked "
             "owner/repository/tag/version tuple"
+        )
+
+
+def _validate_canonical_provider(record: dict[str, Any], tool: str) -> None:
+    """Bind a fetched tool to the provider selected by canonical common.sh."""
+
+    try:
+        values = load_canonical_ci_pins(framework_root())
+    except (OSError, ValueError) as exc:
+        raise ToolError(f"cannot load canonical provider source: {exc}") from exc
+    providers: dict[str, str] = {}
+    for name, value in values.items():
+        if not name.endswith("_REPOSITORY") or not name.startswith("CI_SECURITY_TOOL_"):
+            continue
+        basename = value.rsplit("/", 1)[-1]
+        if basename in providers and providers[basename] != value:
+            raise ToolError(f"canonical security tool provider basename collision for {basename!r}")
+        providers[basename] = value
+    repository = record.get("repository")
+    if providers.get(tool) != repository:
+        raise ToolError(
+            f"tool {tool!r} provider does not match canonical source"
         )
 
 
@@ -248,6 +287,7 @@ def read_tool_record(lock_path: Path, tool: str) -> dict[str, Any]:
     record = _tool_record(_lock_tools(trusted_lock_path), tool)
     _validate_tool_identity(record, tool)
     _validate_release_asset_url(record, tool)
+    _validate_canonical_provider(record, tool)
     _validate_archive_layout(record, tool)
     return record
 

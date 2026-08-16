@@ -280,20 +280,22 @@ Gruppe erzeugt und nicht unabhängig ausgewählt.
 |---|---|---|
 | Envoy | automatic | Neuestes GitHub-Release `v<version>` ohne Draft und Prerelease; Linux-Asset und Release-Digest oder offizielles Checksum-Manifest. |
 | Traefik | automatic | Neuestes GitHub-Release `v<version>` ohne Draft und Prerelease; Linux-Archiv und GitHub-Release-Digest oder offizielles Checksum-Manifest. |
-| lighttpd | automatic | Neueste stabile numerische Version aus dem offiziellen `releases-1.4.x/latest.txt`; offizielles Archiv und SHA-256-Manifest, auf diese konfigurierte Linie begrenzt. |
+| lighttpd | automatic | Neueste stabile numerische Version aus dem offiziellen `releases-1.4.x/latest.txt`; die explizite `LIGHTTPD_SERIES` sowie Release-Root und Serien-Basis-URL werden gemeinsam mit Archiv und SHA-256-Manifest geprüft. |
 | Apache httpd | automatic | Neueste numerische Version in der offiziellen Apache-Liste, auf die dokumentierte aktuelle Major/Minor-Serie begrenzt; offizielle SHA-256-Datei pro Asset. |
 | APR | automatic | Neueste numerische Version in der offiziellen Apache-Liste, auf die dokumentierte aktuelle Major/Minor-Serie begrenzt; offizielle SHA-256-Datei pro Asset. |
 | APR-util | automatic | Neueste numerische Version in der offiziellen Apache-Liste, auf die dokumentierte aktuelle Major/Minor-Serie begrenzt; offizielle SHA-256-Datei pro Asset. |
 | PCRE2 | automatic | Neuestes GitHub-Release `pcre2-<version>` ohne Draft und Prerelease; Digest des Release-Assets. |
 | NGINX | automatic | Neuestes GitHub-Release `release-<version>` ohne Draft und Prerelease; Digest des Release-Assets und passendes Release-Tag/Ref/Asset-Tupel. |
 | OpenSSL for NGINX QUIC/TLS | automatic | Neuestes GitHub-Release `openssl-<version>` ohne Draft und Prerelease; Digest des Release-Assets. |
-| HAProxy | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis, auf die dokumentierte aktuelle Major/Minor-Serie begrenzt; offizielle SHA-256-Datei pro Asset. |
+| HAProxy | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis, durch das explizite `HAPROXY_SERIES`- und Release-Root/Basis-URL-Tupel begrenzt; offizielle SHA-256-Datei pro Asset. |
+| HAProxy HTX | automatic | Die HTX-Kompatibilitätslinie wird als eigenes explizites Serien-/Root-/Basis-URL-Tupel aufgelöst; sie wird nie aus dem normalen HAProxy-Ergebnis abgeleitet. |
 | OWASP Core Rule Set | manual_review | Neuestes stabiles GitHub-Release und dessen unveränderlicher aufgelöster Git-Tag-Commit werden zur Prüfung gemeldet; der geprüfte Tag/Commit-Pin wird nicht automatisch geändert. |
 | ModSecurity v3 | manual_review | Neuestes stabiles GitHub-Release `v3.<version>` und dessen unveränderlicher aufgelöster Git-Tag-Commit werden zur Prüfung gemeldet; der geprüfte Tag/Commit-Pin wird nicht automatisch geändert. |
 | ModSecurity Apache connector | not_applicable | Repository-lokale Connector-Quelle, solange sie nicht ausdrücklich konfiguriert wird; kein Common-Version-Abrufvertrag existiert. |
 | ModSecurity NGINX connector | not_applicable | Repository-lokale Connector-Quelle, solange sie nicht ausdrücklich konfiguriert wird; kein Common-Version-Abrufvertrag existiert. |
-| go-ftw | not_applicable | Von einem lokal geprüften ausführbaren Programm geliefert, kein Framework-Fetch-Vertrag. |
-| Albedo | not_applicable | Von einem lokal geprüften ausführbaren Programm geliefert, kein Framework-Fetch-Vertrag. |
+| go-ftw | automatic | Obligatorische globale GitHub-Release-/Tag-/unveränderliche-Commit-Provenance-Prüfung in jedem Wartungslauf. |
+| Albedo | automatic | Obligatorische globale GitHub-Release-/Tag-/unveränderliche-Commit-Provenance-Prüfung in jedem Wartungslauf. |
+| CI maintenance globals | automatic | Obligatorische globale Prüfung der kanonischen Python-/PyYAML-/Node-Pins, Workflow-Actions und CI-Security-Tools; Artefakte und generierte Views werden als ein Plan geprüft. |
 | Expat | not_applicable | Legacy-Metadaten haben keinen Framework-Source-Abrufverbraucher. |
 | Default branch | not_applicable | Lokaler Policy-Standard, keine Upstream-Release-Quelle. |
 
@@ -302,8 +304,12 @@ Update: Der Resolver meldet das neueste Release und beweist, dass Review-Pins
 unverändert bleiben, während unabhängige automatische Gruppen mit
 `--defer-reviewed-provenance` aktualisiert werden. `not_applicable` verhindert,
 dass ein künftiger lokaler Hinweis oder Connector-Standard unbemerkt zu einer
-Updater-Eingabe wird. `unknown`, `blocked` und `error` sind fail-closed und
-verhindern einen Update-Kandidaten.
+Updater-Eingabe wird. Der gemeinsame Wartungsorchestrator nimmt go-ftw, Albedo
+und alle CI-Wartungsglobals immer auf; `--component` filtert ausschließlich
+zusätzliche Runtime-/Source-Komponenten. Daher enthalten geplante, manuell
+gestartete, vollständige und komponentenbezogene Läufe dieselben obligatorischen
+globalen Ergebnisse in einem gemeinsamen Plan. `unknown`, `blocked` und
+`error` sind fail-closed und verhindern einen Update-Kandidaten.
 
 `--list-components` gibt die exakten auswählbaren Namen der Registry aus. Mit
 einer oder mehreren exakten Optionen `--component <name>` werden nur die
@@ -311,24 +317,29 @@ ausgewählten Datensätze aufgelöst; ein unbekannter Name wird abgewiesen.
 
 ```sh
 python3 ci/tools/check-common-versions.py --list-components
-python3 ci/tools/check-common-versions.py --check --json \
-  --component 'Envoy' --component 'HAProxy'
+python3 ci/tools/resolve-canonical-maintenance.py --check \
+  --component 'Envoy' --plan "$RUNNER_TEMP/common-version-maintenance.json"
 ```
 
-Ohne `--component` verarbeitet der Resolver jeden Registry-Datensatz in
-deterministischer Reihenfolge. `--check` berichtet nur; `--update` darf nur
-validierte automatische atomare Gruppen schreiben. `--write-files` schreibt
-zusätzlich JSON- und Markdown-Zusammenfassungen unter `BUILD_ROOT`; es ändert
-weder Auswahl noch Policy.
+Ohne `--component` verarbeitet der Orchestrator jeden Runtime-/Source-Datensatz
+in deterministischer Reihenfolge und ergänzt immer die obligatorischen globalen
+Scopes. Mit `--component` werden nur zusätzliche Runtime-/Source-Datensätze
+gefiltert; go-ftw, Albedo, Python, PyYAML, Node, Workflow-Actions und
+CI-Security-Tools bleiben im Plan. `--check` ist read-only. Ein Plan enthält
+typisierte sichere Updates, deterministische Manual-Review-Einträge, Quell-/
+Kandidaten-Hashes und den Status generierter Views. Nur ein separat
+autorisierter, SHA-256-gebundener Safe-Update-Plan darf angewendet werden.
 
-Der Workflow `Check common.sh versions` führt nach Zeitplan die vollständige
-Registry aus. Seine optionale `workflow_dispatch`-Eingabe `component` behält
-bei leerem Wert dieses Verhalten für alle Komponenten bei; ein nichtleerer Wert
-wird als genau eine Auswahl `--component` übergeben. Resolver- und
-Kandidatenjobs bleiben bezüglich des Checkouts read-only; der separat
-geschützte Publisher löst einen per SHA-256 gebundenen Kandidaten erneut auf
-und validiert ihn, bevor er seinen Draft Pull Request erstellen oder
-aktualisieren kann.
+Der Workflow `Check common.sh versions` ruft den gemeinsamen Orchestrator nach
+Zeitplan, bei `workflow_dispatch` sowie für vollständige und
+komponentenbezogene Läufe auf. Die Eingabe `component` filtert nur zusätzliche
+Runtime-/Source-Datensätze. Resolver- und Kandidatenjobs bleiben gegenüber dem
+Checkout read-only; der separat geschützte Publisher löst einen SHA-256-
+gebundenen Plan erneut auf und validiert ihn, bevor er seinen Draft Pull
+Request erstellen oder aktualisieren kann. Runtime-, Python-, Workflow- und
+CRS-Views werden im selben Plan geprüft. Manual-Review-Issues werden nur durch
+einen vertrauenswürdigen Default-Branch-Job aus dem typisierten Plan
+abgeglichen; Pull Requests erhalten keine Issue-Schreibrechte.
 
 ## Werkzeuge, Statuswerte und sensible Daten
 
@@ -362,9 +373,10 @@ statt eines Wertes verwenden.
 `CI_CANONICAL_PYTHON_VERSION`, `CI_CANONICAL_PYYAML_VERSION` und
 `CI_CANONICAL_PYYAML_SHA256` in `ci/lib/common.sh` sind die einzigen manuell
 gepflegten Werte für den CI-Interpreter und sein geprüftes PyYAML-Wheel. Die
-committeten Dateien `.python-version` und `requirements-ci.lock` sind
-generierte Ansichten. Mit
-`ci/tools/sync-canonical-python-pins.py --check` werden sie netzwerkfrei
+unterstützte Artefakt-/Plattform-Identität des Wheels gehört zum selben
+kanonischen Wartungsplan und darf nicht unabhängig driften. Die committeten
+Dateien `.python-version` und `requirements-ci.lock` sind generierte Ansichten.
+Mit `ci/tools/sync-canonical-python-pins.py --check` werden sie netzwerkfrei
 geprüft; `--write` aktualisiert sie atomar.
 
 ## Weitere dokumentierte Eingaben und Platzhalter

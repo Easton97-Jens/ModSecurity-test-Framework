@@ -58,6 +58,7 @@ GITHUB_USER_AGENT = "framework-workflow-tool-updater/1"
 RUNNER_TEMP_STRICT_CHILD_ERROR = "candidate path must be a strict child of RUNNER_TEMP"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 STABLE_RELEASE_TAG = r"v?[0-9]+(?:\.[0-9]+){1,3}"
 RELEASE_TAG = re.compile(rf"^{STABLE_RELEASE_TAG}$")
 ACTION_SERIES_TAG = re.compile(
@@ -222,7 +223,28 @@ def load_lock(root: Path) -> tuple[Path, dict[str, Any], str]:
         data.get("tools"), dict
     ):
         raise UpdateError("security tool lock must contain action and tool mappings")
+    validate_tool_lock_records(data)
     return lock_path, data, sha256_file(lock_path)
+
+
+def validate_tool_lock_records(lock: dict[str, Any]) -> None:
+    """Require every tool's explicit immutable provider identity to be coherent."""
+
+    tools = lock.get("tools")
+    if not isinstance(tools, dict):
+        raise UpdateError("security tool lock tools records are missing")
+    for name, record in sorted(tools.items()):
+        if not isinstance(name, str) or not isinstance(record, dict):
+            raise UpdateError("tool lock contains an invalid record")
+        repository = record.get("repository")
+        if not isinstance(repository, str) or REPOSITORY.fullmatch(repository) is None:
+            raise UpdateError(f"tool {name!r} has no valid immutable repository identity")
+        identity = release_identity(record, name)
+        if repository != identity.slug:
+            raise UpdateError(
+                f"tool {name!r} repository identity disagrees with upstream release"
+            )
+        validate_tool_baseline_provenance(record, identity, name)
 
 
 def workflow_source_paths(root: Path) -> list[Path]:
@@ -361,6 +383,38 @@ def require_canonical_action_lock(root: Path, lock: dict[str, Any]) -> None:
         if not repository or repository not in actions:
             raise UpdateError(
                 f"canonical action {name}={repository!r} is absent from the reviewed lock"
+            )
+    require_canonical_tool_lock(root, lock)
+
+
+def require_canonical_tool_lock(root: Path, lock: dict[str, Any]) -> None:
+    """Bind every canonical CI security tool to its immutable lock provider."""
+
+    values = load_canonical_ci_pins(root)
+    tools = lock.get("tools")
+    if not isinstance(tools, dict):
+        raise UpdateError("lock tools records are missing")
+    repositories: dict[str, str] = {}
+    for name, repository in sorted(values.items()):
+        match = re.fullmatch(r"CI_SECURITY_TOOL_(.+)_REPOSITORY", name)
+        if match is None:
+            continue
+        if not isinstance(repository, str) or REPOSITORY.fullmatch(repository) is None:
+            raise UpdateError(f"canonical tool repository {name} is malformed")
+        tool = repository.rsplit("/", 1)[-1]
+        previous = repositories.get(tool)
+        if previous is not None and previous != repository:
+            raise UpdateError(f"canonical tool repository basename collision for {tool!r}")
+        repositories[tool] = repository
+    if not repositories:
+        raise UpdateError("canonical security tool repositories are missing")
+    if set(repositories) != set(tools):
+        raise UpdateError("security tool lock records do not match canonical source")
+    for tool, repository in repositories.items():
+        record = tools.get(tool)
+        if not isinstance(record, dict) or record.get("repository") != repository:
+            raise UpdateError(
+                f"tool {tool!r} lock repository does not match canonical source"
             )
 
 

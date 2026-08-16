@@ -22,16 +22,20 @@ PIN_NAMES = (
     "CI_CANONICAL_PYTHON_VERSION",
     "CI_CANONICAL_PYYAML_VERSION",
     "CI_CANONICAL_PYYAML_SHA256",
+    "CI_CANONICAL_PYYAML_ARTIFACT",
+    "CI_CANONICAL_PYYAML_PLATFORM",
 )
 TOOL_ROOT = Path(__file__).resolve().parents[2]
 GENERATED_VIEW_LABEL = "generated view"
 ASSIGNMENT = re.compile(
-    r"^\s*(?P<name>CI_CANONICAL_(?:PYTHON_VERSION|PYYAML_VERSION|PYYAML_SHA256))"
+    r"^\s*(?P<name>CI_CANONICAL_(?:PYTHON_VERSION|PYYAML_VERSION|PYYAML_SHA256|PYYAML_ARTIFACT|PYYAML_PLATFORM))"
     r"\s*=\s*(?:\"(?P<double>[^\"\n]*)\"|'(?P<single>[^'\n]*)'|"
     r"(?P<bare>[^\s#]+))\s*(?:#.*)?$"
 )
 VERSION = re.compile(r"\A\d+\.\d+\.\d+\Z", flags=re.ASCII)
 SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
+ARTIFACT = re.compile(r"\Apyyaml-\d+\.\d+\.\d+-[A-Za-z0-9_.-]+\.whl\Z")
+PLATFORM = re.compile(r"\A[A-Za-z0-9_.-]+(?:\.[A-Za-z0-9_.-]+)*\Z")
 PYTHON_VIEW = re.compile(r"\A(?P<value>\d+\.\d+\.\d+)\n\Z", flags=re.ASCII)
 PYAML_VERSION_LINE = re.compile(
     r"\A(?P<prefix>\s*PyYAML==)(?P<value>[^\s\\]+)(?P<suffix>\s*\\\n)\Z"
@@ -153,6 +157,13 @@ def canonical_values(common: Path, root: Path) -> dict[str, str]:
         raise PinError(
             f"{common}: CI_CANONICAL_PYYAML_SHA256 must be 64 lowercase hex characters"
         )
+    if not ARTIFACT.fullmatch(values[PIN_NAMES[3]]):
+        raise PinError(f"{common}: CI_CANONICAL_PYYAML_ARTIFACT is malformed")
+    if not PLATFORM.fullmatch(values[PIN_NAMES[4]]):
+        raise PinError(f"{common}: CI_CANONICAL_PYYAML_PLATFORM is malformed")
+    expected_platform = values[PIN_NAMES[3]].removesuffix(".whl").split("-", 4)[-1]
+    if values[PIN_NAMES[4]] != expected_platform:
+        raise PinError(f"{common}: PyYAML artifact/platform provenance does not match")
     return values
 
 
@@ -170,6 +181,16 @@ def expected_views(root: Path, values: dict[str, str]) -> dict[Path, bytes]:
         )
     requirements = read_utf8(requirements_path, root, requirements_label)
     lines = requirements.splitlines(keepends=True)
+    lines = [
+        line for line in lines
+        if not line.startswith(("# PyYAML artifact:", "# PyYAML platform:"))
+    ]
+    provenance = (
+        "# PyYAML artifact: " + values["CI_CANONICAL_PYYAML_ARTIFACT"] + "\n"
+        "# PyYAML platform: " + values["CI_CANONICAL_PYYAML_PLATFORM"] + "\n"
+    )
+    if lines and lines[0].startswith("# generated view;"):
+        lines[1:1] = provenance.splitlines(keepends=True)
     version_indexes = [
         index for index, line in enumerate(lines) if PYAML_VERSION_LINE.fullmatch(line)
     ]

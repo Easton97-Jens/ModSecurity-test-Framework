@@ -88,6 +88,18 @@ class RuntimeComponentSyncTests(unittest.TestCase):
             self.assertEqual(manifest_bytes, manifest.read_bytes())
             self.assertEqual(lock_bytes, lock.read_bytes())
 
+    def test_nested_symlink_metadata_parent_is_rejected(self):
+        temporary, common, manifest, lock = self.fixture()
+        with temporary:
+            outside = Path(tempfile.mkdtemp())
+            outside_manifest = outside / "runtime-components.manifest.json"
+            shutil.copy2(manifest, outside_manifest)
+            manifest.unlink()
+            manifest.symlink_to(outside_manifest)
+            result = self.run_tool("--check", common=common, manifest=manifest, lock=lock)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("manifest", result.stderr)
+
     def test_common_pin_mutations_are_rejected(self):
         mutations = {
             'ENVOY_VERSION="1.39.0"': 'ENVOY_VERSION="1.39.1"',
@@ -103,6 +115,45 @@ class RuntimeComponentSyncTests(unittest.TestCase):
                     common.write_text(source.replace(needle, replacement, 1), encoding="utf-8")
                     result = self.run_tool("--check", common=common, manifest=manifest, lock=lock)
                     self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_explicit_release_series_and_derived_urls_are_projected(self):
+        result = self.run_tool("--check")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        lock = self.load(LOCK)
+        profiles = {item["id"]: item for item in lock["profiles"]}
+        self.assertEqual(profiles["haproxy-spoe-spop"]["series"], "3.2")
+        self.assertEqual(profiles["haproxy-htx"]["series"], "3.2")
+        self.assertEqual(profiles["lighttpd-sidecar"]["series"], "1.4")
+        lighttpd = next(item for item in self.load(MANIFEST)["components"] if item["name"] == "lighttpd")
+        self.assertEqual(lighttpd["release_root_url"], "https://download.lighttpd.net/lighttpd")
+        self.assertEqual(lighttpd["series_base_url"], "https://download.lighttpd.net/lighttpd/releases-1.4.x")
+        self.assertNotIn("//latest.txt", lighttpd["latest_url"])
+
+    def test_series_version_mismatch_and_malformed_series_are_rejected(self):
+        mutations = {
+            'LIGHTTPD_SERIES="1.4"': 'LIGHTTPD_SERIES="1.5"',
+            'HAPROXY_SERIES="3.2"': 'HAPROXY_SERIES="3.x"',
+            'HAPROXY_HTX_VERSION="3.2.21"': 'HAPROXY_HTX_VERSION="2.2.21"',
+        }
+        for needle, replacement in mutations.items():
+            with self.subTest(needle=needle):
+                temporary, common, manifest, lock = self.fixture()
+                with temporary:
+                    source = common.read_text(encoding="utf-8")
+                    self.assertIn(needle, source)
+                    common.write_text(source.replace(needle, replacement, 1), encoding="utf-8")
+                    result = self.run_tool("--check", common=common, manifest=manifest, lock=lock)
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_common_sh_series_guard_rejects_mutation_before_runtime_use(self):
+        command = (
+            f'. "{COMMON}"; '
+            'LIGHTTPD_VERSION=1.5.85; '
+            'ci_validate_runtime_series_config'
+        )
+        result = subprocess.run(["sh", "-c", command], cwd=ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+        self.assertIn("does not match declared series", result.stdout)
 
     def test_platforms_are_rendered_from_canonical_artifact_platform_variables(self):
         temporary, common, manifest, lock = self.fixture()
