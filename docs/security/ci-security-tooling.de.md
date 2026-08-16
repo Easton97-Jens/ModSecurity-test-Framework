@@ -143,6 +143,17 @@ Branch, Titel, Basis, Marker und Draft-Status besitzt und seine geänderten
 Tupel gegenüber der Lock-Identität des aktuellen Default-Branches verifiziert
 sind.
 
+Die obige Aussage ohne Token gilt für den eigenständigen Reader-Workflow
+`update-workflow-tools.yml`. Wenn sein Python-Helper vom kanonischen
+Maintenance-Pfad in `check-common-versions.yml` aufgerufen wird, darf das
+dort bereits Step-begrenzt gesetzte read-only-`GITHUB_TOKEN` ausschließlich
+für Requests an die exakte HTTPS-Autorität `api.github.com` verwendet werden.
+Release-, Download- und andere Host-Requests erhalten es nie; Redirects werden
+abgewiesen, bevor ein Credential Autoritäten überschreiten kann, und das Token
+wird nie in Plänen, Zusammenfassungen oder Diagnosen ausgegeben. Die
+Workflow-Berechtigungen und die bestehende repositorybegrenzte
+Publisher-App-Token-Grenze ändern sich dadurch nicht.
+
 `update-submodules.yml` bleibt bewusst vom Lock-/Tool-Updater getrennt: Es
 aktualisiert nur den Framework-eigenen `tools/MRTS`-Gitlink, niemals MRTS-
 Inhalt. Es akzeptiert nur eine volle SHA vom benannten MRTS-`main`-Branch,
