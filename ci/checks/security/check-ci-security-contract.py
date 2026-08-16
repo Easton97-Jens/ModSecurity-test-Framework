@@ -3410,10 +3410,14 @@ def _common_version_resolver_dependency_errors(
             if not isinstance(step, dict) or "run" not in step:
                 continue
             step_name = step.get("name")
-            key = (name, step_name) if isinstance(step_name, str) else None
-            expected = (
-                COMMON_VERSION_REVIEWED_RUN_SHA256.get(key) if key is not None else None
-            )
+            if not isinstance(step_name, str):
+                errors.append(
+                    f"{path}: {name} run step {step_name!r} must match the reviewed "
+                    "hash-locked common-version profile"
+                )
+                continue
+            key: tuple[str, str] = (name, step_name)
+            expected = COMMON_VERSION_REVIEWED_RUN_SHA256.get(key)
             run = step.get("run")
             if (
                 expected is None
