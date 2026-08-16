@@ -9,7 +9,7 @@
 | Change-ID | `20260816-02-unify-framework-maintenance-orchestrator` |
 | UTC-Datum | `2026-08-16` |
 | Framework-Basisrevision | `bd0dbdbd0a28e0705c123963209d6e5e410bacad` |
-| Issue oder Pull Request | Aufgabenbezogener Framework-Draft-PR; die Remote-Referenz wird nach dem Push eingetragen. Kein Merge und kein Master-Schreiben ist durch diesen Record autorisiert. |
+| Issue oder Pull Request | Aufgabenbezogener [Framework-Draft-PR #83](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/83). Kein Merge und kein Master-Schreiben ist durch diesen Record autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -82,12 +82,14 @@ von Resolver- oder Pull-Request-Jobs.
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder freigegebener Evidenzpfad |
 | --- | --- | --- | --- |
-| `python -m unittest -v` (11 vereinigte Maintenance-, Pin-, Resolver-, Reconciler- und Fetcher-Module) | `0` | 116 Tests bestanden. | Hash-gesperrte Task-virtuelle Umgebung |
+| `python -m unittest -v` (11 vereinigte Maintenance-, Pin-, Resolver-, Reconciler- und Fetcher-Module) | `0` | 119 Tests bestanden. | Hash-gesperrte Task-virtuelle Umgebung |
 | `python -m unittest -v tests.ci_security.test_ci_security_contract tests.ci_security.test_framework_ci_security_contract` | `0` | 50 CI-Sicherheitsvertrags-Tests bestanden. | Hash-gesperrte Task-virtuelle Umgebung |
-| `python -m unittest -v` (sieben Runtime-/Komponenten-Provenance-, Sync-, Lock-, Download- und Traefik-Module) | `0` | 84 Regressionstests bestanden. | Hash-gesperrte Task-virtuelle Umgebung |
-| `python -m unittest` (sechs historische Provenance-Module, einschließlich ModSecurity v3 und Sonar-Verträgen) | `0` | 107 Tests bestanden; einer wurde absichtlich übersprungen. | Hash-gesperrte Task-virtuelle Umgebung |
+| `python -m unittest -v` (sieben Runtime-/Komponenten-Provenance-, Sync-, Lock-, Download- und Traefik-Module) | `0` | 88 Regressionstests bestanden. | Hash-gesperrte Task-virtuelle Umgebung |
+| `python -m unittest` (sechs historische Provenance-Module, einschließlich ModSecurity v3 und Sonar-Verträgen) | `0` | 108 Tests bestanden; einer wurde absichtlich übersprungen. | Hash-gesperrte Task-virtuelle Umgebung |
 | `ci/tools/check-common-versions.py --validate-canonical`, `sync-runtime-components.py --check`, kanonische Python-/Workflow-Pin-Prüfungen und CI-Sicherheitsvertragsprüfung | `0` | Kanonische Eingaben, generierte Views, Runtime-Inventar und CI-Vertrag bestanden. | Hash-gesperrte Task-virtuelle Umgebung |
 | Prüfungen für Dokumentationslinks, Variablen, Workflow-YAML und Change Records | `0` | Alle geprüften Dokumentationsverträge bestanden. | Hash-gesperrte Task-virtuelle Umgebung |
+| Checksum-gesperrtes `actionlint` mit `shellcheck` sowie `zizmor --offline .github` | `0` | Actionlint bestand; Zizmor meldete keine Befunde (41 dokumentierte Suppressions). | Task-Evidenzverzeichnis |
+| Checksum-gesperrtes `ruff check` und `ruff format --check` für die CI-Security-Quality-Zielmenge | `0` | Lint und Formatierung bestanden nach der mechanischen Nachbesserung. | Task-Evidenzverzeichnis |
 | `git diff --check` und `bash -n ci/lib/common.sh` | `0` | Whitespace und Shell-Syntax bestanden. | Task-Worktree |
 
 ## Sicherheitsauswirkung
@@ -105,6 +107,13 @@ kanonisiert und muss zu einem unveränderlichen Digest-Anchor der festen
 offiziellen Identität passen. Die Kontrollen foreign-repository/no-network und
 malformed-anchor bestehen lokal.
 
+Die Nachbesserung begrenzt die kanonische Python-Plattformvalidierung,
+beschränkt `--common-sh`-, Review-Plan- und Runtime-Root-Lesezugriffe auf ihre
+zugelassenen Vertrauensgrenzen und verlangt vor Requests exakt die offizielle
+HTTPS-HAProxy-Source-Root. Ein unabhängiger Review fand in diesem Delta kein
+verbleibendes High-, Critical- oder Medium-Issue; exakte Hosted-Head-Evidenz
+bleibt erforderlich.
+
 ## Dokumentation und Runtime-Evidenz
 
 Die englischen und deutschen Referenzseiten und Workflow-Security-Leitfäden
@@ -116,8 +125,15 @@ begrenzt und wird lokal bewusst nicht ausgeführt.
 
 ## Nicht ausgeführte Prüfungen
 
-- Hosted-GitHub-Actions- und SonarQube-Cloud-Prüfungen benötigen den exakten
-  Draft-PR-Head und wurden noch nicht ausgeführt.
+- Der ursprüngliche Draft-PR-Head
+  `387722449e3b95dd81b11cad5cd4a665a7d6971b` führte Hosted-Prüfungen aus und
+  qualifizierte nicht: actionlint, zizmor, Immutable-Action- und Ruff-Checks
+  schlugen fehl, und SonarQube Cloud meldete Quality Gate `ERROR` mit 68 New
+  Issues. Diese Ergebnisse werden als Remediation-Evidenz aufbewahrt und nicht
+  für den Nachbesserungs-Head wiederverwendet.
+- Der Nachbesserungs-Head nach diesem Record benötigt eigene GitHub-Actions-
+  und SonarQube-Cloud-Prüfungen für exakt diesen Head, bevor der PR als
+  verifiziert gelten kann.
 - Ein lokaler read-only Vollplan kann derzeit nicht dieselbe GitHub-API-
   Evidenz erbringen, da nicht authentifizierte API-Anfragen rate-limited waren;
   der Workflow übergibt seinen minimal berechtigten `github.token` nur an vier
@@ -129,18 +145,19 @@ begrenzt und wird lokal bewusst nicht ausgeführt.
 
 Hosted-App-Token, Default-Branch-Schutz, GitHub-API-Verhalten und SonarQube-
 Cloud-Analyse benötigen weiterhin den vertrauenswürdigen CI-Lauf für den
-exakten Head und menschliche Review. Diese Kontrollen werden lokal weder
-abgeschwächt noch simuliert.
+exakten Nachbesserungs-Head und menschliche Review. Diese Kontrollen werden
+lokal weder abgeschwächt noch simuliert.
 
 ## Finaler Diff- und Review-Status
 
-Der finale Task-Diff umfasst den gemeinsamen Maintenance-Workflow,
+Der Nachbesserungs-Task-Diff umfasst den gemeinsamen Maintenance-Workflow,
 kanonische Pin-Autorität und generierte Views, Runtime-Serienprojektionen,
 Sicherheitsverträge, Regressionstests, gepaarte Dokumentation und diesen
-Change Record. Lokale Whitespace-, Link-, Bilingual-, Change-Record-, Runtime-
-und Sicherheitsvertragsprüfungen bestanden. Ein unabhängiger finaler
-Security-Diff-Review fand kein berichtspflichtiges High-, Critical- oder
-Medium-Issue nach der Remediation. Die historische Provenance-Suite bestand
-mit 107 Tests (einer absichtlich übersprungen), einschließlich der
-ModSecurity-v3-Regression foreign-repository/no-network. Credentials, Tokens,
-Rohlogs und sensible Payloads sind nicht enthalten.
+Change Record. Lokale Whitespace-, Link-, Bilingual-, Change-Record-, Runtime-,
+CI-Sicherheitsvertrags-, Actionlint-, Zizmor- und Ruff-Prüfungen bestehen nach
+der Remediation. Ein unabhängiger Security-Diff-Review fand kein
+berichtspflichtiges High-, Critical- oder Medium-Issue. Die historische
+Provenance-Suite bestand mit 108 Tests (einer absichtlich übersprungen),
+einschließlich der ModSecurity-v3-Regression foreign-repository/no-network.
+Credentials, Tokens, Rohlogs und sensible Payloads sind nicht enthalten; die
+Hosted-Verifikation des exakten Nachbesserungs-Heads steht noch aus.

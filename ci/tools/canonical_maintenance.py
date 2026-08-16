@@ -34,6 +34,10 @@ ACTION_GROUP_RE = re.compile(
     r"^CI_ACTION_(?P<suffix>[A-Z0-9_]+)_(?P<field>REPOSITORY|VERSION|COMMIT)$",
     re.ASCII,
 )
+SIMPLE_REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", re.ASCII)
+CANONICAL_VARIABLE_RE = re.compile(r"[A-Z][A-Z0-9_]{0,127}", re.ASCII)
+NODE_COMPONENT_NAME = "Node.js"
+CANONICAL_CI_COVERAGE_NAME = "Canonical CI pin coverage"
 TOOL_GROUP_RE = re.compile(
     r"^CI_SECURITY_TOOL_(?P<suffix>[A-Z0-9_]+)_"
     r"(?P<field>REPOSITORY|VERSION|COMMIT|ASSET_NAME|SHA256)$",
@@ -56,6 +60,12 @@ REVIEW_KINDS = frozenset(
 PYTHON_RELEASES_URL = "https://www.python.org/api/v2/downloads/release/"
 PYPI_PYYAML_URL = "https://pypi.org/pypi/PyYAML/json"
 NODE_INDEX_URL = "https://nodejs.org/dist/index.json"
+PYTHON_VERSION_PATH = ".python-version"
+CI_REQUIREMENTS_PATH = "requirements-ci.lock"
+RUNTIME_MANIFEST_PATH = "ci/provisioning/runtime-components.manifest.json"
+RUNTIME_LOCK_PATH = "ci/provisioning/runtime-component-lock.json"
+SECURITY_TOOLS_LOCK_PATH = "ci/tooling/security-tools.lock.yml"
+COMMON_SH_PATH = "ci/lib/common.sh"
 
 MANDATORY_GLOBAL_SCOPES = (
     "go-ftw",
@@ -67,22 +77,22 @@ MANDATORY_GLOBAL_SCOPES = (
     "ci-security-tools",
 )
 GENERATED_VIEW_PATHS = (
-    ".python-version",
-    "requirements-ci.lock",
-    "ci/provisioning/runtime-components.manifest.json",
-    "ci/provisioning/runtime-component-lock.json",
-    "ci/tooling/security-tools.lock.yml",
+    PYTHON_VERSION_PATH,
+    CI_REQUIREMENTS_PATH,
+    RUNTIME_MANIFEST_PATH,
+    RUNTIME_LOCK_PATH,
+    SECURITY_TOOLS_LOCK_PATH,
     "docs/reference/variables.md",
     "docs/reference/variables.de.md",
 )
 ALLOWED_AUTOMATIC_PATHS = frozenset(
     {
-        "ci/lib/common.sh",
-        ".python-version",
-        "requirements-ci.lock",
-        "ci/tooling/security-tools.lock.yml",
-        "ci/provisioning/runtime-components.manifest.json",
-        "ci/provisioning/runtime-component-lock.json",
+        COMMON_SH_PATH,
+        PYTHON_VERSION_PATH,
+        CI_REQUIREMENTS_PATH,
+        SECURITY_TOOLS_LOCK_PATH,
+        RUNTIME_MANIFEST_PATH,
+        RUNTIME_LOCK_PATH,
         "docs/reference/variables.md",
         "docs/reference/variables.de.md",
         "docs/github-actions-workflow-security.md",
@@ -151,44 +161,74 @@ def _require_real_directory_chain(path: Path, *, label: str) -> Path:
 
     candidate = Path(os.path.abspath(path))
     current = Path(candidate.anchor)
-    try:
-        root_details = current.lstat()
-    except OSError as exc:
-        raise MaintenanceError(f"{label} root is unavailable") from exc
-    if stat.S_ISLNK(root_details.st_mode) or not stat.S_ISDIR(root_details.st_mode):
-        raise MaintenanceError(f"{label} root must be a real directory")
+    _validate_directory_part(
+        current, label=f"{label} root", missing_message="unavailable"
+    )
     for part in candidate.parts[1:]:
         current /= part
-        try:
-            details = current.lstat()
-        except OSError as exc:
-            raise MaintenanceError(f"{label} is unavailable: {candidate}") from exc
-        if stat.S_ISLNK(details.st_mode) or not stat.S_ISDIR(details.st_mode):
-            raise MaintenanceError(f"{label} must not contain a symlink or non-directory ancestor")
+        _validate_directory_part(
+            current,
+            label=label,
+            missing_message=f"unavailable: {candidate}",
+        )
     return candidate
+
+
+def _validate_directory_part(path: Path, *, label: str, missing_message: str) -> None:
+    try:
+        details = path.lstat()
+    except OSError as exc:
+        raise MaintenanceError(f"{label} {missing_message}") from exc
+    if stat.S_ISLNK(details.st_mode):
+        raise MaintenanceError(f"{label} must not contain a symlink")
+    if not stat.S_ISDIR(details.st_mode):
+        raise MaintenanceError(f"{label} must be a real directory")
+
+
+def _inspect_managed_part(
+    current: Path, relative: Path, *, final: bool, allow_missing: bool
+) -> bool:
+    try:
+        details = current.lstat()
+    except FileNotFoundError:
+        if final and allow_missing:
+            return True
+        raise MaintenanceError(f"managed maintenance path is unavailable: {relative}")
+    except OSError as exc:
+        raise MaintenanceError(
+            f"cannot inspect managed maintenance path: {relative}"
+        ) from exc
+    if stat.S_ISLNK(details.st_mode):
+        raise MaintenanceError(
+            f"managed maintenance path must not traverse a symlink: {relative}"
+        )
+    if not final and not stat.S_ISDIR(details.st_mode):
+        raise MaintenanceError(
+            f"managed maintenance path has a non-directory ancestor: {relative}"
+        )
+    return False
 
 
 def _managed_path(root: Path, relative: Path, *, allow_missing: bool = False) -> Path:
     """Confine an approved relative path below a real, non-symlinked root."""
-
-    if relative.is_absolute() or not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
-        raise MaintenanceError("managed maintenance path must be a simple relative path")
+    if (
+        relative.is_absolute()
+        or not relative.parts
+        or any(part in {"", ".", ".."} for part in relative.parts)
+    ):
+        raise MaintenanceError(
+            "managed maintenance path must be a simple relative path"
+        )
     current = root
     for index, part in enumerate(relative.parts):
         current /= part
-        final = index == len(relative.parts) - 1
-        try:
-            details = current.lstat()
-        except FileNotFoundError:
-            if final and allow_missing:
-                return current
-            raise MaintenanceError(f"managed maintenance path is unavailable: {relative}")
-        except OSError as exc:
-            raise MaintenanceError(f"cannot inspect managed maintenance path: {relative}") from exc
-        if stat.S_ISLNK(details.st_mode):
-            raise MaintenanceError(f"managed maintenance path must not traverse a symlink: {relative}")
-        if not final and not stat.S_ISDIR(details.st_mode):
-            raise MaintenanceError(f"managed maintenance path has a non-directory ancestor: {relative}")
+        if _inspect_managed_part(
+            current,
+            relative,
+            final=index == len(relative.parts) - 1,
+            allow_missing=allow_missing,
+        ):
+            return current
     return current
 
 
@@ -261,9 +301,11 @@ def exact_https_github_repo(url: str) -> str:
         or parsed.query
         or parsed.fragment
     ):
-        raise MaintenanceError("component source must be an exact https://github.com owner/repository URL")
+        raise MaintenanceError(
+            "component source must be an exact https://github.com owner/repository URL"
+        )
     repository = parsed.path.strip("/").removesuffix(".git")
-    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository) is None:
+    if SIMPLE_REPOSITORY_RE.fullmatch(repository) is None:
         raise MaintenanceError("component source has an unsafe GitHub repository path")
     return repository
 
@@ -293,7 +335,9 @@ def _check_result(
     updates: Iterable[dict[str, str]] = (),
     details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    if component_id not in MANDATORY_GLOBAL_SCOPES and not COMPONENT_ID_RE.fullmatch(component_id):
+    if component_id not in MANDATORY_GLOBAL_SCOPES and not COMPONENT_ID_RE.fullmatch(
+        component_id
+    ):
         raise MaintenanceError(f"unsafe component id {component_id!r}")
     canonical_variables = list(variables)
     if not canonical_variables or not all(
@@ -354,7 +398,11 @@ def _review(
         raise MaintenanceError("review component id is unsafe")
     if review_kind not in REVIEW_KINDS:
         raise MaintenanceError(f"unsupported review kind: {review_kind}")
-    target = candidate_identity.get("series") or candidate_identity.get("version") or candidate_identity.get("tag")
+    target = (
+        candidate_identity.get("series")
+        or candidate_identity.get("version")
+        or candidate_identity.get("tag")
+    )
     if not isinstance(target, str) or not target:
         raise MaintenanceError("review candidate has no deterministic target identity")
     normalized_target = target.lower()
@@ -365,39 +413,9 @@ def _review(
     review_key = f"{component_id}:{review_kind}:{target_slug}"
     if REVIEW_KEY_RE.fullmatch(review_key) is None:
         raise MaintenanceError("review key is unsafe")
-    safe_urls = []
-    for url in evidence_urls:
-        parsed = urlparse(url)
-        if (
-            not isinstance(url, str)
-            or parsed.scheme != "https"
-            or not parsed.hostname
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.query
-            or parsed.fragment
-        ):
-            raise MaintenanceError("review evidence URL is unsafe")
-        safe_urls.append(url)
-    if not safe_urls or len(safe_urls) > MAX_URLS:
-        raise MaintenanceError("review needs a bounded official evidence URL set")
-    variable_list = list(variables)
-    if not variable_list or len(set(variable_list)) != len(variable_list) or not all(
-        isinstance(value, str) and re.fullmatch(r"[A-Z][A-Z0-9_]{0,127}", value)
-        for value in variable_list
-    ):
-        raise MaintenanceError("review variables are not a unique canonical variable set")
-    view_list = list(generated_views)
-    if not all(
-        isinstance(value, str)
-        and value
-        and len(value) <= 160
-        and not value.startswith(("/", "\\\\"))
-        and ".." not in value
-        and "\\" not in value
-        for value in view_list
-    ):
-        raise MaintenanceError("review generated views are unsafe")
+    safe_urls, variable_list, view_list = _review_lists(
+        evidence_urls, variables, generated_views
+    )
     return {
         "review_key": review_key,
         "component_id": component_id,
@@ -416,14 +434,65 @@ def _review(
     }
 
 
+def _review_lists(
+    evidence_urls: Iterable[str],
+    variables: Iterable[str],
+    generated_views: Iterable[str],
+) -> tuple[list[str], list[str], list[str]]:
+    safe_urls = []
+    for url in evidence_urls:
+        parsed = urlparse(url)
+        if (
+            not isinstance(url, str)
+            or parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise MaintenanceError("review evidence URL is unsafe")
+        safe_urls.append(url)
+    if not safe_urls or len(safe_urls) > MAX_URLS:
+        raise MaintenanceError("review needs a bounded official evidence URL set")
+    variable_list = list(variables)
+    if (
+        not variable_list
+        or len(set(variable_list)) != len(variable_list)
+        or not all(
+            isinstance(value, str) and CANONICAL_VARIABLE_RE.fullmatch(value)
+            for value in variable_list
+        )
+    ):
+        raise MaintenanceError(
+            "review variables are not a unique canonical variable set"
+        )
+    view_list = list(generated_views)
+    if not all(
+        isinstance(value, str)
+        and value
+        and len(value) <= 160
+        and not value.startswith(("/", "\\\\"))
+        and ".." not in value
+        and "\\" not in value
+        for value in view_list
+    ):
+        raise MaintenanceError("review generated views are unsafe")
+    return safe_urls, variable_list, view_list
+
+
 def _latest_versions(records: Iterable[str]) -> list[str]:
-    versions = sorted({value for value in records if VERSION_RE.fullmatch(value)}, key=version_tuple)
+    versions = sorted(
+        {value for value in records if VERSION_RE.fullmatch(value)}, key=version_tuple
+    )
     if not versions:
         raise MaintenanceError("official metadata contains no stable numeric releases")
     return versions
 
 
-def _github_stable_releases(checker: Any, client: JsonClient, repository: str) -> list[dict[str, Any]]:
+def _github_stable_releases(
+    checker: Any, client: JsonClient, repository: str
+) -> list[dict[str, Any]]:
     releases = client.get_json_list(
         f"https://api.github.com/repos/{repository}/releases?per_page=100"
     )
@@ -436,15 +505,156 @@ def _github_stable_releases(checker: Any, client: JsonClient, repository: str) -
             continue
         selected.append(release)
     if not selected:
-        raise checker.UpstreamUnknown("official GitHub release page has no stable numeric release")
+        raise checker.UpstreamUnknown(
+            "official GitHub release page has no stable numeric release"
+        )
     return selected
 
 
-def _github_release_for_tag(releases: Iterable[dict[str, Any]], tag: str) -> dict[str, Any]:
+def _github_release_for_tag(
+    releases: Iterable[dict[str, Any]], tag: str
+) -> dict[str, Any]:
     matches = [release for release in releases if release.get("tag_name") == tag]
     if len(matches) != 1:
-        raise MaintenanceError("official GitHub release listing is missing or duplicates its selected tag")
+        raise MaintenanceError(
+            "official GitHub release listing is missing or duplicates its selected tag"
+        )
     return matches[0]
+
+
+def _git_release_state(
+    checker: Any,
+    client: JsonClient,
+    entries: dict[str, Any],
+    *,
+    source_variable: str,
+    tag_variable: str,
+    ref_variable: str,
+    commit_variable: str,
+    aliases: Iterable[str],
+) -> tuple[str, str, str]:
+    repository = exact_https_github_repo(_entry_value(entries, source_variable))
+    current_tag = _entry_value(entries, tag_variable)
+    current_ref = _entry_value(entries, ref_variable)
+    current_commit = _entry_value(entries, commit_variable)
+    if VERSION_RE.fullmatch(current_tag) is None or current_ref != current_tag:
+        raise MaintenanceError(
+            "release tag and Git ref must be one stable canonical identity"
+        )
+    if SHA40_RE.fullmatch(current_commit) is None:
+        raise MaintenanceError(
+            "approved release commit must be a lowercase full commit SHA"
+        )
+    for alias in aliases:
+        if _entry_value(entries, alias) != current_tag:
+            raise MaintenanceError(
+                f"derived compatibility alias {alias} is not bound to the release tag"
+            )
+    if (
+        checker.resolve_github_peeled_commit(client, repository, current_tag)
+        != current_commit
+    ):
+        raise MaintenanceError(
+            "configured approved commit does not match the canonical release tag"
+        )
+    return repository, current_tag, current_commit
+
+
+def _git_release_versions(
+    checker: Any,
+    client: JsonClient,
+    repository: str,
+    current_tag: str,
+    automatic_policy: str,
+) -> tuple[str, str]:
+    releases = _github_stable_releases(checker, client, repository)
+    tags = _latest_versions(str(release["tag_name"]) for release in releases)
+    latest_upstream = tags[-1]
+    compatible = [
+        tag for tag in tags if same_policy_line(current_tag, tag, automatic_policy)
+    ]
+    if not compatible:
+        raise MaintenanceError("official release page lacks a compatible stable line")
+    latest_compatible = compatible[-1]
+    if compare_versions(current_tag, latest_upstream) > 0:
+        raise MaintenanceError(
+            "configured release tag is newer than the official release listing"
+        )
+    return latest_upstream, latest_compatible
+
+
+def _git_release_updates(
+    checker: Any,
+    client: JsonClient,
+    repository: str,
+    current_tag: str,
+    current_commit: str,
+    latest_compatible: str,
+    *,
+    tag_variable: str,
+    commit_variable: str,
+) -> list[dict[str, str]]:
+    if compare_versions(current_tag, latest_compatible) >= 0:
+        return []
+    candidate_commit = checker.resolve_github_peeled_commit(
+        client, repository, latest_compatible
+    )
+    return [
+        {"variable": tag_variable, "old": current_tag, "new": latest_compatible},
+        {"variable": commit_variable, "old": current_commit, "new": candidate_commit},
+    ]
+
+
+def _git_release_reviews(
+    checker: Any,
+    client: JsonClient,
+    repository: str,
+    current_tag: str,
+    current_commit: str,
+    latest_upstream: str,
+    latest_compatible: str,
+    *,
+    component_id: str,
+    component_name: str,
+    variables: Iterable[str],
+    automatic_updates: list[dict[str, str]],
+) -> list[dict[str, Any]]:
+    if latest_upstream == latest_compatible:
+        return []
+    candidate_commit = checker.resolve_github_peeled_commit(
+        client, repository, latest_upstream
+    )
+    current_series = ".".join(current_tag.removeprefix("v").split(".")[:2])
+    candidate_series = ".".join(latest_upstream.removeprefix("v").split(".")[:2])
+    return [
+        _review(
+            component_id=component_id,
+            component_name=component_name,
+            review_kind=(
+                "minor_version_transition"
+                if current_tag.removeprefix("v").startswith("0.")
+                else "major_version_transition"
+            ),
+            current_identity={
+                "tag": current_tag,
+                "commit": current_commit,
+                "series": current_series,
+            },
+            candidate_identity={
+                "tag": latest_upstream,
+                "commit": candidate_commit,
+                "series": candidate_series,
+            },
+            latest_compatible=latest_compatible,
+            latest_upstream=latest_upstream,
+            variables=variables,
+            reason_code="compatibility_line_transition",
+            reason="The latest stable upstream release is outside the declared automatic compatibility line.",
+            evidence_urls=[f"https://github.com/{repository}/releases/latest"],
+            generated_views=GENERATED_VIEW_PATHS,
+            automatic_update_also_available=bool(automatic_updates),
+        )
+    ]
 
 
 def resolve_git_release_component(
@@ -463,64 +673,43 @@ def resolve_git_release_component(
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     variables = [source_variable, tag_variable, ref_variable, commit_variable, *aliases]
     try:
-        repository = exact_https_github_repo(_entry_value(entries, source_variable))
-        current_tag = _entry_value(entries, tag_variable)
-        current_ref = _entry_value(entries, ref_variable)
-        current_commit = _entry_value(entries, commit_variable)
-        if VERSION_RE.fullmatch(current_tag) is None or current_ref != current_tag:
-            raise MaintenanceError("release tag and Git ref must be one stable canonical identity")
-        if SHA40_RE.fullmatch(current_commit) is None:
-            raise MaintenanceError("approved release commit must be a lowercase full commit SHA")
-        for alias in aliases:
-            if _entry_value(entries, alias) != current_tag:
-                raise MaintenanceError(f"derived compatibility alias {alias} is not bound to the release tag")
-        current_resolved = checker.resolve_github_peeled_commit(client, repository, current_tag)
-        if current_resolved != current_commit:
-            raise MaintenanceError("configured approved commit does not match the canonical release tag")
-        releases = _github_stable_releases(checker, client, repository)
-        tags = _latest_versions(str(release["tag_name"]) for release in releases)
-        latest_upstream = tags[-1]
-        compatible = [tag for tag in tags if same_policy_line(current_tag, tag, automatic_policy)]
-        if not compatible:
-            raise MaintenanceError("official release page lacks a compatible stable line")
-        latest_compatible = compatible[-1]
-        if compare_versions(current_tag, latest_upstream) > 0:
-            raise MaintenanceError("configured release tag is newer than the official release listing")
+        repository, current_tag, current_commit = _git_release_state(
+            checker,
+            client,
+            entries,
+            source_variable=source_variable,
+            tag_variable=tag_variable,
+            ref_variable=ref_variable,
+            commit_variable=commit_variable,
+            aliases=aliases,
+        )
+        latest_upstream, latest_compatible = _git_release_versions(
+            checker, client, repository, current_tag, automatic_policy
+        )
         source = f"https://github.com/{repository}/releases/latest"
-        safe_updates: list[dict[str, str]] = []
-        if compare_versions(current_tag, latest_compatible) < 0:
-            candidate_commit = checker.resolve_github_peeled_commit(client, repository, latest_compatible)
-            # The ref and compatibility aliases are derived from the one
-            # canonical tag.  Updating them directly would either create a
-            # second authority or attempt to rewrite a parser expression.
-            safe_updates.append(
-                {"variable": tag_variable, "old": current_tag, "new": latest_compatible}
-            )
-            safe_updates.append(
-                {"variable": commit_variable, "old": current_commit, "new": candidate_commit}
-            )
-        reviews: list[dict[str, Any]] = []
-        if latest_upstream != latest_compatible:
-            candidate_commit = checker.resolve_github_peeled_commit(client, repository, latest_upstream)
-            current_series = ".".join(current_tag.removeprefix("v").split(".")[:2])
-            candidate_series = ".".join(latest_upstream.removeprefix("v").split(".")[:2])
-            reviews.append(
-                _review(
-                    component_id=component_id,
-                    component_name=component_name,
-                    review_kind=("minor_version_transition" if current_tag.removeprefix("v").startswith("0.") else "major_version_transition"),
-                    current_identity={"tag": current_tag, "commit": current_commit, "series": current_series},
-                    candidate_identity={"tag": latest_upstream, "commit": candidate_commit, "series": candidate_series},
-                    latest_compatible=latest_compatible,
-                    latest_upstream=latest_upstream,
-                    variables=variables,
-                    reason_code="compatibility_line_transition",
-                    reason="The latest stable upstream release is outside the declared automatic compatibility line.",
-                    evidence_urls=[source],
-                    generated_views=GENERATED_VIEW_PATHS,
-                    automatic_update_also_available=bool(safe_updates),
-                )
-            )
+        safe_updates = _git_release_updates(
+            checker,
+            client,
+            repository,
+            current_tag,
+            current_commit,
+            latest_compatible,
+            tag_variable=tag_variable,
+            commit_variable=commit_variable,
+        )
+        reviews = _git_release_reviews(
+            checker,
+            client,
+            repository,
+            current_tag,
+            current_commit,
+            latest_upstream,
+            latest_compatible,
+            component_id=component_id,
+            component_name=component_name,
+            variables=variables,
+            automatic_updates=safe_updates,
+        )
         status = "outdated" if safe_updates else "current"
         return (
             _check_result(
@@ -528,7 +717,11 @@ def resolve_git_release_component(
                 component_name=component_name,
                 scope=component_id,
                 status=status,
-                message=("A fully verified compatible release update is available." if safe_updates else "Canonical release tag and immutable commit are current."),
+                message=(
+                    "A fully verified compatible release update is available."
+                    if safe_updates
+                    else "Canonical release tag and immutable commit are current."
+                ),
                 variables=variables,
                 current=current_tag,
                 latest_compatible=latest_compatible,
@@ -539,7 +732,12 @@ def resolve_git_release_component(
             ),
             reviews,
         )
-    except (MaintenanceError, checker.UpstreamError, checker.UpstreamBlocked, checker.UpstreamUnknown) as exc:
+    except (
+        MaintenanceError,
+        checker.UpstreamError,
+        checker.UpstreamBlocked,
+        checker.UpstreamUnknown,
+    ) as exc:
         return (
             _check_result(
                 component_id=component_id,
@@ -562,13 +760,18 @@ def _python_versions(payload: Iterable[dict[str, Any]]) -> list[str]:
         match = re.fullmatch(r"Python (\d+\.\d+\.\d+)", name)
         if match is None:
             continue
-        if record.get("is_published") is not True or record.get("pre_release") is not False:
+        if (
+            record.get("is_published") is not True
+            or record.get("pre_release") is not False
+        ):
             continue
         versions.append(match.group(1))
     return _latest_versions(versions)
 
 
-def resolve_python(entries: dict[str, Any], client: JsonClient) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def resolve_python(
+    entries: dict[str, Any], client: JsonClient
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     variables = ("CI_CANONICAL_PYTHON_VERSION",)
     try:
         current = _entry_value(entries, variables[0])
@@ -576,15 +779,23 @@ def resolve_python(entries: dict[str, Any], client: JsonClient) -> tuple[dict[st
             raise MaintenanceError("canonical Python version is malformed")
         versions = _python_versions(client.get_json_list(PYTHON_RELEASES_URL))
         latest_upstream = versions[-1]
-        compatible = [version for version in versions if same_policy_line(current, version, "patch_only")]
+        compatible = [
+            version
+            for version in versions
+            if same_policy_line(current, version, "patch_only")
+        ]
         if not compatible:
             raise MaintenanceError("Python metadata has no compatible patch release")
         latest_compatible = compatible[-1]
         if compare_versions(current, latest_upstream) > 0:
-            raise MaintenanceError("canonical Python version is newer than official metadata")
+            raise MaintenanceError(
+                "canonical Python version is newer than official metadata"
+            )
         updates = []
         if compare_versions(current, latest_compatible) < 0:
-            updates.append({"variable": variables[0], "old": current, "new": latest_compatible})
+            updates.append(
+                {"variable": variables[0], "old": current, "new": latest_compatible}
+            )
         reviews: list[dict[str, Any]] = []
         if latest_upstream != latest_compatible:
             reviews.append(
@@ -592,15 +803,21 @@ def resolve_python(entries: dict[str, Any], client: JsonClient) -> tuple[dict[st
                     component_id="python",
                     component_name="CPython",
                     review_kind="minor_version_transition",
-                    current_identity={"version": current, "series": ".".join(current.split(".")[:2])},
-                    candidate_identity={"version": latest_upstream, "series": ".".join(latest_upstream.split(".")[:2])},
+                    current_identity={
+                        "version": current,
+                        "series": ".".join(current.split(".")[:2]),
+                    },
+                    candidate_identity={
+                        "version": latest_upstream,
+                        "series": ".".join(latest_upstream.split(".")[:2]),
+                    },
                     latest_compatible=latest_compatible,
                     latest_upstream=latest_upstream,
                     variables=variables,
                     reason_code="python_runtime_line_transition",
                     reason="A newer stable CPython minor or major line requires CI compatibility review.",
                     evidence_urls=[PYTHON_RELEASES_URL],
-                    generated_views=(".python-version", "requirements-ci.lock"),
+                    generated_views=(PYTHON_VERSION_PATH, CI_REQUIREMENTS_PATH),
                     automatic_update_also_available=bool(updates),
                 )
             )
@@ -610,7 +827,9 @@ def resolve_python(entries: dict[str, Any], client: JsonClient) -> tuple[dict[st
                 component_name="CPython",
                 scope="python",
                 status="outdated" if updates else "current",
-                message="A compatible CPython patch update is available." if updates else "Canonical CPython release is current.",
+                message="A compatible CPython patch update is available."
+                if updates
+                else "Canonical CPython release is current.",
                 variables=variables,
                 current=current,
                 latest_compatible=latest_compatible,
@@ -622,20 +841,33 @@ def resolve_python(entries: dict[str, Any], client: JsonClient) -> tuple[dict[st
             reviews,
         )
     except Exception as exc:
-        return _check_result(component_id="python", component_name="CPython", scope="python", status="blocked", message=str(exc), variables=variables), []
+        return _check_result(
+            component_id="python",
+            component_name="CPython",
+            scope="python",
+            status="blocked",
+            message=str(exc),
+            variables=variables,
+        ), []
 
 
-def _pyyaml_release_records(payload: dict[str, Any], version: str) -> list[dict[str, Any]]:
+def _pyyaml_release_records(
+    payload: dict[str, Any], version: str
+) -> list[dict[str, Any]]:
     releases = payload.get("releases")
     if not isinstance(releases, dict):
         raise MaintenanceError("PyPI PyYAML metadata has no releases map")
     records = releases.get(version)
-    if not isinstance(records, list) or not all(isinstance(item, dict) for item in records):
+    if not isinstance(records, list) or not all(
+        isinstance(item, dict) for item in records
+    ):
         raise MaintenanceError("PyPI PyYAML release files are missing or malformed")
     return records
 
 
-def _pyyaml_wheel(records: Iterable[dict[str, Any]], version: str, python_version: str) -> tuple[str, str, str]:
+def _pyyaml_wheel(
+    records: Iterable[dict[str, Any]], version: str, python_version: str
+) -> tuple[str, str, str]:
     abi = "cp" + "".join(python_version.split(".")[:2])
     prefix = f"pyyaml-{version}-{abi}-{abi}-"
     matches = [
@@ -647,7 +879,9 @@ def _pyyaml_wheel(records: Iterable[dict[str, Any]], version: str, python_versio
         and "x86_64" in str(record["filename"])
     ]
     if len(matches) != 1:
-        raise MaintenanceError("PyYAML metadata must contain exactly one canonical CPython Linux wheel")
+        raise MaintenanceError(
+            "PyYAML metadata must contain exactly one canonical CPython Linux wheel"
+        )
     filename = str(matches[0]["filename"])
     digests = matches[0].get("digests")
     digest = digests.get("sha256") if isinstance(digests, dict) else None
@@ -659,7 +893,9 @@ def _pyyaml_wheel(records: Iterable[dict[str, Any]], version: str, python_versio
     return filename, digest, platform
 
 
-def resolve_pyyaml(entries: dict[str, Any], client: JsonClient) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def resolve_pyyaml(
+    entries: dict[str, Any], client: JsonClient
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     variables = [
         "CI_CANONICAL_PYYAML_VERSION",
         "CI_CANONICAL_PYYAML_ARTIFACT",
@@ -672,7 +908,10 @@ def resolve_pyyaml(entries: dict[str, Any], client: JsonClient) -> tuple[dict[st
         current_platform = _entry_value(entries, "CI_CANONICAL_PYYAML_PLATFORM")
         current_digest = _entry_value(entries, "CI_CANONICAL_PYYAML_SHA256")
         python_version = _entry_value(entries, "CI_CANONICAL_PYTHON_VERSION")
-        if VERSION_RE.fullmatch(current) is None or SHA256_RE.fullmatch(current_digest) is None:
+        if (
+            VERSION_RE.fullmatch(current) is None
+            or SHA256_RE.fullmatch(current_digest) is None
+        ):
             raise MaintenanceError("canonical PyYAML version or digest is malformed")
         payload = client.get_json(PYPI_PYYAML_URL)
         releases = payload.get("releases")
@@ -680,28 +919,59 @@ def resolve_pyyaml(entries: dict[str, Any], client: JsonClient) -> tuple[dict[st
             raise MaintenanceError("PyPI PyYAML metadata has no releases map")
         versions = _latest_versions(str(version) for version in releases)
         latest_upstream = versions[-1]
-        compatible = [version for version in versions if same_policy_line(current, version, "same_major")]
+        compatible = [
+            version
+            for version in versions
+            if same_policy_line(current, version, "same_major")
+        ]
         if not compatible:
             raise MaintenanceError("PyPI has no compatible PyYAML major line")
         latest_compatible = compatible[-1]
-        current_wheel, official_current_digest, official_current_platform = _pyyaml_wheel(
-            _pyyaml_release_records(payload, current), current, python_version
+        current_wheel, official_current_digest, official_current_platform = (
+            _pyyaml_wheel(
+                _pyyaml_release_records(payload, current), current, python_version
+            )
         )
         if current_digest != official_current_digest:
-            raise MaintenanceError("configured PyYAML digest differs from the official canonical wheel")
-        if current_artifact != current_wheel or current_platform != official_current_platform:
-            raise MaintenanceError("configured PyYAML wheel is not bound to the selected Python ABI/platform")
+            raise MaintenanceError(
+                "configured PyYAML digest differs from the official canonical wheel"
+            )
+        if (
+            current_artifact != current_wheel
+            or current_platform != official_current_platform
+        ):
+            raise MaintenanceError(
+                "configured PyYAML wheel is not bound to the selected Python ABI/platform"
+            )
         updates: list[dict[str, str]] = []
         if compare_versions(current, latest_compatible) < 0:
             candidate_wheel, candidate_digest, candidate_platform = _pyyaml_wheel(
-                _pyyaml_release_records(payload, latest_compatible), latest_compatible, python_version
+                _pyyaml_release_records(payload, latest_compatible),
+                latest_compatible,
+                python_version,
             )
             updates.extend(
                 (
-                    {"variable": "CI_CANONICAL_PYYAML_VERSION", "old": current, "new": latest_compatible},
-                    {"variable": "CI_CANONICAL_PYYAML_ARTIFACT", "old": current_artifact, "new": candidate_wheel},
-                    {"variable": "CI_CANONICAL_PYYAML_PLATFORM", "old": current_platform, "new": candidate_platform},
-                    {"variable": "CI_CANONICAL_PYYAML_SHA256", "old": current_digest, "new": candidate_digest},
+                    {
+                        "variable": "CI_CANONICAL_PYYAML_VERSION",
+                        "old": current,
+                        "new": latest_compatible,
+                    },
+                    {
+                        "variable": "CI_CANONICAL_PYYAML_ARTIFACT",
+                        "old": current_artifact,
+                        "new": candidate_wheel,
+                    },
+                    {
+                        "variable": "CI_CANONICAL_PYYAML_PLATFORM",
+                        "old": current_platform,
+                        "new": candidate_platform,
+                    },
+                    {
+                        "variable": "CI_CANONICAL_PYYAML_SHA256",
+                        "old": current_digest,
+                        "new": candidate_digest,
+                    },
                 )
             )
         reviews: list[dict[str, Any]] = []
@@ -711,7 +981,11 @@ def resolve_pyyaml(entries: dict[str, Any], client: JsonClient) -> tuple[dict[st
                     component_id="pyyaml",
                     component_name="PyYAML",
                     review_kind="major_version_transition",
-                    current_identity={"version": current, "asset": current_wheel, "platform": official_current_platform},
+                    current_identity={
+                        "version": current,
+                        "asset": current_wheel,
+                        "platform": official_current_platform,
+                    },
                     candidate_identity={"version": latest_upstream},
                     latest_compatible=latest_compatible,
                     latest_upstream=latest_upstream,
@@ -719,7 +993,7 @@ def resolve_pyyaml(entries: dict[str, Any], client: JsonClient) -> tuple[dict[st
                     reason_code="python_dependency_major_transition",
                     reason="A newer PyYAML major line requires interpreter and wheel compatibility review.",
                     evidence_urls=[PYPI_PYYAML_URL],
-                    generated_views=("requirements-ci.lock",),
+                    generated_views=(CI_REQUIREMENTS_PATH,),
                     automatic_update_also_available=bool(updates),
                 )
             )
@@ -729,7 +1003,9 @@ def resolve_pyyaml(entries: dict[str, Any], client: JsonClient) -> tuple[dict[st
                 component_name="PyYAML",
                 scope="pyyaml",
                 status="outdated" if updates else "current",
-                message="A compatible PyYAML wheel/digest update is available." if updates else "Canonical PyYAML wheel and digest are current.",
+                message="A compatible PyYAML wheel/digest update is available."
+                if updates
+                else "Canonical PyYAML wheel and digest are current.",
                 variables=variables,
                 current=current,
                 latest_compatible=latest_compatible,
@@ -741,10 +1017,19 @@ def resolve_pyyaml(entries: dict[str, Any], client: JsonClient) -> tuple[dict[st
             reviews,
         )
     except Exception as exc:
-        return _check_result(component_id="pyyaml", component_name="PyYAML", scope="pyyaml", status="blocked", message=str(exc), variables=variables), []
+        return _check_result(
+            component_id="pyyaml",
+            component_name="PyYAML",
+            scope="pyyaml",
+            status="blocked",
+            message=str(exc),
+            variables=variables,
+        ), []
 
 
-def resolve_node(entries: dict[str, Any], client: JsonClient) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def resolve_node(
+    entries: dict[str, Any], client: JsonClient
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     variables = ("CI_CANONICAL_NODE_VERSION",)
     try:
         current = _entry_value(entries, variables[0])
@@ -758,39 +1043,53 @@ def resolve_node(entries: dict[str, Any], client: JsonClient) -> tuple[dict[str,
             and "-" not in str(record["version"])
         )
         latest_upstream = versions[-1]
-        compatible = [version for version in versions if same_policy_line(current, version, "same_major")]
+        compatible = [
+            version
+            for version in versions
+            if same_policy_line(current, version, "same_major")
+        ]
         if not compatible:
             raise MaintenanceError("Node.js index has no compatible major release")
         latest_compatible = compatible[-1]
         updates = []
         if compare_versions(current, latest_compatible) < 0:
-            updates.append({"variable": variables[0], "old": current, "new": latest_compatible})
+            updates.append(
+                {"variable": variables[0], "old": current, "new": latest_compatible}
+            )
         reviews: list[dict[str, Any]] = []
         if latest_upstream != latest_compatible:
             reviews.append(
                 _review(
                     component_id="node",
-                    component_name="Node.js",
+                    component_name=NODE_COMPONENT_NAME,
                     review_kind="major_version_transition",
-                    current_identity={"version": current, "series": current.split(".")[0]},
-                    candidate_identity={"version": latest_upstream, "series": latest_upstream.split(".")[0]},
+                    current_identity={
+                        "version": current,
+                        "series": current.split(".")[0],
+                    },
+                    candidate_identity={
+                        "version": latest_upstream,
+                        "series": latest_upstream.split(".")[0],
+                    },
                     latest_compatible=latest_compatible,
                     latest_upstream=latest_upstream,
                     variables=variables,
                     reason_code="ci_runtime_major_transition",
                     reason="A newer Node.js major line requires CI runtime compatibility review.",
                     evidence_urls=[NODE_INDEX_URL],
-                    generated_views=("ci/tooling/security-tools.lock.yml",),
+                    generated_views=(SECURITY_TOOLS_LOCK_PATH,),
                     automatic_update_also_available=bool(updates),
                 )
             )
         return (
             _check_result(
                 component_id="node",
-                component_name="Node.js",
+                component_name=NODE_COMPONENT_NAME,
                 scope="node",
                 status="outdated" if updates else "current",
-                message="A compatible Node.js update is available." if updates else "Canonical Node.js release is current.",
+                message="A compatible Node.js update is available."
+                if updates
+                else "Canonical Node.js release is current.",
                 variables=variables,
                 current=current,
                 latest_compatible=latest_compatible,
@@ -802,7 +1101,14 @@ def resolve_node(entries: dict[str, Any], client: JsonClient) -> tuple[dict[str,
             reviews,
         )
     except Exception as exc:
-        return _check_result(component_id="node", component_name="Node.js", scope="node", status="blocked", message=str(exc), variables=variables), []
+        return _check_result(
+            component_id="node",
+            component_name=NODE_COMPONENT_NAME,
+            scope="node",
+            status="blocked",
+            message=str(exc),
+            variables=variables,
+        ), []
 
 
 def _groups(
@@ -831,7 +1137,9 @@ def _groups(
     return groups
 
 
-def _tool_compatible_release(updater: Any, identity: Any, current: str) -> dict[str, Any]:
+def _tool_compatible_release(
+    updater: Any, identity: Any, current: str
+) -> dict[str, Any]:
     candidates: list[tuple[tuple[int, ...], dict[str, Any]]] = []
     for release in updater.release_page(identity):
         tag = updater.stable_release_tag_or_none(release)
@@ -841,19 +1149,27 @@ def _tool_compatible_release(updater: Any, identity: Any, current: str) -> dict[
         if same_policy_line(current, tag, policy):
             candidates.append((version_tuple(tag), release))
     if not candidates:
-        raise MaintenanceError("official CI-tool release page has no compatible release")
+        raise MaintenanceError(
+            "official CI-tool release page has no compatible release"
+        )
     tag, release = max(candidates, key=lambda item: item[0])
     confirmed = updater.release_by_tag(identity, str(release["tag_name"]))
     if version_tuple(str(confirmed.get("tag_name", ""))) != tag:
-        raise MaintenanceError("official CI-tool release page and tag endpoint disagree")
+        raise MaintenanceError(
+            "official CI-tool release page and tag endpoint disagree"
+        )
     return confirmed
 
 
-def _workflow_lock_record(lock: dict[str, Any], family: str, name: str) -> dict[str, Any]:
+def _workflow_lock_record(
+    lock: dict[str, Any], family: str, name: str
+) -> dict[str, Any]:
     records = lock.get(family)
     record = records.get(name) if isinstance(records, dict) else None
     if not isinstance(record, dict):
-        raise MaintenanceError(f"canonical {family} group {name!r} is absent from the security-tool lock")
+        raise MaintenanceError(
+            f"canonical {family} group {name!r} is absent from the security-tool lock"
+        )
     return record
 
 
@@ -862,18 +1178,21 @@ def _tool_provider_identity(
 ) -> tuple[Any, bool]:
     """Bind a tool record's immutable provider to canonical source identity."""
 
-    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", canonical_repository) is None:
+    if SIMPLE_REPOSITORY_RE.fullmatch(canonical_repository) is None:
         raise MaintenanceError("canonical CI-tool repository is malformed")
     locked_repository = record.get("repository")
     if (
         not isinstance(locked_repository, str)
-        or re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", locked_repository)
-        is None
+        or SIMPLE_REPOSITORY_RE.fullmatch(locked_repository) is None
     ):
-        raise MaintenanceError("canonical CI-tool lock has no immutable repository identity")
+        raise MaintenanceError(
+            "canonical CI-tool lock has no immutable repository identity"
+        )
     identity = updater.release_identity(record, name)
     if getattr(identity, "slug", None) != locked_repository:
-        raise MaintenanceError("canonical CI-tool lock repository disagrees with its release identity")
+        raise MaintenanceError(
+            "canonical CI-tool lock repository disagrees with its release identity"
+        )
     return identity, locked_repository != canonical_repository
 
 
@@ -889,7 +1208,9 @@ def _candidate_entries_after_updates(
     for update in updates:
         item = entries.get(update["variable"])
         if item is None or item.default != update["old"]:
-            raise MaintenanceError("prospective CI tuple is not bound to canonical common.sh")
+            raise MaintenanceError(
+                "prospective CI tuple is not bound to canonical common.sh"
+            )
         changes.append(
             checker.UpdateChange(
                 variable=update["variable"],
@@ -898,7 +1219,397 @@ def _candidate_entries_after_updates(
                 new=update["new"],
             )
         )
-    return checker.parse_common_lines(checker.render_updated_lines(common_lines, changes))
+    return checker.parse_common_lines(
+        checker.render_updated_lines(common_lines, changes)
+    )
+
+
+def _resolve_action_pin(
+    entries: dict[str, Any],
+    updater: Any,
+    lock: dict[str, Any],
+    suffix: str,
+    fields: dict[str, str],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    variables = [fields[field] for field in ("REPOSITORY", "VERSION", "COMMIT")]
+    component_id = f"github-action-{safe_component_id(suffix)}"
+    repository = _entry_value(entries, fields["REPOSITORY"])
+    current = _entry_value(entries, fields["VERSION"])
+    current_commit = _entry_value(entries, fields["COMMIT"])
+    try:
+        record = _workflow_lock_record(lock, "actions", repository)
+        if (
+            record.get("version") != current
+            or record.get("immutable_commit") != current_commit
+            or record.get("name") != repository
+        ):
+            raise MaintenanceError(
+                "canonical Action tuple differs from the generated reviewed lock"
+            )
+        identity = updater.release_identity(record, repository, require_name_match=True)
+        if updater.release_tag_commit(identity, current) != current_commit:
+            raise MaintenanceError(
+                "canonical Action commit differs from its official release tag"
+            )
+        latest_upstream = updater.stable_release_tag(
+            updater.latest_release(identity), "latest Action release"
+        )
+        latest_compatible = updater.stable_release_tag(
+            updater.latest_same_major_action_release(identity, current),
+            "compatible Action release",
+        )
+        if compare_versions(current, latest_upstream) > 0:
+            raise MaintenanceError(
+                "canonical Action version is newer than official latest release"
+            )
+        updates: list[dict[str, str]] = []
+        if compare_versions(current, latest_compatible) < 0:
+            updates = [
+                {
+                    "variable": fields["VERSION"],
+                    "old": current,
+                    "new": latest_compatible,
+                },
+                {
+                    "variable": fields["COMMIT"],
+                    "old": current_commit,
+                    "new": updater.release_tag_commit(identity, latest_compatible),
+                },
+            ]
+        reviews = []
+        if latest_upstream != latest_compatible:
+            reviews.append(
+                _review(
+                    component_id=component_id,
+                    component_name=repository,
+                    review_kind="major_version_transition",
+                    current_identity={
+                        "version": current,
+                        "commit": current_commit,
+                        "series": current.removeprefix("v").split(".")[0],
+                    },
+                    candidate_identity={
+                        "version": latest_upstream,
+                        "series": latest_upstream.removeprefix("v").split(".")[0],
+                    },
+                    latest_compatible=latest_compatible,
+                    latest_upstream=latest_upstream,
+                    variables=variables,
+                    reason_code="github_action_major_transition",
+                    reason="A newer GitHub Action major requires manual compatibility and immutable-commit review.",
+                    evidence_urls=[f"https://github.com/{repository}/releases/latest"],
+                    generated_views=(SECURITY_TOOLS_LOCK_PATH,),
+                    automatic_update_also_available=bool(updates),
+                )
+            )
+        result = _check_result(
+            component_id=component_id,
+            component_name=repository,
+            scope="github-actions",
+            status="outdated" if updates else "current",
+            message="A compatible immutable Action update is available."
+            if updates
+            else "Canonical Action tuple is current.",
+            variables=variables,
+            current=current,
+            latest_compatible=latest_compatible,
+            latest_upstream=latest_upstream,
+            source=f"https://github.com/{repository}/releases/latest",
+            updates=updates,
+            details={"update_policy": "same_major"},
+        )
+        return result, reviews
+    except Exception as exc:
+        return _check_result(
+            component_id=component_id,
+            component_name=repository,
+            scope="github-actions",
+            status="blocked",
+            message=str(exc),
+            variables=variables,
+            current=current,
+        ), []
+
+
+def _tool_provider_review(
+    component_id: str,
+    repository: str,
+    current: str,
+    record: dict[str, Any],
+    variables: list[str],
+) -> dict[str, Any]:
+    return _review(
+        component_id=component_id,
+        component_name=repository,
+        review_kind="provider_transition",
+        current_identity={
+            "repository": str(record["repository"]),
+            "version": str(record.get("version", "")),
+        },
+        candidate_identity={"repository": repository, "version": current},
+        latest_compatible=current,
+        latest_upstream=current,
+        variables=variables,
+        reason_code="ci_tool_provider_transition",
+        reason="The canonical CI-tool repository differs from the lock-reviewed provider and cannot be updated automatically.",
+        evidence_urls=(str(record.get("upstream_release", "https://github.com")),),
+        generated_views=(SECURITY_TOOLS_LOCK_PATH,),
+        automatic_update_also_available=False,
+    )
+
+
+def _tool_candidate_updates(
+    checker: Any,
+    common_lines: list[str],
+    entries: dict[str, Any],
+    fields: dict[str, str],
+    current: str,
+    current_commit: str,
+    current_asset: str,
+    current_digest: str,
+    latest_compatible: str,
+    candidate_asset: str,
+    candidate_digest: str,
+    candidate_commit: str,
+) -> tuple[list[dict[str, str]], bool]:
+    if compare_versions(current, latest_compatible) >= 0:
+        return [], True
+    proposed = [
+        {"variable": fields["VERSION"], "old": current, "new": latest_compatible},
+        {"variable": fields["COMMIT"], "old": current_commit, "new": candidate_commit},
+        {"variable": fields["SHA256"], "old": current_digest, "new": candidate_digest},
+    ]
+    if entries[fields["ASSET_NAME"]].default == current_asset:
+        proposed.insert(
+            2,
+            {
+                "variable": fields["ASSET_NAME"],
+                "old": current_asset,
+                "new": candidate_asset,
+            },
+        )
+    candidate_entries = _candidate_entries_after_updates(
+        checker, common_lines, entries, proposed
+    )
+    matches = all(
+        _entry_value(candidate_entries, fields[name]) == expected
+        for name, expected in (
+            ("VERSION", latest_compatible),
+            ("COMMIT", candidate_commit),
+            ("ASSET_NAME", candidate_asset),
+            ("SHA256", candidate_digest),
+        )
+    )
+    return (proposed if matches else [], matches)
+
+
+def _resolve_tool_pin(
+    entries: dict[str, Any],
+    updater: Any,
+    lock: dict[str, Any],
+    suffix: str,
+    fields: dict[str, str],
+    *,
+    checker: Any,
+    common_lines: list[str],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    variables = [
+        fields[field]
+        for field in ("REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256")
+    ]
+    component_id = f"ci-tool-{safe_component_id(suffix)}"
+    repository = _entry_value(entries, fields["REPOSITORY"])
+    current = _entry_value(entries, fields["VERSION"])
+    current_commit = _entry_value(entries, fields["COMMIT"])
+    current_asset = _entry_value(entries, fields["ASSET_NAME"])
+    current_digest = _entry_value(entries, fields["SHA256"])
+    try:
+        lock_name = safe_component_id(suffix)
+        record = _workflow_lock_record(lock, "tools", lock_name)
+        if record.get("name") != lock_name:
+            raise MaintenanceError(
+                "canonical CI tool group has no matching stable lock name"
+            )
+        identity, provider_transition = _tool_provider_identity(
+            updater, record, str(record["name"]), repository
+        )
+        if provider_transition:
+            review = _tool_provider_review(
+                component_id, repository, current, record, variables
+            )
+            result = _check_result(
+                component_id=component_id,
+                component_name=repository,
+                scope="ci-security-tools",
+                status="review_required",
+                message="Canonical CI-tool provider transition requires manual review before any release lookup or update.",
+                variables=variables,
+                current=current,
+                latest_compatible=current,
+                latest_upstream=current,
+                source=str(record.get("upstream_release", "")),
+                details={
+                    "provider_transition": True,
+                    "locked_repository": record["repository"],
+                },
+            )
+            return result, [review]
+        if (
+            record.get("version") != current
+            or record.get("immutable_commit") != current_commit
+            or record.get("asset") != current_asset
+            or record.get("sha256") != current_digest
+        ):
+            raise MaintenanceError(
+                "canonical CI-tool tuple differs from the generated reviewed lock"
+            )
+        updater.validate_tool_baseline_provenance(record, identity, record["name"])
+        if updater.release_tag_commit(identity, current) != current_commit:
+            raise MaintenanceError(
+                "canonical CI-tool commit differs from its official release tag"
+            )
+        current_release = updater.release_by_tag(identity, current)
+        current_tag, official_asset, official_digest = updater.selected_release_asset(
+            identity, current_release, record, record["name"]
+        )
+        if (
+            current_tag != current
+            or official_asset != current_asset
+            or official_digest != current_digest
+        ):
+            raise MaintenanceError(
+                "canonical CI-tool asset/digest differs from its official release tuple"
+            )
+        latest_upstream = updater.stable_release_tag(
+            updater.latest_release(identity), "latest CI-tool release"
+        )
+        compatible_release = _tool_compatible_release(updater, identity, current)
+        latest_compatible, candidate_asset, candidate_digest = (
+            updater.selected_release_asset(
+                identity, compatible_release, record, record["name"]
+            )
+        )
+        if compare_versions(current, latest_upstream) > 0:
+            raise MaintenanceError(
+                "canonical CI-tool version is newer than official latest release"
+            )
+        candidate_commit = (
+            updater.release_tag_commit(identity, latest_compatible)
+            if compare_versions(current, latest_compatible) < 0
+            else current_commit
+        )
+        updates, matches = _tool_candidate_updates(
+            checker,
+            common_lines,
+            entries,
+            fields,
+            current,
+            current_commit,
+            current_asset,
+            current_digest,
+            latest_compatible,
+            candidate_asset,
+            candidate_digest,
+            candidate_commit,
+        )
+        reviews: list[dict[str, Any]] = []
+        if compare_versions(current, latest_compatible) < 0 and not matches:
+            reviews.append(
+                _review(
+                    component_id=component_id,
+                    component_name=repository,
+                    review_kind="artifact_layout_transition",
+                    current_identity={"version": current, "asset": current_asset},
+                    candidate_identity={
+                        "version": latest_compatible,
+                        "asset": candidate_asset,
+                    },
+                    latest_compatible=latest_compatible,
+                    latest_upstream=latest_upstream,
+                    variables=variables,
+                    reason_code="ci_tool_asset_expression_mismatch",
+                    reason="The existing canonical asset expression cannot be proven to select the official compatible artifact.",
+                    evidence_urls=[
+                        f"https://github.com/{repository}/releases/tag/{latest_compatible}"
+                    ],
+                    generated_views=(SECURITY_TOOLS_LOCK_PATH,),
+                    automatic_update_also_available=False,
+                )
+            )
+        if latest_upstream != latest_compatible:
+            series_parts = 2 if version_tuple(current)[0] == 0 else 1
+            reviews.append(
+                _review(
+                    component_id=component_id,
+                    component_name=repository,
+                    review_kind="minor_version_transition"
+                    if version_tuple(current)[0] == 0
+                    else "major_version_transition",
+                    current_identity={
+                        "version": current,
+                        "asset": current_asset,
+                        "series": ".".join(
+                            current.removeprefix("v").split(".")[:series_parts]
+                        ),
+                    },
+                    candidate_identity={"version": latest_upstream},
+                    latest_compatible=latest_compatible,
+                    latest_upstream=latest_upstream,
+                    variables=variables,
+                    reason_code="ci_tool_compatibility_transition",
+                    reason="The latest CI-tool release is outside the reviewed automatic compatibility line.",
+                    evidence_urls=[f"https://github.com/{repository}/releases/latest"],
+                    generated_views=(SECURITY_TOOLS_LOCK_PATH,),
+                    automatic_update_also_available=bool(updates),
+                )
+            )
+        status = (
+            "outdated"
+            if updates
+            else (
+                "review_required"
+                if reviews and compare_versions(current, latest_compatible) < 0
+                else "current"
+            )
+        )
+        message = (
+            "A compatible verified CI-tool update is available."
+            if updates
+            else (
+                "The canonical asset expression does not produce the official candidate artifact; manual artifact-layout review is required."
+                if status == "review_required"
+                else "Canonical CI-tool tuple is current."
+            )
+        )
+        result = _check_result(
+            component_id=component_id,
+            component_name=repository,
+            scope="ci-security-tools",
+            status=status,
+            message=message,
+            variables=variables,
+            current=current,
+            latest_compatible=latest_compatible,
+            latest_upstream=latest_upstream,
+            source=f"https://github.com/{repository}/releases/latest",
+            updates=updates,
+            details={
+                "update_policy": "zero_same_minor"
+                if version_tuple(current)[0] == 0
+                else "same_major"
+            },
+        )
+        return result, reviews
+    except Exception as exc:
+        return _check_result(
+            component_id=component_id,
+            component_name=repository,
+            scope="ci-security-tools",
+            status="blocked",
+            message=str(exc),
+            variables=variables,
+            current=current,
+        ), []
 
 
 def resolve_workflow_pins(
@@ -910,17 +1621,11 @@ def resolve_workflow_pins(
     common_lines: list[str],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Resolve dynamically discovered Actions and CI tools through their lock helper."""
-
-    results: list[dict[str, Any]] = []
-    reviews: list[dict[str, Any]] = []
     try:
         _path, lock, _digest = updater.load_lock(root)
         updater.require_canonical_action_lock(root, lock)
         actions = _groups(
-            entries,
-            ACTION_GROUP_RE,
-            {"REPOSITORY", "VERSION", "COMMIT"},
-            "CI_ACTION_",
+            entries, ACTION_GROUP_RE, {"REPOSITORY", "VERSION", "COMMIT"}, "CI_ACTION_"
         )
         tools = _groups(
             entries,
@@ -928,7 +1633,7 @@ def resolve_workflow_pins(
             {"REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256"},
             "CI_SECURITY_TOOL_",
         )
-    except Exception as exc:  # helper errors are fail-closed provenance diagnostics
+    except Exception as exc:
         return [
             _check_result(
                 component_id="github-actions",
@@ -938,247 +1643,27 @@ def resolve_workflow_pins(
                 message=str(exc),
                 variables=("CI_ACTION_CHECKOUT_REPOSITORY",),
             )
-        ], reviews
-
+        ], []
+    results: list[dict[str, Any]] = []
+    reviews: list[dict[str, Any]] = []
     for suffix, fields in sorted(actions.items()):
-        variables = [fields[field] for field in ("REPOSITORY", "VERSION", "COMMIT")]
-        component_id = f"github-action-{safe_component_id(suffix)}"
-        repository = _entry_value(entries, fields["REPOSITORY"])
-        current = _entry_value(entries, fields["VERSION"])
-        current_commit = _entry_value(entries, fields["COMMIT"])
-        try:
-            record = _workflow_lock_record(lock, "actions", repository)
-            if (
-                record.get("version") != current
-                or record.get("immutable_commit") != current_commit
-                or record.get("name") != repository
-            ):
-                raise MaintenanceError("canonical Action tuple differs from the generated reviewed lock")
-            identity = updater.release_identity(record, repository, require_name_match=True)
-            if updater.release_tag_commit(identity, current) != current_commit:
-                raise MaintenanceError("canonical Action commit differs from its official release tag")
-            latest_global_release = updater.latest_release(identity)
-            latest_upstream = updater.stable_release_tag(latest_global_release, "latest Action release")
-            compatible_release = updater.latest_same_major_action_release(identity, current)
-            latest_compatible = updater.stable_release_tag(compatible_release, "compatible Action release")
-            if compare_versions(current, latest_upstream) > 0:
-                raise MaintenanceError("canonical Action version is newer than official latest release")
-            updates: list[dict[str, str]] = []
-            if compare_versions(current, latest_compatible) < 0:
-                compatible_commit = updater.release_tag_commit(identity, latest_compatible)
-                updates.extend(
-                    (
-                        {"variable": fields["VERSION"], "old": current, "new": latest_compatible},
-                        {"variable": fields["COMMIT"], "old": current_commit, "new": compatible_commit},
-                    )
-                )
-            if latest_upstream != latest_compatible:
-                reviews.append(
-                    _review(
-                        component_id=component_id,
-                        component_name=repository,
-                        review_kind="major_version_transition",
-                        current_identity={"version": current, "commit": current_commit, "series": current.removeprefix("v").split(".")[0]},
-                        candidate_identity={"version": latest_upstream, "series": latest_upstream.removeprefix("v").split(".")[0]},
-                        latest_compatible=latest_compatible,
-                        latest_upstream=latest_upstream,
-                        variables=variables,
-                        reason_code="github_action_major_transition",
-                        reason="A newer GitHub Action major requires manual compatibility and immutable-commit review.",
-                        evidence_urls=[f"https://github.com/{repository}/releases/latest"],
-                        generated_views=("ci/tooling/security-tools.lock.yml",),
-                        automatic_update_also_available=bool(updates),
-                    )
-                )
-            results.append(
-                _check_result(
-                    component_id=component_id,
-                    component_name=repository,
-                    scope="github-actions",
-                    status="outdated" if updates else "current",
-                    message="A compatible immutable Action update is available." if updates else "Canonical Action tuple is current.",
-                    variables=variables,
-                    current=current,
-                    latest_compatible=latest_compatible,
-                    latest_upstream=latest_upstream,
-                    source=f"https://github.com/{repository}/releases/latest",
-                    updates=updates,
-                    details={"update_policy": "same_major"},
-                )
-            )
-        except Exception as exc:
-            results.append(
-                _check_result(component_id=component_id, component_name=repository, scope="github-actions", status="blocked", message=str(exc), variables=variables, current=current)
-            )
-
+        result, component_reviews = _resolve_action_pin(
+            entries, updater, lock, suffix, fields
+        )
+        results.append(result)
+        reviews.extend(component_reviews)
     for suffix, fields in sorted(tools.items()):
-        variables = [fields[field] for field in ("REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256")]
-        component_id = f"ci-tool-{safe_component_id(suffix)}"
-        repository = _entry_value(entries, fields["REPOSITORY"])
-        current = _entry_value(entries, fields["VERSION"])
-        current_commit = _entry_value(entries, fields["COMMIT"])
-        current_asset = _entry_value(entries, fields["ASSET_NAME"])
-        current_digest = _entry_value(entries, fields["SHA256"])
-        try:
-            record = _workflow_lock_record(lock, "tools", safe_component_id(suffix).replace("-", "-"))
-            if record.get("name") != safe_component_id(suffix).replace("-", "-"):
-                raise MaintenanceError("canonical CI tool group has no matching stable lock name")
-            identity, provider_transition = _tool_provider_identity(
-                updater,
-                record,
-                str(record["name"]),
-                repository,
-            )
-            if provider_transition:
-                reviews.append(
-                    _review(
-                        component_id=component_id,
-                        component_name=repository,
-                        review_kind="provider_transition",
-                        current_identity={"repository": str(record["repository"]), "version": str(record.get("version", ""))},
-                        candidate_identity={"repository": repository, "version": current},
-                        latest_compatible=current,
-                        latest_upstream=current,
-                        variables=variables,
-                        reason_code="ci_tool_provider_transition",
-                        reason="The canonical CI-tool repository differs from the lock-reviewed provider and cannot be updated automatically.",
-                        evidence_urls=(str(record.get("upstream_release", "https://github.com")),),
-                        generated_views=("ci/tooling/security-tools.lock.yml",),
-                        automatic_update_also_available=False,
-                    )
-                )
-                results.append(
-                    _check_result(
-                        component_id=component_id,
-                        component_name=repository,
-                        scope="ci-security-tools",
-                        status="review_required",
-                        message="Canonical CI-tool provider transition requires manual review before any release lookup or update.",
-                        variables=variables,
-                        current=current,
-                        latest_compatible=current,
-                        latest_upstream=current,
-                        source=str(record.get("upstream_release", "")),
-                        details={"provider_transition": True, "locked_repository": record["repository"]},
-                    )
-                )
-                continue
-            if (
-                record.get("version") != current
-                or record.get("immutable_commit") != current_commit
-                or record.get("asset") != current_asset
-                or record.get("sha256") != current_digest
-            ):
-                raise MaintenanceError("canonical CI-tool tuple differs from the generated reviewed lock")
-            updater.validate_tool_baseline_provenance(record, identity, record["name"])
-            if updater.release_tag_commit(identity, current) != current_commit:
-                raise MaintenanceError("canonical CI-tool commit differs from its official release tag")
-            current_release = updater.release_by_tag(identity, current)
-            current_tag, current_official_asset, current_official_digest = updater.selected_release_asset(identity, current_release, record, record["name"])
-            if current_tag != current or current_official_asset != current_asset or current_official_digest != current_digest:
-                raise MaintenanceError("canonical CI-tool asset/digest differs from its official release tuple")
-            latest_global_release = updater.latest_release(identity)
-            latest_upstream = updater.stable_release_tag(latest_global_release, "latest CI-tool release")
-            compatible_release = _tool_compatible_release(updater, identity, current)
-            latest_compatible, candidate_asset, candidate_digest = updater.selected_release_asset(identity, compatible_release, record, record["name"])
-            if compare_versions(current, latest_upstream) > 0:
-                raise MaintenanceError("canonical CI-tool version is newer than official latest release")
-            updates: list[dict[str, str]] = []
-            status = "current"
-            message = "Canonical CI-tool tuple is current."
-            if compare_versions(current, latest_compatible) < 0:
-                candidate_commit = updater.release_tag_commit(identity, latest_compatible)
-                proposed_updates = [
-                    {"variable": fields["VERSION"], "old": current, "new": latest_compatible},
-                    {"variable": fields["COMMIT"], "old": current_commit, "new": candidate_commit},
-                    {"variable": fields["SHA256"], "old": current_digest, "new": candidate_digest},
-                ]
-                # An asset name may be safely derived from the canonical version.
-                # Never overwrite that expression with a one-off literal: render the
-                # full prospective tuple through the same restricted parser instead.
-                if entries[fields["ASSET_NAME"]].default == current_asset:
-                    proposed_updates.insert(
-                        2,
-                        {
-                            "variable": fields["ASSET_NAME"],
-                            "old": current_asset,
-                            "new": candidate_asset,
-                        },
-                    )
-                candidate_entries = _candidate_entries_after_updates(
-                    checker, common_lines, entries, proposed_updates
-                )
-                tuple_matches = (
-                    _entry_value(candidate_entries, fields["VERSION"]) == latest_compatible
-                    and _entry_value(candidate_entries, fields["COMMIT"]) == candidate_commit
-                    and _entry_value(candidate_entries, fields["ASSET_NAME"]) == candidate_asset
-                    and _entry_value(candidate_entries, fields["SHA256"]) == candidate_digest
-                )
-                if tuple_matches:
-                    updates = proposed_updates
-                    status = "outdated"
-                    message = "A compatible verified CI-tool update is available."
-                else:
-                    status = "review_required"
-                    message = (
-                        "The canonical asset expression does not produce the official "
-                        "candidate artifact; manual artifact-layout review is required."
-                    )
-                    reviews.append(
-                        _review(
-                            component_id=component_id,
-                            component_name=repository,
-                            review_kind="artifact_layout_transition",
-                            current_identity={"version": current, "asset": current_asset},
-                            candidate_identity={"version": latest_compatible, "asset": candidate_asset},
-                            latest_compatible=latest_compatible,
-                            latest_upstream=latest_upstream,
-                            variables=variables,
-                            reason_code="ci_tool_asset_expression_mismatch",
-                            reason="The existing canonical asset expression cannot be proven to select the official compatible artifact.",
-                            evidence_urls=[f"https://github.com/{repository}/releases/tag/{latest_compatible}"],
-                            generated_views=("ci/tooling/security-tools.lock.yml",),
-                            automatic_update_also_available=False,
-                        )
-                    )
-            if latest_upstream != latest_compatible:
-                reviews.append(
-                    _review(
-                        component_id=component_id,
-                        component_name=repository,
-                        review_kind=("minor_version_transition" if version_tuple(current)[0] == 0 else "major_version_transition"),
-                        current_identity={"version": current, "asset": current_asset, "series": ".".join(current.removeprefix("v").split(".")[:2 if version_tuple(current)[0] == 0 else 1])},
-                        candidate_identity={"version": latest_upstream},
-                        latest_compatible=latest_compatible,
-                        latest_upstream=latest_upstream,
-                        variables=variables,
-                        reason_code="ci_tool_compatibility_transition",
-                        reason="The latest CI-tool release is outside the reviewed automatic compatibility line.",
-                        evidence_urls=[f"https://github.com/{repository}/releases/latest"],
-                        generated_views=("ci/tooling/security-tools.lock.yml",),
-                        automatic_update_also_available=bool(updates),
-                    )
-                )
-            results.append(
-                _check_result(
-                    component_id=component_id,
-                    component_name=repository,
-                    scope="ci-security-tools",
-                    status=status,
-                    message=message,
-                    variables=variables,
-                    current=current,
-                    latest_compatible=latest_compatible,
-                    latest_upstream=latest_upstream,
-                    source=f"https://github.com/{repository}/releases/latest",
-                    updates=updates,
-                    details={"update_policy": "zero_same_minor" if version_tuple(current)[0] == 0 else "same_major"},
-                )
-            )
-        except Exception as exc:
-            results.append(
-                _check_result(component_id=component_id, component_name=repository, scope="ci-security-tools", status="blocked", message=str(exc), variables=variables, current=current)
-            )
+        result, component_reviews = _resolve_tool_pin(
+            entries,
+            updater,
+            lock,
+            suffix,
+            fields,
+            checker=checker,
+            common_lines=common_lines,
+        )
+        results.append(result)
+        reviews.extend(component_reviews)
     return results, reviews
 
 
@@ -1189,9 +1674,27 @@ def resolve_osv_compatibility(entries: dict[str, Any]) -> dict[str, Any]:
         version = _entry_value(entries, variables[1])
         if SHA40_RE.fullmatch(sha) is None or VERSION_RE.fullmatch(version) is None:
             raise MaintenanceError("OSV compatibility baseline is malformed")
-        return _check_result(component_id="ci-osv-compatibility", component_name="OSV compatibility baseline", scope="ci-security-tools", status="current", message="Explicit historical OSV compatibility baseline is structurally valid.", variables=variables, current=version, latest_compatible=version, latest_upstream=version, details={"update_policy": "manual_only", "historical_exception": True})
+        return _check_result(
+            component_id="ci-osv-compatibility",
+            component_name="OSV compatibility baseline",
+            scope="ci-security-tools",
+            status="current",
+            message="Explicit historical OSV compatibility baseline is structurally valid.",
+            variables=variables,
+            current=version,
+            latest_compatible=version,
+            latest_upstream=version,
+            details={"update_policy": "manual_only", "historical_exception": True},
+        )
     except MaintenanceError as exc:
-        return _check_result(component_id="ci-osv-compatibility", component_name="OSV compatibility baseline", scope="ci-security-tools", status="blocked", message=str(exc), variables=variables)
+        return _check_result(
+            component_id="ci-osv-compatibility",
+            component_name="OSV compatibility baseline",
+            scope="ci-security-tools",
+            status="blocked",
+            message=str(exc),
+            variables=variables,
+        )
 
 
 def resolve_canonical_ci_coverage(entries: dict[str, Any]) -> dict[str, Any]:
@@ -1211,7 +1714,7 @@ def resolve_canonical_ci_coverage(entries: dict[str, Any]) -> dict[str, Any]:
     if unknown:
         return _check_result(
             component_id="canonical-ci-coverage",
-            component_name="Canonical CI pin coverage",
+            component_name=CANONICAL_CI_COVERAGE_NAME,
             scope="ci-security-tools",
             status="blocked",
             message=(
@@ -1224,7 +1727,7 @@ def resolve_canonical_ci_coverage(entries: dict[str, Any]) -> dict[str, Any]:
     if missing:
         return _check_result(
             component_id="canonical-ci-coverage",
-            component_name="Canonical CI pin coverage",
+            component_name=CANONICAL_CI_COVERAGE_NAME,
             scope="ci-security-tools",
             status="blocked",
             message="Required canonical CI pins are missing: " + ", ".join(missing),
@@ -1232,7 +1735,7 @@ def resolve_canonical_ci_coverage(entries: dict[str, Any]) -> dict[str, Any]:
         )
     return _check_result(
         component_id="canonical-ci-coverage",
-        component_name="Canonical CI pin coverage",
+        component_name=CANONICAL_CI_COVERAGE_NAME,
         scope="ci-security-tools",
         status="current",
         message="Every CI_CANONICAL_* pin is covered by an active maintenance resolver.",
@@ -1240,7 +1743,81 @@ def resolve_canonical_ci_coverage(entries: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def resolve_runtime_components(checker: Any, entries: dict[str, Any], client: Any, selected_runtime: tuple[str, ...]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+def _runtime_review(definition: Any, result: Any) -> dict[str, Any] | None:
+    candidate = result.latest_upstream or result.latest
+    if result.status != "review_required" or not candidate:
+        return None
+    return _review(
+        component_id=safe_component_id(definition.name),
+        component_name=definition.name,
+        review_kind="release_commit_provenance",
+        current_identity={"version": result.current},
+        candidate_identity={"version": candidate},
+        latest_compatible=result.latest_compatible or candidate,
+        latest_upstream=candidate,
+        variables=definition.variables,
+        reason_code="reviewed_runtime_provenance",
+        reason=result.message,
+        evidence_urls=[result.source] if result.source else ["https://github.com"],
+        generated_views=GENERATED_VIEW_PATHS,
+        automatic_update_also_available=False,
+    )
+
+
+def _resolve_runtime_component(
+    checker: Any,
+    entries: dict[str, Any],
+    client: Any,
+    definition: Any,
+    component_id: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    try:
+        raw = checker.resolve_component_definition(definition, entries, client)
+        result = checker.decorate_component_result(definition, raw, entries)
+        updates = [
+            {"variable": update.variable, "old": update.old, "new": update.new}
+            for update in result.updates
+        ]
+        record = _check_result(
+            component_id=component_id,
+            component_name=definition.name,
+            scope="runtime-source",
+            status=result.status,
+            message=result.message,
+            variables=definition.variables,
+            current=result.current,
+            latest_compatible=result.latest_compatible or result.latest,
+            latest_upstream=result.latest_upstream or result.latest,
+            source=result.source,
+            updates=updates,
+            details={
+                "resolver": definition.resolver,
+                "update_policy": definition.update_policy,
+            },
+        )
+        return record, _runtime_review(definition, result)
+    except (
+        checker.UpstreamError,
+        checker.UpstreamBlocked,
+        checker.UpstreamUnknown,
+        MaintenanceError,
+    ) as exc:
+        return _check_result(
+            component_id=component_id,
+            component_name=definition.name,
+            scope="runtime-source",
+            status="blocked",
+            message=str(exc),
+            variables=definition.variables,
+        ), None
+
+
+def resolve_runtime_components(
+    checker: Any,
+    entries: dict[str, Any],
+    client: Any,
+    selected_runtime: tuple[str, ...],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
     global_definition_ids = {"go-ftw", "albedo", "canonical-ci-pins"}
     runtime_definitions = [
         definition
@@ -1249,81 +1826,96 @@ def resolve_runtime_components(checker: Any, entries: dict[str, Any], client: An
         and safe_component_id(definition.name) not in global_definition_ids
     ]
     runtime_by_id = {
-        safe_component_id(definition.name): definition for definition in runtime_definitions
+        safe_component_id(definition.name): definition
+        for definition in runtime_definitions
     }
     if len(runtime_by_id) != len(runtime_definitions):
         raise MaintenanceError("runtime/source descriptor ids are not unique")
-    selected = tuple(safe_component_id(value) for value in selected_runtime) or tuple(runtime_by_id)
+    selected = tuple(safe_component_id(value) for value in selected_runtime) or tuple(
+        runtime_by_id
+    )
     if len(set(selected)) != len(selected):
-        raise MaintenanceError("--component contains a duplicate runtime/source component")
+        raise MaintenanceError(
+            "--component contains a duplicate runtime/source component"
+        )
     unknown = sorted(set(selected).difference(runtime_by_id))
     if unknown:
-        raise MaintenanceError("--component may select only runtime/source components: " + ", ".join(unknown))
+        raise MaintenanceError(
+            "--component may select only runtime/source components: "
+            + ", ".join(unknown)
+        )
     results: list[dict[str, Any]] = []
     reviews: list[dict[str, Any]] = []
     for component_id in selected:
-        definition = runtime_by_id[component_id]
-        try:
-            raw = checker.resolve_component_definition(definition, entries, client)
-            result = checker.decorate_component_result(definition, raw, entries)
-            status = result.status
-            updates = [
-                {"variable": update.variable, "old": update.old, "new": update.new}
-                for update in result.updates
-            ]
-            results.append(
-                _check_result(
-                    component_id=component_id,
-                    component_name=definition.name,
-                    scope="runtime-source",
-                    status=status,
-                    message=result.message,
-                    variables=definition.variables,
-                    current=result.current,
-                    latest_compatible=result.latest_compatible or result.latest,
-                    latest_upstream=result.latest_upstream or result.latest,
-                    source=result.source,
-                    updates=updates,
-                    details={"resolver": definition.resolver, "update_policy": definition.update_policy},
-                )
-            )
-            if status == "review_required":
-                candidate = result.latest_upstream or result.latest
-                if candidate:
-                    reviews.append(
-                        _review(
-                            component_id=component_id,
-                            component_name=definition.name,
-                            review_kind="release_commit_provenance",
-                            current_identity={"version": result.current},
-                            candidate_identity={"version": candidate},
-                            latest_compatible=result.latest_compatible or candidate,
-                            latest_upstream=candidate,
-                            variables=definition.variables,
-                            reason_code="reviewed_runtime_provenance",
-                            reason=result.message,
-                            evidence_urls=[result.source] if result.source else ["https://github.com"],
-                            generated_views=GENERATED_VIEW_PATHS,
-                            automatic_update_also_available=False,
-                        )
-                    )
-        except (checker.UpstreamError, checker.UpstreamBlocked, checker.UpstreamUnknown, MaintenanceError) as exc:
-            results.append(_check_result(component_id=safe_component_id(definition.name), component_name=definition.name, scope="runtime-source", status="blocked", message=str(exc), variables=definition.variables))
+        result, review = _resolve_runtime_component(
+            checker, entries, client, runtime_by_id[component_id], component_id
+        )
+        results.append(result)
+        if review is not None:
+            reviews.append(review)
     return results, reviews, list(selected)
 
 
 def generated_view_status(root: Path, *, write: bool = False) -> list[dict[str, str]]:
     mode = "--write" if write else "--check"
     commands = (
-        ("canonical-python-pins", [sys.executable, str(root / "ci/tools/sync-canonical-python-pins.py"), mode, "--root", str(root)]),
-        ("canonical-workflow-pins", [sys.executable, str(root / "ci/tools/sync-canonical-workflow-pins.py"), mode, "--root", str(root)]),
-        ("runtime-components", [sys.executable, str(root / "ci/tools/sync-runtime-components.py"), mode, "--common-sh", str(root / "ci/lib/common.sh"), "--manifest", str(root / "ci/provisioning/runtime-components.manifest.json"), "--lock", str(root / "ci/provisioning/runtime-component-lock.json")]),
-        ("crs-contract-views", [sys.executable, str(root / "ci/tools/sync-crs-contract-views.py"), mode, "--root", str(root)]),
+        (
+            "canonical-python-pins",
+            [
+                sys.executable,
+                str(root / "ci/tools/sync-canonical-python-pins.py"),
+                mode,
+                "--root",
+                str(root),
+            ],
+        ),
+        (
+            "canonical-workflow-pins",
+            [
+                sys.executable,
+                str(root / "ci/tools/sync-canonical-workflow-pins.py"),
+                mode,
+                "--root",
+                str(root),
+            ],
+        ),
+        (
+            "runtime-components",
+            [
+                sys.executable,
+                str(root / "ci/tools/sync-runtime-components.py"),
+                mode,
+                "--common-sh",
+                str(root / COMMON_SH_PATH),
+                "--manifest",
+                str(root / RUNTIME_MANIFEST_PATH),
+                "--lock",
+                str(root / RUNTIME_LOCK_PATH),
+            ],
+        ),
+        (
+            "crs-contract-views",
+            [
+                sys.executable,
+                str(root / "ci/tools/sync-crs-contract-views.py"),
+                mode,
+                "--root",
+                str(root),
+            ],
+        ),
     )
     statuses = []
     for name, command in commands:
-        result = subprocess.run(command, cwd=root, check=False, capture_output=True, text=True)
-        statuses.append({"name": name, "status": "current" if result.returncode == 0 else "blocked", "message": bounded(result.stdout + result.stderr, "generator failed")})
+        result = subprocess.run(
+            command, cwd=root, check=False, capture_output=True, text=True
+        )
+        statuses.append(
+            {
+                "name": name,
+                "status": "current" if result.returncode == 0 else "blocked",
+                "message": bounded(result.stdout + result.stderr, "generator failed"),
+            }
+        )
     return statuses
 
 
@@ -1335,26 +1927,71 @@ def _unique_updates(results: Iterable[dict[str, Any]]) -> list[dict[str, str]]:
         for update in result["updates"]:
             existing = updates.get(update["variable"])
             if existing is not None and existing != update:
-                raise MaintenanceError("two components propose conflicting canonical updates")
+                raise MaintenanceError(
+                    "two components propose conflicting canonical updates"
+                )
             updates[update["variable"]] = update
     return [updates[name] for name in sorted(updates)]
 
 
-def _candidate_common_sha256(checker: Any, lines: list[str], updates: list[dict[str, str]]) -> str:
+def _candidate_common_sha256(
+    checker: Any, lines: list[str], updates: list[dict[str, str]]
+) -> str:
     change_type = checker.UpdateChange
     changes = []
     entries = checker.parse_common_lines(lines)
     for update in updates:
         item = entries.get(update["variable"])
         if item is None or item.default != update["old"]:
-            raise MaintenanceError("automatic update is not bound to canonical common.sh")
-        changes.append(change_type(variable=update["variable"], line=item.line, old=item.default, new=update["new"]))
+            raise MaintenanceError(
+                "automatic update is not bound to canonical common.sh"
+            )
+        changes.append(
+            change_type(
+                variable=update["variable"],
+                line=item.line,
+                old=item.default,
+                new=update["new"],
+            )
+        )
     rendered = checker.render_updated_lines(lines, changes)
     return hashlib.sha256(("\n".join(rendered) + "\n").encode("utf-8")).hexdigest()
 
 
+def _maintenance_outcome(
+    results: list[dict[str, Any]],
+    updates: list[dict[str, str]],
+    reviews: list[dict[str, Any]],
+) -> str:
+    fatal = any(
+        result["status"] in {"unknown", "blocked", "error"} for result in results
+    )
+    if fatal:
+        return "fatal"
+    if updates and reviews:
+        return "safe_updates_with_manual_review"
+    if updates:
+        return "safe_updates"
+    return "manual_review_only" if reviews else "no_updates"
+
+
+def _global_inventory_complete(results: list[dict[str, Any]]) -> bool:
+    scopes = {
+        result["scope"]
+        for result in results
+        if result["scope"] in MANDATORY_GLOBAL_SCOPES
+    }
+    return set(MANDATORY_GLOBAL_SCOPES).issubset(scopes) and not any(
+        result["scope"] in MANDATORY_GLOBAL_SCOPES
+        and result["status"] in {"unknown", "blocked", "error"}
+        for result in results
+    )
+
+
 def _canonical_json(value: dict[str, Any]) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    return json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
 
 
 def _git_output(root: Path, *arguments: str) -> str:
@@ -1372,7 +2009,9 @@ def _git_output(root: Path, *arguments: str) -> str:
 
 def _require_clean_worktree(root: Path) -> None:
     if _git_output(root, "status", "--porcelain=v1", "--untracked-files=all").strip():
-        raise MaintenanceError("safe maintenance application requires a clean candidate worktree")
+        raise MaintenanceError(
+            "safe maintenance application requires a clean candidate worktree"
+        )
 
 
 def _snapshot_allowed_views(root: Path) -> dict[str, tuple[bytes, int]]:
@@ -1384,15 +2023,21 @@ def _snapshot_allowed_views(root: Path) -> dict[str, tuple[bytes, int]]:
         except FileNotFoundError:
             continue
         except OSError as exc:
-            raise MaintenanceError(f"cannot snapshot generated view {relative}") from exc
+            raise MaintenanceError(
+                f"cannot snapshot generated view {relative}"
+            ) from exc
         if stat.S_ISLNK(details.st_mode) or not stat.S_ISREG(details.st_mode):
-            raise MaintenanceError(f"generated view {relative} must be a regular non-symlink file")
+            raise MaintenanceError(
+                f"generated view {relative} must be a regular non-symlink file"
+            )
         snapshots[relative] = (path.read_bytes(), details.st_mode & 0o777)
     return snapshots
 
 
 def _atomic_restore(path: Path, data: bytes, mode: int) -> None:
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", dir=path.parent
+    )
     temporary = Path(temporary_name)
     try:
         os.fchmod(descriptor, mode)
@@ -1409,7 +2054,9 @@ def _atomic_restore(path: Path, data: bytes, mode: int) -> None:
             temporary.unlink()
 
 
-def _rollback_allowed_views(root: Path, snapshots: dict[str, tuple[bytes, int]]) -> None:
+def _rollback_allowed_views(
+    root: Path, snapshots: dict[str, tuple[bytes, int]]
+) -> None:
     changed = set(_git_output(root, "diff", "--name-only").splitlines())
     unexpected = changed.difference(ALLOWED_AUTOMATIC_PATHS)
     if unexpected:
@@ -1440,20 +2087,36 @@ def build_plan(
 
     root = require_root(root)
     checker = checker or load_runtime_checker(root)
-    lines, entries = checker.parse_common(root / "ci/lib/common.sh")
+    lines, entries = checker.parse_common(root / COMMON_SH_PATH)
     client = client or checker.HttpClient(timeout=timeout)
     workflow_updater = workflow_updater or load_workflow_tool_updater(root)
     results: list[dict[str, Any]] = []
     reviews: list[dict[str, Any]] = []
     for args in (
         {
-            "component_id": "go-ftw", "component_name": "Go-FTW", "source_variable": "GO_FTW_SOURCE_URL", "tag_variable": "GO_FTW_RELEASE_TAG", "ref_variable": "GO_FTW_GIT_REF", "commit_variable": "GO_FTW_APPROVED_COMMIT", "aliases": ("GO_FTW_PROMPT_EXPECTED_LATEST",), "automatic_policy": "same_major",
+            "component_id": "go-ftw",
+            "component_name": "Go-FTW",
+            "source_variable": "GO_FTW_SOURCE_URL",
+            "tag_variable": "GO_FTW_RELEASE_TAG",
+            "ref_variable": "GO_FTW_GIT_REF",
+            "commit_variable": "GO_FTW_APPROVED_COMMIT",
+            "aliases": ("GO_FTW_PROMPT_EXPECTED_LATEST",),
+            "automatic_policy": "same_major",
         },
         {
-            "component_id": "albedo", "component_name": "Albedo", "source_variable": "ALBEDO_SOURCE_URL", "tag_variable": "ALBEDO_RELEASE_TAG", "ref_variable": "ALBEDO_GIT_REF", "commit_variable": "ALBEDO_APPROVED_COMMIT", "aliases": ("ALBEDO_PROMPT_EXPECTED_LATEST",), "automatic_policy": "zero_same_minor",
+            "component_id": "albedo",
+            "component_name": "Albedo",
+            "source_variable": "ALBEDO_SOURCE_URL",
+            "tag_variable": "ALBEDO_RELEASE_TAG",
+            "ref_variable": "ALBEDO_GIT_REF",
+            "commit_variable": "ALBEDO_APPROVED_COMMIT",
+            "aliases": ("ALBEDO_PROMPT_EXPECTED_LATEST",),
+            "automatic_policy": "zero_same_minor",
         },
     ):
-        result, component_reviews = resolve_git_release_component(checker, client, entries, **args)
+        result, component_reviews = resolve_git_release_component(
+            checker, client, entries, **args
+        )
         results.append(result)
         reviews.extend(component_reviews)
     for resolver in (resolve_python, resolve_pyyaml, resolve_node):
@@ -1471,41 +2134,32 @@ def build_plan(
     reviews.extend(workflow_reviews)
     results.append(resolve_osv_compatibility(entries))
     results.append(resolve_canonical_ci_coverage(entries))
-    runtime_results, runtime_reviews, selected_runtime = resolve_runtime_components(checker, entries, client, components)
+    runtime_results, runtime_reviews, _ = resolve_runtime_components(
+        checker, entries, client, components
+    )
     results.extend(runtime_results)
     reviews.extend(runtime_reviews)
     views = generated_view_status(root) if check_generated_views else []
     if any(view["status"] != "current" for view in views):
-        results.append(_check_result(component_id="generated-views", component_name="Generated maintenance views", scope="ci-security-tools", status="blocked", message="One or more generated canonical views drifted from common.sh.", variables=("CI_CANONICAL_PYTHON_VERSION",)))
+        results.append(
+            _check_result(
+                component_id="generated-views",
+                component_name="Generated maintenance views",
+                scope="ci-security-tools",
+                status="blocked",
+                message="One or more generated canonical views drifted from common.sh.",
+                variables=("CI_CANONICAL_PYTHON_VERSION",),
+            )
+        )
     automatic_updates = _unique_updates(results)
-    fatal = sorted(result["component_id"] for result in results if result["status"] in {"unknown", "blocked", "error"})
     manual = sorted(reviews, key=lambda item: item["review_key"])
-    if fatal:
-        outcome = "fatal"
-    elif automatic_updates and manual:
-        outcome = "safe_updates_with_manual_review"
-    elif automatic_updates:
-        outcome = "safe_updates"
-    elif manual:
-        outcome = "manual_review_only"
-    else:
-        outcome = "no_updates"
+    outcome = _maintenance_outcome(results, automatic_updates, manual)
     checked_components = [result["component_id"] for result in results]
     if len(set(checked_components)) != len(checked_components):
         raise MaintenanceError("maintenance plan has duplicate component ids")
-    generated_views = sorted(ALLOWED_AUTOMATIC_PATHS.difference({"ci/lib/common.sh"}))
-    checked_global_scopes = {
-        result["scope"] for result in results if result["scope"] in MANDATORY_GLOBAL_SCOPES
-    }
-    global_inventory_complete = (
-        set(MANDATORY_GLOBAL_SCOPES).issubset(checked_global_scopes)
-        and not any(
-            result["scope"] in MANDATORY_GLOBAL_SCOPES
-            and result["status"] in {"unknown", "blocked", "error"}
-            for result in results
-        )
-    )
-    source_bytes = (root / "ci/lib/common.sh").read_bytes()
+    generated_views = sorted(ALLOWED_AUTOMATIC_PATHS.difference({COMMON_SH_PATH}))
+    global_inventory_complete = _global_inventory_complete(results)
+    source_bytes = (root / COMMON_SH_PATH).read_bytes()
     plan: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "maintenance_outcome": outcome,
@@ -1521,7 +2175,9 @@ def build_plan(
         "generated_view_status": views,
         "global_inventory_complete": global_inventory_complete,
         "source_common_sha256": hashlib.sha256(source_bytes).hexdigest(),
-        "candidate_common_sha256": _candidate_common_sha256(checker, lines, automatic_updates),
+        "candidate_common_sha256": _candidate_common_sha256(
+            checker, lines, automatic_updates
+        ),
     }
     plan["plan_sha256"] = hashlib.sha256(_canonical_json(plan)).hexdigest()
     return plan
@@ -1535,7 +2191,9 @@ def validate_plan_digest(plan: dict[str, Any], expected: str | None = None) -> s
     if not isinstance(observed, str) or observed != calculated:
         raise MaintenanceError("maintenance plan SHA-256 is invalid")
     if expected is not None and expected != observed:
-        raise MaintenanceError("maintenance plan SHA-256 does not match the caller-bound plan")
+        raise MaintenanceError(
+            "maintenance plan SHA-256 does not match the caller-bound plan"
+        )
     return observed
 
 
@@ -1556,13 +2214,20 @@ def render_plan_markdown(plan: dict[str, Any]) -> str:
     for result in plan.get("component_results", []):
         lines.append(
             "| {scope} | {name} | `{current}` | `{compatible}` | `{upstream}` | `{status}` |".format(
-                scope=bounded(result["scope"]), name=bounded(result["component_name"]), current=bounded(result["current"]), compatible=bounded(result["latest_compatible"]), upstream=bounded(result["latest_upstream"]), status=bounded(result["status"])
+                scope=bounded(result["scope"]),
+                name=bounded(result["component_name"]),
+                current=bounded(result["current"]),
+                compatible=bounded(result["latest_compatible"]),
+                upstream=bounded(result["latest_upstream"]),
+                status=bounded(result["status"]),
             )
         )
     lines.extend(["", "## Automatic updates", ""])
     if plan["safe_updates"]:
         for update in plan["safe_updates"]:
-            lines.append(f"- `{update['variable']}`: `{update['old']}` → `{update['new']}`")
+            lines.append(
+                f"- `{update['variable']}`: `{update['old']}` → `{update['new']}`"
+            )
     else:
         lines.append("- None")
     lines.extend(["", "## Manual reviews", ""])
@@ -1577,40 +2242,73 @@ def render_plan_markdown(plan: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def apply_safe_updates(root: Path, plan: dict[str, Any], *, expected_plan_sha256: str) -> list[str]:
+def apply_safe_updates(
+    root: Path, plan: dict[str, Any], *, expected_plan_sha256: str
+) -> list[str]:
     """Apply only a caller-bound safe plan and regenerate exactly allowlisted views."""
 
     root = require_root(root)
     validate_plan_digest(plan, expected_plan_sha256)
-    if plan.get("maintenance_outcome") not in {"safe_updates", "safe_updates_with_manual_review"}:
+    if plan.get("maintenance_outcome") not in {
+        "safe_updates",
+        "safe_updates_with_manual_review",
+    }:
         raise MaintenanceError("only a safe-update maintenance plan may be applied")
     _require_clean_worktree(root)
     snapshots = _snapshot_allowed_views(root)
     try:
         checker = load_runtime_checker(root)
-        common = root / "ci/lib/common.sh"
-        if hashlib.sha256(common.read_bytes()).hexdigest() != plan.get("source_common_sha256"):
-            raise MaintenanceError("canonical source digest no longer matches the bound maintenance plan")
+        common = root / COMMON_SH_PATH
+        if hashlib.sha256(common.read_bytes()).hexdigest() != plan.get(
+            "source_common_sha256"
+        ):
+            raise MaintenanceError(
+                "canonical source digest no longer matches the bound maintenance plan"
+            )
         lines, entries = checker.parse_common(common)
         changes = []
         for update in plan["safe_updates"]:
             item = entries.get(update["variable"])
             if item is None or item.default != update["old"]:
-                raise MaintenanceError("canonical source no longer matches the bound maintenance plan")
-            changes.append(checker.UpdateChange(variable=update["variable"], line=item.line, old=item.default, new=update["new"]))
+                raise MaintenanceError(
+                    "canonical source no longer matches the bound maintenance plan"
+                )
+            changes.append(
+                checker.UpdateChange(
+                    variable=update["variable"],
+                    line=item.line,
+                    old=item.default,
+                    new=update["new"],
+                )
+            )
         checker.apply_updates(common, lines, changes)
-        if hashlib.sha256(common.read_bytes()).hexdigest() != plan.get("candidate_common_sha256"):
-            raise MaintenanceError("updated canonical source does not match the bound maintenance candidate")
+        if hashlib.sha256(common.read_bytes()).hexdigest() != plan.get(
+            "candidate_common_sha256"
+        ):
+            raise MaintenanceError(
+                "updated canonical source does not match the bound maintenance candidate"
+            )
         statuses = generated_view_status(root, write=True)
         if any(item["status"] != "current" for item in statuses):
-            raise MaintenanceError("generated-view synchronization failed after common.sh update")
+            raise MaintenanceError(
+                "generated-view synchronization failed after common.sh update"
+            )
         statuses = generated_view_status(root, write=False)
         if any(item["status"] != "current" for item in statuses):
-            raise MaintenanceError("generated views did not settle after synchronization")
-        changed = sorted(path for path in _git_output(root, "diff", "--name-only").splitlines() if path)
+            raise MaintenanceError(
+                "generated views did not settle after synchronization"
+            )
+        changed = sorted(
+            path
+            for path in _git_output(root, "diff", "--name-only").splitlines()
+            if path
+        )
         unknown = [path for path in changed if path not in ALLOWED_AUTOMATIC_PATHS]
         if unknown:
-            raise MaintenanceError("automatic maintenance candidate escapes its path policy: " + ", ".join(unknown))
+            raise MaintenanceError(
+                "automatic maintenance candidate escapes its path policy: "
+                + ", ".join(unknown)
+            )
         return changed
     except Exception as original_error:
         try:

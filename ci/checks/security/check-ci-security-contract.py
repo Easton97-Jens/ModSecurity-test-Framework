@@ -69,6 +69,7 @@ WORKFLOW_UPDATER_APP_PRIVATE_KEY_EXPRESSION = (
 )
 GITHUB_REPOSITORY_OWNER_EXPRESSION = "${{ github.repository_owner }}"
 GITHUB_REPOSITORY_EXPRESSION = "${{ github.repository }}"
+DEFAULT_BRANCH_CONTEXT = "github.event.repository.default_branch"
 UPDATER_PUBLISH_TOKEN_ENV = "PUBLISH_TOKEN"
 STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION = "Checkout trusted default revision"
 STEP_SETUP_REVIEWED_PYTHON = "Set up reviewed Python"
@@ -85,6 +86,10 @@ STEP_INSPECT_DRAFT_MAINTENANCE_PULL_REQUEST = (
 STEP_MINT_WORKFLOW_PUBLISHER_APP_TOKEN = (
     "Mint repository-limited workflow publisher App token"
 )
+STEP_MINT_ISSUE_RECONCILER_APP_TOKEN = (
+    "Mint repository-limited issue reconciler App token"
+)
+STEP_MINT_PUBLISHER_APP_TOKEN = "Mint repository-limited publisher App token"
 STEP_VERIFY_WORKFLOW_PUBLISHER_APP_CONFIGURATION = (
     "Verify workflow publisher GitHub App configuration"
 )
@@ -232,7 +237,7 @@ COMMON_VERSION_JOB_NAMES = {
 COMMON_VERSION_GENERATED_PATHS = frozenset(
     {
         "ci/lib/common.sh",
-        ".python-version",
+        CANONICAL_PYTHON_VERSION_FILE,
         "requirements-ci.lock",
         "ci/tooling/security-tools.lock.yml",
         "ci/provisioning/runtime-components.manifest.json",
@@ -852,7 +857,7 @@ SCORECARD_JOB_REQUIREMENTS: dict[str, tuple[str, ...]] = {
         "scorecard-results.json",
     ),
     "current-revision-advisory": (
-        "github.event.repository.default_branch",
+        DEFAULT_BRANCH_CONTEXT,
         "ref: ${{ github.sha }}",
         CHECK_JSON_RESULT,
         UPLOAD_ARTIFACT,
@@ -3115,56 +3120,94 @@ def common_version_maintenance_errors(path: Path, data: dict[str, Any]) -> list[
     return errors
 
 
-def common_version_strict_profile_errors(path: Path, data: dict[str, Any]) -> list[str]:
-    """Validate the unified maintenance workflow's closed security profile."""
-    errors = common_version_trigger_errors(path, data)
-    if data.get("permissions") != COMMON_VERSION_READER_PERMISSIONS:
-        errors.append(
-            f"{path}: common-version workflow must declare exactly {{contents: read}} top-level permissions"
-        )
-    jobs, job_errors = common_version_jobs(path, data)
-    errors.extend(job_errors)
-    if jobs is None:
-        return errors
-
+def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
     job_profiles = {
-        "canonical-maintenance": {"runs-on", "timeout-minutes", "permissions", "outputs", "steps"},
-        "candidate": {"needs", "if", "runs-on", "timeout-minutes", "permissions", "outputs", "steps"},
-        "reconcile-trusted": {"needs", "if", "runs-on", "timeout-minutes", "permissions", "steps"},
-        "publish": {"needs", "if", "runs-on", "timeout-minutes", "permissions", "steps"},
+        "canonical-maintenance": {
+            "runs-on",
+            "timeout-minutes",
+            "permissions",
+            "outputs",
+            "steps",
+        },
+        "candidate": {
+            "needs",
+            "if",
+            "runs-on",
+            "timeout-minutes",
+            "permissions",
+            "outputs",
+            "steps",
+        },
+        "reconcile-trusted": {
+            "needs",
+            "if",
+            "runs-on",
+            "timeout-minutes",
+            "permissions",
+            "steps",
+        },
+        "publish": {
+            "needs",
+            "if",
+            "runs-on",
+            "timeout-minutes",
+            "permissions",
+            "steps",
+        },
         "result": {"needs", "if", "runs-on", "timeout-minutes", "permissions", "steps"},
     }
     step_profiles = {
         "canonical-maintenance": [
-            ("Checkout trusted default revision", {"name", "uses", "with"}),
-            ("Set up reviewed Python", {"name", "uses", "with"}),
-            ("Resolve mandatory global and selected runtime scopes", {"name", "id", "env", "run"}),
+            (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, {"name", "uses", "with"}),
+            (STEP_SETUP_REVIEWED_PYTHON, {"name", "uses", "with"}),
+            (
+                "Resolve mandatory global and selected runtime scopes",
+                {"name", "id", "env", "run"},
+            ),
             ("Validate review issue reconciliation without writes", {"name", "run"}),
         ],
         "candidate": [
-            ("Checkout trusted default revision", {"name", "uses", "with"}),
-            ("Set up reviewed Python", {"name", "uses", "with"}),
+            (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, {"name", "uses", "with"}),
+            (STEP_SETUP_REVIEWED_PYTHON, {"name", "uses", "with"}),
             ("Re-resolve the caller-bound plan", {"name", "env", "run"}),
-            ("Apply only the bound safe plan and generated views", {"name", "env", "run"}),
-            ("Validate candidate path policy and focused controls", {"name", "id", "run"}),
+            (
+                "Apply only the bound safe plan and generated views",
+                {"name", "env", "run"},
+            ),
+            (
+                "Validate candidate path policy and focused controls",
+                {"name", "id", "run"},
+            ),
         ],
         "reconcile-trusted": [
-            ("Checkout trusted default revision", {"name", "uses", "with"}),
-            ("Set up reviewed Python", {"name", "uses", "with"}),
+            (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, {"name", "uses", "with"}),
+            (STEP_SETUP_REVIEWED_PYTHON, {"name", "uses", "with"}),
             ("Require distinct review-issue App configuration", {"name", "env", "run"}),
-            ("Mint repository-limited issue reconciler App token", {"name", "id", "uses", "with"}),
-            ("Re-resolve and reconcile review issues on trusted default branch", {"name", "env", "run"}),
+            (STEP_MINT_ISSUE_RECONCILER_APP_TOKEN, {"name", "id", "uses", "with"}),
+            (
+                "Re-resolve and reconcile review issues on trusted default branch",
+                {"name", "env", "run"},
+            ),
         ],
         "publish": [
-            ("Checkout trusted default revision", {"name", "uses", "with"}),
-            ("Set up reviewed Python", {"name", "uses", "with"}),
+            (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, {"name", "uses", "with"}),
+            (STEP_SETUP_REVIEWED_PYTHON, {"name", "uses", "with"}),
             ("Re-resolve and apply canonical plan", {"name", "env", "run"}),
             ("Require publisher App configuration", {"name", "env", "run"}),
-            ("Mint repository-limited publisher App token", {"name", "id", "uses", "with"}),
-            ("Create or update Draft PR from the full generated allowlist", {"name", "uses", "with"}),
+            (STEP_MINT_PUBLISHER_APP_TOKEN, {"name", "id", "uses", "with"}),
+            (
+                "Create or update Draft PR from the full generated allowlist",
+                {"name", "uses", "with"},
+            ),
         ],
-        "result": [("Summarize outcome, updates, reviews, issues, PR, and fatal findings", {"name", "env", "run"})],
+        "result": [
+            (
+                "Summarize outcome, updates, reviews, issues, PR, and fatal findings",
+                {"name", "env", "run"},
+            )
+        ],
     }
+    errors: list[str] = []
     for name, job in jobs.items():
         if not isinstance(job, dict):
             errors.append(f"{path}: common-version {name} job must be a mapping")
@@ -3176,142 +3219,344 @@ def common_version_strict_profile_errors(path: Path, data: dict[str, Any]) -> li
             errors.append(f"{path}: common-version {name} step profile changed")
             continue
         for step, (expected_name, expected_keys) in zip(steps, step_profiles[name]):
-            if not isinstance(step, dict) or step.get("name") != expected_name or set(step) != expected_keys:
-                errors.append(f"{path}: common-version {name} step profile changed at {expected_name!r}")
+            if (
+                not isinstance(step, dict)
+                or step.get("name") != expected_name
+                or set(step) != expected_keys
+            ):
+                errors.append(
+                    f"{path}: common-version {name} step profile changed at {expected_name!r}"
+                )
+    return errors
 
-    canonical = jobs["canonical-maintenance"]
-    candidate = jobs["candidate"]
+
+def _common_version_permission_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for name in ("canonical-maintenance", "candidate", "result"):
+        job = jobs[name]
+        if (
+            not isinstance(job, dict)
+            or job.get("permissions") != COMMON_VERSION_READER_PERMISSIONS
+        ):
+            errors.append(
+                f"{path}: common-version {name} must have contents: read only"
+            )
     reconcile = jobs["reconcile-trusted"]
-    publish = jobs["publish"]
-    result = jobs["result"]
-    for name, job in (("canonical-maintenance", canonical), ("candidate", candidate), ("result", result)):
-        if not isinstance(job, dict) or job.get("permissions") != COMMON_VERSION_READER_PERMISSIONS:
-            errors.append(f"{path}: common-version {name} must have contents: read only")
-    if isinstance(reconcile, dict) and reconcile.get("permissions") != COMMON_VERSION_READER_PERMISSIONS:
+    if (
+        isinstance(reconcile, dict)
+        and reconcile.get("permissions") != COMMON_VERSION_READER_PERMISSIONS
+    ):
         errors.append(f"{path}: reconcile-trusted permission profile changed")
-    if isinstance(publish, dict) and publish.get("permissions") != COMMON_VERSION_PUBLISHER_PERMISSIONS:
+    publish = jobs["publish"]
+    if (
+        isinstance(publish, dict)
+        and publish.get("permissions") != COMMON_VERSION_PUBLISHER_PERMISSIONS
+    ):
         errors.append(f"{path}: publisher native permission profile changed")
-    for name, job in (("canonical-maintenance", canonical), ("candidate", candidate), ("reconcile-trusted", reconcile), ("publish", publish)):
+    return errors
+
+
+def _common_version_action_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for name in ("canonical-maintenance", "candidate", "reconcile-trusted", "publish"):
+        job = jobs[name]
         steps = job.get("steps", []) if isinstance(job, dict) else []
-        checkouts = [step for step in steps if isinstance(step, dict) and str(step.get("uses", "")).split("@", 1)[0] == CHECKOUT_ACTION]
+        checkouts = [
+            step
+            for step in steps
+            if isinstance(step, dict)
+            and str(step.get("uses", "")).split("@", 1)[0] == CHECKOUT_ACTION
+        ]
         if len(checkouts) != 1:
             errors.append(f"{path}: {name} must contain exactly one checkout")
         else:
             values = checkouts[0].get("with")
-            expected = {"ref": DEFAULT_BRANCH_EXPRESSION, "fetch-depth": 1, "persist-credentials": False, "submodules": False}
+            expected = {
+                "ref": DEFAULT_BRANCH_EXPRESSION,
+                "fetch-depth": 1,
+                "persist-credentials": False,
+                "submodules": False,
+            }
             if values != expected:
-                errors.append(f"{path}: {name} checkout must match the trusted default-revision profile")
+                errors.append(
+                    f"{path}: {name} checkout must match the trusted default-revision profile"
+                )
         for step in steps:
             if not isinstance(step, dict) or "uses" not in step:
                 continue
             reference = step["uses"]
             action = reference.split("@", 1)[0] if isinstance(reference, str) else ""
-            if action not in {CHECKOUT_ACTION, SETUP_PYTHON_ACTION, WORKFLOW_UPDATER_APP_TOKEN_ACTION, CREATE_PULL_REQUEST_ACTION}:
+            if action not in {
+                CHECKOUT_ACTION,
+                SETUP_PYTHON_ACTION,
+                WORKFLOW_UPDATER_APP_TOKEN_ACTION,
+                CREATE_PULL_REQUEST_ACTION,
+            }:
                 errors.append(f"{path}: {name} contains an unreviewed Action identity")
-            elif not isinstance(reference, str) or "@" not in reference or not SHA.fullmatch(reference.rsplit("@", 1)[1].split(" ", 1)[0]):
-                errors.append(f"{path}: {name} Action references must use a full immutable commit SHA")
-    for name, job in (("canonical-maintenance", canonical), ("candidate", candidate), ("reconcile-trusted", reconcile), ("publish", publish)):
+            elif (
+                not isinstance(reference, str)
+                or "@" not in reference
+                or not SHA.fullmatch(reference.rsplit("@", 1)[1].split(" ", 1)[0])
+            ):
+                errors.append(
+                    f"{path}: {name} Action references must use a full immutable commit SHA"
+                )
+    return errors
+
+
+def _common_version_setup_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for name in ("canonical-maintenance", "candidate", "reconcile-trusted", "publish"):
+        job = jobs[name]
         for step in job.get("steps", []) if isinstance(job, dict) else []:
             if not isinstance(step, dict):
                 continue
             with_values = step.get("with")
-            if str(step.get("uses", "")).split("@", 1)[0] == SETUP_PYTHON_ACTION and with_values != {"python-version-file": ".python-version", "check-latest": False}:
+            if str(step.get("uses", "")).split("@", 1)[
+                0
+            ] == SETUP_PYTHON_ACTION and with_values != {
+                "python-version-file": CANONICAL_PYTHON_VERSION_FILE,
+                "check-latest": False,
+            }:
                 errors.append(f"{path}: {name} setup-python profile changed")
-    sensitive_paths = frozenset(tuple(item) for item in sensitive_reference_paths(data))
-    allowed_sensitive_paths = frozenset({
-        ("jobs", "canonical-maintenance", "steps", "2", "env", "GITHUB_TOKEN"),
-        ("jobs", "reconcile-trusted", "steps", "4", "env", "GITHUB_TOKEN"),
-        ("jobs", "candidate", "steps", "2", "env", "GITHUB_TOKEN"),
-        ("jobs", "publish", "steps", "2", "env", "GITHUB_TOKEN"),
-        ("jobs", "reconcile-trusted", "steps", "2", "env", "ISSUE_APP_PRIVATE_KEY"),
-        ("jobs", "reconcile-trusted", "steps", "3", "with", "private-key"),
-        ("jobs", "publish", "steps", "3", "env", "PUBLISHER_PRIVATE_KEY"),
-        ("jobs", "publish", "steps", "4", "with", "private-key"),
-    })
-    if sensitive_paths != allowed_sensitive_paths:
-        errors.append(f"{path}: common-version secret or token references are outside the reviewed read-token and App-token profiles")
-    token_paths_and_values = (
-        (("jobs", "canonical-maintenance", "steps", "2", "env", "GITHUB_TOKEN"), canonical),
-        (("jobs", "reconcile-trusted", "steps", "4", "env", "GITHUB_TOKEN"), reconcile),
-        (("jobs", "candidate", "steps", "2", "env", "GITHUB_TOKEN"), candidate),
-        (("jobs", "publish", "steps", "2", "env", "GITHUB_TOKEN"), publish),
+    return errors
+
+
+def _common_version_token_errors(
+    path: Path, data: dict[str, Any], jobs: dict[str, Any]
+) -> list[str]:
+    allowed_sensitive_paths = frozenset(
+        {
+            ("jobs", "canonical-maintenance", "steps", "2", "env", "GITHUB_TOKEN"),
+            ("jobs", "reconcile-trusted", "steps", "4", "env", "GITHUB_TOKEN"),
+            ("jobs", "candidate", "steps", "2", "env", "GITHUB_TOKEN"),
+            ("jobs", "publish", "steps", "2", "env", "GITHUB_TOKEN"),
+            ("jobs", "reconcile-trusted", "steps", "2", "env", "ISSUE_APP_PRIVATE_KEY"),
+            ("jobs", "reconcile-trusted", "steps", "3", "with", "private-key"),
+            ("jobs", "publish", "steps", "3", "env", "PUBLISHER_PRIVATE_KEY"),
+            ("jobs", "publish", "steps", "4", "with", "private-key"),
+        }
     )
-    for token_path, job in token_paths_and_values:
+    errors: list[str] = []
+    if (
+        frozenset(tuple(item) for item in sensitive_reference_paths(data))
+        != allowed_sensitive_paths
+    ):
+        errors.append(
+            f"{path}: common-version secret or token references are outside the reviewed read-token and App-token profiles"
+        )
+    for name, step_index in (
+        ("canonical-maintenance", 2),
+        ("reconcile-trusted", 4),
+        ("candidate", 2),
+        ("publish", 2),
+    ):
+        job = jobs[name]
         steps = job.get("steps", []) if isinstance(job, dict) else []
-        step_index = int(token_path[3])
-        value = steps[step_index].get("env", {}).get("GITHUB_TOKEN") if len(steps) > step_index else None
+        value = (
+            steps[step_index].get("env", {}).get("GITHUB_TOKEN")
+            if len(steps) > step_index
+            else None
+        )
         if value != GITHUB_TOKEN_EXPRESSION:
-            errors.append(f"{path}: common-version read-token environment must use the exact github.token expression")
-    canonical_text = job_run_text(canonical.get("steps", [])) if isinstance(canonical, dict) else ""
-    for required in ("REQUESTED_COMPONENT", "--component", "resolve-canonical-maintenance.py", "--check", "--plan", "global_inventory_complete", "plan_sha256"):
+            errors.append(
+                f"{path}: common-version read-token environment must use the exact github.token expression"
+            )
+    return errors
+
+
+def _common_version_canonical_candidate_errors(
+    path: Path, jobs: dict[str, Any]
+) -> list[str]:
+    canonical = jobs["canonical-maintenance"]
+    candidate = jobs["candidate"]
+    errors: list[str] = []
+    canonical_text = (
+        job_run_text(canonical.get("steps", [])) if isinstance(canonical, dict) else ""
+    )
+    for required in (
+        "REQUESTED_COMPONENT",
+        "--component",
+        "resolve-canonical-maintenance.py",
+        "--check",
+        "--plan",
+        "global_inventory_complete",
+        "plan_sha256",
+    ):
         if required not in canonical_text:
             errors.append(f"{path}: canonical-maintenance missing {required!r}")
     if "--apply-safe-updates" in canonical_text:
         errors.append(f"{path}: canonical-maintenance must be read-only")
-    if isinstance(canonical, dict) and set(canonical.get("outputs", {})) != {"plan_sha256", "maintenance_outcome", "safe_updates", "reviews", "fatal"}:
+    if isinstance(canonical, dict) and set(canonical.get("outputs", {})) != {
+        "plan_sha256",
+        "maintenance_outcome",
+        "safe_updates",
+        "reviews",
+        "fatal",
+    }:
         errors.append(f"{path}: canonical-maintenance outputs changed")
-    candidate_text = job_run_text(candidate.get("steps", [])) if isinstance(candidate, dict) else ""
-    if not isinstance(candidate, dict) or normalized_needs(candidate.get("needs")) != {"canonical-maintenance"} or "safe_updates" not in str(candidate.get("if", "")):
+    candidate_text = (
+        job_run_text(candidate.get("steps", [])) if isinstance(candidate, dict) else ""
+    )
+    if (
+        not isinstance(candidate, dict)
+        or normalized_needs(candidate.get("needs")) != {"canonical-maintenance"}
+        or "safe_updates" not in str(candidate.get("if", ""))
+    ):
         errors.append(f"{path}: candidate must be gated by canonical safe updates")
-    for required in ("--expected-plan-sha256", "--apply-safe-updates", "git diff --name-only", "git diff --check"):
+    for required in (
+        "--expected-plan-sha256",
+        "--apply-safe-updates",
+        "git diff --name-only",
+        "git diff --check",
+    ):
         if required not in candidate_text:
             errors.append(f"{path}: candidate missing {required!r}")
-    reconcile_text = job_run_text(reconcile.get("steps", [])) if isinstance(reconcile, dict) else ""
-    reconcile_profile_text = reconcile_text + json.dumps(reconcile, sort_keys=True)
+    return errors
+
+
+def _common_version_reconcile_errors(path: Path, reconcile: Any) -> list[str]:
+    errors: list[str] = []
+    reconcile_text = (
+        job_run_text(reconcile.get("steps", [])) if isinstance(reconcile, dict) else ""
+    )
+    profile_text = reconcile_text + json.dumps(reconcile, sort_keys=True)
     if isinstance(reconcile, dict):
         for step in reconcile.get("steps", []):
-            if isinstance(step, dict) and step.get("name") == "Mint repository-limited issue reconciler App token":
-                with_values = step.get("with")
-                if isinstance(with_values, dict):
-                    reconcile_profile_text += "\n" + "\n".join(
-                        f"{key}: {value}" for key, value in sorted(with_values.items())
-                    )
+            if (
+                isinstance(step, dict)
+                and step.get("name") == STEP_MINT_ISSUE_RECONCILER_APP_TOKEN
+                and isinstance(step.get("with"), dict)
+            ):
+                profile_text += "\n" + "\n".join(
+                    f"{key}: {value}" for key, value in sorted(step["with"].items())
+                )
     reconcile_if = str(reconcile.get("if", "")) if isinstance(reconcile, dict) else ""
-    if "github.event_name == 'schedule'" not in reconcile_if or "github.event_name == 'workflow_dispatch'" not in reconcile_if or "github.event.repository.default_branch" not in reconcile_if:
-        errors.append(f"{path}: reconcile-trusted must be scheduled/manual and default-branch gated")
-    for required in ("MAINTENANCE_ISSUE_APP_CLIENT_ID", "MAINTENANCE_ISSUE_APP_PRIVATE_KEY", "permission-issues: write", "--trusted-default-branch", "--apply", "--expected-plan-sha256"):
-        if required not in reconcile_profile_text:
+    if (
+        "github.event_name == 'schedule'" not in reconcile_if
+        or "github.event_name == 'workflow_dispatch'" not in reconcile_if
+        or DEFAULT_BRANCH_CONTEXT not in reconcile_if
+    ):
+        errors.append(
+            f"{path}: reconcile-trusted must be scheduled/manual and default-branch gated"
+        )
+    for required in (
+        "MAINTENANCE_ISSUE_APP_CLIENT_ID",
+        "MAINTENANCE_ISSUE_APP_PRIVATE_KEY",
+        "permission-issues: write",
+        "--trusted-default-branch",
+        "--apply",
+        "--expected-plan-sha256",
+    ):
+        if required not in profile_text:
             errors.append(f"{path}: reconcile-trusted missing {required!r}")
-    if "WORKFLOW_UPDATER_APP" in reconcile_profile_text or "permission-contents: write" in reconcile_profile_text:
-        errors.append(f"{path}: reconcile-trusted may use only issue-reconciler credentials")
-    issue_token = next((step for step in reconcile.get("steps", []) if isinstance(step, dict) and step.get("name") == "Mint repository-limited issue reconciler App token"), {})
+    if (
+        "WORKFLOW_UPDATER_APP" in profile_text
+        or "permission-contents: write" in profile_text
+    ):
+        errors.append(
+            f"{path}: reconcile-trusted may use only issue-reconciler credentials"
+        )
+    issue_token = next(
+        (
+            step
+            for step in reconcile.get("steps", [])
+            if isinstance(step, dict)
+            and step.get("name") == STEP_MINT_ISSUE_RECONCILER_APP_TOKEN
+        ),
+        {},
+    )
     if issue_token.get("with") != {
         "client-id": "${{ vars.MAINTENANCE_ISSUE_APP_CLIENT_ID }}",
         "private-key": "${{ secrets.MAINTENANCE_ISSUE_APP_PRIVATE_KEY }}",
-        "owner": "${{ github.repository_owner }}",
+        "owner": GITHUB_REPOSITORY_OWNER_EXPRESSION,
         "repositories": "${{ github.event.repository.name }}",
         "permission-issues": "write",
     }:
         errors.append(f"{path}: reconcile-trusted App token input profile changed")
-    publish_text = job_run_text(publish.get("steps", [])) if isinstance(publish, dict) else ""
-    publish_profile_text = publish_text + json.dumps(publish, sort_keys=True)
+    return errors
+
+
+def _common_version_publish_errors(path: Path, publish: Any) -> list[str]:
+    errors: list[str] = []
+    publish_text = (
+        job_run_text(publish.get("steps", [])) if isinstance(publish, dict) else ""
+    )
+    profile_text = publish_text + json.dumps(publish, sort_keys=True)
     if isinstance(publish, dict):
         for step in publish.get("steps", []):
-            if isinstance(step, dict) and step.get("name") == "Mint repository-limited publisher App token":
-                with_values = step.get("with")
-                if isinstance(with_values, dict):
-                    publish_profile_text += "\n" + "\n".join(
-                        f"{key}: {value}" for key, value in sorted(with_values.items())
-                    )
+            if (
+                isinstance(step, dict)
+                and step.get("name") == STEP_MINT_PUBLISHER_APP_TOKEN
+                and isinstance(step.get("with"), dict)
+            ):
+                profile_text += "\n" + "\n".join(
+                    f"{key}: {value}" for key, value in sorted(step["with"].items())
+                )
     publish_if = str(publish.get("if", "")) if isinstance(publish, dict) else ""
-    if not isinstance(publish, dict) or normalized_needs(publish.get("needs")) != {"canonical-maintenance", "candidate", "reconcile-trusted"}:
+    if not isinstance(publish, dict) or normalized_needs(publish.get("needs")) != {
+        "canonical-maintenance",
+        "candidate",
+        "reconcile-trusted",
+    }:
         errors.append(f"{path}: publisher dependency profile changed")
-    for required in ("github.repository == 'Easton97-Jens/ModSecurity-test-Framework'", "github.event.repository.default_branch", "needs.candidate.result == 'success'", "WORKFLOW_UPDATER_APP_CLIENT_ID", "WORKFLOW_UPDATER_APP_PRIVATE_KEY", "permission-contents: write", "permission-pull-requests: write", "--expected-plan-sha256", "--apply-safe-updates"):
-        if required not in publish_if + publish_profile_text:
+    for required in (
+        "github.repository == 'Easton97-Jens/ModSecurity-test-Framework'",
+        DEFAULT_BRANCH_CONTEXT,
+        "needs.candidate.result == 'success'",
+        "WORKFLOW_UPDATER_APP_CLIENT_ID",
+        "WORKFLOW_UPDATER_APP_PRIVATE_KEY",
+        "permission-contents: write",
+        "permission-pull-requests: write",
+        "--expected-plan-sha256",
+        "--apply-safe-updates",
+    ):
+        if required not in publish_if + profile_text:
             errors.append(f"{path}: publisher missing {required!r}")
-    if any(token in publish_text.lower() for token in ("github.token", "secrets.github_token", "git push ", "git add .", "git add -a", "--force", "auto-merge: true", "auto-merge=true")):
-        errors.append(f"{path}: publisher contains an unapproved token or merge/push control")
-    publisher_token = next((step for step in publish.get("steps", []) if isinstance(step, dict) and step.get("name") == "Mint repository-limited publisher App token"), {})
+    if any(
+        token in publish_text.lower()
+        for token in (
+            "github.token",
+            "secrets.github_token",
+            "git push ",
+            "git add .",
+            "git add -a",
+            "--force",
+            "auto-merge: true",
+            "auto-merge=true",
+        )
+    ):
+        errors.append(
+            f"{path}: publisher contains an unapproved token or merge/push control"
+        )
+    publisher_token = next(
+        (
+            step
+            for step in publish.get("steps", [])
+            if isinstance(step, dict)
+            and step.get("name") == STEP_MINT_PUBLISHER_APP_TOKEN
+        ),
+        {},
+    )
     if publisher_token.get("with") != {
         "client-id": "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
         "private-key": "${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}",
-        "owner": "${{ github.repository_owner }}",
+        "owner": GITHUB_REPOSITORY_OWNER_EXPRESSION,
         "repositories": "${{ github.event.repository.name }}",
         "permission-contents": "write",
         "permission-pull-requests": "write",
     }:
         errors.append(f"{path}: publisher App token input profile changed")
-    create_pr = next((step for step in publish.get("steps", []) if isinstance(step, dict) and step.get("name") == "Create or update Draft PR from the full generated allowlist"), {})
+    create_pr = next(
+        (
+            step
+            for step in publish.get("steps", [])
+            if isinstance(step, dict)
+            and step.get("name")
+            == "Create or update Draft PR from the full generated allowlist"
+        ),
+        {},
+    )
     create_pr_with = create_pr.get("with")
     expected_create_pr = {
         "token": "${{ steps.publisher_app_token.outputs.token }}",
@@ -3319,27 +3564,82 @@ def common_version_strict_profile_errors(path: Path, data: dict[str, Any]) -> li
         "title": "chore(ci): update canonical maintenance pins",
         "body-path": "${{ runner.temp }}/common-maintenance-pr-body.md",
         "branch": "automation/update-framework-common-versions",
-        "base": "${{ github.event.repository.default_branch }}",
+        "base": DEFAULT_BRANCH_EXPRESSION,
         "delete-branch": False,
         "draft": True,
     }
     if (
         not isinstance(create_pr_with, dict)
         or set(create_pr_with) != {*expected_create_pr, "add-paths"}
-        or any(create_pr_with.get(key) != value for key, value in expected_create_pr.items())
+        or any(
+            create_pr_with.get(key) != value
+            for key, value in expected_create_pr.items()
+        )
     ):
         errors.append(f"{path}: publisher Draft PR input profile changed")
-    add_paths = next((step.get("with", {}).get("add-paths") for step in publish.get("steps", []) if isinstance(step, dict) and isinstance(step.get("with"), dict) and "add-paths" in step["with"]), None)
-    actual_paths = {line.strip() for line in add_paths.splitlines() if line.strip()} if isinstance(add_paths, str) else None
+    add_paths = next(
+        (
+            step.get("with", {}).get("add-paths")
+            for step in publish.get("steps", [])
+            if isinstance(step, dict)
+            and isinstance(step.get("with"), dict)
+            and "add-paths" in step["with"]
+        ),
+        None,
+    )
+    actual_paths = (
+        {line.strip() for line in add_paths.splitlines() if line.strip()}
+        if isinstance(add_paths, str)
+        else None
+    )
     if actual_paths != set(COMMON_VERSION_GENERATED_PATHS):
         errors.append(f"{path}: publisher generated-path allowlist changed")
-    if not isinstance(result, dict) or result.get("if") != "${{ always() }}" or normalized_needs(result.get("needs")) != {"canonical-maintenance", "candidate", "reconcile-trusted", "publish"}:
+    return errors
+
+
+def _common_version_result_profile_errors(path: Path, result: Any) -> list[str]:
+    errors: list[str] = []
+    if (
+        not isinstance(result, dict)
+        or result.get("if") != "${{ always() }}"
+        or normalized_needs(result.get("needs"))
+        != {"canonical-maintenance", "candidate", "reconcile-trusted", "publish"}
+    ):
         errors.append(f"{path}: result must always summarize all maintenance stages")
-    result_text = job_run_text(result.get("steps", [])) if isinstance(result, dict) else ""
-    if "GITHUB_STEP_SUMMARY" not in result_text or "OUTCOME" not in result_text or "FATAL" not in result_text:
+    result_text = (
+        job_run_text(result.get("steps", [])) if isinstance(result, dict) else ""
+    )
+    if (
+        "GITHUB_STEP_SUMMARY" not in result_text
+        or "OUTCOME" not in result_text
+        or "FATAL" not in result_text
+    ):
         errors.append(f"{path}: result must emit the terminal outcome summary")
     if isinstance(result, dict) and sensitive_reference_paths(result):
         errors.append(f"{path}: result must remain credential-free")
+    return errors
+
+
+def common_version_strict_profile_errors(path: Path, data: dict[str, Any]) -> list[str]:
+    """Validate the unified maintenance workflow's closed security profile."""
+    errors = common_version_trigger_errors(path, data)
+    if data.get("permissions") != COMMON_VERSION_READER_PERMISSIONS:
+        errors.append(
+            f"{path}: common-version workflow must declare exactly {{contents: read}} top-level permissions"
+        )
+    jobs, job_errors = common_version_jobs(path, data)
+    errors.extend(job_errors)
+    if jobs is None:
+        return errors
+    errors.extend(_common_version_profile_errors(path, jobs))
+    errors.extend(_common_version_permission_errors(path, jobs))
+    errors.extend(_common_version_action_errors(path, jobs))
+    errors.extend(_common_version_setup_errors(path, jobs))
+    errors.extend(_common_version_token_errors(path, data, jobs))
+    errors.extend(_common_version_canonical_candidate_errors(path, jobs))
+    errors.extend(_common_version_reconcile_errors(path, jobs["reconcile-trusted"]))
+    errors.extend(_common_version_publish_errors(path, jobs["publish"]))
+    errors.extend(_common_version_result_profile_errors(path, jobs["result"]))
     return errors
 
 

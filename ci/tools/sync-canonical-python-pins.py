@@ -28,14 +28,16 @@ PIN_NAMES = (
 TOOL_ROOT = Path(__file__).resolve().parents[2]
 GENERATED_VIEW_LABEL = "generated view"
 ASSIGNMENT = re.compile(
-    r"^\s*(?P<name>CI_CANONICAL_(?:PYTHON_VERSION|PYYAML_VERSION|PYYAML_SHA256|PYYAML_ARTIFACT|PYYAML_PLATFORM))"
-    r"\s*=\s*(?:\"(?P<double>[^\"\n]*)\"|'(?P<single>[^'\n]*)'|"
-    r"(?P<bare>[^\s#]+))\s*(?:#.*)?$"
+    r"^\s*(?P<name>CI_CANONICAL_[A-Z0-9_]+)\s*=\s*"
+    r"(?:\"(?P<double>[^\"\n]*+)\"|'(?P<single>[^'\n]*+)'|"
+    r"(?P<bare>[^\s#]++))\s*(?:#.*)?$"
 )
 VERSION = re.compile(r"\A\d+\.\d+\.\d+\Z", flags=re.ASCII)
 SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
 ARTIFACT = re.compile(r"\Apyyaml-\d+\.\d+\.\d+-[A-Za-z0-9_.-]+\.whl\Z")
-PLATFORM = re.compile(r"\A[A-Za-z0-9_.-]+(?:\.[A-Za-z0-9_.-]+)*\Z")
+# Keep this input bounded and use one character class.  The previous nested
+# repetition could take super-linear time on a long malformed platform value.
+PLATFORM = re.compile(r"\A[A-Za-z0-9_.-]{1,256}\Z", flags=re.ASCII)
 PYTHON_VIEW = re.compile(r"\A(?P<value>\d+\.\d+\.\d+)\n\Z", flags=re.ASCII)
 PYAML_VERSION_LINE = re.compile(
     r"\A(?P<prefix>\s*PyYAML==)(?P<value>[^\s\\]+)(?P<suffix>\s*\\\n)\Z"
@@ -182,7 +184,8 @@ def expected_views(root: Path, values: dict[str, str]) -> dict[Path, bytes]:
     requirements = read_utf8(requirements_path, root, requirements_label)
     lines = requirements.splitlines(keepends=True)
     lines = [
-        line for line in lines
+        line
+        for line in lines
         if not line.startswith(("# PyYAML artifact:", "# PyYAML platform:"))
     ]
     provenance = (

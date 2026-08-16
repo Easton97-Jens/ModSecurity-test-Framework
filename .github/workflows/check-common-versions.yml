@@ -141,12 +141,13 @@ jobs:
           GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REQUESTED_COMPONENT: ${{ inputs.component }}
           GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_APP_TOKEN: ${{ steps.issue_app_token.outputs.token }}
         run: |
           set -euo pipefail
           args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --expected-plan-sha256 "$PLAN_SHA256")
           if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
           python3 ci/tools/resolve-canonical-maintenance.py "${args[@]}"
-          python3 ci/tools/reconcile-common-version-review-issues.py --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --repository "${GITHUB_REPOSITORY}" --apply --trusted-default-branch --token "${{ steps.issue_app_token.outputs.token }}"
+          python3 ci/tools/reconcile-common-version-review-issues.py --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --repository "${GITHUB_REPOSITORY}" --apply --trusted-default-branch --token "$ISSUE_APP_TOKEN"
 
   candidate:
     needs: canonical-maintenance
@@ -204,7 +205,10 @@ jobs:
           printf 'validated=true\n' >> "$GITHUB_OUTPUT"
 
   publish:
-    needs: [canonical-maintenance, candidate, reconcile-trusted]
+    needs:
+      - canonical-maintenance
+      - candidate
+      - reconcile-trusted
     if: >-
       always() &&
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
@@ -313,7 +317,11 @@ jobs:
             tests/cases/security/crs/crs_sqli_anomaly_block.yaml
 
   result:
-    needs: [canonical-maintenance, candidate, reconcile-trusted, publish]
+    needs:
+      - canonical-maintenance
+      - candidate
+      - reconcile-trusted
+      - publish
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -334,11 +342,11 @@ jobs:
           set -euo pipefail
           cat >> "$GITHUB_STEP_SUMMARY" <<EOF
           ## Common maintenance outcome / Ergebnis der gemeinsamen Wartung
-          - Outcome / Ergebnis: `$OUTCOME`
-          - Safe updates / Sichere Aktualisierungen: `$UPDATES`
-          - Reviews / Prüfungen: `$REVIEWS`
-          - Issues / Issues: reconciled by trusted job `$RECONCILE`
-          - Draft PR: `$PUBLISH`
-          - Fatal / Fatal: `$FATAL`
-          - Jobs: resolve `$RESOLVE`, candidate `$CANDIDATE`
+          - Outcome / Ergebnis: "$OUTCOME"
+          - Safe updates / Sichere Aktualisierungen: "$UPDATES"
+          - Reviews / Prüfungen: "$REVIEWS"
+          - Issues / Issues: reconciled by trusted job "$RECONCILE"
+          - Draft PR: "$PUBLISH"
+          - Fatal / Fatal: "$FATAL"
+          - Jobs: resolve "$RESOLVE", candidate "$CANDIDATE"
           EOF

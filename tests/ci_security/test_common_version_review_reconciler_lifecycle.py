@@ -5,7 +5,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 SPEC = importlib.util.spec_from_file_location(
-    "review_reconciler_lifecycle", ROOT / "ci/tools/reconcile-common-version-review-issues.py"
+    "review_reconciler_lifecycle",
+    ROOT / "ci/tools/reconcile-common-version-review-issues.py",
 )
 reconciler = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
@@ -56,7 +57,9 @@ def review(candidate="1.5", state="active"):
     return item
 
 
-def plan(reviews, *, checked=None, outcome="manual_review_only", complete=True, statuses=None):
+def plan(
+    reviews, *, checked=None, outcome="manual_review_only", complete=True, statuses=None
+):
     checked = list(checked or GLOBALS + ["lighttpd"])
     statuses = statuses or {component: "current" for component in checked}
     value = {
@@ -70,10 +73,14 @@ def plan(reviews, *, checked=None, outcome="manual_review_only", complete=True, 
             {
                 "component_id": component,
                 "component_name": component,
-                "scope": "runtime-source" if component == "lighttpd" else "ci-security-tools",
+                "scope": "runtime-source"
+                if component == "lighttpd"
+                else "ci-security-tools",
                 "status": statuses.get(component, "current"),
                 "message": "checked",
-                "canonical_variables": ["LIGHTTPD_SERIES"] if component == "lighttpd" else ["CI_CANONICAL_PYTHON_VERSION"],
+                "canonical_variables": ["LIGHTTPD_SERIES"]
+                if component == "lighttpd"
+                else ["CI_CANONICAL_PYTHON_VERSION"],
             }
             for component in checked
         ],
@@ -104,53 +111,107 @@ def managed_issue(item, *, state="open", state_reason=None):
 
 
 class ReviewLifecycleTests(unittest.TestCase):
-    def test_full_empty_plan_closes_checked_issue_completed_without_dry_run_writes(self):
+    def test_full_empty_plan_closes_checked_issue_completed_without_dry_run_writes(
+        self,
+    ):
         old = review("1.5")
         client = FakeClient([managed_issue(old)])
-        result = reconciler.reconcile(plan([]), client, dry_run=True, repository="owner/repo")
-        self.assertEqual(result["actions"], [{"action": "close", "review_key": old["review_key"], "number": 7, "state_reason": "completed"}])
+        result = reconciler.reconcile(
+            plan([]), client, dry_run=True, repository="owner/repo"
+        )
+        self.assertEqual(
+            result["actions"],
+            [
+                {
+                    "action": "close",
+                    "review_key": old["review_key"],
+                    "number": 7,
+                    "state_reason": "completed",
+                }
+            ],
+        )
         self.assertEqual(client.writes, [])
 
     def test_component_scope_does_not_close_unscoped_runtime_issue(self):
         old = review("1.5")
         checked = GLOBALS + ["lighttpd"]
         client = FakeClient([managed_issue(old)])
-        result = reconciler.reconcile(plan([], checked=checked), client, dry_run=True, repository="owner/repo")
+        result = reconciler.reconcile(
+            plan([], checked=checked), client, dry_run=True, repository="owner/repo"
+        )
         self.assertEqual(result["count"], 1)
 
         # A second issue for an unselected component is ignored, even though
         # the global inventory is complete for this component-scoped run.
-        unscoped = dict(old, component_id="nginx", component_name="Nginx", review_key="nginx:series_transition:1.5")
+        unscoped = dict(
+            old,
+            component_id="nginx",
+            component_name="Nginx",
+            review_key="nginx:series_transition:1.5",
+        )
         client = FakeClient([managed_issue(unscoped)])
-        self.assertEqual(reconciler.reconcile(plan([], checked=checked), client, dry_run=True, repository="owner/repo")["actions"], [])
+        self.assertEqual(
+            reconciler.reconcile(
+                plan([], checked=checked), client, dry_run=True, repository="owner/repo"
+            )["actions"],
+            [],
+        )
 
     def test_new_active_target_supersedes_old_target(self):
         old = review("1.5")
         current = review("1.6")
         client = FakeClient([managed_issue(old)])
-        actions = reconciler.reconcile(plan([current]), client, dry_run=True, repository="owner/repo")["actions"]
+        actions = reconciler.reconcile(
+            plan([current]), client, dry_run=True, repository="owner/repo"
+        )["actions"]
         self.assertEqual(actions[0]["action"], "create")
         self.assertEqual(actions[1]["state_reason"], "not_planned")
 
     def test_fatal_or_incomplete_plan_never_closes_absent_reviews(self):
         old = review("1.5")
         client = FakeClient([managed_issue(old)])
-        self.assertEqual(reconciler.reconcile(plan([], outcome="fatal", complete=False), client, dry_run=True, repository="owner/repo")["actions"], [])
-        self.assertEqual(reconciler.reconcile(plan([], outcome="manual_review_only", complete=False), client, dry_run=True, repository="owner/repo")["actions"], [])
+        self.assertEqual(
+            reconciler.reconcile(
+                plan([], outcome="fatal", complete=False),
+                client,
+                dry_run=True,
+                repository="owner/repo",
+            )["actions"],
+            [],
+        )
+        self.assertEqual(
+            reconciler.reconcile(
+                plan([], outcome="manual_review_only", complete=False),
+                client,
+                dry_run=True,
+                repository="owner/repo",
+            )["actions"],
+            [],
+        )
 
     def test_malformed_markers_are_not_evidence_for_closure(self):
         old = review("1.5")
         issue = managed_issue(old)
         issue["body"] = issue["body"].replace(
-            f"common-version-component: {old['component_id']}", "common-version-component: nginx"
+            f"common-version-component: {old['component_id']}",
+            "common-version-component: nginx",
         )
         client = FakeClient([issue])
-        self.assertEqual(reconciler.reconcile(plan([]), client, dry_run=True, repository="owner/repo")["actions"], [])
+        self.assertEqual(
+            reconciler.reconcile(
+                plan([]), client, dry_run=True, repository="owner/repo"
+            )["actions"],
+            [],
+        )
 
     def test_completed_issue_reopens_for_active_same_target(self):
         current = review("1.5")
-        client = FakeClient([managed_issue(current, state="closed", state_reason="completed")])
-        actions = reconciler.reconcile(plan([current]), client, dry_run=True, repository="owner/repo")["actions"]
+        client = FakeClient(
+            [managed_issue(current, state="closed", state_reason="completed")]
+        )
+        actions = reconciler.reconcile(
+            plan([current]), client, dry_run=True, repository="owner/repo"
+        )["actions"]
         self.assertEqual(actions[0]["action"], "reopen")
 
 

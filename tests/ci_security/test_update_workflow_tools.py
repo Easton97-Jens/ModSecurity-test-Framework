@@ -40,7 +40,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
     def test_current_tool_pins_have_explicit_provider_identity(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
         for name, record in lock["tools"].items():
-            self.assertEqual(record["repository"], UPDATER.release_identity(record, name).slug)
+            self.assertEqual(
+                record["repository"], UPDATER.release_identity(record, name).slug
+            )
 
     def test_provider_transition_is_rejected_before_resolution(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)

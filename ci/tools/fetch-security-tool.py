@@ -210,8 +210,7 @@ def _validate_release_asset_url(record: dict[str, Any], tool: str) -> None:
     if (
         not isinstance(version, str)
         or release_identity[2] != version
-        or record.get("repository")
-        != f"{release_identity[0]}/{release_identity[1]}"
+        or record.get("repository") != f"{release_identity[0]}/{release_identity[1]}"
         or asset_identity != release_identity
         or asset_match.group("asset") != record["asset"]
     ):
@@ -234,13 +233,13 @@ def _validate_canonical_provider(record: dict[str, Any], tool: str) -> None:
             continue
         basename = value.rsplit("/", 1)[-1]
         if basename in providers and providers[basename] != value:
-            raise ToolError(f"canonical security tool provider basename collision for {basename!r}")
+            raise ToolError(
+                f"canonical security tool provider basename collision for {basename!r}"
+            )
         providers[basename] = value
     repository = record.get("repository")
     if providers.get(tool) != repository:
-        raise ToolError(
-            f"tool {tool!r} provider does not match canonical source"
-        )
+        raise ToolError(f"tool {tool!r} provider does not match canonical source")
 
 
 def _validate_executable_layout(

@@ -29,18 +29,28 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.assertIn("--markdown", self.text)
         self.assertIn("--expected-plan-sha256", self.text)
         self.assertIn("global_inventory_complete", self.text)
-        self.assertIn("Go-FTW, Albedo, or canonical CI pin inventory is incomplete", self.text)
+        self.assertIn(
+            "Go-FTW, Albedo, or canonical CI pin inventory is incomplete", self.text
+        )
         self.assertIn("needs: canonical-maintenance", self.text)
         self.assertEqual(
             set(self.workflow["jobs"]),
-            {"canonical-maintenance", "reconcile-trusted", "candidate", "publish", "result"},
+            {
+                "canonical-maintenance",
+                "reconcile-trusted",
+                "candidate",
+                "publish",
+                "result",
+            },
         )
         self.assertNotIn("legacy-", self.text)
 
     def test_component_is_an_argv_element_and_globals_are_not_filtered(self) -> None:
         self.assertIn('args+=(--component "$REQUESTED_COMPONENT")', self.text)
         self.assertIn("mandatory global and selected runtime scopes", self.text)
-        self.assertIn("Go-FTW, Albedo, or canonical CI pin inventory is incomplete", self.text)
+        self.assertIn(
+            "Go-FTW, Albedo, or canonical CI pin inventory is incomplete", self.text
+        )
 
     def test_issue_writes_are_trusted_default_branch_only(self) -> None:
         self.assertNotIn("pull_request_target", self.text)
@@ -48,7 +58,6 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.assertIn("--apply --trusted-default-branch --token", self.text)
         trusted = self.workflow["jobs"]["reconcile-trusted"]
         self.assertEqual(trusted["permissions"], {"contents": "read"})
-        canonical = self.workflow["jobs"]["canonical-maintenance"]
         self.assertTrue(
             all(
                 job.get("permissions", {}).get("issues") != "write"
@@ -67,7 +76,9 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             ("publish", 2),
         ):
             self.assertEqual(
-                self.workflow["jobs"][job_name]["steps"][step_index]["env"].get("GITHUB_TOKEN"),
+                self.workflow["jobs"][job_name]["steps"][step_index]["env"].get(
+                    "GITHUB_TOKEN"
+                ),
                 "${{ github.token }}",
             )
 

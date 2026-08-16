@@ -953,7 +953,9 @@ jobs:
                         "\n".join(errors),
                     )
 
-    def test_unified_common_maintenance_rejects_security_boundary_mutations(self) -> None:
+    def test_unified_common_maintenance_rejects_security_boundary_mutations(
+        self,
+    ) -> None:
         workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
         workflow = workflow_path.read_text(encoding="utf-8")
 
@@ -980,8 +982,8 @@ jobs:
                 "      contents: write",
             ),
             "missing_plan_binding": workflow.replace(
-                "          args=(--root . --check --plan \"$RUNNER_TEMP/canonical-maintenance-plan.json\" --expected-plan-sha256 \"$PLAN_SHA256\")",
-                "          args=(--root . --check --plan \"$RUNNER_TEMP/canonical-maintenance-plan.json\")",
+                '          args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --expected-plan-sha256 "$PLAN_SHA256")',
+                '          args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json")',
                 1,
             ),
             "extra_read_token": workflow.replace(

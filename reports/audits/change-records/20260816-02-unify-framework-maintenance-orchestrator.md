@@ -9,7 +9,7 @@
 | Change ID | `20260816-02-unify-framework-maintenance-orchestrator` |
 | UTC date | `2026-08-16` |
 | Framework base revision | `bd0dbdbd0a28e0705c123963209d6e5e410bacad` |
-| Issue or pull request | Task-owned Framework Draft PR; remote reference is recorded after push. No merge or master write is authorized by this record. |
+| Issue or pull request | Task-owned [Framework Draft PR #83](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/83). No merge or master write is authorized by this record. |
 
 ## Motivation and problem statement
 
@@ -76,12 +76,14 @@ reconciliation step, not as a side effect of resolver or pull-request jobs.
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
-| `python -m unittest -v` (11 unified-maintenance, pin, resolver, reconciler, and fetcher modules) | `0` | 116 tests passed. | Hash-locked task virtual environment |
+| `python -m unittest -v` (11 unified-maintenance, pin, resolver, reconciler, and fetcher modules) | `0` | 119 tests passed. | Hash-locked task virtual environment |
 | `python -m unittest -v tests.ci_security.test_ci_security_contract tests.ci_security.test_framework_ci_security_contract` | `0` | 50 CI-security contract tests passed. | Hash-locked task virtual environment |
-| `python -m unittest -v` (seven runtime/component provenance, sync, lock, download, and Traefik modules) | `0` | 84 regression tests passed. | Hash-locked task virtual environment |
-| `python -m unittest` (six historical provenance modules, including ModSecurity v3 and Sonar contracts) | `0` | 107 tests passed; one intentionally skipped. | Hash-locked task virtual environment |
+| `python -m unittest -v` (seven runtime/component provenance, sync, lock, download, and Traefik modules) | `0` | 88 regression tests passed. | Hash-locked task virtual environment |
+| `python -m unittest` (six historical provenance modules, including ModSecurity v3 and Sonar contracts) | `0` | 108 tests passed; one intentionally skipped. | Hash-locked task virtual environment |
 | `ci/tools/check-common-versions.py --validate-canonical`, `sync-runtime-components.py --check`, canonical Python/Workflow pin checks, and CI-security-contract check | `0` | Canonical inputs, generated views, runtime inventory, and CI contract passed. | Hash-locked task virtual environment |
 | Documentation link, variable, workflow-YAML, and Change Record checks | `0` | All checked documentation contracts passed. | Hash-locked task virtual environment |
+| Checksum-locked `actionlint` with `shellcheck`, plus `zizmor --offline .github` | `0` | Actionlint passed; Zizmor reported no findings (41 documented suppressions). | Task evidence directory |
+| Checksum-locked `ruff check` and `ruff format --check` for the CI-security quality target set | `0` | Lint and formatting passed after mechanical remediation. | Task evidence directory |
 | `git diff --check` and `bash -n ci/lib/common.sh` | `0` | Whitespace and shell syntax passed. | Task worktree |
 
 ## Security impact
@@ -97,6 +99,12 @@ identity before any network lookup: the candidate URL is canonicalized and
 must match an immutable digest anchor for the fixed official identity. The
 foreign-repository/no-network and malformed-anchor controls pass locally.
 
+The follow-up remediation bounds canonical Python platform validation,
+confines `--common-sh`, review-plan, and runtime-root reads to their approved
+trust boundaries, and requires the exact official HTTPS HAProxy source root
+before requests. Independent review found no remaining high, critical, or
+medium issue in this delta; exact-head hosted evidence remains required.
+
 ## Documentation and runtime evidence
 
 The English and German reference pages and workflow-security guides are updated
@@ -108,8 +116,15 @@ locally.
 
 ## Checks not run
 
-- Hosted GitHub Actions and SonarQube Cloud checks require the exact Draft-PR
-  head and have not run yet.
+- The original Draft-PR head
+  `387722449e3b95dd81b11cad5cd4a665a7d6971b` ran hosted checks and did not
+  qualify: actionlint, zizmor, immutable-action, and Ruff checks failed, and
+  SonarQube Cloud reported Quality Gate `ERROR` with 68 New Issues. Those
+  results are retained as remediation evidence and are not reused for the
+  follow-up head.
+- The follow-up remediation head created after this record requires its own
+  exact-head GitHub Actions and SonarQube Cloud checks before the PR can be
+  considered verified.
 - A local read-only full upstream plan cannot currently establish the same
   GitHub API evidence because unauthenticated API requests were rate-limited;
   the workflow passes its least-privileged `github.token` only to its four
@@ -119,17 +134,18 @@ locally.
 ## Limitations and residual risk
 
 The hosted App token, default-branch protection, GitHub API behavior, and
-SonarQube Cloud analysis still require the exact-head trusted CI run and human
-review. Those controls are not weakened or simulated locally.
+SonarQube Cloud analysis still require the exact follow-up-head trusted CI run
+and human review. Those controls are not weakened or simulated locally.
 
 ## Final diff and review status
 
-The final task diff covers the shared maintenance workflow, canonical pin
+The follow-up task diff covers the shared maintenance workflow, canonical pin
 authority and generated views, runtime series projections, security contracts,
 regressions, paired documentation, and this Change Record. Local whitespace,
-link, bilingual, Change Record, runtime, and security-contract checks passed.
-An independent final security-diff review found no reportable high, critical,
-or medium issue after remediation. The historical provenance suite passed with
-107 tests (one intentionally skipped), including the ModSecurity v3
-foreign-repository/no-network regression. No credentials, tokens, raw logs,
-or sensitive payloads are recorded.
+link, bilingual, Change Record, runtime, CI-security-contract, Actionlint,
+Zizmor, and Ruff checks pass after remediation. An independent security-diff
+review found no reportable high, critical, or medium issue. The historical
+provenance suite passed with 108 tests (one intentionally skipped), including
+the ModSecurity v3 foreign-repository/no-network regression. No credentials,
+tokens, raw logs, or sensitive payloads are recorded; hosted verification of
+the follow-up exact head remains pending.

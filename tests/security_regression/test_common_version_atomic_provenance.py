@@ -86,7 +86,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             if variable == definition.version_variable:
                 values[variable] = version
             elif variable.endswith("ARTIFACT_PLATFORM"):
-                values[variable] = "linux_amd64" if component == "Traefik" else "linux-x86_64"
+                values[variable] = (
+                    "linux_amd64" if component == "Traefik" else "linux-x86_64"
+                )
             elif variable.endswith("ARCHIVE_NAME"):
                 values[variable] = asset
             elif variable.endswith("ASSET_NAME"):
@@ -98,7 +100,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                     else github_asset(definition.github_repository, tag, asset)
                 )
             elif variable == definition.download_url_variable:
-                values[variable] = github_asset(definition.github_repository, tag, asset)
+                values[variable] = github_asset(
+                    definition.github_repository, tag, asset
+                )
             elif variable == definition.sha256_variable:
                 values[variable] = CURRENT_DIGEST
             elif variable == definition.sha256_url_variable:
@@ -113,9 +117,13 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                 )
             else:
                 raise AssertionError(f"unhandled fixture variable {variable}")
-        return definition, parse_entries("\n".join(assignment(*item) for item in values.items()))
+        return definition, parse_entries(
+            "\n".join(assignment(*item) for item in values.items())
+        )
 
-    def latest_release(self, definition, version="1.0.1", *, draft=False, prerelease=False):
+    def latest_release(
+        self, definition, version="1.0.1", *, draft=False, prerelease=False
+    ):
         tag = f"{definition.tag_prefix}{version}"
         asset = definition.asset_template.format(
             version=version,
@@ -125,11 +133,31 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                 else "linux_amd64"
             ),
         )
-        assets = [{"name": asset, "browser_download_url": github_asset(definition.github_repository, tag, asset), "digest": f"sha256:{LATEST_DIGEST}"}]
+        assets = [
+            {
+                "name": asset,
+                "browser_download_url": github_asset(
+                    definition.github_repository, tag, asset
+                ),
+                "digest": f"sha256:{LATEST_DIGEST}",
+            }
+        ]
         if definition.checksum_asset_template:
             checksum = definition.checksum_asset_template.format(version=version)
-            assets.append({"name": checksum, "browser_download_url": github_asset(definition.github_repository, tag, checksum)})
-        return tag, {"tag_name": tag, "draft": draft, "prerelease": prerelease, "assets": assets}
+            assets.append(
+                {
+                    "name": checksum,
+                    "browser_download_url": github_asset(
+                        definition.github_repository, tag, checksum
+                    ),
+                }
+            )
+        return tag, {
+            "tag_name": tag,
+            "draft": draft,
+            "prerelease": prerelease,
+            "assets": assets,
+        }
 
     def test_github_components_produce_complete_atomic_updates(self):
         for component in ("PCRE2", "OpenSSL for NGINX QUIC/TLS", "Envoy", "Traefik"):
@@ -138,21 +166,32 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                 tag, release = self.latest_release(definition)
                 manifests = {}
                 if definition.checksum_asset_template:
-                    checksum = definition.checksum_asset_template.format(version="1.0.1")
-                    manifest_platform = "linux_amd64" if component == "Traefik" else "linux-x86_64"
+                    checksum = definition.checksum_asset_template.format(
+                        version="1.0.1"
+                    )
+                    manifest_platform = (
+                        "linux_amd64" if component == "Traefik" else "linux-x86_64"
+                    )
                     manifest_asset = definition.asset_template.format(
                         version="1.0.1", platform=manifest_platform
                     )
-                    manifests[github_asset(definition.github_repository, tag, checksum)] = (
-                        f"{LATEST_DIGEST}  {manifest_asset}\n"
-                    )
+                    manifests[
+                        github_asset(definition.github_repository, tag, checksum)
+                    ] = f"{LATEST_DIGEST}  {manifest_asset}\n"
                 client = FixtureClient(
-                    {f"https://api.github.com/repos/{definition.github_repository}/releases/latest": release}, manifests
+                    {
+                        f"https://api.github.com/repos/{definition.github_repository}/releases/latest": release
+                    },
+                    manifests,
                 )
-                result = CHECKER.resolve_component_definition(definition, entries, client)
+                result = CHECKER.resolve_component_definition(
+                    definition, entries, client
+                )
 
                 self.assertEqual(CHECKER.STATUS_OUTDATED, result.status)
-                decorated = CHECKER.decorate_component_result(definition, result, entries)
+                decorated = CHECKER.decorate_component_result(
+                    definition, result, entries
+                )
                 expected = decorated.details["atomic_expected_values"]
                 self.assertEqual(set(expected), set(definition.atomic_group))
                 self.assertEqual(
@@ -167,9 +206,7 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
     def test_traefik_prefers_github_asset_digest_before_manifest_download(self):
         definition, entries = self.github_entries("Traefik")
         _, release = self.latest_release(definition)
-        latest_endpoint = (
-            f"https://api.github.com/repos/{definition.github_repository}/releases/latest"
-        )
+        latest_endpoint = f"https://api.github.com/repos/{definition.github_repository}/releases/latest"
         client = FixtureClient(json_responses={latest_endpoint: release})
 
         result = CHECKER.resolve_component_definition(definition, entries, client)
@@ -183,48 +220,88 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         for label, release in (
             ("draft", self.latest_release(definition, draft=True)[1]),
             ("prerelease", self.latest_release(definition, prerelease=True)[1]),
-            ("ambiguous", {**self.latest_release(definition)[1], "assets": self.latest_release(definition)[1]["assets"] * 2}),
+            (
+                "ambiguous",
+                {
+                    **self.latest_release(definition)[1],
+                    "assets": self.latest_release(definition)[1]["assets"] * 2,
+                },
+            ),
         ):
             with self.subTest(label=label):
-                results = CHECKER.check_all(entries, FixtureClient({f"https://api.github.com/repos/{definition.github_repository}/releases/latest": release}), (definition.name,))
+                results = CHECKER.check_all(
+                    entries,
+                    FixtureClient(
+                        {
+                            f"https://api.github.com/repos/{definition.github_repository}/releases/latest": release
+                        }
+                    ),
+                    (definition.name,),
+                )
                 self.assertEqual(CHECKER.STATUS_UNKNOWN, results[0].status)
                 self.assertEqual(results[0].updates, [])
 
     def test_lighttpd_series_update_is_atomic_and_uses_only_official_urls(self):
         root = "https://download.lighttpd.net/lighttpd"
         base = root + "/releases-1.4.x"
-        source = "\n".join((
-            assignment("LIGHTTPD_SERIES", "1.4"),
-            assignment("LIGHTTPD_RELEASE_ROOT_URL", root),
-            assignment("LIGHTTPD_SERIES_BASE_URL", base),
-            assignment("LIGHTTPD_VERSION", "1.4.80"),
-            assignment("LIGHTTPD_SOURCE_URL", base + "/"),
-            assignment("LIGHTTPD_RELEASE_INDEX_URL", base + "/"),
-            assignment("LIGHTTPD_LATEST_URL", base + "/latest.txt"),
-            assignment("LIGHTTPD_ARCHIVE_NAME", "lighttpd-1.4.80.tar.xz"),
-            assignment("LIGHTTPD_DOWNLOAD_URL", base + "/lighttpd-1.4.80.tar.xz"),
-            assignment("LIGHTTPD_SHA256", CURRENT_DIGEST),
-            assignment("LIGHTTPD_SHA256_URL", base + "/lighttpd-1.4.80.sha256sum"),
-        ))
+        source = "\n".join(
+            (
+                assignment("LIGHTTPD_SERIES", "1.4"),
+                assignment("LIGHTTPD_RELEASE_ROOT_URL", root),
+                assignment("LIGHTTPD_SERIES_BASE_URL", base),
+                assignment("LIGHTTPD_VERSION", "1.4.80"),
+                assignment("LIGHTTPD_SOURCE_URL", base + "/"),
+                assignment("LIGHTTPD_RELEASE_INDEX_URL", base + "/"),
+                assignment("LIGHTTPD_LATEST_URL", base + "/latest.txt"),
+                assignment("LIGHTTPD_ARCHIVE_NAME", "lighttpd-1.4.80.tar.xz"),
+                assignment("LIGHTTPD_DOWNLOAD_URL", base + "/lighttpd-1.4.80.tar.xz"),
+                assignment("LIGHTTPD_SHA256", CURRENT_DIGEST),
+                assignment("LIGHTTPD_SHA256_URL", base + "/lighttpd-1.4.80.sha256sum"),
+            )
+        )
         entries = parse_entries(source)
-        result = CHECKER.check_lighttpd(entries, FixtureClient(text_responses={base + "/latest.txt": "lighttpd-1.4.81.tar.xz\n", base + "/lighttpd-1.4.81.sha256sum": f"{LATEST_DIGEST}  lighttpd-1.4.81.tar.xz\n"}))
+        result = CHECKER.check_lighttpd(
+            entries,
+            FixtureClient(
+                text_responses={
+                    base + "/latest.txt": "lighttpd-1.4.81.tar.xz\n",
+                    base
+                    + "/lighttpd-1.4.81.sha256sum": f"{LATEST_DIGEST}  lighttpd-1.4.81.tar.xz\n",
+                }
+            ),
+        )
         self.assertEqual(CHECKER.STATUS_OUTDATED, result.status)
-        self.assertEqual({item.variable for item in result.updates}, {"LIGHTTPD_VERSION", "LIGHTTPD_SHA256"})
+        self.assertEqual(
+            {item.variable for item in result.updates},
+            {"LIGHTTPD_VERSION", "LIGHTTPD_SHA256"},
+        )
 
     def test_apr_util_164_to_165_updates_only_its_dynamic_tuple_authorities(self):
         apr_source = "https://downloads.apache.org/apr/"
-        expected_digest = "96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"
-        entries = parse_entries("\n".join((
-            assignment("APR_UTIL_VERSION", "1.6.4"),
-            assignment("APR_UTIL_ARCHIVE_NAME", "apr-util-1.6.4.tar.bz2"),
-            assignment("APR_UTIL_SOURCE_URL", "https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"),
-            assignment("APR_UTIL_SHA256", CURRENT_DIGEST),
-            assignment("APR_UTIL_SHA256_URL", "$APR_UTIL_SOURCE_URL.sha256"),
-        )))
-        client = FixtureClient(text_responses={
-            apr_source: "apr-util-1.6.4.tar.bz2 apr-util-1.6.5.tar.bz2",
-            apr_source + "apr-util-1.6.5.tar.bz2.sha256": f"{expected_digest}  apr-util-1.6.5.tar.bz2\n",
-        })
+        expected_digest = (
+            "96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"
+        )
+        entries = parse_entries(
+            "\n".join(
+                (
+                    assignment("APR_UTIL_VERSION", "1.6.4"),
+                    assignment("APR_UTIL_ARCHIVE_NAME", "apr-util-1.6.4.tar.bz2"),
+                    assignment(
+                        "APR_UTIL_SOURCE_URL",
+                        "https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2",
+                    ),
+                    assignment("APR_UTIL_SHA256", CURRENT_DIGEST),
+                    assignment("APR_UTIL_SHA256_URL", "$APR_UTIL_SOURCE_URL.sha256"),
+                )
+            )
+        )
+        client = FixtureClient(
+            text_responses={
+                apr_source: "apr-util-1.6.4.tar.bz2 apr-util-1.6.5.tar.bz2",
+                apr_source
+                + "apr-util-1.6.5.tar.bz2.sha256": f"{expected_digest}  apr-util-1.6.5.tar.bz2\n",
+            }
+        )
 
         result = CHECKER.check_all(entries, client, ("APR-util",))[0]
 
@@ -248,17 +325,31 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
 
     def test_invalid_apr_util_upstream_checksum_never_produces_an_update(self):
         apr_source = "https://downloads.apache.org/apr/"
-        entries = parse_entries("\n".join((
-            assignment("APR_UTIL_VERSION", "1.6.4"),
-            assignment("APR_UTIL_ARCHIVE_NAME", "apr-util-1.6.4.tar.bz2"),
-            assignment("APR_UTIL_SOURCE_URL", "https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2"),
-            assignment("APR_UTIL_SHA256", CURRENT_DIGEST),
-            assignment("APR_UTIL_SHA256_URL", "$APR_UTIL_SOURCE_URL.sha256"),
-        )))
-        result = CHECKER.check_all(entries, FixtureClient(text_responses={
-            apr_source: "apr-util-1.6.4.tar.bz2 apr-util-1.6.5.tar.bz2",
-            apr_source + "apr-util-1.6.5.tar.bz2.sha256": "sha1  apr-util-1.6.5.tar.bz2\n",
-        }), ("APR-util",))[0]
+        entries = parse_entries(
+            "\n".join(
+                (
+                    assignment("APR_UTIL_VERSION", "1.6.4"),
+                    assignment("APR_UTIL_ARCHIVE_NAME", "apr-util-1.6.4.tar.bz2"),
+                    assignment(
+                        "APR_UTIL_SOURCE_URL",
+                        "https://downloads.apache.org/apr/apr-util-$APR_UTIL_VERSION.tar.bz2",
+                    ),
+                    assignment("APR_UTIL_SHA256", CURRENT_DIGEST),
+                    assignment("APR_UTIL_SHA256_URL", "$APR_UTIL_SOURCE_URL.sha256"),
+                )
+            )
+        )
+        result = CHECKER.check_all(
+            entries,
+            FixtureClient(
+                text_responses={
+                    apr_source: "apr-util-1.6.4.tar.bz2 apr-util-1.6.5.tar.bz2",
+                    apr_source
+                    + "apr-util-1.6.5.tar.bz2.sha256": "sha1  apr-util-1.6.5.tar.bz2\n",
+                }
+            ),
+            ("APR-util",),
+        )[0]
 
         self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
         self.assertEqual(result.updates, [])
@@ -270,32 +361,45 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         current_commit = "c" * 40
         annotated_tag_object = "a" * 40
         latest_commit = "d" * 40
-        entries = parse_entries("\n".join((
-            assignment("MODSECURITY_V3_APPROVED_REPO_URL", f"https://github.com/{repository}.git"),
-            assignment("MODSECURITY_V3_RELEASE_TAG", current_tag),
-            assignment("MODSECURITY_V3_APPROVED_COMMIT", current_commit),
-            assignment("MODSECURITY_REPO_URL", f"https://github.com/{repository}.git"),
-            assignment("MODSECURITY_GIT_REF", current_tag),
-            assignment("MODSECURITY_V3_GIT_URL", f"https://github.com/{repository}.git"),
-            assignment("MODSECURITY_V3_GIT_REF", current_tag),
-        )))
+        entries = parse_entries(
+            "\n".join(
+                (
+                    assignment(
+                        "MODSECURITY_V3_APPROVED_REPO_URL",
+                        f"https://github.com/{repository}.git",
+                    ),
+                    assignment("MODSECURITY_V3_RELEASE_TAG", current_tag),
+                    assignment("MODSECURITY_V3_APPROVED_COMMIT", current_commit),
+                    assignment(
+                        "MODSECURITY_REPO_URL", f"https://github.com/{repository}.git"
+                    ),
+                    assignment("MODSECURITY_GIT_REF", current_tag),
+                    assignment(
+                        "MODSECURITY_V3_GIT_URL", f"https://github.com/{repository}.git"
+                    ),
+                    assignment("MODSECURITY_V3_GIT_REF", current_tag),
+                )
+            )
+        )
         base = f"https://api.github.com/repos/{repository}"
-        client = FixtureClient(json_responses={
-            f"{base}/git/ref/tags/{current_tag}": {
-                "object": {"type": "tag", "sha": annotated_tag_object},
-            },
-            f"{base}/git/tags/{annotated_tag_object}": {
-                "object": {"type": "commit", "sha": current_commit},
-            },
-            f"{base}/releases/latest": {
-                "tag_name": latest_tag,
-                "draft": False,
-                "prerelease": False,
-            },
-            f"{base}/git/ref/tags/{latest_tag}": {
-                "object": {"type": "commit", "sha": latest_commit},
-            },
-        })
+        client = FixtureClient(
+            json_responses={
+                f"{base}/git/ref/tags/{current_tag}": {
+                    "object": {"type": "tag", "sha": annotated_tag_object},
+                },
+                f"{base}/git/tags/{annotated_tag_object}": {
+                    "object": {"type": "commit", "sha": current_commit},
+                },
+                f"{base}/releases/latest": {
+                    "tag_name": latest_tag,
+                    "draft": False,
+                    "prerelease": False,
+                },
+                f"{base}/git/ref/tags/{latest_tag}": {
+                    "object": {"type": "commit", "sha": latest_commit},
+                },
+            }
+        )
 
         result = CHECKER.check_all(entries, client, ("ModSecurity v3",))[0]
 
@@ -313,7 +417,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             ("duplicate", valid + valid),
         ):
             with self.subTest(label=label):
-                with self.assertRaises((CHECKER.UpstreamBlocked, CHECKER.UpstreamUnknown)):
+                with self.assertRaises(
+                    (CHECKER.UpstreamBlocked, CHECKER.UpstreamUnknown)
+                ):
                     CHECKER.parse_sha256(checksum, expected_name)
 
     def test_http_client_rejects_redirected_or_non_checksum_responses(self):
@@ -360,7 +466,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
 
         url = "https://downloads.example.invalid/component.sha256"
         client = CHECKER.HttpClient(timeout=1)
-        client._opener = Opener(Response("https://other.example.invalid/component.sha256", "text/plain"))
+        client._opener = Opener(
+            Response("https://other.example.invalid/component.sha256", "text/plain")
+        )
         with self.assertRaises(CHECKER.UpstreamUnknown):
             client.get_checksum_text(url)
 
@@ -381,29 +489,68 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         self.assertEqual(CHECKER.unassigned_provenance_variables(entries), [])
         nginx = CHECKER.COMPONENT_DEFINITION_BY_NAME["NGINX"]
         self.assertNotIn("NGINX_SHA256_REQUESTED", nginx.variables)
-        self.assertEqual({item.name for item in CHECKER.COMPONENT_DEFINITIONS}, set(CHECKER.COMPONENT_DEFINITION_BY_NAME))
+        self.assertEqual(
+            {item.name for item in CHECKER.COMPONENT_DEFINITIONS},
+            set(CHECKER.COMPONENT_DEFINITION_BY_NAME),
+        )
 
     def test_canonical_contract_is_complete_and_offline(self):
         lines, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
         self.assertEqual(CHECKER.canonical_contract_errors(lines, entries), [])
         self.assertIn("CI_OSV_LEGACY_BASE_SHA", CHECKER.CI_CANONICAL_PIN_VARIABLES)
         self.assertIn("CI_OSV_LEGACY_BASE_VERSION", CHECKER.CI_CANONICAL_PIN_VARIABLES)
-        self.assertTrue(CHECKER.GIT_COMMIT_SHA1_RE.fullmatch(entries["CI_OSV_LEGACY_BASE_SHA"].resolved))
-        self.assertTrue(CHECKER.SAFE_VERSION_RE.fullmatch(entries["CI_OSV_LEGACY_BASE_VERSION"].resolved))
+        self.assertTrue(
+            CHECKER.GIT_COMMIT_SHA1_RE.fullmatch(
+                entries["CI_OSV_LEGACY_BASE_SHA"].resolved
+            )
+        )
+        self.assertTrue(
+            CHECKER.SAFE_VERSION_RE.fullmatch(
+                entries["CI_OSV_LEGACY_BASE_VERSION"].resolved
+            )
+        )
 
     def test_canonical_contract_rejects_missing_and_duplicate_pin_assignments(self):
         lines, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
         duplicate_lines = lines + ['HTTPD_VERSION="2.4.68"']
         duplicate_errors = CHECKER.canonical_contract_errors(duplicate_lines, entries)
-        self.assertTrue(any("duplicate canonical assignment for HTTPD_VERSION" in item for item in duplicate_errors))
+        self.assertTrue(
+            any(
+                "duplicate canonical assignment for HTTPD_VERSION" in item
+                for item in duplicate_errors
+            )
+        )
 
-        missing_lines = [line for line in lines if not line.startswith("NGINX_QUIC_TLS_ARCHIVE_NAME=")]
-        missing_errors = CHECKER.canonical_contract_errors(missing_lines, CHECKER.parse_common_lines(missing_lines))
-        self.assertTrue(any("missing canonical assignments" in item and "NGINX_QUIC_TLS_ARCHIVE_NAME" in item for item in missing_errors))
+        missing_lines = [
+            line
+            for line in lines
+            if not line.startswith("NGINX_QUIC_TLS_ARCHIVE_NAME=")
+        ]
+        missing_errors = CHECKER.canonical_contract_errors(
+            missing_lines, CHECKER.parse_common_lines(missing_lines)
+        )
+        self.assertTrue(
+            any(
+                "missing canonical assignments" in item
+                and "NGINX_QUIC_TLS_ARCHIVE_NAME" in item
+                for item in missing_errors
+            )
+        )
 
     def test_validate_canonical_mode_never_constructs_http_client(self):
-        with patch.object(CHECKER, "HttpClient", side_effect=AssertionError("network forbidden")):
-            self.assertEqual(CHECKER.main(["--validate-canonical", "--common-sh", str(ROOT / "ci/lib/common.sh")]), 0)
+        with patch.object(
+            CHECKER, "HttpClient", side_effect=AssertionError("network forbidden")
+        ):
+            self.assertEqual(
+                CHECKER.main(
+                    [
+                        "--validate-canonical",
+                        "--common-sh",
+                        str(ROOT / "ci/lib/common.sh"),
+                    ]
+                ),
+                0,
+            )
 
     def test_update_rejects_nested_symlinked_common_source_parent(self):
         with tempfile.TemporaryDirectory(prefix="common-source-symlink-") as temporary:
@@ -419,17 +566,44 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                 CHECKER.main(["--update", "--common-sh", str(selected)]),
                 2,
             )
-            self.assertEqual(source.read_text(encoding="utf-8"), 'HTTPD_VERSION="2.4.68"\n')
+            self.assertEqual(
+                source.read_text(encoding="utf-8"), 'HTTPD_VERSION="2.4.68"\n'
+            )
 
-    def test_validate_canonical_rejects_environment_default_pin_even_with_attacker_env(self):
+    def test_cli_rejects_arbitrary_common_source_before_read(self):
+        with tempfile.TemporaryDirectory(prefix="common-source-outside-") as temporary:
+            source = Path(temporary) / "common.sh"
+            source.write_text('HTTPD_VERSION="2.4.68"\n', encoding="utf-8")
+            with patch.object(
+                CHECKER,
+                "parse_common",
+                side_effect=AssertionError(
+                    "arbitrary source must be rejected before read"
+                ),
+            ):
+                self.assertEqual(
+                    CHECKER.main(["--check", "--common-sh", str(source)]),
+                    2,
+                )
+
+    def test_validate_canonical_rejects_environment_default_pin_even_with_attacker_env(
+        self,
+    ):
         with tempfile.TemporaryDirectory(prefix="canonical-env-default-") as temporary:
             common = Path(temporary) / "common.sh"
-            common.write_text('HTTPD_VERSION="${HTTPD_VERSION:-9.9.9}"\n', encoding="utf-8")
+            common.write_text(
+                'HTTPD_VERSION="${HTTPD_VERSION:-9.9.9}"\n', encoding="utf-8"
+            )
             with patch.dict(os.environ, {"HTTPD_VERSION": "2.4.68"}, clear=False):
-                self.assertEqual(CHECKER.main(["--validate-canonical", "--common-sh", str(common)]), 1)
+                self.assertEqual(
+                    CHECKER.main(["--validate-canonical", "--common-sh", str(common)]),
+                    2,
+                )
 
     def test_active_consumer_scan_rejects_a_copied_current_pin(self):
-        with tempfile.TemporaryDirectory(prefix="canonical-consumer-scan-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="canonical-consumer-scan-"
+        ) as temporary:
             root = Path(temporary)
             common = root / "ci/lib/common.sh"
             common.parent.mkdir(parents=True)
@@ -438,21 +612,27 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             consumer.parent.mkdir(parents=True)
             consumer.write_text('httpd_version="2.4.68"\n', encoding="utf-8")
             findings = CHECKER.active_consumer_pin_literals(common, root)
-            self.assertEqual(findings, ["ci/provisioning/consumer.sh:1: HTTPD_VERSION=2.4.68"])
+            self.assertEqual(
+                findings, ["ci/provisioning/consumer.sh:1: HTTPD_VERSION=2.4.68"]
+            )
 
             shutil.copy2(consumer, root / "ci/provisioning/runtime-component-lock.json")
             (root / "ci/provisioning/runtime-component-lock.json").write_text(
                 '{"version":"2.4.68"}\n', encoding="utf-8"
             )
-            self.assertEqual(CHECKER.active_consumer_pin_literals(common, root), findings)
+            self.assertEqual(
+                CHECKER.active_consumer_pin_literals(common, root), findings
+            )
 
     def test_active_consumer_scan_rejects_copied_identity_fields(self):
-        with tempfile.TemporaryDirectory(prefix="canonical-identity-scan-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="canonical-identity-scan-"
+        ) as temporary:
             root = Path(temporary)
             common = root / "ci/lib/common.sh"
             common.parent.mkdir(parents=True)
             common.write_text(
-                '\n'.join(
+                "\n".join(
                     (
                         'HTTPD_VERSION="2.4.68"',
                         'HTTPD_SOURCE_URL="https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2"',
@@ -460,7 +640,7 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                         'ENVOY_ARTIFACT_PLATFORM="linux-x86_64"',
                     )
                 )
-                + '\n',
+                + "\n",
                 encoding="utf-8",
             )
             consumer = root / "src/consumer.py"
@@ -476,8 +656,12 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                 "src/consumer.py:1: HTTPD_SOURCE_URL=https://downloads.apache.org/httpd/httpd-2.4.68.tar.bz2",
                 findings,
             )
-            self.assertIn("src/consumer.py:2: HTTPD_ARCHIVE_NAME=httpd-2.4.68.tar.bz2", findings)
-            self.assertIn("src/consumer.py:3: ENVOY_ARTIFACT_PLATFORM=linux-x86_64", findings)
+            self.assertIn(
+                "src/consumer.py:2: HTTPD_ARCHIVE_NAME=httpd-2.4.68.tar.bz2", findings
+            )
+            self.assertIn(
+                "src/consumer.py:3: ENVOY_ARTIFACT_PLATFORM=linux-x86_64", findings
+            )
 
     def test_production_open_ssl_and_nginx_asset_urls_remain_version_derived(self):
         _, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
@@ -490,23 +674,27 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             open_ssl_source.resolved,
         )
         self.assertTrue(
-            CHECKER.is_template_value(
-                open_ssl_source.default, "NGINX_QUIC_TLS_VERSION"
-            )
+            CHECKER.is_template_value(open_ssl_source.default, "NGINX_QUIC_TLS_VERSION")
         )
         self.assertIn("${NGINX_RELEASE_TAG#release-}", nginx_asset.default)
         self.assertEqual(
             nginx_asset.resolved,
-            "nginx-" + CHECKER.value(entries, "NGINX_RELEASE_TAG").removeprefix("release-") + ".tar.gz",
+            "nginx-"
+            + CHECKER.value(entries, "NGINX_RELEASE_TAG").removeprefix("release-")
+            + ".tar.gz",
         )
 
     def test_json_accept_header_is_specific_to_github_api(self):
         self.assertEqual(
-            CHECKER.json_accept_header("https://api.github.com/repos/example/tool/releases/latest"),
+            CHECKER.json_accept_header(
+                "https://api.github.com/repos/example/tool/releases/latest"
+            ),
             "application/vnd.github+json",
         )
         self.assertEqual(
-            CHECKER.json_accept_header("https://www.python.org/api/v2/downloads/release/"),
+            CHECKER.json_accept_header(
+                "https://www.python.org/api/v2/downloads/release/"
+            ),
             "application/json",
         )
 
@@ -523,16 +711,36 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             target.parent.mkdir(parents=True)
             target.write_text(assignment("VERSION", "1.0") + "\n", encoding="utf-8")
             lines, entries = CHECKER.parse_common(target)
-            fatal = CHECKER.ComponentResult("fatal", CHECKER.STATUS_UNKNOWN, "fixture", [])
+            fatal = CHECKER.ComponentResult(
+                "fatal", CHECKER.STATUS_UNKNOWN, "fixture", []
+            )
             original = target.read_text(encoding="utf-8")
             previous_build_root = CHECKER.os.environ.get("BUILD_ROOT")
             CHECKER.os.environ["BUILD_ROOT"] = str(root / "build")
             try:
-                rc, updates, _, _ = CHECKER.apply_requested_updates(True, 2, target, lines, entries, [fatal], defer_reviewed_provenance=True)
+                rc, updates, _, _ = CHECKER.apply_requested_updates(
+                    True,
+                    2,
+                    target,
+                    lines,
+                    entries,
+                    [fatal],
+                    defer_reviewed_provenance=True,
+                )
                 self.assertEqual((rc, updates), (2, []))
                 self.assertEqual(target.read_text(encoding="utf-8"), original)
-                current = CHECKER.ComponentResult("current", CHECKER.STATUS_CURRENT, "fixture", [])
-                rc, updates, _, _ = CHECKER.apply_requested_updates(True, 0, target, lines, entries, [current], defer_reviewed_provenance=True)
+                current = CHECKER.ComponentResult(
+                    "current", CHECKER.STATUS_CURRENT, "fixture", []
+                )
+                rc, updates, _, _ = CHECKER.apply_requested_updates(
+                    True,
+                    0,
+                    target,
+                    lines,
+                    entries,
+                    [current],
+                    defer_reviewed_provenance=True,
+                )
                 self.assertEqual((rc, updates), (0, []))
                 self.assertEqual(target.read_text(encoding="utf-8"), original)
             finally:
@@ -542,7 +750,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                     CHECKER.os.environ["BUILD_ROOT"] = previous_build_root
 
     def test_atomic_candidate_write_keeps_original_on_replace_failure(self):
-        with tempfile.TemporaryDirectory(prefix="atomic-provenance-write-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="atomic-provenance-write-"
+        ) as temporary:
             build_root = Path(temporary) / "build"
             target = build_root / "common.sh"
             target.parent.mkdir(parents=True)
@@ -552,7 +762,14 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             update = CHECKER.plan_update(entries, "VERSION", "1.1")
             self.assertIsNotNone(update)
             original = target.read_bytes()
-            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False), patch.object(CHECKER.os, "replace", side_effect=OSError("injected replace failure")):
+            with (
+                patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False),
+                patch.object(
+                    CHECKER.os,
+                    "replace",
+                    side_effect=OSError("injected replace failure"),
+                ),
+            ):
                 with self.assertRaises(OSError):
                     CHECKER.apply_updates(target, lines, [update])
 
@@ -560,7 +777,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             self.assertEqual(target.stat().st_mode & 0o777, 0o755)
             self.assertEqual(list(target.parent.glob(".common.sh.*.tmp")), [])
 
-    def test_cli_component_filter_check_update_exit_codes_and_second_run_are_idempotent(self):
+    def test_cli_component_filter_check_update_exit_codes_and_second_run_are_idempotent(
+        self,
+    ):
         class AprUtilClient:
             def __init__(self, timeout):
                 self.timeout = timeout
@@ -583,7 +802,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             target = build_root / "common.sh"
             target.parent.mkdir(parents=True)
             source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
-            source = source.replace('APR_UTIL_VERSION="1.6.5"', 'APR_UTIL_VERSION="1.6.4"')
+            source = source.replace(
+                'APR_UTIL_VERSION="1.6.5"', 'APR_UTIL_VERSION="1.6.4"'
+            )
             source = source.replace(
                 'APR_UTIL_SHA256="96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"',
                 f'APR_UTIL_SHA256="{CURRENT_DIGEST}"',
@@ -592,26 +813,62 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             initial_bytes = target.read_bytes()
             output = io.StringIO()
             errors = io.StringIO()
-            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False), patch.object(CHECKER, "HttpClient", AprUtilClient), redirect_stdout(output), redirect_stderr(errors):
-                check_rc = CHECKER.main([
-                    "--check", "--json", "--component", "APR-util", "--common-sh", str(target),
-                ])
+            with (
+                patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False),
+                patch.object(CHECKER, "HttpClient", AprUtilClient),
+                redirect_stdout(output),
+                redirect_stderr(errors),
+            ):
+                check_rc = CHECKER.main(
+                    [
+                        "--check",
+                        "--json",
+                        "--component",
+                        "APR-util",
+                        "--common-sh",
+                        str(target),
+                    ]
+                )
             check_summary = json.loads(output.getvalue())
             checked_bytes = target.read_bytes()
 
             output = io.StringIO()
-            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False), patch.object(CHECKER, "HttpClient", AprUtilClient), redirect_stdout(output), redirect_stderr(io.StringIO()):
-                first_rc = CHECKER.main([
-                    "--update", "--json", "--component", "APR-util", "--common-sh", str(target),
-                ])
+            with (
+                patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False),
+                patch.object(CHECKER, "HttpClient", AprUtilClient),
+                redirect_stdout(output),
+                redirect_stderr(io.StringIO()),
+            ):
+                first_rc = CHECKER.main(
+                    [
+                        "--update",
+                        "--json",
+                        "--component",
+                        "APR-util",
+                        "--common-sh",
+                        str(target),
+                    ]
+                )
             first_summary = json.loads(output.getvalue())
             first_bytes = target.read_bytes()
 
             output = io.StringIO()
-            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False), patch.object(CHECKER, "HttpClient", AprUtilClient), redirect_stdout(output), redirect_stderr(io.StringIO()):
-                second_rc = CHECKER.main([
-                    "--update", "--json", "--component", "APR-util", "--common-sh", str(target),
-                ])
+            with (
+                patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False),
+                patch.object(CHECKER, "HttpClient", AprUtilClient),
+                redirect_stdout(output),
+                redirect_stderr(io.StringIO()),
+            ):
+                second_rc = CHECKER.main(
+                    [
+                        "--update",
+                        "--json",
+                        "--component",
+                        "APR-util",
+                        "--common-sh",
+                        str(target),
+                    ]
+                )
             second_summary = json.loads(output.getvalue())
             second_bytes = target.read_bytes()
 

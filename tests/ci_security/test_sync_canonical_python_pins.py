@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 
@@ -107,6 +108,24 @@ class CanonicalPythonPinsTest(unittest.TestCase):
         result = self.run_tool(root, "--check")
         self.assertEqual(result.returncode, 2)
         self.assertIn("64 lowercase hex", result.stderr)
+
+    def test_pathological_platform_is_rejected_in_linear_time(self) -> None:
+        root = self.make_root()
+        common = root / "ci/lib/common.sh"
+        pathological = ("manylinux." * 100_000) + "!"
+        common.write_text(
+            COMMON.replace(
+                'CI_CANONICAL_PYYAML_PLATFORM="manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64"',
+                f'CI_CANONICAL_PYYAML_PLATFORM="{pathological}"',
+            ),
+            encoding="utf-8",
+        )
+        started = time.monotonic()
+        result = self.run_tool(root, "--check")
+        elapsed = time.monotonic() - started
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("PYYAML_PLATFORM is malformed", result.stderr)
+        self.assertLess(elapsed, 1.0)
 
     def test_duplicate_canonical_assignment_is_rejected(self) -> None:
         root = self.make_root()

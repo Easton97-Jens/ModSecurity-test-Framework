@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
     "check_common_versions", ROOT / "ci/tools/check-common-versions.py"
 )
-assert SPEC and SPEC.loader
+assert SPEC is not None
+assert SPEC.loader is not None
 CHECKER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = CHECKER
 SPEC.loader.exec_module(CHECKER)
@@ -27,7 +28,8 @@ def entries(values: dict[str, str]):
 class DescriptorSeriesTests(unittest.TestCase):
     def test_lighttpd_rejects_duplicate_slash_series_base(self):
         values = {
-            name: "x" for name in CHECKER.COMPONENT_DEFINITION_BY_NAME["lighttpd"].variables
+            name: "x"
+            for name in CHECKER.COMPONENT_DEFINITION_BY_NAME["lighttpd"].variables
         }
         values.update(
             {
@@ -43,7 +45,8 @@ class DescriptorSeriesTests(unittest.TestCase):
 
     def test_haproxy_htx_tuple_is_validated_independently(self):
         values = {
-            name: "x" for name in CHECKER.COMPONENT_DEFINITION_BY_NAME["HAProxy"].variables
+            name: "x"
+            for name in CHECKER.COMPONENT_DEFINITION_BY_NAME["HAProxy"].variables
         }
         values.update(
             {

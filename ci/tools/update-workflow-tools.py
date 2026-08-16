@@ -238,7 +238,9 @@ def validate_tool_lock_records(lock: dict[str, Any]) -> None:
             raise UpdateError("tool lock contains an invalid record")
         repository = record.get("repository")
         if not isinstance(repository, str) or REPOSITORY.fullmatch(repository) is None:
-            raise UpdateError(f"tool {name!r} has no valid immutable repository identity")
+            raise UpdateError(
+                f"tool {name!r} has no valid immutable repository identity"
+            )
         identity = release_identity(record, name)
         if repository != identity.slug:
             raise UpdateError(
@@ -394,6 +396,15 @@ def require_canonical_tool_lock(root: Path, lock: dict[str, Any]) -> None:
     tools = lock.get("tools")
     if not isinstance(tools, dict):
         raise UpdateError("lock tools records are missing")
+    repositories = _canonical_tool_repositories(values)
+    if not repositories:
+        raise UpdateError("canonical security tool repositories are missing")
+    if set(repositories) != set(tools):
+        raise UpdateError("security tool lock records do not match canonical source")
+    _validate_tool_lock_repositories(tools, repositories)
+
+
+def _canonical_tool_repositories(values: dict[str, str]) -> dict[str, str]:
     repositories: dict[str, str] = {}
     for name, repository in sorted(values.items()):
         match = re.fullmatch(r"CI_SECURITY_TOOL_(.+)_REPOSITORY", name)
@@ -404,12 +415,16 @@ def require_canonical_tool_lock(root: Path, lock: dict[str, Any]) -> None:
         tool = repository.rsplit("/", 1)[-1]
         previous = repositories.get(tool)
         if previous is not None and previous != repository:
-            raise UpdateError(f"canonical tool repository basename collision for {tool!r}")
+            raise UpdateError(
+                f"canonical tool repository basename collision for {tool!r}"
+            )
         repositories[tool] = repository
-    if not repositories:
-        raise UpdateError("canonical security tool repositories are missing")
-    if set(repositories) != set(tools):
-        raise UpdateError("security tool lock records do not match canonical source")
+    return repositories
+
+
+def _validate_tool_lock_repositories(
+    tools: dict[str, Any], repositories: dict[str, str]
+) -> None:
     for tool, repository in repositories.items():
         record = tools.get(tool)
         if not isinstance(record, dict) or record.get("repository") != repository:

@@ -30,7 +30,9 @@ class CliError(ValueError):
 
 
 def _load_orchestrator(root: Path) -> Any:
-    path = _safe_path(root / "ci" / "tools" / "canonical_maintenance.py", root, "orchestrator")
+    path = _safe_path(
+        root / "ci" / "tools" / "canonical_maintenance.py", root, "orchestrator"
+    )
     spec = importlib.util.spec_from_file_location(MODULE_NAME, path)
     if spec is None or spec.loader is None:
         raise CliError("canonical maintenance orchestrator is unavailable")
@@ -60,23 +62,25 @@ def _safe_path(path: Path, anchor: Path, label: str) -> Path:
         absolute.relative_to(trusted_anchor)
     except ValueError as exc:
         raise CliError(f"{label} must remain below its approved root") from exc
-    current = absolute
-    while True:
+    _validate_ancestors(absolute, trusted_anchor, label)
+    return absolute
+
+
+def _validate_ancestors(path: Path, anchor: Path, label: str) -> None:
+    current = path
+    while current != anchor:
         try:
             details = current.lstat()
         except FileNotFoundError:
-            pass
+            current = current.parent
+            continue
         except OSError as exc:
             raise CliError(f"cannot inspect {label}: {current}") from exc
-        else:
-            if stat.S_ISLNK(details.st_mode):
-                raise CliError(f"{label} contains a symlink path component: {current}")
-            if current != absolute and current != trusted_anchor and not stat.S_ISDIR(details.st_mode):
-                raise CliError(f"{label} contains a non-directory ancestor: {current}")
-        if current == trusted_anchor:
-            break
+        if stat.S_ISLNK(details.st_mode):
+            raise CliError(f"{label} contains a symlink path component: {current}")
+        if current != path and not stat.S_ISDIR(details.st_mode):
+            raise CliError(f"{label} contains a non-directory ancestor: {current}")
         current = current.parent
-    return absolute
 
 
 def _is_within(path: Path, parent: Path) -> bool:
@@ -112,7 +116,9 @@ def _output_path(value: str, root: Path, *, label: str) -> Path | None:
         details = None
     except OSError as exc:
         raise CliError(f"cannot inspect {label}: {resolved}") from exc
-    if details is not None and (stat.S_ISLNK(details.st_mode) or not stat.S_ISREG(details.st_mode)):
+    if details is not None and (
+        stat.S_ISLNK(details.st_mode) or not stat.S_ISREG(details.st_mode)
+    ):
         raise CliError(f"{label} must not be a symlink or special file")
     return resolved
 
@@ -159,20 +165,14 @@ def _load_plan(path: Path) -> dict[str, Any]:
 
 
 def _json_bytes(plan: dict[str, Any]) -> bytes:
-    return (json.dumps(plan, sort_keys=True, indent=2, ensure_ascii=True) + "\n").encode("utf-8")
+    return (
+        json.dumps(plan, sort_keys=True, indent=2, ensure_ascii=True) + "\n"
+    ).encode("utf-8")
 
 
-def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=Path.cwd())
-    parser.add_argument("--timeout", type=float, default=20.0)
-    parser.add_argument("--component", action="append", default=[], metavar="NAME")
-    parser.add_argument("--check", action="store_true", help="resolve and validate without writing source files")
-    parser.add_argument("--plan", metavar="PATH", help="JSON plan output path, or '-' for stdout")
-    parser.add_argument("--markdown", nargs="?", const="-", metavar="PATH", help="render Markdown to PATH, or stdout")
-    parser.add_argument("--apply-safe-updates", action="store_true", help="apply only the caller-bound safe updates in --plan")
-    parser.add_argument("--expected-plan-sha256", metavar="SHA256")
-    args = parser.parse_args(argv)
+def _validate_args(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> argparse.Namespace:
     if args.timeout <= 0 or args.timeout > 300:
         parser.error("--timeout must be greater than 0 and at most 300 seconds")
     if args.apply_safe_updates and not args.plan:
@@ -185,7 +185,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error("--apply-safe-updates cannot be combined with --check")
     if args.apply_safe_updates and args.component:
         parser.error("--apply-safe-updates cannot be combined with --component")
-    if args.expected_plan_sha256 is not None and SHA256_RE.fullmatch(args.expected_plan_sha256) is None:
+    if (
+        args.expected_plan_sha256 is not None
+        and SHA256_RE.fullmatch(args.expected_plan_sha256) is None
+    ):
         parser.error("--expected-plan-sha256 must be a lowercase SHA-256")
     if args.apply_safe_updates and args.expected_plan_sha256 is None:
         parser.error("--apply-safe-updates requires --expected-plan-sha256")
@@ -194,16 +197,74 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return args
 
 
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=Path.cwd())
+    parser.add_argument("--timeout", type=float, default=20.0)
+    parser.add_argument("--component", action="append", default=[], metavar="NAME")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="resolve and validate without writing source files",
+    )
+    parser.add_argument(
+        "--plan", metavar="PATH", help="JSON plan output path, or '-' for stdout"
+    )
+    parser.add_argument(
+        "--markdown",
+        nargs="?",
+        const="-",
+        metavar="PATH",
+        help="render Markdown to PATH, or stdout",
+    )
+    parser.add_argument(
+        "--apply-safe-updates",
+        action="store_true",
+        help="apply only the caller-bound safe updates in --plan",
+    )
+    parser.add_argument("--expected-plan-sha256", metavar="SHA256")
+    return _validate_args(parser.parse_args(argv), parser)
+
+
+def _write_outputs(args: argparse.Namespace, root: Path, plan: dict[str, Any]) -> None:
+    plan_path = (
+        _output_path(args.plan, root, label="--plan output") if args.plan else None
+    )
+    markdown_path = (
+        _output_path(args.markdown, root, label="--markdown output")
+        if args.markdown is not None and args.markdown != "-"
+        else None
+    )
+    if args.plan:
+        data = _json_bytes(plan)
+        if plan_path is None:
+            sys.stdout.buffer.write(data)
+        else:
+            _atomic_write(plan_path, data)
+    elif args.markdown is None:
+        sys.stdout.buffer.write(_json_bytes(plan))
+    if args.markdown is not None:
+        orchestrator = _load_orchestrator(root)
+        markdown = orchestrator.render_plan_markdown(plan).encode("utf-8")
+        if markdown_path is None:
+            sys.stdout.buffer.write(markdown)
+        else:
+            _atomic_write(markdown_path, markdown)
+
+
 def run(args: argparse.Namespace) -> int:
     root = _real_root(args.root)
     orchestrator = _load_orchestrator(root)
-    plan_path = _output_path(args.plan, root, label="--plan output") if args.plan else None
-    markdown_path = _output_path(args.markdown, root, label="--markdown output") if args.markdown is not None and args.markdown != "-" else None
+    plan_path = (
+        _output_path(args.plan, root, label="--plan output") if args.plan else None
+    )
     if args.apply_safe_updates:
         if plan_path is None:
             raise CliError("--apply-safe-updates requires a regular plan file")
         plan = _load_plan(plan_path)
-        changed = orchestrator.apply_safe_updates(root, plan, expected_plan_sha256=args.expected_plan_sha256)
+        changed = orchestrator.apply_safe_updates(
+            root, plan, expected_plan_sha256=args.expected_plan_sha256
+        )
         print(json.dumps({"applied": changed}, sort_keys=True))
         return 0
 
@@ -216,28 +277,17 @@ def run(args: argparse.Namespace) -> int:
         args.expected_plan_sha256 is not None
         and plan.get("plan_sha256") != args.expected_plan_sha256
     ):
-        raise CliError("resolved maintenance plan does not match the caller-bound SHA-256")
-    if args.plan:
-        data = _json_bytes(plan)
-        if plan_path is None:
-            sys.stdout.buffer.write(data)
-        else:
-            _atomic_write(plan_path, data)
-    elif args.markdown is None:
-        sys.stdout.buffer.write(_json_bytes(plan))
-    if args.markdown is not None:
-        markdown = orchestrator.render_plan_markdown(plan).encode("utf-8")
-        if markdown_path is None:
-            sys.stdout.buffer.write(markdown)
-        else:
-            _atomic_write(markdown_path, markdown)
+        raise CliError(
+            "resolved maintenance plan does not match the caller-bound SHA-256"
+        )
+    _write_outputs(args, root, plan)
     return 0 if plan.get("maintenance_outcome") != "fatal" else 2
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         return run(parse_args(argv))
-    except (CliError, OSError, ValueError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"resolve-canonical-maintenance: {exc}", file=sys.stderr)
         return 2
 

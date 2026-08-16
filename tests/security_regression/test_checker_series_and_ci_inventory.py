@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
     "check_common_versions", ROOT / "ci/tools/check-common-versions.py"
 )
-assert SPEC and SPEC.loader
+assert SPEC is not None
+assert SPEC.loader is not None
 CHECKER = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = CHECKER
 SPEC.loader.exec_module(CHECKER)
@@ -52,7 +53,10 @@ def test_ci_inventory_rejects_obsolete_pyyaml_wheel():
             "CI_CANONICAL_PYYAML_PLATFORM",
         )
     )
-    assert any("unsupported canonical variable" in error and "WHEEL" in error for error in errors)
+    assert any(
+        "unsupported canonical variable" in error and "WHEEL" in error
+        for error in errors
+    )
 
 
 def test_component_selection_always_keeps_global_descriptors():

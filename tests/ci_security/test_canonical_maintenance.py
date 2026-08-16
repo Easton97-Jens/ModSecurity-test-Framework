@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
     "canonical_maintenance_test_target", ROOT / "ci/tools/canonical_maintenance.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 MAINTENANCE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MAINTENANCE)
 
@@ -38,7 +39,9 @@ class FakeChecker:
     def __init__(self, commits: dict[str, str]) -> None:
         self.commits = commits
 
-    def resolve_github_peeled_commit(self, _client: object, _repository: str, tag: str) -> str:
+    def resolve_github_peeled_commit(
+        self, _client: object, _repository: str, tag: str
+    ) -> str:
         return self.commits[tag]
 
 
@@ -59,7 +62,9 @@ class FakePyPiClient:
 
 
 class CanonicalMaintenanceTests(unittest.TestCase):
-    def test_go_ftw_ignores_drafts_and_keeps_derived_aliases_out_of_updates(self) -> None:
+    def test_go_ftw_ignores_drafts_and_keeps_derived_aliases_out_of_updates(
+        self,
+    ) -> None:
         current_commit = "a" * 40
         patch_commit = "b" * 40
         major_commit = "c" * 40
@@ -100,10 +105,16 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             result["updates"],
             [
                 {"variable": "GO_FTW_RELEASE_TAG", "old": "v2.2.0", "new": "v2.2.1"},
-                {"variable": "GO_FTW_APPROVED_COMMIT", "old": current_commit, "new": patch_commit},
+                {
+                    "variable": "GO_FTW_APPROVED_COMMIT",
+                    "old": current_commit,
+                    "new": patch_commit,
+                },
             ],
         )
-        self.assertEqual(reviews[0]["review_key"], "go-ftw:major_version_transition:3.0")
+        self.assertEqual(
+            reviews[0]["review_key"], "go-ftw:major_version_transition:3.0"
+        )
         self.assertTrue(reviews[0]["automatic_update_also_available"])
 
     def test_albedo_zero_minor_transition_is_a_review_with_safe_patch(self) -> None:
@@ -147,7 +158,9 @@ class CanonicalMaintenanceTests(unittest.TestCase):
         payload = {
             "releases": {
                 "6.0.3": [{"filename": current_wheel, "digests": {"sha256": "a" * 64}}],
-                "6.0.4": [{"filename": candidate_wheel, "digests": {"sha256": "b" * 64}}],
+                "6.0.4": [
+                    {"filename": candidate_wheel, "digests": {"sha256": "b" * 64}}
+                ],
             }
         }
         result, reviews = MAINTENANCE.resolve_pyyaml(
@@ -156,7 +169,9 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                     "CI_CANONICAL_PYTHON_VERSION": "3.14.6",
                     "CI_CANONICAL_PYYAML_VERSION": "6.0.3",
                     "CI_CANONICAL_PYYAML_ARTIFACT": current_wheel,
-                    "CI_CANONICAL_PYYAML_PLATFORM": current_wheel.removesuffix(".whl").rsplit("-", 1)[-1],
+                    "CI_CANONICAL_PYYAML_PLATFORM": current_wheel.removesuffix(
+                        ".whl"
+                    ).rsplit("-", 1)[-1],
                     "CI_CANONICAL_PYYAML_SHA256": "a" * 64,
                 }
             ),
@@ -175,8 +190,8 @@ class CanonicalMaintenanceTests(unittest.TestCase):
         self.assertEqual(reviews, [])
 
     def test_dynamic_ci_group_coverage_rejects_an_incomplete_tool_tuple(self) -> None:
-        with self.assertRaises(MAINTENANCE.MaintenanceError):
-            MAINTENANCE._groups(
+        def resolve_groups() -> object:
+            return MAINTENANCE._groups(
                 entries(
                     {
                         "CI_SECURITY_TOOL_EXAMPLE_REPOSITORY": "owner/example",
@@ -187,6 +202,9 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                 {"REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256"},
                 "CI_SECURITY_TOOL_",
             )
+
+        with self.assertRaises(MAINTENANCE.MaintenanceError):
+            resolve_groups()
 
     def test_derived_ci_tool_asset_is_rechecked_after_its_version_change(self) -> None:
         checker = MAINTENANCE.load_runtime_checker(ROOT)
@@ -218,7 +236,9 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             real_root = parent / "real"
             common = real_root / "ci/lib/common.sh"
             common.parent.mkdir(parents=True)
-            common.write_text('CI_CANONICAL_PYTHON_VERSION="3.14.6"\n', encoding="utf-8")
+            common.write_text(
+                'CI_CANONICAL_PYTHON_VERSION="3.14.6"\n', encoding="utf-8"
+            )
             symlink_root = parent / "linked"
             symlink_root.symlink_to(real_root, target_is_directory=True)
             with self.assertRaisesRegex(MAINTENANCE.MaintenanceError, "symlink"):
@@ -231,11 +251,15 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                     self.__dict__.update(kwargs)
 
             @staticmethod
-            def parse_common(_path: Path) -> tuple[list[str], dict[str, SimpleNamespace]]:
+            def parse_common(
+                _path: Path,
+            ) -> tuple[list[str], dict[str, SimpleNamespace]]:
                 return ["PIN=old"], {"PIN": SimpleNamespace(default="old", line=1)}
 
             @staticmethod
-            def apply_updates(path: Path, _lines: list[str], _changes: list[object]) -> None:
+            def apply_updates(
+                path: Path, _lines: list[str], _changes: list[object]
+            ) -> None:
                 path.write_bytes(b"PIN=new\n")
 
         with tempfile.TemporaryDirectory() as directory:
@@ -271,14 +295,18 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                 MAINTENANCE._canonical_json(plan)
             ).hexdigest()
             with (
-                mock.patch.object(MAINTENANCE, "load_runtime_checker", return_value=ApplyChecker),
+                mock.patch.object(
+                    MAINTENANCE, "load_runtime_checker", return_value=ApplyChecker
+                ),
                 mock.patch.object(
                     MAINTENANCE,
                     "generated_view_status",
                     return_value=[{"name": "generated", "status": "blocked"}],
                 ),
             ):
-                with self.assertRaisesRegex(MAINTENANCE.MaintenanceError, "generated-view synchronization"):
+                with self.assertRaisesRegex(
+                    MAINTENANCE.MaintenanceError, "generated-view synchronization"
+                ):
                     MAINTENANCE.apply_safe_updates(
                         root,
                         plan,
@@ -296,9 +324,13 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                 "",
             )
 
-    def test_ci_tool_provider_transition_is_classified_before_release_lookup(self) -> None:
+    def test_ci_tool_provider_transition_is_classified_before_release_lookup(
+        self,
+    ) -> None:
         updater = SimpleNamespace(
-            release_identity=lambda _record, _name: SimpleNamespace(slug="ossf/scorecard")
+            release_identity=lambda _record, _name: SimpleNamespace(
+                slug="ossf/scorecard"
+            )
         )
         identity, transition = MAINTENANCE._tool_provider_identity(
             updater,
