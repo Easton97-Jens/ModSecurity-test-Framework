@@ -9,7 +9,7 @@
 | Change-ID | `20260816-03-repair-canonical-maintenance-and-python-pin-sync` |
 | UTC-Datum | `2026-08-16` |
 | Framework-Basisrevision | `fec22255a8d8663ed578a84b052dfd00631288ca` |
-| Issue oder Pull Request | Korrigierender Framework-Pull-Request steht aus. Dieser Record autorisiert weder Merge noch direkten `master`-Write. |
+| Issue oder Pull Request | Framework-PR #85 ist ein Draft. Dieser Record autorisiert weder Merge noch direkten `master`-Write. |
 
 ## Motivation und Problemstellung
 
@@ -50,7 +50,9 @@ Jeder Resolver-Body ist nun an einen exakten geprüften SHA-256 gebunden; Kommen
 | Fokussierte Updater-, Python-/CI-Contract-, Framework-CI-Contract- und Maintenance-Tests | `0` | 97 Tests nach den finalen Security-Closures bestanden. | Task-Worktree; Bytecode-Writes deaktiviert. |
 | Früher erweiterte fokussierte Suite einschließlich Pin-Sync und Descriptor-Series | `0` | 96 Tests vor den finalen Security-Closures bestanden. | Task-Worktree; bei Überschneidungen durch die aktuelle fokussierte Suite abgelöst. |
 | Vollständiger Framework-Lint | `0` | Auf dem finalen Implementierungsstand vor dieser reinen Ergebnisaktualisierung bestanden. | Task-Worktree; Bytecode-Writes deaktiviert. |
-| Hosted-Exact-Head-Checks | ausstehend | Müssen den veröffentlichten Pull-Request-Head validieren. | Noch nicht verfügbar. |
+| Initiale Hosted-Quality-Checks von PR #85 | fehlgeschlagen, dann behoben | ShellCheck fand einen ungültig eingerückten Here-Document-Terminator und Ruff Formatierungsdrift; die Korrektur behält den kandidatengebundenen Guard bei und aktualisiert seinen exakten Run-Body-Hash. | GitHub-Läufe `31964051925` und `31964051902`. |
+| Wiederholter vollständiger Framework-Lint | `0` | Nach der Hosted-Quality-Korrektur bestanden. | Task-Worktree; Bytecode-Writes deaktiviert. |
+| Frische Exact-Head-Hosted-Checks | bei Record-Aktualisierung ausstehend | Müssen den korrigierten veröffentlichten Pull-Request-Head validieren. | PR #85; bei dieser Record-Aktualisierung noch nicht verfügbar. |
 
 ## Sicherheitsauswirkung
 
@@ -58,11 +60,17 @@ Dies ist eine CI-Supply-Chain-Integritätskorrektur. Der ursprüngliche fehlende
 
 ## Dokumentation und Runtime-Evidenz
 
-Dieses englische/deutsche Paar ist die leserorientierte Dokumentationsaktualisierung. Hosted-Evidenz bleibt erforderlich: Der korrigierende PR muss erfolgreiche erforderliche Checks besitzen und SonarQube Cloud muss null neue Issues melden, bevor der autorisierte Squash-Merge erfolgen darf.
+Dieses englische/deutsche Paar ist die leserorientierte Dokumentationsaktualisierung.
+Framework-PR #85 zeigte zunächst lokale Quality-Defekte, die behoben und lokal
+erneut validiert wurden. Hosted-Evidenz bleibt erforderlich: Sein korrigierter
+Exact Head muss erfolgreiche erforderliche Checks besitzen und SonarQube Cloud
+muss null neue Issues melden, bevor der autorisierte Squash-Merge erfolgen darf.
 
 ## Nicht ausgeführte Prüfungen
 
-- PR-Checks, SonarQube Cloud, Review-Status, Exact-Head-Merge und resulting-master-Dispatches benötigen eine Veröffentlichung.
+- Frische Checks für den korrigierten Head, SonarQube Cloud, Review-Status,
+  Exact-Head-Merge und resulting-master-Dispatches benötigen Veröffentlichung
+  oder Integration.
 
 ## Einschränkungen und Restrisiko
 
@@ -70,4 +78,8 @@ Lokale Validierung kann weder GitHub-gehostetes App-Token-Verhalten, Protected-B
 
 ## Finaler Diff- und Review-Status
 
-Der Task-Diff ist unstaged und auf Framework-Workflows, kanonische Pin-Updates, Contracts, Regressionen und diesen gepaarten Record beschränkt. Bei Record-Erstellung fanden weder Commit, Push, PR-Erstellung, Merge, Parent-Gitlink-Update noch MRTS-Aktion statt. Whitespace-, unabhängiger Security-Review und finaler Security-Diff-Review sind bestanden; die Hosted-Verifikation bleibt vor der Delivery erforderlich.
+Der Task bleibt auf Framework-Workflows, kanonische Pin-Updates, Contracts,
+Regressionen und diesen gepaarten Record begrenzt. PR #85 existiert als Draft;
+ein Merge, Parent-Gitlink-Update oder eine MRTS-Aktion fanden nicht statt.
+Whitespace-, unabhängiger Security-Review und finaler Security-Diff-Review sind
+bestanden; frische Hosted-Verifikation bleibt vor der Delivery erforderlich.

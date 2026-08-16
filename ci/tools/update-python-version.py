@@ -444,9 +444,7 @@ def atomic_write_canonical_version(
     """Atomically replace only the canonical assignment after a stale check."""
 
     path, original_content, details = canonical_source_content(root)
-    original_mode = stat.S_IMODE(
-        details.st_mode
-    )
+    original_mode = stat.S_IMODE(details.st_mode)
     lines = original_content.splitlines(keepends=True)
     replacements = 0
     updated_lines: list[str] = []
@@ -461,7 +459,7 @@ def atomic_write_canonical_version(
             )
         replacements += 1
         updated_lines.append(
-            f'{match.group("prefix")}{candidate.text}{match.group("suffix")}'
+            f"{match.group('prefix')}{candidate.text}{match.group('suffix')}"
         )
     if replacements != 1:
         raise UpdaterFailure(
@@ -469,9 +467,7 @@ def atomic_write_canonical_version(
         )
     updated_content = "".join(updated_lines).encode("utf-8")
     if not updated_content:
-        raise UpdaterFailure(
-            "blocked_metadata", "the canonical source cannot be empty"
-        )
+        raise UpdaterFailure("blocked_metadata", "the canonical source cannot be empty")
     try:
         descriptor, temporary_name = tempfile.mkstemp(
             dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", text=False
@@ -487,8 +483,8 @@ def atomic_write_canonical_version(
             stream.write(updated_content)
             stream.flush()
             os.fsync(stream.fileno())
-        observed_path, observed_content, _observed_details = (
-            canonical_source_content(root)
+        observed_path, observed_content, _observed_details = canonical_source_content(
+            root
         )
         if observed_path != path or observed_content != original_content:
             raise UpdaterFailure(

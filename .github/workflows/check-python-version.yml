@@ -269,54 +269,54 @@ jobs:
               expected_paths=$'.python-version\nci/lib/common.sh'
               test "$changed_paths" = "$expected_paths"
               python3 - "$DEFAULT_BRANCH" "$UPDATE_BRANCH" "$CANDIDATE" <<'PY'
-              import re
-              import subprocess
-              import sys
+          import re
+          import subprocess
+          import sys
 
-              base, head, candidate = sys.argv[1:]
-              version = re.compile(r"^3\.14\.(?:0|[1-9][0-9]*)$", re.ASCII)
-              if version.fullmatch(candidate) is None:
-                  raise SystemExit("resolved CPython candidate is malformed")
-              revision_range = f"origin/{base}...origin/{head}"
-              common_path = "ci/lib/common.sh"
+          base, head, candidate = sys.argv[1:]
+          version = re.compile(r"^3\.14\.(?:0|[1-9][0-9]*)$", re.ASCII)
+          if version.fullmatch(candidate) is None:
+              raise SystemExit("resolved CPython candidate is malformed")
+          revision_range = f"origin/{base}...origin/{head}"
+          common_path = "ci/lib/common.sh"
 
-              def git_diff(*arguments: str) -> str:
-                  return subprocess.run(
-                      ["git", "diff", "--no-ext-diff", *arguments, revision_range,
-                       "--", common_path],
-                      check=True,
-                      capture_output=True,
-                      text=True,
-                  ).stdout
+          def git_diff(*arguments: str) -> str:
+              return subprocess.run(
+                  ["git", "diff", "--no-ext-diff", *arguments, revision_range,
+                   "--", common_path],
+                  check=True,
+                  capture_output=True,
+                  text=True,
+              ).stdout
 
-              if git_diff("--numstat") != "1\t1\tci/lib/common.sh\n":
-                  raise SystemExit(
-                      "existing CPython Draft must change exactly one canonical common.sh line"
-                  )
-              if git_diff("--summary"):
-                  raise SystemExit("existing CPython Draft must not change common.sh metadata")
-              payload = [
-                  line
-                  for line in git_diff("--unified=0").splitlines()
-                  if line[:1] in {"+", "-"} and not line.startswith(("+++", "---"))
-              ]
-              assignment = re.compile(
-                  r'^CI_CANONICAL_PYTHON_VERSION="3\.14\.(?:0|[1-9][0-9]*)"$',
-                  re.ASCII,
+          if git_diff("--numstat") != "1\t1\tci/lib/common.sh\n":
+              raise SystemExit(
+                  "existing CPython Draft must change exactly one canonical common.sh line"
               )
-              expected = f'CI_CANONICAL_PYTHON_VERSION="{candidate}"'
-              if (
-                  len(payload) != 2
-                  or not payload[0].startswith("-")
-                  or not payload[1].startswith("+")
-                  or assignment.fullmatch(payload[0][1:]) is None
-                  or payload[1][1:] != expected
-                  or payload[0][1:] == expected
-              ):
-                  raise SystemExit(
-                      "existing CPython Draft common.sh diff is not the reviewed canonical assignment update"
-                  )
-              PY
+          if git_diff("--summary"):
+              raise SystemExit("existing CPython Draft must not change common.sh metadata")
+          payload = [
+              line
+              for line in git_diff("--unified=0").splitlines()
+              if line[:1] in {"+", "-"} and not line.startswith(("+++", "---"))
+          ]
+          assignment = re.compile(
+              r'^CI_CANONICAL_PYTHON_VERSION="3\.14\.(?:0|[1-9][0-9]*)"$',
+              re.ASCII,
+          )
+          expected = f'CI_CANONICAL_PYTHON_VERSION="{candidate}"'
+          if (
+              len(payload) != 2
+              or not payload[0].startswith("-")
+              or not payload[1].startswith("+")
+              or assignment.fullmatch(payload[0][1:]) is None
+              or payload[1][1:] != expected
+              or payload[0][1:] == expected
+          ):
+              raise SystemExit(
+                  "existing CPython Draft common.sh diff is not the reviewed canonical assignment update"
+              )
+          PY
               git diff --check "origin/$DEFAULT_BRANCH...origin/$UPDATE_BRANCH"
               git switch --detach "origin/$UPDATE_BRANCH"
               ;;

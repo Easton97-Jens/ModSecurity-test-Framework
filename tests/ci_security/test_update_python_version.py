@@ -316,9 +316,7 @@ class UpdatePythonVersionTest(unittest.TestCase):
                 UPDATER.resolve_update(root).status, "invalid_current_version"
             )
 
-            common.write_text(
-                "CI_CANONICAL_PYTHON_VERSION=3.14.6\n", encoding="utf-8"
-            )
+            common.write_text("CI_CANONICAL_PYTHON_VERSION=3.14.6\n", encoding="utf-8")
             self.assertEqual(
                 UPDATER.resolve_update(root).status, "invalid_current_version"
             )

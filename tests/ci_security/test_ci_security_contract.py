@@ -857,7 +857,7 @@ jobs:
                 1,
             ),
             "publisher-allows-unbounded-common-source": workflow.replace(
-                '              if git_diff("--numstat") != "1\\t1\\tci/lib/common.sh\\n":\n',
+                '          if git_diff("--numstat") != "1\\t1\\tci/lib/common.sh\\n":\n',
                 "              if False:\n",
                 1,
             ),

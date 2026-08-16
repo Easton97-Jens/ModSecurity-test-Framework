@@ -790,7 +790,7 @@ PYTHON_PUBLISHER_FIELD_VALUES = {
 PYTHON_PUBLISHER_RUN_SHA256 = {
     STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
     STEP_VERIFY_PYTHON_PUBLISHER_APP_CONFIGURATION: "c01127376f95819c3abb8f99815aa9877ed4c5fd6ab248f0968feb458bdec033",
-    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "be9db4c5493f1e809c7922cc6ffb3b4fd39874d8bc40ff227d4195bf2f0fa4cc",
+    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "653ecd3a5d752b06c5bb69999b7138e3af259d8bd8ef88c647738081a3d6c7b4",
     STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: "55bbd20d483361dcdb598d1100afc54c40b22d31909c143fdf1b8bdeeb531b1d",
     STEP_RESTORE_PYTHON_PUBLISHER_BASE: "dd3deb33caa76d77617755ad6ea7d7f64e940dd9114a97586cd035a567a01e54",
     STEP_APPLY_PYTHON_CANDIDATE: "2ab398b7a68d6124283d52fd2b57510158b5ab089e47f657cd70b3a2a19c5fed",
@@ -3412,9 +3412,7 @@ def _common_version_resolver_dependency_errors(
             step_name = step.get("name")
             key = (name, step_name) if isinstance(step_name, str) else None
             expected = (
-                COMMON_VERSION_REVIEWED_RUN_SHA256.get(key)
-                if key is not None
-                else None
+                COMMON_VERSION_REVIEWED_RUN_SHA256.get(key) if key is not None else None
             )
             run = step.get("run")
             if (
@@ -3430,9 +3428,7 @@ def _common_version_resolver_dependency_errors(
                 seen.add(key)
     missing = set(COMMON_VERSION_REVIEWED_RUN_SHA256).difference(seen)
     if missing:
-        errors.append(
-            f"{path}: common-version workflow is missing a reviewed run step"
-        )
+        errors.append(f"{path}: common-version workflow is missing a reviewed run step")
     return errors
 
 
