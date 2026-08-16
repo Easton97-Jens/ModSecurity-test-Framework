@@ -42,6 +42,9 @@ from urllib.request import Request, urlopen
 
 import yaml
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from common_canonical_pins import load_canonical_ci_pins
+
 
 class UpdateError(RuntimeError):
     """Raised when an update candidate violates the CI provenance contract."""
@@ -113,9 +116,7 @@ TOOL_MUTABLE_FIELDS = (
 )
 ACTION_RELEASE_RESOLUTION_LATEST = "latest-release"
 ACTION_RELEASE_RESOLUTION_SAME_MAJOR = "same-major-release"
-REVIEWED_ACTION_RELEASE_RESOLUTIONS = {
-    "github/codeql-action": ACTION_RELEASE_RESOLUTION_SAME_MAJOR,
-}
+REVIEWED_ACTION_RELEASE_RESOLUTIONS: dict[str, str] = {}
 
 
 @dataclass(frozen=True)
@@ -318,9 +319,10 @@ def release_identity(
 def action_release_resolution(record: dict[str, Any], name: str) -> str:
     """Return the lock-reviewed Action release selection mode, fail closed."""
 
-    expected = REVIEWED_ACTION_RELEASE_RESOLUTIONS.get(
-        name, ACTION_RELEASE_RESOLUTION_LATEST
-    )
+    # The release stream is part of the reviewed lock record.  Concrete
+    # repository identities are checked against common.sh at the command
+    # boundary below, never duplicated in this updater.
+    expected = record.get("release_resolution", ACTION_RELEASE_RESOLUTION_LATEST)
     resolution = record.get("release_resolution")
     if resolution != expected:
         raise UpdateError(
@@ -334,6 +336,32 @@ def action_release_resolution(record: dict[str, Any], name: str) -> str:
                 "v<major>.<minor>.<patch> lock tag"
             )
     return expected
+
+
+def require_canonical_action_lock(root: Path, lock: dict[str, Any]) -> None:
+    """Bind every lock action identity to the non-executing common reader."""
+
+    values = load_canonical_ci_pins(root)
+    actions = lock.get("actions")
+    if not isinstance(actions, dict):
+        raise UpdateError("lock actions records are missing")
+    for suffix in (
+        "CHECKOUT",
+        "SETUP_PYTHON",
+        "SETUP_NODE",
+        "UPLOAD_ARTIFACT",
+        "GITHUB_SCRIPT",
+        "CREATE_GITHUB_APP_TOKEN",
+        "CREATE_PULL_REQUEST",
+        "CODEQL",
+        "DEPENDENCY_REVIEW",
+    ):
+        name = f"CI_ACTION_{suffix}_REPOSITORY"
+        repository = values.get(name)
+        if not repository or repository not in actions:
+            raise UpdateError(
+                f"canonical action {name}={repository!r} is absent from the reviewed lock"
+            )
 
 
 def validate_tool_baseline_provenance(
@@ -1174,8 +1202,13 @@ def update_documentation_references(
         for relative_text in DOCUMENTATION_UPDATE_PATHS:
             path = resolve_regular_file(root, Path(relative_text))
             text = path.read_text(encoding="utf-8")
+            plain_old_cells = f"{baseline['version']} | {baseline['immutable_commit']}"
             if old_cells in text:
                 write_verified_text(path, text.replace(old_cells, new_cells))
+            elif plain_old_cells in text:
+                # Older generated views used plain Markdown cells.  Normalize
+                # the touched row to the updater's reviewed, unambiguous form.
+                write_verified_text(path, text.replace(plain_old_cells, new_cells))
 
 
 def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:
@@ -1629,7 +1662,10 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_resolve_command(args: argparse.Namespace) -> None:
-    candidate = resolve_candidate(resolve_root(args.root))
+    root = resolve_root(args.root)
+    _lock_path, lock, _lock_digest = load_lock(root)
+    require_canonical_action_lock(root, lock)
+    candidate = resolve_candidate(root)
     if args.github_output:
         print("resolver_status=resolved")
         print(f"candidate_b64={candidate_b64(candidate)}")
@@ -1645,6 +1681,7 @@ def run_resolve_command(args: argparse.Namespace) -> None:
 def run_validate_command(args: argparse.Namespace) -> int:
     root = resolve_root(args.root)
     _lock_path, lock, lock_digest = load_lock(root)
+    require_canonical_action_lock(root, lock)
     ensure_locked_action_workflow_coverage(root, lock)
     candidate = candidate_from_arguments(args)
     require_candidate_sha256(
@@ -1667,7 +1704,9 @@ def run_apply_command(args: argparse.Namespace) -> int:
     require_candidate_sha256(
         candidate, getattr(args, "expected_candidate_sha256", None)
     )
-    _lock_path, lock, lock_digest = load_lock(resolve_root(args.root))
+    root = resolve_root(args.root)
+    _lock_path, lock, lock_digest = load_lock(root)
+    require_canonical_action_lock(root, lock)
     changes = validate_candidate_shape(candidate, lock, lock_digest)
     require_candidate_updates(changes, getattr(args, "require_updates", False))
     changed = apply_candidate(args.root, candidate)

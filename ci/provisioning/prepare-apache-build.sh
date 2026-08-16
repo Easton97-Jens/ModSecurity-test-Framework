@@ -8,6 +8,10 @@ REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
 . "$CI_ROOT/lib/runtime-component-common.sh"
 
+# Reject a post-source or caller-replaced upstream tuple before any download,
+# extraction, or compiler process can consume it.
+ci_validate_https_runtime_url_config || exit 77
+
 if [ "$CI_SOURCE_ROOT_WAS_SET" = "0" ]; then
     SOURCE_ROOT="${RUNNER_TEMP:-$BUILD_ROOT}/sources"
     DEFAULT_MODSECURITY_V3_SOURCE_DIR="$SOURCE_ROOT/ModSecurity_V3"
@@ -117,11 +121,6 @@ require_command() {
     if ! command -v "$tool" >/dev/null 2>&1; then
         blocked "missing required command for $purpose: $tool"
     fi
-}
-
-sha256_digest() {
-    input_file=$1
-    sha256sum "$input_file" | awk '{print $1}'
 }
 
 require_c_header() {
@@ -256,10 +255,8 @@ download_file() {
     dest=$3
     download_runtime_artifact_under_root "$label" "$url" "$dest" "$DOWNLOAD_DIR" >/dev/null || \
         blocked "could not download the reviewed $label artifact"
-    if command -v sha256sum >/dev/null 2>&1; then
-        local_sha=$(sha256_digest "$dest")
-        echo "$label sha256(local)=$local_sha file=$dest" >> "$ARTIFACTS_FILE"
-    fi
+    local_sha=$(ci_trusted_sha256_file "$dest") || blocked "trusted checksum failed for $label"
+    echo "$label sha256(local)=$local_sha file=$dest" >> "$ARTIFACTS_FILE"
 }
 
 download_apr_util_file() {
@@ -278,10 +275,8 @@ download_apr_util_file() {
     download_runtime_artifact_without_redirects_under_root \
         "$label" "$url" "$dest" "$DOWNLOAD_DIR" >/dev/null || \
         blocked "could not download the reviewed direct $label artifact"
-    if command -v sha256sum >/dev/null 2>&1; then
-        local_sha=$(sha256_digest "$dest")
-        echo "$label sha256(local)=$local_sha file=$dest" >> "$ARTIFACTS_FILE"
-    fi
+    local_sha=$(ci_trusted_sha256_file "$dest") || blocked "trusted checksum failed for $label"
+    echo "$label sha256(local)=$local_sha file=$dest" >> "$ARTIFACTS_FILE"
 }
 
 verify_sha256_url() {
@@ -289,7 +284,6 @@ verify_sha256_url() {
     file=$2
     sha_url=$3
     [ -n "$sha_url" ] || return 0
-    require_command sha256sum "verify $label checksum"
     sha_file="$DOWNLOAD_DIR/$label.sha256"
     download_file "$label-sha256" "$sha_url" "$sha_file"
     expected=$(awk '{print $1; exit}' "$sha_file")
@@ -307,7 +301,6 @@ verify_apr_util_sha256_url() {
     file=$2
     sha_url=$3
     [ -n "$sha_url" ] || blocked "missing SHA256 URL for $label"
-    require_command sha256sum "verify $label checksum"
     sha_file="$DOWNLOAD_DIR/$label.sha256"
     download_apr_util_file "$label-sha256" "$sha_url" "$sha_file"
     expected=$(awk '{print $1; exit}' "$sha_file")
@@ -399,7 +392,7 @@ build_pcre2_from_source() {
     require_command make "build PCRE2"
     require_command cc "build PCRE2"
 
-    pcre2_archive="$DOWNLOAD_DIR/pcre2-$PCRE2_VERSION.tar.bz2"
+    pcre2_archive="$DOWNLOAD_DIR/$PCRE2_ARCHIVE_NAME"
     download_file pcre2 "$PCRE2_SOURCE_URL" "$pcre2_archive"
     verify_required_pcre2_sha256 "$pcre2_archive" "$PCRE2_SHA256"
     extract_tar_strip pcre2 "$pcre2_archive" "$PCRE2_SOURCE_DIR"
@@ -458,9 +451,9 @@ build_httpd_from_source() {
 
     resolve_pcre_config
 
-    httpd_archive="$DOWNLOAD_DIR/httpd-$HTTPD_VERSION.tar.bz2"
-    apr_archive="$DOWNLOAD_DIR/apr-$APR_VERSION.tar.bz2"
-    apr_util_archive="$DOWNLOAD_DIR/apr-util-$APR_UTIL_VERSION.tar.bz2"
+    httpd_archive="$DOWNLOAD_DIR/$HTTPD_ARCHIVE_NAME"
+    apr_archive="$DOWNLOAD_DIR/$APR_ARCHIVE_NAME"
+    apr_util_archive="$DOWNLOAD_DIR/$APR_UTIL_ARCHIVE_NAME"
 
     download_file httpd "$HTTPD_SOURCE_URL" "$httpd_archive"
     verify_sha256_literal httpd "$httpd_archive" "$HTTPD_SHA256"

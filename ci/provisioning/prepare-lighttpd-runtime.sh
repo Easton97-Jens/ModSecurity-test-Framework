@@ -16,12 +16,23 @@ fi
 
 ci_validate_https_runtime_url_config || exit 77
 
+runtime_component_require_locked_profile \
+    lighttpd-sidecar \
+    "LIGHTTPD_VERSION=$LIGHTTPD_VERSION" \
+    "LIGHTTPD_DOWNLOAD_URL=$LIGHTTPD_DOWNLOAD_URL" \
+    "LIGHTTPD_SHA256=$LIGHTTPD_SHA256" || {
+    ci_blocked "Lighttpd runtime configuration does not match the reviewed component lock"
+    exit 77
+}
+
 sha_status=$(runtime_component_sha_status "$LIGHTTPD_SHA256")
 LIGHTTPD_SOURCE_STAGE_DIR="${LIGHTTPD_SOURCE_STAGE_DIR:-${LIGHTTPD_SOURCE_DIR:-$LIGHTTPD_COMPONENT_ROOT/src/lighttpd-$LIGHTTPD_VERSION}}"
-LIGHTTPD_STAGED_BIN="$LIGHTTPD_COMPONENT_ROOT/bin/lighttpd"
+LIGHTTPD_STAGED_BIN="$LIGHTTPD_CONNECTOR_BUILD_ROOT/bin/lighttpd"
 LIGHTTPD_BUILD_ROOT="${LIGHTTPD_BUILD_ROOT:-$LIGHTTPD_COMPONENT_ROOT/build/lighttpd-$LIGHTTPD_VERSION}"
 LIGHTTPD_BUILD_LOG_ROOT="${LIGHTTPD_BUILD_LOG_ROOT:-$LIGHTTPD_LOG_ROOT/prepare-runtime}"
 LIGHTTPD_BUILD_MISSING_DEPS_LOG="$LIGHTTPD_BUILD_LOG_ROOT/build-dependencies.missing"
+LIGHTTPD_SOURCE_PROVENANCE_FILE="$LIGHTTPD_SOURCE_STAGE_DIR/.lighttpd-source-provenance"
+LIGHTTPD_BINARY_PROVENANCE_FILE="$LIGHTTPD_CONNECTOR_BUILD_ROOT/.lighttpd-binary.provenance"
 
 assert_safe_runtime_path "$LIGHTTPD_COMPONENT_ROOT" LIGHTTPD_COMPONENT_ROOT || exit 77
 assert_safe_runtime_path "$LIGHTTPD_RUNTIME_ROOT" LIGHTTPD_RUNTIME_ROOT || exit 77
@@ -29,14 +40,44 @@ assert_safe_runtime_path "$LIGHTTPD_CONFIG_ROOT" LIGHTTPD_CONFIG_ROOT || exit 77
 assert_safe_runtime_path "$LIGHTTPD_LOG_ROOT" LIGHTTPD_LOG_ROOT || exit 77
 assert_safe_runtime_path "$LIGHTTPD_RESULT_ROOT" LIGHTTPD_RESULT_ROOT || exit 77
 assert_safe_runtime_path "$LIGHTTPD_BUILD_LOG_ROOT" LIGHTTPD_BUILD_LOG_ROOT || exit 77
-runtime_component_require_under_cache "$LIGHTTPD_SOURCE_STAGE_DIR" LIGHTTPD_SOURCE_STAGE_DIR || exit 77
-runtime_component_require_under_cache "$LIGHTTPD_STAGED_BIN" "lighttpd staged binary" || exit 77
-runtime_component_require_under_cache "$LIGHTTPD_BUILD_ROOT" "lighttpd build root" || exit 77
+runtime_component_require_under_root \
+    "$LIGHTTPD_CONNECTOR_BUILD_ROOT" "$BUILD_ROOT" \
+    "lighttpd private build root" || exit 77
+runtime_component_require_under_root "$LIGHTTPD_SOURCE_STAGE_DIR" "$LIGHTTPD_CONNECTOR_BUILD_ROOT" LIGHTTPD_SOURCE_STAGE_DIR || exit 77
+runtime_component_require_under_root "$LIGHTTPD_STAGED_BIN" "$LIGHTTPD_CONNECTOR_BUILD_ROOT" "lighttpd staged binary" || exit 77
+runtime_component_require_under_root "$LIGHTTPD_BUILD_ROOT" "$LIGHTTPD_CONNECTOR_BUILD_ROOT" "lighttpd build root" || exit 77
 ci_require_absolute_path "$LIGHTTPD_BIN" LIGHTTPD_BIN || exit 77
 if ci_path_is_system_path "$LIGHTTPD_BIN"; then
     ci_blocked "LIGHTTPD_BIN must not point at a global system path: $LIGHTTPD_BIN"
     exit 77
 fi
+
+expected_lighttpd_bin="$LIGHTTPD_STAGED_BIN"
+if [ "${LIGHTTPD_BIN_WAS_SET:-0}" = "1" ] && [ "$LIGHTTPD_BIN" != "$expected_lighttpd_bin" ]; then
+    ci_blocked "explicit LIGHTTPD_BIN must use the reviewed staged path: $expected_lighttpd_bin"
+    exit 77
+fi
+
+verify_lighttpd_source_provenance() {
+    [ -f "$LIGHTTPD_SOURCE_PROVENANCE_FILE" ] || return 1
+    grep -Fx "lighttpd_version=$LIGHTTPD_VERSION" "$LIGHTTPD_SOURCE_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    grep -Fx "lighttpd_source_url=$LIGHTTPD_SOURCE_URL" "$LIGHTTPD_SOURCE_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    grep -Fx "lighttpd_download_url=$LIGHTTPD_DOWNLOAD_URL" "$LIGHTTPD_SOURCE_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    grep -Fx "lighttpd_sha256=$LIGHTTPD_SHA256" "$LIGHTTPD_SOURCE_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    return 0
+}
+
+verify_lighttpd_binary_provenance() {
+    [ -f "$LIGHTTPD_BIN" ] && [ -x "$LIGHTTPD_BIN" ] || return 1
+    [ -f "$LIGHTTPD_BINARY_PROVENANCE_FILE" ] || return 1
+    grep -Fx "lighttpd_version=$LIGHTTPD_VERSION" "$LIGHTTPD_BINARY_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    grep -Fx "lighttpd_source_sha256=$LIGHTTPD_SHA256" "$LIGHTTPD_BINARY_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    expected_binary_sha=$(sed -n 's/^lighttpd_binary_sha256=//p' "$LIGHTTPD_BINARY_PROVENANCE_FILE")
+    printf '%s\n' "$expected_binary_sha" | grep -Eq '^[0-9A-Fa-f]{64}$' || return 1
+    actual_binary_sha=$(ci_trusted_sha256_file "$LIGHTTPD_BIN") || return 1
+    [ "$actual_binary_sha" = "$expected_binary_sha" ] || return 1
+    return 0
+}
 
 print_binary_status() {
     binary=$1
@@ -68,6 +109,14 @@ Expected build output:
 or set LIGHTTPD_BIN to an executable local/common.sh-managed path."
 
 if [ -f "$LIGHTTPD_BIN" ] && [ -x "$LIGHTTPD_BIN" ] && [ -d "$LIGHTTPD_SOURCE_STAGE_DIR" ]; then
+    verify_lighttpd_source_provenance || {
+        ci_blocked "existing Lighttpd source lacks current reviewed provenance"
+        exit 77
+    }
+    verify_lighttpd_binary_provenance || {
+        ci_blocked "existing Lighttpd binary lacks a matching reviewed digest"
+        exit 77
+    }
     print_binary_status "$LIGHTTPD_BIN"
     exit 0
 fi
@@ -101,17 +150,38 @@ if [ ! -d "$LIGHTTPD_SOURCE_STAGE_DIR" ]; then
 
     require_pinned_runtime_source lighttpd "$LIGHTTPD_VERSION" "$LIGHTTPD_SOURCE_URL" "$LIGHTTPD_DOWNLOAD_URL" "$LIGHTTPD_SHA256" || exit 77
 
-    archive="$LIGHTTPD_COMPONENT_ROOT/downloads/lighttpd-$LIGHTTPD_VERSION.tar.xz"
-    source_parent="$LIGHTTPD_COMPONENT_ROOT/src"
+    archive="$LIGHTTPD_COMPONENT_ROOT/downloads/$LIGHTTPD_ARCHIVE_NAME"
+    verified_archive="$LIGHTTPD_CONNECTOR_BUILD_ROOT/verified-archives/$LIGHTTPD_ARCHIVE_NAME"
+    source_parent="$LIGHTTPD_CONNECTOR_BUILD_ROOT/src"
     download_runtime_artifact lighttpd "$LIGHTTPD_DOWNLOAD_URL" "$archive" >/dev/null || exit 77
     verify_runtime_artifact_sha256 lighttpd "$LIGHTTPD_SHA256" "$archive" || exit 77
-    source_dir=$(extract_runtime_source_tar lighttpd "$archive" "$source_parent" "lighttpd-$LIGHTTPD_VERSION") || exit 77
+    verified_archive=$(runtime_component_stage_verified_archive \
+        lighttpd "$LIGHTTPD_SHA256" "$archive" "$verified_archive" \
+        "$LIGHTTPD_CONNECTOR_BUILD_ROOT") || exit 77
+    source_dir=$(extract_runtime_source_tar lighttpd "$verified_archive" "$source_parent" "lighttpd-$LIGHTTPD_VERSION" "$LIGHTTPD_CONNECTOR_BUILD_ROOT") || exit 77
+    runtime_component_write_provenance_file \
+        "$LIGHTTPD_SOURCE_PROVENANCE_FILE" \
+        "$LIGHTTPD_SOURCE_STAGE_DIR" \
+        "Lighttpd source provenance" <<EOF || exit 77
+lighttpd_version=$LIGHTTPD_VERSION
+lighttpd_source_url=$LIGHTTPD_SOURCE_URL
+lighttpd_download_url=$LIGHTTPD_DOWNLOAD_URL
+lighttpd_sha256=$LIGHTTPD_SHA256
+EOF
 fi
 
 # A matching binary may have been staged from an existing installation. Keep
 # provisioning the pinned source tree for external module headers, then reuse
 # the staged binary without rebuilding stock lighttpd.
 if [ -f "$LIGHTTPD_BIN" ] && [ -x "$LIGHTTPD_BIN" ]; then
+    verify_lighttpd_source_provenance || {
+        ci_blocked "Lighttpd source provenance is missing after staging"
+        exit 77
+    }
+    verify_lighttpd_binary_provenance || {
+        ci_blocked "existing Lighttpd binary lacks a matching reviewed digest"
+        exit 77
+    }
     print_binary_status "$LIGHTTPD_BIN"
     printf 'lighttpd_source_dir=%s\n' "$source_dir"
     exit 0
@@ -184,7 +254,7 @@ if [ ! -x "$source_dir/configure" ]; then
 fi
 
 rm -rf "$LIGHTTPD_BUILD_ROOT"
-mkdir -p "$LIGHTTPD_BUILD_ROOT" "$LIGHTTPD_COMPONENT_ROOT/bin" "$LIGHTTPD_COMPONENT_ROOT/lib"
+mkdir -p "$LIGHTTPD_BUILD_ROOT" "$LIGHTTPD_CONNECTOR_BUILD_ROOT/bin" "$LIGHTTPD_CONNECTOR_BUILD_ROOT/lib"
 
 configure_help="$LIGHTTPD_BUILD_LOG_ROOT/configure-help.txt"
 configure_help_err="$LIGHTTPD_BUILD_LOG_ROOT/configure-help.stderr.log"
@@ -193,7 +263,7 @@ if ! "$source_dir/configure" --help > "$configure_help" 2> "$configure_help_err"
     exit 77
 fi
 
-configure_args="--prefix=$LIGHTTPD_COMPONENT_ROOT --bindir=$LIGHTTPD_COMPONENT_ROOT/bin --sbindir=$LIGHTTPD_COMPONENT_ROOT/bin --libdir=$LIGHTTPD_COMPONENT_ROOT/lib"
+configure_args="--prefix=$LIGHTTPD_CONNECTOR_BUILD_ROOT --bindir=$LIGHTTPD_CONNECTOR_BUILD_ROOT/bin --sbindir=$LIGHTTPD_CONNECTOR_BUILD_ROOT/bin --libdir=$LIGHTTPD_CONNECTOR_BUILD_ROOT/lib"
 add_configure_flag() {
     flag=$1
     if grep -Fq -- "$flag" "$configure_help"; then
@@ -258,7 +328,7 @@ fi
 if [ ! -f "$LIGHTTPD_STAGED_BIN" ] || [ ! -x "$LIGHTTPD_STAGED_BIN" ]; then
     built_candidate=$(find "$LIGHTTPD_BUILD_ROOT" -type f -name lighttpd -perm /111 2>/dev/null | sed -n '1p')
     if [ -n "$built_candidate" ]; then
-        stage_executable_binary lighttpd "$built_candidate" "$LIGHTTPD_STAGED_BIN" >/dev/null || exit 77
+        stage_executable_binary lighttpd "$built_candidate" "$LIGHTTPD_STAGED_BIN" "$LIGHTTPD_CONNECTOR_BUILD_ROOT" >/dev/null || exit 77
     fi
 fi
 
@@ -266,6 +336,16 @@ if [ ! -f "$LIGHTTPD_STAGED_BIN" ] || [ ! -x "$LIGHTTPD_STAGED_BIN" ]; then
     ci_blocked "lighttpd build did not produce executable binary: $LIGHTTPD_STAGED_BIN"
     exit 77
 fi
+
+lighttpd_binary_sha=$(ci_trusted_sha256_file "$LIGHTTPD_STAGED_BIN") || exit 77
+runtime_component_write_provenance_file \
+    "$LIGHTTPD_BINARY_PROVENANCE_FILE" \
+    "$LIGHTTPD_CONNECTOR_BUILD_ROOT" \
+    "Lighttpd binary provenance" <<EOF || exit 77
+lighttpd_version=$LIGHTTPD_VERSION
+lighttpd_source_sha256=$LIGHTTPD_SHA256
+lighttpd_binary_sha256=$lighttpd_binary_sha
+EOF
 
 print_binary_status "$LIGHTTPD_STAGED_BIN" | tee "$LIGHTTPD_BUILD_LOG_ROOT/version.txt"
 printf 'lighttpd_build_root=%s\n' "$LIGHTTPD_BUILD_ROOT"

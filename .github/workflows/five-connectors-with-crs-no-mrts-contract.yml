@@ -70,5 +70,5 @@ jobs:
       - name: Validate portable closed contract
         run: |
           set -euo pipefail
-          make test-five-connectors-with-crs-no-mrts-contract
-          make test-crs-provenance-contract
+          ./ci/tools/safe-make.sh test-five-connectors-with-crs-no-mrts-contract
+          ./ci/tools/safe-make.sh test-crs-provenance-contract

@@ -28,7 +28,8 @@ SHA256_SUFFIX = ".sha256"
 ARCHIVE_BZ2_EXTENSION = ".tar.bz2"
 APACHE_DOWNLOAD_HOST = "downloads.apache.org"
 MODSECURITY_V3_COMPONENT = "ModSecurity v3"
-GITHUB_WEB_ORIGIN = "https://github.com"
+GITHUB_WEB_HOST = "github.com"
+GITHUB_WEB_ORIGIN = f"https://{GITHUB_WEB_HOST}"
 ENVOY_COMPONENT = "Envoy"
 TRAEFIK_COMPONENT = "Traefik"
 GITHUB_RELEASES_SOURCE_COMPONENTS = frozenset(
@@ -40,7 +41,7 @@ NGINX_SOURCE_GIT_REF_VARIABLE = "NGINX_SOURCE_GIT_REF"
 NGINX_RELEASE_TAG_VARIABLE = "NGINX_RELEASE_TAG"
 AUTOMATIC_UPDATE_POLICY = "automatic"
 GITHUB_RELEASE_MANIFEST_RESOLVER = "github_release_manifest"
-GITHUB_RELEASE_HOSTS = ("github.com", "api.github.com")
+GITHUB_RELEASE_HOSTS = (GITHUB_WEB_HOST, "api.github.com")
 GITHUB_STABLE_RELEASE_POLICY = (
     "GitHub non-draft, non-prerelease stable v<version> release"
 )
@@ -62,7 +63,9 @@ RELEVANT_PROVENANCE_VARIABLE_RE = re.compile(
     r"(?:_VERSION|_RELEASE_TAG|_GIT_REF|_APPROVED_COMMIT|_SOURCE_URL|"
     r"_DOWNLOAD_URL|_RELEASE_ASSET_NAME|_SHA256|_SOURCE_SHA256|"
     r"_SHA256_URL|_CHECKSUM(?:_[A-Z0-9_]+)?|_REPO_URL|_GITHUB_REPO|"
-    r"_GIT_URL|_RELEASE_INDEX_URL|_LATEST_URL|_PROMPT_EXPECTED_LATEST"
+    r"_GIT_URL|_RELEASE_INDEX_URL|_LATEST_URL|_PROMPT_EXPECTED_LATEST|"
+    r"_ARCHIVE_NAME|_ASSET_NAME|_ARTIFACT_PLATFORM|_PLATFORM|_SOURCE_MODE|"
+    r"_REPOSITORY|_COMMIT|_SHA"
     r")$"
 )
 TRACKED_NAME_RE = RELEVANT_PROVENANCE_VARIABLE_RE
@@ -88,6 +91,64 @@ GITHUB_RELEASE_URL_RE = re.compile(
     r"^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/releases/download/"
     r"([^/]+)/([^/?#]+)$"
 )
+
+# These are checked-in generated projections of common.sh.  Keep this list
+# exact: a broad directory exemption would allow an active consumer to hide a
+# second source of truth.  Historical reports, audit exports, and tests are
+# not scanned at all and therefore need no exemption here.
+GENERATED_CANONICAL_VIEW_PATHS = frozenset(
+    {
+        ".python-version",
+        "requirements-ci.lock",
+        "ci/provisioning/runtime-components.manifest.json",
+        "ci/provisioning/runtime-component-lock.json",
+        "ci/tooling/security-tools.lock.yml",
+        "docs/reference/variables.md",
+        "docs/reference/variables.de.md",
+        *{
+            f".github/workflows/{name}"
+            for name in (
+                "check-action-versions.yml",
+                "check-common-versions.yml",
+                "check-python-version.yml",
+                "ci-security-codeql-pr.yml",
+                "ci-security-codeql.yml",
+                "ci-security-dependency-review.yml",
+                "ci-security-osv.yml",
+                "ci-security-quality.yml",
+                "ci-security-scorecard.yml",
+                "ci-security-secrets.yml",
+                "ci-security-workflow-lint.yml",
+                "cleanup-artifacts.yml",
+                "five-connectors-with-crs-no-mrts-contract.yml",
+                "lint.yml",
+                "test-common.yml",
+                "update-submodules.yml",
+                "update-workflow-tools.yml",
+            )
+        },
+    }
+)
+# These exact files validate provenance metadata; they do not acquire or
+# execute the pinned component.  They remain visible in code review but are
+# not active consumers for this check.
+NON_CONSUMER_METADATA_PATHS = frozenset(
+    {
+        "ci/checks/catalog/five_connectors_with_crs_no_mrts.py",
+        "ci/checks/security/check-github-actions-workflows.py",
+    }
+)
+ACTIVE_CONSUMER_ROOTS = ("ci", "src", ".github")
+ACTIVE_CONSUMER_SUFFIXES = frozenset(
+    {".c", ".cc", ".cpp", ".h", ".hpp", ".json", ".mk", ".py", ".sh", ".yml", ".yaml"}
+)
+CANONICAL_PIN_VARIABLE_RE = re.compile(
+    r"(?:_VERSION|_RELEASE_TAG|_GIT_REF|_COMMIT|_SHA256|_SOURCE_SHA256|"
+    r"_SOURCE_URL|_DOWNLOAD_URL|_REPO_URL|_GITHUB_REPO|_GIT_URL|"
+    r"_ARCHIVE_NAME|_ASSET_NAME|_ARTIFACT_PLATFORM|_PLATFORM|_SOURCE_MODE|"
+    r"_REPOSITORY)$"
+)
+GENERIC_CANONICAL_PIN_VALUES = frozenset({"", "master", "main", "github-release"})
 OPTIONAL_EMPTY_VARIABLES = {
     "APACHE_BIN",
     "APACHECTL_BIN",
@@ -161,8 +222,37 @@ MAINTENANCE_OUTCOMES = frozenset(
 )
 FATAL_STATUSES = frozenset({STATUS_UNKNOWN, STATUS_BLOCKED, STATUS_ERROR})
 CRS_COMPONENT = "OWASP Core Rule Set"
-CRS_APPROVED_REPOSITORY = "coreruleset/coreruleset"
-MODSECURITY_V3_APPROVED_REPOSITORY = "owasp-modsecurity/ModSecurity"
+# Resolver descriptors use a neutral marker.  The reviewed repository identity
+# is read from the canonical common.sh URL at resolution time; keeping the
+# marker here prevents a second handwritten upstream identity.
+CANONICAL_REPOSITORY_MARKER = "canonical/repository"
+CRS_APPROVED_REPOSITORY = CANONICAL_REPOSITORY_MARKER
+MODSECURITY_V3_APPROVED_REPOSITORY = CANONICAL_REPOSITORY_MARKER
+CI_CANONICAL_PIN_VARIABLES = (
+    "CI_CANONICAL_PYTHON_VERSION",
+    "CI_CANONICAL_PYYAML_VERSION",
+    "CI_CANONICAL_PYYAML_SHA256",
+    "CI_CANONICAL_NODE_VERSION",
+    "CI_OSV_LEGACY_BASE_SHA",
+    "CI_OSV_LEGACY_BASE_VERSION",
+    *tuple(
+        f"CI_ACTION_{suffix}_{field}"
+        for suffix in (
+            "CHECKOUT", "SETUP_PYTHON", "SETUP_NODE", "UPLOAD_ARTIFACT",
+            "GITHUB_SCRIPT", "CREATE_GITHUB_APP_TOKEN", "CREATE_PULL_REQUEST",
+            "CODEQL", "DEPENDENCY_REVIEW",
+        )
+        for field in ("REPOSITORY", "VERSION", "COMMIT")
+    ),
+    *tuple(
+        f"CI_SECURITY_TOOL_{suffix}_{field}"
+        for suffix in (
+            "SCORECARD", "OSV_SCANNER", "ACTIONLINT", "SHELLCHECK",
+            "ZIZMOR", "GITLEAKS", "RUFF", "PYRIGHT",
+        )
+        for field in ("REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256")
+    ),
+)
 MANUAL_REVIEW_VARIABLES = {
     CRS_COMPONENT: (
         "CRS_APPROVED_REPO_URL",
@@ -210,6 +300,7 @@ class ComponentDefinition:
     sha256_url_variable: str | None = None
     git_commit_variable: str | None = None
     asset_template: str | None = None
+    asset_platform_variable: str | None = None
     checksum_asset_template: str | None = None
     checksum_strategy: str = ""
     tag_prefix: str = ""
@@ -232,6 +323,8 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         variables=(
             "ENVOY_VERSION",
             "ENVOY_SOURCE_URL",
+            "ENVOY_ARTIFACT_PLATFORM",
+            "ENVOY_ASSET_NAME",
             "ENVOY_DOWNLOAD_URL",
             "ENVOY_SHA256",
             "ENVOY_SHA256_URL",
@@ -253,7 +346,8 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         download_url_variable="ENVOY_DOWNLOAD_URL",
         sha256_variable="ENVOY_SHA256",
         sha256_url_variable="ENVOY_SHA256_URL",
-        asset_template="envoy-{version}-linux-x86_64",
+        asset_template="envoy-{version}-{platform}",
+        asset_platform_variable="ENVOY_ARTIFACT_PLATFORM",
         checksum_asset_template="checksums.txt.asc",
         checksum_strategy="github_release_asset_digest_or_official_manifest",
         tag_prefix="v",
@@ -265,6 +359,8 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         variables=(
             "TRAEFIK_VERSION",
             "TRAEFIK_SOURCE_URL",
+            "TRAEFIK_ARTIFACT_PLATFORM",
+            "TRAEFIK_ARCHIVE_NAME",
             "TRAEFIK_DOWNLOAD_URL",
             "TRAEFIK_SHA256",
             "TRAEFIK_SHA256_URL",
@@ -286,7 +382,8 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         download_url_variable="TRAEFIK_DOWNLOAD_URL",
         sha256_variable="TRAEFIK_SHA256",
         sha256_url_variable="TRAEFIK_SHA256_URL",
-        asset_template="traefik_v{version}_linux_amd64.tar.gz",
+        asset_template="traefik_v{version}_{platform}.tar.gz",
+        asset_platform_variable="TRAEFIK_ARTIFACT_PLATFORM",
         checksum_asset_template="traefik_v{version}_checksums.txt",
         checksum_strategy="github_release_asset_digest_or_official_manifest",
         tag_prefix="v",
@@ -298,6 +395,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         variables=(
             "LIGHTTPD_VERSION",
             "LIGHTTPD_SOURCE_URL",
+            "LIGHTTPD_ARCHIVE_NAME",
             "LIGHTTPD_RELEASE_INDEX_URL",
             "LIGHTTPD_LATEST_URL",
             "LIGHTTPD_DOWNLOAD_URL",
@@ -415,7 +513,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
     ComponentDefinition(
         name="Apache httpd",
         resolver=APACHE_LISTING_RESOLVER,
-        variables=("HTTPD_VERSION", "HTTPD_SOURCE_URL", "HTTPD_SHA256", "HTTPD_SHA256_URL"),
+        variables=("HTTPD_VERSION", "HTTPD_ARCHIVE_NAME", "HTTPD_SOURCE_URL", "HTTPD_SHA256", "HTTPD_SHA256_URL"),
         atomic_group=(
             "HTTPD_VERSION",
             "HTTPD_SOURCE_URL",
@@ -438,7 +536,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
     ComponentDefinition(
         name="APR",
         resolver=APACHE_LISTING_RESOLVER,
-        variables=("APR_VERSION", "APR_SOURCE_URL", "APR_SHA256", "APR_SHA256_URL"),
+        variables=("APR_VERSION", "APR_ARCHIVE_NAME", "APR_SOURCE_URL", "APR_SHA256", "APR_SHA256_URL"),
         atomic_group=("APR_VERSION", "APR_SOURCE_URL", "APR_SHA256", "APR_SHA256_URL"),
         update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy=APACHE_STABLE_RELEASE_POLICY,
@@ -458,6 +556,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         resolver=APACHE_LISTING_RESOLVER,
         variables=(
             "APR_UTIL_VERSION",
+            "APR_UTIL_ARCHIVE_NAME",
             "APR_UTIL_SOURCE_URL",
             "APR_UTIL_SHA256",
             "APR_UTIL_SHA256_URL",
@@ -484,7 +583,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
     ComponentDefinition(
         name="PCRE2",
         resolver="github_release_digest",
-        variables=("PCRE2_VERSION", "PCRE2_SOURCE_URL", "PCRE2_SHA256", "PCRE2_SHA256_URL"),
+        variables=("PCRE2_VERSION", "PCRE2_ARCHIVE_NAME", "PCRE2_SOURCE_URL", "PCRE2_SHA256", "PCRE2_SHA256_URL"),
         atomic_group=(
             "PCRE2_VERSION",
             "PCRE2_SOURCE_URL",
@@ -510,10 +609,12 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         resolver="github_release_digest",
         variables=(
             "NGINX_SOURCE_REPO_URL",
+            "NGINX_SOURCE_MODE",
             "NGINX_GITHUB_REPO",
             "NGINX_RELEASE_TAG",
             "NGINX_SOURCE_GIT_REF",
             "NGINX_RELEASE_ASSET_NAME",
+            "NGINX_DOWNLOAD_URL",
             "NGINX_SHA256",
         ),
         atomic_group=(
@@ -526,7 +627,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         stable_policy="GitHub non-draft, non-prerelease release-<version> release",
         compatibility_policy=NO_HIDDEN_SERIES_RESTRICTION,
         authorized_hosts=GITHUB_RELEASE_HOSTS,
-        github_repository="nginx/nginx",
+        github_repository=CANONICAL_REPOSITORY_MARKER,
         release_tag_variable="NGINX_RELEASE_TAG",
         source_url_variable="NGINX_SOURCE_REPO_URL",
         asset_variable="NGINX_RELEASE_ASSET_NAME",
@@ -541,6 +642,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         resolver="github_release_digest",
         variables=(
             "NGINX_QUIC_TLS_VERSION",
+            "NGINX_QUIC_TLS_ARCHIVE_NAME",
             "NGINX_QUIC_TLS_SOURCE_URL",
             "NGINX_QUIC_TLS_SOURCE_SHA256",
         ),
@@ -565,7 +667,11 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
     ComponentDefinition(
         name="HAProxy",
         resolver="haproxy_series",
-        variables=("HAPROXY_VERSION", "HAPROXY_SOURCE_URL", "HAPROXY_SHA256_URL", "HAPROXY_SHA256"),
+        variables=(
+            "HAPROXY_VERSION", "HAPROXY_ARCHIVE_NAME", "HAPROXY_SOURCE_URL",
+            "HAPROXY_SHA256_URL", "HAPROXY_SHA256", "HAPROXY_HTX_VERSION",
+            "HAPROXY_HTX_ARCHIVE_NAME", "HAPROXY_HTX_SOURCE_URL", "HAPROXY_HTX_SHA256",
+        ),
         atomic_group=(
             "HAPROXY_VERSION",
             "HAPROXY_SOURCE_URL",
@@ -626,6 +732,16 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         stable_policy="not fetched by this Framework",
         compatibility_policy="legacy metadata is unused by an acquisition path",
         not_applicable_reason="Expat metadata has no Framework source-acquisition consumer and is intentionally not an updater input",
+    ),
+    ComponentDefinition(
+        name="Canonical CI pins",
+        resolver="not_applicable",
+        variables=CI_CANONICAL_PIN_VARIABLES,
+        atomic_group=(),
+        update_policy="not_applicable",
+        stable_policy="exact reviewed action/tool/interpreter release and digest",
+        compatibility_policy="generated workflow, lock, and documentation views",
+        not_applicable_reason="CI pins are consumed by generated views and are not runtime component updater inputs",
     ),
     ComponentDefinition(
         name="Default branch",
@@ -833,7 +949,10 @@ def parse_common_assignment(line: str) -> tuple[str, str, str] | None:
     if not match:
         return None
     name = match.group(1)
-    if name not in APPROVED_LITERAL_VARIABLES:
+    # Canonical pins are intentionally literal assignments.  Accept only
+    # names covered by the provenance inventory (or the small legacy allowlist)
+    # so arbitrary shell configuration is still ignored and never evaluated.
+    if name not in APPROVED_LITERAL_VARIABLES and not RELEVANT_PROVENANCE_VARIABLE_RE.search(name):
         return None
     return "literal-assignment", name, match.group(2)
 
@@ -870,6 +989,238 @@ def parse_common_lines(lines: list[str]) -> dict[str, VariableEntry]:
 def parse_common(common_sh: Path) -> tuple[list[str], dict[str, VariableEntry]]:
     lines = common_sh.read_text(encoding="utf-8").splitlines()
     return lines, parse_common_lines(lines)
+
+
+def provenance_assignment_occurrences(
+    lines: list[str],
+) -> dict[str, list[int]]:
+    """Return provenance assignment locations without executing common.sh.
+
+    This deliberately reuses the restricted assignment parser.  Function
+    bodies and shell control flow are treated as plain text; only reviewed
+    assignment forms are considered.  The locations make duplicate pin
+    definitions observable instead of silently letting the last dictionary
+    value win.
+    """
+
+    occurrences: dict[str, list[int]] = {}
+    for line_no, line in enumerate(lines, start=1):
+        assignment = parse_common_assignment(line)
+        if assignment is None:
+            continue
+        _, name, _ = assignment
+        if RELEVANT_PROVENANCE_VARIABLE_RE.search(name) or name == "DEFAULT_BRANCH":
+            occurrences.setdefault(name, []).append(line_no)
+    return occurrences
+
+
+def duplicate_provenance_variables(lines: list[str]) -> dict[str, list[int]]:
+    """Return relevant names assigned more than once, with source lines."""
+
+    return {
+        name: locations
+        for name, locations in provenance_assignment_occurrences(lines).items()
+        if len(locations) > 1
+    }
+
+
+def _canonical_registry_errors() -> list[str]:
+    errors: list[str] = []
+    owners: dict[str, list[str]] = {}
+    for definition in COMPONENT_DEFINITIONS:
+        for name in definition.variables:
+            owners.setdefault(name, []).append(definition.name)
+    duplicate_owners = {
+        name: names for name, names in owners.items() if len(names) > 1
+    }
+    for name, names in sorted(duplicate_owners.items()):
+        errors.append(f"duplicate registry ownership for {name}: {', '.join(names)}")
+    return errors
+
+
+def _canonical_assignment_errors(
+    lines: list[str], entries: dict[str, VariableEntry]
+) -> list[str]:
+    errors: list[str] = []
+    expected = {
+        name for definition in COMPONENT_DEFINITIONS for name in definition.variables
+    }
+
+    missing = sorted(name for name in expected if name not in entries)
+    if missing:
+        errors.append("missing canonical assignments: " + ", ".join(missing))
+
+    duplicates = duplicate_provenance_variables(lines)
+    for name, locations in sorted(duplicates.items()):
+        errors.append(
+            f"duplicate canonical assignment for {name} at lines "
+            + ", ".join(str(item) for item in locations)
+        )
+
+    unassigned = unassigned_provenance_variables(entries)
+    if unassigned:
+        errors.append("unassigned canonical assignments: " + ", ".join(unassigned))
+    return errors
+
+
+def _canonical_value_errors(entries: dict[str, VariableEntry]) -> list[str]:
+    errors: list[str] = []
+    missing_values = validate_entries(entries)
+    if missing_values:
+        errors.append("empty canonical assignments: " + ", ".join(missing_values))
+
+    literal_required = {
+        name
+        for definition in COMPONENT_DEFINITIONS
+        if definition.update_policy != "not_applicable"
+        or definition.name == "Canonical CI pins"
+        for name in definition.variables
+    }
+    environment_defaults = sorted(
+        item.name
+        for item in entries.values()
+        if item.name in literal_required
+        and item.style in {"assignment-default", "assignment-unset-default"}
+    )
+    if environment_defaults:
+        errors.append(
+            "canonical pins must not use environment-default assignments: "
+            + ", ".join(environment_defaults)
+        )
+
+    osv_sha = entries.get("CI_OSV_LEGACY_BASE_SHA")
+    if osv_sha and not GIT_COMMIT_SHA1_RE.fullmatch(osv_sha.resolved):
+        errors.append("CI_OSV_LEGACY_BASE_SHA must be a lowercase 40-character commit SHA")
+    osv_version = entries.get("CI_OSV_LEGACY_BASE_VERSION")
+    if osv_version and not SAFE_VERSION_RE.fullmatch(osv_version.resolved):
+        errors.append("CI_OSV_LEGACY_BASE_VERSION must be a numeric dotted version")
+
+    unresolved = sorted(
+        item.name
+        for item in entries.values()
+        if item.tracked and "$" in item.resolved
+    )
+    if unresolved:
+        errors.append("unresolved canonical derivations: " + ", ".join(unresolved))
+    return errors
+
+
+def canonical_contract_errors(
+    lines: list[str], entries: dict[str, VariableEntry]
+) -> list[str]:
+    """Validate the complete local canonical pin contract, offline.
+
+    The updater intentionally permits component-specific fixtures containing
+    only a subset of variables.  This stricter contract is reserved for the
+    canonical checkout/lint path and therefore checks every registered
+    provenance variable, ownership, duplicate assignment, and resolution.
+    """
+
+    errors = _canonical_registry_errors()
+    errors.extend(_canonical_assignment_errors(lines, entries))
+    errors.extend(_canonical_value_errors(entries))
+    return errors
+
+
+def _canonical_pin_values(common_sh: Path) -> dict[str, str]:
+    pin_values = {
+        item.name: item.resolved
+        for item in parse_common_lines(common_sh.read_text(encoding="utf-8").splitlines()).values()
+        if item.tracked
+        and CANONICAL_PIN_VARIABLE_RE.search(item.name)
+        and item.resolved not in GENERIC_CANONICAL_PIN_VALUES
+    }
+    # GitHub repository fields are sometimes consumed in owner/repository
+    # form while common.sh stores the approved HTTPS URL.  Check both exact
+    # representations without treating arbitrary URL path fragments as pins.
+    for name, value in list(pin_values.items()):
+        parsed = urlparse(value)
+        if parsed.hostname == GITHUB_WEB_HOST:
+            repository = parsed.path.strip("/").removesuffix(".git")
+            if repository.count("/") == 1:
+                pin_values[f"{name} (repository)"] = repository
+    return pin_values
+
+
+def _pin_value_names(pin_values: dict[str, str]) -> dict[str, list[str]]:
+    value_names: dict[str, list[str]] = {}
+    for name, value in pin_values.items():
+        value_names.setdefault(value, []).append(name)
+    return value_names
+
+
+def _is_active_consumer_file(path: Path) -> bool:
+    return path.is_file() and (
+        path.suffix in ACTIVE_CONSUMER_SUFFIXES
+        or path.name.startswith("Dockerfile")
+        or not path.suffix
+    )
+
+
+def _active_consumer_files(root: Path) -> list[Path]:
+    paths: list[Path] = []
+    for relative_root in ACTIVE_CONSUMER_ROOTS:
+        scan_root = root / relative_root
+        if scan_root.is_dir():
+            paths.extend(
+                path for path in sorted(scan_root.rglob("*")) if _is_active_consumer_file(path)
+            )
+    return paths
+
+
+def _consumer_pin_findings(
+    path: Path,
+    root: Path,
+    common_sh: Path,
+    value_pattern: re.Pattern[str],
+    value_names: dict[str, list[str]],
+) -> list[str]:
+    relative = path.relative_to(root).as_posix()
+    common_path = common_sh.resolve()
+    common_relative = (
+        common_path.relative_to(root).as_posix()
+        if common_path.is_relative_to(root)
+        else None
+    )
+    if common_relative and relative == common_relative:
+        return []
+    if relative in GENERATED_CANONICAL_VIEW_PATHS or relative in NON_CONSUMER_METADATA_PATHS:
+        return []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return []
+    findings: list[str] = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        for match in value_pattern.finditer(line):
+            value = match.group(0)
+            findings.extend(
+                f"{relative}:{line_no}: {name}={value}" for name in value_names[value]
+            )
+    return findings
+
+
+def active_consumer_pin_literals(
+    common_sh: Path, repository_root: Path | None = None
+) -> list[str]:
+    """Find copied current pins in active consumers without executing code."""
+
+    root = (repository_root or DEFAULT_COMMON_SH.parents[2]).resolve()
+    value_names = _pin_value_names(_canonical_pin_values(common_sh))
+    value_pattern = re.compile(
+        "|".join(
+            rf"(?<![A-Za-z0-9_.-]){re.escape(value)}(?![A-Za-z0-9_.-])"
+            for value in sorted(value_names, key=len, reverse=True)
+        )
+    )
+    findings = [
+        finding
+        for path in _active_consumer_files(root)
+        for finding in _consumer_pin_findings(
+            path, root, common_sh, value_pattern, value_names
+        )
+    ]
+    return sorted(set(findings))
 
 
 def entry(entries: dict[str, VariableEntry], name: str) -> VariableEntry | None:
@@ -1878,7 +2229,7 @@ def github_repo_path(repo_url: str) -> str | None:
     parsed = urlparse(repo_url.strip())
     if (
         parsed.scheme != "https"
-        or parsed.netloc != "github.com"
+        or parsed.netloc != GITHUB_WEB_HOST
         or parsed.query
         or parsed.fragment
     ):
@@ -1888,6 +2239,32 @@ def github_repo_path(repo_url: str) -> str | None:
     if len(parts) != 2 or not parts[0] or not parts[1]:
         return None
     return f"{parts[0]}/{parts[1]}"
+
+
+def canonicalize_github_repository(
+    definition: ComponentDefinition, entries: dict[str, VariableEntry]
+) -> ComponentDefinition:
+    """Bind neutral descriptors to the repository URL parsed from common.sh."""
+
+    if definition.github_repository != CANONICAL_REPOSITORY_MARKER:
+        return definition
+    source_variable = definition.source_url_variable
+    source_url = value(entries, source_variable) if source_variable else ""
+    if not source_url:
+        for candidate in definition.variables:
+            if candidate.endswith(("_REPO_URL", "_GIT_URL")):
+                source_url = value(entries, candidate)
+                if source_url:
+                    break
+    repository = github_repo_path(source_url)
+    if repository is None:
+        raise UpstreamUnknown(
+            f"{definition.name} canonical repository URL is not an official GitHub URL"
+        )
+    updated_definition = dataclasses.replace(
+        definition, github_repository=repository
+    )
+    return cast(ComponentDefinition, updated_definition)
 
 
 def latest_github_release(client: HttpClient, repo_path: str) -> dict[str, Any]:
@@ -2251,8 +2628,16 @@ def check_crs_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
     """Classify a valid CRS tag/commit transition as explicitly manual only."""
+    # Keep the reviewed repository identity derived from the canonical URL in
+    # common.sh.  The descriptor deliberately carries only a neutral marker;
+    # resolving it here also protects direct callers of this helper (rather
+    # than only the generic component dispatcher) from a second repository
+    # literal or an unbound alias.
+    definition = canonicalize_github_repository(
+        COMPONENT_DEFINITION_BY_NAME[CRS_COMPONENT], entries
+    )
     return check_manual_git_provenance(
-        COMPONENT_DEFINITION_BY_NAME[CRS_COMPONENT], entries, client
+        definition, entries, client
     )
 
 
@@ -2390,10 +2775,23 @@ def release_tag_from_component(
     return tag
 
 
-def release_asset_name(definition: ComponentDefinition, version: str) -> str:
+def release_asset_name(
+    definition: ComponentDefinition,
+    version: str,
+    entries: dict[str, VariableEntry] | None = None,
+) -> str:
     if not definition.asset_template:
         raise UpstreamError(f"{definition.name} has no release asset template")
-    asset_name = definition.asset_template.format(version=version)
+    platform = (
+        value(entries, definition.asset_platform_variable)
+        if entries is not None and definition.asset_platform_variable
+        else ""
+    )
+    if definition.asset_platform_variable and not platform:
+        raise UpstreamUnknown(
+            f"{definition.name} canonical artifact platform is missing"
+        )
+    asset_name = definition.asset_template.format(version=version, platform=platform)
     if not SAFE_ASSET_NAME_RE.fullmatch(asset_name):
         raise UpstreamError(
             f"{definition.name} asset template rendered an unsafe filename: {asset_name!r}"
@@ -2770,7 +3168,7 @@ def check_github_release_component(
 
     current_tag = release_tag_from_component(definition, entries)
     current_version = release_version_from_tag(definition, current_tag)
-    current_asset = release_asset_name(definition, current_version)
+    current_asset = release_asset_name(definition, current_version, entries)
     bound = configured_github_release_urls_are_bound(
         definition,
         entries,
@@ -2796,7 +3194,7 @@ def check_github_release_component(
         latest_release, repo_path, definition.tag_pattern
     )
     latest_version = release_version_from_tag(definition, latest_tag)
-    latest_asset = release_asset_name(definition, latest_version)
+    latest_asset = release_asset_name(definition, latest_version, entries)
     latest_sha, sha_source, sha_source_url = github_release_checksum(
         definition,
         latest_release,
@@ -2921,8 +3319,11 @@ def check_nginx_release_provenance(
 ) -> ComponentResult:
     """Resolve NGINX's latest stable tag/ref/asset/digest tuple atomically."""
 
+    definition = canonicalize_github_repository(
+        COMPONENT_DEFINITION_BY_NAME["NGINX"], entries
+    )
     return check_github_release_component(
-        COMPONENT_DEFINITION_BY_NAME["NGINX"], entries, client
+        definition, entries, client
     )
 
 
@@ -3188,6 +3589,12 @@ def resolve_component_definition(
     entries: dict[str, VariableEntry],
     client: HttpClient,
 ) -> ComponentResult:
+    if definition.resolver in {
+        "github_release_manifest",
+        "github_release_digest",
+        "github_tag_commit",
+    }:
+        definition = canonicalize_github_repository(definition, entries)
     if definition.resolver == "not_applicable":
         return not_applicable_component(
             definition.name,
@@ -3903,6 +4310,11 @@ def parse_arguments(argv: list[str] | None) -> argparse.Namespace:
     mode.add_argument(
         "--update", action="store_true", help="apply safe updates to common.sh"
     )
+    mode.add_argument(
+        "--validate-canonical",
+        action="store_true",
+        help="validate the complete canonical pin contract locally without network access",
+    )
     output = parser.add_mutually_exclusive_group()
     output.add_argument("--json", action="store_true", help="print JSON summary")
     output.add_argument(
@@ -4152,21 +4564,51 @@ def emit_summary(
         print(plain_summary(summary), end="")
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_arguments(argv)
-
-    if args.list_components:
-        for definition in COMPONENT_DEFINITIONS:
-            print(definition.name)
-        return 0
-
+def _validate_canonical(args: argparse.Namespace, common_sh: Path) -> int:
     try:
-        selected_components = canonical_component_selection(args.component)
-    except UpstreamError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        lines, entries = parse_common(common_sh)
+        errors = canonical_contract_errors(lines, entries)
+        errors.extend(
+            "active consumer contains copied canonical pin: " + item
+            for item in active_consumer_pin_literals(common_sh)
+        )
+    except (OSError, UnicodeError) as exc:
+        print(f"error: cannot read canonical common.sh: {exc}", file=sys.stderr)
         return 2
+    if errors:
+        if args.json:
+            print(json.dumps({"status": STATUS_ERROR, "errors": errors}, indent=2))
+        else:
+            for error in errors:
+                print(f"error: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps({"status": STATUS_CURRENT, "errors": []}, indent=2))
+    else:
+        print("canonical common.sh pins: PASS")
+    return 0
 
-    common_sh = common_path_from_args(args.common_sh)
+
+def _revalidate_candidate(
+    candidate_entries: dict[str, VariableEntry],
+    selected_components: tuple[str, ...],
+    timeout: float,
+) -> list[ComponentResult]:
+    candidate_results = check_all(
+        candidate_entries,
+        HttpClient(timeout=timeout),
+        selected_components,
+    )
+    append_missing_required_result(candidate_results, candidate_entries)
+    append_unassigned_inventory_result(candidate_results, candidate_entries)
+    return candidate_results
+
+
+def _run_version_checks(
+    args: argparse.Namespace,
+    common_sh: Path,
+    selected_components: tuple[str, ...],
+) -> int:
     lines, entries = parse_common(common_sh)
     client = HttpClient(timeout=args.timeout)
     results = check_all(entries, client, selected_components)
@@ -4183,18 +4625,6 @@ def main(argv: list[str] | None = None) -> int:
         defer_reviewed_provenance=args.defer_reviewed_provenance,
     )
 
-    def revalidate(
-        candidate_entries: dict[str, VariableEntry],
-    ) -> list[ComponentResult]:
-        candidate_results = check_all(
-            candidate_entries,
-            HttpClient(timeout=args.timeout),
-            selected_components,
-        )
-        append_missing_required_result(candidate_results, candidate_entries)
-        append_unassigned_inventory_result(candidate_results, candidate_entries)
-        return candidate_results
-
     update_result = apply_requested_updates(
         args.update,
         rc,
@@ -4203,7 +4633,9 @@ def main(argv: list[str] | None = None) -> int:
         entries,
         results,
         defer_reviewed_provenance=args.defer_reviewed_provenance,
-        revalidate=revalidate,
+        revalidate=lambda candidate_entries: _revalidate_candidate(
+            candidate_entries, selected_components, args.timeout
+        ),
     )
     if update_result is None:
         return 2
@@ -4226,6 +4658,26 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     emit_summary(summary, markdown, args.json, args.markdown)
     return rc
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_arguments(argv)
+
+    if args.list_components:
+        for definition in COMPONENT_DEFINITIONS:
+            print(definition.name)
+        return 0
+
+    try:
+        selected_components = canonical_component_selection(args.component)
+    except UpstreamError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    common_sh = common_path_from_args(args.common_sh)
+    if args.validate_canonical:
+        return _validate_canonical(args, common_sh)
+    return _run_version_checks(args, common_sh, selected_components)
 
 
 if __name__ == "__main__":

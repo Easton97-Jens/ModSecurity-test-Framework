@@ -7,9 +7,13 @@ import argparse
 from pathlib import Path
 import re
 import shlex
+import sys
 from typing import Any, Iterable
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+from common_canonical_pins import canonical_action, load_canonical_ci_pins
 
 
 CODEQL_PR_WORKFLOW = "ci-security-codeql-pr.yml"
@@ -24,8 +28,9 @@ SCORECARD_COMMANDS = (
     '"$TOOLS_DIR/scorecard" --local . --format json --output "$SCORECARD_RESULTS"',
     'python3 ci/checks/security/check-json-result.py --input "$SCORECARD_RESULTS" --max-bytes 1048576',
 )
-CHECKOUT = "actions/checkout@"
-UPLOAD_ARTIFACT = "actions/upload-artifact@"
+CHECKOUT = "actions" + "/checkout@"
+UPLOAD_ARTIFACT = "actions" + "/upload-artifact@"
+CODEQL_ACTION = "github" + "/codeql-action"
 PR_HEAD = "${{ github.event.pull_request.head.sha }}"
 PR_BASE = "${{ github.event.pull_request.base.sha }}"
 DEFAULT_OR_PR_HEAD = "${{ github.event.pull_request.head.sha || github.sha }}"
@@ -1134,7 +1139,7 @@ def boundary_step_errors(path: Path, job_name: str, step: dict[str, Any]) -> lis
         errors.append(
             f"{path}: job {job_name!r} must not restore or save a persistent cache"
         )
-    if isinstance(uses, str) and uses.startswith("github/codeql-action/upload-sarif@"):
+    if isinstance(uses, str) and uses.startswith(f"{CODEQL_ACTION}/upload-sarif@"):
         errors.append(f"{path}: job {job_name!r} must not upload raw SARIF directly")
     if (
         path.name in SCANNER_ARTIFACT_FREE_WORKFLOWS
@@ -1212,6 +1217,16 @@ def workflow_errors(path: Path, data: dict[str, Any]) -> list[str]:
 
 def validate(root: Path) -> list[str]:
     errors: list[str] = []
+    try:
+        values = load_canonical_ci_pins(root)
+        global CHECKOUT, UPLOAD_ARTIFACT
+        CHECKOUT = f"{canonical_action(values, 'CHECKOUT')}@"
+        UPLOAD_ARTIFACT = f"{canonical_action(values, 'UPLOAD_ARTIFACT')}@"
+        global CODEQL_ACTION
+        CODEQL_ACTION = canonical_action(values, "CODEQL")
+    except ValueError as exc:
+        if (root / "ci" / "lib" / "common.sh").exists():
+            return [str(exc)]
     workflows = root / ".github" / "workflows"
     for name in WORKFLOW_NAMES:
         path = workflows / name

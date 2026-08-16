@@ -39,6 +39,13 @@ def replace_single_common_assignment(
             rf"^(?P<prefix>{escaped}\s*=\s*\")(?P<value>[^\"$`]*)(?P<suffix>\"\s*)$",
             re.MULTILINE,
         ),
+        # Canonical active pins may be safe derived literals, for example an
+        # archive name containing ${RELEASE_TAG#...}.  Test fixtures replace
+        # the complete quoted assignment; they never evaluate the expression.
+        re.compile(
+            rf"^(?P<prefix>{escaped}\s*=\s*\")(?P<value>[^\"\n]*)(?P<suffix>\"\s*)$",
+            re.MULTILINE,
+        ),
     )
 
     for pattern in patterns:

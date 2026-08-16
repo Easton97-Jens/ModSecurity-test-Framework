@@ -4,6 +4,7 @@ import hashlib
 import os
 from pathlib import Path
 import subprocess
+import tarfile
 import tempfile
 import textwrap
 import unittest
@@ -12,6 +13,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 HAPROXY_PREPARER = ROOT / "ci/provisioning/prepare-haproxy-runtime.sh"
 APACHE_PREPARER = ROOT / "ci/provisioning/prepare-apache-build.sh"
+TRAEFIK_PREPARER = ROOT / "ci/provisioning/prepare-traefik-runtime.sh"
+LIGHTTPD_PREPARER = ROOT / "ci/provisioning/prepare-lighttpd-runtime.sh"
 
 
 FAKE_CURL = """#!/bin/sh
@@ -222,6 +225,62 @@ class RuntimeComponentDownloadTests(unittest.TestCase):
         self.assertIn("reason_code=sha256_mismatch", wrong_sha.stderr)
         self.assert_no_temporary_artifacts(wrong_sha_destination)
 
+    def test_path_shadowed_sha256sum_cannot_approve_an_arbitrary_artifact(self):
+        with tempfile.TemporaryDirectory(prefix="runtime-download-sha-path-") as temporary:
+            root = Path(temporary)
+            artifact = root / "artifact.bin"
+            artifact.write_bytes(b"unreviewed-artifact")
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            marker = root / "shadowed-sha256sum-used"
+            shadowed_sha256sum = fake_bin / "sha256sum"
+            shadowed_sha256sum.write_text(
+                "#!/bin/sh\nprintf used > \"$FAKE_SHA256SUM_MARKER\"\nexit 0\n",
+                encoding="utf-8",
+            )
+            shadowed_sha256sum.chmod(0o755)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{environment['PATH']}",
+                    "FAKE_SHA256SUM_MARKER": str(marker),
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                }
+            )
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    '. "$1/ci/lib/common.sh"\n'
+                    '. "$1/ci/lib/runtime-component-common.sh"\n'
+                    'verify_runtime_artifact_sha256 fixture "$2" "$3"',
+                    "sh",
+                    str(ROOT),
+                    "0" * 64,
+                    str(artifact),
+                ],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+        self.assertFalse(marker.exists(), result.stdout + result.stderr)
+        self.assertFalse(artifact.exists())
+        self.assertIn("SHA256 verification failed", result.stdout + result.stderr)
+
+    def test_apache_and_haproxy_preparers_never_resolve_sha256sum_from_path(self):
+        """Integrity paths must use the fixed trusted helper, not PATH tools."""
+        for preparer in (APACHE_PREPARER, HAPROXY_PREPARER):
+            with self.subTest(preparer=preparer.name):
+                source = preparer.read_text(encoding="utf-8")
+                self.assertNotIn("command -v sha256sum", source)
+                self.assertNotIn("sha256sum \"", source)
+                self.assertIn("ci_trusted_sha256_file", source)
+
     def test_network_tls_and_http_failures_are_bounded_and_classified(self):
         cases = {
             "dns": "dns_resolution_failed",
@@ -288,12 +347,122 @@ class RuntimeComponentDownloadTests(unittest.TestCase):
         self.assertNotIn("curl -fsSL --retry", source)
         self.assertNotIn("curl -L --fail --retry", source)
 
+    def test_haproxy_build_does_not_consume_reusable_shared_source_cache(self):
+        """A cache writer must not be able to alter the source reaching make."""
+        source = HAPROXY_PREPARER.read_text(encoding="utf-8")
+        self.assertIn(
+            'makefile="$HAPROXY_RUNTIME_BUILD_WORKTREE/Makefile"', source
+        )
+        self.assertIn("haproxy-source-extract-private", source)
+        self.assertIn('tar -xf "$VERIFIED_ARCHIVE_PATH"', source)
+        self.assertIn("private HAProxy archive copy sha256 mismatch", source)
+        self.assertNotIn("run_logged haproxy-source-copy", source)
+
     def test_apache_preparer_uses_shared_bounded_downloaders(self):
         source = APACHE_PREPARER.read_text(encoding="utf-8")
         self.assertIn('"$CI_ROOT/lib/runtime-component-common.sh"', source)
         self.assertIn("download_runtime_artifact_under_root", source)
         self.assertIn("download_runtime_artifact_without_redirects_under_root", source)
         self.assertIn("verify_runtime_artifact_sha256", source)
+
+    def test_traefik_extracts_only_from_private_rehashed_archive(self):
+        source = TRAEFIK_PREPARER.read_text(encoding="utf-8")
+        self.assertIn("runtime_component_stage_verified_archive", source)
+        self.assertIn('verified_archive="$TRAEFIK_BUILD_ROOT/verified-archives/', source)
+        self.assertIn('"$TRAEFIK_BUILD_ROOT")', source)
+        self.assertNotIn('verified_archive="$TRAEFIK_COMPONENT_ROOT/', source)
+        self.assertIn('extract_single_binary_from_tar traefik "$verified_archive"', source)
+        self.assertNotIn('extract_single_binary_from_tar traefik "$archive"', source)
+
+    def test_lighttpd_extracts_only_from_private_rehashed_archive(self):
+        source = LIGHTTPD_PREPARER.read_text(encoding="utf-8")
+        self.assertIn("runtime_component_stage_verified_archive", source)
+        self.assertIn('verified_archive="$LIGHTTPD_CONNECTOR_BUILD_ROOT/verified-archives/', source)
+        self.assertIn('"$LIGHTTPD_CONNECTOR_BUILD_ROOT")', source)
+        self.assertNotIn('verified_archive="$LIGHTTPD_BUILD_ROOT/', source)
+        self.assertIn('extract_runtime_source_tar lighttpd "$verified_archive"', source)
+        self.assertNotIn('extract_runtime_source_tar lighttpd "$archive"', source)
+
+    def test_private_archive_handoff_survives_shared_source_replacement(self):
+        """A cache replacement after the first check cannot alter the handoff."""
+        with tempfile.TemporaryDirectory(prefix="runtime-archive-handoff-") as temporary:
+            root = Path(temporary)
+            source = root / "cache" / "shared.tar.gz"
+            destination = root / "build" / "verified" / "shared.tar.gz"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"trusted-archive")
+            expected = hashlib.sha256(b"trusted-archive").hexdigest()
+            fake_bin = root / "bin"
+            fake_bin.mkdir()
+            fake_cp = fake_bin / "cp"
+            fake_cp.write_text(
+                "#!/bin/sh\n"
+                "set -eu\n"
+                "/bin/cp \"$@\"\n"
+                "printf '%s' replaced-by-cache-writer > \"$RACE_SOURCE\"\n",
+                encoding="utf-8",
+            )
+            fake_cp.chmod(0o755)
+            script = textwrap.dedent(
+                """
+                set -eu
+                . "$1/ci/lib/common.sh"
+                . "$1/ci/lib/runtime-component-common.sh"
+                CONNECTOR_COMPONENT_CACHE=$2/cache
+                runtime_component_stage_verified_archive fixture "$5" "$3" "$4" "$2/build"
+                """
+            )
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{fake_bin}{os.pathsep}{environment['PATH']}",
+                    "RACE_SOURCE": str(source),
+                    "PYTHONDONTWRITEBYTECODE": "1",
+                }
+            )
+            result = subprocess.run(
+                [
+                    "sh", "-c", script, "sh", str(ROOT), str(root),
+                    str(source), str(destination), expected,
+                ],
+                cwd=ROOT, text=True, capture_output=True, env=environment, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(destination.read_bytes(), b"trusted-archive")
+            self.assertEqual(source.read_bytes(), b"replaced-by-cache-writer")
+
+    def test_private_source_extract_and_binary_stage_accept_explicit_task_root(self):
+        with tempfile.TemporaryDirectory(prefix="runtime-private-root-") as temporary:
+            root = Path(temporary)
+            archive = root / "cache" / "lighttpd.tar.gz"
+            source = root / "payload" / "lighttpd-1.4.85" / "src" / "lighttpd"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"private-source")
+            archive.parent.mkdir(parents=True)
+            with tarfile.open(archive, "w:gz") as tar:
+                tar.add(source.parent.parent, arcname="lighttpd-1.4.85")
+            script = textwrap.dedent(
+                """
+                set -eu
+                . "$1/ci/lib/common.sh"
+                . "$1/ci/lib/runtime-component-common.sh"
+                CONNECTOR_COMPONENT_CACHE=$2/cache
+                private_root=$2/build/private
+                source_dir=$(extract_runtime_source_tar lighttpd "$3" "$private_root/src" lighttpd-1.4.85 "$private_root")
+                mkdir -p "$private_root/bin"
+                printf '%s' binary > "$private_root/bin/source-binary"
+                chmod +x "$private_root/bin/source-binary"
+                stage_executable_binary lighttpd "$private_root/bin/source-binary" "$private_root/bin/lighttpd" "$private_root"
+                test -f "$source_dir/src/lighttpd"
+                test -x "$private_root/bin/lighttpd"
+                """
+            )
+            result = subprocess.run(
+                ["sh", "-c", script, "sh", str(ROOT), str(root), str(archive)],
+                cwd=ROOT, text=True, capture_output=True,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

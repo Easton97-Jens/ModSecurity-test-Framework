@@ -14,6 +14,11 @@ REPO_ROOT="$CONNECTOR_ROOT"
 . "$CI_ROOT/lib/common.sh"
 . "$CI_ROOT/lib/runtime-component-common.sh"
 
+# Validate the complete canonical tuple, including the inherited-environment
+# snapshot, before the generic and HTX profiles reach the component lock or
+# any download/cache sink.
+ci_validate_https_runtime_url_config || exit 77
+
 runtime_component_require_locked_profile \
     haproxy-spoe-spop \
     "HAPROXY_VERSION=$HAPROXY_VERSION" \
@@ -41,11 +46,13 @@ STATUS_FILE="$LOG_DIR/status.txt"
 COMMANDS_FILE="$LOG_DIR/commands.txt"
 ARTIFACTS_FILE="$LOG_DIR/artifacts.txt"
 MAKE_JOBS="${MAKE_JOBS:-$(ci_default_jobs)}"
-ARCHIVE_NAME="haproxy-$HAPROXY_VERSION.tar.gz"
+ARCHIVE_NAME="$HAPROXY_ARCHIVE_NAME"
 ARCHIVE_PATH="$HAPROXY_DOWNLOAD_DIR/$ARCHIVE_NAME"
+VERIFIED_ARCHIVE_PATH="$HAPROXY_RUNTIME_BUILD_DIR/$ARCHIVE_NAME"
 SHA256_PATH="$HAPROXY_DOWNLOAD_DIR/$ARCHIVE_NAME.sha256"
 PROVENANCE_FILE="$HAPROXY_SOURCE_DIR/.haproxy-source-provenance"
 BINARY_PROVENANCE_FILE="$HAPROXY_RUNTIME_DIR/haproxy.provenance"
+EXPECTED_HAPROXY_BIN="$HAPROXY_RUNTIME_DIR/sbin/haproxy"
 blocked() {
     echo "haproxy_prepare: blocked $*"
     mkdir -p "$LOG_DIR"
@@ -183,9 +190,13 @@ validate_paths() {
     require_under_source_root_or_cache "$HAPROXY_DOWNLOAD_DIR" HAPROXY_DOWNLOAD_DIR
     require_under_source_root_or_cache "$HAPROXY_SOURCE_DIR" HAPROXY_SOURCE_DIR
     require_under_build_root "$HAPROXY_RUNTIME_BUILD_DIR" HAPROXY_RUNTIME_BUILD_DIR
+    require_under_build_root "$VERIFIED_ARCHIVE_PATH" VERIFIED_ARCHIVE_PATH
     require_under_build_root "$HAPROXY_RUNTIME_BUILD_WORKTREE" HAPROXY_RUNTIME_BUILD_WORKTREE
     require_under_build_root "$HAPROXY_RUNTIME_DIR" HAPROXY_RUNTIME_DIR
     require_under_build_root "$HAPROXY_BIN" HAPROXY_BIN
+    if [ "${HAPROXY_BIN_WAS_SET:-0}" = "1" ] && [ "$HAPROXY_BIN" != "$EXPECTED_HAPROXY_BIN" ]; then
+        blocked "explicit HAPROXY_BIN must use the reviewed staged path: $EXPECTED_HAPROXY_BIN"
+    fi
     require_under_build_root "$LOG_DIR" LOG_DIR
 }
 
@@ -209,6 +220,14 @@ download_and_verify() {
         blocked "could not download the pinned HAProxy source archive"
     verify_runtime_artifact_sha256 haproxy "$HAPROXY_SHA256" "$ARCHIVE_PATH" || \
         blocked "downloaded HAProxy archive sha256 mismatch"
+    # Freeze the verified bytes inside this run's private BUILD_ROOT before
+    # any extraction.  A shared-cache writer can race the copy, but the
+    # private copy is rehashed and becomes the only archive input below.
+    mkdir -p "$HAPROXY_RUNTIME_BUILD_DIR"
+    cp "$ARCHIVE_PATH" "$VERIFIED_ARCHIVE_PATH" || \
+        blocked "could not copy verified HAProxy archive into the private build root"
+    verify_runtime_artifact_sha256 haproxy "$HAPROXY_SHA256" "$VERIFIED_ARCHIVE_PATH" || \
+        blocked "private HAProxy archive copy sha256 mismatch"
     {
         echo "haproxy_version=$HAPROXY_VERSION"
         echo "haproxy_source_url=$HAPROXY_SOURCE_URL"
@@ -220,12 +239,15 @@ download_and_verify() {
 }
 
 write_source_provenance() {
-    {
-        echo "haproxy_version=$HAPROXY_VERSION"
-        echo "haproxy_source_url=$HAPROXY_SOURCE_URL"
-        echo "haproxy_sha256=$HAPROXY_SHA256"
-        echo "haproxy_archive=$ARCHIVE_PATH"
-    } > "$PROVENANCE_FILE"
+    runtime_component_write_provenance_file \
+        "$PROVENANCE_FILE" \
+        "$HAPROXY_SOURCE_DIR" \
+        "HAProxy source provenance" <<EOF || blocked "could not atomically write HAProxy source provenance"
+haproxy_version=$HAPROXY_VERSION
+haproxy_source_url=$HAPROXY_SOURCE_URL
+haproxy_sha256=$HAPROXY_SHA256
+haproxy_archive=$ARCHIVE_PATH
+EOF
 }
 
 verify_source_provenance() {
@@ -242,6 +264,10 @@ verify_binary_provenance() {
     grep -Fx "haproxy_version=$HAPROXY_VERSION" "$BINARY_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
     grep -Fx "haproxy_source_url=$HAPROXY_SOURCE_URL" "$BINARY_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
     grep -Fx "haproxy_sha256=$HAPROXY_SHA256" "$BINARY_PROVENANCE_FILE" >/dev/null 2>&1 || return 1
+    expected_binary_sha=$(sed -n 's/^haproxy_binary_sha256=//p' "$BINARY_PROVENANCE_FILE")
+    printf '%s\n' "$expected_binary_sha" | grep -Eq '^[0-9A-Fa-f]{64}$' || return 1
+    actual_binary_sha=$(ci_trusted_sha256_file "$HAPROXY_BIN") || return 1
+    [ "$actual_binary_sha" = "$expected_binary_sha" ] || return 1
     return 0
 }
 
@@ -260,12 +286,16 @@ extract_source() {
     fi
     mkdir -p "$HAPROXY_SOURCE_DIR"
     run_logged haproxy-source-extract "$HAPROXY_DOWNLOAD_DIR" \
-        tar -xf "$ARCHIVE_PATH" -C "$HAPROXY_SOURCE_DIR" --strip-components=1
+        tar -xf "$VERIFIED_ARCHIVE_PATH" -C "$HAPROXY_SOURCE_DIR" --strip-components=1
     write_source_provenance
 }
 
 verify_build_target() {
-    makefile="$HAPROXY_SOURCE_DIR/Makefile"
+    # The shared source cache is retained for diagnostics and cache warming,
+    # but it is not a build input.  Build validation must target the private
+    # BUILD_ROOT extraction created from the archive whose digest was checked
+    # in download_and_verify().
+    makefile="$HAPROXY_RUNTIME_BUILD_WORKTREE/Makefile"
     [ -f "$makefile" ] || blocked "HAProxy source Makefile missing: $makefile"
     if ! grep -E 'linux-glibc' "$makefile" >/dev/null 2>&1; then
         blocked "HAProxy source Makefile does not support TARGET=linux-glibc"
@@ -281,8 +311,12 @@ prepare_build_worktree() {
         safe_remove_dir "$HAPROXY_RUNTIME_BUILD_WORKTREE"
     fi
     mkdir -p "$HAPROXY_RUNTIME_BUILD_WORKTREE"
-    run_logged haproxy-source-copy "$HAPROXY_SOURCE_DIR" \
-        sh -c 'tar -cf - . | tar -xf - -C "$1"' sh "$HAPROXY_RUNTIME_BUILD_WORKTREE"
+    # Never copy from the reusable shared source directory into the build.
+    # A cache writer could otherwise change a source file after metadata
+    # validation but before the copy.  Extract the already verified archive
+    # directly into a private BUILD_ROOT worktree instead.
+    run_logged haproxy-source-extract-private "$HAPROXY_DOWNLOAD_DIR" \
+        tar -xf "$VERIFIED_ARCHIVE_PATH" -C "$HAPROXY_RUNTIME_BUILD_WORKTREE" --strip-components=1
 }
 
 build_haproxy() {
@@ -303,11 +337,16 @@ build_haproxy() {
         echo "haproxy_runtime_dir=$HAPROXY_RUNTIME_DIR"
         echo "haproxy_bin=$HAPROXY_BIN"
     } >> "$ARTIFACTS_FILE"
-    {
-        echo "haproxy_version=$HAPROXY_VERSION"
-        echo "haproxy_source_url=$HAPROXY_SOURCE_URL"
-        echo "haproxy_sha256=$HAPROXY_SHA256"
-    } > "$BINARY_PROVENANCE_FILE"
+    binary_sha=$(ci_trusted_sha256_file "$HAPROXY_BIN") || blocked "trusted checksum failed for staged HAProxy binary"
+    runtime_component_write_provenance_file \
+        "$BINARY_PROVENANCE_FILE" \
+        "$HAPROXY_RUNTIME_DIR" \
+        "HAProxy binary provenance" <<EOF || blocked "could not atomically write HAProxy binary provenance"
+haproxy_version=$HAPROXY_VERSION
+haproxy_source_url=$HAPROXY_SOURCE_URL
+haproxy_sha256=$HAPROXY_SHA256
+haproxy_binary_sha256=$binary_sha
+EOF
 }
 
 mkdir -p "$LOG_DIR"
@@ -325,7 +364,6 @@ fi
 
 require_command curl "download HAProxy source and checksum"
 require_command tar "extract HAProxy source"
-require_command sha256sum "verify HAProxy source"
 require_command make "build HAProxy"
 require_command cc "build HAProxy"
 require_c_header crypt.h "HAProxy source build"

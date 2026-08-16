@@ -49,7 +49,24 @@ if ci_path_is_system_path "$ENVOY_BIN"; then
     exit 77
 fi
 
+expected_envoy_bin="$ENVOY_COMPONENT_ROOT/bin/envoy"
+if [ "${ENVOY_BIN_WAS_SET:-0}" = "1" ] && [ "$ENVOY_BIN" != "$expected_envoy_bin" ]; then
+    ci_blocked "explicit ENVOY_BIN must use the reviewed staged path: $expected_envoy_bin"
+    exit 77
+fi
+
+verify_existing_envoy_binary() {
+    [ -f "$ENVOY_BIN" ] && [ -x "$ENVOY_BIN" ] || return 1
+    actual_sha=$(ci_trusted_sha256_file "$ENVOY_BIN") || return 77
+    if [ "$actual_sha" != "$ENVOY_SHA256" ]; then
+        ci_blocked "existing Envoy binary sha256 does not match the reviewed artifact"
+        return 77
+    fi
+    return 0
+}
+
 if [ -f "$ENVOY_BIN" ] && [ -x "$ENVOY_BIN" ]; then
+    verify_existing_envoy_binary || exit 77
     printf 'envoy runtime binary: %s\n' "$ENVOY_BIN"
     printf 'envoy_version=%s\n' "$ENVOY_VERSION"
     printf 'envoy_source_url=%s\n' "$ENVOY_SOURCE_URL"
@@ -75,7 +92,7 @@ fi
 
 require_pinned_runtime_source envoy "$ENVOY_VERSION" "$ENVOY_SOURCE_URL" "$ENVOY_DOWNLOAD_URL" "$ENVOY_SHA256" || exit 77
 
-artifact="$ENVOY_COMPONENT_ROOT/downloads/envoy-$ENVOY_VERSION-linux-x86_64"
+artifact="$ENVOY_COMPONENT_ROOT/downloads/$ENVOY_ASSET_NAME"
 download_runtime_artifact envoy "$ENVOY_DOWNLOAD_URL" "$artifact" >/dev/null || exit 77
 verify_runtime_artifact_sha256 envoy "$ENVOY_SHA256" "$artifact" || exit 77
 stage_executable_binary envoy "$artifact" "$ENVOY_BIN" >/dev/null || exit 77

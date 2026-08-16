@@ -27,6 +27,7 @@ else
 fi
 
 . "$CI_ROOT/lib/common.sh"
+. "$CI_ROOT/lib/runtime-component-common.sh"
 
 RESULTS_DIR="${RESULTS_DIR:-$BUILD_ROOT/results}"
 PYTHON_BIN="${PYTHON:-$(ci_python)}"
@@ -176,6 +177,87 @@ connector_smoke_runtime_env_value() {
     return 0
 }
 
+connector_smoke_require_reviewed_runtime_binary() {
+    env_var=$1
+    binary=$2
+    case "$env_var" in
+        ENVOY_BIN)
+            expected="${ENVOY_COMPONENT_ROOT:-}/bin/envoy"
+            expected_sha="${ENVOY_SHA256:-}"
+            provenance=
+            case "${ENVOY_INTEGRATION_MODE:-ext_authz}" in
+                ext_proc) smoke_profile=envoy-ext-proc ;;
+                *) smoke_profile=envoy-ext-authz ;;
+            esac
+            runtime_component_require_locked_profile "$smoke_profile" \
+                "ENVOY_VERSION=$ENVOY_VERSION" \
+                "ENVOY_DOWNLOAD_URL=$ENVOY_DOWNLOAD_URL" \
+                "ENVOY_SHA256=$ENVOY_SHA256" >/dev/null 2>&1 || return 77
+            ;;
+        LIGHTTPD_BIN)
+            expected="${LIGHTTPD_CONNECTOR_BUILD_ROOT:-}/bin/lighttpd"
+            expected_sha=
+            provenance="${LIGHTTPD_CONNECTOR_BUILD_ROOT:-}/.lighttpd-binary.provenance"
+            provenance_key=lighttpd
+            runtime_component_require_locked_profile lighttpd-sidecar \
+                "LIGHTTPD_VERSION=$LIGHTTPD_VERSION" \
+                "LIGHTTPD_DOWNLOAD_URL=$LIGHTTPD_DOWNLOAD_URL" \
+                "LIGHTTPD_SHA256=$LIGHTTPD_SHA256" >/dev/null 2>&1 || return 77
+            ;;
+        HAPROXY_BIN)
+            expected="${HAPROXY_RUNTIME_DIR:-}/sbin/haproxy"
+            expected_sha=
+            provenance="${HAPROXY_RUNTIME_DIR:-}/haproxy.provenance"
+            provenance_key=haproxy
+            runtime_component_require_locked_profile haproxy-spoe-spop \
+                "HAPROXY_VERSION=$HAPROXY_VERSION" \
+                "HAPROXY_SOURCE_URL=$HAPROXY_SOURCE_URL" \
+                "HAPROXY_SHA256=$HAPROXY_SHA256" >/dev/null 2>&1 || return 77
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    if [ -z "$expected" ] || [ "$binary" != "$expected" ]; then
+        echo "BLOCKED: explicit $env_var must use the reviewed staged path: $expected" >&2
+        return 77
+    fi
+    [ -f "$binary" ] && [ -x "$binary" ] || return 77
+    actual_sha=$(ci_trusted_sha256_file "$binary") || return 77
+    if [ -n "$expected_sha" ]; then
+        [ "$actual_sha" = "$expected_sha" ] || {
+            echo "BLOCKED: $env_var does not match the reviewed artifact digest" >&2
+            return 77
+        }
+    else
+        [ -f "$provenance" ] || {
+            echo "BLOCKED: $env_var lacks reviewed binary provenance" >&2
+            return 77
+        }
+        case "$env_var" in
+            LIGHTTPD_BIN)
+                grep -Fx "lighttpd_version=$LIGHTTPD_VERSION" "$provenance" >/dev/null 2>&1 || return 77
+                grep -Fx "lighttpd_source_sha256=$LIGHTTPD_SHA256" "$provenance" >/dev/null 2>&1 || return 77
+                ;;
+            HAPROXY_BIN)
+                grep -Fx "haproxy_version=$HAPROXY_VERSION" "$provenance" >/dev/null 2>&1 || return 77
+                grep -Fx "haproxy_source_url=$HAPROXY_SOURCE_URL" "$provenance" >/dev/null 2>&1 || return 77
+                grep -Fx "haproxy_sha256=$HAPROXY_SHA256" "$provenance" >/dev/null 2>&1 || return 77
+                ;;
+            *)
+                return 77
+                ;;
+        esac
+        recorded_sha=$(sed -n "s/^${provenance_key}_binary_sha256=//p" "$provenance")
+        printf '%s\n' "$recorded_sha" | grep -Eq '^[0-9A-Fa-f]{64}$' || return 77
+        [ "$actual_sha" = "$recorded_sha" ] || {
+            echo "BLOCKED: $env_var binary digest differs from reviewed provenance" >&2
+            return 77
+        }
+    fi
+    return 0
+}
+
 connector_smoke_connector_lookup_roots() {
     connector=$1
     case "$connector" in
@@ -266,6 +348,14 @@ find_runtime_binary() {
     if [ -n "$env_value" ]; then
         if connector_smoke_runtime_env_was_set "$env_var"; then
             connector_smoke_require_local_binary_path "$env_value" "$env_var" || return 1
+            case "$env_var" in
+                ENVOY_BIN|LIGHTTPD_BIN|HAPROXY_BIN)
+                    connector_smoke_require_reviewed_runtime_binary "$env_var" "$env_value" || return 1
+                    ;;
+                *)
+                    return 77
+                    ;;
+            esac
             printf '%s\n' "$env_value"
             return 0
         fi

@@ -1,0 +1,221 @@
+# Change record: 20260816-01-canonical-active-upstream-pins
+
+**Language:** English | [Deutsch](20260816-01-canonical-active-upstream-pins.de.md)
+
+## Identity
+
+| Field | Value |
+| --- | --- |
+| Change ID | `20260816-01-canonical-active-upstream-pins` |
+| UTC date | 2026-08-16 |
+| Framework base revision | `3cb33609626ff689c54b6dc0f31fb7e9401fe75e` |
+| Issue or pull request | Framework PR #82 (`https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/82`); it was a Draft when this record was created. The current task subsequently selected only this PR for protected Framework `master` integration. No issue is closed. |
+
+## Motivation and problem statement
+
+Active upstream pins had accumulated across shell provisioners, runtime
+manifest/lock views, CI workflows, Python/tool locks, CRS contract views, and
+documentation. That made a reviewed tuple capable of drifting without one
+generic checker detecting every active consumer. The concrete observed example
+was a Lighttpd runtime manifest still recording `1.4.84` while the reviewed
+shell tuple was `1.4.85`.
+
+The Framework needs one manually maintained active-pin source and deterministic
+derived views. The delivery also preserves the preceding security remediation:
+untrusted Make controls, mutable runtime-cache handoff, and runtime provenance
+must remain fail-closed rather than being relaxed to make generation easier.
+
+## Affected components and security boundaries
+
+The Framework-only scope covers `ci/lib/common.sh`, generic pin parsing and
+generation tools, runtime provisioning and lock/manifest contracts, CI and
+workflow pin views, CRS views, Make entrypoints, tests, and paired technical
+documentation. The security boundary begins with reviewed version/ref/asset/
+platform/digest tuples and ends at the consumer that provisions, validates, or
+publishes the derived view. Parent product source, Parent gitlink, connector
+host-runtime claims, MRTS, global installation, and deployment are excluded.
+
+## Acceptance criteria
+
+1. `ci/lib/common.sh` is the only manually maintained active-pin authority.
+2. Runtime manifest and lock, Python/tool/workflow pins, and CRS views are
+   deterministically generated or validated from that authority.
+3. Missing, unknown, duplicate, stale, platform-mismatched, URL-mismatched,
+   or malformed runtime entries fail closed.
+4. Active provisioning preserves digest/provenance binding, private verified
+   archive materialization, and safe Make caller-input handling.
+5. Focused regression, generic checker, idempotence, lint, and full native
+   unit-test evidence pass without network pin discovery or dependency install.
+6. Parent gitlink and MRTS remain unchanged.
+7. Python and CRS view tooling accept only non-symlink contained roots and use
+   the validated path at every filesystem sink; the Python synchronizer's
+   `--root` must match the checkout containing that tool.
+
+## Alternatives considered
+
+- Retaining independent literals in each consumer was rejected because it
+  recreates undetectable drift.
+- Sourcing `common.sh` from Python generators was rejected because it grants
+  shell execution authority to generated-view input; the final parser is
+  non-executing and allowlisted.
+- Continuing to extract runtime artifacts from shared cache locations after a
+  first hash check was rejected because a replacement race can cross the
+  review boundary.
+
+## Implementation decision
+
+`common.sh` defines canonical descriptor-style tuples and derives asset/URL
+values safely. `sync-runtime-components.py` parses only the reviewed
+assignment/expansion subset, produces atomic deterministic runtime views, and
+has a compatibility wrapper for the prior Traefik-only interface. Dedicated
+generators/checkers cover Python, workflow, and CRS views. The generic lock
+checker validates descriptor-declared manifest membership, exact URLs, and
+canonical platform values.
+
+Runtime artifacts are verified, copied, rehashed, extracted, built, staged,
+and recorded in task-private `BUILD_ROOT` locations. `safe-make.sh` removes and
+rejects GNU Make pre-parser controls while supported CI/helper entrypoints use
+that boundary. Existing EN/DE documents now identify canonical versus derived
+views rather than independently declaring active pins.
+
+CRS view tooling validates a caller-provided fixture root and every fixed view
+path for lexical and resolved containment, non-symlink components, and regular
+file type. The validator returns only the checked resolved path, which is then
+used for all CRS reads, comparisons, and atomic writes; no raw CLI-derived
+path reaches those filesystem sinks.
+
+The Python pin synchronizer uses the checkout containing the tool as its
+trusted root: `--root` is accepted only when it matches that root, and
+`read_utf8()` repeats contained non-symlink path validation immediately before
+each text read. Its temporary-fixture tests copy the tool into the fixture so
+the accepted root and tool provenance remain aligned.
+
+### SonarQube Cloud remediation follow-up
+
+The preceding PR analysis reported 44 new code smells and 16 duplicated
+new-code lines (0.3%). This follow-up uses no accepted-issue state, scanner
+exclusion, rule suppression, or metric-only workaround. It decomposes
+cognitive-complexity hotspots, centralizes repeated validation/error paths,
+makes shell case defaults explicit, uses concise ASCII-aware regexes, and
+reuses a runtime test helper rather than duplicate test blocks.
+
+The parser continues to read only the declarative runtime assignment grammar
+and never sources common.sh. A direct disallowed assignment expression is
+rejected without execution. It intentionally is not represented as a complete
+interpreter or verifier for arbitrary later shell execution; the PR and
+maintenance workflow trust boundaries provide the separate execution
+protection.
+
+The first exact-head analysis after that refactor identified five residual
+findings. This source-native follow-up removes the two fixed-condition reports,
+the empty f-string, and the lock-checker complexity report, while making the
+Python synchronizer's root provenance and direct read-sink boundary explicit.
+It uses no accepted-issue state, suppression, scanner exclusion, or quality
+gate change.
+
+## Changed files and tests
+
+- Canonical source and runtime contracts: `ci/lib/common.sh`,
+  `ci/lib/runtime-component-common.sh`, runtime provisioners, runtime
+  manifest/lock, and smoke/provenance helpers.
+- New generator/security tools: `ci/tools/common_canonical_pins.py`,
+  `crs_contract_pins.py`, `safe-make.sh`,
+  `sync-runtime-components.py`, `sync-canonical-python-pins.py`,
+  `sync-canonical-workflow-pins.py`, and `sync-crs-contract-views.py`.
+- Consumer contracts: `Makefile`, V3 smoke Make/runtime scripts, CI workflows,
+  runtime/CI security checkers, Python/tool lock views, and catalog checks.
+- Documentation: paired connector, workflow-security, variable,
+  CI-tooling, and testing/evidence references.
+- Tests: new generator/runtime synchronization regressions plus expanded
+  provenance, private-materialization, safe-Make, lock, download, bootstrap,
+  CRS, and CI contract coverage, including CRS root-traversal and symlink-root
+  rejection with a legitimate temporary-fixture control.
+- Sonar remediation: Framework-native refactors in canonical pin, workflow,
+  runtime, common-version, CI-contract, and shell control paths, with focused
+  regression coverage for lexical containment, ASCII-only releases/tags,
+  explicit shell defaults, and runtime metadata contracts.
+
+## Commands and results
+
+| Command | Exit code | Concise result | Run ID or approved evidence path |
+| --- | ---: | --- | --- |
+| `python -m unittest -v` for runtime lock/sync/download/smoke/bootstrap modules | 0 | 86 focused security/runtime tests passed. | Local canonical-pin validation receipt |
+| `python -m unittest -v` for provenance and generator modules | 0 | 46 generator/atomic-provenance tests passed. | Local canonical-pin validation receipt |
+| `python -m unittest -q` for NGINX/APR/CRS/V3/PCRE2 provenance modules | 0 | 78 broad provenance tests passed. | Local canonical-pin validation receipt |
+| `make lint` with task-owned external roots | 0 | Existing lint/contract chain passed. | Local canonical-pin validation receipt |
+| `python -m unittest discover -q` | 0 | 98 native full-suite tests passed. | Local canonical-pin validation receipt |
+| Generic canonical, synchronizer, lock, catalog, shell-syntax, and `git diff --check` checks | 0 | Generated views and source contracts were clean and idempotent. | Local canonical-pin validation receipt |
+| Focused CRS root-containment, canonical Python, and workflow synchronizer tests | 0 | 26 tests passed, including traversal and symlink-root negatives. | Draft-PR remediation validation |
+| Framework safe-make lint with the selected absolute virtual-environment Python | 0 | Full native lint, contracts, provenance, runtime, workflow, documentation, and whitespace chain passed. | Sonar remediation local validation |
+| Focused runtime sync/lock/Traefik test modules plus generic runtime synchronizer check | 0 | 35 tests passed; direct disallowed declaration and no-execution controls passed. | Sonar remediation local validation |
+| Follow-up canonical-Python/CRS/runtime/workflow modules | 0 | 66 focused tests passed, including checkout-root binding and direct symlink-read rejection. | Sonar residual remediation local validation |
+
+## Security impact
+
+This is a security hardening and supply-chain provenance change. Regression
+controls cover malicious shell input in the parser, malicious GNU Make control
+assignments/options, stale or tampered provenance, incorrect runtime URLs and
+manifest membership, fake checksum tools, and shared-cache handoff attempts.
+They also cover CRS root traversal and symlink-root substitution before a view
+can be read or written. Legitimate controlled inputs continue to pass. The
+final review found no confirmed high- or critical-impact issue in supported
+active entrypoints.
+
+The Python synchronizer now binds its accepted root to the checkout containing
+the tool and repeats root containment, component symlink rejection, and
+regular-file validation at the direct text-read sink. This removes the
+residual path-provenance ambiguity without granting an arbitrary `--root`
+selection to a caller.
+
+The follow-up independently confirmed lexical containment and ASCII-only
+release/tag validation after the maintainability refactors. The reviewed
+runtime parser completeness concern had no untrusted-to-privileged workflow
+path: PR jobs are read-only and privileged maintenance jobs use a trusted
+default-branch checkout. It is therefore recorded as not applicable rather
+than as a claimed fixed vulnerability.
+
+## Documentation and runtime evidence
+
+Paired English/German Framework documentation describes the canonical source
+and derived views. The tests are local source, generator, and contract
+evidence. No connector host was started and no host-runtime `PASS` is claimed.
+The Parent can consume this Framework revision only through a separately
+authorized Parent gitlink lifecycle.
+
+## Checks not run
+
+- `pytest -q` was attempted but the supplied Framework environment has no
+  `pytest` module; no dependency was installed. The native full `unittest`
+  discovery run is the available fallback.
+- No network-based latest-version discovery or real upstream artifact download
+  was run; deterministic fixtures protect the reviewed pin contract.
+
+## Limitations and residual risk
+
+Direct raw `/usr/bin/make` invocation remains caller authority outside the
+supported `safe-make.sh`/CI/helper boundary. The task-private build root must
+remain non-writable to an attacker after final hashing. A new platform or
+runtime profile requires a reviewed canonical tuple and regression coverage.
+The Python synchronizer's `--root` is intentionally not an arbitrary fixture
+selector: it must identify the checkout containing that tool, and fixture
+tests copy the tool into their controlled checkout. As with the other local
+file checks, the containment guarantee assumes no concurrent hostile writer
+can replace a checked file between validation and the filesystem operation.
+
+## Final diff and review status
+
+The original canonical diff, CRS root-containment remediation, and native
+Sonar remediation passed task-owned whitespace, generated-view idempotence,
+focused security review, and full local lint. The first delivered follow-up
+removed the original 44 code smells and duplication but its exact hosted head
+reported five residual findings, including one high-security path-provenance
+report; it is not claimed as clean. This second source-native follow-up passed
+the complete local lint chain. At exact PR head
+`6143594a4db5d3c72a1bc52c3b4a32d8a6ad6b45`, the hosted analysis now confirms
+SonarQube Cloud Quality Gate `OK`, zero new issues, zero accepted issues, zero
+security hotspots, zero new-code duplication, and terminal successful or
+workflow-justified skipped checks. Under the current user authorization
+`bringe ihn in den master`, only PR #82 enters the protected exact-head
+Framework integration cycle. This source record intentionally asserts no
+merge/resulting-master fact until GitHub has actually returned it; it continues
+to claim no Parent, MRTS, or gitlink outcome.

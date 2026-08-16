@@ -1,5 +1,6 @@
 # GitHub-Actions-Workflow-Sicherheit
 
+<!-- GENERATED PIN TABLE: values are sourced from ci/lib/common.sh. -->
 **Sprache:** [English](github-actions-workflow-security.md) | Deutsch
 
 Dieser Leitfaden definiert den Framework-eigenen Vertrag für GitHub-Actions-
@@ -49,15 +50,15 @@ zugelassenen Upstreams, Releases und Commit-Identitäten sind:
 
 | Action | Offizieller Upstream | Release | Commit-SHA | Lizenz | Notwendige Verwendung |
 | --- | --- | --- | --- | --- | --- |
-| `actions/checkout` | [actions/checkout](https://github.com/actions/checkout) | `v7.0.1` | `3d3c42e5aac5ba805825da76410c181273ba90b1` | MIT | Checkt den Framework-Quellcode für Validierung oder Wartung aus. |
-| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | `v7.0.0` | `5fda3b95a4ea91299a34e894583c3862153e4b97` | MIT | Wählt den exakten Interpreter aus `.python-version` für Framework-CI und kontrollierte Wartungsvalidierung aus. |
-| `actions/setup-node` | [actions/setup-node](https://github.com/actions/setup-node) | `v7.0.0` | `820762786026740c76f36085b0efc47a31fe5020` | MIT | Wählt die überprüfte Node.js-Runtime für prüfsummenverifiziertes Pyright. |
-| `actions/upload-artifact` | [actions/upload-artifact](https://github.com/actions/upload-artifact) | `v7.0.1` | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | MIT | Bewahrt nur begrenzte CI-Security-Evidenz auf. |
-| `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | `v9.0.0` | `3a2844b7e9c422d3c10d287c895573f7108da1b3` | MIT | Prüft eingeschränkte Draft-PRs oder führt Artefakt-Aufbewahrungsbereinigung aus. |
-| `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | `v3.2.0` | `bcd2ba49218906704ab6c1aa796996da409d3eb1` | MIT | Erzeugt die kurzlebigen, auf das Repository begrenzten App-Tokens der Common-Version-, CPython-Version- und Workflow-Tool-Publisher. |
-| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | `v8.1.1` | `5f6978faf089d4d20b00c7766989d076bb2fc7f1` | MIT | Erstellt eingeschränkte Common-Version- oder CPython-Version-Draft-PRs. |
-| `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | `v4.37.6` | `5595ccaf912efad79be6eef63a5619ff05969be3` | MIT | Führt die begrenzte CodeQL-Analyse und den vertrauenswürdigen SARIF-Upload aus. |
-| `actions/dependency-review-action` | [actions/dependency-review-action](https://github.com/actions/dependency-review-action) | `v5.0.0` | `a1d282b36b6f3519aa1f3fc636f609c47dddb294` | MIT | Prüft Abhängigkeitsänderungs-PRs ohne Remediation. |
+| `actions/checkout` | [actions/checkout](https://github.com/actions/checkout) | v7.0.1 | 3d3c42e5aac5ba805825da76410c181273ba90b1 | MIT | Checkt den Framework-Quellcode für Validierung oder Wartung aus. |
+| `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | v7.0.0 | 5fda3b95a4ea91299a34e894583c3862153e4b97 | MIT | Wählt den exakten Interpreter aus `.python-version` für Framework-CI und kontrollierte Wartungsvalidierung aus. |
+| `actions/setup-node` | [actions/setup-node](https://github.com/actions/setup-node) | v7.0.0 | 820762786026740c76f36085b0efc47a31fe5020 | MIT | Wählt die überprüfte Node.js-Runtime für prüfsummenverifiziertes Pyright. |
+| `actions/upload-artifact` | [actions/upload-artifact](https://github.com/actions/upload-artifact) | v7.0.1 | 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a | MIT | Bewahrt nur begrenzte CI-Security-Evidenz auf. |
+| `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | v9.0.0 | 3a2844b7e9c422d3c10d287c895573f7108da1b3 | MIT | Prüft eingeschränkte Draft-PRs oder führt Artefakt-Aufbewahrungsbereinigung aus. |
+| `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | v3.2.0 | bcd2ba49218906704ab6c1aa796996da409d3eb1 | MIT | Erzeugt die kurzlebigen, auf das Repository begrenzten App-Tokens der Common-Version-, CPython-Version- und Workflow-Tool-Publisher. |
+| `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | v8.1.1 | 5f6978faf089d4d20b00c7766989d076bb2fc7f1 | MIT | Erstellt eingeschränkte Common-Version- oder CPython-Version-Draft-PRs. |
+| `github/codeql-action` | [github/codeql-action](https://github.com/github/codeql-action) | v4.37.6 | 5595ccaf912efad79be6eef63a5619ff05969be3 | MIT | Führt die begrenzte CodeQL-Analyse und den vertrauenswürdigen SARIF-Upload aus. |
+| `actions/dependency-review-action` | [actions/dependency-review-action](https://github.com/actions/dependency-review-action) | v5.0.0 | a1d282b36b6f3519aa1f3fc636f609c47dddb294 | MIT | Prüft Abhängigkeitsänderungs-PRs ohne Remediation. |
 
 Der Vertrag weist Tags, Branches, verkürzte oder Großbuchstaben-SHAs,
 dynamische Referenzen, Docker-Referenzen, fehlerhafte oder Block-Scalar-

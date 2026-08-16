@@ -8,10 +8,21 @@ on:
       - ".github/dependabot.yml"
       - ".python-version"
       - "ci/checks/security/**"
+      - "ci/lib/common.sh"
+      - "ci/provisioning/runtime-component-lock.json"
+      - "ci/provisioning/runtime-components.manifest.json"
+      - "ci/tools/check-common-versions.py"
       - "ci/tools/update-python-version.py"
       - "ci/tools/update-workflow-tools.py"
+      - "ci/tools/sync-canonical-python-pins.py"
+      - "ci/tools/sync-canonical-workflow-pins.py"
+      - "ci/tools/sync-runtime-components.py"
+      - "ci/tools/sync-crs-contract-views.py"
+      - "ci/tools/crs_contract_pins.py"
       - "ci/tooling/security-tools.lock.yml"
       - "requirements-ci.lock"
+      - "tests/cases/security/crs/crs_sqli_anomaly_block.yaml"
+      - "tests/schemas/five-connectors-with-crs-no-mrts/**"
       - "tests/security_regression/test_workflow_action_pins.py"
       - "tests/security_regression/test_workflow_security_contract.py"
       - "tests/ci_security/test_python_version_contract.py"
@@ -64,3 +75,8 @@ jobs:
           python3 ci/checks/security/check-ci-security-contract.py
           python3 ci/checks/security/check-python-version.py
           python3 ci/checks/security/check-ci-security-evidence-contract.py
+          python3 ci/tools/check-common-versions.py --validate-canonical
+          python3 ci/tools/sync-canonical-python-pins.py --check --root .
+          python3 ci/tools/sync-canonical-workflow-pins.py --check --root .
+          python3 ci/tools/sync-runtime-components.py --check
+          python3 ci/tools/sync-crs-contract-views.py --check --root .

@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "ci/tools/check-runtime-component-lock.py"
+SYNCHRONIZER = ROOT / "ci/tools/sync-runtime-components.py"
 LOCK = ROOT / "ci/provisioning/runtime-component-lock.json"
 COMMON = ROOT / "ci/lib/common.sh"
 MANIFEST = ROOT / "ci/provisioning/runtime-components.manifest.json"
@@ -50,15 +51,34 @@ class RuntimeComponentLockTests(unittest.TestCase):
             (fixture / "ci/tools").mkdir()
             common = fixture / "ci/lib/common.sh"
             checker = fixture / "ci/tools/check-runtime-component-lock.py"
+            synchronizer = fixture / "ci/tools/sync-runtime-components.py"
             manifest = fixture / "ci/provisioning/runtime-components.manifest.json"
             lock = fixture / "ci/provisioning/runtime-component-lock.json"
             shutil.copy2(COMMON, common)
             shutil.copy2(CHECKER, checker)
+            shutil.copy2(SYNCHRONIZER, synchronizer)
             shutil.copy2(MANIFEST, manifest)
             value = json.loads(LOCK.read_text(encoding="utf-8"))
             mutation(value)
             lock.write_text(json.dumps(value), encoding="utf-8")
             return self.run_checker(checker, lock, common, manifest)
+
+    @staticmethod
+    def copy_checker_fixture(fixture: Path) -> tuple[Path, Path, Path, Path, Path]:
+        (fixture / "ci/lib").mkdir(parents=True)
+        (fixture / "ci/provisioning").mkdir()
+        (fixture / "ci/tools").mkdir()
+        common = fixture / "ci/lib/common.sh"
+        checker = fixture / "ci/tools/check-runtime-component-lock.py"
+        synchronizer = fixture / "ci/tools/sync-runtime-components.py"
+        lock = fixture / "ci/provisioning/runtime-component-lock.json"
+        manifest = fixture / "ci/provisioning/runtime-components.manifest.json"
+        shutil.copy2(COMMON, common)
+        shutil.copy2(CHECKER, checker)
+        shutil.copy2(SYNCHRONIZER, synchronizer)
+        shutil.copy2(LOCK, lock)
+        shutil.copy2(MANIFEST, manifest)
+        return common, checker, synchronizer, lock, manifest
 
     @staticmethod
     def profile(value: dict[str, object], identifier: str) -> dict[str, object]:
@@ -92,6 +112,46 @@ class RuntimeComponentLockTests(unittest.TestCase):
         self.assertEqual(result.returncode, 77)
         self.assertIn("haproxy-htx version drift", result.stderr)
 
+    def test_profile_inventory_rejects_missing_duplicate_and_unknown_profiles(self):
+        cases = (
+            ("missing", lambda value: value["profiles"].pop()),
+            ("duplicate", lambda value: value["profiles"].append(value["profiles"][0].copy())),
+            ("unknown", lambda value: value["profiles"].append({"id": "future-runtime"})),
+        )
+        for label, mutation in cases:
+            with self.subTest(label=label):
+                result = self.mutate_lock(mutation)
+                self.assertEqual(result.returncode, 77)
+                self.assertIn("lock profiles mismatch", result.stderr)
+
+    def test_manifest_missing_unknown_or_duplicate_component_is_blocked(self):
+        for label, mutation, expected in (
+            (
+                "missing",
+                lambda value: value["components"].pop(),
+                "manifest is missing",
+            ),
+            (
+                "unknown",
+                lambda value: value["components"].append({"name": "future-runtime"}),
+                "unknown component",
+            ),
+            (
+                "duplicate",
+                lambda value: value["components"].append(value["components"][0].copy()),
+                "duplicate component",
+            ),
+            ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                fixture = Path(directory)
+                common, checker, _synchronizer, lock, manifest = self.copy_checker_fixture(fixture)
+                value = json.loads(MANIFEST.read_text(encoding="utf-8"))
+                mutation(value)
+                manifest.write_text(json.dumps(value), encoding="utf-8")
+                result = self.run_checker(checker, lock, common, manifest)
+            self.assertEqual(result.returncode, 77)
+            self.assertIn(expected, result.stderr)
+
     def test_wrong_architecture_and_asset_are_blocked(self):
         architecture = self.mutate_lock(
             lambda value: self.profile(value, "envoy-ext-authz").update({"arch": "arm64"})
@@ -107,6 +167,19 @@ class RuntimeComponentLockTests(unittest.TestCase):
         self.assertEqual(asset.returncode, 77)
         self.assertIn("asset does not match", asset.stderr)
 
+    def test_same_filename_from_a_different_download_host_is_blocked(self):
+        result = self.mutate_lock(
+            lambda value: self.profile(value, "envoy-ext-authz").update(
+                {
+                    "download_url": (
+                        "https://mirror.invalid/envoy-1.39.0-linux-x86_64"
+                    )
+                }
+            )
+        )
+        self.assertEqual(result.returncode, 77)
+        self.assertIn("envoy-ext-authz download URL drift", result.stderr)
+
     def test_missing_or_invalid_sha256_is_blocked(self):
         for digest in ("", "not-a-sha256"):
             with self.subTest(digest=digest):
@@ -121,16 +194,7 @@ class RuntimeComponentLockTests(unittest.TestCase):
     def test_runtime_manifest_drift_is_blocked(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory)
-            (fixture / "ci/lib").mkdir(parents=True)
-            (fixture / "ci/provisioning").mkdir()
-            (fixture / "ci/tools").mkdir()
-            common = fixture / "ci/lib/common.sh"
-            checker = fixture / "ci/tools/check-runtime-component-lock.py"
-            lock = fixture / "ci/provisioning/runtime-component-lock.json"
-            manifest = fixture / "ci/provisioning/runtime-components.manifest.json"
-            shutil.copy2(COMMON, common)
-            shutil.copy2(CHECKER, checker)
-            shutil.copy2(LOCK, lock)
+            common, checker, _synchronizer, lock, manifest = self.copy_checker_fixture(fixture)
             value = json.loads(MANIFEST.read_text(encoding="utf-8"))
             next(item for item in value["components"] if item["name"] == "envoy")[
                 "version"
@@ -156,11 +220,13 @@ class RuntimeComponentLockTests(unittest.TestCase):
             (fixture / "ci/tools").mkdir()
             common = fixture / "ci/lib/common.sh"
             checker = fixture / "ci/tools/check-runtime-component-lock.py"
+            synchronizer = fixture / "ci/tools/sync-runtime-components.py"
             manifest = fixture / "ci/provisioning/runtime-components.manifest.json"
             lock = fixture / "ci/provisioning/runtime-component-lock.json"
             target = fixture / "lock-target.json"
             shutil.copy2(COMMON, common)
             shutil.copy2(CHECKER, checker)
+            shutil.copy2(SYNCHRONIZER, synchronizer)
             shutil.copy2(MANIFEST, manifest)
             shutil.copy2(LOCK, target)
             lock.symlink_to(target)

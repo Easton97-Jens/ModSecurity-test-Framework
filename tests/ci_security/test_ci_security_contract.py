@@ -1560,6 +1560,30 @@ jobs:
             "\n".join(non_ascii_errors),
         )
 
+    def test_action_release_resolution_keeps_valid_and_invalid_paths_distinct(
+        self,
+    ) -> None:
+        actions, _tools, errors = CHECKER.load_lock(LOCK_PATH)
+        self.assertFalse(errors, "\n".join(errors))
+
+        valid = actions["actions/checkout"]
+        self.assertEqual(
+            CHECKER.action_release_resolution_errors(
+                LOCK_PATH, "actions/checkout", valid
+            ),
+            [],
+        )
+
+        invalid = dict(valid)
+        invalid["release_resolution"] = "unsupported"
+        invalid_errors = CHECKER.action_release_resolution_errors(
+            LOCK_PATH, "actions/checkout", invalid
+        )
+        self.assertTrue(
+            any("unsupported release resolution" in error for error in invalid_errors),
+            "\n".join(invalid_errors),
+        )
+
     def test_crs_version_pinning_uses_a_safe_runtime_temp_file(self) -> None:
         script = (ROOT / "ci/checks/catalog/check-crs-version-pinning.sh").read_text(
             encoding="utf-8"

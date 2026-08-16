@@ -45,7 +45,7 @@ Adapter-Metadaten-Driftchecks sie validieren.
 |---|---|---|---|---|---|---|
 | ModSecurity-apache | https://github.com/owasp-modsecurity/ModSecurity-apache | master | `0488c77f69669584324b70460614a382224b4883` | `v0.0.9-beta1-26-g0488c77` | Apache-2.0 | `connectors/apache` |
 | ModSecurity-nginx | https://github.com/owasp-modsecurity/ModSecurity-nginx | master | `9eb44fd9ab0988756e1ab8ce5aa5548ddbe57846` | `v1.0.4-14-g9eb44fd` | Apache-2.0 | `connectors/nginx` |
-| ModSecurity v3 | https://github.com/owasp-modsecurity/ModSecurity | `v3.0.15`-Metadaten; nur Commit-Fetch | `0fb4aff98b4980cf6426697d5605c424e3d5bb60` | `v3.0.15` | Apache-2.0 | Konfigurierte Engine-Quelle |
+| ModSecurity v3 | `MODSECURITY_V3_APPROVED_REPO_URL` | `MODSECURITY_V3_RELEASE_TAG`-Metadaten; nur Commit-Fetch | `MODSECURITY_V3_APPROVED_COMMIT` | `LIBMODSECURITY_VERSION`-Metadaten | Apache-2.0 | Konfigurierte Engine-Quelle |
 | ModSecurity v2 | https://github.com/owasp-modsecurity/ModSecurity | v2/master | `02eed22d74667b32091eece088a8ebdf64b6ba67` | `v2.9.13` | Apache-2.0 | Historische Semantikreferenz |
 
 Produktive Apache- und NGINX-Adapterquellen sind absichtlich
@@ -53,9 +53,9 @@ connector-spezifisch. Ihre Attribution, Lizenz, Origin und Source-Maps bleiben
 auch im Connector-Repository. Das Framework validiert Dokumentationsmetadaten,
 ohne C-Code des Connectors zu linken.
 
-Die ModSecurity-v3-Akquise akzeptiert nur den literalen OWASP-HTTPS-Origin und
-den oben geprüften vollständigen Commit. `v3.0.15` sind Release-Metadaten und
-kein Git-Selektor: Leere Legacy-Aliase `MODSECURITY_*` normalisieren zur
+Die ModSecurity-v3-Akquise akzeptiert nur den kanonischen HTTPS-Origin und den
+geprüften vollständigen Commit aus `ci/lib/common.sh`. Der Release-Tag ist
+Metadatum und kein Git-Selektor: Leere Legacy-Aliase `MODSECURITY_*` normalisieren zur
 geprüften Identität; ein nichtleerer abweichender Wert stoppt vor einer
 Git-Nutzung. Der Fetch-Pfad erstellt immer einen frischen Checkout, prüft den
 gepinnten Root und initialisiert erst danach dessen rekursive Submodule

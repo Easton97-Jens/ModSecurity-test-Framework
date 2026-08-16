@@ -46,6 +46,8 @@ assert_safe_runtime_path "$TRAEFIK_CONFIG_ROOT" TRAEFIK_CONFIG_ROOT || exit 77
 assert_safe_runtime_path "$TRAEFIK_LOG_ROOT" TRAEFIK_LOG_ROOT || exit 77
 assert_safe_runtime_path "$TRAEFIK_RESULT_ROOT" TRAEFIK_RESULT_ROOT || exit 77
 assert_safe_runtime_path "$TRAEFIK_ARCHIVE" TRAEFIK_ARCHIVE || exit 77
+runtime_component_require_under_root "$TRAEFIK_BUILD_ROOT" "$BUILD_ROOT" TRAEFIK_BUILD_ROOT || exit 77
+runtime_component_require_under_root "$TRAEFIK_BIN" "$TRAEFIK_BUILD_ROOT" TRAEFIK_BIN || exit 77
 ci_require_absolute_path "$TRAEFIK_BIN" TRAEFIK_BIN || exit 77
 if ci_path_is_system_path "$TRAEFIK_BIN"; then
     ci_blocked "TRAEFIK_BIN must not point at a global system path: $TRAEFIK_BIN"
@@ -55,7 +57,8 @@ runtime_component_require_under_cache "$TRAEFIK_ARCHIVE" TRAEFIK_ARCHIVE || exit
 require_pinned_runtime_source traefik "$TRAEFIK_VERSION" "$TRAEFIK_SOURCE_URL" "$TRAEFIK_DOWNLOAD_URL" "$TRAEFIK_SHA256" || exit 77
 
 archive=$TRAEFIK_ARCHIVE
-extract_root="$TRAEFIK_COMPONENT_ROOT/extract/traefik-$TRAEFIK_VERSION"
+verified_archive="$TRAEFIK_BUILD_ROOT/verified-archives/$TRAEFIK_ARCHIVE_NAME"
+extract_root="$TRAEFIK_BUILD_ROOT/extract/traefik-$TRAEFIK_VERSION"
 if [ ! -f "$archive" ]; then
     if ! require_runtime_download_opt_in; then
         write_prepare_blocked_message \
@@ -74,8 +77,11 @@ if [ ! -f "$archive" ]; then
     download_runtime_artifact traefik "$TRAEFIK_DOWNLOAD_URL" "$archive" >/dev/null || exit 77
 fi
 verify_runtime_artifact_sha256 traefik "$TRAEFIK_SHA256" "$archive" || exit 77
-extracted_binary=$(extract_single_binary_from_tar traefik "$archive" traefik "$extract_root") || exit 77
-stage_executable_binary traefik "$extracted_binary" "$TRAEFIK_BIN" >/dev/null || exit 77
+verified_archive=$(runtime_component_stage_verified_archive \
+    traefik "$TRAEFIK_SHA256" "$archive" "$verified_archive" \
+    "$TRAEFIK_BUILD_ROOT") || exit 77
+extracted_binary=$(extract_single_binary_from_tar traefik "$verified_archive" traefik "$extract_root" "$TRAEFIK_BUILD_ROOT") || exit 77
+stage_executable_binary traefik "$extracted_binary" "$TRAEFIK_BIN" "$TRAEFIK_BUILD_ROOT" >/dev/null || exit 77
 
 printf 'traefik runtime binary staged: %s\n' "$TRAEFIK_BIN"
 printf 'traefik_version=%s\n' "$TRAEFIK_VERSION"

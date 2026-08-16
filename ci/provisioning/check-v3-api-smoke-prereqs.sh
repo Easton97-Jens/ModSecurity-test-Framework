@@ -18,6 +18,25 @@ echo "v3_api_smoke: MODSECURITY_V3_DIR=$MODSECURITY_V3_DIR"
 echo "v3_api_smoke: BUILD_ROOT=$BUILD_ROOT"
 echo "v3_api_smoke: LOG_DIR=$LOG_DIR"
 
+ci_require_absolute_path "$MODSECURITY_V3_SOURCE_DIR" MODSECURITY_V3_SOURCE_DIR || status=77
+ci_require_absolute_path "$MODSECURITY_V3_DIR" MODSECURITY_V3_DIR || status=77
+assert_safe_runtime_path "$MODSECURITY_V3_DIR" MODSECURITY_V3_DIR || status=77
+assert_runtime_path_under_root "$MODSECURITY_V3_DIR" "$BUILD_ROOT" MODSECURITY_V3_DIR || status=77
+case "$MODSECURITY_V3_DIR" in
+    "$MODSECURITY_V3_SOURCE_DIR"|"$MODSECURITY_V3_SOURCE_DIR"/*)
+        echo "v3_api_smoke: blocked build destination overlaps source checkout"
+        status=77
+        ;;
+    *)
+        :
+        ;;
+esac
+
+if ! ci_require_approved_modsecurity_v3_checkout "$MODSECURITY_V3_SOURCE_DIR"; then
+    echo "v3_api_smoke: blocked source checkout is not the reviewed ModSecurity v3 provenance"
+    status=77
+fi
+
 if git -C "$MODSECURITY_V3_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     branch=$(git -C "$MODSECURITY_V3_DIR" rev-parse --abbrev-ref HEAD)
     version=$(git -C "$MODSECURITY_V3_DIR" describe --tags --always --dirty)

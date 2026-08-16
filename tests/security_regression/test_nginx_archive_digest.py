@@ -157,6 +157,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         release_tag: str,
         asset_name: str,
         digest: str,
+        source_ref: str | None = None,
     ) -> None:
         """Synchronize the copied common defaults and lock for one fixture tuple.
 
@@ -171,6 +172,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 "MODSECURITY_V3_APPROVED_COMMIT": APPROVED_MODSECURITY_V3_COMMIT,
                 "MODSECURITY_V3_RELEASE_TAG": APPROVED_MODSECURITY_V3_RELEASE_TAG,
                 "NGINX_RELEASE_TAG": release_tag,
+                "NGINX_SOURCE_GIT_REF": release_tag if source_ref is None else source_ref,
                 "NGINX_RELEASE_ASSET_NAME": asset_name,
                 "NGINX_SHA256": digest,
             },
@@ -204,6 +206,17 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         )
         lock_path.write_text(json.dumps(lock), encoding="utf-8")
 
+    def rewrite_test_common(
+        self, framework_root: Path, assignments: dict[str, str]
+    ) -> None:
+        """Change only the disposable common.sh authority for a fixture case."""
+
+        common_path = framework_root / "ci/lib/common.sh"
+        common_source = rewrite_common_assignments(
+            common_path.read_text(encoding="utf-8"), assignments
+        )
+        common_path.write_text(common_source, encoding="utf-8")
+
     def make_test_framework_copy(self, root: Path) -> Path:
         """Copy only the sourced entrypoint dependencies into task-local test state."""
 
@@ -228,6 +241,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         shutil.copy2(
             ROOT / "ci/tools/check-runtime-component-lock.py",
             framework_root / "ci/tools/check-runtime-component-lock.py",
+        )
+        shutil.copy2(
+            ROOT / "ci/tools/sync-runtime-components.py",
+            framework_root / "ci/tools/sync-runtime-components.py",
         )
         shutil.copy2(
             ROOT / "ci/provisioning/runtime-components.manifest.json",
@@ -362,6 +379,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             """
             #!/bin/sh
             set -eu
+            if [ "${FAKE_SHA256SUM_MODE:-}" = "approve-wrong" ]; then
+                printf '%s  %s\n' "$NGINX_SHA256" "${1:-}"
+                exit 0
+            fi
             if [ "${SWAP_AFTER_FIRST_HASH:-0}" = "1" ] && \
                 [ "${1:-}" = "$NGINX_ARCHIVE_EXPECTED" ] && \
                 [ ! -e "$SWAP_MARKER" ]; then
@@ -469,6 +490,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         harness: dict[str, Path | dict[str, str]],
         digest: str,
         synchronize_runtime_lock: bool = True,
+        strip_canonical_env: bool = True,
         **overrides: str | None,
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
@@ -489,7 +511,24 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                     "NGINX_RELEASE_ASSET_NAME", TEST_NGINX_RELEASE_ASSET_NAME
                 ),
                 digest=environment.get("NGINX_SHA256", TEST_NGINX_SHA256),
+                source_ref=environment.get("NGINX_SOURCE_GIT_REF", TEST_NGINX_RELEASE_TAG),
             )
+        # The disposable copied common.sh is the canonical fixture authority.
+        # Most cases intentionally remove inherited values to exercise that
+        # authority.  Override-specific cases retain them to prove the
+        # production inherited-environment guard fails closed.
+        if strip_canonical_env:
+            for name in (
+                "NGINX_SOURCE_MODE",
+                "NGINX_SOURCE_REPO_URL",
+                "NGINX_GITHUB_REPO",
+                "NGINX_RELEASE_TAG",
+                "NGINX_SOURCE_GIT_REF",
+                "NGINX_RELEASE_ASSET_NAME",
+                "NGINX_DOWNLOAD_URL",
+                "NGINX_SHA256",
+            ):
+                environment.pop(name, None)
         return subprocess.run(
             ["sh", str(harness["script"])],
             cwd=ROOT,
@@ -586,11 +625,12 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             result = self.run_prepare(
                 harness,
                 self.archive_digest(harness),
+                strip_canonical_env=False,
                 NGINX_RELEASE_TAG="",
             )
             self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
             self.assertIn(
-                "NGINX_RELEASE_TAG must be an explicit reviewed release tag",
+                "NGINX_RELEASE_TAG contains unsafe characters",
                 result.stdout,
             )
             self.assert_no_nginx_source_io(harness)
@@ -623,6 +663,12 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
     def test_effective_tuple_outside_the_lock_is_blocked_before_network_or_tar(self):
         harness = self.make_harness()
         try:
+            script = harness["script"]
+            self.assertIsInstance(script, Path)
+            self.rewrite_test_common(
+                script.parents[2],
+                {"NGINX_SHA256": self.archive_digest(harness)},
+            )
             result = self.run_prepare(
                 harness,
                 self.archive_digest(harness),
@@ -633,8 +679,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 "NGINX runtime configuration does not match the reviewed component lock",
                 result.stdout,
             )
-            self.assertIn("environment profile nginx-h1", result.stderr)
-            self.assertIn("drift", result.stderr)
+            self.assertIn("nginx-h1 SHA-256 drift", result.stderr)
             self.assert_no_nginx_source_io(harness)
         finally:
             self.remove_harness(harness)
@@ -643,7 +688,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         cases = {
             "empty": (
                 self.fixture_text("digest-empty.txt").strip(),
-                "NGINX_SHA256 must not be explicitly empty",
+                "NGINX_SHA256 must be a pinned 64-character SHA-256 value",
             ),
             "whitespace": (
                 self.fixture_text("digest-whitespace.txt")
@@ -707,7 +752,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 harness = self.make_harness()
                 try:
                     result = self.run_prepare(
-                        harness, self.archive_digest(harness), **overrides
+                        harness,
+                        self.archive_digest(harness),
+                        strip_canonical_env=False,
+                        **overrides,
                     )
                     self.assertEqual(
                         result.returncode, 77, result.stdout + result.stderr
@@ -746,6 +794,7 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                     result = self.run_prepare(
                         harness,
                         self.archive_digest(harness),
+                        strip_canonical_env=False,
                         **overrides,
                     )
 
@@ -801,22 +850,21 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         finally:
             self.remove_harness(harness)
 
-    def test_archive_replacement_after_first_hash_is_rechecked_before_tar(self):
+    def test_path_shadowed_sha256sum_cannot_approve_a_wrong_nginx_archive(self):
         harness = self.make_harness()
         try:
+            environment = harness["environment"]
+            self.assertIsInstance(environment, dict)
+            environment["FIXTURE_ARCHIVE"] = str(harness["replacement"])
             result = self.run_prepare(
                 harness,
                 self.archive_digest(harness),
-                SWAP_AFTER_FIRST_HASH="1",
+                FAKE_SHA256SUM_MODE="approve-wrong",
             )
             self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
-            self.assertIn("NGINX_SHA256 mismatch", result.stdout)
-            self.assertTrue((harness["root"] / "archive-swapped").exists())
+            self.assertIn("nginx SHA256 verification failed", result.stdout)
+            self.assertFalse((harness["root"] / "archive-swapped").exists())
             self.assertEqual(self.tar_invocations(harness), [])
-            self.assertEqual(
-                hashlib.sha256(harness["candidate"].read_bytes()).hexdigest(),
-                hashlib.sha256(harness["replacement"].read_bytes()).hexdigest(),
-            )
         finally:
             self.remove_harness(harness)
 
@@ -875,12 +923,18 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
                 harness = self.make_harness()
                 try:
                     result = self.run_prepare(
-                        harness, self.archive_digest(harness), **overrides
+                        harness,
+                        self.archive_digest(harness),
+                        strip_canonical_env=False,
+                        **overrides,
                     )
                     self.assertEqual(
                         result.returncode, 77, result.stdout + result.stderr
                     )
-                    self.assertIn("NGINX_SOURCE_REPO_URL", result.stdout)
+                    self.assertIn(
+                        "NGINX_SOURCE_REPO_URL override is not permitted",
+                        result.stdout,
+                    )
                     self.assert_no_nginx_source_io(harness)
                 finally:
                     self.remove_harness(harness)
@@ -915,12 +969,18 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
             alternate_candidate = alternate_dir / alternate_asset
             alternate_manifest = alternate_dir / "nginx-archive-cache.manifest"
 
+            script = harness["script"]
+            self.assertIsInstance(script, Path)
+            self.write_test_runtime_lock(
+                script.parents[2],
+                release_tag=alternate_tag,
+                asset_name=alternate_asset,
+                digest=digest,
+            )
             result = self.run_prepare(
                 harness,
                 digest,
-                NGINX_RELEASE_TAG=alternate_tag,
-                NGINX_SOURCE_GIT_REF=alternate_tag,
-                NGINX_RELEASE_ASSET_NAME=alternate_asset,
+                synchronize_runtime_lock=False,
                 REFRESH="1",
             )
 

@@ -63,18 +63,15 @@ class FakeGitHubClient:
 class NginxReleaseProvenanceTests(unittest.TestCase):
     def entries(self, tag: str = RELEASE_TAG, *, dynamic_aliases: bool = True):
         asset_name = f"nginx-{tag.removeprefix('release-')}.tar.gz"
-        source_ref = (
-            'NGINX_SOURCE_GIT_REF="${NGINX_SOURCE_GIT_REF-$NGINX_RELEASE_TAG}"'
-            if dynamic_aliases
-            else f'NGINX_SOURCE_GIT_REF="${{NGINX_SOURCE_GIT_REF-{tag}}}"'
-        )
         fixture_source = "\n".join(
             [
-                'NGINX_SOURCE_REPO_URL="${NGINX_SOURCE_REPO_URL-https://github.com/nginx/nginx}"',
-                'NGINX_GITHUB_REPO="${NGINX_GITHUB_REPO-$NGINX_SOURCE_REPO_URL}"',
-                f'NGINX_RELEASE_TAG="${{NGINX_RELEASE_TAG-{tag}}}"',
-                source_ref,
-                f'NGINX_RELEASE_ASSET_NAME="${{NGINX_RELEASE_ASSET_NAME-{asset_name}}}"',
+                'NGINX_SOURCE_MODE="github-release"',
+                'NGINX_SOURCE_REPO_URL="https://github.com/nginx/nginx"',
+                'NGINX_GITHUB_REPO="https://github.com/nginx/nginx"',
+                f'NGINX_RELEASE_TAG="{tag}"',
+                f'NGINX_SOURCE_GIT_REF="{tag}"',
+                f'NGINX_RELEASE_ASSET_NAME="{asset_name}"',
+                f'NGINX_DOWNLOAD_URL="https://github.com/{REPOSITORY}/releases/download/{tag}/{asset_name}"',
                 f'NGINX_SHA256_REQUESTED="${{NGINX_SHA256_REQUESTED:-{PUBLISHED_SHA256}}}"',
                 f'NGINX_SHA256="${{NGINX_SHA256:-{PUBLISHED_SHA256}}}"',
                 "",

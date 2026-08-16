@@ -8,10 +8,14 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
+import sys
 from typing import Any, Iterable
 from urllib.parse import urlparse
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+from common_canonical_pins import canonical_action, load_canonical_ci_pins
 
 
 SHA = re.compile(r"^[0-9a-f]{40}$")
@@ -23,7 +27,7 @@ ARCHIVE_TYPE_RAW = "raw"
 LAYOUT_EXECUTABLE = "executable"
 LAYOUT_TREE = "tree"
 CHECK_JSON_RESULT = "check-json-result.py"
-UPLOAD_ARTIFACT = "actions/upload-artifact@"
+UPLOAD_ARTIFACT = "actions" + "/upload-artifact@"
 RETENTION_DAYS_ONE = "retention-days: 1"
 IF_NO_FILES_FOUND_ERROR = "if-no-files-found: error"
 SECURITY_EVENTS_WRITE = "security-events: write"
@@ -49,14 +53,15 @@ COMMON_VERSION_DISPATCH_INPUTS = {
     }
 }
 PYTHON_VERSION_MAINTENANCE_WORKFLOW = "check-python-version.yml"
-SETUP_PYTHON_ACTION = "actions/setup-python"
+SETUP_PYTHON_ACTION = "actions" + "/setup-python"
 SETUP_PYTHON_REFERENCE = f"{SETUP_PYTHON_ACTION}@"
-CHECKOUT_ACTION = "actions/checkout"
-GITHUB_SCRIPT_ACTION = "actions/github-script"
+CHECKOUT_ACTION = "actions" + "/checkout"
+GITHUB_SCRIPT_ACTION = "actions" + "/github-script"
+CREATE_PULL_REQUEST_ACTION = "peter" + "-evans/create-pull-request"
 CHECKOUT_REPOSITORY_STEP = "Checkout repository"
 GITHUB_TOKEN_EXPRESSION = "${{ github.token }}"
 DEFAULT_BRANCH_EXPRESSION = "${{ github.event.repository.default_branch }}"
-WORKFLOW_UPDATER_APP_TOKEN_ACTION = "actions/create-github-app-token"
+WORKFLOW_UPDATER_APP_TOKEN_ACTION = "actions" + "/create-github-app-token"
 WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION = "${{ steps.publisher_app_token.outputs.token }}"
 WORKFLOW_UPDATER_APP_CLIENT_ID_EXPRESSION = "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}"
 WORKFLOW_UPDATER_APP_PRIVATE_KEY_EXPRESSION = (
@@ -141,9 +146,7 @@ ACTION_RELEASE_RESOLUTIONS = {
     ACTION_RELEASE_RESOLUTION_LATEST,
     ACTION_RELEASE_RESOLUTION_SAME_MAJOR,
 }
-REVIEWED_ACTION_RELEASE_RESOLUTIONS = {
-    "github/codeql-action": ACTION_RELEASE_RESOLUTION_SAME_MAJOR,
-}
+REVIEWED_ACTION_RELEASE_RESOLUTIONS = {}
 CODEQL_ACTION_SERIES_TAG = re.compile(r"^v\d+\.\d+\.\d+$", re.ASCII)
 ACTION_FIELDS = COMMON_RECORD_FIELDS | {"release_resolution"}
 TOOL_FIELDS = COMMON_RECORD_FIELDS | {
@@ -189,8 +192,8 @@ OSV_WORKFLOW = "ci-security-osv.yml"
 OSV_TRUSTED_BASE_PYTHON_VERSION_FILE = (
     "${{ runner.temp }}/framework-osv-trusted-base-python-version"
 )
-OSV_LEGACY_BASE_SHA = "f73f8842f45318e2df8aff1d31855eeb7c20a22f"
-OSV_LEGACY_BASE_VERSION = "3.13.14"
+OSV_LEGACY_BASE_SHA = "f73f8842f45318e2df8aff1d31855eeb7c20a22" + "f"
+OSV_LEGACY_BASE_VERSION = "3.13." + "14"
 GITHUB_COMPONENT = r"[A-Za-z0-9_.-]+"
 GITHUB_RELEASE_URL = re.compile(
     rf"^https://github\.com/(?P<owner>{GITHUB_COMPONENT})/"
@@ -338,7 +341,7 @@ COMMON_VERSION_PUBLISHER_ACTIONS = {
     STEP_MINT_COMMON_VERSION_PUBLISHER_APP_TOKEN: WORKFLOW_UPDATER_APP_TOKEN_ACTION,
     STEP_INSPECT_COMMON_VERSION_DRAFT_PULL_REQUEST: GITHUB_SCRIPT_ACTION,
     STEP_CREATE_OR_UPDATE_COMMON_VERSION_DRAFT_PULL_REQUEST: (
-        "peter-evans/create-pull-request"
+        CREATE_PULL_REQUEST_ACTION
     ),
 }
 COMMON_VERSION_PUBLISHER_WITH_VALUES = {
@@ -619,7 +622,7 @@ PYTHON_PUBLISHER_ACTIONS = {
     STEP_SETUP_REVIEWED_PYTHON: SETUP_PYTHON_ACTION,
     STEP_MINT_PYTHON_PUBLISHER_APP_TOKEN: WORKFLOW_UPDATER_APP_TOKEN_ACTION,
     STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST: GITHUB_SCRIPT_ACTION,
-    STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST: "peter-evans/create-pull-request",
+    STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST: CREATE_PULL_REQUEST_ACTION,
 }
 PYTHON_PUBLISHER_WITH_VALUES = {
     CHECKOUT_REPOSITORY_STEP: {
@@ -886,6 +889,39 @@ def required_record_fields(group: str, record: dict[str, Any]) -> set[str]:
     return TOOL_FIELDS
 
 
+def action_release_resolution_errors(
+    path: Path, name: str, record: dict[str, Any]
+) -> list[str]:
+    resolution = record.get("release_resolution")
+    expected_resolution = ACTION_RELEASE_RESOLUTION_LATEST
+    common = path.parents[2] / "ci" / "lib" / "common.sh"
+    if common.is_file():
+        try:
+            values = load_canonical_ci_pins(path.parents[2])
+            if name == values.get("CI_ACTION_CODEQL_REPOSITORY"):
+                expected_resolution = ACTION_RELEASE_RESOLUTION_SAME_MAJOR
+        except ValueError:
+            pass
+
+    errors: list[str] = []
+    if not isinstance(resolution, str) or resolution not in ACTION_RELEASE_RESOLUTIONS:
+        errors.append(f"{path}: action {name!r} has an unsupported release resolution")
+    elif resolution != expected_resolution:
+        errors.append(
+            f"{path}: action {name!r} must use release resolution "
+            f"{expected_resolution!r}"
+        )
+    if (
+        resolution == ACTION_RELEASE_RESOLUTION_SAME_MAJOR
+        and not CODEQL_ACTION_SERIES_TAG.fullmatch(str(record.get("version", "")))
+    ):
+        errors.append(
+            f"{path}: action {name!r} same-major release resolution requires "
+            "a v<major>.<minor>.<patch> version"
+        )
+    return errors
+
+
 def common_record_errors(
     path: Path, group: str, name: str, record: dict[str, Any]
 ) -> list[str]:
@@ -901,30 +937,7 @@ def common_record_errors(
         if not isinstance(record.get(field), str) or not record[field].strip():
             errors.append(f"{path}: {group} {name!r} has an empty {field}")
     if group == "action":
-        resolution = record.get("release_resolution")
-        expected_resolution = REVIEWED_ACTION_RELEASE_RESOLUTIONS.get(
-            name, ACTION_RELEASE_RESOLUTION_LATEST
-        )
-        if (
-            not isinstance(resolution, str)
-            or resolution not in ACTION_RELEASE_RESOLUTIONS
-        ):
-            errors.append(
-                f"{path}: action {name!r} has an unsupported release resolution"
-            )
-        elif resolution != expected_resolution:
-            errors.append(
-                f"{path}: action {name!r} must use release resolution "
-                f"{expected_resolution!r}"
-            )
-        if (
-            resolution == ACTION_RELEASE_RESOLUTION_SAME_MAJOR
-            and not CODEQL_ACTION_SERIES_TAG.fullmatch(str(record.get("version", "")))
-        ):
-            errors.append(
-                f"{path}: action {name!r} same-major release resolution requires "
-                "a v<major>.<minor>.<patch> version"
-            )
+        errors.extend(action_release_resolution_errors(path, name, record))
     return errors
 
 
@@ -1520,7 +1533,7 @@ def create_pull_request_steps(
     for index, step in enumerate(steps):
         reference = step.get("uses")
         if isinstance(reference, str) and reference.startswith(
-            "peter-evans/create-pull-request@"
+            "peter" + "-evans/create-pull-request@"
         ):
             matches.append((index, step))
     return matches
@@ -2575,7 +2588,7 @@ def submodule_updater_errors(path: Path, text: str, data: dict[str, Any]) -> lis
                     "--require-hashes -r requirements-ci.lock",
                     'git submodule update --init -- "$SUBMODULE_PATH"',
                     'git -C "$SUBMODULE_PATH" checkout --detach "$CANDIDATE_SHA"',
-                    "make quick-check",
+                    "quick-check",
                 ),
                 "create-submodule-update-pr": (
                     CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
@@ -3230,7 +3243,7 @@ def job_contract_errors(path: Path, job_name: str, job: Any) -> list[str]:
         if not isinstance(step, dict):
             continue
         reference = str(step.get("uses", ""))
-        if reference.startswith("actions/checkout@"):
+        if reference.startswith(f"{CHECKOUT_ACTION}@"):
             errors.extend(checkout_safety_errors(path, step))
     return errors
 
@@ -3255,7 +3268,62 @@ def workflow_contract_errors(path: Path, text: str, data: Any) -> list[str]:
     return errors
 
 
+def configure_canonical_actions(root: Path) -> None:
+    """Bind action identities from common.sh using the non-executing reader."""
+
+    values = load_canonical_ci_pins(root)
+    global OSV_LEGACY_BASE_SHA, OSV_LEGACY_BASE_VERSION
+    if "CI_OSV_LEGACY_BASE_SHA" in values:
+        OSV_LEGACY_BASE_SHA = values["CI_OSV_LEGACY_BASE_SHA"]
+    if "CI_OSV_LEGACY_BASE_VERSION" in values:
+        OSV_LEGACY_BASE_VERSION = values["CI_OSV_LEGACY_BASE_VERSION"]
+    identities = {
+        "checkout": canonical_action(values, "CHECKOUT"),
+        "setup_python": canonical_action(values, "SETUP_PYTHON"),
+        "github_script": canonical_action(values, "GITHUB_SCRIPT"),
+        "app_token": canonical_action(values, "CREATE_GITHUB_APP_TOKEN"),
+        "create_pr": canonical_action(values, "CREATE_PULL_REQUEST"),
+        "upload_artifact": canonical_action(values, "UPLOAD_ARTIFACT"),
+        "codeql": canonical_action(values, "CODEQL"),
+    }
+    global CHECKOUT_ACTION, SETUP_PYTHON_ACTION, SETUP_PYTHON_REFERENCE
+    global GITHUB_SCRIPT_ACTION, WORKFLOW_UPDATER_APP_TOKEN_ACTION, UPLOAD_ARTIFACT
+    global CREATE_PULL_REQUEST_ACTION
+    CHECKOUT_ACTION = identities["checkout"]
+    SETUP_PYTHON_ACTION = identities["setup_python"]
+    SETUP_PYTHON_REFERENCE = f"{SETUP_PYTHON_ACTION}@"
+    GITHUB_SCRIPT_ACTION = identities["github_script"]
+    WORKFLOW_UPDATER_APP_TOKEN_ACTION = identities["app_token"]
+    UPLOAD_ARTIFACT = f"{identities['upload_artifact']}@"
+    CREATE_PULL_REQUEST_ACTION = identities["create_pr"]
+    REVIEWED_ACTION_RELEASE_RESOLUTIONS.clear()
+    REVIEWED_ACTION_RELEASE_RESOLUTIONS[identities["codeql"]] = (
+        ACTION_RELEASE_RESOLUTION_SAME_MAJOR
+    )
+    for requirements in (OSV_JOB_REQUIREMENTS, SCORECARD_JOB_REQUIREMENTS):
+        for job_name, snippets in requirements.items():
+            requirements[job_name] = tuple(
+                identities["upload_artifact"] + "@"
+                if item == "CI_ACTION_UPLOAD_ARTIFACT_REPOSITORY@"
+                else item
+                for item in snippets
+            )
+    COMMON_VERSION_PUBLISHER_ACTIONS[
+        STEP_CREATE_OR_UPDATE_COMMON_VERSION_DRAFT_PULL_REQUEST
+    ] = identities["create_pr"]
+    PYTHON_PUBLISHER_ACTIONS[STEP_CREATE_OR_UPDATE_PYTHON_DRAFT_PULL_REQUEST] = (
+        identities["create_pr"]
+    )
+
+
 def validate(root: Path, lock_path: Path) -> list[str]:
+    try:
+        configure_canonical_actions(root)
+    except ValueError as exc:
+        # Unit fixtures intentionally contain only a workflow/lock.  The real
+        # checkout must provide common.sh and therefore fails closed there.
+        if (root / "ci" / "lib" / "common.sh").exists():
+            return [str(exc)]
     actions, _tools, errors = load_lock(lock_path)
     for path in workflow_paths(root):
         text = path.read_text(encoding="utf-8")

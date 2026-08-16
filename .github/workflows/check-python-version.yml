@@ -122,9 +122,9 @@ jobs:
           python3 -m unittest \
             tests.ci_security.test_update_python_version \
             tests.ci_security.test_python_version_contract -v
-          make test-ci-security-contract
-          make check-github-actions-workflows
-          make test-workflow-security-contract
+          ./ci/tools/safe-make.sh test-ci-security-contract
+          ./ci/tools/safe-make.sh check-github-actions-workflows
+          ./ci/tools/safe-make.sh test-workflow-security-contract
           echo "candidate_validated=true" >> "$GITHUB_OUTPUT"
 
   publish:
