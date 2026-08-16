@@ -36,7 +36,8 @@ connector-runtime, and MRTS behavior are outside this record.
    canonical CI pins are checked in every scheduled, dispatched, full, and
    component-scoped run.
 2. The documentation states that `--component` filters only additional
-   runtime/source components and that runtime series/root/base tuples are
+   runtime and source components and that runtime series, release-root, and
+   base tuples are
    explicit, including the separate HAProxy HTX line.
 3. The workflow-security guide documents the deterministic shared plan,
    generated-view checks, trusted issue reconciliation, fail-closed hash and

@@ -275,7 +275,7 @@ variable are rendered from the updated group rather than chosen independently.
 | NGINX | automatic | Latest non-draft, non-prerelease `release-<version>` GitHub release; release-asset digest and matching release tag/ref/asset tuple. |
 | OpenSSL for NGINX QUIC/TLS | automatic | Latest non-draft, non-prerelease `openssl-<version>` GitHub release; release-asset digest. |
 | HAProxy | automatic | Latest numeric official HAProxy-directory release, constrained by the explicit `HAPROXY_SERIES` and release-root/base tuple; official per-asset SHA-256 file. |
-| HAProxy HTX | automatic | The HTX compatibility line is resolved as its own explicit series/root/base tuple; it is never inferred from the normal HAProxy result. |
+| HAProxy HTX | automatic | The HTX compatibility line is resolved as its own explicit series, release-root, and base tuple; it is never inferred from the normal HAProxy result. |
 | OWASP Core Rule Set | manual_review | Latest stable GitHub release and immutable peeled Git-tag commit are reported for review; the reviewed tag/commit pin is not automatically changed. |
 | ModSecurity v3 | manual_review | Latest stable `v3.<version>` GitHub release and immutable peeled Git-tag commit are reported for review; the reviewed tag/commit pin is not automatically changed. |
 | ModSecurity Apache connector | not_applicable | Repo-local connector source unless explicitly configured; no common-version acquisition contract exists. |

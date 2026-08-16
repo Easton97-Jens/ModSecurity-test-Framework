@@ -38,7 +38,7 @@ Connector-Runtime und MRTS sind außerhalb dieses Records.
    Albedo und alle kanonischen CI-Pins in jedem geplanten, manuell gestarteten,
    vollständigen und komponentenbezogenen Lauf geprüft werden.
 2. Die Dokumentation erklärt, dass `--component` nur zusätzliche
-   Runtime-/Source-Komponenten filtert und Runtime-Serien/Root/Basis-URLs
+   Runtime-/Source-Komponenten filtert und Runtime-Serien sowie Root- und Basis-URLs
    explizit sind, einschließlich der separaten HAProxy-HTX-Linie.
 3. Der Workflow-Security-Leitfaden dokumentiert in beiden Sprachen den
    deterministischen gemeinsamen Plan, Generated-View-Checks, vertrauens-

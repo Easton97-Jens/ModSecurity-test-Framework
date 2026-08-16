@@ -288,7 +288,7 @@ Gruppe erzeugt und nicht unabhängig ausgewählt.
 | NGINX | automatic | Neuestes GitHub-Release `release-<version>` ohne Draft und Prerelease; Digest des Release-Assets und passendes Release-Tag/Ref/Asset-Tupel. |
 | OpenSSL for NGINX QUIC/TLS | automatic | Neuestes GitHub-Release `openssl-<version>` ohne Draft und Prerelease; Digest des Release-Assets. |
 | HAProxy | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis, durch das explizite `HAPROXY_SERIES`- und Release-Root/Basis-URL-Tupel begrenzt; offizielle SHA-256-Datei pro Asset. |
-| HAProxy HTX | automatic | Die HTX-Kompatibilitätslinie wird als eigenes explizites Serien-/Root-/Basis-URL-Tupel aufgelöst; sie wird nie aus dem normalen HAProxy-Ergebnis abgeleitet. |
+| HAProxy HTX | automatic | Die HTX-Kompatibilitätslinie wird als eigenes explizites Serien-, Root- und Basis-URL-Tupel aufgelöst; sie wird nie aus dem normalen HAProxy-Ergebnis abgeleitet. |
 | OWASP Core Rule Set | manual_review | Neuestes stabiles GitHub-Release und dessen unveränderlicher aufgelöster Git-Tag-Commit werden zur Prüfung gemeldet; der geprüfte Tag/Commit-Pin wird nicht automatisch geändert. |
 | ModSecurity v3 | manual_review | Neuestes stabiles GitHub-Release `v3.<version>` und dessen unveränderlicher aufgelöster Git-Tag-Commit werden zur Prüfung gemeldet; der geprüfte Tag/Commit-Pin wird nicht automatisch geändert. |
 | ModSecurity Apache connector | not_applicable | Repository-lokale Connector-Quelle, solange sie nicht ausdrücklich konfiguriert wird; kein Common-Version-Abrufvertrag existiert. |
