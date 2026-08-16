@@ -52,6 +52,23 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             "Go-FTW, Albedo, or canonical CI pin inventory is incomplete", self.text
         )
 
+    def test_fatal_resolver_plan_is_summarized_before_failure_is_returned(self) -> None:
+        resolver = self.workflow["jobs"]["canonical-maintenance"]["steps"][2]["run"]
+        self.assertIn("resolver_exit=0", resolver)
+        self.assertIn("|| resolver_exit=$?", resolver)
+        self.assertIn(
+            'cat "$RUNNER_TEMP/canonical-maintenance-plan.md" >> "$GITHUB_STEP_SUMMARY"',
+            resolver,
+        )
+        self.assertIn("if (( resolver_exit != 0 )); then", resolver)
+        self.assertIn('exit "$resolver_exit"', resolver)
+        self.assertLess(
+            resolver.index(
+                'cat "$RUNNER_TEMP/canonical-maintenance-plan.md" >> "$GITHUB_STEP_SUMMARY"'
+            ),
+            resolver.index("if (( resolver_exit != 0 )); then"),
+        )
+
     def test_issue_writes_are_trusted_default_branch_only(self) -> None:
         self.assertNotIn("pull_request_target", self.text)
         self.assertIn("--validate-only", self.text)

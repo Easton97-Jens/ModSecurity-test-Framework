@@ -154,6 +154,14 @@ wird nie in Plänen, Zusammenfassungen oder Diagnosen ausgegeben. Die
 Workflow-Berechtigungen und die bestehende repositorybegrenzte
 Publisher-App-Token-Grenze ändern sich dadurch nicht.
 
+Der kanonische Common-Maintenance-Job prüft auch bei einem fatalen
+Resolver-Ergebnis, dass der erzeugte JSON- und Markdown-Plan vorhanden ist.
+Nur der Markdown-Plan wird an die Hosted-`GITHUB_STEP_SUMMARY` angehängt; der
+JSON-Plan bleibt runner-lokal und wird nicht dauerhaft aufbewahrt. Danach gibt
+der Job den ursprünglichen Nicht-Null-Resolvercode zurück. So bleibt der Fehler
+diagnostizierbar, ohne Resolver-, Inventar-, Digest- oder Publisher-Gates zu
+schwächen; sie bleiben fail-closed.
+
 `update-submodules.yml` bleibt bewusst vom Lock-/Tool-Updater getrennt: Es
 aktualisiert nur den Framework-eigenen `tools/MRTS`-Gitlink, niemals MRTS-
 Inhalt. Es akzeptiert nur eine volle SHA vom benannten MRTS-`main`-Branch,
