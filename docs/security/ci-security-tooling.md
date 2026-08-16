@@ -106,6 +106,17 @@ tags in the locked `v4` major, then resolves that exact tag through the Git API
 to its immutable commit. It never treats a bundle or a new Action major as an
 Action update.
 
+This distinction is required by the observed master failure in run
+`31975000540`: `github/codeql-action/releases/latest` returned a CodeQL bundle
+tag (`codeql-bundle-v2.26.3`), so the generic stable-Action parser could not
+produce a valid Action tag and the canonical resolver failed closed. The
+minimal correction keeps the existing same-major automatic update path, but
+gets CodeQL's `latest_upstream` comparison from the bounded official release
+page and selects only numeric, published, non-prerelease Action tags across
+majors. An automatically selected same-major tag is still resolved through the
+Git API and must match its immutable commit. A newer major is review metadata
+only; it is never silently applied by maintenance.
+
 `ci/tools/fetch-security-tool.py` accepts only named lock records, direct
 HTTPS GitHub release assets, and an absolute, non-symlink strict child of the
 current-user-owned `RUNNER_TEMP` directory. A completed redirect is allowed
