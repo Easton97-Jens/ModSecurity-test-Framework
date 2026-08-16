@@ -63,6 +63,21 @@ class RuntimeComponentSyncTests(unittest.TestCase):
     def dump(path, document):
         path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
+    def assert_mutations_rejected(self, mutations):
+        for needle, replacement in mutations.items():
+            with self.subTest(needle=needle):
+                temporary, common, manifest, lock = self.fixture()
+                with temporary:
+                    source = common.read_text(encoding="utf-8")
+                    self.assertIn(needle, source)
+                    common.write_text(
+                        source.replace(needle, replacement, 1), encoding="utf-8"
+                    )
+                    result = self.run_tool(
+                        "--check", common=common, manifest=manifest, lock=lock
+                    )
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+
     def test_checked_in_inventory_is_current_and_includes_lighttpd(self):
         result = self.run_tool("--check")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -249,19 +264,7 @@ class RuntimeComponentSyncTests(unittest.TestCase):
             'ENVOY_SOURCE_URL="https://github.com/envoyproxy/envoy/releases"': 'ENVOY_SOURCE_URL="https://example.invalid/envoy/releases"',
             'ENVOY_SHA256="4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218"': 'ENVOY_SHA256="0009dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218"',
         }
-        for needle, replacement in mutations.items():
-            with self.subTest(needle=needle):
-                temporary, common, manifest, lock = self.fixture()
-                with temporary:
-                    source = common.read_text(encoding="utf-8")
-                    self.assertIn(needle, source)
-                    common.write_text(
-                        source.replace(needle, replacement, 1), encoding="utf-8"
-                    )
-                    result = self.run_tool(
-                        "--check", common=common, manifest=manifest, lock=lock
-                    )
-                    self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assert_mutations_rejected(mutations)
 
     def test_explicit_release_series_and_derived_urls_are_projected(self):
         result = self.run_tool("--check")
@@ -291,19 +294,7 @@ class RuntimeComponentSyncTests(unittest.TestCase):
             'HAPROXY_SERIES="3.2"': 'HAPROXY_SERIES="3.x"',
             'HAPROXY_HTX_VERSION="3.2.21"': 'HAPROXY_HTX_VERSION="2.2.21"',
         }
-        for needle, replacement in mutations.items():
-            with self.subTest(needle=needle):
-                temporary, common, manifest, lock = self.fixture()
-                with temporary:
-                    source = common.read_text(encoding="utf-8")
-                    self.assertIn(needle, source)
-                    common.write_text(
-                        source.replace(needle, replacement, 1), encoding="utf-8"
-                    )
-                    result = self.run_tool(
-                        "--check", common=common, manifest=manifest, lock=lock
-                    )
-                    self.assertNotEqual(result.returncode, 0, result.stdout)
+        self.assert_mutations_rejected(mutations)
 
     def test_common_sh_series_guard_rejects_mutation_before_runtime_use(self):
         command = (
