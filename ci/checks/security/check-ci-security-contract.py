@@ -191,7 +191,9 @@ GITHUB_TOKEN_REFERENCE = re.compile(r"\bgithub\s*(?:\.\s*token\b|\[)", re.IGNORE
 BARE_GITHUB_CONTEXT_REFERENCE = re.compile(r"\bgithub\b(?!\s*[.\[])", re.IGNORECASE)
 SHELL_GITHUB_TOKEN_REFERENCE = re.compile(r"\$\{?GITHUB_TOKEN\}?", re.IGNORECASE)
 CANONICAL_PYTHON_VERSION_FILE = ".python-version"
-PYTHON_PUBLISHER_SOURCE_FILE = "ci/lib/common.sh"
+COMMON_SH_PATH = "ci/lib/common.sh"
+PYTHON_PUBLISHER_SOURCE_FILE = COMMON_SH_PATH
+PYTHON_CANDIDATE_EXPRESSION = "${{ needs.resolve.outputs.candidate }}"
 PYTHON_PUBLISHER_CHANGED_PATHS = (
     f"{CANONICAL_PYTHON_VERSION_FILE}\n{PYTHON_PUBLISHER_SOURCE_FILE}"
 )
@@ -285,7 +287,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
 }
 COMMON_VERSION_GENERATED_PATHS = frozenset(
     {
-        "ci/lib/common.sh",
+        COMMON_SH_PATH,
         CANONICAL_PYTHON_VERSION_FILE,
         "requirements-ci.lock",
         "ci/tooling/security-tools.lock.yml",
@@ -319,7 +321,7 @@ COMMON_VERSION_GENERATED_PATHS = frozenset(
     }
 )
 COMMON_VERSION_UPDATE_BRANCH = "automation/update-framework-common-versions"
-COMMON_VERSION_UPDATE_PATH = "ci/lib/common.sh"
+COMMON_VERSION_UPDATE_PATH = COMMON_SH_PATH
 COMMON_VERSION_PR_TITLE = "chore(ci): update common.sh versions"
 COMMON_VERSION_PR_MARKER = "<!-- framework-common-version-updater -->"
 COMMON_VERSION_PR_BODY_FILE = "${{ runner.temp }}/framework-common-version-pr-body.md"
@@ -697,7 +699,7 @@ PYTHON_PUBLISHER_JOB_KEYS = frozenset(
     {"needs", "if", "runs-on", "timeout-minutes", "permissions", "env", "steps"}
 )
 PYTHON_PUBLISHER_ENV_VALUES = {
-    "CANDIDATE": "${{ needs.resolve.outputs.candidate }}",
+    "CANDIDATE": PYTHON_CANDIDATE_EXPRESSION,
 }
 PYTHON_PUBLISHER_STEP_PROFILE = (
     (CHECKOUT_REPOSITORY_STEP, STEP_KEYS_ACTION),
@@ -768,7 +770,7 @@ PYTHON_PUBLISHER_STEP_ENV_VALUES = {
         "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
         "MAINTENANCE_PR_EXISTS": "${{ steps.maintenance_pr.outputs.existing }}",
         UPDATER_PUBLISH_TOKEN_ENV: WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION,
-        "CANDIDATE": "${{ needs.resolve.outputs.candidate }}",
+        "CANDIDATE": PYTHON_CANDIDATE_EXPRESSION,
     },
     STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: {
         "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
@@ -810,7 +812,7 @@ PYTHON_OUTCOME_ENV_VALUES = {
     "PUBLISHER_RESULT": "${{ needs.publish.result }}",
     "RESOLVER_STATUS": "${{ needs.resolve.outputs.resolver_status }}",
     "UPDATE_AVAILABLE": "${{ needs.resolve.outputs.update_available }}",
-    "CANDIDATE": "${{ needs.resolve.outputs.candidate }}",
+    "CANDIDATE": PYTHON_CANDIDATE_EXPRESSION,
     "CANDIDATE_VALIDATED": "${{ needs.candidate-validate.outputs.candidate_validated }}",
 }
 PYTHON_OUTCOME_RUN_SHA256 = (
@@ -3386,6 +3388,43 @@ def _common_version_setup_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _common_version_run_step_errors(
+    path: Path, name: str, steps: Any
+) -> tuple[list[str], set[tuple[str, str]]]:
+    if not isinstance(steps, list):
+        return [
+            f"{path}: {name} run steps must match the reviewed common-version profile"
+        ], set()
+
+    errors: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for step in steps:
+        if not isinstance(step, dict) or "run" not in step:
+            continue
+        step_name = step.get("name")
+        if not isinstance(step_name, str):
+            errors.append(
+                f"{path}: {name} run step {step_name!r} must match the reviewed "
+                "hash-locked common-version profile"
+            )
+            continue
+        key: tuple[str, str] = (name, step_name)
+        expected = COMMON_VERSION_REVIEWED_RUN_SHA256.get(key)
+        run = step.get("run")
+        if (
+            expected is None
+            or not isinstance(run, str)
+            or publisher_body_digest(run) != expected
+        ):
+            errors.append(
+                f"{path}: {name} run step {step_name!r} must match the reviewed "
+                "hash-locked common-version profile"
+            )
+            continue
+        seen.add(key)
+    return errors, seen
+
+
 def _common_version_resolver_dependency_errors(
     path: Path, jobs: dict[str, Any]
 ) -> list[str]:
@@ -3401,35 +3440,9 @@ def _common_version_resolver_dependency_errors(
     ):
         job = jobs.get(name)
         steps = job.get("steps") if isinstance(job, dict) else None
-        if not isinstance(steps, list):
-            errors.append(
-                f"{path}: {name} run steps must match the reviewed common-version profile"
-            )
-            continue
-        for step in steps:
-            if not isinstance(step, dict) or "run" not in step:
-                continue
-            step_name = step.get("name")
-            if not isinstance(step_name, str):
-                errors.append(
-                    f"{path}: {name} run step {step_name!r} must match the reviewed "
-                    "hash-locked common-version profile"
-                )
-                continue
-            key: tuple[str, str] = (name, step_name)
-            expected = COMMON_VERSION_REVIEWED_RUN_SHA256.get(key)
-            run = step.get("run")
-            if (
-                expected is None
-                or not isinstance(run, str)
-                or publisher_body_digest(run) != expected
-            ):
-                errors.append(
-                    f"{path}: {name} run step {step_name!r} must match the reviewed "
-                    "hash-locked common-version profile"
-                )
-            else:
-                seen.add(key)
+        step_errors, step_seen = _common_version_run_step_errors(path, name, steps)
+        errors.extend(step_errors)
+        seen.update(step_seen)
     missing = set(COMMON_VERSION_REVIEWED_RUN_SHA256).difference(seen)
     if missing:
         errors.append(f"{path}: common-version workflow is missing a reviewed run step")

@@ -327,12 +327,12 @@ class UpdatePythonVersionTest(unittest.TestCase):
             UPDATER.atomic_write_canonical_version(
                 root, UPDATER.PythonVersion(6), UPDATER.PythonVersion(7)
             )
+            expected = UPDATER.PythonVersion(6)
+            stale_candidate = UPDATER.PythonVersion(8)
             with self.assertRaisesRegex(
                 UPDATER.UpdaterFailure, "changed during update"
             ):
-                UPDATER.atomic_write_canonical_version(
-                    root, UPDATER.PythonVersion(6), UPDATER.PythonVersion(8)
-                )
+                UPDATER.atomic_write_canonical_version(root, expected, stale_candidate)
 
     def test_expected_candidate_and_runner_outputs_are_constrained(self) -> None:
         result = UPDATER.UpdateResult(

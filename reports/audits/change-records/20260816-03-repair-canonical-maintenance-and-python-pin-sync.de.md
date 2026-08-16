@@ -52,7 +52,8 @@ Jeder Resolver-Body ist nun an einen exakten geprüften SHA-256 gebunden; Kommen
 | Vollständiger Framework-Lint | `0` | Auf dem finalen Implementierungsstand vor dieser reinen Ergebnisaktualisierung bestanden. | Task-Worktree; Bytecode-Writes deaktiviert. |
 | Initiale Hosted-Quality-Checks von PR #85 | fehlgeschlagen, dann behoben | ShellCheck fand einen ungültig eingerückten Here-Document-Terminator und Ruff Formatierungsdrift; die Korrektur behält den kandidatengebundenen Guard bei und aktualisiert seinen exakten Run-Body-Hash. | GitHub-Läufe `31964051925` und `31964051902`. |
 | Wiederholter vollständiger Framework-Lint | `0` | Nach der Hosted-Quality-Korrektur bestanden. | Task-Worktree; Bytecode-Writes deaktiviert. |
-| Frische Exact-Head-Hosted-Checks | bei Record-Aktualisierung ausstehend | Müssen den korrigierten veröffentlichten Pull-Request-Head validieren. | PR #85; bei dieser Record-Aktualisierung noch nicht verfügbar. |
+| Erste korrigierte Exact-Head-SonarCloud-Analyse | nicht akzeptiert | Quality Gate bestanden und Duplizierung in neuem Code `0.0%`, aber SonarCloud meldete vier neue Code-Smell-Issues. | SonarCloud-Bot-Kommentar von PR #85; vor der finalen Delivery behoben. |
+| Frische finale Exact-Head-Hosted-Checks | nach Sonar-Remediation ausstehend | Müssen den final veröffentlichten Pull-Request-Head validieren. | PR #85; bei dieser Record-Aktualisierung noch nicht verfügbar. |
 
 ## Sicherheitsauswirkung
 
@@ -66,9 +67,15 @@ erneut validiert wurden. Hosted-Evidenz bleibt erforderlich: Sein korrigierter
 Exact Head muss erfolgreiche erforderliche Checks besitzen und SonarQube Cloud
 muss null neue Issues melden, bevor der autorisierte Squash-Merge erfolgen darf.
 
+Die erste Analyse des korrigierten Exact Heads meldete trotz bestandenem Quality
+Gate und `0.0%` New-Code-Duplizierung noch vier neue Code-Smell-Issues. Die
+finalen engen Refactorings entfernen diese Findings ohne Suppressions oder
+abgeschwächte Controls; eine frische Exact-Head-Analyse muss null neue Issues
+nachweisen.
+
 ## Nicht ausgeführte Prüfungen
 
-- Frische Checks für den korrigierten Head, SonarQube Cloud, Review-Status,
+- Frische Checks für den finalen Head, SonarQube Cloud, Review-Status,
   Exact-Head-Merge und resulting-master-Dispatches benötigen Veröffentlichung
   oder Integration.
 
@@ -82,4 +89,5 @@ Der Task bleibt auf Framework-Workflows, kanonische Pin-Updates, Contracts,
 Regressionen und diesen gepaarten Record begrenzt. PR #85 existiert als Draft;
 ein Merge, Parent-Gitlink-Update oder eine MRTS-Aktion fanden nicht statt.
 Whitespace-, unabhängiger Security-Review und finaler Security-Diff-Review sind
-bestanden; frische Hosted-Verifikation bleibt vor der Delivery erforderlich.
+bestanden; die getrackten Sonar-Refactorings und frische Hosted-Verifikation
+bleiben vor der Delivery erforderlich.

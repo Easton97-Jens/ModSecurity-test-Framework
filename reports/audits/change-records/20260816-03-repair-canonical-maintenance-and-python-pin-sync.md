@@ -52,7 +52,8 @@ Every resolver body is now bound to an exact reviewed SHA-256, making comments o
 | Full Framework lint | `0` | Passed on the final implementation state before this results-only record update. | Task worktree; bytecode writes disabled. |
 | Initial PR #85 hosted quality checks | failed, then remediated | ShellCheck found an invalidly indented here-document terminator and Ruff found formatting drift; the correction retains the candidate-bound guard and updates its exact run-body hash. | GitHub runs `31964051925` and `31964051902`. |
 | Repeated Full Framework lint | `0` | Passed after the hosted-quality remediation. | Task worktree; bytecode writes disabled. |
-| Fresh exact-head hosted checks | pending at record update | Must validate the corrected published pull-request head. | PR #85; not yet available at this record update. |
+| First corrected exact-head SonarCloud analysis | not accepted | Quality Gate passed and duplication on new code was `0.0%`, but SonarCloud reported four new code-smell issues. | PR #85 SonarCloud bot comment; remediated before final delivery. |
+| Fresh final exact-head hosted checks | pending after Sonar remediation | Must validate the final published pull-request head. | PR #85; not yet available at this record update. |
 
 ## Security impact
 
@@ -66,10 +67,15 @@ revalidated locally. Hosted evidence remains required: its corrected exact head
 must have successful required checks and SonarQube Cloud must report zero new
 issues before the authorized squash merge.
 
+The first corrected exact-head analysis still reported four new code-smell
+issues despite its passing Quality Gate and `0.0%` new-code duplication. The
+final narrow refactors remove those findings without suppressions or weakened
+controls; a fresh exact-head analysis must prove zero new issues.
+
 ## Checks not run
 
-- Fresh corrected-head PR checks, SonarQube Cloud, review state, exact-head
-  merge, and resulting-master dispatches require publication or integration.
+- Fresh final-head PR checks, SonarQube Cloud, review state, exact-head merge,
+  and resulting-master dispatches require publication or integration.
 
 ## Limitations and residual risk
 
@@ -81,4 +87,5 @@ The task remains limited to Framework workflows, canonical pin updates,
 contracts, regressions, and this paired record. PR #85 exists as a Draft; no
 merge, Parent Gitlink update, or MRTS action has occurred. Whitespace,
 independent security review, and the final security-diff review have passed;
-fresh hosted verification remains required before delivery.
+the tracked Sonar refactors and fresh hosted verification remain required before
+delivery.
