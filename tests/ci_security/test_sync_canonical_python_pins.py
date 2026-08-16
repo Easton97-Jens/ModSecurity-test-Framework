@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 
@@ -22,9 +23,13 @@ COMMON = """\
 CI_CANONICAL_PYTHON_VERSION="3.14.6"
 CI_CANONICAL_PYYAML_VERSION="6.0.3"
 CI_CANONICAL_PYYAML_SHA256="c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5"
+CI_CANONICAL_PYYAML_ARTIFACT="pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+CI_CANONICAL_PYYAML_PLATFORM="manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64"
 """
 REQUIREMENTS = """\
 # generated view; authority is ci/lib/common.sh
+# PyYAML artifact: pyyaml-6.0.3-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl
+# PyYAML platform: manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64
 PyYAML==6.0.3 \\
     --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5
 """
@@ -103,6 +108,24 @@ class CanonicalPythonPinsTest(unittest.TestCase):
         result = self.run_tool(root, "--check")
         self.assertEqual(result.returncode, 2)
         self.assertIn("64 lowercase hex", result.stderr)
+
+    def test_pathological_platform_is_rejected_in_linear_time(self) -> None:
+        root = self.make_root()
+        common = root / "ci/lib/common.sh"
+        pathological = ("manylinux." * 100_000) + "!"
+        common.write_text(
+            COMMON.replace(
+                'CI_CANONICAL_PYYAML_PLATFORM="manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64"',
+                f'CI_CANONICAL_PYYAML_PLATFORM="{pathological}"',
+            ),
+            encoding="utf-8",
+        )
+        started = time.monotonic()
+        result = self.run_tool(root, "--check")
+        elapsed = time.monotonic() - started
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("PYYAML_PLATFORM is malformed", result.stderr)
+        self.assertLess(elapsed, 1.0)
 
     def test_duplicate_canonical_assignment_is_rejected(self) -> None:
         root = self.make_root()

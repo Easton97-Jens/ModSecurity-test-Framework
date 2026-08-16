@@ -37,6 +37,20 @@ UPDATER = load_updater()
 
 
 class WorkflowToolUpdaterTests(unittest.TestCase):
+    def test_current_tool_pins_have_explicit_provider_identity(self) -> None:
+        _path, lock, _digest = UPDATER.load_lock(ROOT)
+        for name, record in lock["tools"].items():
+            self.assertEqual(
+                record["repository"], UPDATER.release_identity(record, name).slug
+            )
+
+    def test_provider_transition_is_rejected_before_resolution(self) -> None:
+        _path, lock, _digest = UPDATER.load_lock(ROOT)
+        record = deepcopy(lock["tools"]["scorecard"])
+        record["repository"] = "attacker/scorecard"
+        with self.assertRaisesRegex(UPDATER.UpdateError, "provider|repository"):
+            UPDATER.validate_tool_lock_records({"tools": {"scorecard": record}})
+
     def copied_update_root(self, temporary_root: Path) -> Path:
         destination = temporary_root / "framework"
         for relative_text in UPDATER.ALLOWED_UPDATE_PATHS:

@@ -274,6 +274,18 @@ class ReleaseAssetRedirectTest(unittest.TestCase):
         with self.assertRaisesRegex(FETCHER.ToolError, "provenance"):
             FETCHER._validate_release_asset_url(record, "actionlint")
 
+    def test_rejects_a_missing_provider_identity(self) -> None:
+        record = FETCHER.read_tool_record(LOCK_PATH, "actionlint")
+        record.pop("repository")
+        with self.assertRaisesRegex(FETCHER.ToolError, "repository identity"):
+            FETCHER._validate_tool_identity(record, "actionlint")
+
+    def test_rejects_a_provider_transition_against_canonical_source(self) -> None:
+        record = FETCHER.read_tool_record(LOCK_PATH, "actionlint")
+        record["repository"] = "attacker/actionlint"
+        with self.assertRaisesRegex(FETCHER.ToolError, "canonical source"):
+            FETCHER._validate_canonical_provider(record, "actionlint")
+
 
 class ArchiveResourceLimitTest(unittest.TestCase):
     @staticmethod

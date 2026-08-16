@@ -953,7 +953,74 @@ jobs:
                         "\n".join(errors),
                     )
 
-    def test_common_version_publisher_rejects_privilege_and_scope_regressions(
+    def test_unified_common_maintenance_rejects_security_boundary_mutations(
+        self,
+    ) -> None:
+        workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+
+        def replace_job_field(
+            text: str, job: str, next_job: str, old: str, new: str
+        ) -> str:
+            start = text.index(f"\n  {job}:\n")
+            end = text.index(f"\n  {next_job}:\n", start + 1)
+            section = text[start:end]
+            self.assertIn(old, section)
+            return text[:start] + section.replace(old, new, 1) + text[end:]
+
+        mutations = {
+            "legacy_job": workflow.replace(
+                "jobs:\n",
+                "jobs:\n  legacy-resolve:\n    if: ${{ false }}\n    runs-on: ubuntu-latest\n    timeout-minutes: 1\n    permissions:\n      contents: read\n    steps: []\n",
+                1,
+            ),
+            "candidate_write": replace_job_field(
+                workflow,
+                "candidate",
+                "publish",
+                "      contents: read",
+                "      contents: write",
+            ),
+            "missing_plan_binding": workflow.replace(
+                '          args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --expected-plan-sha256 "$PLAN_SHA256")',
+                '          args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json")',
+                1,
+            ),
+            "extra_read_token": workflow.replace(
+                "          GITHUB_TOKEN: ${{ github.token }}\n",
+                "          GITHUB_TOKEN: ${{ github.token }}\n          EXTRA_TOKEN: ${{ github.token }}\n",
+                1,
+            ),
+            "issue_uses_publisher_app": workflow.replace(
+                "MAINTENANCE_ISSUE_APP_PRIVATE_KEY",
+                "WORKFLOW_UPDATER_APP_PRIVATE_KEY",
+                1,
+            ),
+            "publisher_uses_default_token": workflow.replace(
+                "          token: ${{ steps.publisher_app_token.outputs.token }}",
+                "          token: ${{ github.token }}",
+                1,
+            ),
+            "generated_path_expanded": workflow.replace(
+                "            ci/lib/common.sh\n",
+                "            ci/lib/common.sh\n            unsafe/generated.txt\n",
+                1,
+            ),
+            "result_not_always": workflow.replace(
+                "    if: ${{ always() }}\n",
+                "    if: ${{ success() }}\n",
+                1,
+            ),
+        }
+        for name, mutated in mutations.items():
+            with self.subTest(name=name):
+                self.assertNotEqual(mutated, workflow)
+                errors = CHECKER.workflow_contract_errors(
+                    workflow_path, mutated, CHECKER.yaml.safe_load(mutated)
+                )
+                self.assertTrue(errors, name)
+
+    def _legacy_common_version_publisher_rejects_privilege_and_scope_regressions(
         self,
     ) -> None:
         workflow = (ROOT / ".github/workflows/check-common-versions.yml").read_text(
@@ -1302,7 +1369,42 @@ jobs:
                     "\n".join(errors),
                 )
 
-    def test_common_version_result_job_reports_safe_terminal_states(self) -> None:
+    def test_unified_common_maintenance_rejects_result_boundary_mutations(self) -> None:
+        workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+
+        def replace_result_field(text: str, old: str, new: str) -> str:
+            start = text.index("\n  result:\n")
+            section = text[start:]
+            self.assertIn(old, section)
+            return text[:start] + section.replace(old, new, 1)
+
+        mutations = {
+            "result_writes": replace_result_field(
+                workflow,
+                "      contents: read",
+                "      contents: write",
+            ),
+            "result_not_always": replace_result_field(
+                workflow,
+                "    if: ${{ always() }}",
+                "    if: ${{ success() }}",
+            ),
+            "result_secret": workflow.replace(
+                "          FATAL: ${{ needs.canonical-maintenance.outputs.fatal }}\n",
+                "          FATAL: ${{ needs.canonical-maintenance.outputs.fatal }}\n          SECRET: ${{ secrets.UNSAFE }}\n",
+                1,
+            ),
+        }
+        for name, mutated in mutations.items():
+            with self.subTest(name=name):
+                self.assertNotEqual(mutated, workflow)
+                errors = CHECKER.workflow_contract_errors(
+                    workflow_path, mutated, CHECKER.yaml.safe_load(mutated)
+                )
+                self.assertTrue(errors, name)
+
+    def _legacy_common_version_result_job_reports_safe_terminal_states(self) -> None:
         workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
         workflow = CHECKER.yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
         result_run = workflow["jobs"]["result"]["steps"][0]["run"]

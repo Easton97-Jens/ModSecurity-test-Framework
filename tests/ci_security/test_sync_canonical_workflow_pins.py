@@ -53,6 +53,18 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
         self.assertIn("  a:\n    version: new", result)
         self.assertIn("  b:\n    version: keep", result)
 
+    def test_source_discovery_rejects_incomplete_new_group(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            common = self.write_canonical_common(root)
+            common.write_text(
+                common.read_text(encoding="utf-8")
+                + 'CI_ACTION_NEW_REPOSITORY="example/new"\n',
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(MODULE.PinError, "incomplete canonical group"):
+                MODULE.source_common(root)
+
     def test_workflow_generation_updates_pin_and_comment(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

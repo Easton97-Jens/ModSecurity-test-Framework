@@ -27,10 +27,14 @@ PATH_BOOTSTRAP = ROOT / "ci" / "lib" / "path-bootstrap.sh"
 PATH_HELPER = ROOT / "ci" / "lib" / "path.sh"
 RUNTIME_COMPONENT_HELPER = ROOT / "ci" / "lib" / "runtime-component-common.sh"
 CONNECTOR_SMOKE_HELPER = ROOT / "ci" / "lib" / "connector-smoke-common.sh"
-RUNTIME_COMPONENT_LOCK_CHECKER = ROOT / "ci" / "tools" / "check-runtime-component-lock.py"
+RUNTIME_COMPONENT_LOCK_CHECKER = (
+    ROOT / "ci" / "tools" / "check-runtime-component-lock.py"
+)
 RUNTIME_COMPONENT_SYNCHRONIZER = ROOT / "ci" / "tools" / "sync-runtime-components.py"
 RUNTIME_COMPONENT_LOCK = ROOT / "ci" / "provisioning" / "runtime-component-lock.json"
-RUNTIME_COMPONENT_MANIFEST = ROOT / "ci" / "provisioning" / "runtime-components.manifest.json"
+RUNTIME_COMPONENT_MANIFEST = (
+    ROOT / "ci" / "provisioning" / "runtime-components.manifest.json"
+)
 PREPARE_TRAEFIK = ROOT / "ci" / "provisioning" / "prepare-traefik-runtime.sh"
 SYNC_MANIFEST = ROOT / "ci" / "tools" / "sync-traefik-runtime-manifest.py"
 PINNED_VERSION = "3.7.10"
@@ -108,7 +112,9 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         fixture_root = self.temporary_root / name
         fixture_common = write_common_fixture(
             fixture_root,
-            common_source if common_source is not None else COMMON_SOURCE.read_text(encoding="utf-8"),
+            common_source
+            if common_source is not None
+            else COMMON_SOURCE.read_text(encoding="utf-8"),
             {},
         )
         lib_root = fixture_root / "ci" / "lib"
@@ -120,10 +126,20 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         shutil.copy2(PATH_HELPER, lib_root / "path.sh")
         shutil.copy2(RUNTIME_COMPONENT_HELPER, lib_root / "runtime-component-common.sh")
         shutil.copy2(CONNECTOR_SMOKE_HELPER, lib_root / "connector-smoke-common.sh")
-        shutil.copy2(RUNTIME_COMPONENT_LOCK_CHECKER, tools_root / "check-runtime-component-lock.py")
-        shutil.copy2(RUNTIME_COMPONENT_SYNCHRONIZER, tools_root / "sync-runtime-components.py")
-        shutil.copy2(RUNTIME_COMPONENT_LOCK, provisioning_root / "runtime-component-lock.json")
-        shutil.copy2(RUNTIME_COMPONENT_MANIFEST, provisioning_root / "runtime-components.manifest.json")
+        shutil.copy2(
+            RUNTIME_COMPONENT_LOCK_CHECKER,
+            tools_root / "check-runtime-component-lock.py",
+        )
+        shutil.copy2(
+            RUNTIME_COMPONENT_SYNCHRONIZER, tools_root / "sync-runtime-components.py"
+        )
+        shutil.copy2(
+            RUNTIME_COMPONENT_LOCK, provisioning_root / "runtime-component-lock.json"
+        )
+        shutil.copy2(
+            RUNTIME_COMPONENT_MANIFEST,
+            provisioning_root / "runtime-components.manifest.json",
+        )
         fixture_prepare = provisioning_root / "prepare-traefik-runtime.sh"
         shutil.copy2(PREPARE_TRAEFIK, fixture_prepare)
         (fixture_root / "Makefile").write_text("# fixture\n", encoding="utf-8")
@@ -194,7 +210,9 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
             profile["sha256"] = sha256
         lock_path.write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
 
-        manifest_path = fixture_root / "ci" / "provisioning" / "runtime-components.manifest.json"
+        manifest_path = (
+            fixture_root / "ci" / "provisioning" / "runtime-components.manifest.json"
+        )
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest_components = [
             component
@@ -203,7 +221,9 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         ]
         self.assertEqual(len(manifest_components), 1)
         manifest_components[0]["sha256"] = sha256
-        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        manifest_path.write_text(
+            json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+        )
 
     def run_preparer(
         self, fixture_root: Path, prepare: Path
@@ -245,8 +265,26 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
     def run_sync(
         self, mode: str, common: Path, manifest: Path
     ) -> subprocess.CompletedProcess[str]:
+        if (
+            common.name == "common.sh"
+            and common.parent.name == "lib"
+            and common.parent.parent.name == "ci"
+        ):
+            test_root = common.parents[2]
+        else:
+            test_root = common.parent
         return subprocess.run(
-            ["python3", str(SYNC_MANIFEST), mode, "--common-sh", str(common), "--manifest", str(manifest)],
+            [
+                "python3",
+                str(SYNC_MANIFEST),
+                mode,
+                "--common-sh",
+                str(common),
+                "--manifest",
+                str(manifest),
+                "--test-root",
+                str(test_root),
+            ],
             cwd=ROOT,
             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
             text=True,
@@ -275,12 +313,18 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         invalid = {
             "old-version": {"TRAEFIK_VERSION": "3.7.5"},
             "empty-version": {"TRAEFIK_VERSION": ""},
-            "foreign-source": {"TRAEFIK_SOURCE_URL": "https://mirror.example.invalid/traefik"},
-            "wrong-download": {"TRAEFIK_DOWNLOAD_URL": "https://github.com/traefik/traefik/releases/download/v3.7.10/other.tar.gz"},
+            "foreign-source": {
+                "TRAEFIK_SOURCE_URL": "https://mirror.example.invalid/traefik"
+            },
+            "wrong-download": {
+                "TRAEFIK_DOWNLOAD_URL": "https://github.com/traefik/traefik/releases/download/v3.7.10/other.tar.gz"
+            },
             "missing-sha": {"TRAEFIK_SHA256": ""},
             "malformed-sha": {"TRAEFIK_SHA256": "not-a-sha256"},
             "wrong-platform": {"TRAEFIK_ARTIFACT_PLATFORM": "linux_arm64"},
-            "wrong-archive": {"TRAEFIK_ARCHIVE_NAME": "traefik_v3.7.10_linux_arm64.tar.gz"},
+            "wrong-archive": {
+                "TRAEFIK_ARCHIVE_NAME": "traefik_v3.7.10_linux_arm64.tar.gz"
+            },
             "unverified-binary": {"TRAEFIK_BIN": "/tmp/arbitrary-traefik"},
             "self-consistent-replacement": {
                 "TRAEFIK_VERSION": "3.7.5",
@@ -307,13 +351,15 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 77, completed.stdout)
         self.assertIn("PCRE2_SHA256_URL override is not permitted", completed.stdout)
 
-    def test_post_source_mutations_and_internal_missing_metadata_fail_closed(self) -> None:
+    def test_post_source_mutations_and_internal_missing_metadata_fail_closed(
+        self,
+    ) -> None:
         post_source = subprocess.run(
             [
                 "sh",
                 "-eu",
                 "-c",
-                '\n'.join(
+                "\n".join(
                     (
                         '. "$COMMON_SH"',
                         'TRAEFIK_DOWNLOAD_URL="https://github.com/traefik/traefik/releases/download/v3.7.10/other.tar.gz"',
@@ -368,7 +414,13 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         self.set_fixture_traefik_sha256(fixture_root, common, digest)
 
         completed = self.run_preparer(fixture_root, prepare)
-        staged = self.fixture_verified_root(fixture_root) / "build" / "traefik-connector" / "bin" / "traefik"
+        staged = (
+            self.fixture_verified_root(fixture_root)
+            / "build"
+            / "traefik-connector"
+            / "bin"
+            / "traefik"
+        )
 
         self.assertEqual(completed.returncode, 0, completed.stdout)
         self.assertTrue(staged.is_file(), completed.stdout)
@@ -403,11 +455,17 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         self.assertFalse((component_root / "bin" / "traefik").exists())
         self.assertFalse((component_root / "extract").exists())
 
-    def test_missing_archive_propagates_the_blocked_status_from_the_resolver(self) -> None:
-        fixture_root, common, _prepare = self.create_framework_fixture("missing-archive")
+    def test_missing_archive_propagates_the_blocked_status_from_the_resolver(
+        self,
+    ) -> None:
+        fixture_root, common, _prepare = self.create_framework_fixture(
+            "missing-archive"
+        )
 
         completed = self.run_resolver(fixture_root, common)
-        component_root = self.fixture_verified_root(fixture_root) / "cache-v2" / "shared" / "traefik"
+        component_root = (
+            self.fixture_verified_root(fixture_root) / "cache-v2" / "shared" / "traefik"
+        )
 
         self.assertEqual(completed.returncode, 77, completed.stdout)
         self.assertIn("BLOCKED:", completed.stdout)
@@ -439,7 +497,9 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         environment = self.preparer_environment(fixture_root)
         environment.update(
             {
-                "SMOKE_COMMON": str(fixture_root / "ci" / "lib" / "connector-smoke-common.sh"),
+                "SMOKE_COMMON": str(
+                    fixture_root / "ci" / "lib" / "connector-smoke-common.sh"
+                ),
                 "MARKER": str(marker),
             }
         )
@@ -462,7 +522,9 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         self.assertIn("runtime dependency is not staged locally", completed.stdout)
         self.assertFalse(marker.exists(), completed.stdout)
 
-    def test_manifest_write_is_deterministic_and_check_reports_expected_found(self) -> None:
+    def test_manifest_write_is_deterministic_and_check_reports_expected_found(
+        self,
+    ) -> None:
         manifest = self.temporary_root / "runtime-components.manifest.json"
         self.write_minimal_manifest(manifest)
 
@@ -522,10 +584,14 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
 
         self.assertIsNotNone(synchronizer.VERSION_RE.fullmatch(PINNED_VERSION))
         self.assertIsNone(synchronizer.VERSION_RE.fullmatch(unicode_version))
-        with self.assertRaisesRegex(synchronizer.ManifestSyncError, "exact dotted release"):
+        with self.assertRaisesRegex(
+            synchronizer.ManifestSyncError, "exact dotted release"
+        ):
             synchronizer.validate_canonical_tuple(unicode_values)
 
-    def test_manifest_tool_rejects_duplicate_manual_pin_and_invalid_source_metadata(self) -> None:
+    def test_manifest_tool_rejects_duplicate_manual_pin_and_invalid_source_metadata(
+        self,
+    ) -> None:
         manifest = self.temporary_root / "runtime-components.manifest.json"
         self.write_minimal_manifest(manifest)
         duplicate = self.temporary_root / "duplicate-common.sh"
@@ -537,7 +603,10 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         duplicate_result = self.run_sync("--check", duplicate, manifest)
 
         self.assertEqual(duplicate_result.returncode, 2, duplicate_result.stdout)
-        self.assertIn("exactly one manually maintained TRAEFIK_VERSION literal", duplicate_result.stdout)
+        self.assertIn(
+            "exactly one manually maintained TRAEFIK_VERSION literal",
+            duplicate_result.stdout,
+        )
 
         invalid = self.temporary_root / "invalid-common.sh"
         invalid.write_text(

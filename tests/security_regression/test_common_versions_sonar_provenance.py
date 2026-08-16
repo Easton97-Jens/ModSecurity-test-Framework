@@ -331,12 +331,24 @@ class CommonVersionProvenanceTests(unittest.TestCase):
 
     @staticmethod
     def haproxy_fixture(version: str, source_url: str, checksum: str) -> str:
+        series = ".".join(version.split(".")[:2])
+        release_root = "https://www.haproxy.org/download"
         return "\n".join(
             [
+                f'HAPROXY_SERIES="${{HAPROXY_SERIES:-{series}}}"',
+                f'HAPROXY_RELEASE_ROOT_URL="${{HAPROXY_RELEASE_ROOT_URL:-{release_root}}}"',
+                f'HAPROXY_SERIES_BASE_URL="${{HAPROXY_SERIES_BASE_URL:-{release_root}/{series}/src}}"',
                 f'HAPROXY_VERSION="${{HAPROXY_VERSION:-{version}}}"',
+                f'HAPROXY_ARCHIVE_NAME="${{HAPROXY_ARCHIVE_NAME:-haproxy-{version}{TARBALL_EXTENSION}}}"',
                 f'HAPROXY_SOURCE_URL="${{HAPROXY_SOURCE_URL:-{source_url}}}"',
                 f'HAPROXY_SHA256_URL="${{HAPROXY_SHA256_URL:-{source_url}{SHA256_SUFFIX}}}"',
                 f'HAPROXY_SHA256="${{HAPROXY_SHA256:-{checksum}}}"',
+                f'HAPROXY_HTX_SERIES="${{HAPROXY_HTX_SERIES:-{series}}}"',
+                f'HAPROXY_HTX_SERIES_BASE_URL="${{HAPROXY_HTX_SERIES_BASE_URL:-{release_root}/{series}/src}}"',
+                f'HAPROXY_HTX_VERSION="${{HAPROXY_HTX_VERSION:-{version}}}"',
+                f'HAPROXY_HTX_ARCHIVE_NAME="${{HAPROXY_HTX_ARCHIVE_NAME:-haproxy-{version}{TARBALL_EXTENSION}}}"',
+                f'HAPROXY_HTX_SOURCE_URL="${{HAPROXY_HTX_SOURCE_URL:-{release_root}/{series}/src/haproxy-{version}{TARBALL_EXTENSION}}}"',
+                f'HAPROXY_HTX_SHA256="${{HAPROXY_HTX_SHA256:-{CHECKSUM}}}"',
                 "",
             ]
         )
@@ -449,10 +461,15 @@ class CommonVersionProvenanceTests(unittest.TestCase):
         )
         self.assertEqual(CHECKER.value(entries, "MODSECURITY_V3_GIT_REF"), release_tag)
         self.assertEqual(CHECKER.validate_entries(entries), [])
-        self.assertIsNone(
+        self.assertEqual(
             CHECKER.parse_common_assignment(
                 'UNRELATED_APPROVED_REPO_URL="https://example.invalid/unrelated.git"'
-            )
+            ),
+            (
+                "literal-assignment",
+                "UNRELATED_APPROVED_REPO_URL",
+                "https://example.invalid/unrelated.git",
+            ),
         )
         self.assertEqual(
             CHECKER.validate_entries(missing_entries),

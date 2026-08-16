@@ -21,14 +21,28 @@ import yaml
 
 
 ACTION_SUFFIXES = (
-    "CHECKOUT", "SETUP_PYTHON", "SETUP_NODE", "UPLOAD_ARTIFACT",
-    "GITHUB_SCRIPT", "CREATE_GITHUB_APP_TOKEN", "CREATE_PULL_REQUEST",
-    "CODEQL", "DEPENDENCY_REVIEW",
+    "CHECKOUT",
+    "SETUP_PYTHON",
+    "SETUP_NODE",
+    "UPLOAD_ARTIFACT",
+    "GITHUB_SCRIPT",
+    "CREATE_GITHUB_APP_TOKEN",
+    "CREATE_PULL_REQUEST",
+    "CODEQL",
+    "DEPENDENCY_REVIEW",
 )
 TOOL_SUFFIXES = (
-    "SCORECARD", "OSV_SCANNER", "ACTIONLINT", "SHELLCHECK",
-    "ZIZMOR", "GITLEAKS", "RUFF", "PYRIGHT",
+    "SCORECARD",
+    "OSV_SCANNER",
+    "ACTIONLINT",
+    "SHELLCHECK",
+    "ZIZMOR",
+    "GITLEAKS",
+    "RUFF",
+    "PYRIGHT",
 )
+ACTION_FIELDS = ("REPOSITORY", "VERSION", "COMMIT")
+TOOL_FIELDS = ("REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256")
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 LITERAL_VALUE = re.compile(r"^[A-Za-z0-9._/+:-]+$")
@@ -36,7 +50,9 @@ REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 SAFE_EXPANSION = re.compile(
     r"\$\{(?P<braced>CI_[A-Z0-9_]+)(?:#(?P<prefix>[A-Za-z0-9._+-]+))?\}|\$(?P<bare>CI_[A-Z0-9_]+)"
 )
-REMOTE_USE = re.compile(r"(?P<prefix>\buses:\s*)(?P<quote>[\"']?)(?P<ref>[^\s\"']+)(?P=quote)")
+REMOTE_USE = re.compile(
+    r"(?P<prefix>\buses:\s*)(?P<quote>[\"']?)(?P<ref>[^\s\"']+)(?P=quote)"
+)
 NODE_VERSION_LINE = re.compile(
     r"^(?P<prefix>\s*node-version:\s*)(?P<quote>[\"']?)(?P<value>[^\s#\"']+)(?P=quote)(?P<suffix>\s*(?:#.*)?)$"
 )
@@ -49,7 +65,9 @@ OSV_LEGACY_FIELD_LINES = {
     ),
 }
 GENERATED_LOCK = "# GENERATED FILE: values are sourced from ci/lib/common.sh; do not edit pin fields manually.\n"
-GENERATED_DOC = "<!-- GENERATED PIN TABLE: values are sourced from ci/lib/common.sh. -->"
+GENERATED_DOC = (
+    "<!-- GENERATED PIN TABLE: values are sourced from ci/lib/common.sh. -->"
+)
 
 
 class PinError(RuntimeError):
@@ -99,24 +117,88 @@ def validate_managed_path(root: Path, path: Path, *, require_file: bool = True) 
         raise PinError(f"managed file is not a regular file: {path}")
 
 
-def canonical_names() -> list[str]:
+def _discover_groups(
+    text: str, prefix: str, fields: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Discover complete canonical groups from the source assignment names.
+
+    The checked-in source is allowed to grow new actions/tools without this
+    synchronizer having to be edited.  Every discovered group must be exactly
+    the typed field set; partial or unknown fields fail closed.
+    """
+    groups: dict[str, set[str]] = {}
+    pattern = re.compile(rf"^(?P<name>{re.escape(prefix)}_[A-Z0-9_]+_[A-Z0-9_]+)=")
+    for line in text.splitlines():
+        parsed = _parse_group_assignment(
+            strip_shell_comment(line).rstrip(), pattern, fields, prefix
+        )
+        if parsed is not None:
+            suffix, field = parsed
+            groups.setdefault(suffix, set()).add(field)
+    expected = set(fields)
+    if not groups:
+        raise PinError(f"common.sh has no canonical {prefix} groups")
+    for suffix, actual in sorted(groups.items()):
+        unknown = actual - expected
+        missing = expected - actual
+        if unknown or missing:
+            details = []
+            if unknown:
+                details.append("unknown=" + ",".join(sorted(unknown)))
+            if missing:
+                details.append("missing=" + ",".join(sorted(missing)))
+            raise PinError(
+                f"incomplete canonical group {prefix}_{suffix}: " + "; ".join(details)
+            )
+    return tuple(sorted(groups))
+
+
+def _parse_group_assignment(
+    line: str, pattern: re.Pattern[str], fields: tuple[str, ...], prefix: str
+) -> tuple[str, str] | None:
+    match = pattern.match(line)
+    if match is None:
+        return None
+    remainder = match.group("name").removeprefix(prefix + "_")
+    field = next(
+        (
+            item
+            for item in sorted(fields, key=len, reverse=True)
+            if remainder.endswith("_" + item)
+        ),
+        None,
+    )
+    if field is None:
+        return remainder, "<unknown>"
+    return remainder[: -(len(field) + 1)], field
+
+
+def canonical_names(source: str | None = None) -> list[str]:
+    """Return canonical names, discovering action/tool groups when sourced."""
+    action_suffixes = ACTION_SUFFIXES
+    tool_suffixes = TOOL_SUFFIXES
+    if source is not None:
+        action_suffixes = _discover_groups(source, "CI_ACTION", ACTION_FIELDS)
+        tool_suffixes = _discover_groups(source, "CI_SECURITY_TOOL", TOOL_FIELDS)
     names = [
         "CI_CANONICAL_PYTHON_VERSION",
         "CI_CANONICAL_PYYAML_VERSION",
         "CI_CANONICAL_PYYAML_SHA256",
+        "CI_CANONICAL_PYYAML_ARTIFACT",
+        "CI_CANONICAL_PYYAML_PLATFORM",
         "CI_CANONICAL_NODE_VERSION",
         "CI_OSV_LEGACY_BASE_SHA",
         "CI_OSV_LEGACY_BASE_VERSION",
     ]
     names += [
         f"CI_ACTION_{suffix}_{field}"
-        for suffix in ACTION_SUFFIXES
-        for field in ("REPOSITORY", "VERSION", "COMMIT")
+        for suffix in action_suffixes
+        for field in ACTION_FIELDS
     ]
     names += [
         f"CI_SECURITY_TOOL_{suffix}_{field}"
-        for suffix in TOOL_SUFFIXES
-        for field in ("REPOSITORY", "VERSION", "COMMIT", "ASSET_NAME", "SHA256")
+        for suffix in tool_suffixes
+        for field in TOOL_FIELDS
     ]
     return names
 
@@ -192,14 +274,18 @@ def source_common(root: Path) -> dict[str, str]:
         raise PinError(f"cannot resolve common source: {exc}") from exc
     if resolved_common.parent.parent.parent != resolved_root:
         raise PinError(f"common source is not a regular file: {common}")
-    names = canonical_names()
-    name_set = set(names)
-    assignment = re.compile(r"^(?P<name>" + "|".join(re.escape(name) for name in names) + r")=(?P<quote>[\"'])(?P<value>[^\"']+)(?P=quote)$")
-    values: dict[str, str] = {}
     try:
         content = common.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
         raise PinError(f"common source is not UTF-8: {common}") from exc
+    names = canonical_names(content)
+    name_set = set(names)
+    assignment = re.compile(
+        r"^(?P<name>"
+        + "|".join(re.escape(name) for name in names)
+        + r")=(?P<quote>[\"'])(?P<value>[^\"']+)(?P=quote)$"
+    )
+    values: dict[str, str] = {}
     for line_number, line in enumerate(content.splitlines(), 1):
         assignment_value = _parse_canonical_assignment(
             line, line_number, common, name_set, assignment
@@ -245,7 +331,9 @@ def _store_canonical_value(
             f"{common}:{line_number}: canonical pin contains unsafe literal characters"
         )
     if name in values:
-        raise PinError(f"{common}:{line_number}: duplicate canonical pin assignment: {name}")
+        raise PinError(
+            f"{common}:{line_number}: duplicate canonical pin assignment: {name}"
+        )
     values[name] = value
 
 
@@ -282,7 +370,7 @@ def action_suffix_for_reference(action: str, values: dict[str, str]) -> str | No
 
     matches = [
         suffix
-        for suffix in ACTION_SUFFIXES
+        for suffix in _value_group_suffixes(values, "CI_ACTION", ACTION_FIELDS)
         if action == values.get(f"CI_ACTION_{suffix}_REPOSITORY")
         or action.startswith(values.get(f"CI_ACTION_{suffix}_REPOSITORY", "") + "/")
     ]
@@ -291,7 +379,40 @@ def action_suffix_for_reference(action: str, values: dict[str, str]) -> str | No
     return matches[0] if matches else None
 
 
-def replace_record_field(text: str, section: str, record: str, field: str, value: str) -> str:
+def _value_group_suffixes(
+    values: dict[str, str], prefix: str, fields: tuple[str, ...]
+) -> tuple[str, ...]:
+    groups: dict[str, set[str]] = {}
+    marker = prefix + "_"
+    for name in values:
+        if not name.startswith(marker):
+            continue
+        remainder = name.removeprefix(marker)
+        field = next(
+            (
+                item
+                for item in sorted(fields, key=len, reverse=True)
+                if remainder.endswith("_" + item)
+            ),
+            None,
+        )
+        if field is None:
+            suffix, field = remainder, "<unknown>"
+        else:
+            suffix = remainder[: -(len(field) + 1)]
+        groups.setdefault(suffix, set()).add(field)
+    expected = set(fields)
+    invalid = {
+        suffix: actual for suffix, actual in groups.items() if actual != expected
+    }
+    if invalid:
+        raise PinError("canonical group coverage is incomplete or unknown")
+    return tuple(sorted(groups))
+
+
+def replace_record_field(
+    text: str, section: str, record: str, field: str, value: str
+) -> str:
     section_start = text.index(section + ":")
     marker = re.search(rf"(?m)^  {re.escape(record)}:\s*$", text[section_start:])
     if marker is None:
@@ -315,26 +436,64 @@ def lock_values(root: Path, values: dict[str, str]) -> bytes:
     parsed: dict[str, Any] = yaml.safe_load(text) or {}
     actions = parsed.get("actions", {})
     tools = parsed.get("tools", {})
-    action_records = {values[f"CI_ACTION_{suffix}_REPOSITORY"]: suffix for suffix in ACTION_SUFFIXES}
-    tool_records = {values[f"CI_SECURITY_TOOL_{suffix}_REPOSITORY"].rsplit("/", 1)[-1]: suffix for suffix in TOOL_SUFFIXES}
+    action_suffixes = _value_group_suffixes(values, "CI_ACTION", ACTION_FIELDS)
+    tool_suffixes = _value_group_suffixes(values, "CI_SECURITY_TOOL", TOOL_FIELDS)
+    action_records = {
+        values[f"CI_ACTION_{suffix}_REPOSITORY"]: suffix for suffix in action_suffixes
+    }
+    tool_records = {
+        values[f"CI_SECURITY_TOOL_{suffix}_REPOSITORY"].rsplit("/", 1)[-1]: suffix
+        for suffix in tool_suffixes
+    }
+    repositories = [
+        values[f"CI_SECURITY_TOOL_{suffix}_REPOSITORY"] for suffix in tool_suffixes
+    ]
+    if len({repository.rsplit("/", 1)[-1] for repository in repositories}) != len(
+        repositories
+    ):
+        raise PinError("canonical security tool repository basename collision")
     if set(actions) != set(action_records) or set(tools) != set(tool_records):
-        raise PinError("security-tools.lock.yml records do not match canonical repositories")
+        raise PinError(
+            "security-tools.lock.yml records do not match canonical repositories"
+        )
     for action, suffix in action_records.items():
         version = values[f"CI_ACTION_{suffix}_VERSION"]
         commit = values[f"CI_ACTION_{suffix}_COMMIT"]
         text = replace_record_field(text, "actions", action, "name", action)
         text = replace_record_field(text, "actions", action, "version", version)
         text = replace_record_field(text, "actions", action, "immutable_commit", commit)
-        text = replace_record_field(text, "actions", action, "upstream_release", f"https://github.com/{action}/releases/tag/{version}")
+        text = replace_record_field(
+            text,
+            "actions",
+            action,
+            "upstream_release",
+            f"https://github.com/{action}/releases/tag/{version}",
+        )
     for tool, suffix in tool_records.items():
         repository = values[f"CI_SECURITY_TOOL_{suffix}_REPOSITORY"]
         version = values[f"CI_SECURITY_TOOL_{suffix}_VERSION"]
         commit = values[f"CI_SECURITY_TOOL_{suffix}_COMMIT"]
         asset = values[f"CI_SECURITY_TOOL_{suffix}_ASSET_NAME"]
         digest = values[f"CI_SECURITY_TOOL_{suffix}_SHA256"]
+        existing = tools.get(tool)
+        if not isinstance(existing, dict) or existing.get("repository") != repository:
+            raise PinError(
+                f"security tool {tool!r} lock repository does not match canonical source"
+            )
         release = f"https://github.com/{repository}/releases/tag/{version}"
-        asset_url = f"https://github.com/{repository}/releases/download/{version}/{asset}"
-        for field, value in (("name", tool), ("version", version), ("immutable_commit", commit), ("upstream_release", release), ("asset", asset), ("asset_url", asset_url), ("sha256", digest)):
+        asset_url = (
+            f"https://github.com/{repository}/releases/download/{version}/{asset}"
+        )
+        for field, value in (
+            ("name", tool),
+            ("repository", repository),
+            ("version", version),
+            ("immutable_commit", commit),
+            ("upstream_release", release),
+            ("asset", asset),
+            ("asset_url", asset_url),
+            ("sha256", digest),
+        ):
             text = replace_record_field(text, "tools", tool, field, value)
     return text.encode("utf-8")
 
@@ -360,7 +519,9 @@ def _rewrite_osv_line(
     return None
 
 
-def _rewrite_node_line(line: str, values: dict[str, str]) -> tuple[str | None, str | None]:
+def _rewrite_node_line(
+    line: str, values: dict[str, str]
+) -> tuple[str | None, str | None]:
     if "node-version:" not in line.rstrip("\n"):
         return None, None
     match = NODE_VERSION_LINE.fullmatch(line.rstrip("\n"))
@@ -440,11 +601,15 @@ def _validate_workflow_actions(
             not SHA40.fullmatch(current)
             or f"# {values[f'CI_ACTION_{action_suffix}_VERSION']}" not in line
         ):
-            errors.append(f"{path.relative_to(root)}:{line_number}: Action pin/comment drift")
+            errors.append(
+                f"{path.relative_to(root)}:{line_number}: Action pin/comment drift"
+            )
     return errors
 
 
-def workflow_values(root: Path, values: dict[str, str]) -> tuple[list[str], list[tuple[Path, bytes]]]:
+def workflow_values(
+    root: Path, values: dict[str, str]
+) -> tuple[list[str], list[tuple[Path, bytes]]]:
     errors: list[str] = []
     outputs: list[tuple[Path, bytes]] = []
     for path in sorted((root / ".github/workflows").glob("*.y*ml")):
@@ -473,7 +638,7 @@ def workflow_values(root: Path, values: dict[str, str]) -> tuple[list[str], list
 
 
 def _documentation_line(line: str, values: dict[str, str]) -> str:
-    for suffix in ACTION_SUFFIXES:
+    for suffix in _value_group_suffixes(values, "CI_ACTION", ACTION_FIELDS):
         action = values[f"CI_ACTION_{suffix}_REPOSITORY"]
         if not line.startswith(f"| `{action}`"):
             continue
@@ -486,16 +651,23 @@ def _documentation_line(line: str, values: dict[str, str]) -> str:
     return line
 
 
-def documentation_values(root: Path, values: dict[str, str]) -> list[tuple[Path, bytes]]:
+def documentation_values(
+    root: Path, values: dict[str, str]
+) -> list[tuple[Path, bytes]]:
     outputs: list[tuple[Path, bytes]] = []
-    relatives = ("docs/github-actions-workflow-security.md", "docs/github-actions-workflow-security.de.md")
+    relatives = (
+        "docs/github-actions-workflow-security.md",
+        "docs/github-actions-workflow-security.de.md",
+    )
     for relative in relatives:
         path = root / relative
         validate_managed_path(root, path)
         text = path.read_text(encoding="utf-8")
         if GENERATED_DOC not in text:
             text = text.replace("\n\n", "\n\n" + GENERATED_DOC + "\n", 1)
-        lines = [_documentation_line(line, values) for line in text.splitlines(keepends=True)]
+        lines = [
+            _documentation_line(line, values) for line in text.splitlines(keepends=True)
+        ]
         outputs.append((path, "".join(lines).encode("utf-8")))
     return outputs
 
@@ -510,7 +682,9 @@ def main(argv: list[str] | None = None) -> int:
     root = root_path(args.root)
     try:
         values = source_common(root)
-        expected: list[tuple[Path, bytes]] = [(root / "ci/tooling/security-tools.lock.yml", lock_values(root, values))]
+        expected: list[tuple[Path, bytes]] = [
+            (root / "ci/tooling/security-tools.lock.yml", lock_values(root, values))
+        ]
         errors, workflows = workflow_values(root, values)
         expected.extend(workflows)
         expected.extend(documentation_values(root, values))

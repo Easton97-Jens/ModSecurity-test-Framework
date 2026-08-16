@@ -267,20 +267,22 @@ variable are rendered from the updated group rather than chosen independently.
 |---|---|---|
 | Envoy | automatic | Latest non-draft, non-prerelease `v<version>` GitHub release; Linux asset and release digest or official checksum manifest. |
 | Traefik | automatic | Latest non-draft, non-prerelease `v<version>` GitHub release; Linux archive and GitHub release digest or official checksum manifest. |
-| lighttpd | automatic | Latest stable numeric release from official `releases-1.4.x/latest.txt`; official archive and SHA-256 manifest, constrained to that configured line. |
+| lighttpd | automatic | Latest stable numeric release from official `releases-1.4.x/latest.txt`; explicit `LIGHTTPD_SERIES`, release-root, and series-base URL are checked with the archive and SHA-256 manifest. |
 | Apache httpd | automatic | Latest numeric official Apache listing release, constrained to the documented current major/minor series; official per-asset SHA-256 file. |
 | APR | automatic | Latest numeric official Apache listing release, constrained to the documented current major/minor series; official per-asset SHA-256 file. |
 | APR-util | automatic | Latest numeric official Apache listing release, constrained to the documented current major/minor series; official per-asset SHA-256 file. |
 | PCRE2 | automatic | Latest non-draft, non-prerelease `pcre2-<version>` GitHub release; release-asset digest. |
 | NGINX | automatic | Latest non-draft, non-prerelease `release-<version>` GitHub release; release-asset digest and matching release tag/ref/asset tuple. |
 | OpenSSL for NGINX QUIC/TLS | automatic | Latest non-draft, non-prerelease `openssl-<version>` GitHub release; release-asset digest. |
-| HAProxy | automatic | Latest numeric official HAProxy-directory release, constrained to the documented current major/minor series; official per-asset SHA-256 file. |
+| HAProxy | automatic | Latest numeric official HAProxy-directory release, constrained by the explicit `HAPROXY_SERIES` and release-root/base tuple; official per-asset SHA-256 file. |
+| HAProxy HTX | automatic | The HTX compatibility line is resolved as its own explicit series, release-root, and base tuple; it is never inferred from the normal HAProxy result. |
 | OWASP Core Rule Set | manual_review | Latest stable GitHub release and immutable peeled Git-tag commit are reported for review; the reviewed tag/commit pin is not automatically changed. |
 | ModSecurity v3 | manual_review | Latest stable `v3.<version>` GitHub release and immutable peeled Git-tag commit are reported for review; the reviewed tag/commit pin is not automatically changed. |
 | ModSecurity Apache connector | not_applicable | Repo-local connector source unless explicitly configured; no common-version acquisition contract exists. |
 | ModSecurity NGINX connector | not_applicable | Repo-local connector source unless explicitly configured; no common-version acquisition contract exists. |
-| go-ftw | not_applicable | Locally probed executable, not a Framework fetch contract. |
-| Albedo | not_applicable | Locally probed executable, not a Framework fetch contract. |
+| go-ftw | automatic | Mandatory global GitHub release/tag/immutable-commit provenance check in every maintenance run. |
+| Albedo | automatic | Mandatory global GitHub release/tag/immutable-commit provenance check in every maintenance run. |
+| CI maintenance globals | automatic | Mandatory global checks for canonical Python/PyYAML/Node pins, workflow actions, and CI-security tools; artifacts and generated views are checked as one plan. |
 | Expat | not_applicable | Legacy metadata has no Framework source-acquisition consumer. |
 | Default branch | not_applicable | Local policy default, not an upstream release source. |
 
@@ -288,8 +290,12 @@ variable are rendered from the updated group rather than chosen independently.
 the resolver reports the latest release and proves the review pins remain
 unchanged while independent automatic groups are updated with
 `--defer-reviewed-provenance`. `not_applicable` prevents a future local hint
-or connector default from silently becoming an updater input. `unknown`,
-`blocked`, and `error` are fail-closed and prevent an update candidate.
+or connector default from silently becoming an updater input. The shared
+maintenance orchestrator always includes go-ftw, Albedo, and all CI-maintenance
+globals; `--component` filters only additional runtime/source components.
+Scheduled, manually dispatched, full, and component-scoped runs therefore
+produce one plan containing the mandatory global results. `unknown`, `blocked`,
+and `error` are fail-closed and prevent an update candidate.
 
 Use `--list-components` to print the registry's exact selectable names. Use
 one or more exact `--component <name>` options to resolve only selected
@@ -297,22 +303,28 @@ records; an unknown name is rejected.
 
 ```sh
 python3 ci/tools/check-common-versions.py --list-components
-python3 ci/tools/check-common-versions.py --check --json \
-  --component 'Envoy' --component 'HAProxy'
+python3 ci/tools/resolve-canonical-maintenance.py --check \
+  --component 'Envoy' --plan "$RUNNER_TEMP/common-version-maintenance.json"
 ```
 
-Without `--component`, the resolver processes every registry record in
-deterministic order. `--check` reports only; `--update` may write only
-validated automatic atomic groups. `--write-files` also records JSON and
-Markdown summaries below `BUILD_ROOT`; it does not change selection or policy.
+Without `--component`, the orchestrator processes every runtime/source record
+in deterministic order and always adds the mandatory global scopes. With one or
+more `--component` values, only the extra runtime/source records are filtered;
+go-ftw, Albedo, Python, PyYAML, Node, workflow actions, and CI-security tools
+remain in the plan. `--check` is read-only. A plan records typed safe updates,
+deterministic manual-review entries, source/candidate hashes, and generated-view
+status. Only a separately authorized, SHA-256-bound safe-update plan may be
+applied.
 
-The `Check common.sh versions` workflow runs the complete registry on its
-schedule. Its optional `workflow_dispatch` `component` input keeps that
-all-component behavior when empty; a non-empty value is passed as one exact
-`--component` selection. Resolver and candidate jobs are read-only with
-respect to the checkout; the separately guarded publisher re-resolves and
-validates a SHA-256-bound candidate before it can create or update its Draft
-pull request.
+The `Check common.sh versions` workflow invokes the shared orchestrator on its
+schedule, on `workflow_dispatch`, and for full or component-scoped runs. Its
+`component` input filters only extra runtime/source records. Resolver and
+candidate jobs are read-only with respect to the checkout; the separately
+guarded publisher re-resolves and validates a SHA-256-bound plan before it can
+create or update its Draft pull request. Generated runtime, Python, workflow,
+and CRS views are checked in the same plan. Manual-review issues are reconciled
+only by a trusted default-branch job from the typed plan; pull requests do not
+gain issue-write authority.
 
 ## Tooling, status values, and sensitive data
 
@@ -344,9 +356,11 @@ headers, passwords, API keys, or client secrets into canonical evidence. Use
 `CI_CANONICAL_PYTHON_VERSION`, `CI_CANONICAL_PYYAML_VERSION`, and
 `CI_CANONICAL_PYYAML_SHA256` in `ci/lib/common.sh` are the sole manually
 maintained values for the CI interpreter and its reviewed PyYAML wheel. The
-committed `.python-version` and `requirements-ci.lock` files are generated
-views. Run `ci/tools/sync-canonical-python-pins.py --check` to validate them or
-`--write` to update them atomically; the tool performs no network discovery.
+wheel's supported artifact/platform identity is part of the same canonical
+maintenance plan and may not drift independently. The committed
+`.python-version` and `requirements-ci.lock` files are generated views. Run
+`ci/tools/sync-canonical-python-pins.py --check` to validate them or `--write`
+to update them atomically; the tool performs no network discovery.
 
 ## Additional documented inputs and placeholders
 

@@ -7,9 +7,10 @@ sources the file and never consults the process environment.
 
 from __future__ import annotations
 
-from pathlib import Path
+import os
 import re
 import stat
+from pathlib import Path
 
 
 _ASSIGNMENT = re.compile(r'^(CI_(?:ACTION|SECURITY_TOOL|OSV)_[A-Z0-9_]+)="([^"`$]*)"\s*$')
@@ -46,14 +47,47 @@ def _resolve_value(
     return value
 
 
-def _read_common(root: Path) -> list[str]:
-    path = root / "ci" / "lib" / "common.sh"
+def _trusted_common_path(root: Path) -> Path:
+    """Return ``common.sh`` only when its complete path is non-symlinked.
+
+    ``Path.read_text`` follows symlinked parents.  Checking only the leaf
+    would therefore allow a checkout's ``ci`` or ``ci/lib`` directory to
+    redirect canonical pin reads outside the Framework root.
+    """
+
+    root_path = Path(os.path.abspath(root))
+    path = root_path / "ci" / "lib" / "common.sh"
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current /= part
+        try:
+            mode = current.lstat().st_mode
+        except OSError as exc:
+            raise ValueError(
+                f"{current}: canonical common.sh path is missing"
+            ) from exc
+        if stat.S_ISLNK(mode):
+            raise ValueError(
+                f"{current}: canonical common.sh path may not contain symlinks"
+            )
+        if current != path and not stat.S_ISDIR(mode):
+            raise ValueError(
+                f"{current}: canonical common.sh path parent is not a directory"
+            )
+
     try:
-        mode = path.lstat().st_mode
-    except OSError as exc:
-        raise ValueError(f"{path}: canonical common.sh is missing") from exc
-    if stat.S_ISLNK(mode) or not stat.S_ISREG(mode):
+        resolved_root = root_path.resolve(strict=True)
+        resolved_path = path.resolve(strict=True)
+        resolved_path.relative_to(resolved_root)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"{path}: canonical common.sh path escapes the Framework root") from exc
+    if not stat.S_ISREG(path.lstat().st_mode):
         raise ValueError(f"{path}: canonical common.sh must be a regular file")
+    return path
+
+
+def _read_common(root: Path) -> list[str]:
+    path = _trusted_common_path(root)
     try:
         return path.read_text(encoding="utf-8").splitlines()
     except (OSError, UnicodeError) as exc:

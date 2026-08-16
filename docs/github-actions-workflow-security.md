@@ -235,6 +235,25 @@ and scope-applicable SonarQube/branch-protection checks must be observed on its
 actual head before a human merge. The workflow itself never approves, merges,
 or enables auto-merge.
 
+### Unified common-version maintenance scope
+
+`ci/tools/resolve-canonical-maintenance.py` is the single read-only planning
+entry point for scheduled, `workflow_dispatch`, full, and component-scoped
+runs. Every invocation resolves the mandatory global scopes: go-ftw, Albedo,
+the canonical Python/PyYAML/Node pins, every canonical workflow action, and all
+CI-security tool pins. A `--component` value filters only additional
+runtime/source records; it never removes a mandatory global check. The result
+is one deterministic JSON plan with typed safe updates, manual-review records,
+source/candidate hashes, and generated-view status.
+
+The plan checks runtime manifest/lock, Python, workflow, and CRS views together.
+It is validated again before any trusted publisher can write. Manual-review
+issues are reconciled only by a default-branch job with narrowly scoped issue
+write permission and the validated plan; resolver and pull-request jobs remain
+read-only. The publisher creates or updates only the fixed Draft PR and never
+merges or enables auto-merge. A missing global result, incomplete CI pin group,
+generated-view drift, malformed review record, or hash mismatch fails closed.
+
 For every `pull_request` workflow, the checker rejects `pull_request_target`,
 write permissions, `secrets.` and `secrets[...]` references, reusable-workflow
 secret forwarding, direct checkout without `persist-credentials: false`, and
