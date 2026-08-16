@@ -56,10 +56,12 @@ class SyncCrsContractViewsTests(unittest.TestCase):
             mutated_tag = f"v{major}.{int(minor) + 1}.{patch}"
             mutated_commit = "0" * 40
             common.write_text(
-                common.read_text(encoding="utf-8").replace(
+                common.read_text(encoding="utf-8")
+                .replace(
                     f'CRS_RELEASE_TAG="{current_tag}"',
                     f'CRS_RELEASE_TAG="{mutated_tag}"',
-                ).replace(
+                )
+                .replace(
                     f'CRS_APPROVED_COMMIT="{current_pins.commit}"',
                     f'CRS_APPROVED_COMMIT="{mutated_commit}"',
                 ),
@@ -71,10 +73,17 @@ class SyncCrsContractViewsTests(unittest.TestCase):
             pins = load_crs_pins(common, root=root)
             for relative in FULL_CRS_SCHEMA_TARGETS:
                 document = json.loads((root / relative).read_text(encoding="utf-8"))
-                self.assertEqual(document["properties"]["crs_release_tag"]["const"], pins.release_tag)
-            receipt = json.loads((root / RECEIPT_SCHEMA_TARGET).read_text(encoding="utf-8"))
+                self.assertEqual(
+                    document["properties"]["crs_release_tag"]["const"], pins.release_tag
+                )
+            receipt = json.loads(
+                (root / RECEIPT_SCHEMA_TARGET).read_text(encoding="utf-8")
+            )
             self.assertEqual(receipt["properties"]["crs_commit"]["const"], pins.commit)
-            self.assertIn(f"release_tag: {mutated_tag}", (root / FIXTURE_TARGET).read_text(encoding="utf-8"))
+            self.assertIn(
+                f"release_tag: {mutated_tag}",
+                (root / FIXTURE_TARGET).read_text(encoding="utf-8"),
+            )
 
     def test_shell_expansion_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

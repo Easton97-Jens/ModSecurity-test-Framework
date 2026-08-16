@@ -346,9 +346,15 @@ def require_canonical_action_lock(root: Path, lock: dict[str, Any]) -> None:
     if not isinstance(actions, dict):
         raise UpdateError("lock actions records are missing")
     for suffix in (
-        "CHECKOUT", "SETUP_PYTHON", "SETUP_NODE", "UPLOAD_ARTIFACT",
-        "GITHUB_SCRIPT", "CREATE_GITHUB_APP_TOKEN", "CREATE_PULL_REQUEST",
-        "CODEQL", "DEPENDENCY_REVIEW",
+        "CHECKOUT",
+        "SETUP_PYTHON",
+        "SETUP_NODE",
+        "UPLOAD_ARTIFACT",
+        "GITHUB_SCRIPT",
+        "CREATE_GITHUB_APP_TOKEN",
+        "CREATE_PULL_REQUEST",
+        "CODEQL",
+        "DEPENDENCY_REVIEW",
     ):
         name = f"CI_ACTION_{suffix}_REPOSITORY"
         repository = values.get(name)
@@ -1196,9 +1202,7 @@ def update_documentation_references(
         for relative_text in DOCUMENTATION_UPDATE_PATHS:
             path = resolve_regular_file(root, Path(relative_text))
             text = path.read_text(encoding="utf-8")
-            plain_old_cells = (
-                f"{baseline['version']} | {baseline['immutable_commit']}"
-            )
+            plain_old_cells = f"{baseline['version']} | {baseline['immutable_commit']}"
             if old_cells in text:
                 write_verified_text(path, text.replace(old_cells, new_cells))
             elif plain_old_cells in text:

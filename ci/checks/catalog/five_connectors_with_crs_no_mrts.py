@@ -27,7 +27,7 @@ TOOLS_DIRECTORY = Path(__file__).resolve().parents[3] / "ci/tools"
 sys.path.insert(0, str(TOOLS_DIRECTORY))
 from crs_contract_pins import load_crs_pins  # noqa: E402
 
-from no_crs_baseline import (
+from no_crs_baseline import (  # noqa: E402
     ContractError,
     assert_no_symlink_components,
     git_value,

@@ -3293,7 +3293,9 @@ def configure_canonical_actions(root: Path) -> None:
     UPLOAD_ARTIFACT = f"{identities['upload_artifact']}@"
     CREATE_PULL_REQUEST_ACTION = identities["create_pr"]
     REVIEWED_ACTION_RELEASE_RESOLUTIONS.clear()
-    REVIEWED_ACTION_RELEASE_RESOLUTIONS[identities["codeql"]] = ACTION_RELEASE_RESOLUTION_SAME_MAJOR
+    REVIEWED_ACTION_RELEASE_RESOLUTIONS[identities["codeql"]] = (
+        ACTION_RELEASE_RESOLUTION_SAME_MAJOR
+    )
     for requirements in (OSV_JOB_REQUIREMENTS, SCORECARD_JOB_REQUIREMENTS):
         for job_name, snippets in list(requirements.items()):
             requirements[job_name] = tuple(

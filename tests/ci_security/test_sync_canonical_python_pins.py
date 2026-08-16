@@ -16,16 +16,16 @@ MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
 
-COMMON = '''\
+COMMON = """\
 CI_CANONICAL_PYTHON_VERSION="3.14.6"
 CI_CANONICAL_PYYAML_VERSION="6.0.3"
 CI_CANONICAL_PYYAML_SHA256="c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5"
-'''
-REQUIREMENTS = '''\
+"""
+REQUIREMENTS = """\
 # generated view; authority is ci/lib/common.sh
 PyYAML==6.0.3 \\
     --hash=sha256:c458b6d084f9b935061bc36216e8a69a7e293a2f1e68bf956dcd9e6cbcd143f5
-'''
+"""
 
 
 class CanonicalPythonPinsTest(unittest.TestCase):
@@ -80,14 +80,18 @@ class CanonicalPythonPinsTest(unittest.TestCase):
 
     def test_malformed_canonical_digest_is_rejected(self) -> None:
         root = self.make_root()
-        (root / "ci/lib/common.sh").write_text(COMMON.replace("c458", "C458"), encoding="utf-8")
+        (root / "ci/lib/common.sh").write_text(
+            COMMON.replace("c458", "C458"), encoding="utf-8"
+        )
         result = self.run_tool(root, "--check")
         self.assertEqual(result.returncode, 2)
         self.assertIn("64 lowercase hex", result.stderr)
 
     def test_duplicate_canonical_assignment_is_rejected(self) -> None:
         root = self.make_root()
-        (root / "ci/lib/common.sh").write_text(COMMON + "CI_CANONICAL_PYTHON_VERSION=3.14.6\n", encoding="utf-8")
+        (root / "ci/lib/common.sh").write_text(
+            COMMON + "CI_CANONICAL_PYTHON_VERSION=3.14.6\n", encoding="utf-8"
+        )
         result = self.run_tool(root, "--check")
         self.assertEqual(result.returncode, 2)
         self.assertIn("duplicate", result.stderr)

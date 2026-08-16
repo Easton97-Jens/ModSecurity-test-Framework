@@ -16,7 +16,9 @@ spec.loader.exec_module(MODULE)
 
 
 class CanonicalWorkflowPinsTest(unittest.TestCase):
-    def write_canonical_common(self, root: Path, overrides: dict[str, str] | None = None) -> Path:
+    def write_canonical_common(
+        self, root: Path, overrides: dict[str, str] | None = None
+    ) -> Path:
         values: dict[str, str] = {}
         for name in MODULE.canonical_names():
             if name.endswith("_REPOSITORY"):
@@ -68,7 +70,9 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
             errors, outputs = MODULE.workflow_values(root, values, False)
             self.assertEqual(errors, [])
             self.assertEqual(len(outputs), 1)
-            self.assertIn("actions/checkout@" + "a" * 40 + " # v7.0.1", outputs[0][1].decode())
+            self.assertIn(
+                "actions/checkout@" + "a" * 40 + " # v7.0.1", outputs[0][1].decode()
+            )
 
     def test_unknown_remote_action_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -87,7 +91,9 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
             workflow_dir = root / ".github/workflows"
             workflow_dir.mkdir(parents=True)
             (workflow_dir / "codeql.yml").write_text(
-                "steps:\n  - uses: github/codeql-action/init@" + "0" * 40 + " # v0.0.0\n",
+                "steps:\n  - uses: github/codeql-action/init@"
+                + "0" * 40
+                + " # v0.0.0\n",
                 encoding="utf-8",
             )
             values = {
@@ -102,7 +108,9 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
                 outputs[0][1].decode(),
             )
 
-    def test_canonical_common_is_parsed_without_executing_injected_command(self) -> None:
+    def test_canonical_common_is_parsed_without_executing_injected_command(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             marker = root / "unexpected-command-marker"
@@ -185,7 +193,9 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
             self.assertIn("OSV_LEGACY_BASE_SHA: " + "a" * 40, output)
             self.assertIn("OSV_LEGACY_BASE_VERSION: 3.13.14", output)
 
-    def test_write_validates_unknown_action_before_writing_generated_drift(self) -> None:
+    def test_write_validates_unknown_action_before_writing_generated_drift(
+        self,
+    ) -> None:
         """An invalid workflow must not leave a partially regenerated checkout."""
 
         with tempfile.TemporaryDirectory() as directory:
@@ -201,16 +211,26 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
                 path.write_bytes(b"original\n")
             generated = [(paths[1], b"generated\n")]
             documentation = [(paths[2], b"generated\n"), (paths[3], b"generated\n")]
-            with mock.patch.object(MODULE, "source_common", return_value={}), mock.patch.object(
-                MODULE, "lock_values", return_value=b"generated\n"
-            ), mock.patch.object(
-                MODULE,
-                "workflow_values",
-                return_value=(["unknown or unsupported remote Action example/action@main"], generated),
-            ), mock.patch.object(MODULE, "documentation_values", return_value=documentation):
+            with (
+                mock.patch.object(MODULE, "source_common", return_value={}),
+                mock.patch.object(MODULE, "lock_values", return_value=b"generated\n"),
+                mock.patch.object(
+                    MODULE,
+                    "workflow_values",
+                    return_value=(
+                        ["unknown or unsupported remote Action example/action@main"],
+                        generated,
+                    ),
+                ),
+                mock.patch.object(
+                    MODULE, "documentation_values", return_value=documentation
+                ),
+            ):
                 result = MODULE.main(["--write", "--root", str(root)])
             self.assertEqual(result, 2)
-            self.assertEqual([path.read_bytes() for path in paths], [b"original\n"] * len(paths))
+            self.assertEqual(
+                [path.read_bytes() for path in paths], [b"original\n"] * len(paths)
+            )
 
     def test_write_rejects_symlinked_generated_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
