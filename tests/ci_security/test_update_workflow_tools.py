@@ -17,6 +17,7 @@ import tempfile
 from typing import Any
 import unittest
 from unittest.mock import Mock, call, patch
+from urllib.request import Request
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,9 +55,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
 
         class Opener:
             def __init__(self) -> None:
-                self.request = None
+                self.request: Request | None = None
 
-            def open(self, request: object, timeout: int) -> Response:
+            def open(self, request: Request, timeout: int) -> Response:
                 del timeout
                 self.request = request
                 return Response()
