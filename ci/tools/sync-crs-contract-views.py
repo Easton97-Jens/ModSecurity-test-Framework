@@ -18,7 +18,8 @@ from crs_contract_pins import CrsPins, load_crs_pins, require_regular_file_withi
 
 ROOT = Path(__file__).resolve().parents[2]
 TARGETS = (
-    ROOT / "tests/schemas/five-connectors-with-crs-no-mrts/normalized-event.schema.json",
+    ROOT
+    / "tests/schemas/five-connectors-with-crs-no-mrts/normalized-event.schema.json",
     ROOT / "tests/schemas/five-connectors-with-crs-no-mrts/manifest.schema.json",
     ROOT / "tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json",
     ROOT / "tests/cases/security/crs/crs_sqli_anomaly_block.yaml",
@@ -43,15 +44,15 @@ def _replace_json(text: str, pins: CrsPins, path: Path) -> str:
     except KeyError as error:
         raise ValueError(f"unrecognized generated JSON view: {path}") from error
     for key in keys:
-        pattern = re.compile(
-            rf'(?P<prefix>"{key}"\s*:\s*\{{\s*"const"\s*:\s*)"[^"]*"'
-        )
+        pattern = re.compile(rf'(?P<prefix>"{key}"\s*:\s*\{{\s*"const"\s*:\s*)"[^"]*"')
         text, count = pattern.subn(
-            lambda match: f'{match.group("prefix")}{values[key]!r}'.replace("'", '"'),
+            lambda match: f"{match.group('prefix')}{values[key]!r}".replace("'", '"'),
             text,
         )
         if count != 1:
-            raise ValueError(f"expected one generated {key} view in {path}, found {count}")
+            raise ValueError(
+                f"expected one generated {key} view in {path}, found {count}"
+            )
     return text
 
 
@@ -72,7 +73,9 @@ def _replace_yaml(text: str, pins: CrsPins, path: Path) -> str:
         pattern = re.compile(rf"^(\s+{key}:\s*)[^\n]*$", re.MULTILINE)
         block, count = pattern.subn(rf"\g<1>{values[key]}", block)
         if count != 1:
-            raise ValueError(f"expected one generated {key} view in {path}, found {count}")
+            raise ValueError(
+                f"expected one generated {key} view in {path}, found {count}"
+            )
     return prefix + block + suffix
 
 
@@ -112,11 +115,12 @@ def main() -> int:
     targets = tuple(root / target.relative_to(ROOT) for target in TARGETS)
     changed = []
     for target in targets:
-        rendered = _render(target, pins, root)
-        if rendered != target.read_text(encoding="utf-8"):
-            changed.append(target)
+        validated_target = require_regular_file_within_root(target, root)
+        rendered = _render(validated_target, pins, root)
+        if rendered != validated_target.read_text(encoding="utf-8"):
+            changed.append(validated_target)
             if args.write:
-                _atomic_write(target, rendered, root)
+                _atomic_write(validated_target, rendered, root)
     if changed and args.check:
         for target in changed:
             print(f"OUT OF DATE: {target.relative_to(root)}")

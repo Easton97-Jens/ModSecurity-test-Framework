@@ -47,6 +47,8 @@ host-runtime claims, MRTS, global installation, and deployment are excluded.
 5. Focused regression, generic checker, idempotence, lint, and full native
    unit-test evidence pass without network pin discovery or dependency install.
 6. Parent gitlink and MRTS remain unchanged.
+7. CRS view tooling accepts only non-symlink contained fixture roots and uses
+   the validated resolved path at every filesystem sink.
 
 ## Alternatives considered
 
@@ -75,6 +77,12 @@ rejects GNU Make pre-parser controls while supported CI/helper entrypoints use
 that boundary. Existing EN/DE documents now identify canonical versus derived
 views rather than independently declaring active pins.
 
+CRS view tooling validates a caller-provided fixture root and every fixed view
+path for lexical and resolved containment, non-symlink components, and regular
+file type. The validator returns only the checked resolved path, which is then
+used for all CRS reads, comparisons, and atomic writes; no raw CLI-derived
+path reaches those filesystem sinks.
+
 ## Changed files and tests
 
 - Canonical source and runtime contracts: `ci/lib/common.sh`,
@@ -90,7 +98,8 @@ views rather than independently declaring active pins.
   CI-tooling, and testing/evidence references.
 - Tests: new generator/runtime synchronization regressions plus expanded
   provenance, private-materialization, safe-Make, lock, download, bootstrap,
-  CRS, and CI contract coverage.
+  CRS, and CI contract coverage, including CRS root-traversal and symlink-root
+  rejection with a legitimate temporary-fixture control.
 
 ## Commands and results
 
@@ -102,6 +111,7 @@ views rather than independently declaring active pins.
 | `make lint` with task-owned external roots | 0 | Existing lint/contract chain passed. | Local canonical-pin validation receipt |
 | `python -m unittest discover -q` | 0 | 98 native full-suite tests passed. | Local canonical-pin validation receipt |
 | Generic canonical, synchronizer, lock, catalog, shell-syntax, and `git diff --check` checks | 0 | Generated views and source contracts were clean and idempotent. | Local canonical-pin validation receipt |
+| Focused CRS root-containment, canonical Python, and workflow synchronizer tests | 0 | 26 tests passed, including traversal and symlink-root negatives. | Draft-PR remediation validation |
 
 ## Security impact
 
@@ -109,8 +119,10 @@ This is a security hardening and supply-chain provenance change. Regression
 controls cover malicious shell input in the parser, malicious GNU Make control
 assignments/options, stale or tampered provenance, incorrect runtime URLs and
 manifest membership, fake checksum tools, and shared-cache handoff attempts.
-Legitimate controlled inputs continue to pass. The final review found no
-confirmed high- or critical-impact issue in supported active entrypoints.
+They also cover CRS root traversal and symlink-root substitution before a view
+can be read or written. Legitimate controlled inputs continue to pass. The
+final review found no confirmed high- or critical-impact issue in supported
+active entrypoints.
 
 ## Documentation and runtime evidence
 
@@ -134,10 +146,16 @@ Direct raw `/usr/bin/make` invocation remains caller authority outside the
 supported `safe-make.sh`/CI/helper boundary. The task-private build root must
 remain non-writable to an attacker after final hashing. A new platform or
 runtime profile requires a reviewed canonical tuple and regression coverage.
+The `--root` fixture directory remains caller authority; the containment
+guarantee assumes no concurrent hostile writer can replace its checked files
+between validation and the filesystem operation.
 
 ## Final diff and review status
 
-The Framework task-owned diff, whitespace review, generated-view idempotence,
-focused security re-review, and local validation passed before delivery. This
-record is prepared before the commit and Draft PR; it does not invent commit,
-PR, hosted-CI, review, SonarQube, merge, Parent, MRTS, or gitlink outcomes.
+The original canonical diff and the CRS root-containment remediation passed
+their task-owned whitespace, generated-view idempotence, focused security
+review, and local validation. Draft PR #82 is open; the next commit and normal
+push will be verified against the remote and PR heads after delivery. The
+SonarQube Cloud security-gate failure on the preceding PR head is the reason
+for this remediation; no current-head hosted result is claimed here. This
+record does not claim a merge, Parent, MRTS, or gitlink outcome.

@@ -51,6 +51,9 @@ Claims, MRTS, globale Installation und Deployment sind ausgeschlossen.
    vollständige native Unit-Test-Evidenz bestehen ohne Netzwerk-Pin-Discovery
    oder Dependency-Installation.
 6. Parent-Gitlink und MRTS bleiben unverändert.
+7. CRS-View-Tooling akzeptiert nur nicht-symlinkierte, enthaltene Fixture-
+   Roots und verwendet an jedem Dateisystem-Sink den validierten aufgelösten
+   Pfad.
 
 ## Untersuchte Alternativen
 
@@ -80,6 +83,13 @@ unterstützte CI-/Helper-Einstiegspunkte diese Grenze verwenden. Bestehende
 EN/DE-Dokumente benennen nun kanonische gegenüber abgeleiteten Views, statt
 aktive Pins unabhängig zu deklarieren.
 
+CRS-View-Tooling validiert einen vom Caller übergebenen Fixture-Root und jeden
+festen View-Pfad auf lexikalisches und aufgelöstes Containment, nicht
+symlinkierte Komponenten und regulären Dateityp. Der Validator gibt nur den
+geprüften aufgelösten Pfad zurück; alle CRS-Lese-, Vergleichs- und atomaren
+Schreibzugriffe verwenden diesen Wert, sodass kein roher CLI-abgeleiteter Pfad
+einen dieser Dateisystem-Sinks erreicht.
+
 ## Geänderte Dateien und Tests
 
 - Kanonische Quelle und Runtime-Contracts: `ci/lib/common.sh`,
@@ -96,7 +106,9 @@ aktive Pins unabhängig zu deklarieren.
   CI-Tooling- und Testing-/Evidence-Referenzen.
 - Tests: neue Generator-/Runtime-Synchronisations-Regressionen sowie
   erweiterte Provenance-, Private-Materialization-, Safe-Make-, Lock-,
-  Download-, Bootstrap-, CRS- und CI-Contract-Abdeckung.
+  Download-, Bootstrap-, CRS- und CI-Contract-Abdeckung einschließlich
+  CRS-Root-Traversal- und Symlink-Root-Verwerfung mit legitimem
+  temporären-Fixture-Control.
 
 ## Befehle und Ergebnisse
 
@@ -108,6 +120,7 @@ aktive Pins unabhängig zu deklarieren.
 | `make lint` mit task-eigenen externen Roots | 0 | Bestehende Lint-/Contract-Kette bestand. | Lokaler Canonical-Pin-Validierungsbeleg |
 | `python -m unittest discover -q` | 0 | 98 native Full-Suite-Tests bestanden. | Lokaler Canonical-Pin-Validierungsbeleg |
 | Generische Canonical-/Synchronizer-/Lock-/Catalog-/Shell-Syntax- und `git diff --check`-Prüfungen | 0 | Generierte Views und Source-Contracts waren sauber und idempotent. | Lokaler Canonical-Pin-Validierungsbeleg |
+| Fokussierte CRS-Root-Containment-, Canonical-Python- und Workflow-Synchronizer-Tests | 0 | 26 Tests bestanden, einschließlich Traversal- und Symlink-Root-Negativfällen. | Draft-PR-Remediation-Validierung |
 
 ## Sicherheitsauswirkung
 
@@ -116,8 +129,10 @@ Regression-Controls decken bösartige Shell-Eingaben im Parser, bösartige
 GNU-Make-Steuerzuweisungen/-Optionen, veraltete oder manipulierte Provenance,
 falsche Runtime-URLs und Manifest-Mitgliedschaft, gefälschte Checksum-Tools
 und Shared-Cache-Handoff-Versuche ab. Legitime kontrollierte Eingaben bestehen
-weiterhin. Der finale Review fand keine bestätigte High- oder Critical-Impact-
-Schwachstelle in unterstützten aktiven Einstiegspunkten.
+weiterhin. Sie decken außerdem CRS-Root-Traversal und Symlink-Root-
+Substitution ab, bevor eine View gelesen oder geschrieben werden kann. Der
+finale Review fand keine bestätigte High- oder Critical-Impact-Schwachstelle
+in unterstützten aktiven Einstiegspunkten.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -142,12 +157,19 @@ Ein direkter Aufruf von `/usr/bin/make` bleibt Caller-Autorität außerhalb der
 unterstützten `safe-make.sh`-/CI-/Helper-Grenze. Der task-private Build-Root
 muss nach dem finalen Hash für einen Angreifer nicht schreibbar bleiben. Ein
 neues Plattform- oder Runtime-Profil benötigt ein geprüftes kanonisches Tupel
-und Regression-Abdeckung.
+und Regression-Abdeckung. Das `--root`-Fixture-Verzeichnis bleibt Caller-
+Autorität; die Containment-Garantie setzt voraus, dass kein gleichzeitiger
+feindlicher Writer die geprüften Dateien zwischen Validierung und
+Dateisystemoperation ersetzt.
 
 ## Finaler Diff- und Review-Status
 
-Der Framework-auftragsbezogene Diff, Whitespace-Review,
-Generated-View-Idempotenz, fokussierte Security-Review und lokale Validierung
-bestanden vor der Delivery. Dieses Record wird vor Commit und Draft-PR
-vorbereitet; es erfindet keine Commit-, PR-, Hosted-CI-, Review-, SonarQube-,
-Merge-, Parent-, MRTS- oder Gitlink-Ergebnisse.
+Der ursprüngliche kanonische Diff und die CRS-Root-Containment-Remediation
+bestanden ihren auftragsbezogenen Whitespace-Review,
+Generated-View-Idempotenz, fokussierten Security-Review und die lokale
+Validierung. Draft-PR #82 ist offen; der nächste Commit und normale Push
+werden nach der Delivery gegen die Remote- und PR-Heads verifiziert. Der
+fehlgeschlagene SonarQube-Cloud-Security-Gate auf dem vorherigen PR-Head ist
+der Grund für diese Remediation; hier wird kein Hosted-Ergebnis für den
+aktuellen Head behauptet. Dieses Record beansprucht kein Merge-, Parent-,
+MRTS- oder Gitlink-Ergebnis.

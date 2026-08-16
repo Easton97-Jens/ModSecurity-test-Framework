@@ -63,7 +63,9 @@ def require_regular_file_within_root(path: Path, root: Path) -> Path:
         try:
             mode = current.lstat().st_mode
         except FileNotFoundError as error:
-            raise ValueError(f"required framework path does not exist: {current}") from error
+            raise ValueError(
+                f"required framework path does not exist: {current}"
+            ) from error
         if stat.S_ISLNK(mode):
             raise ValueError(f"symlinked framework path is not allowed: {current}")
         if index < len(relative.parts) - 1 and not stat.S_ISDIR(mode):
@@ -77,7 +79,9 @@ def require_regular_file_within_root(path: Path, root: Path) -> Path:
         resolved_candidate.relative_to(resolved_root)
     except ValueError as error:
         raise ValueError(f"path resolves outside framework root: {current}") from error
-    return current
+    # Return the path after the same-root check.  Callers must use this value
+    # for filesystem access; the original CLI-derived path remains tainted.
+    return resolved_candidate
 
 
 def load_crs_pins(common_path: Path, *, root: Path) -> CrsPins:
@@ -99,7 +103,11 @@ def load_crs_pins(common_path: Path, *, root: Path) -> CrsPins:
         if not match:
             continue
         name = match.group(1)
-        if name not in {"CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"}:
+        if name not in {
+            "CRS_APPROVED_REPO_URL",
+            "CRS_RELEASE_TAG",
+            "CRS_APPROVED_COMMIT",
+        }:
             continue
         if name in values:
             raise ValueError(f"duplicate CRS assignment at {common_path}:{line_number}")

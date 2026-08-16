@@ -9,7 +9,7 @@ import sys
 import tempfile
 import unittest
 
-from ci.tools.crs_contract_pins import load_crs_pins
+from ci.tools.crs_contract_pins import load_crs_pins, require_regular_file_within_root
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -134,6 +134,30 @@ class SyncCrsContractViewsTests(unittest.TestCase):
             result = self._run(root, "--check")
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("symlinked framework path", result.stderr)
+
+    def test_path_traversal_is_rejected_before_read(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "ci/lib").mkdir(parents=True)
+            self._copy_fixture(root)
+            outside = root.parent / "outside-common.sh"
+            outside.write_text("untrusted\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "escapes framework root"):
+                require_regular_file_within_root(root / ".." / outside.name, root)
+
+    def test_symlinked_root_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "fixture"
+            root.mkdir()
+            (root / "ci/lib").mkdir(parents=True)
+            self._copy_fixture(root)
+            alias = Path(directory) / "root-alias"
+            os.symlink(root, alias)
+            result = self._run(alias, "--check")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn(
+                "framework root must be a non-symlink directory", result.stderr
+            )
 
     def test_symlinked_generated_parent_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
