@@ -27,6 +27,9 @@ case "$MODSECURITY_V3_DIR" in
         echo "v3_api_smoke: blocked build destination overlaps source checkout"
         status=77
         ;;
+    *)
+        :
+        ;;
 esac
 
 if ! ci_require_approved_modsecurity_v3_checkout "$MODSECURITY_V3_SOURCE_DIR"; then

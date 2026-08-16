@@ -11,7 +11,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "ci/tools/sync-canonical-python-pins.py"
 SPEC = importlib.util.spec_from_file_location("canonical_python_pins", TOOL)
-assert SPEC and SPEC.loader
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError(f"unable to load tool module: {TOOL}")
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
@@ -113,6 +114,40 @@ class CanonicalPythonPinsTest(unittest.TestCase):
         result = self.run_tool(root, "--check", common=outside)
         self.assertEqual(result.returncode, 2)
         self.assertIn("below", result.stderr)
+
+    def test_common_override_lexical_traversal_is_rejected_before_read(self) -> None:
+        root = self.make_root()
+        outside = root.parent / f"{root.name}-outside-common.sh"
+        self.addCleanup(outside.unlink, missing_ok=True)
+        outside.write_text(COMMON, encoding="utf-8")
+        result = self.run_tool(root, "--check", common=root / ".." / outside.name)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("below", result.stderr)
+
+    def test_non_ascii_versions_are_rejected(self) -> None:
+        root = self.make_root()
+        common = root / "ci/lib/common.sh"
+        common.write_text(
+            COMMON.replace('CI_CANONICAL_PYTHON_VERSION="3.14.6"', 'CI_CANONICAL_PYTHON_VERSION="١.14.6"'),
+            encoding="utf-8",
+        )
+        result = self.run_tool(root, "--check")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("malformed", result.stderr)
+
+        common.write_text(
+            COMMON.replace('CI_CANONICAL_PYYAML_VERSION="6.0.3"', 'CI_CANONICAL_PYYAML_VERSION="٦.0.3"'),
+            encoding="utf-8",
+        )
+        result = self.run_tool(root, "--check")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("malformed", result.stderr)
+
+        common.write_text(COMMON, encoding="utf-8")
+        (root / ".python-version").write_text("٣.14.6\n", encoding="utf-8")
+        result = self.run_tool(root, "--check")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("stable version", result.stderr)
 
     def test_symlinked_generated_view_is_rejected_without_following_it(self) -> None:
         root = self.make_root()

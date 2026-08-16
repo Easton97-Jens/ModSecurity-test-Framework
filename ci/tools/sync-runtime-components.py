@@ -52,7 +52,6 @@ PIN_VARIABLES = frozenset(
         "HAPROXY_HTX_SOURCE_URL", "HAPROXY_HTX_SHA256",
     }
 )
-
 LOCK_DESCRIPTORS: tuple[dict[str, str], ...] = (
     {
         "id": "nginx-h1", "component": "nginx", "profile": "http/1.1",
@@ -184,10 +183,7 @@ def _expand_expression(expression: str, raw: dict[str, str], stack: tuple[str, .
     return "".join(pieces)
 
 
-def common_values(path: Path) -> dict[str, str]:
-    """Read the canonical runtime pins with a non-executing allowlist parser."""
-    root = _framework_root_for_common(path)
-    source = require_regular(path, root, "common")
+def _collect_assignments(source: Path) -> dict[str, str]:
     raw: dict[str, str] = {}
     for line_number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), 1):
         match = ASSIGNMENT_RE.fullmatch(line)
@@ -196,6 +192,7 @@ def common_values(path: Path) -> dict[str, str]:
         name, expression = match.group("name"), match.group("value")
         if name not in PIN_VARIABLES:
             continue
+        _validate_expression_syntax(expression, source, line_number, name)
         if name in raw:
             if name == "TRAEFIK_VERSION":
                 raise SyncError(
@@ -206,6 +203,31 @@ def common_values(path: Path) -> dict[str, str]:
     missing = sorted(PIN_VARIABLES - set(raw))
     if missing:
         raise SyncError(f"{source}: missing canonical assignments: {', '.join(missing)}")
+    return raw
+
+
+def _validate_expression_syntax(expression: str, source: Path, line_number: int, name: str) -> None:
+    position = 0
+    for match in EXPANSION_RE.finditer(expression):
+        if not SAFE_LITERAL_RE.fullmatch(expression[position:match.start()]):
+            raise SyncError(f"{source}:{line_number}: malformed canonical assignment for {name}")
+        position = match.end()
+    if not SAFE_LITERAL_RE.fullmatch(expression[position:]):
+        raise SyncError(f"{source}:{line_number}: malformed canonical assignment for {name}")
+
+
+def _validate_pin_values(values: dict[str, str]) -> None:
+    for name, value in values.items():
+        if name.endswith("SHA256") and not SHA256_RE.fullmatch(value):
+            raise SyncError(f"{name} is not a 64-character SHA-256 digest")
+        if name.endswith("VERSION") and not VERSION_RE.fullmatch(value):
+            raise SyncError(f"{name} must be an exact dotted release")
+    nginx_tag = values["NGINX_RELEASE_TAG"]
+    if not nginx_tag.startswith("release-") or not VERSION_RE.fullmatch(nginx_tag[8:]):
+        raise SyncError("NGINX_RELEASE_TAG must use release-X.Y.Z")
+
+
+def _expand_pin_values(raw: dict[str, str]) -> dict[str, str]:
     values = {name: _expand_expression(raw[name], raw, (name,)) for name in PIN_VARIABLES}
     # NGINX has a release repository, tag, and asset; the download URL is
     # deterministic metadata derived from those canonical fields.
@@ -213,13 +235,15 @@ def common_values(path: Path) -> dict[str, str]:
         f"{values['NGINX_SOURCE_REPO_URL'].rstrip('/')}/releases/download/"
         f"{values['NGINX_RELEASE_TAG']}/{values['NGINX_RELEASE_ASSET_NAME']}"
     )
-    for name, value in values.items():
-        if name.endswith("SHA256") and not SHA256_RE.fullmatch(value):
-            raise SyncError(f"{name} is not a 64-character SHA-256 digest")
-        if name.endswith("VERSION") and not VERSION_RE.fullmatch(value):
-            raise SyncError(f"{name} must be an exact dotted release")
-    if not values["NGINX_RELEASE_TAG"].startswith("release-") or not VERSION_RE.fullmatch(values["NGINX_RELEASE_TAG"][8:]):
-        raise SyncError("NGINX_RELEASE_TAG must use release-X.Y.Z")
+    return values
+
+
+def common_values(path: Path) -> dict[str, str]:
+    """Read the canonical runtime pins with a non-executing allowlist parser."""
+    root = _framework_root_for_common(path)
+    source = require_regular(path, root, "common")
+    values = _expand_pin_values(_collect_assignments(source))
+    _validate_pin_values(values)
     return values
 
 
@@ -403,6 +427,14 @@ def render_json(document: Any) -> str:
     return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 
+def _read_json(path: Path, label: str) -> Any:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise SyncError(f"invalid {label} JSON: {exc}") from exc
+    return document
+
+
 def atomic_write(path: Path, content: str) -> None:
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent, text=True)
     try:
@@ -429,50 +461,52 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _render_documents(
+    args: argparse.Namespace, values: dict[str, str], common_root: Path
+) -> tuple[Path, dict[str, Any], bool, Path | None, dict[str, Any] | None, bool]:
+    manifest_root = common_root.parent if args.component and common_root != ROOT else common_root
+    manifest_path = require_regular(args.manifest, manifest_root, "manifest")
+    current_manifest = _read_json(manifest_path, "manifest")
+    expected_manifest = render_manifest(current_manifest, values, args.component)
+    manifest_drift = render_json(current_manifest) != render_json(expected_manifest)
+    if args.component is not None:
+        return manifest_path, expected_manifest, manifest_drift, None, None, False
+    lock_path = require_regular(args.lock, common_root, "lock")
+    current_lock = _read_json(lock_path, "lock")
+    expected_lock = render_lock(values)
+    lock_drift = render_json(current_lock) != render_json(expected_lock)
+    return manifest_path, expected_manifest, manifest_drift, lock_path, expected_lock, lock_drift
+
+
+def _report_drift(manifest_drift: bool, lock_drift: bool) -> int:
+    if not manifest_drift and not lock_drift:
+        return 0
+    print(
+        "runtime component synchronization drift: "
+        f"lock={'drift' if lock_drift else 'ok'} "
+        f"manifest={'drift' if manifest_drift else 'ok'} "
+        "expected=generated found=checked-in",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def run(args: argparse.Namespace) -> int:
     common_root = _framework_root_for_common(args.common_sh)
     require_regular(args.common_sh, common_root, "common")
     values = common_values(args.common_sh)
-    # The legacy Traefik wrapper creates a manifest-only fixture next to (not
-    # inside) a synthetic Framework root.  That narrow compatibility case is
-    # never used for the checked-in default paths.
-    manifest_root = common_root.parent if args.component and common_root != ROOT else common_root
-    manifest_path = require_regular(args.manifest, manifest_root, "manifest")
-    try:
-        current_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise SyncError(f"invalid manifest JSON: {exc}") from exc
-    expected_manifest = render_manifest(current_manifest, values, args.component)
-    manifest_drift = render_json(current_manifest) != render_json(expected_manifest)
-
-    lock_path: Path | None = None
-    lock_drift = False
-    expected_lock: dict[str, Any] | None = None
-    if args.component is None:
-        lock_path = require_regular(args.lock, common_root, "lock")
-        try:
-            current_lock = json.loads(lock_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise SyncError(f"invalid lock JSON: {exc}") from exc
-        expected_lock = render_lock(values)
-        lock_drift = render_json(current_lock) != render_json(expected_lock)
-
+    manifest_path, expected_manifest, manifest_drift, lock_path, expected_lock, lock_drift = _render_documents(
+        args, values, common_root
+    )
     if args.check:
-        if manifest_drift or lock_drift:
-            print(
-                "runtime component synchronization drift: "
-                f"lock={'drift' if lock_drift else 'ok'} "
-                f"manifest={'drift' if manifest_drift else 'ok'} "
-                "expected=generated found=checked-in",
-                file=sys.stderr,
-            )
-            return 1
+        drift_status = _report_drift(manifest_drift, lock_drift)
+        if drift_status:
+            return drift_status
         print("traefik runtime manifest: PASS" if args.component == "traefik" else "runtime components: PASS")
         return 0
     if manifest_drift:
         atomic_write(manifest_path, render_json(expected_manifest))
-    if lock_drift:
-        assert lock_path is not None and expected_lock is not None
+    if lock_drift and lock_path is not None and expected_lock is not None:
         atomic_write(lock_path, render_json(expected_lock))
     print(
         f"traefik runtime manifest: wrote {manifest_path}"
@@ -489,6 +523,6 @@ def main(argv: list[str]) -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv[1:]))
-    except (SyncError, OSError, ValueError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"sync-runtime-components: ERROR: {exc}", file=sys.stderr)
         raise SystemExit(2)

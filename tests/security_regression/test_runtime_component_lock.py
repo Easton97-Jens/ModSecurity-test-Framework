@@ -64,6 +64,23 @@ class RuntimeComponentLockTests(unittest.TestCase):
             return self.run_checker(checker, lock, common, manifest)
 
     @staticmethod
+    def copy_checker_fixture(fixture: Path) -> tuple[Path, Path, Path, Path, Path]:
+        (fixture / "ci/lib").mkdir(parents=True)
+        (fixture / "ci/provisioning").mkdir()
+        (fixture / "ci/tools").mkdir()
+        common = fixture / "ci/lib/common.sh"
+        checker = fixture / "ci/tools/check-runtime-component-lock.py"
+        synchronizer = fixture / "ci/tools/sync-runtime-components.py"
+        lock = fixture / "ci/provisioning/runtime-component-lock.json"
+        manifest = fixture / "ci/provisioning/runtime-components.manifest.json"
+        shutil.copy2(COMMON, common)
+        shutil.copy2(CHECKER, checker)
+        shutil.copy2(SYNCHRONIZER, synchronizer)
+        shutil.copy2(LOCK, lock)
+        shutil.copy2(MANIFEST, manifest)
+        return common, checker, synchronizer, lock, manifest
+
+    @staticmethod
     def profile(value: dict[str, object], identifier: str) -> dict[str, object]:
         return next(item for item in value["profiles"] if item["id"] == identifier)
 
@@ -124,21 +141,10 @@ class RuntimeComponentLockTests(unittest.TestCase):
                 lambda value: value["components"].append(value["components"][0].copy()),
                 "duplicate component",
             ),
-        ):
+            ):
             with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
                 fixture = Path(directory)
-                (fixture / "ci/lib").mkdir(parents=True)
-                (fixture / "ci/provisioning").mkdir()
-                (fixture / "ci/tools").mkdir()
-                common = fixture / "ci/lib/common.sh"
-                checker = fixture / "ci/tools/check-runtime-component-lock.py"
-                synchronizer = fixture / "ci/tools/sync-runtime-components.py"
-                lock = fixture / "ci/provisioning/runtime-component-lock.json"
-                manifest = fixture / "ci/provisioning/runtime-components.manifest.json"
-                shutil.copy2(COMMON, common)
-                shutil.copy2(CHECKER, checker)
-                shutil.copy2(SYNCHRONIZER, synchronizer)
-                shutil.copy2(LOCK, lock)
+                common, checker, _synchronizer, lock, manifest = self.copy_checker_fixture(fixture)
                 value = json.loads(MANIFEST.read_text(encoding="utf-8"))
                 mutation(value)
                 manifest.write_text(json.dumps(value), encoding="utf-8")
@@ -188,18 +194,7 @@ class RuntimeComponentLockTests(unittest.TestCase):
     def test_runtime_manifest_drift_is_blocked(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory)
-            (fixture / "ci/lib").mkdir(parents=True)
-            (fixture / "ci/provisioning").mkdir()
-            (fixture / "ci/tools").mkdir()
-            common = fixture / "ci/lib/common.sh"
-            checker = fixture / "ci/tools/check-runtime-component-lock.py"
-            synchronizer = fixture / "ci/tools/sync-runtime-components.py"
-            lock = fixture / "ci/provisioning/runtime-component-lock.json"
-            manifest = fixture / "ci/provisioning/runtime-components.manifest.json"
-            shutil.copy2(COMMON, common)
-            shutil.copy2(CHECKER, checker)
-            shutil.copy2(SYNCHRONIZER, synchronizer)
-            shutil.copy2(LOCK, lock)
+            common, checker, _synchronizer, lock, manifest = self.copy_checker_fixture(fixture)
             value = json.loads(MANIFEST.read_text(encoding="utf-8"))
             next(item for item in value["components"] if item["name"] == "envoy")[
                 "version"

@@ -90,6 +90,23 @@ geprüften aufgelösten Pfad zurück; alle CRS-Lese-, Vergleichs- und atomaren
 Schreibzugriffe verwenden diesen Wert, sodass kein roher CLI-abgeleiteter Pfad
 einen dieser Dateisystem-Sinks erreicht.
 
+### SonarQube-Cloud-Remediation-Follow-up
+
+Die vorhergehende PR-Analyse meldete 44 neue Code Smells und 16 duplizierte
+New-Code-Zeilen (0,3 %). Dieses Follow-up verwendet weder einen
+Accepted-Issue-Status noch Scanner-Ausschlüsse, Regelunterdrückungen oder
+rein metrische Umgehungen. Es zerlegt Cognitive-Complexity-Stellen,
+zentralisiert wiederholte Validierungs-/Fehlerpfade, macht Shell-Case-Defaults
+explizit, verwendet kurze ASCII-bewusste Regexe und nutzt einen
+Runtime-Test-Helper statt duplizierter Testblöcke.
+
+Der Parser liest weiterhin nur die deklarative Runtime-Assignment-Grammatik
+und sourct common.sh niemals. Eine direkte unzulässige
+Assignment-Expression wird ohne Ausführung verworfen. Er wird bewusst nicht
+als vollständiger Interpreter oder Verifizierer beliebiger späterer
+Shell-Ausführung dargestellt; die PR- und Wartungs-Workflow-Trust-Boundaries
+stellen den getrennten Ausführungsschutz bereit.
+
 ## Geänderte Dateien und Tests
 
 - Kanonische Quelle und Runtime-Contracts: `ci/lib/common.sh`,
@@ -109,6 +126,11 @@ einen dieser Dateisystem-Sinks erreicht.
   Download-, Bootstrap-, CRS- und CI-Contract-Abdeckung einschließlich
   CRS-Root-Traversal- und Symlink-Root-Verwerfung mit legitimem
   temporären-Fixture-Control.
+- Sonar-Remediation: Framework-native Refactorings in Canonical-Pin-,
+  Workflow-, Runtime-, Common-Version-, CI-Contract- und Shell-Control-Pfaden
+  mit fokussierter Regressionsabdeckung für lexikalisches Containment,
+  ASCII-only-Releases/-Tags, explizite Shell-Defaults und
+  Runtime-Metadaten-Contracts.
 
 ## Befehle und Ergebnisse
 
@@ -121,6 +143,8 @@ einen dieser Dateisystem-Sinks erreicht.
 | `python -m unittest discover -q` | 0 | 98 native Full-Suite-Tests bestanden. | Lokaler Canonical-Pin-Validierungsbeleg |
 | Generische Canonical-/Synchronizer-/Lock-/Catalog-/Shell-Syntax- und `git diff --check`-Prüfungen | 0 | Generierte Views und Source-Contracts waren sauber und idempotent. | Lokaler Canonical-Pin-Validierungsbeleg |
 | Fokussierte CRS-Root-Containment-, Canonical-Python- und Workflow-Synchronizer-Tests | 0 | 26 Tests bestanden, einschließlich Traversal- und Symlink-Root-Negativfällen. | Draft-PR-Remediation-Validierung |
+| Framework-safe-make lint mit dem ausgewählten absoluten Virtual-Environment-Python | 0 | Vollständige native Lint-, Contract-, Provenance-, Runtime-, Workflow-, Dokumentations- und Whitespace-Kette bestand. | Lokale Sonar-Remediation-Validierung |
+| Fokussierte Runtime-Sync-/Lock-/Traefik-Testmodule plus generischer Runtime-Synchronizer-Check | 0 | 35 Tests bestanden; direkte unzulässige Deklaration und No-Execution-Controls bestanden. | Lokale Sonar-Remediation-Validierung |
 
 ## Sicherheitsauswirkung
 
@@ -133,6 +157,14 @@ weiterhin. Sie decken außerdem CRS-Root-Traversal und Symlink-Root-
 Substitution ab, bevor eine View gelesen oder geschrieben werden kann. Der
 finale Review fand keine bestätigte High- oder Critical-Impact-Schwachstelle
 in unterstützten aktiven Einstiegspunkten.
+
+Das Follow-up bestätigte nach den Maintainability-Refactorings unabhängig
+lexikalisches Containment und ASCII-only-Release-/Tag-Validierung. Die
+überprüfte Runtime-Parser-Vollständigkeitsfrage hatte keinen
+untrusted-to-privileged-Workflow-Pfad: PR-Jobs sind read-only und
+privilegierte Wartungsjobs verwenden einen vertrauenswürdigen
+Default-Branch-Checkout. Sie ist daher als nicht anwendbar erfasst und nicht
+als behauptete behobene Schwachstelle.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -164,12 +196,12 @@ Dateisystemoperation ersetzt.
 
 ## Finaler Diff- und Review-Status
 
-Der ursprüngliche kanonische Diff und die CRS-Root-Containment-Remediation
-bestanden ihren auftragsbezogenen Whitespace-Review,
-Generated-View-Idempotenz, fokussierten Security-Review und die lokale
-Validierung. Draft-PR #82 ist offen; der nächste Commit und normale Push
-werden nach der Delivery gegen die Remote- und PR-Heads verifiziert. Der
-fehlgeschlagene SonarQube-Cloud-Security-Gate auf dem vorherigen PR-Head ist
-der Grund für diese Remediation; hier wird kein Hosted-Ergebnis für den
-aktuellen Head behauptet. Dieses Record beansprucht kein Merge-, Parent-,
-MRTS- oder Gitlink-Ergebnis.
+Der ursprüngliche kanonische Diff, die CRS-Root-Containment-Remediation und
+die native Sonar-Remediation bestanden auftragsbezogenen Whitespace-Review,
+Generated-View-Idempotenz, fokussierten Security-Review und vollständiges
+lokales Lint. Draft-PR #82 ist offen; der nächste Commit und normale Push
+werden nach der Delivery gegen die Remote- und PR-Heads verifiziert. Die
+vorhergehende Hosted-Analyse bestand ihr Quality Gate, meldete aber weiterhin
+44 neue Code Smells und 0,3 % New-Code-Duplizierung; ein Zero-Issue-Ergebnis
+für den aktuellen Head wird erst nach Abschluss der Hosted-Analyse behauptet.
+Dieses Record beansprucht kein Merge-, Parent-, MRTS- oder Gitlink-Ergebnis.

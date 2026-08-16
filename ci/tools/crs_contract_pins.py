@@ -23,7 +23,7 @@ class CrsPins(NamedTuple):
 
 _ASSIGNMENT = re.compile(r"^([A-Z][A-Z0-9_]*)=(?:\"([^\"]*)\"|'([^']*)')\s*$")
 _COMMIT = re.compile(r"[0-9a-f]{40}\Z")
-_TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+\Z")
+_TAG = re.compile(r"v\d+\.\d+\.\d+\Z", flags=re.ASCII)
 
 
 def _valid_repository_url(value: str) -> bool:
@@ -84,37 +84,29 @@ def require_regular_file_within_root(path: Path, root: Path) -> Path:
     return resolved_candidate
 
 
-def load_crs_pins(common_path: Path, *, root: Path) -> CrsPins:
-    """Return CRS pins from literal assignments in *common_path*.
+_REQUIRED = frozenset(("CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"))
 
-    Comments and blank lines are ignored.  Duplicate assignments, shell
-    expansions, and malformed values fail closed.
-    """
 
-    common_path = require_regular_file_within_root(common_path, root)
+def _parse_assignments(common_path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
     for line_number, raw_line in enumerate(
         common_path.read_text(encoding="utf-8").splitlines(), 1
     ):
         line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        match = _ASSIGNMENT.fullmatch(line)
-        if not match:
+        match = _ASSIGNMENT.fullmatch(line) if line and not line.startswith("#") else None
+        if match is None or match.group(1) not in _REQUIRED:
             continue
         name = match.group(1)
-        if name not in {
-            "CRS_APPROVED_REPO_URL",
-            "CRS_RELEASE_TAG",
-            "CRS_APPROVED_COMMIT",
-        }:
-            continue
         if name in values:
             raise ValueError(f"duplicate CRS assignment at {common_path}:{line_number}")
-        value = match.group(2) if match.group(2) is not None else match.group(3)
+        value = match.group(2) or match.group(3)
         if not value:
             raise ValueError(f"empty CRS assignment at {common_path}:{line_number}")
         values[name] = value
+    return values
+
+
+def _validate_values(values: dict[str, str], common_path: Path) -> CrsPins:
     required = {"CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"}
     if set(values) != required:
         missing = ", ".join(sorted(required - set(values)))
@@ -130,3 +122,14 @@ def load_crs_pins(common_path: Path, *, root: Path) -> CrsPins:
         release_tag=values["CRS_RELEASE_TAG"],
         commit=values["CRS_APPROVED_COMMIT"],
     )
+
+
+def load_crs_pins(common_path: Path, *, root: Path) -> CrsPins:
+    """Return CRS pins from literal assignments in *common_path*.
+
+    Comments and blank lines are ignored.  Duplicate assignments, shell
+    expansions, and malformed values fail closed.
+    """
+
+    common_path = require_regular_file_within_root(common_path, root)
+    return _validate_values(_parse_assignments(common_path), common_path)

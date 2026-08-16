@@ -10,7 +10,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "ci/tools/sync-canonical-workflow-pins.py"
 spec = importlib.util.spec_from_file_location("canonical_workflow_pins", TOOL)
-assert spec and spec.loader
+if spec is None or spec.loader is None:
+    raise RuntimeError("cannot load canonical workflow pins tool")
 MODULE = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(MODULE)
 
@@ -67,7 +68,7 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
                 "CI_ACTION_CHECKOUT_COMMIT": "a" * 40,
                 "CI_ACTION_CHECKOUT_VERSION": "v7.0.1",
             }
-            errors, outputs = MODULE.workflow_values(root, values, False)
+            errors, outputs = MODULE.workflow_values(root, values)
             self.assertEqual(errors, [])
             self.assertEqual(len(outputs), 1)
             self.assertIn(
@@ -82,7 +83,7 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
             (workflow_dir / "unknown.yml").write_text(
                 "steps:\n  - uses: example/action@main\n", encoding="utf-8"
             )
-            errors, _ = MODULE.workflow_values(root, {}, False)
+            errors, _ = MODULE.workflow_values(root, {})
             self.assertTrue(any("unknown or unsupported" in error for error in errors))
 
     def test_codeql_subaction_uses_repository_pin(self) -> None:
@@ -101,7 +102,7 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
                 "CI_ACTION_CODEQL_COMMIT": "b" * 40,
                 "CI_ACTION_CODEQL_VERSION": "v4.37.6",
             }
-            errors, outputs = MODULE.workflow_values(root, values, False)
+            errors, outputs = MODULE.workflow_values(root, values)
             self.assertEqual(errors, [])
             self.assertIn(
                 "github/codeql-action/init@" + "b" * 40 + " # v4.37.6",
@@ -166,7 +167,7 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
                 "CI_ACTION_SETUP_NODE_VERSION": "v7.0.0",
                 "CI_CANONICAL_NODE_VERSION": "24.18.0",
             }
-            errors, outputs = MODULE.workflow_values(root, values, False)
+            errors, outputs = MODULE.workflow_values(root, values)
             self.assertEqual(errors, [])
             output = outputs[0][1].decode()
             self.assertIn("actions/setup-node@" + "c" * 40 + " # v7.0.0", output)
@@ -187,7 +188,7 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
                 "CI_OSV_LEGACY_BASE_SHA": "a" * 40,
                 "CI_OSV_LEGACY_BASE_VERSION": "3.13.14",
             }
-            errors, outputs = MODULE.workflow_values(root, values, False)
+            errors, outputs = MODULE.workflow_values(root, values)
             self.assertEqual(errors, [])
             output = outputs[0][1].decode()
             self.assertIn("OSV_LEGACY_BASE_SHA: " + "a" * 40, output)

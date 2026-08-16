@@ -23,6 +23,9 @@ validate_compiler() {
             echo "v3_api_smoke: blocked $compiler_name contains shell metacharacters: $compiler_value" >&2
             return 77
             ;;
+        *)
+            :
+            ;;
     esac
     command -v "$compiler_value" >/dev/null 2>&1 || {
         echo "v3_api_smoke: blocked $compiler_name is not an executable command: $compiler_value" >&2
@@ -40,6 +43,9 @@ validate_make_safe_path() {
         ''|*[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_./+-]*)
             echo "v3_api_smoke: blocked $path_name contains Make syntax or unsupported path characters: $path_value" >&2
             return 77
+            ;;
+        *)
+            :
             ;;
     esac
     return 0

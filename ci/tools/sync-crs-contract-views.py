@@ -8,6 +8,7 @@ the explicitly listed contract views, atomically and idempotently.
 from __future__ import annotations
 
 import argparse
+from functools import partial
 import os
 from pathlib import Path
 import re
@@ -33,6 +34,10 @@ _JSON_VIEW_KEYS = {
 }
 
 
+def _replace_json_value(match: re.Match[str], *, value: str) -> str:
+    return f"{match.group('prefix')}{value!r}".replace("'", '"')
+
+
 def _replace_json(text: str, pins: CrsPins, path: Path) -> str:
     values = {
         "crs_repository": pins.repository,
@@ -46,7 +51,7 @@ def _replace_json(text: str, pins: CrsPins, path: Path) -> str:
     for key in keys:
         pattern = re.compile(rf'(?P<prefix>"{key}"\s*:\s*\{{\s*"const"\s*:\s*)"[^"]*"')
         text, count = pattern.subn(
-            lambda match: f"{match.group('prefix')}{values[key]!r}".replace("'", '"'),
+            partial(_replace_json_value, value=values[key]),
             text,
         )
         if count != 1:

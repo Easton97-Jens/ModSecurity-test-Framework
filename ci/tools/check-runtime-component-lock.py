@@ -115,7 +115,7 @@ def expected_tuple(item: dict[str, str], values: dict[str, str], descriptors) ->
     return version, values[str(descriptor["sha"])].lower()
 
 
-def require_profile_shape(item: dict[str, object], version: str, digest: str, descriptor, values, sync) -> None:
+def _require_profile_identity(item: dict[str, object], digest: str, descriptor, values, sync) -> None:
     identifier = str(item.get("id", "unknown"))
     expected_component = str(descriptor["component"])
     if item.get("component") != expected_component:
@@ -128,6 +128,10 @@ def require_profile_shape(item: dict[str, object], version: str, digest: str, de
     expected_os, expected_arch = sync.runtime_profile_platform(values)
     if item.get("os") != expected_os or item.get("arch") != expected_arch:
         raise ValueError(f"{identifier} has an unsupported platform")
+
+
+def _require_profile_artifact(item: dict[str, object], descriptor, values, sync) -> None:
+    identifier = str(item.get("id", "unknown"))
     expected_asset = sync.normalized_asset(descriptor, values)
     if item.get("asset_name") != expected_asset:
         raise ValueError(f"{identifier} asset does not match locked version and architecture")
@@ -137,11 +141,21 @@ def require_profile_shape(item: dict[str, object], version: str, digest: str, de
         raise ValueError(f"{identifier} download URL drift")
     if not download_url.startswith("https://") or not download_url.endswith(f"/{expected_asset}"):
         raise ValueError(f"{identifier} download URL does not bind the locked asset")
+
+
+def _require_profile_provenance(item: dict[str, object], descriptor, values, sync) -> None:
+    identifier = str(item.get("id", "unknown"))
     expected_source = sync.source_root_url(str(values[str(descriptor["source"])]))
     if item.get("source_url") != expected_source:
         raise ValueError(f"{identifier} source URL does not match its descriptor")
     if not item.get("source_url") or not item.get("source_provenance"):
         raise ValueError(f"{identifier} lacks source provenance")
+
+
+def require_profile_shape(item: dict[str, object], digest: str, descriptor, values, sync) -> None:
+    _require_profile_identity(item, digest, descriptor, values, sync)
+    _require_profile_artifact(item, descriptor, values, sync)
+    _require_profile_provenance(item, descriptor, values, sync)
 
 
 def require_manifest_matches_lock(
@@ -207,7 +221,7 @@ def validate_lock(
             raise ValueError(f"{item['id']} version drift: lock={item['version']} common={version}")
         if re.fullmatch(r"[0-9a-f]{64}", digest) is None:
             raise ValueError(f"{item['id']} canonical SHA-256 is invalid")
-        require_profile_shape(item, version, digest, descriptors[identifier], values, sync)
+        require_profile_shape(item, digest, descriptors[identifier], values, sync)
     return components
 
 

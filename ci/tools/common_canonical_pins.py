@@ -18,6 +18,34 @@ _REFERENCE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)(?:#([^{}]*))?\}")
 _PIN_PREFIXES = ("CI_ACTION_", "CI_SECURITY_TOOL_", "CI_OSV_")
 
 
+def _resolve_value(raw: str, values: dict[str, str], line_number: int) -> str:
+    value = raw
+    for _ in range(4):
+        changed = False
+
+        def replace(reference: re.Match[str]) -> str:
+            nonlocal changed
+            dependency, prefix = reference.groups()
+            if dependency not in values:
+                raise ValueError(
+                    f"common.sh:{line_number}: unresolved canonical pin {dependency}"
+                )
+            resolved = values[dependency]
+            if prefix and not resolved.startswith(prefix):
+                raise ValueError(
+                    f"common.sh:{line_number}: invalid canonical prefix removal"
+                )
+            changed = True
+            return resolved[len(prefix) :] if prefix else resolved
+
+        value = _REFERENCE.sub(replace, value)
+        if not changed:
+            break
+    if "$" in value:
+        raise ValueError(f"common.sh:{line_number}: unsafe canonical pin expression")
+    return value
+
+
 def _read_common(root: Path) -> list[str]:
     path = root / "ci" / "lib" / "common.sh"
     try:
@@ -48,31 +76,7 @@ def load_canonical_ci_pins(root: Path) -> dict[str, str]:
         name, raw = match.groups()
         if name in locations:
             raise ValueError(f"common.sh:{line_number}: duplicate canonical pin {name}")
-        value = raw
-        for _ in range(4):
-            changed = False
-
-            def replace(reference: re.Match[str]) -> str:
-                nonlocal changed
-                dependency, prefix = reference.groups()
-                if dependency not in values:
-                    raise ValueError(
-                        f"common.sh:{line_number}: unresolved canonical pin {dependency}"
-                    )
-                resolved = values[dependency]
-                if prefix and not resolved.startswith(prefix):
-                    raise ValueError(
-                        f"common.sh:{line_number}: invalid canonical prefix removal"
-                    )
-                changed = True
-                return resolved[len(prefix) :] if prefix else resolved
-
-            value = _REFERENCE.sub(replace, value)
-            if not changed:
-                break
-        if "$" in value:
-            raise ValueError(f"common.sh:{line_number}: unsafe canonical pin expression")
-        values[name] = value
+        values[name] = _resolve_value(raw, values, line_number)
         locations[name] = line_number
     if not values:
         raise ValueError("common.sh: no canonical CI pins found")

@@ -244,6 +244,9 @@ connector_smoke_require_reviewed_runtime_binary() {
                 grep -Fx "haproxy_source_url=$HAPROXY_SOURCE_URL" "$provenance" >/dev/null 2>&1 || return 77
                 grep -Fx "haproxy_sha256=$HAPROXY_SHA256" "$provenance" >/dev/null 2>&1 || return 77
                 ;;
+            *)
+                return 77
+                ;;
         esac
         recorded_sha=$(sed -n "s/^${provenance_key}_binary_sha256=//p" "$provenance")
         printf '%s\n' "$recorded_sha" | grep -Eq '^[0-9A-Fa-f]{64}$' || return 77
@@ -348,6 +351,9 @@ find_runtime_binary() {
             case "$env_var" in
                 ENVOY_BIN|LIGHTTPD_BIN|HAPROXY_BIN)
                     connector_smoke_require_reviewed_runtime_binary "$env_var" "$env_value" || return 1
+                    ;;
+                *)
+                    return 77
                     ;;
             esac
             printf '%s\n' "$env_value"

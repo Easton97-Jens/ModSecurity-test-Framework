@@ -45,6 +45,9 @@ for argument in "$@"; do
             echo "safe-make: environment Make overrides are not accepted" >&2
             exit 77
             ;;
+        *)
+            :
+            ;;
     esac
 done
 

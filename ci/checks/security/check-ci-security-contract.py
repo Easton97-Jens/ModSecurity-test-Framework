@@ -889,6 +889,39 @@ def required_record_fields(group: str, record: dict[str, Any]) -> set[str]:
     return TOOL_FIELDS
 
 
+def action_release_resolution_errors(
+    path: Path, name: str, record: dict[str, Any]
+) -> list[str]:
+    resolution = record.get("release_resolution")
+    expected_resolution = ACTION_RELEASE_RESOLUTION_LATEST
+    common = path.parents[2] / "ci" / "lib" / "common.sh"
+    if common.is_file():
+        try:
+            values = load_canonical_ci_pins(path.parents[2])
+            if name == values.get("CI_ACTION_CODEQL_REPOSITORY"):
+                expected_resolution = ACTION_RELEASE_RESOLUTION_SAME_MAJOR
+        except ValueError:
+            pass
+
+    errors: list[str] = []
+    if not isinstance(resolution, str) or resolution not in ACTION_RELEASE_RESOLUTIONS:
+        errors.append(f"{path}: action {name!r} has an unsupported release resolution")
+    elif resolution != expected_resolution:
+        errors.append(
+            f"{path}: action {name!r} must use release resolution "
+            f"{expected_resolution!r}"
+        )
+    if (
+        resolution == ACTION_RELEASE_RESOLUTION_SAME_MAJOR
+        and not CODEQL_ACTION_SERIES_TAG.fullmatch(str(record.get("version", "")))
+    ):
+        errors.append(
+            f"{path}: action {name!r} same-major release resolution requires "
+            "a v<major>.<minor>.<patch> version"
+        )
+    return errors
+
+
 def common_record_errors(
     path: Path, group: str, name: str, record: dict[str, Any]
 ) -> list[str]:
@@ -904,36 +937,7 @@ def common_record_errors(
         if not isinstance(record.get(field), str) or not record[field].strip():
             errors.append(f"{path}: {group} {name!r} has an empty {field}")
     if group == "action":
-        resolution = record.get("release_resolution")
-        expected_resolution = ACTION_RELEASE_RESOLUTION_LATEST
-        common = path.parents[2] / "ci" / "lib" / "common.sh"
-        if common.is_file():
-            try:
-                values = load_canonical_ci_pins(path.parents[2])
-                if name == values.get("CI_ACTION_CODEQL_REPOSITORY"):
-                    expected_resolution = ACTION_RELEASE_RESOLUTION_SAME_MAJOR
-            except ValueError:
-                pass
-        if (
-            not isinstance(resolution, str)
-            or resolution not in ACTION_RELEASE_RESOLUTIONS
-        ):
-            errors.append(
-                f"{path}: action {name!r} has an unsupported release resolution"
-            )
-        elif resolution != expected_resolution:
-            errors.append(
-                f"{path}: action {name!r} must use release resolution "
-                f"{expected_resolution!r}"
-            )
-        if (
-            resolution == ACTION_RELEASE_RESOLUTION_SAME_MAJOR
-            and not CODEQL_ACTION_SERIES_TAG.fullmatch(str(record.get("version", "")))
-        ):
-            errors.append(
-                f"{path}: action {name!r} same-major release resolution requires "
-                "a v<major>.<minor>.<patch> version"
-            )
+        errors.extend(action_release_resolution_errors(path, name, record))
     return errors
 
 
@@ -3297,7 +3301,7 @@ def configure_canonical_actions(root: Path) -> None:
         ACTION_RELEASE_RESOLUTION_SAME_MAJOR
     )
     for requirements in (OSV_JOB_REQUIREMENTS, SCORECARD_JOB_REQUIREMENTS):
-        for job_name, snippets in list(requirements.items()):
+        for job_name, snippets in requirements.items():
             requirements[job_name] = tuple(
                 identities["upload_artifact"] + "@"
                 if item == "CI_ACTION_UPLOAD_ARTIFACT_REPOSITORY@"

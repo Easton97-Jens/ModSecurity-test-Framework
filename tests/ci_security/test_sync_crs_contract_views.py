@@ -103,6 +103,23 @@ class SyncCrsContractViewsTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("semantic release tag", result.stderr)
 
+    def test_non_ascii_release_tag_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "ci/lib").mkdir(parents=True)
+            self._copy_fixture(root)
+            common = root / "ci/lib/common.sh"
+            current_tag = load_crs_pins(common, root=root).release_tag
+            common.write_text(
+                common.read_text(encoding="utf-8").replace(
+                    f'CRS_RELEASE_TAG="{current_tag}"', 'CRS_RELEASE_TAG="v١.2.3"'
+                ),
+                encoding="utf-8",
+            )
+            result = self._run(root, "--check")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("semantic release tag", result.stderr)
+
     def test_repository_must_be_https_git_url(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

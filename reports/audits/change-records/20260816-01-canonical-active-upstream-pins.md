@@ -83,6 +83,22 @@ file type. The validator returns only the checked resolved path, which is then
 used for all CRS reads, comparisons, and atomic writes; no raw CLI-derived
 path reaches those filesystem sinks.
 
+### SonarQube Cloud remediation follow-up
+
+The preceding PR analysis reported 44 new code smells and 16 duplicated
+new-code lines (0.3%). This follow-up uses no accepted-issue state, scanner
+exclusion, rule suppression, or metric-only workaround. It decomposes
+cognitive-complexity hotspots, centralizes repeated validation/error paths,
+makes shell case defaults explicit, uses concise ASCII-aware regexes, and
+reuses a runtime test helper rather than duplicate test blocks.
+
+The parser continues to read only the declarative runtime assignment grammar
+and never sources common.sh. A direct disallowed assignment expression is
+rejected without execution. It intentionally is not represented as a complete
+interpreter or verifier for arbitrary later shell execution; the PR and
+maintenance workflow trust boundaries provide the separate execution
+protection.
+
 ## Changed files and tests
 
 - Canonical source and runtime contracts: `ci/lib/common.sh`,
@@ -100,6 +116,10 @@ path reaches those filesystem sinks.
   provenance, private-materialization, safe-Make, lock, download, bootstrap,
   CRS, and CI contract coverage, including CRS root-traversal and symlink-root
   rejection with a legitimate temporary-fixture control.
+- Sonar remediation: Framework-native refactors in canonical pin, workflow,
+  runtime, common-version, CI-contract, and shell control paths, with focused
+  regression coverage for lexical containment, ASCII-only releases/tags,
+  explicit shell defaults, and runtime metadata contracts.
 
 ## Commands and results
 
@@ -112,6 +132,8 @@ path reaches those filesystem sinks.
 | `python -m unittest discover -q` | 0 | 98 native full-suite tests passed. | Local canonical-pin validation receipt |
 | Generic canonical, synchronizer, lock, catalog, shell-syntax, and `git diff --check` checks | 0 | Generated views and source contracts were clean and idempotent. | Local canonical-pin validation receipt |
 | Focused CRS root-containment, canonical Python, and workflow synchronizer tests | 0 | 26 tests passed, including traversal and symlink-root negatives. | Draft-PR remediation validation |
+| Framework safe-make lint with the selected absolute virtual-environment Python | 0 | Full native lint, contracts, provenance, runtime, workflow, documentation, and whitespace chain passed. | Sonar remediation local validation |
+| Focused runtime sync/lock/Traefik test modules plus generic runtime synchronizer check | 0 | 35 tests passed; direct disallowed declaration and no-execution controls passed. | Sonar remediation local validation |
 
 ## Security impact
 
@@ -123,6 +145,13 @@ They also cover CRS root traversal and symlink-root substitution before a view
 can be read or written. Legitimate controlled inputs continue to pass. The
 final review found no confirmed high- or critical-impact issue in supported
 active entrypoints.
+
+The follow-up independently confirmed lexical containment and ASCII-only
+release/tag validation after the maintainability refactors. The reviewed
+runtime parser completeness concern had no untrusted-to-privileged workflow
+path: PR jobs are read-only and privileged maintenance jobs use a trusted
+default-branch checkout. It is therefore recorded as not applicable rather
+than as a claimed fixed vulnerability.
 
 ## Documentation and runtime evidence
 
@@ -152,10 +181,11 @@ between validation and the filesystem operation.
 
 ## Final diff and review status
 
-The original canonical diff and the CRS root-containment remediation passed
-their task-owned whitespace, generated-view idempotence, focused security
-review, and local validation. Draft PR #82 is open; the next commit and normal
-push will be verified against the remote and PR heads after delivery. The
-SonarQube Cloud security-gate failure on the preceding PR head is the reason
-for this remediation; no current-head hosted result is claimed here. This
-record does not claim a merge, Parent, MRTS, or gitlink outcome.
+The original canonical diff, CRS root-containment remediation, and native
+Sonar remediation passed task-owned whitespace, generated-view idempotence,
+focused security review, and full local lint. Draft PR #82 is open; the next
+commit and normal push will be verified against the remote and PR heads after
+delivery. The preceding hosted analysis passed its Quality Gate but still
+reported 44 new code smells and 0.3% new-code duplication; no zero-issue
+current-head result is claimed until the delivered head completes hosted
+analysis. This record does not claim a merge, Parent, MRTS, or gitlink outcome.

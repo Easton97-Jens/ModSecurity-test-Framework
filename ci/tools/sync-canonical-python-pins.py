@@ -28,9 +28,9 @@ ASSIGNMENT = re.compile(
     r"\s*=\s*(?:\"(?P<double>[^\"\n]*)\"|'(?P<single>[^'\n]*)'|"
     r"(?P<bare>[^\s#]+))\s*(?:#.*)?$"
 )
-VERSION = re.compile(r"\A[0-9]+\.[0-9]+\.[0-9]+\Z")
+VERSION = re.compile(r"\A\d+\.\d+\.\d+\Z", flags=re.ASCII)
 SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
-PYTHON_VIEW = re.compile(r"\A(?P<value>[0-9]+\.[0-9]+\.[0-9]+)\n\Z")
+PYTHON_VIEW = re.compile(r"\A(?P<value>\d+\.\d+\.\d+)\n\Z", flags=re.ASCII)
 PYAML_VERSION_LINE = re.compile(
     r"\A(?P<prefix>\s*PyYAML==)(?P<value>[^\s\\]+)(?P<suffix>\s*\\\n)\Z"
 )
@@ -44,8 +44,8 @@ class PinError(ValueError):
 
 
 def lexical_path(path: Path) -> Path:
-    """Return an absolute path without resolving repository-controlled links."""
-    return path if path.is_absolute() else Path.cwd() / path
+    """Normalize lexical path segments without resolving repository-controlled links."""
+    return Path(os.path.abspath(path))
 
 
 def reject_symlink_components(path: Path, label: str) -> None:
@@ -131,12 +131,14 @@ def canonical_values(common: Path) -> dict[str, str]:
 
 
 def expected_views(root: Path, values: dict[str, str]) -> dict[Path, bytes]:
-    python_path = path_in_root(root / ".python-version", root, ".python-version")
-    requirements_path = path_in_root(root / "requirements-ci.lock", root, "requirements-ci.lock")
-    python_text = read_utf8(python_path, ".python-version")
+    python_label = ".python-version"
+    requirements_label = "requirements-ci.lock"
+    python_path = path_in_root(root / python_label, root, python_label)
+    requirements_path = path_in_root(root / requirements_label, root, requirements_label)
+    python_text = read_utf8(python_path, python_label)
     if PYTHON_VIEW.fullmatch(python_text) is None:
         raise PinError(f"{python_path}: expected exactly one newline-terminated stable version")
-    requirements = read_utf8(requirements_path, "requirements-ci.lock")
+    requirements = read_utf8(requirements_path, requirements_label)
     lines = requirements.splitlines(keepends=True)
     version_indexes = [
         index for index, line in enumerate(lines) if PYAML_VERSION_LINE.fullmatch(line)

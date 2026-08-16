@@ -28,7 +28,8 @@ SHA256_SUFFIX = ".sha256"
 ARCHIVE_BZ2_EXTENSION = ".tar.bz2"
 APACHE_DOWNLOAD_HOST = "downloads.apache.org"
 MODSECURITY_V3_COMPONENT = "ModSecurity v3"
-GITHUB_WEB_ORIGIN = "https://github.com"
+GITHUB_WEB_HOST = "github.com"
+GITHUB_WEB_ORIGIN = f"https://{GITHUB_WEB_HOST}"
 ENVOY_COMPONENT = "Envoy"
 TRAEFIK_COMPONENT = "Traefik"
 GITHUB_RELEASES_SOURCE_COMPONENTS = frozenset(
@@ -40,7 +41,7 @@ NGINX_SOURCE_GIT_REF_VARIABLE = "NGINX_SOURCE_GIT_REF"
 NGINX_RELEASE_TAG_VARIABLE = "NGINX_RELEASE_TAG"
 AUTOMATIC_UPDATE_POLICY = "automatic"
 GITHUB_RELEASE_MANIFEST_RESOLVER = "github_release_manifest"
-GITHUB_RELEASE_HOSTS = ("github.com", "api.github.com")
+GITHUB_RELEASE_HOSTS = (GITHUB_WEB_HOST, "api.github.com")
 GITHUB_STABLE_RELEASE_POLICY = (
     "GitHub non-draft, non-prerelease stable v<version> release"
 )
@@ -1023,29 +1024,27 @@ def duplicate_provenance_variables(lines: list[str]) -> dict[str, list[int]]:
     }
 
 
-def canonical_contract_errors(
-    lines: list[str], entries: dict[str, VariableEntry]
-) -> list[str]:
-    """Validate the complete local canonical pin contract, offline.
-
-    The updater intentionally permits component-specific fixtures containing
-    only a subset of variables.  This stricter contract is reserved for the
-    canonical checkout/lint path and therefore checks every registered
-    provenance variable, ownership, duplicate assignment, and resolution.
-    """
-
+def _canonical_registry_errors() -> list[str]:
     errors: list[str] = []
-    expected: set[str] = set()
     owners: dict[str, list[str]] = {}
     for definition in COMPONENT_DEFINITIONS:
         for name in definition.variables:
-            expected.add(name)
             owners.setdefault(name, []).append(definition.name)
     duplicate_owners = {
         name: names for name, names in owners.items() if len(names) > 1
     }
     for name, names in sorted(duplicate_owners.items()):
         errors.append(f"duplicate registry ownership for {name}: {', '.join(names)}")
+    return errors
+
+
+def _canonical_assignment_errors(
+    lines: list[str], entries: dict[str, VariableEntry]
+) -> list[str]:
+    errors: list[str] = []
+    expected = {
+        name for definition in COMPONENT_DEFINITIONS for name in definition.variables
+    }
 
     missing = sorted(name for name in expected if name not in entries)
     if missing:
@@ -1061,6 +1060,11 @@ def canonical_contract_errors(
     unassigned = unassigned_provenance_variables(entries)
     if unassigned:
         errors.append("unassigned canonical assignments: " + ", ".join(unassigned))
+    return errors
+
+
+def _canonical_value_errors(entries: dict[str, VariableEntry]) -> list[str]:
+    errors: list[str] = []
     missing_values = validate_entries(entries)
     if missing_values:
         errors.append("empty canonical assignments: " + ", ".join(missing_values))
@@ -1101,12 +1105,24 @@ def canonical_contract_errors(
     return errors
 
 
-def active_consumer_pin_literals(
-    common_sh: Path, repository_root: Path | None = None
+def canonical_contract_errors(
+    lines: list[str], entries: dict[str, VariableEntry]
 ) -> list[str]:
-    """Find copied current pins in active consumers without executing code."""
+    """Validate the complete local canonical pin contract, offline.
 
-    root = (repository_root or DEFAULT_COMMON_SH.parents[2]).resolve()
+    The updater intentionally permits component-specific fixtures containing
+    only a subset of variables.  This stricter contract is reserved for the
+    canonical checkout/lint path and therefore checks every registered
+    provenance variable, ownership, duplicate assignment, and resolution.
+    """
+
+    errors = _canonical_registry_errors()
+    errors.extend(_canonical_assignment_errors(lines, entries))
+    errors.extend(_canonical_value_errors(entries))
+    return errors
+
+
+def _canonical_pin_values(common_sh: Path) -> dict[str, str]:
     pin_values = {
         item.name: item.resolved
         for item in parse_common_lines(common_sh.read_text(encoding="utf-8").splitlines()).values()
@@ -1119,45 +1135,91 @@ def active_consumer_pin_literals(
     # representations without treating arbitrary URL path fragments as pins.
     for name, value in list(pin_values.items()):
         parsed = urlparse(value)
-        if parsed.hostname == "github.com":
+        if parsed.hostname == GITHUB_WEB_HOST:
             repository = parsed.path.strip("/").removesuffix(".git")
             if repository.count("/") == 1:
                 pin_values[f"{name} (repository)"] = repository
+    return pin_values
+
+
+def _pin_value_names(pin_values: dict[str, str]) -> dict[str, list[str]]:
     value_names: dict[str, list[str]] = {}
     for name, value in pin_values.items():
         value_names.setdefault(value, []).append(name)
+    return value_names
+
+
+def _is_active_consumer_file(path: Path) -> bool:
+    return path.is_file() and (
+        path.suffix in ACTIVE_CONSUMER_SUFFIXES
+        or path.name.startswith("Dockerfile")
+        or not path.suffix
+    )
+
+
+def _active_consumer_files(root: Path) -> list[Path]:
+    paths: list[Path] = []
+    for relative_root in ACTIVE_CONSUMER_ROOTS:
+        scan_root = root / relative_root
+        if scan_root.is_dir():
+            paths.extend(
+                path for path in sorted(scan_root.rglob("*")) if _is_active_consumer_file(path)
+            )
+    return paths
+
+
+def _consumer_pin_findings(
+    path: Path,
+    root: Path,
+    common_sh: Path,
+    value_pattern: re.Pattern[str],
+    value_names: dict[str, list[str]],
+) -> list[str]:
+    relative = path.relative_to(root).as_posix()
+    common_path = common_sh.resolve()
+    common_relative = (
+        common_path.relative_to(root).as_posix()
+        if common_path.is_relative_to(root)
+        else None
+    )
+    if common_relative and relative == common_relative:
+        return []
+    if relative in GENERATED_CANONICAL_VIEW_PATHS or relative in NON_CONSUMER_METADATA_PATHS:
+        return []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return []
+    findings: list[str] = []
+    for line_no, line in enumerate(text.splitlines(), start=1):
+        for match in value_pattern.finditer(line):
+            value = match.group(0)
+            findings.extend(
+                f"{relative}:{line_no}: {name}={value}" for name in value_names[value]
+            )
+    return findings
+
+
+def active_consumer_pin_literals(
+    common_sh: Path, repository_root: Path | None = None
+) -> list[str]:
+    """Find copied current pins in active consumers without executing code."""
+
+    root = (repository_root or DEFAULT_COMMON_SH.parents[2]).resolve()
+    value_names = _pin_value_names(_canonical_pin_values(common_sh))
     value_pattern = re.compile(
         "|".join(
             rf"(?<![A-Za-z0-9_.-]){re.escape(value)}(?![A-Za-z0-9_.-])"
             for value in sorted(value_names, key=len, reverse=True)
         )
     )
-    findings: list[str] = []
-    for relative_root in ACTIVE_CONSUMER_ROOTS:
-        scan_root = root / relative_root
-        if not scan_root.is_dir():
-            continue
-        for path in sorted(scan_root.rglob("*")):
-            if not path.is_file() or not (
-                path.suffix in ACTIVE_CONSUMER_SUFFIXES
-                or path.name.startswith("Dockerfile")
-                or not path.suffix
-            ):
-                continue
-            relative = path.relative_to(root).as_posix()
-            if common_sh.resolve().is_relative_to(root) and relative == common_sh.resolve().relative_to(root).as_posix():
-                continue
-            if relative in GENERATED_CANONICAL_VIEW_PATHS or relative in NON_CONSUMER_METADATA_PATHS:
-                continue
-            try:
-                text = path.read_text(encoding="utf-8")
-            except (OSError, UnicodeError):
-                continue
-            for line_no, line in enumerate(text.splitlines(), start=1):
-                for match in value_pattern.finditer(line):
-                    value = match.group(0)
-                    for name in value_names[value]:
-                        findings.append(f"{relative}:{line_no}: {name}={value}")
+    findings = [
+        finding
+        for path in _active_consumer_files(root)
+        for finding in _consumer_pin_findings(
+            path, root, common_sh, value_pattern, value_names
+        )
+    ]
     return sorted(set(findings))
 
 
@@ -2167,7 +2229,7 @@ def github_repo_path(repo_url: str) -> str | None:
     parsed = urlparse(repo_url.strip())
     if (
         parsed.scheme != "https"
-        or parsed.netloc != "github.com"
+        or parsed.netloc != GITHUB_WEB_HOST
         or parsed.query
         or parsed.fragment
     ):
@@ -2199,7 +2261,10 @@ def canonicalize_github_repository(
         raise UpstreamUnknown(
             f"{definition.name} canonical repository URL is not an official GitHub URL"
         )
-    return dataclasses.replace(definition, github_repository=repository)
+    updated_definition = dataclasses.replace(
+        definition, github_repository=repository
+    )
+    return cast(ComponentDefinition, updated_definition)
 
 
 def latest_github_release(client: HttpClient, repo_path: str) -> dict[str, Any]:
@@ -4499,44 +4564,51 @@ def emit_summary(
         print(plain_summary(summary), end="")
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_arguments(argv)
-
-    if args.list_components:
-        for definition in COMPONENT_DEFINITIONS:
-            print(definition.name)
-        return 0
-
+def _validate_canonical(args: argparse.Namespace, common_sh: Path) -> int:
     try:
-        selected_components = canonical_component_selection(args.component)
-    except UpstreamError as exc:
-        print(f"error: {exc}", file=sys.stderr)
+        lines, entries = parse_common(common_sh)
+        errors = canonical_contract_errors(lines, entries)
+        errors.extend(
+            "active consumer contains copied canonical pin: " + item
+            for item in active_consumer_pin_literals(common_sh)
+        )
+    except (OSError, UnicodeError) as exc:
+        print(f"error: cannot read canonical common.sh: {exc}", file=sys.stderr)
         return 2
-
-    common_sh = common_path_from_args(args.common_sh)
-    if args.validate_canonical:
-        try:
-            lines, entries = parse_common(common_sh)
-            errors = canonical_contract_errors(lines, entries)
-            errors.extend(
-                "active consumer contains copied canonical pin: " + item
-                for item in active_consumer_pin_literals(common_sh)
-            )
-        except (OSError, UnicodeError) as exc:
-            print(f"error: cannot read canonical common.sh: {exc}", file=sys.stderr)
-            return 2
-        if errors:
-            if args.json:
-                print(json.dumps({"status": STATUS_ERROR, "errors": errors}, indent=2))
-            else:
-                for error in errors:
-                    print(f"error: {error}", file=sys.stderr)
-            return 1
+    if errors:
         if args.json:
-            print(json.dumps({"status": STATUS_CURRENT, "errors": []}, indent=2))
+            print(json.dumps({"status": STATUS_ERROR, "errors": errors}, indent=2))
         else:
-            print("canonical common.sh pins: PASS")
-        return 0
+            for error in errors:
+                print(f"error: {error}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps({"status": STATUS_CURRENT, "errors": []}, indent=2))
+    else:
+        print("canonical common.sh pins: PASS")
+    return 0
+
+
+def _revalidate_candidate(
+    candidate_entries: dict[str, VariableEntry],
+    selected_components: tuple[str, ...],
+    timeout: float,
+) -> list[ComponentResult]:
+    candidate_results = check_all(
+        candidate_entries,
+        HttpClient(timeout=timeout),
+        selected_components,
+    )
+    append_missing_required_result(candidate_results, candidate_entries)
+    append_unassigned_inventory_result(candidate_results, candidate_entries)
+    return candidate_results
+
+
+def _run_version_checks(
+    args: argparse.Namespace,
+    common_sh: Path,
+    selected_components: tuple[str, ...],
+) -> int:
     lines, entries = parse_common(common_sh)
     client = HttpClient(timeout=args.timeout)
     results = check_all(entries, client, selected_components)
@@ -4553,18 +4625,6 @@ def main(argv: list[str] | None = None) -> int:
         defer_reviewed_provenance=args.defer_reviewed_provenance,
     )
 
-    def revalidate(
-        candidate_entries: dict[str, VariableEntry],
-    ) -> list[ComponentResult]:
-        candidate_results = check_all(
-            candidate_entries,
-            HttpClient(timeout=args.timeout),
-            selected_components,
-        )
-        append_missing_required_result(candidate_results, candidate_entries)
-        append_unassigned_inventory_result(candidate_results, candidate_entries)
-        return candidate_results
-
     update_result = apply_requested_updates(
         args.update,
         rc,
@@ -4573,7 +4633,9 @@ def main(argv: list[str] | None = None) -> int:
         entries,
         results,
         defer_reviewed_provenance=args.defer_reviewed_provenance,
-        revalidate=revalidate,
+        revalidate=lambda candidate_entries: _revalidate_candidate(
+            candidate_entries, selected_components, args.timeout
+        ),
     )
     if update_result is None:
         return 2
@@ -4596,6 +4658,26 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     emit_summary(summary, markdown, args.json, args.markdown)
     return rc
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_arguments(argv)
+
+    if args.list_components:
+        for definition in COMPONENT_DEFINITIONS:
+            print(definition.name)
+        return 0
+
+    try:
+        selected_components = canonical_component_selection(args.component)
+    except UpstreamError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    common_sh = common_path_from_args(args.common_sh)
+    if args.validate_canonical:
+        return _validate_canonical(args, common_sh)
+    return _run_version_checks(args, common_sh, selected_components)
 
 
 if __name__ == "__main__":

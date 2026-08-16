@@ -143,6 +143,20 @@ class RuntimeComponentSyncTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(marker.exists(), "the parser must never source common.sh")
 
+    def test_disallowed_assignment_expression_is_rejected_without_execution(self):
+        temporary, common, manifest, lock = self.fixture()
+        with temporary:
+            marker = common.parents[2] / "disallowed-assignment-expression"
+            source = common.read_text(encoding="utf-8")
+            common.write_text(
+                source + f'\nENVOY_VERSION="$(touch {marker}; printf 1.39.0)"\n',
+                encoding="utf-8",
+            )
+            result = self.run_tool("--check", common=common, manifest=manifest, lock=lock)
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertIn("malformed canonical assignment", result.stderr)
+            self.assertFalse(marker.exists(), "the parser must never source common.sh")
+
     def test_lock_manifest_digest_platform_and_asset_mutations_are_rejected(self):
         lock_mutations = {
             "platform": lambda d: d.__setitem__("platform", "linux-arm64"),

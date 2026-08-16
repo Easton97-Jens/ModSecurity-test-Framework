@@ -60,6 +60,24 @@ def root_path(value: str | None) -> Path:
     return Path(value).resolve() if value else Path(__file__).resolve().parents[2]
 
 
+def _check_managed_component(current: Path, path: Path, require_file: bool) -> bool:
+    try:
+        current.lstat()
+    except FileNotFoundError:
+        if current != path:
+            raise PinError(f"managed path has a missing parent: {current}")
+        if require_file:
+            raise PinError(f"managed file is missing: {path}")
+        return False
+    except OSError as exc:
+        raise PinError(f"cannot inspect managed path {current}: {exc}") from exc
+    if current.is_symlink():
+        raise PinError(f"managed path may not be a symlink: {current}")
+    if current != path and not current.is_dir():
+        raise PinError(f"managed path parent is not a directory: {current}")
+    return True
+
+
 def validate_managed_path(root: Path, path: Path, *, require_file: bool = True) -> None:
     """Reject symlinked or escaped source/output paths before any I/O.
 
@@ -75,20 +93,8 @@ def validate_managed_path(root: Path, path: Path, *, require_file: bool = True) 
     current = root
     for component in relative.parts:
         current /= component
-        try:
-            status = current.lstat()
-        except FileNotFoundError:
-            if current != path:
-                raise PinError(f"managed path has a missing parent: {current}")
-            if require_file:
-                raise PinError(f"managed file is missing: {path}")
+        if not _check_managed_component(current, path, require_file):
             return
-        except OSError as exc:
-            raise PinError(f"cannot inspect managed path {current}: {exc}") from exc
-        if current.is_symlink():
-            raise PinError(f"managed path may not be a symlink: {current}")
-        if current != path and not current.is_dir():
-            raise PinError(f"managed path parent is not a directory: {current}")
     if require_file and (not path.is_file() or not stat.S_ISREG(path.stat().st_mode)):
         raise PinError(f"managed file is not a regular file: {path}")
 
@@ -120,8 +126,8 @@ def strip_shell_comment(line: str) -> str:
 
     quote: str | None = None
     for index, character in enumerate(line):
-        if character in {"'", '"'}:
-            quote = None if quote == character else (character if quote is None else quote)
+        if character in {"'", '"'} and quote in (None, character):
+            quote = None if quote == character else character
         elif character == "#" and quote is None:
             return line[:index]
     return line
@@ -140,32 +146,38 @@ def resolve_asset_expression(name: str, raw_value: str, values: dict[str, str]) 
     while position < len(raw_value):
         match = SAFE_EXPANSION.search(raw_value, position)
         if match is None:
-            literal = raw_value[position:]
-            if not LITERAL_VALUE.fullmatch(literal):
-                raise PinError(f"{name} contains an unsafe asset literal")
-            resolved.append(literal)
+            resolved.append(_asset_literal(name, raw_value[position:]))
             break
-        literal = raw_value[position : match.start()]
-        if literal and not LITERAL_VALUE.fullmatch(literal):
-            raise PinError(f"{name} contains an unsafe asset literal")
-        resolved.append(literal)
-        variable = match.group("braced") or match.group("bare")
-        if variable != allowed_name or variable not in values:
-            raise PinError(f"{name} expands an unapproved or forward variable")
-        value = values[variable]
-        prefix = match.group("prefix")
-        if prefix is not None:
-            if not value.startswith(prefix):
-                raise PinError(f"{name} cannot remove nonmatching version prefix")
-            value = value[len(prefix) :]
-        if not value or not LITERAL_VALUE.fullmatch(value):
-            raise PinError(f"{name} resolved to an unsafe asset fragment")
-        resolved.append(value)
+        resolved.append(_asset_literal(name, raw_value[position : match.start()]))
+        resolved.append(_resolve_asset_match(name, allowed_name, match, values))
         position = match.end()
     result = "".join(resolved)
     if not result or not LITERAL_VALUE.fullmatch(result):
         raise PinError(f"{name} resolved to an unsafe asset name")
     return result
+
+
+def _asset_literal(name: str, literal: str) -> str:
+    if literal and not LITERAL_VALUE.fullmatch(literal):
+        raise PinError(f"{name} contains an unsafe asset literal")
+    return literal
+
+
+def _resolve_asset_match(
+    name: str, allowed_name: str, match: re.Match[str], values: dict[str, str]
+) -> str:
+    variable = match.group("braced") or match.group("bare")
+    if variable != allowed_name or variable not in values:
+        raise PinError(f"{name} expands an unapproved or forward variable")
+    value = values[variable]
+    prefix = match.group("prefix")
+    if prefix is not None:
+        if not value.startswith(prefix):
+            raise PinError(f"{name} cannot remove nonmatching version prefix")
+        value = value[len(prefix) :]
+    if not value or not LITERAL_VALUE.fullmatch(value):
+        raise PinError(f"{name} resolved to an unsafe asset fragment")
+    return value
 
 
 def source_common(root: Path) -> dict[str, str]:
@@ -189,24 +201,55 @@ def source_common(root: Path) -> dict[str, str]:
     except UnicodeDecodeError as exc:
         raise PinError(f"common source is not UTF-8: {common}") from exc
     for line_number, line in enumerate(content.splitlines(), 1):
-        candidate = strip_shell_comment(line).rstrip()
-        if not candidate or "=" not in candidate:
+        assignment_value = _parse_canonical_assignment(
+            line, line_number, common, name_set, assignment
+        )
+        if assignment_value is None:
             continue
-        name = candidate.split("=", 1)[0]
-        if name not in name_set:
-            continue
-        match = assignment.fullmatch(candidate)
-        if match is None:
-            raise PinError(f"{common}:{line_number}: canonical pin is not an exact quoted literal")
-        value = resolve_asset_expression(name, match.group("value"), values)
-        if not LITERAL_VALUE.fullmatch(value):
-            raise PinError(f"{common}:{line_number}: canonical pin contains unsafe literal characters")
-        if name in values:
-            raise PinError(f"{common}:{line_number}: duplicate canonical pin assignment: {name}")
-        values[name] = value
+        name, raw_value = assignment_value
+        value = resolve_asset_expression(name, raw_value, values)
+        _store_canonical_value(values, name, value, common, line_number)
     missing = [name for name in names if not values.get(name)]
     if missing:
         raise PinError("common.sh is missing canonical CI pins: " + ", ".join(missing))
+    _validate_canonical_values(values)
+    return values
+
+
+def _parse_canonical_assignment(
+    line: str,
+    line_number: int,
+    common: Path,
+    names: set[str],
+    assignment: re.Pattern[str],
+) -> tuple[str, str] | None:
+    candidate = strip_shell_comment(line).rstrip()
+    if not candidate or "=" not in candidate:
+        return None
+    name = candidate.split("=", 1)[0]
+    if name not in names:
+        return None
+    match = assignment.fullmatch(candidate)
+    if match is None:
+        raise PinError(
+            f"{common}:{line_number}: canonical pin is not an exact quoted literal"
+        )
+    return name, match.group("value")
+
+
+def _store_canonical_value(
+    values: dict[str, str], name: str, value: str, common: Path, line_number: int
+) -> None:
+    if not LITERAL_VALUE.fullmatch(value):
+        raise PinError(
+            f"{common}:{line_number}: canonical pin contains unsafe literal characters"
+        )
+    if name in values:
+        raise PinError(f"{common}:{line_number}: duplicate canonical pin assignment: {name}")
+    values[name] = value
+
+
+def _validate_canonical_values(values: dict[str, str]) -> None:
     for name, value in values.items():
         if name.endswith("_COMMIT") and not SHA40.fullmatch(value):
             raise PinError(f"{name} is not a lowercase full commit SHA")
@@ -216,7 +259,6 @@ def source_common(root: Path) -> dict[str, str]:
             raise PinError(f"{name} is not a lowercase SHA-256")
         if name.endswith("_REPOSITORY") and not REPOSITORY.fullmatch(value):
             raise PinError(f"{name} is not an owner/repository identifier")
-    return values
 
 
 def atomic_write(path: Path, data: bytes) -> bool:
@@ -255,7 +297,7 @@ def replace_record_field(text: str, section: str, record: str, field: str, value
     if marker is None:
         raise PinError(f"lock record not found: {section}.{record}")
     start = section_start + marker.start()
-    next_record = re.search(r"\n(?=  [^ ])", text[start + 3 :])
+    next_record = re.search(r"\n(?=\s{2}\S)", text[start + 3 :])
     end = start + 3 + next_record.start() if next_record else len(text)
     block = text[start:end]
     pattern = re.compile(rf"(?m)^(    {re.escape(field)}:)\s*.*$")
@@ -278,7 +320,6 @@ def lock_values(root: Path, values: dict[str, str]) -> bytes:
     if set(actions) != set(action_records) or set(tools) != set(tool_records):
         raise PinError("security-tools.lock.yml records do not match canonical repositories")
     for action, suffix in action_records.items():
-        old = actions[action]
         version = values[f"CI_ACTION_{suffix}_VERSION"]
         commit = values[f"CI_ACTION_{suffix}_COMMIT"]
         text = replace_record_field(text, "actions", action, "name", action)
@@ -286,7 +327,6 @@ def lock_values(root: Path, values: dict[str, str]) -> bytes:
         text = replace_record_field(text, "actions", action, "immutable_commit", commit)
         text = replace_record_field(text, "actions", action, "upstream_release", f"https://github.com/{action}/releases/tag/{version}")
     for tool, suffix in tool_records.items():
-        old = tools[tool]
         repository = values[f"CI_SECURITY_TOOL_{suffix}_REPOSITORY"]
         version = values[f"CI_SECURITY_TOOL_{suffix}_VERSION"]
         commit = values[f"CI_SECURITY_TOOL_{suffix}_COMMIT"]
@@ -299,7 +339,112 @@ def lock_values(root: Path, values: dict[str, str]) -> bytes:
     return text.encode("utf-8")
 
 
-def workflow_values(root: Path, values: dict[str, str], write: bool) -> tuple[list[str], list[tuple[Path, bytes]]]:
+def _rewrite_osv_line(
+    path: Path, line: str, values: dict[str, str], seen: set[str]
+) -> str | None:
+    if path.name != "ci-security-osv.yml":
+        return None
+    bare_line = line.rstrip("\n")
+    for field, field_pattern in OSV_LEGACY_FIELD_LINES.items():
+        match = field_pattern.fullmatch(bare_line)
+        if match is None:
+            continue
+        seen.add(field)
+        newline = "\n" if line.endswith("\n") else ""
+        return (
+            match.group("prefix")
+            + values["CI_" + field]
+            + match.group("suffix")
+            + newline
+        )
+    return None
+
+
+def _rewrite_node_line(line: str, values: dict[str, str]) -> tuple[str | None, str | None]:
+    if "node-version:" not in line.rstrip("\n"):
+        return None, None
+    match = NODE_VERSION_LINE.fullmatch(line.rstrip("\n"))
+    if match is None:
+        return line, f"node-version must be a literal canonical value"
+    quote = match.group("quote")
+    newline = "\n" if line.endswith("\n") else ""
+    return (
+        match.group("prefix")
+        + quote
+        + values["CI_CANONICAL_NODE_VERSION"]
+        + quote
+        + match.group("suffix")
+        + newline,
+        None,
+    )
+
+
+def _rewrite_remote_action_line(
+    line: str, values: dict[str, str]
+) -> tuple[str, str | None]:
+    match = REMOTE_USE.search(line)
+    if match is None:
+        return line, None
+    ref = match.group("ref")
+    action, at, _ = ref.rpartition("@")
+    action_suffix = action_suffix_for_reference(action, values)
+    if not at or action_suffix is None:
+        if action.startswith(("./", "docker://", "Docker://")):
+            return line, None
+        return line, f"unknown or unsupported remote Action {ref}"
+    expected_commit = values[f"CI_ACTION_{action_suffix}_COMMIT"]
+    expected_version = values[f"CI_ACTION_{action_suffix}_VERSION"]
+    prefix = line[: match.start("ref")]
+    suffix_text = line[match.end("ref") :]
+    suffix_text = re.sub(
+        r"#\s*v?\d+(?:\.\d+){1,3}\s*$",
+        "# " + expected_version,
+        suffix_text.rstrip("\n"),
+    )
+    if "#" not in suffix_text:
+        suffix_text = suffix_text.rstrip() + " # " + expected_version
+    newline = "\n" if line.endswith("\n") else ""
+    return prefix + action + "@" + expected_commit + suffix_text + newline, None
+
+
+def _rewrite_workflow_line(
+    path: Path,
+    line: str,
+    values: dict[str, str],
+    osv_fields_seen: set[str],
+) -> tuple[str, str | None]:
+    osv_line = _rewrite_osv_line(path, line, values, osv_fields_seen)
+    if osv_line is not None:
+        return osv_line, None
+    node_line, node_error = _rewrite_node_line(line, values)
+    if node_line is not None:
+        return node_line, node_error
+    action_line, action_error = _rewrite_remote_action_line(line, values)
+    if action_error is None:
+        return action_line, None
+    return action_line, action_error
+
+
+def _validate_workflow_actions(
+    root: Path, path: Path, text: str, values: dict[str, str]
+) -> list[str]:
+    errors: list[str] = []
+    for line_number, line in enumerate(text.splitlines(), 1):
+        match = REMOTE_USE.search(line)
+        if match is None:
+            continue
+        ref = match.group("ref")
+        action, _, current = ref.rpartition("@")
+        action_suffix = action_suffix_for_reference(action, values)
+        if action_suffix and (
+            not SHA40.fullmatch(current)
+            or f"# {values[f'CI_ACTION_{action_suffix}_VERSION']}" not in line
+        ):
+            errors.append(f"{path.relative_to(root)}:{line_number}: Action pin/comment drift")
+    return errors
+
+
+def workflow_values(root: Path, values: dict[str, str]) -> tuple[list[str], list[tuple[Path, bytes]]]:
     errors: list[str] = []
     outputs: list[tuple[Path, bytes]] = []
     for path in sorted((root / ".github/workflows").glob("*.y*ml")):
@@ -308,104 +453,49 @@ def workflow_values(root: Path, values: dict[str, str], write: bool) -> tuple[li
         changed_lines: list[str] = []
         osv_fields_seen: set[str] = set()
         for line_number, line in enumerate(text.splitlines(keepends=True), 1):
-            bare_line = line.rstrip("\n")
-            if path.name == "ci-security-osv.yml":
-                for field, field_pattern in OSV_LEGACY_FIELD_LINES.items():
-                    field_match = field_pattern.fullmatch(bare_line)
-                    if field_match is not None:
-                        osv_fields_seen.add(field)
-                        newline = "\n" if line.endswith("\n") else ""
-                        changed_lines.append(
-                            field_match.group("prefix")
-                            + values["CI_" + field]
-                            + field_match.group("suffix")
-                            + newline
-                        )
-                        break
-                else:
-                    field_match = None
-                if field_match is not None:
-                    continue
-            if "node-version:" in bare_line:
-                node_match = NODE_VERSION_LINE.fullmatch(bare_line)
-                if node_match is None:
-                    errors.append(f"{path.relative_to(root)}:{line_number}: node-version must be a literal canonical value")
-                    changed_lines.append(line)
-                    continue
-                quote = node_match.group("quote")
-                changed_lines.append(
-                    node_match.group("prefix")
-                    + quote
-                    + values["CI_CANONICAL_NODE_VERSION"]
-                    + quote
-                    + node_match.group("suffix")
-                    + ("\n" if line.endswith("\n") else "")
-                )
-                continue
-            match = REMOTE_USE.search(line)
-            if not match:
-                changed_lines.append(line)
-                continue
-            ref = match.group("ref")
-            action, at, current = ref.rpartition("@")
-            action_suffix = action_suffix_for_reference(action, values)
-            if not at or action_suffix is None:
-                if action.startswith(("./", "docker://", "Docker://")):
-                    changed_lines.append(line)
-                    continue
-                errors.append(f"{path.relative_to(root)}: unknown or unsupported remote Action {ref}")
-                changed_lines.append(line)
-                continue
-            suffix = action_suffix
-            expected_commit = values[f"CI_ACTION_{suffix}_COMMIT"]
-            expected_version = values[f"CI_ACTION_{suffix}_VERSION"]
-            comment = re.search(r"#\s*(v?\d+(?:\.\d+){1,3})\s*$", line.rstrip("\n"))
-            prefix = line[: match.start("ref")]
-            suffix_text = line[match.end("ref") :]
-            suffix_text = re.sub(r"#\s*v?\d+(?:\.\d+){1,3}\s*$", "# " + expected_version, suffix_text.rstrip("\n"))
-            if "#" not in suffix_text:
-                suffix_text = suffix_text.rstrip() + " # " + expected_version
-            newline = "\n" if line.endswith("\n") else ""
-            changed_lines.append(prefix + action + "@" + expected_commit + suffix_text + newline)
+            changed_line, error = _rewrite_workflow_line(
+                path, line, values, osv_fields_seen
+            )
+            changed_lines.append(changed_line)
+            if error:
+                errors.append(f"{path.relative_to(root)}:{line_number}: {error}")
         changed = "".join(changed_lines)
         if changed != text:
             outputs.append((path, changed.encode("utf-8")))
-        # A second pass validates generated content and catches mutable refs.
-        for line_number, line in enumerate(changed.splitlines(), 1):
-            match = REMOTE_USE.search(line)
-            if not match:
-                continue
-            ref = match.group("ref")
-            action, at, current = ref.rpartition("@")
-            action_suffix = action_suffix_for_reference(action, values)
-            if action_suffix and (not SHA40.fullmatch(current) or f"# {values[f'CI_ACTION_{action_suffix}_VERSION']}" not in line):
-                errors.append(f"{path.relative_to(root)}:{line_number}: Action pin/comment drift")
+        errors.extend(_validate_workflow_actions(root, path, changed, values))
         if path.name == "ci-security-osv.yml":
-            for field in OSV_LEGACY_FIELD_LINES:
-                if field not in osv_fields_seen:
-                    errors.append(f"{path.relative_to(root)}: missing generated {field} field")
+            missing = set(OSV_LEGACY_FIELD_LINES) - osv_fields_seen
+            errors.extend(
+                f"{path.relative_to(root)}: missing generated {field} field"
+                for field in sorted(missing)
+            )
     return errors, outputs
+
+
+def _documentation_line(line: str, values: dict[str, str]) -> str:
+    for suffix in ACTION_SUFFIXES:
+        action = values[f"CI_ACTION_{suffix}_REPOSITORY"]
+        if not line.startswith(f"| `{action}`"):
+            continue
+        columns = line.rstrip("\n").split("|")
+        if len(columns) < 6:
+            continue
+        columns[3] = " " + values[f"CI_ACTION_{suffix}_VERSION"] + " "
+        columns[4] = " " + values[f"CI_ACTION_{suffix}_COMMIT"] + " "
+        return "|".join(columns) + ("\n" if line.endswith("\n") else "")
+    return line
 
 
 def documentation_values(root: Path, values: dict[str, str]) -> list[tuple[Path, bytes]]:
     outputs: list[tuple[Path, bytes]] = []
-    for relative in ("docs/github-actions-workflow-security.md", "docs/github-actions-workflow-security.de.md"):
+    relatives = ("docs/github-actions-workflow-security.md", "docs/github-actions-workflow-security.de.md")
+    for relative in relatives:
         path = root / relative
         validate_managed_path(root, path)
         text = path.read_text(encoding="utf-8")
         if GENERATED_DOC not in text:
             text = text.replace("\n\n", "\n\n" + GENERATED_DOC + "\n", 1)
-        lines = []
-        for line in text.splitlines(keepends=True):
-            for suffix in ACTION_SUFFIXES:
-                action = values[f"CI_ACTION_{suffix}_REPOSITORY"]
-                if line.startswith(f"| `{action}`"):
-                    columns = line.rstrip("\n").split("|")
-                    if len(columns) >= 6:
-                        columns[3] = " " + values[f"CI_ACTION_{suffix}_VERSION"] + " "
-                        columns[4] = " " + values[f"CI_ACTION_{suffix}_COMMIT"] + " "
-                        line = "|".join(columns) + ("\n" if line.endswith("\n") else "")
-            lines.append(line)
+        lines = [_documentation_line(line, values) for line in text.splitlines(keepends=True)]
         outputs.append((path, "".join(lines).encode("utf-8")))
     return outputs
 
@@ -421,7 +511,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         values = source_common(root)
         expected: list[tuple[Path, bytes]] = [(root / "ci/tooling/security-tools.lock.yml", lock_values(root, values))]
-        errors, workflows = workflow_values(root, values, args.write)
+        errors, workflows = workflow_values(root, values)
         expected.extend(workflows)
         expected.extend(documentation_values(root, values))
         # Validate every destination before comparing or writing any output.
