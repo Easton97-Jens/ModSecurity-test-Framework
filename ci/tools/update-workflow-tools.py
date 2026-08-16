@@ -38,7 +38,7 @@ import sys
 import tempfile
 from typing import Any
 from urllib.parse import quote, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import yaml
 
@@ -55,6 +55,7 @@ CANDIDATE_SCHEMA_VERSION = 1
 GITHUB_API_ORIGIN = "https://api.github.com"
 GITHUB_WEB_ORIGIN = "https://github.com"
 GITHUB_USER_AGENT = "framework-workflow-tool-updater/1"
+GITHUB_RELEASE_PAGE_QUERY = "per_page=100"
 RUNNER_TEMP_STRICT_CHILD_ERROR = "candidate path must be a strict child of RUNNER_TEMP"
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -460,23 +461,65 @@ def require_sha256(value: Any, description: str) -> str:
     return value
 
 
-def github_payload(path: str) -> Any:
-    """Read one fixed official GitHub API response without a token."""
+class NoRedirectHandler(HTTPRedirectHandler):
+    """Refuse redirects before urllib can follow them or copy request headers."""
 
-    if not path.startswith("/repos/"):
+    def redirect_request(  # type: ignore[override]
+        self,
+        request: Request,
+        fp: Any,
+        code: int,
+        message: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        del request, fp, code, message, headers, newurl
+        return None
+
+
+GITHUB_API_OPENER = build_opener(NoRedirectHandler())
+
+
+def github_payload(path: str, *, query: str | None = None) -> Any:
+    """Read one fixed official GitHub API response without leaking a token."""
+
+    parsed_path = urlparse(path)
+    if (
+        not path.startswith("/repos/")
+        or parsed_path.scheme
+        or parsed_path.netloc
+        or not parsed_path.path.startswith("/repos/")
+        or parsed_path.params
+        or parsed_path.query
+        or parsed_path.fragment
+        or any(part in {".", ".."} for part in parsed_path.path.split("/"))
+    ):
         raise UpdateError("only repository-scoped GitHub API paths are allowed")
+    if query not in {None, GITHUB_RELEASE_PAGE_QUERY}:
+        raise UpdateError("only the reviewed GitHub API query is allowed")
+    api_url = f"{GITHUB_API_ORIGIN}{path}"
+    if query is not None:
+        api_url += f"?{query}"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": GITHUB_USER_AGENT,
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        if "\r" in token or "\n" in token:
+            raise UpdateError("GITHUB_TOKEN contains prohibited control characters")
+        headers["Authorization"] = f"Bearer {token}"
     request = Request(
-        f"{GITHUB_API_ORIGIN}{path}",
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": GITHUB_USER_AGENT,
-        },
+        api_url,
+        headers=headers,
     )
     try:
-        with urlopen(request, timeout=30) as response:
-            final = urlparse(response.geturl())
-            if final.scheme != "https" or final.netloc != "api.github.com":
-                raise UpdateError("GitHub API redirect escaped the official HTTPS API")
+        with GITHUB_API_OPENER.open(request, timeout=30) as response:
+            if response.geturl() != api_url:
+                raise UpdateError(
+                    "GitHub API redirect or final URL change is not permitted"
+                )
             payload = json.loads(response.read().decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise UpdateError(f"official GitHub API request failed: {exc}") from exc
@@ -492,10 +535,12 @@ def github_json(path: str) -> dict[str, Any]:
     return payload
 
 
-def github_json_list(path: str) -> list[dict[str, Any]]:
+def github_json_list(
+    path: str, *, query: str | None = None
+) -> list[dict[str, Any]]:
     """Read one bounded list response and reject malformed release entries."""
 
-    payload = github_payload(path)
+    payload = github_payload(path, query=query)
     if not isinstance(payload, list) or not all(
         isinstance(item, dict) for item in payload
     ):
@@ -518,7 +563,8 @@ def release_page(identity: RepositoryIdentity) -> list[dict[str, Any]]:
     """Read the bounded newest release page for an explicitly selected Action."""
 
     return github_json_list(
-        f"/repos/{identity.owner}/{identity.repository}/releases?per_page=100"
+        f"/repos/{identity.owner}/{identity.repository}/releases",
+        query=GITHUB_RELEASE_PAGE_QUERY,
     )
 
 

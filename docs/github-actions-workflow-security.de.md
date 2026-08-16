@@ -168,6 +168,38 @@ Schritt-Berechtigungsgrenze. Jeder Publisher ist daher auf geplante oder
 manuelle Trigger vertrauenswürdiger Maintainer begrenzt und enthält kein
 PR-Event.
 
+### GitHub-API-Authentifizierung und Redirect-Grenze
+
+Der kanonische Maintenance-Workflow darf das bestehende read-only
+jobbezogene `GITHUB_TOKEN` nur in seinen explizit überprüften Resolver-,
+Reconciliation- und Re-Resolver-Schritten in `check-common-versions.yml`
+verwenden. Der eigenständige Reader-
+Workflow `update-workflow-tools.yml` bleibt tokenfrei; auch wenn sein Helper
+aus dem kanonischen Maintenance-Pfad aufgerufen wird, erweitert dies nicht
+die Berechtigungen dieses Workflows. Der Helper fügt Bearer-Credential und
+GitHub-API-Medientyp nur seinem festen Request an
+`https://api.github.com/repos/...` hinzu. Requests an Release-Seiten,
+Downloads oder jeden anderen Host erhalten das Token nie, und das Token wird
+nicht in Plänen, Zusammenfassungen, Diagnosen oder Fehlermeldungen ausgegeben.
+Die bestehende Publisher-Grenze bleibt unverändert: Nur das kurzlebige,
+repositorybegrenzte App-Token darf veröffentlichen.
+
+Der API-Ursprung ist auf HTTPS `api.github.com` und repositorybezogene Pfade
+festgelegt. Redirects werden vor dem Senden deaktiviert; eine Antwort, deren
+finale URL von der angeforderten URL abweicht, wird abgewiesen. So kann ein
+API-Bearer-Credential nicht an einen weitergeleiteten Host gelangen.
+Unerwartete HTTP-, Authentifizierungs-, Rate-Limit- und Transportfehler werden
+fail-closed abgewiesen.
+
+Die Hosted-Master-Dispatches `31968050889` und `31968224482` liefen beide auf
+`a5cbfff185cad3810fcafad534dc334be92a0df8` und schlugen bei der Auflösung im
+Job `canonical-maintenance` mit Exit-Code 2 fehl; Dependency-Installation und
+`pip check` waren zuvor erfolgreich. Diese Läufe belegen ausschließlich den
+beobachteten Fehler. Die API-Grenzkorrektur, ihre exakten Hosted-Checks, die
+Verifikation des resultierenden Masterstands sowie SonarQube Clouds geforderte
+null neue Issues und null Duplizierung in neuem Code bleiben bis zu frischer
+Beobachtung getrennte Evidenz-Gates.
+
 ## Maintenance-Publisher und terminale Ergebnisse
 
 Die CPython- und Workflow-Tool-Maintenance-Workflows enden mit einem read-only-`outcome`-Job mit

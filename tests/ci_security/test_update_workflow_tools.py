@@ -16,7 +16,7 @@ import sys
 import tempfile
 from typing import Any
 import unittest
-from unittest.mock import call, patch
+from unittest.mock import Mock, call, patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -37,6 +37,117 @@ UPDATER = load_updater()
 
 
 class WorkflowToolUpdaterTests(unittest.TestCase):
+    def test_github_api_token_is_optional_and_scoped_to_fixed_api_origin(self) -> None:
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def geturl(self) -> str:
+                return "https://api.github.com/repos/example/project/releases/latest"
+
+            @staticmethod
+            def read() -> bytes:
+                return b'{"ok": true}'
+
+        class Opener:
+            def __init__(self) -> None:
+                self.request = None
+
+            def open(self, request: object, timeout: int) -> Response:
+                del timeout
+                self.request = request
+                return Response()
+
+        path = "/repos/example/project/releases/latest"
+        for token in (None, "test-token"):
+            with self.subTest(token_present=token is not None):
+                opener = Opener()
+                with patch.object(UPDATER, "GITHUB_API_OPENER", opener):
+                    with patch.dict(
+                        os.environ,
+                        {} if token is None else {"GITHUB_TOKEN": token},
+                        clear=True,
+                    ):
+                        self.assertEqual(UPDATER.github_payload(path), {"ok": True})
+                assert opener.request is not None
+                headers = opener.request.headers
+                self.assertEqual(
+                    headers.get("X-github-api-version"), "2022-11-28"
+                )
+                if token is None:
+                    self.assertNotIn("Authorization", headers)
+                else:
+                    self.assertEqual(headers.get("Authorization"), f"Bearer {token}")
+
+    def test_github_api_rejects_redirected_or_foreign_final_url(self) -> None:
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+            def geturl(self) -> str:
+                return "https://evil.example/collect"
+
+            def read(self) -> bytes:
+                raise AssertionError("redirected response must not be read")
+
+        class Opener:
+            def open(self, request: object, timeout: int) -> Response:
+                del request, timeout
+                return Response()
+
+        with (
+            patch.object(UPDATER, "GITHUB_API_OPENER", Opener()),
+            patch.dict(os.environ, {"GITHUB_TOKEN": "must-not-leak"}, clear=True),
+        ):
+            with self.assertRaisesRegex(UPDATER.UpdateError, "redirect|final URL"):
+                UPDATER.github_payload("/repos/example/project/releases/latest")
+
+    def test_github_api_rejects_control_characters_in_token_without_echoing_it(
+        self,
+    ) -> None:
+        opener = Mock()
+        unsafe_token = "test-token\r\nX-Injected: value"
+        with (
+            patch.object(UPDATER, "GITHUB_API_OPENER", opener),
+            patch.dict(os.environ, {"GITHUB_TOKEN": unsafe_token}, clear=True),
+        ):
+            with self.assertRaises(UPDATER.UpdateError) as captured:
+                UPDATER.github_payload("/repos/example/project/releases/latest")
+        self.assertIn("prohibited control characters", str(captured.exception))
+        self.assertNotIn(unsafe_token, str(captured.exception))
+        opener.open.assert_not_called()
+
+    def test_github_api_rejects_non_repository_paths_before_opening(self) -> None:
+        opener = Mock()
+        with patch.object(UPDATER, "GITHUB_API_OPENER", opener):
+            for path in (
+                "https://evil.example/repos/example/project",
+                "/repository/example/project",
+                "/repos/../evil/project",
+                "/repos/example/project?unexpected=true",
+                "/repos/example/project#fragment",
+                "/repos/example/project;param",
+            ):
+                with self.subTest(path=path):
+                    with self.assertRaisesRegex(
+                        UPDATER.UpdateError, "repository-scoped"
+                    ):
+                        UPDATER.github_payload(path)
+        opener.open.assert_not_called()
+
+    def test_github_api_transport_never_follows_redirects(self) -> None:
+        handler = UPDATER.NoRedirectHandler()
+        request = UPDATER.Request("https://api.github.com/repos/example/project")
+        self.assertIsNone(
+            handler.redirect_request(request, None, 302, "Found", {}, "https://evil.example")
+        )
+
     def test_current_tool_pins_have_explicit_provider_identity(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
         for name, record in lock["tools"].items():

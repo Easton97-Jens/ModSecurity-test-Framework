@@ -131,6 +131,16 @@ branches are reused only when the one open PR has the exact branch, title,
 base, marker, and Draft state and its changed tuples verify from the current
 default-branch lock identity.
 
+The no-token statement above applies to the standalone
+`update-workflow-tools.yml` reader workflow. When its Python helper is invoked
+by the canonical maintenance path in `check-common-versions.yml`, that
+already step-scoped read-only `GITHUB_TOKEN` may be used only for requests to
+the exact HTTPS `api.github.com` authority. Release, download, and other-host
+requests never receive it; redirects are rejected before a credential can
+cross authorities, and the token is never emitted in plans, summaries, or
+diagnostics. This does not change the workflow permissions or the existing
+repository-limited publisher App-token boundary.
+
 `update-submodules.yml` is intentionally separate from the lock/tool updater:
 it updates only the Framework-owned `tools/MRTS` gitlink, never MRTS content.
 It accepts only a full SHA from the named MRTS `main` branch, explicitly

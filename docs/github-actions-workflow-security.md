@@ -157,6 +157,35 @@ variable reduces direct shell exposure but does not turn a write-capable trusted
 job into a per-step permission boundary. Each publisher is consequently limited
 to scheduled or manual trusted-maintainer triggers and contains no PR event.
 
+### GitHub API authentication and redirect boundary
+
+The canonical maintenance workflow may use the existing read-only
+job-scoped `GITHUB_TOKEN` only in its explicitly reviewed resolver,
+reconciliation, and re-resolution steps in `check-common-versions.yml`. The standalone
+`update-workflow-tools.yml` reader workflow remains token-free; invoking its
+helper from the canonical maintenance path does not widen that workflow's
+permissions. The helper adds the bearer credential and GitHub API media type
+only to its fixed `https://api.github.com/repos/...` request. Requests to
+release pages, downloads, or any other host never receive the token, and the
+token is not written to plans, summaries, diagnostics, or error messages. The
+existing publisher boundary is unchanged: its short-lived, repository-limited
+App token is still the only credential allowed to publish.
+
+The API origin is fixed to HTTPS `api.github.com` and repository-scoped paths.
+Redirects are disabled before the request is sent and a response whose final
+URL differs from the requested URL is rejected. This prevents an API bearer
+credential from being copied to a redirected host. Unexpected HTTP,
+authentication, rate-limit, and transport failures are rejected fail-closed.
+
+The hosted master dispatches `31968050889` and `31968224482` both ran at
+`a5cbfff185cad3810fcafad534dc334be92a0df8` and failed in
+`canonical-maintenance` during resolution with exit code 2; dependency
+installation and `pip check` completed first. These runs establish the
+observed failure only. The API-boundary repair, its exact hosted checks, the
+resulting master verification, and SonarQube Cloud's required zero new issues
+and zero duplication on new code remain separate evidence gates until freshly
+observed.
+
 ## Maintenance publisher and terminal outcomes
 
 The CPython and workflow-tool maintenance workflows end with a read-only `outcome` job using
