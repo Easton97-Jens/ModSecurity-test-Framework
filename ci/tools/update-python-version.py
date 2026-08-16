@@ -3,7 +3,9 @@
 
 The updater deliberately trusts only the documented, public Python.org JSON
 endpoint.  It does not consume a GitHub token, follow redirects, scrape HTML,
-or update anything except the Framework-root ``.python-version`` file.
+or update anything except the canonical ``CI_CANONICAL_PYTHON_VERSION``
+assignment in ``ci/lib/common.sh``.  The generated ``.python-version`` view is
+updated separately by the canonical pin synchronizer.
 """
 
 from __future__ import annotations
@@ -21,7 +23,8 @@ from urllib import error, request
 from urllib.parse import urlsplit
 
 
-CANONICAL_VERSION_FILE = ".python-version"
+CANONICAL_SOURCE_FILE = Path("ci/lib/common.sh")
+CANONICAL_ASSIGNMENT = "CI_CANONICAL_PYTHON_VERSION"
 CANDIDATE_FILE_NAME = "framework-python-3.14-candidate"
 METADATA_URL = "https://www.python.org/api/v2/downloads/release/"
 METADATA_HOST = "www.python.org"
@@ -31,6 +34,15 @@ DEFAULT_TIMEOUT_SECONDS = 20.0
 MAX_TIMEOUT_SECONDS = 60.0
 ASCII_REGEX_FLAGS = re.ASCII
 VERSION_PATTERN = re.compile(r"^3\.14\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS)
+CANONICAL_ASSIGNMENT_PREFIX = re.compile(
+    rf"^[ \t]*{CANONICAL_ASSIGNMENT}(?:[ \t=]|$)", ASCII_REGEX_FLAGS
+)
+CANONICAL_ASSIGNMENT_LINE = re.compile(
+    rf"^(?P<prefix>[ \t]*{CANONICAL_ASSIGNMENT}[ \t]*=[ \t]*\")"
+    rf"(?P<value>[^\"\r\n]*)"
+    rf"(?P<suffix>\"[ \t]*(?:#.*)?(?:\r?\n)?$)",
+    ASCII_REGEX_FLAGS,
+)
 RELEASE_NAME_PATTERN = re.compile(r"^Python 3\.14\.(0|[1-9]\d*)$", ASCII_REGEX_FLAGS)
 LEADING_ZERO_RELEASE_PATTERN = re.compile(r"^Python 3\.14\.0\d+$", ASCII_REGEX_FLAGS)
 RELEASE_DATE_PATTERN = re.compile(
@@ -116,8 +128,27 @@ def framework_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def canonical_version_path(root: Path) -> Path:
-    return root / CANONICAL_VERSION_FILE
+def canonical_source_path(root: Path) -> Path:
+    return root / CANONICAL_SOURCE_FILE
+
+
+def require_non_symlink_components(root: Path, path: Path) -> None:
+    current = root
+    for component in CANONICAL_SOURCE_FILE.parts:
+        current /= component
+        try:
+            details = current.lstat()
+        except OSError as exc:
+            raise UpdaterFailure(
+                "invalid_current_version", f"{current} is unavailable"
+            ) from exc
+        if stat.S_ISLNK(details.st_mode):
+            raise UpdaterFailure(
+                "invalid_current_version",
+                f"{current} must not be a symlink",
+            )
+    if path != current:
+        raise AssertionError("canonical source path construction mismatch")
 
 
 def require_regular_file(path: Path, description: str) -> os.stat_result:
@@ -135,21 +166,43 @@ def require_regular_file(path: Path, description: str) -> os.stat_result:
     return details
 
 
-def read_canonical_version(root: Path) -> PythonVersion:
-    path = canonical_version_path(root)
-    require_regular_file(path, CANONICAL_VERSION_FILE)
+def canonical_source_content(root: Path) -> tuple[Path, str, os.stat_result]:
+    path = canonical_source_path(root)
+    require_non_symlink_components(root, path)
+    require_regular_file(path, str(CANONICAL_SOURCE_FILE))
     try:
         content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
         raise UpdaterFailure(
-            "invalid_current_version", "the canonical version file cannot be decoded"
+            "invalid_current_version", "the canonical source cannot be decoded"
         ) from exc
-    if not content.endswith("\n") or content.count("\n") != 1:
+    matches: list[tuple[int, re.Match[str]]] = []
+    for line_number, line in enumerate(content.splitlines(keepends=True), start=1):
+        if not CANONICAL_ASSIGNMENT_PREFIX.match(line):
+            continue
+        match = CANONICAL_ASSIGNMENT_LINE.fullmatch(line)
+        if match is None:
+            raise UpdaterFailure(
+                "invalid_current_version",
+                f"{CANONICAL_SOURCE_FILE}:{line_number}: canonical assignment "
+                "is malformed",
+            )
+        matches.append((line_number, match))
+    if len(matches) != 1:
         raise UpdaterFailure(
             "invalid_current_version",
-            "the canonical version file must contain exactly one newline-terminated value",
+            "the canonical source must contain exactly one canonical Python assignment",
         )
-    return PythonVersion.parse(content[:-1])
+    return path, content, require_regular_file(path, str(CANONICAL_SOURCE_FILE))
+
+
+def read_canonical_version(root: Path) -> PythonVersion:
+    _path, content, _details = canonical_source_content(root)
+    for line in content.splitlines(keepends=True):
+        match = CANONICAL_ASSIGNMENT_LINE.fullmatch(line)
+        if match is not None:
+            return PythonVersion.parse(match.group("value"))
+    raise AssertionError("canonical source content was parsed without an assignment")
 
 
 def validate_metadata_url(url: str) -> None:
@@ -388,25 +441,36 @@ def require_expected_candidate(
 def atomic_write_canonical_version(
     root: Path, expected: PythonVersion, candidate: PythonVersion
 ) -> None:
-    """Atomically replace only the canonical non-symlink file after a stale check."""
+    """Atomically replace only the canonical assignment after a stale check."""
 
-    path = canonical_version_path(root)
-    original_mode = stat.S_IMODE(
-        require_regular_file(path, CANONICAL_VERSION_FILE).st_mode
-    )
-    try:
-        observed = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as exc:
-        raise UpdaterFailure(
-            "blocked_metadata", "cannot re-read the canonical version"
-        ) from exc
-    if observed != f"{expected.text}\n":
-        raise UpdaterFailure(
-            "blocked_metadata", "the canonical version changed during update"
+    path, original_content, details = canonical_source_content(root)
+    original_mode = stat.S_IMODE(details.st_mode)
+    lines = original_content.splitlines(keepends=True)
+    replacements = 0
+    updated_lines: list[str] = []
+    for line in lines:
+        match = CANONICAL_ASSIGNMENT_LINE.fullmatch(line)
+        if match is None:
+            updated_lines.append(line)
+            continue
+        if match.group("value") != expected.text:
+            raise UpdaterFailure(
+                "blocked_metadata", "the canonical version changed during update"
+            )
+        replacements += 1
+        updated_lines.append(
+            f"{match.group('prefix')}{candidate.text}{match.group('suffix')}"
         )
+    if replacements != 1:
+        raise UpdaterFailure(
+            "blocked_metadata", "the canonical source changed during update"
+        )
+    updated_content = "".join(updated_lines).encode("utf-8")
+    if not updated_content:
+        raise UpdaterFailure("blocked_metadata", "the canonical source cannot be empty")
     try:
         descriptor, temporary_name = tempfile.mkstemp(
-            dir=root, prefix=".python-version.", suffix=".tmp", text=False
+            dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", text=False
         )
     except OSError as exc:
         raise UpdaterFailure(
@@ -416,13 +480,15 @@ def atomic_write_canonical_version(
     try:
         os.fchmod(descriptor, original_mode)
         with os.fdopen(descriptor, "wb") as stream:
-            stream.write(f"{candidate.text}\n".encode("ascii"))
+            stream.write(updated_content)
             stream.flush()
             os.fsync(stream.fileno())
-        require_regular_file(path, CANONICAL_VERSION_FILE)
-        if path.read_text(encoding="utf-8") != f"{expected.text}\n":
+        observed_path, observed_content, _observed_details = canonical_source_content(
+            root
+        )
+        if observed_path != path or observed_content != original_content:
             raise UpdaterFailure(
-                "blocked_metadata", "the canonical version changed during update"
+                "blocked_metadata", "the canonical source changed during update"
             )
         os.replace(temporary_path, path)
     except UpdaterFailure:
@@ -552,7 +618,9 @@ def parse_args() -> argparse.Namespace:
         "--check", action="store_true", help="Resolve without source-tree writes."
     )
     operation.add_argument(
-        "--update", action="store_true", help="Atomically update .python-version."
+        "--update",
+        action="store_true",
+        help="Atomically update CI_CANONICAL_PYTHON_VERSION in ci/lib/common.sh.",
     )
     parser.add_argument(
         "--expected-candidate",

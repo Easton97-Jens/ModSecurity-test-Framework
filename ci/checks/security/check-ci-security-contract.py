@@ -191,6 +191,15 @@ GITHUB_TOKEN_REFERENCE = re.compile(r"\bgithub\s*(?:\.\s*token\b|\[)", re.IGNORE
 BARE_GITHUB_CONTEXT_REFERENCE = re.compile(r"\bgithub\b(?!\s*[.\[])", re.IGNORECASE)
 SHELL_GITHUB_TOKEN_REFERENCE = re.compile(r"\$\{?GITHUB_TOKEN\}?", re.IGNORECASE)
 CANONICAL_PYTHON_VERSION_FILE = ".python-version"
+COMMON_SH_PATH = "ci/lib/common.sh"
+PYTHON_PUBLISHER_SOURCE_FILE = COMMON_SH_PATH
+PYTHON_CANDIDATE_EXPRESSION = "${{ needs.resolve.outputs.candidate }}"
+PYTHON_PUBLISHER_CHANGED_PATHS = (
+    f"{CANONICAL_PYTHON_VERSION_FILE}\n{PYTHON_PUBLISHER_SOURCE_FILE}"
+)
+PYTHON_PUBLISHER_ADD_PATHS = (
+    f"{PYTHON_PUBLISHER_SOURCE_FILE}\n{CANONICAL_PYTHON_VERSION_FILE}\n"
+)
 PYTHON_VERSION_CANDIDATE_FILE = "${{ runner.temp }}/framework-python-3.14-candidate"
 PYTHON_VERSION_PR_BODY_FILE = "${{ runner.temp }}/framework-python-version-pr-body.md"
 PYTHON_VERSION_PR_BODY_RUN_PATH = "$RUNNER_TEMP/framework-python-version-pr-body.md"
@@ -234,9 +243,51 @@ COMMON_VERSION_JOB_NAMES = {
     "publish",
     "result",
 }
+COMMON_VERSION_REVIEWED_RUN_SHA256 = {
+    (
+        "canonical-maintenance",
+        "Resolve mandatory global and selected runtime scopes",
+    ): "075c35a49fc3aac6c9b452369e1658196b57daadaa89bb7f1210e3b1a549c49a",
+    (
+        "canonical-maintenance",
+        "Validate review issue reconciliation without writes",
+    ): "26806d5e329e4892ab5b8fa7dd7005e46a59d36d47e8e8f76b9d6a4c5477bf30",
+    (
+        "reconcile-trusted",
+        "Require distinct review-issue App configuration",
+    ): "e1c1805fc9250e20af66baa0480a7931e0823fd53dd41e67e37b15660037c4d2",
+    (
+        "reconcile-trusted",
+        "Re-resolve and reconcile review issues on trusted default branch",
+    ): "05c28398cbe6dceffe3ef73521b2daa6e433c9bb446bdee03be856201b992126",
+    (
+        "candidate",
+        "Re-resolve the caller-bound plan",
+    ): "dff311b08c4d6d6264db697593509a9bf175cb0ad88a7c5e0849d81548cec569",
+    (
+        "candidate",
+        "Apply only the bound safe plan and generated views",
+    ): "2e9ceeb71693d40525a4aab0077a5e1a7237d19f7f18d2bcc10416dd6dc5df5c",
+    (
+        "candidate",
+        "Validate candidate path policy and focused controls",
+    ): "fc8a521cecf641305534044ba424ddd9cd9a2069bb8e646d16892aee4fc75a88",
+    (
+        "publish",
+        "Re-resolve and apply canonical plan",
+    ): "b306def86e3635da5743b26969d9158dcf5ca81528c0e2447a19e79cde236349",
+    (
+        "publish",
+        "Require publisher App configuration",
+    ): "5433724ca5a8642ef7f8bee6a67adb2f1a0b17d69d69413ea581a1519efca413",
+    (
+        "result",
+        "Summarize outcome, updates, reviews, issues, PR, and fatal findings",
+    ): "4a8667a3ce2063a78d3d64ca1124014cf19d2ae938f093ccc74a4b2bf45b818b",
+}
 COMMON_VERSION_GENERATED_PATHS = frozenset(
     {
-        "ci/lib/common.sh",
+        COMMON_SH_PATH,
         CANONICAL_PYTHON_VERSION_FILE,
         "requirements-ci.lock",
         "ci/tooling/security-tools.lock.yml",
@@ -270,7 +321,7 @@ COMMON_VERSION_GENERATED_PATHS = frozenset(
     }
 )
 COMMON_VERSION_UPDATE_BRANCH = "automation/update-framework-common-versions"
-COMMON_VERSION_UPDATE_PATH = "ci/lib/common.sh"
+COMMON_VERSION_UPDATE_PATH = COMMON_SH_PATH
 COMMON_VERSION_PR_TITLE = "chore(ci): update common.sh versions"
 COMMON_VERSION_PR_MARKER = "<!-- framework-common-version-updater -->"
 COMMON_VERSION_PR_BODY_FILE = "${{ runner.temp }}/framework-common-version-pr-body.md"
@@ -648,7 +699,7 @@ PYTHON_PUBLISHER_JOB_KEYS = frozenset(
     {"needs", "if", "runs-on", "timeout-minutes", "permissions", "env", "steps"}
 )
 PYTHON_PUBLISHER_ENV_VALUES = {
-    "CANDIDATE": "${{ needs.resolve.outputs.candidate }}",
+    "CANDIDATE": PYTHON_CANDIDATE_EXPRESSION,
 }
 PYTHON_PUBLISHER_STEP_PROFILE = (
     (CHECKOUT_REPOSITORY_STEP, STEP_KEYS_ACTION),
@@ -699,7 +750,7 @@ PYTHON_PUBLISHER_WITH_VALUES = {
         "branch": "automation/update-framework-python-314",
         "delete-branch": False,
         "draft": True,
-        "add-paths": f"{CANONICAL_PYTHON_VERSION_FILE}\n",
+        "add-paths": PYTHON_PUBLISHER_ADD_PATHS,
     },
 }
 PYTHON_PUBLISHER_WITH_KEYS = {
@@ -719,6 +770,7 @@ PYTHON_PUBLISHER_STEP_ENV_VALUES = {
         "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
         "MAINTENANCE_PR_EXISTS": "${{ steps.maintenance_pr.outputs.existing }}",
         UPDATER_PUBLISH_TOKEN_ENV: WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION,
+        "CANDIDATE": PYTHON_CANDIDATE_EXPRESSION,
     },
     STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: {
         "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
@@ -740,11 +792,11 @@ PYTHON_PUBLISHER_FIELD_VALUES = {
 PYTHON_PUBLISHER_RUN_SHA256 = {
     STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
     STEP_VERIFY_PYTHON_PUBLISHER_APP_CONFIGURATION: "c01127376f95819c3abb8f99815aa9877ed4c5fd6ab248f0968feb458bdec033",
-    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "789cb7e075b8a3a06616e491faf3a3951ca60f53abe9d8aaa5f298e9fe1ddeac",
-    STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: "5850d1e13c0d09f9147c8cb5e8932cc81bcae7df6a17dd53b625f5b3cf1ee449",
+    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "653ecd3a5d752b06c5bb69999b7138e3af259d8bd8ef88c647738081a3d6c7b4",
+    STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: "55bbd20d483361dcdb598d1100afc54c40b22d31909c143fdf1b8bdeeb531b1d",
     STEP_RESTORE_PYTHON_PUBLISHER_BASE: "dd3deb33caa76d77617755ad6ea7d7f64e940dd9114a97586cd035a567a01e54",
-    STEP_APPLY_PYTHON_CANDIDATE: "6270d199b6e838192fbb6a7cd5160efbf6de687ffadcdda27de756ced9869d28",
-    STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY: "8a00f20abc0833931fa04b2723b739e5c27285eecf5955b25566d0a597929d37",
+    STEP_APPLY_PYTHON_CANDIDATE: "2ab398b7a68d6124283d52fd2b57510158b5ab089e47f657cd70b3a2a19c5fed",
+    STEP_BUILD_PYTHON_DRAFT_PULL_REQUEST_BODY: "d9ded799979e2ad7b3e1100cb33df4524a30233029fb3496b8d5019de472eeee",
 }
 PYTHON_PUBLISHER_SCRIPT_SHA256 = {
     STEP_INSPECT_PYTHON_DRAFT_MAINTENANCE_PULL_REQUEST: (
@@ -760,7 +812,7 @@ PYTHON_OUTCOME_ENV_VALUES = {
     "PUBLISHER_RESULT": "${{ needs.publish.result }}",
     "RESOLVER_STATUS": "${{ needs.resolve.outputs.resolver_status }}",
     "UPDATE_AVAILABLE": "${{ needs.resolve.outputs.update_available }}",
-    "CANDIDATE": "${{ needs.resolve.outputs.candidate }}",
+    "CANDIDATE": PYTHON_CANDIDATE_EXPRESSION,
     "CANDIDATE_VALIDATED": "${{ needs.candidate-validate.outputs.candidate_validated }}",
 }
 PYTHON_OUTCOME_RUN_SHA256 = (
@@ -3336,6 +3388,67 @@ def _common_version_setup_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
     return errors
 
 
+def _common_version_run_step_errors(
+    path: Path, name: str, steps: Any
+) -> tuple[list[str], set[tuple[str, str]]]:
+    if not isinstance(steps, list):
+        return [
+            f"{path}: {name} run steps must match the reviewed common-version profile"
+        ], set()
+
+    errors: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for step in steps:
+        if not isinstance(step, dict) or "run" not in step:
+            continue
+        step_name = step.get("name")
+        if not isinstance(step_name, str):
+            errors.append(
+                f"{path}: {name} run step {step_name!r} must match the reviewed "
+                "hash-locked common-version profile"
+            )
+            continue
+        key: tuple[str, str] = (name, step_name)
+        expected = COMMON_VERSION_REVIEWED_RUN_SHA256.get(key)
+        run = step.get("run")
+        if (
+            expected is None
+            or not isinstance(run, str)
+            or publisher_body_digest(run) != expected
+        ):
+            errors.append(
+                f"{path}: {name} run step {step_name!r} must match the reviewed "
+                "hash-locked common-version profile"
+            )
+            continue
+        seen.add(key)
+    return errors, seen
+
+
+def _common_version_resolver_dependency_errors(
+    path: Path, jobs: dict[str, Any]
+) -> list[str]:
+    """Bind every common-version run body so a resolver cannot be added elsewhere."""
+    errors: list[str] = []
+    seen: set[tuple[str, str]] = set()
+    for name in (
+        "canonical-maintenance",
+        "reconcile-trusted",
+        "candidate",
+        "publish",
+        "result",
+    ):
+        job = jobs.get(name)
+        steps = job.get("steps") if isinstance(job, dict) else None
+        step_errors, step_seen = _common_version_run_step_errors(path, name, steps)
+        errors.extend(step_errors)
+        seen.update(step_seen)
+    missing = set(COMMON_VERSION_REVIEWED_RUN_SHA256).difference(seen)
+    if missing:
+        errors.append(f"{path}: common-version workflow is missing a reviewed run step")
+    return errors
+
+
 def _common_version_token_reference_errors(
     path: Path, data: dict[str, Any]
 ) -> list[str]:
@@ -3715,6 +3828,7 @@ def common_version_strict_profile_errors(path: Path, data: dict[str, Any]) -> li
     errors.extend(_common_version_permission_errors(path, jobs))
     errors.extend(_common_version_action_errors(path, jobs))
     errors.extend(_common_version_setup_errors(path, jobs))
+    errors.extend(_common_version_resolver_dependency_errors(path, jobs))
     errors.extend(_common_version_token_errors(path, data, jobs))
     errors.extend(_common_version_canonical_candidate_errors(path, jobs))
     errors.extend(_common_version_reconcile_errors(path, jobs["reconcile-trusted"]))
