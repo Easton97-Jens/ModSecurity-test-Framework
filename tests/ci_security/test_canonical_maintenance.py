@@ -230,6 +230,89 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             "scorecard_1.0.1_linux_amd64.tar.gz",
         )
 
+    def test_codeql_action_uses_a_numeric_release_page_for_major_review(self) -> None:
+        current = "v4.37.6"
+        current_commit = "a" * 40
+        compatible = "v4.37.7"
+        compatible_commit = "b" * 40
+        upstream = "v5.0.0"
+        release_page = (
+            "https://api.github.com/repos/github/codeql-action/releases?per_page=100"
+        )
+        identity = SimpleNamespace(slug="github/codeql-action")
+        updater = SimpleNamespace(
+            ACTION_RELEASE_RESOLUTION_LATEST="latest-release",
+            ACTION_RELEASE_RESOLUTION_SAME_MAJOR="same-major-release",
+            release_identity=lambda *_args, **_kwargs: identity,
+            action_release_resolution=lambda _record, _name: "same-major-release",
+            release_tag_commit=lambda _identity, tag: {
+                current: current_commit,
+                compatible: compatible_commit,
+            }[tag],
+            latest_release=lambda _identity: (_ for _ in ()).throw(
+                AssertionError("CodeQL must not use releases/latest")
+            ),
+            release_page_url=lambda _identity: release_page,
+            latest_stable_action_release=lambda _identity: {"tag_name": upstream},
+            latest_same_major_action_release=lambda _identity, _current: {
+                "tag_name": compatible
+            },
+            stable_release_tag=lambda release, _description: release["tag_name"],
+        )
+        fields = {
+            "REPOSITORY": "CI_ACTION_CODEQL_REPOSITORY",
+            "VERSION": "CI_ACTION_CODEQL_VERSION",
+            "COMMIT": "CI_ACTION_CODEQL_COMMIT",
+        }
+        result, reviews = MAINTENANCE._resolve_action_pin(
+            entries(
+                {
+                    fields["REPOSITORY"]: "github/codeql-action",
+                    fields["VERSION"]: current,
+                    fields["COMMIT"]: current_commit,
+                }
+            ),
+            updater,
+            {
+                "actions": {
+                    "github/codeql-action": {
+                        "name": "github/codeql-action",
+                        "version": current,
+                        "immutable_commit": current_commit,
+                        "release_resolution": "same-major-release",
+                    }
+                }
+            },
+            "CODEQL",
+            fields,
+        )
+
+        self.assertEqual(result["status"], "outdated")
+        self.assertEqual(result["latest_compatible"], compatible)
+        self.assertEqual(result["latest_upstream"], upstream)
+        self.assertEqual(result["source"], release_page)
+        self.assertEqual(
+            result["updates"],
+            [
+                {
+                    "variable": "CI_ACTION_CODEQL_VERSION",
+                    "old": current,
+                    "new": compatible,
+                },
+                {
+                    "variable": "CI_ACTION_CODEQL_COMMIT",
+                    "old": current_commit,
+                    "new": compatible_commit,
+                },
+            ],
+        )
+        self.assertEqual(reviews[0]["review_kind"], "major_version_transition")
+        self.assertEqual(reviews[0]["latest_upstream"], upstream)
+        self.assertEqual(
+            reviews[0]["evidence_urls"],
+            ["https://github.com/github/codeql-action/releases"],
+        )
+
     def test_require_root_rejects_a_symlinked_ancestor(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             parent = Path(directory)

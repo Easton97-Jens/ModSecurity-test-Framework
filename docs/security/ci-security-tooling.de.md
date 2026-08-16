@@ -114,6 +114,19 @@ Nicht-Prerelease-Action-Tags im gelockten Major `v4` und löst genau diesen Tag
 über die Git-API zu seinem unveränderlichen Commit auf. Er behandelt weder ein
 Bundle noch einen neuen Action-Major als Action-Update.
 
+Diese Unterscheidung ist durch den beobachteten Master-Fehler in Lauf
+`31975000540` erforderlich: `github/codeql-action/releases/latest` lieferte
+einen CodeQL-Bundle-Tag (`codeql-bundle-v2.26.3`). Deshalb konnte der generische
+Parser für stabile Actions keinen gültigen Action-Tag erzeugen und der
+kanonische Resolver scheiterte geschlossen. Die minimale Korrektur erhält den
+bestehenden automatischen Update-Pfad innerhalb desselben Majors, bezieht den
+`latest_upstream`-Vergleich für CodeQL aber von der begrenzten offiziellen
+Release-Seite und wählt nur numerische, veröffentlichte, nicht vorveröffentlichte
+Action-Tags über alle Majors hinweg. Ein automatisch ausgewählter Tag
+desselben Majors wird weiterhin über die Git-API aufgelöst und muss zu seinem
+unveränderlichen Commit passen. Ein neuer Major ist ausschließlich
+Prüfmetadaten und wird niemals stillschweigend durch die Wartung angewendet.
+
 `ci/tools/fetch-security-tool.py` akzeptiert ausschließlich benannte
 Lock-Records, direkte HTTPS-GitHub-Release-Assets und ein absolutes,
 symlinkfreies striktes Child des dem aktuellen User gehörenden

@@ -43,7 +43,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common_canonical_pins import load_canonical_ci_pins
+from common_canonical_pins import canonical_action, load_canonical_ci_pins
 
 
 class UpdateError(RuntimeError):
@@ -118,7 +118,9 @@ TOOL_MUTABLE_FIELDS = (
 )
 ACTION_RELEASE_RESOLUTION_LATEST = "latest-release"
 ACTION_RELEASE_RESOLUTION_SAME_MAJOR = "same-major-release"
-REVIEWED_ACTION_RELEASE_RESOLUTIONS: dict[str, str] = {}
+REVIEWED_ACTION_RELEASE_RESOLUTION_SUFFIXES = {
+    "CODEQL": ACTION_RELEASE_RESOLUTION_SAME_MAJOR,
+}
 
 
 @dataclass(frozen=True)
@@ -138,6 +140,15 @@ def release_url(identity: RepositoryIdentity, tag: str) -> str:
     """Build one official release URL from a reviewed repository identity."""
 
     return f"{GITHUB_WEB_ORIGIN}/{identity.slug}/releases/tag/{tag}"
+
+
+def release_page_url(identity: RepositoryIdentity) -> str:
+    """Build the bounded official API release-page URL for audit evidence."""
+
+    return (
+        f"{GITHUB_API_ORIGIN}/repos/{identity.slug}/releases?"
+        f"{GITHUB_RELEASE_PAGE_QUERY}"
+    )
 
 
 def release_asset_url(identity: RepositoryIdentity, tag: str, asset: str) -> str:
@@ -341,13 +352,24 @@ def release_identity(
     return identity
 
 
+def reviewed_action_release_resolutions() -> dict[str, str]:
+    """Derive constrained release streams from the canonical Action source."""
+
+    values = load_canonical_ci_pins(framework_root())
+    return {
+        canonical_action(values, suffix): resolution
+        for suffix, resolution in REVIEWED_ACTION_RELEASE_RESOLUTION_SUFFIXES.items()
+    }
+
+
 def action_release_resolution(record: dict[str, Any], name: str) -> str:
     """Return the lock-reviewed Action release selection mode, fail closed."""
 
-    # The release stream is part of the reviewed lock record.  Concrete
-    # repository identities are checked against common.sh at the command
-    # boundary below, never duplicated in this updater.
-    expected = record.get("release_resolution", ACTION_RELEASE_RESOLUTION_LATEST)
+    # The release stream is part of the reviewed lock record.  Its constrained
+    # identities are derived from common.sh, never duplicated in this updater.
+    expected = reviewed_action_release_resolutions().get(
+        name, ACTION_RELEASE_RESOLUTION_LATEST
+    )
     resolution = record.get("release_resolution")
     if resolution != expected:
         raise UpdateError(
@@ -608,18 +630,40 @@ def same_major_action_tag(current_tag: str, candidate_tag: str) -> bool:
     )
 
 
+def stable_action_releases(
+    identity: RepositoryIdentity,
+) -> list[tuple[tuple[int, int, int, int], dict[str, Any]]]:
+    """Read selectable numeric Action releases from the bounded official page."""
+
+    return [
+        (stable_tag_key(tag), release)
+        for release in release_page(identity)
+        if (tag := stable_release_tag_or_none(release)) is not None
+    ]
+
+
+def latest_stable_action_release(identity: RepositoryIdentity) -> dict[str, Any]:
+    """Select the newest published numeric Action release across all majors."""
+
+    candidates = stable_action_releases(identity)
+    if not candidates:
+        raise UpdateError(
+            f"action {identity.slug!r} has no published stable numeric release"
+        )
+    return max(candidates, key=lambda item: item[0])[1]
+
+
 def latest_same_major_action_release(
     identity: RepositoryIdentity, current_tag: str
 ) -> dict[str, Any]:
     """Select the highest published Action release in the lock-reviewed major."""
 
     current_key = stable_tag_key(current_tag)
-    candidates: list[tuple[tuple[int, int, int, int], dict[str, Any]]] = []
-    for release in release_page(identity):
-        tag = stable_release_tag_or_none(release)
-        if tag is None or not same_major_action_tag(current_tag, tag):
-            continue
-        candidates.append((stable_tag_key(tag), release))
+    candidates = [
+        (tag_key, release)
+        for tag_key, release in stable_action_releases(identity)
+        if same_major_action_tag(current_tag, str(release["tag_name"]))
+    ]
     if not candidates:
         raise UpdateError(
             f"action {identity.slug!r} has no published stable release in "

@@ -280,6 +280,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             patch.object(UPDATER, "release_tag_commit", return_value="a" * 40),
         ):
             candidate = UPDATER.action_candidate("github/codeql-action", record)
+            upstream = UPDATER.latest_stable_action_release(
+                UPDATER.release_identity(record, "github/codeql-action")
+            )
 
         self.assertEqual(
             candidate,
@@ -289,6 +292,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 "upstream_release": "https://github.com/github/codeql-action/releases/tag/v4.38.0",
             },
         )
+        self.assertEqual(upstream["tag_name"], "v5.0.0")
 
     def test_codeql_resolver_rejects_unrelated_bundle_or_major_releases(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
@@ -318,6 +322,14 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         with patch.object(UPDATER, "release_page", return_value=releases):
             with self.assertRaisesRegex(UPDATER.UpdateError, "reviewed major"):
                 UPDATER.action_candidate("github/codeql-action", record)
+
+    def test_codeql_release_resolution_is_runtime_bound(self) -> None:
+        _path, lock, _digest = UPDATER.load_lock(ROOT)
+        record = dict(lock["actions"]["github/codeql-action"])
+        record["release_resolution"] = "latest-release"
+
+        with self.assertRaisesRegex(UPDATER.UpdateError, "same-major-release"):
+            UPDATER.action_release_resolution(record, "github/codeql-action")
 
     def test_codeql_resolver_requires_an_immutable_confirmed_action_release(
         self,

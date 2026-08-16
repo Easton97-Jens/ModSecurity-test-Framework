@@ -1251,8 +1251,21 @@ def _resolve_action_pin(
             raise MaintenanceError(
                 "canonical Action commit differs from its official release tag"
             )
+        resolution = updater.action_release_resolution(record, repository)
+        if resolution == updater.ACTION_RELEASE_RESOLUTION_SAME_MAJOR:
+            latest_release = updater.latest_stable_action_release(identity)
+            latest_source = updater.release_page_url(identity)
+            latest_evidence_url = f"https://github.com/{repository}/releases"
+        elif resolution == updater.ACTION_RELEASE_RESOLUTION_LATEST:
+            latest_release = updater.latest_release(identity)
+            latest_source = f"https://github.com/{repository}/releases/latest"
+            latest_evidence_url = latest_source
+        else:
+            raise MaintenanceError(
+                "canonical Action has an unsupported release resolution"
+            )
         latest_upstream = updater.stable_release_tag(
-            updater.latest_release(identity), "latest Action release"
+            latest_release, "latest Action release"
         )
         latest_compatible = updater.stable_release_tag(
             updater.latest_same_major_action_release(identity, current),
@@ -1297,7 +1310,7 @@ def _resolve_action_pin(
                     variables=variables,
                     reason_code="github_action_major_transition",
                     reason="A newer GitHub Action major requires manual compatibility and immutable-commit review.",
-                    evidence_urls=[f"https://github.com/{repository}/releases/latest"],
+                    evidence_urls=[latest_evidence_url],
                     generated_views=(SECURITY_TOOLS_LOCK_PATH,),
                     automatic_update_also_available=bool(updates),
                 )
@@ -1314,7 +1327,7 @@ def _resolve_action_pin(
             current=current,
             latest_compatible=latest_compatible,
             latest_upstream=latest_upstream,
-            source=f"https://github.com/{repository}/releases/latest",
+            source=latest_source,
             updates=updates,
             details={"update_policy": "same_major"},
         )
