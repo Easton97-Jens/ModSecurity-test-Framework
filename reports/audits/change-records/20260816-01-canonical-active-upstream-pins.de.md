@@ -9,7 +9,7 @@
 | Change-ID | `20260816-01-canonical-active-upstream-pins` |
 | UTC-Datum | 2026-08-16 |
 | Framework-Basisrevision | `3cb33609626ff689c54b6dc0f31fb7e9401fe75e` |
-| Issue oder Pull Request | Draft-PR beim Erstellen dieses Records ausstehend; keine Issue wird geschlossen. |
+| Issue oder Pull Request | Framework-PR #82 (`https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/82`); beim Erstellen dieses Records war er ein Draft. Die aktuelle Aufgabe hat anschließend ausschließlich diesen PR für die geschützte Framework-`master`-Integration ausgewählt. Keine Issue wird geschlossen. |
 
 ## Motivation und Problemstellung
 
@@ -228,8 +228,13 @@ lokales Lint. Das erste ausgelieferte Follow-up beseitigte die ursprünglichen
 44 Code Smells und die Duplizierung, aber sein exakter Hosted-Head meldete
 fünf Restbefunde, einschließlich eines High-Security-
 Path-Provenance-Reports; er wird nicht als sauber behauptet. Dieses zweite
-source-native Follow-up bestand die vollständige lokale Lint-Kette. Draft-PR
-#82 bleibt offen; normaler Push, Remote-/PR-Head-Identität und die
-Exact-Head-Hosted-Analyse sind noch erforderlich, bevor dieses Record ein
-Zero-Issue-Ergebnis beanspruchen kann. Dieses Record beansprucht kein Merge-,
+source-native Follow-up bestand die vollständige lokale Lint-Kette. Am exakten
+PR-Head `6143594a4db5d3c72a1bc52c3b4a32d8a6ad6b45` bestätigt die Hosted-Analyse
+nun SonarQube-Cloud-Quality-Gate `OK`, null neue Issues, null Accepted Issues,
+null Security Hotspots, null New-Code-Duplikation sowie terminal erfolgreiche
+oder workflow-begründet übersprungene Checks. Unter der aktuellen
+Nutzerautorisierung `bringe ihn in den master` tritt ausschließlich PR #82 in
+den geschützten Exact-Head-Framework-Integrationszyklus ein. Dieses
+Source-Record behauptet bewusst kein Merge-/resultierendes-`master`-Fakt, bevor
+GitHub es tatsächlich zurückgemeldet hat; es beansprucht weiterhin kein
 Parent-, MRTS- oder Gitlink-Ergebnis.

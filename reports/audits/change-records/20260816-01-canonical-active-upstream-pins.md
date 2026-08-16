@@ -9,7 +9,7 @@
 | Change ID | `20260816-01-canonical-active-upstream-pins` |
 | UTC date | 2026-08-16 |
 | Framework base revision | `3cb33609626ff689c54b6dc0f31fb7e9401fe75e` |
-| Issue or pull request | Draft PR pending at record creation; no issue is closed. |
+| Issue or pull request | Framework PR #82 (`https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/82`); it was a Draft when this record was created. The current task subsequently selected only this PR for protected Framework `master` integration. No issue is closed. |
 
 ## Motivation and problem statement
 
@@ -210,7 +210,12 @@ focused security review, and full local lint. The first delivered follow-up
 removed the original 44 code smells and duplication but its exact hosted head
 reported five residual findings, including one high-security path-provenance
 report; it is not claimed as clean. This second source-native follow-up passed
-the complete local lint chain. Draft PR #82 remains open; its new normal push,
-remote/PR-head identity, and exact-head hosted analysis remain required before
-this record can claim a zero-issue result. This record does not claim a merge,
-Parent, MRTS, or gitlink outcome.
+the complete local lint chain. At exact PR head
+`6143594a4db5d3c72a1bc52c3b4a32d8a6ad6b45`, the hosted analysis now confirms
+SonarQube Cloud Quality Gate `OK`, zero new issues, zero accepted issues, zero
+security hotspots, zero new-code duplication, and terminal successful or
+workflow-justified skipped checks. Under the current user authorization
+`bringe ihn in den master`, only PR #82 enters the protected exact-head
+Framework integration cycle. This source record intentionally asserts no
+merge/resulting-master fact until GitHub has actually returned it; it continues
+to claim no Parent, MRTS, or gitlink outcome.
