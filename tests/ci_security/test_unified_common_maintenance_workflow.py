@@ -72,7 +72,9 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
     def test_issue_writes_are_trusted_default_branch_only(self) -> None:
         self.assertNotIn("pull_request_target", self.text)
         self.assertIn("--validate-only", self.text)
-        self.assertIn("--apply --trusted-default-branch --token", self.text)
+        self.assertIn("--apply", self.text)
+        self.assertIn("--trusted-default-branch", self.text)
+        self.assertIn('--token "$ISSUE_APP_TOKEN"', self.text)
         trusted = self.workflow["jobs"]["reconcile-trusted"]
         self.assertEqual(trusted["permissions"], {"contents": "read"})
         self.assertTrue(
@@ -85,24 +87,111 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.assertIn("MAINTENANCE_ISSUE_APP_PRIVATE_KEY", self.text)
         self.assertIn("permission-issues: write", self.text)
         self.assertEqual(self.text.count("permission-issues: write"), 1)
-        self.assertEqual(self.text.count("GITHUB_TOKEN: ${{ github.token }}"), 4)
-        for job_name, step_index in (
-            ("canonical-maintenance", 2),
-            ("reconcile-trusted", 4),
-            ("candidate", 2),
-            ("publish", 2),
-        ):
-            self.assertEqual(
-                self.workflow["jobs"][job_name]["steps"][step_index]["env"].get(
-                    "GITHUB_TOKEN"
+        self.assertEqual(self.text.count("GITHUB_TOKEN: ${{ github.token }}"), 1)
+        canonical_resolver = next(
+            step
+            for step in self.workflow["jobs"]["canonical-maintenance"]["steps"]
+            if step["name"] == "Resolve mandatory global and selected runtime scopes"
+        )
+        self.assertEqual(
+            canonical_resolver["env"].get("GITHUB_TOKEN"), "${{ github.token }}"
+        )
+        for job_name in ("reconcile-trusted", "candidate", "publish"):
+            self.assertNotIn("GITHUB_TOKEN", self.workflow["jobs"][job_name])
+            self.assertNotIn(
+                "GITHUB_TOKEN",
+                "\n".join(
+                    str(step.get("run", ""))
+                    for step in self.workflow["jobs"][job_name]["steps"]
                 ),
-                "${{ github.token }}",
             )
+
+    def test_caller_bound_plan_artifact_is_uploaded_once_and_consumed_by_downstream_jobs(
+        self,
+    ) -> None:
+        canonical_steps = self.workflow["jobs"]["canonical-maintenance"]["steps"]
+        uploads = [
+            step
+            for step in canonical_steps
+            if step.get("name") == "Retain caller-bound canonical maintenance plan"
+        ]
+        self.assertEqual(len(uploads), 1)
+        upload = uploads[0]
+        self.assertEqual(
+            upload["uses"],
+            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        )
+        self.assertEqual(
+            upload["with"]["name"],
+            "canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}",
+        )
+        self.assertIn("canonical-maintenance-plan.json", upload["with"]["path"])
+        self.assertIn("canonical-maintenance-plan.md", upload["with"]["path"])
+        self.assertEqual(upload["with"]["retention-days"], 1)
+        self.assertEqual(upload["with"]["if-no-files-found"], "error")
+
+        expected_artifact = (
+            "canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}"
+        )
+        expected_directory = "${{ runner.temp }}"
+        expected_json = '"$RUNNER_TEMP/canonical-maintenance-plan.json"'
+        for job_name in ("reconcile-trusted", "candidate", "publish"):
+            steps = self.workflow["jobs"][job_name]["steps"]
+            downloads = [
+                step
+                for step in steps
+                if step.get("name") == "Download caller-bound canonical maintenance plan"
+            ]
+            self.assertEqual(len(downloads), 1, job_name)
+            self.assertEqual(
+                downloads[0]["uses"],
+                "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+            )
+            self.assertEqual(downloads[0]["with"]["name"], expected_artifact)
+            self.assertEqual(downloads[0]["with"]["path"], expected_directory)
+
+            run_text = "\n".join(str(step.get("run", "")) for step in steps)
+            self.assertIn("--expected-plan-sha256 \"$PLAN_SHA256\"", run_text)
+            self.assertIn(expected_json, run_text)
+            self.assertNotIn("GITHUB_TOKEN", run_text)
+
+        reconcile_steps = self.workflow["jobs"]["reconcile-trusted"]["steps"]
+        validation = next(
+            step
+            for step in reconcile_steps
+            if step.get("name") == "Validate caller-bound canonical maintenance plan"
+        )
+        token = next(
+            index
+            for index, step in enumerate(reconcile_steps)
+            if step.get("name") == "Mint repository-limited issue reconciler App token"
+        )
+        self.assertLess(reconcile_steps.index(validation), token)
+
+    def test_downstream_jobs_apply_only_the_downloaded_plan(self) -> None:
+        plan_path = "$RUNNER_TEMP/canonical-maintenance-plan.json"
+        for job_name in ("candidate", "publish"):
+            run_text = "\n".join(
+                str(step.get("run", ""))
+                for step in self.workflow["jobs"][job_name]["steps"]
+            )
+            self.assertIn("--apply-safe-updates", run_text)
+            self.assertIn(f'--plan "{plan_path}"', run_text)
+            self.assertNotIn(
+                "resolve-canonical-maintenance.py --root . --check", run_text
+            )
+        reconcile_text = "\n".join(
+            str(step.get("run", ""))
+            for step in self.workflow["jobs"]["reconcile-trusted"]["steps"]
+        )
+        self.assertIn(f'--plan "{plan_path}"', reconcile_text)
+        self.assertIn("--apply", reconcile_text)
+        self.assertNotIn("resolve-canonical-maintenance.py", reconcile_text)
 
     def test_candidate_and_publisher_are_bound_to_the_same_plan(self) -> None:
         self.assertIn("--expected-plan-sha256", self.text)
         self.assertIn("--apply-safe-updates", self.text)
-        self.assertIn("generated views", self.text)
+        self.assertIn("caller-bound canonical plan", self.text)
         self.assertIn("add-paths:", self.text)
         self.assertIn("draft: true", self.text)
         self.assertIn("No auto-merge is authorized", self.text)

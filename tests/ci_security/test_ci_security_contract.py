@@ -998,8 +998,31 @@ jobs:
                 "      contents: write",
             ),
             "missing_plan_binding": workflow.replace(
-                '          args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --expected-plan-sha256 "$PLAN_SHA256")',
-                '          args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json")',
+                (
+                    '            --expected-plan-sha256 "$PLAN_SHA256" \\\n'
+                    "            --validate-only"
+                ),
+                "            --validate-only",
+                1,
+            ),
+            "artifact-name-is-not-caller-bound": workflow.replace(
+                "canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}",
+                "canonical-maintenance-plan-unbound",
+                1,
+            ),
+            "artifact-attempt-is-not-bound": workflow.replace(
+                "canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}",
+                "canonical-maintenance-plan-${{ github.run_id }}",
+                1,
+            ),
+            "downstream-artifact-path-is-expanded": workflow.replace(
+                "path: ${{ runner.temp }}",
+                "path: ${{ runner.temp }}/untrusted-plan-location",
+                1,
+            ),
+            "downstream-artifact-action-is-replaced": workflow.replace(
+                "actions/download-artifact@",
+                "actions/checkout@",
                 1,
             ),
             "extra_read_token": workflow.replace(
@@ -1056,7 +1079,6 @@ jobs:
 
         next_jobs = {
             "canonical-maintenance": "reconcile-trusted",
-            "reconcile-trusted": "candidate",
             "candidate": "publish",
             "publish": "result",
         }

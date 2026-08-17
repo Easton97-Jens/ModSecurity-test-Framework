@@ -107,7 +107,7 @@ class RuntimeComponentLockTests(unittest.TestCase):
 
     def test_exact_htx_pin_cannot_fall_back_to_generic_haproxy_pin(self):
         result = self.mutate_lock(
-            lambda value: self.profile(value, "haproxy-htx").update({"version": "3.2.22"})
+            lambda value: self.profile(value, "haproxy-htx").update({"version": "9.9.9"})
         )
         self.assertEqual(result.returncode, 77)
         self.assertIn("haproxy-htx version drift", result.stderr)

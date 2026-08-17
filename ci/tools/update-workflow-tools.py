@@ -397,6 +397,7 @@ def require_canonical_action_lock(root: Path, lock: dict[str, Any]) -> None:
         "SETUP_PYTHON",
         "SETUP_NODE",
         "UPLOAD_ARTIFACT",
+        "DOWNLOAD_ARTIFACT",
         "GITHUB_SCRIPT",
         "CREATE_GITHUB_APP_TOKEN",
         "CREATE_PULL_REQUEST",

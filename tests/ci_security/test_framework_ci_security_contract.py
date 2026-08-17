@@ -51,6 +51,7 @@ class FrameworkCiSecurityContractTest(unittest.TestCase):
         self.assertIn("shellcheck", tools)
         self.assertIn("osv-scanner", tools)
         self.assertIn("actions/upload-artifact", actions)
+        self.assertIn("actions/download-artifact", actions)
 
     def test_cli_lock_path_is_confined_to_the_framework_root(self) -> None:
         legitimate = subprocess.run(

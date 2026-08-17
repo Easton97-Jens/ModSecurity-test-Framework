@@ -41,6 +41,16 @@ actions:
     purpose: Retain only bounded JSON security-governance evidence for the documented minimum period.
     platform: GitHub Actions
     update_procedure: Verify the upstream tag-to-commit identity, Node runtime compatibility, MIT license, artifact path, and one-day retention before updating this record, every matching version comment, and the contract test together.
+  actions/download-artifact:
+    name: actions/download-artifact
+    version: v8.0.1
+    immutable_commit: 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+    upstream_release: https://github.com/actions/download-artifact/releases/tag/v8.0.1
+    release_resolution: latest-release
+    license: MIT
+    purpose: Retrieve one caller-bound canonical maintenance-plan artifact for same-run validation before candidate, review, or publisher work.
+    platform: GitHub Actions
+    update_procedure: Verify the upstream tag-to-commit identity, Node runtime compatibility, MIT license, exact same-run artifact name, bounded extraction path, and digest validation before updating this record, every matching version comment, and the contract test together.
   actions/github-script:
     name: actions/github-script
     version: v9.0.0

@@ -102,6 +102,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 ci/tools/reconcile-common-version-review-issues.py --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --validate-only
+      - name: Retain caller-bound canonical maintenance plan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/canonical-maintenance-plan.json
+            ${{ runner.temp }}/canonical-maintenance-plan.md
+          retention-days: 1
+          if-no-files-found: error
 
   reconcile-trusted:
     needs: canonical-maintenance
@@ -125,6 +134,20 @@ jobs:
         with:
           python-version-file: ".python-version"
           check-latest: false
+      - name: Download caller-bound canonical maintenance plan
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}
+      - name: Validate caller-bound canonical maintenance plan
+        env:
+          PLAN_SHA256: ${{ needs.canonical-maintenance.outputs.plan_sha256 }}
+        run: |
+          set -euo pipefail
+          python3 ci/tools/reconcile-common-version-review-issues.py \
+            --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" \
+            --expected-plan-sha256 "$PLAN_SHA256" \
+            --validate-only
       - name: Require distinct review-issue App configuration
         env:
           ISSUE_APP_CLIENT_ID: ${{ vars.MAINTENANCE_ISSUE_APP_CLIENT_ID }}
@@ -141,23 +164,21 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-issues: write
-      - name: Re-resolve and reconcile review issues on trusted default branch
+      - name: Reconcile review issues from caller-bound plan on trusted default branch
         env:
           PLAN_SHA256: ${{ needs.canonical-maintenance.outputs.plan_sha256 }}
           GITHUB_ACTIONS: "true"
           GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          REQUESTED_COMPONENT: ${{ inputs.component }}
-          GITHUB_TOKEN: ${{ github.token }}
           ISSUE_APP_TOKEN: ${{ steps.issue_app_token.outputs.token }}
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
-          args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --expected-plan-sha256 "$PLAN_SHA256")
-          if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
-          python3 ci/tools/resolve-canonical-maintenance.py "${args[@]}"
-          python3 ci/tools/reconcile-common-version-review-issues.py --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --repository "${GITHUB_REPOSITORY}" --apply --trusted-default-branch --token "$ISSUE_APP_TOKEN"
+          python3 ci/tools/reconcile-common-version-review-issues.py \
+            --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" \
+            --expected-plan-sha256 "$PLAN_SHA256" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --apply \
+            --trusted-default-branch \
+            --token "$ISSUE_APP_TOKEN"
 
   candidate:
     needs: canonical-maintenance
@@ -184,24 +205,23 @@ jobs:
         with:
           python-version-file: .python-version
           check-latest: false
-      - name: Re-resolve the caller-bound plan
+      - name: Download caller-bound canonical maintenance plan
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}
+      - name: Validate and apply caller-bound canonical plan
         env:
-          REQUESTED_COMPONENT: ${{ inputs.component }}
           PLAN_SHA256: ${{ needs.canonical-maintenance.outputs.plan_sha256 }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
             --require-hashes -r requirements-ci.lock
           python3 -m pip check
-          args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --expected-plan-sha256 "$PLAN_SHA256")
-          if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
-          python3 ci/tools/resolve-canonical-maintenance.py "${args[@]}"
-      - name: Apply only the bound safe plan and generated views
-        env:
-          PLAN_SHA256: ${{ needs.canonical-maintenance.outputs.plan_sha256 }}
-        run: |
-          set -euo pipefail
+          python3 ci/tools/reconcile-common-version-review-issues.py \
+            --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" \
+            --expected-plan-sha256 "$PLAN_SHA256" \
+            --validate-only
           python3 ci/tools/resolve-canonical-maintenance.py --root . \
             --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" \
             --apply-safe-updates --expected-plan-sha256 "$PLAN_SHA256"
@@ -247,29 +267,33 @@ jobs:
         with:
           python-version-file: .python-version
           check-latest: false
-      - name: Re-resolve and apply canonical plan
+      - name: Download caller-bound canonical maintenance plan
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}
+      - name: Validate and apply caller-bound canonical plan
         env:
-          REQUESTED_COMPONENT: ${{ inputs.component }}
           PLAN_SHA256: ${{ needs.canonical-maintenance.outputs.plan_sha256 }}
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
             --require-hashes -r requirements-ci.lock
           python3 -m pip check
-          args=(--root . --check --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" --expected-plan-sha256 "$PLAN_SHA256")
-          if [[ -n "$REQUESTED_COMPONENT" ]]; then args+=(--component "$REQUESTED_COMPONENT"); fi
-          python3 ci/tools/resolve-canonical-maintenance.py "${args[@]}"
+          python3 ci/tools/reconcile-common-version-review-issues.py \
+            --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" \
+            --expected-plan-sha256 "$PLAN_SHA256" \
+            --validate-only
           python3 ci/tools/resolve-canonical-maintenance.py --root . \
             --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" \
             --apply-safe-updates --expected-plan-sha256 "$PLAN_SHA256"
           git diff --check
-          python3 ci/tools/resolve-canonical-maintenance.py --root . \
-            --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" \
-            --markdown "$RUNNER_TEMP/canonical-maintenance-plan.md"
+          plan_markdown="$RUNNER_TEMP/canonical-maintenance-plan.md"
+          [[ -f "$plan_markdown" && ! -L "$plan_markdown" ]] || { echo 'canonical maintenance markdown artifact is invalid' >&2; exit 1; }
+          grep -F -- "- Plan SHA-256: \`$PLAN_SHA256\`" "$plan_markdown" >/dev/null
           {
             printf '%s\n\n' '<!-- framework-canonical-maintenance -->' 'This Draft PR was created from a caller-bound canonical maintenance plan. No auto-merge is authorized.'
-            cat "$RUNNER_TEMP/canonical-maintenance-plan.md"
+            cat "$plan_markdown"
           } > "$RUNNER_TEMP/common-maintenance-pr-body.md"
       - name: Require publisher App configuration
         env:

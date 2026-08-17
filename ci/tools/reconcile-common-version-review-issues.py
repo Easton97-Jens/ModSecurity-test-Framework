@@ -1218,6 +1218,14 @@ def _read_validated_plan(path: str) -> Dict[str, Any]:
     return validate_plan(json.loads(raw.decode("utf-8")))
 
 
+def _require_expected_plan_digest(
+    plan: Mapping[str, Any], expected: Optional[str]
+) -> None:
+    """Require an externally supplied digest before any mode-specific work."""
+    if expected is not None and plan["plan_sha256"] != expected:
+        raise PlanError("plan_sha256 does not match --expected-plan-sha256")
+
+
 def _validation_result(plan: Mapping[str, Any]) -> Dict[str, Any]:
     """Return a small stable result suitable for an untrusted resolve job."""
     return {
@@ -1245,14 +1253,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     mode.add_argument("--validate-only", action="store_true")
     parser.add_argument("--token")
     parser.add_argument("--trusted-default-branch", action="store_true")
+    parser.add_argument("--expected-plan-sha256")
     args = parser.parse_args(argv)
     try:
+        if args.expected_plan_sha256 is not None and not SHA256_RE.fullmatch(
+            args.expected_plan_sha256
+        ):
+            raise PlanError("--expected-plan-sha256 must be a lowercase SHA-256")
         if args.validate_only:
             if args.repository or args.token or args.trusted_default_branch:
                 raise PlanError(
                     "--validate-only does not accept repository, token, or trusted-branch options"
                 )
             plan = _read_validated_plan(args.plan)
+            _require_expected_plan_digest(plan, args.expected_plan_sha256)
             print(
                 json.dumps(
                     _validation_result(plan), sort_keys=True, separators=(",", ":")
@@ -1264,6 +1278,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         ):
             raise PlanError("a valid repository is required for reconciliation")
         plan = _read_validated_plan(args.plan)
+        _require_expected_plan_digest(plan, args.expected_plan_sha256)
         if args.apply:
             _apply_allowed(args)
         result = _reconcile_validated(
