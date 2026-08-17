@@ -89,13 +89,13 @@ workflow-level permission map grants write.
 Only a trusted job may replace that baseline with a smaller purpose-specific
 permission map. `check-common-versions` keeps its resolver, candidate, and
 native publisher token at `contents: read`; only its post-validation,
-repository-limited GitHub App token receives `contents` and `pull-requests`:
-write. `update-workflow-tools` retains `contents: read` for every built-in job
-token and, only after independent resolver and validator jobs, mints a
-repository-limited GitHub App token with `contents`, `pull-requests`, and
-`workflows` write permission. The CPython and Common-version tokens have only
-`contents` and `pull-requests`: write; the workflow-tool token additionally
-has `workflows`: write because it may change workflow files.
+repository-limited GitHub App token receives `contents`, `pull-requests`, and
+`workflows`: write. `update-workflow-tools` retains `contents: read` for every
+built-in job token and, only after independent resolver and validator jobs,
+mints a repository-limited GitHub App token with the same three write
+permissions. The CPython token has only `contents` and `pull-requests`: write;
+the Common-version and workflow-tool tokens additionally have `workflows`:
+write because their fixed generated allowlists include workflow files.
 `cleanup-artifacts` needs only `actions: write` to delete artifacts;
 `update-submodules` gives `contents` and `pull-requests` writes only to its
 validated default-branch publisher; the trusted non-PR CodeQL upload job needs
@@ -115,14 +115,17 @@ credential. The Common-version resolver and candidate jobs declare no explicit
 token or secret. Its publisher is limited to scheduled/manual execution on the
 trusted default branch, independently re-resolves the candidate, compares its
 SHA-256 with the read-only validation result, and requires the working-tree
-diff and action `add-paths` to contain only `ci/lib/common.sh`. The publisher's
+diff and action `add-paths` to match the reviewed generated common-maintenance
+allowlist, including its explicitly named workflow paths. The publisher's
 native token stays read-only and no `github.token`, `GITHUB_TOKEN`, PAT, SSH
 credential, or runner-driven push may publish. It tests the availability of
 `WORKFLOW_UPDATER_APP_CLIENT_ID` and `WORKFLOW_UPDATER_APP_PRIVATE_KEY` without
 printing either value; the private-key value is passed only to the immutable
 `create-github-app-token` Action. That Action is scoped to the current owner
-and repository and requests only `contents` and `pull-requests`: write, never
-`workflows`: write. Its output is consumed only by the reviewed read-only
+and repository and requests exactly `contents`, `pull-requests`, and
+`workflows`: write. Its permitted use is bounded by the fixed allowlisted
+workflow paths enforced by the reviewed state check and Draft-PR Action. Its
+output is consumed only by the reviewed read-only
 state check and the immutable `create-pull-request` Action. The CPython-version
 resolver and candidate jobs also declare no explicit token or secret. The
 Common-version and CPython publishers preflight
@@ -221,9 +224,9 @@ errors.
 The shared App configuration uses
 `vars.WORKFLOW_UPDATER_APP_CLIENT_ID` and
 `secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY` by name only. The CPython publisher
-and Common-version publisher request only `Contents` and `Pull requests`
-write; the workflow-tool publisher additionally requests `Workflows` write
-because it may update workflow files. The generated App Draft PR is an
+requests only `Contents` and `Pull requests` write. The Common-version and
+workflow-tool publishers additionally request `Workflows` write because their
+fixed generated allowlists include workflow files. The generated App Draft PR is an
 ordinary PR and must satisfy the repository's normal PR checks and human review
 before any merge; none of these workflows merges or enables auto-merge.
 
@@ -231,15 +234,16 @@ before any merge; none of these workflows merges or enables auto-merge.
 
 The Common-version maintenance identity is fixed to branch
 `automation/update-framework-common-versions`, title
-`chore(ci): update common.sh versions`, the repository default branch as base,
+`chore(ci): update canonical maintenance pins`, the repository default branch as base,
 and `draft: true`. Its body contains the marker
-`<!-- framework-common-version-updater -->`, English and German explanations,
+`<!-- framework-canonical-maintenance -->`, English and German explanations,
 the validated old/new variable values, and the validated upstream source or
 release reference for each changed component. It states that no auto-merge is
 authorized. Before the App-token PR Action can change a branch, a read-only
 GitHub API check accepts only state A (no branch and no open matching PR) or
 state B (exactly one same-repository Draft PR with the fixed head, base, title,
-marker, and `ci/lib/common.sh`-only diff). Any other state fails closed without
+marker, and a diff limited to the fixed generated common-maintenance allowlist,
+including named workflow files). Any other state fails closed without
 deleting or overwriting a branch or PR. A trusted-default-branch drift during
 publisher revalidation also fails closed.
 

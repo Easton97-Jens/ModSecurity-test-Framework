@@ -107,6 +107,46 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.assertIn("draft: true", self.text)
         self.assertIn("No auto-merge is authorized", self.text)
 
+    def test_publisher_token_is_exactly_scoped_for_allowlisted_workflow_updates(
+        self,
+    ) -> None:
+        publish = self.workflow["jobs"]["publish"]
+        self.assertEqual(publish["permissions"], {"contents": "read"})
+        publisher_token = next(
+            step
+            for step in publish["steps"]
+            if step["name"] == "Mint repository-limited publisher App token"
+        )
+        self.assertEqual(
+            publisher_token["with"],
+            {
+                "client-id": "${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}",
+                "private-key": "${{ secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY }}",
+                "owner": "${{ github.repository_owner }}",
+                "repositories": "${{ github.event.repository.name }}",
+                "permission-contents": "write",
+                "permission-pull-requests": "write",
+                "permission-workflows": "write",
+            },
+        )
+        issue_token = next(
+            step
+            for step in self.workflow["jobs"]["reconcile-trusted"]["steps"]
+            if step["name"] == "Mint repository-limited issue reconciler App token"
+        )
+        self.assertEqual(issue_token["with"]["permission-issues"], "write")
+        self.assertNotIn("permission-workflows", issue_token["with"])
+        create_pr = next(
+            step
+            for step in publish["steps"]
+            if step["name"]
+            == "Create or update Draft PR from the full generated allowlist"
+        )
+        self.assertIn(
+            ".github/workflows/check-common-versions.yml",
+            create_pr["with"]["add-paths"].splitlines(),
+        )
+
     def test_result_summary_covers_required_outcomes(self) -> None:
         for label in ("Safe updates", "Reviews", "Issues", "Draft PR", "Fatal"):
             self.assertIn(label, self.text)
