@@ -183,6 +183,15 @@ only when it is non-empty. This keeps the shared plan schema compatible with
 all mandatory global components without turning an unavailable advisory value
 into a resolver failure.
 
+Before any review issue is read or written, the reconciler validates the raw
+runner-local plan, including its canonical SHA-256. It then passes the accepted
+normalized representation directly to the reconciliation core; it does not
+revalidate normalized defaults as if they were the signed raw plan, rewrite the
+artifact, or recompute `plan_sha256`. Direct callers retain the same raw-plan
+validation boundary before normalization. Consequently, an implicit active
+review state cannot change the signed plan representation or weaken the
+trusted-branch, App-token, scope, or digest gates.
+
 `update-submodules.yml` is intentionally separate from the lock/tool updater:
 it updates only the Framework-owned `tools/MRTS` gitlink, never MRTS content.
 It accepts only a full SHA from the named MRTS `main` branch, explicitly

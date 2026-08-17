@@ -1036,14 +1036,14 @@ def _reconcile_absent(
     }
 
 
-def reconcile(
+def _reconcile_validated(
     plan: Mapping[str, Any],
     client: Any,
     dry_run: bool = True,
     maintenance_run: str = "plan-verified",
     repository: str = "",
 ) -> Dict[str, Any]:
-    plan = validate_plan(plan)
+    """Reconcile one plan that has already passed raw-artifact validation."""
     if not dry_run and not isinstance(client, GitHubClient):
         required = ("list_issues", "create_issue", "update_issue", "comment")
         if any(not callable(getattr(client, name, None)) for name in required):
@@ -1088,6 +1088,23 @@ def reconcile(
         if action is not None:
             actions.append(action)
     return {"actions": actions, "count": len(actions), "dry_run": dry_run}
+
+
+def reconcile(
+    plan: Mapping[str, Any],
+    client: Any,
+    dry_run: bool = True,
+    maintenance_run: str = "plan-verified",
+    repository: str = "",
+) -> Dict[str, Any]:
+    """Validate a raw signed plan before reconciling its normalized records."""
+    return _reconcile_validated(
+        validate_plan(plan),
+        client,
+        dry_run=dry_run,
+        maintenance_run=maintenance_run,
+        repository=repository,
+    )
 
 
 def _apply_allowed(args: argparse.Namespace) -> None:
@@ -1249,7 +1266,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         plan = _read_validated_plan(args.plan)
         if args.apply:
             _apply_allowed(args)
-        result = reconcile(
+        result = _reconcile_validated(
             plan,
             GitHubClient(args.token or ""),
             dry_run=args.dry_run,

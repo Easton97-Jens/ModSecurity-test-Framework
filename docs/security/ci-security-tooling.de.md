@@ -202,6 +202,16 @@ HTTPS. So bleibt das gemeinsame Plan-Schema mit allen verbindlichen globalen
 Komponenten kompatibel, ohne einen nicht verfügbaren Hinweiswert in einen
 Resolverfehler umzuwandeln.
 
+Bevor ein Review-Issue gelesen oder geschrieben wird, validiert der Reconciler
+den rohen, runner-lokalen Plan einschließlich seiner kanonischen SHA-256. Er
+übergibt die akzeptierte normalisierte Darstellung anschließend direkt an den
+Reconciliation-Kern; er validiert normalisierte Default-Werte nicht erneut als
+den signierten Rohplan, schreibt das Artefakt nicht um und berechnet
+`plan_sha256` nicht neu. Direkte Aufrufer behalten dieselbe Rohplan-
+Validierungsgrenze vor der Normalisierung. Daher kann ein impliziter aktiver
+Review-Status die signierte Plan-Darstellung nicht verändern und die Gates für
+Trusted Branch, App-Token, Scope oder Digest nicht abschwächen.
+
 `update-submodules.yml` bleibt bewusst vom Lock-/Tool-Updater getrennt: Es
 aktualisiert nur den Framework-eigenen `tools/MRTS`-Gitlink, niemals MRTS-
 Inhalt. Es akzeptiert nur eine volle SHA vom benannten MRTS-`main`-Branch,

@@ -1,5 +1,6 @@
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import tempfile
@@ -94,6 +95,34 @@ class ReconcilerTests(unittest.TestCase):
             make_plan(), client, dry_run=True, repository="owner/repo"
         )
         self.assertEqual(result["actions"][0]["action"], "create")
+        self.assertEqual(client.writes, [])
+
+    def test_cli_reconciles_signed_plan_with_implicit_active_review_state(self):
+        plan = make_plan()
+        del plan["manual_reviews"][0]["state"]
+        plan["plan_sha256"] = reconciler._plan_digest(plan)
+        client = FakeClient()
+        with tempfile.TemporaryDirectory() as runner_temp:
+            plan_path = Path(runner_temp) / reconciler.PLAN_FILENAME
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            with (
+                mock.patch.dict(os.environ, {"RUNNER_TEMP": runner_temp}, clear=True),
+                mock.patch.object(reconciler, "GitHubClient", return_value=client),
+                mock.patch("sys.stdout", new_callable=io.StringIO) as output,
+            ):
+                code = reconciler.main(
+                    [
+                        "--plan",
+                        str(plan_path),
+                        "--repository",
+                        "owner/repo",
+                        "--dry-run",
+                    ]
+                )
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            json.loads(output.getvalue())["actions"][0]["action"], "create"
+        )
         self.assertEqual(client.writes, [])
 
     def test_duplicate_managed_key_fails_closed(self):
