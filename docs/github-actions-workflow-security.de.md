@@ -32,7 +32,7 @@ Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 | Workflow | Trigger | Externe Actions | Effektive Berechtigungen | Vertrauensentscheidung |
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, gefilterter `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; er läuft nur lesend und ohne persistierte Checkout-Credentials. |
-| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | Workflow und natives Publisher-Token `contents: read`; nur das kurzlebige, repositorybegrenzte App-Token hat `contents`, `pull-requests`: write | Resolver und Kandidatenjob bleiben read-only; der Default-Branch-Publisher löst den Kandidaten unabhängig erneut auf und SHA-256-bindet ihn, bricht bei unsicherem Wartungszustand fail-closed ab und erstellt oder aktualisiert nur einen Draft-PR auf festem Branch für `ci/lib/common.sh`. |
+| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact`, `actions/download-artifact`, `actions/create-github-app-token`, `peter-evans/create-pull-request` | Workflow und natives Publisher-Token `contents: read`; nur das kurzlebige, repositorybegrenzte App-Token hat `contents`, `pull-requests`, `workflows`: write | Der vertrauenswürdige Canonical-Job löst genau einen per SHA-256 gebundenen Plan auf und bewahrt ihn einen Tag auf. Candidate, Issue-Reconciliation und Publisher laden und validieren vor ihrer Arbeit dasselbe Run-/Attempt-Artefakt; der Publisher erstellt oder aktualisiert ausschließlich eine Draft-PR mit festem Branch. |
 | `check-python-version.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | Workflow-Standard `permissions: {}`; nur Resolver, Kandidatenvalidierung und Publisher erhalten eingebaute `contents: read`; das repository-begrenzte App-Token hat nur `contents`, `pull-requests`: write | Resolver- und Kandidatenjobs sind read-only. Der Default-Branch-Publisher löst einen stabilen Kandidaten unabhängig erneut auf, verifiziert genau einen festen Draft-Branch/PR und ändert nur `.python-version`; er merged nie. Ein finaler read-only-Outcome-Job macht nur den exakten No-Update-Zustand grün. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, Zeitplan | `actions/github-script` | Workflow-Standard `contents: read`; Cleanup-Job effektiv `actions: write` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; sein Job kann nur Repository-Artefakte löschen. |
 | `five-connectors-with-crs-no-mrts-contract.yml` | gefilterter `push`, gefilterter `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; dieses nur lesende Gate installiert nur die hash-gesperrte Abhängigkeit aus `requirements-ci.lock` und validiert dann den portablen geschlossenen Fixture-, CRS-Provenance- und Evidenzvertrag, nie ein Connector-Host-Runtime-Ergebnis. |
@@ -54,6 +54,7 @@ zugelassenen Upstreams, Releases und Commit-Identitäten sind:
 | `actions/setup-python` | [actions/setup-python](https://github.com/actions/setup-python) | v7.0.0 | 5fda3b95a4ea91299a34e894583c3862153e4b97 | MIT | Wählt den exakten Interpreter aus `.python-version` für Framework-CI und kontrollierte Wartungsvalidierung aus. |
 | `actions/setup-node` | [actions/setup-node](https://github.com/actions/setup-node) | v7.0.0 | 820762786026740c76f36085b0efc47a31fe5020 | MIT | Wählt die überprüfte Node.js-Runtime für prüfsummenverifiziertes Pyright. |
 | `actions/upload-artifact` | [actions/upload-artifact](https://github.com/actions/upload-artifact) | v7.0.1 | 043fb46d1a93c77aae656e7c1c64a875d1fc6a0a | MIT | Bewahrt nur begrenzte CI-Security-Evidenz auf. |
+| `actions/download-artifact` | [actions/download-artifact](https://github.com/actions/download-artifact) | v8.0.1 | 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c | MIT | Lädt genau ein caller-gebundenes Canonical-Maintenance-Plan-Artefakt zur Validierung desselben Runs herunter. |
 | `actions/github-script` | [actions/github-script](https://github.com/actions/github-script) | v9.0.0 | 3a2844b7e9c422d3c10d287c895573f7108da1b3 | MIT | Prüft eingeschränkte Draft-PRs oder führt Artefakt-Aufbewahrungsbereinigung aus. |
 | `actions/create-github-app-token` | [actions/create-github-app-token](https://github.com/actions/create-github-app-token) | v3.2.0 | bcd2ba49218906704ab6c1aa796996da409d3eb1 | MIT | Erzeugt die kurzlebigen, auf das Repository begrenzten App-Tokens der Common-Version-, CPython-Version- und Workflow-Tool-Publisher. |
 | `peter-evans/create-pull-request` | [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) | v8.1.1 | 5f6978faf089d4d20b00c7766989d076bb2fc7f1 | MIT | Erstellt eingeschränkte Common-Version- oder CPython-Version-Draft-PRs. |
@@ -174,9 +175,11 @@ PR-Event.
 ### GitHub-API-Authentifizierung und Redirect-Grenze
 
 Der kanonische Maintenance-Workflow darf das bestehende read-only
-jobbezogene `GITHUB_TOKEN` nur in seinen explizit überprüften Resolver-,
-Reconciliation- und Re-Resolver-Schritten in `check-common-versions.yml`
-verwenden. Der eigenständige Reader-
+jobbezogene `GITHUB_TOKEN` nur in seinem explizit überprüften kanonischen
+Resolver-Schritt in `check-common-versions.yml` verwenden. Seine Candidate-,
+Reconciliation- und Publisher-Consumer erhalten das bewahrte Artefakt
+desselben Runs und keine solche Berechtigung; sie lösen keine Live-Quellen
+erneut auf. Der eigenständige Reader-
 Workflow `update-workflow-tools.yml` bleibt tokenfrei; auch wenn sein Helper
 aus dem kanonischen Maintenance-Pfad aufgerufen wird, erweitert dies nicht
 die Berechtigungen dieses Workflows. Der Helper fügt Bearer-Credential und
@@ -314,8 +317,10 @@ Manual-Review-Einträgen, Quell-/Kandidaten-Hashes und dem Status generierter
 Views.
 
 Der Plan prüft Runtime-Manifest/-Lock, Python-, Workflow- und CRS-Views
-gemeinsam. Vor jedem Schreiben durch einen vertrauenswürdigen Publisher wird
-er erneut validiert. Manual-Review-Issues werden ausschließlich durch einen
+gemeinsam. Der kanonische Job bewahrt sein JSON und Markdown als ein an Run und
+Attempt gebundenes Artefakt; jeder Downstream-Consumer validiert vor seiner
+Arbeit genau dieses Artefakt und seinen caller-gebundenen Digest, statt
+veränderliche Upstream-Quellen erneut aufzulösen. Manual-Review-Issues werden ausschließlich durch einen
 Default-Branch-Job mit eng begrenztem Issue-Schreibrecht und dem validierten
 Plan abgeglichen; Resolver- und Pull-Request-Jobs bleiben read-only. Der
 Publisher erstellt oder aktualisiert nur den festen Draft-PR und merged nie

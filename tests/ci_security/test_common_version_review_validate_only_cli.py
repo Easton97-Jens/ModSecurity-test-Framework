@@ -80,6 +80,36 @@ class ValidateOnlyCliTests(unittest.TestCase):
         self.assertEqual(result["safe_update_count"], 1)
         self.assertNotIn(path, first_output)
 
+    def test_validate_only_accepts_matching_expected_plan_digest(self):
+        plan = make_plan()
+        path = self.write_plan(plan)
+        code, output = self.run_cli(path, "--expected-plan-sha256", plan["plan_sha256"])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(output)["plan_sha256"], plan["plan_sha256"])
+
+    def test_expected_plan_digest_mismatch_fails_before_validation_result(self):
+        plan = make_plan()
+        path = self.write_plan(plan)
+        with mock.patch.object(
+            reconciler,
+            "_validation_result",
+            side_effect=AssertionError("mode-specific behavior must not run"),
+        ):
+            code, output = self.run_cli(path, "--expected-plan-sha256", "a" * 64)
+        self.assertEqual(code, 2)
+        self.assertEqual(output, "")
+
+    def test_invalid_expected_plan_digest_fails_before_loading_or_mutating(self):
+        path = self.write_plan(make_plan())
+        with mock.patch.object(
+            reconciler,
+            "_read_validated_plan",
+            side_effect=AssertionError("must reject syntax before loading"),
+        ):
+            code, output = self.run_cli(path, "--expected-plan-sha256", "not-a-sha")
+        self.assertEqual(code, 2)
+        self.assertEqual(output, "")
+
     def test_validate_only_requires_no_repository_or_token(self):
         path = self.write_plan(make_plan())
         code, output = self.run_cli(path, "--repository", "owner/repo")
