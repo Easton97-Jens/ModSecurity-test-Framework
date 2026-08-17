@@ -83,9 +83,9 @@ actions:
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   github/codeql-action:
     name: github/codeql-action
-    version: v4.37.6
-    immutable_commit: 5595ccaf912efad79be6eef63a5619ff05969be3
-    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.6
+    version: v4.37.7
+    immutable_commit: ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd
+    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.7
     release_resolution: same-major-release
     license: MIT
     purpose: Initialize, analyze, and upload SARIF for bounded CodeQL jobs.
@@ -122,12 +122,12 @@ tools:
   osv-scanner:
     name: osv-scanner
     repository: google/osv-scanner
-    version: v2.5.0
-    immutable_commit: a258868211a57052da6bd323f758b8388dee02bb
-    upstream_release: https://github.com/google/osv-scanner/releases/tag/v2.5.0
+    version: v2.5.1
+    immutable_commit: c84fa4568f2526d0333e9a914ea8a0a5f74ad68b
+    upstream_release: https://github.com/google/osv-scanner/releases/tag/v2.5.1
     asset: osv-scanner_linux_amd64
-    asset_url: https://github.com/google/osv-scanner/releases/download/v2.5.0/osv-scanner_linux_amd64
-    sha256: edcfc41d257db36148f065055655fe3fcfc434b0b423ea67468a84c207524e0c
+    asset_url: https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64
+    sha256: f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be
     archive_type: raw
     layout: executable
     executable: osv-scanner
@@ -206,12 +206,12 @@ tools:
   ruff:
     name: ruff
     repository: astral-sh/ruff
-    version: 0.16.2
-    immutable_commit: 5b48a040974781ba90b47c8df628f8fd9b6c95dd
-    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.2
+    version: 0.16.3
+    immutable_commit: b0e47022cfce4f3594aa26d15ea792681430b6f6
+    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.3
     asset: ruff-x86_64-unknown-linux-gnu.tar.gz
-    asset_url: https://github.com/astral-sh/ruff/releases/download/0.16.2/ruff-x86_64-unknown-linux-gnu.tar.gz
-    sha256: 3d2c355e641ceb5b608a158c603768fcc908c5009c56c6e78da7487da033b92a
+    asset_url: https://github.com/astral-sh/ruff/releases/download/0.16.3/ruff-x86_64-unknown-linux-gnu.tar.gz
+    sha256: 7ab3b978d2c0b1c96b2323d4e5c4f35284ae1cdf35d2f7399595c74c805f5fa3
     archive_type: tar.gz
     layout: executable
     archive_member: ruff-x86_64-unknown-linux-gnu/ruff
@@ -223,12 +223,12 @@ tools:
   pyright:
     name: pyright
     repository: microsoft/pyright
-    version: 1.1.411
-    immutable_commit: 9a9205fc32a2685767f38f348f5d9232701d4b0b
-    upstream_release: https://github.com/microsoft/pyright/releases/tag/1.1.411
+    version: 1.1.412
+    immutable_commit: fceca4d133a83034fc195dbba8b3814992b0b26b
+    upstream_release: https://github.com/microsoft/pyright/releases/tag/1.1.412
     asset: pyright.tgz
-    asset_url: https://github.com/microsoft/pyright/releases/download/1.1.411/pyright.tgz
-    sha256: bd5c488fc20fa237a944279bf32cae2f986cf10d5d5d9e8705819859daeb2f4a
+    asset_url: https://github.com/microsoft/pyright/releases/download/1.1.412/pyright.tgz
+    sha256: b6345cb7253d1f3e311caa0ef17581dbac5b125c42d148667c84d9dca2abd50a
     archive_type: tar.gz
     layout: tree
     archive_root: package
