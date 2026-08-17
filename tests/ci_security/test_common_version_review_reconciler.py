@@ -252,7 +252,7 @@ class ReconcilerTests(unittest.TestCase):
         plan = make_plan()
         replacements = {
             "github-action-checkout": "github-actions",
-            "ci-tool-shellcheck": "canonical-ci-coverage",
+            "ci-tool-shellcheck": "generated-views",
         }
         for item in plan["component_results"]:
             replacement = replacements.get(item["component_id"])
@@ -306,6 +306,42 @@ class ReconcilerTests(unittest.TestCase):
         plan["plan_sha256"] = reconciler._plan_digest(plan)
         with self.assertRaises(reconciler.PlanError):
             reconciler.validate_plan(plan)
+
+    def test_producer_empty_optional_summary_fields_validate_safely(self):
+        plan = make_plan()
+        results = {
+            item["component_id"]: item
+            for item in reconciler.validate_plan(plan)["component_results"]
+        }
+        self.assertEqual(results["ci-osv-compatibility"]["source"], "")
+        self.assertEqual(
+            {
+                field: results["canonical-ci-coverage"][field]
+                for field in (
+                    "current",
+                    "latest_compatible",
+                    "latest_upstream",
+                    "source",
+                )
+            },
+            {
+                "current": "",
+                "latest_compatible": "",
+                "latest_upstream": "",
+                "source": "",
+            },
+        )
+        for source in ("http://example.invalid/source", "https://example.invalid/\n"):
+            with self.subTest(source=source):
+                invalid = make_plan()
+                next(
+                    item
+                    for item in invalid["component_results"]
+                    if item["component_id"] == "ci-osv-compatibility"
+                )["source"] = source
+                invalid["plan_sha256"] = reconciler._plan_digest(invalid)
+                with self.assertRaises(reconciler.PlanError):
+                    reconciler.validate_plan(invalid)
 
 
 if __name__ == "__main__":

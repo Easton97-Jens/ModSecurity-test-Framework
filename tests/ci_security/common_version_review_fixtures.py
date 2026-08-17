@@ -15,6 +15,16 @@ GLOBAL_COMPONENT_DEFINITIONS = (
         "ci-security-tools",
         "CI_SECURITY_TOOL_SHELLCHECK_VERSION",
     ),
+    (
+        "ci-osv-compatibility",
+        "ci-security-tools",
+        "CI_OSV_LEGACY_BASE_VERSION",
+    ),
+    (
+        "canonical-ci-coverage",
+        "ci-security-tools",
+        "CI_CANONICAL_PYTHON_VERSION",
+    ),
 )
 RUNTIME_COMPONENT_DEFINITIONS = (("lighttpd", "runtime-source", "LIGHTTPD_VERSION"),)
 COMPONENT_DEFINITIONS = (
@@ -32,6 +42,16 @@ def make_component_result(
     variable: str,
     status: str = "current",
 ) -> dict[str, object]:
+    optional_summary = {
+        "current": "1.0.0",
+        "latest_compatible": "1.0.0",
+        "latest_upstream": "1.0.0",
+        "source": f"https://example.invalid/{component_id}",
+    }
+    if component_id == "ci-osv-compatibility":
+        optional_summary["source"] = ""
+    elif component_id == "canonical-ci-coverage":
+        optional_summary = dict.fromkeys(optional_summary, "")
     return {
         "component_id": component_id,
         "component_name": component_id,
@@ -39,6 +59,9 @@ def make_component_result(
         "status": status,
         "message": "checked",
         "canonical_variables": [variable],
+        **optional_summary,
+        "updates": [],
+        "details": {},
     }
 
 

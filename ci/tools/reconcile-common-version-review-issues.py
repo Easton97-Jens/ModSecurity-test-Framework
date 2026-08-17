@@ -107,6 +107,14 @@ def _bounded(value: Any, field: str, limit: int = MAX_STRING) -> str:
     return value
 
 
+def _optional_bounded(value: Any, field: str, limit: int = MAX_STRING) -> str:
+    if not isinstance(value, str) or len(value) > limit:
+        raise PlanError(f"{field} must be a bounded string")
+    if any(ord(char) < 0x20 or ord(char) == 0x7F for char in value):
+        raise PlanError(f"{field} contains control characters")
+    return value
+
+
 def _list(value: Any, field: str, maximum: int = MAX_ITEMS) -> list:
     if not isinstance(value, list) or len(value) > maximum:
         raise PlanError(f"{field} must be a bounded array")
@@ -240,7 +248,7 @@ def _component_result_optional(
 ) -> Dict[str, Any]:
     for field in ("current", "latest_compatible", "latest_upstream", "source"):
         if field in value:
-            result[field] = _bounded(
+            result[field] = _optional_bounded(
                 value[field], f"component_results[{index}].{field}"
             )
     if (
