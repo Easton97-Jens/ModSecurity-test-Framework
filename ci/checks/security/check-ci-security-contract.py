@@ -460,6 +460,7 @@ COMMON_VERSION_PUBLISHER_WITH_VALUES = {
         "repositories": GITHUB_REPOSITORY_EXPRESSION,
         "permission-contents": "write",
         "permission-pull-requests": "write",
+        "permission-workflows": "write",
     },
     STEP_CREATE_OR_UPDATE_COMMON_VERSION_DRAFT_PULL_REQUEST: {
         "token": WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION,
@@ -3681,6 +3682,7 @@ def _common_version_publish_required_errors(
         "WORKFLOW_UPDATER_APP_PRIVATE_KEY",
         "permission-contents: write",
         "permission-pull-requests: write",
+        "permission-workflows: write",
         "--expected-plan-sha256",
         "--apply-safe-updates",
     ):
@@ -3722,6 +3724,7 @@ def _common_version_publish_token_errors(path: Path, publish: Any) -> list[str]:
         "repositories": "${{ github.event.repository.name }}",
         "permission-contents": "write",
         "permission-pull-requests": "write",
+        "permission-workflows": "write",
     }:
         return [f"{path}: publisher App token input profile changed"]
     return []

@@ -94,13 +94,13 @@ Nur ein vertrauenswürdiger Job darf diese Baseline durch eine kleinere,
 zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions`
 behält Resolver, Kandidat und natives Publisher-Token bei `contents: read`; nur
 sein erst nach der Validierung erzeugtes, repositorybegrenztes GitHub-App-Token
-erhält `contents` und `pull-requests`: write. `update-workflow-tools` behält
-`contents: read` für jedes eingebaute Job-Token und erzeugt erst nach
-unabhängigen Resolver- und Validator-Jobs ein auf das Repository begrenztes
-GitHub-App-Token mit `contents`-, `pull-requests`- und `workflows`-Write-Recht.
-Die CPython- und Common-Version-Tokens haben nur `contents`- und
-`pull-requests`-Write-Recht; das Workflow-Tool-Token erhält zusätzlich
-`workflows: write`, weil es Workflow-Dateien ändern kann.
+erhält `contents`-, `pull-requests`- und `workflows`-Write-Recht.
+`update-workflow-tools` behält `contents: read` für jedes eingebaute Job-Token
+und erzeugt erst nach unabhängigen Resolver- und Validator-Jobs ein auf das
+Repository begrenztes GitHub-App-Token mit denselben drei Write-Berechtigungen.
+Das CPython-Token hat nur `contents`- und `pull-requests`-Write-Recht; die
+Common-Version- und Workflow-Tool-Tokens erhalten zusätzlich `workflows`:
+write, weil ihre festen erzeugten Allowlists Workflow-Dateien enthalten.
 `cleanup-artifacts` benötigt nur `actions: write`, um Artefakte zu löschen;
 `update-submodules` gibt `contents`- und `pull-requests`-Write-Recht nur seinem
 validierten Default-Branch-Publisher; der vertrauenswürdige Nicht-PR-CodeQL-
@@ -123,14 +123,17 @@ deklarieren kein explizites Token oder Secret. Der Publisher ist auf geplante/
 manuelle Ausführung im vertrauenswürdigen Default-Branch begrenzt, löst den
 Kandidaten unabhängig erneut auf, vergleicht dessen SHA-256 mit dem read-only
 validierten Ergebnis und verlangt, dass Working-Tree-Diff und `add-paths` der
-Action nur `ci/lib/common.sh` enthalten. Sein natives Token bleibt read-only;
+Action genau der geprüften erzeugten Common-Maintenance-Allowlist entsprechen,
+einschließlich ihrer explizit benannten Workflow-Pfade. Sein natives Token bleibt read-only;
 weder `github.token`, `GITHUB_TOKEN`, PAT, SSH-Credential noch ein Runner-Push
 dürfen veröffentlichen. Er prüft die Verfügbarkeit von
 `WORKFLOW_UPDATER_APP_CLIENT_ID` und `WORKFLOW_UPDATER_APP_PRIVATE_KEY`, ohne
 einen Wert auszugeben; der Private-Key-Wert wird nur an die unveränderliche
 `create-github-app-token`-Action übergeben. Diese Action ist auf aktuellen
-Owner und Repository begrenzt und fordert nur `contents` und
-`pull-requests`: write an, niemals `workflows`: write. Ihr Output wird nur vom
+Owner und Repository begrenzt und fordert genau `contents`, `pull-requests`
+und `workflows`: write an. Ihre erlaubte Verwendung ist durch die festen
+Workflow-Pfade begrenzt, die der geprüfte Zustandscheck und die Draft-PR-Action
+durchsetzen. Ihr Output wird nur vom
 geprüften read-only-Zustandscheck und der unveränderlichen
 `create-pull-request`-Action verwendet. Auch Resolver und Kandidatenjob der
 Python-Version deklarieren kein explizites Token oder Secret. Die Common-
@@ -238,9 +241,10 @@ Default-Branch, aktiviert Auto-Merge oder maskiert Cleanup-/Publishing-Fehler.
 Die gemeinsame App-Konfiguration verwendet
 `vars.WORKFLOW_UPDATER_APP_CLIENT_ID` und
 `secrets.WORKFLOW_UPDATER_APP_PRIVATE_KEY` nur dem Namen nach. Der
-CPython- und Common-Version-Publisher fordern nur `Contents`- und `Pull
-requests`-Write-Recht; der Workflow-Tool-Publisher fordert zusätzlich
-`Workflows`-Write-Recht an, weil er Workflow-Dateien ändern darf. Der erzeugte
+CPython-Publisher fordert nur `Contents`- und `Pull requests`-Write-Recht an.
+Die Common-Version- und Workflow-Tool-Publisher fordern zusätzlich
+`Workflows`-Write-Recht an, weil ihre festen erzeugten Allowlists Workflow-
+Dateien enthalten. Der erzeugte
 App-Draft-PR ist ein normaler PR und muss die üblichen Repository-PR-Checks und
 menschliche Review vor jedem Merge bestehen; keiner dieser Workflows merged
 oder aktiviert Auto-Merge.
@@ -249,16 +253,17 @@ oder aktiviert Auto-Merge.
 
 Die Common-Version-Wartungsidentität ist fest auf Branch
 `automation/update-framework-common-versions`, Titel
-`chore(ci): update common.sh versions`, den Default-Branch des Repositories als
+`chore(ci): update canonical maintenance pins`, den Default-Branch des Repositories als
 Base und `draft: true` festgelegt. Der Body enthält den Marker
-`<!-- framework-common-version-updater -->`, englische und deutsche
+`<!-- framework-canonical-maintenance -->`, englische und deutsche
 Erklärungen, die validierten alten/neuen Variablenwerte und die validierte
 Upstream-Quelle oder Release-Referenz pro geänderter Komponente. Er stellt
 klar, dass kein Auto-Merge autorisiert ist. Bevor die App-Token-PR-Action einen
 Branch ändern darf, akzeptiert ein read-only-GitHub-API-Check nur Zustand A
 (kein Branch und kein offener passender PR) oder Zustand B (genau ein
 same-repository-Draft-PR mit festem Head, Base, Titel, Marker und einem Diff
-nur für `ci/lib/common.sh`). Jeder andere Zustand bricht fail-closed ab, ohne
+innerhalb der festen erzeugten Common-Maintenance-Allowlist einschließlich
+benannter Workflow-Dateien). Jeder andere Zustand bricht fail-closed ab, ohne
 einen Branch oder PR zu löschen oder zu überschreiben. Auch ein Fortschreiten
 des vertrauenswürdigen Default-Branches während der Publisher-Revalidierung
 führt zum fail-closed-Abbruch.

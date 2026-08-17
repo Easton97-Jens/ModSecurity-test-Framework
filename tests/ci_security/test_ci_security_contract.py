@@ -1150,6 +1150,30 @@ jobs:
                 )
                 self.assertTrue(errors, "\n".join(errors))
 
+    def test_unified_common_maintenance_rejects_publisher_token_permission_mutations(
+        self,
+    ) -> None:
+        workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+        variants = {
+            "publisher-missing-workflows-permission": workflow.replace(
+                "          permission-workflows: write\n", "", 1
+            ),
+            "publisher-extra-actions-permission": workflow.replace(
+                "          permission-workflows: write\n",
+                "          permission-workflows: write\n"
+                "          permission-actions: write\n",
+                1,
+            ),
+        }
+        for name, mutated in variants.items():
+            with self.subTest(name=name):
+                self.assertNotEqual(workflow, mutated)
+                errors = CHECKER.workflow_contract_errors(
+                    workflow_path, mutated, CHECKER.yaml.safe_load(mutated)
+                )
+                self.assertTrue(errors, "\n".join(errors))
+
     def _legacy_common_version_publisher_rejects_privilege_and_scope_regressions(
         self,
     ) -> None:
