@@ -3228,12 +3228,18 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
                 {"name", "id", "env", "run"},
             ),
             ("Validate review issue reconciliation without writes", {"name", "run"}),
-            ("Retain caller-bound canonical maintenance plan", {"name", "uses", "with"}),
+            (
+                "Retain caller-bound canonical maintenance plan",
+                {"name", "uses", "with"},
+            ),
         ],
         "candidate": [
             (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, {"name", "uses", "with"}),
             (STEP_SETUP_REVIEWED_PYTHON, {"name", "uses", "with"}),
-            ("Download caller-bound canonical maintenance plan", {"name", "uses", "with"}),
+            (
+                "Download caller-bound canonical maintenance plan",
+                {"name", "uses", "with"},
+            ),
             (
                 "Validate and apply caller-bound canonical plan",
                 {"name", "env", "run"},
@@ -3246,8 +3252,14 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
         "reconcile-trusted": [
             (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, {"name", "uses", "with"}),
             (STEP_SETUP_REVIEWED_PYTHON, {"name", "uses", "with"}),
-            ("Download caller-bound canonical maintenance plan", {"name", "uses", "with"}),
-            ("Validate caller-bound canonical maintenance plan", {"name", "env", "run"}),
+            (
+                "Download caller-bound canonical maintenance plan",
+                {"name", "uses", "with"},
+            ),
+            (
+                "Validate caller-bound canonical maintenance plan",
+                {"name", "env", "run"},
+            ),
             ("Require distinct review-issue App configuration", {"name", "env", "run"}),
             (STEP_MINT_ISSUE_RECONCILER_APP_TOKEN, {"name", "id", "uses", "with"}),
             (
@@ -3258,7 +3270,10 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
         "publish": [
             (STEP_CHECKOUT_TRUSTED_DEFAULT_REVISION, {"name", "uses", "with"}),
             (STEP_SETUP_REVIEWED_PYTHON, {"name", "uses", "with"}),
-            ("Download caller-bound canonical maintenance plan", {"name", "uses", "with"}),
+            (
+                "Download caller-bound canonical maintenance plan",
+                {"name", "uses", "with"},
+            ),
             ("Validate and apply caller-bound canonical plan", {"name", "env", "run"}),
             ("Require publisher App configuration", {"name", "env", "run"}),
             (STEP_MINT_PUBLISHER_APP_TOKEN, {"name", "id", "uses", "with"}),
@@ -3415,9 +3430,7 @@ def _common_version_named_steps(job: Any, name: str) -> list[dict[str, Any]]:
     ]
 
 
-def _common_version_plan_artifact_errors(
-    path: Path, jobs: dict[str, Any]
-) -> list[str]:
+def _common_version_plan_artifact_errors(path: Path, jobs: dict[str, Any]) -> list[str]:
     """Bind every downstream consumer to one immutable same-run plan artifact."""
 
     errors: list[str] = []
@@ -3426,7 +3439,9 @@ def _common_version_plan_artifact_errors(
         "Retain caller-bound canonical maintenance plan",
     )
     if len(uploads) != 1:
-        errors.append(f"{path}: canonical-maintenance must retain exactly one plan artifact")
+        errors.append(
+            f"{path}: canonical-maintenance must retain exactly one plan artifact"
+        )
     else:
         upload = uploads[0]
         with_values = upload.get("with")
@@ -3443,7 +3458,8 @@ def _common_version_plan_artifact_errors(
             str(upload.get("uses", "")).split("@", 1)[0]
             != UPLOAD_ARTIFACT.removesuffix("@")
             or not isinstance(with_values, dict)
-            or set(with_values) != {"name", "path", "retention-days", "if-no-files-found"}
+            or set(with_values)
+            != {"name", "path", "retention-days", "if-no-files-found"}
             or with_values.get("name") != COMMON_VERSION_PLAN_ARTIFACT_NAME
             or upload_paths != COMMON_VERSION_PLAN_ARTIFACT_UPLOAD_PATHS
             or with_values.get("retention-days") != 1
@@ -3466,15 +3482,12 @@ def _common_version_plan_artifact_errors(
             errors.append(f"{path}: {name} must download exactly one plan artifact")
             continue
         download = downloads[0]
-        if (
-            str(download.get("uses", "")).split("@", 1)[0]
-            != DOWNLOAD_ARTIFACT.removesuffix("@")
-            or download.get("with")
-            != {
+        if str(download.get("uses", "")).split("@", 1)[
+            0
+        ] != DOWNLOAD_ARTIFACT.removesuffix("@") or download.get("with") != {
                 "name": COMMON_VERSION_PLAN_ARTIFACT_NAME,
                 "path": COMMON_VERSION_PLAN_ARTIFACT_DOWNLOAD_PATH,
-            }
-        ):
+            }:
             errors.append(f"{path}: {name} plan artifact download profile changed")
         run_steps = _common_version_named_steps(job, validation_step)
         run = run_steps[0].get("run") if len(run_steps) == 1 else None
@@ -3490,7 +3503,10 @@ def _common_version_plan_artifact_errors(
         errors.append(f"{path}: reconcile-trusted must not re-resolve live sources")
     for name in ("candidate", "reconcile-trusted", "publish"):
         downstream_text = job_run_text(jobs[name].get("steps", []))
-        if "REQUESTED_COMPONENT" in downstream_text or "GITHUB_TOKEN" in downstream_text:
+        if (
+            "REQUESTED_COMPONENT" in downstream_text
+            or "GITHUB_TOKEN" in downstream_text
+        ):
             errors.append(
                 f"{path}: {name} must not receive live-resolution inputs or the read token"
             )

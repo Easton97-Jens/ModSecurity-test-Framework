@@ -83,9 +83,7 @@ class ValidateOnlyCliTests(unittest.TestCase):
     def test_validate_only_accepts_matching_expected_plan_digest(self):
         plan = make_plan()
         path = self.write_plan(plan)
-        code, output = self.run_cli(
-            path, "--expected-plan-sha256", plan["plan_sha256"]
-        )
+        code, output = self.run_cli(path, "--expected-plan-sha256", plan["plan_sha256"])
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(output)["plan_sha256"], plan["plan_sha256"])
 

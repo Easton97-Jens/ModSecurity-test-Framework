@@ -140,7 +140,8 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             downloads = [
                 step
                 for step in steps
-                if step.get("name") == "Download caller-bound canonical maintenance plan"
+                if step.get("name")
+                == "Download caller-bound canonical maintenance plan"
             ]
             self.assertEqual(len(downloads), 1, job_name)
             self.assertEqual(
@@ -151,7 +152,7 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             self.assertEqual(downloads[0]["with"]["path"], expected_directory)
 
             run_text = "\n".join(str(step.get("run", "")) for step in steps)
-            self.assertIn("--expected-plan-sha256 \"$PLAN_SHA256\"", run_text)
+            self.assertIn('--expected-plan-sha256 "$PLAN_SHA256"', run_text)
             self.assertIn(expected_json, run_text)
             self.assertNotIn("GITHUB_TOKEN", run_text)
 
