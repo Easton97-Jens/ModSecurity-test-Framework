@@ -3485,9 +3485,9 @@ def _common_version_plan_artifact_errors(path: Path, jobs: dict[str, Any]) -> li
         if str(download.get("uses", "")).split("@", 1)[
             0
         ] != DOWNLOAD_ARTIFACT.removesuffix("@") or download.get("with") != {
-                "name": COMMON_VERSION_PLAN_ARTIFACT_NAME,
-                "path": COMMON_VERSION_PLAN_ARTIFACT_DOWNLOAD_PATH,
-            }:
+            "name": COMMON_VERSION_PLAN_ARTIFACT_NAME,
+            "path": COMMON_VERSION_PLAN_ARTIFACT_DOWNLOAD_PATH,
+        }:
             errors.append(f"{path}: {name} plan artifact download profile changed")
         run_steps = _common_version_named_steps(job, validation_step)
         run = run_steps[0].get("run") if len(run_steps) == 1 else None
