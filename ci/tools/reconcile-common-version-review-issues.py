@@ -44,7 +44,7 @@ IDENTITY_KEYS = {
     "provider",
     "platform",
 }
-MANDATORY_GLOBAL_COMPONENTS = (
+MANDATORY_GLOBAL_SCOPES = (
     "go-ftw",
     "albedo",
     "python",
@@ -53,6 +53,21 @@ MANDATORY_GLOBAL_COMPONENTS = (
     "github-actions",
     "ci-security-tools",
 )
+MANDATORY_GLOBAL_SCOPE_COMPONENT_IDS = {
+    "go-ftw": frozenset({"go-ftw"}),
+    "albedo": frozenset({"albedo"}),
+    "python": frozenset({"python"}),
+    "pyyaml": frozenset({"pyyaml"}),
+    "node": frozenset({"node"}),
+    "github-actions": frozenset({"github-actions"}),
+    "ci-security-tools": frozenset(
+        {"ci-osv-compatibility", "canonical-ci-coverage", "generated-views"}
+    ),
+}
+MANDATORY_GLOBAL_SCOPE_COMPONENT_PREFIXES = {
+    "github-actions": ("github-action-",),
+    "ci-security-tools": ("ci-tool-",),
+}
 REVIEW_KINDS = {
     "series_transition",
     "major_version_transition",
@@ -369,8 +384,6 @@ def _validate_plan_scope(plan: Mapping[str, Any]) -> list[str]:
     ]
     if not checked or len(set(checked)) != len(checked):
         raise PlanError("scope components must be a non-empty unique list")
-    if not set(MANDATORY_GLOBAL_COMPONENTS).issubset(checked):
-        raise PlanError("scope must include every mandatory global component")
     top_checked = [
         _slug(item, "checked_components")
         for item in _list(plan.get("checked_components"), "checked_components")
@@ -378,6 +391,41 @@ def _validate_plan_scope(plan: Mapping[str, Any]) -> list[str]:
     if top_checked != checked:
         raise PlanError("checked_components must match scope")
     return checked
+
+
+def _validate_mandatory_global_scopes(
+    component_results: Sequence[Mapping[str, Any]], checked: Sequence[str]
+) -> None:
+    """Require resolver-classified coverage of every mandatory global scope.
+
+    ``checked_components`` intentionally contains concrete component IDs such
+    as ``github-action-checkout`` and ``ci-tool-shellcheck``. Aggregate names such
+    as ``github-actions`` describe result scopes, not component IDs, so their
+    coverage must be established from the normalized results that correspond
+    to the checked component list.
+    """
+
+    component_ids = [result["component_id"] for result in component_results]
+    if len(component_ids) != len(set(component_ids)):
+        raise PlanError("component_results must have unique component ids")
+
+    covered_scopes = set()
+    for result in component_results:
+        scope = result["scope"]
+        component_id = result["component_id"]
+        if component_id not in checked or scope not in MANDATORY_GLOBAL_SCOPES:
+            continue
+        expected_ids = MANDATORY_GLOBAL_SCOPE_COMPONENT_IDS[scope]
+        expected_prefixes = MANDATORY_GLOBAL_SCOPE_COMPONENT_PREFIXES.get(scope, ())
+        if component_id not in expected_ids and not component_id.startswith(
+            expected_prefixes
+        ):
+            raise PlanError(
+                "component_results global scope has an unexpected component id"
+            )
+        covered_scopes.add(scope)
+    if not set(MANDATORY_GLOBAL_SCOPES).issubset(covered_scopes):
+        raise PlanError("component_results must include every mandatory global scope")
 
 
 def _validate_plan_collections(
@@ -424,6 +472,7 @@ def validate_plan(plan: Any) -> Dict[str, Any]:
     views, safe_updates, normalized, component_results, generated_status = (
         _validate_plan_collections(plan, checked)
     )
+    _validate_mandatory_global_scopes(component_results, checked)
     if plan["plan_sha256"] != _plan_digest(plan):
         raise PlanError("plan_sha256 does not match canonical plan")
     result = dict(plan)

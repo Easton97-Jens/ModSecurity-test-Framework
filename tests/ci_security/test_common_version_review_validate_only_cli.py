@@ -8,6 +8,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+from tests.ci_security.common_version_review_fixtures import make_component_results
+
 
 ROOT = Path(__file__).parents[2]
 SPEC = importlib.util.spec_from_file_location(
@@ -22,7 +24,8 @@ loader.exec_module(reconciler)
 
 
 def make_plan():
-    checked = list(reconciler.MANDATORY_GLOBAL_COMPONENTS) + ["lighttpd"]
+    results = make_component_results()
+    checked = [item["component_id"] for item in results]
     plan = {
         "schema_version": "1",
         "maintenance_outcome": "safe_updates_with_manual_review",
@@ -33,6 +36,7 @@ def make_plan():
         ],
         "manual_reviews": [],
         "checked_components": checked,
+        "component_results": results,
         "generated_views": ["ci/provisioning/runtime-components.manifest.json"],
         "source_common_sha256": "a" * 64,
         "candidate_common_sha256": "b" * 64,

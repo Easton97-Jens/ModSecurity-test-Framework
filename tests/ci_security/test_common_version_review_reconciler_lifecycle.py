@@ -2,6 +2,11 @@ import importlib.util
 import unittest
 from pathlib import Path
 
+from tests.ci_security.common_version_review_fixtures import (
+    GLOBAL_COMPONENT_IDS,
+    make_component_results,
+)
+
 
 ROOT = Path(__file__).parents[2]
 SPEC = importlib.util.spec_from_file_location(
@@ -34,9 +39,6 @@ class FakeClient:
         self.writes.append(("comment", number, body))
 
 
-GLOBALS = list(reconciler.MANDATORY_GLOBAL_COMPONENTS)
-
-
 def review(candidate="1.5", state="active"):
     item = {
         "review_key": f"lighttpd:series_transition:{candidate}",
@@ -62,7 +64,7 @@ def review(candidate="1.5", state="active"):
 def plan(
     reviews, *, checked=None, outcome="manual_review_only", complete=True, statuses=None
 ):
-    checked = list(checked or GLOBALS + ["lighttpd"])
+    checked = list(checked or GLOBAL_COMPONENT_IDS + ["lighttpd"])
     statuses = statuses or {component: "current" for component in checked}
     value = {
         "schema_version": "1",
@@ -71,21 +73,7 @@ def plan(
         "safe_updates": [],
         "manual_reviews": list(reviews),
         "checked_components": checked,
-        "component_results": [
-            {
-                "component_id": component,
-                "component_name": component,
-                "scope": "runtime-source"
-                if component == "lighttpd"
-                else "ci-security-tools",
-                "status": statuses.get(component, "current"),
-                "message": "checked",
-                "canonical_variables": ["LIGHTTPD_SERIES"]
-                if component == "lighttpd"
-                else ["CI_CANONICAL_PYTHON_VERSION"],
-            }
-            for component in checked
-        ],
+        "component_results": make_component_results(checked, statuses),
         "generated_views": [],
         "generated_view_status": [],
         "global_inventory_complete": complete,
@@ -136,7 +124,7 @@ class ReviewLifecycleTests(unittest.TestCase):
 
     def test_component_scope_does_not_close_unscoped_runtime_issue(self):
         old = review("1.5")
-        checked = GLOBALS + ["lighttpd"]
+        checked = GLOBAL_COMPONENT_IDS + ["lighttpd"]
         client = FakeClient([managed_issue(old)])
         result = reconciler.reconcile(
             plan([], checked=checked), client, dry_run=True, repository="owner/repo"

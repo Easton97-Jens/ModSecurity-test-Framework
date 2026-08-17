@@ -175,6 +175,23 @@ der Job den ursprünglichen Nicht-Null-Resolvercode zurück. So bleibt der Fehle
 diagnostizierbar, ohne Resolver-, Inventar-, Digest- oder Publisher-Gates zu
 schwächen; sie bleiben fail-closed.
 
+Der gemeinsame Maintenance-Plan löst und klassifiziert immer die
+verbindlichen globalen Scopes für Go-FTW, Albedo, die kanonischen Python-/PyYAML-/
+Node-Pins und die kanonischen CI-Pins. Ein `--component`-Filter schränkt nur
+zusätzliche Runtime- und Source-Komponenten ein. Die Reconciliation des
+Review-Plans validiert diese globalen Scopes anhand der normalisierten
+`component_results`, die den konkret geprüften Component-IDs zugeordnet sind;
+aggregierte Ergebnis-Scopes wie `github-actions` und `ci-security-tools` sind
+selbst keine Component-IDs. Damit bleibt die globale Abdeckung für geplante,
+manuell ausgelöste, vollständige und component-gefilterte Läufe erhalten,
+während ein Plan mit fehlendem verbindlichem Scope zurückgewiesen wird. Der
+Validator weist außerdem doppelte normalisierte Component-IDs und nicht
+passende feste globale Scope-/Component-Zuordnungen zurück. Die geprüften
+dynamischen Familien für Action-Komponenten (`github-action-*`) und
+Security-Tool-Komponenten (`ci-tool-*`) bleiben zulässig; die festen
+Zuordnungen für Go-FTW, Albedo, Python, PyYAML, Node und die benannten
+aggregierten CI-Hilfskomponenten bleiben erhalten.
+
 `update-submodules.yml` bleibt bewusst vom Lock-/Tool-Updater getrennt: Es
 aktualisiert nur den Framework-eigenen `tools/MRTS`-Gitlink, niemals MRTS-
 Inhalt. Es akzeptiert nur eine volle SHA vom benannten MRTS-`main`-Branch,
