@@ -192,6 +192,16 @@ Security-Tool-Komponenten (`ci-tool-*`) bleiben zulässig; die festen
 Zuordnungen für Go-FTW, Albedo, Python, PyYAML, Node und die benannten
 aggregierten CI-Hilfskomponenten bleiben erhalten.
 
+Der Producer-/Reconciler-Vertrag behält die optionalen
+`component_results`-Felder `current`, `latest_compatible`, `latest_upstream`
+und `source` auch dann bei, wenn eine Komponente dafür keinen Wert besitzt;
+der kanonische Producer stellt diese nicht verfügbaren Werte als leere
+Strings dar. Die Validate-only-Normalisierung akzeptiert diese begrenzten
+leeren optionalen Werte und prüft `source` nur, wenn es nicht leer ist, auf
+HTTPS. So bleibt das gemeinsame Plan-Schema mit allen verbindlichen globalen
+Komponenten kompatibel, ohne einen nicht verfügbaren Hinweiswert in einen
+Resolverfehler umzuwandeln.
+
 `update-submodules.yml` bleibt bewusst vom Lock-/Tool-Updater getrennt: Es
 aktualisiert nur den Framework-eigenen `tools/MRTS`-Gitlink, niemals MRTS-
 Inhalt. Es akzeptiert nur eine volle SHA vom benannten MRTS-`main`-Branch,

@@ -174,6 +174,15 @@ for Action components (`github-action-*`) and security-tool components
 (`ci-tool-*`), while retaining the fixed mappings for Go-FTW, Albedo, Python,
 PyYAML, Node, and the named aggregate CI helper components.
 
+The producer/reconciler contract retains the optional `component_results`
+fields `current`, `latest_compatible`, `latest_upstream`, and `source` even
+when a component has no value for them; the canonical producer represents
+those unavailable values as empty strings. Validate-only normalization accepts
+these bounded empty optional values and applies the HTTPS check to `source`
+only when it is non-empty. This keeps the shared plan schema compatible with
+all mandatory global components without turning an unavailable advisory value
+into a resolver failure.
+
 `update-submodules.yml` is intentionally separate from the lock/tool updater:
 it updates only the Framework-owned `tools/MRTS` gitlink, never MRTS content.
 It accepts only a full SHA from the named MRTS `main` branch, explicitly
