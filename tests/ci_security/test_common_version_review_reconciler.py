@@ -7,6 +7,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tests.ci_security.common_version_review_fixtures import make_component_results
+
 
 ROOT = Path(__file__).parents[2]
 SPEC = importlib.util.spec_from_file_location(
@@ -65,14 +67,17 @@ def make_review(candidate="1.5", state="active", **extra):
 
 
 def make_plan(reviews=None, **extra):
-    checked = list(reconciler.MANDATORY_GLOBAL_COMPONENTS) + ["lighttpd"]
+    component_results = make_component_results()
+    checked = [item["component_id"] for item in component_results]
     plan = {
         "schema_version": "1",
         "maintenance_outcome": "manual_review_only",
+        "global_inventory_complete": True,
         "scope": {"mode": "full", "checked_components": checked},
         "safe_updates": [],
         "manual_reviews": list(reviews if reviews is not None else [make_review()]),
         "checked_components": checked,
+        "component_results": component_results,
         "generated_views": ["ci/provisioning/runtime-components.manifest.json"],
         "source_common_sha256": "a" * 64,
         "candidate_common_sha256": "b" * 64,
@@ -193,7 +198,7 @@ class ReconcilerTests(unittest.TestCase):
             "close",
         )
 
-    def test_component_scope_includes_globals_and_selected_runtime(self):
+    def test_component_scope_requires_global_result_scopes(self):
         plan = make_plan()
         plan["scope"] = {
             "mode": "component",
@@ -203,12 +208,65 @@ class ReconcilerTests(unittest.TestCase):
         plan["plan_sha256"] = reconciler._plan_digest(plan)
         self.assertEqual(reconciler.validate_plan(plan)["scope"]["mode"], "component")
 
-        incomplete = make_plan()
-        incomplete["scope"] = {"mode": "component", "checked_components": ["lighttpd"]}
-        incomplete["checked_components"] = ["lighttpd"]
-        incomplete["plan_sha256"] = reconciler._plan_digest(incomplete)
+        for missing_scope in ("github-actions", "ci-security-tools"):
+            with self.subTest(missing_scope=missing_scope):
+                incomplete = make_plan()
+                incomplete["component_results"] = [
+                    item
+                    for item in incomplete["component_results"]
+                    if item["scope"] != missing_scope
+                ]
+                incomplete["plan_sha256"] = reconciler._plan_digest(incomplete)
+                with self.assertRaises(reconciler.PlanError):
+                    reconciler.validate_plan(incomplete)
+
+        unlisted_globals = make_plan()
+        unlisted_globals["scope"] = {
+            "mode": "component",
+            "checked_components": ["lighttpd"],
+        }
+        unlisted_globals["checked_components"] = ["lighttpd"]
+        unlisted_globals["plan_sha256"] = reconciler._plan_digest(unlisted_globals)
         with self.assertRaises(reconciler.PlanError):
-            reconciler.validate_plan(incomplete)
+            reconciler.validate_plan(unlisted_globals)
+
+        swapped_scopes = make_plan()
+        for item in swapped_scopes["component_results"]:
+            if item["component_id"] == "go-ftw":
+                item["scope"] = "albedo"
+            elif item["component_id"] == "albedo":
+                item["scope"] = "go-ftw"
+        swapped_scopes["plan_sha256"] = reconciler._plan_digest(swapped_scopes)
+        with self.assertRaises(reconciler.PlanError):
+            reconciler.validate_plan(swapped_scopes)
+
+        duplicate_result = make_plan()
+        duplicate_result["component_results"].append(
+            dict(duplicate_result["component_results"][0])
+        )
+        duplicate_result["plan_sha256"] = reconciler._plan_digest(duplicate_result)
+        with self.assertRaises(reconciler.PlanError):
+            reconciler.validate_plan(duplicate_result)
+
+    def test_global_scope_fallback_records_are_valid(self):
+        plan = make_plan()
+        replacements = {
+            "github-action-checkout": "github-actions",
+            "ci-tool-shellcheck": "canonical-ci-coverage",
+        }
+        for item in plan["component_results"]:
+            replacement = replacements.get(item["component_id"])
+            if replacement is not None:
+                item["component_id"] = replacement
+                item["component_name"] = replacement
+        checked = [
+            replacements.get(component, component)
+            for component in plan["checked_components"]
+        ]
+        plan["scope"]["checked_components"] = checked
+        plan["checked_components"] = checked
+        plan["plan_sha256"] = reconciler._plan_digest(plan)
+        self.assertEqual(reconciler.validate_plan(plan)["checked_components"], checked)
 
     def test_non_slug_review_target_uses_full_sha256(self):
         target = "release candidate/2026"
@@ -225,22 +283,25 @@ class ReconcilerTests(unittest.TestCase):
 
     def test_optional_summary_data_is_bounded(self):
         plan = make_plan()
-        plan["component_results"] = [
+        plan["component_results"].append(
             {
-                "component_id": "lighttpd",
-                "component_name": "Lighttpd",
+                "component_id": "nginx",
+                "component_name": "Nginx",
                 "scope": "runtime-source",
                 "status": "current",
                 "message": "ok",
-                "canonical_variables": ["LIGHTTPD_SERIES"],
+                "canonical_variables": ["NGINX_VERSION"],
                 "details": {"policy": "same_major"},
             }
-        ]
+        )
         plan["generated_view_status"] = [
             {"name": "runtime-components", "status": "current", "message": "ok"}
         ]
         plan["plan_sha256"] = reconciler._plan_digest(plan)
-        self.assertEqual(len(reconciler.validate_plan(plan)["component_results"]), 1)
+        self.assertEqual(
+            reconciler.validate_plan(plan)["component_results"][-1]["component_id"],
+            "nginx",
+        )
         plan["generated_views"] = ["../outside"]
         plan["plan_sha256"] = reconciler._plan_digest(plan)
         with self.assertRaises(reconciler.PlanError):

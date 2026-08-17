@@ -159,6 +159,21 @@ remains runner-local and is not durably retained. The job then returns the
 original non-zero resolver code, so the failure remains diagnosable without
 weakening the fail-closed resolver, inventory, digest, or publisher gates.
 
+The shared maintenance plan always resolves and classifies the mandatory
+global scopes for Go-FTW, Albedo, canonical Python/PyYAML/Node pins, and the
+canonical CI pins. A `--component` filter narrows only additional runtime and
+source components. Review-plan reconciliation validates those global scopes
+from the normalized `component_results` associated with the concrete checked
+component IDs; aggregate result scopes such as `github-actions` and
+`ci-security-tools` are not themselves component IDs. This preserves global
+coverage for scheduled, manually dispatched, full, and component-filtered
+runs while rejecting a plan whose normalized results omit a mandatory scope.
+The validator also rejects duplicate normalized component IDs and mismatched
+fixed global scope/component pairs. It permits the reviewed dynamic families
+for Action components (`github-action-*`) and security-tool components
+(`ci-tool-*`), while retaining the fixed mappings for Go-FTW, Albedo, Python,
+PyYAML, Node, and the named aggregate CI helper components.
+
 `update-submodules.yml` is intentionally separate from the lock/tool updater:
 it updates only the Framework-owned `tools/MRTS` gitlink, never MRTS content.
 It accepts only a full SHA from the named MRTS `main` branch, explicitly
