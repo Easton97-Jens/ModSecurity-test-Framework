@@ -4,6 +4,7 @@ The fixture replaces Git only at the process boundary used by fetch-crs.sh.
 It never contacts a remote or creates a real CRS checkout.
 """
 
+import dataclasses
 import importlib.util
 import os
 import shlex
@@ -16,6 +17,7 @@ from pathlib import Path
 
 
 from tests.security_regression.common_version_fixture_support import (
+    rewrite_common_assignments,
     write_common_fixture,
 )
 from tests.security_regression.git_provenance_test_support import (
@@ -696,7 +698,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                     {"FAKE_GIT_GITMODULES_CASE": "empty", "FAKE_GIT_FAIL": failure}
                 )
 
-    def test_version_checker_requires_reviewed_release_tag_and_commit_pair(self):
+    def test_version_checker_automatically_updates_only_the_crs_v4_tuple(self):
         class FakeGithubClient:
             def __init__(self):
                 self.urls = []
@@ -708,16 +710,32 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                     + APPROVED_RELEASE_TAG: {
                         "object": {"type": "commit", "sha": APPROVED_COMMIT}
                     },
-                    "https://api.github.com/repos/coreruleset/coreruleset/releases/latest": {
-                        "tag_name": "v4.900.1",
-                        "draft": False,
-                        "prerelease": False,
-                    },
                     "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/v4.900.1": {
                         "object": {"type": "commit", "sha": "d" * 40}
                     },
                 }
                 return responses[url]
+
+            def get_json_list(self, url):
+                self.urls.append(url)
+                expected = (
+                    "https://api.github.com/repos/coreruleset/coreruleset/"
+                    "releases?per_page=100"
+                )
+                if url != expected:
+                    raise AssertionError(f"unexpected GitHub release lookup: {url}")
+                return [
+                    {"tag_name": "v4.900.1", "draft": False, "prerelease": False},
+                    {"tag_name": "v5.0.0", "draft": False, "prerelease": False},
+                    {"tag_name": "v4.901.0", "draft": "false", "prerelease": False},
+                    {"tag_name": "v4.902.0", "prerelease": False},
+                    {"tag_name": "v4.903.0", "draft": False},
+                    {
+                        "tag_name": "v4.901.0-rc.1",
+                        "draft": False,
+                        "prerelease": True,
+                    },
+                ]
 
         with tempfile.TemporaryDirectory(prefix="crs-provenance-") as temporary:
             fixture = (
@@ -728,8 +746,21 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             )
             _, entries = COMMON_VERSION_CHECKER.parse_common(fixture)
             client = FakeGithubClient()
-            result = COMMON_VERSION_CHECKER.check_crs_release_provenance(
+            raw_result = COMMON_VERSION_CHECKER.check_crs_release_provenance(
                 entries, client
+            )
+            definition = COMMON_VERSION_CHECKER.COMPONENT_DEFINITION_BY_NAME[
+                COMMON_VERSION_CHECKER.CRS_COMPONENT
+            ]
+            result = COMMON_VERSION_CHECKER.decorate_component_result(
+                definition, raw_result, entries
+            )
+            disposition = COMMON_VERSION_CHECKER.maintenance_disposition(
+                [result], entries, defer_reviewed_provenance=False
+            )
+            incomplete = dataclasses.replace(result, updates=result.updates[:1])
+            incomplete_disposition = COMMON_VERSION_CHECKER.maintenance_disposition(
+                [incomplete], entries, defer_reviewed_provenance=False
             )
 
         self.assertEqual(
@@ -744,8 +775,18 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             COMMON_VERSION_CHECKER.value(entries, "CRS_RELEASE_TAG"),
             APPROVED_RELEASE_TAG,
         )
-        self.assertEqual(COMMON_VERSION_CHECKER.STATUS_REVIEW_REQUIRED, result.status)
-        self.assertEqual(result.updates, [])
+        self.assertEqual(COMMON_VERSION_CHECKER.STATUS_OUTDATED, result.status)
+        self.assertEqual(result.latest, "v4.900.1")
+        self.assertEqual(result.latest_compatible, "v4.900.1")
+        self.assertEqual(result.latest_upstream, "v5.0.0")
+        self.assertTrue(result.details["compatibility_review_required"])
+        self.assertEqual(
+            [update.variable for update in result.updates],
+            ["CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"],
+        )
+        self.assertEqual(
+            [update.new for update in result.updates], ["v4.900.1", "d" * 40]
+        )
         self.assertEqual(
             result.variables,
             [
@@ -757,30 +798,77 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            result.details["reason"],
-            "update CRS_RELEASE_TAG and CRS_APPROVED_COMMIT together after peeled-commit provenance review",
+            result.update_policy, COMMON_VERSION_CHECKER.AUTOMATIC_UPDATE_POLICY
         )
         self.assertEqual(
-            result.details["manual_variables"],
-            list(COMMON_VERSION_CHECKER.MANUAL_REVIEW_VARIABLES["OWASP Core Rule Set"]),
+            disposition.outcome,
+            COMMON_VERSION_CHECKER.MAINTENANCE_OUTCOME_SAFE_UPDATES,
         )
-        self.assertEqual(COMMON_VERSION_CHECKER.exit_code([result]), 2)
         self.assertEqual(
-            COMMON_VERSION_CHECKER.exit_code(
-                [result],
-                entries,
-                defer_reviewed_provenance=True,
-            ),
-            0,
+            set(disposition.automatic_update_variables),
+            {"CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"},
+        )
+        self.assertEqual(
+            incomplete_disposition.outcome,
+            COMMON_VERSION_CHECKER.MAINTENANCE_OUTCOME_FATAL,
+        )
+        self.assertIn(
+            COMMON_VERSION_CHECKER.CRS_COMPONENT,
+            incomplete_disposition.fatal_components,
         )
         self.assertEqual(
             client.urls,
             [
                 "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/v4.900.0",
-                "https://api.github.com/repos/coreruleset/coreruleset/releases/latest",
+                "https://api.github.com/repos/coreruleset/coreruleset/releases?per_page=100",
                 "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/v4.900.1",
             ],
         )
+
+    def test_version_checker_rejects_foreign_crs_repository_before_network(self):
+        class NoNetworkClient:
+            def __init__(self):
+                self.urls = []
+
+            def get_json(self, url):
+                self.urls.append(url)
+                raise AssertionError("foreign CRS repository must be rejected first")
+
+            def get_json_list(self, url):
+                self.urls.append(url)
+                raise AssertionError("foreign CRS repository must be rejected first")
+
+        with tempfile.TemporaryDirectory(prefix="crs-provenance-") as temporary:
+            fixture = (
+                self.create_framework_fixture(
+                    Path(temporary) / "framework-fixture"
+                ).parents[1]
+                / "lib/common.sh"
+            )
+            fixture.write_text(
+                rewrite_common_assignments(
+                    fixture.read_text(encoding="utf-8"),
+                    {
+                        "CRS_APPROVED_REPO_URL": (
+                            "https://github.com/attacker/coreruleset.git"
+                        )
+                    },
+                ),
+                encoding="utf-8",
+            )
+            _, entries = COMMON_VERSION_CHECKER.parse_common(fixture)
+            client = NoNetworkClient()
+            result = COMMON_VERSION_CHECKER.resolve_component_definition(
+                COMMON_VERSION_CHECKER.COMPONENT_DEFINITION_BY_NAME[
+                    COMMON_VERSION_CHECKER.CRS_COMPONENT
+                ],
+                entries,
+                client,
+            )
+
+        self.assertEqual(COMMON_VERSION_CHECKER.STATUS_UNKNOWN, result.status)
+        self.assertIn("repository identity is not approved", result.message)
+        self.assertEqual(client.urls, [])
 
 
 if __name__ == "__main__":

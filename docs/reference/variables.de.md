@@ -288,14 +288,14 @@ Gruppe erzeugt und nicht unabhängig ausgewählt.
 | NGINX | automatic | Neuestes GitHub-Release `release-<version>` ohne Draft und Prerelease; Digest des Release-Assets und passendes Release-Tag/Ref/Asset-Tupel. |
 | OpenSSL for NGINX QUIC/TLS | automatic | Neuestes GitHub-Release `openssl-<version>` ohne Draft und Prerelease; Digest des Release-Assets. |
 | HAProxy | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis, durch das explizite `HAPROXY_SERIES`- und Release-Root/Basis-URL-Tupel begrenzt; offizielle SHA-256-Datei pro Asset. |
-| HAProxy HTX | automatic | Die HTX-Kompatibilitätslinie wird als eigenes explizites Serien-, Root- und Basis-URL-Tupel aufgelöst; sie wird nie aus dem normalen HAProxy-Ergebnis abgeleitet. |
-| OWASP Core Rule Set | manual_review | Neuestes stabiles GitHub-Release und dessen unveränderlicher aufgelöster Git-Tag-Commit werden zur Prüfung gemeldet; der geprüfte Tag/Commit-Pin wird nicht automatisch geändert. |
+| HAProxy HTX | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis innerhalb des eigenen expliziten HTX-Serien-, Release-Root- und Basis-URL-Tupels; die offizielle SHA-256-Datei pro Asset wird mit diesem Tupel aktualisiert und nie aus dem normalen HAProxy-Ergebnis abgeleitet. |
+| OWASP Core Rule Set | automatic | Neuestes GitHub-Release ohne Draft und Prerelease, das `v4.x.x` entspricht; festes Repository und unveränderlicher aufgelöster Git-Tag-Commit werden als ein atomares Tag/Commit-Paar aktualisiert. Releases außerhalb von `v4.x.x` werden niemals automatisch übernommen. |
 | ModSecurity v3 | manual_review | Neuestes stabiles GitHub-Release `v3.<version>` und dessen unveränderlicher aufgelöster Git-Tag-Commit werden zur Prüfung gemeldet; der geprüfte Tag/Commit-Pin wird nicht automatisch geändert. |
 | ModSecurity Apache connector | not_applicable | Repository-lokale Connector-Quelle, solange sie nicht ausdrücklich konfiguriert wird; kein Common-Version-Abrufvertrag existiert. |
 | ModSecurity NGINX connector | not_applicable | Repository-lokale Connector-Quelle, solange sie nicht ausdrücklich konfiguriert wird; kein Common-Version-Abrufvertrag existiert. |
 | go-ftw | automatic | Obligatorische globale GitHub-Release-/Tag-/unveränderliche-Commit-Provenance-Prüfung in jedem Wartungslauf. |
 | Albedo | automatic | Obligatorische globale GitHub-Release-/Tag-/unveränderliche-Commit-Provenance-Prüfung in jedem Wartungslauf. |
-| CI maintenance globals | automatic | Obligatorische globale Prüfung der kanonischen Python-/PyYAML-/Node-Pins, Workflow-Actions und CI-Security-Tools; Artefakte und generierte Views werden als ein Plan geprüft. |
+| CI maintenance globals | automatic | Obligatorische globale Prüfung der kanonischen Python-/PyYAML-Pins, des neuesten stabilen Node.js-Pins einschließlich Major-Übergängen, der Workflow-Actions und CI-Security-Tools; Artefakte und generierte Views werden als ein Plan geprüft. |
 | Expat | not_applicable | Legacy-Metadaten haben keinen Framework-Source-Abrufverbraucher. |
 | Default branch | not_applicable | Lokaler Policy-Standard, keine Upstream-Release-Quelle. |
 
@@ -340,6 +340,12 @@ Request erstellen oder aktualisieren kann. Runtime-, Python-, Workflow- und
 CRS-Views werden im selben Plan geprüft. Manual-Review-Issues werden nur durch
 einen vertrauenswürdigen Default-Branch-Job aus dem typisierten Plan
 abgeglichen; Pull Requests erhalten keine Issue-Schreibrechte.
+
+Ein Node.js-Major-Update wird weiterhin nur als Draft-PR mit Literal-Pin
+vorgeschlagen. Seine Änderung an `ci/lib/common.sh` liegt im
+Pull-Request-Pfad der CI-Security-Quality-Prüfung; daher läuft Pyright mit
+dieser Node.js-Kandidatenlaufzeit vor Hosted-CI, SonarQube-Cloud-Prüfung und
+einer separat autorisierten Integrationsentscheidung.
 
 ## Werkzeuge, Statuswerte und sensible Daten
 

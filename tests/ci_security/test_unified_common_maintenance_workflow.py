@@ -1,6 +1,7 @@
 """Contract checks for the unified common-version maintenance workflow."""
 
 from pathlib import Path
+import re
 import unittest
 
 import yaml
@@ -8,12 +9,15 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/check-common-versions.yml"
+QUALITY_WORKFLOW = ROOT / ".github/workflows/ci-security-quality.yml"
 
 
 class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
     def setUp(self) -> None:
         self.text = WORKFLOW.read_text(encoding="utf-8")
         self.workflow = yaml.safe_load(self.text)
+        self.quality_text = QUALITY_WORKFLOW.read_text(encoding="utf-8")
+        self.quality_workflow = yaml.safe_load(self.quality_text)
 
     def test_workflow_is_valid_yaml_and_has_all_triggers(self) -> None:
         self.assertIsInstance(self.workflow, dict)
@@ -196,6 +200,29 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.assertIn("add-paths:", self.text)
         self.assertIn("draft: true", self.text)
         self.assertIn("No auto-merge is authorized", self.text)
+
+    def test_node_major_candidate_runs_literal_pin_pyright_quality_gate(self) -> None:
+        """A common.sh Node pin update must run type analysis on the PR head."""
+
+        common = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        match = re.search(
+            r'^CI_CANONICAL_NODE_VERSION="([0-9]+\.[0-9]+\.[0-9]+)"$',
+            common,
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(match)
+        node_version = match.group(1) if match is not None else ""
+        triggers = self.quality_workflow.get("on", self.quality_workflow.get(True))
+        self.assertIn("pull_request", triggers)
+        self.assertIn("ci/lib/common.sh", triggers["pull_request"]["paths"])
+        self.assertIn("actions/setup-node@", self.quality_text)
+        self.assertIn(f'node-version: "{node_version}"', self.quality_text)
+        self.assertNotIn("node-version: latest", self.quality_text)
+        self.assertIn("node --version", self.quality_text)
+        self.assertIn(
+            'node "$TOOLS_DIR/pyright/index.js" --project pyrightconfig.json',
+            self.quality_text,
+        )
 
     def test_publisher_token_is_exactly_scoped_for_allowlisted_workflow_updates(
         self,

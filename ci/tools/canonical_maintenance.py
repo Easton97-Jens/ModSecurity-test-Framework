@@ -1043,43 +1043,11 @@ def resolve_node(
             and "-" not in str(record["version"])
         )
         latest_upstream = versions[-1]
-        compatible = [
-            version
-            for version in versions
-            if same_policy_line(current, version, "same_major")
-        ]
-        if not compatible:
-            raise MaintenanceError("Node.js index has no compatible major release")
-        latest_compatible = compatible[-1]
+        latest_compatible = latest_upstream
         updates = []
         if compare_versions(current, latest_compatible) < 0:
             updates.append(
                 {"variable": variables[0], "old": current, "new": latest_compatible}
-            )
-        reviews: list[dict[str, Any]] = []
-        if latest_upstream != latest_compatible:
-            reviews.append(
-                _review(
-                    component_id="node",
-                    component_name=NODE_COMPONENT_NAME,
-                    review_kind="major_version_transition",
-                    current_identity={
-                        "version": current,
-                        "series": current.split(".")[0],
-                    },
-                    candidate_identity={
-                        "version": latest_upstream,
-                        "series": latest_upstream.split(".")[0],
-                    },
-                    latest_compatible=latest_compatible,
-                    latest_upstream=latest_upstream,
-                    variables=variables,
-                    reason_code="ci_runtime_major_transition",
-                    reason="A newer Node.js major line requires CI runtime compatibility review.",
-                    evidence_urls=[NODE_INDEX_URL],
-                    generated_views=(SECURITY_TOOLS_LOCK_PATH,),
-                    automatic_update_also_available=bool(updates),
-                )
             )
         return (
             _check_result(
@@ -1087,7 +1055,7 @@ def resolve_node(
                 component_name=NODE_COMPONENT_NAME,
                 scope="node",
                 status="outdated" if updates else "current",
-                message="A compatible Node.js update is available."
+                message="A newer stable Node.js release is available."
                 if updates
                 else "Canonical Node.js release is current.",
                 variables=variables,
@@ -1096,9 +1064,9 @@ def resolve_node(
                 latest_upstream=latest_upstream,
                 source=NODE_INDEX_URL,
                 updates=updates,
-                details={"update_policy": "same_major"},
+                details={"update_policy": "latest_stable"},
             ),
-            reviews,
+            [],
         )
     except Exception as exc:
         return _check_result(

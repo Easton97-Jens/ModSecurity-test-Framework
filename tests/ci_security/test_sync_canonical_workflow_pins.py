@@ -177,13 +177,13 @@ class CanonicalWorkflowPinsTest(unittest.TestCase):
                 "CI_ACTION_SETUP_NODE_REPOSITORY": "actions/setup-node",
                 "CI_ACTION_SETUP_NODE_COMMIT": "c" * 40,
                 "CI_ACTION_SETUP_NODE_VERSION": "v7.0.0",
-                "CI_CANONICAL_NODE_VERSION": "24.18.0",
+                "CI_CANONICAL_NODE_VERSION": "25.0.0",
             }
             errors, outputs = MODULE.workflow_values(root, values)
             self.assertEqual(errors, [])
             output = outputs[0][1].decode()
             self.assertIn("actions/setup-node@" + "c" * 40 + " # v7.0.0", output)
-            self.assertIn('node-version: "24.18.0"', output)
+            self.assertIn('node-version: "25.0.0"', output)
 
     def test_osv_legacy_compatibility_tuple_is_generated_from_common(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
