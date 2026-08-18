@@ -4,7 +4,9 @@ The fixture replaces Git only at the process boundary used by fetch-crs.sh.
 It never contacts a remote or creates a real CRS checkout.
 """
 
+import base64
 import dataclasses
+import hashlib
 import importlib.util
 import os
 import shlex
@@ -36,6 +38,29 @@ ANNOTATED_TAG_OBJECT = "5d2bd9a1ad7e607813f9e19cc73fa44dd5dd2ceb"
 EMPTY_GIT_BLOB = "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
 NONEMPTY_GIT_BLOB = "f" * 40
 GITLINK_OBJECT = "d" * 40
+CRS_RULE_PATH = "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
+CRS_RULE_CONTENT = b"SecRule ARGS \"@rx test\" \"id:942270,deny\"\n"
+CRS_RULE_SHA256 = hashlib.sha256(CRS_RULE_CONTENT).hexdigest()
+
+
+def crs_rule_content_url(commit: str) -> str:
+    return (
+        "https://api.github.com/repos/coreruleset/coreruleset/contents/"
+        f"{CRS_RULE_PATH}?ref={commit}"
+    )
+
+
+def crs_rule_content_payload(content: bytes = CRS_RULE_CONTENT) -> dict[str, object]:
+    return {
+        "type": "file",
+        "encoding": "base64",
+        "path": CRS_RULE_PATH,
+        "size": len(content),
+        "sha": hashlib.sha1(
+            f"blob {len(content)}\0".encode("ascii") + content
+        ).hexdigest(),
+        "content": base64.b64encode(content).decode("ascii"),
+    }
 
 
 def load_common_version_checker():
@@ -329,6 +354,41 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             },
         )
         return root / "ci/provisioning/fetch-crs.sh"
+
+    @staticmethod
+    def crs_release_client(
+        tag_commits: dict[str, str],
+        releases: list[dict[str, object]],
+        rule_contents: dict[str, dict[str, object]],
+    ):
+        class FakeGithubClient:
+            def __init__(self):
+                self.urls = []
+
+            def get_json(self, url):
+                self.urls.append(url)
+                tag_prefix = (
+                    "https://api.github.com/repos/coreruleset/coreruleset/"
+                    "git/ref/tags/"
+                )
+                if url.startswith(tag_prefix):
+                    return {"object": {"type": "commit", "sha": tag_commits[url.removeprefix(tag_prefix)]}}
+                for commit, payload in rule_contents.items():
+                    if url == crs_rule_content_url(commit):
+                        return payload
+                raise AssertionError(f"unexpected GitHub API request: {url}")
+
+            def get_json_list(self, url):
+                self.urls.append(url)
+                expected = (
+                    "https://api.github.com/repos/coreruleset/coreruleset/"
+                    "releases?per_page=100"
+                )
+                if url != expected:
+                    raise AssertionError(f"unexpected GitHub release lookup: {url}")
+                return releases
+
+        return FakeGithubClient()
 
     @staticmethod
     def git_verbs(commands):
@@ -699,43 +759,14 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                 )
 
     def test_version_checker_automatically_updates_only_the_crs_v4_tuple(self):
-        class FakeGithubClient:
-            def __init__(self):
-                self.urls = []
-
-            def get_json(self, url):
-                self.urls.append(url)
-                responses = {
-                    "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/"
-                    + APPROVED_RELEASE_TAG: {
-                        "object": {"type": "commit", "sha": APPROVED_COMMIT}
-                    },
-                    "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/v4.900.1": {
-                        "object": {"type": "commit", "sha": "d" * 40}
-                    },
-                }
-                return responses[url]
-
-            def get_json_list(self, url):
-                self.urls.append(url)
-                expected = (
-                    "https://api.github.com/repos/coreruleset/coreruleset/"
-                    "releases?per_page=100"
-                )
-                if url != expected:
-                    raise AssertionError(f"unexpected GitHub release lookup: {url}")
-                return [
-                    {"tag_name": "v4.900.1", "draft": False, "prerelease": False},
-                    {"tag_name": "v5.0.0", "draft": False, "prerelease": False},
-                    {"tag_name": "v4.901.0", "draft": "false", "prerelease": False},
-                    {"tag_name": "v4.902.0", "prerelease": False},
-                    {"tag_name": "v4.903.0", "draft": False},
-                    {
-                        "tag_name": "v4.901.0-rc.1",
-                        "draft": False,
-                        "prerelease": True,
-                    },
-                ]
+        releases = [
+            {"tag_name": "v4.900.1", "draft": False, "prerelease": False},
+            {"tag_name": "v5.0.0", "draft": False, "prerelease": False},
+            {"tag_name": "v4.901.0", "draft": "false", "prerelease": False},
+            {"tag_name": "v4.902.0", "prerelease": False},
+            {"tag_name": "v4.903.0", "draft": False},
+            {"tag_name": "v4.901.0-rc.1", "draft": False, "prerelease": True},
+        ]
 
         with tempfile.TemporaryDirectory(prefix="crs-provenance-") as temporary:
             fixture = (
@@ -745,7 +776,11 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                 / "lib/common.sh"
             )
             _, entries = COMMON_VERSION_CHECKER.parse_common(fixture)
-            client = FakeGithubClient()
+            client = self.crs_release_client(
+                {APPROVED_RELEASE_TAG: APPROVED_COMMIT, "v4.900.1": "d" * 40},
+                releases,
+                {"d" * 40: crs_rule_content_payload()},
+            )
             raw_result = COMMON_VERSION_CHECKER.check_crs_release_provenance(
                 entries, client
             )
@@ -758,7 +793,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
             disposition = COMMON_VERSION_CHECKER.maintenance_disposition(
                 [result], entries, defer_reviewed_provenance=False
             )
-            incomplete = dataclasses.replace(result, updates=result.updates[:1])
+            incomplete = dataclasses.replace(result, updates=result.updates[:-1])
             incomplete_disposition = COMMON_VERSION_CHECKER.maintenance_disposition(
                 [incomplete], entries, defer_reviewed_provenance=False
             )
@@ -782,17 +817,20 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         self.assertTrue(result.details["compatibility_review_required"])
         self.assertEqual(
             [update.variable for update in result.updates],
-            ["CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"],
+            [
+                "CRS_RELEASE_TAG",
+                "CRS_APPROVED_COMMIT",
+                "CRS_RULE_FILE_SHA256",
+            ],
         )
-        self.assertEqual(
-            [update.new for update in result.updates], ["v4.900.1", "d" * 40]
-        )
+        self.assertEqual([update.new for update in result.updates], ["v4.900.1", "d" * 40, CRS_RULE_SHA256])
         self.assertEqual(
             result.variables,
             [
                 "CRS_APPROVED_REPO_URL",
                 "CRS_RELEASE_TAG",
                 "CRS_APPROVED_COMMIT",
+                "CRS_RULE_FILE_SHA256",
                 "CRS_REPO_URL",
                 "CRS_GIT_REF",
             ],
@@ -806,7 +844,7 @@ class FetchCrsProvenanceTests(unittest.TestCase):
         )
         self.assertEqual(
             set(disposition.automatic_update_variables),
-            {"CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"},
+            {"CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT", "CRS_RULE_FILE_SHA256"},
         )
         self.assertEqual(
             incomplete_disposition.outcome,
@@ -822,8 +860,92 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                 "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/v4.900.0",
                 "https://api.github.com/repos/coreruleset/coreruleset/releases?per_page=100",
                 "https://api.github.com/repos/coreruleset/coreruleset/git/ref/tags/v4.900.1",
+                crs_rule_content_url("d" * 40),
             ],
         )
+
+    def test_version_checker_repairs_a_stale_crs_rule_digest(self):
+        with tempfile.TemporaryDirectory(prefix="crs-provenance-") as temporary:
+            fixture = (
+                self.create_framework_fixture(
+                    Path(temporary) / "framework-fixture"
+                ).parents[1]
+                / "lib/common.sh"
+            )
+            fixture.write_text(
+                rewrite_common_assignments(
+                    fixture.read_text(encoding="utf-8"),
+                    {"CRS_RULE_FILE_SHA256": "e" * 64},
+                ),
+                encoding="utf-8",
+            )
+            _, entries = COMMON_VERSION_CHECKER.parse_common(fixture)
+            client = self.crs_release_client(
+                {APPROVED_RELEASE_TAG: APPROVED_COMMIT},
+                [
+                    {
+                        "tag_name": APPROVED_RELEASE_TAG,
+                        "draft": False,
+                        "prerelease": False,
+                    }
+                ],
+                {APPROVED_COMMIT: crs_rule_content_payload()},
+            )
+            raw_result = COMMON_VERSION_CHECKER.check_crs_release_provenance(
+                entries, client
+            )
+            definition = COMMON_VERSION_CHECKER.COMPONENT_DEFINITION_BY_NAME[
+                COMMON_VERSION_CHECKER.CRS_COMPONENT
+            ]
+            result = COMMON_VERSION_CHECKER.decorate_component_result(
+                definition, raw_result, entries
+            )
+            disposition = COMMON_VERSION_CHECKER.maintenance_disposition(
+                [result], entries, defer_reviewed_provenance=False
+            )
+
+        self.assertEqual(result.status, COMMON_VERSION_CHECKER.STATUS_OUTDATED)
+        self.assertEqual(
+            [(update.variable, update.new) for update in result.updates],
+            [("CRS_RULE_FILE_SHA256", CRS_RULE_SHA256)],
+        )
+        self.assertEqual(
+            set(disposition.automatic_update_variables), {"CRS_RULE_FILE_SHA256"}
+        )
+        self.assertEqual(
+            disposition.outcome,
+            COMMON_VERSION_CHECKER.MAINTENANCE_OUTCOME_SAFE_UPDATES,
+        )
+
+    def test_version_checker_rejects_an_invalid_candidate_rule_file(self):
+        invalid_content = crs_rule_content_payload()
+        invalid_content["content"] = "not-base64?"
+        with tempfile.TemporaryDirectory(prefix="crs-provenance-") as temporary:
+            fixture = (
+                self.create_framework_fixture(
+                    Path(temporary) / "framework-fixture"
+                ).parents[1]
+                / "lib/common.sh"
+            )
+            _, entries = COMMON_VERSION_CHECKER.parse_common(fixture)
+            client = self.crs_release_client(
+                {APPROVED_RELEASE_TAG: APPROVED_COMMIT, "v4.900.1": "d" * 40},
+                [
+                    {
+                        "tag_name": "v4.900.1",
+                        "draft": False,
+                        "prerelease": False,
+                    }
+                ],
+                {"d" * 40: invalid_content},
+            )
+            result = COMMON_VERSION_CHECKER.check_all(
+                entries, client, (COMMON_VERSION_CHECKER.CRS_COMPONENT,)
+            )[0]
+
+        self.assertEqual(result.status, COMMON_VERSION_CHECKER.STATUS_UNKNOWN)
+        self.assertEqual(result.updates, [])
+        self.assertIn("bounded base64", result.message)
 
     def test_version_checker_rejects_foreign_crs_repository_before_network(self):
         class NoNetworkClient:

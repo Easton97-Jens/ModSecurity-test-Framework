@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
 import dataclasses
 import datetime as dt
 import hashlib
@@ -54,6 +56,9 @@ GITHUB_STABLE_RELEASE_POLICY = (
 )
 VERSION_TAG_PATTERN = r"^v\d+(?:\.\d+)+$"
 CRS_V4_TAG_PATTERN = r"^v4\.\d+\.\d+$"
+CRS_RULE_FILE = "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
+CRS_RULE_FILE_SHA256_VARIABLE = "CRS_RULE_FILE_SHA256"
+MAX_CRS_RULE_FILE_BYTES = 2 * 1024 * 1024
 APACHE_APR_SOURCE_PATH_PREFIX = "/apr/"
 NO_HIDDEN_SERIES_RESTRICTION = "latest stable release; no hidden series restriction"
 APACHE_LISTING_RESOLVER = "apache_listing"
@@ -84,6 +89,7 @@ PLAIN_VAR_RE = re.compile(r"\$((?!\d)\w+)", re.ASCII)
 PARAM_REMOVE_PREFIX_RE = re.compile(r"\$\{([A-Z][A-Z0-9_]*)#([^{}]*)\}")
 SHA256_RE = re.compile(r"\b([A-Fa-f0-9]{64})\b")
 SHA256_VALUE_RE = re.compile(r"^[a-f0-9]{64}$")
+GITHUB_CONTENT_BASE64_RE = re.compile(r"[A-Za-z0-9+/]*={0,2}\Z", re.ASCII)
 GIT_COMMIT_SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_REF_RE = re.compile(r"^(?!.*\.\.)(?!/)(?!.*//)[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$")
 SAFE_VERSION_RE = re.compile(r"^\d+(?:\.\d+)+$")
@@ -185,6 +191,7 @@ APPROVED_LITERAL_VARIABLES = {
     "CRS_APPROVED_REPO_URL",
     "CRS_APPROVED_COMMIT",
     "CRS_RELEASE_TAG",
+    "CRS_RULE_FILE_SHA256",
     "MODSECURITY_V3_APPROVED_REPO_URL",
     "MODSECURITY_V3_APPROVED_COMMIT",
     "MODSECURITY_V3_RELEASE_TAG",
@@ -572,10 +579,15 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "CRS_APPROVED_REPO_URL",
             "CRS_RELEASE_TAG",
             "CRS_APPROVED_COMMIT",
+            CRS_RULE_FILE_SHA256_VARIABLE,
             "CRS_REPO_URL",
             "CRS_GIT_REF",
         ),
-        atomic_group=("CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"),
+        atomic_group=(
+            "CRS_RELEASE_TAG",
+            "CRS_APPROVED_COMMIT",
+            CRS_RULE_FILE_SHA256_VARIABLE,
+        ),
         update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="GitHub non-draft, non-prerelease stable CRS v4.x.x release",
         compatibility_policy="automatic updates are limited to the configured CRS v4 line",
@@ -583,7 +595,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         github_repository=CRS_APPROVED_REPOSITORY,
         release_tag_variable="CRS_RELEASE_TAG",
         git_commit_variable="CRS_APPROVED_COMMIT",
-        checksum_strategy="peeled_git_tag_commit",
+        checksum_strategy="peeled_git_tag_commit_and_rule_file_sha256",
         tag_pattern=CRS_V4_TAG_PATTERN,
         alias_bindings=(
             ("CRS_REPO_URL", "CRS_APPROVED_REPO_URL"),
@@ -3114,6 +3126,68 @@ def resolve_github_peeled_commit(client: HttpClient, repo_path: str, tag: str) -
     )
 
 
+def resolve_github_file_sha256(
+    client: HttpClient, repo_path: str, commit: str, relative_path: str
+) -> str:
+    """Hash one regular file resolved from an immutable GitHub commit.
+
+    The repository identity and commit have already passed the CRS release
+    provenance checks.  This helper nevertheless validates the exact API
+    response shape and Git blob identity before it becomes a candidate pin.
+    """
+
+    if GIT_COMMIT_SHA1_RE.fullmatch(commit) is None:
+        raise UpstreamUnknown("rule-file lookup requires an immutable commit SHA")
+    if (
+        not relative_path
+        or relative_path.startswith("/")
+        or any(part in {"", ".", ".."} for part in relative_path.split("/"))
+    ):
+        raise UpstreamUnknown("rule-file lookup path is unsafe")
+    url = (
+        f"{GITHUB_API_ORIGIN}/repos/{repo_path}/contents/"
+        f"{quote(relative_path, safe='/')}?ref={quote(commit, safe='')}"
+    )
+    payload = client.get_json(url)
+    if (
+        payload.get("type") != "file"
+        or payload.get("encoding") != "base64"
+        or payload.get("path") != relative_path
+    ):
+        raise UpstreamUnknown("GitHub rule-file response is not the expected file")
+    declared_size = payload.get("size")
+    if (
+        not isinstance(declared_size, int)
+        or isinstance(declared_size, bool)
+        or not 0 < declared_size <= MAX_CRS_RULE_FILE_BYTES
+    ):
+        raise UpstreamUnknown("GitHub rule-file response has an unsafe size")
+    encoded = payload.get("content")
+    if not isinstance(encoded, str):
+        raise UpstreamUnknown("GitHub rule-file response has no base64 content")
+    compact = encoded.replace("\r", "").replace("\n", "")
+    maximum_encoded = ((MAX_CRS_RULE_FILE_BYTES + 2) // 3) * 4
+    if (
+        not compact
+        or len(compact) > maximum_encoded
+        or GITHUB_CONTENT_BASE64_RE.fullmatch(compact) is None
+    ):
+        raise UpstreamUnknown("GitHub rule-file content is not bounded base64")
+    try:
+        content = base64.b64decode(compact, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise UpstreamUnknown("GitHub rule-file content is invalid base64") from exc
+    if len(content) != declared_size:
+        raise UpstreamUnknown("GitHub rule-file content length does not match its metadata")
+    blob_sha = payload.get("sha")
+    expected_blob_sha = hashlib.sha1(
+        f"blob {len(content)}\0".encode("ascii") + content
+    ).hexdigest()
+    if blob_sha != expected_blob_sha:
+        raise UpstreamUnknown("GitHub rule-file blob identity does not match its content")
+    return hashlib.sha256(content).hexdigest()
+
+
 def git_release_provenance_context(
     definition: ComponentDefinition,
     entries: dict[str, VariableEntry],
@@ -3387,7 +3461,7 @@ def review_required_release_result(
 def check_crs_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
-    """Resolve a valid stable CRS v4 tag/commit transition automatically."""
+    """Resolve a valid stable CRS v4 provenance tuple automatically."""
     base_definition = COMPONENT_DEFINITION_BY_NAME[CRS_COMPONENT]
     try:
         definition = canonicalize_github_repository(base_definition, entries)
@@ -3409,7 +3483,66 @@ def check_crs_release_provenance(
             variables=list(base_definition.variables),
             source=value(entries, "CRS_APPROVED_REPO_URL"),
         )
-    return check_automatic_git_provenance(definition, entries, client)
+    configured_rule_sha256 = value(entries, CRS_RULE_FILE_SHA256_VARIABLE)
+    if SHA256_VALUE_RE.fullmatch(configured_rule_sha256) is None:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_BLOCKED,
+            message=(
+                f"{CRS_RULE_FILE_SHA256_VARIABLE} must be a lowercase 64-character "
+                "SHA-256 value."
+            ),
+            variables=list(definition.variables),
+            source=value(entries, "CRS_APPROVED_REPO_URL"),
+        )
+    result = check_automatic_git_provenance(definition, entries, client)
+    if result.status not in {STATUS_CURRENT, STATUS_OUTDATED}:
+        return result
+    commit_key = "latest_peeled_commit" if result.status == STATUS_OUTDATED else "peeled_commit"
+    resolved_commit = result.details.get(commit_key)
+    if not isinstance(resolved_commit, str) or GIT_COMMIT_SHA1_RE.fullmatch(
+        resolved_commit
+    ) is None:
+        raise UpstreamError("CRS provenance result has no immutable checked commit")
+    rule_sha256 = resolve_github_file_sha256(
+        client, repository, resolved_commit, CRS_RULE_FILE
+    )
+    details = dict(result.details)
+    details.update(
+        {
+            "rule_file": CRS_RULE_FILE,
+            "rule_file_sha256": rule_sha256,
+            "rule_file_commit": resolved_commit,
+        }
+    )
+    if result.status == STATUS_OUTDATED:
+        rule_update = plan_update(entries, CRS_RULE_FILE_SHA256_VARIABLE, rule_sha256)
+        updates = list(result.updates)
+        if rule_update is not None:
+            updates.append(rule_update)
+        return dataclasses.replace(result, updates=updates, details=details)
+    if configured_rule_sha256 == rule_sha256:
+        return dataclasses.replace(result, details=details)
+    rule_update = plan_update(entries, CRS_RULE_FILE_SHA256_VARIABLE, rule_sha256)
+    if rule_update is None:
+        raise UpstreamError("CRS rule-file digest mismatch has no safe update")
+    details["configured_rule_file_sha256"] = configured_rule_sha256
+    return ComponentResult(
+        component=definition.name,
+        status=STATUS_OUTDATED,
+        message="Configured CRS rule-file digest differs from the immutable checked source.",
+        variables=list(definition.variables),
+        current=result.current,
+        latest=result.latest,
+        latest_upstream=result.latest_upstream,
+        latest_compatible=result.latest_compatible,
+        source=result.source,
+        asset_name=CRS_RULE_FILE,
+        official_sha256=rule_sha256,
+        sha256_source="immutable_commit_file_sha256",
+        updates=[rule_update],
+        details=details,
+    )
 
 
 def check_modsecurity_v3_release_provenance(

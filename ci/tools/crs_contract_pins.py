@@ -2,7 +2,7 @@
 
 This is deliberately a small, non-executing parser.  Contract tooling must
 not source shell configuration or resolve values from the caller's
-environment.  Only the three literal assignments below are accepted.
+environment.  Only the four literal assignments below are accepted.
 """
 
 from __future__ import annotations
@@ -19,10 +19,12 @@ class CrsPins(NamedTuple):
     repository: str
     release_tag: str
     commit: str
+    rule_file_sha256: str
 
 
 _ASSIGNMENT = re.compile(r"^([A-Z][A-Z0-9_]*)=(?:\"([^\"]*)\"|'([^']*)')\s*$")
 _COMMIT = re.compile(r"[0-9a-f]{40}\Z")
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _TAG = re.compile(r"v\d+\.\d+\.\d+\Z", flags=re.ASCII)
 
 
@@ -84,7 +86,14 @@ def require_regular_file_within_root(path: Path, root: Path) -> Path:
     return resolved_candidate
 
 
-_REQUIRED = frozenset(("CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"))
+_REQUIRED = frozenset(
+    (
+        "CRS_APPROVED_REPO_URL",
+        "CRS_RELEASE_TAG",
+        "CRS_APPROVED_COMMIT",
+        "CRS_RULE_FILE_SHA256",
+    )
+)
 
 
 def _parse_assignments(common_path: Path) -> dict[str, str]:
@@ -107,7 +116,7 @@ def _parse_assignments(common_path: Path) -> dict[str, str]:
 
 
 def _validate_values(values: dict[str, str], common_path: Path) -> CrsPins:
-    required = {"CRS_APPROVED_REPO_URL", "CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"}
+    required = set(_REQUIRED)
     if set(values) != required:
         missing = ", ".join(sorted(required - set(values)))
         raise ValueError(f"missing CRS assignments in {common_path}: {missing}")
@@ -117,10 +126,13 @@ def _validate_values(values: dict[str, str], common_path: Path) -> CrsPins:
         raise ValueError("CRS release tag is not a semantic release tag")
     if not _COMMIT.fullmatch(values["CRS_APPROVED_COMMIT"]):
         raise ValueError("CRS approved commit is not a lowercase 40-character SHA")
+    if not _SHA256.fullmatch(values["CRS_RULE_FILE_SHA256"]):
+        raise ValueError("CRS rule file digest is not a lowercase 64-character SHA-256")
     return CrsPins(
         repository=values["CRS_APPROVED_REPO_URL"],
         release_tag=values["CRS_RELEASE_TAG"],
         commit=values["CRS_APPROVED_COMMIT"],
+        rule_file_sha256=values["CRS_RULE_FILE_SHA256"],
     )
 
 

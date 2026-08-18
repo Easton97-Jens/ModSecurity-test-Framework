@@ -25,10 +25,15 @@ TARGETS = (
     ROOT / "tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json",
     ROOT / "tests/cases/security/crs/crs_sqli_anomaly_block.yaml",
 )
-_JSON_KEYS = ("crs_repository", "crs_release_tag", "crs_commit")
-_YAML_KEYS = ("repository", "release_tag", "commit")
+_JSON_KEYS = (
+    "crs_repository",
+    "crs_release_tag",
+    "crs_commit",
+    "crs_rule_file_sha256",
+)
+_YAML_KEYS = ("repository", "release_tag", "commit", "rule_file_sha256")
 _JSON_VIEW_KEYS = {
-    "normalized-event.schema.json": _JSON_KEYS,
+    "normalized-event.schema.json": (*_JSON_KEYS, "crs_git_ref"),
     "manifest.schema.json": _JSON_KEYS,
     "receipt.schema.json": ("crs_commit",),
 }
@@ -43,6 +48,8 @@ def _replace_json(text: str, pins: CrsPins, path: Path) -> str:
         "crs_repository": pins.repository,
         "crs_release_tag": pins.release_tag,
         "crs_commit": pins.commit,
+        "crs_rule_file_sha256": pins.rule_file_sha256,
+        "crs_git_ref": pins.release_tag,
     }
     try:
         keys = _JSON_VIEW_KEYS[path.name]
@@ -66,6 +73,7 @@ def _replace_yaml(text: str, pins: CrsPins, path: Path) -> str:
         "repository": pins.repository,
         "release_tag": pins.release_tag,
         "commit": pins.commit,
+        "rule_file_sha256": pins.rule_file_sha256,
     }
     start = text.find("  provenance:\n")
     if start < 0:

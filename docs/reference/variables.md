@@ -188,13 +188,16 @@ inputs or generated paths. `MODSECURITY_MRTS_VARIANT` accepts `no-mrts` or
 `with-mrts`; `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1` enables optional demo
 content only after collision checks.
 
-`CRS_APPROVED_REPO_URL`, `CRS_APPROVED_COMMIT`, and `CRS_GIT_REF` are the
-central provenance tuple in `ci/lib/common.sh`; they are not caller inputs.
+`CRS_APPROVED_REPO_URL`, `CRS_APPROVED_COMMIT`, `CRS_RELEASE_TAG`,
+`CRS_RULE_FILE_SHA256`, and `CRS_GIT_REF` are the central CRS provenance
+tuple in `ci/lib/common.sh`; they are not caller inputs.
 `fetch-crs.sh` rejects a differing `CRS_REPO_URL` or `CRS_GIT_REF` before Git
 runs, fetches only the exact central tag ref, and requires its peeled object to
 equal `CRS_APPROVED_COMMIT`; it never accepts a caller-selected ref. Environment
 attempts to replace either approved provenance literal are overwritten by the
-central definition.
+central definition. `CRS_RULE_FILE_SHA256` binds the checked SQLi rule file to
+that immutable commit; bounded automatic CRS-v4 maintenance resolves and
+updates the tag, peeled commit, and rule digest as one reviewable group.
 
 `CRS_SOURCE_DIR` must be an absent path below the permitted external
 `SOURCE_ROOT`; an existing directory or link is rejected rather than reused.
@@ -276,7 +279,7 @@ variable are rendered from the updated group rather than chosen independently.
 | OpenSSL for NGINX QUIC/TLS | automatic | Latest non-draft, non-prerelease `openssl-<version>` GitHub release; release-asset digest. |
 | HAProxy | automatic | Latest numeric official HAProxy-directory release, constrained by the explicit `HAPROXY_SERIES` and release-root/base tuple; official per-asset SHA-256 file. |
 | HAProxy HTX | automatic | Latest numeric official HAProxy-directory release in its own explicit HTX series, release-root, and base tuple; the official per-asset SHA-256 is updated with that tuple and it is never inferred from the normal HAProxy result. |
-| OWASP Core Rule Set | automatic | Latest non-draft, non-prerelease stable GitHub release matching `v4.x.x`; the fixed repository and immutable peeled Git-tag commit update as one atomic tag/commit pair. Releases outside `v4.x.x` are never automatically applied. |
+| OWASP Core Rule Set | automatic | Latest non-draft, non-prerelease stable GitHub release matching `v4.x.x`; the fixed repository, immutable peeled Git-tag commit, and checked SQLi rule-file SHA-256 update as one atomic provenance group. Releases outside `v4.x.x` are never automatically applied. |
 | ModSecurity v3 | manual_review | Latest stable `v3.<version>` GitHub release and immutable peeled Git-tag commit are reported for review; the reviewed tag/commit pin is not automatically changed. |
 | ModSecurity Apache connector | not_applicable | Repo-local connector source unless explicitly configured; no common-version acquisition contract exists. |
 | ModSecurity NGINX connector | not_applicable | Repo-local connector source unless explicitly configured; no common-version acquisition contract exists. |

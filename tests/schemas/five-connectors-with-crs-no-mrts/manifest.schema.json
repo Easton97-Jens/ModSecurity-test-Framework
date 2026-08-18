@@ -114,7 +114,7 @@
     "crs_commit": {"const": "ab3ccd5fcd691424ba3f320d4040c61417270193"},
     "crs_rule_file": {"const": "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"},
     "crs_rule_file_sha256": {
-      "const": "db756f71e8270280c5ae74d09c11250fad8c118f6a905c6a6794d5643d27cd00"
+      "const": "8f92ff1745385a571ddecc20d83679a67cbb44dc61a6d136af9d77ab4ea315a3"
     },
     "run_id": {"$ref": "#/$defs/token"},
     "expected_rule_id": {"const": 942270},

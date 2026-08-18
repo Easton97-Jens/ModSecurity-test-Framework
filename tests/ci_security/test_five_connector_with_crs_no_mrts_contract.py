@@ -184,7 +184,7 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 'SecRule ARGS "@rx (?i)union.*?select.*?from" \\',
                 '  "id:942270,phase:2,deny,',
                 "  msg:'Looking for basic sql injection. Common attack string for mysql, oracle and others',",
-                "  ver:'OWASP_CRS/4.28.0'\"",
+                f"  ver:'OWASP_CRS/{contract.CRS_RELEASE_TAG[1:]}'\"",
                 "",
             )
         )
@@ -633,11 +633,11 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
             fixture["with_crs_no_mrts"]["canonical_block"]["expected_rule_id"], 942270
         )
         self.assertEqual(
-            contract.CRS_COMMIT, "55b09f5acfd16413e7b31041100711ceb7adc89c"
+            contract.CRS_COMMIT, "ab3ccd5fcd691424ba3f320d4040c61417270193"
         )
         self.assertEqual(
             contract.CRS_RULE_FILE_SHA256,
-            "db756f71e8270280c5ae74d09c11250fad8c118f6a905c6a6794d5643d27cd00",
+            "8f92ff1745385a571ddecc20d83679a67cbb44dc61a6d136af9d77ab4ea315a3",
         )
         for schema_path, expected_fields in (
             (EVENT_SCHEMA_PATH, contract.EVENT_FIELDS),

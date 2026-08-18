@@ -55,6 +55,7 @@ class SyncCrsContractViewsTests(unittest.TestCase):
             major, minor, patch = current_tag[1:].split(".")
             mutated_tag = f"v{major}.{int(minor) + 1}.{patch}"
             mutated_commit = "0" * 40
+            mutated_rule_sha256 = "f" * 64
             common.write_text(
                 common.read_text(encoding="utf-8")
                 .replace(
@@ -64,6 +65,10 @@ class SyncCrsContractViewsTests(unittest.TestCase):
                 .replace(
                     f'CRS_APPROVED_COMMIT="{current_pins.commit}"',
                     f'CRS_APPROVED_COMMIT="{mutated_commit}"',
+                )
+                .replace(
+                    f'CRS_RULE_FILE_SHA256="{current_pins.rule_file_sha256}"',
+                    f'CRS_RULE_FILE_SHA256="{mutated_rule_sha256}"',
                 ),
                 encoding="utf-8",
             )
@@ -76,12 +81,26 @@ class SyncCrsContractViewsTests(unittest.TestCase):
                 self.assertEqual(
                     document["properties"]["crs_release_tag"]["const"], pins.release_tag
                 )
+                self.assertEqual(
+                    document["properties"]["crs_rule_file_sha256"]["const"],
+                    pins.rule_file_sha256,
+                )
+            event = json.loads(
+                (root / FULL_CRS_SCHEMA_TARGETS[0]).read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                event["properties"]["crs_git_ref"]["const"], pins.release_tag
+            )
             receipt = json.loads(
                 (root / RECEIPT_SCHEMA_TARGET).read_text(encoding="utf-8")
             )
             self.assertEqual(receipt["properties"]["crs_commit"]["const"], pins.commit)
             self.assertIn(
                 f"release_tag: {mutated_tag}",
+                (root / FIXTURE_TARGET).read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                f"rule_file_sha256: {mutated_rule_sha256}",
                 (root / FIXTURE_TARGET).read_text(encoding="utf-8"),
             )
 
@@ -102,6 +121,36 @@ class SyncCrsContractViewsTests(unittest.TestCase):
             result = self._run(root, "--check")
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("semantic release tag", result.stderr)
+
+    def test_rule_digest_is_required_and_strict(self) -> None:
+        mutations = {
+            "missing": ("", "missing CRS assignments"),
+            "uppercase": (
+                'CRS_RULE_FILE_SHA256="' + "F" * 64 + '"',
+                "lowercase 64-character SHA-256",
+            ),
+            "short": (
+                'CRS_RULE_FILE_SHA256="' + "a" * 63 + '"',
+                "lowercase 64-character SHA-256",
+            ),
+            "duplicate": ("{line}\n{line}", "duplicate CRS assignment"),
+        }
+        for name, (replacement, expected) in mutations.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "ci/lib").mkdir(parents=True)
+                self._copy_fixture(root)
+                common = root / "ci/lib/common.sh"
+                pins = load_crs_pins(common, root=root)
+                line = f'CRS_RULE_FILE_SHA256="{pins.rule_file_sha256}"'
+                rendered = replacement.format(line=line)
+                common.write_text(
+                    common.read_text(encoding="utf-8").replace(line, rendered),
+                    encoding="utf-8",
+                )
+                result = self._run(root, "--check")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
 
     def test_non_ascii_release_tag_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
