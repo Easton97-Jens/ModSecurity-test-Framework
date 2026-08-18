@@ -233,6 +233,7 @@ MAINTENANCE_OUTCOMES = frozenset(
 )
 FATAL_STATUSES = frozenset({STATUS_UNKNOWN, STATUS_BLOCKED, STATUS_ERROR})
 CRS_COMPONENT = "OWASP Core Rule Set"
+HAPROXY_HTX_COMPONENT = "HAProxy HTX"
 # Resolver descriptors use a neutral marker.  The reviewed repository identity
 # is read from the canonical common.sh URL at resolution time; keeping the
 # marker here prevents a second handwritten upstream identity.
@@ -409,6 +410,14 @@ MANUAL_REVIEW_VARIABLES = {
         "MODSECURITY_GIT_REF",
         "MODSECURITY_V3_GIT_URL",
         "MODSECURITY_V3_GIT_REF",
+    ),
+    HAPROXY_HTX_COMPONENT: (
+        "HAPROXY_HTX_SERIES",
+        "HAPROXY_HTX_SERIES_BASE_URL",
+        "HAPROXY_HTX_VERSION",
+        "HAPROXY_HTX_ARCHIVE_NAME",
+        "HAPROXY_HTX_SOURCE_URL",
+        "HAPROXY_HTX_SHA256",
     ),
 }
 
@@ -863,7 +872,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         archive_extension=TAR_GZ_EXTENSION,
     ),
     ComponentDefinition(
-        name="HAProxy HTX",
+        name=HAPROXY_HTX_COMPONENT,
         resolver="haproxy_htx_series",
         variables=(
             "HAPROXY_RELEASE_ROOT_URL",
@@ -882,7 +891,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "HAPROXY_HTX_SOURCE_URL",
             "HAPROXY_HTX_SHA256",
         ),
-        update_policy=AUTOMATIC_UPDATE_POLICY,
+        update_policy="manual_review",
         stable_policy="official HAProxy numeric series release directory",
         compatibility_policy=SAME_MAJOR_MINOR_COMPATIBILITY_POLICY,
         authorized_hosts=(HAPROXY_WEB_HOST,),
@@ -2694,7 +2703,7 @@ def check_haproxy_htx(
 ) -> ComponentResult:
     """Verify the HTX tarball as an independently owned canonical tuple."""
 
-    definition = COMPONENT_DEFINITION_BY_NAME["HAProxy HTX"]
+    definition = COMPONENT_DEFINITION_BY_NAME[HAPROXY_HTX_COMPONENT]
     missing = required_component_variables(definition, entries)
     if missing is not None:
         return missing
@@ -2775,35 +2784,39 @@ def check_haproxy_htx(
             latest_sha_url=latest_sha_url,
             latest_sha=latest_sha,
         )
-        return ComponentResult(
-            component=definition.name,
-            status=STATUS_OUTDATED,
-            message="A newer official HAProxy HTX tarball and checksum are available.",
-            variables=list(definition.variables),
-            current=version,
-            latest=latest_version,
-            latest_upstream=latest_upstream,
-            latest_compatible=latest_version,
-            source=listing_url,
-            asset_name=latest_asset,
-            official_sha256=latest_sha,
-            sha256_source="official_asset_sha256_file",
-            updates=updates,
+        return review_required_haproxy_htx_result(
+            ComponentResult(
+                component=definition.name,
+                status=STATUS_OUTDATED,
+                message="A newer official HAProxy HTX tarball and checksum are available.",
+                variables=list(definition.variables),
+                current=version,
+                latest=latest_version,
+                latest_upstream=latest_upstream,
+                latest_compatible=latest_version,
+                source=listing_url,
+                asset_name=latest_asset,
+                official_sha256=latest_sha,
+                sha256_source="official_asset_sha256_file",
+                updates=updates,
+            )
         )
     official_sha = fetch_sha256(
         client, value(entries, "HAPROXY_HTX_SOURCE_URL") + SHA256_SUFFIX, archive
     )
     if configured_sha != official_sha:
         update = plan_update(entries, "HAPROXY_HTX_SHA256", official_sha)
-        return ComponentResult(
-            component=definition.name,
-            status=STATUS_OUTDATED,
-            message="Configured HAProxy HTX checksum differs from the official checksum.",
-            variables=list(definition.variables),
-            current=version,
-            latest=latest_version,
-            official_sha256=official_sha,
-            updates=[update] if update else [],
+        return review_required_haproxy_htx_result(
+            ComponentResult(
+                component=definition.name,
+                status=STATUS_OUTDATED,
+                message="Configured HAProxy HTX checksum differs from the official checksum.",
+                variables=list(definition.variables),
+                current=version,
+                latest=latest_version,
+                official_sha256=official_sha,
+                updates=[update] if update else [],
+            )
         )
     return ComponentResult(
         component=definition.name,
@@ -3215,6 +3228,24 @@ def review_required_release_result(
             updates=[],
             message=message,
             details={"reason": reason, "manual_variables": list(manual_variables)},
+        ),
+    )
+
+
+def review_required_haproxy_htx_result(result: ComponentResult) -> ComponentResult:
+    """Keep every independent HTX tuple transition out of automatic plans."""
+
+    return review_required_release_result(
+        result,
+        expected_tag=SAFE_VERSION_RE,
+        manual_variables=MANUAL_REVIEW_VARIABLES[HAPROXY_HTX_COMPONENT],
+        message=(
+            "A verified HAProxy HTX tuple change is available, but the independent "
+            "HTX provenance and compatibility baseline require manual review."
+        ),
+        reason=(
+            "update the complete independent HAProxy HTX tuple only after reviewed "
+            "release provenance and compatibility validation"
         ),
     )
 

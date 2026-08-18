@@ -37,7 +37,7 @@ jobs:
           submodules: false
 
       - name: Initialize CodeQL for actual Framework languages
-        uses: github/codeql-action/init@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        uses: github/codeql-action/init@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         with:
           languages: ${{ matrix.language }}
           build-mode: none
@@ -47,7 +47,7 @@ jobs:
               - tools/MRTS/**
 
       - name: Analyze bounded pull-request source without upload
-        uses: github/codeql-action/analyze@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        uses: github/codeql-action/analyze@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         with:
           category: /pr-language:${{ matrix.language }}
           upload: never
