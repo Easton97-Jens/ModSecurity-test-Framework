@@ -9,7 +9,7 @@
 | Change ID | 20260818-02-enable-bounded-automatic-maintenance |
 | UTC date | 2026-08-18 |
 | Framework base revision | de3fee7df541c3015609d6b46d04ac9e80973f59 |
-| Issue or pull request | No pull request at local-validation finalization; Draft PR publication is the next delivery step. |
+| Issue or pull request | Draft [PR #98](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/98), whose source-remediation head was `1eaebe2ac27bbeb4ec45592211538cc02d0c0ce4`. This paired documentation reconciliation creates a new PR head that requires fresh hosted validation before an authorized merge. |
 
 ## Motivation and problem statement
 
@@ -124,6 +124,10 @@ by SonarQube Cloud.
 | Draft PR #98 first SonarQube Cloud analysis | nonzero | Quality Gate failed at 3.5% duplication on new code (threshold <= 3%); 20 new duplicated lines were localized to `ci/tools/check-common-versions.py`. | PR #98 SonarQube Cloud decoration and public duplication API |
 | Sonar-remediation provenance and compilation tests | 0 | Python compilation, 20 CRS Git-provenance tests, and 32 common-version provenance tests passed for the shared-helper source. | Task-owned external validation environment |
 | Sonar-remediation full native Framework lint | 0 | The complete native `make -s lint` passed with the permitted task-worktree Framework output root; an earlier rejected external output root was an environment-contract failure, not a source failure. | Task-owned external validation environment |
+| Terminal security diff review of the Sonar-remediation source | 0 | Complete follow-up coverage with zero reportable findings; the review covers the exact narrow remediation diff. | Sealed report `b18c2bc50fb4_20260818T101455Z/report.md`, SHA-256 `3343ab1a37442dd1e85aa566943476da047f738b155c411a7cea8123d7308450` |
+| Exact-head PR #98 GitHub Actions | 0 | All 10 applicable Actions reached terminal success for `1eaebe2ac27bbeb4ec45592211538cc02d0c0ce4`, including native lint and CI-security quality. | GitHub Actions PR #98 exact-head evidence |
+| Exact-head PR #98 SonarQube Cloud | 0 | Quality Gate passed with 0 New issues, 0 Security Hotspots, 0.0% Coverage on New Code, and 0.0% Duplication on New Code. | SonarQube Cloud PR #98 exact-head decoration |
+| Fresh master-preflight native Framework lint | 0 | A complete `make -s lint` passed before this documentation-only reconciliation. | Task-owned external validation environment |
 
 ## Security impact
 
@@ -142,16 +146,18 @@ the Quality Gate.
 
 The paired variable references describe the bounded CRS v4, independent HTX,
 and latest-stable Node contracts in English and German. No connector runtime
-was executed and no connector-support, production, GitHub App, credential, or
-merge evidence is claimed.
+was executed and no connector-support, production, GitHub App, or credential
+evidence is claimed. Exact-head PR evidence is recorded above; no merge or
+resulting-`master` outcome is claimed.
 
 ## Checks not run
 
-- The renewed terminal security diff review and its sealed evidence report are
-  pending against the exact narrow SonarQube duplication-remediation source.
-- Hosted PR checks and SonarQube Cloud are pending for the follow-up head; the
-  first exact-head analysis is documented as failed and must be replaced by a
-  fresh passing analysis.
+- This documentation-only reconciliation is a new PR head. Its fresh
+  exact-head GitHub Actions and SonarQube Cloud analysis are not yet run at
+  this record's source revision; the successful source-remediation evidence
+  above must not be reused as proof for that new head.
+- No Framework `master` workflow exists yet because the authorized merge has
+  not occurred.
 
 ## Limitations and residual risk
 
@@ -163,8 +169,10 @@ runtime rather than changing a running workflow.
 
 ## Final diff and review status
 
-The initial local source validation and its first Draft PR are recorded above.
-The narrow task-owned SonarQube duplication remediation has passed focused
-local revalidation and full native Framework lint; it now awaits a renewed
-terminal security diff review and fresh exact-head hosted checks. No merge is
-claimed or authorized by this record.
+The initial local source validation, SonarQube duplication remediation,
+terminal security review, exact-head hosted checks, and fresh native lint are
+recorded above. This paired documentation correction removes stale delivery
+claims and is the only new task-owned delta. The current user has authorized
+Framework `master` integration, but fresh exact-head checks for this new
+documentation revision, the ready-for-review transition, and the protected
+squash merge remain outstanding. No merge is claimed by this record.

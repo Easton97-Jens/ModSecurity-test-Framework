@@ -9,7 +9,7 @@
 | Change-ID | 20260818-02-enable-bounded-automatic-maintenance |
 | UTC-Datum | 2026-08-18 |
 | Framework-Basisrevision | de3fee7df541c3015609d6b46d04ac9e80973f59 |
-| Issue oder Pull Request | Bei Abschluss der lokalen Validierung kein Pull Request; die Veröffentlichung eines Draft-PRs ist der nächste Delivery-Schritt. |
+| Issue oder Pull Request | Draft-[PR #98](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/98), dessen Source-Remediation-Head `1eaebe2ac27bbeb4ec45592211538cc02d0c0ce4` war. Diese gepaarte Dokumentations-Reconciliation erzeugt einen neuen PR-Head, der vor einem autorisierten Merge frische Hosted-Validierung benötigt. |
 
 ## Motivation und Problemstellung
 
@@ -128,6 +128,10 @@ duplizierte Resolver-Precondition-Implementierung.
 | Erste SonarQube-Cloud-Analyse von Draft-PR #98 | nichtnull | Quality Gate scheiterte bei 3,5 % Duplizierung auf neuem Code (Grenzwert <= 3 %); 20 neue duplizierte Zeilen wurden in `ci/tools/check-common-versions.py` lokalisiert. | SonarQube-Cloud-Decoration von PR #98 und öffentliche Duplizierungs-API |
 | Sonar-Behebungs-Provenance- und Kompilierungstests | 0 | Python-Kompilierung sowie 20 CRS-Git-Provenance- und 32 Common-Version-Provenance-Tests bestanden für den Shared-Helper-Quellstand. | Task-eigene externe Validierungsumgebung |
 | Sonar-Behebungs-vollständiges natives Framework-Lint | 0 | Das vollständige native `make -s lint` bestand mit dem zulässigen Task-Worktree-Framework-Output-Root; ein zuvor abgewiesener externer Output-Root war ein Umgebungsvertragsfehler, kein Quellfehler. | Task-eigene externe Validierungsumgebung |
+| Terminaler Security-Diff-Review des Sonar-Behebungs-Quellstands | 0 | Vollständige Follow-up-Abdeckung ohne reportable Findings; der Review deckt den exakten engen Remediation-Diff ab. | Versiegelter Report `b18c2bc50fb4_20260818T101455Z/report.md`, SHA-256 `3343ab1a37442dd1e85aa566943476da047f738b155c411a7cea8123d7308450` |
+| Exakte-Head-GitHub-Actions von PR #98 | 0 | Alle 10 anwendbaren Actions erreichten terminal success für `1eaebe2ac27bbeb4ec45592211538cc02d0c0ce4`, einschließlich nativem Lint und CI-Security-Quality. | GitHub-Actions-Exact-Head-Evidenz von PR #98 |
+| Exakte-Head-SonarQube Cloud von PR #98 | 0 | Quality Gate bestanden mit 0 New Issues, 0 Security Hotspots, 0,0 % Coverage on New Code und 0,0 % Duplication on New Code. | SonarQube-Cloud-Exact-Head-Decoration von PR #98 |
+| Frisches natives Framework-Lint vor dem Master-Preflight | 0 | Ein vollständiges `make -s lint` bestand vor dieser reinen Dokumentations-Reconciliation. | Task-eigene externe Validierungsumgebung |
 
 ## Sicherheitsauswirkung
 
@@ -148,17 +152,19 @@ und unterdrückt das Quality Gate nicht.
 Die gepaarten Variablen-Referenzen beschreiben die begrenzten CRS-v4-, die
 unabhängigen HTX- und die latest-stable-Node-Verträge in Englisch und Deutsch.
 Es wurde keine Connector-Runtime ausgeführt, und es wird keine Connector-
-Unterstützungs-, Produktions-, GitHub-App-, Credential- oder Merge-Evidenz
-behauptet.
+Unterstützungs-, Produktions-, GitHub-App- oder Credential-Evidenz behauptet.
+Exakte-Head-PR-Evidenz ist oben dokumentiert; es wird kein Merge- oder
+resultierendes-`master`-Ergebnis behauptet.
 
 ## Nicht ausgeführte Prüfungen
 
-- Der erneuerte terminale Security-Diff-Review und sein versiegelter
-  Evidenzreport stehen gegen den exakten engen
-  SonarQube-Duplizierungsbehebungs-Quellstand aus.
-- Hosted-PR-Checks und SonarQube Cloud stehen für den Follow-up-Head aus; die
-  erste exakte Head-Analyse ist als fehlgeschlagen dokumentiert und muss durch
-  eine frische erfolgreiche Analyse ersetzt werden.
+- Diese reine Dokumentations-Reconciliation ist ein neuer PR-Head. Ihre
+  frischen exakten GitHub-Actions und die SonarQube-Cloud-Analyse wurden für
+  diese Record-Source-Revision noch nicht ausgeführt; die erfolgreiche
+  Source-Remediation-Evidenz oben darf nicht als Nachweis für diesen neuen Head
+  wiederverwendet werden.
+- Es gibt noch keinen Framework-`master`-Workflow, weil der autorisierte Merge
+  noch nicht stattgefunden hat.
 
 ## Einschränkungen und Restrisiko
 
@@ -171,9 +177,11 @@ Node.js-Kandidatenlaufzeit aus, statt einen laufenden Workflow zu ändern.
 
 ## Finaler Diff- und Review-Status
 
-Die initiale lokale Source-Validierung und ihr erster Draft-PR sind oben
-dokumentiert. Die enge task-eigene SonarQube-Duplizierungsbehebung bestand die
-fokussierte lokale Revalidierung und das vollständige native Framework-Lint;
-sie wartet nun auf einen erneuerten terminalen Security-Diff-Review und frische
-exakte Hosted-Head-Checks. Dieser Record behauptet oder autorisiert keinen
-Merge.
+Die initiale lokale Source-Validierung, die SonarQube-Duplizierungsbehebung,
+der terminale Security-Review, die exakten Hosted-Head-Checks und das frische
+native Lint sind oben dokumentiert. Diese gepaarte Dokumentationskorrektur
+entfernt veraltete Delivery-Behauptungen und ist die einzige neue task-eigene
+Änderung. Der aktuelle Nutzer hat die Framework-`master`-Integration autorisiert,
+doch frische exakte Checks für diese neue Dokumentationsrevision, der
+Ready-for-Review-Übergang und der geschützte Squash-Merge stehen noch aus.
+Dieser Record behauptet keinen Merge.
