@@ -72,6 +72,16 @@ CI-security-quality pull-request path, which runs Pyright with that literal
 candidate Node.js runtime before the Draft PR can be considered for hosted
 checks and any separately authorized integration.
 
+The first exact-head SonarQube Cloud analysis of Draft PR #98 then reported
+3.5% duplication on new code, above the 3% Quality Gate threshold. Its
+duplication API localized the 20 new duplicated lines to the equivalent
+fixed-repository setup and precondition blocks in the manual and automatic
+Git-provenance resolvers. The shared
+`git_release_provenance_context()` helper centralizes that setup without
+changing the fixed repository, tag, peeled-commit, alias, or fail-closed
+precondition contract. No Sonar rule, threshold, exclusion, or suppression
+was changed.
+
 ## Changed files and tests
 
 - ci/tools/check-common-versions.py
@@ -95,6 +105,10 @@ to the canonical Node pin triggers the pull-request quality workflow, keeps a
 literal pin rather than `latest`, and invokes Pyright under that candidate
 Node runtime.
 
+The follow-up preserves existing manual and automatic CRS provenance coverage
+while removing the duplicated resolver precondition implementation identified
+by SonarQube Cloud.
+
 ## Commands and results
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
@@ -107,6 +121,9 @@ Node runtime.
 | Canonical, workflow-pin, and runtime projection checks | 0 | Canonical pins, workflow views, and runtime components passed. | Task-owned external validation environment |
 | Python compile and whitespace diff check | 0 | Changed Python files compiled and no whitespace errors were reported. | Task-owned external validation environment |
 | Full native Framework lint | 0 | Repository-native lint, canonical/runtime/workflow checks, documentation, and Change Record checks passed with explicit task-worktree roots. | Task-owned external validation environment |
+| Draft PR #98 first SonarQube Cloud analysis | nonzero | Quality Gate failed at 3.5% duplication on new code (threshold <= 3%); 20 new duplicated lines were localized to `ci/tools/check-common-versions.py`. | PR #98 SonarQube Cloud decoration and public duplication API |
+| Sonar-remediation provenance and compilation tests | 0 | Python compilation, 20 CRS Git-provenance tests, and 32 common-version provenance tests passed for the shared-helper source. | Task-owned external validation environment |
+| Sonar-remediation full native Framework lint | 0 | The complete native `make -s lint` passed with the permitted task-worktree Framework output root; an earlier rejected external output root was an environment-contract failure, not a source failure. | Task-owned external validation environment |
 
 ## Security impact
 
@@ -115,6 +132,11 @@ The original HTX source-to-checksum confusion risk is explicitly retested, and
 the alternate CRS metadata-bypass form with missing or non-boolean stability
 flags is rejected. Automatic outcomes remain contingent on fixed provenance,
 integrity, and complete atomic updates.
+
+The SonarQube duplication remediation preserves those controls by sharing the
+same fixed-provenance input validation between the two resolver dispositions;
+it does not turn a manual path automatic, loosen any input check, or suppress
+the Quality Gate.
 
 ## Documentation and runtime evidence
 
@@ -125,10 +147,11 @@ merge evidence is claimed.
 
 ## Checks not run
 
-- The terminal security diff review and its sealed evidence report are pending
-  against this final local source snapshot.
-- Hosted PR checks and SonarQube Cloud remain pending until an exact task-head
-  Draft PR exists.
+- The renewed terminal security diff review and its sealed evidence report are
+  pending against the exact narrow SonarQube duplication-remediation source.
+- Hosted PR checks and SonarQube Cloud are pending for the follow-up head; the
+  first exact-head analysis is documented as failed and must be replaced by a
+  fresh passing analysis.
 
 ## Limitations and residual risk
 
@@ -140,8 +163,8 @@ runtime rather than changing a running workflow.
 
 ## Final diff and review status
 
-Local source validation is complete and the Framework diff has a clean
-whitespace check. No commit, push, pull request, merge, Parent gitlink, or
-MRTS change exists at this local-validation point. The terminal security
-evidence and exact-head hosted validation remain delivery prerequisites; no
-merge is claimed or authorized by this record.
+The initial local source validation and its first Draft PR are recorded above.
+The narrow task-owned SonarQube duplication remediation has passed focused
+local revalidation and full native Framework lint; it now awaits a renewed
+terminal security diff review and fresh exact-head hosted checks. No merge is
+claimed or authorized by this record.

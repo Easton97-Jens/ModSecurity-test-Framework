@@ -75,6 +75,16 @@ auf den Pull-Request-Pfad der CI-Security-Quality-Prüfung, die Pyright mit
 dieser Literal-Node.js-Kandidatenlaufzeit ausführt, bevor der Draft-PR für
 Hosted-Checks und eine separat autorisierte Integration betrachtet werden kann.
 
+Die erste exakte SonarQube-Cloud-Head-Analyse von Draft-PR #98 meldete danach
+3,5 % Duplizierung auf neuem Code und lag damit über dem Quality-Gate-Grenzwert
+von 3 %. Die Duplizierungs-API ordnete die 20 neuen duplizierten Zeilen den
+gleichwertigen Setup- und Precondition-Blöcken der manuellen und automatischen
+Git-Provenance-Resolver zu. Der gemeinsame Helper
+`git_release_provenance_context()` zentralisiert dieses Setup, ohne den Vertrag
+für festes Repository, Tag, aufgelösten Commit, Aliasse oder fail-closed
+Preconditions zu verändern. Keine Sonar-Regel, kein Grenzwert, keine Exclusion
+und keine Suppression wurden geändert.
+
 ## Geänderte Dateien und Tests
 
 - ci/tools/check-common-versions.py
@@ -99,6 +109,10 @@ Kandidatenänderung am kanonischen Node-Pin den Pull-Request-Quality-Workflow
 auslöst, einen Literal-Pin statt `latest` behält und Pyright unter dieser
 Node-Kandidatenlaufzeit ausführt.
 
+Das Follow-up erhält die bestehende Abdeckung für manuelle und automatische
+CRS-Provenance und entfernt gleichzeitig die von SonarQube Cloud identifizierte
+duplizierte Resolver-Precondition-Implementierung.
+
 ## Befehle und Ergebnisse
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
@@ -111,6 +125,9 @@ Node-Kandidatenlaufzeit ausführt.
 | Kanonische-, Workflow-Pin- und Runtime-Projektionsprüfungen | 0 | Kanonische Pins, Workflow-Ansichten und Runtime-Komponenten bestanden. | Task-eigene externe Validierungsumgebung |
 | Python-Kompilierung und Whitespace-Diff-Prüfung | 0 | Geänderte Python-Dateien kompilierten, und es wurden keine Whitespace-Fehler gemeldet. | Task-eigene externe Validierungsumgebung |
 | Vollständiges natives Framework-Lint | 0 | Repository-natives Lint sowie kanonische-/Runtime-/Workflow-, Dokumentations- und Change-Record-Prüfungen bestanden mit expliziten Task-Worktree-Roots. | Task-eigene externe Validierungsumgebung |
+| Erste SonarQube-Cloud-Analyse von Draft-PR #98 | nichtnull | Quality Gate scheiterte bei 3,5 % Duplizierung auf neuem Code (Grenzwert <= 3 %); 20 neue duplizierte Zeilen wurden in `ci/tools/check-common-versions.py` lokalisiert. | SonarQube-Cloud-Decoration von PR #98 und öffentliche Duplizierungs-API |
+| Sonar-Behebungs-Provenance- und Kompilierungstests | 0 | Python-Kompilierung sowie 20 CRS-Git-Provenance- und 32 Common-Version-Provenance-Tests bestanden für den Shared-Helper-Quellstand. | Task-eigene externe Validierungsumgebung |
+| Sonar-Behebungs-vollständiges natives Framework-Lint | 0 | Das vollständige native `make -s lint` bestand mit dem zulässigen Task-Worktree-Framework-Output-Root; ein zuvor abgewiesener externer Output-Root war ein Umgebungsvertragsfehler, kein Quellfehler. | Task-eigene externe Validierungsumgebung |
 
 ## Sicherheitsauswirkung
 
@@ -120,6 +137,11 @@ Verwechslung wird ausdrücklich erneut getestet, und die alternative
 CRS-Metadaten-Umgehung mit fehlenden oder nicht booleschen Stabilitätsfeldern
 wird abgewiesen. Automatische Ergebnisse bleiben von fester Provenance,
 Integrität und vollständigen atomaren Updates abhängig.
+
+Die SonarQube-Duplizierungsbehebung erhält diese Controls, indem sie dieselbe
+Fixed-Provenance-Eingabevalidierung zwischen den beiden Resolver-Dispositionen
+teilt; sie macht keinen manuellen Pfad automatisch, lockert keine Eingabeprüfung
+und unterdrückt das Quality Gate nicht.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -131,10 +153,12 @@ behauptet.
 
 ## Nicht ausgeführte Prüfungen
 
-- Der terminale Security-Diff-Review und sein versiegelter Evidenzreport stehen
-  gegen diesen finalen lokalen Source-Snapshot noch aus.
-- Hosted-PR-Checks und SonarQube Cloud stehen aus, bis ein exakter Task-Head-
-  Draft-PR existiert.
+- Der erneuerte terminale Security-Diff-Review und sein versiegelter
+  Evidenzreport stehen gegen den exakten engen
+  SonarQube-Duplizierungsbehebungs-Quellstand aus.
+- Hosted-PR-Checks und SonarQube Cloud stehen für den Follow-up-Head aus; die
+  erste exakte Head-Analyse ist als fehlgeschlagen dokumentiert und muss durch
+  eine frische erfolgreiche Analyse ersetzt werden.
 
 ## Einschränkungen und Restrisiko
 
@@ -147,9 +171,9 @@ Node.js-Kandidatenlaufzeit aus, statt einen laufenden Workflow zu ändern.
 
 ## Finaler Diff- und Review-Status
 
-Die lokale Source-Validierung ist abgeschlossen und der Framework-Diff hat
-eine saubere Whitespace-Prüfung. Zu diesem Zeitpunkt der lokalen Validierung
-existieren kein Commit, Push, Pull Request, Merge, Parent-Gitlink- oder
-MRTS-Änderung. Der terminale Security-Evidenznachweis und die exakte
-Hosted-Head-Validierung bleiben Delivery-Voraussetzungen; dieser Record
-behauptet oder autorisiert keinen Merge.
+Die initiale lokale Source-Validierung und ihr erster Draft-PR sind oben
+dokumentiert. Die enge task-eigene SonarQube-Duplizierungsbehebung bestand die
+fokussierte lokale Revalidierung und das vollständige native Framework-Lint;
+sie wartet nun auf einen erneuerten terminalen Security-Diff-Review und frische
+exakte Hosted-Head-Checks. Dieser Record behauptet oder autorisiert keinen
+Merge.

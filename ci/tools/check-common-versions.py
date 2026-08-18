@@ -3114,16 +3114,16 @@ def resolve_github_peeled_commit(client: HttpClient, repo_path: str, tag: str) -
     )
 
 
-def check_manual_git_provenance(
+def git_release_provenance_context(
     definition: ComponentDefinition,
     entries: dict[str, VariableEntry],
-    client: HttpClient,
-) -> ComponentResult:
-    """Report manual tag/peeled-commit transitions without weakening pins."""
+) -> tuple[str, str, re.Pattern[str], str, ComponentResult | None]:
+    """Build and validate shared fixed-repository Git provenance inputs."""
 
     release_tag_var = cast(str, definition.release_tag_variable)
     commit_var = cast(str, definition.git_commit_variable)
     expected_tag = re.compile(definition.tag_pattern)
+    repository = cast(str, definition.github_repository)
     aliases = {
         alias: value(entries, expected_variable)
         for alias, expected_variable in definition.alias_bindings
@@ -3131,19 +3131,36 @@ def check_manual_git_provenance(
     precondition = git_release_provenance_precondition(
         definition.name,
         entries,
-        expected_repository=cast(str, definition.github_repository),
+        expected_repository=repository,
         release_tag_var=release_tag_var,
         approved_commit_var=commit_var,
         expected_tag=expected_tag,
         aliases=aliases,
         variables=list(definition.variables),
     )
+    return release_tag_var, commit_var, expected_tag, repository, precondition
+
+
+def check_manual_git_provenance(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    client: HttpClient,
+) -> ComponentResult:
+    """Report manual tag/peeled-commit transitions without weakening pins."""
+
+    (
+        release_tag_var,
+        commit_var,
+        expected_tag,
+        repository,
+        precondition,
+    ) = git_release_provenance_context(definition, entries)
     if precondition is not None:
         return precondition
     current_tag = value(entries, release_tag_var)
     current_commit = value(entries, commit_var)
     resolved_current_commit = resolve_github_peeled_commit(
-        client, cast(str, definition.github_repository), current_tag
+        client, repository, current_tag
     )
     if resolved_current_commit != current_commit:
         return ComponentResult(
@@ -3152,20 +3169,18 @@ def check_manual_git_provenance(
             message="Configured immutable commit does not equal the configured release tag's peeled commit.",
             variables=list(definition.variables),
             current=current_tag,
-            source=f"https://github.com/{definition.github_repository}",
+            source=f"https://github.com/{repository}",
             details={
                 "configured_commit": current_commit,
                 "resolved_peeled_commit": resolved_current_commit,
             },
         )
-    latest_release = latest_github_release(
-        client, cast(str, definition.github_repository)
-    )
+    latest_release = latest_github_release(client, repository)
     latest_tag = require_stable_github_release(
-        latest_release, cast(str, definition.github_repository), definition.tag_pattern
+        latest_release, repository, definition.tag_pattern
     )
     latest_commit = resolve_github_peeled_commit(
-        client, cast(str, definition.github_repository), latest_tag
+        client, repository, latest_tag
     )
     comparison = compare_versions(current_tag, latest_tag)
     if comparison > 0:
@@ -3178,7 +3193,7 @@ def check_manual_git_provenance(
             latest=latest_tag,
             latest_upstream=latest_tag,
             latest_compatible=latest_tag,
-            source=f"https://github.com/{definition.github_repository}/releases/latest",
+            source=f"https://github.com/{repository}/releases/latest",
         )
     if comparison < 0:
         manual_variables = MANUAL_REVIEW_VARIABLES[definition.name]
@@ -3194,7 +3209,7 @@ def check_manual_git_provenance(
             latest=latest_tag,
             latest_upstream=latest_tag,
             latest_compatible=latest_tag,
-            source=f"https://github.com/{definition.github_repository}/releases/latest",
+            source=f"https://github.com/{repository}/releases/latest",
             official_sha256=latest_commit,
             sha256_source="peeled_git_tag_commit",
             details={
@@ -3216,7 +3231,7 @@ def check_manual_git_provenance(
         latest=latest_tag,
         latest_upstream=latest_tag,
         latest_compatible=latest_tag,
-        source=f"https://github.com/{definition.github_repository}/releases/latest",
+        source=f"https://github.com/{repository}/releases/latest",
         official_sha256=resolved_current_commit,
         sha256_source="peeled_git_tag_commit",
         details={"peeled_commit": resolved_current_commit},
@@ -3230,26 +3245,15 @@ def check_automatic_git_provenance(
 ) -> ComponentResult:
     """Resolve a fixed-repository tag/peeled-commit transition atomically."""
 
-    release_tag_var = cast(str, definition.release_tag_variable)
-    commit_var = cast(str, definition.git_commit_variable)
-    expected_tag = re.compile(definition.tag_pattern)
-    aliases = {
-        alias: value(entries, expected_variable)
-        for alias, expected_variable in definition.alias_bindings
-    }
-    precondition = git_release_provenance_precondition(
-        definition.name,
-        entries,
-        expected_repository=cast(str, definition.github_repository),
-        release_tag_var=release_tag_var,
-        approved_commit_var=commit_var,
-        expected_tag=expected_tag,
-        aliases=aliases,
-        variables=list(definition.variables),
-    )
+    (
+        release_tag_var,
+        commit_var,
+        expected_tag,
+        repository,
+        precondition,
+    ) = git_release_provenance_context(definition, entries)
     if precondition is not None:
         return precondition
-    repository = cast(str, definition.github_repository)
     current_tag = value(entries, release_tag_var)
     current_commit = value(entries, commit_var)
     resolved_current_commit = resolve_github_peeled_commit(
