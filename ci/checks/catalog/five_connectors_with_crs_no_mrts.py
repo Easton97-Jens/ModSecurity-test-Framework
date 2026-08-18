@@ -43,9 +43,6 @@ PROFILE = "five-connectors-with-crs-no-mrts"
 SCHEMA_VERSION = 1
 CONNECTORS = ("apache", "haproxy", "envoy", "traefik", "lighttpd")
 CRS_RULE_FILE = "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
-CRS_RULE_FILE_SHA256 = (
-    "db756f71e8270280c5ae74d09c11250fad8c118f6a905c6a6794d5643d27cd00"
-)
 EXPECTED_RULE_ID = 942270
 FIXTURE_ID = "crs_sqli_anomaly_block"
 ALLOW_PATH = "/?id=42"
@@ -63,6 +60,7 @@ _CRS_PINS = load_crs_pins(FRAMEWORK_ROOT / "ci/lib/common.sh", root=FRAMEWORK_RO
 CRS_REPOSITORY = _CRS_PINS.repository
 CRS_RELEASE_TAG = _CRS_PINS.release_tag
 CRS_COMMIT = _CRS_PINS.commit
+CRS_RULE_FILE_SHA256 = _CRS_PINS.rule_file_sha256
 FIXTURE_PATH = FRAMEWORK_ROOT / "tests/cases/security/crs/crs_sqli_anomaly_block.yaml"
 SCHEMA_DIRECTORY = FRAMEWORK_ROOT / "tests/schemas/five-connectors-with-crs-no-mrts"
 EVENT_SCHEMA_PATH = SCHEMA_DIRECTORY / "normalized-event.schema.json"

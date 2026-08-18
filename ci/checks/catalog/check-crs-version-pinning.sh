@@ -58,7 +58,8 @@ check_path() {
     check_literal "$path" "$CRS_APPROVED_REPO_URL" CRS_APPROVED_REPO_URL
     check_literal "$path" "$CRS_APPROVED_COMMIT" CRS_APPROVED_COMMIT
     check_literal "$path" "$CRS_RELEASE_TAG" CRS_RELEASE_TAG
-    if grep -nE 'CRS_(APPROVED_REPO_URL|APPROVED_COMMIT|RELEASE_TAG|REPO_URL|GIT_REF)[[:space:]]*[:?+]?=' "$path" >"$tmp_file" 2>/dev/null; then
+    check_literal "$path" "$CRS_RULE_FILE_SHA256" CRS_RULE_FILE_SHA256
+    if grep -nE 'CRS_(APPROVED_REPO_URL|APPROVED_COMMIT|RELEASE_TAG|RULE_FILE_SHA256|REPO_URL|GIT_REF)[[:space:]]*[:?+]?=' "$path" >"$tmp_file" 2>/dev/null; then
         cat "$tmp_file"
         ci_error "CRS provenance assignments must be defined only in ci/lib/common.sh: $path"
         status=1
@@ -89,6 +90,17 @@ fi
 
 ci_require_https_github_repo_url "$CRS_APPROVED_REPO_URL" CRS_APPROVED_REPO_URL || exit 77
 ci_require_full_git_commit "$CRS_APPROVED_COMMIT" CRS_APPROVED_COMMIT || exit 77
+if [ "${#CRS_RULE_FILE_SHA256}" -ne 64 ]; then
+    ci_error "CRS_RULE_FILE_SHA256 must contain exactly 64 lowercase hexadecimal characters"
+    exit 77
+fi
+case "$CRS_RULE_FILE_SHA256" in
+    *[!0123456789abcdef]*)
+        ci_error "CRS_RULE_FILE_SHA256 must contain exactly 64 lowercase hexadecimal characters"
+        exit 77
+        ;;
+    *) : ;;
+esac
 if [ "$CRS_REPO_URL" != "$CRS_APPROVED_REPO_URL" ]; then
     ci_error "CRS_REPO_URL must equal the approved CRS origin"
     exit 77

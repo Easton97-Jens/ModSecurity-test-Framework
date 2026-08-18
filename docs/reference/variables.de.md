@@ -193,14 +193,18 @@ MRTS-Eingaben oder generierte Pfade. `MODSECURITY_MRTS_VARIANT` akzeptiert
 `no-mrts` oder `with-mrts`; `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1`
 aktiviert optionale Demo-Inhalte erst nach Kollisionsprüfungen.
 
-`CRS_APPROVED_REPO_URL`, `CRS_APPROVED_COMMIT` und `CRS_GIT_REF` bilden das
-zentrale Provenance-Tupel in `ci/lib/common.sh`; sie sind keine
-Caller-Eingaben.
+`CRS_APPROVED_REPO_URL`, `CRS_APPROVED_COMMIT`, `CRS_RELEASE_TAG`,
+`CRS_RULE_FILE_SHA256` und `CRS_GIT_REF` bilden das zentrale CRS-
+Provenance-Tupel in `ci/lib/common.sh`; sie sind keine Caller-Eingaben.
 `fetch-crs.sh` weist eine abweichende `CRS_REPO_URL` oder `CRS_GIT_REF` vor der
 Git-Ausführung ab, lädt nur die exakte zentrale Tag-Ref und verlangt, dass ihr
 aufgelöstes Objekt `CRS_APPROVED_COMMIT` entspricht; eine Caller-selektierte Ref
 wird nie akzeptiert. Umgebungsversuche zum Ersetzen der beiden freigegebenen
 Provenance-Literale werden durch die zentrale Definition überschrieben.
+`CRS_RULE_FILE_SHA256` bindet die geprüfte SQLi-Regeldatei an diesen
+unveränderlichen Commit; die begrenzte automatische CRS-v4-Wartung löst Tag,
+aufgelösten Commit und Regel-Digest als eine prüfbare Gruppe auf und aktualisiert
+sie gemeinsam.
 
 `CRS_SOURCE_DIR` muss ein nicht vorhandener Pfad unter dem zulässigen externen
 `SOURCE_ROOT` sein; ein vorhandenes Verzeichnis oder ein Link wird nicht
@@ -289,7 +293,7 @@ Gruppe erzeugt und nicht unabhängig ausgewählt.
 | OpenSSL for NGINX QUIC/TLS | automatic | Neuestes GitHub-Release `openssl-<version>` ohne Draft und Prerelease; Digest des Release-Assets. |
 | HAProxy | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis, durch das explizite `HAPROXY_SERIES`- und Release-Root/Basis-URL-Tupel begrenzt; offizielle SHA-256-Datei pro Asset. |
 | HAProxy HTX | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis innerhalb des eigenen expliziten HTX-Serien-, Release-Root- und Basis-URL-Tupels; die offizielle SHA-256-Datei pro Asset wird mit diesem Tupel aktualisiert und nie aus dem normalen HAProxy-Ergebnis abgeleitet. |
-| OWASP Core Rule Set | automatic | Neuestes GitHub-Release ohne Draft und Prerelease, das `v4.x.x` entspricht; festes Repository und unveränderlicher aufgelöster Git-Tag-Commit werden als ein atomares Tag/Commit-Paar aktualisiert. Releases außerhalb von `v4.x.x` werden niemals automatisch übernommen. |
+| OWASP Core Rule Set | automatic | Neuestes GitHub-Release ohne Draft und Prerelease, das `v4.x.x` entspricht; festes Repository, unveränderlicher aufgelöster Git-Tag-Commit und SHA-256 der geprüften SQLi-Regeldatei werden als eine atomare Provenance-Gruppe aktualisiert. Releases außerhalb von `v4.x.x` werden niemals automatisch übernommen. |
 | ModSecurity v3 | manual_review | Neuestes stabiles GitHub-Release `v3.<version>` und dessen unveränderlicher aufgelöster Git-Tag-Commit werden zur Prüfung gemeldet; der geprüfte Tag/Commit-Pin wird nicht automatisch geändert. |
 | ModSecurity Apache connector | not_applicable | Repository-lokale Connector-Quelle, solange sie nicht ausdrücklich konfiguriert wird; kein Common-Version-Abrufvertrag existiert. |
 | ModSecurity NGINX connector | not_applicable | Repository-lokale Connector-Quelle, solange sie nicht ausdrücklich konfiguriert wird; kein Common-Version-Abrufvertrag existiert. |

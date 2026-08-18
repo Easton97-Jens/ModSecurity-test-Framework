@@ -312,7 +312,7 @@ class RuntimeComponentSyncTests(unittest.TestCase):
         mutations = {
             'LIGHTTPD_SERIES="1.4"': 'LIGHTTPD_SERIES="1.5"',
             'HAPROXY_SERIES="3.2"': 'HAPROXY_SERIES="3.x"',
-            'HAPROXY_HTX_VERSION="3.2.21"': 'HAPROXY_HTX_VERSION="2.2.21"',
+            'HAPROXY_HTX_VERSION="3.2.22"': 'HAPROXY_HTX_VERSION="2.2.22"',
         }
         self.assert_mutations_rejected(mutations)
 

@@ -32,6 +32,7 @@ class CrsVersionPinningPathTests(unittest.TestCase):
                 "CRS_APPROVED_REPO_URL",
                 "CRS_APPROVED_COMMIT",
                 "CRS_RELEASE_TAG",
+                "CRS_RULE_FILE_SHA256",
                 "CRS_REPO_URL",
                 "CRS_GIT_REF",
             ):
