@@ -97,16 +97,8 @@ class RuntimeComponentSyncTests(unittest.TestCase):
             },
         )
         self.assertIn("lighttpd-sidecar", profiles)
-        self.assertNotEqual(
-            profiles["haproxy-htx"]["version"], profiles["haproxy-spoe-spop"]["version"]
-        )
-        self.assertNotEqual(
-            profiles["haproxy-htx"]["sha256"], profiles["haproxy-spoe-spop"]["sha256"]
-        )
-        self.assertNotEqual(
-            profiles["haproxy-htx"]["download_url"],
-            profiles["haproxy-spoe-spop"]["download_url"],
-        )
+        self.assertEqual(profiles["haproxy-htx"]["profile"], "htx")
+        self.assertEqual(profiles["haproxy-spoe-spop"]["profile"], "spoe/spop")
         self.assertEqual(
             profiles["haproxy-htx"]["source_url"],
             profiles["haproxy-htx"]["download_url"],
@@ -126,6 +118,34 @@ class RuntimeComponentSyncTests(unittest.TestCase):
             lighttpd["source_stage_dir"],
             "$BUILD_ROOT/lighttpd-connector/src/lighttpd-1.4.85",
         )
+
+    def test_haproxy_profiles_remain_distinct_when_their_release_values_coincide(self):
+        temporary, common, manifest, lock = self.fixture()
+        with temporary:
+            source = common.read_text(encoding="utf-8")
+            source = source.replace(
+                'HAPROXY_HTX_VERSION="3.2.21"',
+                'HAPROXY_HTX_VERSION="3.2.22"',
+                1,
+            ).replace(
+                'HAPROXY_HTX_SHA256="0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339"',
+                'HAPROXY_HTX_SHA256="afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da"',
+                1,
+            )
+            common.write_text(source, encoding="utf-8")
+            result = self.run_tool(
+                "--write", common=common, manifest=manifest, lock=lock
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            profiles = {item["id"]: item for item in self.load(lock)["profiles"]}
+            htx = profiles["haproxy-htx"]
+            generic = profiles["haproxy-spoe-spop"]
+            self.assertEqual(htx["profile"], "htx")
+            self.assertEqual(generic["profile"], "spoe/spop")
+            self.assertEqual(htx["version"], generic["version"])
+            self.assertEqual(htx["sha256"], generic["sha256"])
+            self.assertEqual(htx["download_url"], generic["download_url"])
 
     def test_write_is_idempotent(self):
         temporary, common, manifest, lock = self.fixture()

@@ -275,14 +275,14 @@ variable are rendered from the updated group rather than chosen independently.
 | NGINX | automatic | Latest non-draft, non-prerelease `release-<version>` GitHub release; release-asset digest and matching release tag/ref/asset tuple. |
 | OpenSSL for NGINX QUIC/TLS | automatic | Latest non-draft, non-prerelease `openssl-<version>` GitHub release; release-asset digest. |
 | HAProxy | automatic | Latest numeric official HAProxy-directory release, constrained by the explicit `HAPROXY_SERIES` and release-root/base tuple; official per-asset SHA-256 file. |
-| HAProxy HTX | automatic | The HTX compatibility line is resolved as its own explicit series, release-root, and base tuple; it is never inferred from the normal HAProxy result. |
-| OWASP Core Rule Set | manual_review | Latest stable GitHub release and immutable peeled Git-tag commit are reported for review; the reviewed tag/commit pin is not automatically changed. |
+| HAProxy HTX | automatic | Latest numeric official HAProxy-directory release in its own explicit HTX series, release-root, and base tuple; the official per-asset SHA-256 is updated with that tuple and it is never inferred from the normal HAProxy result. |
+| OWASP Core Rule Set | automatic | Latest non-draft, non-prerelease stable GitHub release matching `v4.x.x`; the fixed repository and immutable peeled Git-tag commit update as one atomic tag/commit pair. Releases outside `v4.x.x` are never automatically applied. |
 | ModSecurity v3 | manual_review | Latest stable `v3.<version>` GitHub release and immutable peeled Git-tag commit are reported for review; the reviewed tag/commit pin is not automatically changed. |
 | ModSecurity Apache connector | not_applicable | Repo-local connector source unless explicitly configured; no common-version acquisition contract exists. |
 | ModSecurity NGINX connector | not_applicable | Repo-local connector source unless explicitly configured; no common-version acquisition contract exists. |
 | go-ftw | automatic | Mandatory global GitHub release/tag/immutable-commit provenance check in every maintenance run. |
 | Albedo | automatic | Mandatory global GitHub release/tag/immutable-commit provenance check in every maintenance run. |
-| CI maintenance globals | automatic | Mandatory global checks for canonical Python/PyYAML/Node pins, workflow actions, and CI-security tools; artifacts and generated views are checked as one plan. |
+| CI maintenance globals | automatic | Mandatory global checks for canonical Python/PyYAML pins, the latest stable Node.js pin including major transitions, workflow actions, and CI-security tools; artifacts and generated views are checked as one plan. |
 | Expat | not_applicable | Legacy metadata has no Framework source-acquisition consumer. |
 | Default branch | not_applicable | Local policy default, not an upstream release source. |
 
@@ -325,6 +325,11 @@ create or update its Draft pull request. Generated runtime, Python, workflow,
 and CRS views are checked in the same plan. Manual-review issues are reconciled
 only by a trusted default-branch job from the typed plan; pull requests do not
 gain issue-write authority.
+
+A Node.js major update is still proposed only as a literal-pin Draft PR. Its
+`ci/lib/common.sh` change is in the CI-security-quality pull-request path, so
+Pyright runs with that candidate Node.js runtime before hosted CI, SonarQube
+Cloud review, and any separately authorized integration decision.
 
 ## Tooling, status values, and sensitive data
 

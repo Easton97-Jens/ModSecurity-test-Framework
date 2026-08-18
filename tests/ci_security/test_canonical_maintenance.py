@@ -189,6 +189,50 @@ class CanonicalMaintenanceTests(unittest.TestCase):
         )
         self.assertEqual(reviews, [])
 
+    def test_node_uses_the_latest_stable_release_across_major_lines(self) -> None:
+        result, reviews = MAINTENANCE.resolve_node(
+            entries({"CI_CANONICAL_NODE_VERSION": "24.19.0"}),
+            FakeListClient(
+                [
+                    {"version": "v24.20.0"},
+                    {"version": "v25.0.0"},
+                    {"version": "v26.0.0-rc.1"},
+                    {"version": "not-a-release"},
+                ]
+            ),
+        )
+
+        self.assertEqual(result["status"], "outdated")
+        self.assertEqual(result["latest_upstream"], "25.0.0")
+        self.assertEqual(result["latest_compatible"], "25.0.0")
+        self.assertEqual(
+            result["updates"],
+            [
+                {
+                    "variable": "CI_CANONICAL_NODE_VERSION",
+                    "old": "24.19.0",
+                    "new": "25.0.0",
+                }
+            ],
+        )
+        self.assertEqual(result["details"]["update_policy"], "latest_stable")
+        self.assertEqual(reviews, [])
+
+    def test_node_blocks_when_only_prerelease_or_malformed_records_exist(self) -> None:
+        result, reviews = MAINTENANCE.resolve_node(
+            entries({"CI_CANONICAL_NODE_VERSION": "24.19.0"}),
+            FakeListClient(
+                [
+                    {"version": "v25.0.0-rc.1"},
+                    {"version": "not-a-release"},
+                ]
+            ),
+        )
+
+        self.assertEqual(result["status"], "blocked")
+        self.assertIn("no stable numeric releases", result["message"])
+        self.assertEqual(reviews, [])
+
     def test_dynamic_ci_group_coverage_rejects_an_incomplete_tool_tuple(self) -> None:
         def resolve_groups() -> object:
             return MAINTENANCE._groups(

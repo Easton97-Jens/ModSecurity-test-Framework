@@ -346,8 +346,8 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                 f'HAPROXY_HTX_SERIES="${{HAPROXY_HTX_SERIES:-{series}}}"',
                 f'HAPROXY_HTX_SERIES_BASE_URL="${{HAPROXY_HTX_SERIES_BASE_URL:-{release_root}/{series}/src}}"',
                 f'HAPROXY_HTX_VERSION="${{HAPROXY_HTX_VERSION:-{version}}}"',
-                f'HAPROXY_HTX_ARCHIVE_NAME="${{HAPROXY_HTX_ARCHIVE_NAME:-haproxy-{version}{TARBALL_EXTENSION}}}"',
-                f'HAPROXY_HTX_SOURCE_URL="${{HAPROXY_HTX_SOURCE_URL:-{release_root}/{series}/src/haproxy-{version}{TARBALL_EXTENSION}}}"',
+                'HAPROXY_HTX_ARCHIVE_NAME="haproxy-$HAPROXY_HTX_VERSION.tar.gz"',
+                'HAPROXY_HTX_SOURCE_URL="$HAPROXY_HTX_SERIES_BASE_URL/$HAPROXY_HTX_ARCHIVE_NAME"',
                 f'HAPROXY_HTX_SHA256="${{HAPROXY_HTX_SHA256:-{CHECKSUM}}}"',
                 "",
             ]
@@ -818,15 +818,17 @@ class CommonVersionProvenanceTests(unittest.TestCase):
         self.assertIn("HAPROXY_SHA256 is required", result.message)
         self.assertEqual(client.urls, [])
 
-    def test_haproxy_htx_version_transition_requires_manual_review(self):
+    def test_haproxy_htx_version_transition_is_an_automatic_atomic_tuple(self):
         current = "3.2.21"
         latest = "3.2.22"
         base = "https://www.haproxy.org/download/3.2/src"
         listing_url = f"{base}/"
         latest_asset = f"haproxy-{latest}{TARBALL_EXTENSION}"
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
-            fixture = Path(temporary) / FIXTURE_NAME
-            _, fixture_entries = self.parse_fixture(
+            build_root = Path(temporary) / "build"
+            fixture = build_root / "fixtures" / COMMON_SH_NAME
+            fixture.parent.mkdir(parents=True)
+            fixture_lines, fixture_entries = self.parse_fixture(
                 fixture,
                 self.haproxy_fixture(
                     current,
@@ -834,6 +836,132 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                     CHECKSUM,
                 ),
             )
+            raw_result = CHECKER.check_haproxy_htx(
+                fixture_entries,
+                FixtureHttpClient(
+                    {
+                        listing_url: (
+                            f"haproxy-{current}{TARBALL_EXTENSION} {latest_asset}"
+                        ),
+                        f"{base}/{latest_asset}{SHA256_SUFFIX}": (
+                            f"{'b' * 64}  {latest_asset}\n"
+                        ),
+                    }
+                ),
+            )
+            definition = CHECKER.COMPONENT_DEFINITION_BY_NAME[
+                CHECKER.HAPROXY_HTX_COMPONENT
+            ]
+            result = CHECKER.decorate_component_result(
+                definition, raw_result, fixture_entries
+            )
+            disposition = CHECKER.maintenance_disposition(
+                [result], fixture_entries, defer_reviewed_provenance=False
+            )
+            incomplete = dataclasses.replace(result, updates=result.updates[:1])
+            incomplete_disposition = CHECKER.maintenance_disposition(
+                [incomplete], fixture_entries, defer_reviewed_provenance=False
+            )
+            with patch.dict(os.environ, {"BUILD_ROOT": str(build_root)}, clear=False):
+                applied = CHECKER.apply_requested_updates(
+                    True,
+                    1,
+                    fixture,
+                    fixture_lines,
+                    fixture_entries,
+                    [result],
+                )
+
+        self.assertEqual(result.status, CHECKER.STATUS_OUTDATED)
+        self.assertEqual(
+            [update.variable for update in result.updates],
+            ["HAPROXY_HTX_VERSION", "HAPROXY_HTX_SHA256"],
+        )
+        self.assertEqual(
+            result.update_policy, CHECKER.AUTOMATIC_UPDATE_POLICY
+        )
+        self.assertEqual(
+            CHECKER.COMPONENT_DEFINITION_BY_NAME["HAProxy"].update_policy,
+            CHECKER.AUTOMATIC_UPDATE_POLICY,
+        )
+        self.assertEqual(
+            disposition.outcome,
+            CHECKER.MAINTENANCE_OUTCOME_SAFE_UPDATES,
+        )
+        self.assertEqual(
+            [update.variable for update in disposition.automatic_updates],
+            ["HAPROXY_HTX_VERSION", "HAPROXY_HTX_SHA256"],
+        )
+        self.assertEqual(
+            incomplete_disposition.outcome, CHECKER.MAINTENANCE_OUTCOME_FATAL
+        )
+        self.assertIn(
+            CHECKER.HAPROXY_HTX_COMPONENT,
+            incomplete_disposition.fatal_components,
+        )
+        self.assertIsNotNone(applied)
+        assert applied is not None
+        self.assertEqual(applied[0], 0)
+        applied_entries = applied[3]
+        self.assertEqual(CHECKER.value(applied_entries, "HAPROXY_VERSION"), current)
+        self.assertEqual(CHECKER.value(applied_entries, "HAPROXY_SHA256"), CHECKSUM)
+        self.assertEqual(CHECKER.value(applied_entries, "HAPROXY_HTX_VERSION"), latest)
+        self.assertEqual(CHECKER.value(applied_entries, "HAPROXY_HTX_SHA256"), "b" * 64)
+
+    def test_haproxy_htx_checksum_drift_is_an_automatic_atomic_tuple(self):
+        current = "3.2.21"
+        base = "https://www.haproxy.org/download/3.2/src"
+        listing_url = f"{base}/"
+        asset = f"haproxy-{current}{TARBALL_EXTENSION}"
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            fixture = Path(temporary) / FIXTURE_NAME
+            _, fixture_entries = self.parse_fixture(
+                fixture,
+                self.haproxy_fixture(current, f"{base}/{asset}", CHECKSUM),
+            )
+            raw_result = CHECKER.check_haproxy_htx(
+                fixture_entries,
+                FixtureHttpClient(
+                    {
+                        listing_url: asset,
+                        f"{base}/{asset}{SHA256_SUFFIX}": f"{'b' * 64}  {asset}\n",
+                    }
+                ),
+            )
+            result = CHECKER.decorate_component_result(
+                CHECKER.COMPONENT_DEFINITION_BY_NAME[CHECKER.HAPROXY_HTX_COMPONENT],
+                raw_result,
+                fixture_entries,
+            )
+            disposition = CHECKER.maintenance_disposition(
+                [result], fixture_entries, defer_reviewed_provenance=False
+            )
+
+        self.assertEqual(result.status, CHECKER.STATUS_OUTDATED)
+        self.assertEqual(
+            [update.variable for update in result.updates], ["HAPROXY_HTX_SHA256"]
+        )
+        self.assertEqual(result.official_sha256, "b" * 64)
+        self.assertEqual(result.update_policy, CHECKER.AUTOMATIC_UPDATE_POLICY)
+        self.assertEqual(
+            disposition.outcome, CHECKER.MAINTENANCE_OUTCOME_SAFE_UPDATES
+        )
+
+    def test_haproxy_htx_literal_source_url_never_becomes_a_checksum_url(self):
+        current = "3.2.21"
+        latest = "3.2.22"
+        base = "https://www.haproxy.org/download/3.2/src"
+        listing_url = f"{base}/"
+        latest_asset = f"haproxy-{latest}{TARBALL_EXTENSION}"
+        source = self.haproxy_fixture(
+            current, f"{base}/haproxy-{current}{TARBALL_EXTENSION}", CHECKSUM
+        ).replace(
+            'HAPROXY_HTX_SOURCE_URL="$HAPROXY_HTX_SERIES_BASE_URL/$HAPROXY_HTX_ARCHIVE_NAME"',
+            f'HAPROXY_HTX_SOURCE_URL="{base}/haproxy-{current}{TARBALL_EXTENSION}"',
+        )
+        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
+            fixture = Path(temporary) / FIXTURE_NAME
+            _, fixture_entries = self.parse_fixture(fixture, source)
             result = CHECKER.check_haproxy_htx(
                 fixture_entries,
                 FixtureHttpClient(
@@ -848,60 +976,13 @@ class CommonVersionProvenanceTests(unittest.TestCase):
                 ),
             )
 
-            generic = self.haproxy_safe_update(fixture_entries)
-            disposition = CHECKER.maintenance_disposition(
-                [result, generic], fixture_entries, defer_reviewed_provenance=True
-            )
-
-        self.assertEqual(result.status, CHECKER.STATUS_REVIEW_REQUIRED)
-        self.assertEqual(result.updates, [])
+        updates = {update.variable: update.new for update in result.updates}
+        self.assertEqual(updates["HAPROXY_HTX_VERSION"], latest)
         self.assertEqual(
-            result.details["manual_variables"],
-            list(CHECKER.MANUAL_REVIEW_VARIABLES[CHECKER.HAPROXY_HTX_COMPONENT]),
+            updates["HAPROXY_HTX_SOURCE_URL"], f"{base}/{latest_asset}"
         )
-        self.assertEqual(
-            CHECKER.COMPONENT_DEFINITION_BY_NAME[
-                CHECKER.HAPROXY_HTX_COMPONENT
-            ].update_policy,
-            "manual_review",
-        )
-        self.assertEqual(
-            CHECKER.COMPONENT_DEFINITION_BY_NAME["HAProxy"].update_policy,
-            CHECKER.AUTOMATIC_UPDATE_POLICY,
-        )
-        self.assertEqual(
-            disposition.outcome,
-            CHECKER.MAINTENANCE_OUTCOME_SAFE_UPDATES_WITH_MANUAL_REVIEW,
-        )
-        self.assertEqual(
-            [update.variable for update in disposition.automatic_updates],
-            ["HAPROXY_VERSION", "HAPROXY_SHA256"],
-        )
-
-    def test_haproxy_htx_checksum_drift_requires_manual_review(self):
-        current = "3.2.21"
-        base = "https://www.haproxy.org/download/3.2/src"
-        listing_url = f"{base}/"
-        asset = f"haproxy-{current}{TARBALL_EXTENSION}"
-        with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:
-            fixture = Path(temporary) / FIXTURE_NAME
-            _, fixture_entries = self.parse_fixture(
-                fixture,
-                self.haproxy_fixture(current, f"{base}/{asset}", CHECKSUM),
-            )
-            result = CHECKER.check_haproxy_htx(
-                fixture_entries,
-                FixtureHttpClient(
-                    {
-                        listing_url: asset,
-                        f"{base}/{asset}{SHA256_SUFFIX}": f"{'b' * 64}  {asset}\n",
-                    }
-                ),
-            )
-
-        self.assertEqual(result.status, CHECKER.STATUS_REVIEW_REQUIRED)
-        self.assertEqual(result.updates, [])
-        self.assertEqual(result.official_sha256, "b" * 64)
+        self.assertEqual(updates["HAPROXY_HTX_SHA256"], "b" * 64)
+        self.assertNotIn(f"{base}/{latest_asset}{SHA256_SUFFIX}", updates.values())
 
     def test_check_mode_does_not_apply_a_planned_update(self):
         with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX) as temporary:

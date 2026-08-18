@@ -53,6 +53,7 @@ GITHUB_STABLE_RELEASE_POLICY = (
     "GitHub non-draft, non-prerelease stable v<version> release"
 )
 VERSION_TAG_PATTERN = r"^v\d+(?:\.\d+)+$"
+CRS_V4_TAG_PATTERN = r"^v4\.\d+\.\d+$"
 APACHE_APR_SOURCE_PATH_PREFIX = "/apr/"
 NO_HIDDEN_SERIES_RESTRICTION = "latest stable release; no hidden series restriction"
 APACHE_LISTING_RESOLVER = "apache_listing"
@@ -234,16 +235,15 @@ MAINTENANCE_OUTCOMES = frozenset(
 FATAL_STATUSES = frozenset({STATUS_UNKNOWN, STATUS_BLOCKED, STATUS_ERROR})
 CRS_COMPONENT = "OWASP Core Rule Set"
 HAPROXY_HTX_COMPONENT = "HAProxy HTX"
-# Resolver descriptors use a neutral marker.  The reviewed repository identity
-# is read from the canonical common.sh URL at resolution time; keeping the
-# marker here prevents a second handwritten upstream identity.
+# Resolver descriptors use neutral markers when their upstream URL is derived
+# from common.sh. Repository identity hashes bind sensitive GitHub consumers to
+# an immutable upstream without copying a second active URL pin into this tool.
 CANONICAL_REPOSITORY_MARKER = "canonical/repository"
 CRS_APPROVED_REPOSITORY = CANONICAL_REPOSITORY_MARKER
 MODSECURITY_V3_APPROVED_REPOSITORY = CANONICAL_REPOSITORY_MARKER
-# Digest of the fixed upstream repository identity.  Keep the readable URL in
-# common.sh as the canonical authority; this immutable trust anchor prevents a
-# candidate from redirecting the ModSecurity v3 provenance lookup without
-# reintroducing a copied active URL pin in this consumer.
+CRS_APPROVED_REPOSITORY_SHA256 = (
+    "f953201103b4963cdcd5d77b9bb3f3cfabc8c262a73b6999a44f4a8a771e5e9e"
+)
 MODSECURITY_V3_APPROVED_REPOSITORY_SHA256 = (
     "3aa7b655ad2eec501e97cbc4a76fa820dd20cb4c95696ca41d0b1280ab8fa0fd"
 )
@@ -395,13 +395,6 @@ def _canonical_required_fields(
 
 
 MANUAL_REVIEW_VARIABLES = {
-    CRS_COMPONENT: (
-        "CRS_APPROVED_REPO_URL",
-        "CRS_RELEASE_TAG",
-        "CRS_APPROVED_COMMIT",
-        "CRS_REPO_URL",
-        "CRS_GIT_REF",
-    ),
     MODSECURITY_V3_COMPONENT: (
         "MODSECURITY_V3_APPROVED_REPO_URL",
         "MODSECURITY_V3_RELEASE_TAG",
@@ -410,14 +403,6 @@ MANUAL_REVIEW_VARIABLES = {
         "MODSECURITY_GIT_REF",
         "MODSECURITY_V3_GIT_URL",
         "MODSECURITY_V3_GIT_REF",
-    ),
-    HAPROXY_HTX_COMPONENT: (
-        "HAPROXY_HTX_SERIES",
-        "HAPROXY_HTX_SERIES_BASE_URL",
-        "HAPROXY_HTX_VERSION",
-        "HAPROXY_HTX_ARCHIVE_NAME",
-        "HAPROXY_HTX_SOURCE_URL",
-        "HAPROXY_HTX_SHA256",
     ),
 }
 
@@ -591,15 +576,15 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "CRS_GIT_REF",
         ),
         atomic_group=("CRS_RELEASE_TAG", "CRS_APPROVED_COMMIT"),
-        update_policy="manual_review",
-        stable_policy=GITHUB_STABLE_RELEASE_POLICY,
-        compatibility_policy="latest stable release requires immutable peeled-commit review",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
+        stable_policy="GitHub non-draft, non-prerelease stable CRS v4.x.x release",
+        compatibility_policy="automatic updates are limited to the configured CRS v4 line",
         authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository=CRS_APPROVED_REPOSITORY,
         release_tag_variable="CRS_RELEASE_TAG",
         git_commit_variable="CRS_APPROVED_COMMIT",
         checksum_strategy="peeled_git_tag_commit",
-        tag_pattern=VERSION_TAG_PATTERN,
+        tag_pattern=CRS_V4_TAG_PATTERN,
         alias_bindings=(
             ("CRS_REPO_URL", "CRS_APPROVED_REPO_URL"),
             ("CRS_GIT_REF", "CRS_RELEASE_TAG"),
@@ -891,7 +876,7 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "HAPROXY_HTX_SOURCE_URL",
             "HAPROXY_HTX_SHA256",
         ),
-        update_policy="manual_review",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="official HAProxy numeric series release directory",
         compatibility_policy=SAME_MAJOR_MINOR_COMPATIBILITY_POLICY,
         authorized_hosts=(HAPROXY_WEB_HOST,),
@@ -2188,7 +2173,7 @@ def collect_tarball_updates(
     version_var: str,
     source_url_var: str,
     sha_var: str,
-    sha_url_var: str,
+    sha_url_var: str | None,
     current_sha: str,
     latest_version: str,
     latest_url: str,
@@ -2199,7 +2184,9 @@ def collect_tarball_updates(
     append_planned_update(updates, entries, version_var, latest_version)
     if not default_transitively_depends_on(entries, source_url_var, version_var):
         append_planned_update(updates, entries, source_url_var, latest_url)
-    if not default_transitively_depends_on(entries, sha_url_var, source_url_var):
+    if sha_url_var is not None and not default_transitively_depends_on(
+        entries, sha_url_var, source_url_var
+    ):
         append_planned_update(updates, entries, sha_url_var, latest_sha_url)
     del current_sha
     # A literal digest is the integrity identity of this group.  Do not permit
@@ -2777,46 +2764,42 @@ def check_haproxy_htx(
             version_var="HAPROXY_HTX_VERSION",
             source_url_var="HAPROXY_HTX_SOURCE_URL",
             sha_var="HAPROXY_HTX_SHA256",
-            sha_url_var="HAPROXY_HTX_SOURCE_URL",
+            sha_url_var=None,
             current_sha=configured_sha,
             latest_version=latest_version,
             latest_url=latest_url,
             latest_sha_url=latest_sha_url,
             latest_sha=latest_sha,
         )
-        return review_required_haproxy_htx_result(
-            ComponentResult(
-                component=definition.name,
-                status=STATUS_OUTDATED,
-                message="A newer official HAProxy HTX tarball and checksum are available.",
-                variables=list(definition.variables),
-                current=version,
-                latest=latest_version,
-                latest_upstream=latest_upstream,
-                latest_compatible=latest_version,
-                source=listing_url,
-                asset_name=latest_asset,
-                official_sha256=latest_sha,
-                sha256_source="official_asset_sha256_file",
-                updates=updates,
-            )
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_OUTDATED,
+            message="A newer official HAProxy HTX tarball and checksum are available.",
+            variables=list(definition.variables),
+            current=version,
+            latest=latest_version,
+            latest_upstream=latest_upstream,
+            latest_compatible=latest_version,
+            source=listing_url,
+            asset_name=latest_asset,
+            official_sha256=latest_sha,
+            sha256_source="official_asset_sha256_file",
+            updates=updates,
         )
     official_sha = fetch_sha256(
         client, value(entries, "HAPROXY_HTX_SOURCE_URL") + SHA256_SUFFIX, archive
     )
     if configured_sha != official_sha:
         update = plan_update(entries, "HAPROXY_HTX_SHA256", official_sha)
-        return review_required_haproxy_htx_result(
-            ComponentResult(
-                component=definition.name,
-                status=STATUS_OUTDATED,
-                message="Configured HAProxy HTX checksum differs from the official checksum.",
-                variables=list(definition.variables),
-                current=version,
-                latest=latest_version,
-                official_sha256=official_sha,
-                updates=[update] if update else [],
-            )
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_OUTDATED,
+            message="Configured HAProxy HTX checksum differs from the official checksum.",
+            variables=list(definition.variables),
+            current=version,
+            latest=latest_version,
+            official_sha256=official_sha,
+            updates=[update] if update else [],
         )
     return ComponentResult(
         component=definition.name,
@@ -2842,6 +2825,16 @@ def github_repo_path(repo_url: str) -> str | None:
     if len(parts) != 2 or not parts[0] or not parts[1]:
         return None
     return f"{parts[0]}/{parts[1]}"
+
+
+def repository_identity_matches_hash(repository: str, approved_sha256: str) -> bool:
+    """Compare a parsed ASCII owner/repository identity to its fixed digest."""
+
+    try:
+        payload = repository.encode("ascii")
+    except UnicodeEncodeError:
+        return False
+    return hashlib.sha256(payload).hexdigest() == approved_sha256
 
 
 def canonicalize_github_repository(
@@ -2870,6 +2863,41 @@ def canonicalize_github_repository(
 
 def latest_github_release(client: HttpClient, repo_path: str) -> dict[str, Any]:
     return client.get_json(f"{GITHUB_API_ORIGIN}/repos/{repo_path}/releases/latest")
+
+
+def latest_stable_github_release_in_series(
+    client: HttpClient, repo_path: str, expected_tag: re.Pattern[str]
+) -> tuple[str, str]:
+    """Return the latest stable upstream and compatible GitHub release tags."""
+
+    releases_url = f"{GITHUB_API_ORIGIN}/repos/{repo_path}/releases?per_page=100"
+    upstream_tags: list[str] = []
+    compatible_tags: list[str] = []
+    for release in client.get_json_list(releases_url):
+        if not isinstance(release, dict):
+            raise UpstreamUnknown(
+                f"GitHub release list for {repo_path} contains a non-object entry"
+            )
+        if release.get("draft") is not False or release.get("prerelease") is not False:
+            continue
+        tag = release_tag_name(release, repo_path)
+        if re.fullmatch(VERSION_TAG_PATTERN, tag) is None:
+            continue
+        upstream_tags.append(tag)
+        if expected_tag.fullmatch(tag) is not None:
+            compatible_tags.append(tag)
+    if not upstream_tags:
+        raise UpstreamUnknown(
+            f"GitHub release list for {repo_path} has no stable numeric release"
+        )
+    if not compatible_tags:
+        raise UpstreamUnknown(
+            f"GitHub release list for {repo_path} has no stable release in the configured series"
+        )
+    return (
+        max(upstream_tags, key=version_tuple),
+        max(compatible_tags, key=version_tuple),
+    )
 
 
 def github_release_by_tag(
@@ -2982,7 +3010,7 @@ def check_github_release_ref(
     )
 
 
-def manual_release_provenance_precondition(
+def git_release_provenance_precondition(
     component: str,
     entries: dict[str, VariableEntry],
     *,
@@ -2993,7 +3021,7 @@ def manual_release_provenance_precondition(
     aliases: dict[str, str],
     variables: list[str],
 ) -> ComponentResult | None:
-    """Validate the fixed tuple before deferring an atomic manual decision."""
+    """Validate a fixed tag/commit provenance tuple before any transition."""
 
     repository_var = next(name for name in variables if name.endswith("_REPO_URL"))
     repository_url = value(entries, repository_var)
@@ -3100,7 +3128,7 @@ def check_manual_git_provenance(
         alias: value(entries, expected_variable)
         for alias, expected_variable in definition.alias_bindings
     }
-    precondition = manual_release_provenance_precondition(
+    precondition = git_release_provenance_precondition(
         definition.name,
         entries,
         expected_repository=cast(str, definition.github_repository),
@@ -3195,6 +3223,126 @@ def check_manual_git_provenance(
     )
 
 
+def check_automatic_git_provenance(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    client: HttpClient,
+) -> ComponentResult:
+    """Resolve a fixed-repository tag/peeled-commit transition atomically."""
+
+    release_tag_var = cast(str, definition.release_tag_variable)
+    commit_var = cast(str, definition.git_commit_variable)
+    expected_tag = re.compile(definition.tag_pattern)
+    aliases = {
+        alias: value(entries, expected_variable)
+        for alias, expected_variable in definition.alias_bindings
+    }
+    precondition = git_release_provenance_precondition(
+        definition.name,
+        entries,
+        expected_repository=cast(str, definition.github_repository),
+        release_tag_var=release_tag_var,
+        approved_commit_var=commit_var,
+        expected_tag=expected_tag,
+        aliases=aliases,
+        variables=list(definition.variables),
+    )
+    if precondition is not None:
+        return precondition
+    repository = cast(str, definition.github_repository)
+    current_tag = value(entries, release_tag_var)
+    current_commit = value(entries, commit_var)
+    resolved_current_commit = resolve_github_peeled_commit(
+        client, repository, current_tag
+    )
+    if resolved_current_commit != current_commit:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message=(
+                "Configured immutable commit does not equal the configured release "
+                "tag's peeled commit."
+            ),
+            variables=list(definition.variables),
+            current=current_tag,
+            source=f"https://github.com/{repository}",
+            details={
+                "configured_commit": current_commit,
+                "resolved_peeled_commit": resolved_current_commit,
+            },
+        )
+    latest_upstream, latest_tag = latest_stable_github_release_in_series(
+        client, repository, expected_tag
+    )
+    latest_commit = resolve_github_peeled_commit(client, repository, latest_tag)
+    source = f"{GITHUB_API_ORIGIN}/repos/{repository}/releases?per_page=100"
+    comparison = compare_versions(current_tag, latest_tag)
+    if comparison > 0:
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_UNKNOWN,
+            message=(
+                "Configured release tag is newer than the latest stable compatible "
+                "official release; refusing to guess."
+            ),
+            variables=list(definition.variables),
+            current=current_tag,
+            latest=latest_tag,
+            latest_upstream=latest_upstream,
+            latest_compatible=latest_tag,
+            source=source,
+        )
+    if comparison < 0:
+        tag_update = plan_update(entries, release_tag_var, latest_tag)
+        commit_update = plan_update(entries, commit_var, latest_commit)
+        if tag_update is None:
+            raise UpstreamError(
+                "automatic release provenance transition is missing its release-tag update"
+            )
+        updates = [tag_update]
+        if commit_update is not None:
+            updates.append(commit_update)
+        return ComponentResult(
+            component=definition.name,
+            status=STATUS_OUTDATED,
+            message=(
+                f"A newer stable {definition.name} release is available in the configured "
+                "compatible series."
+            ),
+            variables=list(definition.variables),
+            current=current_tag,
+            latest=latest_tag,
+            latest_upstream=latest_upstream,
+            latest_compatible=latest_tag,
+            source=source,
+            official_sha256=latest_commit,
+            sha256_source="peeled_git_tag_commit",
+            updates=updates,
+            details={
+                "current_peeled_commit": resolved_current_commit,
+                "latest_peeled_commit": latest_commit,
+                "compatibility_review_required": latest_upstream != latest_tag,
+            },
+        )
+    return ComponentResult(
+        component=definition.name,
+        status=STATUS_CURRENT,
+        message="Configured release tag and immutable peeled commit are current.",
+        variables=list(definition.variables),
+        current=current_tag,
+        latest=latest_tag,
+        latest_upstream=latest_upstream,
+        latest_compatible=latest_tag,
+        source=source,
+        official_sha256=resolved_current_commit,
+        sha256_source="peeled_git_tag_commit",
+        details={
+            "peeled_commit": resolved_current_commit,
+            "compatibility_review_required": latest_upstream != latest_tag,
+        },
+    )
+
+
 def review_required_release_result(
     result: ComponentResult,
     *,
@@ -3232,37 +3380,32 @@ def review_required_release_result(
     )
 
 
-def review_required_haproxy_htx_result(result: ComponentResult) -> ComponentResult:
-    """Keep every independent HTX tuple transition out of automatic plans."""
-
-    return review_required_release_result(
-        result,
-        expected_tag=SAFE_VERSION_RE,
-        manual_variables=MANUAL_REVIEW_VARIABLES[HAPROXY_HTX_COMPONENT],
-        message=(
-            "A verified HAProxy HTX tuple change is available, but the independent "
-            "HTX provenance and compatibility baseline require manual review."
-        ),
-        reason=(
-            "update the complete independent HAProxy HTX tuple only after reviewed "
-            "release provenance and compatibility validation"
-        ),
-    )
-
-
 def check_crs_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
-    """Classify a valid CRS tag/commit transition as explicitly manual only."""
-    # Keep the reviewed repository identity derived from the canonical URL in
-    # common.sh.  The descriptor deliberately carries only a neutral marker;
-    # resolving it here also protects direct callers of this helper (rather
-    # than only the generic component dispatcher) from a second repository
-    # literal or an unbound alias.
-    definition = canonicalize_github_repository(
-        COMPONENT_DEFINITION_BY_NAME[CRS_COMPONENT], entries
-    )
-    return check_manual_git_provenance(definition, entries, client)
+    """Resolve a valid stable CRS v4 tag/commit transition automatically."""
+    base_definition = COMPONENT_DEFINITION_BY_NAME[CRS_COMPONENT]
+    try:
+        definition = canonicalize_github_repository(base_definition, entries)
+    except UpstreamUnknown as exc:
+        return ComponentResult(
+            component=base_definition.name,
+            status=STATUS_UNKNOWN,
+            message=str(exc),
+            variables=list(base_definition.variables),
+        )
+    repository = cast(str, definition.github_repository)
+    if not repository_identity_matches_hash(
+        repository, CRS_APPROVED_REPOSITORY_SHA256
+    ):
+        return ComponentResult(
+            component=base_definition.name,
+            status=STATUS_UNKNOWN,
+            message="CRS canonical repository identity is not approved.",
+            variables=list(base_definition.variables),
+            source=value(entries, "CRS_APPROVED_REPO_URL"),
+        )
+    return check_automatic_git_provenance(definition, entries, client)
 
 
 def check_modsecurity_v3_release_provenance(
@@ -3280,9 +3423,8 @@ def check_modsecurity_v3_release_provenance(
             variables=list(base_definition.variables),
         )
     repository = cast(str, definition.github_repository)
-    if (
-        hashlib.sha256(repository.encode("ascii")).hexdigest()
-        != MODSECURITY_V3_APPROVED_REPOSITORY_SHA256
+    if not repository_identity_matches_hash(
+        repository, MODSECURITY_V3_APPROVED_REPOSITORY_SHA256
     ):
         return ComponentResult(
             component=base_definition.name,
@@ -4334,6 +4476,10 @@ def resolve_component_definition(
     entries: dict[str, VariableEntry],
     client: HttpClient,
 ) -> ComponentResult:
+    if definition.name == CRS_COMPONENT:
+        return check_crs_release_provenance(entries, client)
+    if definition.name == MODSECURITY_V3_COMPONENT:
+        return check_modsecurity_v3_release_provenance(entries, client)
     if definition.resolver in {
         "github_release_manifest",
         "github_release_digest",
@@ -4367,6 +4513,8 @@ def resolve_component_definition(
     if definition.resolver in {"github_release_manifest", "github_release_digest"}:
         return check_github_release_component(definition, entries, client)
     if definition.resolver == "github_tag_commit":
+        if definition.update_policy == AUTOMATIC_UPDATE_POLICY:
+            return check_automatic_git_provenance(definition, entries, client)
         return check_manual_git_provenance(definition, entries, client)
     if definition.resolver == "lighttpd_latest":
         return check_lighttpd(entries, client)
