@@ -3175,13 +3175,14 @@ def resolve_github_file_sha256(
         raise UpstreamUnknown("GitHub rule-file content is not bounded base64")
     try:
         content = base64.b64decode(compact, validate=True)
-    except (binascii.Error, ValueError) as exc:
+    except binascii.Error as exc:
         raise UpstreamUnknown("GitHub rule-file content is invalid base64") from exc
     if len(content) != declared_size:
         raise UpstreamUnknown("GitHub rule-file content length does not match its metadata")
     blob_sha = payload.get("sha")
     expected_blob_sha = hashlib.sha1(
-        f"blob {len(content)}\0".encode("ascii") + content
+        f"blob {len(content)}\0".encode("ascii") + content,
+        usedforsecurity=False,
     ).hexdigest()
     if blob_sha != expected_blob_sha:
         raise UpstreamUnknown("GitHub rule-file blob identity does not match its content")
@@ -3520,9 +3521,12 @@ def check_crs_release_provenance(
         updates = list(result.updates)
         if rule_update is not None:
             updates.append(rule_update)
-        return dataclasses.replace(result, updates=updates, details=details)
+        return cast(
+            ComponentResult,
+            dataclasses.replace(result, updates=updates, details=details),
+        )
     if configured_rule_sha256 == rule_sha256:
-        return dataclasses.replace(result, details=details)
+        return cast(ComponentResult, dataclasses.replace(result, details=details))
     rule_update = plan_update(entries, CRS_RULE_FILE_SHA256_VARIABLE, rule_sha256)
     if rule_update is None:
         raise UpstreamError("CRS rule-file digest mismatch has no safe update")

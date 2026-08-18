@@ -63,6 +63,13 @@ SHA-256-Aktualisierung in der bestehenden atomaren CRS-Gruppe. Contract-Views
 projizieren den Digest und leiten ihren `crs_git_ref` aus dem kanonischen
 Release-Tag ab, sodass keine unabhängig veralteten Werte verbleiben.
 
+Der Git-Blob-SHA-1-Vergleich ist ausschließlich Protokollformat-Validierung,
+niemals ein Security- oder Provenance-Pin; er ist explizit als
+`usedforsecurity=False` markiert. Die sicherheitsrelevante Source-Identität
+bleibt der separat abgeleitete SHA-256. Die beiden
+`dataclasses.replace`-Rückgaben sind explizit als `ComponentResult` typisiert,
+und die redundante Base64-Exception-Oberklasse entfällt.
+
 ## Geänderte Dateien und Tests
 
 - Kanonischer CRS-Pin, Parser, Active-Pin-Vererbung, Maintenance-Resolver und
@@ -71,6 +78,8 @@ Release-Tag ab, sodass keine unabhängig veralteten Werte verbleiben.
 - Regressionen für Digest-Parsing, atomare Update-Planung, Reparatur eines
   veralteten Digests, fehlerhaften GitHub-Content und generierte Event-
   Provenance.
+- Regression, dass der Git-Blob-Format-SHA-1 nur mit
+  `usedforsecurity=False` aufgerufen wird.
 - Englische und deutsche Variablen-Dokumentation sowie dieses gepaarte
   Change-Record.
 
@@ -103,7 +112,7 @@ Produktions-, Credential- oder GitHub-App-Evidenzen erfasst oder abgeleitet.
 ## Nicht ausgeführte Prüfungen
 
 - Frische exakte GitHub-Actions und die SonarQube-Cloud-Analyse stehen bis zum
-  Framework-eigenen Remediation-Commit und PR-Update aus.
+  Framework-eigenen Folgeremediation-Commit und PR-Update aus.
 - Für diese CI-Maintenance-Vertragskorrektur war keine Connector-Integration
   oder Produktionsruntime erforderlich.
 
@@ -116,7 +125,11 @@ fail-closed fehl, statt einen Pin zu aktualisieren.
 
 ## Finaler Diff- und Review-Status
 
-Der Task-Worktree enthält einen Framework-eigenen Remediation-Diff. Natives
-Lint, Whitespace-Review und der unabhängige Security-Diff-Review bestanden
-ohne neuen Finding; der absichtlich getrennte PR-Commit/-Push steht noch aus.
-Parent und MRTS bleiben außerhalb der Änderung.
+Der erste Framework-eigene Remediation-Commit bestand natives Lint,
+Whitespace-Review und einen unabhängigen Security-Diff-Review. Ein kleiner
+Folgediff adressiert jetzt SonarClouds vier exakte Quality-Gate-Anmerkungen;
+seine fokussierte CRS-Provenance-Suite mit 23 Tests, der vollständige native
+Lauf `make -s lint`, das Whitespace-Review und der erneute unabhängige
+Security-Diff-Review bestanden. Ein zweiter absichtlich getrennter PR-Commit/-
+Push sowie die exakte Hosted-Verifikation stehen noch aus. Parent und MRTS
+bleiben außerhalb der Änderung.

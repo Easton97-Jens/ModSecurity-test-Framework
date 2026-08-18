@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -57,7 +58,8 @@ def crs_rule_content_payload(content: bytes = CRS_RULE_CONTENT) -> dict[str, obj
         "path": CRS_RULE_PATH,
         "size": len(content),
         "sha": hashlib.sha1(
-            f"blob {len(content)}\0".encode("ascii") + content
+            f"blob {len(content)}\0".encode("ascii") + content,
+            usedforsecurity=False,
         ).hexdigest(),
         "content": base64.b64encode(content).decode("ascii"),
     }
@@ -757,6 +759,35 @@ class FetchCrsProvenanceTests(unittest.TestCase):
                 self.assert_gitmodules_case_blocked(
                     {"FAKE_GIT_GITMODULES_CASE": "empty", "FAKE_GIT_FAIL": failure}
                 )
+
+    def test_rule_file_blob_identity_uses_sha1_only_for_git_format(self):
+        payload = crs_rule_content_payload()
+
+        class ContentClient:
+            def __init__(self):
+                self.urls: list[str] = []
+
+            def get_json(self, url):
+                self.urls.append(url)
+                return payload
+
+        client = ContentClient()
+        expected_blob = (
+            f"blob {len(CRS_RULE_CONTENT)}\0".encode("ascii") + CRS_RULE_CONTENT
+        )
+        with mock.patch.object(
+            COMMON_VERSION_CHECKER.hashlib, "sha1", wraps=hashlib.sha1
+        ) as sha1:
+            observed = COMMON_VERSION_CHECKER.resolve_github_file_sha256(
+                client,
+                "coreruleset/coreruleset",
+                APPROVED_COMMIT,
+                CRS_RULE_PATH,
+            )
+
+        self.assertEqual(observed, CRS_RULE_SHA256)
+        self.assertEqual(client.urls, [crs_rule_content_url(APPROVED_COMMIT)])
+        sha1.assert_called_once_with(expected_blob, usedforsecurity=False)
 
     def test_version_checker_automatically_updates_only_the_crs_v4_tuple(self):
         releases = [

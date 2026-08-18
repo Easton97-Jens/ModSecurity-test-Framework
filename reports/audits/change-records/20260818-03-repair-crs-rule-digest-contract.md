@@ -58,6 +58,12 @@ Git blob identity, and produces a SHA-256 update in the existing atomic CRS
 group. Contract views project the digest and derive their `crs_git_ref` from
 the canonical release tag, preventing independently stale values.
 
+The Git blob SHA-1 comparison is protocol-format validation only, never a
+security or provenance pin; it is explicitly marked `usedforsecurity=False`.
+The security-relevant source identity remains the separately derived SHA-256.
+The two `dataclasses.replace` returns are explicitly typed as
+`ComponentResult`, and the redundant Base64 exception superclass is removed.
+
 ## Changed files and tests
 
 - Canonical CRS pin, parser, active-pin inheritance, maintenance resolver, and
@@ -65,6 +71,8 @@ the canonical release tag, preventing independently stale values.
 - CRS contract-view synchronizer and all generated CRS views.
 - Regression coverage for digest parsing, atomic update planning, stale digest
   repair, malformed GitHub content, and generated event provenance.
+- Regression coverage that the Git blob-format SHA-1 is called only with
+  `usedforsecurity=False`.
 - English and German variable documentation plus this paired Change Record.
 
 ## Commands and results
@@ -96,7 +104,7 @@ or GitHub-App evidence was collected or inferred.
 ## Checks not run
 
 - Fresh exact-head GitHub Actions and SonarQube Cloud analysis are pending the
-  Framework-only remediation commit and PR update.
+  Framework-only follow-up remediation commit and PR update.
 - No connector integration or production runtime was required for this
   CI-maintenance contract correction.
 
@@ -108,7 +116,10 @@ unavailable or malformed, maintenance fails closed rather than updating a pin.
 
 ## Final diff and review status
 
-The task worktree has a Framework-only remediation diff. Native lint,
-whitespace review, and the independent security-diff review passed with no
-new finding; the deliberately separate PR commit/push remains pending. Parent
-and MRTS remain outside the change.
+The first Framework-only remediation commit passed native lint, whitespace
+review, and an independent security-diff review. A small follow-up diff now
+addresses SonarCloud's four exact Quality-Gate annotations; its focused
+23-test CRS provenance suite, complete native `make -s lint`, whitespace
+review, and revised independent security-diff review passed. A second
+deliberately separate PR commit/push and exact-head hosted verification remain
+pending. Parent and MRTS remain outside the change.
