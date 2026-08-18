@@ -49,8 +49,8 @@ with_crs_no_mrts:
     crs_mode: enabled
   provenance:
     repository: https://github.com/coreruleset/coreruleset.git
-    release_tag: v4.28.0
-    commit: 55b09f5acfd16413e7b31041100711ceb7adc89c
+    release_tag: v4.29.0
+    commit: ab3ccd5fcd691424ba3f320d4040c61417270193
     rule_file: rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf
     rule_file_sha256: db756f71e8270280c5ae74d09c11250fad8c118f6a905c6a6794d5643d27cd00
     expected_rule_id: 942270

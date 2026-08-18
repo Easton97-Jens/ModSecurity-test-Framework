@@ -110,8 +110,8 @@
     "validation_status": {"const": "CONTRACT_VALIDATED"},
     "host_runtime_status": {"const": "UNATTESTED"},
     "crs_repository": {"const": "https://github.com/coreruleset/coreruleset.git"},
-    "crs_release_tag": {"const": "v4.28.0"},
-    "crs_commit": {"const": "55b09f5acfd16413e7b31041100711ceb7adc89c"},
+    "crs_release_tag": {"const": "v4.29.0"},
+    "crs_commit": {"const": "ab3ccd5fcd691424ba3f320d4040c61417270193"},
     "crs_rule_file": {"const": "rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"},
     "crs_rule_file_sha256": {
       "const": "db756f71e8270280c5ae74d09c11250fad8c118f6a905c6a6794d5643d27cd00"
