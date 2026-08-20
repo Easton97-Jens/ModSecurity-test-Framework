@@ -2,7 +2,7 @@
 from __future__ import annotations
 import hashlib, json
 from typing import Any
-from tests.normalizers.security_event_normalizer import normalize_value, parse_jsonl
+from tests.normalizers.security_event_normalizer import find_body_payload_fields, normalize_value, parse_jsonl
 
 def _canonical(row: dict[str, Any]) -> str:
     # Integrity must cover the recorded values.  Display normalization is
@@ -17,9 +17,13 @@ def compute_event_hash(row: dict[str, Any]) -> str:
 def validate_hash_chain(text: str) -> tuple[list[dict[str, Any]], list[str]]:
     rows, errors = parse_jsonl(text); prev=""
     for idx,row in enumerate(rows,1):
+        row_errors: list[str] = []
         for key in ("sequence","previous_event_hash","event_hash"):
-            if key not in row: errors.append(f"line {idx}: missing {key}")
-        if errors: continue
+            if key not in row: row_errors.append(f"line {idx}: missing {key}")
+        for field in find_body_payload_fields(row): row_errors.append(f"line {idx}: body payload field is not allowed: {field}")
+        if row_errors:
+            errors.extend(row_errors)
+            continue
         if row.get("sequence") != idx: errors.append(f"line {idx}: sequence mismatch")
         if row.get("previous_event_hash") != prev: errors.append(f"line {idx}: previous_event_hash mismatch")
         actual=compute_event_hash(row)
@@ -29,6 +33,8 @@ def validate_hash_chain(text: str) -> tuple[list[dict[str, Any]], list[str]]:
 
 def normalize_hash_chain(text: str) -> tuple[str, list[str]]:
     rows, errors = validate_hash_chain(text)
+    if errors:
+        return "", errors
     out=[json.dumps({k:("<event-hash>" if k=="event_hash" else "<previous-event-hash>" if k=="previous_event_hash" and v else normalize_value(v)) for k,v in sorted(r.items())}, sort_keys=True, separators=(",",":")) for r in rows]
     return "\n".join(out), errors
 

@@ -81,12 +81,15 @@ def self_test_errors(modules: list[ModuleType]) -> list[str]:
 def body_payload_errors(security_event_normalizer: ModuleType) -> list[str]:
     """Require the event normalizer to reject every sensitive body field."""
 
-    _, errors = security_event_normalizer.normalize_jsonl(PAYLOAD_SAMPLE)
-    return [
+    normalized, errors = security_event_normalizer.normalize_jsonl(PAYLOAD_SAMPLE)
+    result = [
         f"body payload field not detected: {field}"
         for field in BODY_PAYLOAD_FIELDS
         if not any(field in error for error in errors)
     ]
+    if normalized:
+        result.append("body payload input produced normalized output")
+    return result
 
 
 def duplicate_key_errors(security_event_normalizer: ModuleType) -> list[str]:

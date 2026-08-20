@@ -88,7 +88,7 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
         self.assertFalse(rows[0]["promotion_allowed"])
         self.assertFalse(rows[0]["runtime_verified"])
 
-    def test_connector_smoke_uses_summary_exit_status_only_with_case_evidence(self) -> None:
+    def test_connector_smoke_requires_current_exit_status_and_case_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             summary_path = root / "apache-summary.json"
@@ -107,12 +107,74 @@ class RuntimeSnapshotSonarTests(unittest.TestCase):
             )
             with mock.patch.object(self.snapshot, "case_metadata", return_value=self.metadata):
                 row = self.snapshot.connector_smoke(
-                    "apache", "make smoke-apache", "not_run", summary_path, root / "apache-summary.txt"
+                    "apache", "make smoke-apache", "0", summary_path, root / "apache-summary.txt"
                 )
 
         self.assertEqual(row["status"], "PASS")
         self.assertEqual(row["exit_code"], 0)
         self.assertEqual(row["per_case_results"], "available")
+
+    def test_stale_summary_and_external_case_paths_are_not_used(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            framework_root = root / "framework"
+            connector_root = root / "connector"
+            framework_root.mkdir()
+            connector_root.mkdir()
+            outside = root / "outside.yaml"
+            outside.write_text("fixture: value\n", encoding="utf-8")
+            escaped_link = connector_root / "escaped.yaml"
+            escaped_link.symlink_to(outside)
+            self.snapshot.configure_paths(framework_root, connector_root, framework_root)
+
+            for path in (str(outside), "../outside.yaml", "escaped.yaml"):
+                with self.subTest(path=path):
+                    with mock.patch.object(self.snapshot, "load_case_metadata") as load_metadata:
+                        metadata = self.snapshot.case_metadata(path)
+                    self.assertFalse(load_metadata.called)
+                    self.assertEqual(metadata["yaml_status"], "active")
+                    self.assertEqual(
+                        self.snapshot.normalize_case(path),
+                        self.snapshot.UNTRUSTED_CASE_PATH,
+                    )
+
+            summary_path = root / "apache-summary.json"
+            summary_path.write_text(
+                json.dumps(
+                    {
+                        "apache": {
+                            "exit_status": 0,
+                            "summary": {"pass": 7},
+                            "cases": {
+                                "stale-case": {
+                                    "path": "stale.yaml",
+                                    "status": "pass",
+                                }
+                            },
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            text_path = root / "apache-summary.txt"
+            text_path.write_text("stale runtime evidence\n", encoding="utf-8")
+            with mock.patch.object(self.snapshot, "case_metadata", return_value=self.metadata):
+                row = self.snapshot.connector_smoke(
+                    "apache",
+                    "make smoke-apache",
+                    "not_run",
+                    summary_path,
+                    text_path,
+                )
+            self.assertEqual(row["status"], "NOT_RUN")
+            self.assertEqual(row["cases"], [])
+            self.assertEqual(
+                row["counts"],
+                {"pass": 0, "fail": 0, "blocked": 0, "not_executable": 0, "skipped": 0},
+            )
+            self.assertEqual(row["per_case_unavailable_evidence"], "")
+            self.assertEqual(row["per_case_unavailable_reason"], "")
+            self.assertEqual(row["blocker"], {})
 
     def test_connector_smoke_preserves_missing_case_blocker_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -579,6 +579,35 @@ runtime_component_tar_list() {
     esac
 }
 
+runtime_component_tar_verbose_list() {
+    rc_archive=$1
+    case "$rc_archive" in
+        *.tar.gz|*.tgz) tar -tvzf "$rc_archive" ;;
+        *.tar.xz|*.txz) tar -tJvf "$rc_archive" ;;
+        *)
+            ci_blocked "unsupported archive format: $rc_archive"
+            return 77
+            ;;
+    esac
+}
+
+runtime_component_require_safe_tar_members() {
+    rc_name=$1
+    rc_archive=$2
+    rc_member_type_list=$3
+
+    runtime_component_tar_verbose_list "$rc_archive" > "$rc_member_type_list" || return 77
+    if awk '
+        BEGIN { unsafe = 0 }
+        substr($0, 1, 1) !~ /^[-d]$/ { unsafe = 1 }
+        END { exit unsafe ? 0 : 1 }
+    ' "$rc_member_type_list"; then
+        ci_blocked "$rc_name archive contains unsupported member types"
+        return 77
+    fi
+    return 0
+}
+
 runtime_component_tar_extract_member() {
     rc_archive=$1
     rc_extract_root=$2
@@ -611,7 +640,6 @@ extract_single_binary_from_tar() {
     rc_binary_name=$3
     rc_extract_root=$4
     rc_extract_root_base=${5:-$CONNECTOR_COMPONENT_CACHE}
-    rc_member_list="$rc_extract_root.members"
 
     [ -f "$rc_archive" ] || {
         ci_blocked "$rc_name archive missing: $rc_archive"
@@ -626,11 +654,20 @@ extract_single_binary_from_tar() {
 
     rm -rf "$rc_extract_root"
     mkdir -p "$rc_extract_root"
+    rc_member_list=$(mktemp "$rc_extract_root/.members.XXXXXX") || {
+        ci_blocked "$rc_name could not create an archive member list"
+        return 77
+    }
+    rc_member_type_list=$(mktemp "$rc_extract_root/.member-types.XXXXXX") || {
+        ci_blocked "$rc_name could not create an archive member type list"
+        return 77
+    }
     runtime_component_tar_list "$rc_archive" > "$rc_member_list" || return 77
     if grep -Eq '(^/|(^|/)\.\.(/|$))' "$rc_member_list"; then
         ci_blocked "$rc_name archive contains unsafe paths"
         return 77
     fi
+    runtime_component_require_safe_tar_members "$rc_name" "$rc_archive" "$rc_member_type_list" || return 77
     rc_member=$(awk -F/ -v binary="$rc_binary_name" '$NF == binary { print }' "$rc_member_list")
     rc_count=$(printf '%s\n' "$rc_member" | sed '/^$/d' | wc -l | tr -d ' ')
     if [ "$rc_count" != "1" ]; then
@@ -653,7 +690,6 @@ extract_runtime_source_tar() {
     rc_source_parent=$3
     rc_expected_dirname=$4
     rc_source_root=${5:-$CONNECTOR_COMPONENT_CACHE}
-    rc_member_list="$rc_source_parent.members"
 
     [ -f "$rc_archive" ] || {
         ci_blocked "$rc_name source archive missing: $rc_archive"
@@ -667,11 +703,20 @@ extract_runtime_source_tar() {
     }
 
     mkdir -p "$rc_source_parent"
+    rc_member_list=$(mktemp "$rc_source_parent/.members.XXXXXX") || {
+        ci_blocked "$rc_name could not create a source archive member list"
+        return 77
+    }
+    rc_member_type_list=$(mktemp "$rc_source_parent/.member-types.XXXXXX") || {
+        ci_blocked "$rc_name could not create a source archive member type list"
+        return 77
+    }
     runtime_component_tar_list "$rc_archive" > "$rc_member_list" || return 77
     if grep -Eq '(^/|(^|/)\.\.(/|$))' "$rc_member_list"; then
         ci_blocked "$rc_name source archive contains unsafe paths"
         return 77
     fi
+    runtime_component_require_safe_tar_members "$rc_name" "$rc_archive" "$rc_member_type_list" || return 77
     runtime_component_tar_extract_member "$rc_archive" "$rc_source_parent" || return 77
     if [ ! -d "$rc_source_parent/$rc_expected_dirname" ]; then
         ci_blocked "$rc_name expected source directory missing after extract: $rc_source_parent/$rc_expected_dirname"

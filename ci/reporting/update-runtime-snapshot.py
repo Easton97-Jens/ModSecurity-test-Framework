@@ -45,6 +45,7 @@ from report_output_paths import (  # noqa: E402
 )
 
 RUNTIME_CONNECTORS = ("apache", "nginx", "haproxy")
+UNTRUSTED_CASE_PATH = "<untrusted-case-path>"
 
 
 def default_build_root() -> Path:
@@ -156,22 +157,49 @@ def first_text_summary_line(path: Path) -> str:
     return ""
 
 
-def normalize_case(path: str) -> str:
+def case_relative_path(path: str) -> Path | None:
     try:
-        resolved = Path(path).resolve()
-        for root in (CONNECTOR_ROOT, FRAMEWORK_ROOT):
-            try:
-                return str(resolved.relative_to(root))
-            except ValueError:
-                continue
-        return str(resolved)
-    except Exception:
-        return path
+        relative = Path(path)
+    except (TypeError, ValueError):
+        return None
+    if relative.is_absolute() or not relative.parts:
+        return None
+    if any(part in {"", ".", ".."} for part in relative.parts):
+        return None
+    return relative
 
 
-def resolve_case_path(relative: str) -> Path:
-    candidate_paths = [CONNECTOR_ROOT / relative, FRAMEWORK_ROOT / relative]
-    return next((candidate for candidate in candidate_paths if candidate.exists()), candidate_paths[0])
+def normalize_case(path: str) -> str:
+    relative = case_relative_path(path)
+    if relative is None:
+        return UNTRUSTED_CASE_PATH
+    for root in (CONNECTOR_ROOT, FRAMEWORK_ROOT):
+        candidate = root / relative
+        if not candidate.exists() and not candidate.is_symlink():
+            continue
+        try:
+            resolved = resolve_under_root(root, candidate, label="runtime case path")
+        except ValueError:
+            return UNTRUSTED_CASE_PATH
+        return str(resolved.relative_to(root))
+    return relative.as_posix()
+
+
+def resolve_case_path(relative: str) -> Path | None:
+    if relative == UNTRUSTED_CASE_PATH:
+        return None
+    candidate_relative = case_relative_path(relative)
+    if candidate_relative is None:
+        return None
+    for root in (CONNECTOR_ROOT, FRAMEWORK_ROOT):
+        candidate = root / candidate_relative
+        try:
+            resolved = resolve_under_root(root, candidate, label="runtime case path")
+        except ValueError:
+            continue
+        if resolved.is_file():
+            return resolved
+    return None
 
 
 def load_case_metadata(case_path: Path) -> dict:
@@ -213,9 +241,9 @@ def classify_case(relative: str, status: str, case: dict) -> str:
 def case_metadata(path: str) -> dict[str, object]:
     relative = normalize_case(path)
     case_path = resolve_case_path(relative)
-    case = load_case_metadata(case_path)
+    case = load_case_metadata(case_path) if case_path is not None else {}
     status = str(case.get("status", "active") or "active").strip().lower()
-    group = case_group(case_path, case)
+    group = case_group(case_path, case) if case_path is not None else "active"
     classification = classify_case(relative, status, case)
     return {
         "yaml_status": status,
@@ -405,34 +433,28 @@ def current_run_data(
     connector_summary: dict,
     rows: list[dict],
     exit_code: str,
-    require_current_run: bool,
 ) -> tuple[dict, dict, list[dict]]:
-    if require_current_run and exit_code in {"not_run", ""}:
+    if exit_code in {"not_run", ""}:
         return {}, {}, []
     return summary_data, connector_summary, rows
 
 
-def effective_exit_code_for(
-    exit_code: str,
-    connector_summary: dict,
-    rows: list[dict],
-    require_current_run: bool,
-) -> str:
-    effective_exit_code = str(exit_code)
-    metadata_exit_status = connector_summary.get("exit_status")
-    if effective_exit_code in {"not_run", ""} and metadata_exit_status is not None and rows and not require_current_run:
-        return str(metadata_exit_status)
-    return effective_exit_code
-
-
-def connector_status(effective_exit_code: str, counts: dict) -> str:
+def connector_status(effective_exit_code: str, counts: dict, rows: list[dict]) -> str:
     if effective_exit_code in {"not_run", ""}:
         return "NOT_RUN"
     try:
         status = "PASS" if int(effective_exit_code) == 0 else "FAIL"
     except ValueError:
         status = "UNKNOWN"
-    return "BLOCKED" if counts.get("blocked", 0) and status == "PASS" else status
+    if status != "PASS":
+        return status
+    if counts.get("blocked", 0) or any(row.get("matrix_status") == "BLOCKED" for row in rows):
+        return "BLOCKED"
+    if any(row.get("status") == "fail" or row.get("matrix_status") == "FAIL" for row in rows):
+        return "FAIL"
+    if not any(row.get("matrix_status") == "PASS" for row in rows):
+        return "NOT_EXECUTABLE"
+    return "PASS"
 
 
 def connector_build_status(connector_summary: dict) -> str:
@@ -490,29 +512,26 @@ def connector_smoke(
     text_summary_path: Path,
     *,
     runtime_mode: str = "default",
-    require_current_run: bool = False,
 ) -> dict:
     summary_data = load_json(summary_path)
     connector_summary = connector_summary_for(summary_data, connector)
-    counts = connector_counts(connector_summary)
     rows = case_rows(summary_data, connector, summary_path)
     summary_data, connector_summary, rows = current_run_data(
         summary_data,
         connector_summary,
         rows,
         exit_code,
-        require_current_run,
     )
+    counts = connector_counts(connector_summary)
     runtime_mode = str(connector_summary.get("runtime_mode") or runtime_mode)
-    effective_exit_code = effective_exit_code_for(
-        exit_code,
-        connector_summary,
-        rows,
-        require_current_run,
-    )
-    status = connector_status(effective_exit_code, counts)
+    effective_exit_code = str(exit_code)
+    status = connector_status(effective_exit_code, counts, rows)
     build_status = connector_build_status(connector_summary)
-    evidence_note = first_text_summary_line(text_summary_path)
+    evidence_note = (
+        ""
+        if effective_exit_code in {"", "not_run"}
+        else first_text_summary_line(text_summary_path)
+    )
     unavailable_reason, blocker = unavailable_case_evidence(
         connector,
         rows,
@@ -643,28 +662,6 @@ def haproxy_default_matrix_smoke(
     return row
 
 
-def runtime_smoke_by_connector(snapshot: dict) -> dict[str, dict]:
-    rows = snapshot.get("runtime_smokes", [])
-    if not isinstance(rows, list):
-        return {}
-    by_connector: dict[str, dict] = {}
-    for row in rows:
-        if isinstance(row, dict) and row.get("connector"):
-            by_connector[str(row.get("connector"))] = row
-    return by_connector
-
-
-def force_all_runtime_smoke_by_connector(snapshot: dict) -> dict[str, dict]:
-    rows = snapshot.get("force_all_runtime_smokes", [])
-    if not isinstance(rows, list):
-        return {}
-    by_connector: dict[str, dict] = {}
-    for row in rows:
-        if isinstance(row, dict) and row.get("connector"):
-            by_connector[str(row.get("connector"))] = row
-    return by_connector
-
-
 def not_available_force_all_row(connector: str, summary_path: Path, command: str) -> dict:
     return {
         "command": command,
@@ -698,30 +695,7 @@ def not_available_force_all_row(connector: str, summary_path: Path, command: str
     }
 
 
-def connector_smoke_or_existing(
-    existing_by_connector: dict[str, dict],
-    connector: str,
-    command: str,
-    exit_code: str,
-    summary_path: Path,
-    text_summary_path: Path,
-    *,
-    runtime_mode: str = "default",
-) -> dict:
-    if exit_code in {"not_run", ""} and connector in existing_by_connector:
-        return existing_by_connector[connector]
-    return connector_smoke(connector, command, exit_code, summary_path, text_summary_path, runtime_mode=runtime_mode)
-
-
-def not_run_all_row(existing_by_connector: dict[str, dict]) -> dict:
-    if "all" in existing_by_connector:
-        row = dict(existing_by_connector["all"])
-        counts = row.get("counts")
-        if isinstance(counts, dict):
-            counts = dict(counts)
-            counts.pop("xfail", None)
-            row["counts"] = counts
-        return row
+def not_run_all_row() -> dict:
     return {
         "command": "REFRESH=1 make smoke-all",
         "connector": "all",
@@ -764,11 +738,6 @@ def write_snapshot(snapshot: dict) -> None:
     active_snapshot_layout().write(snapshot)
 
 
-def load_existing_snapshot() -> dict:
-    data = load_json(SNAPSHOT)
-    return data if data else {}
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-root", default=str(default_build_root()))
@@ -787,9 +756,6 @@ def main() -> int:
 
     build_root = Path(args.build_root)
     results_dir = build_root / "results"
-    existing = load_existing_snapshot()
-    existing_by_connector = runtime_smoke_by_connector(existing)
-    existing_force_by_connector = force_all_runtime_smoke_by_connector(existing)
     now = datetime.now(ZoneInfo("Europe/Berlin"))
     default_apache_exit_code = "not_run" if args.force_all else str(args.apache_exit_code)
     default_nginx_exit_code = "not_run" if args.force_all else str(args.nginx_exit_code)
@@ -811,10 +777,7 @@ def main() -> int:
                 summary_path,
                 text_summary_path,
                 runtime_mode="force-all",
-                require_current_run=True,
             )
-        if connector in existing_force_by_connector:
-            return existing_force_by_connector[connector]
         return not_available_force_all_row(connector, summary_path, command)
 
     snapshot = {
@@ -833,19 +796,17 @@ def main() -> int:
             "Mapped-only import inventory entries remain visible but are not executed runtime cases.",
             "make smoke-all is not implied by separate Apache/NGINX runtime matrix runs.",
         ],
-        "framework_checks": existing.get("framework_checks", []),
-        "readiness_checks": existing.get("readiness_checks", []),
+        "framework_checks": [],
+        "readiness_checks": [],
         "runtime_smokes": [
-            connector_smoke_or_existing(
-                existing_by_connector,
+            connector_smoke(
                 "apache",
                 args.apache_command,
                 default_apache_exit_code,
                 default_apache_summary,
                 summary_text_path(default_apache_summary),
             ),
-            connector_smoke_or_existing(
-                existing_by_connector,
+            connector_smoke(
                 "nginx",
                 args.nginx_command,
                 default_nginx_exit_code,
@@ -857,7 +818,7 @@ def main() -> int:
                 default_haproxy_exit_code,
                 results_dir,
             ),
-            not_run_all_row(existing_by_connector),
+            not_run_all_row(),
         ],
         "force_all_runtime_smokes": [
             force_all_smoke_row(
