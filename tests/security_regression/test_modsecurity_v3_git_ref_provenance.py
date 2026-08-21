@@ -266,9 +266,93 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             ("MODSECURITY_GIT_REF", APPROVED_COMMIT),
             ("MODSECURITY_REPO_URL", "https://github.com/attacker/ModSecurity.git"),
             ("MODSECURITY_V3_GIT_URL", "https://github.com/attacker/ModSecurity.git"),
+            ("MODSECURITY_V3_APPROVED_COMMIT", ALTERNATE_COMMIT),
         ):
             with self.subTest(variable=variable, value=rejected_value):
                 self.assert_blocked_before_git({variable: rejected_value})
+
+    def test_rejects_inherited_active_pin_mismatch_before_git(self):
+        self.assert_blocked_before_git({"ENVOY_VERSION": "0.0.0"})
+
+    def test_rejects_duplicate_active_pin_embedded_in_an_unrelated_value_before_git(self):
+        result, commands, _ = self.invoke_fetch(
+            overrides={
+                "ENVOY_VERSION": "1.39.0",
+                "UNRELATED_TEST_CONTEXT": "opaque\nENVOY_VERSION=1.39.0",
+            }
+        )
+        self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+        self.assertIn(
+            "ENVOY_VERSION is duplicated in the inherited environment",
+            result.stdout + result.stderr,
+        )
+        self.assertEqual(commands, [], result.stdout + result.stderr)
+
+    def test_framework_snapshot_reentry_is_not_reclassified_as_upstream_pins(self):
+        with tempfile.TemporaryDirectory(
+            prefix="modsecurity-v3-snapshot-reentry-"
+        ) as temporary:
+            temporary_path = Path(temporary)
+            environment, _, _, _, _ = self.create_fixture(temporary_path)
+            environment.pop("CI_INHERITED_UPSTREAM_ENV", None)
+            environment.pop("CI_INHERITED_UPSTREAM_ENV_STATUS", None)
+            common = Path(environment["FRAMEWORK_ROOT"]) / "ci/lib/common.sh"
+
+            def decoded_environment(output):
+                values = {}
+                for entry in output.split(b"\0"):
+                    if not entry or b"=" not in entry:
+                        continue
+                    key, value = entry.split(b"=", 1)
+                    values[key.decode("utf-8")] = value.decode("utf-8")
+                return values
+
+            parent = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    '. "$1"; /usr/bin/env -0',
+                    "framework-parent-source",
+                    str(common),
+                ],
+                cwd=ROOT,
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=PROVENANCE_COMMAND_TIMEOUT_SECONDS,
+            )
+            self.assertEqual(parent.returncode, 0, parent.stderr.decode("utf-8"))
+            parent_environment = decoded_environment(parent.stdout)
+            self.assertNotIn("CI_INHERITED_UPSTREAM_ENV", parent_environment)
+            self.assertEqual(parent_environment["ENVOY_VERSION"], "1.39.0")
+
+            bridge = subprocess.run(
+                [
+                    "sh",
+                    "-eu",
+                    "-c",
+                    'set -a; . "$1"; /usr/bin/env -0',
+                    "framework-common-export",
+                    str(common),
+                ],
+                cwd=ROOT,
+                env=parent_environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=PROVENANCE_COMMAND_TIMEOUT_SECONDS,
+            )
+            self.assertEqual(bridge.returncode, 0, bridge.stderr.decode("utf-8"))
+            bridge_environment = decoded_environment(bridge.stdout)
+            self.assertIn("CI_INHERITED_UPSTREAM_ENV", bridge_environment)
+            self.assertEqual(bridge_environment["ENVOY_VERSION"], "1.39.0")
+
+            reentry = self.run_common_function(
+                bridge_environment,
+                '. "$1/ci/lib/common.sh"; ci_require_approved_modsecurity_v3_provenance',
+                bridge_environment["FRAMEWORK_ROOT"],
+            )
+            self.assertEqual(reentry.returncode, 0, reentry.stdout + reentry.stderr)
 
     def test_empty_legacy_aliases_normalize_to_reviewed_metadata(self):
         result, commands, _ = self.invoke_fetch(
