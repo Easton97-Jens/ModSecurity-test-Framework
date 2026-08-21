@@ -70,6 +70,7 @@ UPSTREAM_RELEASE = re.compile(
     rf"({STABLE_RELEASE_TAG})$"
 )
 GIT_REVISION = re.compile(r"^[A-Za-z0-9_./-]+$")
+COMMON_SH_PATH = "ci/lib/common.sh"
 
 # These are deliberately individual files, not broad directory prefixes.  A
 # new workflow must be reviewed and added here before this publisher can touch
@@ -104,7 +105,7 @@ ALLOWED_UPDATE_PATHS = frozenset(
 PROPOSED_VALIDATION_INPUT_PATHS = frozenset(
     {
         *ALLOWED_UPDATE_PATHS,
-        "ci/lib/common.sh",
+        COMMON_SH_PATH,
         "ci/tools/install-hash-locked-ci-dependencies.sh",
     }
 )
@@ -1321,10 +1322,8 @@ def validate_canonical_generated_proposed_tree(
     proposed_root = proposed_validation_root()
     try:
         copy_update_inputs(base_root, proposed_root)
-        common_source = resolve_regular_file(head_root, Path("ci/lib/common.sh"))
-        common_destination = resolve_regular_file(
-            proposed_root, Path("ci/lib/common.sh")
-        )
+        common_source = resolve_regular_file(head_root, Path(COMMON_SH_PATH))
+        common_destination = resolve_regular_file(proposed_root, Path(COMMON_SH_PATH))
         write_verified_text(
             common_destination, common_source.read_text(encoding="utf-8")
         )
@@ -1909,7 +1908,7 @@ def verify_existing_canonical_generated_blobs(
 
     candidate = existing_branch_candidate(base_lock, head_lock, base_lock_digest)
     expected_root = proposed_validation_root()
-    additional_paths = frozenset({"ci/lib/common.sh"})
+    additional_paths = frozenset({COMMON_SH_PATH})
     try:
         copy_git_update_inputs(
             root,
@@ -1917,11 +1916,11 @@ def verify_existing_canonical_generated_blobs(
             expected_root,
             additional_paths=additional_paths,
         )
-        common_path = resolve_regular_file(expected_root, Path("ci/lib/common.sh"))
+        common_path = resolve_regular_file(expected_root, Path(COMMON_SH_PATH))
         common_blob = git_blob(
             root,
             head,
-            Path("ci/lib/common.sh"),
+            Path(COMMON_SH_PATH),
             allowed_paths=ALLOWED_UPDATE_PATHS | additional_paths,
         )
         try:
