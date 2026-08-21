@@ -108,6 +108,7 @@ separation, publisher scope, no-update behavior, and full-SHA action pins.
 | PR-head `check-action-versions` run `32448256402` | 0 | All hosted steps succeeded for `4ab08112debe3162bee4b4d07b12b931ce8891c8`. | GitHub Actions |
 | SonarQube Cloud PR query | 0 | `total: 0`, empty issue list for PR #101 at the preceding repaired head. | `framework-pr101-sonar-zero-20260821` |
 | Non-default updater run `32448284801` | 2 | Resolver succeeded and publisher was skipped; validator failed closed because its proposed tree omitted the two canonical helper inputs. | `evidence/workflow-updater-proposed-tree-failure.md` |
+| PR-head Python CI-security quality run `32449509572` | 1 | Ruff lint passed; only Ruff formatting rejected one new long test expression. The successor wraps that expression without changing behavior. | `evidence/hosted-python-ci-security-quality-c9cde60-failed.log` |
 | `git diff --check` | 0 | No whitespace error. | Task worktree |
 | Exact-literal count | 0 | `"ci-security-osv.yml"` occurs once in the repaired checker. | Task worktree |
 | `ci/tools/safe-make.sh lint` | 130 | Cancelled after its registered two-minute bound; not counted as a pass. | `evidence/make-lint.log` |
@@ -132,7 +133,9 @@ The preceding repaired head has hosted Sonar evidence of zero issues and a
 successful `check-action-versions` run. The safe updater dispatch exposed a
 real validation-context defect while correctly skipping the write-capable
 publisher. The corrected source is locally proven and awaits a normal
-follow-up PR push and fresh current-head checks.
+follow-up PR push and fresh current-head checks. That first follow-up exposed
+one Ruff-format-only test expression; the behavior-preserving wrap is locally
+covered by the complete CI-security suite and awaits its successor run.
 
 ## Checks not run
 
@@ -162,9 +165,9 @@ and PR checks remain required for the final follow-up head.
 ## Final diff and review status
 
 The scoped unstaged diff contains the two Sonar repairs, the narrow updater
-validation-input correction, its direct test, and this paired Change Record.
-`git diff --check` passed; no secret-bearing files or Parent/MRTS paths are
-included. The next state is a normal focused follow-up commit on the existing
-PR #101 branch, followed by fresh exact-head Sonar and PR-check validation. No
-merge, force push, settings change, default-branch change, or Parent gitlink
-update is authorized.
+validation-input correction, its direct test, a Ruff-only formatting wrap, and
+this paired Change Record. `git diff --check` passed; no secret-bearing files
+or Parent/MRTS paths are included. The next state is a normal focused
+follow-up commit on the existing PR #101 branch, followed by fresh exact-head
+Sonar and PR-check validation. No merge, force push, settings change,
+default-branch change, or Parent gitlink update is authorized.

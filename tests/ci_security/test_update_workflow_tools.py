@@ -743,7 +743,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                         "immutable_commit": "a" * 40,
                         "upstream_release": UPDATER.release_url(identity, version),
                         "asset": asset,
-                        "asset_url": UPDATER.release_asset_url(identity, version, asset),
+                        "asset_url": UPDATER.release_asset_url(
+                            identity, version, asset
+                        ),
                         "sha256": "b" * 64,
                     }
                 },

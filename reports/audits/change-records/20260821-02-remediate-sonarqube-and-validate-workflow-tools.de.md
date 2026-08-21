@@ -118,6 +118,7 @@ vollständige SHA-Action-Pins ab.
 | PR-Head-`check-action-versions`-Run `32448256402` | 0 | Alle Hosted-Schritte bestanden für `4ab08112debe3162bee4b4d07b12b931ce8891c8`. | GitHub Actions |
 | SonarQube-Cloud-PR-Abfrage | 0 | `total: 0`, leere Issue-Liste für PR #101 am vorherigen reparierten Head. | `framework-pr101-sonar-zero-20260821` |
 | Non-default-Updater-Run `32448284801` | 2 | Resolver bestand und Publisher wurde übersprungen; Validator scheiterte fail-closed, weil seinem Proposed Tree die zwei kanonischen Helper-Inputs fehlten. | `evidence/workflow-updater-proposed-tree-failure.md` |
+| PR-Head-Python-CI-Security-Quality-Run `32449509572` | 1 | Ruff-Lint bestand; nur Ruff-Formatierung lehnte einen neuen langen Testausdruck ab. Der Successor kapselt ihn ohne Verhaltensänderung. | `evidence/hosted-python-ci-security-quality-c9cde60-failed.log` |
 | `git diff --check` | 0 | Kein Whitespace-Fehler. | Task-Worktree |
 | Exakte Literalanzahl | 0 | `"ci-security-osv.yml"` kommt im reparierten Checker einmal vor. | Task-Worktree |
 | `ci/tools/safe-make.sh lint` | 130 | Nach der registrierten Zwei-Minuten-Grenze abgebrochen; nicht als bestanden gezählt. | `evidence/make-lint.log` |
@@ -144,7 +145,10 @@ einen erfolgreichen `check-action-versions`-Run. Der sichere Updater-Dispatch
 legte einen echten Validierungskontextdefekt offen und übersprang dabei korrekt
 den schreibfähigen Publisher. Der korrigierte Quelltext ist lokal bewiesen und
 wartet auf einen normalen Follow-up-Push des PR sowie frische Current-Head-
-Checks.
+Checks. Dieser erste Follow-up legte einen einzelnen Ruff-Formatierungsfehler
+im Testausdruck offen; die verhaltensbewahrende Kapselung ist durch die
+vollständige CI-Security-Suite lokal abgedeckt und wartet auf ihren
+Successor-Run.
 
 ## Nicht ausgeführte Prüfungen
 
@@ -176,10 +180,10 @@ für den finalen Follow-up-Head erforderlich.
 ## Finaler Diff- und Review-Status
 
 Der fokussierte unstaged Diff enthält die zwei Sonar-Reparaturen, die enge
-Updater-Validierungs-Input-Korrektur, ihren direkten Test und dieses
-Record-Paar. `git diff --check` bestand; keine Secret-haltigen Dateien oder
-Parent-/MRTS-Pfade sind enthalten. Der nächste Status ist ein normaler
-fokussierter Follow-up-Commit auf dem bestehenden PR-#101-Branch mit frischer
-Exact-Head-Sonar- und PR-Check-Validierung. Kein Merge, Force-Push,
-Settings-Wechsel, Default-Branch-Wechsel oder Parent-Gitlink-Update ist
-autorisiert.
+Updater-Validierungs-Input-Korrektur, ihren direkten Test, eine reine Ruff-
+Formatierungs-Kapselung und dieses Record-Paar. `git diff --check` bestand;
+keine Secret-haltigen Dateien oder Parent-/MRTS-Pfade sind enthalten. Der
+nächste Status ist ein normaler fokussierter Follow-up-Commit auf dem
+bestehenden PR-#101-Branch mit frischer Exact-Head-Sonar- und
+PR-Check-Validierung. Kein Merge, Force-Push, Settings-Wechsel,
+Default-Branch-Wechsel oder Parent-Gitlink-Update ist autorisiert.
