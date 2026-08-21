@@ -3713,6 +3713,113 @@ def _common_version_resolver_dependency_errors(
     return errors
 
 
+def _common_version_named_step_index(steps: list[Any], name: str) -> int | None:
+    """Return the uniquely named step index, rejecting absent or duplicate steps."""
+
+    indexes = [
+        index
+        for index, step in enumerate(steps)
+        if isinstance(step, dict) and step.get("name") == name
+    ]
+    return indexes[0] if len(indexes) == 1 else None
+
+
+def _first_exact_line_index(lines: list[str], expected: str) -> int:
+    """Return the first exact line index, or -1 when the line is absent."""
+
+    for index, line in enumerate(lines):
+        if line == expected:
+            return index
+    return -1
+
+
+def _first_prefixed_line_index(lines: list[str], prefix: str) -> int:
+    """Return the first prefixed line index, or -1 when the line is absent."""
+
+    for index, line in enumerate(lines):
+        if line.startswith(prefix):
+            return index
+    return -1
+
+
+def _common_version_snapshot_bootstrap_error(
+    path: Path, name: str, snapshot_run: str
+) -> str | None:
+    """Return a contract error when a snapshot lacks an ordered locked bootstrap."""
+
+    lines = [line.strip() for line in snapshot_run.splitlines()]
+    install_index = _first_exact_line_index(lines, COMMON_VERSION_PIP_INSTALL_COMMAND)
+    requirements_index = _first_exact_line_index(lines, HASH_LOCKED_CI_REQUIREMENTS)
+    pip_check_index = _first_exact_line_index(lines, COMMON_VERSION_PIP_CHECK_COMMAND)
+    updater_index = _first_prefixed_line_index(
+        lines, COMMON_VERSION_SNAPSHOT_UPDATER_COMMAND
+    )
+    if not (0 <= install_index < requirements_index < pip_check_index < updater_index):
+        return (
+            f"{path}: {name} snapshot must bootstrap hash-locked CI requirements and "
+            "run pip check before invoking the workflow-tool updater"
+        )
+    return None
+
+
+def _common_version_updater_before_snapshot(
+    steps: list[Any], snapshot_index: int
+) -> bool:
+    """Detect updater execution before the snapshot's locked bootstrap."""
+
+    return any(
+        isinstance(step, dict)
+        and isinstance(step.get("run"), str)
+        and any(
+            line.strip().startswith(COMMON_VERSION_UPDATER_COMMAND)
+            for line in step["run"].splitlines()
+        )
+        for step in steps[:snapshot_index]
+    )
+
+
+def _common_version_updater_bootstrap_job_errors(
+    path: Path, name: str, job: Any
+) -> list[str]:
+    """Validate the updater bootstrap contract for one fresh runner job."""
+
+    steps = job.get("steps") if isinstance(job, dict) else None
+    if not isinstance(steps, list):
+        return [f"{path}: {name} must retain reviewed updater bootstrap steps"]
+
+    snapshot_index = _common_version_named_step_index(
+        steps, STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS
+    )
+    plan_index = _common_version_named_step_index(
+        steps, STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN
+    )
+    if snapshot_index is None or plan_index is None:
+        return [
+            f"{path}: {name} must retain one snapshot and one caller-bound plan step"
+        ]
+
+    errors: list[str] = []
+    if snapshot_index >= plan_index:
+        errors.append(
+            f"{path}: {name} must snapshot workflow-tool inputs before applying the canonical plan"
+        )
+    snapshot_run = steps[snapshot_index].get("run")
+    if not isinstance(snapshot_run, str):
+        errors.append(
+            f"{path}: {name} snapshot must bootstrap hash-locked CI requirements before invoking the workflow-tool updater"
+        )
+        return errors
+
+    bootstrap_error = _common_version_snapshot_bootstrap_error(path, name, snapshot_run)
+    if bootstrap_error is not None:
+        errors.append(bootstrap_error)
+    if _common_version_updater_before_snapshot(steps, snapshot_index):
+        errors.append(
+            f"{path}: {name} must not invoke the workflow-tool updater before its locked bootstrap"
+        )
+    return errors
+
+
 def _common_version_updater_bootstrap_order_errors(
     path: Path, jobs: dict[str, Any]
 ) -> list[str]:
@@ -3720,100 +3827,9 @@ def _common_version_updater_bootstrap_order_errors(
 
     errors: list[str] = []
     for name in ("candidate", "publish"):
-        job = jobs.get(name)
-        steps = job.get("steps") if isinstance(job, dict) else None
-        if not isinstance(steps, list):
-            errors.append(
-                f"{path}: {name} must retain reviewed updater bootstrap steps"
-            )
-            continue
-        snapshot_indexes = [
-            index
-            for index, step in enumerate(steps)
-            if isinstance(step, dict)
-            and step.get("name")
-            == STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS
-        ]
-        plan_indexes = [
-            index
-            for index, step in enumerate(steps)
-            if isinstance(step, dict)
-            and step.get("name") == STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN
-        ]
-        if len(snapshot_indexes) != 1 or len(plan_indexes) != 1:
-            errors.append(
-                f"{path}: {name} must retain one snapshot and one caller-bound plan step"
-            )
-            continue
-        snapshot_index = snapshot_indexes[0]
-        if snapshot_index >= plan_indexes[0]:
-            errors.append(
-                f"{path}: {name} must snapshot workflow-tool inputs before applying the canonical plan"
-            )
-        snapshot_run = steps[snapshot_index].get("run")
-        if not isinstance(snapshot_run, str):
-            errors.append(
-                f"{path}: {name} snapshot must bootstrap hash-locked CI requirements before invoking the workflow-tool updater"
-            )
-            continue
-        lines = [line.strip() for line in snapshot_run.splitlines()]
-        install_index = next(
-            (
-                index
-                for index, line in enumerate(lines)
-                if line == COMMON_VERSION_PIP_INSTALL_COMMAND
-            ),
-            None,
+        errors.extend(
+            _common_version_updater_bootstrap_job_errors(path, name, jobs.get(name))
         )
-        requirements_index = next(
-            (
-                index
-                for index, line in enumerate(lines)
-                if line == HASH_LOCKED_CI_REQUIREMENTS
-            ),
-            None,
-        )
-        pip_check_index = next(
-            (
-                index
-                for index, line in enumerate(lines)
-                if line == COMMON_VERSION_PIP_CHECK_COMMAND
-            ),
-            None,
-        )
-        updater_index = next(
-            (
-                index
-                for index, line in enumerate(lines)
-                if line.startswith(COMMON_VERSION_SNAPSHOT_UPDATER_COMMAND)
-            ),
-            None,
-        )
-        if (
-            install_index is None
-            or requirements_index is None
-            or pip_check_index is None
-            or updater_index is None
-        ):
-            errors.append(
-                f"{path}: {name} snapshot must bootstrap hash-locked CI requirements and run pip check before invoking the workflow-tool updater"
-            )
-        elif not (install_index < requirements_index < pip_check_index < updater_index):
-            errors.append(
-                f"{path}: {name} snapshot must bootstrap hash-locked CI requirements and run pip check before invoking the workflow-tool updater"
-            )
-        if any(
-            isinstance(step, dict)
-            and isinstance(step.get("run"), str)
-            and any(
-                line.strip().startswith(COMMON_VERSION_UPDATER_COMMAND)
-                for line in step["run"].splitlines()
-            )
-            for step in steps[:snapshot_index]
-        ):
-            errors.append(
-                f"{path}: {name} must not invoke the workflow-tool updater before its locked bootstrap"
-            )
     return errors
 
 
