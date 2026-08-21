@@ -200,6 +200,34 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             "tools": {} if tools is None else tools,
         }
 
+    def native_subset_blob_fixture(
+        self, temporary_root: Path
+    ) -> tuple[bytes, dict[str, Any], dict[str, Any], dict[tuple[str, str], bytes]]:
+        base_lock_blob = (ROOT / "ci/tooling/security-tools.lock.yml").read_bytes()
+        base_lock = UPDATER.yaml.safe_load(base_lock_blob)
+        checkout = self.changed_action(
+            base_lock, "actions/checkout", "v9.9.9", "a" * 40
+        )
+        candidate = self.candidate_for(ROOT, {"actions/checkout": checkout})
+        expected_root = self.copied_update_root(temporary_root / "expected")
+        UPDATER.apply_candidate(expected_root, candidate)
+        head_lock = UPDATER.yaml.safe_load(
+            (expected_root / "ci/tooling/security-tools.lock.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        blobs = {
+            ("base", relative_text): (ROOT / relative_text).read_bytes()
+            for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
+        }
+        blobs.update(
+            {
+                ("head", relative_text): (expected_root / relative_text).read_bytes()
+                for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
+            }
+        )
+        return base_lock_blob, base_lock, head_lock, blobs
+
     def test_resolver_uses_only_release_and_tag_identity(self) -> None:
         _path, lock, _digest = UPDATER.load_lock(ROOT)
         record = lock["actions"]["actions/checkout"]
@@ -1038,32 +1066,10 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             self.assertEqual(list(runner_temp.iterdir()), [])
 
     def test_existing_canonical_branch_accepts_the_exact_native_subset(self) -> None:
-        base_lock_blob = (ROOT / "ci/tooling/security-tools.lock.yml").read_bytes()
-        base_lock = UPDATER.yaml.safe_load(base_lock_blob)
-        checkout = self.changed_action(
-            base_lock, "actions/checkout", "v9.9.9", "a" * 40
-        )
-        candidate = self.candidate_for(ROOT, {"actions/checkout": checkout})
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
-            expected_root = self.copied_update_root(temporary_root / "expected")
-            UPDATER.apply_candidate(expected_root, candidate)
-            head_lock = UPDATER.yaml.safe_load(
-                (expected_root / "ci/tooling/security-tools.lock.yml").read_text(
-                    encoding="utf-8"
-                )
-            )
-            blobs = {
-                ("base", relative_text): (ROOT / relative_text).read_bytes()
-                for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
-            }
-            blobs.update(
-                {
-                    ("head", relative_text): (
-                        expected_root / relative_text
-                    ).read_bytes()
-                    for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
-                }
+            base_lock_blob, base_lock, head_lock, blobs = self.native_subset_blob_fixture(
+                temporary_root
             )
             for revision in ("base", "head"):
                 blobs[(revision, "ci/lib/common.sh")] = (
@@ -1092,32 +1098,10 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             self.assertEqual(list(runner_temp.iterdir()), [])
 
     def test_existing_branch_accepts_exact_trusted_base_derived_blobs(self) -> None:
-        base_lock_blob = (ROOT / "ci/tooling/security-tools.lock.yml").read_bytes()
-        base_lock = UPDATER.yaml.safe_load(base_lock_blob)
-        checkout = self.changed_action(
-            base_lock, "actions/checkout", "v9.9.9", "a" * 40
-        )
-        candidate = self.candidate_for(ROOT, {"actions/checkout": checkout})
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
-            expected_root = self.copied_update_root(temporary_root / "expected")
-            UPDATER.apply_candidate(expected_root, candidate)
-            head_lock = UPDATER.yaml.safe_load(
-                (expected_root / "ci/tooling/security-tools.lock.yml").read_text(
-                    encoding="utf-8"
-                )
-            )
-            blobs = {
-                ("base", relative_text): (ROOT / relative_text).read_bytes()
-                for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
-            }
-            blobs.update(
-                {
-                    ("head", relative_text): (
-                        expected_root / relative_text
-                    ).read_bytes()
-                    for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
-                }
+            base_lock_blob, base_lock, head_lock, blobs = self.native_subset_blob_fixture(
+                temporary_root
             )
 
             def git_blob(_root: Path, revision: str, relative: Path) -> bytes:

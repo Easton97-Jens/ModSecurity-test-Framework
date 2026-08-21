@@ -21,6 +21,13 @@ Wartbarkeitsbefunde und kein Sonar-Konfigurationsproblem: einer wiederholt das
 exakte OSV-Workflow-Literal, ein Test enthält zwei möglicherweise auslösende
 Aufrufe in einem `assertRaises`-Body.
 
+Die spätere Exact-Head-Abfrage meldet weiterhin null New-Issues, aber ihre
+PR-Metrik meldet `2.0%` Duplikation auf New Code (`27` neue duplizierte Zeilen).
+SonarQube Cloud identifiziert genau zwei 27-zeilige Setup-Blöcke in
+`tests/ci_security/test_update_workflow_tools.py`. Dies ist ein eigenständiger,
+task-eigener Duplikationsbefund (`FND-FRAMEWORK-0105`) und kein Grund, das
+Quality Gate abzuschwächen oder eine Suppression hinzuzufügen.
+
 ## Betroffene Komponenten und Sicherheitsgrenzen
 
 - `ci/checks/security/check-ci-security-contract.py`: Framework-
@@ -56,6 +63,10 @@ read-only, unverändert und im Task-Worktree nicht initialisiert.
    und seinen Publisher strukturell überspringt. Sein Proposed-Tree-Validator
    muss alle festen, read-only kanonischen Eingaben erhalten, die die geprüften
    Verträge verlangen.
+6. Der Successor-PR-Head meldet `new_duplicated_lines=0` und
+   `new_duplicated_lines_density=0.0`, sodass die angezeigte New-Code-
+   Duplikationsmetrik `0.0%` beträgt, ohne Exclusion, Suppression oder
+   Scanner-Änderung.
 
 ## Untersuchte Alternativen
 
@@ -87,6 +98,13 @@ Publisher-Write-Allowlist. Ein getrenntes, festes
 Validierungs-Input-Tree hinzu. Dies sind read-only Checker-Inputs: Sie sind
 weder für Candidate-Änderungen noch für Staging oder Publishing zulässig.
 
+Für das eigenständige Duplikations-Follow-up wird nur die identische
+Native-Subset-Fixture-Vorbereitung in `native_subset_blob_fixture()`
+extrahiert. Die kanonischen und nativen Existing-Branch-Verifier-Aufrufe, ihre
+bewusst unterschiedlichen `git_blob`-Adapter, das kanonische `common.sh`-
+Overlay und jede Assertion bleiben in ihren getrennten Tests. Updater-
+Produktionscode und Security-Controls ändern sich nicht.
+
 ## Geänderte Dateien und Tests
 
 - `ci/checks/security/check-ci-security-contract.py`: Eine gemeinsame
@@ -99,6 +117,10 @@ weder für Candidate-Änderungen noch für Staging oder Publishing zulässig.
 - `tests/ci_security/test_update_workflow_tools.py`: fügt einen echten
   Tool-only-Proposed-Tree-Validator-Regressionstest hinzu, der ohne diese
   read-only Inputs scheitern würde.
+- `tests/ci_security/test_update_workflow_tools.py`: teilt die exakte
+  Pre-Verification-Native-Subset-Fixture zwischen zwei ansonsten unabhängigen
+  Verifier-Regressionen und entfernt so den 27-zeiligen SonarQube-Cloud-
+  Duplikatblock, ohne das Verhalten eines Tests zu reduzieren.
 - Dieser englische Record und sein vollständiger deutscher Begleiter
   dokumentieren Reparatur und Grenzen.
 
@@ -122,6 +144,11 @@ vollständige SHA-Action-Pins ab.
 | `git diff --check` | 0 | Kein Whitespace-Fehler. | Task-Worktree |
 | Exakte Literalanzahl | 0 | `"ci-security-osv.yml"` kommt im reparierten Checker einmal vor. | Task-Worktree |
 | `ci/tools/safe-make.sh lint` | 130 | Nach der registrierten Zwei-Minuten-Grenze abgebrochen; nicht als bestanden gezählt. | `evidence/make-lint.log` |
+| Zwei betroffene Existing-Branch-Verifier-Tests | 0 | Beide getrennten kanonischen/nativen Verifier-Pfade bestanden nach der Fixture-Extraktion. | R9 task-eigene externe Roots |
+| `tests.ci_security.test_update_workflow_tools` | 0 | 40 Updater-Tests bestanden nach der Fixture-Extraktion. | R9 task-eigene externe Roots |
+| `ci/tools/safe-make.sh test-ci-security-contract` | 0 | Vollständige CI-Security-Suite: 286 Tests bestanden nach der Fixture-Extraktion. | R9 task-eigene externe Roots |
+| `ci/tools/safe-make.sh check-github-actions-workflows` | 0 | Python-Version-, Action-Pin- und Permission-Verträge bestanden für alle aktiven Workflows. | R9 task-eigene externe Roots |
+| `ci/tools/safe-make.sh test-workflow-action-pins` | 0 | 25 Regressionstests für unveränderliche Action-Pins bestanden. | R9 task-eigene externe Roots |
 
 ## Sicherheitsauswirkung
 
@@ -149,6 +176,10 @@ Checks. Dieser erste Follow-up legte einen einzelnen Ruff-Formatierungsfehler
 im Testausdruck offen; die verhaltensbewahrende Kapselung ist durch die
 vollständige CI-Security-Suite lokal abgedeckt und wartet auf ihren
 Successor-Run.
+Das anschließende Duplikations-Follow-up ändert ausschließlich die
+Test-Fixture-Struktur; es benötigt weiterhin eine frische Exact-Head-
+SonarQube-Cloud-Metrik und ein gehostetes Python-Quality-Ergebnis, bevor die
+verlangten `0.0%` behauptet werden.
 
 ## Nicht ausgeführte Prüfungen
 
@@ -181,9 +212,11 @@ für den finalen Follow-up-Head erforderlich.
 
 Der fokussierte unstaged Diff enthält die zwei Sonar-Reparaturen, die enge
 Updater-Validierungs-Input-Korrektur, ihren direkten Test, eine reine Ruff-
-Formatierungs-Kapselung und dieses Record-Paar. `git diff --check` bestand;
-keine Secret-haltigen Dateien oder Parent-/MRTS-Pfade sind enthalten. Der
-nächste Status ist ein normaler fokussierter Follow-up-Commit auf dem
-bestehenden PR-#101-Branch mit frischer Exact-Head-Sonar- und
-PR-Check-Validierung. Kein Merge, Force-Push, Settings-Wechsel,
-Default-Branch-Wechsel oder Parent-Gitlink-Update ist autorisiert.
+Formatierungs-Kapselung und dieses Record-Paar. Er enthält nun auch die enge
+gemeinsame Test-Fixture, die den exakten New-Code-Duplikatblock entfernt und
+beide unabhängigen Verifier-Pfade bewahrt. `git diff --check` bestand; keine
+Secret-haltigen Dateien oder Parent-/MRTS-Pfade sind enthalten. Der nächste
+Status ist ein normaler fokussierter Follow-up-Commit auf dem bestehenden
+PR-#101-Branch mit frischer Exact-Head-Sonar- und PR-Check-Validierung. Kein
+Merge, Force-Push, Settings-Wechsel, Default-Branch-Wechsel oder
+Parent-Gitlink-Update ist autorisiert.

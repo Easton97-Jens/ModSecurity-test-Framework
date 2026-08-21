@@ -20,6 +20,13 @@ function. The issues are task-owned Python maintainability findings, not a
 Sonar configuration problem: one repeats the exact OSV workflow literal and
 one test puts two possibly-throwing calls inside one `assertRaises` body.
 
+The later exact-head query still reports zero New issues, but its PR measure
+reports `2.0%` duplication on New Code (`27` new duplicated lines). SonarQube
+Cloud identifies exactly two 27-line setup blocks in
+`tests/ci_security/test_update_workflow_tools.py`. This is a distinct,
+task-owned duplication finding (`FND-FRAMEWORK-0105`), not a reason to relax
+the Quality Gate or add a suppression.
+
 ## Affected components and security boundaries
 
 - `ci/checks/security/check-ci-security-contract.py`: Framework CI security
@@ -51,6 +58,9 @@ and uninitialized in the task worktree.
    non-default-ref `update-workflow-tools` run proves its resolver and
    structurally skips its publisher. Its proposed-tree validator must receive
    every fixed, read-only canonical input required by the checked contracts.
+6. The successor PR head reports `new_duplicated_lines=0` and
+   `new_duplicated_lines_density=0.0`, so the displayed New-Code duplication
+   metric is `0.0%`, without an exclusion, suppression, or scanner change.
 
 ## Alternatives considered
 
@@ -77,6 +87,13 @@ write allowlist. A distinct, fixed `PROPOSED_VALIDATION_INPUT_PATHS` adds only
 the temporary validation input tree. These are read-only checker inputs: they
 are not eligible for candidate changes, staging, or publishing.
 
+For the distinct duplication follow-up, extract only the identical native
+subset fixture preparation into `native_subset_blob_fixture()`. The canonical
+and native existing-branch verifier calls, their deliberately different
+`git_blob` adapters, the canonical `common.sh` overlay, and every assertion
+remain in their separate tests. No updater production code or security control
+changes.
+
 ## Changed files and tests
 
 - `ci/checks/security/check-ci-security-contract.py`: one shared
@@ -90,6 +107,10 @@ are not eligible for candidate changes, staging, or publishing.
 - `tests/ci_security/test_update_workflow_tools.py`: adds a real tool-only
   proposed-tree validator regression test, which would fail without those
   read-only inputs.
+- `tests/ci_security/test_update_workflow_tools.py`: shares the exact
+  pre-verification native-subset fixture between two otherwise independent
+  verifier regressions, eliminating the 27-line SonarQube Cloud duplicate
+  block without reducing either test's behavior.
 - This English record and its complete German companion document the repair
   and its limits.
 
@@ -112,6 +133,11 @@ separation, publisher scope, no-update behavior, and full-SHA action pins.
 | `git diff --check` | 0 | No whitespace error. | Task worktree |
 | Exact-literal count | 0 | `"ci-security-osv.yml"` occurs once in the repaired checker. | Task worktree |
 | `ci/tools/safe-make.sh lint` | 130 | Cancelled after its registered two-minute bound; not counted as a pass. | `evidence/make-lint.log` |
+| Two affected existing-branch verifier tests | 0 | Both distinct canonical/native verifier paths passed after fixture extraction. | R9 task-owned external roots |
+| `tests.ci_security.test_update_workflow_tools` | 0 | 40 updater tests passed after the fixture extraction. | R9 task-owned external roots |
+| `ci/tools/safe-make.sh test-ci-security-contract` | 0 | Complete CI-security suite: 286 tests passed after the fixture extraction. | R9 task-owned external roots |
+| `ci/tools/safe-make.sh check-github-actions-workflows` | 0 | Python-version, action-pin, and permission contracts passed for all active workflows. | R9 task-owned external roots |
+| `ci/tools/safe-make.sh test-workflow-action-pins` | 0 | 25 immutable-action-pin regression tests passed. | R9 task-owned external roots |
 
 ## Security impact
 
@@ -136,6 +162,9 @@ publisher. The corrected source is locally proven and awaits a normal
 follow-up PR push and fresh current-head checks. That first follow-up exposed
 one Ruff-format-only test expression; the behavior-preserving wrap is locally
 covered by the complete CI-security suite and awaits its successor run.
+The subsequent duplication follow-up changes only test-fixture structure; it
+still requires a fresh exact-head SonarQube Cloud measure and hosted Python
+quality result before the requested `0.0%` is claimed.
 
 ## Checks not run
 
@@ -166,7 +195,9 @@ and PR checks remain required for the final follow-up head.
 
 The scoped unstaged diff contains the two Sonar repairs, the narrow updater
 validation-input correction, its direct test, a Ruff-only formatting wrap, and
-this paired Change Record. `git diff --check` passed; no secret-bearing files
+this paired Change Record. It now also contains the narrow shared test fixture
+that removes the exact new-code duplication block while retaining both
+independent verifier paths. `git diff --check` passed; no secret-bearing files
 or Parent/MRTS paths are included. The next state is a normal focused
 follow-up commit on the existing PR #101 branch, followed by fresh exact-head
 Sonar and PR-check validation. No merge, force push, settings change,
