@@ -1068,8 +1068,8 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
     def test_existing_canonical_branch_accepts_the_exact_native_subset(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
-            base_lock_blob, base_lock, head_lock, blobs = self.native_subset_blob_fixture(
-                temporary_root
+            base_lock_blob, base_lock, head_lock, blobs = (
+                self.native_subset_blob_fixture(temporary_root)
             )
             for revision in ("base", "head"):
                 blobs[(revision, "ci/lib/common.sh")] = (
@@ -1100,8 +1100,8 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
     def test_existing_branch_accepts_exact_trusted_base_derived_blobs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
-            base_lock_blob, base_lock, head_lock, blobs = self.native_subset_blob_fixture(
-                temporary_root
+            base_lock_blob, base_lock, head_lock, blobs = (
+                self.native_subset_blob_fixture(temporary_root)
             )
 
             def git_blob(_root: Path, revision: str, relative: Path) -> bytes:
