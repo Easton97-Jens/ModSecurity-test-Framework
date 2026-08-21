@@ -3814,7 +3814,9 @@ def _common_version_canonical_candidate_errors(
             "${{ steps.workflow_tool_candidate.outputs.workflow_tool_candidate_sha256 }}"
         ),
     }:
-        errors.append(f"{path}: candidate outputs must bind the generated tool candidate")
+        errors.append(
+            f"{path}: candidate outputs must bind the generated tool candidate"
+        )
     return errors
 
 
@@ -4014,8 +4016,7 @@ def _common_version_publish_pr_errors(path: Path, publish: Any) -> list[str]:
     if (
         not isinstance(state_check_with, dict)
         or set(state_check_with) != {"github-token", "script"}
-        or state_check_with.get("github-token")
-        != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION
+        or state_check_with.get("github-token") != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION
         or not isinstance(state_check_with.get("script"), str)
         or publisher_body_digest(state_check_with["script"])
         != COMMON_VERSION_CANONICAL_PR_STATE_CHECK_SHA256

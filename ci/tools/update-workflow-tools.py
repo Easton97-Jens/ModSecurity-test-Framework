@@ -1059,7 +1059,9 @@ def runner_temp_directory(path: Path, *, for_write: bool) -> Path:
         directory.chmod(0o700)
         return directory
     if path.is_symlink() or not path.is_dir():
-        raise UpdateError("candidate directory must be an existing non-symlink directory")
+        raise UpdateError(
+            "candidate directory must be an existing non-symlink directory"
+        )
     return resolved_runner_temp_child(path, runner_root, strict=True)
 
 
@@ -1374,9 +1376,7 @@ def validate_canonical_generated_candidate(
     # the existing checksum-safe downloader.
     verify_existing_branch_lock_records(base_lock, head_lock)
     verify_changed_tool_assets(changes, output_dir)
-    validate_canonical_generated_proposed_tree(
-        trusted_base_root, head_root, candidate
-    )
+    validate_canonical_generated_proposed_tree(trusted_base_root, head_root, candidate)
     return candidate
 
 

@@ -101,10 +101,11 @@ Default-Branch-Änderung ist enthalten.
 | `python ci/checks/security/check-workflow-action-pins.py` | 0 | Jede externe Action bleibt auf eine volle Commit-SHA gepinnt. | Lokaler Task-Worktree |
 | `python ci/tools/sync-canonical-workflow-pins.py --check --root .` | 0 | Kanonische Workflow-Pins bestehen. | Lokaler Task-Worktree |
 | `python ci/tools/check-common-versions.py --validate-canonical` | 0 | Kanonische common.sh-Pins bestehen. | Lokaler Task-Worktree |
+| Gesperrte Ruff-Lint- und Format-Prüfungen | 0 | Das exakt SHA-gesperrte Ruff 0.16.3 akzeptierte die geänderten Python- und Testpfade nach mechanischer Formatierung. | Lokaler Task-Worktree |
 | Vollständige CI-Security-Suite | 0 | 286 Tests bestanden. | Lokaler Task-Worktree |
 | Dokumentations- und Change-Record-Prüfungen | 0 | Links, zweisprachige Variablen, Repository-Pfade, Change-Record-Überschriften und 4 Change-Record-Contract-Tests bestanden. | Lokaler Task-Worktree |
 | Finaler Diff | 0 | `git diff --check` bestand. | Lokaler Task-Worktree |
-| Security-Diff-Review | task-eigenes Artefakt | Der unveränderliche finale Report bleibt außerhalb des Worktrees, weil er Scanner-Evidenz und keinen Produktquelltext enthält. | `workflow-consolidation-diff-final/report.md` |
+| Security-Diff-Review | task-eigenes Artefakt | Der unveränderliche finale Report bleibt außerhalb des Worktrees, weil er Scanner-Evidenz und keinen Produktquelltext enthält. | `workflow-consolidation-diff-post-ruff/report.md` |
 
 ## Sicherheitsauswirkung
 
@@ -142,6 +143,6 @@ Record autorisiert keinen Default-Branch-Dispatch und keinen Merge.
 Der finale fokussierte Diff enthält keine Whitespace-Fehler; es sind keine
 Secrets oder rohen sensiblen Materialien dokumentiert. Der task-eigene
 Security-Diff-Report ist die maßgebliche unveränderliche Evidenz für den
-fertigen Quelltext-Snapshot. Der bestehende PR kann nach dem Delivery-Preflight
-aktualisiert werden; Merge, Force-Push, Default-Branch-Write und
-Parent-Gitlink-Update sind nicht autorisiert.
+fertigen Quelltext-Snapshot. Der bestehende PR wurde nach dem Delivery-Preflight
+mit einem normalen Follow-up-Commit aktualisiert; Merge, Force-Push,
+Default-Branch-Write und Parent-Gitlink-Update sind nicht autorisiert.

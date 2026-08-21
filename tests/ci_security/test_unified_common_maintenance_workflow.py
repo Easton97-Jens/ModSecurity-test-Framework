@@ -71,12 +71,17 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             self.assertIn("validate-canonical-generated-candidate", step["run"])
             self.assertIn("--verify-tool-assets", step["run"])
             self.assertIn("--validate-proposed-tree", step["run"])
-            self.assertIn("--base-root \"$RUNNER_TEMP/canonical-workflow-tool-base\"", step["run"])
-        self.assertIn("--expected-candidate-sha256", next(
-            step["run"]
-            for step in publisher["steps"]
-            if step["name"] == "Revalidate generated workflow-tool candidate"
-        ))
+            self.assertIn(
+                '--base-root "$RUNNER_TEMP/canonical-workflow-tool-base"', step["run"]
+            )
+        self.assertIn(
+            "--expected-candidate-sha256",
+            next(
+                step["run"]
+                for step in publisher["steps"]
+                if step["name"] == "Revalidate generated workflow-tool candidate"
+            ),
+        )
         for job in (candidate, publisher):
             snapshot = next(
                 step
@@ -90,7 +95,8 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         state_check = next(
             step
             for step in publisher["steps"]
-            if step["name"] == "Inspect matching Draft canonical maintenance pull request"
+            if step["name"]
+            == "Inspect matching Draft canonical maintenance pull request"
         )
         self.assertEqual(
             state_check["with"]["github-token"],
@@ -103,7 +109,7 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             "pullRequest.base.ref !== defaultBranch",
             "!pullRequest.body?.includes(marker)",
             "compareCommitsWithBasehead",
-            "comparison.data.status !== \"ahead\"",
+            'comparison.data.status !== "ahead"',
             "allowedPaths.has(filename)",
         ):
             self.assertIn(required, script)

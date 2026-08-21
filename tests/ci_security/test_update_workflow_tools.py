@@ -572,9 +572,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         )
         publisher_paths = {
             line.strip()
-            for line in workflow.split("          add-paths: |\n", 1)[1].split(
-                "\n\n  result:", 1
-            )[0].splitlines()
+            for line in workflow.split("          add-paths: |\n", 1)[1]
+            .split("\n\n  result:", 1)[0]
+            .splitlines()
             if line.strip()
         }
         self.assertTrue(
@@ -671,7 +671,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 with self.assertRaisesRegex(UPDATER.UpdateError, "overwrite"):
                     UPDATER.write_candidate(candidate_path, candidate)
 
-    def test_canonical_validation_snapshot_is_private_and_rejects_redirects(self) -> None:
+    def test_canonical_validation_snapshot_is_private_and_rejects_redirects(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             temporary_root = Path(temporary_directory)
             runner_temp = temporary_root / "runner-temp"
@@ -688,9 +690,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 )
             self.assertEqual(snapshot, runner_temp / "canonical-base")
             self.assertEqual(snapshot.stat().st_mode & 0o777, 0o700)
-            self.assertTrue(
-                (snapshot / "ci/tooling/security-tools.lock.yml").is_file()
-            )
+            self.assertTrue((snapshot / "ci/tooling/security-tools.lock.yml").is_file())
             with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
                 with self.assertRaisesRegex(UPDATER.UpdateError, "overwrite"):
                     UPDATER.snapshot_update_validation_inputs(ROOT, snapshot)
@@ -702,18 +702,16 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             runner_temp.mkdir()
             head_root = self.copied_update_root(temporary_root / "head")
             _path, lock, _digest = UPDATER.load_lock(head_root)
-            checkout = self.changed_action(
-                lock, "actions/checkout", "v9.9.9", "a" * 40
-            )
-            candidate = self.candidate_for(
-                head_root, {"actions/checkout": checkout}
-            )
+            checkout = self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)
+            candidate = self.candidate_for(head_root, {"actions/checkout": checkout})
             UPDATER.apply_candidate(head_root, candidate)
             expected_digest = UPDATER.candidate_sha256(candidate)
 
             with (
                 patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
-                patch.object(UPDATER, "verify_existing_branch_lock_records") as provenance,
+                patch.object(
+                    UPDATER, "verify_existing_branch_lock_records"
+                ) as provenance,
                 patch.object(UPDATER, "verify_changed_tool_assets") as assets,
                 patch.object(UPDATER, "run_proposed_tree_contract_checks") as contracts,
             ):
@@ -1147,7 +1145,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/check-common-versions.yml").read_text(
             encoding="utf-8"
         )
-        self.assertFalse((ROOT / ".github/workflows/update-workflow-tools.yml").exists())
+        self.assertFalse(
+            (ROOT / ".github/workflows/update-workflow-tools.yml").exists()
+        )
         self.assertIn("canonical-maintenance:", workflow)
         self.assertIn("candidate:", workflow)
         self.assertIn("publish:", workflow)
@@ -1161,9 +1161,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self.assertIn("permission-pull-requests: write", workflow)
         self.assertIn("permission-workflows: write", workflow)
         self.assertIn("${{ steps.publisher_app_token.outputs.token }}", workflow)
-        publisher = workflow.split("\n  publish:\n", 1)[1].split(
-            "\n  result:\n", 1
-        )[0]
+        publisher = workflow.split("\n  publish:\n", 1)[1].split("\n  result:\n", 1)[0]
         self.assertNotIn("${{ github.token }}", publisher)
         self.assertIn("Require publisher App configuration", workflow)
         self.assertIn("workflow_tool_candidate_sha256", workflow)
@@ -1172,11 +1170,11 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self.assertIn("--validate-proposed-tree", workflow)
         self.assertIn("snapshot-validation-inputs", workflow)
         self.assertIn("validate-canonical-generated-candidate", workflow)
-        self.assertIn("Inspect matching Draft canonical maintenance pull request", workflow)
-        self.assertIn("compareCommitsWithBasehead", workflow)
         self.assertIn(
-            "verify-existing-canonical-workflow-tool-subset", workflow
+            "Inspect matching Draft canonical maintenance pull request", workflow
         )
+        self.assertIn("compareCommitsWithBasehead", workflow)
+        self.assertIn("verify-existing-canonical-workflow-tool-subset", workflow)
         self.assertIn("draft: true", workflow)
         self.assertIn(
             "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",

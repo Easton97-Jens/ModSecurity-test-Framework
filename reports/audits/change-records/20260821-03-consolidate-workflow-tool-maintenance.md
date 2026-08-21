@@ -93,10 +93,11 @@ change is included.
 | `python ci/checks/security/check-workflow-action-pins.py` | 0 | Every external Action remains pinned to a full commit SHA. | Local task worktree |
 | `python ci/tools/sync-canonical-workflow-pins.py --check --root .` | 0 | Canonical workflow pins passed. | Local task worktree |
 | `python ci/tools/check-common-versions.py --validate-canonical` | 0 | Canonical common.sh pins passed. | Local task worktree |
+| Locked Ruff lint and format checks | 0 | The exact SHA-locked Ruff 0.16.3 tool accepted the changed Python and test paths after mechanical formatting. | Local task worktree |
 | Complete CI-security suite | 0 | 286 tests passed. | Local task worktree |
 | Documentation and Change Record checks | 0 | Links, bilingual variables, repository paths, Change Record headings, and 4 Change Record contract tests passed. | Local task worktree |
 | Final diff | 0 | `git diff --check` passed. | Local task worktree |
-| Security-diff review | task-owned artifact | The immutable final report is retained outside the worktree because it contains scanner evidence, not product source. | `workflow-consolidation-diff-final/report.md` |
+| Security-diff review | task-owned artifact | The immutable final report is retained outside the worktree because it contains scanner evidence, not product source. | `workflow-consolidation-diff-post-ruff/report.md` |
 
 ## Security impact
 
@@ -130,6 +131,6 @@ or merge is authorized by this record.
 
 The final scoped diff has no whitespace errors and no secret or raw sensitive
 material is recorded. The task-owned security-diff report is the authoritative
-immutable evidence for the completed source snapshot. The existing PR may be
-updated after delivery preflight; no merge, force push, default-branch write,
-or Parent gitlink update is authorized.
+immutable evidence for the completed source snapshot. The existing PR was
+updated with a normal follow-up commit after delivery preflight; no merge,
+force push, default-branch write, or Parent gitlink update is authorized.

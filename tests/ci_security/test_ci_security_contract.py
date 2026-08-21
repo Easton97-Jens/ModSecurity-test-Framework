@@ -573,7 +573,7 @@ jobs:
         workflow = workflow_path.read_text(encoding="utf-8")
         variants = {
             "missing-publisher-candidate-binding": workflow.replace(
-                "--expected-candidate-sha256 \"$WORKFLOW_TOOL_CANDIDATE_SHA256\" \\\n",
+                '--expected-candidate-sha256 "$WORKFLOW_TOOL_CANDIDATE_SHA256" \\\n',
                 "",
                 1,
             ),
@@ -602,7 +602,7 @@ jobs:
                 "pullRequests.length !== 1", "false", 1
             ),
             "existing-branch-scope-bypass": workflow.replace(
-                "comparison.data.status !== \"ahead\"", "false", 1
+                'comparison.data.status !== "ahead"', "false", 1
             ),
             "outcome-not-always": workflow.replace(
                 "if: ${{ always() }}", "if: ${{ success() }}", 1
