@@ -956,7 +956,7 @@ jobs:
                     "          printf '%s\\n' 'python3 -m pip check'\n",
                 ),
             }
-            expected_errors = {
+            expected_errors: dict[str, tuple[str, ...]] = {
                 "omits-hash-locked-install": (),
                 "omits-pip-check": (),
                 "comments-out-bootstrap": (),
