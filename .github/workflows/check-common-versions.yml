@@ -214,6 +214,9 @@ jobs:
       - name: Snapshot trusted workflow-tool validation inputs
         run: |
           set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
           python3 ci/tools/update-workflow-tools.py snapshot-validation-inputs \
             --root . \
             --output-dir "$RUNNER_TEMP/canonical-workflow-tool-base"
@@ -222,9 +225,6 @@ jobs:
           PLAN_SHA256: ${{ needs.canonical-maintenance.outputs.plan_sha256 }}
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
           python3 ci/tools/reconcile-common-version-review-issues.py \
             --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" \
             --expected-plan-sha256 "$PLAN_SHA256" \
@@ -293,6 +293,9 @@ jobs:
       - name: Snapshot trusted workflow-tool validation inputs
         run: |
           set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
           python3 ci/tools/update-workflow-tools.py snapshot-validation-inputs \
             --root . \
             --output-dir "$RUNNER_TEMP/canonical-workflow-tool-base"
@@ -301,9 +304,6 @@ jobs:
           PLAN_SHA256: ${{ needs.canonical-maintenance.outputs.plan_sha256 }}
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
           python3 ci/tools/reconcile-common-version-review-issues.py \
             --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" \
             --expected-plan-sha256 "$PLAN_SHA256" \

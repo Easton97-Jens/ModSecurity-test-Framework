@@ -181,7 +181,10 @@ desselben Runs und keine solche Berechtigung; sie lösen keine Live-Quellen
 erneut auf. Der native Helper
 `ci/tools/update-workflow-tools.py` wird nun nur über diesen kanonischen
 Workflow aufgerufen; seine Snapshot- und Validierungs-Kommandos erhalten kein
-Token. Sein optionales Bearer-Credential und der GitHub-API-Medientyp sind auf
+Token. Jeder frische Candidate- oder Publisher-Runner installiert die
+vorhandenen hash-gesperrten CI-Abhängigkeiten und führt `pip check` aus, bevor
+er diesen Helper aufruft. Sein optionales Bearer-Credential und der
+GitHub-API-Medientyp sind auf
 einen festen `https://api.github.com/repos/...`-Request begrenzt, wenn ein
 explizit überprüfter Caller sie setzt. Release-Seiten, Downloads und jeder
 andere Host erhalten das Token nie; es wird nicht in Plänen,

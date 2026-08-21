@@ -169,6 +169,8 @@ publisher consumers receive the retained same-run plan artifact and do not
 receive that token or re-resolve live sources. The native
 `ci/tools/update-workflow-tools.py` helper is now invoked only through that
 canonical workflow; its snapshot and validation commands receive no token.
+Each fresh candidate or publisher runner installs the existing hash-locked CI
+requirements and completes `pip check` before it invokes that helper.
 Its optional bearer credential and GitHub API media type are restricted to a
 fixed `https://api.github.com/repos/...` request when an explicitly reviewed
 caller supplies one. Release pages, downloads, and every other host never
