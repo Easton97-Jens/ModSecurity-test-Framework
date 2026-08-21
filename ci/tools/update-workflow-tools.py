@@ -99,6 +99,16 @@ ALLOWED_UPDATE_PATHS = frozenset(
         "docs/github-actions-workflow-security.de.md",
     }
 )
+# The proposed-tree checkers need this canonical, read-only helper in addition
+# to the files the publisher may update.  Keep this input surface separate so
+# validation dependencies cannot silently expand the publisher's write scope.
+PROPOSED_VALIDATION_INPUT_PATHS = frozenset(
+    {
+        *ALLOWED_UPDATE_PATHS,
+        "ci/lib/common.sh",
+        "ci/tools/install-hash-locked-ci-dependencies.sh",
+    }
+)
 WORKFLOW_UPDATE_PATHS = tuple(
     path
     for path in sorted(ALLOWED_UPDATE_PATHS)
@@ -1183,9 +1193,9 @@ def proposed_validation_root() -> Path:
 
 
 def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
-    """Copy only the explicit update surface into a fresh private temp root."""
+    """Copy the update surface and read-only checker inputs into a temp root."""
 
-    for relative_text in sorted(ALLOWED_UPDATE_PATHS):
+    for relative_text in sorted(PROPOSED_VALIDATION_INPUT_PATHS):
         relative = Path(relative_text)
         source = resolve_regular_file(source_root, relative)
         destination = destination_root / relative

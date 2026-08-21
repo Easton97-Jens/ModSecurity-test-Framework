@@ -165,7 +165,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
 
     def copied_update_root(self, temporary_root: Path) -> Path:
         destination = temporary_root / "framework"
-        for relative_text in UPDATER.ALLOWED_UPDATE_PATHS:
+        for relative_text in UPDATER.PROPOSED_VALIDATION_INPUT_PATHS:
             relative = Path(relative_text)
             source = ROOT / relative
             target = destination / relative
@@ -724,6 +724,37 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 source_lock,
                 (root / "ci/tooling/security-tools.lock.yml").read_bytes(),
             )
+
+    def test_proposed_tree_validation_accepts_a_tool_only_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            root = self.copied_update_root(temporary_root)
+            _path, lock, _digest = UPDATER.load_lock(root)
+            baseline = lock["tools"]["actionlint"]
+            identity = UPDATER.release_identity(baseline, "actionlint")
+            version = "v9.9.9"
+            asset = UPDATER.expected_asset_name(baseline, version, "actionlint")
+            candidate = self.candidate_for(
+                root,
+                {},
+                tools={
+                    "actionlint": {
+                        "version": version,
+                        "immutable_commit": "a" * 40,
+                        "upstream_release": UPDATER.release_url(identity, version),
+                        "asset": asset,
+                        "asset_url": UPDATER.release_asset_url(identity, version, asset),
+                        "sha256": "b" * 64,
+                    }
+                },
+            )
+            runner_temp = temporary_root / "runner-temp"
+            runner_temp.mkdir()
+
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                UPDATER.validate_proposed_tree(root, candidate)
+
+            self.assertEqual(list(runner_temp.iterdir()), [])
 
     def test_scope_verification_rejects_the_unallowlisted_source_of_a_rename(
         self,
