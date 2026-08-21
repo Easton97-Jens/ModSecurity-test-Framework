@@ -13,6 +13,7 @@ described in [change traceability](../../../docs/change-traceability.md).
 
 ## Current records
 
+- [Fix inherited-upstream snapshot re-entry (2026-08-21)](20260821-02-fix-inherited-upstream-snapshot-reentry.md)
 - [Remediate Traefik runtime pin divergence (2026-08-14)](20260814-01-remediate-traefik-runtime-pin-divergence.md)
 - [Add five-connector With-CRS/No-MRTS evidence contract (2026-08-10)](20260810-01-add-five-connectors-with-crs-no-mrts-contract.md)
 - [Allow only canonical empty CRS `.gitmodules` provenance metadata (2026-08-09)](20260809-02-allow-exact-empty-crs-gitmodules-provenance.md)

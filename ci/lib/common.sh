@@ -49,6 +49,13 @@ else
     HAPROXY_BIN_WAS_SET=0
 fi
 
+# A prior Framework source can export this internal snapshot metadata through
+# a `set -a` bridge.  It is not an upstream pin input: retaining it would make
+# its embedded lines part of a fresh snapshot and falsely duplicate canonical
+# pins when another Framework guard sources this file.  Drop only that stale
+# bridge state; direct inherited pin variables remain below for validation.
+unset CI_INHERITED_UPSTREAM_ENV CI_INHERITED_UPSTREAM_ENV_STATUS
+
 # Keep the inherited process environment as an inert byte-for-byte snapshot
 # before any canonical assignment below can overwrite an exported shell
 # variable.  Use only fixed system paths: a caller-defined `env` shell

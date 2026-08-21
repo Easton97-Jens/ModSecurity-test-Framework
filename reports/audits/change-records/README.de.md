@@ -16,6 +16,7 @@ beschrieben.
 
 ## Aktuelle Records
 
+- [Re-Entry des geerbten Upstream-Snapshots beheben (2026-08-21)](20260821-02-fix-inherited-upstream-snapshot-reentry.de.md)
 - [Traefik-Runtime-Pin-Divergenz beheben (2026-08-14)](20260814-01-remediate-traefik-runtime-pin-divergence.de.md)
 - [Fünf-Connector-With-CRS-/No-MRTS-Evidenzvertrag hinzufügen (2026-08-10)](20260810-01-add-five-connectors-with-crs-no-mrts-contract.de.md)
 - [Nur kanonische leere CRS-`.gitmodules`-Provenance-Metadaten zulassen (2026-08-09)](20260809-02-allow-exact-empty-crs-gitmodules-provenance.de.md)
