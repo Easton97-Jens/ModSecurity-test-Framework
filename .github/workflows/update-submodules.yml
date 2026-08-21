@@ -163,7 +163,16 @@ jobs:
             --base "$DEFAULT_BRANCH" \
             --head "$UPDATE_BRANCH" \
             --state open \
-            --json number,isDraft,baseRefName,title)"
+            --json number,isDraft,baseRefName,title,headRefName,headRepository,headRepositoryOwner | \
+            jq -c --arg repository "$GITHUB_REPOSITORY" --arg branch "$UPDATE_BRANCH" '
+              [
+                .[]
+                | select(
+                    .headRefName == $branch and
+                    ((.headRepositoryOwner.login // "") + "/" + (.headRepository.name // "") == $repository)
+                  )
+              ]
+            ')"
           matching_count="$(printf '%s' "$matching_prs" | jq 'length')"
           case "$matching_count" in
             0)

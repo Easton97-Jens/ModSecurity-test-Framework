@@ -10,6 +10,7 @@ on:
       - "ci/checks/security/**"
       - "ci/tooling/**"
       - "ci/tools/fetch-security-tool.py"
+      - "ci/tools/install-hash-locked-ci-dependencies.sh"
       - "ci/tools/update-python-version.py"
       - "tests/ci_security/**"
       - "tests/fixtures/ci-security/**"
@@ -21,6 +22,7 @@ on:
       - "ci/checks/security/**"
       - "ci/tooling/**"
       - "ci/tools/fetch-security-tool.py"
+      - "ci/tools/install-hash-locked-ci-dependencies.sh"
       - "ci/tools/update-python-version.py"
       - "tests/ci_security/**"
       - "tests/fixtures/ci-security/**"
@@ -58,11 +60,7 @@ jobs:
           check-latest: false
 
       - name: Install hash-locked CI dependency
-        run: |
-          set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+        run: bash ci/tools/install-hash-locked-ci-dependencies.sh
 
       - name: Fetch checksum-verified actionlint and ShellCheck
         env:
@@ -107,11 +105,7 @@ jobs:
           check-latest: false
 
       - name: Install hash-locked CI dependency
-        run: |
-          set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+        run: bash ci/tools/install-hash-locked-ci-dependencies.sh
 
       - name: Fetch checksum-verified zizmor
         env:

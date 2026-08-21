@@ -23,6 +23,9 @@ from urllib.request import Request, urlopen
 
 SCHEMA_VERSION = "1"
 MAX_PLAN_BYTES = 1_000_000
+MAX_GITHUB_RESPONSE_BYTES = 1_000_000
+MAX_ISSUE_BYTES = 16_000_000
+MAX_ISSUES = 25_600
 MAX_STRING = 512
 MAX_REASON = 2_000
 MAX_ITEMS = 256
@@ -767,21 +770,35 @@ class GitHubClient:
             },
         )
         with urlopen(request, timeout=20) as response:
-            payload = response.read()
+            payload = response.read(MAX_GITHUB_RESPONSE_BYTES + 1)
+        if len(payload) > MAX_GITHUB_RESPONSE_BYTES:
+            raise PlanError("GitHub response exceeds the byte safety bound")
         return json.loads(payload.decode("utf-8")) if payload else None
 
     def list_issues(self, repository: str) -> list:
         result = []
+        total_bytes = 0
         for page in range(1, 257):
             query = urlencode({"state": "all", "per_page": 100, "page": page})
             items = self.request("GET", f"/repos/{repository}/issues?{query}")
             if not isinstance(items, list):
                 raise PlanError("GitHub returned an invalid issue page")
-            result.extend(
+            page_bytes = len(
+                json.dumps(items, separators=(",", ":"), ensure_ascii=True).encode(
+                    "utf-8"
+                )
+            )
+            if total_bytes + page_bytes > MAX_ISSUE_BYTES:
+                raise PlanError("GitHub issue results exceed the aggregate byte bound")
+            page_issues = [
                 item
                 for item in items
                 if isinstance(item, dict) and "pull_request" not in item
-            )
+            ]
+            if len(result) + len(page_issues) > MAX_ISSUES:
+                raise PlanError("GitHub issue results exceed the aggregate issue bound")
+            total_bytes += page_bytes
+            result.extend(page_issues)
             if len(items) < 100:
                 return result
         raise PlanError("GitHub issue pagination exceeded the safety bound")

@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CATALOG_DIRECTORY = ROOT / "ci/checks/catalog"
 MODULE_PATH = CATALOG_DIRECTORY / "five_connectors_with_crs_no_mrts.py"
 WORKFLOW_PATH = ROOT / ".github/workflows/five-connectors-with-crs-no-mrts-contract.yml"
+CI_DEPENDENCY_INSTALLER_PATH = ROOT / "ci/tools/install-hash-locked-ci-dependencies.sh"
 QUALITY_WORKFLOW_PATH = ROOT / ".github/workflows/ci-security-quality.yml"
 PYRIGHT_CONFIG_PATH = ROOT / "pyrightconfig.json"
 MAKEFILE_PATH = ROOT / "Makefile"
@@ -1447,11 +1448,14 @@ class FiveConnectorWorkflowSecurityContractTest(unittest.TestCase):
         self.assertIn("test-five-connectors-with-crs-no-mrts-contract", text)
         self.assertIn("test-crs-provenance-contract", text)
         self.assertIn("Install hash-locked CI dependency", text)
-        self.assertIn("--disable-pip-version-check", text)
-        self.assertIn("--no-input", text)
-        self.assertIn("--only-binary=:all:", text)
-        self.assertIn("--require-hashes -r requirements-ci.lock", text)
-        self.assertIn("python3 -m pip check", text)
+        self.assertIn("run: bash ci/tools/install-hash-locked-ci-dependencies.sh", text)
+        installer = CI_DEPENDENCY_INSTALLER_PATH.read_text(encoding="utf-8")
+        self.assertIn("set -euo pipefail", installer)
+        self.assertIn("--disable-pip-version-check", installer)
+        self.assertIn("--no-input", installer)
+        self.assertIn("--only-binary=:all:", installer)
+        self.assertIn("--require-hashes -r requirements-ci.lock", installer)
+        self.assertIn("python3 -m pip check", installer)
         self.assertEqual(text.count('"requirements-ci.lock"'), 2)
         self.assertIn("ci/checks/catalog/five_connectors_with_crs_no_mrts.py", text)
         self.assertEqual(

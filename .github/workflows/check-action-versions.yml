@@ -14,6 +14,7 @@ on:
       - "ci/tools/check-common-versions.py"
       - "ci/tools/update-python-version.py"
       - "ci/tools/update-workflow-tools.py"
+      - "ci/tools/install-hash-locked-ci-dependencies.sh"
       - "ci/tools/sync-canonical-python-pins.py"
       - "ci/tools/sync-canonical-workflow-pins.py"
       - "ci/tools/sync-runtime-components.py"
@@ -61,11 +62,7 @@ jobs:
           check-latest: false
 
       - name: Install hash-locked CI dependency
-        run: |
-          set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+        run: bash ci/tools/install-hash-locked-ci-dependencies.sh
 
       - name: Validate immutable Action pins and CI security contracts
         run: |

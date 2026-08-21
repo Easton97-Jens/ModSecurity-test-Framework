@@ -121,7 +121,6 @@ ALLOWED_AUTOMATIC_PATHS = frozenset(
             "lint.yml",
             "test-common.yml",
             "update-submodules.yml",
-            "update-workflow-tools.yml",
         )
     }
 )

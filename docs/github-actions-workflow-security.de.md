@@ -32,14 +32,13 @@ Berechtigung. Durch diese Härtung wurde kein solches Verhalten entfernt.
 | Workflow | Trigger | Externe Actions | Effektive Berechtigungen | Vertrauensentscheidung |
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, gefilterter `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; er läuft nur lesend und ohne persistierte Checkout-Credentials. |
-| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact`, `actions/download-artifact`, `actions/create-github-app-token`, `peter-evans/create-pull-request` | Workflow und natives Publisher-Token `contents: read`; nur das kurzlebige, repositorybegrenzte App-Token hat `contents`, `pull-requests`, `workflows`: write | Der vertrauenswürdige Canonical-Job löst genau einen per SHA-256 gebundenen Plan auf und bewahrt ihn einen Tag auf. Candidate, Issue-Reconciliation und Publisher laden und validieren vor ihrer Arbeit dasselbe Run-/Attempt-Artefakt; der Publisher erstellt oder aktualisiert ausschließlich eine Draft-PR mit festem Branch. |
+| `check-common-versions.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact`, `actions/download-artifact`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | Workflow und natives Publisher-Token `contents: read`; nur das kurzlebige, repositorybegrenzte App-Token hat `contents`, `pull-requests`, `workflows`: write | Der vertrauenswürdige Canonical-Job löst genau einen per SHA-256 gebundenen Plan auf und bewahrt ihn einen Tag auf. Vor dessen Anwendung sichern Candidate und Publisher die feste native Workflow-Tool-Eingabefläche unter `RUNNER_TEMP`; danach leiten beide den exakten Tool-Kandidaten ab und prüfen Digest, Release-Assets und isolierten vorgeschlagenen Baum. Der Publisher vergleicht den Digest über Jobs hinweg und akzeptiert nur einen exakten, begrenzten Draft-PR-Branch; ein bestehender Branch muss außerdem bytegenau den nativ aus der Basis abgeleiteten Dateien entsprechen. |
 | `check-python-version.yml` | `workflow_dispatch`, Zeitplan | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | Workflow-Standard `permissions: {}`; nur Resolver, Kandidatenvalidierung und Publisher erhalten eingebaute `contents: read`; das repository-begrenzte App-Token hat nur `contents`, `pull-requests`: write | Resolver- und Kandidatenjobs sind read-only. Der Default-Branch-Publisher löst einen stabilen Kandidaten unabhängig erneut auf, verifiziert genau einen festen Draft-Branch/PR und ändert nur `.python-version`; er merged nie. Ein finaler read-only-Outcome-Job macht nur den exakten No-Update-Zustand grün. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, Zeitplan | `actions/github-script` | Workflow-Standard `contents: read`; Cleanup-Job effektiv `actions: write` | Geplanter/manueller Workflow vertrauenswürdiger Maintainer; sein Job kann nur Repository-Artefakte löschen. |
 | `five-connectors-with-crs-no-mrts-contract.yml` | gefilterter `push`, gefilterter `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; dieses nur lesende Gate installiert nur die hash-gesperrte Abhängigkeit aus `requirements-ci.lock` und validiert dann den portablen geschlossenen Fixture-, CRS-Provenance- und Evidenzvertrag, nie ein Connector-Host-Runtime-Ergebnis. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode und seine Entwicklungsabhängigkeiten sind nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR-Quellcode ist nicht vertrauenswürdig; weder Write-Berechtigung, Secret, persistierte Credentials noch Submodule sind konfiguriert. |
 | `ci-security-osv.yml` | begrenztes `pull_request`, Zeitplan, manuell | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact` | `contents: read` | Der nicht privilegierte PR-Job führt nur die vertrauenswürdige Basisrevision aus, verifiziert ein geholtes PR-Objekt und behandelt Dependency-Manifest- und begrenzte `.python-version`-Blobs als Daten statt als ausgecheckten Code. |
-| `update-workflow-tools.yml` | Zeitplan, manuell | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script` | Reader-Jobs und das eingebaute Publisher-Token `contents: read`; sein erzeugtes App-Token hat `contents`, `pull-requests`, `workflows`: write | Der eingeschränkte Publisher läuft erst nach unabhängigen Resolver- und Validator-Jobs, begrenzt sein kurzlebiges App-Token auf dieses Repository und erstellt ausschließlich einen Draft-PR. |
 | `update-submodules.yml` | Zeitplan, manuell | `actions/checkout`, `actions/setup-python` | Reader-Jobs `contents: read`; nur der validierte Default-Branch-Publisher hat `contents: write`, `pull-requests: write` | Der Resolver folgt ausschließlich `Easton97-Jens/MRTS` `refs/heads/main`; der Validator initialisiert ausdrücklich nur `tools/MRTS`, bevor er den detached Kandidaten prüft; der Publisher ändert nur `tools/MRTS`, verwendet einen normalen Push ohne Force und erstellt oder aktualisiert genau einen passenden Draft-PR. |
 
 ## Unveränderliche Action-Provenienz
@@ -179,16 +178,15 @@ jobbezogene `GITHUB_TOKEN` nur in seinem explizit überprüften kanonischen
 Resolver-Schritt in `check-common-versions.yml` verwenden. Seine Candidate-,
 Reconciliation- und Publisher-Consumer erhalten das bewahrte Artefakt
 desselben Runs und keine solche Berechtigung; sie lösen keine Live-Quellen
-erneut auf. Der eigenständige Reader-
-Workflow `update-workflow-tools.yml` bleibt tokenfrei; auch wenn sein Helper
-aus dem kanonischen Maintenance-Pfad aufgerufen wird, erweitert dies nicht
-die Berechtigungen dieses Workflows. Der Helper fügt Bearer-Credential und
-GitHub-API-Medientyp nur seinem festen Request an
-`https://api.github.com/repos/...` hinzu. Requests an Release-Seiten,
-Downloads oder jeden anderen Host erhalten das Token nie, und das Token wird
-nicht in Plänen, Zusammenfassungen, Diagnosen oder Fehlermeldungen ausgegeben.
-Die bestehende Publisher-Grenze bleibt unverändert: Nur das kurzlebige,
-repositorybegrenzte App-Token darf veröffentlichen.
+erneut auf. Der native Helper
+`ci/tools/update-workflow-tools.py` wird nun nur über diesen kanonischen
+Workflow aufgerufen; seine Snapshot- und Validierungs-Kommandos erhalten kein
+Token. Sein optionales Bearer-Credential und der GitHub-API-Medientyp sind auf
+einen festen `https://api.github.com/repos/...`-Request begrenzt, wenn ein
+explizit überprüfter Caller sie setzt. Release-Seiten, Downloads und jeder
+andere Host erhalten das Token nie; es wird nicht in Plänen,
+Zusammenfassungen, Diagnosen oder Fehlermeldungen ausgegeben. Nur das
+kurzlebige, repositorybegrenzte App-Token darf veröffentlichen.
 
 Der API-Ursprung ist auf HTTPS `api.github.com` und repositorybezogene Pfade
 festgelegt. Redirects werden vor dem Senden deaktiviert; eine Antwort, deren

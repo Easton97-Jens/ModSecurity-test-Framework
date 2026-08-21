@@ -72,13 +72,12 @@ No workflow uses `id-token: write`.
 | `ci-security-codeql.yml` | Default-branch push, schedule, manual | Trusted CodeQL analyzes the exact `github.sha` with the same bounded language scope and linked tool bundle. Its one job-scoped `security-events: write` permission is used only to upload Code Scanning SARIF after non-PR execution. No Go or JavaScript/TypeScript scope is claimed, and C/C++ uses `build-mode: none` so the scan does not provision connector or MRTS dependencies. |
 | `ci-security-scorecard.yml` | PR; default-branch push, schedule, manual on the default branch | A checksum-verified OpenSSF Scorecard binary assesses the exact local PR checkout without a GitHub token. The PR result is JSON-validated but artifact-free. Trusted default-branch jobs use the exact `github.sha`, retain one validated bounded JSON file for one day, and remain advisory because no score threshold is imposed; scanner and JSON-validation failures are not advisory. No SARIF is uploaded. |
 | `ci-security-dependency-review.yml` | Dependency-changing PRs | Dependency Review checks high-severity vulnerabilities and runtime/development scopes without automatic remediation or PR comments. |
-| `update-workflow-tools.yml` | Scheduled/manual trusted default revision | A read-only resolver obtains candidates only from lock-derived official GitHub release/Git endpoints. A separate read-only validator checksum-downloads changed tool assets and applies the candidate only in a bounded runner-temporary copy to recheck the resulting pins and contracts. The sole write-capable publisher re-resolves and checksum-validates its fresh candidate, accepts only a base-identity-verified matching Draft PR branch, confines changes to an explicit allowlist, uses a normal push, and creates a Draft PR only. |
+| `check-common-versions.yml` | Scheduled/manual trusted default revision | The sole canonical maintenance orchestrator retains one caller-bound plan. Candidate and publisher snapshot the native workflow-tool input surface before applying it, then derive the exact lock-based tool candidate. Both verify release provenance, changed tool asset checksums, and an isolated proposed tree; the publisher binds its revalidation to the candidate job's SHA-256, accepts only one exact allowlist-scoped Draft PR branch, and verifies an existing branch's native subset against base-derived bytes. |
 | `update-submodules.yml` | Scheduled/manual trusted default revision | A read-only resolver resolves only the full SHA at `Easton97-Jens/MRTS` `refs/heads/main`. A separate read-only validator explicitly initializes only the declared `tools/MRTS` submodule, checks the detached candidate, and runs `make quick-check`. The default-branch publisher revalidates the SHA, accepts an existing Draft branch only when it changes `tools/MRTS` alone, uses a normal non-force push, and creates a matching Draft PR only. |
 
-The existing `lint.yml`, `test-common.yml`, Action-version check,
-common-version maintenance, workflow/tool maintenance, and artifact-cleanup
-workflows use the same immutable Action, permission, checkout, timeout, and
-concurrency contract.
+The existing `lint.yml`, `test-common.yml`, Action-version check, canonical
+common/workflow-tool maintenance, and artifact-cleanup workflows use the same
+immutable Action, permission, checkout, timeout, and concurrency contract.
 This scope hardens `test-common.yml` workflow execution only; its independently
 governed common-case catalog assertion and materialization semantics are not a
 CI-security product fix.
@@ -127,30 +126,30 @@ paths, links, and devices, extracts only the locked executable or package tree,
 and publishes the result atomically. It never installs a package into the
 Framework checkout.
 
-`ci/tools/update-workflow-tools.py` is the only native updater for that lock
-scope. Its resolver has no GitHub token and accepts only lock-derived official
-GitHub API URLs. Its candidate binds to the SHA-256 of the trusted current lock
-and can change only release/version, immutable commit, and—in a tool record—the
-expected asset tuple and SHA-256. The validator fails closed on a stale lock,
-unexpected field, URL, asset naming rule, or digest, applies the candidate
-only in a bounded runner-temporary copy, and calls the downloader only for
-changed tool assets. The publisher repeats resolution, checksum-validates its
-fresh tool candidate, validates its working copy, and accepts changes only to
-its explicit lock/workflow/paired-guide allowlist. It does not execute a
-downloaded asset, use `pull_request_target`, force-push, or merge. Existing
-branches are reused only when the one open PR has the exact branch, title,
-base, marker, and Draft state and its changed tuples verify from the current
-default-branch lock identity.
+`ci/tools/update-workflow-tools.py` remains the native updater helper for that
+lock scope; it no longer has a separate GitHub Actions publisher. Its
+lock-based candidate can change only release/version, immutable commit, and—
+in a tool record—the expected asset tuple and SHA-256. The canonical workflow
+captures the helper's fixed validation inputs before plan application, derives
+the candidate from that snapshot and the generated lock afterwards, and fails
+closed on a stale lock, unexpected field, URL, asset naming rule, or digest.
+Both read-only candidate validation and publisher revalidation checksum-check
+changed tool assets and apply only in a bounded runner-temporary proposed tree.
+The publisher binds the second derivation to the candidate job's SHA-256,
+checks the exact Draft PR identity and branch allowlist, and, before reusing an
+existing branch, checks the native subset's base identity and generated bytes.
+It creates or updates only the fixed Draft PR. It does not execute a downloaded
+asset, use
+`pull_request_target`, force-push, or merge.
 
-The no-token statement above applies to the standalone
-`update-workflow-tools.yml` reader workflow. When its Python helper is invoked
-by the canonical maintenance path in `check-common-versions.yml`, that
-already step-scoped read-only `GITHUB_TOKEN` may be used only for requests to
-the exact HTTPS `api.github.com` authority. Release, download, and other-host
-requests never receive it; redirects are rejected before a credential can
-cross authorities, and the token is never emitted in plans, summaries, or
-diagnostics. This does not change the workflow permissions or the existing
-repository-limited publisher App-token boundary.
+The helper's optional GitHub API bearer credential is restricted to fixed HTTPS
+`api.github.com` repository paths when an explicitly reviewed caller supplies
+it. The consolidated candidate and publisher validation steps receive no
+`GITHUB_TOKEN`; release, download, and other-host requests never receive a
+credential. Redirects are rejected before a credential can cross authorities,
+and tokens are never emitted in plans, summaries, or diagnostics. This does
+not change the workflow permissions or the repository-limited publisher
+App-token boundary.
 
 The canonical common-maintenance job verifies that the generated JSON and
 Markdown plans exist even when the resolver returns a fatal result. Only the

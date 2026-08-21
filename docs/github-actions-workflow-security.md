@@ -30,14 +30,13 @@ write permission. No such behavior was removed by this hardening work.
 | Workflow | Triggers | External Actions | Effective permissions | Trust disposition |
 | --- | --- | --- | --- | --- |
 | `check-action-versions.yml` | `workflow_dispatch`, filtered `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source is untrusted; it runs read-only with no persisted checkout credential. |
-| `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact`, `actions/download-artifact`, `actions/create-github-app-token`, `peter-evans/create-pull-request` | workflow and native publisher token `contents: read`; only the short-lived, repository-limited App token has `contents`, `pull-requests`, `workflows`: write | The trusted canonical job resolves one SHA-256-bound plan and retains it for one day. Candidate, issue reconciliation, and publisher download and validate that same run/attempt artifact before work; the publisher creates or updates one fixed-branch Draft PR only. |
+| `check-common-versions.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact`, `actions/download-artifact`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | workflow and native publisher token `contents: read`; only the short-lived, repository-limited App token has `contents`, `pull-requests`, `workflows`: write | The trusted canonical job resolves one SHA-256-bound plan and retains it for one day. Before applying it, candidate and publisher snapshot the fixed native workflow-tool input surface below `RUNNER_TEMP`; afterwards both derive the exact tool candidate, verify its digest, release assets, and isolated proposed tree. The publisher compares that digest across jobs and accepts only one exact, scoped Draft PR branch; an existing branch must also match the native base-derived files byte-for-byte. |
 | `check-python-version.yml` | `workflow_dispatch`, schedule | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script`, `peter-evans/create-pull-request` | workflow default `permissions: {}`; only resolver, candidate-validator, and publisher receive built-in `contents: read`; the repository-limited App token has only `contents`, `pull-requests`: write | Resolver and candidate jobs are read-only. The default-branch publisher independently re-resolves one stable candidate, verifies exactly one fixed Draft branch/PR and changes only `.python-version`; it never merges. A final read-only outcome job makes only the exact no-update state green. |
 | `cleanup-artifacts.yml` | `workflow_dispatch`, schedule | `actions/github-script` | workflow default `contents: read`; cleanup job effective `actions: write` | Scheduled/manual trusted-maintainer workflow; its job can delete repository artifacts only. |
 | `five-connectors-with-crs-no-mrts-contract.yml` | filtered `push`, filtered `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source is untrusted; this read-only gate installs only the hash-locked `requirements-ci.lock` dependency, then validates the portable closed fixture, CRS-provenance, and evidence contract—never a connector-host runtime result. |
 | `lint.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source and its development dependencies are untrusted; no write permission, secret, persisted credential, or submodule is configured. |
 | `test-common.yml` | `push`, `pull_request` | `actions/checkout`, `actions/setup-python` | `contents: read` | PR source is untrusted; no write permission, secret, persisted credential, or submodule is configured. |
 | `ci-security-osv.yml` | constrained `pull_request`, schedule, manual | `actions/checkout`, `actions/setup-python`, `actions/upload-artifact` | `contents: read` | The non-privileged PR job executes the trusted base revision only, verifies a fetched PR object, and treats dependency-manifest and bounded `.python-version` blobs as data rather than checked-out code. |
-| `update-workflow-tools.yml` | schedule, manual | `actions/checkout`, `actions/setup-python`, `actions/create-github-app-token`, `actions/github-script` | reader jobs and the publisher's built-in token `contents: read`; its minted App token has `contents`, `pull-requests`, `workflows`: write | The constrained publisher runs only after independent resolver and validator jobs, scopes its short-lived App token to this repository, and creates a Draft PR only. |
 | `update-submodules.yml` | schedule, manual | `actions/checkout`, `actions/setup-python` | reader jobs `contents: read`; only the validated default-branch publisher has `contents: write`, `pull-requests: write` | The resolver follows only `Easton97-Jens/MRTS` `refs/heads/main`; the validator explicitly initializes only `tools/MRTS` before checking the detached candidate; the publisher changes only `tools/MRTS`, uses a normal non-force push, and creates or updates one matching Draft PR. |
 
 ## Immutable Action provenance
@@ -167,15 +166,15 @@ The canonical maintenance workflow may use the existing read-only
 job-scoped `GITHUB_TOKEN` only in its explicitly reviewed canonical resolver
 step in `check-common-versions.yml`. Its candidate, reconciliation, and
 publisher consumers receive the retained same-run plan artifact and do not
-receive that token or re-resolve live sources. The standalone
-`update-workflow-tools.yml` reader workflow remains token-free; invoking its
-helper from the canonical maintenance path does not widen that workflow's
-permissions. The helper adds the bearer credential and GitHub API media type
-only to its fixed `https://api.github.com/repos/...` request. Requests to
-release pages, downloads, or any other host never receive the token, and the
-token is not written to plans, summaries, diagnostics, or error messages. The
-existing publisher boundary is unchanged: its short-lived, repository-limited
-App token is still the only credential allowed to publish.
+receive that token or re-resolve live sources. The native
+`ci/tools/update-workflow-tools.py` helper is now invoked only through that
+canonical workflow; its snapshot and validation commands receive no token.
+Its optional bearer credential and GitHub API media type are restricted to a
+fixed `https://api.github.com/repos/...` request when an explicitly reviewed
+caller supplies one. Release pages, downloads, and every other host never
+receive the token, and it is not written to plans, summaries, diagnostics, or
+error messages. The short-lived, repository-limited App token remains the only
+credential allowed to publish.
 
 The API origin is fixed to HTTPS `api.github.com` and repository-scoped paths.
 Redirects are disabled before the request is sent and a response whose final
