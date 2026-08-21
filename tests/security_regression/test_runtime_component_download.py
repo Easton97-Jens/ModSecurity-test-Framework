@@ -359,6 +359,16 @@ class RuntimeComponentDownloadTests(unittest.TestCase):
         self.assertIn("private HAProxy archive copy sha256 mismatch", source)
         self.assertNotIn("run_logged haproxy-source-copy", source)
 
+    def test_haproxy_validates_the_makefile_after_private_archive_extraction(self):
+        """The build-target check must see the private verified extraction."""
+        source = HAPROXY_PREPARER.read_text(encoding="utf-8")
+        lifecycle_start = source.index("\ndownload_and_verify\n")
+        lifecycle = source[lifecycle_start:]
+        self.assertLess(lifecycle.index("download_and_verify"), lifecycle.index("extract_source"))
+        self.assertLess(lifecycle.index("extract_source"), lifecycle.index("prepare_build_worktree"))
+        self.assertLess(lifecycle.index("prepare_build_worktree"), lifecycle.index("verify_build_target"))
+        self.assertLess(lifecycle.index("verify_build_target"), lifecycle.index("build_haproxy"))
+
     def test_apache_preparer_uses_shared_bounded_downloaders(self):
         source = APACHE_PREPARER.read_text(encoding="utf-8")
         self.assertIn('"$CI_ROOT/lib/runtime-component-common.sh"', source)

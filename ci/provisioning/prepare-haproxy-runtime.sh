@@ -370,8 +370,8 @@ require_c_header crypt.h "HAProxy source build"
 
 download_and_verify
 extract_source
-verify_build_target
 prepare_build_worktree
+verify_build_target
 build_haproxy
 
 echo "haproxy_prepare: ready $HAPROXY_BIN"
