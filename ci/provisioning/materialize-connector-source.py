@@ -107,9 +107,14 @@ def should_skip(relative_path: Path) -> bool:
 def iter_files(root: Path) -> list[Path]:
     files: list[Path] = []
     for path in root.rglob("*"):
+        relative_path = path.relative_to(root)
+        if path.is_symlink():
+            raise ValueError(
+                "source tree contains an unsupported symlink: "
+                f"{relative_path.as_posix()}"
+            )
         if not path.is_file():
             continue
-        relative_path = path.relative_to(root)
         if should_skip(relative_path):
             continue
         files.append(relative_path)

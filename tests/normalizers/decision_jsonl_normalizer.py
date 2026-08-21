@@ -6,7 +6,8 @@ def normalize(text: str) -> tuple[str, list[str]]:
     return normalize_jsonl(text)
 
 def self_test() -> None:
-    _, errors = normalize('{"decision":"block","request_body":"do-not-log"}\n')
+    normalized, errors = normalize('{"decision":"block","request_body":"do-not-log"}\n')
+    assert not normalized
     assert errors and "request_body" in errors[0]
 
 if __name__ == "__main__":

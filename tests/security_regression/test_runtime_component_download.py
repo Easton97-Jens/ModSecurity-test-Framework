@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -463,6 +464,87 @@ class RuntimeComponentDownloadTests(unittest.TestCase):
                 env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}, check=False,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_runtime_extract_rejects_symlink_and_hardlink_members(self):
+        with tempfile.TemporaryDirectory(prefix="runtime-archive-links-") as temporary:
+            root = Path(temporary)
+            outside = root / "outside-but-test-owned"
+            outside.mkdir()
+            for label, member_type, member_name, link_name in (
+                ("symlink", tarfile.SYMTYPE, "lighttpd-1.4.85", str(outside)),
+                ("hardlink", tarfile.LNKTYPE, "lighttpd-1.4.85/linked", "lighttpd-1.4.85/real"),
+            ):
+                with self.subTest(label=label):
+                    archive = root / f"{label}.tar.gz"
+                    with tarfile.open(archive, "w:gz") as tar:
+                        if label == "hardlink":
+                            directory = tarfile.TarInfo("lighttpd-1.4.85")
+                            directory.type = tarfile.DIRTYPE
+                            tar.addfile(directory)
+                            regular = tarfile.TarInfo("lighttpd-1.4.85/real")
+                            regular.size = len(b"fixture")
+                            tar.addfile(regular, fileobj=io.BytesIO(b"fixture"))
+                        member = tarfile.TarInfo(member_name)
+                        member.type = member_type
+                        member.linkname = link_name
+                        tar.addfile(member)
+
+                    private_root = root / f"build-{label}" / "private"
+                    source_parent = private_root / "src"
+                    script = textwrap.dedent(
+                        """
+                        set -u
+                        . "$1/ci/lib/common.sh"
+                        . "$1/ci/lib/runtime-component-common.sh"
+                        CONNECTOR_COMPONENT_CACHE=$2/cache
+                        extract_runtime_source_tar lighttpd "$3" "$4" lighttpd-1.4.85 "$2"
+                        """
+                    )
+                    result = subprocess.run(
+                        ["sh", "-c", script, "sh", str(ROOT), str(private_root), str(archive), str(source_parent)],
+                        cwd=ROOT,
+                        text=True,
+                        capture_output=True,
+                        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                        check=False,
+                    )
+
+                    self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+                    self.assertIn("unsupported member types", result.stdout + result.stderr)
+                    self.assertFalse((source_parent / "lighttpd-1.4.85").exists())
+
+    def test_runtime_extract_accepts_regular_xz_members(self):
+        with tempfile.TemporaryDirectory(prefix="runtime-archive-xz-") as temporary:
+            root = Path(temporary)
+            archive = root / "lighttpd.tar.xz"
+            source = root / "payload" / "lighttpd-1.4.85" / "src" / "lighttpd"
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b"regular-source")
+            with tarfile.open(archive, "w:xz") as tar:
+                tar.add(source.parent.parent, arcname="lighttpd-1.4.85")
+
+            private_root = root / "build" / "private"
+            source_parent = private_root / "src"
+            script = textwrap.dedent(
+                """
+                set -eu
+                . "$1/ci/lib/common.sh"
+                . "$1/ci/lib/runtime-component-common.sh"
+                CONNECTOR_COMPONENT_CACHE=$2/cache
+                source_dir=$(extract_runtime_source_tar lighttpd "$3" "$4" lighttpd-1.4.85 "$2")
+                test -f "$source_dir/src/lighttpd"
+                """
+            )
+            result = subprocess.run(
+                ["sh", "-c", script, "sh", str(ROOT), str(private_root), str(archive), str(source_parent)],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":

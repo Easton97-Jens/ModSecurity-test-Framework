@@ -3,8 +3,10 @@ from __future__ import annotations
 import json, re
 from typing import Any
 
-BODY_PAYLOAD_FIELDS = {"request_body", "response_body", "body_payload", "raw_body", "payload"}
+BODY_PAYLOAD_FIELDS = {"request_body", "response_body", "body_payload", "raw_body", "payload", "body"}
 _VOLATILE = [(re.compile(r"\b\d{4}-\d{2}-\d{2}[T ][0-9:.+-]+Z?\b"), "<timestamp>"),(re.compile(r"\b(?:127\.0\.0\.1|localhost):\d+\b"), "<host>:<port>"),(re.compile(r"/[A-Za-z0-9._/-]*(?:ModSecurity|workspace)[A-Za-z0-9._/-]*"), "<path>")]
+_CAMEL_CASE_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
+_NON_ALPHANUMERIC = re.compile(r"[^A-Za-z0-9]+")
 
 def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result={}
@@ -27,12 +29,15 @@ def parse_jsonl(text: str) -> tuple[list[dict[str, Any]], list[str]]:
         rows.append(obj)
     return rows, errors
 
+def canonical_field_name(key: str) -> str:
+    return _NON_ALPHANUMERIC.sub("_", _CAMEL_CASE_BOUNDARY.sub(r"\1_\2", key)).strip("_").lower()
+
 def find_body_payload_fields(obj: Any, prefix: str="") -> list[str]:
     found=[]
     if isinstance(obj,dict):
         for k,v in obj.items():
             p=f"{prefix}.{k}" if prefix else str(k)
-            if k in BODY_PAYLOAD_FIELDS and v not in (None,"",[],{}): found.append(p)
+            if canonical_field_name(k) in BODY_PAYLOAD_FIELDS and v not in (None,"",[],{}): found.append(p)
             found.extend(find_body_payload_fields(v,p))
     elif isinstance(obj,list):
         for i,v in enumerate(obj): found.extend(find_body_payload_fields(v,f"{prefix}[{i}]"))
@@ -51,11 +56,16 @@ def normalize_jsonl(text: str) -> tuple[str, list[str]]:
     rows, errors = parse_jsonl(text)
     for i,row in enumerate(rows,1):
         for field in find_body_payload_fields(row): errors.append(f"line {i}: body payload field is not allowed: {field}")
+    if errors:
+        return "", errors
     return "\n".join(json.dumps(normalize_value(r), sort_keys=True, separators=(",",":")) for r in rows), errors
 
 def self_test() -> None:
-    normalized, errors = normalize_jsonl('{"timestamp":"2026-07-02T00:00:00Z","transaction_id":"abc","payload":"secret"}\n')
+    normalized, errors = normalize_jsonl('{"timestamp":"2026-07-02T00:00:00Z","transaction_id":"abc"}\n')
     assert "<timestamp>" in normalized
+    assert not errors
+    rejected, errors = normalize_jsonl('{"timestamp":"2026-07-02T00:00:00Z","transaction_id":"abc","payload":"secret"}\n')
+    assert not rejected
     assert any("payload" in e for e in errors)
     _, duplicate_errors = normalize_jsonl('{"payload":"secret","payload":""}\n')
     assert any("duplicate JSON object key" in e for e in duplicate_errors)
