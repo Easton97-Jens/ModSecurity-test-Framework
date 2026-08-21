@@ -94,11 +94,10 @@ class ReconcilerTests(unittest.TestCase):
         response.read.return_value = b"x" * (reconciler.MAX_GITHUB_RESPONSE_BYTES + 1)
         response.__enter__ = mock.Mock(return_value=response)
         response.__exit__ = mock.Mock(return_value=False)
+        client = reconciler.GitHubClient("token")
         with mock.patch.object(reconciler, "urlopen", return_value=response):
             with self.assertRaises(reconciler.PlanError):
-                reconciler.GitHubClient("token").request(
-                    "GET", "/repos/owner/repo/issues"
-                )
+                client.request("GET", "/repos/owner/repo/issues")
         response.read.assert_called_once_with(reconciler.MAX_GITHUB_RESPONSE_BYTES + 1)
 
     def test_issue_aggregation_limits_fail_closed(self):

@@ -39,9 +39,10 @@ CI_DEPENDENCY_INSTALLER_COMMAND = f"bash {CI_DEPENDENCY_INSTALLER}"
 CI_DEPENDENCY_INSTALLER_SHA256 = (
     "36de64833f8dfdda700553c4d816d4baa4f7eb1ca1863940981e6fa154968425"
 )
+OSV_WORKFLOW = "ci-security-osv.yml"
 CI_DEPENDENCY_INSTALLER_WORKFLOWS = {
     "check-action-versions.yml": 1,
-    "ci-security-osv.yml": 1,
+    OSV_WORKFLOW: 1,
     "ci-security-quality.yml": 1,
     "ci-security-scorecard.yml": 2,
     "ci-security-secrets.yml": 2,
@@ -225,7 +226,6 @@ PYTHON_PUBLISHER_ADD_PATHS = (
 PYTHON_VERSION_CANDIDATE_FILE = "${{ runner.temp }}/framework-python-3.14-candidate"
 PYTHON_VERSION_PR_BODY_FILE = "${{ runner.temp }}/framework-python-version-pr-body.md"
 PYTHON_VERSION_PR_BODY_RUN_PATH = "$RUNNER_TEMP/framework-python-version-pr-body.md"
-OSV_WORKFLOW = "ci-security-osv.yml"
 OSV_TRUSTED_BASE_PYTHON_VERSION_FILE = (
     "${{ runner.temp }}/framework-osv-trusted-base-python-version"
 )
@@ -4167,7 +4167,7 @@ def scorecard_evidence_errors(path: Path, text: str) -> list[str]:
 def scanner_evidence_errors(
     path: Path, text: str, data: dict[str, Any] | None = None
 ) -> list[str]:
-    if path.name == "ci-security-osv.yml":
+    if path.name == OSV_WORKFLOW:
         if data is None:
             parsed = yaml.safe_load(text)
             data = parsed if isinstance(parsed, dict) else {}
