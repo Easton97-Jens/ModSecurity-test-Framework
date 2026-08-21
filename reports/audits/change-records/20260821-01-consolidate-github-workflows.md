@@ -132,18 +132,18 @@ Added or updated tests:
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
-| Locked `pip install --require-hashes -r requirements-ci.lock` | 0 | Existing locked `PyYAML==6.0.3` satisfied. | `/var/tmp/codex/ModSecurity-conector/workflow-consolidation-20260820` |
-| `python -m pip check` | 0 | No broken requirements. | Same task evidence root. |
-| `actionlint -shellcheck=… .github/workflows/*.yml` | 0 | All workflow YAML and shell steps pass. | Same task evidence root. |
-| `zizmor --offline .github` | 0 | No reportable findings; configured suppressions retained. | Same task evidence root. |
-| Unsafe zizmor fixture | 14 (expected) | Dangerous-trigger/template-injection control was rejected. | Same task evidence root. |
-| Ruff check and format check for CI scope | 0 | Clean after formatting the touched Python files. | Same task evidence root. |
-| `python -m unittest discover -s tests/ci_security -q` | 0 | 286 tests passed. | Same task evidence root. |
-| `ci/checks/security/check-ci-security-contract.py --root .` | 0 | CI security contract passed. | Same task evidence root. |
-| `ci/checks/security/check-github-actions-workflows.py --check all` | 0 | All 17 source workflows pass pins and permissions checks. | Same task evidence root. |
-| `ci/checks/security/check-workflow-action-pins.py` | 0 | All external actions use full commit SHAs. | Same task evidence root. |
-| `ci/tools/safe-make.sh lint` | 0 | Full Framework lint and its broader regression/documentation checks passed. | Same task evidence root. |
-| `bash ci/tools/install-hash-locked-ci-dependencies.sh unexpected-argument` | 2 (expected) | Helper rejected arguments before package work. | Same task evidence root. |
+| Locked `pip install --require-hashes -r requirements-ci.lock` | 0 | Existing locked `PyYAML==6.0.3` satisfied. | Task evidence archive `workflow-consolidation-20260820` (retained outside this repository). |
+| `python -m pip check` | 0 | No broken requirements. | Same retained task-evidence archive. |
+| `actionlint -shellcheck=… .github/workflows/*.yml` | 0 | All workflow YAML and shell steps pass. | Same retained task-evidence archive. |
+| `zizmor --offline .github` | 0 | No reportable findings; configured suppressions retained. | Same retained task-evidence archive. |
+| Unsafe zizmor fixture | 14 (expected) | Dangerous-trigger/template-injection control was rejected. | Same retained task-evidence archive. |
+| Ruff check and format check for CI scope | 0 | Clean after formatting the touched Python files. | Same retained task-evidence archive. |
+| `python -m unittest discover -s tests/ci_security -q` | 0 | 286 tests passed. | Same retained task-evidence archive. |
+| `ci/checks/security/check-ci-security-contract.py --root .` | 0 | CI security contract passed. | Same retained task-evidence archive. |
+| `ci/checks/security/check-github-actions-workflows.py --check all` | 0 | All 17 source workflows pass pins and permissions checks. | Same retained task-evidence archive. |
+| `ci/checks/security/check-workflow-action-pins.py` | 0 | All external actions use full commit SHAs. | Same retained task-evidence archive. |
+| `ci/tools/safe-make.sh lint` | 0 | Full Framework lint and its broader regression/documentation checks passed. | Same retained task-evidence archive. |
+| `bash ci/tools/install-hash-locked-ci-dependencies.sh unexpected-argument` | 2 (expected) | Helper rejected arguments before package work. | Same retained task-evidence archive. |
 | Hosted PR #101 OSV `pull-request-head` initial run | 127 | Trusted-base checkout could not see the PR-head helper; the narrow inline-bootstrap repair is pending a new exact-head run. | [Run 32436667389](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/32436667389) |
 
 ## Security impact
@@ -172,13 +172,13 @@ the helper; no token, checkout expansion, or trust-boundary change is used.
 
 This English Change Record and its complete German companion document the
 workflow matrix, security boundary, validation, limitation, and rollback.
-The sealed prompt-only Codex Security scan is retained outside the repository
-under `/var/tmp/codex/ModSecurity-conector/workflow-consolidation-20260820/security-scan/`.
+The sealed prompt-only Codex Security scan is retained outside this repository
+as task-evidence artifact `workflow-consolidation-20260820-security-scan`.
 Its sealed snapshot predates one warning-only `CDPATH=''` ShellCheck portability
 clarification in the shared helper and the matching contract-digest update; it
 was not retroactively rewritten. The final source snapshot and its focused
-post-scan controls are retained in
-`/var/tmp/codex/ModSecurity-conector/workflow-consolidation-20260820/post-security-scan-validation.md`
+post-scan controls are retained as task-evidence artifact
+`workflow-consolidation-20260820-post-security-scan-validation`
 (SHA-256 `7494c2b5b1b7fd785a5e60b72917172aaae9e5c5c928fd3873ccc1dff403a1ae`).
 `bash -n`, ShellCheck, CI-contract/workflow/pin checks, focused Ruff, and the
 286-test CI-security suite passed on that final source snapshot. The broader
@@ -194,9 +194,11 @@ is made.
   readiness.
 - Hosted PR #101 checks started on the initial exact head. Its OSV
   `pull-request-head` job failed exit 127 because the trusted-base checkout
-  lacked the PR-head helper; a narrow local repair is complete and its new
-  exact-head hosted rerun remains required. SonarQube Cloud and a live
-  fork-collision scenario also remain pending/not run.
+  lacked the PR-head helper; a narrow local repair is complete. A replacement
+  exact-head hosted rerun remains required after the original Change Record
+  used non-portable task-local evidence paths that Framework lint rejected.
+  SonarQube Cloud and a live fork-collision scenario also remain pending/not
+  run.
 - No maintenance workflow was manually dispatched because PR-triggered checks
   cover the changed read-only paths and no token-bearing maintenance action is
   needed for local validation.

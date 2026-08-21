@@ -137,18 +137,18 @@ Hinzugefügte oder angepasste Tests:
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- | --- |
-| Locked `pip install --require-hashes -r requirements-ci.lock` | 0 | Bestehendes locked `PyYAML==6.0.3` erfüllt. | `/var/tmp/codex/ModSecurity-conector/workflow-consolidation-20260820` |
-| `python -m pip check` | 0 | Keine defekten Requirements. | Derselbe Task-Evidence-Root. |
-| `actionlint -shellcheck=… .github/workflows/*.yml` | 0 | Alle Workflow-YAML- und Shell-Steps bestehen. | Derselbe Task-Evidence-Root. |
-| `zizmor --offline .github` | 0 | Keine reportable Findings; konfigurierte Suppressions bleiben. | Derselbe Task-Evidence-Root. |
-| Unsafe-zizmor-Fixture | 14 (erwartet) | Dangerous-trigger/template-injection-Control wurde abgelehnt. | Derselbe Task-Evidence-Root. |
-| Ruff-Check und Format-Check für CI-Scope | 0 | Nach Formatierung der berührten Python-Dateien sauber. | Derselbe Task-Evidence-Root. |
-| `python -m unittest discover -s tests/ci_security -q` | 0 | 286 Tests bestanden. | Derselbe Task-Evidence-Root. |
-| `ci/checks/security/check-ci-security-contract.py --root .` | 0 | CI-Security-Contract bestanden. | Derselbe Task-Evidence-Root. |
-| `ci/checks/security/check-github-actions-workflows.py --check all` | 0 | Alle 17 Source-Workflows bestehen Pin- und Permissions-Checks. | Derselbe Task-Evidence-Root. |
-| `ci/checks/security/check-workflow-action-pins.py` | 0 | Alle externen Actions verwenden volle Commit-SHAs. | Derselbe Task-Evidence-Root. |
-| `ci/tools/safe-make.sh lint` | 0 | Vollständiges Framework-Lint und breitere Regression-/Dokumentations-Checks bestanden. | Derselbe Task-Evidence-Root. |
-| `bash ci/tools/install-hash-locked-ci-dependencies.sh unexpected-argument` | 2 (erwartet) | Helper lehnte Argumente vor Paketarbeit ab. | Derselbe Task-Evidence-Root. |
+| Locked `pip install --require-hashes -r requirements-ci.lock` | 0 | Bestehendes locked `PyYAML==6.0.3` erfüllt. | Task-Evidenzarchiv `workflow-consolidation-20260820` (außerhalb dieses Repositorys aufbewahrt). |
+| `python -m pip check` | 0 | Keine defekten Requirements. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
+| `actionlint -shellcheck=… .github/workflows/*.yml` | 0 | Alle Workflow-YAML- und Shell-Steps bestehen. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
+| `zizmor --offline .github` | 0 | Keine reportable Findings; konfigurierte Suppressions bleiben. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
+| Unsafe-zizmor-Fixture | 14 (erwartet) | Dangerous-trigger/template-injection-Control wurde abgelehnt. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
+| Ruff-Check und Format-Check für CI-Scope | 0 | Nach Formatierung der berührten Python-Dateien sauber. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
+| `python -m unittest discover -s tests/ci_security -q` | 0 | 286 Tests bestanden. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
+| `ci/checks/security/check-ci-security-contract.py --root .` | 0 | CI-Security-Contract bestanden. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
+| `ci/checks/security/check-github-actions-workflows.py --check all` | 0 | Alle 17 Source-Workflows bestehen Pin- und Permissions-Checks. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
+| `ci/checks/security/check-workflow-action-pins.py` | 0 | Alle externen Actions verwenden volle Commit-SHAs. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
+| `ci/tools/safe-make.sh lint` | 0 | Vollständiges Framework-Lint und breitere Regression-/Dokumentations-Checks bestanden. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
+| `bash ci/tools/install-hash-locked-ci-dependencies.sh unexpected-argument` | 2 (erwartet) | Helper lehnte Argumente vor Paketarbeit ab. | Dasselbe aufbewahrte Task-Evidenzarchiv. |
 | Hosted PR #101 OSV `pull-request-head` initialer Run | 127 | Trusted-Base-Checkout konnte PR-Head-Helper nicht sehen; schmale Inline-Bootstrap-Reparatur wartet auf neuen Exact-Head-Run. | [Run 32436667389](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/32436667389) |
 
 ## Sicherheitsauswirkung
@@ -179,14 +179,15 @@ oder Trust-Boundary-Änderung werden nicht verwendet.
 
 Dieser englische Change Record und sein vollständiges deutsches Gegenstück
 dokumentieren Workflow-Matrix, Sicherheitsgrenze, Validierung, Einschränkung
-und Rollback. Der sealed prompt-only Codex Security Scan wird außerhalb des
-Repositorys unter
-`/var/tmp/codex/ModSecurity-conector/workflow-consolidation-20260820/security-scan/`
-aufbewahrt. Sein sealed Snapshot liegt vor einer reinen Warning-`CDPATH=''`-
+und Rollback. Der sealed prompt-only Codex Security Scan wird außerhalb dieses
+Repositorys als Task-Evidenzartefakt
+`workflow-consolidation-20260820-security-scan` aufbewahrt. Sein sealed
+Snapshot liegt vor einer reinen Warning-`CDPATH=''`-
 ShellCheck-Portabilitätskorrektur im gemeinsamen Helper und dem dazugehörigen
 Contract-Digest-Update; er wurde nicht rückwirkend verändert. Der finale
-Source-Snapshot und seine fokussierten Post-Scan-Controls liegen unter
-`/var/tmp/codex/ModSecurity-conector/workflow-consolidation-20260820/post-security-scan-validation.md`
+Source-Snapshot und seine fokussierten Post-Scan-Controls werden als
+Task-Evidenzartefakt
+`workflow-consolidation-20260820-post-security-scan-validation` aufbewahrt
 (SHA-256 `7494c2b5b1b7fd785a5e60b72917172aaae9e5c5c928fd3873ccc1dff403a1ae`).
 `bash -n`, ShellCheck, CI-Contract-/Workflow-/Pin-Checks, fokussiertes Ruff und
 die CI-Security-Suite mit 286 Tests bestanden auf diesem finalen Source-
@@ -203,9 +204,10 @@ MRTS-Runtime-Claim gemacht.
 - Hosted-PR-#101-Checks starteten auf dem initialen Exact Head. Sein OSV-
   `pull-request-head`-Job schlug mit Exit 127 fehl, weil der Trusted-Base-
   Checkout den PR-Head-Helper nicht enthielt; eine schmale lokale Reparatur ist
-  fertig und ihr neuer Exact-Head-Hosted-Rerun bleibt erforderlich. SonarQube
-  Cloud und ein Live-Fork-Collision-Szenario bleiben ebenfalls ausstehend/nicht
-  ausgeführt.
+  fertig. Ein Ersatz-Exact-Head-Hosted-Rerun bleibt erforderlich, nachdem der
+  ursprüngliche Change Record nicht portable lokale Task-Evidence-Pfade enthielt,
+  die Framework-Lint abgelehnt hat. SonarQube Cloud und ein Live-Fork-Collision-
+  Szenario bleiben ebenfalls ausstehend/nicht ausgeführt.
 - Kein Maintenance-Workflow wurde manuell dispatcht, da PR-getriggerte Checks
   die geänderten read-only Pfade abdecken und keine token-tragende
   Maintenance-Aktion für lokale Validierung benötigt wird.
