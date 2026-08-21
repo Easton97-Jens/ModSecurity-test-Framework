@@ -902,6 +902,20 @@ jobs:
             "candidate": "publish",
             "publish": "result",
         }
+        snapshot_step_marker = (
+            "      - name: Snapshot trusted workflow-tool validation inputs\n"
+        )
+        updater_snapshot = (
+            "          python3 ci/tools/update-workflow-tools.py "
+            "snapshot-validation-inputs \\\n"
+            "            --root . \\\n"
+            '            --output-dir "$RUNNER_TEMP/canonical-workflow-tool-base"\n'
+        )
+        premature_updater_step = (
+            "      - name: Invoke workflow-tool updater prematurely\n"
+            "        run: |\n"
+            "          set -euo pipefail\n" + updater_snapshot
+        )
         for job, next_job in next_jobs.items():
             variants = {
                 "omits-hash-locked-install": replace_in_job(
@@ -942,12 +956,51 @@ jobs:
                     "          printf '%s\\n' 'python3 -m pip check'\n",
                 ),
             }
+            expected_errors = {
+                "omits-hash-locked-install": (),
+                "omits-pip-check": (),
+                "comments-out-bootstrap": (),
+                "echoes-bootstrap": (),
+            }
+            if job in {"candidate", "publish"}:
+                variants["invokes-updater-before-bootstrap"] = replace_in_job(
+                    workflow,
+                    job,
+                    next_job,
+                    setup + updater_snapshot,
+                    updater_snapshot + setup,
+                )
+                variants["invokes-updater-before-snapshot"] = replace_in_job(
+                    workflow,
+                    job,
+                    next_job,
+                    snapshot_step_marker,
+                    premature_updater_step + snapshot_step_marker,
+                )
+                expected_errors.update(
+                    {
+                        "comments-out-bootstrap": (
+                            "snapshot must bootstrap hash-locked CI requirements",
+                        ),
+                        "invokes-updater-before-bootstrap": (
+                            "snapshot must bootstrap hash-locked CI requirements",
+                        ),
+                        "invokes-updater-before-snapshot": (
+                            "must not invoke the workflow-tool updater before its locked bootstrap",
+                        ),
+                    }
+                )
             for mutation, mutated in variants.items():
                 with self.subTest(job=job, mutation=mutation):
                     errors = CHECKER.workflow_contract_errors(
                         workflow_path, mutated, CHECKER.yaml.safe_load(mutated)
                     )
                     self.assertTrue(errors, "\n".join(errors))
+                    for expected in expected_errors[mutation]:
+                        self.assertTrue(
+                            any(expected in error for error in errors),
+                            "\n".join(errors),
+                        )
 
     def test_unified_common_maintenance_rejects_resolvers_outside_reviewed_runs(
         self,

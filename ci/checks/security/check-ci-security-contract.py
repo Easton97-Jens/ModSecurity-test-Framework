@@ -34,6 +34,12 @@ IF_NO_FILES_FOUND_ERROR = "if-no-files-found: error"
 SECURITY_EVENTS_WRITE = "security-events: write"
 SECURITY_TOOL_DOWNLOADER = "ci/tools/fetch-security-tool.py"
 HASH_LOCKED_CI_REQUIREMENTS = "--require-hashes -r requirements-ci.lock"
+COMMON_VERSION_PIP_INSTALL_COMMAND = "python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \\"
+COMMON_VERSION_PIP_CHECK_COMMAND = "python3 -m pip check"
+COMMON_VERSION_UPDATER_COMMAND = "python3 ci/tools/update-workflow-tools.py"
+COMMON_VERSION_SNAPSHOT_UPDATER_COMMAND = (
+    f"{COMMON_VERSION_UPDATER_COMMAND} snapshot-validation-inputs"
+)
 CI_DEPENDENCY_INSTALLER = "ci/tools/install-hash-locked-ci-dependencies.sh"
 CI_DEPENDENCY_INSTALLER_COMMAND = f"bash {CI_DEPENDENCY_INSTALLER}"
 CI_DEPENDENCY_INSTALLER_SHA256 = (
@@ -322,11 +328,11 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "candidate",
         STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN,
-    ): "f4610ce0e58163a78e1d7c94ccddcdc1087e363e255dd60d66a13f5e38963e0f",
+    ): "fd67e44547dce94a0f4feb70298be325cdee9442fdea40416e08df1b957a5df4",
     (
         "candidate",
         STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS,
-    ): "035649491594afeac42f54f7580709531cac2bd9046d27581eccb6a4f7208729",
+    ): "a775f61589efcac0bd020ad6bad908fdf6964827434b670178a1c839849c91d9",
     (
         "candidate",
         STEP_VALIDATE_GENERATED_WORKFLOW_TOOL_CANDIDATE,
@@ -338,11 +344,11 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "publish",
         STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN,
-    ): "54845f224c86186044c1e834cb5882bbc3cdfcdad4750d8047d7e7292e880b5c",
+    ): "28c0a60a6efd6c9b643ab83c282416e4a750b4e75a12ef8ff72ed87214c0b138",
     (
         "publish",
         STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS,
-    ): "035649491594afeac42f54f7580709531cac2bd9046d27581eccb6a4f7208729",
+    ): "a775f61589efcac0bd020ad6bad908fdf6964827434b670178a1c839849c91d9",
     (
         "publish",
         STEP_REVALIDATE_GENERATED_WORKFLOW_TOOL_CANDIDATE,
@@ -3707,6 +3713,110 @@ def _common_version_resolver_dependency_errors(
     return errors
 
 
+def _common_version_updater_bootstrap_order_errors(
+    path: Path, jobs: dict[str, Any]
+) -> list[str]:
+    """Require each fresh updater job to install locked dependencies first."""
+
+    errors: list[str] = []
+    for name in ("candidate", "publish"):
+        job = jobs.get(name)
+        steps = job.get("steps") if isinstance(job, dict) else None
+        if not isinstance(steps, list):
+            errors.append(
+                f"{path}: {name} must retain reviewed updater bootstrap steps"
+            )
+            continue
+        snapshot_indexes = [
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict)
+            and step.get("name")
+            == STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS
+        ]
+        plan_indexes = [
+            index
+            for index, step in enumerate(steps)
+            if isinstance(step, dict)
+            and step.get("name") == STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN
+        ]
+        if len(snapshot_indexes) != 1 or len(plan_indexes) != 1:
+            errors.append(
+                f"{path}: {name} must retain one snapshot and one caller-bound plan step"
+            )
+            continue
+        snapshot_index = snapshot_indexes[0]
+        if snapshot_index >= plan_indexes[0]:
+            errors.append(
+                f"{path}: {name} must snapshot workflow-tool inputs before applying the canonical plan"
+            )
+        snapshot_run = steps[snapshot_index].get("run")
+        if not isinstance(snapshot_run, str):
+            errors.append(
+                f"{path}: {name} snapshot must bootstrap hash-locked CI requirements before invoking the workflow-tool updater"
+            )
+            continue
+        lines = [line.strip() for line in snapshot_run.splitlines()]
+        install_index = next(
+            (
+                index
+                for index, line in enumerate(lines)
+                if line == COMMON_VERSION_PIP_INSTALL_COMMAND
+            ),
+            None,
+        )
+        requirements_index = next(
+            (
+                index
+                for index, line in enumerate(lines)
+                if line == HASH_LOCKED_CI_REQUIREMENTS
+            ),
+            None,
+        )
+        pip_check_index = next(
+            (
+                index
+                for index, line in enumerate(lines)
+                if line == COMMON_VERSION_PIP_CHECK_COMMAND
+            ),
+            None,
+        )
+        updater_index = next(
+            (
+                index
+                for index, line in enumerate(lines)
+                if line.startswith(COMMON_VERSION_SNAPSHOT_UPDATER_COMMAND)
+            ),
+            None,
+        )
+        if (
+            install_index is None
+            or requirements_index is None
+            or pip_check_index is None
+            or updater_index is None
+        ):
+            errors.append(
+                f"{path}: {name} snapshot must bootstrap hash-locked CI requirements and run pip check before invoking the workflow-tool updater"
+            )
+        elif not (install_index < requirements_index < pip_check_index < updater_index):
+            errors.append(
+                f"{path}: {name} snapshot must bootstrap hash-locked CI requirements and run pip check before invoking the workflow-tool updater"
+            )
+        if any(
+            isinstance(step, dict)
+            and isinstance(step.get("run"), str)
+            and any(
+                line.strip().startswith(COMMON_VERSION_UPDATER_COMMAND)
+                for line in step["run"].splitlines()
+            )
+            for step in steps[:snapshot_index]
+        ):
+            errors.append(
+                f"{path}: {name} must not invoke the workflow-tool updater before its locked bootstrap"
+            )
+    return errors
+
+
 def _common_version_token_reference_errors(
     path: Path, data: dict[str, Any]
 ) -> list[str]:
@@ -4146,6 +4256,7 @@ def common_version_strict_profile_errors(path: Path, data: dict[str, Any]) -> li
     errors.extend(_common_version_setup_errors(path, jobs))
     errors.extend(_common_version_plan_artifact_errors(path, jobs))
     errors.extend(_common_version_resolver_dependency_errors(path, jobs))
+    errors.extend(_common_version_updater_bootstrap_order_errors(path, jobs))
     errors.extend(_common_version_token_errors(path, data, jobs))
     errors.extend(_common_version_canonical_candidate_errors(path, jobs))
     errors.extend(_common_version_reconcile_errors(path, jobs["reconcile-trusted"]))

@@ -82,13 +82,38 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
                 if step["name"] == "Revalidate generated workflow-tool candidate"
             ),
         )
-        for job in (candidate, publisher):
+        for job_name, job in (("candidate", candidate), ("publish", publisher)):
             snapshot = next(
                 step
                 for step in job["steps"]
                 if step["name"] == "Snapshot trusted workflow-tool validation inputs"
             )
-            self.assertIn("snapshot-validation-inputs", snapshot["run"])
+            with self.subTest(job=job_name):
+                self.assertIn("snapshot-validation-inputs", snapshot["run"])
+                self.assertIn(
+                    "--require-hashes -r requirements-ci.lock", snapshot["run"]
+                )
+                self.assertIn("python3 -m pip check", snapshot["run"])
+                self.assertLess(
+                    snapshot["run"].index("python3 -m pip install"),
+                    snapshot["run"].index("python3 -m pip check"),
+                )
+                self.assertLess(
+                    snapshot["run"].index("python3 -m pip check"),
+                    snapshot["run"].index(
+                        "python3 ci/tools/update-workflow-tools.py "
+                        "snapshot-validation-inputs"
+                    ),
+                )
+                self.assertLess(
+                    job["steps"].index(snapshot),
+                    next(
+                        index
+                        for index, step in enumerate(job["steps"])
+                        if step["name"]
+                        == "Validate and apply caller-bound canonical plan"
+                    ),
+                )
 
     def test_publisher_reuses_only_the_exact_scoped_draft_pr(self) -> None:
         publisher = self.workflow["jobs"]["publish"]
