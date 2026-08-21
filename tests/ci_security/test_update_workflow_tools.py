@@ -22,6 +22,7 @@ from urllib.request import Request
 
 ROOT = Path(__file__).resolve().parents[2]
 UPDATER_PATH = ROOT / "ci/tools/update-workflow-tools.py"
+CANONICAL_SYNC_PATH = ROOT / "ci/tools/sync-canonical-workflow-pins.py"
 
 
 def load_updater():
@@ -34,7 +35,20 @@ def load_updater():
     return module
 
 
+def load_canonical_sync():
+    spec = importlib.util.spec_from_file_location(
+        "sync_canonical_workflow_pins", CANONICAL_SYNC_PATH
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {CANONICAL_SYNC_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 UPDATER = load_updater()
+CANONICAL_SYNC = load_canonical_sync()
 
 
 class WorkflowToolUpdaterTests(unittest.TestCase):
@@ -552,6 +566,16 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                     "actions/setup-python": python,
                 },
             )
+            german_path = root / "docs/github-actions-workflow-security.de.md"
+            german = german_path.read_text(encoding="utf-8")
+            for name in ("actions/checkout", "actions/setup-python"):
+                baseline = lock["actions"][name]
+                plain_cells = f"{baseline['version']} | {baseline['immutable_commit']}"
+                backticked_cells = (
+                    f"`{baseline['version']}` | `{baseline['immutable_commit']}`"
+                )
+                german = german.replace(plain_cells, backticked_cells, 1)
+            german_path.write_text(german, encoding="utf-8")
 
             changed = UPDATER.apply_candidate(root, candidate)
 
@@ -566,11 +590,73 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
             self.assertIn(f"actions/checkout@{'a' * 40} # v9.9.9", workflow_text)
             self.assertIn(f"actions/setup-python@{'b' * 40} # v9.9.8", workflow_text)
-            documentation = (
-                root / "docs/github-actions-workflow-security.md"
-            ).read_text(encoding="utf-8")
-            self.assertIn(f"`v9.9.9` | `{'a' * 40}`", documentation)
-            self.assertIn(f"`v9.9.8` | `{'b' * 40}`", documentation)
+            for relative_text in UPDATER.DOCUMENTATION_UPDATE_PATHS:
+                documentation = (root / relative_text).read_text(encoding="utf-8")
+                self.assertIn(f"v9.9.9 | {'a' * 40}", documentation)
+                self.assertIn(f"v9.9.8 | {'b' * 40}", documentation)
+                self.assertNotIn(f"`v9.9.9` | `{'a' * 40}`", documentation)
+                self.assertNotIn(f"`v9.9.8` | `{'b' * 40}`", documentation)
+
+    def test_canonical_generated_candidate_matches_native_documentation_views(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            base_root = self.copied_update_root(temporary_root / "base")
+            head_root = self.copied_update_root(temporary_root / "head")
+            _path, lock, _digest = UPDATER.load_lock(base_root)
+            checkout = self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)
+            candidate = self.candidate_for(base_root, {"actions/checkout": checkout})
+            common_path = head_root / UPDATER.COMMON_SH_PATH
+            common = common_path.read_text(encoding="utf-8")
+            common = common.replace(
+                f'CI_ACTION_CHECKOUT_VERSION="{lock["actions"]["actions/checkout"]["version"]}"',
+                f'CI_ACTION_CHECKOUT_VERSION="{checkout["version"]}"',
+                1,
+            )
+            common = common.replace(
+                f'CI_ACTION_CHECKOUT_COMMIT="{lock["actions"]["actions/checkout"]["immutable_commit"]}"',
+                f'CI_ACTION_CHECKOUT_COMMIT="{checkout["immutable_commit"]}"',
+                1,
+            )
+            common_path.write_text(common, encoding="utf-8")
+
+            self.assertEqual(
+                CANONICAL_SYNC.main(["--write", "--root", str(head_root)]), 0
+            )
+
+            runner_temp = temporary_root / "runner-temp"
+            runner_temp.mkdir()
+            with (
+                patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
+                patch.object(UPDATER, "run_proposed_tree_contract_checks"),
+            ):
+                UPDATER.validate_canonical_generated_proposed_tree(
+                    base_root, head_root, candidate
+                )
+
+            for relative_text in UPDATER.DOCUMENTATION_UPDATE_PATHS:
+                documentation = (head_root / relative_text).read_text(encoding="utf-8")
+                self.assertIn(f"v9.9.9 | {'a' * 40}", documentation)
+                self.assertNotIn(f"`v9.9.9` | `{'a' * 40}`", documentation)
+
+            german_path = head_root / "docs/github-actions-workflow-security.de.md"
+            german = german_path.read_text(encoding="utf-8")
+            german_path.write_text(
+                german.replace(f"v9.9.9 | {'a' * 40}", f"v9.9.9 | {'b' * 40}", 1),
+                encoding="utf-8",
+            )
+            with (
+                patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
+                patch.object(UPDATER, "run_proposed_tree_contract_checks"),
+                self.assertRaisesRegex(
+                    UPDATER.UpdateError,
+                    "docs/github-actions-workflow-security.de.md",
+                ),
+            ):
+                UPDATER.validate_canonical_generated_proposed_tree(
+                    base_root, head_root, candidate
+                )
 
     def test_apply_preserves_reviewed_codeql_subaction_suffixes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

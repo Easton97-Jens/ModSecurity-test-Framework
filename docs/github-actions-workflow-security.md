@@ -90,12 +90,8 @@ Only a trusted job may replace that baseline with a smaller purpose-specific
 permission map. `check-common-versions` keeps its resolver, candidate, and
 native publisher token at `contents: read`; only its post-validation,
 repository-limited GitHub App token receives `contents`, `pull-requests`, and
-`workflows`: write. `update-workflow-tools` retains `contents: read` for every
-built-in job token and, only after independent resolver and validator jobs,
-mints a repository-limited GitHub App token with the same three write
-permissions. The CPython token has only `contents` and `pull-requests`: write;
-the Common-version and workflow-tool tokens additionally have `workflows`:
-write because their fixed generated allowlists include workflow files.
+`workflows`: write because its fixed generated allowlist includes workflow
+files. The CPython token has only `contents` and `pull-requests`: write.
 `cleanup-artifacts` needs only `actions: write` to delete artifacts;
 `update-submodules` gives `contents` and `pull-requests` writes only to its
 validated default-branch publisher; the trusted non-PR CodeQL upload job needs

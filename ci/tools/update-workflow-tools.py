@@ -1487,18 +1487,24 @@ def update_documentation_references(
 ) -> None:
     for name, changes in sorted(candidate["actions"].items()):
         baseline = lock_record(lock, "actions", name)
-        old_cells = f"`{baseline['version']}` | `{baseline['immutable_commit']}`"
-        new_cells = f"`{changes['version']}` | `{changes['immutable_commit']}`"
+        plain_old_cells = f"{baseline['version']} | {baseline['immutable_commit']}"
+        plain_new_cells = f"{changes['version']} | {changes['immutable_commit']}"
+        backticked_old_cells = (
+            f"`{baseline['version']}` | `{baseline['immutable_commit']}`"
+        )
         for relative_text in DOCUMENTATION_UPDATE_PATHS:
             path = resolve_regular_file(root, Path(relative_text))
             text = path.read_text(encoding="utf-8")
-            plain_old_cells = f"{baseline['version']} | {baseline['immutable_commit']}"
-            if old_cells in text:
-                write_verified_text(path, text.replace(old_cells, new_cells))
-            elif plain_old_cells in text:
-                # Older generated views used plain Markdown cells.  Normalize
-                # the touched row to the updater's reviewed, unambiguous form.
-                write_verified_text(path, text.replace(plain_old_cells, new_cells))
+            if plain_old_cells in text:
+                write_verified_text(
+                    path, text.replace(plain_old_cells, plain_new_cells)
+                )
+            elif backticked_old_cells in text:
+                # Older generated views used backticks. Normalize the touched
+                # row to the canonical generator's plain-cell form.
+                write_verified_text(
+                    path, text.replace(backticked_old_cells, plain_new_cells)
+                )
 
 
 def apply_candidate(root: Path, candidate: dict[str, Any]) -> list[str]:

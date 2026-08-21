@@ -94,13 +94,9 @@ Nur ein vertrauenswürdiger Job darf diese Baseline durch eine kleinere,
 zweckspezifische Berechtigungszuordnung ersetzen. `check-common-versions`
 behält Resolver, Kandidat und natives Publisher-Token bei `contents: read`; nur
 sein erst nach der Validierung erzeugtes, repositorybegrenztes GitHub-App-Token
-erhält `contents`-, `pull-requests`- und `workflows`-Write-Recht.
-`update-workflow-tools` behält `contents: read` für jedes eingebaute Job-Token
-und erzeugt erst nach unabhängigen Resolver- und Validator-Jobs ein auf das
-Repository begrenztes GitHub-App-Token mit denselben drei Write-Berechtigungen.
-Das CPython-Token hat nur `contents`- und `pull-requests`-Write-Recht; die
-Common-Version- und Workflow-Tool-Tokens erhalten zusätzlich `workflows`:
-write, weil ihre festen erzeugten Allowlists Workflow-Dateien enthalten.
+erhält `contents`-, `pull-requests`- und `workflows`-Write-Recht, weil seine
+feste erzeugte Allowlist Workflow-Dateien enthält. Das CPython-Token hat nur
+`contents`- und `pull-requests`-Write-Recht.
 `cleanup-artifacts` benötigt nur `actions: write`, um Artefakte zu löschen;
 `update-submodules` gibt `contents`- und `pull-requests`-Write-Recht nur seinem
 validierten Default-Branch-Publisher; der vertrauenswürdige Nicht-PR-CodeQL-
