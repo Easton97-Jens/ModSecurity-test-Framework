@@ -192,6 +192,7 @@ jobs:
       contents: read
     outputs:
       validated: ${{ steps.validate.outputs.validated }}
+      workflow_tool_candidate_sha256: ${{ steps.workflow_tool_candidate.outputs.workflow_tool_candidate_sha256 }}
     steps:
       - name: Checkout trusted default revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -210,6 +211,12 @@ jobs:
         with:
           name: canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}
+      - name: Snapshot trusted workflow-tool validation inputs
+        run: |
+          set -euo pipefail
+          python3 ci/tools/update-workflow-tools.py snapshot-validation-inputs \
+            --root . \
+            --output-dir "$RUNNER_TEMP/canonical-workflow-tool-base"
       - name: Validate and apply caller-bound canonical plan
         env:
           PLAN_SHA256: ${{ needs.canonical-maintenance.outputs.plan_sha256 }}
@@ -225,6 +232,17 @@ jobs:
           python3 ci/tools/resolve-canonical-maintenance.py --root . \
             --plan "$RUNNER_TEMP/canonical-maintenance-plan.json" \
             --apply-safe-updates --expected-plan-sha256 "$PLAN_SHA256"
+      - name: Validate generated workflow-tool candidate
+        id: workflow_tool_candidate
+        run: |
+          set -euo pipefail
+          python3 ci/tools/update-workflow-tools.py validate-canonical-generated-candidate \
+            --root . \
+            --base-root "$RUNNER_TEMP/canonical-workflow-tool-base" \
+            --verify-tool-assets \
+            --output-dir "$RUNNER_TEMP/canonical-workflow-tool-assets" \
+            --validate-proposed-tree \
+            --github-output >> "$GITHUB_OUTPUT"
       - name: Validate candidate path policy and focused controls
         id: validate
         run: |
@@ -272,6 +290,12 @@ jobs:
         with:
           name: canonical-maintenance-plan-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}
+      - name: Snapshot trusted workflow-tool validation inputs
+        run: |
+          set -euo pipefail
+          python3 ci/tools/update-workflow-tools.py snapshot-validation-inputs \
+            --root . \
+            --output-dir "$RUNNER_TEMP/canonical-workflow-tool-base"
       - name: Validate and apply caller-bound canonical plan
         env:
           PLAN_SHA256: ${{ needs.canonical-maintenance.outputs.plan_sha256 }}
@@ -295,6 +319,20 @@ jobs:
             printf '%s\n\n' '<!-- framework-canonical-maintenance -->' 'This Draft PR was created from a caller-bound canonical maintenance plan. No auto-merge is authorized.'
             cat "$plan_markdown"
           } > "$RUNNER_TEMP/common-maintenance-pr-body.md"
+      - name: Revalidate generated workflow-tool candidate
+        id: workflow_tool_candidate
+        env:
+          WORKFLOW_TOOL_CANDIDATE_SHA256: ${{ needs.candidate.outputs.workflow_tool_candidate_sha256 }}
+        run: |
+          set -euo pipefail
+          python3 ci/tools/update-workflow-tools.py validate-canonical-generated-candidate \
+            --root . \
+            --base-root "$RUNNER_TEMP/canonical-workflow-tool-base" \
+            --expected-candidate-sha256 "$WORKFLOW_TOOL_CANDIDATE_SHA256" \
+            --verify-tool-assets \
+            --output-dir "$RUNNER_TEMP/canonical-workflow-tool-assets" \
+            --validate-proposed-tree \
+            --github-output >> "$GITHUB_OUTPUT"
       - name: Require publisher App configuration
         env:
           PUBLISHER_CLIENT_ID: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}
@@ -313,6 +351,127 @@ jobs:
           permission-contents: write
           permission-pull-requests: write
           permission-workflows: write
+      - name: Inspect matching Draft canonical maintenance pull request
+        id: maintenance_pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.publisher_app_token.outputs.token }}
+          script: |
+            const branch = "automation/update-framework-common-versions";
+            const title = "chore(ci): update canonical maintenance pins";
+            const marker = "<!-- framework-canonical-maintenance -->";
+            const allowedPaths = new Set([
+              "ci/lib/common.sh",
+              ".python-version",
+              "requirements-ci.lock",
+              "ci/tooling/security-tools.lock.yml",
+              "ci/provisioning/runtime-components.manifest.json",
+              "ci/provisioning/runtime-component-lock.json",
+              "docs/reference/variables.md",
+              "docs/reference/variables.de.md",
+              "docs/github-actions-workflow-security.md",
+              "docs/github-actions-workflow-security.de.md",
+              ".github/workflows/check-action-versions.yml",
+              ".github/workflows/check-common-versions.yml",
+              ".github/workflows/check-python-version.yml",
+              ".github/workflows/ci-security-codeql-pr.yml",
+              ".github/workflows/ci-security-codeql.yml",
+              ".github/workflows/ci-security-dependency-review.yml",
+              ".github/workflows/ci-security-osv.yml",
+              ".github/workflows/ci-security-quality.yml",
+              ".github/workflows/ci-security-scorecard.yml",
+              ".github/workflows/ci-security-secrets.yml",
+              ".github/workflows/ci-security-workflow-lint.yml",
+              ".github/workflows/cleanup-artifacts.yml",
+              ".github/workflows/five-connectors-with-crs-no-mrts-contract.yml",
+              ".github/workflows/lint.yml",
+              ".github/workflows/test-common.yml",
+              ".github/workflows/update-submodules.yml",
+              "tests/schemas/five-connectors-with-crs-no-mrts/normalized-event.schema.json",
+              "tests/schemas/five-connectors-with-crs-no-mrts/manifest.schema.json",
+              "tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json",
+              "tests/cases/security/crs/crs_sqli_anomaly_block.yaml",
+            ]);
+            const { owner, repo } = context.repo;
+            const defaultBranch = context.payload.repository.default_branch;
+            const references = await github.rest.git.listMatchingRefs({
+              owner,
+              repo,
+              ref: `heads/${branch}`,
+            });
+            const pullRequests = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              head: `${owner}:${branch}`,
+              state: "open",
+              per_page: 100,
+            });
+            if (references.data.length === 0) {
+              if (pullRequests.length !== 0) {
+                core.setFailed("a maintenance pull request exists without its expected branch");
+              }
+              core.setOutput("existing", "false");
+              return;
+            }
+            if (
+              references.data.length !== 1 ||
+              references.data[0].ref !== `refs/heads/${branch}` ||
+              pullRequests.length !== 1
+            ) {
+              core.setFailed("expected exactly one matching maintenance branch and open pull request");
+              return;
+            }
+            const pullRequest = pullRequests[0];
+            if (
+              !pullRequest.draft ||
+              pullRequest.base.ref !== defaultBranch ||
+              pullRequest.title !== title ||
+              !pullRequest.body?.includes(marker)
+            ) {
+              core.setFailed("the existing maintenance pull request is not the matching Draft updater PR");
+              return;
+            }
+            const comparison = await github.rest.repos.compareCommitsWithBasehead({
+              owner,
+              repo,
+              basehead: `${defaultBranch}...${branch}`,
+            });
+            if (
+              comparison.data.status !== "ahead" ||
+              !Array.isArray(comparison.data.files) ||
+              comparison.data.files.length > allowedPaths.size
+            ) {
+              core.setFailed("the existing maintenance branch is stale or cannot be scoped");
+              return;
+            }
+            const unexpected = comparison.data.files
+              .map((file) => file.filename)
+              .filter((filename) => !allowedPaths.has(filename));
+            if (unexpected.length !== 0) {
+              core.setFailed(`the existing maintenance branch changes unallowlisted paths: ${unexpected.join(", ")}`);
+              return;
+            }
+            core.setOutput("existing", "true");
+      - name: Verify matching Draft canonical maintenance native workflow-tool subset
+        if: steps.maintenance_pr.outputs.existing == 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          PUBLISHER_APP_TOKEN: ${{ steps.publisher_app_token.outputs.token }}
+        run: |
+          set -euo pipefail
+          MAINTENANCE_BRANCH="automation/update-framework-common-versions"
+          git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null
+          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISHER_APP_TOKEN\"; }; f"
+          trap 'git config --local --unset-all credential.helper' EXIT
+          git fetch --no-tags origin \
+            "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH" \
+            "refs/heads/$MAINTENANCE_BRANCH:refs/remotes/origin/$MAINTENANCE_BRANCH"
+          unset PUBLISHER_APP_TOKEN
+          python3 ci/tools/update-workflow-tools.py \
+            verify-existing-canonical-workflow-tool-subset \
+            --root . \
+            --base "origin/$DEFAULT_BRANCH" \
+            --head "origin/$MAINTENANCE_BRANCH"
       - name: Create or update Draft PR from the full generated allowlist
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
@@ -351,7 +510,6 @@ jobs:
             .github/workflows/lint.yml
             .github/workflows/test-common.yml
             .github/workflows/update-submodules.yml
-            .github/workflows/update-workflow-tools.yml
             tests/schemas/five-connectors-with-crs-no-mrts/normalized-event.schema.json
             tests/schemas/five-connectors-with-crs-no-mrts/manifest.schema.json
             tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json

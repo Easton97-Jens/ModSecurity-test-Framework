@@ -567,19 +567,21 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         _path, lock, _digest = UPDATER.load_lock(ROOT)
         UPDATER.ensure_locked_action_workflow_coverage(ROOT, lock)
 
-        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+        workflow = (ROOT / ".github/workflows/check-common-versions.yml").read_text(
             encoding="utf-8"
         )
-        staging = workflow.split("git add -- \\\n", 1)[1].split(
-            "python3 ci/tools/update-workflow-tools.py verify-scope --root . --staged",
-            1,
-        )[0]
-        staged_paths = {
-            line.strip().removesuffix("\\").strip()
-            for line in staging.splitlines()
+        publisher_paths = {
+            line.strip()
+            for line in workflow.split("          add-paths: |\n", 1)[1].split(
+                "\n\n  result:", 1
+            )[0].splitlines()
             if line.strip()
         }
-        self.assertEqual(set(UPDATER.ALLOWED_UPDATE_PATHS), staged_paths)
+        self.assertTrue(
+            set(UPDATER.ALLOWED_UPDATE_PATHS).issubset(publisher_paths),
+            sorted(set(UPDATER.ALLOWED_UPDATE_PATHS).difference(publisher_paths)),
+        )
+        self.assertNotIn(".github/workflows/update-workflow-tools.yml", publisher_paths)
 
     def test_tool_candidate_requires_the_reviewed_asset_naming_rule(self) -> None:
         _path, lock, digest = UPDATER.load_lock(ROOT)
@@ -668,6 +670,87 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 self.assertEqual(candidate_path.stat().st_mode & 0o777, 0o600)
                 with self.assertRaisesRegex(UPDATER.UpdateError, "overwrite"):
                     UPDATER.write_candidate(candidate_path, candidate)
+
+    def test_canonical_validation_snapshot_is_private_and_rejects_redirects(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            runner_temp = temporary_root / "runner-temp"
+            outside = temporary_root / "outside"
+            runner_temp.mkdir()
+            outside.mkdir()
+            redirected = runner_temp / "redirected"
+            redirected.symlink_to(outside, target_is_directory=True)
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "symlink"):
+                    UPDATER.snapshot_update_validation_inputs(ROOT, redirected)
+                snapshot = UPDATER.snapshot_update_validation_inputs(
+                    ROOT, runner_temp / "canonical-base"
+                )
+            self.assertEqual(snapshot, runner_temp / "canonical-base")
+            self.assertEqual(snapshot.stat().st_mode & 0o777, 0o700)
+            self.assertTrue(
+                (snapshot / "ci/tooling/security-tools.lock.yml").is_file()
+            )
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                with self.assertRaisesRegex(UPDATER.UpdateError, "overwrite"):
+                    UPDATER.snapshot_update_validation_inputs(ROOT, snapshot)
+
+    def test_canonical_generated_candidate_binds_the_preapply_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            runner_temp = temporary_root / "runner-temp"
+            runner_temp.mkdir()
+            head_root = self.copied_update_root(temporary_root / "head")
+            _path, lock, _digest = UPDATER.load_lock(head_root)
+            checkout = self.changed_action(
+                lock, "actions/checkout", "v9.9.9", "a" * 40
+            )
+            candidate = self.candidate_for(
+                head_root, {"actions/checkout": checkout}
+            )
+            UPDATER.apply_candidate(head_root, candidate)
+            expected_digest = UPDATER.candidate_sha256(candidate)
+
+            with (
+                patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
+                patch.object(UPDATER, "verify_existing_branch_lock_records") as provenance,
+                patch.object(UPDATER, "verify_changed_tool_assets") as assets,
+                patch.object(UPDATER, "run_proposed_tree_contract_checks") as contracts,
+            ):
+                base_root = UPDATER.snapshot_update_validation_inputs(
+                    ROOT, runner_temp / "canonical-base"
+                )
+                derived = UPDATER.validate_canonical_generated_candidate(
+                    head_root,
+                    base_root,
+                    expected_digest,
+                    runner_temp / "canonical-assets",
+                )
+
+            self.assertEqual(derived, candidate)
+            provenance.assert_called_once()
+            assets.assert_called_once()
+            contracts.assert_called_once()
+
+    def test_canonical_generated_candidate_rejects_a_mismatched_cross_job_digest(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            runner_temp = temporary_root / "runner-temp"
+            runner_temp.mkdir()
+            head_root = self.copied_update_root(temporary_root / "head")
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}):
+                base_root = UPDATER.snapshot_update_validation_inputs(
+                    ROOT, runner_temp / "canonical-base"
+                )
+                with self.assertRaisesRegex(UPDATER.UpdateError, "does not match"):
+                    UPDATER.validate_canonical_generated_candidate(
+                        head_root,
+                        base_root,
+                        "0" * 64,
+                        runner_temp / "canonical-assets",
+                    )
 
     def test_resolve_root_rejects_symlinks_and_traversal_before_resolving(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -873,14 +956,11 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             for revision in ("base", "head")
             for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
         }
-        updater_path = ".github/workflows/update-workflow-tools.yml"
-        publisher_workflow = blobs[("head", updater_path)].decode("utf-8")
-        blobs[("head", updater_path)] = publisher_workflow.replace(
-            "          set -euo pipefail\n          UPDATE_BRANCH=",
-            "          set -euo pipefail\n"
-            '          curl --fail --silent --show-error --data "$PUBLISH_TOKEN" '
-            "https://example.invalid/collect\n"
-            "          UPDATE_BRANCH=",
+        workflow_path = ".github/workflows/check-action-versions.yml"
+        publisher_workflow = blobs[("head", workflow_path)].decode("utf-8")
+        blobs[("head", workflow_path)] = publisher_workflow.replace(
+            "name: Check GitHub Action versions",
+            "name: Check GitHub Action versions # unreviewed branch mutation",
             1,
         ).encode("utf-8")
 
@@ -906,6 +986,111 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                         head_lock,
                         base_lock_digest,
                     )
+            self.assertEqual(list(runner_temp.iterdir()), [])
+
+    def test_existing_canonical_branch_rejects_a_manually_modified_native_blob(
+        self,
+    ) -> None:
+        lock_path = ROOT / "ci/tooling/security-tools.lock.yml"
+        base_lock_blob = lock_path.read_bytes()
+        base_lock = UPDATER.yaml.safe_load(base_lock_blob)
+        base_lock_digest = UPDATER.hashlib.sha256(base_lock_blob).hexdigest()
+        head_lock = deepcopy(base_lock)
+        blobs = {
+            (revision, relative_text): (ROOT / relative_text).read_bytes()
+            for revision in ("base", "head")
+            for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
+        }
+        for revision in ("base", "head"):
+            blobs[(revision, "ci/lib/common.sh")] = (
+                ROOT / "ci/lib/common.sh"
+            ).read_bytes()
+        workflow_path = ".github/workflows/check-action-versions.yml"
+        publisher_workflow = blobs[("head", workflow_path)].decode("utf-8")
+        blobs[("head", workflow_path)] = publisher_workflow.replace(
+            "name: Check GitHub Action versions",
+            "name: Check GitHub Action versions # unreviewed canonical mutation",
+            1,
+        ).encode("utf-8")
+
+        def git_blob(
+            _root: Path, revision: str, relative: Path, **_kwargs: Any
+        ) -> bytes:
+            return blobs[(revision, relative.as_posix())]
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            runner_temp = Path(temporary_directory) / "runner-temp"
+            runner_temp.mkdir()
+            with (
+                patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
+                patch.object(UPDATER, "git_blob", side_effect=git_blob),
+            ):
+                with self.assertRaisesRegex(
+                    UPDATER.UpdateError,
+                    "existing canonical branch path does not match constrained",
+                ):
+                    UPDATER.verify_existing_canonical_generated_blobs(
+                        ROOT,
+                        "base",
+                        "head",
+                        base_lock,
+                        head_lock,
+                        base_lock_digest,
+                    )
+            self.assertEqual(list(runner_temp.iterdir()), [])
+
+    def test_existing_canonical_branch_accepts_the_exact_native_subset(self) -> None:
+        base_lock_blob = (ROOT / "ci/tooling/security-tools.lock.yml").read_bytes()
+        base_lock = UPDATER.yaml.safe_load(base_lock_blob)
+        checkout = self.changed_action(
+            base_lock, "actions/checkout", "v9.9.9", "a" * 40
+        )
+        candidate = self.candidate_for(ROOT, {"actions/checkout": checkout})
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            expected_root = self.copied_update_root(temporary_root / "expected")
+            UPDATER.apply_candidate(expected_root, candidate)
+            head_lock = UPDATER.yaml.safe_load(
+                (expected_root / "ci/tooling/security-tools.lock.yml").read_text(
+                    encoding="utf-8"
+                )
+            )
+            blobs = {
+                ("base", relative_text): (ROOT / relative_text).read_bytes()
+                for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
+            }
+            blobs.update(
+                {
+                    ("head", relative_text): (
+                        expected_root / relative_text
+                    ).read_bytes()
+                    for relative_text in UPDATER.ALLOWED_UPDATE_PATHS
+                }
+            )
+            for revision in ("base", "head"):
+                blobs[(revision, "ci/lib/common.sh")] = (
+                    ROOT / "ci/lib/common.sh"
+                ).read_bytes()
+
+            def git_blob(
+                _root: Path, revision: str, relative: Path, **_kwargs: Any
+            ) -> bytes:
+                return blobs[(revision, relative.as_posix())]
+
+            runner_temp = temporary_root / "runner-temp"
+            runner_temp.mkdir()
+            with (
+                patch.dict(os.environ, {"RUNNER_TEMP": str(runner_temp)}),
+                patch.object(UPDATER, "git_blob", side_effect=git_blob),
+            ):
+                UPDATER.verify_existing_canonical_generated_blobs(
+                    ROOT,
+                    "base",
+                    "head",
+                    base_lock,
+                    head_lock,
+                    UPDATER.hashlib.sha256(base_lock_blob).hexdigest(),
+                )
             self.assertEqual(list(runner_temp.iterdir()), [])
 
     def test_existing_branch_accepts_exact_trusted_base_derived_blobs(self) -> None:
@@ -956,16 +1141,17 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 )
             self.assertEqual(list(runner_temp.iterdir()), [])
 
-    def test_publisher_workflow_keeps_resolver_validator_publisher_and_outcome_separate(
+    def test_native_helper_is_orchestrated_only_by_canonical_maintenance(
         self,
     ) -> None:
-        workflow = (ROOT / ".github/workflows/update-workflow-tools.yml").read_text(
+        workflow = (ROOT / ".github/workflows/check-common-versions.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("resolver:", workflow)
-        self.assertIn("validator:", workflow)
-        self.assertIn("publisher:", workflow)
-        self.assertIn("outcome:", workflow)
+        self.assertFalse((ROOT / ".github/workflows/update-workflow-tools.yml").exists())
+        self.assertIn("canonical-maintenance:", workflow)
+        self.assertIn("candidate:", workflow)
+        self.assertIn("publish:", workflow)
+        self.assertIn("result:", workflow)
         self.assertIn("actions/create-github-app-token@", workflow)
         self.assertIn("client-id: ${{ vars.WORKFLOW_UPDATER_APP_CLIENT_ID }}", workflow)
         self.assertIn(
@@ -975,27 +1161,28 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self.assertIn("permission-pull-requests: write", workflow)
         self.assertIn("permission-workflows: write", workflow)
         self.assertIn("${{ steps.publisher_app_token.outputs.token }}", workflow)
-        self.assertNotIn("${{ github.token }}", workflow)
-        self.assertIn("Verify workflow publisher GitHub App configuration", workflow)
-        self.assertIn("resolver_status", workflow)
-        self.assertIn("candidate_sha256", workflow)
+        publisher = workflow.split("\n  publish:\n", 1)[1].split(
+            "\n  result:\n", 1
+        )[0]
+        self.assertNotIn("${{ github.token }}", publisher)
+        self.assertIn("Require publisher App configuration", workflow)
+        self.assertIn("workflow_tool_candidate_sha256", workflow)
         self.assertIn("--expected-candidate-sha256", workflow)
-        self.assertIn("--require-updates", workflow)
         self.assertIn("--verify-tool-assets", workflow)
         self.assertIn("--validate-proposed-tree", workflow)
-        self.assertIn("framework-workflow-tool-publisher-validation", workflow)
-        self.assertIn("verify-existing-branch --root .", workflow)
+        self.assertIn("snapshot-validation-inputs", workflow)
+        self.assertIn("validate-canonical-generated-candidate", workflow)
+        self.assertIn("Inspect matching Draft canonical maintenance pull request", workflow)
+        self.assertIn("compareCommitsWithBasehead", workflow)
+        self.assertIn(
+            "verify-existing-canonical-workflow-tool-subset", workflow
+        )
         self.assertIn("draft: true", workflow)
-        self.assertIn("verify-scope --root . --staged", workflow)
         self.assertIn(
             "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
             workflow,
         )
         self.assertIn("if: ${{ always() }}", workflow)
-        self.assertIn("permissions: {}", workflow)
-        self.assertIn(
-            "No reviewed workflow or tool updates are currently available.", workflow
-        )
         self.assertNotIn("|| true", workflow)
         self.assertNotIn("--force", workflow)
         self.assertNotIn("pull_request_target", workflow)

@@ -50,7 +50,6 @@ CI_DEPENDENCY_INSTALLER_WORKFLOWS = {
     "five-connectors-with-crs-no-mrts-contract.yml": 1,
     "lint.yml": 1,
 }
-WORKFLOW_TOOL_UPDATER = "update-workflow-tools.yml"
 SUBMODULE_UPDATER = "update-submodules.yml"
 SUBMODULE_UPDATER_FIRST_PARTY_HEAD_REQUIREMENTS = (
     "headRefName,headRepository,headRepositoryOwner",
@@ -193,14 +192,12 @@ WRITE_PERMISSION_ALLOWLIST = {
     PYTHON_VERSION_MAINTENANCE_WORKFLOW: {"contents", "pull-requests"},
     "cleanup-artifacts.yml": {"actions"},
     "ci-security-codeql.yml": {"security-events"},
-    WORKFLOW_TOOL_UPDATER: {"contents", "pull-requests"},
     SUBMODULE_UPDATER: {"contents", "pull-requests"},
 }
 TOKEN_REFERENCE_ALLOWLIST = {
     PYTHON_VERSION_MAINTENANCE_WORKFLOW,
     COMMON_VERSION_WORKFLOW,
     "ci-security-dependency-review.yml",
-    WORKFLOW_TOOL_UPDATER,
     SUBMODULE_UPDATER,
 }
 TOKEN_REFERENCE = re.compile(
@@ -286,6 +283,21 @@ STEP_VALIDATE_CALLER_BOUND_CANONICAL_MAINTENANCE_PLAN = (
 STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN = (
     "Validate and apply caller-bound canonical plan"
 )
+STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS = (
+    "Snapshot trusted workflow-tool validation inputs"
+)
+STEP_VALIDATE_GENERATED_WORKFLOW_TOOL_CANDIDATE = (
+    "Validate generated workflow-tool candidate"
+)
+STEP_REVALIDATE_GENERATED_WORKFLOW_TOOL_CANDIDATE = (
+    "Revalidate generated workflow-tool candidate"
+)
+STEP_INSPECT_DRAFT_CANONICAL_MAINTENANCE_PULL_REQUEST = (
+    "Inspect matching Draft canonical maintenance pull request"
+)
+STEP_VERIFY_DRAFT_CANONICAL_MAINTENANCE_NATIVE_WORKFLOW_TOOL_SUBSET = (
+    "Verify matching Draft canonical maintenance native workflow-tool subset"
+)
 COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "canonical-maintenance",
@@ -313,12 +325,32 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     ): "f4610ce0e58163a78e1d7c94ccddcdc1087e363e255dd60d66a13f5e38963e0f",
     (
         "candidate",
+        STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS,
+    ): "035649491594afeac42f54f7580709531cac2bd9046d27581eccb6a4f7208729",
+    (
+        "candidate",
+        STEP_VALIDATE_GENERATED_WORKFLOW_TOOL_CANDIDATE,
+    ): "56e164912537bd674d6c526bdb2fc904ecc43c14ecd3e4d06f35a19f4328e292",
+    (
+        "candidate",
         "Validate candidate path policy and focused controls",
     ): "fc8a521cecf641305534044ba424ddd9cd9a2069bb8e646d16892aee4fc75a88",
     (
         "publish",
         STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN,
     ): "54845f224c86186044c1e834cb5882bbc3cdfcdad4750d8047d7e7292e880b5c",
+    (
+        "publish",
+        STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS,
+    ): "035649491594afeac42f54f7580709531cac2bd9046d27581eccb6a4f7208729",
+    (
+        "publish",
+        STEP_REVALIDATE_GENERATED_WORKFLOW_TOOL_CANDIDATE,
+    ): "349e645c11c84e78acec95366cc0fec3cf9045b1c2b4ea98ff9d3b22a3654bd0",
+    (
+        "publish",
+        STEP_VERIFY_DRAFT_CANONICAL_MAINTENANCE_NATIVE_WORKFLOW_TOOL_SUBSET,
+    ): "2e7cb6d43d3eee00034adda64be767b6dbc8c84da71347d3876cd85ed4a7c4f3",
     (
         "publish",
         "Require publisher App configuration",
@@ -328,6 +360,12 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
         "Summarize outcome, updates, reviews, issues, PR, and fatal findings",
     ): "4a8667a3ce2063a78d3d64ca1124014cf19d2ae938f093ccc74a4b2bf45b818b",
 }
+COMMON_VERSION_CANONICAL_PR_STATE_CHECK_SHA256 = (
+    "637a74b4e64895ffb261d047754f726f34ced5e6b0bb2169d55e94a8297ef75c"
+)
+COMMON_VERSION_CANONICAL_PR_NATIVE_SUBSET_CHECK_SHA256 = (
+    "2e7cb6d43d3eee00034adda64be767b6dbc8c84da71347d3876cd85ed4a7c4f3"
+)
 COMMON_VERSION_GENERATED_PATHS = frozenset(
     {
         COMMON_SH_PATH,
@@ -356,7 +394,6 @@ COMMON_VERSION_GENERATED_PATHS = frozenset(
         ".github/workflows/lint.yml",
         ".github/workflows/test-common.yml",
         ".github/workflows/update-submodules.yml",
-        ".github/workflows/update-workflow-tools.yml",
         "tests/schemas/five-connectors-with-crs-no-mrts/normalized-event.schema.json",
         "tests/schemas/five-connectors-with-crs-no-mrts/manifest.schema.json",
         "tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json",
@@ -2586,58 +2623,6 @@ def updater_outcome_profile_errors(path: Path, data: dict[str, Any]) -> list[str
     return errors
 
 
-def workflow_tool_updater_errors(
-    path: Path, text: str, data: dict[str, Any]
-) -> list[str]:
-    """Enforce resolver/validator/publisher separation for the CI updater."""
-
-    if path.name != WORKFLOW_TOOL_UPDATER:
-        return []
-
-    errors: list[str] = []
-    errors.extend(updater_read_only_job_errors(path, data))
-    errors.extend(updater_job_topology_errors(path, data))
-    errors.extend(updater_ordering_errors(path, data))
-    errors.extend(updater_trigger_errors(path, data))
-    errors.extend(updater_publisher_profile_errors(path, data))
-    errors.extend(updater_outcome_profile_errors(path, data))
-    resolver = job_text(text, "resolver")
-    validator = job_text(text, "validator")
-    errors.extend(
-        require_workflow_text(
-            path,
-            "resolver",
-            resolver,
-            (
-                "contents: read",
-                "resolve --root . --github-output",
-                "resolver_status",
-                "candidate_sha256",
-                CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
-                CHECKOUT_WITHOUT_SUBMODULES,
-            ),
-        )
-    )
-    errors.extend(
-        require_workflow_text(
-            path,
-            "validator",
-            validator,
-            (
-                "contents: read",
-                "--candidate-b64",
-                "--expected-candidate-sha256",
-                "--require-updates",
-                "HAS_UPDATES",
-                "--verify-tool-assets",
-                CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS,
-                CHECKOUT_WITHOUT_SUBMODULES,
-            ),
-        )
-    )
-    return errors
-
-
 def submodule_updater_metadata_errors(
     path: Path, text: str, data: dict[str, Any]
 ) -> list[str]:
@@ -3340,8 +3325,16 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
                 {"name", "uses", "with"},
             ),
             (
+                STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS,
+                {"name", "run"},
+            ),
+            (
                 STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN,
                 {"name", "env", "run"},
+            ),
+            (
+                STEP_VALIDATE_GENERATED_WORKFLOW_TOOL_CANDIDATE,
+                {"name", "id", "run"},
             ),
             (
                 "Validate candidate path policy and focused controls",
@@ -3374,11 +3367,27 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
                 {"name", "uses", "with"},
             ),
             (
+                STEP_SNAPSHOT_TRUSTED_WORKFLOW_TOOL_VALIDATION_INPUTS,
+                {"name", "run"},
+            ),
+            (
                 STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN,
                 {"name", "env", "run"},
             ),
+            (
+                STEP_REVALIDATE_GENERATED_WORKFLOW_TOOL_CANDIDATE,
+                {"name", "id", "env", "run"},
+            ),
             ("Require publisher App configuration", {"name", "env", "run"}),
             (STEP_MINT_PUBLISHER_APP_TOKEN, {"name", "id", "uses", "with"}),
+            (
+                STEP_INSPECT_DRAFT_CANONICAL_MAINTENANCE_PULL_REQUEST,
+                {"name", "id", "uses", "with"},
+            ),
+            (
+                STEP_VERIFY_DRAFT_CANONICAL_MAINTENANCE_NATIVE_WORKFLOW_TOOL_SUBSET,
+                {"name", "if", "env", "run"},
+            ),
             (
                 "Create or update Draft PR from the full generated allowlist",
                 {"name", "uses", "with"},
@@ -3475,6 +3484,7 @@ def _common_version_action_reference_errors(
         DOWNLOAD_ARTIFACT.removesuffix("@"),
         WORKFLOW_UPDATER_APP_TOKEN_ACTION,
         CREATE_PULL_REQUEST_ACTION,
+        GITHUB_SCRIPT_ACTION,
     }
     for step in steps:
         if not isinstance(step, dict) or "uses" not in step:
@@ -3703,10 +3713,17 @@ def _common_version_token_reference_errors(
     allowed_sensitive_paths = frozenset(
         {
             ("jobs", "canonical-maintenance", "steps", "2", "env", "GITHUB_TOKEN"),
-            ("jobs", "reconcile-trusted", "steps", "4", "env", "ISSUE_APP_PRIVATE_KEY"),
+            (
+                "jobs",
+                "reconcile-trusted",
+                "steps",
+                "4",
+                "env",
+                "ISSUE_APP_PRIVATE_KEY",
+            ),
             ("jobs", "reconcile-trusted", "steps", "5", "with", "private-key"),
-            ("jobs", "publish", "steps", "4", "env", "PUBLISHER_PRIVATE_KEY"),
-            ("jobs", "publish", "steps", "5", "with", "private-key"),
+            ("jobs", "publish", "steps", "6", "env", "PUBLISHER_PRIVATE_KEY"),
+            ("jobs", "publish", "steps", "7", "with", "private-key"),
         }
     )
     if (
@@ -3780,13 +3797,24 @@ def _common_version_canonical_candidate_errors(
     ):
         errors.append(f"{path}: candidate must be gated by canonical safe updates")
     for required in (
+        "snapshot-validation-inputs",
         "--expected-plan-sha256",
         "--apply-safe-updates",
+        "validate-canonical-generated-candidate",
+        "--verify-tool-assets",
+        "--validate-proposed-tree",
         "git diff --name-only",
         "git diff --check",
     ):
         if required not in candidate_text:
             errors.append(f"{path}: candidate missing {required!r}")
+    if isinstance(candidate, dict) and candidate.get("outputs") != {
+        "validated": "${{ steps.validate.outputs.validated }}",
+        "workflow_tool_candidate_sha256": (
+            "${{ steps.workflow_tool_candidate.outputs.workflow_tool_candidate_sha256 }}"
+        ),
+    }:
+        errors.append(f"{path}: candidate outputs must bind the generated tool candidate")
     return errors
 
 
@@ -3919,6 +3947,12 @@ def _common_version_publish_required_errors(
         "permission-workflows: write",
         "--expected-plan-sha256",
         "--apply-safe-updates",
+        "snapshot-validation-inputs",
+        "validate-canonical-generated-candidate",
+        "--expected-candidate-sha256",
+        "--verify-tool-assets",
+        "--validate-proposed-tree",
+        "needs.candidate.outputs.workflow_tool_candidate_sha256",
     ):
         if required not in publish_if + profile_text:
             errors.append(f"{path}: publisher missing {required!r}")
@@ -3965,6 +3999,50 @@ def _common_version_publish_token_errors(path: Path, publish: Any) -> list[str]:
 
 
 def _common_version_publish_pr_errors(path: Path, publish: Any) -> list[str]:
+    errors: list[str] = []
+    state_check = next(
+        (
+            step
+            for step in publish.get("steps", [])
+            if isinstance(step, dict)
+            and step.get("name")
+            == STEP_INSPECT_DRAFT_CANONICAL_MAINTENANCE_PULL_REQUEST
+        ),
+        {},
+    )
+    state_check_with = state_check.get("with")
+    if (
+        not isinstance(state_check_with, dict)
+        or set(state_check_with) != {"github-token", "script"}
+        or state_check_with.get("github-token")
+        != WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION
+        or not isinstance(state_check_with.get("script"), str)
+        or publisher_body_digest(state_check_with["script"])
+        != COMMON_VERSION_CANONICAL_PR_STATE_CHECK_SHA256
+    ):
+        errors.append(f"{path}: publisher Draft PR state check profile changed")
+    subset_check = next(
+        (
+            step
+            for step in publish.get("steps", [])
+            if isinstance(step, dict)
+            and step.get("name")
+            == STEP_VERIFY_DRAFT_CANONICAL_MAINTENANCE_NATIVE_WORKFLOW_TOOL_SUBSET
+        ),
+        {},
+    )
+    if (
+        subset_check.get("if") != "steps.maintenance_pr.outputs.existing == 'true'"
+        or subset_check.get("env")
+        != {
+            "DEFAULT_BRANCH": DEFAULT_BRANCH_EXPRESSION,
+            "PUBLISHER_APP_TOKEN": WORKFLOW_UPDATER_APP_TOKEN_EXPRESSION,
+        }
+        or not isinstance(subset_check.get("run"), str)
+        or publisher_body_digest(subset_check["run"])
+        != COMMON_VERSION_CANONICAL_PR_NATIVE_SUBSET_CHECK_SHA256
+    ):
+        errors.append(f"{path}: publisher native subset check profile changed")
     create_pr = next(
         (
             step
@@ -3994,7 +4072,7 @@ def _common_version_publish_pr_errors(path: Path, publish: Any) -> list[str]:
             for key, value in expected_create_pr.items()
         )
     ):
-        return [f"{path}: publisher Draft PR input profile changed"]
+        errors.append(f"{path}: publisher Draft PR input profile changed")
     add_paths = next(
         (
             step.get("with", {}).get("add-paths")
@@ -4011,8 +4089,8 @@ def _common_version_publish_pr_errors(path: Path, publish: Any) -> list[str]:
         else None
     )
     if actual_paths != set(COMMON_VERSION_GENERATED_PATHS):
-        return [f"{path}: publisher generated-path allowlist changed"]
-    return []
+        errors.append(f"{path}: publisher generated-path allowlist changed")
+    return errors
 
 
 def _common_version_publish_errors(path: Path, publish: Any) -> list[str]:
@@ -4217,7 +4295,6 @@ def workflow_metadata_errors(path: Path, text: str, data: dict[str, Any]) -> lis
         *permission_errors(path, data),
         *workflow_token_environment_errors(path, data),
         *ci_dependency_installer_reference_errors(path, data),
-        *workflow_tool_updater_errors(path, text, data),
         *submodule_updater_errors(path, text, data),
         *common_version_maintenance_errors(path, data),
     ]

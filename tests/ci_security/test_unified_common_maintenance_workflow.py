@@ -9,6 +9,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/check-common-versions.yml"
+RETIRED_WORKFLOW = ROOT / ".github/workflows/update-workflow-tools.yml"
 QUALITY_WORKFLOW = ROOT / ".github/workflows/ci-security-quality.yml"
 
 
@@ -48,6 +49,83 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             },
         )
         self.assertNotIn("legacy-", self.text)
+        self.assertFalse(RETIRED_WORKFLOW.exists())
+        self.assertNotIn(".github/workflows/update-workflow-tools.yml", self.text)
+
+    def test_native_workflow_tool_validation_is_bound_before_and_after_plan_application(
+        self,
+    ) -> None:
+        candidate = self.workflow["jobs"]["candidate"]
+        publisher = self.workflow["jobs"]["publish"]
+        self.assertEqual(
+            candidate["outputs"]["workflow_tool_candidate_sha256"],
+            "${{ steps.workflow_tool_candidate.outputs.workflow_tool_candidate_sha256 }}",
+        )
+        for job, validation_name in (
+            (candidate, "Validate generated workflow-tool candidate"),
+            (publisher, "Revalidate generated workflow-tool candidate"),
+        ):
+            step = next(
+                step for step in job["steps"] if step["name"] == validation_name
+            )
+            self.assertIn("validate-canonical-generated-candidate", step["run"])
+            self.assertIn("--verify-tool-assets", step["run"])
+            self.assertIn("--validate-proposed-tree", step["run"])
+            self.assertIn("--base-root \"$RUNNER_TEMP/canonical-workflow-tool-base\"", step["run"])
+        self.assertIn("--expected-candidate-sha256", next(
+            step["run"]
+            for step in publisher["steps"]
+            if step["name"] == "Revalidate generated workflow-tool candidate"
+        ))
+        for job in (candidate, publisher):
+            snapshot = next(
+                step
+                for step in job["steps"]
+                if step["name"] == "Snapshot trusted workflow-tool validation inputs"
+            )
+            self.assertIn("snapshot-validation-inputs", snapshot["run"])
+
+    def test_publisher_reuses_only_the_exact_scoped_draft_pr(self) -> None:
+        publisher = self.workflow["jobs"]["publish"]
+        state_check = next(
+            step
+            for step in publisher["steps"]
+            if step["name"] == "Inspect matching Draft canonical maintenance pull request"
+        )
+        self.assertEqual(
+            state_check["with"]["github-token"],
+            "${{ steps.publisher_app_token.outputs.token }}",
+        )
+        script = state_check["with"]["script"]
+        for required in (
+            "pullRequests.length !== 1",
+            "!pullRequest.draft",
+            "pullRequest.base.ref !== defaultBranch",
+            "!pullRequest.body?.includes(marker)",
+            "compareCommitsWithBasehead",
+            "comparison.data.status !== \"ahead\"",
+            "allowedPaths.has(filename)",
+        ):
+            self.assertIn(required, script)
+        subset_check = next(
+            step
+            for step in publisher["steps"]
+            if step["name"]
+            == "Verify matching Draft canonical maintenance native workflow-tool subset"
+        )
+        self.assertEqual(
+            subset_check["if"],
+            "steps.maintenance_pr.outputs.existing == 'true'",
+        )
+        self.assertEqual(
+            subset_check["env"]["PUBLISHER_APP_TOKEN"],
+            "${{ steps.publisher_app_token.outputs.token }}",
+        )
+        self.assertIn(
+            "verify-existing-canonical-workflow-tool-subset", subset_check["run"]
+        )
+        self.assertIn("git fetch --no-tags origin", subset_check["run"])
+        self.assertIn("unset PUBLISHER_APP_TOKEN", subset_check["run"])
 
     def test_component_is_an_argv_element_and_globals_are_not_filtered(self) -> None:
         self.assertIn('args+=(--component "$REQUESTED_COMPONENT")', self.text)

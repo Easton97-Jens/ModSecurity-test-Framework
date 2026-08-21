@@ -94,7 +94,6 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/lint.yml",
         ".github/workflows/test-common.yml",
         ".github/workflows/update-submodules.yml",
-        ".github/workflows/update-workflow-tools.yml",
         "docs/github-actions-workflow-security.md",
         "docs/github-actions-workflow-security.de.md",
     }
@@ -1035,6 +1034,35 @@ def runner_temp_path(path: Path, *, for_write: bool) -> Path:
     return candidate_read_path(path, runner_root)
 
 
+def runner_temp_directory(path: Path, *, for_write: bool) -> Path:
+    """Require a private non-symlink directory below the owned runner temp root.
+
+    Candidate JSON files use :func:`runner_temp_path`; canonical maintenance
+    also needs a bounded directory for a pre-apply validation snapshot.  Keep
+    that directory contract equally strict so an environment-provided path
+    cannot redirect the snapshot or proposed-tree inputs outside
+    ``RUNNER_TEMP``.
+    """
+
+    runner_root = runner_temp_root()
+    relative = runner_temp_relative_path(path, runner_root)
+    reject_runner_temp_symlinks(runner_root, relative)
+    if for_write:
+        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        reject_runner_temp_symlinks(runner_root, relative)
+        if path.exists() or path.is_symlink():
+            raise UpdateError("refusing to overwrite an existing candidate directory")
+        path.mkdir(mode=0o700)
+        directory = resolved_runner_temp_child(path, runner_root, strict=True)
+        if directory.is_symlink() or not directory.is_dir():
+            raise UpdateError("candidate directory must be a non-symlink directory")
+        directory.chmod(0o700)
+        return directory
+    if path.is_symlink() or not path.is_dir():
+        raise UpdateError("candidate directory must be an existing non-symlink directory")
+    return resolved_runner_temp_child(path, runner_root, strict=True)
+
+
 def write_candidate(path: Path, candidate: dict[str, Any]) -> None:
     destination = runner_temp_path(path, for_write=True)
     # Resolve immediately at the filesystem sink as a defense in depth layer
@@ -1207,6 +1235,25 @@ def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
         destination.chmod(0o600)
 
 
+def snapshot_update_validation_inputs(root: Path, output_dir: Path) -> Path:
+    """Capture the precise native updater input surface before plan application.
+
+    The canonical maintenance plan may alter the action/tool lock.  Saving the
+    reviewed input files *before* applying that plan lets the native validator
+    derive and bind the exact workflow-tool candidate afterwards instead of
+    resolving a potentially empty replacement candidate from the new lock.
+    """
+
+    source_root = resolve_root(root)
+    destination = runner_temp_directory(output_dir, for_write=True)
+    try:
+        copy_update_inputs(source_root, destination)
+    except BaseException:
+        shutil.rmtree(destination, ignore_errors=True)
+        raise
+    return destination
+
+
 def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
     """Run fixed trusted checkers against the candidate-only proposed tree."""
 
@@ -1255,6 +1302,82 @@ def validate_proposed_tree(root: Path, candidate: dict[str, Any]) -> None:
         run_proposed_tree_contract_checks(proposed_root)
     finally:
         shutil.rmtree(proposed_root, ignore_errors=True)
+
+
+def validate_canonical_generated_proposed_tree(
+    base_root: Path, head_root: Path, candidate: dict[str, Any]
+) -> None:
+    """Prove that native candidate output equals canonical-plan output exactly.
+
+    The canonical plan owns ``ci/lib/common.sh`` and can change it alongside
+    action/tool pins.  Build the native proposed tree from the trusted
+    pre-apply snapshot, overlay only that canonical input, apply the derived
+    native candidate, and require every native managed file to match the
+    already validated canonical-plan result byte-for-byte.
+    """
+
+    proposed_root = proposed_validation_root()
+    try:
+        copy_update_inputs(base_root, proposed_root)
+        common_source = resolve_regular_file(head_root, Path("ci/lib/common.sh"))
+        common_destination = resolve_regular_file(
+            proposed_root, Path("ci/lib/common.sh")
+        )
+        write_verified_text(
+            common_destination, common_source.read_text(encoding="utf-8")
+        )
+        apply_candidate(proposed_root, candidate)
+        for relative_text in sorted(ALLOWED_UPDATE_PATHS):
+            relative = Path(relative_text)
+            expected = resolve_regular_file(proposed_root, relative).read_bytes()
+            actual = resolve_regular_file(head_root, relative).read_bytes()
+            if actual != expected:
+                raise UpdateError(
+                    "canonical maintenance output does not match constrained "
+                    f"workflow-tool output: {relative_text}"
+                )
+        run_proposed_tree_contract_checks(proposed_root)
+    finally:
+        shutil.rmtree(proposed_root, ignore_errors=True)
+
+
+def validate_canonical_generated_candidate(
+    root: Path,
+    base_root: Path,
+    expected_candidate_sha256: str | None,
+    output_dir: Path,
+) -> dict[str, Any]:
+    """Validate the native candidate generated by a canonical maintenance plan.
+
+    ``base_root`` is a strict runner-temporary snapshot created before the
+    caller-bound plan is applied.  The current root is the trusted checkout
+    after that plan.  This preserves the native candidate's base lock digest,
+    release/asset provenance checks, bounded asset validation, and isolated
+    proposed-tree contract checks without giving a standalone workflow a
+    second publisher path.
+    """
+
+    head_root = resolve_root(root)
+    trusted_base_root = runner_temp_directory(base_root, for_write=False)
+    _base_lock_path, base_lock, base_lock_digest = load_lock(trusted_base_root)
+    _head_lock_path, head_lock, _head_lock_digest = load_lock(head_root)
+    require_canonical_action_lock(trusted_base_root, base_lock)
+    require_canonical_action_lock(head_root, head_lock)
+    ensure_locked_action_workflow_coverage(trusted_base_root, base_lock)
+    ensure_locked_action_workflow_coverage(head_root, head_lock)
+    candidate = existing_branch_candidate(base_lock, head_lock, base_lock_digest)
+    require_candidate_sha256(candidate, expected_candidate_sha256)
+    changes = validate_candidate_shape(candidate, base_lock, base_lock_digest)
+    # Unlike a resolver result, this candidate was derived from an already
+    # materialized lock.  Re-query every changed release tuple from its trusted
+    # base identity before accepting it, then verify changed tool bytes through
+    # the existing checksum-safe downloader.
+    verify_existing_branch_lock_records(base_lock, head_lock)
+    verify_changed_tool_assets(changes, output_dir)
+    validate_canonical_generated_proposed_tree(
+        trusted_base_root, head_root, candidate
+    )
+    return candidate
 
 
 def replace_lock_field(section: str, field: str, old: str, new: str, name: str) -> str:
@@ -1494,12 +1617,18 @@ def verify_git_scope(
     return changed
 
 
-def git_blob(root: Path, revision: str, relative: Path) -> bytes:
+def git_blob(
+    root: Path,
+    revision: str,
+    relative: Path,
+    *,
+    allowed_paths: frozenset[str] = ALLOWED_UPDATE_PATHS,
+) -> bytes:
     """Read one allow-listed regular source blob without checking out its ref."""
 
     revision = safe_git_revision(revision, "Git blob revision")
     relative_text = relative.as_posix()
-    if relative_text not in ALLOWED_UPDATE_PATHS:
+    if relative_text not in allowed_paths:
         raise UpdateError(f"Git blob path is not allow-listed: {relative_text}")
     result = subprocess.run(
         [
@@ -1705,10 +1834,19 @@ def existing_branch_candidate(
     }
 
 
-def copy_git_update_inputs(root: Path, revision: str, destination_root: Path) -> None:
+def copy_git_update_inputs(
+    root: Path,
+    revision: str,
+    destination_root: Path,
+    *,
+    additional_paths: frozenset[str] = frozenset(),
+) -> None:
     """Materialize only trusted base blobs into a fresh bounded temp root."""
 
-    for relative_text in sorted(ALLOWED_UPDATE_PATHS):
+    if not additional_paths.issubset(PROPOSED_VALIDATION_INPUT_PATHS):
+        raise UpdateError("existing branch validation input is not approved")
+    allowed_paths = ALLOWED_UPDATE_PATHS | additional_paths
+    for relative_text in sorted(allowed_paths):
         relative = Path(relative_text)
         destination = destination_root / relative
         destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -1716,7 +1854,12 @@ def copy_git_update_inputs(root: Path, revision: str, destination_root: Path) ->
             raise UpdateError(
                 f"existing branch validation path already exists: {relative}"
             )
-        destination.write_bytes(git_blob(root, revision, relative))
+        contents = (
+            git_blob(root, revision, relative, allowed_paths=allowed_paths)
+            if additional_paths
+            else git_blob(root, revision, relative)
+        )
+        destination.write_bytes(contents)
         destination.chmod(0o600)
 
 
@@ -1748,6 +1891,57 @@ def verify_existing_branch_generated_blobs(
         shutil.rmtree(expected_root, ignore_errors=True)
 
 
+def verify_existing_canonical_generated_blobs(
+    root: Path,
+    base: str,
+    head: str,
+    base_lock: dict[str, Any],
+    head_lock: dict[str, Any],
+    base_lock_digest: str,
+) -> None:
+    """Bind the native subset of a reusable canonical branch exactly.
+
+    Canonical maintenance may change ``ci/lib/common.sh`` together with the
+    native Action/tool paths.  Overlay its reviewed branch blob, then require
+    every native managed file to equal the output derived from the trusted base
+    lock.  Broader canonical-path scope remains the caller's responsibility.
+    """
+
+    candidate = existing_branch_candidate(base_lock, head_lock, base_lock_digest)
+    expected_root = proposed_validation_root()
+    additional_paths = frozenset({"ci/lib/common.sh"})
+    try:
+        copy_git_update_inputs(
+            root,
+            base,
+            expected_root,
+            additional_paths=additional_paths,
+        )
+        common_path = resolve_regular_file(expected_root, Path("ci/lib/common.sh"))
+        common_blob = git_blob(
+            root,
+            head,
+            Path("ci/lib/common.sh"),
+            allowed_paths=ALLOWED_UPDATE_PATHS | additional_paths,
+        )
+        try:
+            write_verified_text(common_path, common_blob.decode("utf-8"))
+        except UnicodeDecodeError as exc:
+            raise UpdateError("existing canonical common.sh is not UTF-8") from exc
+        apply_candidate(expected_root, candidate)
+        for relative_text in sorted(ALLOWED_UPDATE_PATHS):
+            relative = Path(relative_text)
+            expected = resolve_regular_file(expected_root, relative).read_bytes()
+            actual = git_blob(root, head, relative)
+            if actual != expected:
+                raise UpdateError(
+                    "existing canonical branch path does not match constrained "
+                    f"workflow-tool output: {relative_text}"
+                )
+    finally:
+        shutil.rmtree(expected_root, ignore_errors=True)
+
+
 def verify_existing_branch(root: Path, base: str, head: str) -> None:
     """Verify a reusable Draft branch before trusting or switching to it."""
 
@@ -1757,6 +1951,31 @@ def verify_existing_branch(root: Path, base: str, head: str) -> None:
     _head_lock_blob, head_lock = git_lock_blob_data(root, head)
     verify_existing_branch_lock_records(base_lock, head_lock)
     verify_existing_branch_generated_blobs(
+        root,
+        base,
+        head,
+        base_lock,
+        head_lock,
+        hashlib.sha256(base_lock_blob).hexdigest(),
+    )
+
+
+def verify_existing_canonical_workflow_tool_subset(
+    root: Path, base: str, head: str
+) -> None:
+    """Verify an existing canonical Draft PR's native workflow-tool subset.
+
+    This deliberately omits :func:`verify_git_scope`: the canonical publisher
+    has a broader reviewed allowlist and proves its scope separately.  It still
+    preserves the native updater's base-identity, release-provenance, and
+    byte-for-byte generated-output checks before the Draft branch is reused.
+    """
+
+    root = resolve_root(root)
+    base_lock_blob, base_lock = git_lock_blob_data(root, base)
+    _head_lock_blob, head_lock = git_lock_blob_data(root, head)
+    verify_existing_branch_lock_records(base_lock, head_lock)
+    verify_existing_canonical_generated_blobs(
         root,
         base,
         head,
@@ -1801,6 +2020,25 @@ def parse_args() -> argparse.Namespace:
         help="apply only in a bounded RUNNER_TEMP copy and validate the result",
     )
 
+    snapshot = subparsers.add_parser(
+        "snapshot-validation-inputs",
+        help="capture bounded updater inputs before canonical plan application",
+    )
+    snapshot.add_argument("--root", type=Path, default=framework_root())
+    snapshot.add_argument("--output-dir", type=Path, required=True)
+
+    canonical_generated = subparsers.add_parser(
+        "validate-canonical-generated-candidate",
+        help="derive and validate native workflow-tool output from a canonical plan",
+    )
+    canonical_generated.add_argument("--root", type=Path, default=framework_root())
+    canonical_generated.add_argument("--base-root", type=Path, required=True)
+    canonical_generated.add_argument("--expected-candidate-sha256")
+    canonical_generated.add_argument("--verify-tool-assets", action="store_true")
+    canonical_generated.add_argument("--output-dir", type=Path, required=True)
+    canonical_generated.add_argument("--validate-proposed-tree", action="store_true")
+    canonical_generated.add_argument("--github-output", action="store_true")
+
     apply = subparsers.add_parser(
         "apply", help="apply the narrow allow-listed candidate"
     )
@@ -1826,6 +2064,14 @@ def parse_args() -> argparse.Namespace:
     existing.add_argument("--root", type=Path, default=framework_root())
     existing.add_argument("--base", required=True)
     existing.add_argument("--head", required=True)
+
+    canonical_existing = subparsers.add_parser(
+        "verify-existing-canonical-workflow-tool-subset",
+        help="verify the native subset of a reusable canonical Draft branch",
+    )
+    canonical_existing.add_argument("--root", type=Path, default=framework_root())
+    canonical_existing.add_argument("--base", required=True)
+    canonical_existing.add_argument("--head", required=True)
     return parser.parse_args()
 
 
@@ -1867,6 +2113,40 @@ def run_validate_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_snapshot_validation_inputs_command(args: argparse.Namespace) -> int:
+    destination = snapshot_update_validation_inputs(args.root, args.output_dir)
+    print(destination)
+    return 0
+
+
+def run_validate_canonical_generated_candidate_command(args: argparse.Namespace) -> int:
+    if not args.verify_tool_assets:
+        raise UpdateError(
+            "canonical generated candidate validation requires --verify-tool-assets"
+        )
+    if not args.validate_proposed_tree:
+        raise UpdateError(
+            "canonical generated candidate validation requires --validate-proposed-tree"
+        )
+    candidate = validate_canonical_generated_candidate(
+        args.root,
+        args.base_root,
+        args.expected_candidate_sha256,
+        args.output_dir,
+    )
+    digest = candidate_sha256(candidate)
+    if args.github_output:
+        print(f"workflow_tool_candidate_sha256={digest}")
+        print(
+            "workflow_tool_candidate_has_updates="
+            f"{'true' if candidate['actions'] or candidate['tools'] else 'false'}"
+        )
+    else:
+        print("canonical generated workflow-tool candidate passed validation")
+        print(f"workflow-tool candidate SHA-256: {digest}")
+    return 0
+
+
 def run_apply_command(args: argparse.Namespace) -> int:
     candidate = candidate_from_arguments(args)
     require_candidate_sha256(
@@ -1888,6 +2168,14 @@ def run_verify_existing_branch_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_verify_existing_canonical_workflow_tool_subset_command(
+    args: argparse.Namespace,
+) -> int:
+    verify_existing_canonical_workflow_tool_subset(args.root, args.base, args.head)
+    print("existing canonical workflow-tool subset passed base-identity verification")
+    return 0
+
+
 def run_verify_scope_command(args: argparse.Namespace) -> int:
     root = resolve_root(args.root)
     changed = verify_git_scope(root, args.staged, args.base, args.head)
@@ -1901,8 +2189,15 @@ def run_command(args: argparse.Namespace) -> int:
         return 0
     handlers = {
         "validate": run_validate_command,
+        "snapshot-validation-inputs": run_snapshot_validation_inputs_command,
+        "validate-canonical-generated-candidate": (
+            run_validate_canonical_generated_candidate_command
+        ),
         "apply": run_apply_command,
         "verify-existing-branch": run_verify_existing_branch_command,
+        "verify-existing-canonical-workflow-tool-subset": (
+            run_verify_existing_canonical_workflow_tool_subset_command
+        ),
         "verify-scope": run_verify_scope_command,
     }
     handler = handlers.get(args.mode)
