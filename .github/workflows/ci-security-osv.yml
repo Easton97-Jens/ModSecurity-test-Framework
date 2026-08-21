@@ -85,11 +85,7 @@ jobs:
           check-latest: false
 
       - name: Install hash-locked CI dependency
-        run: |
-          set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+        run: bash ci/tools/install-hash-locked-ci-dependencies.sh
 
       - name: Fetch checksum-verified OSV Scanner
         env:
@@ -229,11 +225,7 @@ jobs:
           check-latest: false
 
       - name: Install hash-locked CI dependency
-        run: |
-          set -euo pipefail
-          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
-            --require-hashes -r requirements-ci.lock
-          python3 -m pip check
+        run: bash ci/tools/install-hash-locked-ci-dependencies.sh
 
       - name: Fetch checksum-verified OSV Scanner
         env:

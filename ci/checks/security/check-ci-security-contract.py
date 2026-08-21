@@ -34,13 +34,34 @@ IF_NO_FILES_FOUND_ERROR = "if-no-files-found: error"
 SECURITY_EVENTS_WRITE = "security-events: write"
 SECURITY_TOOL_DOWNLOADER = "ci/tools/fetch-security-tool.py"
 HASH_LOCKED_CI_REQUIREMENTS = "--require-hashes -r requirements-ci.lock"
+CI_DEPENDENCY_INSTALLER = "ci/tools/install-hash-locked-ci-dependencies.sh"
+CI_DEPENDENCY_INSTALLER_COMMAND = f"bash {CI_DEPENDENCY_INSTALLER}"
+CI_DEPENDENCY_INSTALLER_SHA256 = (
+    "36de64833f8dfdda700553c4d816d4baa4f7eb1ca1863940981e6fa154968425"
+)
+CI_DEPENDENCY_INSTALLER_WORKFLOWS = {
+    "check-action-versions.yml": 1,
+    "ci-security-osv.yml": 2,
+    "ci-security-quality.yml": 1,
+    "ci-security-scorecard.yml": 2,
+    "ci-security-secrets.yml": 2,
+    "ci-security-workflow-lint.yml": 2,
+    "five-connectors-with-crs-no-mrts-contract.yml": 1,
+    "lint.yml": 1,
+}
 WORKFLOW_TOOL_UPDATER = "update-workflow-tools.yml"
 SUBMODULE_UPDATER = "update-submodules.yml"
+SUBMODULE_UPDATER_FIRST_PARTY_HEAD_REQUIREMENTS = (
+    "headRefName,headRepository,headRepositoryOwner",
+    'jq -c --arg repository "$GITHUB_REPOSITORY" --arg branch "$UPDATE_BRANCH"',
+    ".headRefName == $branch",
+    '(.headRepositoryOwner.login // "") + "/" + (.headRepository.name // "") == $repository',
+)
 # Canonical JSON SHA-256 of jobs.create-submodule-update-pr. The publisher has
 # repository write permissions, so every key, step, action input, environment,
 # and run body must remain review-bound rather than merely contain snippets.
 SUBMODULE_UPDATER_PUBLISHER_SHA256 = (
-    "8be2dc3f6e837524937aeff6c6b8d4571202923c20603e1d93016a7850b402af"
+    "c998f586c5d0edc0204472f380a4074d9bff8fdb5065c53c186b32e78322c1a8"
 )
 CHECKOUT_WITHOUT_SUBMODULES = "submodules: false"
 CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS = "persist-credentials: false"
@@ -1552,14 +1573,10 @@ def security_tool_downloader_errors(path: Path, text: str) -> list[str]:
         errors.append(
             f"{path}: the security-tool downloader requires reviewed setup-python"
         )
-    normalized = " ".join(text.split())
-    if (
-        "python3 -m pip install" not in normalized
-        or HASH_LOCKED_CI_REQUIREMENTS not in normalized
-    ):
+    if CI_DEPENDENCY_INSTALLER_COMMAND not in text:
         errors.append(
             f"{path}: the security-tool downloader requires hash-locked "
-            "requirements-ci.lock installation"
+            "requirements-ci.lock installation through the reviewed helper"
         )
     return errors
 
@@ -1569,6 +1586,60 @@ def python_provisioning_errors(path: Path, text: str) -> list[str]:
         *setup_python_errors(path, text),
         *security_tool_downloader_errors(path, text),
     ]
+
+
+def ci_dependency_installer_errors(root: Path) -> list[str]:
+    """Bind the shared CI dependency bootstrap to its reviewed shell program."""
+
+    installer = root / CI_DEPENDENCY_INSTALLER
+    if not installer.exists():
+        return [f"{installer}: reviewed CI dependency installer is missing"]
+    if installer.is_symlink() or not installer.is_file():
+        return [
+            f"{installer}: reviewed CI dependency installer must be a regular non-symlink file"
+        ]
+    try:
+        text = installer.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"{installer}: unable to read reviewed CI dependency installer: {exc}"]
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if digest != CI_DEPENDENCY_INSTALLER_SHA256:
+        return [
+            f"{installer}: reviewed CI dependency installer must match the approved SHA-256"
+        ]
+    return []
+
+
+def ci_dependency_installer_reference_errors(
+    path: Path, data: dict[str, Any]
+) -> list[str]:
+    """Require designated read-only workflows to invoke the reviewed installer."""
+
+    expected_count = CI_DEPENDENCY_INSTALLER_WORKFLOWS.get(path.name)
+    if expected_count is None:
+        return []
+    jobs = data.get("jobs")
+    if not isinstance(jobs, dict):
+        return [f"{path}: CI dependency installer workflow jobs must be a mapping"]
+    install_steps = [
+        step
+        for job in jobs.values()
+        if isinstance(job, dict) and isinstance(job.get("steps"), list)
+        for step in job["steps"]
+        if isinstance(step, dict)
+        and step.get("name") == STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY
+    ]
+    if len(install_steps) != expected_count:
+        return [
+            f"{path}: must declare exactly {expected_count} reviewed CI dependency installer step(s)"
+        ]
+    errors: list[str] = []
+    for step in install_steps:
+        if step.get("run") != CI_DEPENDENCY_INSTALLER_COMMAND:
+            errors.append(
+                f"{path}: {STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY!r} must invoke only the reviewed helper"
+            )
+    return errors
 
 
 def workflow_events(data: dict[Any, Any]) -> dict[str, Any] | None:
@@ -2665,6 +2736,14 @@ def submodule_updater_publisher_errors(path: Path, jobs: dict[str, Any]) -> list
         "validate-submodule-update",
     ]:
         errors.append(f"{path}: MRTS publisher must depend on resolver and validator")
+    publisher_text = job_run_text(publisher.get("steps", []))
+    if any(
+        requirement not in publisher_text
+        for requirement in SUBMODULE_UPDATER_FIRST_PARTY_HEAD_REQUIREMENTS
+    ):
+        errors.append(
+            f"{path}: MRTS publisher must identify existing maintenance PRs by first-party head repository and branch"
+        )
     publisher_gate = publisher.get("if")
     if not isinstance(publisher_gate, str) or (
         DEFAULT_BRANCH_REF_CONDITION not in publisher_gate
@@ -4079,6 +4158,7 @@ def workflow_metadata_errors(path: Path, text: str, data: dict[str, Any]) -> lis
         *run_shell_default_errors(path, text, data),
         *permission_errors(path, data),
         *workflow_token_environment_errors(path, data),
+        *ci_dependency_installer_reference_errors(path, data),
         *workflow_tool_updater_errors(path, text, data),
         *submodule_updater_errors(path, text, data),
         *common_version_maintenance_errors(path, data),
@@ -4203,7 +4283,12 @@ def validate(root: Path, lock_path: Path) -> list[str]:
         if (root / "ci" / "lib" / "common.sh").exists():
             return [str(exc)]
     actions, _tools, errors = load_lock(lock_path)
-    for path in workflow_paths(root):
+    paths = workflow_paths(root)
+    if (root / CI_DEPENDENCY_INSTALLER).exists() or any(
+        path.name in CI_DEPENDENCY_INSTALLER_WORKFLOWS for path in paths
+    ):
+        errors.extend(ci_dependency_installer_errors(root))
+    for path in paths:
         text = path.read_text(encoding="utf-8")
         try:
             data = load_yaml(path)

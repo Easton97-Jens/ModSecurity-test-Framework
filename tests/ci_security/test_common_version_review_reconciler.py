@@ -89,6 +89,43 @@ def make_plan(reviews=None, **extra):
 
 
 class ReconcilerTests(unittest.TestCase):
+    def test_github_response_size_limit_fails_closed(self):
+        response = mock.Mock()
+        response.read.return_value = b"x" * (reconciler.MAX_GITHUB_RESPONSE_BYTES + 1)
+        response.__enter__ = mock.Mock(return_value=response)
+        response.__exit__ = mock.Mock(return_value=False)
+        with mock.patch.object(reconciler, "urlopen", return_value=response):
+            with self.assertRaises(reconciler.PlanError):
+                reconciler.GitHubClient("token").request(
+                    "GET", "/repos/owner/repo/issues"
+                )
+        response.read.assert_called_once_with(reconciler.MAX_GITHUB_RESPONSE_BYTES + 1)
+
+    def test_issue_aggregation_limits_fail_closed(self):
+        client = reconciler.GitHubClient("token")
+        with mock.patch.object(client, "request", return_value=[{"number": 1}]):
+            self.assertEqual(client.list_issues("owner/repo"), [{"number": 1}])
+
+        with (
+            mock.patch.object(
+                client, "request", return_value=[{"number": 1}, {"number": 2}]
+            ),
+            mock.patch.object(reconciler, "MAX_ISSUES", 1),
+        ):
+            with self.assertRaises(reconciler.PlanError):
+                client.list_issues("owner/repo")
+
+        with (
+            mock.patch.object(
+                client,
+                "request",
+                return_value=[{"number": 1, "body": "x" * 32}],
+            ),
+            mock.patch.object(reconciler, "MAX_ISSUE_BYTES", 1),
+        ):
+            with self.assertRaises(reconciler.PlanError):
+                client.list_issues("owner/repo")
+
     def test_dry_run_never_writes(self):
         client = FakeClient()
         result = reconciler.reconcile(

@@ -54,6 +54,35 @@ class CiSecurityContractTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_shared_ci_dependency_installer_is_hash_bound_and_required(self) -> None:
+        self.assertEqual(CHECKER.ci_dependency_installer_errors(ROOT), [])
+
+        workflow_path = ROOT / ".github/workflows/ci-security-quality.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+        unsafe = workflow.replace(
+            "run: bash ci/tools/install-hash-locked-ci-dependencies.sh",
+            "run: true",
+            1,
+        )
+        self.assertNotEqual(unsafe, workflow)
+        errors = CHECKER.workflow_contract_errors(
+            workflow_path, unsafe, CHECKER.yaml.safe_load(unsafe)
+        )
+        self.assertTrue(
+            any("must invoke only the reviewed helper" in error for error in errors),
+            "\n".join(errors),
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            installer = root / CHECKER.CI_DEPENDENCY_INSTALLER
+            installer.parent.mkdir(parents=True)
+            installer.write_text("#!/usr/bin/env bash\necho unsafe\n", encoding="utf-8")
+            errors = CHECKER.ci_dependency_installer_errors(root)
+        self.assertTrue(
+            any("approved SHA-256" in error for error in errors), "\n".join(errors)
+        )
+
     def test_setup_python_version_file_parsing_accepts_reviewed_values_and_rejects_long_input(
         self,
     ) -> None:
@@ -495,6 +524,39 @@ jobs:
             CHECKER.yaml.safe_load(workflow),
         )
         self.assertEqual(errors, [], "\n".join(errors))
+
+    def test_submodule_updater_rejects_fork_head_pr_identity_bypasses(self) -> None:
+        workflow_path = ROOT / ".github/workflows/update-submodules.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+        variants = {
+            "omits-head-repository-fields": workflow.replace(
+                "headRefName,headRepository,headRepositoryOwner",
+                "headRefName",
+                1,
+            ),
+            "accepts-any-head-repository": workflow.replace(
+                '(.headRepositoryOwner.login // "") + "/" + (.headRepository.name // "") == $repository',
+                "true",
+                1,
+            ),
+            "omits-head-branch-check": workflow.replace(
+                ".headRefName == $branch and\n",
+                "",
+                1,
+            ),
+        }
+        for name, unsafe in variants.items():
+            with self.subTest(name=name):
+                errors = CHECKER.submodule_updater_errors(
+                    workflow_path, unsafe, CHECKER.yaml.safe_load(unsafe)
+                )
+                self.assertTrue(
+                    any(
+                        "first-party head repository and branch" in error
+                        for error in errors
+                    ),
+                    "\n".join(errors),
+                )
 
     def test_submodule_updater_rejects_mrts_ref_token_and_force_push_bypasses(
         self,
