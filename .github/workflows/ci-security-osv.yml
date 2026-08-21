@@ -85,7 +85,14 @@ jobs:
           check-latest: false
 
       - name: Install hash-locked CI dependency
-        run: bash ci/tools/install-hash-locked-ci-dependencies.sh
+        # This job deliberately checks out the trusted PR base revision. Keep
+        # its reviewed bootstrap inline: a helper introduced by the untrusted
+        # PR head is unavailable here and must not be fetched into this job.
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check
 
       - name: Fetch checksum-verified OSV Scanner
         env:

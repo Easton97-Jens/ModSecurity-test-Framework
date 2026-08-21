@@ -41,7 +41,7 @@ CI_DEPENDENCY_INSTALLER_SHA256 = (
 )
 CI_DEPENDENCY_INSTALLER_WORKFLOWS = {
     "check-action-versions.yml": 1,
-    "ci-security-osv.yml": 2,
+    "ci-security-osv.yml": 1,
     "ci-security-quality.yml": 1,
     "ci-security-scorecard.yml": 2,
     "ci-security-secrets.yml": 2,
@@ -1622,23 +1622,31 @@ def ci_dependency_installer_reference_errors(
     if not isinstance(jobs, dict):
         return [f"{path}: CI dependency installer workflow jobs must be a mapping"]
     install_steps = [
-        step
-        for job in jobs.values()
+        (job_name, step)
+        for job_name, job in jobs.items()
         if isinstance(job, dict) and isinstance(job.get("steps"), list)
         for step in job["steps"]
         if isinstance(step, dict)
         and step.get("name") == STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY
     ]
-    if len(install_steps) != expected_count:
-        return [
-            f"{path}: must declare exactly {expected_count} reviewed CI dependency installer step(s)"
-        ]
+    helper_steps = [
+        step
+        for _job_name, step in install_steps
+        if step.get("run") == CI_DEPENDENCY_INSTALLER_COMMAND
+    ]
     errors: list[str] = []
-    for step in install_steps:
-        if step.get("run") != CI_DEPENDENCY_INSTALLER_COMMAND:
-            errors.append(
-                f"{path}: {STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY!r} must invoke only the reviewed helper"
-            )
+    for job_name, step in install_steps:
+        if step.get("run") == CI_DEPENDENCY_INSTALLER_COMMAND:
+            continue
+        if path.name == OSV_WORKFLOW and job_name == "pull-request-head":
+            continue
+        errors.append(
+            f"{path}: {STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY!r} must invoke only the reviewed helper"
+        )
+    if len(helper_steps) != expected_count:
+        errors.append(
+            f"{path}: must declare exactly {expected_count} reviewed CI dependency installer invocation(s)"
+        )
     return errors
 
 
@@ -4077,9 +4085,54 @@ def forbidden_workflow_snippet_errors(
     ]
 
 
-def osv_scanner_evidence_errors(path: Path, text: str) -> list[str]:
+def osv_trusted_base_bootstrap_errors(path: Path, data: dict[str, Any]) -> list[str]:
+    """Keep the trusted-base OSV bootstrap available without PR-head content."""
+
+    jobs = data.get("jobs")
+    if not isinstance(jobs, dict):
+        return [f"{path}: OSV trusted-base job mapping is missing"]
+    pull_request = jobs.get("pull-request-head")
+    if not isinstance(pull_request, dict):
+        return [f"{path}: OSV trusted-base job mapping is missing"]
+    steps = pull_request.get("steps")
+    if not isinstance(steps, list):
+        return [f"{path}: OSV trusted-base job steps are missing"]
+    install_steps = [
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and step.get("name") == STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY
+    ]
+    if len(install_steps) != 1:
+        return [
+            f"{path}: OSV trusted-base job must define exactly one hash-locked bootstrap step"
+        ]
+    run = install_steps[0].get("run")
+    if not isinstance(run, str):
+        return [f"{path}: OSV trusted-base bootstrap must be a shell string"]
+    errors: list[str] = []
+    if CI_DEPENDENCY_INSTALLER in run:
+        errors.append(
+            f"{path}: OSV trusted-base job must retain an inline hash-locked bootstrap"
+        )
+    normalized = " ".join(run.split())
+    if (
+        "python3 -m pip install" not in normalized
+        or HASH_LOCKED_CI_REQUIREMENTS not in normalized
+        or "python3 -m pip check" not in normalized
+    ):
+        errors.append(
+            f"{path}: OSV trusted-base job must install reviewed hash-locked requirements"
+        )
+    return errors
+
+
+def osv_scanner_evidence_errors(
+    path: Path, text: str, data: dict[str, Any]
+) -> list[str]:
     return [
         *job_requirement_errors(path, text, OSV_JOB_REQUIREMENTS),
+        *osv_trusted_base_bootstrap_errors(path, data),
         *forbidden_workflow_snippet_errors(path, text, "OSV", OSV_PROHIBITED_SNIPPETS),
     ]
 
@@ -4111,9 +4164,14 @@ def scorecard_evidence_errors(path: Path, text: str) -> list[str]:
     ]
 
 
-def scanner_evidence_errors(path: Path, text: str) -> list[str]:
+def scanner_evidence_errors(
+    path: Path, text: str, data: dict[str, Any] | None = None
+) -> list[str]:
     if path.name == "ci-security-osv.yml":
-        return osv_scanner_evidence_errors(path, text)
+        if data is None:
+            parsed = yaml.safe_load(text)
+            data = parsed if isinstance(parsed, dict) else {}
+        return osv_scanner_evidence_errors(path, text, data)
     if path.name == "ci-security-scorecard.yml":
         return scorecard_evidence_errors(path, text)
     return []
@@ -4153,7 +4211,7 @@ def workflow_metadata_errors(path: Path, text: str, data: dict[str, Any]) -> lis
         *concurrency_errors(path, data),
         *python_provisioning_errors(path, text),
         *python_version_maintenance_errors(path, data),
-        *scanner_evidence_errors(path, text),
+        *scanner_evidence_errors(path, text, data),
         *codeql_tool_bundle_errors(path, text),
         *run_shell_default_errors(path, text, data),
         *permission_errors(path, data),

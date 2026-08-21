@@ -9,7 +9,7 @@
 | Change ID | `20260821-01-consolidate-github-workflows` |
 | UTC date | 2026-08-21 |
 | Framework base revision | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
-| Issue or pull request | Pending the single authorized Framework Draft PR to `master` |
+| Issue or pull request | [Framework Draft PR #101](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/101) to `master`; hosted rerun pending the follow-up repair |
 
 ## Motivation and problem statement
 
@@ -77,6 +77,14 @@ their previous visible step names and adding it to relevant path filters.
 Strict maintenance publisher workflows retain their inline bootstrap because
 their full reviewed profiles are intentionally distinct.
 
+The `ci-security-osv.yml` trusted `pull-request-head` job also deliberately
+retains its reviewed inline bootstrap: it checks out the trusted PR **base**
+revision, where a helper introduced only by the PR head is unavailable and
+must not be fetched into that job. Its current-default-branch advisory job
+uses the helper. Hosted PR #101 run `32436667389` proved this availability
+constraint with an initial exit 127; the follow-up contract regression guard
+now rejects helper use in the trusted-base job.
+
 The security contract binds the helper by SHA-256 and requires the expected
 per-workflow invocation counts. It also binds the submodule publisher profile
 after adding an explicit `headRefName`, `headRepository`, and
@@ -98,7 +106,7 @@ source was changed.
 | `ci-security-codeql-pr.yml` | audited, unchanged | Untrusted PR analysis remains separate from trusted upload. |
 | `ci-security-codeql.yml` | audited, unchanged | Trusted push/schedule security upload remains separate. |
 | `ci-security-dependency-review.yml` | audited, unchanged | Unique dependency-review action behavior remains. |
-| `ci-security-osv.yml` | helper-only | PR/base comparison and advisory behavior remain. |
+| `ci-security-osv.yml` | helper + trusted-base inline | The trusted PR-base job retains its inline bootstrap; the default-branch advisory job uses the helper. |
 | `ci-security-quality.yml` | helper-only | Ruff and hosted Pyright quality gate remain. |
 | `ci-security-scorecard.yml` | helper-only | PR/current-head and advisory behavior remain. |
 | `ci-security-secrets.yml` | helper-only | PR-diff and full-history Gitleaks behavior remain. |
@@ -112,8 +120,9 @@ source was changed.
 
 Added or updated tests:
 
-- `tests/ci_security/test_ci_security_contract.py`: helper digest/reference and
-  first-party PR identity negative controls.
+- `tests/ci_security/test_ci_security_contract.py`: helper digest/reference,
+  trusted-base OSV inline-bootstrap, and first-party PR identity negative
+  controls.
 - `tests/ci_security/test_common_version_review_reconciler.py`: oversized
   response, aggregate-byte/count, and ordinary-page controls.
 - `tests/ci_security/test_five_connector_with_crs_no_mrts_contract.py`: shared
@@ -135,6 +144,7 @@ Added or updated tests:
 | `ci/checks/security/check-workflow-action-pins.py` | 0 | All external actions use full commit SHAs. | Same task evidence root. |
 | `ci/tools/safe-make.sh lint` | 0 | Full Framework lint and its broader regression/documentation checks passed. | Same task evidence root. |
 | `bash ci/tools/install-hash-locked-ci-dependencies.sh unexpected-argument` | 2 (expected) | Helper rejected arguments before package work. | Same task evidence root. |
+| Hosted PR #101 OSV `pull-request-head` initial run | 127 | Trusted-base checkout could not see the PR-head helper; the narrow inline-bootstrap repair is pending a new exact-head run. | [Run 32436667389](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/32436667389) |
 
 ## Security impact
 
@@ -152,6 +162,11 @@ availability/correctness collision. Source and contract mutation tests prove
 the new control; no live fork-query reproduction was claimed. An independent
 read-only final-diff security review found no high, critical, or
 release-blocking defect.
+
+The hosted OSV regression confirms that a trusted-base job must not acquire a
+PR-head helper merely to share setup. The repair preserves the original
+reviewed inline bootstrap and fails the security contract if that job invokes
+the helper; no token, checkout expansion, or trust-boundary change is used.
 
 ## Documentation and runtime evidence
 
@@ -177,8 +192,11 @@ is made.
 - Local Pyright was not run because Node.js is unavailable (`node --version`
   exited 1). The locked hosted quality workflow remains required for PR
   readiness.
-- Hosted PR checks, SonarQube Cloud, and a live fork-collision scenario are
-  not available until the authorized branch is pushed and the one PR exists.
+- Hosted PR #101 checks started on the initial exact head. Its OSV
+  `pull-request-head` job failed exit 127 because the trusted-base checkout
+  lacked the PR-head helper; a narrow local repair is complete and its new
+  exact-head hosted rerun remains required. SonarQube Cloud and a live
+  fork-collision scenario also remain pending/not run.
 - No maintenance workflow was manually dispatched because PR-triggered checks
   cover the changed read-only paths and no token-bearing maintenance action is
   needed for local validation.
@@ -195,9 +213,9 @@ trust model, not an independent review-before-execution mechanism.
 
 ## Final diff and review status
 
-The Framework-only diff was reviewed with `git diff --check`, exact-path
-staging preparation, and a secret-candidate review. The Parent worktree,
-Parent gitlink, and MRTS state remain unchanged. Delivery is authorized only as
-one normal push of `codex/consolidate-github-workflows` and one Draft PR to
-`master`; no merge, force push, settings change, or default-branch change is
-authorized.
+The initial Framework-only diff was reviewed with `git diff --check`, exact-
+path staging preparation, and a secret-candidate review. The hosted OSV
+failure requires a separately reviewed follow-up commit and full current-head
+validation. The Parent worktree, Parent gitlink, and MRTS state remain
+unchanged. Delivery remains one Draft PR to `master`; no merge, force push,
+settings change, or default-branch change is authorized.

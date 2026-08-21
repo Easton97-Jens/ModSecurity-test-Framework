@@ -73,6 +73,27 @@ class CiSecurityContractTest(unittest.TestCase):
             "\n".join(errors),
         )
 
+        osv_path = ROOT / ".github/workflows/ci-security-osv.yml"
+        osv = osv_path.read_text(encoding="utf-8")
+        trusted_base_bootstrap = """run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-input --only-binary=:all: \\
+            --require-hashes -r requirements-ci.lock
+          python3 -m pip check"""
+        unsafe_osv = osv.replace(
+            trusted_base_bootstrap,
+            f"run: {CHECKER.CI_DEPENDENCY_INSTALLER_COMMAND}",
+            1,
+        )
+        self.assertNotEqual(unsafe_osv, osv)
+        errors = CHECKER.osv_scanner_evidence_errors(
+            osv_path, unsafe_osv, CHECKER.yaml.safe_load(unsafe_osv)
+        )
+        self.assertTrue(
+            any("trusted-base job must retain" in error for error in errors),
+            "\n".join(errors),
+        )
+
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
             installer = root / CHECKER.CI_DEPENDENCY_INSTALLER

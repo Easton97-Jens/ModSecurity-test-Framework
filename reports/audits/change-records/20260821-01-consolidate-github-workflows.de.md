@@ -9,7 +9,7 @@
 | Change-ID | `20260821-01-consolidate-github-workflows` |
 | UTC-Datum | 2026-08-21 |
 | Framework-Basisrevision | `bd69ee96e0e7082317d4afe1232bee625665eb9a` |
-| Issue oder Pull Request | Der einzelne autorisierte Framework-Draft-PR nach `master` steht noch aus |
+| Issue oder Pull Request | [Framework-Draft-PR #101](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/101) nach `master`; Hosted-Rerun nach Follow-up-Reparatur ausstehend |
 
 ## Motivation und Problemstellung
 
@@ -82,6 +82,14 @@ nun auf, behalten ihre bisherigen sichtbaren Step-Namen und ergänzen ihn in
 relevanten Path-Filtern. Strikte Maintenance-Publisher-Workflows behalten ihren
 inline Bootstrap, da ihre überprüften Profile absichtlich verschieden sind.
 
+Der trusted `pull-request-head`-Job von `ci-security-osv.yml` behält ebenfalls
+bewusst seinen überprüften inline Bootstrap: Er checkt die trusted PR-**Base**-
+Revision aus, in der ein nur vom PR-Head eingeführter Helper nicht verfügbar ist
+und nicht in diesen Job geholt werden darf. Sein Default-Branch-Advisory-Job
+verwendet den Helper. Hosted PR #101 Run `32436667389` belegte diese
+Verfügbarkeitsgrenze mit initialem Exit 127; der Follow-up-Contract-
+Regression-Guard lehnt nun Helper-Nutzung im Trusted-Base-Job ab.
+
 Der Security-Contract bindet den Helper per SHA-256 und verlangt die erwarteten
 Aufrufanzahlen pro Workflow. Er bindet auch das Submodule-Publisher-Profil,
 nachdem ein expliziter Filter für `headRefName`, `headRepository` und
@@ -103,7 +111,7 @@ CodeQL-Trennung, kein Parent-Gitlink und keine MRTS-Source wurden geändert.
 | `ci-security-codeql-pr.yml` | auditiert, unverändert | Untrusted-PR-Analyse bleibt von trusted Upload getrennt. |
 | `ci-security-codeql.yml` | auditiert, unverändert | Trusted push/schedule Security-Upload bleibt getrennt. |
 | `ci-security-dependency-review.yml` | auditiert, unverändert | Einzigartiges Dependency-Review-Action-Verhalten bleibt. |
-| `ci-security-osv.yml` | nur Helper | PR/base-Vergleich und Advisory-Verhalten bleiben. |
+| `ci-security-osv.yml` | Helper + trusted-base inline | Trusted PR-Base-Job behält inline Bootstrap; Default-Branch-Advisory-Job verwendet Helper. |
 | `ci-security-quality.yml` | nur Helper | Ruff- und hosted Pyright-Quality-Gate bleiben. |
 | `ci-security-scorecard.yml` | nur Helper | PR/current-head- und Advisory-Verhalten bleiben. |
 | `ci-security-secrets.yml` | nur Helper | PR-Diff- und Full-History-Gitleaks-Verhalten bleiben. |
@@ -117,8 +125,9 @@ CodeQL-Trennung, kein Parent-Gitlink und keine MRTS-Source wurden geändert.
 
 Hinzugefügte oder angepasste Tests:
 
-- `tests/ci_security/test_ci_security_contract.py`: Helper-Digest/-Referenz und
-  negative Controls für First-Party-PR-Identität.
+- `tests/ci_security/test_ci_security_contract.py`: Helper-Digest/-Referenz,
+  Trusted-Base-OSV-Inline-Bootstrap und negative Controls für First-Party-PR-
+  Identität.
 - `tests/ci_security/test_common_version_review_reconciler.py`: Controls für
   übergroße Antworten, Aggregate-Byte/Anzahl und gewöhnliche Seiten.
 - `tests/ci_security/test_five_connector_with_crs_no_mrts_contract.py`:
@@ -140,6 +149,7 @@ Hinzugefügte oder angepasste Tests:
 | `ci/checks/security/check-workflow-action-pins.py` | 0 | Alle externen Actions verwenden volle Commit-SHAs. | Derselbe Task-Evidence-Root. |
 | `ci/tools/safe-make.sh lint` | 0 | Vollständiges Framework-Lint und breitere Regression-/Dokumentations-Checks bestanden. | Derselbe Task-Evidence-Root. |
 | `bash ci/tools/install-hash-locked-ci-dependencies.sh unexpected-argument` | 2 (erwartet) | Helper lehnte Argumente vor Paketarbeit ab. | Derselbe Task-Evidence-Root. |
+| Hosted PR #101 OSV `pull-request-head` initialer Run | 127 | Trusted-Base-Checkout konnte PR-Head-Helper nicht sehen; schmale Inline-Bootstrap-Reparatur wartet auf neuen Exact-Head-Run. | [Run 32436667389](https://github.com/Easton97-Jens/ModSecurity-test-Framework/actions/runs/32436667389) |
 
 ## Sicherheitsauswirkung
 
@@ -158,6 +168,12 @@ Availability/Correctness-Kollision. Source- und Contract-Mutation-Tests belegen
 das neue Control; eine Live-Fork-Query-Reproduktion wird nicht behauptet. Eine
 unabhängige read-only Final-Diff-Security-Prüfung fand keinen high-, critical-
 oder Release-blocking-Defekt.
+
+Die Hosted-OSV-Regression bestätigt, dass ein Trusted-Base-Job keinen
+PR-Head-Helper nur zum Teilen des Setups beziehen darf. Die Reparatur erhält
+den ursprünglichen überprüften Inline-Bootstrap und lässt den Security-Contract
+fehlschlagen, wenn dieser Job den Helper aufruft; Token, Checkout-Erweiterung
+oder Trust-Boundary-Änderung werden nicht verwendet.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -184,8 +200,12 @@ MRTS-Runtime-Claim gemacht.
 - Lokales Pyright wurde nicht ausgeführt, weil Node.js nicht verfügbar ist
   (`node --version` Exit 1). Der locked hosted Quality-Workflow bleibt für
   PR-Readiness erforderlich.
-- Hosted-PR-Checks, SonarQube Cloud und ein Live-Fork-Collision-Szenario sind
-  erst verfügbar, nachdem Branch und einzelner PR autorisiert gepusht wurden.
+- Hosted-PR-#101-Checks starteten auf dem initialen Exact Head. Sein OSV-
+  `pull-request-head`-Job schlug mit Exit 127 fehl, weil der Trusted-Base-
+  Checkout den PR-Head-Helper nicht enthielt; eine schmale lokale Reparatur ist
+  fertig und ihr neuer Exact-Head-Hosted-Rerun bleibt erforderlich. SonarQube
+  Cloud und ein Live-Fork-Collision-Szenario bleiben ebenfalls ausstehend/nicht
+  ausgeführt.
 - Kein Maintenance-Workflow wurde manuell dispatcht, da PR-getriggerte Checks
   die geänderten read-only Pfade abdecken und keine token-tragende
   Maintenance-Aktion für lokale Validierung benötigt wird.
@@ -203,9 +223,9 @@ Mechanismus.
 
 ## Finaler Diff- und Review-Status
 
-Der Framework-only Diff wurde mit `git diff --check`, Vorbereitung von
-exaktem Path-Staging und einem Secret-Candidate-Review geprüft. Parent-
-Worktree, Parent-Gitlink und MRTS-Status bleiben unverändert. Delivery ist nur
-als ein normaler Push von `codex/consolidate-github-workflows` und ein Draft-PR
-nach `master` autorisiert; kein Merge, Force-Push, Settings-Change oder
-Default-Branch-Change ist autorisiert.
+Der initiale Framework-only Diff wurde mit `git diff --check`, Vorbereitung von
+exaktem Path-Staging und einem Secret-Candidate-Review geprüft. Der Hosted-
+OSV-Fehler erfordert einen separat geprüften Follow-up-Commit und vollständige
+Current-Head-Validierung. Parent-Worktree, Parent-Gitlink und MRTS-Status
+bleiben unverändert. Delivery bleibt ein Draft-PR nach `master`; kein Merge,
+Force-Push, Settings-Change oder Default-Branch-Change ist autorisiert.
