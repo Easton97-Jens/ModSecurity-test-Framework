@@ -83,9 +83,9 @@ actions:
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   github/codeql-action:
     name: github/codeql-action
-    version: v4.37.7
-    immutable_commit: ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd
-    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.7
+    version: v4.37.8
+    immutable_commit: db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28
+    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.8
     release_resolution: same-major-release
     license: MIT
     purpose: Initialize, analyze, and upload SARIF for bounded CodeQL jobs.
@@ -206,12 +206,12 @@ tools:
   ruff:
     name: ruff
     repository: astral-sh/ruff
-    version: 0.16.3
-    immutable_commit: b0e47022cfce4f3594aa26d15ea792681430b6f6
-    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.3
+    version: 0.16.4
+    immutable_commit: 11c76bf48fdac06b2f240cba502eda96da4dce77
+    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.4
     asset: ruff-x86_64-unknown-linux-gnu.tar.gz
-    asset_url: https://github.com/astral-sh/ruff/releases/download/0.16.3/ruff-x86_64-unknown-linux-gnu.tar.gz
-    sha256: 7ab3b978d2c0b1c96b2323d4e5c4f35284ae1cdf35d2f7399595c74c805f5fa3
+    asset_url: https://github.com/astral-sh/ruff/releases/download/0.16.4/ruff-x86_64-unknown-linux-gnu.tar.gz
+    sha256: 9cb1234804ddb0f7f57cef3f81623ce5acb990e40af7cce08dc7778c9d7ee96c
     archive_type: tar.gz
     layout: executable
     archive_member: ruff-x86_64-unknown-linux-gnu/ruff
