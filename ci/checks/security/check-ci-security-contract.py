@@ -340,7 +340,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "candidate",
         "Validate candidate path policy and focused controls",
-    ): "fc8a521cecf641305534044ba424ddd9cd9a2069bb8e646d16892aee4fc75a88",
+    ): "f04e3cb48b1b7e078730e20c8fff14994ef913562e74d1d473b1ae26896b2120",
     (
         "publish",
         STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN,

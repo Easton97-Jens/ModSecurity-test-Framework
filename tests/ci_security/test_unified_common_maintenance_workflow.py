@@ -158,6 +158,18 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.assertIn("git fetch --no-tags origin", subset_check["run"])
         self.assertIn("unset PUBLISHER_APP_TOKEN", subset_check["run"])
 
+    def test_candidate_validates_runtime_lock_before_publishing(self) -> None:
+        candidate = self.workflow["jobs"]["candidate"]
+        controls = next(
+            step
+            for step in candidate["steps"]
+            if step["name"] == "Validate candidate path policy and focused controls"
+        )
+        self.assertIn(
+            "tests.security_regression.test_runtime_component_lock", controls["run"]
+        )
+        self.assertIn("candidate", self.workflow["jobs"]["publish"]["needs"])
+
     def test_component_is_an_argv_element_and_globals_are_not_filtered(self) -> None:
         self.assertIn('args+=(--component "$REQUESTED_COMPONENT")', self.text)
         self.assertIn("mandatory global and selected runtime scopes", self.text)

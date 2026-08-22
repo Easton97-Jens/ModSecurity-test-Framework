@@ -583,6 +583,9 @@ jobs:
             "missing-proposed-tree-validation": workflow.replace(
                 "--validate-proposed-tree", "--skip-proposed-tree", 1
             ),
+            "missing-runtime-lock-control": workflow.replace(
+                " tests.security_regression.test_runtime_component_lock", "", 1
+            ),
             "native-github-token": workflow.replace(
                 "github-token: ${{ steps.publisher_app_token.outputs.token }}",
                 "github-token: ${{ github.token }}",
