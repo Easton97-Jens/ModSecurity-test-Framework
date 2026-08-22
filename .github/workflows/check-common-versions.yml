@@ -252,7 +252,7 @@ jobs:
           git diff --check
           bash -n ci/lib/common.sh
           python3 -m py_compile ci/tools/canonical_maintenance.py ci/tools/resolve-canonical-maintenance.py
-          python3 -m unittest tests.ci_security.test_unified_common_maintenance_workflow tests.security_regression.test_common_version_descriptor_series -v
+          python3 -m unittest tests.ci_security.test_unified_common_maintenance_workflow tests.security_regression.test_common_version_descriptor_series tests.security_regression.test_runtime_component_lock -v
           printf 'validated=true\n' >> "$GITHUB_OUTPUT"
 
   publish:

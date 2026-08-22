@@ -257,12 +257,16 @@ class RuntimeComponentLockTests(unittest.TestCase):
         self.assertIn("ENVOY_VERSION drift", rejected.stderr)
 
     def test_nginx_runtime_environment_must_match_the_locked_profile(self):
+        nginx = self.profile(json.loads(LOCK.read_text(encoding="utf-8")), "nginx-h1")
+        release_tag = str(nginx["source_provenance"]).removeprefix("github-release:")
+        asset_name = str(nginx["asset_name"])
+        sha256 = str(nginx["sha256"])
         accepted = self.run_checker(
             extra_args=(
                 "--environment-profile", "nginx-h1",
-                "--environment-value", "NGINX_RELEASE_TAG=release-1.31.3",
-                "--environment-value", "NGINX_RELEASE_ASSET_NAME=nginx-1.31.3.tar.gz",
-                "--environment-value", "NGINX_SHA256=a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+                "--environment-value", f"NGINX_RELEASE_TAG={release_tag}",
+                "--environment-value", f"NGINX_RELEASE_ASSET_NAME={asset_name}",
+                "--environment-value", f"NGINX_SHA256={sha256}",
             )
         )
         self.assertEqual(accepted.returncode, 0, accepted.stderr)
@@ -270,9 +274,9 @@ class RuntimeComponentLockTests(unittest.TestCase):
         rejected = self.run_checker(
             extra_args=(
                 "--environment-profile", "nginx-h1",
-                "--environment-value", "NGINX_RELEASE_TAG=release-1.31.2",
-                "--environment-value", "NGINX_RELEASE_ASSET_NAME=nginx-1.31.3.tar.gz",
-                "--environment-value", "NGINX_SHA256=a7657c50811c2d92d9895395e8b873ef60398142c4db21eb647811c38f6dd525",
+                "--environment-value", f"NGINX_RELEASE_TAG={release_tag}-drift",
+                "--environment-value", f"NGINX_RELEASE_ASSET_NAME={asset_name}",
+                "--environment-value", f"NGINX_SHA256={sha256}",
             )
         )
         self.assertEqual(rejected.returncode, 77)
