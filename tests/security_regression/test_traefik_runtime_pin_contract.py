@@ -37,11 +37,47 @@ RUNTIME_COMPONENT_MANIFEST = (
 )
 PREPARE_TRAEFIK = ROOT / "ci" / "provisioning" / "prepare-traefik-runtime.sh"
 SYNC_MANIFEST = ROOT / "ci" / "tools" / "sync-traefik-runtime-manifest.py"
-PINNED_VERSION = "3.7.10"
-PINNED_SHA256 = "01811bb12d44f17280550f425f5e3128d6c325f2665c09e67a651ca535f490ce"
-STALE_SHA256 = "9da81a928fde965c2c4678698bbc28bc3f600223b14c32b35bd480bf5ec863dc"
-PINNED_PLATFORM = "linux_amd64"
-PINNED_ARCHIVE = f"traefik_v{PINNED_VERSION}_{PINNED_PLATFORM}.tar.gz"
+
+
+def load_traefik_lock_tuple() -> dict[str, str]:
+    """Return the single tuple all active Traefik profiles must share."""
+    lock = json.loads(RUNTIME_COMPONENT_LOCK.read_text(encoding="utf-8"))
+    profiles = [
+        profile
+        for profile in lock.get("profiles", [])
+        if isinstance(profile, dict) and profile.get("component") == "traefik"
+    ]
+    if not profiles:
+        raise RuntimeError("runtime component lock has no Traefik profile")
+
+    fields = ("version", "asset_name", "sha256", "os", "arch")
+    tuple_values: dict[str, str] = {}
+    for field in fields:
+        value = profiles[0].get(field)
+        if not isinstance(value, str) or not value:
+            raise RuntimeError(f"Traefik lock profile has no valid {field}")
+        tuple_values[field] = value
+
+    for profile in profiles[1:]:
+        for field, expected in tuple_values.items():
+            if profile.get(field) != expected:
+                raise RuntimeError(
+                    f"Traefik lock profiles disagree on {field}: "
+                    f"expected {expected!r}, found {profile.get(field)!r}"
+                )
+    return tuple_values
+
+
+TRAEFIK_LOCK_TUPLE = load_traefik_lock_tuple()
+PINNED_VERSION = TRAEFIK_LOCK_TUPLE["version"]
+PINNED_SHA256 = TRAEFIK_LOCK_TUPLE["sha256"]
+PINNED_PLATFORM = "_".join(
+    (TRAEFIK_LOCK_TUPLE["os"], TRAEFIK_LOCK_TUPLE["arch"])
+)
+PINNED_ARCHIVE = TRAEFIK_LOCK_TUPLE["asset_name"]
+INVALID_VERSION = "0.0.0" if PINNED_VERSION != "0.0.0" else "0.0.1"
+INVALID_PLATFORM = "linux_arm64" if PINNED_PLATFORM != "linux_arm64" else "linux_amd64"
+NON_CANONICAL_SHA256 = "0" * 64 if PINNED_SHA256 != "0" * 64 else "1" * 64
 
 
 def load_sync_manifest():
@@ -150,7 +186,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         source_binary = root / "archive-source" / "traefik"
         source_binary.parent.mkdir(parents=True, exist_ok=True)
         source_binary.write_text(
-            "#!/bin/sh\nif [ \"${1:-}\" = version ]; then printf 'Version: 3.7.10\\n'; fi\n",
+            f"#!/bin/sh\nif [ \"${{1:-}}\" = version ]; then printf 'Version: {PINNED_VERSION}\\n'; fi\n",
             encoding="utf-8",
         )
         source_binary.chmod(0o755)
@@ -296,9 +332,13 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
     def test_canonical_tuple_is_the_current_reviewed_linux_amd64_archive(self) -> None:
         source = self.common.read_text(encoding="utf-8")
 
+        self.assertEqual(
+            PINNED_ARCHIVE,
+            f"traefik_v{PINNED_VERSION}_{PINNED_PLATFORM}.tar.gz",
+        )
         self.assertIn(f'TRAEFIK_VERSION="{PINNED_VERSION}"', source)
         self.assertIn(f'TRAEFIK_SHA256="{PINNED_SHA256}"', source)
-        self.assertIn('TRAEFIK_ARTIFACT_PLATFORM="linux_amd64"', source)
+        self.assertIn(f'TRAEFIK_ARTIFACT_PLATFORM="{PINNED_PLATFORM}"', source)
         self.assertIn(
             'TRAEFIK_ARCHIVE_NAME="traefik_v${TRAEFIK_VERSION}_${TRAEFIK_ARTIFACT_PLATFORM}.tar.gz"',
             source,
@@ -311,29 +351,29 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
 
     def test_environment_tuple_overrides_and_partial_tuples_fail_closed(self) -> None:
         invalid = {
-            "old-version": {"TRAEFIK_VERSION": "3.7.5"},
+            "old-version": {"TRAEFIK_VERSION": INVALID_VERSION},
             "empty-version": {"TRAEFIK_VERSION": ""},
             "foreign-source": {
                 "TRAEFIK_SOURCE_URL": "https://mirror.example.invalid/traefik"
             },
             "wrong-download": {
-                "TRAEFIK_DOWNLOAD_URL": "https://github.com/traefik/traefik/releases/download/v3.7.10/other.tar.gz"
+                "TRAEFIK_DOWNLOAD_URL": f"https://github.com/traefik/traefik/releases/download/v{INVALID_VERSION}/other.tar.gz"
             },
             "missing-sha": {"TRAEFIK_SHA256": ""},
             "malformed-sha": {"TRAEFIK_SHA256": "not-a-sha256"},
-            "wrong-platform": {"TRAEFIK_ARTIFACT_PLATFORM": "linux_arm64"},
+            "wrong-platform": {"TRAEFIK_ARTIFACT_PLATFORM": INVALID_PLATFORM},
             "wrong-archive": {
-                "TRAEFIK_ARCHIVE_NAME": "traefik_v3.7.10_linux_arm64.tar.gz"
+                "TRAEFIK_ARCHIVE_NAME": f"traefik_v{PINNED_VERSION}_{INVALID_PLATFORM}.tar.gz"
             },
             "unverified-binary": {"TRAEFIK_BIN": "/tmp/arbitrary-traefik"},
             "self-consistent-replacement": {
-                "TRAEFIK_VERSION": "3.7.5",
+                "TRAEFIK_VERSION": INVALID_VERSION,
                 "TRAEFIK_SOURCE_URL": "https://github.com/traefik/traefik/releases",
-                "TRAEFIK_DOWNLOAD_URL": "https://github.com/traefik/traefik/releases/download/v3.7.5/traefik_v3.7.5_linux_amd64.tar.gz",
+                "TRAEFIK_DOWNLOAD_URL": f"https://github.com/traefik/traefik/releases/download/v{INVALID_VERSION}/traefik_v{INVALID_VERSION}_{PINNED_PLATFORM}.tar.gz",
                 "TRAEFIK_SHA256": "a" * 64,
-                "TRAEFIK_SHA256_URL": "https://github.com/traefik/traefik/releases/download/v3.7.5/traefik_v3.7.5_checksums.txt",
-                "TRAEFIK_ARTIFACT_PLATFORM": "linux_amd64",
-                "TRAEFIK_ARCHIVE_NAME": "traefik_v3.7.5_linux_amd64.tar.gz",
+                "TRAEFIK_SHA256_URL": f"https://github.com/traefik/traefik/releases/download/v{INVALID_VERSION}/traefik_v{INVALID_VERSION}_checksums.txt",
+                "TRAEFIK_ARTIFACT_PLATFORM": PINNED_PLATFORM,
+                "TRAEFIK_ARCHIVE_NAME": f"traefik_v{INVALID_VERSION}_{PINNED_PLATFORM}.tar.gz",
             },
         }
         for case, overrides in invalid.items():
@@ -362,7 +402,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
                 "\n".join(
                     (
                         '. "$COMMON_SH"',
-                        'TRAEFIK_DOWNLOAD_URL="https://github.com/traefik/traefik/releases/download/v3.7.10/other.tar.gz"',
+                        f'TRAEFIK_DOWNLOAD_URL="https://github.com/traefik/traefik/releases/download/v{INVALID_VERSION}/other.tar.gz"',
                         "ci_require_traefik_pinned_provenance",
                     )
                 ),
@@ -380,7 +420,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         for case, replacement in {
             "missing": "",
             "malformed": "not-a-sha256",
-            "wrong-platform": "linux_arm64",
+            "wrong-platform": INVALID_PLATFORM,
         }.items():
             with self.subTest(case=case):
                 variable = (
@@ -488,9 +528,9 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
                 """\
                 #!/bin/sh
                 printf 'executed\\n' > "$MARKER"
-                printf 'Version: 3.7.10\\n'
+                printf 'Version: {PINNED_VERSION}\\n'
                 """
-            ),
+            ).replace("{PINNED_VERSION}", PINNED_VERSION),
             encoding="utf-8",
         )
         binary.chmod(0o755)
@@ -541,10 +581,10 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         document = json.loads(manifest.read_text(encoding="utf-8"))
         component = document["components"][0]
         mutations = {
-            "version": "3.7.5",
+            "version": INVALID_VERSION,
             "sha256": "0" * 64,
-            "old-pin-hash": STALE_SHA256,
-            "artifact_platform": "linux/arm64",
+            "non-canonical-hash": NON_CANONICAL_SHA256,
+            "artifact_platform": INVALID_PLATFORM.replace("_", "/"),
             "missing-archive": None,
         }
         for case, value in mutations.items():
@@ -553,7 +593,7 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
                 target = candidate["components"][0]
                 if case == "missing-archive":
                     target.pop("archive_name")
-                elif case == "old-pin-hash":
+                elif case == "non-canonical-hash":
                     target["sha256"] = value
                 else:
                     target[case] = value
@@ -596,7 +636,8 @@ class TraefikRuntimePinContractTests(unittest.TestCase):
         self.write_minimal_manifest(manifest)
         duplicate = self.temporary_root / "duplicate-common.sh"
         duplicate.write_text(
-            COMMON_SOURCE.read_text(encoding="utf-8") + '\nTRAEFIK_VERSION="3.7.5"\n',
+            COMMON_SOURCE.read_text(encoding="utf-8")
+            + f'\nTRAEFIK_VERSION="{INVALID_VERSION}"\n',
             encoding="utf-8",
         )
 
