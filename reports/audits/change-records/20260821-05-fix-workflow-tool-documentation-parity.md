@@ -9,7 +9,7 @@
 | Change ID | `20260821-05-fix-workflow-tool-documentation-parity` |
 | UTC date | 2026-08-21 |
 | Framework base revision | `473d2adad32e2db19e24e2339d9eb392040ab226` |
-| Issue or pull request | `FND-FRAMEWORK-0110`; Draft PR pending |
+| Issue or pull request | `FND-FRAMEWORK-0110`; Framework PR #105 |
 
 ## Motivation and problem statement
 
@@ -42,9 +42,9 @@ security-relevant and remain unchanged.
    canonical plain-cell output.
 4. Repository-native updater, contract, workflow, pin, documentation, and
    diff checks pass before delivery.
-5. A current-head hosted candidate run is observed after the Draft PR; a
-   resulting-master dispatch remains separate from this record until explicitly
-   authorized and merged.
+5. Current-head hosted PR checks, including the SonarQube Cloud Quality Gate,
+   are observed; the resulting-master dispatch is then observed separately
+   after explicitly authorized integration.
 
 ## Alternatives considered
 
@@ -94,10 +94,12 @@ test additionally exercises historical backticked input.
 | `rtk proxy …python -m py_compile ci/tools/update-workflow-tools.py tests/ci_security/test_update_workflow_tools.py` | 0 | Changed Python files compiled. | Local task worktree |
 | `rtk proxy …/ruff check` and `…/ruff format --check` | 0 | Hash-locked Ruff lint and format checks passed for the updater and CI-security tests. | Task-owned external tool root |
 | `rtk proxy git diff --cached --check` | 0 | Staged six-file diff has no whitespace errors. | Local task worktree |
+| GitHub Actions and SonarQube Cloud on Framework PR #105 | 0 | Required current-head CI checks passed; the Quality Gate reported 0 new issues, 0 security hotspots, and 0.0% duplication on new code. | PR #105 at `459c2a25aee0908748055efb86a5cd7cc459ea2d` |
 
 The staged diff was manually reviewed for scope and secrets; the independent
-security-diff review found no publisher/control regression. Hosted current-head
-evidence is recorded only after the Draft PR exists.
+security-diff review found no publisher/control regression. The hosted
+current-head checks recorded above are retained with the PR; a follow-up
+documentation-only commit repeats the full current-head CI cycle before merge.
 
 ## Security impact
 
@@ -111,25 +113,27 @@ write surface was expanded.
 
 The English and German workflow-security guides now describe the single
 canonical publisher accurately. No connector runtime behavior was changed or
-tested. Hosted runtime evidence after this new branch is pending; run
-`32517027013` is retained only as the pre-fix failed-candidate evidence.
+tested. PR #105 hosted validation passed for its initial repair head; run
+`32517027013` is retained only as the pre-fix failed-candidate evidence. The
+authorized master dispatch is an additional, post-merge runtime proof.
 
 ## Checks not run
 
 Local Pyright did not run because `node` is unavailable in this execution
-environment. Hosted PR checks, SonarQube Cloud, review threads, and a
-workflow-dispatch smoke run remain pending until the Draft PR exists. A
-resulting-master manual dispatch cannot run until a current explicit
-master-integration authorization exists and the PR is merged.
+environment. The documentation-only follow-up requires a fresh current-head
+hosted CI/SonarQube Cloud round. The resulting-master manual dispatch cannot
+run until the explicitly authorized PR integration has completed.
 
 ## Limitations and residual risk
 
 The fix cannot by itself prove GitHub-hosted credentials, actions, or
-publisher behavior. Those controls require current-head hosted checks, followed
-by a separately authorized master integration and dispatch.
+publisher behavior. Those controls require fresh current-head hosted checks,
+followed by the explicitly authorized master integration and dispatch.
 
 ## Final diff and review status
 
-At staging, exactly the six files listed above are included, with no unstaged
-task files. Whitespace, scope, and secret review passed; the normal task-branch
-commit, Draft PR, and hosted checks remain the next delivery steps.
+The repair PR initially contained exactly the six listed files and passed
+whitespace, scope, secret, CI, SonarQube Cloud, and review checks at
+`459c2a25aee0908748055efb86a5cd7cc459ea2d`. This paired documentation-only
+follow-up records that evidence and requires the same exact-head verification
+cycle before its protected squash merge.

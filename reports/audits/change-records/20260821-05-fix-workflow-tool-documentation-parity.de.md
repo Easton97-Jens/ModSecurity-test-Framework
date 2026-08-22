@@ -9,7 +9,7 @@
 | Change-ID | `20260821-05-fix-workflow-tool-documentation-parity` |
 | UTC-Datum | 2026-08-21 |
 | Framework-Basisrevision | `473d2adad32e2db19e24e2339d9eb392040ab226` |
-| Issue oder Pull Request | `FND-FRAMEWORK-0110`; Draft-PR ausstehend |
+| Issue oder Pull Request | `FND-FRAMEWORK-0110`; Framework-PR #105 |
 
 ## Motivation und Problemstellung
 
@@ -45,9 +45,9 @@ Draft-PR-Prüfungen sind sicherheitsrelevant und bleiben unverändert.
    kanonische reine Zellform normalisiert.
 4. Repository-native Updater-, Vertrags-, Workflow-, Pin-, Dokumentations- und
    Diff-Prüfungen bestehen vor der Auslieferung.
-5. Ein Hosted-Candidate-Lauf für den aktuellen PR-Head wird beobachtet; ein
-   resultierender Master-Dispatch bleibt bis zu einer ausdrücklich autorisierten
-   Integration und einem Merge getrennt.
+5. Hosted-PR-Prüfungen für den aktuellen Head einschließlich des SonarQube-
+   Cloud-Quality-Gates werden beobachtet; der resultierende Master-Dispatch
+   wird nach der ausdrücklich autorisierten Integration getrennt beobachtet.
 
 ## Untersuchte Alternativen
 
@@ -100,11 +100,13 @@ historische Backtick-Eingaben.
 | `rtk proxy …python -m py_compile ci/tools/update-workflow-tools.py tests/ci_security/test_update_workflow_tools.py` | 0 | Geänderte Python-Dateien kompilierten. | Lokaler Task-Worktree |
 | `rtk proxy …/ruff check` und `…/ruff format --check` | 0 | Hash-gesperrte Ruff-Lint- und Formatprüfungen für Updater und CI-Sicherheitstests bestanden. | Task-eigenes externes Tool-Root |
 | `rtk proxy git diff --cached --check` | 0 | Der gestagte Sechs-Dateien-Diff hat keine Whitespace-Fehler. | Lokaler Task-Worktree |
+| GitHub Actions und SonarQube Cloud auf Framework-PR #105 | 0 | Erforderliche CI-Prüfungen für den aktuellen Head bestanden; das Quality Gate meldete 0 neue Issues, 0 Security Hotspots und 0,0 % Duplizierung im neuen Code. | PR #105 bei `459c2a25aee0908748055efb86a5cd7cc459ea2d` |
 
 Der gestagte Diff wurde manuell auf Umfang und Secrets geprüft; der unabhängige
-Security-Diff-Review fand keine Regression bei Publishern oder Kontrollen.
-Hosted-Evidenz für den aktuellen Head wird erst dokumentiert, nachdem der
-Draft-PR existiert.
+Security-Diff-Review fand keine Regression bei Publishern oder Kontrollen. Die
+oben dokumentierten Hosted-Prüfungen für den aktuellen Head bleiben beim PR
+erhalten; ein reiner Dokumentations-Folgecommit wiederholt vor dem Merge den
+vollständigen CI-Zyklus für seinen aktuellen Head.
 
 ## Sicherheitsauswirkung
 
@@ -119,28 +121,30 @@ erweitert.
 
 Die englische und deutsche Workflow-Sicherheitsdokumentation beschreibt jetzt
 den einzigen kanonischen Publisher korrekt. Connector-Runtime-Verhalten wurde
-nicht verändert oder getestet. Hosted-Runtime-Evidenz für diesen neuen Branch
-steht aus; Run `32517027013` bleibt ausschließlich Pre-Fix-Evidenz für den
-fehlgeschlagenen Candidate.
+nicht verändert oder getestet. Die Hosted-Validierung von PR #105 bestand für
+den ursprünglichen Repair-Head; Run `32517027013` bleibt ausschließlich
+Pre-Fix-Evidenz für den fehlgeschlagenen Candidate. Der autorisierte
+Master-Dispatch ist ein zusätzlicher Runtime-Nachweis nach dem Merge.
 
 ## Nicht ausgeführte Prüfungen
 
 Lokales Pyright lief nicht, weil `node` in dieser Ausführungsumgebung fehlt.
-Hosted-PR-Checks, SonarQube Cloud, Review-Threads und ein Workflow-Dispatch-
-Smoke-Test stehen aus, bis der Draft-PR existiert. Ein manueller resultierender
-Master-Dispatch kann erst nach einer aktuellen ausdrücklichen
-Master-Integrationsautorisierung und dem Merge laufen.
+Der reine Dokumentations-Folgecommit erfordert eine frische Hosted-CI-/
+SonarQube-Cloud-Runde für seinen aktuellen Head. Der manuelle resultierende
+Master-Dispatch kann erst nach Abschluss der ausdrücklich autorisierten
+PR-Integration laufen.
 
 ## Einschränkungen und Restrisiko
 
 Der Fix kann GitHub-gehostete Credentials, Actions oder Publisher-Verhalten
-nicht allein beweisen. Diese Kontrollen erfordern aktuelle Hosted-Checks für
-den Head, gefolgt von einer separat autorisierten Master-Integration und einem
-Dispatch.
+nicht allein beweisen. Diese Kontrollen erfordern frische Hosted-Prüfungen für
+den aktuellen Head, gefolgt von der ausdrücklich autorisierten
+Master-Integration und dem Dispatch.
 
 ## Finaler Diff- und Review-Status
 
-Beim Staging sind genau die oben aufgeführten sechs Dateien enthalten, ohne
-unstaged Task-Dateien. Whitespace-, Umfangs- und Secret-Review bestanden; der
-normale Task-Branch-Commit, der Draft-PR und die Hosted-Checks sind die
-nächsten Auslieferungsschritte.
+Der Repair-PR enthielt zunächst genau die sechs oben aufgeführten Dateien und
+bestand Whitespace-, Umfangs-, Secret-, CI-, SonarQube-Cloud- und
+Review-Prüfungen bei `459c2a25aee0908748055efb86a5cd7cc459ea2d`. Dieser
+gepaarte reine Dokumentations-Folgecommit dokumentiert die Evidenz und verlangt
+vor seinem geschützten Squash-Merge denselben Zyklus für den exakten Head.
