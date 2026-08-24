@@ -16,6 +16,7 @@ beschrieben.
 
 ## Aktuelle Records
 
+- [Framework-Contract-API hinzufügen (2026-08-24)](20260824-01-add-framework-contract-api.de.md)
 - [Re-Entry des geerbten Upstream-Snapshots beheben (2026-08-21)](20260821-02-fix-inherited-upstream-snapshot-reentry.de.md)
 - [Traefik-Runtime-Pin-Divergenz beheben (2026-08-14)](20260814-01-remediate-traefik-runtime-pin-divergence.de.md)
 - [Fünf-Connector-With-CRS-/No-MRTS-Evidenzvertrag hinzufügen (2026-08-10)](20260810-01-add-five-connectors-with-crs-no-mrts-contract.de.md)

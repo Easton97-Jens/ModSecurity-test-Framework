@@ -11,6 +11,7 @@ Es implementiert keinen Webserver- oder Proxy-Connector.
 - [Framework-Dokumentation](docs/README.de.md)
 - [Architektur](docs/architecture.de.md)
 - [Katalog und Fälle](docs/catalog-and-cases.de.md)
+- [Framework-Contract-API](docs/framework-contract-api.de.md)
 - [Testing und Evidence](docs/testing-and-evidence.de.md)
 - [Connector-Integration](docs/connector-integration.de.md)
 - [Entwicklung](docs/development.de.md)
