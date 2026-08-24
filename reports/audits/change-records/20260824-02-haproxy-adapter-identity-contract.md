@@ -94,6 +94,7 @@ report identity, non-promotion, and unchanged non-HAProxy adapters.
 | Focused `unittest` contract module | 0 | Contract, identity, schema, and security-regression tests passed. | Registered task temp root |
 | `make test-five-connectors-with-crs-no-mrts-contract` | 0 | Native Framework target passed. | Registered task build root |
 | `make test-ci-security-contract` | 0 | 291 Framework CI-security and contract tests passed, including the HAProxy identity cases. | Registered task build root |
+| `make test-ci-security-contract` after the Ruff format correction | 2 | The unchanged writerless-FIFO timing race failed; the exact isolated existing regression passed. | Task transcript and registered task temp root |
 | CRS provenance, Makefile, runtime-component lock, and runtime-component sync targets | 0 | Focused Framework security and regression targets passed. | Registered task build root |
 | `make check-documentation` | 0 | Documentation links, bilingual companions, paths, and Change Record contract passed before final evidence rows. | Isolated Framework worktree |
 | Full `make lint` final attempt | 2 | A timing-sensitive, unchanged FIFO regression missed one of its own readiness observations; no product code or test was changed. | Task transcript |

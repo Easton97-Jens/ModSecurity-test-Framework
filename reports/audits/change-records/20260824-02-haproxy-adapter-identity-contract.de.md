@@ -98,6 +98,7 @@ die unveränderten Nicht-HAProxy-Adapter ab.
 | Fokussiertes `unittest`-Contract-Modul | 0 | Contract-, Identitäts-, Schema- und Security-Regressionstests bestanden. | Registrierte Task-Temp-Wurzel |
 | `make test-five-connectors-with-crs-no-mrts-contract` | 0 | Nativer Framework-Target bestanden. | Registrierte Task-Build-Wurzel |
 | `make test-ci-security-contract` | 0 | 291 Framework-CI-Security- und Contract-Tests einschließlich der HAProxy-Identitätsfälle bestanden. | Registrierte Task-Build-Wurzel |
+| `make test-ci-security-contract` nach der Ruff-Formatkorrektur | 2 | Die unveränderte writerless-FIFO-Timing-Race schlug fehl; der exakte isolierte bestehende Regressionstest bestand. | Task-Transcript und registrierte Task-Temp-Wurzel |
 | CRS-Provenance-, Makefile-, Runtime-Component-Lock- und Runtime-Component-Sync-Targets | 0 | Fokussierte Framework-Security- und Regressionstargets bestanden. | Registrierte Task-Build-Wurzel |
 | `make check-documentation` | 0 | Dokumentationslinks, bilinguale Begleiter, Pfade und Change-Record-Contract bestanden vor den finalen Evidenzzeilen. | Isolierter Framework-Worktree |
 | Finaler vollständiger `make lint`-Versuch | 2 | Ein timing-sensitiver, unveränderter FIFO-Regressionstest verfehlte eine eigene Readiness-Beobachtung; weder Product-Code noch Test wurden geändert. | Task-Transcript |

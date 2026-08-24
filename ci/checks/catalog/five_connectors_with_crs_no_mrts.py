@@ -925,9 +925,13 @@ def _validate_haproxy_adapter_catalog() -> None:
         raise _contract_error("selected HAProxy Parent runtime entrypoint is invalid")
     dispatch = f'connector_smoke_run haproxy "$CONNECTOR_ROOT/{runtime_entrypoint}"'
     if dispatch not in entrypoint_text:
-        raise _contract_error("HAProxy Framework entrypoint does not dispatch SPOE/SPOP")
+        raise _contract_error(
+            "HAProxy Framework entrypoint does not dispatch SPOE/SPOP"
+        )
     if "run_haproxy_htx_runtime.sh" in entrypoint_text:
-        raise _contract_error("HAProxy Framework entrypoint must not dispatch native HTX")
+        raise _contract_error(
+            "HAProxy Framework entrypoint must not dispatch native HTX"
+        )
 
 
 def _validate_adapter(connector: str) -> None:

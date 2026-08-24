@@ -700,7 +700,9 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
             selected["integration_mode"], native_htx["integration_mode"]
         )
         self.assertEqual(selected["lifecycle_scope"], "compatibility-smoke")
-        self.assertEqual(selected["framework_entrypoint"], "ci/runtime/run-haproxy-smoke.sh")
+        self.assertEqual(
+            selected["framework_entrypoint"], "ci/runtime/run-haproxy-smoke.sh"
+        )
         self.assertEqual(
             selected["parent_runtime_entrypoint"],
             "connectors/haproxy/harness/run_haproxy_smoke.sh",
@@ -711,9 +713,7 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
             native_htx["parent_runtime_entrypoint"],
             "connectors/haproxy/harness/run_haproxy_htx_runtime.sh",
         )
-        self.assertEqual(
-            native_htx["parent_make_target"], "full-lifecycle-haproxy-htx"
-        )
+        self.assertEqual(native_htx["parent_make_target"], "full-lifecycle-haproxy-htx")
         for adapter in (selected, native_htx):
             with self.subTest(adapter=adapter["adapter_id"]):
                 self.assertEqual(adapter["capability_promotion"], "not-permitted")
@@ -747,7 +747,9 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
         )
         self.assertNotIn("run_haproxy_htx_runtime.sh", entrypoint)
 
-    def test_haproxy_adapter_identity_rejects_unknown_and_cross_mode_pairs(self) -> None:
+    def test_haproxy_adapter_identity_rejects_unknown_and_cross_mode_pairs(
+        self,
+    ) -> None:
         for adapter_id, integration_mode in (
             (contract.HAPROXY_SPOE_SPOP_ADAPTER_ID, "native-htx-filter"),
             (contract.HAPROXY_NATIVE_HTX_ADAPTER_ID, "spoe-spop-agent"),
@@ -1077,7 +1079,9 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                     contract._validate_event_schema(event)
 
     def test_haproxy_schema_rejects_unknown_and_cross_identity_evidence(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="five-crs-haproxy-schema-") as temporary:
+        with tempfile.TemporaryDirectory(
+            prefix="five-crs-haproxy-schema-"
+        ) as temporary:
             parent = Path(temporary)
             fixture, source_root, source_commit, source_sha256 = (
                 self._fixture_and_source(parent)
@@ -1115,9 +1119,7 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                     haproxy_result["adapter_id"],
                     contract.HAPROXY_SPOE_SPOP_ADAPTER_ID,
                 )
-                self.assertEqual(
-                    haproxy_result["integration_mode"], "spoe-spop-agent"
-                )
+                self.assertEqual(haproxy_result["integration_mode"], "spoe-spop-agent")
                 self.assertEqual(
                     haproxy_result["framework_entrypoint"],
                     "ci/runtime/run-haproxy-smoke.sh",
@@ -1187,9 +1189,7 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
             "traefik": "forwardAuth",
             "lighttpd": "sidecar_proxy",
         }.items():
-            with self.subTest(
-                connector=connector, incompatible_mode=incompatible_mode
-            ):
+            with self.subTest(connector=connector, incompatible_mode=incompatible_mode):
                 self._single_validation_error(
                     lambda event, root, incompatible_mode=incompatible_mode: (
                         event.__setitem__("integration_mode", incompatible_mode)
@@ -1206,12 +1206,13 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 integration_mode=integration_mode,
             ):
                 self._single_validation_error(
-                    lambda event, root, adapter_id=adapter_id,
-                    integration_mode=integration_mode: event.update(
-                        {
-                            "adapter_id": adapter_id,
-                            "integration_mode": integration_mode,
-                        }
+                    lambda event, root, adapter_id=adapter_id, integration_mode=integration_mode: (
+                        event.update(
+                            {
+                                "adapter_id": adapter_id,
+                                "integration_mode": integration_mode,
+                            }
+                        )
                     ),
                     connector="haproxy",
                 )
