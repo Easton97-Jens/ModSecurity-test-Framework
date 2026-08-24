@@ -9,7 +9,8 @@
 | Change ID | `20260824-02-haproxy-adapter-identity-contract` |
 | UTC date | 2026-08-24 |
 | Framework base revision | `7bf8b7cb771f856a70123451332089a9f24036de` |
-| Issue or pull request | Standalone Framework Draft PR pending; independent of Parent PR #279 |
+| Issue or pull request | [Framework Draft PR #111](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/111); independent of Parent PR #279; open Draft, not merged, not marked Ready for review, and auto-merge is not enabled. |
+| Verified PR head at follow-up evidence capture | `255858132c9c3759f92023ca3062a6a67cba90c6` |
 
 ## Motivation and problem statement
 
@@ -101,6 +102,11 @@ report identity, non-promotion, and unchanged non-HAProxy adapters.
 | Isolated FIFO regression rerun | 0 | The exact existing FIFO regression passed immediately with task-owned temporary storage. | Registered task temp root |
 | Codex Security diff scan and sealed artifact revalidation | 0 | Complete working-tree coverage; zero reportable findings. | Sealed task-owned security-scan receipt (not committed) |
 | Final documentation and diff checks | 0 | `make check-documentation` and `git diff --check` passed after the Change Record was finalized. | Isolated Framework worktree |
+| Follow-up Framework Python `-m py_compile` | 0 | The changed catalog and contract test compiled with the cache outside the worktree. | Follow-up task run |
+| Follow-up focused `unittest` contract module | 0 | All 29 contract, identity, schema, and security-regression tests passed. | Follow-up task run |
+| Follow-up `make test-five-connectors-with-crs-no-mrts-contract` | 2 | The unchanged writerless-FIFO timing test missed one readiness observation; no source or test was changed. | Follow-up task run |
+| Follow-up isolated writerless-FIFO regression | 0 | The exact existing regression passed in isolation. | Follow-up task run |
+| Follow-up full `make test-ci-security-contract` | 0 | All 291 Framework CI-security and contract tests passed. | Follow-up task run |
 
 ## Security impact
 
@@ -120,10 +126,12 @@ files. This is a static contract review, not runtime evidence.
 ## Documentation and runtime evidence
 
 The paired English/German integration and evidence guides distinguish the
-selected SPOP profile from the retained HTX full-lifecycle identity. No
-connector host, SPOA process, native HTX runtime, or MRTS process was started
-in this Framework-only change. The path conclusion is static source evidence,
-not host-runtime evidence.
+selected SPOP profile from the retained HTX full-lifecycle identity. No Parent
+HAProxy runtime, connector host, SPOA process, native HTX runtime, or MRTS
+process was started in this Framework-only PR. No real SPOE/SPOP host `PASS`
+or native HTX runtime `PASS` is claimed. `CONTRACT_VALIDATED` remains distinct
+from host-runtime `PASS`; the path conclusion is static source evidence, not
+host-runtime evidence.
 
 ## Checks not run
 
@@ -141,8 +149,21 @@ exact-head runtime evidence.
 
 ## Final diff and review status
 
-Pending final documentation and diff checks, exact staging, commit, push, and
-standalone Draft PR creation. The completed security-diff review, focused
-contract tests, and isolated FIFO rerun are retained as task evidence. All task
-source changes are confined to the external Framework worktree; no Parent
-Gitlink or MRTS file is staged.
+At follow-up evidence capture, the exact PR head was
+`255858132c9c3759f92023ca3062a6a67cba90c6`: local `HEAD`,
+`origin/codex/haproxy-adapter-identity-contract`, and Framework Draft PR #111
+were identical, and the branch was pushed. Final documentation and diff checks
+were completed. Hosted PR checks for that exact head were complete: CodeQL
+(actions, c-cpp, and python), SonarCloud Code Analysis,
+`actionlint-and-contract`, `check-action-versions`, `common-structure`,
+`portable-contract`, `pull-request-head`, `pull-request-range`,
+`python-ci-security-quality`, `scaffold-lint`, and `zizmor` passed. The three
+advisory checks were skipped rather than reported as passes.
+
+PR #111 remains open and Draft. It has not been merged or marked Ready for
+review, and auto-merge is not enabled. This documentation-only follow-up keeps
+the final post-commit local/remote/PR-head and hosted-check evidence in the PR
+and completion evidence rather than creating a self-referential record commit.
+The completed security-diff review, focused contract tests, full CI-security
+run, and isolated FIFO rerun are retained as task evidence. No Parent Gitlink,
+MRTS content, or Parent product code is staged or changed.
