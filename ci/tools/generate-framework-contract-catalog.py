@@ -225,9 +225,7 @@ def _catalog_expectation(case: Mapping[str, Any]) -> dict[str, Any]:
     return _compound(conditions)
 
 
-def _yaml_primary_conditions(
-    raw_expectation: Mapping[str, Any], status: int | None, action: str | None, rule_id: int | None
-) -> list[dict[str, Any]]:
+def _yaml_primary_conditions(status: int | None, action: str | None, rule_id: int | None) -> list[dict[str, Any]]:
     if action is not None:
         condition: dict[str, Any] = {"kind": "intervention", "action": action}
         if status is not None:
@@ -265,7 +263,7 @@ def _yaml_expectation(document: Mapping[str, Any]) -> dict[str, Any]:
     status = _optional_status(raw_expectation.get("status"))
     action = _action(raw_expectation.get("intervention"))
     rule_id = _optional_rule_id(raw_expectation.get("rule_id"))
-    conditions = _yaml_primary_conditions(raw_expectation, status, action, rule_id)
+    conditions = _yaml_primary_conditions(status, action, rule_id)
     transport = _yaml_transport_condition(raw_expectation)
     if transport is not None:
         conditions.append(transport)
