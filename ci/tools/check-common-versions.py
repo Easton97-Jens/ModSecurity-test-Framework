@@ -941,9 +941,9 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         ),
         atomic_group=(),
         update_policy="not_applicable",
-        stable_policy="not fetched by this Framework",
-        compatibility_policy="legacy metadata is unused by an acquisition path",
-        not_applicable_reason="Expat metadata has no Framework source-acquisition consumer and is intentionally not an updater input",
+        stable_policy="reviewed immutable full commit; the Framework does not fetch Expat",
+        compatibility_policy="the Parent validates this value before its connector-scoped immutable Expat acquisition",
+        not_applicable_reason="Framework has no Expat acquisition path; the Parent consumes the reviewed immutable ref and remains its runtime verifier",
     ),
     ComponentDefinition(
         name=CANONICAL_CI_PINS_LABEL,

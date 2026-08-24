@@ -286,7 +286,7 @@ variable are rendered from the updated group rather than chosen independently.
 | go-ftw | automatic | Mandatory global GitHub release/tag/immutable-commit provenance check in every maintenance run. |
 | Albedo | automatic | Mandatory global GitHub release/tag/immutable-commit provenance check in every maintenance run. |
 | CI maintenance globals | automatic | Mandatory global checks for canonical Python/PyYAML pins, the latest stable Node.js pin including major transitions, workflow actions, and CI-security tools; artifacts and generated views are checked as one plan. |
-| Expat | not_applicable | Legacy metadata has no Framework source-acquisition consumer. |
+| Expat | not_applicable | The Framework does not acquire Expat; the Parent consumes the reviewed immutable `R_2_8_3` commit in its connector-scoped runtime provisioner. |
 | Default branch | not_applicable | Local policy default, not an upstream release source. |
 
 `manual_review` is an intentional preservation boundary, not a failed update:

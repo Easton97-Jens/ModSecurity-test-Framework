@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
@@ -73,3 +74,17 @@ def test_official_roots_are_the_current_single_slash_contract():
     assert lighttpd.authorized_hosts == ("download.lighttpd.net",)
     assert haproxy.authorized_hosts == ("www.haproxy.org",)
     assert "HAProxy HTX" in CHECKER.COMPONENT_DEFINITION_BY_NAME
+
+
+def test_expat_parent_runtime_provenance_is_an_immutable_commit_pin():
+    """The Framework may not reintroduce a mutable Expat reference for Parent."""
+
+    common = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+    match = re.search(r'^EXPAT_GIT_REF="([0-9a-f]{40})"$', common, re.MULTILINE)
+
+    assert match is not None
+    assert match.group(1) == "92810461043fce37e70079b37ab1f04490a8f039"
+    expat = CHECKER.COMPONENT_DEFINITION_BY_NAME["Expat"]
+    assert expat.resolver == "not_applicable"
+    assert "Parent" in expat.compatibility_policy
+    assert "immutable" in expat.stable_policy

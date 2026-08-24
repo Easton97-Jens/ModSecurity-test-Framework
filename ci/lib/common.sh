@@ -498,10 +498,11 @@ ALBEDO_APPROVED_COMMIT="3f7d0238b32d1f98059f5c70e0ffcafad514952c"
 ALBEDO_BIN="${ALBEDO_BIN:-albedo}"
 
 EXPAT_SOURCE_URL="https://github.com/libexpat/libexpat"
-# Expat is maintenance metadata only; no active Framework provisioning path
-# consumes it.  Keep the existing branch marker immutable to this task rather
-# than fabricating a new upstream commit without a reviewed dependency update.
-EXPAT_GIT_REF="master"
+# The Parent HAProxy provisioning path consumes this reviewed, immutable
+# upstream commit.  It is the peeled commit for the manually verified Expat
+# R_2_8_3 tag; do not replace it with a moving branch or a latest-release
+# lookup.
+EXPAT_GIT_REF="92810461043fce37e70079b37ab1f04490a8f039"
 EXPAT_GIT_URL="$EXPAT_SOURCE_URL"
 EXPAT_PROMPT_EXPECTED_LATEST="$EXPAT_GIT_REF"
 

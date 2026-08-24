@@ -300,7 +300,7 @@ Gruppe erzeugt und nicht unabhängig ausgewählt.
 | go-ftw | automatic | Obligatorische globale GitHub-Release-/Tag-/unveränderliche-Commit-Provenance-Prüfung in jedem Wartungslauf. |
 | Albedo | automatic | Obligatorische globale GitHub-Release-/Tag-/unveränderliche-Commit-Provenance-Prüfung in jedem Wartungslauf. |
 | CI maintenance globals | automatic | Obligatorische globale Prüfung der kanonischen Python-/PyYAML-Pins, des neuesten stabilen Node.js-Pins einschließlich Major-Übergängen, der Workflow-Actions und CI-Security-Tools; Artefakte und generierte Views werden als ein Plan geprüft. |
-| Expat | not_applicable | Legacy-Metadaten haben keinen Framework-Source-Abrufverbraucher. |
+| Expat | not_applicable | Das Framework beschafft Expat nicht selbst; der Parent verwendet den geprüften unveränderlichen `R_2_8_3`-Commit in seinem connectorbezogenen Runtime-Provisioner. |
 | Default branch | not_applicable | Lokaler Policy-Standard, keine Upstream-Release-Quelle. |
 
 `manual_review` ist eine beabsichtigte Erhaltungsgrenze, kein fehlgeschlagenes
