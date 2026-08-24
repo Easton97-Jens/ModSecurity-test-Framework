@@ -1115,9 +1115,11 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                     root, fixture, source_root, source_commit, source_sha256
                 )
                 results = aggregate["results"]
-                self.assertIsInstance(results, dict)
+                if not isinstance(results, dict):
+                    self.fail("aggregate results must be a mapping")
                 haproxy_result = results["haproxy"]
-                self.assertIsInstance(haproxy_result, dict)
+                if not isinstance(haproxy_result, dict):
+                    self.fail("HAProxy aggregate result must be a mapping")
                 self.assertEqual(
                     haproxy_result["adapter_id"],
                     contract.HAPROXY_SPOE_SPOP_ADAPTER_ID,
