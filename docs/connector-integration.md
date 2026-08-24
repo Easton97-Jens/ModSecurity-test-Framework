@@ -115,13 +115,24 @@ repository retains responsibility for those runtime facts. A successful
 Framework output is explicitly `CONTRACT_VALIDATED` with
 `host_runtime_status: UNATTESTED`, not a connector-host `PASS`.
 
+The selected HAProxy tuple for this profile is
+`haproxy-spoe-spop-agent` with `spoe-spop-agent`. Its Framework smoke
+entrypoint dispatches the connector-owned SPOE/SPOP smoke harness. The real
+native HTX tuple `haproxy-native-htx-filter` with `native-htx-filter` remains
+an explicit separate Parent full-lifecycle identity and is rejected as
+five-connector profile evidence. This binding does not change either path's
+capability category or promote a host-runtime result.
+
 ## Compatibility paths
 
-Historical HAProxy SPOE/SPOA discovery, disabled-key, report-schema, and
-readiness notes described a possible compatibility direction only. They did
-not implement a Framework connector key or prove a host runtime. Current work
-must use the connector repository's declared integration mode and canonical
-evidence; no historical planning text creates a capability or promotion.
+The HAProxy SPOE/SPOP smoke path selected by the five-connector profile is a
+compatibility entrypoint, not a native HTX filter. The native HTX
+full-lifecycle path stays separately identified and must not be relabelled as
+SPOE/SPOP evidence. Historical HAProxy SPOE/SPOA discovery, disabled-key,
+report-schema, and readiness notes still do not prove a host runtime. Current
+work must use the connector repository's declared integration mode and
+canonical evidence; neither adapter metadata nor historical planning text
+creates a capability or promotion.
 
 The same rule applies to imported Apache, NGINX, v2, v3, and MRTS references:
 their code or tests are inputs for review and derivation, not executable proof

@@ -189,7 +189,7 @@ ref and that tag must peel to `CRS_APPROVED_COMMIT`.
 | Connector | Closed adapter identity | Contract mode | Accepted raw evidence |
 | --- | --- | --- | --- |
 | Apache | `apache-native-httpd-module` | `native-httpd-module` | audit |
-| HAProxy | `haproxy-native-htx-filter` | `native-htx-filter` | event |
+| HAProxy | `haproxy-spoe-spop-agent` | `spoe-spop-agent` | event |
 | Envoy | `envoy-ext-proc-service` | `ext_proc` | event |
 | Traefik | `traefik-native-middleware` | `native-traefik-middleware` | event |
 | lighttpd | `lighttpd-patched-native-module` | `patched-native-lighttpd` | audit or event |
@@ -197,6 +197,18 @@ ref and that tag must peel to `CRS_APPROVED_COMMIT`.
 These are closed evidence identities. The listed Framework smoke entrypoints
 are marked `compatibility-only` and owned by the Parent host contract, so they
 cannot be relabelled as native host execution or used to promote this profile.
+
+For HAProxy, the selected Framework entrypoint
+`ci/runtime/run-haproxy-smoke.sh` dispatches the connector-owned SPOE/SPOP
+smoke harness. Therefore this profile accepts only
+`haproxy-spoe-spop-agent` with `spoe-spop-agent`. The genuine separate
+full-lifecycle identity `haproxy-native-htx-filter` with
+`native-htx-filter` is retained unchanged for its native HTX path, but it has
+no Framework smoke entrypoint and is not accepted as evidence for this
+profile. A legacy five-connector event carrying the HTX tuple must be
+regenerated from the actual SPOE/SPOP path; the native HTX identifier itself
+is not renamed or promoted. The profile payload records this as an explicit
+`reject-and-regenerate` identity migration, not as a compatibility alias.
 
 The catalog tool has four distinct operations:
 

@@ -202,7 +202,7 @@ aufgelöst werden.
 | Connector | Geschlossene Adapteridentität | Vertragsmodus | Akzeptierte Raw-Evidenz |
 | --- | --- | --- | --- |
 | Apache | `apache-native-httpd-module` | `native-httpd-module` | Audit |
-| HAProxy | `haproxy-native-htx-filter` | `native-htx-filter` | Event |
+| HAProxy | `haproxy-spoe-spop-agent` | `spoe-spop-agent` | Event |
 | Envoy | `envoy-ext-proc-service` | `ext_proc` | Event |
 | Traefik | `traefik-native-middleware` | `native-traefik-middleware` | Event |
 | lighttpd | `lighttpd-patched-native-module` | `patched-native-lighttpd` | Audit oder Event |
@@ -211,6 +211,19 @@ Dies sind geschlossene Evidenzidentitäten. Die aufgeführten Framework-Smoke-
 Entrypoints sind als `compatibility-only` markiert und gehören zum Parent-
 Hostvertrag; sie dürfen daher nicht als native Hostausführung umbenannt oder
 zur Promotion dieses Profils verwendet werden.
+
+Für HAProxy ruft der ausgewählte Framework-Entrypoint
+`ci/runtime/run-haproxy-smoke.sh` den connector-eigenen SPOE/SPOP-Smoke-
+Harness auf. Daher akzeptiert dieses Profil nur
+`haproxy-spoe-spop-agent` mit `spoe-spop-agent`. Die echte separate
+Full-Lifecycle-Identität `haproxy-native-htx-filter` mit
+`native-htx-filter` bleibt unverändert für ihren nativen HTX-Pfad erhalten,
+hat jedoch keinen Framework-Smoke-Entrypoint und wird nicht als Evidenz für
+dieses Profil akzeptiert. Ein altes Fünf-Connector-Event mit dem HTX-Tupel
+muss aus dem tatsächlich ausgeführten SPOE/SPOP-Pfad neu erzeugt werden; der
+native HTX-Identifier wird weder umbenannt noch hochgestuft. Das Profil-
+Payload zeichnet dies als explizite Identitätsmigration
+`reject-and-regenerate`, nicht als Compatibility-Alias auf.
 
 Das Catalog-Tool hat vier getrennte Operationen:
 

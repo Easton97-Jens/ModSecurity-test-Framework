@@ -69,8 +69,68 @@ RECEIPT_SCHEMA_PATH = SCHEMA_DIRECTORY / "receipt.schema.json"
 RESULT_SCHEMA_PATH = SCHEMA_DIRECTORY / "result.schema.json"
 CONTRACT_VALIDATED = "CONTRACT_VALIDATED"
 
-# These identifiers are the closed host-contract names.  They are not dynamic
+# These identifiers are the closed host-contract names. They are not dynamic
 # plugin paths and do not cause Python or shell dispatch from evidence input.
+HAPROXY_SPOE_SPOP_ADAPTER_ID = "haproxy-spoe-spop-agent"
+HAPROXY_NATIVE_HTX_ADAPTER_ID = "haproxy-native-htx-filter"
+HAPROXY_SELECTED_ADAPTER_ID = HAPROXY_SPOE_SPOP_ADAPTER_ID
+HAPROXY_PROFILE_IDENTITY_MIGRATION = {
+    "profile": PROFILE,
+    "legacy_adapter_id": HAPROXY_NATIVE_HTX_ADAPTER_ID,
+    "legacy_integration_mode": "native-htx-filter",
+    "replacement_adapter_id": HAPROXY_SPOE_SPOP_ADAPTER_ID,
+    "replacement_integration_mode": "spoe-spop-agent",
+    "legacy_evidence_disposition": "reject-and-regenerate",
+}
+HAPROXY_ADAPTER_CATALOG_FIELDS = {
+    "adapter_id",
+    "integration_mode",
+    "lifecycle_scope",
+    "framework_entrypoint",
+    "framework_entrypoint_role",
+    "host_contract_owner",
+    "evidence_types",
+    "parent_runtime_entrypoint",
+    "parent_make_target",
+    "capability_promotion",
+}
+
+# This is a closed identity catalog, not a runtime dispatcher. The Framework
+# profile uses the SPOE/SPOP record below; the native HTX record is retained
+# unchanged for the separate Parent-owned full-lifecycle path.
+HAPROXY_ADAPTER_CATALOG: dict[str, dict[str, Any]] = {
+    HAPROXY_SPOE_SPOP_ADAPTER_ID: {
+        "adapter_id": HAPROXY_SPOE_SPOP_ADAPTER_ID,
+        "integration_mode": "spoe-spop-agent",
+        "lifecycle_scope": "compatibility-smoke",
+        "framework_entrypoint": "ci/runtime/run-haproxy-smoke.sh",
+        "framework_entrypoint_role": "compatibility-only",
+        "host_contract_owner": "parent",
+        "evidence_types": ("event",),
+        "parent_runtime_entrypoint": (
+            "connectors/haproxy/harness/run_haproxy_smoke.sh"
+        ),
+        "parent_make_target": "smoke-haproxy",
+        "capability_promotion": "not-permitted",
+    },
+    HAPROXY_NATIVE_HTX_ADAPTER_ID: {
+        "adapter_id": HAPROXY_NATIVE_HTX_ADAPTER_ID,
+        "integration_mode": "native-htx-filter",
+        "lifecycle_scope": "full-lifecycle",
+        "framework_entrypoint": None,
+        "framework_entrypoint_role": "not-applicable",
+        "host_contract_owner": "parent",
+        "evidence_types": ("event",),
+        "parent_runtime_entrypoint": (
+            "connectors/haproxy/harness/run_haproxy_htx_runtime.sh"
+        ),
+        "parent_make_target": "full-lifecycle-haproxy-htx",
+        "capability_promotion": "not-permitted",
+    },
+}
+
+# ADAPTERS is the selected closed five-connector profile view. It must never
+# select the native HTX identity for the SPOE/SPOP compatibility entrypoint.
 ADAPTERS: dict[str, dict[str, Any]] = {
     "apache": {
         "adapter_id": "apache-native-httpd-module",
@@ -81,12 +141,15 @@ ADAPTERS: dict[str, dict[str, Any]] = {
         "evidence_types": ("audit",),
     },
     "haproxy": {
-        "adapter_id": "haproxy-native-htx-filter",
-        "integration_mode": "native-htx-filter",
-        "framework_entrypoint": "ci/runtime/run-haproxy-smoke.sh",
-        "framework_entrypoint_role": "compatibility-only",
-        "host_contract_owner": "parent",
-        "evidence_types": ("event",),
+        field: HAPROXY_ADAPTER_CATALOG[HAPROXY_SELECTED_ADAPTER_ID][field]
+        for field in (
+            "adapter_id",
+            "integration_mode",
+            "framework_entrypoint",
+            "framework_entrypoint_role",
+            "host_contract_owner",
+            "evidence_types",
+        )
     },
     "envoy": {
         "adapter_id": "envoy-ext-proc-service",
@@ -458,6 +521,7 @@ def _validate_json_schema_instance(
         )
         return
     _validate_json_schema_value_constraints(value, schema, label)
+    _validate_json_schema_one_of(value, schema, label, root)
     if isinstance(value, Mapping):
         _validate_json_schema_mapping(value, schema, label, root)
     if isinstance(value, list) and "items" in schema:
@@ -521,6 +585,32 @@ def _validate_json_schema_pattern(
             raise _contract_error(f"{label} does not match its schema pattern")
 
 
+def _validate_json_schema_one_of(
+    value: object,
+    schema: Mapping[str, Any],
+    label: str,
+    root: Mapping[str, Any],
+) -> None:
+    """Apply the one closed identity tuple used by this profile schema."""
+    candidates = schema.get("oneOf")
+    if candidates is None:
+        return
+    if not isinstance(candidates, list) or not candidates:
+        raise _contract_error(f"{label} schema oneOf is invalid")
+    matches = 0
+    for index, candidate in enumerate(candidates):
+        candidate_schema = _mapping(candidate, f"{label}.oneOf[{index}]")
+        try:
+            _validate_json_schema_instance(
+                value, candidate_schema, f"{label}.oneOf[{index}]", root
+            )
+        except ContractError:
+            continue
+        matches += 1
+    if matches != 1:
+        raise _contract_error(f"{label} does not match exactly one schema identity")
+
+
 def _validate_json_schema_mapping(
     value: Mapping[str, Any],
     schema: Mapping[str, Any],
@@ -551,6 +641,55 @@ def _validate_json_schema_mapping(
                 _mapping(property_schema, f"{label}.{name} schema"),
                 f"{label}.{name}",
                 root,
+            )
+
+
+def _validate_identity_tuple_schema(schema: Mapping[str, Any], label: str) -> None:
+    """Require a schema-level closed connector/adapter/mode relation."""
+    branches = schema.get("oneOf")
+    if not isinstance(branches, list) or len(branches) != len(CONNECTORS):
+        raise _contract_error(f"{label}.oneOf must contain one branch per connector")
+    identity_fields = ("connector", "adapter_id", "integration_mode")
+    for connector, branch in zip(CONNECTORS, branches):
+        branch_mapping = _mapping(branch, f"{label}.oneOf[{connector}]")
+        _exact_keys(
+            branch_mapping,
+            {"required", "properties"},
+            f"{label}.oneOf[{connector}]",
+        )
+        _exact(
+            branch_mapping.get("required"),
+            list(identity_fields),
+            f"{label}.oneOf[{connector}].required",
+        )
+        properties = _mapping(
+            branch_mapping.get("properties"),
+            f"{label}.oneOf[{connector}].properties",
+        )
+        _exact_keys(
+            properties,
+            set(identity_fields),
+            f"{label}.oneOf[{connector}].properties",
+        )
+        adapter = ADAPTERS[connector]
+        for field, expected in (
+            ("connector", connector),
+            ("adapter_id", adapter["adapter_id"]),
+            ("integration_mode", adapter["integration_mode"]),
+        ):
+            field_schema = _mapping(
+                properties.get(field),
+                f"{label}.oneOf[{connector}].{field}",
+            )
+            _exact_keys(
+                field_schema,
+                {"const"},
+                f"{label}.oneOf[{connector}].{field}",
+            )
+            _exact(
+                field_schema.get("const"),
+                expected,
+                f"{label}.oneOf[{connector}].{field}.const",
             )
 
 
@@ -586,6 +725,7 @@ def _load_event_schema() -> Mapping[str, Any]:
         list(CONNECTORS),
         "normalized event schema.connector.enum",
     )
+    _validate_identity_tuple_schema(schema, "normalized event schema")
     definitions = _mapping(schema.get("$defs"), "normalized event schema definitions")
     for name in (
         "token",
@@ -613,6 +753,7 @@ def _load_output_schema(
     fields: set[str],
     *,
     connector_scoped: bool,
+    identity_bound: bool = False,
 ) -> Mapping[str, Any]:
     schema = _mapping(load_json(path), label)
     _exact(schema.get("type"), "object", f"{label}.type")
@@ -643,6 +784,8 @@ def _load_output_schema(
         _exact(
             connector_schema.get("enum"), list(CONNECTORS), f"{label}.connector.enum"
         )
+    if identity_bound:
+        _validate_identity_tuple_schema(schema, label)
     return schema
 
 
@@ -653,9 +796,138 @@ def _validate_output_schema(
     fields: set[str],
     *,
     connector_scoped: bool,
+    identity_bound: bool = False,
 ) -> None:
-    schema = _load_output_schema(path, label, fields, connector_scoped=connector_scoped)
+    schema = _load_output_schema(
+        path,
+        label,
+        fields,
+        connector_scoped=connector_scoped,
+        identity_bound=identity_bound,
+    )
     _validate_json_schema_instance(payload, schema, label, schema)
+
+
+def haproxy_adapter_identity(
+    adapter_id: object, integration_mode: object
+) -> Mapping[str, Any]:
+    """Resolve one closed HAProxy identity without dispatching any runtime."""
+    adapter_id_text = _text(adapter_id, "haproxy adapter_id")
+    integration_mode_text = _text(integration_mode, "haproxy integration_mode")
+    adapter = HAPROXY_ADAPTER_CATALOG.get(adapter_id_text)
+    if adapter is None:
+        raise _contract_error(f"unknown HAProxy adapter_id: {adapter_id_text!r}")
+    _exact(
+        integration_mode_text,
+        adapter["integration_mode"],
+        f"HAProxy adapter {adapter_id_text}.integration_mode",
+    )
+    return adapter
+
+
+def _validate_haproxy_adapter_catalog() -> None:
+    """Keep SPOP and HTX identities explicit, unique, and non-promoting."""
+    expected_ids = (
+        HAPROXY_SPOE_SPOP_ADAPTER_ID,
+        HAPROXY_NATIVE_HTX_ADAPTER_ID,
+    )
+    if tuple(HAPROXY_ADAPTER_CATALOG) != expected_ids:
+        raise _contract_error("HAProxy adapter catalog has an unexpected identity set")
+    expected_records: Mapping[str, Mapping[str, object]] = {
+        HAPROXY_SPOE_SPOP_ADAPTER_ID: {
+            "integration_mode": "spoe-spop-agent",
+            "lifecycle_scope": "compatibility-smoke",
+            "framework_entrypoint": "ci/runtime/run-haproxy-smoke.sh",
+            "framework_entrypoint_role": "compatibility-only",
+            "host_contract_owner": "parent",
+            "evidence_types": ("event",),
+            "parent_runtime_entrypoint": (
+                "connectors/haproxy/harness/run_haproxy_smoke.sh"
+            ),
+            "parent_make_target": "smoke-haproxy",
+            "capability_promotion": "not-permitted",
+        },
+        HAPROXY_NATIVE_HTX_ADAPTER_ID: {
+            "integration_mode": "native-htx-filter",
+            "lifecycle_scope": "full-lifecycle",
+            "framework_entrypoint": None,
+            "framework_entrypoint_role": "not-applicable",
+            "host_contract_owner": "parent",
+            "evidence_types": ("event",),
+            "parent_runtime_entrypoint": (
+                "connectors/haproxy/harness/run_haproxy_htx_runtime.sh"
+            ),
+            "parent_make_target": "full-lifecycle-haproxy-htx",
+            "capability_promotion": "not-permitted",
+        },
+    }
+    for adapter_id, expected in expected_records.items():
+        adapter = _mapping(
+            HAPROXY_ADAPTER_CATALOG[adapter_id],
+            f"HAProxy adapter catalog {adapter_id}",
+        )
+        _exact_keys(
+            adapter,
+            HAPROXY_ADAPTER_CATALOG_FIELDS,
+            f"HAProxy adapter catalog {adapter_id}",
+        )
+        _exact(
+            adapter.get("adapter_id"),
+            adapter_id,
+            f"HAProxy adapter catalog {adapter_id}.adapter_id",
+        )
+        for field, value in expected.items():
+            _exact(
+                adapter.get(field),
+                value,
+                f"HAProxy adapter catalog {adapter_id}.{field}",
+            )
+        haproxy_adapter_identity(adapter_id, adapter["integration_mode"])
+
+    if HAPROXY_SELECTED_ADAPTER_ID != HAPROXY_SPOE_SPOP_ADAPTER_ID:
+        raise _contract_error("the five-connector HAProxy selection must use SPOE/SPOP")
+    _exact(
+        HAPROXY_PROFILE_IDENTITY_MIGRATION,
+        {
+            "profile": PROFILE,
+            "legacy_adapter_id": HAPROXY_NATIVE_HTX_ADAPTER_ID,
+            "legacy_integration_mode": "native-htx-filter",
+            "replacement_adapter_id": HAPROXY_SPOE_SPOP_ADAPTER_ID,
+            "replacement_integration_mode": "spoe-spop-agent",
+            "legacy_evidence_disposition": "reject-and-regenerate",
+        },
+        "HAProxy profile identity migration",
+    )
+    selected = haproxy_adapter_identity(
+        HAPROXY_SELECTED_ADAPTER_ID,
+        HAPROXY_ADAPTER_CATALOG[HAPROXY_SELECTED_ADAPTER_ID]["integration_mode"],
+    )
+    for field in (
+        "adapter_id",
+        "integration_mode",
+        "framework_entrypoint",
+        "framework_entrypoint_role",
+        "host_contract_owner",
+        "evidence_types",
+    ):
+        _exact(
+            ADAPTERS["haproxy"].get(field),
+            selected.get(field),
+            f"selected HAProxy adapter.{field}",
+        )
+
+    entrypoint = selected["framework_entrypoint"]
+    if not isinstance(entrypoint, str):
+        raise _contract_error("selected HAProxy framework entrypoint is invalid")
+    entrypoint_text = secure_read_text(FRAMEWORK_ROOT / entrypoint)
+    runtime_entrypoint = selected["parent_runtime_entrypoint"]
+    if not isinstance(runtime_entrypoint, str):
+        raise _contract_error("selected HAProxy Parent runtime entrypoint is invalid")
+    dispatch = f'connector_smoke_run haproxy "$CONNECTOR_ROOT/{runtime_entrypoint}"'
+    if dispatch not in entrypoint_text:
+        raise _contract_error("HAProxy Framework entrypoint does not dispatch SPOE/SPOP")
+    if "run_haproxy_htx_runtime.sh" in entrypoint_text:
+        raise _contract_error("HAProxy Framework entrypoint must not dispatch native HTX")
 
 
 def _validate_adapter(connector: str) -> None:
@@ -674,6 +946,11 @@ def _validate_adapter(connector: str) -> None:
     )
     _text(adapter.get("adapter_id"), f"adapter {connector}.adapter_id")
     _text(adapter.get("integration_mode"), f"adapter {connector}.integration_mode")
+    if connector == "haproxy":
+        haproxy_adapter_identity(
+            adapter["adapter_id"],
+            adapter["integration_mode"],
+        )
     _exact(
         adapter.get("framework_entrypoint_role"),
         "compatibility-only",
@@ -725,14 +1002,20 @@ def validate_profile() -> None:
         raise _contract_error(
             "adapter inventory is not the exact ordered five-connector set"
         )
+    _validate_haproxy_adapter_catalog()
     for connector in CONNECTORS:
         _validate_adapter(connector)
+    if len({ADAPTERS[connector]["adapter_id"] for connector in CONNECTORS}) != len(
+        CONNECTORS
+    ):
+        raise _contract_error("selected adapter IDs must be unique")
     _load_event_schema()
     _load_output_schema(
         MANIFEST_SCHEMA_PATH,
         "manifest schema",
         MANIFEST_FIELDS,
         connector_scoped=True,
+        identity_bound=True,
     )
     _load_output_schema(
         RECEIPT_SCHEMA_PATH,
@@ -1107,6 +1390,11 @@ def _require_event_identity(
     _exact(event.get("schema_version"), SCHEMA_VERSION, "event.schema_version")
     _exact(event.get("profile"), PROFILE, "event.profile")
     _exact(event.get("connector"), connector, "event.connector")
+    if connector == "haproxy":
+        haproxy_adapter_identity(
+            event.get("adapter_id"),
+            event.get("integration_mode"),
+        )
     _exact(event.get("adapter_id"), adapter["adapter_id"], "event.adapter_id")
     _exact(
         event.get("integration_mode"),
@@ -1463,6 +1751,7 @@ def _json_write(
     *,
     schema_path: Path | None = None,
     connector_scoped: bool = False,
+    identity_bound: bool = False,
 ) -> str:
     """Publish one JSON artifact with create-only hard-link semantics.
 
@@ -1480,6 +1769,7 @@ def _json_write(
             f"{label} schema",
             expected_fields,
             connector_scoped=connector_scoped,
+            identity_bound=identity_bound,
         )
     if not path.is_absolute() or path.name in {"", ".", ".."}:
         raise _contract_error(f"{label} has an unsafe output path: {path}")
@@ -1664,6 +1954,7 @@ def validate_connector_run(
         f"{connector} manifest",
         schema_path=MANIFEST_SCHEMA_PATH,
         connector_scoped=True,
+        identity_bound=True,
     )
     receipt = {
         "schema_version": SCHEMA_VERSION,
@@ -1755,6 +2046,7 @@ def _bundle(
         f"{connector} manifest schema",
         MANIFEST_FIELDS,
         connector_scoped=True,
+        identity_bound=True,
     )
     _validate_output_schema(
         receipt,
@@ -1855,6 +2147,16 @@ def _bundle(
     _exact(manifest.get("profile"), PROFILE, f"{connector} manifest.profile")
     _exact(manifest.get("connector"), connector, f"{connector} manifest.connector")
     _exact(manifest.get("run_id"), run_id, f"{connector} manifest.run_id")
+    _exact(
+        manifest.get("adapter_id"),
+        ADAPTERS[connector]["adapter_id"],
+        f"{connector} manifest.adapter_id",
+    )
+    _exact(
+        manifest.get("integration_mode"),
+        ADAPTERS[connector]["integration_mode"],
+        f"{connector} manifest.integration_mode",
+    )
     _exact(
         manifest.get("framework_entrypoint"),
         ADAPTERS[connector]["framework_entrypoint"],
@@ -2000,6 +2302,9 @@ def aggregate(
         )
         bundles[connector] = {
             **output_hashes,
+            "adapter_id": manifest["adapter_id"],
+            "integration_mode": manifest["integration_mode"],
+            "framework_entrypoint": manifest["framework_entrypoint"],
             "framework_commit": receipt["framework_commit"],
             "connector_commit": receipt["connector_commit"],
             "crs_commit": receipt["crs_commit"],
@@ -2032,6 +2337,9 @@ def profile_payload() -> Mapping[str, Any]:
         "profile": PROFILE,
         "connectors": list(CONNECTORS),
         "adapters": ADAPTERS,
+        "haproxy_adapter_catalog": HAPROXY_ADAPTER_CATALOG,
+        "selected_haproxy_adapter_id": HAPROXY_SELECTED_ADAPTER_ID,
+        "haproxy_profile_identity_migration": HAPROXY_PROFILE_IDENTITY_MIGRATION,
         "fixture_id": FIXTURE_ID,
         "crs": {
             "repository": CRS_REPOSITORY,

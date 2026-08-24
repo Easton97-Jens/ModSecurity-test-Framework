@@ -120,14 +120,24 @@ Fakten bleiben Verantwortung des Connector-Repositories. Eine erfolgreiche
 Framework-Ausgabe ist ausdrücklich `CONTRACT_VALIDATED` mit
 `host_runtime_status: UNATTESTED`, kein Connector-Host-`PASS`.
 
+Das ausgewählte HAProxy-Tupel für dieses Profil ist
+`haproxy-spoe-spop-agent` mit `spoe-spop-agent`. Sein Framework-Smoke-
+Entrypoint ruft den connector-eigenen SPOE/SPOP-Smoke-Harness auf. Das echte
+native HTX-Tupel `haproxy-native-htx-filter` mit `native-htx-filter` bleibt
+eine explizite separate Parent-Full-Lifecycle-Identität und wird als Evidenz
+für das Fünf-Connector-Profil abgewiesen. Diese Bindung ändert keine
+Capability-Kategorie eines Pfads und stuft kein Host-Runtime-Ergebnis hoch.
+
 ## Compatibility-Pfade
 
-Historische HAProxy-SPOE/SPOA-Discovery-, Disabled-Key-, Report-Schema- und
-Readiness-Notizen beschrieben nur eine mögliche Compatibility-Richtung. Sie
-implementierten keinen Framework-Connector-Key und bewiesen keine
+Der vom Fünf-Connector-Profil ausgewählte HAProxy-SPOE/SPOP-Smoke-Pfad ist ein
+Compatibility-Entrypoint, kein nativer HTX-Filter. Der native HTX-
+Full-Lifecycle-Pfad bleibt separat identifiziert und darf nicht als
+SPOE/SPOP-Evidenz umbenannt werden. Historische HAProxy-SPOE/SPOA-Discovery-,
+Disabled-Key-, Report-Schema- und Readiness-Notizen beweisen weiterhin keine
 Host-Runtime. Aktuelle Arbeit muss den im Connector-Repository deklarierten
-Integrationsmodus und kanonische Evidence verwenden; kein historischer
-Planungstext erzeugt eine Capability oder Promotion.
+Integrationsmodus und kanonische Evidence verwenden; weder Adapter-Metadaten
+noch historischer Planungstext erzeugen eine Capability oder Promotion.
 
 Dieselbe Regel gilt für importierte Apache-, NGINX-, v2-, v3- und
 MRTS-Referenzen: Ihr Code oder ihre Tests sind Eingaben für Review und
