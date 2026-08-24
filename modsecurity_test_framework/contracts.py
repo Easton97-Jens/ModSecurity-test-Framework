@@ -195,95 +195,122 @@ def _exact_fields(
         _fail("invalid_expectation_fields")
 
 
+def _expectation_http_status(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
+    _exact_fields(value, {"kind", "http_status"}, {"kind", "http_status"})
+    return {"kind": kind, "http_status": _http_status(value["http_status"])}
+
+
+def _expectation_action(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
+    allowed = {"kind", "action", "http_status", "rule_ids"} if kind == "intervention" else {"kind", "action", "rule_ids"}
+    _exact_fields(value, {"kind", "action"}, allowed)
+    action = value["action"]
+    if not isinstance(action, str) or action not in ACTION_VALUES:
+        _fail("invalid_action")
+    result: dict[str, Any] = {"kind": kind, "action": action}
+    if "http_status" in value:
+        result["http_status"] = _http_status(value["http_status"])
+    if "rule_ids" in value:
+        result["rule_ids"] = _rule_ids(value["rule_ids"])
+    return result
+
+
+def _expectation_rule_match(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
+    _exact_fields(value, {"kind", "rule_ids"}, {"kind", "rule_ids"})
+    return {"kind": kind, "rule_ids": _rule_ids(value["rule_ids"])}
+
+
+def _expectation_event(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
+    _exact_fields(value, {"kind"}, {"kind", "fields", "event_type"})
+    if "fields" not in value and "event_type" not in value:
+        _fail("invalid_event")
+    result: dict[str, Any] = {"kind": kind}
+    if "fields" in value:
+        result["fields"] = _identifier_list(value["fields"], "invalid_event", minimum=1)
+    if "event_type" in value:
+        result["event_type"] = _identifier(value["event_type"])
+    return result
+
+
+def _expectation_headers(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
+    _exact_fields(value, {"kind", "names"}, {"kind", "names"})
+    return {"kind": kind, "names": _identifier_list(value["names"], "invalid_header_names", minimum=1)}
+
+
+def _expectation_state(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
+    _exact_fields(value, {"kind", "state"}, {"kind", "state"})
+    state = value["state"]
+    if kind in {"request_body", "response_body"}:
+        allowed, code = BODY_STATES, "invalid_body_state"
+    elif kind == "transport":
+        allowed, code = TRANSPORT_STATES, "invalid_transport"
+    else:
+        allowed, code = CLEANUP_STATES, "invalid_cleanup"
+    if not isinstance(state, str) or state not in allowed:
+        _fail(code)
+    return {"kind": kind, "state": state}
+
+
+def _expectation_lifecycle(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
+    _exact_fields(value, {"kind", "predicates"}, {"kind", "predicates"})
+    predicates = value["predicates"]
+    if not isinstance(predicates, Mapping) or not predicates or len(predicates) > len(LIFECYCLE_PREDICATES):
+        _fail("invalid_lifecycle")
+    result: dict[str, bool] = {}
+    for key, predicate in predicates.items():
+        if key not in LIFECYCLE_PREDICATES or not isinstance(predicate, bool):
+            _fail("invalid_lifecycle")
+        result[key] = predicate
+    return {"kind": kind, "predicates": dict(sorted(result.items()))}
+
+
+def _expectation_compound(value: Mapping[str, Any], kind: str, depth: int) -> dict[str, Any]:
+    _exact_fields(value, {"kind", "conditions"}, {"kind", "conditions"})
+    conditions = value["conditions"]
+    if not isinstance(conditions, list) or not 2 <= len(conditions) <= 16:
+        _fail("invalid_compound")
+    normalised = [_normalise_expectation(condition, depth + 1) for condition in conditions]
+    fingerprints = {json.dumps(item, sort_keys=True, separators=(",", ":")) for item in normalised}
+    if len(fingerprints) != len(normalised):
+        _fail("invalid_compound")
+    return {"kind": kind, "conditions": normalised}
+
+
+def _expectation_not_applicable(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
+    _exact_fields(value, {"kind", "reason"}, {"kind", "reason"})
+    reason = value["reason"]
+    if not isinstance(reason, str) or reason not in NOT_APPLICABLE_REASONS:
+        _fail("invalid_not_applicable")
+    return {"kind": kind, "reason": reason}
+
+
 def _normalise_expectation(value: Any, depth: int = 0) -> dict[str, Any]:
     if depth > MAX_EXPECTATION_DEPTH or not isinstance(value, Mapping):
         _fail("invalid_expectation")
     kind = value.get("kind")
     if not isinstance(kind, str) or kind not in EXPECTATION_KINDS:
         _fail("unknown_expectation_kind")
-    if kind == "http_status":
-        _exact_fields(value, {"kind", "http_status"}, {"kind", "http_status"})
-        return {"kind": kind, "http_status": _http_status(value["http_status"])}
-    if kind == "intervention":
-        _exact_fields(value, {"kind", "action"}, {"kind", "http_status", "action", "rule_ids"})
-        action = value["action"]
-        if not isinstance(action, str) or action not in ACTION_VALUES:
-            _fail("invalid_action")
-        result: dict[str, Any] = {"kind": kind, "action": action}
-        if "http_status" in value:
-            result["http_status"] = _http_status(value["http_status"])
-        if "rule_ids" in value:
-            result["rule_ids"] = _rule_ids(value["rule_ids"])
-        return result
-    if kind == "action":
-        _exact_fields(value, {"kind", "action"}, {"kind", "action", "rule_ids"})
-        action = value["action"]
-        if not isinstance(action, str) or action not in ACTION_VALUES:
-            _fail("invalid_action")
-        result = {"kind": kind, "action": action}
-        if "rule_ids" in value:
-            result["rule_ids"] = _rule_ids(value["rule_ids"])
-        return result
-    if kind == "rule_match":
-        _exact_fields(value, {"kind", "rule_ids"}, {"kind", "rule_ids"})
-        return {"kind": kind, "rule_ids": _rule_ids(value["rule_ids"])}
-    if kind == "event":
-        _exact_fields(value, {"kind"}, {"kind", "fields", "event_type"})
-        if "fields" not in value and "event_type" not in value:
-            _fail("invalid_event")
-        result = {"kind": kind}
-        if "fields" in value:
-            result["fields"] = _identifier_list(value["fields"], "invalid_event", minimum=1)
-        if "event_type" in value:
-            result["event_type"] = _identifier(value["event_type"])
-        return result
-    if kind in {"request_headers", "response_headers"}:
-        _exact_fields(value, {"kind", "names"}, {"kind", "names"})
-        return {"kind": kind, "names": _identifier_list(value["names"], "invalid_header_names", minimum=1)}
-    if kind in {"request_body", "response_body"}:
-        _exact_fields(value, {"kind", "state"}, {"kind", "state"})
-        state = value["state"]
-        if not isinstance(state, str) or state not in BODY_STATES:
-            _fail("invalid_body_state")
-        return {"kind": kind, "state": state}
-    if kind == "transport":
-        _exact_fields(value, {"kind", "state"}, {"kind", "state"})
-        state = value["state"]
-        if not isinstance(state, str) or state not in TRANSPORT_STATES:
-            _fail("invalid_transport")
-        return {"kind": kind, "state": state}
-    if kind == "lifecycle":
-        _exact_fields(value, {"kind", "predicates"}, {"kind", "predicates"})
-        predicates = value["predicates"]
-        if not isinstance(predicates, Mapping) or not predicates or len(predicates) > len(LIFECYCLE_PREDICATES):
-            _fail("invalid_lifecycle")
-        result_predicates: dict[str, bool] = {}
-        for key, predicate in predicates.items():
-            if key not in LIFECYCLE_PREDICATES or not isinstance(predicate, bool):
-                _fail("invalid_lifecycle")
-            result_predicates[key] = predicate
-        return {"kind": kind, "predicates": dict(sorted(result_predicates.items()))}
-    if kind == "cleanup":
-        _exact_fields(value, {"kind", "state"}, {"kind", "state"})
-        state = value["state"]
-        if not isinstance(state, str) or state not in CLEANUP_STATES:
-            _fail("invalid_cleanup")
-        return {"kind": kind, "state": state}
+    handler = _EXPECTATION_HANDLERS[kind]
     if kind == "compound":
-        _exact_fields(value, {"kind", "conditions"}, {"kind", "conditions"})
-        conditions = value["conditions"]
-        if not isinstance(conditions, list) or not 2 <= len(conditions) <= 16:
-            _fail("invalid_compound")
-        normalised = [_normalise_expectation(condition, depth + 1) for condition in conditions]
-        fingerprints = {json.dumps(item, sort_keys=True, separators=(",", ":")) for item in normalised}
-        if len(fingerprints) != len(normalised):
-            _fail("invalid_compound")
-        return {"kind": kind, "conditions": normalised}
-    _exact_fields(value, {"kind", "reason"}, {"kind", "reason"})
-    reason = value["reason"]
-    if not isinstance(reason, str) or reason not in NOT_APPLICABLE_REASONS:
-        _fail("invalid_not_applicable")
-    return {"kind": kind, "reason": reason}
+        return handler(value, kind, depth)
+    return handler(value, kind)
+
+
+_EXPECTATION_HANDLERS = {
+    "http_status": _expectation_http_status,
+    "intervention": _expectation_action,
+    "action": _expectation_action,
+    "rule_match": _expectation_rule_match,
+    "event": _expectation_event,
+    "request_headers": _expectation_headers,
+    "response_headers": _expectation_headers,
+    "request_body": _expectation_state,
+    "response_body": _expectation_state,
+    "transport": _expectation_state,
+    "lifecycle": _expectation_lifecycle,
+    "cleanup": _expectation_state,
+    "compound": _expectation_compound,
+    "not_applicable": _expectation_not_applicable,
+}
 
 
 def normalize_expectation(expectation: Mapping[str, Any]) -> dict[str, Any]:
@@ -313,21 +340,30 @@ def _parse_json_bytes(payload: bytes, maximum: int) -> Any:
         _fail("invalid_json")
 
 
-def _read_relative_external_json(path_value: str | Path) -> Any:
+def _relative_external_parts(path_value: str | Path) -> tuple[str, ...]:
     try:
-        raw_path = Path(path_value)
+        raw_path = os.fspath(path_value)
     except TypeError:
         _fail("invalid_input_path")
-    if raw_path.is_absolute() or not raw_path.parts or any(part in {"", ".", ".."} for part in raw_path.parts):
+    if not isinstance(raw_path, str) or os.path.isabs(raw_path) or "\\" in raw_path or "\x00" in raw_path:
         _fail("invalid_input_path")
+    parts = tuple(raw_path.split("/"))
+    if not parts or any(part in {"", ".", ".."} for part in parts):
+        _fail("invalid_input_path")
+    return parts
+
+
+def _read_relative_external_json(path_value: str | Path) -> Any:
+    parts = _relative_external_parts(path_value)
     no_follow = getattr(os, "O_NOFOLLOW", 0)
     directory = getattr(os, "O_DIRECTORY", 0)
-    if not no_follow or not directory:
+    non_block = getattr(os, "O_NONBLOCK", 0)
+    if not no_follow or not directory or not non_block:
         _fail("unavailable_no_follow")
     parent_descriptor: int | None = None
     try:
         parent_descriptor = os.open(".", os.O_RDONLY | directory | no_follow)
-        for part in raw_path.parts[:-1]:
+        for part in parts[:-1]:
             next_descriptor = os.open(
                 part,
                 os.O_RDONLY | directory | no_follow,
@@ -335,11 +371,9 @@ def _read_relative_external_json(path_value: str | Path) -> Any:
             )
             os.close(parent_descriptor)
             parent_descriptor = next_descriptor
-        descriptor = os.open(raw_path.parts[-1], os.O_RDONLY | no_follow, dir_fd=parent_descriptor)
-    except ContractError:
-        raise
+        descriptor = os.open(parts[-1], os.O_RDONLY | no_follow | non_block, dir_fd=parent_descriptor)
     except OSError as exc:
-        if exc.errno == errno.ELOOP:
+        if exc.errno in {errno.ELOOP, errno.ENOTDIR}:
             _fail("unsafe_input_path")
         _fail("invalid_input_path")
     finally:
@@ -372,7 +406,7 @@ def _load_raw_catalog() -> Mapping[str, Any]:
             "data/framework-contract-catalog.json"
         )
         payload = resource.read_bytes()
-    except (FileNotFoundError, ModuleNotFoundError, OSError):
+    except (ModuleNotFoundError, OSError):
         _fail("catalog_unavailable")
     data = _parse_json_bytes(payload, MAX_PACKAGE_CATALOG_BYTES)
     if not isinstance(data, Mapping):
@@ -387,51 +421,62 @@ def _relative_resource_path(value: Any) -> str:
     return path
 
 
-def _normalise_record(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        _fail("invalid_catalog")
-    required = {
-        "framework_test_id",
-        "display_name",
-        "scenario_category",
-        "phase",
-        "area",
-        "profile",
-        "required_capabilities",
-        "expectation",
-        "applicability",
-        "catalogs",
-        "sources",
-    }
-    if set(value) != required:
-        _fail("invalid_catalog")
-    phase = value["phase"]
-    if phase is not None and (not _is_integer(phase) or not 0 <= phase <= 9):
-        _fail("invalid_catalog")
-    applicability = value["applicability"]
-    if not isinstance(applicability, Mapping) or set(applicability) != {
+_RECORD_FIELDS = {
+    "framework_test_id",
+    "display_name",
+    "scenario_category",
+    "phase",
+    "area",
+    "profile",
+    "required_capabilities",
+    "expectation",
+    "applicability",
+    "catalogs",
+    "sources",
+}
+
+
+def _normalise_record_applicability(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != {
         "portable",
         "requires_crs",
         "connector",
         "declared_status",
     }:
         _fail("invalid_catalog")
-    portable = applicability["portable"]
-    requires_crs = applicability["requires_crs"]
+    portable = value["portable"]
+    requires_crs = value["requires_crs"]
     if portable is not None and not isinstance(portable, bool):
         _fail("invalid_catalog")
     if requires_crs is not None and not isinstance(requires_crs, bool):
         _fail("invalid_catalog")
-    sources = value["sources"]
-    if not isinstance(sources, list) or not sources or len(sources) > 16:
+    return {
+        "portable": portable,
+        "requires_crs": requires_crs,
+        "connector": _optional_identifier(value["connector"]),
+        "declared_status": _optional_identifier(value["declared_status"]),
+    }
+
+
+def _normalise_record_sources(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list) or not value or len(value) > 16:
         _fail("invalid_catalog")
-    normalised_sources: list[dict[str, str]] = []
-    for source in sources:
+    result: list[dict[str, str]] = []
+    for source in value:
         if not isinstance(source, Mapping) or set(source) != {"kind", "path"}:
             _fail("invalid_catalog")
-        normalised_sources.append(
-            {"kind": _identifier(source["kind"]), "path": _relative_resource_path(source["path"])}
-        )
+        result.append({"kind": _identifier(source["kind"]), "path": _relative_resource_path(source["path"])})
+    return result
+
+
+def _normalise_record(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        _fail("invalid_catalog")
+    if set(value) != _RECORD_FIELDS:
+        _fail("invalid_catalog")
+    phase = value["phase"]
+    if phase is not None and (not _is_integer(phase) or not 0 <= phase <= 9):
+        _fail("invalid_catalog")
     return {
         "framework_test_id": _identifier(value["framework_test_id"]),
         "display_name": _text(value["display_name"]),
@@ -441,14 +486,9 @@ def _normalise_record(value: Any) -> dict[str, Any]:
         "profile": _identifier(value["profile"]),
         "required_capabilities": _identifier_list(value["required_capabilities"], "invalid_catalog"),
         "expectation": normalize_expectation(value["expectation"]),
-        "applicability": {
-            "portable": portable,
-            "requires_crs": requires_crs,
-            "connector": _optional_identifier(applicability["connector"]),
-            "declared_status": _optional_identifier(applicability["declared_status"]),
-        },
+        "applicability": _normalise_record_applicability(value["applicability"]),
         "catalogs": _identifier_list(value["catalogs"], "invalid_catalog", minimum=1),
-        "sources": normalised_sources,
+        "sources": _normalise_record_sources(value["sources"]),
     }
 
 
@@ -724,13 +764,7 @@ def select_tests(
     }
 
 
-def _normalise_result(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping) or not value:
-        _fail("invalid_result")
-    keys = set(value)
-    if any(key in SENSITIVE_RESULT_FIELDS for key in keys):
-        _fail("sensitive_result_field")
-    allowed = {
+_RESULT_FIELDS = {
         "http_status",
         "action",
         "rule_ids",
@@ -744,9 +778,10 @@ def _normalise_result(value: Any) -> dict[str, Any]:
         "lifecycle",
         "cleanup",
         "applicability",
-    }
-    if any(not isinstance(key, str) for key in keys) or not keys.issubset(allowed):
-        _fail("invalid_result")
+}
+
+
+def _normalise_result_scalar_fields(value: Mapping[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     if "http_status" in value:
         result["http_status"] = _http_status(value["http_status"])
@@ -760,36 +795,30 @@ def _normalise_result(value: Any) -> dict[str, Any]:
         result["event_fields"] = _identifier_list(value["event_fields"], "invalid_result", minimum=1)
     if "event_type" in value:
         result["event_type"] = _identifier(value["event_type"])
-    for source_name, result_name in (
-        ("request_header_names", "request_header_names"),
-        ("response_header_names", "response_header_names"),
-    ):
-        if source_name in value:
-            result[result_name] = _identifier_list(value[source_name], "invalid_result", minimum=1)
-    for source_name, result_name in (
-        ("request_body_state", "request_body_state"),
-        ("response_body_state", "response_body_state"),
-    ):
-        if source_name in value:
-            state = value[source_name]
+    return result
+
+
+def _normalise_result_headers(value: Mapping[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for name in ("request_header_names", "response_header_names"):
+        if name in value:
+            result[name] = _identifier_list(value[name], "invalid_result", minimum=1)
+    return result
+
+
+def _normalise_result_states(value: Mapping[str, Any]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for name in ("request_body_state", "response_body_state"):
+        if name in value:
+            state = value[name]
             if not isinstance(state, str) or state not in BODY_STATES:
                 _fail("invalid_result")
-            result[result_name] = state
+            result[name] = state
     if "transport" in value:
         transport = value["transport"]
         if not isinstance(transport, str) or transport not in TRANSPORT_STATES:
             _fail("invalid_result")
         result["transport"] = transport
-    if "lifecycle" in value:
-        lifecycle = value["lifecycle"]
-        if not isinstance(lifecycle, Mapping) or not lifecycle:
-            _fail("invalid_result")
-        result_lifecycle: dict[str, bool] = {}
-        for key, predicate in lifecycle.items():
-            if key not in LIFECYCLE_PREDICATES or not isinstance(predicate, bool):
-                _fail("invalid_result")
-            result_lifecycle[key] = predicate
-        result["lifecycle"] = dict(sorted(result_lifecycle.items()))
     if "cleanup" in value:
         cleanup = value["cleanup"]
         if not isinstance(cleanup, str) or cleanup not in CLEANUP_STATES:
@@ -803,47 +832,114 @@ def _normalise_result(value: Any) -> dict[str, Any]:
     return result
 
 
+def _normalise_result_lifecycle(value: Mapping[str, Any]) -> dict[str, Any]:
+    if "lifecycle" not in value:
+        return {}
+    lifecycle = value["lifecycle"]
+    if not isinstance(lifecycle, Mapping) or not lifecycle:
+        _fail("invalid_result")
+    result: dict[str, bool] = {}
+    for key, predicate in lifecycle.items():
+        if key not in LIFECYCLE_PREDICATES or not isinstance(predicate, bool):
+            _fail("invalid_result")
+        result[key] = predicate
+    return {"lifecycle": dict(sorted(result.items()))}
+
+
+def _normalise_result(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or not value:
+        _fail("invalid_result")
+    keys = set(value)
+    if any(key in SENSITIVE_RESULT_FIELDS for key in keys):
+        _fail("sensitive_result_field")
+    if any(not isinstance(key, str) for key in keys) or not keys.issubset(_RESULT_FIELDS):
+        _fail("invalid_result")
+    result = _normalise_result_scalar_fields(value)
+    result.update(_normalise_result_headers(value))
+    result.update(_normalise_result_states(value))
+    result.update(_normalise_result_lifecycle(value))
+    return result
+
+
+def _match_compound(expectation: Mapping[str, Any], result: Mapping[str, Any]) -> list[str]:
+    failures: list[str] = []
+    for condition in expectation["conditions"]:
+        failures.extend(_match_expectation(condition, result))
+    return failures
+
+
+def _match_http_status(expectation: Mapping[str, Any], result: Mapping[str, Any]) -> list[str]:
+    return [] if result.get("http_status") == expectation["http_status"] else ["http_status_mismatch"]
+
+
+def _match_action(expectation: Mapping[str, Any], result: Mapping[str, Any]) -> list[str]:
+    failures = [] if result.get("action") == expectation["action"] else ["action_mismatch"]
+    if "http_status" in expectation and result.get("http_status") != expectation["http_status"]:
+        failures.append("http_status_mismatch")
+    if "rule_ids" in expectation and not set(expectation["rule_ids"]).issubset(result.get("rule_ids", [])):
+        failures.append("rule_id_mismatch")
+    return failures
+
+
+def _match_rule_ids(expectation: Mapping[str, Any], result: Mapping[str, Any]) -> list[str]:
+    return [] if set(expectation["rule_ids"]).issubset(result.get("rule_ids", [])) else ["rule_id_mismatch"]
+
+
+def _match_event(expectation: Mapping[str, Any], result: Mapping[str, Any]) -> list[str]:
+    failures: list[str] = []
+    if "fields" in expectation and not set(expectation["fields"]).issubset(result.get("event_fields", [])):
+        failures.append("event_fields_mismatch")
+    if "event_type" in expectation and result.get("event_type") != expectation["event_type"]:
+        failures.append("event_type_mismatch")
+    return failures
+
+
+def _match_membership(expectation: Mapping[str, Any], result: Mapping[str, Any], field: str, code: str) -> list[str]:
+    return [] if set(expectation["names"]).issubset(result.get(field, [])) else [code]
+
+
+def _match_value(expectation: Mapping[str, Any], result: Mapping[str, Any], field: str, code: str) -> list[str]:
+    return [] if result.get(field) == expectation["state"] else [code]
+
+
+def _match_lifecycle(expectation: Mapping[str, Any], result: Mapping[str, Any]) -> list[str]:
+    observed = result.get("lifecycle", {})
+    return [] if all(observed.get(key) == value for key, value in expectation["predicates"].items()) else ["lifecycle_mismatch"]
+
+
+def _match_applicability(expectation: Mapping[str, Any], result: Mapping[str, Any]) -> list[str]:
+    return [] if result.get("applicability") == expectation["reason"] else ["applicability_mismatch"]
+
+
 def _match_expectation(expectation: Mapping[str, Any], result: Mapping[str, Any]) -> list[str]:
     kind = expectation["kind"]
-    if kind == "compound":
-        failures: list[str] = []
-        for condition in expectation["conditions"]:
-            failures.extend(_match_expectation(condition, result))
-        return failures
-    if kind == "http_status":
-        return [] if result.get("http_status") == expectation["http_status"] else ["http_status_mismatch"]
-    if kind in {"intervention", "action"}:
-        failures = [] if result.get("action") == expectation["action"] else ["action_mismatch"]
-        if "http_status" in expectation and result.get("http_status") != expectation["http_status"]:
-            failures.append("http_status_mismatch")
-        if "rule_ids" in expectation and not set(expectation["rule_ids"]).issubset(result.get("rule_ids", [])):
-            failures.append("rule_id_mismatch")
-        return failures
-    if kind == "rule_match":
-        return [] if set(expectation["rule_ids"]).issubset(result.get("rule_ids", [])) else ["rule_id_mismatch"]
-    if kind == "event":
-        failures = []
-        if "fields" in expectation and not set(expectation["fields"]).issubset(result.get("event_fields", [])):
-            failures.append("event_fields_mismatch")
-        if "event_type" in expectation and result.get("event_type") != expectation["event_type"]:
-            failures.append("event_type_mismatch")
-        return failures
-    if kind == "request_headers":
-        return [] if set(expectation["names"]).issubset(result.get("request_header_names", [])) else ["request_headers_mismatch"]
-    if kind == "response_headers":
-        return [] if set(expectation["names"]).issubset(result.get("response_header_names", [])) else ["response_headers_mismatch"]
-    if kind == "request_body":
-        return [] if result.get("request_body_state") == expectation["state"] else ["request_body_mismatch"]
-    if kind == "response_body":
-        return [] if result.get("response_body_state") == expectation["state"] else ["response_body_mismatch"]
-    if kind == "transport":
-        return [] if result.get("transport") == expectation["state"] else ["transport_mismatch"]
-    if kind == "lifecycle":
-        observed = result.get("lifecycle", {})
-        return [] if all(observed.get(key) == value for key, value in expectation["predicates"].items()) else ["lifecycle_mismatch"]
-    if kind == "cleanup":
-        return [] if result.get("cleanup") == expectation["state"] else ["cleanup_mismatch"]
-    return [] if result.get("applicability") == expectation["reason"] else ["applicability_mismatch"]
+    return _MATCH_HANDLERS[kind](expectation, result)
+
+
+_MATCH_HANDLERS = {
+    "compound": _match_compound,
+    "http_status": _match_http_status,
+    "intervention": _match_action,
+    "action": _match_action,
+    "rule_match": _match_rule_ids,
+    "event": _match_event,
+    "request_headers": lambda expectation, result: _match_membership(
+        expectation, result, "request_header_names", "request_headers_mismatch"
+    ),
+    "response_headers": lambda expectation, result: _match_membership(
+        expectation, result, "response_header_names", "response_headers_mismatch"
+    ),
+    "request_body": lambda expectation, result: _match_value(
+        expectation, result, "request_body_state", "request_body_mismatch"
+    ),
+    "response_body": lambda expectation, result: _match_value(
+        expectation, result, "response_body_state", "response_body_mismatch"
+    ),
+    "transport": lambda expectation, result: _match_value(expectation, result, "transport", "transport_mismatch"),
+    "lifecycle": _match_lifecycle,
+    "cleanup": lambda expectation, result: _match_value(expectation, result, "cleanup", "cleanup_mismatch"),
+    "not_applicable": _match_applicability,
+}
 
 
 def validate_test_result(

@@ -9,7 +9,7 @@
 | Change-ID | 20260824-01-add-framework-contract-api |
 | UTC-Datum | 2026-08-24 |
 | Framework-Basisrevision | c40e924ec5c341032908e0082feba1d37ed1dfda |
-| Issue oder Pull Request | Framework-Draft-PR ausstehend |
+| Issue oder Pull Request | Framework-Draft-PR #110; Verifikation des Nachfolge-HEAD ausstehend |
 
 ## Motivation und Problemstellung
 
@@ -95,26 +95,27 @@ Paket-API statt dieses internen Fallbacks.
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- | --- |
-| make test-contract-api mit dem ausgewählten Framework-Python und task-eigenen Build-Roots | 0 | 20 fokussierte öffentliche Paket-, External-CWD-, CLI-, Metadaten-, getaggte-Erwartungs-, Pfad-, Generator-Output- und Legacy-Controls bestehen. | framework-contract-api-20260824 |
+| make test-contract-api mit dem ausgewählten Framework-Python und task-eigenen Build-Roots | 0 | 20 fokussierte öffentliche Paket-, External-CWD-, CLI-, Metadaten-, getaggte-Erwartungs-, Pfadalias-/Zwischen-Symlink-/FIFO-, Generator-Output- und Legacy-Controls bestehen. | framework-contract-api-20260824 |
 | python ci/tools/generate-framework-contract-catalog.py --check | 0 | Der generierte payloadfreie Katalog stimmt mit dem eingecheckten Quellkatalog und den YAML-Fällen überein. | framework-contract-api-20260824 |
 | make test-no-crs-contract | 0 | 98 native No-CRS-Contract-Tests bestehen. | framework-contract-api-20260824 |
 | make test-five-connectors-with-crs-no-mrts-contract | 0 | 26 Tests bestehen beim vollständigen Retry nach einer bekannten FIFO-Observer-Timing-Race; auch das fokussierte Control bestand. | framework-contract-api-20260824 |
 | make check-documentation, make test-change-record-contract, make test-makefile-contract und make check-no-crs-catalog | 0 | Dokumentations-, Traceability-, Makefile- und 166-Fälle-Katalog-Contracts bestehen. | framework-contract-api-20260824 |
 | Changed-Python py_compile, git diff --check und make lint | 0 | Compilation, Whitespace und der vollständige native Lint-Target bestehen. | framework-contract-api-20260824 |
-| Finaler Codex-Security-Diff-Scan und versiegelte Contract-Validierung | 0 | Vollständige Working-Tree-Coverage; null reportable Findings. | framework-contract-api-20260824 |
+| Codex-Security-Diff-Scan und versiegelte Contract-Validierung vor der Remediation | 0, überholt | Vollständige Working-Tree-Coverage und null reportable Findings für den initialen Patch; die task-eigene Sonar-Remediation benötigt vor der Follow-up-Delivery einen Nachfolge-Scan. | framework-contract-api-20260824 |
 
 ## Sicherheitsauswirkung
 
 Die neue API weist doppelte JSON-Keys, fehlerhaftes UTF-8, absolute/Traversal-
-Pfade, Symlinks, Spezialdateien, übergroße Eingaben, unbekannte
-Erwartungsarten, unerwartete Felder und Boolean-HTTP-Status zurück. Sie gibt
-nur stabile JSON-Fehlercodes aus. Die Implementierung verwendet kein eval,
-exec, vom Caller kontrollierten Modulnamen, Shell-Interpolation, keine
-Suppression und keine Exception-Pfad-Offenlegung. Symlinks im Generator-
-Output-Parent und fehlerhafte nicht-hashbare Enum-Werte werden ebenfalls
-zurückgewiesen; Letztere liefern den dokumentierten Contract-Fehler/Exit-Code
-2. Der finale Codex-Security-Diff-Scan ist versiegelt, gültig, vollständig und
-hat null reportable Findings.
+und Pfadalias-Eingaben, Zwischen-/End-Symlinks, Spezialdateien, übergroße
+Eingaben, unbekannte Erwartungsarten, unerwartete Felder und Boolean-HTTP-
+Status zurück. Der finale Descriptor-Open erfolgt nichtblockierend, sodass ein
+writerloses FIFO abgewiesen wird statt zu hängen. Sie gibt nur stabile JSON-
+Fehlercodes aus. Die Implementierung verwendet kein eval, exec, vom Caller
+kontrollierten Modulnamen, Shell-Interpolation, keine Suppression und keine
+Exception-Pfad-Offenlegung. Symlinks im Generator-Output-Parent und fehlerhafte
+nicht-hashbare Enum-Werte werden ebenfalls zurückgewiesen; Letztere liefern den
+dokumentierten Contract-Fehler/Exit-Code 2. Der Nachfolge-Security-Diff-Scan ist
+ein erforderliches Delivery-Gate.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -132,8 +133,10 @@ Runtime-, Request-Payload- oder Lifecycle-Runtime-Erfolg behauptet.
 - Ruff ist in der ausgewählten Framework-virtuellen Umgebung nicht verfügbar
   und wurde nicht installiert, weil für diese Aufgabe keine Dependency-
   Installationsautorität besteht.
-- Hosted-PR-, SonarQube-Cloud- und Review-Evidenz sind bis zur Delivery
-  ausstehend.
+- Der initiale SonarCloud-Check des Draft-PR #110 scheiterte am New-Code-
+  Quality-Gate wegen task-eigener Komplexitäts-/Pfad-Findings. Die abgeschlossene
+  lokale Remediation benötigt weiterhin einen Nachfolge-Push und die
+  Hosted-Check-/Review-Evidenz des exakten HEAD.
 
 ## Einschränkungen und Restrisiko
 
@@ -145,9 +148,10 @@ out of scope. Es wird kein Sicherheitsrisiko akzeptiert.
 
 ## Finaler Diff- und Review-Status
 
-Implementierung und lokale Validierung sind abgeschlossen. Task-eigener
-Framework-Diff und Whitespace-Check bestehen; der finale Security-Diff-Scan
-ist gültig, hat vollständige Coverage und null reportable Findings. Draft-PR-
-Delivery sowie dessen Hosted-Checks/Review-Evidenz sind noch ausstehend. Der
-Branch ist unabhängig; kein Merge, Rebase, Force-Push, Auto-Merge,
+Der initiale task-eigene Framework-Commit wurde als unabhängiger Draft-PR #110
+gepusht. Sein initialer SonarCloud-Lauf meldete task-eigene Findings; die
+begrenzte lokale Remediation und fokussierten Regressionstests sind
+abgeschlossen, während ein Nachfolge-Security-Diff-Scan, Follow-up-Commit/
+Push und die Hosted-Checks-/Review-Evidenz des exakten HEAD noch erforderlich
+sind. Der Branch ist unabhängig; kein Merge, Rebase, Force-Push, Auto-Merge,
 automatisches Ready-for-review, Parent-Change oder MRTS-Aktion ist autorisiert.

@@ -29,6 +29,7 @@ DEFAULT_OUTPUT = ROOT / "modsecurity_test_framework/data/framework-contract-cata
 SCHEMA_VERSION = 1
 IDENTIFIER_RE = re.compile(r"^[a-z][a-z0-9_.:/-]{0,127}$")
 MAX_CASES = 512
+REQUIRED_CAPABILITY_LABEL = "required capability"
 
 
 class GenerationError(ValueError):
@@ -159,54 +160,62 @@ def _compound(conditions: list[dict[str, Any]]) -> dict[str, Any]:
     return {"kind": "compound", "conditions": unique}
 
 
+def _catalog_intervention(action: str, status: int | None, rule_id: int | None) -> dict[str, Any]:
+    condition: dict[str, Any] = {"kind": "intervention", "action": action}
+    if status is not None:
+        condition["http_status"] = status
+    if rule_id is not None:
+        condition["rule_ids"] = [rule_id]
+    return condition
+
+
+def _catalog_action(action: str, rule_id: int | None) -> dict[str, Any]:
+    condition: dict[str, Any] = {"kind": "action", "action": action}
+    if rule_id is not None:
+        condition["rule_ids"] = [rule_id]
+    return condition
+
+
+def _catalog_result_conditions(
+    result: str, case: Mapping[str, Any], action: str | None, status: int | None, rule_id: int | None
+) -> list[dict[str, Any]]:
+    if status is not None:
+        if action is not None and action != "pass":
+            return [_catalog_intervention(action, status, rule_id)]
+        return [{"kind": "http_status", "http_status": status}]
+    if action is not None and action != "pass":
+        return [_catalog_action(action, rule_id)]
+    return _catalog_fallback_conditions(result, case)
+
+
+def _catalog_fallback_conditions(result: str, case: Mapping[str, Any]) -> list[dict[str, Any]]:
+    if result == "clean_shutdown":
+        return [{
+            "kind": "lifecycle",
+            "predicates": {"request_completed": True, "cleanup_balanced": True},
+        }]
+    transport = _transport(result)
+    if transport is not None:
+        return [{"kind": "transport", "state": transport}]
+    if "cleanup" in result:
+        return [{"kind": "cleanup", "state": "balanced"}]
+    if "body" not in result:
+        return [{"kind": "event", "event_type": result}]
+    capabilities = _string_list(case.get("required_capabilities"), REQUIRED_CAPABILITY_LABEL)
+    if any(name.startswith("request_body") for name in capabilities):
+        return [{"kind": "request_body", "state": "observed"}]
+    if any(name.startswith("response_body") for name in capabilities):
+        return [{"kind": "response_body", "state": "observed"}]
+    return [{"kind": "event", "event_type": result}]
+
+
 def _catalog_expectation(case: Mapping[str, Any]) -> dict[str, Any]:
     result = _identifier(case.get("expected_result"), "expected result")
     status = _catalog_http_status(case.get("expected_status"))
     rule_id = _optional_rule_id(case.get("expected_rule_id"))
     fields = _string_list(case.get("expected_event_fields"), "event field")
-    conditions: list[dict[str, Any]] = []
     action = _action(result)
-    if status is not None:
-        if action is not None and action != "pass":
-            condition: dict[str, Any] = {
-                "kind": "intervention",
-                "http_status": status,
-                "action": action,
-            }
-            if rule_id is not None:
-                condition["rule_ids"] = [rule_id]
-            conditions.append(condition)
-        else:
-            conditions.append({"kind": "http_status", "http_status": status})
-    elif action is not None and action != "pass":
-        condition = {"kind": "action", "action": action}
-        if rule_id is not None:
-            condition["rule_ids"] = [rule_id]
-        conditions.append(condition)
-    else:
-        if result == "clean_shutdown":
-            conditions.append(
-                {
-                    "kind": "lifecycle",
-                    "predicates": {"request_completed": True, "cleanup_balanced": True},
-                }
-            )
-        else:
-            transport = _transport(result)
-            if transport is not None:
-                conditions.append({"kind": "transport", "state": transport})
-            elif "cleanup" in result:
-                conditions.append({"kind": "cleanup", "state": "balanced"})
-            elif "body" in result:
-                capabilities = _string_list(case.get("required_capabilities"), "required capability")
-                if any(name.startswith("request_body") for name in capabilities):
-                    conditions.append({"kind": "request_body", "state": "observed"})
-                elif any(name.startswith("response_body") for name in capabilities):
-                    conditions.append({"kind": "response_body", "state": "observed"})
-                else:
-                    conditions.append({"kind": "event", "event_type": result})
-            else:
-                conditions.append({"kind": "event", "event_type": result})
+    conditions = _catalog_result_conditions(result, case, action, status, rule_id)
     if "cleanup" in result and not any(item["kind"] == "cleanup" for item in conditions):
         conditions.append({"kind": "cleanup", "state": "balanced"})
     if rule_id is not None and not any(item["kind"] in {"intervention", "action"} for item in conditions):
@@ -273,7 +282,9 @@ def _catalog_record(case: Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(phase, bool) or not isinstance(phase, int) or not 0 <= phase <= 9:
         raise GenerationError("invalid catalog phase")
     group = _identifier(case.get("group"), "catalog group")
-    required_capabilities = _string_list(case.get("required_capabilities"), "required capability")
+    required_capabilities = _string_list(
+        case.get("required_capabilities"), REQUIRED_CAPABILITY_LABEL
+    )
     return {
         "framework_test_id": f"no-crs-baseline:{case_id}",
         "display_name": title,
@@ -297,7 +308,7 @@ def _catalog_record(case: Mapping[str, Any]) -> dict[str, Any]:
 def _yaml_capabilities(document: Mapping[str, Any]) -> list[str]:
     explicit = document.get("required_capabilities")
     if explicit is not None:
-        return _string_list(explicit, "required capability")
+        return _string_list(explicit, REQUIRED_CAPABILITY_LABEL)
     capabilities = document.get("capabilities")
     if not isinstance(capabilities, Mapping):
         return []
@@ -307,17 +318,9 @@ def _yaml_capabilities(document: Mapping[str, Any]) -> list[str]:
     return sorted(result)
 
 
-def _yaml_record(document: Mapping[str, Any], relative_path: str, catalog_ids: set[str]) -> tuple[str, dict[str, Any], bool]:
-    name = _identifier(document.get("name"), "case name")
-    connector = document.get("connector")
-    if connector is not None:
-        connector = _identifier(connector, "connector")
-    no_crs = document.get("no_crs_baseline") is True
-    merge_with_catalog = no_crs and connector is None and name in catalog_ids
-    if merge_with_catalog:
-        return f"no-crs-baseline:{name}", {}, True
-    case_id = "yaml:" + relative_path.removesuffix(".yaml").replace("/", ":")
-    _identifier(case_id, "framework test id")
+def _yaml_case_metadata(
+    document: Mapping[str, Any], name: str
+) -> tuple[str, str | None, int | None, str | None, str, str | None]:
     title = document.get("title")
     display_name = title if isinstance(title, str) and title else name
     if not isinstance(display_name, str) or len(display_name) > 256:
@@ -332,21 +335,43 @@ def _yaml_record(document: Mapping[str, Any], relative_path: str, catalog_ids: s
     area = metadata.get("area") if isinstance(metadata, Mapping) else None
     if area is not None:
         area = _identifier(area, "case area")
-    profile = "default"
-    if no_crs:
-        profile = "no-crs-baseline"
+    profile = "no-crs-baseline" if document.get("no_crs_baseline") is True else "default"
     profile_data = document.get("with_crs_no_mrts")
     if isinstance(profile_data, Mapping):
         profile = _identifier(profile_data.get("profile"), "profile")
     declared_status = document.get("status")
     if declared_status is not None:
         declared_status = _identifier(declared_status, "declared case status")
+    return display_name, category, phase, area, profile, declared_status
+
+
+def _yaml_applicability(document: Mapping[str, Any], connector: str | None, declared_status: str | None) -> dict[str, Any]:
     requires_crs = document.get("requires_crs")
     if requires_crs is not None and not isinstance(requires_crs, bool):
         raise GenerationError("invalid requires_crs")
     portable = document.get("portable")
     if portable is not None and not isinstance(portable, bool):
         raise GenerationError("invalid portable")
+    return {
+        "portable": portable,
+        "requires_crs": requires_crs,
+        "connector": connector,
+        "declared_status": declared_status,
+    }
+
+
+def _yaml_record(document: Mapping[str, Any], relative_path: str, catalog_ids: set[str]) -> tuple[str, dict[str, Any], bool]:
+    name = _identifier(document.get("name"), "case name")
+    connector = document.get("connector")
+    if connector is not None:
+        connector = _identifier(connector, "connector")
+    no_crs = document.get("no_crs_baseline") is True
+    merge_with_catalog = no_crs and connector is None and name in catalog_ids
+    if merge_with_catalog:
+        return f"no-crs-baseline:{name}", {}, True
+    case_id = "yaml:" + relative_path.removesuffix(".yaml").replace("/", ":")
+    _identifier(case_id, "framework test id")
+    display_name, category, phase, area, profile, declared_status = _yaml_case_metadata(document, name)
     return case_id, {
         "framework_test_id": case_id,
         "display_name": display_name,
@@ -356,23 +381,20 @@ def _yaml_record(document: Mapping[str, Any], relative_path: str, catalog_ids: s
         "profile": profile,
         "required_capabilities": _yaml_capabilities(document),
         "expectation": _yaml_expectation(document),
-        "applicability": {
-            "portable": portable,
-            "requires_crs": requires_crs,
-            "connector": connector,
-            "declared_status": declared_status,
-        },
+        "applicability": _yaml_applicability(document, connector, declared_status),
         "catalogs": ["framework-yaml"],
         "sources": [{"kind": "yaml_case", "path": relative_path}],
     }, False
 
 
-def _profile(document: Mapping[str, Any]) -> dict[str, Any]:
+def _profile_source(document: Mapping[str, Any]) -> Mapping[str, Any]:
     profile_data = document.get("with_crs_no_mrts")
     if not isinstance(profile_data, Mapping):
         raise GenerationError("missing CRS profile")
-    profile_name = _identifier(profile_data.get("profile"), "profile")
-    connectors = _string_list(profile_data.get("connectors"), "profile connector", limit=16)
+    return profile_data
+
+
+def _profile_expectation(profile_data: Mapping[str, Any]) -> tuple[int, str, int]:
     canonical_block = profile_data.get("canonical_block")
     if not isinstance(canonical_block, Mapping):
         raise GenerationError("missing canonical CRS block")
@@ -381,12 +403,28 @@ def _profile(document: Mapping[str, Any]) -> dict[str, Any]:
     rule_id = _optional_rule_id(canonical_block.get("expected_rule_id"))
     if status is None or action is None or rule_id is None:
         raise GenerationError("invalid canonical CRS block")
+    return status, action, rule_id
+
+
+def _profile_provenance(profile_data: Mapping[str, Any], rule_id: int) -> dict[str, Any]:
     provenance = profile_data.get("provenance")
     if not isinstance(provenance, Mapping):
         raise GenerationError("missing CRS provenance")
     commit = provenance.get("commit")
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise GenerationError("invalid CRS provenance commit")
+    return {
+        "release_tag": _identifier(provenance.get("release_tag"), "release tag"),
+        "commit": commit,
+        "expected_rule_id": rule_id,
+    }
+
+
+def _profile(document: Mapping[str, Any]) -> dict[str, Any]:
+    profile_data = _profile_source(document)
+    profile_name = _identifier(profile_data.get("profile"), "profile")
+    connectors = _string_list(profile_data.get("connectors"), "profile connector", limit=16)
+    status, action, rule_id = _profile_expectation(profile_data)
     return {
         "profile": profile_name,
         "fixture_id": _identifier(document.get("fixture_id"), "fixture id"),
@@ -398,15 +436,11 @@ def _profile(document: Mapping[str, Any]) -> dict[str, Any]:
             "action": action,
             "rule_ids": [rule_id],
         },
-        "provenance": {
-            "release_tag": _identifier(provenance.get("release_tag"), "release tag"),
-            "commit": commit,
-            "expected_rule_id": rule_id,
-        },
+        "provenance": _profile_provenance(profile_data, rule_id),
     }
 
 
-def build_catalog() -> dict[str, Any]:
+def _catalog_source_records() -> tuple[dict[str, dict[str, Any]], set[str]]:
     catalog = _read_json(CATALOG_PATH)
     if not isinstance(catalog, Mapping) or catalog.get("schema_version") != 1:
         raise GenerationError("unsupported source catalog schema")
@@ -424,37 +458,64 @@ def build_catalog() -> dict[str, Any]:
             raise GenerationError("duplicate source catalog test id")
         records[record_id] = record
         catalog_ids.add(_identifier(raw_case.get("case_id"), "case id"))
-    profile: dict[str, Any] | None = None
+    return records, catalog_ids
+
+
+def _read_yaml_case(path: Path) -> tuple[str, Mapping[str, Any]]:
+    if path.is_symlink():
+        raise GenerationError("symlinked YAML source is not allowed")
+    relative_path = path.relative_to(ROOT).as_posix()
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise GenerationError("unable to read YAML source case") from exc
+    if not isinstance(document, Mapping):
+        raise GenerationError("invalid YAML source case")
+    return relative_path, document
+
+
+def _merge_yaml_record(
+    records: dict[str, dict[str, Any]],
+    record_id: str,
+    record: dict[str, Any],
+    merge_with_catalog: bool,
+    relative_path: str,
+) -> None:
+    if merge_with_catalog:
+        existing = records.get(record_id)
+        if existing is None:
+            raise GenerationError("unknown catalog merge target")
+        existing["catalogs"].append("framework-yaml")
+        existing["sources"].append({"kind": "yaml_case", "path": relative_path})
+        return
+    if record_id in records:
+        raise GenerationError("duplicate or conflicting framework test id")
+    records[record_id] = record
+
+
+def _yaml_source_records(
+    records: dict[str, dict[str, Any]], catalog_ids: set[str]
+) -> dict[str, Any]:
     yaml_paths = sorted(CASE_ROOT.rglob("*.yaml"))
     if not yaml_paths or len(yaml_paths) > MAX_CASES:
         raise GenerationError("invalid YAML source case count")
+    profile: dict[str, Any] | None = None
     for path in yaml_paths:
-        if path.is_symlink():
-            raise GenerationError("symlinked YAML source is not allowed")
-        relative_path = path.relative_to(ROOT).as_posix()
-        try:
-            document = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
-            raise GenerationError("unable to read YAML source case") from exc
-        if not isinstance(document, Mapping):
-            raise GenerationError("invalid YAML source case")
+        relative_path, document = _read_yaml_case(path)
         record_id, record, merge_with_catalog = _yaml_record(document, relative_path, catalog_ids)
-        if merge_with_catalog:
-            existing = records.get(record_id)
-            if existing is None:
-                raise GenerationError("unknown catalog merge target")
-            existing["catalogs"].append("framework-yaml")
-            existing["sources"].append({"kind": "yaml_case", "path": relative_path})
-        elif record_id in records:
-            raise GenerationError("duplicate or conflicting framework test id")
-        else:
-            records[record_id] = record
+        _merge_yaml_record(records, record_id, record, merge_with_catalog, relative_path)
         if document.get("with_crs_no_mrts") is not None:
             if profile is not None:
                 raise GenerationError("duplicate CRS profile")
             profile = _profile(document)
     if profile is None:
         raise GenerationError("missing CRS profile source")
+    return profile
+
+
+def build_catalog() -> dict[str, Any]:
+    records, catalog_ids = _catalog_source_records()
+    profile = _yaml_source_records(records, catalog_ids)
     tests = [records[record_id] for record_id in sorted(records)]
     return {
         "schema_version": SCHEMA_VERSION,

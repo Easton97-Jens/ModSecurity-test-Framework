@@ -9,7 +9,7 @@
 | Change ID | 20260824-01-add-framework-contract-api |
 | UTC date | 2026-08-24 |
 | Framework base revision | c40e924ec5c341032908e0082feba1d37ed1dfda |
-| Issue or pull request | Framework Draft PR pending |
+| Issue or pull request | Framework Draft PR #110; successor-head verification pending |
 
 ## Motivation and problem statement
 
@@ -87,24 +87,26 @@ instead of that internal fallback.
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
-| make test-contract-api with the selected Framework Python and task-owned build roots | 0 | 20 focused public package, external-CWD, CLI, metadata, typed-expectation, path, generator-output, and legacy controls passed. | framework-contract-api-20260824 |
+| make test-contract-api with the selected Framework Python and task-owned build roots | 0 | 20 focused public package, external-CWD, CLI, metadata, typed-expectation, path-alias/intermediate-symlink/FIFO, generator-output, and legacy controls passed. | framework-contract-api-20260824 |
 | python ci/tools/generate-framework-contract-catalog.py --check | 0 | Generated payload-free catalog matches the checked-in source catalog and YAML cases. | framework-contract-api-20260824 |
 | make test-no-crs-contract | 0 | 98 native No-CRS contract tests passed. | framework-contract-api-20260824 |
 | make test-five-connectors-with-crs-no-mrts-contract | 0 | 26 tests passed on the complete retry after one known FIFO-observer timing race; the focused control also passed. | framework-contract-api-20260824 |
 | make check-documentation, make test-change-record-contract, make test-makefile-contract, and make check-no-crs-catalog | 0 | Documentation, traceability, Makefile, and 166-case catalog contracts passed. | framework-contract-api-20260824 |
 | Changed-Python py_compile, git diff --check, and make lint | 0 | Compilation, whitespace, and the complete native lint target passed. | framework-contract-api-20260824 |
-| Final Codex Security Diff Scan and sealed-contract validation | 0 | Complete working-tree coverage; zero reportable findings. | framework-contract-api-20260824 |
+| Pre-remediation Codex Security Diff Scan and sealed-contract validation | 0, superseded | Complete working-tree coverage and zero reportable findings for the initial patch; the task-owned Sonar remediation requires a successor scan before follow-up delivery. | framework-contract-api-20260824 |
 
 ## Security impact
 
 The new API rejects duplicate JSON keys, malformed UTF-8, absolute/traversal
-paths, symlinks, special files, oversized input, unknown expectation kinds,
-unexpected fields, and Boolean HTTP statuses. It emits only stable JSON error
-codes. The implementation uses no eval, exec, caller-controlled module name,
-shell interpolation, suppression, or exception-path disclosure. Generator
+and path-alias input, intermediate/final symlinks, special files, oversized
+input, unknown expectation kinds, unexpected fields, and Boolean HTTP
+statuses. The final descriptor open is nonblocking, so a writerless FIFO is
+rejected rather than hanging. It emits only stable JSON error codes. The
+implementation uses no eval, exec, caller-controlled module name, shell
+interpolation, suppression, or exception-path disclosure. Generator
 output-parent symlinks and malformed unhashable enum values are also rejected;
-the latter returns the documented contract error/exit code 2. The final Codex
-Security Diff Scan is sealed, valid, complete, and has zero reportable findings.
+the latter returns the documented contract error/exit code 2. The successor
+Security Diff Scan is a required delivery gate.
 
 ## Documentation and runtime evidence
 
@@ -121,7 +123,9 @@ claimed.
   separately scoped MRTS authority.
 - Ruff is unavailable in the selected Framework virtual environment and was
   not installed because this task has no dependency-installation authority.
-- Hosted PR checks, SonarQube Cloud, and review evidence are pending delivery.
+- The initial Draft PR #110 SonarCloud check failed its new-code quality gate
+  on task-owned complexity/path findings. The completed local remediation still
+  requires a successor push and exact-head hosted-check/review evidence.
 
 ## Limitations and residual risk
 
@@ -133,9 +137,10 @@ No security risk is accepted.
 
 ## Final diff and review status
 
-Implementation and local validation are complete. The task-owned Framework
-diff and whitespace check passed; the final Security Diff Scan is valid with
-complete coverage and zero reportable findings. Draft-PR delivery and its
-hosted checks/review evidence remain pending. The branch is independent and no
+The initial task-owned Framework commit was pushed as independent Draft PR
+#110. Its initial SonarCloud run identified task-owned findings; the bounded
+local remediation and focused regression checks are complete, while a
+successor Security Diff Scan, follow-up commit/push, and exact-head hosted
+checks/review evidence remain required. The branch is independent and no
 merge, rebase, force-push, auto-merge, automatic ready-for-review, Parent
 change, or MRTS action is authorized.

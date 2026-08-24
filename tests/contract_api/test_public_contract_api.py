@@ -392,12 +392,22 @@ class PublicContractApiTests(unittest.TestCase):
         if link.exists() or link.is_symlink():
             link.unlink()
         link.symlink_to(target.name)
+        target_directory = self.external_cwd / "manifest-directory"
+        target_directory.mkdir()
+        (target_directory / "manifest.json").write_text(json.dumps(valid), encoding="utf-8")
+        directory_link = self.external_cwd / "manifest-directory-link"
+        directory_link.symlink_to(target_directory.name, target_is_directory=True)
         oversized = self.external_cwd / "oversized.json"
         oversized.write_bytes(b"{" + (b" " * (contracts.MAX_EXTERNAL_JSON_BYTES + 1)) + b"}")
         for filename, expected_code in (
             ("manifest-link.json", "unsafe_input_path"),
+            ("manifest-directory-link/manifest.json", "unsafe_input_path"),
             ("oversized.json", "invalid_input_size"),
             ("../manifest-target.json", "invalid_input_path"),
+            ("./manifest-target.json", "invalid_input_path"),
+            ("nested/../manifest-target.json", "invalid_input_path"),
+            ("manifest-target.json//", "invalid_input_path"),
+            ("manifest-target\\target.json", "invalid_input_path"),
         ):
             with self.subTest(filename=filename):
                 result = subprocess.run(
@@ -420,6 +430,33 @@ class PublicContractApiTests(unittest.TestCase):
                 self.assertEqual(result.stderr, "")
                 self.assertEqual(json.loads(result.stdout)["error"]["code"], expected_code)
                 self.assertNotIn(str(self.external_cwd), result.stdout)
+
+        fifo = self.external_cwd / "writerless.fifo"
+        if hasattr(os, "mkfifo"):
+            os.mkfifo(fifo)
+            try:
+                result = subprocess.run(
+                    [
+                        str(self.consumer_python),
+                        "-m",
+                        "modsecurity_test_framework.contracts",
+                        "select",
+                        "--capabilities",
+                        fifo.name,
+                    ],
+                    cwd=self.external_cwd,
+                    env=self.consumer_environment,
+                    check=False,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=2,
+                )
+            finally:
+                fifo.unlink()
+            self.assertEqual(result.returncode, contracts.CONTRACT_ERROR_EXIT_CODE)
+            self.assertEqual(result.stderr, "")
+            self.assertEqual(json.loads(result.stdout)["error"]["code"], "invalid_input_size")
 
     def test_catalog_generator_refuses_a_symlinked_output_parent(self) -> None:
         generator = self._catalog_generator_module()

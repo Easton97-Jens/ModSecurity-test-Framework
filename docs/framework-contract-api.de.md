@@ -103,10 +103,12 @@ Hostpfad, Request-/Response-Payload, Credential oder Secret wird ausgegeben.
 Andere interne Fehler enden mit 1 und internal_error.
 
 Die Optionen --capabilities und --result akzeptieren bewusst nur relative,
-reguläre, nicht verlinkte JSON-Dateien. Der Reader weist Traversal, doppelte
-JSON-Keys, übergroße Dokumente und fehlerhaftes UTF-8 vor der Verarbeitung
-zurück. Das ist eine explizite Caller-Input-Grenze, keine Abhängigkeit vom
-aktuellen Framework-Arbeitsverzeichnis.
+reguläre, nicht verlinkte JSON-Dateien. Der Reader weist absolute, leere,
+Punkt-, Doppeltrenner- und Backslash-Pfadaliase, Traversal, Zwischen- oder
+End-Symlinks, Spezialdateien, doppelte JSON-Keys, übergroße Dokumente und
+fehlerhaftes UTF-8 vor der Verarbeitung zurück. Das ist eine explizite
+Caller-Input-Grenze, keine Abhängigkeit vom aktuellen
+Framework-Arbeitsverzeichnis.
 
 ## Katalogpflege und Kompatibilität
 

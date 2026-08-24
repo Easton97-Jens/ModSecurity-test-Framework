@@ -99,10 +99,11 @@ response payload, credential, or secret is included. Other internal failures
 exit 1 with internal_error.
 
 The --capabilities and --result options deliberately accept only relative,
-regular, non-symlink JSON files. The reader rejects traversal, duplicate JSON
-keys, oversized documents, and malformed UTF-8 before processing input. This
-is an explicit caller input boundary, not a dependency on the Framework
-current working directory.
+regular, non-symlink JSON files. The reader rejects absolute, empty, dot,
+double-separator, and backslash path aliases; traversal; intermediate or final
+symlinks; special files; duplicate JSON keys; oversized documents; and
+malformed UTF-8 before processing input. This is an explicit caller input
+boundary, not a dependency on the Framework current working directory.
 
 ## Catalog maintenance and compatibility
 
