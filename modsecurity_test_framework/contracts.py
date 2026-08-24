@@ -257,7 +257,7 @@ def _expectation_lifecycle(value: Mapping[str, Any], kind: str) -> dict[str, Any
         _fail("invalid_lifecycle")
     result: dict[str, bool] = {}
     for key, predicate in predicates.items():
-        if key not in LIFECYCLE_PREDICATES or not isinstance(predicate, bool):
+        if not isinstance(key, str) or key not in LIFECYCLE_PREDICATES or not isinstance(predicate, bool):
             _fail("invalid_lifecycle")
         result[key] = predicate
     return {"kind": kind, "predicates": dict(sorted(result.items()))}
@@ -806,29 +806,27 @@ def _normalise_result_headers(value: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _normalise_result_state_field(
+    value: Mapping[str, Any], field: str, allowed: frozenset[str]
+) -> dict[str, str]:
+    if field not in value:
+        return {}
+    state = value[field]
+    if not isinstance(state, str) or state not in allowed:
+        _fail("invalid_result")
+    return {field: state}
+
+
 def _normalise_result_states(value: Mapping[str, Any]) -> dict[str, Any]:
     result: dict[str, Any] = {}
-    for name in ("request_body_state", "response_body_state"):
-        if name in value:
-            state = value[name]
-            if not isinstance(state, str) or state not in BODY_STATES:
-                _fail("invalid_result")
-            result[name] = state
-    if "transport" in value:
-        transport = value["transport"]
-        if not isinstance(transport, str) or transport not in TRANSPORT_STATES:
-            _fail("invalid_result")
-        result["transport"] = transport
-    if "cleanup" in value:
-        cleanup = value["cleanup"]
-        if not isinstance(cleanup, str) or cleanup not in CLEANUP_STATES:
-            _fail("invalid_result")
-        result["cleanup"] = cleanup
-    if "applicability" in value:
-        applicability = value["applicability"]
-        if not isinstance(applicability, str) or applicability not in NOT_APPLICABLE_REASONS:
-            _fail("invalid_result")
-        result["applicability"] = applicability
+    for field, allowed in (
+        ("request_body_state", BODY_STATES),
+        ("response_body_state", BODY_STATES),
+        ("transport", TRANSPORT_STATES),
+        ("cleanup", CLEANUP_STATES),
+        ("applicability", NOT_APPLICABLE_REASONS),
+    ):
+        result.update(_normalise_result_state_field(value, field, allowed))
     return result
 
 
@@ -840,7 +838,7 @@ def _normalise_result_lifecycle(value: Mapping[str, Any]) -> dict[str, Any]:
         _fail("invalid_result")
     result: dict[str, bool] = {}
     for key, predicate in lifecycle.items():
-        if key not in LIFECYCLE_PREDICATES or not isinstance(predicate, bool):
+        if not isinstance(key, str) or key not in LIFECYCLE_PREDICATES or not isinstance(predicate, bool):
             _fail("invalid_result")
         result[key] = predicate
     return {"lifecycle": dict(sorted(result.items()))}

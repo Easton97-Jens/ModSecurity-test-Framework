@@ -225,40 +225,53 @@ def _catalog_expectation(case: Mapping[str, Any]) -> dict[str, Any]:
     return _compound(conditions)
 
 
-def _yaml_expectation(document: Mapping[str, Any]) -> dict[str, Any]:
-    raw_expectation = document.get("expect")
-    if not isinstance(raw_expectation, Mapping):
-        raise GenerationError("case has no expectation mapping")
-    conditions: list[dict[str, Any]] = []
-    status = _optional_status(raw_expectation.get("status"))
-    intervention = raw_expectation.get("intervention")
-    action = _action(intervention)
-    rule_id = _optional_rule_id(raw_expectation.get("rule_id"))
+def _yaml_primary_conditions(
+    raw_expectation: Mapping[str, Any], status: int | None, action: str | None, rule_id: int | None
+) -> list[dict[str, Any]]:
     if action is not None:
         condition: dict[str, Any] = {"kind": "intervention", "action": action}
         if status is not None:
             condition["http_status"] = status
         if rule_id is not None:
             condition["rule_ids"] = [rule_id]
-        conditions.append(condition)
-    elif status is not None:
-        conditions.append({"kind": "http_status", "http_status": status})
-    if isinstance(raw_expectation.get("transport"), str):
-        declared_transport = raw_expectation["transport"]
-        # ``http_status`` is the legacy spelling for a normal status-bearing
-        # response, already represented by the typed HTTP-status condition.
-        if declared_transport != "http_status":
-            transport = _transport(declared_transport)
-            if transport is None:
-                raise GenerationError("unknown declared transport expectation")
-            conditions.append({"kind": "transport", "state": transport})
+        return [condition]
+    if status is not None:
+        return [{"kind": "http_status", "http_status": status}]
+    return []
+
+
+def _yaml_transport_condition(raw_expectation: Mapping[str, Any]) -> dict[str, Any] | None:
+    declared_transport = raw_expectation.get("transport")
+    if not isinstance(declared_transport, str) or declared_transport == "http_status":
+        return None
+    transport = _transport(declared_transport)
+    if transport is None:
+        raise GenerationError("unknown declared transport expectation")
+    return {"kind": "transport", "state": transport}
+
+
+def _yaml_event_fields(raw_expectation: Mapping[str, Any]) -> list[str]:
+    return [
+        field
+        for field, source_key in (("audit_log", "audit_log"), ("phase4_log", "phase4_log"))
+        if raw_expectation.get(source_key) is not None
+    ]
+
+
+def _yaml_expectation(document: Mapping[str, Any]) -> dict[str, Any]:
+    raw_expectation = document.get("expect")
+    if not isinstance(raw_expectation, Mapping):
+        raise GenerationError("case has no expectation mapping")
+    status = _optional_status(raw_expectation.get("status"))
+    action = _action(raw_expectation.get("intervention"))
+    rule_id = _optional_rule_id(raw_expectation.get("rule_id"))
+    conditions = _yaml_primary_conditions(raw_expectation, status, action, rule_id)
+    transport = _yaml_transport_condition(raw_expectation)
+    if transport is not None:
+        conditions.append(transport)
     if raw_expectation.get("response_contains") is not None:
         conditions.append({"kind": "response_body", "state": "matched"})
-    event_fields: list[str] = []
-    if raw_expectation.get("audit_log") is not None:
-        event_fields.append("audit_log")
-    if raw_expectation.get("phase4_log") is not None:
-        event_fields.append("phase4_log")
+    event_fields = _yaml_event_fields(raw_expectation)
     if event_fields:
         conditions.append({"kind": "event", "fields": event_fields})
     outcome = raw_expectation.get("outcome")
@@ -266,10 +279,8 @@ def _yaml_expectation(document: Mapping[str, Any]) -> dict[str, Any]:
         conditions.append({"kind": "event", "event_type": _identifier(outcome, "outcome")})
     if rule_id is not None and not any(item["kind"] == "intervention" for item in conditions):
         conditions.append({"kind": "rule_match", "rule_ids": [rule_id]})
-    if not conditions:
-        expected_result = document.get("expected_result")
-        if expected_result is not None:
-            conditions.append({"kind": "event", "event_type": _identifier(expected_result, "expected result")})
+    if not conditions and document.get("expected_result") is not None:
+        conditions.append({"kind": "event", "event_type": _identifier(document["expected_result"], "expected result")})
     return _compound(conditions)
 
 
