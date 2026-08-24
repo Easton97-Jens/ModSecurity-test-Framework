@@ -27,6 +27,12 @@ TOOLS_DIRECTORY = Path(__file__).resolve().parents[3] / "ci/tools"
 sys.path.insert(0, str(TOOLS_DIRECTORY))
 from crs_contract_pins import load_crs_pins  # noqa: E402
 
+# This compatibility script may still be loaded directly by existing callers.
+# Keep its bounded sibling lookup Framework-owned; public consumers should use
+# ``modsecurity_test_framework.contracts`` instead of manipulating sys.path.
+CATALOG_DIRECTORY = Path(__file__).resolve().parent
+if str(CATALOG_DIRECTORY) not in sys.path:
+    sys.path.insert(0, str(CATALOG_DIRECTORY))
 from no_crs_baseline import (  # noqa: E402
     ContractError,
     assert_no_symlink_components,
