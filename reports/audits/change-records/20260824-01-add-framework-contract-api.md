@@ -9,7 +9,7 @@
 | Change ID | 20260824-01-add-framework-contract-api |
 | UTC date | 2026-08-24 |
 | Framework base revision | c40e924ec5c341032908e0082feba1d37ed1dfda |
-| Issue or pull request | Framework Draft PR #110; successor-head verification pending |
+| Issue or pull request | Framework Draft PR #110 (OPEN/Draft). API/remediation head `dad53dbe63fbfce97030836663ac35afbd7bb90f` passed Sonar check `97501291097` with zero annotations and terminal hosted checks; this record is a documentation-only reconciliation. |
 
 ## Motivation and problem statement
 
@@ -92,8 +92,9 @@ instead of that internal fallback.
 | make test-no-crs-contract | 0 | 98 native No-CRS contract tests passed. | framework-contract-api-20260824 |
 | make test-five-connectors-with-crs-no-mrts-contract | 0 | 26 tests passed on the complete retry after one known FIFO-observer timing race; the focused control also passed. | framework-contract-api-20260824 |
 | make check-documentation, make test-change-record-contract, make test-makefile-contract, and make check-no-crs-catalog | 0 | Documentation, traceability, Makefile, and 166-case catalog contracts passed. | framework-contract-api-20260824 |
-| Changed-Python py_compile, git diff --check, and make lint | 0 | Compilation, whitespace, and the complete native lint target passed. | framework-contract-api-20260824 |
-| Pre-remediation Codex Security Diff Scan and sealed-contract validation | 0, superseded | Complete working-tree coverage and zero reportable findings for the initial patch; the task-owned Sonar remediation requires a successor scan before follow-up delivery. | framework-contract-api-20260824 |
+| Changed-Python py_compile and git diff --check | 0 | Compilation and whitespace checks passed. | framework-contract-api-20260824 |
+| Local make lint and corrected canonical-pin check | guarded / 0 | The inherited ambient `FRAMEWORK_ROOT` made the broad local lint stop at its intended root-identity guard; the worktree-corrected canonical-pin check passed. Final exact-head hosted `scaffold-lint` checks passed twice. | framework-contract-api-20260824 |
+| Successor Codex Security Diff Scans and final Sonar evidence | 0 | The remediation and generator-minimal patch-exact scans are valid with complete coverage and zero reportable findings. Sonar check `97501291097` passed with zero annotations on `dad53dbe63fbfce97030836663ac35afbd7bb90f`. | framework-contract-api-20260824 |
 
 ## Security impact
 
@@ -106,7 +107,9 @@ implementation uses no eval, exec, caller-controlled module name, shell
 interpolation, suppression, or exception-path disclosure. Generator
 output-parent symlinks and malformed unhashable enum values are also rejected;
 the latter returns the documented contract error/exit code 2. The successor
-Security Diff Scan is a required delivery gate.
+and generator-minimal Security Diff Scans are complete and valid with zero
+reportable findings; no suppression, exclusion, or scanner-policy change was
+used.
 
 ## Documentation and runtime evidence
 
@@ -124,8 +127,13 @@ claimed.
 - Ruff is unavailable in the selected Framework virtual environment and was
   not installed because this task has no dependency-installation authority.
 - The initial Draft PR #110 SonarCloud check failed its new-code quality gate
-  on task-owned complexity/path findings. The completed local remediation still
-  requires a successor push and exact-head hosted-check/review evidence.
+  on task-owned complexity/path findings. The normally pushed remediation heads
+  `6ff376f00c050520f4d01d8b0337a77253384a4b`,
+  `049f73e6c4f6328fd0dd8f6615d7ad1035b59741`, and
+  `dad53dbe63fbfce97030836663ac35afbd7bb90f` resolved them without suppression.
+  The last head passed Sonar check `97501291097` with zero annotations; relevant
+  terminal hosted checks passed and three advisory-only checks were intentionally
+  skipped. This documentation-only reconciliation does not change API source.
 
 ## Limitations and residual risk
 
@@ -138,9 +146,13 @@ No security risk is accepted.
 ## Final diff and review status
 
 The initial task-owned Framework commit was pushed as independent Draft PR
-#110. Its initial SonarCloud run identified task-owned findings; the bounded
-local remediation and focused regression checks are complete, while a
-successor Security Diff Scan, follow-up commit/push, and exact-head hosted
-checks/review evidence remain required. The branch is independent and no
+#110. Its initial SonarCloud run identified 13 task-owned findings. The bounded
+remediation was normally pushed in
+`6ff376f00c050520f4d01d8b0337a77253384a4b`,
+`049f73e6c4f6328fd0dd8f6615d7ad1035b59741`, and
+`dad53dbe63fbfce97030836663ac35afbd7bb90f`; the final API/remediation head
+passed Sonar check `97501291097` with zero annotations and all relevant
+terminal hosted checks. The branch remains independent, OPEN, and Draft with
+no reviews or merge. This Change Record update is documentation-only; no
 merge, rebase, force-push, auto-merge, automatic ready-for-review, Parent
 change, or MRTS action is authorized.

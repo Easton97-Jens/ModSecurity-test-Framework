@@ -9,7 +9,7 @@
 | Change-ID | 20260824-01-add-framework-contract-api |
 | UTC-Datum | 2026-08-24 |
 | Framework-Basisrevision | c40e924ec5c341032908e0082feba1d37ed1dfda |
-| Issue oder Pull Request | Framework-Draft-PR #110; Verifikation des Nachfolge-HEAD ausstehend |
+| Issue oder Pull Request | Framework-Draft-PR #110 (OPEN/Draft). API-/Remediation-Head `dad53dbe63fbfce97030836663ac35afbd7bb90f` bestand Sonar-Check `97501291097` mit null Annotationen und terminale Hosted-Checks; dieser Record ist eine reine Dokumentationsabstimmung. |
 
 ## Motivation und Problemstellung
 
@@ -100,8 +100,9 @@ Paket-API statt dieses internen Fallbacks.
 | make test-no-crs-contract | 0 | 98 native No-CRS-Contract-Tests bestehen. | framework-contract-api-20260824 |
 | make test-five-connectors-with-crs-no-mrts-contract | 0 | 26 Tests bestehen beim vollständigen Retry nach einer bekannten FIFO-Observer-Timing-Race; auch das fokussierte Control bestand. | framework-contract-api-20260824 |
 | make check-documentation, make test-change-record-contract, make test-makefile-contract und make check-no-crs-catalog | 0 | Dokumentations-, Traceability-, Makefile- und 166-Fälle-Katalog-Contracts bestehen. | framework-contract-api-20260824 |
-| Changed-Python py_compile, git diff --check und make lint | 0 | Compilation, Whitespace und der vollständige native Lint-Target bestehen. | framework-contract-api-20260824 |
-| Codex-Security-Diff-Scan und versiegelte Contract-Validierung vor der Remediation | 0, überholt | Vollständige Working-Tree-Coverage und null reportable Findings für den initialen Patch; die task-eigene Sonar-Remediation benötigt vor der Follow-up-Delivery einen Nachfolge-Scan. | framework-contract-api-20260824 |
+| Changed-Python py_compile und git diff --check | 0 | Compilation- und Whitespace-Prüfungen bestehen. | framework-contract-api-20260824 |
+| Lokales make lint und korrigierter Canonical-Pin-Check | guarded / 0 | Das geerbte Umgebungs-`FRAMEWORK_ROOT` ließ das breite lokale Lint am beabsichtigten Root-Identity-Guard stoppen; der worktree-korrigierte Canonical-Pin-Check bestand. Die finalen Exact-Head-Hosted-`scaffold-lint`-Checks bestanden zweimal. | framework-contract-api-20260824 |
+| Successor-Codex-Security-Diff-Scans und finale Sonar-Evidence | 0 | Die Remediation- und Generator-Minimalpatch-exakten Scans sind gültig mit vollständiger Coverage und null reportable Findings. Sonar-Check `97501291097` bestand mit null Annotationen auf `dad53dbe63fbfce97030836663ac35afbd7bb90f`. | framework-contract-api-20260824 |
 
 ## Sicherheitsauswirkung
 
@@ -114,8 +115,10 @@ Fehlercodes aus. Die Implementierung verwendet kein eval, exec, vom Caller
 kontrollierten Modulnamen, Shell-Interpolation, keine Suppression und keine
 Exception-Pfad-Offenlegung. Symlinks im Generator-Output-Parent und fehlerhafte
 nicht-hashbare Enum-Werte werden ebenfalls zurückgewiesen; Letztere liefern den
-dokumentierten Contract-Fehler/Exit-Code 2. Der Nachfolge-Security-Diff-Scan ist
-ein erforderliches Delivery-Gate.
+dokumentierten Contract-Fehler/Exit-Code 2. Die Successor- und Generator-
+Minimalpatch-Security-Diff-Scans sind abgeschlossen und gültig mit null
+reportable Findings; keine Suppression, Exclusion oder Scanner-Policy-Änderung
+wurde verwendet.
 
 ## Dokumentation und Runtime-Evidenz
 
@@ -134,9 +137,15 @@ Runtime-, Request-Payload- oder Lifecycle-Runtime-Erfolg behauptet.
   und wurde nicht installiert, weil für diese Aufgabe keine Dependency-
   Installationsautorität besteht.
 - Der initiale SonarCloud-Check des Draft-PR #110 scheiterte am New-Code-
-  Quality-Gate wegen task-eigener Komplexitäts-/Pfad-Findings. Die abgeschlossene
-  lokale Remediation benötigt weiterhin einen Nachfolge-Push und die
-  Hosted-Check-/Review-Evidenz des exakten HEAD.
+  Quality-Gate wegen task-eigener Komplexitäts-/Pfad-Findings. Die normal
+  gepushten Remediation-Heads
+  `6ff376f00c050520f4d01d8b0337a77253384a4b`,
+  `049f73e6c4f6328fd0dd8f6615d7ad1035b59741` und
+  `dad53dbe63fbfce97030836663ac35afbd7bb90f` behoben sie ohne Suppression.
+  Der letzte Head bestand Sonar-Check `97501291097` mit null Annotationen;
+  relevante terminale Hosted-Checks bestanden und drei reine Advisory-Checks
+  wurden absichtlich übersprungen. Diese reine Dokumentationsabstimmung ändert
+  keine API-Source.
 
 ## Einschränkungen und Restrisiko
 
@@ -149,9 +158,13 @@ out of scope. Es wird kein Sicherheitsrisiko akzeptiert.
 ## Finaler Diff- und Review-Status
 
 Der initiale task-eigene Framework-Commit wurde als unabhängiger Draft-PR #110
-gepusht. Sein initialer SonarCloud-Lauf meldete task-eigene Findings; die
-begrenzte lokale Remediation und fokussierten Regressionstests sind
-abgeschlossen, während ein Nachfolge-Security-Diff-Scan, Follow-up-Commit/
-Push und die Hosted-Checks-/Review-Evidenz des exakten HEAD noch erforderlich
-sind. Der Branch ist unabhängig; kein Merge, Rebase, Force-Push, Auto-Merge,
-automatisches Ready-for-review, Parent-Change oder MRTS-Aktion ist autorisiert.
+gepusht. Sein initialer SonarCloud-Lauf meldete 13 task-eigene Findings. Die
+begrenzte Remediation wurde normal in
+`6ff376f00c050520f4d01d8b0337a77253384a4b`,
+`049f73e6c4f6328fd0dd8f6615d7ad1035b59741` und
+`dad53dbe63fbfce97030836663ac35afbd7bb90f` gepusht; der finale API-/
+Remediation-Head bestand Sonar-Check `97501291097` mit null Annotationen und
+allen relevanten terminalen Hosted-Checks. Der Branch bleibt unabhängig, OPEN
+und Draft, ohne Reviews oder Merge. Dieses Change-Record-Update ist rein
+dokumentarisch; kein Merge, Rebase, Force-Push, Auto-Merge, automatisches
+Ready-for-review, Parent-Change oder MRTS-Aktion ist autorisiert.
