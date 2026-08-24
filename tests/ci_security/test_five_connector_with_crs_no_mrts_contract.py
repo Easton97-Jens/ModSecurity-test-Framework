@@ -762,47 +762,55 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 with self.assertRaises(contract.ContractError):
                     contract.haproxy_adapter_identity(adapter_id, integration_mode)
 
-        unchanged_adapters = {
-            "apache": {
-                "adapter_id": "apache-native-httpd-module",
-                "integration_mode": "native-httpd-module",
-                "framework_entrypoint": "ci/runtime/run-apache-smoke.sh",
-                "framework_entrypoint_role": "compatibility-only",
-                "host_contract_owner": "parent",
-                "evidence_types": ("audit",),
-            },
-            "envoy": {
-                "adapter_id": "envoy-ext-proc-service",
-                "integration_mode": "ext_proc",
-                "framework_entrypoint": "ci/runtime/run-envoy-smoke.sh",
-                "framework_entrypoint_role": "compatibility-only",
-                "host_contract_owner": "parent",
-                "evidence_types": ("event",),
-            },
-            "traefik": {
-                "adapter_id": "traefik-native-middleware",
-                "integration_mode": "native-traefik-middleware",
-                "framework_entrypoint": "ci/runtime/run-traefik-smoke.sh",
-                "framework_entrypoint_role": "compatibility-only",
-                "host_contract_owner": "parent",
-                "evidence_types": ("event",),
-            },
-            "lighttpd": {
-                "adapter_id": "lighttpd-patched-native-module",
-                "integration_mode": "patched-native-lighttpd",
-                "framework_entrypoint": "ci/runtime/run-lighttpd-smoke.sh",
-                "framework_entrypoint_role": "compatibility-only",
-                "host_contract_owner": "parent",
-                "evidence_types": ("audit", "event"),
-            },
+        expected_adapter_fields = {
+            "adapter_id",
+            "integration_mode",
+            "framework_entrypoint",
+            "framework_entrypoint_role",
+            "host_contract_owner",
+            "evidence_types",
         }
-        self.assertEqual(
-            {
-                connector: contract.ADAPTERS[connector]
-                for connector in unchanged_adapters
-            },
-            unchanged_adapters,
-        )
+        for connector, adapter_id, integration_mode, entrypoint, evidence_types in (
+            (
+                "apache",
+                "apache-native-httpd-module",
+                "native-httpd-module",
+                "ci/runtime/run-apache-smoke.sh",
+                ("audit",),
+            ),
+            (
+                "envoy",
+                "envoy-ext-proc-service",
+                "ext_proc",
+                "ci/runtime/run-envoy-smoke.sh",
+                ("event",),
+            ),
+            (
+                "traefik",
+                "traefik-native-middleware",
+                "native-traefik-middleware",
+                "ci/runtime/run-traefik-smoke.sh",
+                ("event",),
+            ),
+            (
+                "lighttpd",
+                "lighttpd-patched-native-module",
+                "patched-native-lighttpd",
+                "ci/runtime/run-lighttpd-smoke.sh",
+                ("audit", "event"),
+            ),
+        ):
+            with self.subTest(connector=connector):
+                adapter = contract.ADAPTERS[connector]
+                self.assertEqual(set(adapter), expected_adapter_fields)
+                self.assertEqual(adapter["adapter_id"], adapter_id)
+                self.assertEqual(adapter["integration_mode"], integration_mode)
+                self.assertEqual(adapter["framework_entrypoint"], entrypoint)
+                self.assertEqual(
+                    adapter["framework_entrypoint_role"], "compatibility-only"
+                )
+                self.assertEqual(adapter["host_contract_owner"], "parent")
+                self.assertEqual(adapter["evidence_types"], evidence_types)
 
     def test_fixture_top_level_semantics_cannot_drift_from_canonical_block(
         self,
