@@ -12,6 +12,7 @@ Dokumentationsmenge.
 |---|---|
 | [Architektur](architecture.de.md) | Grenzen, Lifecycle, Daten, Privacy und Cache-Modell |
 | [Katalog und Fälle](catalog-and-cases.de.md) | YAML-Schema, Provenienz, Auswahl, Status und Normalisierung |
+| [Framework-Contract-API](framework-contract-api.de.md) | Paketsicheres Inventar, Auswahl, typisierte Erwartungen, Validierung und JSON-CLI |
 | [Testing und Evidence](testing-and-evidence.de.md) | Validierungsworkflow, No-CRS, Berichte, Promotion und Privacy |
 | [Connector-Integration](connector-integration.de.md) | Adaptervertrag, Ownership und Quellattribution |
 | [Entwicklung](development.de.md) | CI-Layout, Beitragsworkflow und Wartungsregeln |

@@ -11,6 +11,7 @@ reference and generated outputs below, it forms the current documentation set.
 |---|---|
 | [Architecture](architecture.md) | Boundaries, lifecycle, data, privacy, and cache model |
 | [Catalog and cases](catalog-and-cases.md) | YAML schema, provenance, selection, status, and normalization |
+| [Framework contract API](framework-contract-api.md) | Package-safe inventory, selection, typed expectations, validation, and JSON CLI |
 | [Testing and evidence](testing-and-evidence.md) | Validation workflow, No-CRS, reports, promotion, and privacy |
 | [Connector integration](connector-integration.md) | Adapter contract, ownership, and source attribution |
 | [Development](development.md) | CI layout, contribution workflow, and maintenance rules |
