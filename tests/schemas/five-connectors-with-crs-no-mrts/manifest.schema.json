@@ -127,5 +127,47 @@
     "artifacts": {"$ref": "#/$defs/artifacts"},
     "no_mrts": {"$ref": "#/$defs/no_mrts"},
     "cleanup": {"$ref": "#/$defs/cleanup"}
-  }
+  },
+  "oneOf": [
+    {
+      "required": ["connector", "adapter_id", "integration_mode"],
+      "properties": {
+        "connector": {"const": "apache"},
+        "adapter_id": {"const": "apache-native-httpd-module"},
+        "integration_mode": {"const": "native-httpd-module"}
+      }
+    },
+    {
+      "required": ["connector", "adapter_id", "integration_mode"],
+      "properties": {
+        "connector": {"const": "haproxy"},
+        "adapter_id": {"const": "haproxy-spoe-spop-agent"},
+        "integration_mode": {"const": "spoe-spop-agent"}
+      }
+    },
+    {
+      "required": ["connector", "adapter_id", "integration_mode"],
+      "properties": {
+        "connector": {"const": "envoy"},
+        "adapter_id": {"const": "envoy-ext-proc-service"},
+        "integration_mode": {"const": "ext_proc"}
+      }
+    },
+    {
+      "required": ["connector", "adapter_id", "integration_mode"],
+      "properties": {
+        "connector": {"const": "traefik"},
+        "adapter_id": {"const": "traefik-native-middleware"},
+        "integration_mode": {"const": "native-traefik-middleware"}
+      }
+    },
+    {
+      "required": ["connector", "adapter_id", "integration_mode"],
+      "properties": {
+        "connector": {"const": "lighttpd"},
+        "adapter_id": {"const": "lighttpd-patched-native-module"},
+        "integration_mode": {"const": "patched-native-lighttpd"}
+      }
+    }
+  ]
 }

@@ -658,6 +658,26 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 self.assertEqual(
                     schema["properties"]["connector"]["enum"], list(contract.CONNECTORS)
                 )
+        expected_identity_tuples = [
+            (
+                connector,
+                contract.ADAPTERS[connector]["adapter_id"],
+                contract.ADAPTERS[connector]["integration_mode"],
+            )
+            for connector in contract.CONNECTORS
+        ]
+        for schema_path in (EVENT_SCHEMA_PATH, MANIFEST_SCHEMA_PATH):
+            with self.subTest(identity_schema=schema_path.name):
+                schema = json.loads(schema_path.read_text(encoding="utf-8"))
+                identity_tuples = [
+                    (
+                        branch["properties"]["connector"]["const"],
+                        branch["properties"]["adapter_id"]["const"],
+                        branch["properties"]["integration_mode"]["const"],
+                    )
+                    for branch in schema["oneOf"]
+                ]
+                self.assertEqual(identity_tuples, expected_identity_tuples)
 
         with mock.patch.dict(
             contract.ADAPTERS["apache"],
@@ -665,6 +685,132 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
         ):
             with self.assertRaises(contract.ContractError):
                 contract.validate_profile()
+
+    def test_haproxy_identity_catalog_separates_profile_smoke_from_htx(self) -> None:
+        selected = contract.haproxy_adapter_identity(
+            contract.HAPROXY_SPOE_SPOP_ADAPTER_ID,
+            "spoe-spop-agent",
+        )
+        native_htx = contract.haproxy_adapter_identity(
+            contract.HAPROXY_NATIVE_HTX_ADAPTER_ID,
+            "native-htx-filter",
+        )
+        self.assertNotEqual(selected["adapter_id"], native_htx["adapter_id"])
+        self.assertNotEqual(
+            selected["integration_mode"], native_htx["integration_mode"]
+        )
+        self.assertEqual(selected["lifecycle_scope"], "compatibility-smoke")
+        self.assertEqual(
+            selected["framework_entrypoint"], "ci/runtime/run-haproxy-smoke.sh"
+        )
+        self.assertEqual(
+            selected["parent_runtime_entrypoint"],
+            "connectors/haproxy/harness/run_haproxy_smoke.sh",
+        )
+        self.assertEqual(native_htx["lifecycle_scope"], "full-lifecycle")
+        self.assertIsNone(native_htx["framework_entrypoint"])
+        self.assertEqual(
+            native_htx["parent_runtime_entrypoint"],
+            "connectors/haproxy/harness/run_haproxy_htx_runtime.sh",
+        )
+        self.assertEqual(native_htx["parent_make_target"], "full-lifecycle-haproxy-htx")
+        for adapter in (selected, native_htx):
+            with self.subTest(adapter=adapter["adapter_id"]):
+                self.assertEqual(adapter["capability_promotion"], "not-permitted")
+
+        profile = contract.profile_payload()
+        self.assertEqual(
+            profile["selected_haproxy_adapter_id"],
+            contract.HAPROXY_SPOE_SPOP_ADAPTER_ID,
+        )
+        self.assertEqual(profile["adapters"]["haproxy"], contract.ADAPTERS["haproxy"])
+        self.assertEqual(
+            profile["haproxy_adapter_catalog"], contract.HAPROXY_ADAPTER_CATALOG
+        )
+        self.assertEqual(
+            profile["haproxy_profile_identity_migration"],
+            {
+                "profile": contract.PROFILE,
+                "legacy_adapter_id": contract.HAPROXY_NATIVE_HTX_ADAPTER_ID,
+                "legacy_integration_mode": "native-htx-filter",
+                "replacement_adapter_id": contract.HAPROXY_SPOE_SPOP_ADAPTER_ID,
+                "replacement_integration_mode": "spoe-spop-agent",
+                "legacy_evidence_disposition": "reject-and-regenerate",
+            },
+        )
+        entrypoint = (ROOT / selected["framework_entrypoint"]).read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            'connector_smoke_run haproxy "$CONNECTOR_ROOT/connectors/haproxy/harness/run_haproxy_smoke.sh"',
+            entrypoint,
+        )
+        self.assertNotIn("run_haproxy_htx_runtime.sh", entrypoint)
+
+    def test_haproxy_adapter_identity_rejects_unknown_and_cross_mode_pairs(
+        self,
+    ) -> None:
+        for adapter_id, integration_mode in (
+            (contract.HAPROXY_SPOE_SPOP_ADAPTER_ID, "native-htx-filter"),
+            (contract.HAPROXY_NATIVE_HTX_ADAPTER_ID, "spoe-spop-agent"),
+            ("haproxy-unknown-adapter", "spoe-spop-agent"),
+        ):
+            with self.subTest(
+                adapter_id=adapter_id,
+                integration_mode=integration_mode,
+            ):
+                with self.assertRaises(contract.ContractError):
+                    contract.haproxy_adapter_identity(adapter_id, integration_mode)
+
+        expected_adapter_fields = {
+            "adapter_id",
+            "integration_mode",
+            "framework_entrypoint",
+            "framework_entrypoint_role",
+            "host_contract_owner",
+            "evidence_types",
+        }
+        for connector, adapter_id, integration_mode, entrypoint, evidence_types in (
+            (
+                "apache",
+                "apache-native-httpd-module",
+                "native-httpd-module",
+                "ci/runtime/run-apache-smoke.sh",
+                ("audit",),
+            ),
+            (
+                "envoy",
+                "envoy-ext-proc-service",
+                "ext_proc",
+                "ci/runtime/run-envoy-smoke.sh",
+                ("event",),
+            ),
+            (
+                "traefik",
+                "traefik-native-middleware",
+                "native-traefik-middleware",
+                "ci/runtime/run-traefik-smoke.sh",
+                ("event",),
+            ),
+            (
+                "lighttpd",
+                "lighttpd-patched-native-module",
+                "patched-native-lighttpd",
+                "ci/runtime/run-lighttpd-smoke.sh",
+                ("audit", "event"),
+            ),
+        ):
+            with self.subTest(connector=connector):
+                adapter = contract.ADAPTERS[connector]
+                self.assertEqual(set(adapter), expected_adapter_fields)
+                self.assertEqual(adapter["adapter_id"], adapter_id)
+                self.assertEqual(adapter["integration_mode"], integration_mode)
+                self.assertEqual(adapter["framework_entrypoint"], entrypoint)
+                self.assertEqual(
+                    adapter["framework_entrypoint_role"], "compatibility-only"
+                )
+                self.assertEqual(adapter["host_contract_owner"], "parent")
+                self.assertEqual(adapter["evidence_types"], evidence_types)
 
     def test_fixture_top_level_semantics_cannot_drift_from_canonical_block(
         self,
@@ -940,6 +1086,79 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 with self.assertRaises(contract.ContractError):
                     contract._validate_event_schema(event)
 
+    def test_haproxy_schema_rejects_unknown_and_cross_identity_evidence(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="five-crs-haproxy-schema-"
+        ) as temporary:
+            parent = Path(temporary)
+            fixture, source_root, source_commit, source_sha256 = (
+                self._fixture_and_source(parent)
+            )
+            root = self._private_evidence_root(parent)
+            event = self._event(root, "haproxy", source_commit, source_sha256)
+            with self._patch_contract(source_commit, source_sha256):
+                contract._validate_event_schema(event)
+                for adapter_id, integration_mode in (
+                    (contract.HAPROXY_NATIVE_HTX_ADAPTER_ID, "native-htx-filter"),
+                    (contract.HAPROXY_SPOE_SPOP_ADAPTER_ID, "native-htx-filter"),
+                    (contract.HAPROXY_NATIVE_HTX_ADAPTER_ID, "spoe-spop-agent"),
+                    ("haproxy-unknown-adapter", "spoe-spop-agent"),
+                ):
+                    with self.subTest(
+                        adapter_id=adapter_id,
+                        integration_mode=integration_mode,
+                    ):
+                        candidate = copy.deepcopy(event)
+                        candidate["adapter_id"] = adapter_id
+                        candidate["integration_mode"] = integration_mode
+                        with self.assertRaises(contract.ContractError):
+                            contract._validate_event_schema(candidate)
+
+                self._write_event(root, "haproxy", source_commit, source_sha256)
+                self._write_event(root, "apache", source_commit, source_sha256)
+                self._write_event(root, "envoy", source_commit, source_sha256)
+                self._write_event(root, "traefik", source_commit, source_sha256)
+                self._write_event(root, "lighttpd", source_commit, source_sha256)
+                aggregate = self._validate_all(
+                    root, fixture, source_root, source_commit, source_sha256
+                )
+                results = aggregate["results"]
+                if not isinstance(results, dict):
+                    self.fail("aggregate results must be a mapping")
+                haproxy_result = results["haproxy"]
+                if not isinstance(haproxy_result, dict):
+                    self.fail("HAProxy aggregate result must be a mapping")
+                self.assertEqual(
+                    haproxy_result["adapter_id"],
+                    contract.HAPROXY_SPOE_SPOP_ADAPTER_ID,
+                )
+                self.assertEqual(haproxy_result["integration_mode"], "spoe-spop-agent")
+                self.assertEqual(
+                    haproxy_result["framework_entrypoint"],
+                    "ci/runtime/run-haproxy-smoke.sh",
+                )
+                self.assertEqual(aggregate["status"], contract.CONTRACT_VALIDATED)
+                self.assertEqual(aggregate["host_runtime_status"], "UNATTESTED")
+                self.assertNotEqual(aggregate["status"], "PASS")
+                self.assertNotIn("capability_promotion", haproxy_result)
+
+                manifest_path = (
+                    contract.result_directory(root, "haproxy", self.run_id)
+                    / "manifest.json"
+                )
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                manifest["adapter_id"] = contract.HAPROXY_NATIVE_HTX_ADAPTER_ID
+                manifest["integration_mode"] = "native-htx-filter"
+                with self.assertRaises(contract.ContractError):
+                    contract._validate_output_schema(
+                        manifest,
+                        contract.MANIFEST_SCHEMA_PATH,
+                        "mutated HAProxy manifest schema",
+                        contract.MANIFEST_FIELDS,
+                        connector_scoped=True,
+                        identity_bound=True,
+                    )
+
     def test_rejects_non_pass_rule_status_correlation_and_adapter_drift(self) -> None:
         mutations = {
             "not_executable": lambda event, root: event.__setitem__(
@@ -977,20 +1196,38 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
         for name, mutate in mutations.items():
             with self.subTest(name=name):
                 self._single_validation_error(mutate)
-        for connector, compatibility_mode in {
-            "haproxy": "spoe-spop-agent",
+        for connector, incompatible_mode in {
+            "haproxy": "native-htx-filter",
             "envoy": "ext_authz",
             "traefik": "forwardAuth",
             "lighttpd": "sidecar_proxy",
         }.items():
-            with self.subTest(
-                connector=connector, compatibility_mode=compatibility_mode
-            ):
+            with self.subTest(connector=connector, incompatible_mode=incompatible_mode):
                 self._single_validation_error(
-                    lambda event, root, compatibility_mode=compatibility_mode: (
-                        event.__setitem__("integration_mode", compatibility_mode)
+                    lambda event, root, incompatible_mode=incompatible_mode: (
+                        event.__setitem__("integration_mode", incompatible_mode)
                     ),
                     connector=connector,
+                )
+        for adapter_id, integration_mode in (
+            (contract.HAPROXY_NATIVE_HTX_ADAPTER_ID, "native-htx-filter"),
+            (contract.HAPROXY_SPOE_SPOP_ADAPTER_ID, "native-htx-filter"),
+            (contract.HAPROXY_NATIVE_HTX_ADAPTER_ID, "spoe-spop-agent"),
+        ):
+            with self.subTest(
+                adapter_id=adapter_id,
+                integration_mode=integration_mode,
+            ):
+                self._single_validation_error(
+                    lambda event, root, adapter_id=adapter_id, integration_mode=integration_mode: (
+                        event.update(
+                            {
+                                "adapter_id": adapter_id,
+                                "integration_mode": integration_mode,
+                            }
+                        )
+                    ),
+                    connector="haproxy",
                 )
 
     def test_raw_evidence_records_reject_confusable_markers_and_bound_control_drift(
