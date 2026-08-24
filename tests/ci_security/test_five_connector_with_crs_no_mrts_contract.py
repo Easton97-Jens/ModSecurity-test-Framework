@@ -1114,7 +1114,10 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 aggregate = self._validate_all(
                     root, fixture, source_root, source_commit, source_sha256
                 )
-                haproxy_result = aggregate["results"]["haproxy"]
+                results = aggregate["results"]
+                self.assertIsInstance(results, dict)
+                haproxy_result = results["haproxy"]
+                self.assertIsInstance(haproxy_result, dict)
                 self.assertEqual(
                     haproxy_result["adapter_id"],
                     contract.HAPROXY_SPOE_SPOP_ADAPTER_ID,
