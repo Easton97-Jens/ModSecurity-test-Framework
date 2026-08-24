@@ -83,7 +83,7 @@ def test_expat_parent_runtime_provenance_is_an_immutable_commit_pin():
     match = re.search(r'^EXPAT_GIT_REF="([0-9a-f]{40})"$', common, re.MULTILINE)
 
     assert match is not None
-    assert match.group(1) == "c61098da494eea1cbd091118118dcee417faacea"
+    assert match.group(1) == "92810461043fce37e70079b37ab1f04490a8f039"
     expat = CHECKER.COMPONENT_DEFINITION_BY_NAME["Expat"]
     assert expat.resolver == "not_applicable"
     assert "Parent" in expat.compatibility_policy

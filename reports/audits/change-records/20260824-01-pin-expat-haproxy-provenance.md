@@ -34,7 +34,7 @@ permission, cache-sharing policy, or default branch is changed.
 ## Acceptance criteria
 
 1. `EXPAT_GIT_REF` is a lower-case, full 40-character immutable commit.
-2. The chosen commit is the peeled commit of upstream Expat `R_2_8_2`.
+2. The chosen commit is the peeled commit of upstream Expat `R_2_8_3`.
 3. Framework metadata and EN/DE documentation no longer call the value unused
    legacy acquisition metadata.
 4. A focused regression test rejects restoration of a moving reference.
@@ -43,8 +43,9 @@ permission, cache-sharing policy, or default branch is changed.
 
 ## Alternatives considered
 
-- A newer Expat release was not selected: that would be an unrequested
-  dependency upgrade.
+- The current user explicitly selected the latest upstream stable release
+  `R_2_8_3`; its peeled commit is recorded rather than resolving a mutable
+  latest-release endpoint at runtime.
 - More retries, a PR token, or a mutable cache would not establish immutable
   provenance and were rejected.
 - Changing the Parent to acquire a branch directly was rejected because a
@@ -53,7 +54,8 @@ permission, cache-sharing policy, or default branch is changed.
 ## Implementation decision
 
 The Framework records the reviewed peeled commit
-`c61098da494eea1cbd091118118dcee417faacea` for the existing `R_2_8_2` source.
+`92810461043fce37e70079b37ab1f04490a8f039` for the user-authorized
+`R_2_8_3` source.
 The `not_applicable` Framework resolver remains correct because Framework does
 not fetch Expat; its description now names the Parent as the strict runtime
 consumer. The Parent-side change enables strict verification only in the
@@ -75,8 +77,8 @@ registry describes the Parent consumer and immutable provenance.
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- |
-| `rtk proxy git ls-remote https://github.com/libexpat/libexpat.git …` | 0 | Upstream `R_2_8_2^{}` peeled to the recorded commit. | Task transcript, 2026-08-24 |
-| `rtk proxy … python3 -m py_compile …` | 0 | Modified checker and focused test compile. | Isolated Framework worktree |
+| `rtk proxy git ls-remote https://github.com/libexpat/libexpat.git …` | 0 | Upstream `R_2_8_3^{}` peeled to the recorded commit. | Task transcript, 2026-08-24 |
+| `rtk proxy python3 -B -c '…compile(…)…'` | 0 | Modified checker and focused test compile in memory without writing bytecode into the isolated worktree. | Isolated Framework worktree |
 | `rtk proxy sh -n ci/lib/common.sh` | 0 | The canonical shell source parses. | Isolated Framework worktree |
 | `rtk proxy python3 ci/tools/check-common-versions.py --validate-canonical` | 0 | Canonical local pin contract passes. | Isolated Framework worktree |
 | Focused Expat regression function | 0 | The immutable pin and Parent-consumer contract pass. | Isolated Framework worktree |

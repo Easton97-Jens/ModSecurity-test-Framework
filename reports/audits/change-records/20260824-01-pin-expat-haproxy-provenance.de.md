@@ -36,7 +36,7 @@ werden geändert.
 
 1. `EXPAT_GIT_REF` ist ein kleingeschriebener vollständiger unveränderlicher
    40-Zeichen-Commit.
-2. Der Commit ist der aufgelöste Commit des Upstream-Expat-Tags `R_2_8_2`.
+2. Der Commit ist der aufgelöste Commit des Upstream-Expat-Tags `R_2_8_3`.
 3. Framework-Metadaten und EN/DE-Dokumentation nennen den Wert nicht länger
    ungenutzte Legacy-Abrufmetadaten.
 4. Ein fokussierter Regressionstest weist die Rückkehr zu einer beweglichen
@@ -46,8 +46,9 @@ werden geändert.
 
 ## Untersuchte Alternativen
 
-- Ein neueres Expat-Release wurde nicht gewählt, da dies ein nicht
-  angeforderter Dependency-Upgrade wäre.
+- Der aktuelle Benutzer hat das neueste stabile Upstream-Release `R_2_8_3`
+  ausdrücklich ausgewählt; sein aufgelöster Commit wird aufgezeichnet, statt
+  zur Laufzeit einen beweglichen Latest-Release-Endpunkt aufzulösen.
 - Mehr Retries, ein PR-Token oder ein beweglicher Cache schaffen keine
   unveränderliche Provenance und wurden verworfen.
 - Den Parent direkt einen Branch beschaffen zu lassen, wurde verworfen, weil
@@ -56,8 +57,8 @@ werden geändert.
 ## Implementierungsentscheidung
 
 Das Framework zeichnet den geprüften aufgelösten Commit
-`c61098da494eea1cbd091118118dcee417faacea` der vorhandenen Quelle `R_2_8_2`
-auf. Der Framework-Resolver `not_applicable` bleibt korrekt, weil das
+`92810461043fce37e70079b37ab1f04490a8f039` der benutzerautorisierten Quelle
+`R_2_8_3` auf. Der Framework-Resolver `not_applicable` bleibt korrekt, weil das
 Framework Expat nicht selbst beschafft; seine Beschreibung nennt nun den Parent
 als strikten Runtime-Verbraucher. Die Parent-Änderung aktiviert die strikte
 Prüfung nur in der HAProxy-Route, daher wird kein Workflowpfad anderer
@@ -79,8 +80,8 @@ Registry den Parent-Verbraucher und die unveränderliche Provenance beschreibt.
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- |
-| `rtk proxy git ls-remote https://github.com/libexpat/libexpat.git …` | 0 | Upstream `R_2_8_2^{}` löste auf den aufgezeichneten Commit auf. | Task-Transcript, 2026-08-24 |
-| `rtk proxy … python3 -m py_compile …` | 0 | Geänderter Checker und fokussierter Test kompilieren. | Isolierter Framework-Worktree |
+| `rtk proxy git ls-remote https://github.com/libexpat/libexpat.git …` | 0 | Upstream `R_2_8_3^{}` löste auf den aufgezeichneten Commit auf. | Task-Transcript, 2026-08-24 |
+| `rtk proxy python3 -B -c '…compile(…)…'` | 0 | Geänderter Checker und fokussierter Test kompilieren im Speicher, ohne Bytecode in den isolierten Worktree zu schreiben. | Isolierter Framework-Worktree |
 | `rtk proxy sh -n ci/lib/common.sh` | 0 | Die kanonische Shellquelle lässt sich parsen. | Isolierter Framework-Worktree |
 | `rtk proxy python3 ci/tools/check-common-versions.py --validate-canonical` | 0 | Lokaler kanonischer Pin-Vertrag bestanden. | Isolierter Framework-Worktree |
 | Fokussierte Expat-Regression-Funktion | 0 | Unveränderlicher Pin- und Parent-Verbrauchervertrag bestanden. | Isolierter Framework-Worktree |
