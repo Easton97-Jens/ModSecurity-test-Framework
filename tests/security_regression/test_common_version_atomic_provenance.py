@@ -289,6 +289,77 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         invalid = CHECKER.resolve_component_definition(definition, entries, FixtureClient())
         self.assertEqual(CHECKER.STATUS_BLOCKED, invalid.status)
 
+    def test_special_component_resolution_precedes_standard_dispatch(self):
+        entries = {}
+        client = FixtureClient()
+        for component, resolver_name in (
+            (CHECKER.CRS_COMPONENT, "check_crs_release_provenance"),
+            (
+                CHECKER.MODSECURITY_V3_COMPONENT,
+                "check_modsecurity_v3_release_provenance",
+            ),
+        ):
+            with self.subTest(component=component):
+                definition = CHECKER.COMPONENT_DEFINITION_BY_NAME[component]
+                expected = CHECKER.ComponentResult(
+                    component=component,
+                    status=CHECKER.STATUS_CURRENT,
+                    message="fixture result",
+                    variables=list(definition.variables),
+                )
+                with (
+                    patch.object(
+                        CHECKER,
+                        "resolve_standard_component_definition",
+                        side_effect=AssertionError("special resolver used standard dispatch"),
+                    ),
+                    patch.object(
+                        CHECKER, resolver_name, return_value=expected
+                    ) as resolver,
+                ):
+                    result = CHECKER.resolve_component_definition(
+                        definition, entries, client
+                    )
+
+                self.assertIs(expected, result)
+                resolver.assert_called_once_with(entries, client)
+
+    def test_github_canonicalization_failure_blocks_before_standard_resolver(self):
+        definition, entries = self.github_entries("PCRE2")
+        client = FixtureClient()
+        message = "fixture repository identity is not approved"
+        with (
+            patch.object(
+                CHECKER,
+                "canonicalize_github_repository",
+                side_effect=CHECKER.UpstreamBlocked(message),
+            ),
+            patch.object(
+                CHECKER,
+                "check_github_release_component",
+                side_effect=AssertionError("GitHub release resolver was reached"),
+            ),
+        ):
+            result = CHECKER.resolve_component_definition(definition, entries, client)
+
+        self.assertEqual(CHECKER.STATUS_BLOCKED, result.status)
+        self.assertEqual(message, result.message)
+        self.assertEqual(list(definition.variables), result.variables)
+        self.assertEqual(
+            CHECKER.value(entries, definition.source_url_variable or ""), result.source
+        )
+        self.assertEqual([], client.urls)
+
+    def test_unknown_resolver_still_raises_upstream_error(self):
+        definition, entries = self.github_entries("PCRE2")
+        unsupported = dataclasses.replace(definition, resolver="unsupported")
+
+        with self.assertRaisesRegex(
+            CHECKER.UpstreamError,
+            "unknown resolver strategy for PCRE2: unsupported",
+        ):
+            CHECKER.resolve_component_definition(unsupported, entries, FixtureClient())
+
     def test_traefik_prefers_github_asset_digest_before_manifest_download(self):
         definition, entries = self.github_entries("Traefik")
         _, release = self.latest_release(definition)

@@ -9,7 +9,7 @@
 | Change-ID | `20260827-01-http2-http3-provenance-reader-boundary` |
 | UTC-Datum | 2026-08-27 |
 | Framework-Basisrevision | `86451b45ae7bb7953baf9f81f2c2dad07395a808` |
-| Issue oder Pull Request | Parent-Draft-PR `#348` bleibt unverändert; ein separater Framework-Draft-PR steht aus. |
+| Issue oder Pull Request | Parent-Draft-PR `#348` bleibt unverändert; Framework-Draft-PR `#112` ist geöffnet und bleibt separat. |
 
 ## Motivation und Problemstellung
 
@@ -172,3 +172,56 @@ Secret- und unabhängigen Provenance-Review nicht gestagt. Kein Commit, Push,
 Pull-Request-Erstellen, Merge, Parent-Gitlink-Move oder MRTS-Aktion ist erfolgt.
 Der autorisierte nächste Delivery-Schritt ist ausschließlich ein separater
 Framework-Draft-PR.
+
+**SonarQube-Cloud-Remediation (Kandidat).**
+
+Am exakten Head
+`630449ed71cadb0915dd82e1831aa08700fbdc2a` von Framework-Draft-PR `#112`
+meldete SonarQube Cloud das neue Issue `AaBC6hWexbnbqiQBrl8d`, Regel
+`python:S3776`, auf `resolve_component_definition`: kognitive Komplexität
+`17`, obwohl `15` zulässig sind. Das Quality Gate war `OK`, der aktuelle
+Benutzer hat jedoch ausdrücklich die Behebung des neuen Issues verlangt.
+
+Der Kandidat trennt den bisherigen generischen Resolver-Body in
+`resolve_standard_component_definition`. `resolve_component_definition`
+dispatcht CRS und ModSecurity v3 weiterhin zuerst und delegiert danach jeden
+anderen Descriptor an den unveränderten Body. Insbesondere bleiben die
+GitHub-Repository-Kanonisierung und ihre `STATUS_BLOCKED`-Abbildung vor allen
+netzwerkgestützten Resolver-Aufrufen; diese Remediation ändert weder Regeln,
+Quality Gate, Workflow, Suppression, Exclusion, Pins, Parent-Gitlink noch
+MRTS.
+
+**Hinzugefügte Regressionsabdeckung und lokale Validierung.**
+
+`tests/security_regression/test_common_version_atomic_provenance.py` prüft nun,
+dass die zwei spezialisierten Komponenten den Standard-Dispatcher umgehen,
+ein GitHub-Kanonisierungsfehler vor einer Client-Nutzung blockiert bleibt und
+eine unbekannte Strategie ihre `UpstreamError`-Meldung behält.
+
+| Befehl | Exit-Code | Kurzes Ergebnis | Evidenz |
+| --- | --- | --- | --- |
+| `rtk proxy python3 -B -m unittest -v tests.security_regression.test_common_version_atomic_provenance` | 0 | 30 hermetische Provenance-Tests bestehen, einschließlich der drei neuen Dispatcher-Kontrollen. | Isolierter Framework-Worktree, 2026-08-27 |
+| `rtk proxy python3 -B -m unittest -v tests.security_regression.test_common_version_descriptor_series tests.security_regression.test_crs_git_ref_provenance.FetchCrsProvenanceTests.test_version_checker_automatically_updates_only_the_crs_v4_tuple tests.security_regression.test_crs_git_ref_provenance.FetchCrsProvenanceTests.test_version_checker_repairs_a_stale_crs_rule_digest tests.security_regression.test_crs_git_ref_provenance.FetchCrsProvenanceTests.test_version_checker_rejects_an_invalid_candidate_rule_file tests.security_regression.test_crs_git_ref_provenance.FetchCrsProvenanceTests.test_version_checker_rejects_foreign_crs_repository_before_network tests.security_regression.test_common_versions_sonar_provenance.CommonVersionProvenanceTests.test_modsecurity_v3_release_requires_reviewed_tag_and_commit_pair tests.security_regression.test_common_versions_sonar_provenance.CommonVersionProvenanceTests.test_modsecurity_v3_release_blocks_missing_or_malformed_immutable_anchor tests.security_regression.test_common_versions_sonar_provenance.CommonVersionProvenanceTests.test_unknown_results_fail_closed_while_local_policy_entries_are_not_applicable` | 0 | 11 Descriptor-, CRS-, ModSecurity-v3- und alternative Ergebnis-Kontrollen bestehen. | Isolierter Framework-Worktree, 2026-08-27 |
+| `rtk proxy python3 -B ci/tools/check-common-versions.py --validate-canonical` | 0 | Der Offline-Pin-Vertrag für kanonisches `common.sh` besteht. | Isolierter Framework-Worktree, 2026-08-27 |
+| `rtk proxy git diff --check` | 0 | Keine abgegrenzten Whitespace-Fehler. | Isolierter Framework-Worktree, 2026-08-27 |
+
+Zwei unabhängige Read-only-Reviews verfolgten die Resolver-Pfade vor und nach
+dem Patch. Das Post-Patch-Review fand keinen neuen validierten Sicherheits-
+oder Kompatibilitätsbefund: CRS-/ModSecurity-v3-Reihenfolge,
+Kanonisierung-vor-Netzwerk, `STATUS_BLOCKED`-Abbildung, alle übrigen
+Strategie-Branches und das Exception-Mapping von `check_all` bleiben erhalten.
+Das Review vermerkte eine bereits bestehende, nicht zum Scope gehörende
+NGINX-Repository-Identitäts-Designfrage zur separaten Triage; sie wurde durch
+diese Refaktorierung weder eingeführt noch geändert.
+
+**Delivery-Evidenzgrenze.**
+
+Der lokale Kandidat wurde vor der normalen Successor-Delivery validiert. Ein
+frischer Nachfolger von Framework-PR `#112` muss per exaktem
+Local-/Remote-/PR-Head-SHA, aktueller SonarQube-Cloud-Issue-Abfrage, Quality
+Gate und anwendbaren Hosted Checks verifiziert werden, bevor dieses Record
+oder der Befund als behoben markiert werden kann. Das vollständige
+Framework-`make lint` und breitere Matrizen wurden für diese enge
+Dispatcher-Refaktorierung nicht ausgeführt; `ruff` ist lokal nicht installiert
+und es wurde keine Dependency-Installation vorgenommen. Daraus folgt keine
+Runtime-, Parent- oder MRTS-Validierung.

@@ -4723,15 +4723,13 @@ def unified_orchestrator_component(
     )
 
 
-def resolve_component_definition(
+def resolve_standard_component_definition(
     definition: ComponentDefinition,
     entries: dict[str, VariableEntry],
     client: HttpClient,
 ) -> ComponentResult:
-    if definition.name == CRS_COMPONENT:
-        return check_crs_release_provenance(entries, client)
-    if definition.name == MODSECURITY_V3_COMPONENT:
-        return check_modsecurity_v3_release_provenance(entries, client)
+    """Resolve a descriptor that does not use a specialized provenance flow."""
+
     if definition.resolver in {
         "github_release_manifest",
         "github_release_digest",
@@ -4786,6 +4784,20 @@ def resolve_component_definition(
     raise UpstreamError(
         f"unknown resolver strategy for {definition.name}: {definition.resolver}"
     )
+
+
+def resolve_component_definition(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    client: HttpClient,
+) -> ComponentResult:
+    """Resolve one component according to its established provenance contract."""
+
+    if definition.name == CRS_COMPONENT:
+        return check_crs_release_provenance(entries, client)
+    if definition.name == MODSECURITY_V3_COMPONENT:
+        return check_modsecurity_v3_release_provenance(entries, client)
+    return resolve_standard_component_definition(definition, entries, client)
 
 
 def check_all(

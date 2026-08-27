@@ -9,7 +9,7 @@
 | Change ID | `20260827-01-http2-http3-provenance-reader-boundary` |
 | UTC date | 2026-08-27 |
 | Framework base revision | `86451b45ae7bb7953baf9f81f2c2dad07395a808` |
-| Issue or pull request | Parent Draft PR `#348` remains unchanged; a separate Framework Draft PR is pending. |
+| Issue or pull request | Parent Draft PR `#348` remains unchanged; Framework Draft PR `#112` is open and remains separate. |
 
 ## Motivation and problem statement
 
@@ -158,3 +158,52 @@ Framework worktree and remain unstaged pending final scoped diff, secret, and
 independent provenance review. No commit, push, pull-request creation, merge,
 Parent Gitlink movement, or MRTS action has occurred. The authorized next
 delivery step is a separate Framework Draft PR only.
+
+**SonarQube Cloud remediation (candidate).**
+
+At exact Framework Draft PR `#112` head
+`630449ed71cadb0915dd82e1831aa08700fbdc2a`, SonarQube Cloud reported the
+new issue `AaBC6hWexbnbqiQBrl8d`, rule `python:S3776`, on
+`resolve_component_definition`: cognitive complexity `17` where `15` is
+allowed. The Quality Gate was `OK`, but the current user explicitly requested
+that the new issue be repaired.
+
+The candidate splits the existing generic resolver body into
+`resolve_standard_component_definition`. `resolve_component_definition` still
+dispatches CRS and ModSecurity v3 first, then delegates every other descriptor
+to the unchanged body. In particular, GitHub repository canonicalization and
+its `STATUS_BLOCKED` conversion remain before all network-backed resolver
+calls; no rule, Quality-Gate, workflow, suppression, exclusion, pin, Parent
+Gitlink, or MRTS change is part of this remediation.
+
+**Added regression coverage and local validation.**
+
+`tests/security_regression/test_common_version_atomic_provenance.py` now
+checks that the two specialized components bypass the standard dispatcher, a
+GitHub canonicalization failure remains blocked before a resolver can use the
+client, and an unknown strategy retains its `UpstreamError` message.
+
+| Command | Exit code | Concise result | Evidence |
+| --- | --- | --- | --- |
+| `rtk proxy python3 -B -m unittest -v tests.security_regression.test_common_version_atomic_provenance` | 0 | 30 hermetic provenance tests pass, including the three new dispatcher controls. | Isolated Framework worktree, 2026-08-27 |
+| `rtk proxy python3 -B -m unittest -v tests.security_regression.test_common_version_descriptor_series tests.security_regression.test_crs_git_ref_provenance.FetchCrsProvenanceTests.test_version_checker_automatically_updates_only_the_crs_v4_tuple tests.security_regression.test_crs_git_ref_provenance.FetchCrsProvenanceTests.test_version_checker_repairs_a_stale_crs_rule_digest tests.security_regression.test_crs_git_ref_provenance.FetchCrsProvenanceTests.test_version_checker_rejects_an_invalid_candidate_rule_file tests.security_regression.test_crs_git_ref_provenance.FetchCrsProvenanceTests.test_version_checker_rejects_foreign_crs_repository_before_network tests.security_regression.test_common_versions_sonar_provenance.CommonVersionProvenanceTests.test_modsecurity_v3_release_requires_reviewed_tag_and_commit_pair tests.security_regression.test_common_versions_sonar_provenance.CommonVersionProvenanceTests.test_modsecurity_v3_release_blocks_missing_or_malformed_immutable_anchor tests.security_regression.test_common_versions_sonar_provenance.CommonVersionProvenanceTests.test_unknown_results_fail_closed_while_local_policy_entries_are_not_applicable` | 0 | 11 descriptor, CRS, ModSecurity-v3, and alternate-result controls pass. | Isolated Framework worktree, 2026-08-27 |
+| `rtk proxy python3 -B ci/tools/check-common-versions.py --validate-canonical` | 0 | Offline canonical `common.sh` pin contract passes. | Isolated Framework worktree, 2026-08-27 |
+| `rtk proxy git diff --check` | 0 | No scoped whitespace errors. | Isolated Framework worktree, 2026-08-27 |
+
+Two independent read-only reviews traced the pre- and post-patch resolver
+paths. The post-patch review found no new validated security or compatibility
+finding: CRS/ModSecurity-v3 ordering, canonicalization-before-network,
+`STATUS_BLOCKED` conversion, all other strategy branches, and `check_all`
+exception mapping are retained. The review noted a pre-existing, out-of-scope
+NGINX repository-identity design concern for separate triage; it was not
+introduced or changed by this refactor.
+
+**Delivery evidence boundary.**
+
+The local candidate was validated before normal successor delivery. A fresh
+Framework PR `#112` successor must be verified by exact local/remote/PR-head
+SHA, current SonarQube Cloud issue query, Quality Gate, and applicable hosted
+checks before this record or the finding can be marked fixed. Full Framework
+`make lint` and broader matrices were not run for this narrow dispatch
+refactor; `ruff` is not installed locally and no dependency installation was
+performed. No runtime, Parent, or MRTS validation is implied.
