@@ -623,6 +623,58 @@ class ProtocolEvidenceTest(unittest.TestCase):
                 errors,
             )
 
+    def test_artifact_reader_bounds_regular_files_and_rejects_unsafe_inputs(self) -> None:
+        with temporary_artifact_directory() as temporary:
+            root = Path(temporary)
+            exact = root / "exact.txt"
+            expected = b"x" * check_protocol_evidence.MAX_TEXT_BYTES
+            exact.write_bytes(expected)
+            value, errors = check_protocol_evidence._read_text(
+                exact, maximum=check_protocol_evidence.MAX_TEXT_BYTES
+            )
+            self.assertEqual(value, expected.decode("utf-8"))
+            self.assertEqual(errors, [])
+
+            oversized = root / "oversized.txt"
+            oversized.write_bytes(expected + b"x")
+            value, errors = check_protocol_evidence._read_text(
+                oversized, maximum=check_protocol_evidence.MAX_TEXT_BYTES
+            )
+            self.assertIsNone(value)
+            self.assertEqual(errors, ["artifact exceeds bounded size: oversized.txt"])
+
+            target = root / "target.txt"
+            target.write_text("safe", encoding="utf-8")
+            symlink = root / "link.txt"
+            symlink.symlink_to(target)
+            value, errors = check_protocol_evidence._read_text(
+                symlink, maximum=check_protocol_evidence.MAX_TEXT_BYTES
+            )
+            self.assertIsNone(value)
+            self.assertEqual(errors, ["missing or unsafe artifact: link.txt"])
+
+            outside = root / "outside"
+            outside.mkdir()
+            nested = outside / "nested.txt"
+            nested.write_text("safe", encoding="utf-8")
+            symlinked_parent = root / "artifacts"
+            symlinked_parent.symlink_to(outside, target_is_directory=True)
+            value, errors = check_protocol_evidence._read_text(
+                symlinked_parent / nested.name,
+                maximum=check_protocol_evidence.MAX_TEXT_BYTES,
+            )
+            self.assertIsNone(value)
+            self.assertEqual(errors, ["missing or unsafe artifact: nested.txt"])
+
+            if hasattr(os, "mkfifo"):
+                fifo = root / "artifact.fifo"
+                os.mkfifo(fifo)
+                value, errors = check_protocol_evidence._read_text(
+                    fifo, maximum=check_protocol_evidence.MAX_TEXT_BYTES
+                )
+                self.assertIsNone(value)
+                self.assertEqual(errors, ["missing or unsafe artifact: artifact.fifo"])
+
     def test_feature_report_retains_duplicate_unknown_and_missing_field_errors(self) -> None:
         with temporary_artifact_directory() as temporary:
             root = Path(temporary)

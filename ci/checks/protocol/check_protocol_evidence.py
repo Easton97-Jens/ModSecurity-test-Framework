@@ -194,14 +194,16 @@ ALLOWED_FOLLOWUP_FIELDS = frozenset(
 
 
 def _read_text(path: Path, *, maximum: int) -> tuple[str | None, list[str]]:
-    if path.is_symlink() or not path.is_file():
-        return None, [f"missing or unsafe artifact: {path.name}"]
     try:
-        raw = path.read_bytes()
+        raw = protocol_client.read_bounded_regular_bytes(path, maximum=maximum)
+    except protocol_client.BoundedFileReadError as exc:
+        if exc.reason == "oversized":
+            return None, [f"artifact exceeds bounded size: {path.name}"]
+        if exc.reason == "unavailable":
+            return None, [f"unreadable artifact: {path.name}"]
+        return None, [f"missing or unsafe artifact: {path.name}"]
     except OSError:
         return None, [f"unreadable artifact: {path.name}"]
-    if len(raw) > maximum:
-        return None, [f"artifact exceeds bounded size: {path.name}"]
     try:
         return raw.decode("utf-8"), []
     except UnicodeDecodeError:
