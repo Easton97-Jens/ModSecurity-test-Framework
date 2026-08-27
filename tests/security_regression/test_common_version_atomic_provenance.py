@@ -321,7 +321,7 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                         definition, entries, client
                     )
 
-                self.assertIs(expected, result)
+                self.assertIs(result, expected)
                 resolver.assert_called_once_with(entries, client)
 
     def test_github_canonicalization_failure_blocks_before_standard_resolver(self):
@@ -342,23 +342,24 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         ):
             result = CHECKER.resolve_component_definition(definition, entries, client)
 
-        self.assertEqual(CHECKER.STATUS_BLOCKED, result.status)
-        self.assertEqual(message, result.message)
-        self.assertEqual(list(definition.variables), result.variables)
+        self.assertEqual(result.status, CHECKER.STATUS_BLOCKED)
+        self.assertEqual(result.message, message)
+        self.assertEqual(result.variables, list(definition.variables))
         self.assertEqual(
-            CHECKER.value(entries, definition.source_url_variable or ""), result.source
+            result.source, CHECKER.value(entries, definition.source_url_variable or "")
         )
         self.assertEqual([], client.urls)
 
     def test_unknown_resolver_still_raises_upstream_error(self):
         definition, entries = self.github_entries("PCRE2")
         unsupported = dataclasses.replace(definition, resolver="unsupported")
+        client = FixtureClient()
 
         with self.assertRaisesRegex(
             CHECKER.UpstreamError,
             "unknown resolver strategy for PCRE2: unsupported",
         ):
-            CHECKER.resolve_component_definition(unsupported, entries, FixtureClient())
+            CHECKER.resolve_component_definition(unsupported, entries, client)
 
     def test_traefik_prefers_github_asset_digest_before_manifest_download(self):
         definition, entries = self.github_entries("Traefik")
