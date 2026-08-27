@@ -348,7 +348,7 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         self.assertEqual(
             result.source, CHECKER.value(entries, definition.source_url_variable or "")
         )
-        self.assertEqual([], client.urls)
+        self.assertEqual(client.urls, [])
 
     def test_unknown_resolver_still_raises_upstream_error(self):
         definition, entries = self.github_entries("PCRE2")
