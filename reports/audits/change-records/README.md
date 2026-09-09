@@ -13,6 +13,7 @@ described in [change traceability](../../../docs/change-traceability.md).
 
 ## Current records
 
+- [Remediate ModSecurity v3 multipart handling (2026-09-09)](20260909-01-remediate-modsecurity-v3-multipart.md)
 - [Add Framework contract API (2026-08-24)](20260824-01-add-framework-contract-api.md)
 - [Fix inherited-upstream snapshot re-entry (2026-08-21)](20260821-02-fix-inherited-upstream-snapshot-reentry.md)
 - [Remediate Traefik runtime pin divergence (2026-08-14)](20260814-01-remediate-traefik-runtime-pin-divergence.md)

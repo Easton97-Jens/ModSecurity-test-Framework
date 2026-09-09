@@ -26,6 +26,10 @@ struct scenario {
     const char *uri;
     const char *method;
     const char *http_version;
+    const char *content_type;
+    const unsigned char *request_body;
+    size_t request_body_length;
+    int expects_intervention;
     int expected_status;
 };
 
@@ -84,6 +88,8 @@ static int load_rules(RulesSet *rules, const char *rules_text,
 static int run_scenario(const struct scenario *scenario,
     struct observed_intervention *observed)
 {
+    char content_length[32];
+    int content_length_size;
     int ret;
     int setup_status;
     ModSecurity *modsec = NULL;
@@ -151,6 +157,60 @@ static int run_scenario(const struct scenario *scenario,
     }
     check_intervention(transaction, "uri", observed);
 
+    ret = msc_add_request_header(transaction,
+        (const unsigned char *)"Host",
+        (const unsigned char *)"localhost");
+    if (ret == 0) {
+        fprintf(stderr, "%s: setup_error msc_add_request_header Host failed\n",
+            scenario->name);
+        msc_transaction_cleanup(transaction);
+        msc_rules_cleanup(rules);
+        msc_cleanup(modsec);
+        return SCENARIO_SETUP_ERROR;
+    }
+
+    if (scenario->content_type != NULL) {
+        ret = msc_add_request_header(transaction,
+            (const unsigned char *)"Content-Type",
+            (const unsigned char *)scenario->content_type);
+        if (ret == 0) {
+            fprintf(stderr,
+                "%s: setup_error msc_add_request_header failed\n",
+                scenario->name);
+            msc_transaction_cleanup(transaction);
+            msc_rules_cleanup(rules);
+            msc_cleanup(modsec);
+            return SCENARIO_SETUP_ERROR;
+        }
+    }
+
+    if (scenario->request_body != NULL) {
+        content_length_size = snprintf(content_length, sizeof(content_length),
+            "%zu", scenario->request_body_length);
+        if (content_length_size < 0 ||
+            (size_t)content_length_size >= sizeof(content_length)) {
+            fprintf(stderr,
+                "%s: setup_error formatting Content-Length failed\n",
+                scenario->name);
+            msc_transaction_cleanup(transaction);
+            msc_rules_cleanup(rules);
+            msc_cleanup(modsec);
+            return SCENARIO_SETUP_ERROR;
+        }
+        ret = msc_add_request_header(transaction,
+            (const unsigned char *)"Content-Length",
+            (const unsigned char *)content_length);
+        if (ret == 0) {
+            fprintf(stderr,
+                "%s: setup_error msc_add_request_header Content-Length failed\n",
+                scenario->name);
+            msc_transaction_cleanup(transaction);
+            msc_rules_cleanup(rules);
+            msc_cleanup(modsec);
+            return SCENARIO_SETUP_ERROR;
+        }
+    }
+
     ret = msc_process_request_headers(transaction);
     if (ret == 0) {
         fprintf(stderr,
@@ -162,6 +222,20 @@ static int run_scenario(const struct scenario *scenario,
         return SCENARIO_SETUP_ERROR;
     }
     check_intervention(transaction, "request_headers", observed);
+
+    if (scenario->request_body != NULL) {
+        ret = msc_append_request_body(transaction, scenario->request_body,
+            scenario->request_body_length);
+        if (ret == 0) {
+            fprintf(stderr,
+                "%s: setup_error msc_append_request_body failed\n",
+                scenario->name);
+            msc_transaction_cleanup(transaction);
+            msc_rules_cleanup(rules);
+            msc_cleanup(modsec);
+            return SCENARIO_SETUP_ERROR;
+        }
+    }
 
     ret = msc_process_request_body(transaction);
     if (ret == 0) {
@@ -179,9 +253,15 @@ static int run_scenario(const struct scenario *scenario,
     msc_rules_cleanup(rules);
     msc_cleanup(modsec);
 
-    if (observed->found != 0 && observed->status == scenario->expected_status) {
+    if (scenario->expects_intervention != 0 && observed->found != 0 &&
+        observed->status == scenario->expected_status) {
         printf("%s: pass status=%d phase=%s\n", scenario->name,
             observed->status, observed->phase);
+        return SCENARIO_PASS;
+    }
+
+    if (scenario->expects_intervention == 0 && observed->found == 0) {
+        printf("%s: pass status=none\n", scenario->name);
         return SCENARIO_PASS;
     }
 
@@ -199,6 +279,24 @@ static int run_scenario(const struct scenario *scenario,
 
 int main(void)
 {
+    static const unsigned char multipart_crlf_body[] =
+        "--f001-newline\r\n"
+        "Content-Disposition: form-data; name=\"payload\"\r\n"
+        "\r\n"
+        "A\r\nB\r\n"
+        "--f001-newline--\r\n";
+    static const unsigned char multipart_lf_body[] =
+        "--f001-newline\r\n"
+        "Content-Disposition: form-data; name=\"payload\"\r\n"
+        "\r\n"
+        "A\nB\r\n"
+        "--f001-newline--\r\n";
+    static const unsigned char multipart_control_body[] =
+        "--f001-newline\r\n"
+        "Content-Disposition: form-data; name=\"payload\"\r\n"
+        "\r\n"
+        "AB\r\n"
+        "--f001-newline--\r\n";
     const struct scenario primary_args_phase2 = {
         "primary_args_phase2",
         "SecRuleEngine On\n"
@@ -207,6 +305,10 @@ int main(void)
         "/?test=attack",
         "GET",
         "1.1",
+        NULL,
+        NULL,
+        0,
+        1,
         403
     };
     const struct scenario fallback_request_uri_phase1 = {
@@ -217,30 +319,113 @@ int main(void)
         "/?test=attack",
         "GET",
         "1.1",
+        NULL,
+        NULL,
+        0,
+        1,
+        403
+    };
+    const struct scenario multipart_crlf_deny = {
+        "multipart_crlf_deny",
+        "SecRuleEngine On\n"
+        "SecRequestBodyAccess On\n"
+        "SecRule ARGS:payload \"@streq A\r\nB\" "
+        "\"id:500096,phase:2,deny,status:403\"\n",
+        "/",
+        "POST",
+        "1.1",
+        "multipart/form-data; boundary=f001-newline",
+        multipart_crlf_body,
+        sizeof(multipart_crlf_body) - 1,
+        1,
+        403
+    };
+    const struct scenario multipart_lf_deny = {
+        "multipart_lf_deny",
+        "SecRuleEngine On\n"
+        "SecRequestBodyAccess On\n"
+        "SecRule ARGS:payload \"@streq A\nB\" "
+        "\"id:500098,phase:2,deny,status:403\"\n",
+        "/",
+        "POST",
+        "1.1",
+        "multipart/form-data; boundary=f001-newline",
+        multipart_lf_body,
+        sizeof(multipart_lf_body) - 1,
+        1,
+        403
+    };
+    const struct scenario multipart_control_allow = {
+        "multipart_control_allow",
+        "SecRuleEngine On\n"
+        "SecRequestBodyAccess On\n"
+        "SecRule ARGS:payload \"@streq A\r\nB\" "
+        "\"id:500099,phase:2,deny,status:403\"\n",
+        "/",
+        "POST",
+        "1.1",
+        "multipart/form-data; boundary=f001-newline",
+        multipart_control_body,
+        sizeof(multipart_control_body) - 1,
+        0,
+        200
+    };
+    const struct scenario multipart_control_representation_deny = {
+        "multipart_control_representation_deny",
+        "SecRuleEngine On\n"
+        "SecRequestBodyAccess On\n"
+        "SecRule ARGS:payload \"@streq AB\" "
+        "\"id:500100,phase:2,deny,status:403\"\n",
+        "/",
+        "POST",
+        "1.1",
+        "multipart/form-data; boundary=f001-newline",
+        multipart_control_body,
+        sizeof(multipart_control_body) - 1,
+        1,
         403
     };
     struct observed_intervention observed;
     int primary_result;
     int fallback_result;
+    int multipart_result;
 
     primary_result = run_scenario(&primary_args_phase2, &observed);
     if (primary_result == SCENARIO_PASS) {
         printf("fallback_request_uri_phase1: skipped primary_passed\n");
-        return 0;
-    }
-    if (primary_result == SCENARIO_SETUP_ERROR) {
-        return 2;
-    }
+    } else {
+        if (primary_result == SCENARIO_SETUP_ERROR) {
+            return 2;
+        }
 
-    fallback_result = run_scenario(&fallback_request_uri_phase1, &observed);
-    if (fallback_result == SCENARIO_PASS) {
-        printf("fallback passed, primary failed\n");
+        fallback_result = run_scenario(&fallback_request_uri_phase1, &observed);
+        if (fallback_result == SCENARIO_PASS) {
+            printf("fallback passed, primary failed\n");
+            return 1;
+        }
+        if (fallback_result == SCENARIO_SETUP_ERROR) {
+            return 2;
+        }
+
         return 1;
     }
-    if (fallback_result == SCENARIO_SETUP_ERROR) {
-        return 2;
+
+    multipart_result = run_scenario(&multipart_crlf_deny, &observed);
+    if (multipart_result != SCENARIO_PASS) {
+        return multipart_result;
+    }
+    multipart_result = run_scenario(&multipart_lf_deny, &observed);
+    if (multipart_result != SCENARIO_PASS) {
+        return multipart_result;
+    }
+    multipart_result = run_scenario(&multipart_control_allow, &observed);
+    if (multipart_result != SCENARIO_PASS) {
+        return multipart_result;
+    }
+    multipart_result = run_scenario(&multipart_control_representation_deny, &observed);
+    if (multipart_result != SCENARIO_PASS) {
+        return multipart_result;
     }
 
-    return 1;
+    return 0;
 }
-
