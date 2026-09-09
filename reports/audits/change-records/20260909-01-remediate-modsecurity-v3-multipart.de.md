@@ -9,7 +9,7 @@
 | Change-ID | 20260909-01-remediate-modsecurity-v3-multipart |
 | UTC-Datum | 2026-09-09 |
 | Framework-Basisrevision | 86451b45ae7bb7953baf9f81f2c2dad07395a808 |
-| Issue oder Pull Request | Beim Erstellen dieses Pre-Delivery-Records existierte keine Referenz. Der aktuelle Benutzer autorisierte einen separaten Framework-Draft-PR; seine beobachtete Referenz wird nach der Erstellung dokumentiert. |
+| Issue oder Pull Request | Draft PR [#115](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/115) ist offen und ungemergt vom `security/audit-2026-09-09-framework-fix`-Branch beim ersten Delivery-Commit `9592e325ca3e60153b047872f408c9c2e0b9b689`; lokaler, Remote- und PR-Head stimmten bei der Erstellung überein. Dieses Record-Update ist ein Follow-up-Commit und kann sein eigenes finales Git-Objekt nicht selbst referenzieren; Task-Delivery-Evidence dokumentiert den exakten finalen lokalen/Remote-/PR-Head-SHA nach dem Push. |
 
 ## Motivation und Problemstellung
 
@@ -78,4 +78,4 @@ Die kompatible Quoted-Scalar-Decodierung des Runners erreicht mehr als die drei 
 
 ## Finaler Diff- und Review-Status
 
-Eine unabhängige Scoped-Review fand keinen konkreten Bypass und kein abgeschwächtes Security-Control im Framework-Kandidaten. Der gepaarte Record, der finale Task-eigene Diff, die staged-Dateiliste, Commit, die Remote-/PR-Head-Beziehung und Hosted-Ergebnisse müssen während des autorisierten Draft-PR-Lifecycle noch beobachtet werden. Kein Merge, Release, Deployment, Parent-Gitlink-Update oder MRTS-Change ist autorisiert.
+Eine unabhängige Scoped-Review fand keinen konkreten Bypass und kein abgeschwächtes Security-Control im Framework-Kandidaten. Draft PR #115 ist offen; dieses Follow-up verlangt nach seinem normalen Push einen frischen Exact-Head-Readback. Hosted-Ergebnisse, Review und jeder Merge liegen weiter außerhalb der aktuellen Evidence. Release, Deployment, Parent-Gitlink-Update und MRTS-Change sind nicht autorisiert.

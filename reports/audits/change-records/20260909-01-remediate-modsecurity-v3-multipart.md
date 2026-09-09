@@ -9,7 +9,7 @@
 | Change ID | 20260909-01-remediate-modsecurity-v3-multipart |
 | UTC date | 2026-09-09 |
 | Framework base revision | 86451b45ae7bb7953baf9f81f2c2dad07395a808 |
-| Issue or pull request | No reference existed when this pre-delivery record was created. The current user authorized a separate Framework Draft PR; its observed reference is recorded after creation. |
+| Issue or pull request | Draft PR [#115](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/115) is open and unmerged from `security/audit-2026-09-09-framework-fix` at first delivery commit `9592e325ca3e60153b047872f408c9c2e0b9b689`; local, remote, and PR head matched at creation. This record update is a follow-up commit and cannot self-reference its own final Git object; task delivery evidence records the exact final local/remote/PR-head SHA after push. |
 
 ## Motivation and problem statement
 
@@ -117,7 +117,7 @@ is not promoted to `verified`.
 ## Final diff and review status
 
 An independent scoped review found no concrete bypass and no weakened security
-control in the Framework candidate. The paired record, final task-owned diff,
-staged-file list, commit, remote/PR-head relationship, and hosted results
-remain to be observed during the authorized Draft-PR lifecycle. No merge,
-release, deployment, Parent Gitlink update, or MRTS change is authorized.
+control in the Framework candidate. Draft PR #115 is open; this follow-up
+requires a fresh exact-head readback after its normal push. Hosted results,
+review, and any merge remain outside the current evidence. No release,
+deployment, Parent Gitlink update, or MRTS change is authorized.
