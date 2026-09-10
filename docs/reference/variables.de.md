@@ -187,6 +187,18 @@ verwenden gepflegte Tools mit Unterstrichen: `make protocol-client` führt
 `make check-transport-hardening-evidence` führt
 `ci/checks/evidence/check_transport_hardening_evidence.py` aus.
 
+`OPENSSL_VERSION`, `OPENSSL_TAG`, `OPENSSL_ARCHIVE_NAME`,
+`OPENSSL_SOURCE_URL` und `OPENSSL_SHA256` bilden das kanonische geprüfte
+OpenSSL-Release-Tupel in `ci/lib/common.sh`; sie sind keine Aufrufer-Eingaben.
+Die aktuellen Identitätswerte `NGINX_QUIC_TLS_*` werden davon abgeleitet und
+bleiben die einzige implementierte externe TLS-Quelle für das NGINX-H3-Profil.
+`AWS_LC_REPOSITORY`, `AWS_LC_TAG` und `AWS_LC_COMMIT` sind ein separates
+geprüftes Repository-/Tag-/aufgelöstes-Commit-Tupel für eine zukünftige,
+host-eigene Auswahl. Der Checker bindet das geparste GitHub-Repository vor
+jedem Upstream-Lookup an seine genehmigte Identität. Sie aktivieren für sich
+allein weder einen AWS-LC-Provisioner noch ein Build-Profil oder eine
+HTTP/2-/HTTP/3-Laufzeitbehauptung.
+
 `MRTS_ROOT`, `MRTS_BUILD_ROOT`, `MRTS_DEFINITIONS`, `MRTS_RULES_OUT`,
 `MRTS_FTW_OUT`, `MRTS_LOAD_FILE` und `MRTS_CASE_ROOT` wählen vorhandene
 MRTS-Eingaben oder generierte Pfade. `MODSECURITY_MRTS_VARIANT` akzeptiert
@@ -290,7 +302,8 @@ Gruppe erzeugt und nicht unabhängig ausgewählt.
 | APR-util | automatic | Neueste numerische Version in der offiziellen Apache-Liste, auf die dokumentierte aktuelle Major/Minor-Serie begrenzt; offizielle SHA-256-Datei pro Asset. |
 | PCRE2 | automatic | Neuestes GitHub-Release `pcre2-<version>` ohne Draft und Prerelease; Digest des Release-Assets. |
 | NGINX | automatic | Neuestes GitHub-Release `release-<version>` ohne Draft und Prerelease; Digest des Release-Assets und passendes Release-Tag/Ref/Asset-Tupel. |
-| OpenSSL for NGINX QUIC/TLS | automatic | Neuestes GitHub-Release `openssl-<version>` ohne Draft und Prerelease; Digest des Release-Assets. |
+| OpenSSL | automatic | Neuestes GitHub-Release `openssl-<version>` ohne Draft und Prerelease; Digest des Release-Assets. NGINX-QUIC/TLS-Aliase müssen auf dieses kanonische Tupel aufgelöst werden. |
+| AWS-LC | manual_review | Neuestes stabiles GitHub-Release `v<version>` und dessen unveränderlicher aufgelöster Commit werden zur Prüfung gemeldet; das geparste Repository muss der genehmigten Identität entsprechen, und das geprüfte Tupel wählt keinen Buildpfad. |
 | HAProxy | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis, durch das explizite `HAPROXY_SERIES`- und Release-Root/Basis-URL-Tupel begrenzt; offizielle SHA-256-Datei pro Asset. |
 | HAProxy HTX | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis innerhalb des eigenen expliziten HTX-Serien-, Release-Root- und Basis-URL-Tupels; die offizielle SHA-256-Datei pro Asset wird mit diesem Tupel aktualisiert und nie aus dem normalen HAProxy-Ergebnis abgeleitet. |
 | OWASP Core Rule Set | automatic | Neuestes GitHub-Release ohne Draft und Prerelease, das `v4.x.x` entspricht; festes Repository, unveränderlicher aufgelöster Git-Tag-Commit und SHA-256 der geprüften SQLi-Regeldatei werden als eine atomare Provenance-Gruppe aktualisiert. Releases außerhalb von `v4.x.x` werden niemals automatisch übernommen. |

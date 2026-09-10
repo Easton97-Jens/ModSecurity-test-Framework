@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 import io
 import json
@@ -82,9 +83,14 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             ),
         )
         values = {}
+        aliases = dict(definition.alias_bindings)
         for variable in definition.variables:
-            if variable == definition.version_variable:
+            if variable in aliases:
+                values[variable] = values[aliases[variable]]
+            elif variable == definition.version_variable:
                 values[variable] = version
+            elif variable == definition.release_tag_variable:
+                values[variable] = tag
             elif variable.endswith("ARTIFACT_PLATFORM"):
                 values[variable] = (
                     "linux_amd64" if component == "Traefik" else "linux-x86_64"
@@ -160,7 +166,7 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         }
 
     def test_github_components_produce_complete_atomic_updates(self):
-        for component in ("PCRE2", "OpenSSL for NGINX QUIC/TLS", "Envoy", "Traefik"):
+        for component in ("PCRE2", "OpenSSL", "Envoy", "Traefik"):
             with self.subTest(component=component):
                 definition, entries = self.github_entries(component)
                 tag, release = self.latest_release(definition)
@@ -202,6 +208,158 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
                         if entries[variable].default != value
                     },
                 )
+
+    def test_openssl_consumer_alias_mismatch_is_rejected_before_lookup(self):
+        definition, entries = self.github_entries("OpenSSL")
+        for alias, replacement in (
+            ("NGINX_QUIC_TLS_VERSION", "9.9.9"),
+            ("NGINX_QUIC_TLS_ARCHIVE_NAME", "openssl-9.9.9.tar.gz"),
+            (
+                "NGINX_QUIC_TLS_SOURCE_URL",
+                "https://github.com/openssl/openssl/releases/download/openssl-9.9.9/openssl-9.9.9.tar.gz",
+            ),
+            ("NGINX_QUIC_TLS_SOURCE_SHA256", "c" * 64),
+        ):
+            with self.subTest(alias=alias):
+                altered_entries = dict(entries)
+                altered_entries[alias] = dataclasses.replace(
+                    altered_entries[alias], default=replacement, resolved=replacement
+                )
+                client = FixtureClient()
+
+                result = CHECKER.resolve_component_definition(
+                    definition, altered_entries, client
+                )
+
+                self.assertEqual(CHECKER.STATUS_UNKNOWN, result.status)
+                self.assertIn("canonical release tuple", result.message)
+                self.assertEqual(client.urls, [])
+
+    def test_aws_lc_requires_its_fixed_repository_tag_and_commit(self):
+        definition = CHECKER.COMPONENT_DEFINITION_BY_NAME["AWS-LC"]
+        repository = "aws/aws-lc"
+        tag = "v5.5.0"
+        commit = "a" * 40
+        entries = parse_entries(
+            "\n".join(
+                (
+                    assignment("AWS_LC_REPOSITORY", f"https://github.com/{repository}.git"),
+                    assignment("AWS_LC_TAG", tag),
+                    assignment("AWS_LC_COMMIT", commit),
+                )
+            )
+        )
+        base = f"https://api.github.com/repos/{repository}"
+        client = FixtureClient(
+            json_responses={
+                f"{base}/git/ref/tags/{tag}": {"object": {"type": "commit", "sha": commit}},
+                f"{base}/releases/latest": {
+                    "tag_name": tag,
+                    "draft": False,
+                    "prerelease": False,
+                },
+            }
+        )
+
+        result = CHECKER.resolve_component_definition(definition, entries, client)
+
+        self.assertEqual(CHECKER.STATUS_CURRENT, result.status)
+        self.assertEqual(result.details["peeled_commit"], commit)
+
+        attacker_entries = parse_entries(
+            "\n".join(
+                (
+                    assignment("AWS_LC_REPOSITORY", "https://github.com/attacker/repo.git"),
+                    assignment("AWS_LC_TAG", tag),
+                    assignment("AWS_LC_COMMIT", commit),
+                )
+            )
+        )
+        attacker_client = FixtureClient()
+        attacker = CHECKER.resolve_component_definition(
+            definition, attacker_entries, attacker_client
+        )
+        self.assertEqual(CHECKER.STATUS_BLOCKED, attacker.status)
+        self.assertIn("repository identity is not approved", attacker.message)
+        self.assertEqual(attacker_client.urls, [])
+
+        entries["AWS_LC_COMMIT"] = dataclasses.replace(
+            entries["AWS_LC_COMMIT"], default="not-a-commit", resolved="not-a-commit"
+        )
+        invalid = CHECKER.resolve_component_definition(definition, entries, FixtureClient())
+        self.assertEqual(CHECKER.STATUS_BLOCKED, invalid.status)
+
+    def test_special_component_resolution_precedes_standard_dispatch(self):
+        entries = {}
+        client = FixtureClient()
+        for component, resolver_name in (
+            (CHECKER.CRS_COMPONENT, "check_crs_release_provenance"),
+            (
+                CHECKER.MODSECURITY_V3_COMPONENT,
+                "check_modsecurity_v3_release_provenance",
+            ),
+        ):
+            with self.subTest(component=component):
+                definition = CHECKER.COMPONENT_DEFINITION_BY_NAME[component]
+                expected = CHECKER.ComponentResult(
+                    component=component,
+                    status=CHECKER.STATUS_CURRENT,
+                    message="fixture result",
+                    variables=list(definition.variables),
+                )
+                with (
+                    patch.object(
+                        CHECKER,
+                        "resolve_standard_component_definition",
+                        side_effect=AssertionError("special resolver used standard dispatch"),
+                    ),
+                    patch.object(
+                        CHECKER, resolver_name, return_value=expected
+                    ) as resolver,
+                ):
+                    result = CHECKER.resolve_component_definition(
+                        definition, entries, client
+                    )
+
+                self.assertIs(result, expected)
+                resolver.assert_called_once_with(entries, client)
+
+    def test_github_canonicalization_failure_blocks_before_standard_resolver(self):
+        definition, entries = self.github_entries("PCRE2")
+        client = FixtureClient()
+        message = "fixture repository identity is not approved"
+        with (
+            patch.object(
+                CHECKER,
+                "canonicalize_github_repository",
+                side_effect=CHECKER.UpstreamBlocked(message),
+            ),
+            patch.object(
+                CHECKER,
+                "check_github_release_component",
+                side_effect=AssertionError("GitHub release resolver was reached"),
+            ),
+        ):
+            result = CHECKER.resolve_component_definition(definition, entries, client)
+
+        self.assertEqual(result.status, CHECKER.STATUS_BLOCKED)
+        self.assertEqual(result.message, message)
+        self.assertEqual(result.variables, list(definition.variables))
+        self.assertEqual(
+            result.source, CHECKER.value(entries, definition.source_url_variable or "")
+        )
+        self.assertEqual(client.urls, [])
+
+    def test_unknown_resolver_still_raises_upstream_error(self):
+        definition, entries = self.github_entries("PCRE2")
+        unsupported = dataclasses.replace(definition, resolver="unsupported")
+        client = FixtureClient()
+
+        with self.assertRaisesRegex(
+            CHECKER.UpstreamError,
+            "unknown resolver strategy for PCRE2: unsupported",
+        ):
+            CHECKER.resolve_component_definition(unsupported, entries, client)
 
     def test_traefik_prefers_github_asset_digest_before_manifest_download(self):
         definition, entries = self.github_entries("Traefik")
@@ -497,6 +655,21 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
     def test_canonical_contract_is_complete_and_offline(self):
         lines, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
         self.assertEqual(CHECKER.canonical_contract_errors(lines, entries), [])
+        aws_lc = CHECKER.COMPONENT_DEFINITION_BY_NAME["AWS-LC"]
+        self.assertEqual(
+            aws_lc.repository_identity_sha256,
+            CHECKER.AWS_LC_APPROVED_REPOSITORY_SHA256,
+        )
+        altered_entries = dict(entries)
+        altered_entries["AWS_LC_REPOSITORY"] = dataclasses.replace(
+            altered_entries["AWS_LC_REPOSITORY"],
+            default="https://github.com/attacker/repo.git",
+            resolved="https://github.com/attacker/repo.git",
+        )
+        self.assertIn(
+            "AWS-LC canonical repository identity is not approved",
+            CHECKER.canonical_contract_errors(lines, altered_entries),
+        )
         self.assertIn("CI_OSV_LEGACY_BASE_SHA", CHECKER.CI_CANONICAL_PIN_VARIABLES)
         self.assertIn("CI_OSV_LEGACY_BASE_VERSION", CHECKER.CI_CANONICAL_PIN_VARIABLES)
         self.assertTrue(
@@ -665,16 +838,32 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
 
     def test_production_open_ssl_and_nginx_asset_urls_remain_version_derived(self):
         _, entries = CHECKER.parse_common(ROOT / "ci/lib/common.sh")
-        open_ssl_source = entries["NGINX_QUIC_TLS_SOURCE_URL"]
+        open_ssl_source = entries["OPENSSL_SOURCE_URL"]
         nginx_asset = entries["NGINX_RELEASE_ASSET_NAME"]
 
-        self.assertIn("$NGINX_QUIC_TLS_VERSION", open_ssl_source.default)
+        self.assertIn("$OPENSSL_TAG", open_ssl_source.default)
         self.assertIn(
-            CHECKER.value(entries, "NGINX_QUIC_TLS_VERSION"),
+            CHECKER.value(entries, "OPENSSL_TAG"),
             open_ssl_source.resolved,
         )
         self.assertTrue(
-            CHECKER.is_template_value(open_ssl_source.default, "NGINX_QUIC_TLS_VERSION")
+            CHECKER.is_template_value(open_ssl_source.default, "OPENSSL_TAG")
+        )
+        self.assertEqual(
+            CHECKER.value(entries, "NGINX_QUIC_TLS_VERSION"),
+            CHECKER.value(entries, "OPENSSL_VERSION"),
+        )
+        self.assertEqual(
+            CHECKER.value(entries, "NGINX_QUIC_TLS_ARCHIVE_NAME"),
+            CHECKER.value(entries, "OPENSSL_ARCHIVE_NAME"),
+        )
+        self.assertEqual(
+            CHECKER.value(entries, "NGINX_QUIC_TLS_SOURCE_URL"),
+            open_ssl_source.resolved,
+        )
+        self.assertEqual(
+            CHECKER.value(entries, "NGINX_QUIC_TLS_SOURCE_SHA256"),
+            CHECKER.value(entries, "OPENSSL_SHA256"),
         )
         self.assertIn("${NGINX_RELEASE_TAG#release-}", nginx_asset.default)
         self.assertEqual(
