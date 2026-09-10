@@ -1294,6 +1294,41 @@ def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
             )
 
 
+def regenerate_canonical_generated_views(proposed_root: Path) -> None:
+    """Regenerate every generated view from the trusted canonical source.
+
+    A canonical maintenance plan can change values such as the Node runtime in
+    ``common.sh`` in addition to Action/tool lock records.  The constrained
+    native candidate only knows the latter, so materialize the complete set of
+    generated views in the isolated proposed tree before comparing it with the
+    already-applied canonical-plan tree.
+    """
+
+    source_root = framework_root()
+    synchronizer = resolve_regular_file(
+        source_root, Path("ci/tools/sync-canonical-workflow-pins.py")
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(synchronizer),
+            "--write",
+            "--root",
+            str(proposed_root),
+        ],
+        cwd=source_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        output = f"{result.stdout}{result.stderr}".strip()
+        raise UpdateError(
+            "cannot regenerate canonical workflow-tool views in the proposed "
+            f"tree: {output}"
+        )
+
+
 def validate_proposed_tree(root: Path, candidate: dict[str, Any]) -> None:
     """Apply a candidate only in RUNNER_TEMP, then validate its resulting tree."""
 
@@ -1315,8 +1350,9 @@ def validate_canonical_generated_proposed_tree(
     The canonical plan owns ``ci/lib/common.sh`` and can change it alongside
     action/tool pins.  Build the native proposed tree from the trusted
     pre-apply snapshot, overlay only that canonical input, apply the derived
-    native candidate, and require every native managed file to match the
-    already validated canonical-plan result byte-for-byte.
+    native candidate, regenerate the full canonical generated-view surface,
+    and require every native managed file to match the already validated
+    canonical-plan result byte-for-byte.
     """
 
     proposed_root = proposed_validation_root()
@@ -1328,6 +1364,7 @@ def validate_canonical_generated_proposed_tree(
             common_destination, common_source.read_text(encoding="utf-8")
         )
         apply_candidate(proposed_root, candidate)
+        regenerate_canonical_generated_views(proposed_root)
         for relative_text in sorted(ALLOWED_UPDATE_PATHS):
             relative = Path(relative_text)
             expected = resolve_regular_file(proposed_root, relative).read_bytes()

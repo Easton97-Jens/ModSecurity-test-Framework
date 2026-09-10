@@ -1,0 +1,149 @@
+# Change record
+
+**Language:** English | [Deutsch](20260909-01-remediate-modsecurity-v3-multipart.de.md)
+
+## Identity
+
+| Field | Value |
+| --- | --- |
+| Change ID | 20260909-01-remediate-modsecurity-v3-multipart |
+| UTC date | 2026-09-09 |
+| Framework base revision | 86451b45ae7bb7953baf9f81f2c2dad07395a808 |
+| Issue or pull request | Draft PR [#115](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/115) is open from `security/audit-2026-09-09-framework-fix` at first delivery commit `9592e325ca3e60153b047872f408c9c2e0b9b689`. Before this delivery-evidence update, exact head `dd175abeae39675bbe103ac0e00abeab207945dc` had matching local/remote/PR state, 14 passing and 3 scope-supported skipped terminal checks, and SonarQube Cloud Quality Gate `OK` with `0` `OPEN,CONFIRMED` PR findings. The current user instruction, “kannst beide in den master bringen”, explicitly authorizes protected integration of Framework PR #115 and Parent PR #360 only. This evidence-only follow-up requires a fresh exact-head cycle before a normal squash merge; no merge is claimed here. Parent Gitlink work, MRTS work, release, deployment, direct default-branch writes, and bypasses remain out of scope. |
+
+## Motivation and problem statement
+
+The reusable Framework dependency and multipart regression boundary needed a
+patched ModSecurity v3 provenance tuple and byte-exact controls for newline
+representations. This is a Framework-only engine-validation change. It does
+not claim connector loading, backend-byte delivery, client behavior, or a
+Parent Gitlink update, and it excludes the private audit and raw payloads.
+
+The follow-up also resolves the task-owned `c:S3776` SonarQube Cloud finding
+and the stale generated Framework catalog caused by the three new multipart
+cases, without changing a scanner, quality gate, workflow, or test control.
+
+## Affected components and security boundaries
+
+- `ci/lib/common.sh` owns the approved ModSecurity v3 tag/commit tuple.
+- `src/v3-api-smoke/` and the multipart case catalog exercise the engine
+  parser-to-`ARGS` boundary.
+- `tests/runners/runner_core.py` materializes quoted scalar escapes for the
+  reusable YAML case path.
+
+The security invariant is that multipart field bytes preserved by the engine
+must reach rule evaluation without silent loss or normalization. This record
+does not infer a connector or backend result from the engine evidence.
+
+## Acceptance criteria
+
+- The approved dependency tuple is `v3.0.16` at
+  `7ea9fefbe0ba409d8733b4d682c8c4c059cd028d`.
+- Exact CRLF and LF controls cause an engine intervention; the `AB` control
+  remains allowed for the newline rule and is denied by an exact `AB` rule.
+- The reusable YAML catalog and runner preserve those byte distinctions.
+- `run_scenario` remains behaviorally equivalent while its request-header
+  setup stays below the Sonar cognitive-complexity limit, and the generated
+  catalog contains all three new multipart cases.
+- Focused Framework source, regression, provenance, documentation, link, and
+  path checks pass without editing generated historical reports.
+- The implementation remains Framework-only. The current user authorized only
+  a protected squash merge of Framework PR #115 and Parent PR #360 after their
+  refreshed exact-head evidence; no Parent Gitlink, MRTS, release, deployment,
+  direct default-branch write, or bypass action is included.
+
+## Alternatives considered
+
+Updating only the dependency provenance would not preserve a reproducible
+boundary test for the affected representation class. Broad connector/runtime
+claims would exceed Framework ownership. The selected approach updates the
+approved tuple and adds narrowly scoped engine and reusable-catalog controls.
+
+## Implementation decision
+
+The common-version tuple now selects the approved v3.0.16 commit. The C API
+smoke adds exact CRLF, LF, allow, and exact-representation controls. The YAML
+cases and runner use compatible quoted-scalar decoding for byte sequences, and
+the regression test loads the current multipart catalog. Documentation limits
+the result to engine evidence.
+
+The follow-up extracts request-header setup into `add_request_headers()` while
+preserving the existing header order, messages, return values, and caller-owned
+cleanup. The repository-owned catalog generator records the three new YAML
+cases, and the public contract count test now verifies the resulting totals.
+
+## Changed files and tests
+
+- Provenance: `ci/lib/common.sh`.
+- Engine smoke: `src/v3-api-smoke/v3_api_smoke.c`.
+- Generated catalog: `modsecurity_test_framework/data/framework-contract-catalog.json`.
+- Public catalog contract: `tests/contract_api/test_public_contract_api.py`.
+- Reusable case materialization: `tests/runners/runner_core.py`.
+- Multipart cases:
+  `tests/cases/body/multipart/multipart_crlf_field_deny_v3_0_16.yaml`,
+  `multipart_lf_field_deny_v3_0_16.yaml`, and
+  `multipart_ab_field_allow_v3_0_16.yaml`.
+- Regression: `tests/security_regression/test_multipart_newline_runtime_difference.py`.
+- Documentation: `docs/architecture.md`, `docs/architecture.de.md`, this
+  paired Change Record, and the paired change-record indexes.
+
+## Commands and results
+
+| Command | Exit code | Concise result | Run ID or approved evidence path |
+| --- | --- | --- | --- |
+| `rtk proxy env MODSECURITY_V3_DIR=<task-built-v3.0.16> BUILD_ROOT=<task-owned-build-root> make -C src/v3-api-smoke run` | `0` | Primary control, exact CRLF/LF denies, `AB` allow, and exact-`AB` deny passed against the task-built library. | `security-audit-20260909` |
+| `rtk proxy env PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest tests.security_regression.test_multipart_newline_runtime_difference tests.security_regression.test_runner_core_output_containment tests.security_regression.test_modsecurity_v3_git_ref_provenance tests.security_regression.test_common_version_atomic_provenance` | `0` | 56 focused tests passed, including the current YAML catalog load. | `security-audit-20260909` |
+| `rtk proxy make check-documentation` | `0` | Documentation links, bilingual variable documentation, repository paths, and Change Record contract passed. | `security-audit-20260909` |
+| `rtk proxy python3 ci/tools/check-common-versions.py --validate-canonical` | `0` | Canonical common-version provenance passed. | `security-audit-20260909` |
+| `rtk proxy git diff --check` | `0` | No whitespace error was reported. | `security-audit-20260909` |
+| `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 <framework-venv-python> -B ci/tools/generate-framework-contract-catalog.py --check` | `0` | The repository-owned generated catalog is current. | `security-audit-20260910` |
+| `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 <framework-venv-python> -B -m unittest tests.contract_api.test_public_contract_api tests.security_regression.test_multipart_newline_runtime_difference` | `0` | 22 public-catalog and multipart representation controls passed. | `security-audit-20260910` |
+| `rtk proxy cc -std=c17 -Wall -Wextra -Werror -I<task-built-v3.0.16>/headers -c src/v3-api-smoke/v3_api_smoke.c -o <task-owned-output>` | `0` | The refactored C source passed the explicit C17 warning-as-error compile. | `security-audit-20260910` |
+| `rtk proxy make -C src/v3-api-smoke run MODSECURITY_V3_DIR=<task-built-v3.0.16> BUILD_ROOT=<task-owned-output>` | `0` | The linked smoke passed primary phase-2, CRLF/LF deny, `AB` allow, and exact-`AB` deny controls. | `security-audit-20260910` |
+
+## Security impact
+
+The change upgrades the approved engine provenance and makes representation
+controls explicit at the parser-to-rule boundary. It rechecks the original
+newline class, an LF variant, and an exact representation control without using
+a broad substring rule or weakening an existing test. The evidence establishes
+engine behavior only; it is not connector, backend, or client evidence.
+
+## Documentation and runtime evidence
+
+`docs/architecture.md` and `docs/architecture.de.md` state the bounded
+engine-only conclusion. The task-built C API smoke is controlled engine
+evidence, not a Framework-hosted lifecycle or connector runtime result. No
+production service was contacted.
+
+## Checks not run
+
+- Controlled connector/backend evidence for the exact task library and
+  delivered bytes is unavailable in this environment.
+- Generated Framework reports remain unchanged: regeneration in a staging copy
+  would rewrite historical runtime classifications outside this task scope.
+- The delivery-evidence follow-up itself must receive a fresh current-head
+  GitHub, review, and SonarQube readback after its normal push. The successful
+  `dd175abeae39675bbe103ac0e00abeab207945dc` results are retained as prior-head
+  evidence and are not carried forward as proof for the new commit.
+
+## Limitations and residual risk
+
+The runner's compatible quoted-scalar decoding has broader catalog reach than
+the three new cases; the full current catalog load passed, but future
+non-JSON-compatible scalar conventions require separate review. Engine proof
+does not establish the behavior of any connector, backend, or external client.
+The finding remains locally fixed with connector/backend validation pending and
+is not promoted to `verified`.
+
+## Final diff and review status
+
+An independent scoped review found no concrete bypass and no weakened security
+control in the Framework candidate. The Sonar remediation preserves the header
+and cleanup boundary, and the catalog was regenerated rather than hand-edited.
+At prior exact head `dd175abeae39675bbe103ac0e00abeab207945dc`, all terminal
+PR contexts were successful or scope-supported skips and the SonarQube Cloud
+Quality Gate was green. This documentation-only follow-up preserves those
+observed facts and must complete a new exact-head review before the
+user-authorized protected squash merge. No Parent Gitlink, MRTS, release,
+deployment, direct default-branch write, or bypass action is authorized.

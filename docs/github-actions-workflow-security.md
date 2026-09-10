@@ -298,6 +298,15 @@ read-only. The publisher creates or updates only the fixed Draft PR and never
 merges or enables auto-merge. A missing global result, incomplete CI pin group,
 generated-view drift, malformed review record, or hash mismatch fails closed.
 
+Routine Dependabot `github-actions` version updates are disabled with
+`open-pull-requests-limit: 0` because Dependabot can change only generated
+workflow references, while `common.sh` is the canonical source. The trusted
+common-version publisher is therefore the sole routine path and preserves one
+fixed Draft PR for the complete source/lock/generated-view bundle. Dependabot
+security updates are not subject to that version-update limit; they remain a
+separate security alert and review path rather than being coupled to routine
+maintenance releases.
+
 For every `pull_request` workflow, the checker rejects `pull_request_target`,
 write permissions, `secrets.` and `secrets[...]` references, reusable-workflow
 secret forwarding, direct checkout without `persist-credentials: false`, and

@@ -147,7 +147,12 @@ Plan-Anwendung, leitet den Kandidaten danach aus Snapshot und generiertem Lock
 ab und scheitert geschlossen bei veraltetem Lock, unerwartetem Feld, URL,
 Asset-Namensregel oder Digest. Sowohl die read-only-Candidate-Validierung als
 auch die Publisher-Revalidierung prüfen geänderte Tool-Assets per Prüfsumme und
-wenden nur in einem begrenzten Runner-Temporär-Proposed-Tree an. Der Publisher
+wenden nur in einem begrenzten Runner-Temporär-Proposed-Tree an. Nach der
+Ableitung des nativen Kandidaten wird dieser Proposed-Tree aus der
+vertrauenswürdigen Quelle `common.sh` vollständig regeneriert, bevor seine
+Bytes mit dem kanonischen Planergebnis verglichen werden. Damit scheitert ein
+gemeinsames Action-/Tool-/Runtime-Update geschlossen, wenn eine generierte
+Ansicht nicht denselben kanonischen Output hat. Der Publisher
 bindet die zweite Ableitung an die SHA-256 des Candidate-Jobs, prüft die exakte
 Draft-PR-Identität und Branch-Allowlist und prüft vor der Wiederverwendung
 eines bestehenden Branches dessen Basisidentität und erzeugte Bytes des
@@ -226,10 +231,16 @@ Wheel und den offiziellen PyPI-SHA-256; `ci/tools/sync-canonical-python-pins.py
 --check` prüft ihn netzwerkfrei.
 Workflows wählen den exakten überprüften Patch mit `check-latest: false` und
 installieren ihn anschließend mit `--require-hashes`, `--only-binary=:all:`
-und `pip check`. Dependabot überwacht sowohl `github-actions` als auch `pip`;
-ein vorgeschlagenes Update bleibt aber dem Lock-/Provenienzreview und dem
-Immutable-Pin-Contract unterworfen. Kein Workflow behebt Abhängigkeiten
-automatisch.
+und `pip check`. Reguläre Dependabot-`github-actions`-Versions-PRs sind mit
+`open-pull-requests-limit: 0` deaktiviert. `check-common-versions.yml` ist der
+einzige reguläre Publisher für kanonische Action-/Tool-Releases: Er erstellt
+oder aktualisiert genau einen festen Draft-PR mit `common.sh`, dem Lock, den
+generierten Workflow-Ansichten und der gepaarten Dokumentation. Das Limit null
+unterdrückt keine Dependabot-Sicherheitsupdates; sie bleiben ein separater
+Security-Alert-/Review-Pfad und werden nicht mit regulären Versionsupdates
+gebündelt. Dependabot überwacht weiterhin `pip`; jedes vorgeschlagene Update
+unterliegt dem Lock-/Provenienzreview und dem Immutable-Pin-Contract, und kein
+Workflow behebt Abhängigkeiten automatisch.
 
 ## CPython-Baseline und Wartungsvertrag
 

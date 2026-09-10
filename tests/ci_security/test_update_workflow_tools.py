@@ -597,7 +597,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 self.assertNotIn(f"`v9.9.9` | `{'a' * 40}`", documentation)
                 self.assertNotIn(f"`v9.9.8` | `{'b' * 40}`", documentation)
 
-    def test_canonical_generated_candidate_matches_native_documentation_views(
+    def test_canonical_generated_candidate_matches_native_action_and_runtime_views(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -617,6 +617,17 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             common = common.replace(
                 f'CI_ACTION_CHECKOUT_COMMIT="{lock["actions"]["actions/checkout"]["immutable_commit"]}"',
                 f'CI_ACTION_CHECKOUT_COMMIT="{checkout["immutable_commit"]}"',
+                1,
+            )
+            baseline_node_line = next(
+                line
+                for line in common.splitlines()
+                if line.startswith("CI_CANONICAL_NODE_VERSION=")
+            )
+            updated_node_version = "99.9.9"
+            common = common.replace(
+                baseline_node_line,
+                f'CI_CANONICAL_NODE_VERSION="{updated_node_version}"',
                 1,
             )
             common_path.write_text(common, encoding="utf-8")
@@ -639,6 +650,11 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 documentation = (head_root / relative_text).read_text(encoding="utf-8")
                 self.assertIn(f"v9.9.9 | {'a' * 40}", documentation)
                 self.assertNotIn(f"`v9.9.9` | `{'a' * 40}`", documentation)
+
+            quality = (
+                head_root / ".github/workflows/ci-security-quality.yml"
+            ).read_text(encoding="utf-8")
+            self.assertIn(f'node-version: "{updated_node_version}"', quality)
 
             german_path = head_root / "docs/github-actions-workflow-security.de.md"
             german = german_path.read_text(encoding="utf-8")
@@ -818,7 +834,22 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             _path, lock, _digest = UPDATER.load_lock(head_root)
             checkout = self.changed_action(lock, "actions/checkout", "v9.9.9", "a" * 40)
             candidate = self.candidate_for(head_root, {"actions/checkout": checkout})
-            UPDATER.apply_candidate(head_root, candidate)
+            common_path = head_root / UPDATER.COMMON_SH_PATH
+            common = common_path.read_text(encoding="utf-8")
+            common = common.replace(
+                f'CI_ACTION_CHECKOUT_VERSION="{lock["actions"]["actions/checkout"]["version"]}"',
+                f'CI_ACTION_CHECKOUT_VERSION="{checkout["version"]}"',
+                1,
+            )
+            common = common.replace(
+                f'CI_ACTION_CHECKOUT_COMMIT="{lock["actions"]["actions/checkout"]["immutable_commit"]}"',
+                f'CI_ACTION_CHECKOUT_COMMIT="{checkout["immutable_commit"]}"',
+                1,
+            )
+            common_path.write_text(common, encoding="utf-8")
+            self.assertEqual(
+                CANONICAL_SYNC.main(["--write", "--root", str(head_root)]), 0
+            )
             expected_digest = UPDATER.candidate_sha256(candidate)
 
             with (

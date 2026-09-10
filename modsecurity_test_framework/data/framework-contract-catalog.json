@@ -9373,6 +9373,41 @@
       "catalogs": [
         "framework-yaml"
       ],
+      "display_name": "multipart_ab_field_allow_v3_0_16",
+      "expectation": {
+        "action": "pass",
+        "http_status": 200,
+        "kind": "intervention"
+      },
+      "framework_test_id": "yaml:tests:cases:body:multipart:multipart_ab_field_allow_v3_0_16",
+      "phase": null,
+      "profile": "default",
+      "required_capabilities": [
+        "collections",
+        "intervention",
+        "multipart",
+        "phase2",
+        "request_body"
+      ],
+      "scenario_category": "multipart",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/body/multipart/multipart_ab_field_allow_v3_0_16.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": null,
+        "declared_status": "imported",
+        "portable": true,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
       "display_name": "multipart_basic_block",
       "expectation": {
         "action": "deny",
@@ -9397,6 +9432,44 @@
         {
           "kind": "yaml_case",
           "path": "tests/cases/body/multipart/multipart_basic_block.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": null,
+        "declared_status": "imported",
+        "portable": true,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "multipart_crlf_field_deny_v3_0_16",
+      "expectation": {
+        "action": "deny",
+        "http_status": 403,
+        "kind": "intervention",
+        "rule_ids": [
+          500097
+        ]
+      },
+      "framework_test_id": "yaml:tests:cases:body:multipart:multipart_crlf_field_deny_v3_0_16",
+      "phase": null,
+      "profile": "default",
+      "required_capabilities": [
+        "collections",
+        "intervention",
+        "multipart",
+        "phase2",
+        "request_body"
+      ],
+      "scenario_category": "multipart",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/body/multipart/multipart_crlf_field_deny_v3_0_16.yaml"
         }
       ]
     },
@@ -9684,6 +9757,44 @@
         {
           "kind": "yaml_case",
           "path": "tests/cases/body/multipart/multipart_invalid_boundary_future_target.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": null,
+        "declared_status": "imported",
+        "portable": true,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "multipart_lf_field_deny_v3_0_16",
+      "expectation": {
+        "action": "deny",
+        "http_status": 403,
+        "kind": "intervention",
+        "rule_ids": [
+          500098
+        ]
+      },
+      "framework_test_id": "yaml:tests:cases:body:multipart:multipart_lf_field_deny_v3_0_16",
+      "phase": null,
+      "profile": "default",
+      "required_capabilities": [
+        "collections",
+        "intervention",
+        "multipart",
+        "phase2",
+        "request_body"
+      ],
+      "scenario_category": "multipart",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/body/multipart/multipart_lf_field_deny_v3_0_16.yaml"
         }
       ]
     },

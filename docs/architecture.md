@@ -49,6 +49,16 @@ generalized merely because the Framework uses common YAML.
 The connector-free v3 API smoke is a bounded engine probe. It is not Apache,
 NGINX, HAProxy, Envoy, Traefik, or lighttpd runtime evidence.
 
+Its multipart line-break regression covers byte-exact `A\\r\\nB` and `A\\nB`
+form values plus an `AB` allow control through the public C API.  A matching
+engine intervention is not evidence that a connector delivered a backend or
+client-visible effect, so these cases remain non-promoted until controlled host
+evidence is available.
+
+The public C API smoke also contains an exact AB representation control: an AB
+form value must produce the configured phase-2 deny intervention, rather than
+merely avoid the line-break rule.
+
 ## Capability and status model
 
 Capabilities label exercised behavior; they do not automatically skip,
