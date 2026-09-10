@@ -235,22 +235,30 @@ class RuntimeComponentLockTests(unittest.TestCase):
         self.assertIn("below the Framework source root", result.stderr)
 
     def test_runtime_environment_overrides_must_match_the_locked_profile(self):
+        envoy = self.profile(
+            json.loads(LOCK.read_text(encoding="utf-8")), "envoy-ext-authz"
+        )
+        version = str(envoy["version"])
+        download_url = str(envoy["download_url"])
+        sha256 = str(envoy["sha256"])
         accepted = self.run_checker(
             extra_args=(
                 "--environment-profile", "envoy-ext-authz",
-                "--environment-value", "ENVOY_VERSION=1.39.0",
-                "--environment-value", "ENVOY_DOWNLOAD_URL=https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64",
-                "--environment-value", "ENVOY_SHA256=4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218",
+                "--environment-value", f"ENVOY_VERSION={version}",
+                "--environment-value", f"ENVOY_DOWNLOAD_URL={download_url}",
+                "--environment-value", f"ENVOY_SHA256={sha256}",
             )
         )
         self.assertEqual(accepted.returncode, 0, accepted.stderr)
 
+        version_prefix, version_patch = version.rsplit(".", 1)
+        drifted_version = f"{version_prefix}.{int(version_patch) + 1}"
         rejected = self.run_checker(
             extra_args=(
                 "--environment-profile", "envoy-ext-authz",
-                "--environment-value", "ENVOY_VERSION=1.38.2",
-                "--environment-value", "ENVOY_DOWNLOAD_URL=https://github.com/envoyproxy/envoy/releases/download/v1.39.0/envoy-1.39.0-linux-x86_64",
-                "--environment-value", "ENVOY_SHA256=4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218",
+                "--environment-value", f"ENVOY_VERSION={drifted_version}",
+                "--environment-value", f"ENVOY_DOWNLOAD_URL={download_url}",
+                "--environment-value", f"ENVOY_SHA256={sha256}",
             )
         )
         self.assertEqual(rejected.returncode, 77)
