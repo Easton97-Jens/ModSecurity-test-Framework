@@ -325,6 +325,15 @@ oder aktiviert Auto-Merge. Ein fehlendes globales Ergebnis, eine unvollständige
 CI-Pin-Gruppe, Drift generierter Views, ein fehlerhafter Review-Eintrag oder
 ein Hash-Mismatch führt fail-closed zum Abbruch.
 
+Reguläre Dependabot-`github-actions`-Versionsupdates sind mit
+`open-pull-requests-limit: 0` deaktiviert, weil Dependabot nur generierte
+Workflow-Referenzen ändern kann, während `common.sh` die kanonische Quelle ist.
+Der vertrauenswürdige Common-Version-Publisher ist deshalb der einzige
+reguläre Pfad und bewahrt genau einen festen Draft-PR für das vollständige
+Source-/Lock-/Generated-View-Bundle. Dependabot-Sicherheitsupdates unterliegen
+nicht diesem Versionsupdate-Limit; sie bleiben ein separater Security-Alert-
+und Review-Pfad, statt mit regulären Wartungs-Releases gekoppelt zu werden.
+
 Für jeden `pull_request`-Workflow weist der Checker `pull_request_target`,
 Write-Berechtigungen, Referenzen `secrets.` und `secrets[...]`, Secret-
 Weitergabe an wiederverwendbare Workflows, direkte Checkouts ohne

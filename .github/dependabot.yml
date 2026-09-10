@@ -6,7 +6,10 @@ updates:
       interval: "daily"
     cooldown:
       default-days: 7
-    open-pull-requests-limit: 10
+    # Routine Action releases are canonically updated as one validated Draft PR
+    # by check-common-versions.yml. Zero suppresses only Dependabot version
+    # updates; security updates remain an independent alert/review path.
+    open-pull-requests-limit: 0
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
