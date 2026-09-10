@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/check-common-versions.yml"
 RETIRED_WORKFLOW = ROOT / ".github/workflows/update-workflow-tools.yml"
 QUALITY_WORKFLOW = ROOT / ".github/workflows/ci-security-quality.yml"
+DEPENDABOT = ROOT / ".github/dependabot.yml"
 
 
 class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
@@ -19,6 +20,7 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.workflow = yaml.safe_load(self.text)
         self.quality_text = QUALITY_WORKFLOW.read_text(encoding="utf-8")
         self.quality_workflow = yaml.safe_load(self.quality_text)
+        self.dependabot = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))
 
     def test_workflow_is_valid_yaml_and_has_all_triggers(self) -> None:
         self.assertIsInstance(self.workflow, dict)
@@ -321,6 +323,32 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.assertIn("add-paths:", self.text)
         self.assertIn("draft: true", self.text)
         self.assertIn("No auto-merge is authorized", self.text)
+
+    def test_canonical_publisher_is_the_only_routine_action_version_updater(
+        self,
+    ) -> None:
+        updates = self.dependabot["updates"]
+        github_actions = next(
+            update
+            for update in updates
+            if update["package-ecosystem"] == "github-actions"
+        )
+        pip = next(
+            update for update in updates if update["package-ecosystem"] == "pip"
+        )
+        self.assertEqual(github_actions["open-pull-requests-limit"], 0)
+        self.assertEqual(pip["open-pull-requests-limit"], 5)
+
+        create_pr = next(
+            step
+            for step in self.workflow["jobs"]["publish"]["steps"]
+            if step["name"]
+            == "Create or update Draft PR from the full generated allowlist"
+        )
+        self.assertEqual(
+            create_pr["with"]["branch"], "automation/update-framework-common-versions"
+        )
+        self.assertTrue(create_pr["with"]["draft"])
 
     def test_node_major_candidate_runs_literal_pin_pyright_quality_gate(self) -> None:
         """A common.sh Node pin update must run type analysis on the PR head."""
