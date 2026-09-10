@@ -1,0 +1,39 @@
+# Regression for the v3.0.16 multipart line-break parser repair.
+origin:
+  - repo: ModSecurity_V3
+    path: test/test-cases/regression/request-body-parser-multipart-crlf.json
+    reason: v3.0.16 upstream multipart LF line-break regression.
+category: multipart
+portable: true
+status: imported
+former_xfail: true
+former_xfail_reason: "multipart CRLF/LF parser regression candidate; runtime_verified=false and not counted as verified PASS."
+known_limitations:
+  - "Classification: runtime-difference."
+  - Direct libmodsecurity API verification is required before promotion.
+  - No controlled backend observation has been recorded; host connector effect is not verified.
+name: multipart_lf_field_deny_v3_0_16
+capabilities:
+  request_body: true
+  multipart: true
+  collections: true
+  phase2: true
+  intervention: true
+  runtime_verified: false
+rules: |
+  SecRuleEngine On
+  SecRequestBodyAccess On
+  SecRule ARGS:payload "@rx ^A\nB$" \
+    "id:500098,phase:2,deny,status:403,msg:'multipart LF field deny'"
+request:
+  method: POST
+  path: /
+  multipart:
+    boundary: f001-newline
+    parts:
+      - name: payload
+        body: "A\nB"
+expect:
+  status: 403
+  intervention: deny
+  rule_id: 500098

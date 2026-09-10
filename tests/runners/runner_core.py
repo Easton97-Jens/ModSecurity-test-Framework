@@ -178,9 +178,15 @@ def _parse_scalar(value: str) -> Any:
         return False
     if lowered in {"null", "none"}:
         return None
-    if (value.startswith('"') and value.endswith('"')) or (
-        value.startswith("'") and value.endswith("'")
-    ):
+    if value.startswith('"') and value.endswith('"'):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as error:
+            raise ValueError(f"invalid double-quoted scalar: {value}") from error
+        if not isinstance(parsed, str):
+            raise ValueError(f"double-quoted scalar must decode to a string: {value}")
+        return parsed
+    if value.startswith("'") and value.endswith("'"):
         return value[1:-1]
     if value.isdigit():
         return int(value)

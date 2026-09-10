@@ -16,6 +16,7 @@ beschrieben.
 
 ## Aktuelle Records
 
+- [ModSecurity-v3-Multipart-Handling beheben (2026-09-09)](20260909-01-remediate-modsecurity-v3-multipart.de.md)
 - [Framework-Contract-API hinzufügen (2026-08-24)](20260824-01-add-framework-contract-api.de.md)
 - [Re-Entry des geerbten Upstream-Snapshots beheben (2026-08-21)](20260821-02-fix-inherited-upstream-snapshot-reentry.de.md)
 - [Traefik-Runtime-Pin-Divergenz beheben (2026-08-14)](20260814-01-remediate-traefik-runtime-pin-divergence.de.md)

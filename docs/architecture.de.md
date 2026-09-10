@@ -50,6 +50,16 @@ gemeinsame YAML-Dateien verwendet.
 Der connector-freie v3-API-Smoke ist eine begrenzte Engine-Sonde. Er ist keine
 Apache-, NGINX-, HAProxy-, Envoy-, Traefik- oder lighttpd-Runtime-Evidence.
 
+Seine Multipart-Zeilenumbruchregression prüft bytegenau die Formwerte
+`A\\r\\nB` und `A\\nB` sowie eine `AB`-Allow-Kontrolle über die öffentliche
+C-API. Eine passende Engine-Intervention belegt keine vom Connector
+ausgelieferte Backend- oder clientseitig sichtbare Wirkung; die Fälle bleiben
+daher ohne kontrollierte Host-Evidence nicht hochgestuft.
+
+Der öffentliche C-API-Smoke enthält zusätzlich eine Exakt-Darstellungskontrolle
+für AB: Ein AB-Formwert muss die konfigurierte Phase-2-Deny-Intervention
+auslösen, statt nur der Zeilenumbruchregel nicht zu entsprechen.
+
 ## Capability- und Statusmodell
 
 Capabilities kennzeichnen getestetes Verhalten; sie überspringen, promoten oder
