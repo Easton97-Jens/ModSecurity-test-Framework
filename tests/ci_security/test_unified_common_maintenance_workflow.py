@@ -333,9 +333,7 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
             for update in updates
             if update["package-ecosystem"] == "github-actions"
         )
-        pip = next(
-            update for update in updates if update["package-ecosystem"] == "pip"
-        )
+        pip = next(update for update in updates if update["package-ecosystem"] == "pip")
         self.assertEqual(github_actions["open-pull-requests-limit"], 0)
         self.assertEqual(pip["open-pull-requests-limit"], 5)
 

@@ -651,9 +651,9 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 self.assertIn(f"v9.9.9 | {'a' * 40}", documentation)
                 self.assertNotIn(f"`v9.9.9` | `{'a' * 40}`", documentation)
 
-            quality = (head_root / ".github/workflows/ci-security-quality.yml").read_text(
-                encoding="utf-8"
-            )
+            quality = (
+                head_root / ".github/workflows/ci-security-quality.yml"
+            ).read_text(encoding="utf-8")
             self.assertIn(f'node-version: "{updated_node_version}"', quality)
 
             german_path = head_root / "docs/github-actions-workflow-security.de.md"
