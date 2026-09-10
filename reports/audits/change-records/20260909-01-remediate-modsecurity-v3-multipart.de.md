@@ -9,7 +9,7 @@
 | Change-ID | 20260909-01-remediate-modsecurity-v3-multipart |
 | UTC-Datum | 2026-09-09 |
 | Framework-Basisrevision | 86451b45ae7bb7953baf9f81f2c2dad07395a808 |
-| Issue oder Pull Request | Draft PR [#115](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/115) ist offen und ungemergt vom `security/audit-2026-09-09-framework-fix`-Branch beim ersten Delivery-Commit `9592e325ca3e60153b047872f408c9c2e0b9b689`; lokaler, Remote- und PR-Head stimmten bei der Erstellung überein. Dieses Record-Update ist ein Follow-up-Commit und kann sein eigenes finales Git-Objekt nicht selbst referenzieren; Task-Delivery-Evidence dokumentiert den exakten finalen lokalen/Remote-/PR-Head-SHA nach dem Push. |
+| Issue oder Pull Request | Draft PR [#115](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/115) ist offen von `security/audit-2026-09-09-framework-fix` beim ersten Delivery-Commit `9592e325ca3e60153b047872f408c9c2e0b9b689`. Vor diesem Delivery-Evidence-Update stimmten lokaler, Remote- und PR-Status beim exakten Head `dd175abeae39675bbe103ac0e00abeab207945dc` überein, 14 terminale Checks bestanden, 3 Scope-unterstützte Checks waren übersprungen, und SonarQube Cloud meldete Quality Gate `OK` mit `0` `OPEN,CONFIRMED`-PR-Befunden. Die aktuelle Nutzeranweisung „kannst beide in den master bringen“ autorisiert ausschließlich die geschützte Integration von Framework PR #115 und Parent PR #360. Dieses reine Evidence-Follow-up erfordert vor einem normalen Squash-Merge einen frischen Exact-Head-Zyklus; ein Merge wird hier nicht behauptet. Parent-Gitlink-Arbeit, MRTS-Arbeit, Release, Deployment, direkte Default-Branch-Writes und Bypässe bleiben out of scope. |
 
 ## Motivation und Problemstellung
 
@@ -36,7 +36,11 @@ Die Sicherheitsinvariante lautet: Vom Engine erhaltene Multipart-Field-Bytes mü
   unterhalb des Sonar-Cognitive-Complexity-Limits bleibt, und der erzeugte
   Katalog enthält alle drei neuen Multipart-Cases.
 - Fokussierte Framework-Source-, Regressions-, Provenance-, Dokumentations-, Link- und Path-Checks bestehen, ohne generierte historische Reports zu verändern.
-- Delivery bleibt auf einen separaten Framework-Draft-PR beschränkt; Parent, MRTS, Gitlink, Merge, Release und Deployment sind nicht enthalten.
+- Die Implementierung bleibt Framework-only. Die Nutzeranweisung autorisiert
+  nur einen geschützten Squash-Merge von Framework PR #115 und Parent PR #360
+  nach ihren aufgefrischten Exact-Head-Nachweisen; Parent-Gitlink, MRTS,
+  Release, Deployment, direkte Default-Branch-Writes und Bypass-Aktionen sind
+  nicht enthalten.
 
 ## Untersuchte Alternativen
 
@@ -89,9 +93,11 @@ Die Änderung aktualisiert die genehmigte Engine-Provenance und macht Repräsent
 
 - Kontrollierte Connector-/Backend-Evidence für die exakte Task-Library und ausgelieferte Bytes ist in dieser Umgebung nicht verfügbar.
 - Generierte Framework-Reports bleiben unverändert: Eine Regeneration in einer Staging-Kopie würde historische Runtime-Klassifikationen außerhalb dieses Task-Scopes umschreiben.
-- Frische Exact-Successor-Hosted-Checks, Review und SonarQube-Disposition
-  stehen nach dem normalen Follow-up-Push aus; kein Rerun, keine Suppression
-  und keine Scanner-, Quality-Gate- oder Workflow-Änderung ersetzen sie.
+- Das Delivery-Evidence-Follow-up selbst benötigt nach seinem normalen Push
+  einen frischen Current-Head-Readback von GitHub, Review und SonarQube. Die
+  erfolgreichen Ergebnisse für `dd175abeae39675bbe103ac0e00abeab207945dc`
+  bleiben als Prior-Head-Evidence erhalten und gelten nicht als Proof für den
+  neuen Commit.
 
 ## Einschränkungen und Restrisiko
 
@@ -102,7 +108,11 @@ Die kompatible Quoted-Scalar-Decodierung des Runners erreicht mehr als die drei 
 Eine unabhängige Scoped-Review fand keinen konkreten Bypass und kein
 abgeschwächtes Security-Control im Framework-Kandidaten. Die Sonar-Remediation
 bewahrt die Header- und Cleanup-Grenze, und der Katalog wurde erzeugt statt von
-Hand editiert. Draft PR #115 ist offen; dieses Follow-up verlangt nach seinem
-normalen Push einen frischen Exact-Head-Readback. Hosted-Ergebnisse, Review
-und jeder Merge liegen weiter außerhalb der aktuellen Evidence. Release,
-Deployment, Parent-Gitlink-Update und MRTS-Change sind nicht autorisiert.
+Hand editiert. Am Prior-Head
+`dd175abeae39675bbe103ac0e00abeab207945dc` waren alle terminalen PR-Kontexte
+erfolgreich oder Scope-unterstützt übersprungen, und das SonarQube-Cloud-
+Quality-Gate war grün. Dieses reine Dokumentations-Follow-up bewahrt diese
+beobachteten Fakten und muss vor dem durch den Nutzer autorisierten geschützten
+Squash-Merge eine neue Exact-Head-Review abschließen. Kein Parent-Gitlink,
+MRTS, Release, Deployment, direkter Default-Branch-Write oder Bypass ist
+autorisiert.

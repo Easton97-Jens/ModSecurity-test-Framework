@@ -9,7 +9,7 @@
 | Change ID | 20260909-01-remediate-modsecurity-v3-multipart |
 | UTC date | 2026-09-09 |
 | Framework base revision | 86451b45ae7bb7953baf9f81f2c2dad07395a808 |
-| Issue or pull request | Draft PR [#115](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/115) is open and unmerged from `security/audit-2026-09-09-framework-fix` at first delivery commit `9592e325ca3e60153b047872f408c9c2e0b9b689`; local, remote, and PR head matched at creation. This record update is a follow-up commit and cannot self-reference its own final Git object; task delivery evidence records the exact final local/remote/PR-head SHA after push. |
+| Issue or pull request | Draft PR [#115](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/115) is open from `security/audit-2026-09-09-framework-fix` at first delivery commit `9592e325ca3e60153b047872f408c9c2e0b9b689`. Before this delivery-evidence update, exact head `dd175abeae39675bbe103ac0e00abeab207945dc` had matching local/remote/PR state, 14 passing and 3 scope-supported skipped terminal checks, and SonarQube Cloud Quality Gate `OK` with `0` `OPEN,CONFIRMED` PR findings. The current user instruction, “kannst beide in den master bringen”, explicitly authorizes protected integration of Framework PR #115 and Parent PR #360 only. This evidence-only follow-up requires a fresh exact-head cycle before a normal squash merge; no merge is claimed here. Parent Gitlink work, MRTS work, release, deployment, direct default-branch writes, and bypasses remain out of scope. |
 
 ## Motivation and problem statement
 
@@ -47,8 +47,10 @@ does not infer a connector or backend result from the engine evidence.
   catalog contains all three new multipart cases.
 - Focused Framework source, regression, provenance, documentation, link, and
   path checks pass without editing generated historical reports.
-- Delivery remains a separate Framework Draft PR only; no Parent, MRTS,
-  Gitlink, merge, release, or deployment action is included.
+- The implementation remains Framework-only. The current user authorized only
+  a protected squash merge of Framework PR #115 and Parent PR #360 after their
+  refreshed exact-head evidence; no Parent Gitlink, MRTS, release, deployment,
+  direct default-branch write, or bypass action is included.
 
 ## Alternatives considered
 
@@ -120,9 +122,10 @@ production service was contacted.
   delivered bytes is unavailable in this environment.
 - Generated Framework reports remain unchanged: regeneration in a staging copy
   would rewrite historical runtime classifications outside this task scope.
-- Exact-successor hosted checks, review, and SonarQube disposition are pending
-  the normal follow-up push; no rerun, suppression, scanner, quality-gate, or
-  workflow change substitutes for them.
+- The delivery-evidence follow-up itself must receive a fresh current-head
+  GitHub, review, and SonarQube readback after its normal push. The successful
+  `dd175abeae39675bbe103ac0e00abeab207945dc` results are retained as prior-head
+  evidence and are not carried forward as proof for the new commit.
 
 ## Limitations and residual risk
 
@@ -138,7 +141,9 @@ is not promoted to `verified`.
 An independent scoped review found no concrete bypass and no weakened security
 control in the Framework candidate. The Sonar remediation preserves the header
 and cleanup boundary, and the catalog was regenerated rather than hand-edited.
-Draft PR #115 is open; this follow-up requires a fresh exact-head readback
-after its normal push. Hosted results, review, and any merge remain outside the
-current evidence. No release, deployment, Parent Gitlink update, or MRTS
-change is authorized.
+At prior exact head `dd175abeae39675bbe103ac0e00abeab207945dc`, all terminal
+PR contexts were successful or scope-supported skips and the SonarQube Cloud
+Quality Gate was green. This documentation-only follow-up preserves those
+observed facts and must complete a new exact-head review before the
+user-authorized protected squash merge. No Parent Gitlink, MRTS, release,
+deployment, direct default-branch write, or bypass action is authorized.
