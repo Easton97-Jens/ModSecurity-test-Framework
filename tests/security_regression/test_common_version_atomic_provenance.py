@@ -16,6 +16,10 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.security_regression.common_version_fixture_support import (
+    replace_single_common_assignment,
+)
+
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER_PATH = ROOT / "ci/tools/check-common-versions.py"
@@ -991,12 +995,11 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
             target = build_root / "common.sh"
             target.parent.mkdir(parents=True)
             source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
-            source = source.replace(
-                'APR_UTIL_VERSION="1.6.5"', 'APR_UTIL_VERSION="1.6.4"'
+            source = replace_single_common_assignment(
+                source, "APR_UTIL_VERSION", "1.6.4"
             )
-            source = source.replace(
-                'APR_UTIL_SHA256="96de1dd6f6a0476d2d2e7964926d8c1ddc3bb0e210e1b1812d3ba5a454a392e2"',
-                f'APR_UTIL_SHA256="{CURRENT_DIGEST}"',
+            source = replace_single_common_assignment(
+                source, "APR_UTIL_SHA256", CURRENT_DIGEST
             )
             target.write_text(source, encoding="utf-8")
             initial_bytes = target.read_bytes()

@@ -1,8 +1,8 @@
 """Narrow, test-only helpers for synthetic ``common.sh`` fixture tuples.
 
-The helpers never search for a historical production value.  They replace one
-named shell assignment at a time in a caller-owned temporary copy and reject
-missing or ambiguous assignments.
+The helpers never search for a historical production value or evaluate shell
+source.  They read or replace one named shell assignment at a time in a
+caller-owned temporary copy and reject missing or ambiguous assignments.
 """
 
 from __future__ import annotations
@@ -12,13 +12,11 @@ from collections.abc import Mapping
 from pathlib import Path
 
 
-def replace_single_common_assignment(
-    source_text: str, variable: str, replacement: str
-) -> str:
-    """Replace exactly one supported ``common.sh`` assignment structurally."""
+def _common_assignment_patterns(variable: str) -> tuple[re.Pattern[str], ...]:
+    """Return structural patterns for one supported ``common.sh`` assignment."""
 
     escaped = re.escape(variable)
-    patterns = (
+    return (
         re.compile(
             rf"^(?P<prefix>:\s*\"\$\{{{escaped}:=)(?P<value>.*)(?P<suffix>\}}\"\s*)$",
             re.MULTILINE,
@@ -48,7 +46,27 @@ def replace_single_common_assignment(
         ),
     )
 
-    for pattern in patterns:
+
+def read_single_common_assignment(source_text: str, variable: str) -> str:
+    """Read exactly one supported assignment without evaluating shell source."""
+
+    for pattern in _common_assignment_patterns(variable):
+        matches = tuple(pattern.finditer(source_text))
+        if len(matches) == 1:
+            return matches[0].group("value")
+        if len(matches) > 1:
+            raise AssertionError(
+                f"test fixture must contain exactly one {variable} assignment"
+            )
+    raise AssertionError(f"test fixture is missing a supported {variable} assignment")
+
+
+def replace_single_common_assignment(
+    source_text: str, variable: str, replacement: str
+) -> str:
+    """Replace exactly one supported ``common.sh`` assignment structurally."""
+
+    for pattern in _common_assignment_patterns(variable):
         rewritten, count = pattern.subn(
             lambda match: (
                 f"{match.group('prefix')}{replacement}{match.group('suffix')}"

@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 from tests.security_regression.common_version_fixture_support import (
+    read_single_common_assignment,
     write_common_fixture,
 )
 from tests.security_regression.git_provenance_test_support import (
@@ -275,10 +276,14 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
         self.assert_blocked_before_git({"ENVOY_VERSION": "0.0.0"})
 
     def test_rejects_duplicate_active_pin_embedded_in_an_unrelated_value_before_git(self):
+        envoy_version = read_single_common_assignment(
+            (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8"),
+            "ENVOY_VERSION",
+        )
         result, commands, _ = self.invoke_fetch(
             overrides={
-                "ENVOY_VERSION": "1.39.0",
-                "UNRELATED_TEST_CONTEXT": "opaque\nENVOY_VERSION=1.39.0",
+                "ENVOY_VERSION": envoy_version,
+                "UNRELATED_TEST_CONTEXT": f"opaque\nENVOY_VERSION={envoy_version}",
             }
         )
         self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
@@ -297,6 +302,9 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             environment.pop("CI_INHERITED_UPSTREAM_ENV", None)
             environment.pop("CI_INHERITED_UPSTREAM_ENV_STATUS", None)
             common = Path(environment["FRAMEWORK_ROOT"]) / "ci/lib/common.sh"
+            expected_envoy_version = read_single_common_assignment(
+                common.read_text(encoding="utf-8"), "ENVOY_VERSION"
+            )
 
             def decoded_environment(output):
                 values = {}
@@ -325,7 +333,9 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             self.assertEqual(parent.returncode, 0, parent.stderr.decode("utf-8"))
             parent_environment = decoded_environment(parent.stdout)
             self.assertNotIn("CI_INHERITED_UPSTREAM_ENV", parent_environment)
-            self.assertEqual(parent_environment["ENVOY_VERSION"], "1.39.0")
+            self.assertEqual(
+                parent_environment["ENVOY_VERSION"], expected_envoy_version
+            )
 
             bridge = subprocess.run(
                 [
@@ -345,7 +355,9 @@ class ModSecurityV3ProvenanceTests(unittest.TestCase):
             self.assertEqual(bridge.returncode, 0, bridge.stderr.decode("utf-8"))
             bridge_environment = decoded_environment(bridge.stdout)
             self.assertIn("CI_INHERITED_UPSTREAM_ENV", bridge_environment)
-            self.assertEqual(bridge_environment["ENVOY_VERSION"], "1.39.0")
+            self.assertEqual(
+                bridge_environment["ENVOY_VERSION"], expected_envoy_version
+            )
 
             reentry = self.run_common_function(
                 bridge_environment,

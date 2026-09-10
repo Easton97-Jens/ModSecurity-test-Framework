@@ -83,9 +83,9 @@ actions:
     update_procedure: Verify the upstream tag-to-commit identity and MIT license, then update this record, every matching version comment, and the contract test together.
   github/codeql-action:
     name: github/codeql-action
-    version: v4.37.8
-    immutable_commit: db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28
-    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.37.8
+    version: v4.38.0
+    immutable_commit: b96794f015dfd88f77b49b1c93e0fa7110f94c63
+    upstream_release: https://github.com/github/codeql-action/releases/tag/v4.38.0
     release_resolution: same-major-release
     license: MIT
     purpose: Initialize, analyze, and upload SARIF for bounded CodeQL jobs.
@@ -172,12 +172,12 @@ tools:
   zizmor:
     name: zizmor
     repository: zizmorcore/zizmor
-    version: v1.29.0
-    immutable_commit: 3c116961091b50bd1a08ffefe916469d4d90093c
-    upstream_release: https://github.com/zizmorcore/zizmor/releases/tag/v1.29.0
+    version: v1.30.1
+    immutable_commit: 99a054ed9283c90abdd2d5b9fb5101d27dde9783
+    upstream_release: https://github.com/zizmorcore/zizmor/releases/tag/v1.30.1
     asset: zizmor-x86_64-unknown-linux-gnu.tar.gz
-    asset_url: https://github.com/zizmorcore/zizmor/releases/download/v1.29.0/zizmor-x86_64-unknown-linux-gnu.tar.gz
-    sha256: dd96df044a6e8538d5f423790f453bdd03d49e5b2bcc38214acc41a2f1297839
+    asset_url: https://github.com/zizmorcore/zizmor/releases/download/v1.30.1/zizmor-x86_64-unknown-linux-gnu.tar.gz
+    sha256: e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a
     archive_type: tar.gz
     layout: executable
     archive_member: zizmor
@@ -206,12 +206,12 @@ tools:
   ruff:
     name: ruff
     repository: astral-sh/ruff
-    version: 0.16.4
-    immutable_commit: 11c76bf48fdac06b2f240cba502eda96da4dce77
-    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.4
+    version: 0.16.6
+    immutable_commit: 22f65a2ab5052990503985c7c794de37598d531e
+    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.6
     asset: ruff-x86_64-unknown-linux-gnu.tar.gz
-    asset_url: https://github.com/astral-sh/ruff/releases/download/0.16.4/ruff-x86_64-unknown-linux-gnu.tar.gz
-    sha256: 9cb1234804ddb0f7f57cef3f81623ce5acb990e40af7cce08dc7778c9d7ee96c
+    asset_url: https://github.com/astral-sh/ruff/releases/download/0.16.6/ruff-x86_64-unknown-linux-gnu.tar.gz
+    sha256: 0696335ef16615d8c7445ad438750eb0f55b3da6f153df21265a7c6d5750254f
     archive_type: tar.gz
     layout: executable
     archive_member: ruff-x86_64-unknown-linux-gnu/ruff
@@ -223,12 +223,12 @@ tools:
   pyright:
     name: pyright
     repository: microsoft/pyright
-    version: 1.1.412
-    immutable_commit: fceca4d133a83034fc195dbba8b3814992b0b26b
-    upstream_release: https://github.com/microsoft/pyright/releases/tag/1.1.412
+    version: 1.1.414
+    immutable_commit: a28cce4077d87b80bead12de809f79845e39c8ba
+    upstream_release: https://github.com/microsoft/pyright/releases/tag/1.1.414
     asset: pyright.tgz
-    asset_url: https://github.com/microsoft/pyright/releases/download/1.1.412/pyright.tgz
-    sha256: b6345cb7253d1f3e311caa0ef17581dbac5b125c42d148667c84d9dca2abd50a
+    asset_url: https://github.com/microsoft/pyright/releases/download/1.1.414/pyright.tgz
+    sha256: bf5f473f6167c0d14175492c3263d783b4489a6956e1c06c18e15228e3a3fa42
     archive_type: tar.gz
     layout: tree
     archive_root: package

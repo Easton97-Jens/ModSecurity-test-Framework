@@ -8,6 +8,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.security_regression.common_version_fixture_support import (
+    read_single_common_assignment,
+    replace_single_common_assignment,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "ci/tools/sync-runtime-components.py"
 MANIFEST = ROOT / "ci/provisioning/runtime-components.manifest.json"
@@ -123,14 +128,15 @@ class RuntimeComponentSyncTests(unittest.TestCase):
         temporary, common, manifest, lock = self.fixture()
         with temporary:
             source = common.read_text(encoding="utf-8")
-            source = source.replace(
-                'HAPROXY_HTX_VERSION="3.2.21"',
-                'HAPROXY_HTX_VERSION="3.2.22"',
-                1,
-            ).replace(
-                'HAPROXY_HTX_SHA256="0cb8818a26c5f888e0cb1c40f1b3acb9fb952527d1733f769ce688fedd680339"',
-                'HAPROXY_HTX_SHA256="afca3a26d573df53d0e1fc475dcd743ec5875e038e1476c80e871d70228ca2da"',
-                1,
+            source = replace_single_common_assignment(
+                source,
+                "HAPROXY_HTX_VERSION",
+                read_single_common_assignment(source, "HAPROXY_VERSION"),
+            )
+            source = replace_single_common_assignment(
+                source,
+                "HAPROXY_HTX_SHA256",
+                read_single_common_assignment(source, "HAPROXY_SHA256"),
             )
             common.write_text(source, encoding="utf-8")
             result = self.run_tool(
@@ -279,10 +285,17 @@ class RuntimeComponentSyncTests(unittest.TestCase):
             self.assertIn("official root", result.stderr)
 
     def test_common_pin_mutations_are_rejected(self):
+        source = COMMON.read_text(encoding="utf-8")
+        envoy_version = read_single_common_assignment(source, "ENVOY_VERSION")
+        envoy_source_url = read_single_common_assignment(source, "ENVOY_SOURCE_URL")
+        envoy_sha256 = read_single_common_assignment(source, "ENVOY_SHA256")
+        version_prefix, version_patch = envoy_version.rsplit(".", 1)
+        drifted_version = f"{version_prefix}.{int(version_patch) + 1}"
+        drifted_sha256 = f"{'1' if envoy_sha256[0] == '0' else '0'}{envoy_sha256[1:]}"
         mutations = {
-            'ENVOY_VERSION="1.39.0"': 'ENVOY_VERSION="1.39.1"',
-            'ENVOY_SOURCE_URL="https://github.com/envoyproxy/envoy/releases"': 'ENVOY_SOURCE_URL="https://example.invalid/envoy/releases"',
-            'ENVOY_SHA256="4409dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218"': 'ENVOY_SHA256="0009dadc87931d8f8676314cbd83071cb65125fb4feac3f6335800580dfa9218"',
+            f'ENVOY_VERSION="{envoy_version}"': f'ENVOY_VERSION="{drifted_version}"',
+            f'ENVOY_SOURCE_URL="{envoy_source_url}"': 'ENVOY_SOURCE_URL="https://example.invalid/envoy/releases"',
+            f'ENVOY_SHA256="{envoy_sha256}"': f'ENVOY_SHA256="{drifted_sha256}"',
         }
         self.assert_mutations_rejected(mutations)
 
@@ -309,10 +322,25 @@ class RuntimeComponentSyncTests(unittest.TestCase):
         self.assertNotIn("//latest.txt", lighttpd["latest_url"])
 
     def test_series_version_mismatch_and_malformed_series_are_rejected(self):
+        source = COMMON.read_text(encoding="utf-8")
+        lighttpd_series = read_single_common_assignment(source, "LIGHTTPD_SERIES")
+        haproxy_series = read_single_common_assignment(source, "HAPROXY_SERIES")
+        haproxy_htx_version = read_single_common_assignment(
+            source, "HAPROXY_HTX_VERSION"
+        )
+        lighttpd_major, lighttpd_minor = lighttpd_series.rsplit(".", 1)
+        htx_major, htx_remainder = haproxy_htx_version.split(".", 1)
+        drifted_htx_major = "0" if htx_major != "0" else "1"
         mutations = {
-            'LIGHTTPD_SERIES="1.4"': 'LIGHTTPD_SERIES="1.5"',
-            'HAPROXY_SERIES="3.2"': 'HAPROXY_SERIES="3.x"',
-            'HAPROXY_HTX_VERSION="3.2.22"': 'HAPROXY_HTX_VERSION="2.2.22"',
+            f'LIGHTTPD_SERIES="{lighttpd_series}"': (
+                f'LIGHTTPD_SERIES="{lighttpd_major}.{int(lighttpd_minor) + 1}"'
+            ),
+            f'HAPROXY_SERIES="{haproxy_series}"': (
+                f'HAPROXY_SERIES="{haproxy_series.split(".", 1)[0]}.x"'
+            ),
+            f'HAPROXY_HTX_VERSION="{haproxy_htx_version}"': (
+                f'HAPROXY_HTX_VERSION="{drifted_htx_major}.{htx_remainder}"'
+            ),
         }
         self.assert_mutations_rejected(mutations)
 

@@ -15,6 +15,7 @@ from tests.security_regression.git_provenance_test_support import (
     fake_git_script,
 )
 from tests.security_regression.common_version_fixture_support import (
+    read_single_common_assignment,
     rewrite_common_assignments,
 )
 
@@ -34,6 +35,12 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
         cls.fixture = json.loads(
             (FIXTURE_ROOT / "cases.json").read_text(encoding="utf-8")
         )
+        common_source = (ROOT / "ci/lib/common.sh").read_text(encoding="utf-8")
+        cls.pcre2_version = read_single_common_assignment(
+            common_source, "PCRE2_VERSION"
+        )
+        cls.archive_file = f"pcre2-{cls.pcre2_version}.tar.bz2"
+        cls.archive_root = f"pcre2-{cls.pcre2_version}"
         cls.real_tar = shutil.which("tar")
         if cls.real_tar is None:
             raise unittest.SkipTest("tar is required for the isolated archive fixture")
@@ -44,11 +51,9 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
         path.chmod(0o755)
 
     def _build_archive(self, workspace):
-        archive = workspace / self.fixture["archive_file"]
-        configure = (
-            FIXTURE_ROOT / self.fixture["archive_root"] / "configure"
-        ).read_bytes()
-        info = tarfile.TarInfo(f"{self.fixture['archive_root']}/configure")
+        archive = workspace / self.archive_file
+        configure = (FIXTURE_ROOT / "archive-root" / "configure").read_bytes()
+        info = tarfile.TarInfo(f"{self.archive_root}/configure")
         info.mode = 0o755
         info.mtime = 0
         info.size = len(configure)
@@ -268,7 +273,7 @@ class Pcre2ArchiveDigestTests(unittest.TestCase):
                     "MAKE_JOBS": "1",
                     "PCRE2_FIXTURE_ARCHIVE": str(archive),
                     "PCRE2_ARCHIVE_PATH": str(
-                        verified / "downloads" / self.fixture["archive_file"]
+                        verified / "downloads" / self.archive_file
                     ),
                     "PCRE2_TAR_LOG": str(tar_log),
                     "FIXTURE_SHA256": digest_value,
