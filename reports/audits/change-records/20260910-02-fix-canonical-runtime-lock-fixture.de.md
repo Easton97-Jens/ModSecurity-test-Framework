@@ -9,7 +9,7 @@
 | Change-ID | `20260910-02-fix-canonical-runtime-lock-fixture` |
 | UTC-Datum | 2026-09-10 |
 | Framework-Basisrevision | `9bb956e1b4bfaea1e1e6bbee5745c937d91d4726` |
-| Issue oder Pull Request | Separater Framework-Draft-PR steht aus; kein Merge, Dispatch oder bestehende-PR-Änderung ist autorisiert. |
+| Issue oder Pull Request | Framework-Draft-PR [#117](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/117) enthält diese Korrektur; kein Merge, Dispatch oder bestehende-PR-Änderung ist autorisiert. |
 
 ## Motivation und Problemstellung
 
@@ -63,7 +63,7 @@ Dieses englische/deutsche Record dokumentiert die test-only-Korrektur. Hosted-La
 
 ## Nicht ausgeführte Prüfungen
 
-Dem System-`python3` fehlt PyYAML, doch die bestehende Python-Umgebung des Repositorys stellte es bereit und die verwandten Tests bestanden. Ruff ist dort und auf `PATH` nicht verfügbar und wurde nicht installiert. Exact-Head-Hosted-Checks stehen bis zu einem Draft-PR aus.
+Dem System-`python3` fehlt PyYAML, doch die bestehende Python-Umgebung des Repositorys stellte es bereit und die verwandten Tests bestanden. Ruff ist dort und auf `PATH` nicht verfügbar und wurde nicht installiert. Exact-Head-Hosted-Checks stehen für Draft-PR #117 aus.
 
 ## Einschränkungen und Restrisiko
 

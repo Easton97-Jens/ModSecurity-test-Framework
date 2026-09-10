@@ -9,7 +9,7 @@
 | Change ID | `20260910-02-fix-canonical-runtime-lock-fixture` |
 | UTC date | 2026-09-10 |
 | Framework base revision | `9bb956e1b4bfaea1e1e6bbee5745c937d91d4726` |
-| Issue or pull request | Pending a separate Framework Draft PR; no merge, dispatch, or existing-PR mutation is authorized. |
+| Issue or pull request | Framework Draft PR [#117](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/117) carries this correction; no merge, dispatch, or existing-PR mutation is authorized. |
 
 ## Motivation and problem statement
 
@@ -87,7 +87,7 @@ evidence; no new dispatch is performed.
 The system `python3` lacks PyYAML, but the existing repository Python
 environment supplied it and the related tests passed. Ruff is unavailable both
 there and on `PATH`; it was not installed. Exact-head hosted checks are pending
-a Draft PR.
+for Draft PR #117.
 
 ## Limitations and residual risk
 
