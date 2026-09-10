@@ -33,6 +33,8 @@ APACHE_DOWNLOAD_HOST = "downloads.apache.org"
 HAPROXY_WEB_HOST = "www.haproxy.org"
 HAPROXY_WEB_HOST_RE = re.escape(HAPROXY_WEB_HOST)
 MODSECURITY_V3_COMPONENT = "ModSecurity v3"
+OPENSSL_COMPONENT = "OpenSSL"
+AWS_LC_COMPONENT = "AWS-LC"
 GITHUB_WEB_HOST = "github.com"
 GITHUB_API_HOST = "api.github.com"
 GITHUB_API_ORIGIN = f"https://{GITHUB_API_HOST}"
@@ -73,7 +75,7 @@ SHA256_CAPTURE_RE = r"([a-f0-9]{64})"
 # incidental runtime paths such as ``*_SOURCE_ROOT``.  A new matching variable
 # has to be registered below or explicitly classified as not applicable.
 RELEVANT_PROVENANCE_VARIABLE_RE = re.compile(
-    r"(?:_VERSION|_RELEASE_TAG|_GIT_REF|_APPROVED_COMMIT|_SOURCE_URL|"
+    r"(?:_VERSION|_RELEASE_TAG|_TAG|_GIT_REF|_APPROVED_COMMIT|_SOURCE_URL|"
     r"_DOWNLOAD_URL|_RELEASE_ASSET_NAME|_SHA256|_SOURCE_SHA256|"
     r"_SHA256_URL|_CHECKSUM(?:_[A-Z0-9_]+)?|_REPO_URL|_GITHUB_REPO|"
     r"_GIT_URL|_RELEASE_INDEX_URL|_LATEST_URL|_PROMPT_EXPECTED_LATEST|"
@@ -247,11 +249,15 @@ HAPROXY_HTX_COMPONENT = "HAProxy HTX"
 CANONICAL_REPOSITORY_MARKER = "canonical/repository"
 CRS_APPROVED_REPOSITORY = CANONICAL_REPOSITORY_MARKER
 MODSECURITY_V3_APPROVED_REPOSITORY = CANONICAL_REPOSITORY_MARKER
+AWS_LC_APPROVED_REPOSITORY = CANONICAL_REPOSITORY_MARKER
 CRS_APPROVED_REPOSITORY_SHA256 = (
     "f953201103b4963cdcd5d77b9bb3f3cfabc8c262a73b6999a44f4a8a771e5e9e"
 )
 MODSECURITY_V3_APPROVED_REPOSITORY_SHA256 = (
     "3aa7b655ad2eec501e97cbc4a76fa820dd20cb4c95696ca41d0b1280ab8fa0fd"
+)
+AWS_LC_APPROVED_REPOSITORY_SHA256 = (
+    "d3a7be2e15552a5a8381584d854de4879e0f17d17c6c1458a0006046427d9a54"
 )
 CI_CANONICAL_PIN_VARIABLES = (
     "CI_CANONICAL_PYTHON_VERSION",
@@ -401,6 +407,11 @@ def _canonical_required_fields(
 
 
 MANUAL_REVIEW_VARIABLES = {
+    AWS_LC_COMPONENT: (
+        "AWS_LC_REPOSITORY",
+        "AWS_LC_TAG",
+        "AWS_LC_COMMIT",
+    ),
     MODSECURITY_V3_COMPONENT: (
         "MODSECURITY_V3_APPROVED_REPO_URL",
         "MODSECURITY_V3_RELEASE_TAG",
@@ -431,6 +442,7 @@ class ComponentDefinition:
     compatibility_policy: str
     authorized_hosts: tuple[str, ...] = ()
     github_repository: str | None = None
+    repository_identity_sha256: str = ""
     version_variable: str | None = None
     release_tag_variable: str | None = None
     source_url_variable: str | None = None
@@ -634,6 +646,30 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         ),
     ),
     ComponentDefinition(
+        name=AWS_LC_COMPONENT,
+        resolver="github_tag_commit",
+        variables=(
+            "AWS_LC_REPOSITORY",
+            "AWS_LC_TAG",
+            "AWS_LC_COMMIT",
+        ),
+        atomic_group=(
+            "AWS_LC_TAG",
+            "AWS_LC_COMMIT",
+        ),
+        update_policy="manual_review",
+        stable_policy="GitHub non-draft, non-prerelease stable v<version> release",
+        compatibility_policy="newer AWS-LC releases require reviewed immutable peeled-commit provenance",
+        authorized_hosts=GITHUB_RELEASE_HOSTS,
+        github_repository=AWS_LC_APPROVED_REPOSITORY,
+        repository_identity_sha256=AWS_LC_APPROVED_REPOSITORY_SHA256,
+        source_url_variable="AWS_LC_REPOSITORY",
+        release_tag_variable="AWS_LC_TAG",
+        git_commit_variable="AWS_LC_COMMIT",
+        checksum_strategy="peeled_git_tag_commit",
+        tag_pattern=VERSION_TAG_PATTERN,
+    ),
+    ComponentDefinition(
         name="ModSecurity Apache connector",
         resolver="not_applicable",
         variables=(
@@ -807,31 +843,46 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
         tag_pattern=r"^release-\d+(?:\.\d+)+$",
     ),
     ComponentDefinition(
-        name="OpenSSL for NGINX QUIC/TLS",
+        name=OPENSSL_COMPONENT,
         resolver="github_release_digest",
         variables=(
+            "OPENSSL_VERSION",
+            "OPENSSL_TAG",
+            "OPENSSL_ARCHIVE_NAME",
+            "OPENSSL_SOURCE_URL",
+            "OPENSSL_SHA256",
             "NGINX_QUIC_TLS_VERSION",
             "NGINX_QUIC_TLS_ARCHIVE_NAME",
             "NGINX_QUIC_TLS_SOURCE_URL",
             "NGINX_QUIC_TLS_SOURCE_SHA256",
         ),
         atomic_group=(
-            "NGINX_QUIC_TLS_VERSION",
-            "NGINX_QUIC_TLS_SOURCE_URL",
-            "NGINX_QUIC_TLS_SOURCE_SHA256",
+            "OPENSSL_VERSION",
+            "OPENSSL_TAG",
+            "OPENSSL_ARCHIVE_NAME",
+            "OPENSSL_SOURCE_URL",
+            "OPENSSL_SHA256",
         ),
         update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="GitHub non-draft, non-prerelease openssl-<version> release",
         compatibility_policy=NO_HIDDEN_SERIES_RESTRICTION,
         authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository="openssl/openssl",
-        version_variable="NGINX_QUIC_TLS_VERSION",
-        source_url_variable="NGINX_QUIC_TLS_SOURCE_URL",
-        sha256_variable="NGINX_QUIC_TLS_SOURCE_SHA256",
+        version_variable="OPENSSL_VERSION",
+        release_tag_variable="OPENSSL_TAG",
+        source_url_variable="OPENSSL_SOURCE_URL",
+        asset_variable="OPENSSL_ARCHIVE_NAME",
+        sha256_variable="OPENSSL_SHA256",
         asset_template=f"openssl-{{version}}{TAR_GZ_EXTENSION}",
         checksum_strategy="github_release_asset_digest",
         tag_prefix="openssl-",
         tag_pattern=r"^openssl-\d+(?:\.\d+)+$",
+        alias_bindings=(
+            ("NGINX_QUIC_TLS_VERSION", "OPENSSL_VERSION"),
+            ("NGINX_QUIC_TLS_ARCHIVE_NAME", "OPENSSL_ARCHIVE_NAME"),
+            ("NGINX_QUIC_TLS_SOURCE_URL", "OPENSSL_SOURCE_URL"),
+            ("NGINX_QUIC_TLS_SOURCE_SHA256", "OPENSSL_SHA256"),
+        ),
     ),
     ComponentDefinition(
         name="HAProxy",
@@ -1297,6 +1348,15 @@ def _canonical_registry_errors() -> list[str]:
     errors: list[str] = []
     owners: dict[str, list[str]] = {}
     for definition in COMPONENT_DEFINITIONS:
+        if definition.repository_identity_sha256:
+            if definition.github_repository != CANONICAL_REPOSITORY_MARKER:
+                errors.append(
+                    f"{definition.name} repository identity hash requires a canonical repository marker"
+                )
+            if re.fullmatch(r"[0-9a-f]{64}", definition.repository_identity_sha256) is None:
+                errors.append(
+                    f"{definition.name} repository identity hash must be a lowercase SHA-256 value"
+                )
         for name in definition.variables:
             owners.setdefault(name, []).append(definition.name)
     duplicate_owners = {
@@ -1379,6 +1439,22 @@ def _canonical_value_errors(entries: dict[str, VariableEntry]) -> list[str]:
     return errors
 
 
+def _canonical_repository_identity_errors(
+    entries: dict[str, VariableEntry],
+) -> list[str]:
+    """Reject a neutral repository URL that no longer matches its fixed identity."""
+
+    errors: list[str] = []
+    for definition in COMPONENT_DEFINITIONS:
+        if not definition.repository_identity_sha256:
+            continue
+        try:
+            canonicalize_github_repository(definition, entries)
+        except (UpstreamBlocked, UpstreamUnknown) as exc:
+            errors.append(str(exc))
+    return errors
+
+
 def canonical_contract_errors(
     lines: list[str], entries: dict[str, VariableEntry]
 ) -> list[str]:
@@ -1393,6 +1469,7 @@ def canonical_contract_errors(
     errors = _canonical_registry_errors()
     errors.extend(_canonical_assignment_errors(lines, entries))
     errors.extend(_canonical_value_errors(entries))
+    errors.extend(_canonical_repository_identity_errors(entries))
     return errors
 
 
@@ -2868,6 +2945,12 @@ def canonicalize_github_repository(
         raise UpstreamUnknown(
             f"{definition.name} canonical repository URL is not an official GitHub URL"
         )
+    if definition.repository_identity_sha256 and not repository_identity_matches_hash(
+        repository, definition.repository_identity_sha256
+    ):
+        raise UpstreamBlocked(
+            f"{definition.name} canonical repository identity is not approved"
+        )
     updated_definition = dataclasses.replace(definition, github_repository=repository)
     return cast(ComponentDefinition, updated_definition)
 
@@ -3026,6 +3109,7 @@ def git_release_provenance_precondition(
     entries: dict[str, VariableEntry],
     *,
     expected_repository: str,
+    repository_var: str,
     release_tag_var: str,
     approved_commit_var: str,
     expected_tag: re.Pattern[str],
@@ -3034,7 +3118,6 @@ def git_release_provenance_precondition(
 ) -> ComponentResult | None:
     """Validate a fixed tag/commit provenance tuple before any transition."""
 
-    repository_var = next(name for name in variables if name.endswith("_REPO_URL"))
     repository_url = value(entries, repository_var)
     current_tag = value(entries, release_tag_var)
     if github_repo_path(repository_url) != expected_repository:
@@ -3196,6 +3279,9 @@ def git_release_provenance_context(
 
     release_tag_var = cast(str, definition.release_tag_variable)
     commit_var = cast(str, definition.git_commit_variable)
+    repository_var = definition.source_url_variable or next(
+        name for name in definition.variables if name.endswith("_REPO_URL")
+    )
     expected_tag = re.compile(definition.tag_pattern)
     repository = cast(str, definition.github_repository)
     aliases = {
@@ -3206,6 +3292,7 @@ def git_release_provenance_context(
         definition.name,
         entries,
         expected_repository=repository,
+        repository_var=repository_var,
         release_tag_var=release_tag_var,
         approved_commit_var=commit_var,
         expected_tag=expected_tag,
@@ -3855,6 +3942,28 @@ def configured_nginx_release_aliases_are_bound(
     return None
 
 
+def configured_release_aliases_are_bound(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    *,
+    tag: str,
+) -> ComponentResult | None:
+    """Require every consumer alias to resolve to its reviewed release tuple."""
+
+    for alias, expected_variable in definition.alias_bindings:
+        if value(entries, alias) != value(entries, expected_variable):
+            return configured_release_url_error(
+                definition,
+                message="Configured release alias does not match the canonical release tuple.",
+                tag=tag,
+                details={
+                    "alias": alias,
+                    "expected_variable": expected_variable,
+                },
+            )
+    return None
+
+
 def configured_release_checksum_url_is_bound(
     definition: ComponentDefinition,
     entries: dict[str, VariableEntry],
@@ -3930,6 +4039,9 @@ def configured_github_release_urls_are_bound(
         )
         if nginx_alias_error is not None:
             return nginx_alias_error
+    alias_error = configured_release_aliases_are_bound(definition, entries, tag=tag)
+    if alias_error is not None:
+        return alias_error
     checksum_url_error = configured_release_checksum_url_is_bound(
         definition,
         entries,
@@ -3985,7 +4097,7 @@ def add_github_release_url_updates(
     """Add literal GitHub asset aliases without expanding safe shell templates."""
 
     repository = cast(str, definition.github_repository)
-    identity_variable = definition.version_variable or ""
+    identity_variable = definition.release_tag_variable or definition.version_variable or ""
     asset_url = expected_github_asset_url(repository, latest_tag, latest_asset_name)
     if definition.name not in GITHUB_RELEASES_SOURCE_COMPONENTS | {NGINX_COMPONENT}:
         add_non_template_release_update(
@@ -4611,21 +4723,28 @@ def unified_orchestrator_component(
     )
 
 
-def resolve_component_definition(
+def resolve_standard_component_definition(
     definition: ComponentDefinition,
     entries: dict[str, VariableEntry],
     client: HttpClient,
 ) -> ComponentResult:
-    if definition.name == CRS_COMPONENT:
-        return check_crs_release_provenance(entries, client)
-    if definition.name == MODSECURITY_V3_COMPONENT:
-        return check_modsecurity_v3_release_provenance(entries, client)
+    """Resolve a descriptor that does not use a specialized provenance flow."""
+
     if definition.resolver in {
         "github_release_manifest",
         "github_release_digest",
         "github_tag_commit",
     }:
-        definition = canonicalize_github_repository(definition, entries)
+        try:
+            definition = canonicalize_github_repository(definition, entries)
+        except (UpstreamBlocked, UpstreamUnknown) as exc:
+            return ComponentResult(
+                component=definition.name,
+                status=STATUS_BLOCKED,
+                message=str(exc),
+                variables=list(definition.variables),
+                source=value(entries, definition.source_url_variable or ""),
+            )
     if definition.resolver == "not_applicable":
         return not_applicable_component(
             definition.name,
@@ -4665,6 +4784,20 @@ def resolve_component_definition(
     raise UpstreamError(
         f"unknown resolver strategy for {definition.name}: {definition.resolver}"
     )
+
+
+def resolve_component_definition(
+    definition: ComponentDefinition,
+    entries: dict[str, VariableEntry],
+    client: HttpClient,
+) -> ComponentResult:
+    """Resolve one component according to its established provenance contract."""
+
+    if definition.name == CRS_COMPONENT:
+        return check_crs_release_provenance(entries, client)
+    if definition.name == MODSECURITY_V3_COMPONENT:
+        return check_modsecurity_v3_release_provenance(entries, client)
+    return resolve_standard_component_definition(definition, entries, client)
 
 
 def check_all(

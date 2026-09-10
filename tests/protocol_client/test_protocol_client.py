@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -58,6 +59,51 @@ class ProtocolClientTest(unittest.TestCase):
         self.assertEqual(result.executable, "unavailable-curl")
         self.assertEqual(result.error, "curl_executable_unavailable")
         self.assertIsNone(result.version_returncode)
+
+    def test_sidecar_reader_bounds_regular_files_and_rejects_unsafe_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            exact = directory / "exact-sidecar.json"
+            expected = b"x" * protocol_client._MAX_SIDECAR_BYTES
+            exact.write_bytes(expected)
+            self.assertEqual(protocol_client._read_observation_sidecar(exact), expected)
+
+            oversized = directory / "oversized-sidecar.json"
+            oversized.write_bytes(expected + b"x")
+            with self.assertRaisesRegex(
+                protocol_client.ProtocolClientError, "exceeds bounded size"
+            ):
+                protocol_client._read_observation_sidecar(oversized)
+
+            target = directory / "sidecar-target.json"
+            target.write_text("{}", encoding="utf-8")
+            symlink = directory / "sidecar-link.json"
+            symlink.symlink_to(target)
+            with self.assertRaisesRegex(
+                protocol_client.ProtocolClientError, "sidecar is unavailable"
+            ):
+                protocol_client._read_observation_sidecar(symlink)
+
+            outside = directory / "outside"
+            outside.mkdir()
+            nested_sidecar = outside / "nested-sidecar.json"
+            nested_sidecar.write_text("{}", encoding="utf-8")
+            symlinked_parent = directory / "sidecars"
+            symlinked_parent.symlink_to(outside, target_is_directory=True)
+            with self.assertRaisesRegex(
+                protocol_client.ProtocolClientError, "sidecar is unavailable"
+            ):
+                protocol_client._read_observation_sidecar(
+                    symlinked_parent / nested_sidecar.name
+                )
+
+            if hasattr(os, "mkfifo"):
+                fifo = directory / "sidecar.fifo"
+                os.mkfifo(fifo)
+                with self.assertRaisesRegex(
+                    protocol_client.ProtocolClientError, "sidecar is unavailable"
+                ):
+                    protocol_client._read_observation_sidecar(fifo)
 
     def test_h3_uses_http3_only_and_complete_provenance_can_pass(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

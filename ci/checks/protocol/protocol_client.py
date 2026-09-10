@@ -23,12 +23,14 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass, field, replace
+import errno
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import shlex
+import stat
 import subprocess
 import sys
 import tempfile
@@ -64,6 +66,14 @@ _PROVENANCE_TEXT_FIELDS = (
 
 class ProtocolClientError(ValueError):
     """Raised for invalid protocol-client input or unsafe sidecar content."""
+
+
+class BoundedFileReadError(ValueError):
+    """Raised when a bounded regular-file read cannot safely complete."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -587,14 +597,99 @@ def target_authority_sha256(url: str) -> str | None:
     return "sha256:" + hashlib.sha256(authority.encode("utf-8")).hexdigest()
 
 
+def _bounded_file_read_reason(error: OSError) -> str:
+    """Classify path-resolution errors without exposing host details to callers."""
+
+    if error.errno in {errno.ELOOP, errno.ENOTDIR}:
+        return "unsafe"
+    return "unavailable"
+
+
+def _open_no_follow_file(path: Path, flags: int) -> int:
+    """Open ``path`` without following a link in any component of its path."""
+
+    absolute = Path(os.path.abspath(path))
+    components = absolute.parts[1:]
+    if not components:
+        raise BoundedFileReadError("unsafe")
+    directory_flags = (
+        os.O_RDONLY
+        | os.O_NOFOLLOW
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+        | getattr(os, "O_DIRECTORY", 0)
+    )
+    parent_descriptor = -1
+    try:
+        parent_descriptor = os.open(absolute.anchor, directory_flags)
+        for component in components[:-1]:
+            child_descriptor = os.open(
+                component, directory_flags, dir_fd=parent_descriptor
+            )
+            try:
+                if not stat.S_ISDIR(os.fstat(child_descriptor).st_mode):
+                    raise BoundedFileReadError("unsafe")
+            except BaseException:
+                os.close(child_descriptor)
+                raise
+            os.close(parent_descriptor)
+            parent_descriptor = child_descriptor
+        return os.open(components[-1], flags, dir_fd=parent_descriptor)
+    except OSError as exc:
+        raise BoundedFileReadError(_bounded_file_read_reason(exc)) from exc
+    finally:
+        if parent_descriptor >= 0:
+            os.close(parent_descriptor)
+
+
+def read_bounded_regular_bytes(path: Path, *, maximum: int) -> bytes:
+    """Read at most ``maximum`` bytes from one no-follow regular-file snapshot.
+
+    A sidecar or artifact path can be supplied by a caller and may be replaced
+    concurrently.  Resolving every component through no-follow directory
+    descriptors, checking the opened descriptor, and reading at most one byte
+    over the limit keeps the reader from following a link, blocking on a
+    special file, or allocating an unbounded payload.
+    """
+
+    if maximum < 0:
+        raise ValueError("maximum byte count cannot be negative")
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise BoundedFileReadError("unsafe")
+    flags = (
+        os.O_RDONLY
+        | os.O_NOFOLLOW
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    descriptor = -1
+    try:
+        descriptor = _open_no_follow_file(path, flags)
+        try:
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode):
+                raise BoundedFileReadError("unsafe")
+            if metadata.st_size > maximum:
+                raise BoundedFileReadError("oversized")
+            with os.fdopen(descriptor, "rb", closefd=False) as source:
+                raw = source.read(maximum + 1)
+        except OSError as exc:
+            raise BoundedFileReadError("unavailable") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+    if len(raw) > maximum:
+        raise BoundedFileReadError("oversized")
+    return raw
+
+
 def _read_observation_sidecar(path: Path) -> bytes:
     try:
-        raw = path.read_bytes()
-    except OSError as exc:
+        return read_bounded_regular_bytes(path, maximum=_MAX_SIDECAR_BYTES)
+    except BoundedFileReadError as exc:
+        if exc.reason == "oversized":
+            raise ProtocolClientError("observation sidecar exceeds bounded size") from exc
         raise ProtocolClientError("observation sidecar is unavailable") from exc
-    if len(raw) > _MAX_SIDECAR_BYTES:
-        raise ProtocolClientError("observation sidecar exceeds bounded size")
-    return raw
 
 
 def _decode_observation_sidecar(raw: bytes) -> dict[str, Any]:

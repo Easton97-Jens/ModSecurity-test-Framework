@@ -82,6 +82,32 @@ class CommonShellSonarContractsTest(unittest.TestCase):
         result = run_common_shell(script)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_openssl_and_aws_lc_pins_reject_inherited_and_post_source_mutation(self) -> None:
+        script = textwrap.dedent(
+            f"""
+            export OPENSSL_VERSION=untrusted
+            . {shlex.quote(str(COMMON))}
+
+            [ "$NGINX_PROTOCOL_PROFILE" = h1 ] || exit 1
+            [ "$NGINX_QUIC_TLS_VERSION" = "$OPENSSL_VERSION" ] || exit 1
+            [ "$NGINX_QUIC_TLS_SOURCE_URL" = "$OPENSSL_SOURCE_URL" ] || exit 1
+            nginx_protocol_profile_has_http3 && exit 1
+
+            ci_require_inherited_canonical_upstream_pins >/dev/null 2>&1
+            [ "$?" -eq 77 ] || exit 1
+
+            unset OPENSSL_VERSION
+            . {shlex.quote(str(COMMON))}
+            AWS_LC_COMMIT=0000000000000000000000000000000000000000
+            ci_require_canonical_active_upstream_pins >/dev/null 2>&1
+            [ "$?" -eq 77 ] || exit 1
+            exit 0
+            """
+        )
+
+        result = run_common_shell(script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_prerequisite_wrappers_propagate_blocked_and_failed_statuses(self) -> None:
         script = textwrap.dedent(
             f"""

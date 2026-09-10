@@ -182,6 +182,17 @@ underscore-named tools: `make protocol-client` runs
 `make check-transport-hardening-evidence` runs
 `ci/checks/evidence/check_transport_hardening_evidence.py`.
 
+`OPENSSL_VERSION`, `OPENSSL_TAG`, `OPENSSL_ARCHIVE_NAME`,
+`OPENSSL_SOURCE_URL`, and `OPENSSL_SHA256` are the canonical reviewed OpenSSL
+release tuple in `ci/lib/common.sh`; they are not caller inputs. The current
+`NGINX_QUIC_TLS_*` identity values derive from that tuple and remain the only
+implemented external-TLS source consumed by the NGINX H3 profile.
+`AWS_LC_REPOSITORY`, `AWS_LC_TAG`, and `AWS_LC_COMMIT` are a separate reviewed
+repository/tag/peeled-commit tuple for future host-owned selection. The
+checker binds the parsed GitHub repository to its approved identity before any
+upstream lookup. They do not enable an AWS-LC provisioner, build profile, or
+HTTP/2/HTTP/3 runtime claim by themselves.
+
 `MRTS_ROOT`, `MRTS_BUILD_ROOT`, `MRTS_DEFINITIONS`, `MRTS_RULES_OUT`,
 `MRTS_FTW_OUT`, `MRTS_LOAD_FILE`, and `MRTS_CASE_ROOT` select existing MRTS
 inputs or generated paths. `MODSECURITY_MRTS_VARIANT` accepts `no-mrts` or
@@ -276,7 +287,8 @@ variable are rendered from the updated group rather than chosen independently.
 | APR-util | automatic | Latest numeric official Apache listing release, constrained to the documented current major/minor series; official per-asset SHA-256 file. |
 | PCRE2 | automatic | Latest non-draft, non-prerelease `pcre2-<version>` GitHub release; release-asset digest. |
 | NGINX | automatic | Latest non-draft, non-prerelease `release-<version>` GitHub release; release-asset digest and matching release tag/ref/asset tuple. |
-| OpenSSL for NGINX QUIC/TLS | automatic | Latest non-draft, non-prerelease `openssl-<version>` GitHub release; release-asset digest. |
+| OpenSSL | automatic | Latest non-draft, non-prerelease `openssl-<version>` GitHub release; release-asset digest. NGINX QUIC/TLS aliases must resolve to this canonical tuple. |
+| AWS-LC | manual_review | Latest stable `v<version>` GitHub release and immutable peeled commit are reported for review; the parsed repository must match the approved identity, and the reviewed tuple does not select a build path. |
 | HAProxy | automatic | Latest numeric official HAProxy-directory release, constrained by the explicit `HAPROXY_SERIES` and release-root/base tuple; official per-asset SHA-256 file. |
 | HAProxy HTX | automatic | Latest numeric official HAProxy-directory release in its own explicit HTX series, release-root, and base tuple; the official per-asset SHA-256 is updated with that tuple and it is never inferred from the normal HAProxy result. |
 | OWASP Core Rule Set | automatic | Latest non-draft, non-prerelease stable GitHub release matching `v4.x.x`; the fixed repository, immutable peeled Git-tag commit, and checked SQLi rule-file SHA-256 update as one atomic provenance group. Releases outside `v4.x.x` are never automatically applied. |
