@@ -85,11 +85,63 @@ static int load_rules(RulesSet *rules, const char *rules_text,
     return SCENARIO_PASS;
 }
 
-static int run_scenario(const struct scenario *scenario,
-    struct observed_intervention *observed)
+static int add_request_headers(Transaction *transaction,
+    const struct scenario *scenario)
 {
     char content_length[32];
     int content_length_size;
+    int ret;
+
+    ret = msc_add_request_header(transaction,
+        (const unsigned char *)"Host",
+        (const unsigned char *)"localhost");
+    if (ret == 0) {
+        fprintf(stderr, "%s: setup_error msc_add_request_header Host failed\n",
+            scenario->name);
+        return SCENARIO_SETUP_ERROR;
+    }
+
+    if (scenario->content_type != NULL) {
+        ret = msc_add_request_header(transaction,
+            (const unsigned char *)"Content-Type",
+            (const unsigned char *)scenario->content_type);
+        if (ret == 0) {
+            fprintf(stderr,
+                "%s: setup_error msc_add_request_header failed\n",
+                scenario->name);
+            return SCENARIO_SETUP_ERROR;
+        }
+    }
+
+    if (scenario->request_body == NULL) {
+        return SCENARIO_PASS;
+    }
+
+    content_length_size = snprintf(content_length, sizeof(content_length),
+        "%zu", scenario->request_body_length);
+    if (content_length_size < 0 ||
+        (size_t)content_length_size >= sizeof(content_length)) {
+        fprintf(stderr,
+            "%s: setup_error formatting Content-Length failed\n",
+            scenario->name);
+        return SCENARIO_SETUP_ERROR;
+    }
+    ret = msc_add_request_header(transaction,
+        (const unsigned char *)"Content-Length",
+        (const unsigned char *)content_length);
+    if (ret == 0) {
+        fprintf(stderr,
+            "%s: setup_error msc_add_request_header Content-Length failed\n",
+            scenario->name);
+        return SCENARIO_SETUP_ERROR;
+    }
+
+    return SCENARIO_PASS;
+}
+
+static int run_scenario(const struct scenario *scenario,
+    struct observed_intervention *observed)
+{
     int ret;
     int setup_status;
     ModSecurity *modsec = NULL;
@@ -157,58 +209,12 @@ static int run_scenario(const struct scenario *scenario,
     }
     check_intervention(transaction, "uri", observed);
 
-    ret = msc_add_request_header(transaction,
-        (const unsigned char *)"Host",
-        (const unsigned char *)"localhost");
-    if (ret == 0) {
-        fprintf(stderr, "%s: setup_error msc_add_request_header Host failed\n",
-            scenario->name);
+    setup_status = add_request_headers(transaction, scenario);
+    if (setup_status != SCENARIO_PASS) {
         msc_transaction_cleanup(transaction);
         msc_rules_cleanup(rules);
         msc_cleanup(modsec);
-        return SCENARIO_SETUP_ERROR;
-    }
-
-    if (scenario->content_type != NULL) {
-        ret = msc_add_request_header(transaction,
-            (const unsigned char *)"Content-Type",
-            (const unsigned char *)scenario->content_type);
-        if (ret == 0) {
-            fprintf(stderr,
-                "%s: setup_error msc_add_request_header failed\n",
-                scenario->name);
-            msc_transaction_cleanup(transaction);
-            msc_rules_cleanup(rules);
-            msc_cleanup(modsec);
-            return SCENARIO_SETUP_ERROR;
-        }
-    }
-
-    if (scenario->request_body != NULL) {
-        content_length_size = snprintf(content_length, sizeof(content_length),
-            "%zu", scenario->request_body_length);
-        if (content_length_size < 0 ||
-            (size_t)content_length_size >= sizeof(content_length)) {
-            fprintf(stderr,
-                "%s: setup_error formatting Content-Length failed\n",
-                scenario->name);
-            msc_transaction_cleanup(transaction);
-            msc_rules_cleanup(rules);
-            msc_cleanup(modsec);
-            return SCENARIO_SETUP_ERROR;
-        }
-        ret = msc_add_request_header(transaction,
-            (const unsigned char *)"Content-Length",
-            (const unsigned char *)content_length);
-        if (ret == 0) {
-            fprintf(stderr,
-                "%s: setup_error msc_add_request_header Content-Length failed\n",
-                scenario->name);
-            msc_transaction_cleanup(transaction);
-            msc_rules_cleanup(rules);
-            msc_cleanup(modsec);
-            return SCENARIO_SETUP_ERROR;
-        }
+        return setup_status;
     }
 
     ret = msc_process_request_headers(transaction);

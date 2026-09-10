@@ -176,8 +176,8 @@ class PublicContractApiTests(unittest.TestCase):
     def test_package_catalog_covers_all_declared_framework_sources(self) -> None:
         all_cases = contracts.load_test_catalog()
         yaml_cases = contracts.load_test_catalog(catalog="framework-yaml")
-        self.assertEqual(len(all_cases["test_ids"]), 336)
-        self.assertEqual(len(yaml_cases["test_ids"]), 179)
+        self.assertEqual(len(all_cases["test_ids"]), 339)
+        self.assertEqual(len(yaml_cases["test_ids"]), 182)
         for record in all_cases["tests"]:
             self.assertTrue(
                 {

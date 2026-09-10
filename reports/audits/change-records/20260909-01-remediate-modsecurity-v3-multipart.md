@@ -19,6 +19,10 @@ representations. This is a Framework-only engine-validation change. It does
 not claim connector loading, backend-byte delivery, client behavior, or a
 Parent Gitlink update, and it excludes the private audit and raw payloads.
 
+The follow-up also resolves the task-owned `c:S3776` SonarQube Cloud finding
+and the stale generated Framework catalog caused by the three new multipart
+cases, without changing a scanner, quality gate, workflow, or test control.
+
 ## Affected components and security boundaries
 
 - `ci/lib/common.sh` owns the approved ModSecurity v3 tag/commit tuple.
@@ -38,6 +42,9 @@ does not infer a connector or backend result from the engine evidence.
 - Exact CRLF and LF controls cause an engine intervention; the `AB` control
   remains allowed for the newline rule and is denied by an exact `AB` rule.
 - The reusable YAML catalog and runner preserve those byte distinctions.
+- `run_scenario` remains behaviorally equivalent while its request-header
+  setup stays below the Sonar cognitive-complexity limit, and the generated
+  catalog contains all three new multipart cases.
 - Focused Framework source, regression, provenance, documentation, link, and
   path checks pass without editing generated historical reports.
 - Delivery remains a separate Framework Draft PR only; no Parent, MRTS,
@@ -58,10 +65,17 @@ cases and runner use compatible quoted-scalar decoding for byte sequences, and
 the regression test loads the current multipart catalog. Documentation limits
 the result to engine evidence.
 
+The follow-up extracts request-header setup into `add_request_headers()` while
+preserving the existing header order, messages, return values, and caller-owned
+cleanup. The repository-owned catalog generator records the three new YAML
+cases, and the public contract count test now verifies the resulting totals.
+
 ## Changed files and tests
 
 - Provenance: `ci/lib/common.sh`.
 - Engine smoke: `src/v3-api-smoke/v3_api_smoke.c`.
+- Generated catalog: `modsecurity_test_framework/data/framework-contract-catalog.json`.
+- Public catalog contract: `tests/contract_api/test_public_contract_api.py`.
 - Reusable case materialization: `tests/runners/runner_core.py`.
 - Multipart cases:
   `tests/cases/body/multipart/multipart_crlf_field_deny_v3_0_16.yaml`,
@@ -80,6 +94,10 @@ the result to engine evidence.
 | `rtk proxy make check-documentation` | `0` | Documentation links, bilingual variable documentation, repository paths, and Change Record contract passed. | `security-audit-20260909` |
 | `rtk proxy python3 ci/tools/check-common-versions.py --validate-canonical` | `0` | Canonical common-version provenance passed. | `security-audit-20260909` |
 | `rtk proxy git diff --check` | `0` | No whitespace error was reported. | `security-audit-20260909` |
+| `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 <framework-venv-python> -B ci/tools/generate-framework-contract-catalog.py --check` | `0` | The repository-owned generated catalog is current. | `security-audit-20260910` |
+| `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 <framework-venv-python> -B -m unittest tests.contract_api.test_public_contract_api tests.security_regression.test_multipart_newline_runtime_difference` | `0` | 22 public-catalog and multipart representation controls passed. | `security-audit-20260910` |
+| `rtk proxy cc -std=c17 -Wall -Wextra -Werror -I<task-built-v3.0.16>/headers -c src/v3-api-smoke/v3_api_smoke.c -o <task-owned-output>` | `0` | The refactored C source passed the explicit C17 warning-as-error compile. | `security-audit-20260910` |
+| `rtk proxy make -C src/v3-api-smoke run MODSECURITY_V3_DIR=<task-built-v3.0.16> BUILD_ROOT=<task-owned-output>` | `0` | The linked smoke passed primary phase-2, CRLF/LF deny, `AB` allow, and exact-`AB` deny controls. | `security-audit-20260910` |
 
 ## Security impact
 
@@ -102,8 +120,9 @@ production service was contacted.
   delivered bytes is unavailable in this environment.
 - Generated Framework reports remain unchanged: regeneration in a staging copy
   would rewrite historical runtime classifications outside this task scope.
-- Exact-head hosted checks, review, and SonarQube disposition do not yet exist
-  at pre-delivery record creation.
+- Exact-successor hosted checks, review, and SonarQube disposition are pending
+  the normal follow-up push; no rerun, suppression, scanner, quality-gate, or
+  workflow change substitutes for them.
 
 ## Limitations and residual risk
 
@@ -117,7 +136,9 @@ is not promoted to `verified`.
 ## Final diff and review status
 
 An independent scoped review found no concrete bypass and no weakened security
-control in the Framework candidate. Draft PR #115 is open; this follow-up
-requires a fresh exact-head readback after its normal push. Hosted results,
-review, and any merge remain outside the current evidence. No release,
-deployment, Parent Gitlink update, or MRTS change is authorized.
+control in the Framework candidate. The Sonar remediation preserves the header
+and cleanup boundary, and the catalog was regenerated rather than hand-edited.
+Draft PR #115 is open; this follow-up requires a fresh exact-head readback
+after its normal push. Hosted results, review, and any merge remain outside the
+current evidence. No release, deployment, Parent Gitlink update, or MRTS
+change is authorized.

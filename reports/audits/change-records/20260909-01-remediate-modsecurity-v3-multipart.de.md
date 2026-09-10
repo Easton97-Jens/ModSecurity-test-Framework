@@ -15,6 +15,10 @@
 
 Die wiederverwendbare Framework-Dependency- und Multipart-Regressionsgrenze benötigte ein gepatchtes ModSecurity-v3-Provenance-Tuple und bytegenaue Controls für Newline-Repräsentationen. Dies ist eine Framework-only-Änderung für Engine-Validierung. Sie behauptet weder Connector-Loading, Backend-Byte-Delivery noch Client-Verhalten oder ein Parent-Gitlink-Update und schließt den privaten Audit sowie Roh-Payloads aus.
 
+Das Follow-up löst außerdem den task-eigenen SonarQube-Cloud-Befund `c:S3776`
+und den durch die drei neuen Multipart-Cases veralteten erzeugten Framework-
+Katalog, ohne Scanner, Quality Gate, Workflow oder Test-Control zu verändern.
+
 ## Betroffene Komponenten und Sicherheitsgrenzen
 
 - `ci/lib/common.sh` besitzt das genehmigte ModSecurity-v3-Tag-/Commit-Tuple.
@@ -28,6 +32,9 @@ Die Sicherheitsinvariante lautet: Vom Engine erhaltene Multipart-Field-Bytes mü
 - Das genehmigte Dependency-Tuple ist `v3.0.16` bei `7ea9fefbe0ba409d8733b4d682c8c4c059cd028d`.
 - Exakte CRLF- und LF-Controls lösen eine Engine-Intervention aus; das `AB`-Control bleibt für die Newline-Regel erlaubt und wird durch eine exakte `AB`-Regel abgelehnt.
 - Der wiederverwendbare YAML-Katalog und Runner bewahren diese Byte-Unterscheidungen.
+- `run_scenario` bleibt verhaltensgleich, während sein Request-Header-Setup
+  unterhalb des Sonar-Cognitive-Complexity-Limits bleibt, und der erzeugte
+  Katalog enthält alle drei neuen Multipart-Cases.
 - Fokussierte Framework-Source-, Regressions-, Provenance-, Dokumentations-, Link- und Path-Checks bestehen, ohne generierte historische Reports zu verändern.
 - Delivery bleibt auf einen separaten Framework-Draft-PR beschränkt; Parent, MRTS, Gitlink, Merge, Release und Deployment sind nicht enthalten.
 
@@ -39,10 +46,18 @@ Eine Aktualisierung nur der Dependency-Provenance würde keinen reproduzierbaren
 
 Das Common-Version-Tuple wählt nun den genehmigten v3.0.16-Commit. Der C-API-Smoke ergänzt exakte CRLF-, LF-, Allow- und Exact-Representation-Controls. Die YAML-Cases und der Runner verwenden kompatible Quoted-Scalar-Decodierung für Byte-Sequenzen; der Regressionstest lädt den aktuellen Multipart-Katalog. Die Dokumentation begrenzt das Ergebnis auf Engine-Evidence.
 
+Das Follow-up extrahiert das Request-Header-Setup nach
+`add_request_headers()`, bewahrt aber die bestehende Header-Reihenfolge,
+Meldungen, Rückgabewerte und caller-owned Cleanup. Der repository-eigene
+Kataloggenerator erfasst die drei neuen YAML-Cases, und der öffentliche
+Contract-Count-Test prüft nun die daraus resultierenden Summen.
+
 ## Geänderte Dateien und Tests
 
 - Provenance: `ci/lib/common.sh`.
 - Engine-Smoke: `src/v3-api-smoke/v3_api_smoke.c`.
+- Erzeugter Katalog: `modsecurity_test_framework/data/framework-contract-catalog.json`.
+- Öffentlicher Katalog-Contract: `tests/contract_api/test_public_contract_api.py`.
 - Wiederverwendbare Case-Materialisierung: `tests/runners/runner_core.py`.
 - Multipart-Cases: `tests/cases/body/multipart/multipart_crlf_field_deny_v3_0_16.yaml`, `multipart_lf_field_deny_v3_0_16.yaml` und `multipart_ab_field_allow_v3_0_16.yaml`.
 - Regression: `tests/security_regression/test_multipart_newline_runtime_difference.py`.
@@ -57,6 +72,10 @@ Das Common-Version-Tuple wählt nun den genehmigten v3.0.16-Commit. Der C-API-Sm
 | `rtk proxy make check-documentation` | `0` | Dokumentations-Links, bilinguale Variable-Dokumentation, Repository-Pfade und Change-Record-Contract bestanden. | `security-audit-20260909` |
 | `rtk proxy python3 ci/tools/check-common-versions.py --validate-canonical` | `0` | Kanonische Common-Version-Provenance bestand. | `security-audit-20260909` |
 | `rtk proxy git diff --check` | `0` | Es wurde kein Whitespace-Fehler gemeldet. | `security-audit-20260909` |
+| `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 <framework-venv-python> -B ci/tools/generate-framework-contract-catalog.py --check` | `0` | Der repository-eigene erzeugte Katalog ist aktuell. | `security-audit-20260910` |
+| `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 <framework-venv-python> -B -m unittest tests.contract_api.test_public_contract_api tests.security_regression.test_multipart_newline_runtime_difference` | `0` | 22 öffentliche Katalog- und Multipart-Repräsentations-Controls bestanden. | `security-audit-20260910` |
+| `rtk proxy cc -std=c17 -Wall -Wextra -Werror -I<task-built-v3.0.16>/headers -c src/v3-api-smoke/v3_api_smoke.c -o <task-owned-output>` | `0` | Der refaktorierte C-Source bestand die explizite C17-Warnings-as-Errors-Kompilierung. | `security-audit-20260910` |
+| `rtk proxy make -C src/v3-api-smoke run MODSECURITY_V3_DIR=<task-built-v3.0.16> BUILD_ROOT=<task-owned-output>` | `0` | Der gelinkte Smoke bestand Primary-Phase-2-, CRLF-/LF-Deny-, `AB`-Allow- und Exact-`AB`-Deny-Controls. | `security-audit-20260910` |
 
 ## Sicherheitsauswirkung
 
@@ -70,7 +89,9 @@ Die Änderung aktualisiert die genehmigte Engine-Provenance und macht Repräsent
 
 - Kontrollierte Connector-/Backend-Evidence für die exakte Task-Library und ausgelieferte Bytes ist in dieser Umgebung nicht verfügbar.
 - Generierte Framework-Reports bleiben unverändert: Eine Regeneration in einer Staging-Kopie würde historische Runtime-Klassifikationen außerhalb dieses Task-Scopes umschreiben.
-- Frische Exact-Head-Hosted-Checks, Review und SonarQube-Disposition existieren beim Erstellen des Pre-Delivery-Records noch nicht.
+- Frische Exact-Successor-Hosted-Checks, Review und SonarQube-Disposition
+  stehen nach dem normalen Follow-up-Push aus; kein Rerun, keine Suppression
+  und keine Scanner-, Quality-Gate- oder Workflow-Änderung ersetzen sie.
 
 ## Einschränkungen und Restrisiko
 
@@ -78,4 +99,10 @@ Die kompatible Quoted-Scalar-Decodierung des Runners erreicht mehr als die drei 
 
 ## Finaler Diff- und Review-Status
 
-Eine unabhängige Scoped-Review fand keinen konkreten Bypass und kein abgeschwächtes Security-Control im Framework-Kandidaten. Draft PR #115 ist offen; dieses Follow-up verlangt nach seinem normalen Push einen frischen Exact-Head-Readback. Hosted-Ergebnisse, Review und jeder Merge liegen weiter außerhalb der aktuellen Evidence. Release, Deployment, Parent-Gitlink-Update und MRTS-Change sind nicht autorisiert.
+Eine unabhängige Scoped-Review fand keinen konkreten Bypass und kein
+abgeschwächtes Security-Control im Framework-Kandidaten. Die Sonar-Remediation
+bewahrt die Header- und Cleanup-Grenze, und der Katalog wurde erzeugt statt von
+Hand editiert. Draft PR #115 ist offen; dieses Follow-up verlangt nach seinem
+normalen Push einen frischen Exact-Head-Readback. Hosted-Ergebnisse, Review
+und jeder Merge liegen weiter außerhalb der aktuellen Evidence. Release,
+Deployment, Parent-Gitlink-Update und MRTS-Change sind nicht autorisiert.
