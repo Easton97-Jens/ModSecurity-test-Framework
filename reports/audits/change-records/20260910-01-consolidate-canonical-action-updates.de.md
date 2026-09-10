@@ -9,7 +9,7 @@
 | Change-ID | `20260910-01-consolidate-canonical-action-updates` |
 | UTC-Datum | 2026-09-10 |
 | Framework-Basisrevision | `86451b45ae7bb7953baf9f81f2c2dad07395a808` |
-| Issue oder Pull Request | Draft-PR steht vor der normalen Framework-Delivery aus; kein bestehender PR wurde verändert. |
+| Issue oder Pull Request | Draft-PR [#116](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/116); kein bestehender PR wurde verändert. |
 
 ## Motivation und Problemstellung
 
@@ -124,13 +124,12 @@ Dispatch würde diesen Task-Branch nicht testen.
 
 ## Nicht ausgeführte Prüfungen
 
-Exakte Hosted-PR-Checks stehen bis zur normalen Draft-PR-Delivery aus. Ein
-späterer vertrauenswürdiger kanonischer Maintenance-Lauf steht ebenfalls aus,
-weil er die ausgelieferte Default-Branch-Quelle verwenden muss. `ruff` ist
-lokal nicht verfügbar und wurde nicht installiert; die vollständige
-Produkt-Lint-Suite wurde nicht abgeschlossen. Der historische Lint-Lauf
-`34391779761` betrifft nicht diese Workflow-/Updater-Änderung, sondern
-unabhängige Produktdateien.
+Exakte Hosted-PR-Checks stehen auf Draft-PR #116 aus. Ein späterer
+vertrauenswürdiger kanonischer Maintenance-Lauf steht ebenfalls aus, weil er
+die ausgelieferte Default-Branch-Quelle verwenden muss. `ruff` ist lokal nicht
+verfügbar und wurde nicht installiert; die vollständige Produkt-Lint-Suite
+wurde nicht abgeschlossen. Der historische Lint-Lauf `34391779761` betrifft
+nicht diese Workflow-/Updater-Änderung, sondern unabhängige Produktdateien.
 
 ## Einschränkungen und Restrisiko
 
@@ -146,5 +145,6 @@ Nutzerautorisierung.
 Der isolierte Worktree hat die aufgeführten lokalen Checks und `git diff --check`
 bestanden. Der unabhängige Security-Diff-Review ergab kein neues
 Security-Finding, und Dokumentationsprüfungen sowie finaler Scope-Review
-bestanden. Commit und normale Draft-PR-Delivery stehen noch aus. Kein Merge,
-Default-Branch-Write, Force-Push oder Parent-Gitlink-Update ist autorisiert.
+bestanden. Commit und normale Draft-PR-Delivery zu #116 sind abgeschlossen;
+exakte Hosted-Checks des Heads stehen noch aus. Kein Merge, Default-Branch-
+Write, Force-Push oder Parent-Gitlink-Update ist autorisiert.

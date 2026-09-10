@@ -9,7 +9,7 @@
 | Change ID | `20260910-01-consolidate-canonical-action-updates` |
 | UTC date | 2026-09-10 |
 | Framework base revision | `86451b45ae7bb7953baf9f81f2c2dad07395a808` |
-| Issue or pull request | Draft PR pending normal Framework delivery; no existing PR was modified. |
+| Issue or pull request | Draft PR [#116](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/116); no existing PR was modified. |
 
 ## Motivation and problem statement
 
@@ -115,12 +115,11 @@ checks out `master`, so a dispatch would not test this task branch.
 
 ## Checks not run
 
-Exact-branch hosted PR checks are pending normal Draft-PR delivery. A later
-trusted canonical maintenance run is also pending because it must use the
-delivered default-branch source. `ruff` is unavailable locally and was not
-installed; the full product lint suite was not completed. Historical lint run
-`34391779761` concerns unrelated product files, not this workflow/updater
-change.
+Exact-branch hosted PR checks are pending on Draft PR #116. A later trusted
+canonical maintenance run is also pending because it must use the delivered
+default-branch source. `ruff` is unavailable locally and was not installed; the
+full product lint suite was not completed. Historical lint run `34391779761`
+concerns unrelated product files, not this workflow/updater change.
 
 ## Limitations and residual risk
 
@@ -135,5 +134,5 @@ separate user authorization.
 The isolated worktree has passed the listed local checks and `git diff --check`.
 Independent security-diff review found no new security finding, and
 documentation checks and final scope review passed. Commit and normal Draft-PR
-delivery remain pending. No merge, default-branch write, force push, or Parent
-Gitlink update is authorized.
+delivery to #116 are complete; exact-head hosted checks remain pending. No
+merge, default-branch write, force push, or Parent Gitlink update is authorized.
