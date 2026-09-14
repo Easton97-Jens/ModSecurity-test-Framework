@@ -122,12 +122,12 @@ tools:
   osv-scanner:
     name: osv-scanner
     repository: google/osv-scanner
-    version: v2.5.1
-    immutable_commit: c84fa4568f2526d0333e9a914ea8a0a5f74ad68b
-    upstream_release: https://github.com/google/osv-scanner/releases/tag/v2.5.1
+    version: v2.6.0
+    immutable_commit: e840a6e8adb14b7777c78e26cfbf6e2abc1d1fc6
+    upstream_release: https://github.com/google/osv-scanner/releases/tag/v2.6.0
     asset: osv-scanner_linux_amd64
-    asset_url: https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64
-    sha256: f9f25499a2c8cc367b3af45df2ea7eeca7fbccceab9c35079968f4b3652194be
+    asset_url: https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_amd64
+    sha256: ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108
     archive_type: raw
     layout: executable
     executable: osv-scanner
@@ -206,12 +206,12 @@ tools:
   ruff:
     name: ruff
     repository: astral-sh/ruff
-    version: 0.16.6
-    immutable_commit: 22f65a2ab5052990503985c7c794de37598d531e
-    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.6
+    version: 0.16.7
+    immutable_commit: b5dba861cc38e3f7fb4524c9ceba3e01a474ea13
+    upstream_release: https://github.com/astral-sh/ruff/releases/tag/0.16.7
     asset: ruff-x86_64-unknown-linux-gnu.tar.gz
-    asset_url: https://github.com/astral-sh/ruff/releases/download/0.16.6/ruff-x86_64-unknown-linux-gnu.tar.gz
-    sha256: 0696335ef16615d8c7445ad438750eb0f55b3da6f153df21265a7c6d5750254f
+    asset_url: https://github.com/astral-sh/ruff/releases/download/0.16.7/ruff-x86_64-unknown-linux-gnu.tar.gz
+    sha256: 73894c7b7c9a53fd66ed715eb3a1ec65077f316328e377057a98bdb7fcba0326
     archive_type: tar.gz
     layout: executable
     archive_member: ruff-x86_64-unknown-linux-gnu/ruff
