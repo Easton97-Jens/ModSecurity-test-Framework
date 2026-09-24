@@ -1,0 +1,88 @@
+schema_version = 2
+repository = "framework"
+parent_catalog = "../../.codex/inheritance-manifest.toml"
+
+[[inherit]]
+id = "PARENT-POLICY-PRECEDENCE"
+parent_sha256 = "72fb1a260491f297e951f696255c743ae88a6ca29c3e2555f4823438de3f578e"
+
+[[inherit]]
+id = "PARENT-TASK-WORKFLOW"
+parent_sha256 = "88ec5469763a1a1717ecb5ab4fd745bb0bd008b9f255530edba6dbee768777cd"
+
+[[inherit]]
+id = "PARENT-FEASIBILITY"
+parent_sha256 = "2efe9307718a16b54d6e8ec00053df838ac56362f6b66747e0f6fd5efd78f56a"
+
+[[inherit]]
+id = "PARENT-ARCHITECTURE-AND-BOUNDARIES"
+parent_sha256 = "8292052fc0c67fe1b49ab25142fb4c5ee18049f13b06d9ae5e34c16dc8286f18"
+
+[[inherit]]
+id = "PARENT-COMMAND-EXECUTION"
+parent_sha256 = "93c767f969a8bcd3887676d76a2dacd9442dab8abb1acea0fb8a4f8130bb0927"
+
+[[inherit]]
+id = "PARENT-RESOURCES-AND-STORAGE"
+parent_sha256 = "6258b815f57d05ce5e95f92729751ffbe3f8c9ebd75f5b9e45a6c220c5e64586"
+
+[[inherit]]
+id = "PARENT-SECURITY-POLICY"
+parent_sha256 = "9de88fcd03ba2eb797f85061499630c09d7afcc7eeba51e34a69a432c2b20185"
+
+[[inherit]]
+id = "PARENT-GIT-POLICY"
+parent_sha256 = "2fe01fa7920e57110327d4bd37e32134757d6b24539184c3cb2252107a95c89a"
+
+[[inherit]]
+id = "PARENT-DELIVERY-AND-CI"
+parent_sha256 = "423c10f4e99367f948d91aa559edfc52ee35fe35b84b3a8df22728f21b6448e4"
+
+[[inherit]]
+id = "PARENT-PR-REMEDIATION"
+parent_sha256 = "6581ff6431cdbf03f97d33bf09fcdb6b837bcdff382fdc011b6095cd7da37a20"
+
+[[inherit]]
+id = "PARENT-MASTER-INTEGRATION"
+parent_sha256 = "73a55eee25948fc24f0cc67f3507961d5a0967df02b45998e1fa6d83bf49e288"
+
+[[inherit]]
+id = "PARENT-CLEANUP-AND-RESTORATION"
+parent_sha256 = "aad7fb8de1f118ba702d8b396f3b590ff5818912f389f5d601cf264d722b9f91"
+
+[[inherit]]
+id = "PARENT-FRAMEWORK-ORCHESTRATION"
+parent_sha256 = "f7f36d5bf469422331f030bb5bb23e4b7473fec502ab4fdab2e0f71128cc1971"
+
+[[inherit]]
+id = "PARENT-DOCUMENTATION-AND-TRACEABILITY"
+parent_sha256 = "bd7a18cf341a2092e0b7e859f7cdd6359730ba679f809fc1b266172228572759"
+
+[[inherit]]
+id = "PARENT-TOOLING-AND-LANGUAGE"
+parent_sha256 = "a10d12af28a6c60f9a5933ca7228ccb96a53c5946942d3bbd3ae99b8fbee40d7"
+
+[[inherit]]
+id = "PARENT-PYTHON-POLICY"
+parent_sha256 = "ee814ddea817e0b43c14f7526907322a2457eea89f035562982193a03d85f49e"
+
+[[inherit]]
+id = "PARENT-SUBAGENTS-AND-BACKGROUND"
+parent_sha256 = "be9e4f3813e8b867524c66c700bdca8a06ad1c2d70815fc14f06c6326d33e329"
+
+[[inherit]]
+id = "PARENT-FINDINGS"
+parent_sha256 = "14fd7c7fb774c81088c88069a435dfd0452b669e62205fb159e2d442261f494b"
+
+[[inherit]]
+id = "PARENT-TESTING-AND-EVIDENCE"
+parent_sha256 = "cc55e61bfefed4ff6b9763c02270a7b692cb8f78692fa9fbbf3e10b6c1669118"
+
+[[inherit]]
+id = "PARENT-SONARQUBE-POLICY"
+parent_sha256 = "073bf46e644df54fdc080fe1ab872007059c18787a243b32a65a83455cd486c0"
+
+[[inherit]]
+id = "PARENT-DEFINITION-OF-DONE"
+parent_sha256 = "4b0c7bd9492fc6dbc8529928e56a1f76c4f14449964d4df47b308208c3a56c26"
+

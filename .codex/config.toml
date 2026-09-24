@@ -1,0 +1,83 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+allow_login_shell = false
+project_doc_max_bytes = 65536
+
+[features]
+hooks = false
+multi_agent = true
+shell_snapshot = true
+memories = false
+
+[agents]
+max_concurrent_threads_per_session = 6
+max_depth = 2
+interrupt_message = true
+job_max_runtime_seconds = 3600
+
+[sandbox_workspace_write]
+network_access = true
+writable_roots = [
+    "/var/tmp/codex/ModSecurity-test-Framework",
+    "/root/.local/share/rtk",
+    "/root/.local/bin/"
+]
+exclude_slash_tmp = true
+exclude_tmpdir_env_var = false
+
+[shell_environment_policy]
+inherit = "all"
+ignore_default_excludes = false
+exclude = [
+    "AWS_*",
+    "AZURE_*",
+    "GOOGLE_*",
+    "GCP_*",
+    "OPENAI_API_KEY",
+    "CODEX_API_KEY",
+    "CODEX_ACCESS_TOKEN",
+    "GITHUB_TOKEN",
+    "GH_TOKEN",
+    "GITHUB_MCP_TOKEN",
+    "*PASSWORD*",
+    "*PRIVATE_KEY*",
+]
+
+[shell_environment_policy.set]
+PROJECT_ROOT = "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework"
+FRAMEWORK_ROOT = "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework"
+CONNECTOR_ROOT = "/root/git/ModSecurity-conector"
+MRTS_ROOT = "/root/git/ModSecurity-conector/modules/ModSecurity-test-Framework/tools/MRTS"
+
+CODEX_PROJECT_STATE = "/var/tmp/codex/ModSecurity-test-Framework"
+CODEX_TEMP_ROOT = "/var/tmp/codex/ModSecurity-test-Framework"
+CODEX_RUN_ROOT = "/var/tmp/codex/ModSecurity-test-Framework/runs"
+
+STATE_HOME = "/var/tmp/codex/ModSecurity-test-Framework/state"
+SOURCE_ROOT = "/var/tmp/codex/ModSecurity-test-Framework/source"
+BUILD_ROOT = "/var/tmp/codex/ModSecurity-test-Framework/build"
+TMP_ROOT = "/var/tmp/codex/ModSecurity-test-Framework/tmp"
+TMPDIR = "/var/tmp/codex/ModSecurity-test-Framework/tmp"
+TMP = "/var/tmp/codex/ModSecurity-test-Framework/tmp"
+TEMP = "/var/tmp/codex/ModSecurity-test-Framework/tmp"
+LOG_ROOT = "/var/tmp/codex/ModSecurity-test-Framework/logs"
+CACHE_ROOT = "/var/tmp/codex/ModSecurity-test-Framework/cache"
+ANALYSIS_ROOT = "/var/tmp/codex/ModSecurity-test-Framework/analysis"
+EVIDENCE_ROOT = "/var/tmp/codex/ModSecurity-test-Framework/evidence"
+MATRIX_ROOT = "/var/tmp/codex/ModSecurity-test-Framework/matrix"
+MRTS_BUILD_ROOT = "/var/tmp/codex/ModSecurity-test-Framework/mrts"
+
+# Framework-owned external Python environment. Create it with the repository-pinned
+# compatible interpreter before Python work; do not silently substitute Parent .venv.
+VIRTUAL_ENV = "/var/tmp/codex/ModSecurity-test-Framework/venv"
+PYTHON = "/var/tmp/codex/ModSecurity-test-Framework/venv/bin/python"
+PYTHONPYCACHEPREFIX = "/var/tmp/codex/ModSecurity-test-Framework/cache/pycache"
+PYTHONNOUSERSITE = "1"
+PYTHONDONTWRITEBYTECODE = "1"
+PIP_REQUIRE_VIRTUALENV = "true"
+PIP_DISABLE_PIP_VERSION_CHECK = "1"
+
+PAGER = "cat"
+GIT_PAGER = "cat"

@@ -1,0 +1,38 @@
+schema_version = 1
+repository = "framework"
+
+[[policy]]
+id = "FRAMEWORK-REPOSITORY-BOUNDARIES"
+path = "repository-boundaries.md"
+
+[[policy]]
+id = "FRAMEWORK-TESTING-AND-EVIDENCE"
+path = "testing-and-evidence.md"
+
+[[policy]]
+id = "FRAMEWORK-SECURITY"
+path = "security-policy.md"
+
+[[policy]]
+id = "FRAMEWORK-DELIVERY"
+path = "delivery-policy.md"
+
+[[policy]]
+id = "FRAMEWORK-MRTS-BOUNDARY"
+path = "mrts-boundary-policy.md"
+
+[[policy]]
+id = "FRAMEWORK-PYTHON"
+path = "python-policy.md"
+
+[[policy]]
+id = "FRAMEWORK-DOCUMENTATION-AND-TRACEABILITY"
+path = "documentation-and-traceability.md"
+
+[[policy]]
+id = "FRAMEWORK-CLEANUP-AND-RESTORATION"
+path = "cleanup-and-restoration.md"
+
+[[policy]]
+id = "FRAMEWORK-DEFINITION-OF-DONE"
+path = "definition-of-done.md"
