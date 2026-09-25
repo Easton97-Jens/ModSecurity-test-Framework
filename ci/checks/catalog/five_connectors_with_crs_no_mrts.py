@@ -80,6 +80,7 @@ CONTRACT_VALIDATED = "CONTRACT_VALIDATED"
 HAPROXY_SPOE_SPOP_ADAPTER_ID = "haproxy-spoe-spop-agent"
 HAPROXY_NATIVE_HTX_ADAPTER_ID = "haproxy-native-htx-filter"
 HAPROXY_SELECTED_ADAPTER_ID = HAPROXY_SPOE_SPOP_ADAPTER_ID
+HAPROXY_COMPATIBILITY_ENTRYPOINT = "ci/runtime/run-haproxy-smoke.sh"
 HAPROXY_PROFILE_IDENTITY_MIGRATION = {
     "profile": PROFILE,
     "legacy_adapter_id": HAPROXY_NATIVE_HTX_ADAPTER_ID,
@@ -109,7 +110,7 @@ HAPROXY_ADAPTER_CATALOG: dict[str, dict[str, Any]] = {
         "adapter_id": HAPROXY_SPOE_SPOP_ADAPTER_ID,
         "integration_mode": "spoe-spop-agent",
         "lifecycle_scope": "compatibility-smoke",
-        "framework_entrypoint": "ci/runtime/run-haproxy-smoke.sh",
+        "framework_entrypoint": HAPROXY_COMPATIBILITY_ENTRYPOINT,
         "framework_entrypoint_role": "compatibility-only",
         "host_contract_owner": "parent",
         "evidence_types": ("event",),
@@ -184,7 +185,7 @@ ADAPTERS: dict[str, dict[str, Any]] = {
 }
 EXPECTED_FRAMEWORK_ENTRYPOINTS = {
     "apache": "ci/runtime/run-apache-smoke.sh",
-    "haproxy": "ci/runtime/run-haproxy-smoke.sh",
+    "haproxy": HAPROXY_COMPATIBILITY_ENTRYPOINT,
     "envoy": "ci/runtime/run-envoy-smoke.sh",
     "traefik": "ci/runtime/run-traefik-smoke.sh",
     "lighttpd": "ci/runtime/run-lighttpd-smoke.sh",
@@ -843,7 +844,7 @@ def _validate_haproxy_adapter_catalog() -> None:
         HAPROXY_SPOE_SPOP_ADAPTER_ID: {
             "integration_mode": "spoe-spop-agent",
             "lifecycle_scope": "compatibility-smoke",
-            "framework_entrypoint": "ci/runtime/run-haproxy-smoke.sh",
+            "framework_entrypoint": HAPROXY_COMPATIBILITY_ENTRYPOINT,
             "framework_entrypoint_role": "compatibility-only",
             "host_contract_owner": "parent",
             "evidence_types": ("event",),
