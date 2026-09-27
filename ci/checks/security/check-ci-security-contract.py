@@ -2047,10 +2047,12 @@ def python_version_publisher_step_run_errors(
     if expected_digest is None:
         return []
     run = step.get("run")
-    if isinstance(run, str) and publisher_body_digest(run) == expected_digest:
+    actual_digest = publisher_body_digest(run) if isinstance(run, str) else None
+    if actual_digest == expected_digest:
         return []
     return [
         f"{path}: CPython publisher run body {name!r} must match the reviewed SHA-256"
+        + (f" (actual {actual_digest})" if actual_digest is not None else "")
     ]
 
 
@@ -2717,11 +2719,13 @@ def submodule_updater_publisher_errors(path: Path, jobs: dict[str, Any]) -> list
     canonical_publisher = json.dumps(
         publisher, sort_keys=True, separators=(",", ":"), ensure_ascii=True
     )
-    if hashlib.sha256(canonical_publisher.encode("utf-8")).hexdigest() != (
-        SUBMODULE_UPDATER_PUBLISHER_SHA256
-    ):
+    actual_publisher_digest = hashlib.sha256(
+        canonical_publisher.encode("utf-8")
+    ).hexdigest()
+    if actual_publisher_digest != SUBMODULE_UPDATER_PUBLISHER_SHA256:
         errors.append(
-            f"{path}: MRTS publisher must exactly match the reviewed write-capable profile"
+            f"{path}: MRTS publisher must exactly match the reviewed write-capable profile "
+            f"(actual {actual_publisher_digest})"
         )
     if publisher.get("permissions") != {
         "contents": "write",
@@ -3675,14 +3679,12 @@ def _common_version_run_step_errors(
         key: tuple[str, str] = (name, step_name)
         expected = COMMON_VERSION_REVIEWED_RUN_SHA256.get(key)
         run = step.get("run")
-        if (
-            expected is None
-            or not isinstance(run, str)
-            or publisher_body_digest(run) != expected
-        ):
+        actual_digest = publisher_body_digest(run) if isinstance(run, str) else None
+        if expected is None or actual_digest != expected:
             errors.append(
                 f"{path}: {name} run step {step_name!r} must match the reviewed "
                 "hash-locked common-version profile"
+                + (f" (actual {actual_digest})" if actual_digest is not None else "")
             )
             continue
         seen.add(key)
