@@ -461,8 +461,18 @@ jobs:
           set -euo pipefail
           MAINTENANCE_BRANCH="automation/update-framework-common-versions"
           git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null
-          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISHER_APP_TOKEN\"; }; f"
-          trap 'git config --local --unset-all credential.helper' EXIT
+          askpass="$(mktemp "$RUNNER_TEMP/framework-git-askpass.XXXXXX")"
+          cat > "$askpass" <<'SH'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *) printf '%s\n' "$PUBLISHER_APP_TOKEN" ;;
+          esac
+          SH
+          chmod 700 "$askpass"
+          export GIT_ASKPASS="$askpass"
+          export GIT_TERMINAL_PROMPT=0
+          trap 'rm -f "$askpass"' EXIT
           git fetch --no-tags origin \
             "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH" \
             "refs/heads/$MAINTENANCE_BRANCH:refs/remotes/origin/$MAINTENANCE_BRANCH"
