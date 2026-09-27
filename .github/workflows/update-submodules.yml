@@ -244,8 +244,18 @@ jobs:
           fi
           git diff --cached --check
           git commit -m "chore: update MRTS submodule"
-          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
-          trap 'git config --local --unset-all credential.helper || true' EXIT
+          askpass="$(mktemp "$RUNNER_TEMP/framework-git-askpass.XXXXXX")"
+          cat > "$askpass" <<'SH'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *) printf '%s\n' "$PUBLISH_TOKEN" ;;
+          esac
+          SH
+          chmod 700 "$askpass"
+          export GIT_ASKPASS="$askpass"
+          export GIT_TERMINAL_PROMPT=0
+          trap 'rm -f "$askpass"' EXIT
           git push origin "HEAD:refs/heads/$UPDATE_BRANCH"
           printf 'changed=true\n' >> "$GITHUB_OUTPUT"
 

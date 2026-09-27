@@ -537,13 +537,18 @@ def main() -> int:
     args = parse_args()
     try:
         root = resolve_root(args.root)
-    except ValueError as exc:
-        print(f"Python version contract violations:\n- {exc}")
+    except ValueError:
+        print(
+            "Python version contract validation could not resolve the requested root.",
+            file=sys.stderr,
+        )
         return 2
     errors = validate(root)
     if errors:
-        print("Python version contract violations:")
-        print("\n".join(f"- {item}" for item in errors))
+        print(
+            f"Python version contract violations: {len(errors)} issue(s)",
+            file=sys.stderr,
+        )
         return 1
     print("Python version contract passed.")
     return 0

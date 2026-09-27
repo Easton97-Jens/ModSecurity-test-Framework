@@ -258,8 +258,18 @@ jobs:
           git check-ref-format --branch "$DEFAULT_BRANCH" >/dev/null
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local credential.helper "!f() { echo username=x-access-token; echo password=\"\$PUBLISH_TOKEN\"; }; f"
-          trap 'git config --local --unset-all credential.helper' EXIT
+          askpass="$(mktemp "$RUNNER_TEMP/framework-git-askpass.XXXXXX")"
+          cat > "$askpass" <<'SH'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' 'x-access-token' ;;
+            *) printf '%s\n' "$PUBLISH_TOKEN" ;;
+          esac
+          SH
+          chmod 700 "$askpass"
+          export GIT_ASKPASS="$askpass"
+          export GIT_TERMINAL_PROMPT=0
+          trap 'rm -f "$askpass"' EXIT
           git fetch --no-tags origin "refs/heads/$DEFAULT_BRANCH:refs/remotes/origin/$DEFAULT_BRANCH"
           case "$MAINTENANCE_PR_EXISTS" in
             true)

@@ -28,11 +28,11 @@ REQUIRED = (
     "log-safety/log_secret_like_payload_redacted.yaml",
 )
 SECRET_PATTERNS = (
-    r"AWS_SECRET",
-    r"BEGIN PRIVATE KEY",
-    r"sk-[A-Za-z0-9]",
-    r"password=real",
-    r"token=real",
+    ("AWS secret marker", re.compile(r"AWS_SECRET")),
+    ("private key marker", re.compile(r"BEGIN PRIVATE KEY")),
+    ("API-token marker", re.compile(r"sk-[A-Za-z0-9]")),
+    ("credential assignment marker", re.compile(r"pass(?:word)?=real")),
+    ("token assignment marker", re.compile(r"token=real")),
 )
 BODY_FIELDS = ("request_body", "response_body", "body_payload", "raw_body", "payload")
 CASE_NAME_RE = re.compile(r"^name:\s*([A-Za-z0-9_.-]+)\s*$", re.MULTILINE)
@@ -53,7 +53,7 @@ def case_name_errors(path: Path, text: str, names: dict[str, Path]) -> list[str]
         return [f"{path}: missing name"]
     name = match.group(1)
     if name in names:
-        return [f"{path}: duplicate name {name}"]
+        return [f"{path}: duplicate case name"]
     names[name] = path
     return []
 
@@ -67,9 +67,9 @@ def content_contract_errors(path: Path, text: str) -> list[str]:
     if METADATA_RE.search(text) is None:
         errors.append(f"{path}: missing description/metadata")
     errors.extend(
-        f"{path}: possible real secret pattern {pattern}"
-        for pattern in SECRET_PATTERNS
-        if re.search(pattern, text)
+        f"{path}: possible real secret pattern {label}"
+        for label, pattern in SECRET_PATTERNS
+        if pattern.search(text)
     )
     if any(len(line) > MAX_LINE_LENGTH for line in text.splitlines()) or len(text) > MAX_CASE_BYTES:
         errors.append(f"{path}: possible huge inline payload")
