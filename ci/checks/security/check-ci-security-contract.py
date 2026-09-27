@@ -67,7 +67,7 @@ SUBMODULE_UPDATER_FIRST_PARTY_HEAD_REQUIREMENTS = (
 # repository write permissions, so every key, step, action input, environment,
 # and run body must remain review-bound rather than merely contain snippets.
 SUBMODULE_UPDATER_PUBLISHER_SHA256 = (
-    "c998f586c5d0edc0204472f380a4074d9bff8fdb5065c53c186b32e78322c1a8"
+    "a7996c867291e2b9689840b2b17b039cc1fd5841ba878dd0d68452aeac289ab5"
 )
 CHECKOUT_WITHOUT_SUBMODULES = "submodules: false"
 CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS = "persist-credentials: false"
@@ -356,7 +356,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "publish",
         STEP_VERIFY_DRAFT_CANONICAL_MAINTENANCE_NATIVE_WORKFLOW_TOOL_SUBSET,
-    ): "2e7cb6d43d3eee00034adda64be767b6dbc8c84da71347d3876cd85ed4a7c4f3",
+    ): "3a8fef6fd071055fa7913a89efb08b2dd1949215bf52d375a0a8ce04e4638ece",
     (
         "publish",
         "Require publisher App configuration",
@@ -370,7 +370,7 @@ COMMON_VERSION_CANONICAL_PR_STATE_CHECK_SHA256 = (
     "637a74b4e64895ffb261d047754f726f34ced5e6b0bb2169d55e94a8297ef75c"
 )
 COMMON_VERSION_CANONICAL_PR_NATIVE_SUBSET_CHECK_SHA256 = (
-    "2e7cb6d43d3eee00034adda64be767b6dbc8c84da71347d3876cd85ed4a7c4f3"
+    "3a8fef6fd071055fa7913a89efb08b2dd1949215bf52d375a0a8ce04e4638ece"
 )
 COMMON_VERSION_GENERATED_PATHS = frozenset(
     {
@@ -879,7 +879,7 @@ PYTHON_PUBLISHER_FIELD_VALUES = {
 PYTHON_PUBLISHER_RUN_SHA256 = {
     STEP_INSTALL_HASH_LOCKED_CI_DEPENDENCY: "bd13dd746985e7fc0aeb48e4966da62abc3775685f8c16117911fe3c3ba5399e",
     STEP_VERIFY_PYTHON_PUBLISHER_APP_CONFIGURATION: "c01127376f95819c3abb8f99815aa9877ed4c5fd6ab248f0968feb458bdec033",
-    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "653ecd3a5d752b06c5bb69999b7138e3af259d8bd8ef88c647738081a3d6c7b4",
+    STEP_PREPARE_PYTHON_MAINTENANCE_BRANCH: "3bd98ace0234bce8be87642f3e7399cc50b1405b7b1cb19612c39e64cdacb594",
     STEP_REVALIDATE_PYTHON_DRAFT_BRANCH: "55bbd20d483361dcdb598d1100afc54c40b22d31909c143fdf1b8bdeeb531b1d",
     STEP_RESTORE_PYTHON_PUBLISHER_BASE: "dd3deb33caa76d77617755ad6ea7d7f64e940dd9114a97586cd035a567a01e54",
     STEP_APPLY_PYTHON_CANDIDATE: "2ab398b7a68d6124283d52fd2b57510158b5ab089e47f657cd70b3a2a19c5fed",
@@ -2047,12 +2047,10 @@ def python_version_publisher_step_run_errors(
     if expected_digest is None:
         return []
     run = step.get("run")
-    actual_digest = publisher_body_digest(run) if isinstance(run, str) else None
-    if actual_digest == expected_digest:
+    if isinstance(run, str) and publisher_body_digest(run) == expected_digest:
         return []
     return [
         f"{path}: CPython publisher run body {name!r} must match the reviewed SHA-256"
-        + (f" (actual {actual_digest})" if actual_digest is not None else "")
     ]
 
 
@@ -2719,13 +2717,11 @@ def submodule_updater_publisher_errors(path: Path, jobs: dict[str, Any]) -> list
     canonical_publisher = json.dumps(
         publisher, sort_keys=True, separators=(",", ":"), ensure_ascii=True
     )
-    actual_publisher_digest = hashlib.sha256(
-        canonical_publisher.encode("utf-8")
-    ).hexdigest()
-    if actual_publisher_digest != SUBMODULE_UPDATER_PUBLISHER_SHA256:
+    if hashlib.sha256(canonical_publisher.encode("utf-8")).hexdigest() != (
+        SUBMODULE_UPDATER_PUBLISHER_SHA256
+    ):
         errors.append(
-            f"{path}: MRTS publisher must exactly match the reviewed write-capable profile "
-            f"(actual {actual_publisher_digest})"
+            f"{path}: MRTS publisher must exactly match the reviewed write-capable profile"
         )
     if publisher.get("permissions") != {
         "contents": "write",
@@ -3679,12 +3675,14 @@ def _common_version_run_step_errors(
         key: tuple[str, str] = (name, step_name)
         expected = COMMON_VERSION_REVIEWED_RUN_SHA256.get(key)
         run = step.get("run")
-        actual_digest = publisher_body_digest(run) if isinstance(run, str) else None
-        if expected is None or actual_digest != expected:
+        if (
+            expected is None
+            or not isinstance(run, str)
+            or publisher_body_digest(run) != expected
+        ):
             errors.append(
                 f"{path}: {name} run step {step_name!r} must match the reviewed "
                 "hash-locked common-version profile"
-                + (f" (actual {actual_digest})" if actual_digest is not None else "")
             )
             continue
         seen.add(key)
