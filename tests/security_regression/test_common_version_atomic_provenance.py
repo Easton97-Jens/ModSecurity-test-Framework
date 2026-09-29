@@ -50,6 +50,8 @@ class FixtureClient:
         self.urls.append(url)
         return self.json_responses[url]
 
+    get_json_list = get_json
+
     def get_text(self, url, accept=None):
         del accept
         self.urls.append(url)
@@ -257,11 +259,9 @@ class CommonVersionAtomicProvenanceTests(unittest.TestCase):
         client = FixtureClient(
             json_responses={
                 f"{base}/git/ref/tags/{tag}": {"object": {"type": "commit", "sha": commit}},
-                f"{base}/releases/latest": {
-                    "tag_name": tag,
-                    "draft": False,
-                    "prerelease": False,
-                },
+                f"{base}/releases?per_page=100": [
+                    {"tag_name": tag, "draft": False, "prerelease": False},
+                ],
             }
         )
 

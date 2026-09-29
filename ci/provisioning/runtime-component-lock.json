@@ -6,15 +6,15 @@
       "id": "nginx-h1",
       "component": "nginx",
       "profile": "http/1.1",
-      "version": "1.31.5",
+      "version": "1.31.6",
       "series": "",
       "os": "linux",
       "arch": "amd64",
-      "asset_name": "nginx-1.31.5.tar.gz",
-      "download_url": "https://github.com/nginx/nginx/releases/download/release-1.31.5/nginx-1.31.5.tar.gz",
-      "sha256": "e951607d534836624bd36b6b45a71dbfb055237deae3738da6bbf3270dada279",
+      "asset_name": "nginx-1.31.6.tar.gz",
+      "download_url": "https://github.com/nginx/nginx/releases/download/release-1.31.6/nginx-1.31.6.tar.gz",
+      "sha256": "974ed5298a5e398e008704ed5db284e655fc270c596493dbccada452448fc9f1",
       "source_url": "https://github.com/nginx/nginx",
-      "source_provenance": "github-release:release-1.31.5"
+      "source_provenance": "github-release:release-1.31.6"
     },
     {
       "id": "haproxy-htx",

@@ -268,11 +268,68 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
             },
         )
 
+    def codeql_release_fixture(self) -> dict[str, Any]:
+        """Keep synthetic release pages independent of production pin updates."""
+
+        _path, lock, _digest = UPDATER.load_lock(ROOT)
+        record = dict(lock["actions"]["github/codeql-action"])
+        record.update(
+            self.changed_action(
+                lock,
+                "github/codeql-action",
+                "v4.38.0",
+                "b96794f015dfd88f77b49b1c93e0fa7110f94c63",
+            )
+        )
+        return record
+
+    def test_codeql_release_fixture_is_independent_and_does_not_mutate_lock(
+        self,
+    ) -> None:
+        path, lock, digest = UPDATER.load_lock(ROOT)
+        for version in ("v4.38.1", "v4.99.0", "v5.0.0"):
+            with self.subTest(version=version):
+                evolving_lock = deepcopy(lock)
+                evolving_lock["actions"]["github/codeql-action"].update(
+                    self.changed_action(
+                        evolving_lock, "github/codeql-action", version, "b" * 40
+                    )
+                )
+                original = deepcopy(evolving_lock)
+                with patch.object(
+                    UPDATER, "load_lock", return_value=(path, evolving_lock, digest)
+                ):
+                    record = self.codeql_release_fixture()
+                self.assertEqual(evolving_lock, original)
+                self.assertEqual(record["version"], "v4.38.0")
+                self.assertEqual(
+                    record["immutable_commit"],
+                    "b96794f015dfd88f77b49b1c93e0fa7110f94c63",
+                )
+                self.assertEqual(
+                    record["upstream_release"],
+                    "https://github.com/github/codeql-action/releases/tag/v4.38.0",
+                )
+
+    def test_codeql_resolver_still_rejects_a_stale_release_page(self) -> None:
+        record = self.codeql_release_fixture()
+        stale_release = {
+            "tag_name": "v4.37.0",
+            "draft": False,
+            "prerelease": False,
+        }
+        with (
+            patch.object(UPDATER, "release_page", return_value=[stale_release]),
+            patch.object(UPDATER, "release_by_tag") as confirm_release,
+        ):
+            with self.assertRaisesRegex(UPDATER.UpdateError, "release page is stale"):
+                UPDATER.action_candidate("github/codeql-action", record)
+            confirm_release.assert_not_called()
+
     def test_codeql_resolver_selects_only_the_latest_same_major_action_release(
         self,
     ) -> None:
-        _path, lock, _digest = UPDATER.load_lock(ROOT)
-        record = lock["actions"]["github/codeql-action"]
+        record = self.codeql_release_fixture()
         releases = [
             {
                 "tag_name": "codeql-bundle-v2.26.1",
@@ -337,8 +394,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
         self.assertEqual(upstream["tag_name"], "v5.0.0")
 
     def test_codeql_resolver_rejects_unrelated_bundle_or_major_releases(self) -> None:
-        _path, lock, _digest = UPDATER.load_lock(ROOT)
-        record = lock["actions"]["github/codeql-action"]
+        record = self.codeql_release_fixture()
         releases = [
             {
                 "tag_name": "codeql-bundle-v2.26.1",
@@ -376,8 +432,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
     def test_codeql_resolver_requires_an_immutable_confirmed_action_release(
         self,
     ) -> None:
-        _path, lock, _digest = UPDATER.load_lock(ROOT)
-        record = lock["actions"]["github/codeql-action"]
+        record = self.codeql_release_fixture()
         release = {
             "tag_name": "v4.38.0",
             "draft": False,
@@ -393,8 +448,7 @@ class WorkflowToolUpdaterTests(unittest.TestCase):
                 UPDATER.action_candidate("github/codeql-action", record)
 
     def test_codeql_resolver_rechecks_the_selected_release_object(self) -> None:
-        _path, lock, _digest = UPDATER.load_lock(ROOT)
-        record = lock["actions"]["github/codeql-action"]
+        record = self.codeql_release_fixture()
         page_release = {
             "tag_name": "v4.38.0",
             "draft": False,

@@ -195,9 +195,15 @@ bleiben die einzige implementierte externe TLS-Quelle für das NGINX-H3-Profil.
 `AWS_LC_REPOSITORY`, `AWS_LC_TAG` und `AWS_LC_COMMIT` sind ein separates
 geprüftes Repository-/Tag-/aufgelöstes-Commit-Tupel für eine zukünftige,
 host-eigene Auswahl. Der Checker bindet das geparste GitHub-Repository vor
-jedem Upstream-Lookup an seine genehmigte Identität. Sie aktivieren für sich
-allein weder einen AWS-LC-Provisioner noch ein Build-Profil oder eine
-HTTP/2-/HTTP/3-Laufzeitbehauptung.
+jedem Upstream-Lookup an seine genehmigte Identität. Der vorhandene geplante
+kanonische Wartungsworkflow wählt das neueste stabile Release und aktualisiert
+`AWS_LC_TAG` und `AWS_LC_COMMIT` als gemeinsam geprüftes Tupel. Drafts,
+Prereleases und nicht numerische FIPS-Tags sind ausgeschlossen; es gibt keine
+implizite Begrenzung auf eine Major-Version. Fehlende oder widersprüchliche
+Provenance blockiert das Update, statt den Commit-Pin abzuschwächen. Updates
+werden als Draft-PR vorgeschlagen und nicht automatisch gemergt. Diese Pins
+aktivieren für sich allein weder einen AWS-LC-Provisioner noch ein Build-Profil
+oder eine HTTP/2-/HTTP/3-Laufzeitbehauptung.
 
 `MRTS_ROOT`, `MRTS_BUILD_ROOT`, `MRTS_DEFINITIONS`, `MRTS_RULES_OUT`,
 `MRTS_FTW_OUT`, `MRTS_LOAD_FILE` und `MRTS_CASE_ROOT` wählen vorhandene
@@ -303,7 +309,7 @@ Gruppe erzeugt und nicht unabhängig ausgewählt.
 | PCRE2 | automatic | Neuestes GitHub-Release `pcre2-<version>` ohne Draft und Prerelease; Digest des Release-Assets. |
 | NGINX | automatic | Neuestes GitHub-Release `release-<version>` ohne Draft und Prerelease; Digest des Release-Assets und passendes Release-Tag/Ref/Asset-Tupel. |
 | OpenSSL | automatic | Neuestes GitHub-Release `openssl-<version>` ohne Draft und Prerelease; Digest des Release-Assets. NGINX-QUIC/TLS-Aliase müssen auf dieses kanonische Tupel aufgelöst werden. |
-| AWS-LC | manual_review | Neuestes stabiles GitHub-Release `v<version>` und dessen unveränderlicher aufgelöster Commit werden zur Prüfung gemeldet; das geparste Repository muss der genehmigten Identität entsprechen, und das geprüfte Tupel wählt keinen Buildpfad. |
+| AWS-LC | automatic | Neuestes stabiles GitHub-Release `v<version>` über Major-Grenzen hinweg; Tag und unveränderlicher aufgelöster Commit werden nach Prüfung des offiziellen Repositorys und des aktuellen Pins atomar aktualisiert. Drafts, Prereleases und nicht numerische FIPS-Tags sind ausgeschlossen. Das Tupel wählt keinen Buildpfad und wird nie automatisch gemergt. |
 | HAProxy | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis, durch das explizite `HAPROXY_SERIES`- und Release-Root/Basis-URL-Tupel begrenzt; offizielle SHA-256-Datei pro Asset. |
 | HAProxy HTX | automatic | Neueste numerische Version im offiziellen HAProxy-Verzeichnis innerhalb des eigenen expliziten HTX-Serien-, Release-Root- und Basis-URL-Tupels; die offizielle SHA-256-Datei pro Asset wird mit diesem Tupel aktualisiert und nie aus dem normalen HAProxy-Ergebnis abgeleitet. |
 | OWASP Core Rule Set | automatic | Neuestes GitHub-Release ohne Draft und Prerelease, das `v4.x.x` entspricht; festes Repository, unveränderlicher aufgelöster Git-Tag-Commit und SHA-256 der geprüften SQLi-Regeldatei werden als eine atomare Provenance-Gruppe aktualisiert. Releases außerhalb von `v4.x.x` werden niemals automatisch übernommen. |
