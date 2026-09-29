@@ -7,7 +7,9 @@ on:
     paths:
       - "ci/provisioning/generate-mrts.sh"
       - "ci/provisioning/mrts_definition_guard.py"
+      - "ci/checks/security/check-mrts-definition-integration.py"
       - "tests/security_regression/test_mrts_definition_guard.py"
+      - "tools/MRTS"
       - "ci/tools/install-hash-locked-ci-dependencies.sh"
       - "requirements-ci.lock"
       - ".github/workflows/ci-findings-regressions.yml"
@@ -62,3 +64,14 @@ jobs:
           umask 077
           mkdir -p "$TMPDIR"
           python3 -m unittest discover -s tests/security_regression -p 'test_mrts_definition_guard.py' -v
+      - name: Initialize only the recorded MRTS dependency
+        run: |
+          set -eu
+          git submodule update --init --depth=1 -- tools/MRTS
+      - name: Compare real MRTS corpora and reject unsafe definitions
+        env:
+          EXPECTED_FRAMEWORK_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -eu
+          umask 077
+          python3 ci/checks/security/check-mrts-definition-integration.py --expected-head "$EXPECTED_FRAMEWORK_SHA"
