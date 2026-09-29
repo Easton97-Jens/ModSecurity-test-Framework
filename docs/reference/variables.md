@@ -190,8 +190,13 @@ implemented external-TLS source consumed by the NGINX H3 profile.
 `AWS_LC_REPOSITORY`, `AWS_LC_TAG`, and `AWS_LC_COMMIT` are a separate reviewed
 repository/tag/peeled-commit tuple for future host-owned selection. The
 checker binds the parsed GitHub repository to its approved identity before any
-upstream lookup. They do not enable an AWS-LC provisioner, build profile, or
-HTTP/2/HTTP/3 runtime claim by themselves.
+upstream lookup. The existing scheduled canonical maintenance workflow selects
+its latest stable release and updates `AWS_LC_TAG` and `AWS_LC_COMMIT` as one
+validated tuple. It excludes drafts, prereleases, and non-numeric FIPS tags;
+there is no implicit major-version freeze. Missing or inconsistent provenance
+blocks an update instead of weakening the commit pin. Updates are proposed in
+a Draft PR, not automatically merged. These pins do not enable an AWS-LC
+provisioner, build profile, or HTTP/2/HTTP/3 runtime claim by themselves.
 
 `MRTS_ROOT`, `MRTS_BUILD_ROOT`, `MRTS_DEFINITIONS`, `MRTS_RULES_OUT`,
 `MRTS_FTW_OUT`, `MRTS_LOAD_FILE`, and `MRTS_CASE_ROOT` select existing MRTS
@@ -288,7 +293,7 @@ variable are rendered from the updated group rather than chosen independently.
 | PCRE2 | automatic | Latest non-draft, non-prerelease `pcre2-<version>` GitHub release; release-asset digest. |
 | NGINX | automatic | Latest non-draft, non-prerelease `release-<version>` GitHub release; release-asset digest and matching release tag/ref/asset tuple. |
 | OpenSSL | automatic | Latest non-draft, non-prerelease `openssl-<version>` GitHub release; release-asset digest. NGINX QUIC/TLS aliases must resolve to this canonical tuple. |
-| AWS-LC | manual_review | Latest stable `v<version>` GitHub release and immutable peeled commit are reported for review; the parsed repository must match the approved identity, and the reviewed tuple does not select a build path. |
+| AWS-LC | automatic | Latest stable `v<version>` GitHub release, across major lines; tag and immutable peeled commit update atomically after official repository and current-pin validation. Drafts, prereleases, and non-numeric FIPS tags are excluded. The tuple does not select a build path and is never auto-merged. |
 | HAProxy | automatic | Latest numeric official HAProxy-directory release, constrained by the explicit `HAPROXY_SERIES` and release-root/base tuple; official per-asset SHA-256 file. |
 | HAProxy HTX | automatic | Latest numeric official HAProxy-directory release in its own explicit HTX series, release-root, and base tuple; the official per-asset SHA-256 is updated with that tuple and it is never inferred from the normal HAProxy result. |
 | OWASP Core Rule Set | automatic | Latest non-draft, non-prerelease stable GitHub release matching `v4.x.x`; the fixed repository, immutable peeled Git-tag commit, and checked SQLi rule-file SHA-256 update as one atomic provenance group. Releases outside `v4.x.x` are never automatically applied. |

@@ -407,11 +407,6 @@ def _canonical_required_fields(
 
 
 MANUAL_REVIEW_VARIABLES = {
-    AWS_LC_COMPONENT: (
-        "AWS_LC_REPOSITORY",
-        "AWS_LC_TAG",
-        "AWS_LC_COMMIT",
-    ),
     MODSECURITY_V3_COMPONENT: (
         "MODSECURITY_V3_APPROVED_REPO_URL",
         "MODSECURITY_V3_RELEASE_TAG",
@@ -657,9 +652,9 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "AWS_LC_TAG",
             "AWS_LC_COMMIT",
         ),
-        update_policy="manual_review",
-        stable_policy="GitHub non-draft, non-prerelease stable v<version> release",
-        compatibility_policy="newer AWS-LC releases require reviewed immutable peeled-commit provenance",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
+        stable_policy=GITHUB_STABLE_RELEASE_POLICY,
+        compatibility_policy=NO_HIDDEN_SERIES_RESTRICTION,
         authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository=AWS_LC_APPROVED_REPOSITORY,
         repository_identity_sha256=AWS_LC_APPROVED_REPOSITORY_SHA256,

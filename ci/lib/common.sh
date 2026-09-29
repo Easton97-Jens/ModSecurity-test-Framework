@@ -420,8 +420,8 @@ OPENSSL_SHA256="736b467530f916737b7031310ccb21d8218c6229e61e8e160cd1d3458cd543a8
 # Framework provisioning path selects it, so this tuple neither enables an
 # AWS-LC build nor represents a verified HTTP/2 or HTTP/3 runtime capability.
 AWS_LC_REPOSITORY="https://github.com/aws/aws-lc.git"
-AWS_LC_TAG="v5.5.0"
-AWS_LC_COMMIT="991e67ff4cf04df4dd89e407f8b920c6936cb56a"
+AWS_LC_TAG="v5.10.0"
+AWS_LC_COMMIT="3fe7e081e62131b6776f0d923312b5e6756907ce"
 
 # Managed NGINX protocol builds are deliberately explicit.  The default keeps
 # the established clear-text HTTP/1.1 smoke path unchanged; H2/H3 are opted in
