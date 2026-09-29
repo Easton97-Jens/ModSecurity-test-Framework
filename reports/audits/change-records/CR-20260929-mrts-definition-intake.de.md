@@ -38,6 +38,10 @@ Eine argv-Liste verhindert Shell-Aufteilung, aber nicht die Interpretation
 eines vorhandenen relativen Pfads mit führendem '-' als Option. Zwei harmlose
 reale Subprocess-Regressionen zeigten dies vor der Quellkorrektur.
 
+## Betroffene Komponenten und Sicherheitsgrenzen
+
+Dieser Follow-up betrifft sieben Framework-eigene Dateien: zwei Python-Registries, den kanonischen Publisher-Workflow, den Findings-Regressionsworkflow, zwei Erwartungswerte des Sicherheitscheckers und dieses Change-Record-Paar. Parent #391/#392, MRTS-Code und alle Gitlinks bleiben unverändert.
+
 ## Akzeptanzkriterien
 
 - Undokumentierte globale Schlüssel und nicht als Mapping vorliegende Konfiguration
@@ -52,7 +56,11 @@ reale Subprocess-Regressionen zeigten dies vor der Quellkorrektur.
 - Direkten MRTS-Aufruf und offenen ursächlichen Fix getrennt halten.
 - Aktuelle Head-Regression, CI und Sonar-Ergebnisse verlangen; kein vermutetes PASS.
 
-## Implementierungsentscheidung und Begründung
+## Untersuchte Alternativen
+
+Keine Verzeichnis-Wildcards, keine Ausnahmen im Metadaten- oder Dokumentationschecker, kein Überspringen von Tests und keine Abschwächung von Sonar. Eine alleinige Ergänzung der Updater-Liste reicht nicht: Der tatsächliche Publisher und seine Prüfung vorhandener Draft-Branches müssen denselben Dateipfad zulassen.
+
+## Implementierungsentscheidung
 
 Der Shell-Eingang delegiert an den Framework-eigenen Python-Launcher. Dieser
 ist keine Sandbox für vertrauenswürdigen betreiberausgewählten Generatorcode
@@ -83,7 +91,9 @@ verwenden private umask, Concurrency-/Bash-Verträge werden erfüllt. Die tempor
 unauthentisierte Sonar-Diagnose ist abgeschlossen und entfernt. Kein Pflicht-
 test oder Sonar-Check wird entfernt, unterdrückt oder herabgestuft.
 
-## Geänderte Dateien
+Genau `.github/workflows/ci-findings-regressions.yml` wird in `GENERATED_CANONICAL_VIEW_PATHS`, `ALLOWED_UPDATE_PATHS` sowie in beide Publisher-Listen (`allowedPaths` und `add-paths`) aufgenommen. Der Findings-Workflow setzt auf Top-Level `permissions: {contents: read}`, wie der vorhandene Metadatenvertrag verlangt. Sein einziger Job hatte bereits explizit `contents: read` und bleibt einschließlich aller Schritte unverändert. Action-Pins bleiben unverändert. Im Sicherheitschecker werden ausschließlich der feste SHA-256 des Prüfskripts und die exakte erwartete Pfadmenge nachgezogen; alle Prüffunktionen bleiben byte-identisch.
+
+## Geänderte Dateien und Tests
 
 - `ci/provisioning/generate-mrts.sh`
 - `ci/provisioning/mrts_definition_guard.py`
@@ -92,7 +102,15 @@ test oder Sonar-Check wird entfernt, unterdrückt oder herabgestuft.
 - `reports/audits/findings/20260929-mrts-intake.json`
 - Dieses englisch/deutsche Change-Record-Paar.
 
-## Ausgeführte Befehle
+- `ci/tools/check-common-versions.py`
+- `ci/tools/update-workflow-tools.py`
+- `.github/workflows/check-common-versions.yml`
+- `.github/workflows/ci-findings-regressions.yml`
+- `ci/checks/security/check-ci-security-contract.py`
+- `reports/audits/change-records/CR-20260929-mrts-definition-intake.md`
+- `reports/audits/change-records/CR-20260929-mrts-definition-intake.de.md`
+
+## Befehle und Ergebnisse
 
 | Prüfung | Tatsächlicher Nachweis und Einschränkung |
 | --- | --- |
@@ -112,7 +130,13 @@ Die bestehende Integer-Schlüssel-Assertion wurde nicht gelockert. Der optionsar
 Generator scheiterte in Pythons Optionsparser, relative Ausgabewurzeln im
 Fixtureparser. Kein destruktiver Payload oder externes Ziel wurde verwendet.
 
-## Security-Auswirkung
+Historisch beobachteter Vorgängerhead `23763f28b19b0450094274efa798eeae84602ab5`: Der SonarCloud-Check meldete `Quality Gate passed`, null neue Issues, null akzeptierte Issues und null Security Hotspots (Check-Run 109352907214). Diese Beobachtungen gelten nicht als Ergebnis des neuen Follow-ups.
+
+Der vom Nutzer gelieferte lokale Lauf des früheren, noch nicht veröffentlichten Vier-Dateien-Kandidaten meldet 292 Tests, davon eine Failure und einen Error: fehlender Publisher-Pfad und unpassende Top-Level-Permissions im kopierten Prüfbaum. Er ist ausdrücklich kein Ergebnis dieser überarbeiteten Version. Die originale Befehlstabelle bleibt als Historie erhalten. Frische lokale Ergebnisse gehören in die task-eigene publication.json; CI und Sonar sind am neuen Commit zu prüfen.
+
+Der anschließende unveröffentlichte Sechs-Dateien-Kandidat lief in 41 Updater-Tests und scheiterte mit einem Error. Der Sicherheitschecker meldete sowohl ein abweichendes Draft-PR-Prüfskriptprofil als auch eine abweichende Publisher-Pfadmenge. Dieser Follow-up ersetzt keine Prüfung durch PASS, sondern bindet die eng begrenzte Pfaderweiterung an zwei explizite, überprüfte Erwartungswerte.
+
+## Sicherheitsauswirkung
 
 Undokumentierte globale Attribute werden am Framework-Eingang abgelehnt.
 Führende Bindestriche in Pfadoperanden können den ausgewählten Child-Aufruf
@@ -123,35 +147,35 @@ allein durch spätere erfolgreiche Launcher-Tests oder Sonar geschlossen werden.
 Keine Rechteausweitung, Dependency-Pin-Änderung, Scannerausnahme, Severityänderung,
 Testabschaltung oder Lockerung von Quality Gates ist Teil dieser Korrektur.
 
-## Runtime-Evidence
+Die Publisher-Dateiberechtigung erweitert sich um genau den vorhandenen Findings-Workflow, nicht um ein Verzeichnis. Der Workflow-Default wechselt von leeren Rechten zu ausschließlich Lesezugriff auf Repositoryinhalte. Die expliziten effektiven Rechte des bestehenden Jobs ändern sich nicht. Keine neuen Schreibrechte, Secret-Referenzen, Trigger, Tokens oder Quality-Gate-Ausnahmen werden eingeführt. B03 bleibt offen.
+
+## Dokumentation und Runtime-Evidenz
 
 Die fehlgeschlagenen Argumentgrenztests und zehn erfolgreichen bisherigen
 Kontrollen sind reale Subprocess-Tests am genannten Test-vor-Fix-Head mit
 harmlosem Fixturegenerator. Sie sind kein vollständiger MRTS-Korpus- oder
 Connector-Hostlauf. Neue Ergebnisse am Quellfix-Head sind unabhängig zu bewerten.
 
-## Bekannte Einschränkungen
-
-Dies bleibt candidate_entrypoint_mitigation, keine vollständige Behebung oder
-verifizierte Schließung von B03. Ein direkter MRTS-Fix benötigt einen separat
-autorisierten Task. Bestehendes Shell-Cleanup liegt vor der Validierung. Der
-Launcher isoliert keine Prozesse und authentisiert kein betreiberausgewähltes Programm.
-
-## Verbleibende Risiken
-
-Gepinnter Default-/Feature-Demo-Korpus und bestehende Begrenzungsregressionen
-müssen weiterhin ausgeführt werden. Same-UID-/Generator-Vertrauensannahmen
-bleiben unverändert. Sonars CLI-Datenfluss wird als Pfad-/Optionsgrenze repariert;
-die allgemeine HTTP-Quellbeschreibung der Annotation belegt keinen HTTP-Listener
-in diesem Launcher. Der neue Scan muss die tatsächliche Korrektur bewerten.
-
-## Nicht ausgeführte Prüfungen mit Begründung
+## Nicht ausgeführte Prüfungen
 
 Lokale Projektbefehle und vollständige Generator-/Hostläufe wurden mangels
 vorgeschriebenem RTK und provisionierter Repositorywerkzeuge nicht ausgeführt.
 Code-Work- und Sonar-Skills wurden gelesen; der referenzierte globale Ausführungsskill
 war nicht verfügbar. Kein ungekapselter lokaler Projektbefehl ersetzte RTK.
 Keine ausgelassene, übersprungene oder ausstehende Prüfung ist PASS.
+
+## Einschränkungen und Restrisiko
+
+Dies bleibt candidate_entrypoint_mitigation, keine vollständige Behebung oder
+verifizierte Schließung von B03. Ein direkter MRTS-Fix benötigt einen separat
+autorisierten Task. Bestehendes Shell-Cleanup liegt vor der Validierung. Der
+Launcher isoliert keine Prozesse und authentisiert kein betreiberausgewähltes Programm.
+
+Gepinnter Default-/Feature-Demo-Korpus und bestehende Begrenzungsregressionen
+müssen weiterhin ausgeführt werden. Same-UID-/Generator-Vertrauensannahmen
+bleiben unverändert. Sonars CLI-Datenfluss wird als Pfad-/Optionsgrenze repariert;
+die allgemeine HTTP-Quellbeschreibung der Annotation belegt keinen HTTP-Listener
+in diesem Launcher. Der neue Scan muss die tatsächliche Korrektur bewerten.
 
 ## Finaler Diff- und Review-Status
 
@@ -164,3 +188,5 @@ Parent-Auswirkung: unveränderte ausgewählte Abhängigkeit. Parent-Gitlink: unc
 MRTS-Scope: default_read_only. MRTS-Gitlink: unchanged. Der PR bleibt bis zu
 aktuellen Headchecks und Review Draft. Kein Merge, Force-Push, akzeptiertes
 Risiko, neu behaupteter Hostsupport oder automatischer Findingabschluss.
+
+Der vollständige Follow-up umfasst sieben Dateien. Bestehende Tests und die ausführbare Prüflogik bleiben unverändert; zwei explizite Erwartungswerte werden aktualisiert. Neue erfolgreiche Prüfergebnisse werden nicht vorweggenommen; kein Merge, Findingabschluss oder akzeptiertes Risiko wird erklärt.

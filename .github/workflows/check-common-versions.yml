@@ -374,6 +374,7 @@ jobs:
               ".github/workflows/check-action-versions.yml",
               ".github/workflows/check-common-versions.yml",
               ".github/workflows/check-python-version.yml",
+              ".github/workflows/ci-findings-regressions.yml",
               ".github/workflows/ci-security-codeql-pr.yml",
               ".github/workflows/ci-security-codeql.yml",
               ".github/workflows/ci-security-dependency-review.yml",
@@ -507,6 +508,7 @@ jobs:
             .github/workflows/check-action-versions.yml
             .github/workflows/check-common-versions.yml
             .github/workflows/check-python-version.yml
+            .github/workflows/ci-findings-regressions.yml
             .github/workflows/ci-security-codeql-pr.yml
             .github/workflows/ci-security-codeql.yml
             .github/workflows/ci-security-dependency-review.yml

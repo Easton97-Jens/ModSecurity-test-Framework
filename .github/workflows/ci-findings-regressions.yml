@@ -13,7 +13,8 @@ on:
       - ".github/workflows/ci-findings-regressions.yml"
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: findings-regressions-${{ github.workflow }}-${{ github.ref }}

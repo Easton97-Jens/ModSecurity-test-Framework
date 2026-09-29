@@ -38,6 +38,10 @@ An argv list prevents shell splitting, but does not stop an existing relative
 path beginning with '-' from being interpreted as an option. Two harmless
 real-subprocess regressions demonstrated this before the source correction.
 
+## Affected components and security boundaries
+
+This follow-up affects seven Framework-owned files: two Python registries, the canonical publisher workflow, the findings regression workflow, two expected values in the security checker, and this paired Change Record. Parent PRs #391/#392, MRTS source and all gitlinks remain unchanged.
+
 ## Acceptance criteria
 
 - Reject undocumented global keys and non-mapping global configuration before
@@ -52,7 +56,11 @@ real-subprocess regressions demonstrated this before the source correction.
 - Keep direct MRTS invocation and its unresolved root fix separate.
 - Require current-head regression, CI and Sonar results; no inferred PASS.
 
-## Implementation decision and rationale
+## Alternatives considered
+
+No directory wildcards, metadata/documentation-checker exemptions, skipped tests, or weakened Sonar gates. Updating only the native updater list is insufficient: actual publication and validation of existing Draft branches must allow the same path.
+
+## Implementation decision
 
 The shell entrypoint delegates to the Framework-owned Python launcher. The
 launcher is not a sandbox for trusted operator-selected generator code or
@@ -83,7 +91,9 @@ use private umask, and the existing concurrency/bash contracts are implemented.
 The temporary unauthenticated Sonar diagnostic has completed and is removed.
 No required test or Sonar check is removed, suppressed or downgraded.
 
-## Changed files
+Register exactly `.github/workflows/ci-findings-regressions.yml` in `GENERATED_CANONICAL_VIEW_PATHS`, `ALLOWED_UPDATE_PATHS`, and both publisher lists (`allowedPaths` and `add-paths`). Set the findings workflow's top-level permissions to `{contents: read}`, as required by the existing metadata contract. Its only job already explicitly declares `contents: read`; that complete job and all its steps remain unchanged. Action pins and all checker function bodies stay unchanged. Only the fixed state-check SHA-256 and the exact expected generated-path set are updated to the reviewed one-path extension.
+
+## Changed files and tests
 
 - `ci/provisioning/generate-mrts.sh`
 - `ci/provisioning/mrts_definition_guard.py`
@@ -92,7 +102,15 @@ No required test or Sonar check is removed, suppressed or downgraded.
 - `reports/audits/findings/20260929-mrts-intake.json`
 - This English/German Change Record pair.
 
-## Commands executed
+- `ci/tools/check-common-versions.py`
+- `ci/tools/update-workflow-tools.py`
+- `.github/workflows/check-common-versions.yml`
+- `.github/workflows/ci-findings-regressions.yml`
+- `ci/checks/security/check-ci-security-contract.py`
+- `reports/audits/change-records/CR-20260929-mrts-definition-intake.md`
+- `reports/audits/change-records/CR-20260929-mrts-definition-intake.de.md`
+
+## Commands and results
 
 | Check | Actual evidence and limitation |
 | --- | --- |
@@ -112,6 +130,12 @@ The existing integer-key assertion was not weakened. The option-like generator
 failed in Python's option parser; relative output roots failed in the fixture
 parser. No destructive payload or external target was used.
 
+Historically observed predecessor head `23763f28b19b0450094274efa798eeae84602ab5`: SonarCloud reported `Quality Gate passed`, zero new issues, zero accepted issues and zero Security Hotspots (check run 109352907214). These are not results for the new follow-up commit.
+
+The user-supplied local run of the earlier unpublished four-file candidate reports 292 tests with one failure and one error: the missing publisher path and top-level permissions rejected in the copied proposed tree. This is explicitly not a test result for this revised candidate. Preserve the original command table as history. Fresh local results belong in the task-owned publication.json; CI and Sonar require the new SHA.
+
+The subsequent unpublished six-file candidate ran 41 updater tests and stopped with one error. The security checker rejected both the Draft-PR state-check profile and the generated-path set. This follow-up does not turn a failed check into an exemption: it binds the one-path extension to two explicit reviewed expected values.
+
 ## Security impact
 
 Undocumented global attributes are rejected at the Framework entrypoint.
@@ -123,35 +147,35 @@ be closed merely because these launcher tests or Sonar later pass.
 No permission expansion, dependency-pin change, scanner exclusion, severity
 edit, test disablement or quality-gate relaxation is part of the correction.
 
-## Runtime evidence
+Publisher file scope grows by exactly the existing findings workflow, not a directory. The workflow default changes from empty permissions to repository contents read-only. The existing job's explicit effective permissions remain unchanged. No new write privileges, secret references, triggers, tokens or quality-gate exemptions are introduced. B03 remains open.
+
+## Documentation and runtime evidence
 
 The failed argument-boundary regressions and successful ten original controls
 are real subprocess tests at the recorded test-first head, using a harmless
 fixture generator. They are not a full MRTS corpus or connector host-runtime
 run. Fresh results at the source-fix head must be evaluated independently.
 
-## Known limitations
-
-This remains candidate_entrypoint_mitigation, not complete remediation or
-verified closure of B03. A direct MRTS fix requires a separately authorized
-task. Existing shell cleanup precedes validation. The launcher does not
-provide process isolation or authenticate an operator-selected program.
-
-## Remaining risks
-
-The pinned default/feature-demo corpus and existing containment regressions
-still require execution. Same-UID and trusted-generator assumptions are
-unchanged. Sonar's reported CLI flow is repaired as a path/option boundary;
-the annotation's generic HTTP-source wording is not evidence of an HTTP
-listener in this launcher. The new scan must evaluate the actual correction.
-
-## Checks not run and rationale
+## Checks not run
 
 Local project commands and full generator/host runs were not executed because
 the editing environment lacks required RTK and provisioned repository tools.
 The code-work and Sonar skills were read; the referenced global execution
 skill was not available. No unwrapped local project command substituted for
 RTK. No omitted, skipped or pending check is a PASS.
+
+## Limitations and residual risk
+
+This remains candidate_entrypoint_mitigation, not complete remediation or
+verified closure of B03. A direct MRTS fix requires a separately authorized
+task. Existing shell cleanup precedes validation. The launcher does not
+provide process isolation or authenticate an operator-selected program.
+
+The pinned default/feature-demo corpus and existing containment regressions
+still require execution. Same-UID and trusted-generator assumptions are
+unchanged. Sonar's reported CLI flow is repaired as a path/option boundary;
+the annotation's generic HTTP-source wording is not evidence of an HTTP
+listener in this launcher. The new scan must evaluate the actual correction.
 
 ## Final diff and review status
 
@@ -164,3 +188,5 @@ Parent impact: unchanged selected dependency. Parent gitlink: unchanged.
 MRTS scope: default_read_only. MRTS gitlink: unchanged. The PR remains a draft
 pending current-head checks and review. No merge, force-push, risk acceptance,
 new claimed host support or automated finding closure.
+
+The complete follow-up affects seven files. Existing tests and checker function bodies remain unchanged; two explicit expected values are updated. Successful new-head validation is not anticipated; no merge, finding closure or risk acceptance is claimed.

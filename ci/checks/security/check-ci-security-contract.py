@@ -367,7 +367,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     ): "4a8667a3ce2063a78d3d64ca1124014cf19d2ae938f093ccc74a4b2bf45b818b",
 }
 COMMON_VERSION_CANONICAL_PR_STATE_CHECK_SHA256 = (
-    "637a74b4e64895ffb261d047754f726f34ced5e6b0bb2169d55e94a8297ef75c"
+    "e89c9570b0d2074c8ea9bd0c51374aa995084dbf8405969c074a65ffc063adee"
 )
 COMMON_VERSION_CANONICAL_PR_NATIVE_SUBSET_CHECK_SHA256 = (
     "3a8fef6fd071055fa7913a89efb08b2dd1949215bf52d375a0a8ce04e4638ece"
@@ -387,6 +387,7 @@ COMMON_VERSION_GENERATED_PATHS = frozenset(
         ".github/workflows/check-action-versions.yml",
         ".github/workflows/check-common-versions.yml",
         ".github/workflows/check-python-version.yml",
+        ".github/workflows/ci-findings-regressions.yml",
         ".github/workflows/ci-security-codeql-pr.yml",
         ".github/workflows/ci-security-codeql.yml",
         ".github/workflows/ci-security-dependency-review.yml",
