@@ -2,7 +2,8 @@ name: Finding regressions (Framework)
 
 on:
   pull_request:
-    branches: [master]
+    branches:
+      - master
     paths:
       - "ci/provisioning/generate-mrts.sh"
       - "ci/provisioning/mrts_definition_guard.py"
@@ -21,8 +22,6 @@ jobs:
     timeout-minutes: 10
     env:
       PYTHONDONTWRITEBYTECODE: "1"
-      TMPDIR: ${{ runner.temp }}/findings-regressions
-      PIP_CACHE_DIR: ${{ runner.temp }}/findings-pip-cache
     steps:
       - name: Checkout exact reviewed candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,12 +36,37 @@ jobs:
           python-version-file: .python-version
           check-latest: false
       - name: Install existing hash-locked CI dependencies
+        env:
+          TMPDIR: ${{ runner.temp }}/findings-regressions
+          PIP_CACHE_DIR: ${{ runner.temp }}/findings-pip-cache
         run: |
           set -eu
+          umask 077
           mkdir -p "$TMPDIR" "$PIP_CACHE_DIR"
           bash ci/tools/install-hash-locked-ci-dependencies.sh
       - name: Run Framework launcher regression
+        env:
+          TMPDIR: ${{ runner.temp }}/findings-regressions
         run: |
           set -eu
+          umask 077
           mkdir -p "$TMPDIR"
           python3 -m unittest discover -s tests/security_regression -p 'test_mrts_definition_guard.py' -v
+
+  # Temporary read-only diagnosis of the known failing Sonar analysis.
+  # No checkout, token, downloaded executable, gate mutation or suppression.
+  sonar-pr-128-diagnostic:
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 128 && github.repository == 'Easton97-Jens/ModSecurity-test-Framework'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - name: Read the original public Sonar check annotation
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'Historical Sonar annotation for 95dd0a95d39ea77679832b888aba745d7954d23d; this is not a new Quality Gate result.'
+          curl --fail --silent --show-error --proto '=https' --max-time 30 --max-filesize 262144 \
+            -H 'Accept: application/vnd.github+json' \
+            'https://api.github.com/repos/Easton97-Jens/ModSecurity-test-Framework/check-runs/109307382232/annotations?per_page=100' \
+            | python3 -c 'import json, sys; rows = json.load(sys.stdin); fields = ("path", "start_line", "end_line", "annotation_level", "title", "message", "raw_details"); print(json.dumps([{key: row.get(key) for key in fields} for row in rows], ensure_ascii=True))'
