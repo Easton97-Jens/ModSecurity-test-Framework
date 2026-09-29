@@ -18,63 +18,70 @@
 B03 identifies unrestricted global attribute assignment inside the separately
 owned MRTS generator. The user selected Parent and Framework, not MRTS. This
 draft adds a bounded mitigation at the existing Framework generation entrypoint,
-without copying or modifying the generator or claiming its root cause is fixed.
+without modifying the generator or claiming its root cause is fixed.
 
 The [intake record](../findings/20260929-mrts-intake.json) retains the original
 finding ID, reported severity, ownership boundary and pending verification.
 The companion Parent draft preserves the 72-source to 59-work-item mapping.
 Other findings are not silently treated as completed.
 
-CI on the initial head 95dd0a95d39ea77679832b888aba745d7954d23d rejected the
-flow-style branch list and the unavailable runner context in job-level env.
-The remediation uses block YAML and step-level runtime/cache variables.
-The paired record is aligned with the existing documentation contract;
-no checker or quality-gate requirement is relaxed.
+The initial workflow used unsupported job-level runner context and flow YAML.
+Subsequent checks also required concurrency, a default bash shell and the
+repository Python contract. These are fixed without changing those checkers.
+The old observation test serialized YAML documents through JSON and changed
+integer mapping keys to strings; the test double now uses lossless YAML,
+retaining the original exact document comparison.
+
+Sonar issue AaDsHe5ZOryZpzLd_yHy, rule pythonsecurity:S8705, identifies argument
+injection at run_guarded's subprocess call, including the tests_out flow.
+An argv list prevents shell splitting, but does not stop an existing relative
+path beginning with '-' from being interpreted as an option. Two harmless
+real-subprocess regressions demonstrated this before the source correction.
 
 ## Acceptance criteria
 
 - Reject undocumented global keys and non-mapping global configuration before
   generator execution, including whole-global scalar substitution.
 - Validate every selected definition before invoking the generator.
-- Pass private snapshots of parsed and validated documents; do not validate a
-  source pathname and then ask the generator to reopen it.
-- Preserve lexical ordering, supported data, output arguments and unsuccessful
-  child exit status, plus the caller's runtime/output-root controls.
+- Pass private snapshots of parsed and validated data, not reopened originals.
+- Preserve lexical order, supported data including integer keys, output arguments,
+  unsuccessful child exit status, cleanup and caller-owned path controls.
+- Keep generator, snapshot and output paths as path operands, not CLI options.
+- Execute the selected script even when its relative filename resembles an option.
 - Verify the full pinned default and feature-demo corpus before promotion.
-- Keep direct MRTS invocation and its unresolved root fix explicitly separate.
-- Require successful dedicated regression and existing checks at the repaired
-  head; read the actual Sonar issue before claiming a Sonar correction.
+- Keep direct MRTS invocation and its unresolved root fix separate.
+- Require current-head regression, CI and Sonar results; no inferred PASS.
 
 ## Implementation decision and rationale
 
-The existing shell wrapper delegates to the new Framework-owned Python launcher.
-The launcher constrains definition data before it reaches a trusted,
-operator-selected MRTS program. It is not a sandbox for generator code or
+The shell entrypoint delegates to the Framework-owned Python launcher. The
+launcher is not a sandbox for trusted operator-selected generator code or
 hostile same-UID processes and does not replace existing output-path checks.
 
-The schema comes from the pinned MRTS README global keywords and RuleGenerator.
-Both default_tests_phase_methods and default_test_phase_methods remain accepted
-without translation; default_constants is retained from the implementation.
-Other attribute names are rejected. Object introspection is not a schema.
+The global-key schema comes from the pinned MRTS README and RuleGenerator.
+Both default_tests_phase_methods and default_test_phase_methods remain
+accepted without translation; default_constants remains supported. Other
+attribute names are rejected instead of using object introspection as a schema.
 
-The launcher uses the existing PyYAML safe loader and writes numbered validated
-snapshots under the external build root. File mode is 0600 and directory mode
-0700; cleanup occurs on normal completion and exceptions. Lexical ordering is
-preserved. Changing MRTS directly would cross the selected repository boundary;
-validate-then-reopen would retain a replacement window. The snapshot design
-avoids that window without importing the generator into Framework.
+The existing safe PyYAML loader is used. Numbered snapshots under the external
+build root have file mode 0600 and directory mode 0700, preserve lexical order
+and are removed on normal completion and exceptions. This prevents the generator
+from reopening replaced original definitions. Shell output cleanup still occurs
+before launcher validation, so earlier generated output is not retained after
+later input rejection.
 
-The existing shell output cleanup still precedes the launcher. Therefore this
-draft does not preserve previous generated outputs when later validation fails.
-It does not change MRTS rulefile/testfile containment or permit additional global
-object attributes.
+The Sonar correction resolves the existing generator, output and snapshot paths
+to absolute paths before constructing argv, and terminates Python option parsing
+with -- before the script. Numbered snapshot operands are consequently absolute
+too. Relative paths still work as data, including names beginning with '-'.
+The operator still selects the trusted program and output roots; this is not
+new arbitrary-program isolation. No shell quoting or shell execution is added.
 
-The dedicated exact-head regression workflow installs only the existing
-hash-locked dependencies. Runtime directories are created with private umask.
-A temporary, unauthenticated diagnostic reads the original public Sonar check
-annotation without checkout or credentials, solely to identify its rule and
-location. It is not a new Sonar analysis or a replacement for the Quality Gate
-and is to be removed after diagnosis. Action pins and security gates are intact.
+The exact-head regression workflow uses existing immutable action pins and
+hash-locked dependencies. TMPDIR and PIP_CACHE_DIR are step-scoped, directories
+use private umask, and the existing concurrency/bash contracts are implemented.
+The temporary unauthenticated Sonar diagnostic has completed and is removed.
+No required test or Sonar check is removed, suppressed or downgraded.
 
 ## Changed files
 
@@ -89,63 +96,71 @@ and is to be removed after diagnosis. Action pins and security gates are intact.
 
 | Check | Actual evidence and limitation |
 | --- | --- |
-| Original shell transfer | Complete content matched Git blob SHA-1 before the initial edit |
-| Original Python syntax / intake JSON | Parsed as data, not behavioral test execution |
-| Local launcher tests | NOT RUN: required RTK is unavailable |
-| Generator test double | Defined for arguments, snapshots, permissions, rejection and cleanup; local execution not claimed |
-| Full pinned MRTS corpus | NOT RUN; direct generator compatibility remains a separate gate |
-| Local shell syntax / git diff --check | NOT RUN in the editing environment |
-| Initial action-version job 109307180219 | Failed on flow-style branches in ci-findings-regressions.yml |
-| Initial actionlint job 109307181277 | Failed on job-level runner context for TMPDIR and PIP_CACHE_DIR |
-| Original Sonar check 109307382232 | Failed new-code security rating; exact annotation retrieval pending |
-| Repaired exact-head regression and full CI | Pending fresh results after this commit; no successful result claimed here |
+| Initial source intake | Complete shell source matched its Git blob before editing; Python/JSON parsed as data |
+| Initial action-version and actionlint jobs | 109307180219 and 109307181277 failed on flow YAML and invalid runner context |
+| Intermediate security-contract job | 109347213959 exposed missing concurrency and default bash; corrected |
+| Initial dedicated tests at 60a75c90500f765675059e341bf8e73f6008a023 | Job 109347213122: 9 passed, 1 failed due to lossy JSON observation |
+| Test-first run at d1a6aeef864ad851f1f9f6b924c29719006c8c64 | Job 109350381183: all original 10 tests passed; the 2 new argument-boundary tests failed with child exit 2 |
+| Sonar evidence retrieval | Jobs 109347213481 and 109350381226 read the original public annotation and exact S8705 issue/flow without credentials |
+| Local project tests / builds / git diff --check | NOT RUN: required RTK and provisioned local repository tools are absent |
+| Source-fix head regression / full CI / Sonar | Pending fresh results after this correction; not certified in advance |
 
-The code-work and Sonar skills were read. The repository-referenced global
-execution skill and mandatory local RTK are unavailable. No local project
-command silently bypasses that execution policy.
+The test-first command was python3 -m unittest discover -s
+tests/security_regression -p 'test_mrts_definition_guard.py' -v on GitHub's
+exact PR-head checkout with repository Python and hash-locked dependencies.
+The existing integer-key assertion was not weakened. The option-like generator
+failed in Python's option parser; relative output roots failed in the fixture
+parser. No destructive payload or external target was used.
 
 ## Security impact
 
-Undocumented object attributes in global configuration are rejected at this
-Framework entrypoint. This is intentional; full corpus compatibility remains
-unverified. The original generator is unchanged, and direct invocation is
-outside the mitigation. B03 cannot be closed on the basis of this wrapper.
-The CI repair does not grant write permissions, weaken pinning or disable tests.
+Undocumented global attributes are rejected at the Framework entrypoint.
+Path operands can no longer reinterpret the selected child invocation as
+interpreter/generator options through a leading hyphen. The original MRTS
+code is unchanged and direct invocation is outside this mitigation. B03 cannot
+be closed merely because these launcher tests or Sonar later pass.
+
+No permission expansion, dependency-pin change, scanner exclusion, severity
+edit, test disablement or quality-gate relaxation is part of the correction.
 
 ## Runtime evidence
 
-No live original-scenario host evidence or complete pinned-corpus run is
-established by this record. Test-double success establishes only the tested
-launcher behavior. Other green checks cannot substitute for the dedicated
-regression or for the actual current-head Sonar result.
+The failed argument-boundary regressions and successful ten original controls
+are real subprocess tests at the recorded test-first head, using a harmless
+fixture generator. They are not a full MRTS corpus or connector host-runtime
+run. Fresh results at the source-fix head must be evaluated independently.
 
 ## Known limitations
 
-This is candidate_entrypoint_mitigation, not complete remediation or verified
-closure of B03. The direct MRTS fix requires its separately authorized task.
-Shell output cleanup happens before the new validation boundary. Operator-
-selected generator behavior and same-UID process isolation remain out of scope.
+This remains candidate_entrypoint_mitigation, not complete remediation or
+verified closure of B03. A direct MRTS fix requires a separately authorized
+task. Existing shell cleanup precedes validation. The launcher does not
+provide process isolation or authenticate an operator-selected program.
 
 ## Remaining risks
 
-The full default/feature-demo corpus and existing containment regressions need
-execution. Sonar's original security annotation must be diagnosed without
-suppressing it or assuming its rule. Any necessary source correction requires
-new focused tests and a new head-bound analysis.
+The pinned default/feature-demo corpus and existing containment regressions
+still require execution. Same-UID and trusted-generator assumptions are
+unchanged. Sonar's reported CLI flow is repaired as a path/option boundary;
+the annotation's generic HTTP-source wording is not evidence of an HTTP
+listener in this launcher. The new scan must evaluate the actual correction.
 
 ## Checks not run and rationale
 
-Local repository execution, native/runtime validation and the full MRTS corpus
-were not run because the editing environment lacks the prescribed RTK and
-provisioned repository tools. No omitted or skipped check is a PASS. Pending
-new-head results are not replaced by old-head successes or source inspection.
+Local project commands and full generator/host runs were not executed because
+the editing environment lacks required RTK and provisioned repository tools.
+The code-work and Sonar skills were read; the referenced global execution
+skill was not available. No unwrapped local project command substituted for
+RTK. No omitted, skipped or pending check is a PASS.
 
 ## Final diff and review status
 
-The first CI-remediation slice changes the dedicated workflow and this paired
-record, not the guard, original tests, dependency locks or quality-gate settings.
-The PR remains a draft pending actual current-head checks and independent review.
+The CI-remediation commits repair workflow and documentation contracts, correct
+the test observation format, add two negative regressions, then fix the source
+argument boundary. All original guard assertions and source-intake restrictions
+remain. The temporary diagnostic job is removed after its evidence was read.
 
-Parent impact: this separate Framework commit does not change Parent's selected
-dependency. Parent gitlink: unchanged. MRTS scope: default_read_only; MRTS
-gitlink: unchanged. No merge, force-push, risk acceptance or release claim.
+Parent impact: unchanged selected dependency. Parent gitlink: unchanged.
+MRTS scope: default_read_only. MRTS gitlink: unchanged. The PR remains a draft
+pending current-head checks and review. No merge, force-push, risk acceptance,
+new claimed host support or automated finding closure.

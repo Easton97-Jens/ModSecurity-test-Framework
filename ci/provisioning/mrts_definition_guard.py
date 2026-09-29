@@ -83,6 +83,15 @@ def run_guarded(
     if not all(path.is_dir() for path in (rules_out, tests_out, snapshot_root)):
         raise DefinitionRejected("expected existing output and snapshot directories")
 
+    # These are path operands, never interpreter or generator options. Existing
+    # relative names (including leading '-') remain usable, but only their
+    # absolute resolved paths cross the subprocess argument boundary. Resolving
+    # the snapshot root also makes every generated -r operand absolute.
+    generator = generator.resolve(strict=True)
+    rules_out = rules_out.resolve(strict=True)
+    tests_out = tests_out.resolve(strict=True)
+    snapshot_root = snapshot_root.resolve(strict=True)
+
     with tempfile.TemporaryDirectory(
         prefix="mrts-validated-", dir=snapshot_root
     ) as temporary:
@@ -100,10 +109,12 @@ def run_guarded(
             snapshots.append(str(snapshot))
         # The original files are never reopened by the generator. This closes
         # validation/use replacement of definition data, not same-UID process
-        # isolation or arbitrary operator-selected generator behavior.
+        # isolation or arbitrary operator-selected generator behavior. End the
+        # interpreter's option parsing before the selected script as well.
         completed = subprocess.run(
             [
                 sys.executable,
+                "--",
                 str(generator),
                 "-r",
                 *snapshots,

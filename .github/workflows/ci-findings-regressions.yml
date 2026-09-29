@@ -61,19 +61,3 @@ jobs:
           umask 077
           mkdir -p "$TMPDIR"
           python3 -m unittest discover -s tests/security_regression -p 'test_mrts_definition_guard.py' -v
-
-  # Temporary read-only diagnosis; remove after the concrete issue is read.
-  # No checkout, credentials, gate mutation or downloaded executable.
-  sonar-pr-128-diagnostic:
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 128 && github.repository == 'Easton97-Jens/ModSecurity-test-Framework'
-    permissions: {}
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    steps:
-      - name: Read the identified public Sonar issue
-        run: |
-          set -euo pipefail
-          printf '%s\n' 'Original issue AaDsHe5ZOryZpzLd_yHy; this diagnostic is not a Quality Gate result.'
-          curl --fail --silent --show-error --proto '=https' --max-time 30 --max-filesize 524288 \
-            'https://sonarcloud.io/api/issues/search?componentKeys=Easton97-Jens_ModSecurity-test-Framework&pullRequest=128&issues=AaDsHe5ZOryZpzLd_yHy' \
-            | python3 -c 'import json, sys; data = json.load(sys.stdin); fields = ("key", "rule", "message", "component", "line", "textRange", "flows", "severity", "type", "status", "resolution"); print(json.dumps({"total": data.get("total"), "issues": [{key: row.get(key) for key in fields} for row in data.get("issues", [])]}, ensure_ascii=True))'

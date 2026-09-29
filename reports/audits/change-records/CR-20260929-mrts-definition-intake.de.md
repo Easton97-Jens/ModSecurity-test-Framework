@@ -18,63 +18,70 @@
 B03 beschreibt unbeschränkte globale Attributzuweisung im separat besessenen
 MRTS-Generator. Der Nutzer wählte Parent und Framework, nicht MRTS. Dieser
 Draft ergänzt eine begrenzte Mitigation am vorhandenen Framework-Eingang,
-ohne den Generator zu kopieren, zu ändern oder dessen Ursache als behoben auszugeben.
+ohne den Generator zu ändern oder dessen Ursache als behoben auszugeben.
 
 Das [Eingangsregister](../findings/20260929-mrts-intake.json) erhält originale
 Befund-ID, gemeldeten Schweregrad, Zuständigkeitsgrenze und ausstehende Verifikation.
 Der separate Parent-Draft erhält die Zuordnung von 72 Quellen zu 59 Arbeitseinträgen.
 Andere Befunde gelten nicht stillschweigend als erledigt.
 
-Die CI am ersten Head 95dd0a95d39ea77679832b888aba745d7954d23d lehnte die
-Flow-Schreibweise der Branchliste und den auf Jobebene nicht verfügbaren
-runner-Kontext ab. Die Nachbesserung verwendet Block-YAML sowie temporäre
-und Cachevariablen auf Schrittebene. Das Record-Paar folgt dem bestehenden
-Dokumentationsvertrag; Checker und Quality-Gate-Anforderungen werden nicht gelockert.
+Der ursprüngliche Workflow verwendete unzulässigen jobweiten runner-Kontext
+und Flow-YAML. Weitere Checks forderten Concurrency, eine Bash-Standardshell
+und den Python-Vertrag des Repositorys. Diese Anforderungen werden erfüllt,
+ohne deren Checker zu ändern. Das alte Beobachtungsdouble wandelte durch JSON
+Integer-Schlüssel in Strings um; es verwendet jetzt verlustfreies YAML und
+behält den ursprünglichen exakten Dokumentvergleich.
+
+Sonar-Befund AaDsHe5ZOryZpzLd_yHy, Regel pythonsecurity:S8705, identifiziert
+Argument-Injection am Subprocess-Aufruf von run_guarded einschließlich tests_out.
+Eine argv-Liste verhindert Shell-Aufteilung, aber nicht die Interpretation
+eines vorhandenen relativen Pfads mit führendem '-' als Option. Zwei harmlose
+reale Subprocess-Regressionen zeigten dies vor der Quellkorrektur.
 
 ## Akzeptanzkriterien
 
 - Undokumentierte globale Schlüssel und nicht als Mapping vorliegende Konfiguration
   vor Generatorausführung ablehnen, einschließlich skalarer Global-Ersetzung.
 - Jede ausgewählte Definition vor dem Generatoraufruf prüfen.
-- Private Kopien geparster und geprüfter Dokumente übergeben; keinen Quellpfad
-  prüfen und danach durch den Generator erneut öffnen lassen.
-- Lexikalische Reihenfolge, unterstützte Daten, Ausgabeparameter und erfolglosen
-  Child-Exitstatus sowie bestehende Runtime-/Ausgabewurzelkontrollen erhalten.
-- Vor Promotion den vollständigen gepinnten Default-/Feature-Demo-Korpus prüfen.
-- Direkten MRTS-Aufruf und offenen ursächlichen Fix ausdrücklich getrennt halten.
-- Dedizierte Regression und bestehende Checks müssen am reparierten Head bestehen;
-  vor einer Sonar-Korrekturaussage muss der tatsächliche Sonar-Befund gelesen werden.
+- Private Kopien geparster und geprüfter Daten statt erneut geöffneter Originale übergeben.
+- Lexikalische Reihenfolge, unterstützte Daten einschließlich Integer-Schlüssel,
+  Ausgabeparameter, erfolglose Child-Exitcodes, Cleanup und Pfadkontrollen erhalten.
+- Generator-, Snapshot- und Ausgabepfade als Daten statt CLI-Optionen behandeln.
+- Auch ein relativ optionsartig benanntes ausgewähltes Skript tatsächlich ausführen.
+- Vor Promotion vollständigen gepinnten Default-/Feature-Demo-Korpus prüfen.
+- Direkten MRTS-Aufruf und offenen ursächlichen Fix getrennt halten.
+- Aktuelle Head-Regression, CI und Sonar-Ergebnisse verlangen; kein vermutetes PASS.
 
 ## Implementierungsentscheidung und Begründung
 
-Der bestehende Shell-Wrapper delegiert an den neuen Framework-eigenen Python-Launcher.
-Dieser begrenzt Definitionsdaten vor einem vertrauenswürdigen, vom Betreiber
-ausgewählten MRTS-Programm. Er ist keine Sandbox für Generatorcode oder feindliche
-Same-UID-Prozesse und ersetzt vorhandene Ausgabepfadprüfungen nicht.
+Der Shell-Eingang delegiert an den Framework-eigenen Python-Launcher. Dieser
+ist keine Sandbox für vertrauenswürdigen betreiberausgewählten Generatorcode
+oder feindliche Same-UID-Prozesse und ersetzt vorhandene Ausgabepfadprüfungen nicht.
 
-Das Schema stammt aus globalen README-Schlüsseln und RuleGenerator des gepinnten
-MRTS. default_tests_phase_methods und default_test_phase_methods bleiben ohne
-Übersetzung zulässig; default_constants wird aus der Implementierung erhalten.
-Andere Attribute werden abgelehnt. Objektintrospektion ist kein Schema.
+Das Global-Schema stammt aus gepinntem MRTS-README und RuleGenerator.
+default_tests_phase_methods und default_test_phase_methods bleiben ohne
+Übersetzung zulässig; default_constants bleibt unterstützt. Andere Attribute
+werden abgelehnt, statt Objektintrospektion als Schema zu verwenden.
 
-Der Launcher verwendet den vorhandenen sicheren PyYAML-Loader und schreibt
-nummerierte validierte Kopien unter dem externen Build-Root. Dateimodus ist 0600,
-Verzeichnismodus 0700; Cleanup erfolgt bei normalem Abschluss und Exceptions.
-Lexikalische Reihenfolge bleibt erhalten. Direkte MRTS-Änderungen überschritten
-die ausgewählte Repositorygrenze; Prüfen mit erneutem Öffnen ließe ein Austauschfenster.
-Die Kopien vermeiden dieses Fenster, ohne den Generator in Framework zu importieren.
+Der vorhandene sichere PyYAML-Loader bleibt erhalten. Nummerierte Kopien unter
+dem externen Build-Root haben Dateimodus 0600 und Verzeichnismodus 0700,
+erhalten die Reihenfolge und werden bei Abschluss sowie Exceptions entfernt.
+Der Generator öffnet dadurch keine ersetzten Originaldefinitionen erneut.
+Die Shell bereinigt Ausgaben weiterhin vor der Launcher-Validierung; frühere
+Ausgaben bleiben bei späterer Eingabeablehnung deshalb nicht erhalten.
 
-Die bestehende Shell-Ausgabebereinigung bleibt vor dem Launcher. Dieser Draft
-bewahrt deshalb frühere Ausgaben nicht, wenn die spätere Validierung fehlschlägt.
-Er ändert weder MRTS-rulefile/testfile-Begrenzung noch erlaubt er weitere globale
-Objektattribute.
+Die Sonar-Korrektur löst vorhandene Generator-, Ausgabe- und Snapshotpfade
+vor der argv-Erzeugung absolut auf und beendet Pythons Optionsauswertung mit
+-- vor dem Skript. Nummerierte Snapshotoperanden sind dadurch ebenfalls absolut.
+Relative Pfade bleiben Daten, auch Namen mit führendem '-'. Vertrauenswürdiges
+Programm und Ausgabewurzeln bleiben vom Betreiber gewählt; dies ist keine
+neue Programm-Sandbox. Shellquoting oder Shellausführung werden nicht ergänzt.
 
-Der dedizierte Exact-Head-Workflow installiert nur vorhandene hashgebundene
-Abhängigkeiten. Temporäre Verzeichnisse erhalten private umask. Eine temporäre,
-unauthentisierte Diagnose liest ohne Checkout oder Zugangsdaten die ursprüngliche
-öffentliche Sonar-Annotation, um Regel und Stelle festzustellen. Sie ist keine
-neue Sonar-Analyse und ersetzt das Quality Gate nicht; nach Diagnose wird sie
-entfernt. Action-Pins und Securitygates bleiben erhalten.
+Der Exact-Head-Workflow nutzt vorhandene immutable Action-Pins und hashgebundene
+Abhängigkeiten. TMPDIR und PIP_CACHE_DIR stehen auf Schrittebene, Verzeichnisse
+verwenden private umask, Concurrency-/Bash-Verträge werden erfüllt. Die temporäre
+unauthentisierte Sonar-Diagnose ist abgeschlossen und entfernt. Kein Pflicht-
+test oder Sonar-Check wird entfernt, unterdrückt oder herabgestuft.
 
 ## Geänderte Dateien
 
@@ -89,63 +96,71 @@ entfernt. Action-Pins und Securitygates bleiben erhalten.
 
 | Prüfung | Tatsächlicher Nachweis und Einschränkung |
 | --- | --- |
-| Ursprüngliche Shell-Dateiübernahme | Vollständiger Inhalt stimmte vor der ersten Änderung mit Git-Blob-SHA-1 überein |
-| Ursprüngliche Python-Syntax / Register-JSON | Als Daten geparst; keine Verhaltenstestausführung |
-| Lokale Launcher-Tests | NOT RUN: vorgeschriebenes RTK nicht verfügbar |
-| Generator-Testdouble | Für Parameter, Kopien, Rechte, Ablehnung und Cleanup definiert; keine lokale Ausführung behauptet |
-| Vollständiger gepinnter MRTS-Korpus | NOT RUN; direkte Generatorkompatibilität bleibt separate Prüfgrenze |
-| Lokale Shell-Syntax / git diff --check | NOT RUN in der Bearbeitungsumgebung |
-| Ursprünglicher Action-Version-Job 109307180219 | An Flow-Branches in ci-findings-regressions.yml gescheitert |
-| Ursprünglicher actionlint-Job 109307181277 | Am jobweiten runner-Kontext für TMPDIR und PIP_CACHE_DIR gescheitert |
-| Ursprünglicher Sonar-Check 109307382232 | New-Code-Security-Rating gescheitert; genaue Annotation noch abzurufen |
-| Reparierte Exact-Head-Regression und gesamte CI | Neue Ergebnisse nach diesem Commit ausstehend; hier kein Erfolg behauptet |
+| Ursprüngliche Quellübernahme | Vollständige Shell-Datei stimmte vor Änderung mit Git-Blob überein; Python/JSON als Daten geparst |
+| Ursprüngliche Action-Version-/actionlint-Jobs | 109307180219 und 109307181277 scheiterten an Flow-YAML und ungültigem runner-Kontext |
+| Zwischenprüfung des Security-Vertrags | 109347213959 zeigte fehlende Concurrency und Bash-Defaults; korrigiert |
+| Erste dedizierte Tests bei 60a75c90500f765675059e341bf8e73f6008a023 | Job 109347213122: 9 bestanden, 1 wegen verlustbehafteter JSON-Beobachtung gescheitert |
+| Test-vor-Fix-Lauf bei d1a6aeef864ad851f1f9f6b924c29719006c8c64 | Job 109350381183: alle bisherigen 10 Tests bestanden; die 2 neuen Argumentgrenztests mit Child-Exit 2 gescheitert |
+| Sonar-Evidenceabruf | Jobs 109347213481 und 109350381226 lasen ursprüngliche öffentliche Annotation und exakten S8705-Datenfluss ohne Zugangsdaten |
+| Lokale Projekttests / Builds / git diff --check | NOT RUN: vorgeschriebenes RTK und provisionierte lokale Repositorywerkzeuge fehlen |
+| Quellfix-Head-Regression / gesamte CI / Sonar | Neue Ergebnisse nach dieser Korrektur ausstehend; nicht vorab bestätigt |
 
-Code-Work- und Sonar-Skills wurden gelesen. Der repositoryreferenzierte globale
-Ausführungsskill und vorgeschriebenes lokales RTK fehlen. Kein lokaler Projektbefehl
-umgeht stillschweigend diese Ausführungsvorgaben.
+Der Test-vor-Fix-Befehl war python3 -m unittest discover -s
+tests/security_regression -p 'test_mrts_definition_guard.py' -v in GitHubs
+exaktem PR-Head-Checkout mit Repository-Python und hashgebundenen Abhängigkeiten.
+Die bestehende Integer-Schlüssel-Assertion wurde nicht gelockert. Der optionsartige
+Generator scheiterte in Pythons Optionsparser, relative Ausgabewurzeln im
+Fixtureparser. Kein destruktiver Payload oder externes Ziel wurde verwendet.
 
 ## Security-Auswirkung
 
-Undokumentierte globale Objektattribute werden am Framework-Eingang abgelehnt.
-Dies ist beabsichtigt; vollständige Korpuskompatibilität bleibt ungeprüft.
-Der Originalgenerator bleibt unverändert, direkter Aufruf liegt außerhalb der
-Mitigation. B03 kann durch diesen Wrapper nicht geschlossen werden. Die
-CI-Reparatur erteilt keine Schreibrechte, lockert keine Pins und deaktiviert keine Tests.
+Undokumentierte globale Attribute werden am Framework-Eingang abgelehnt.
+Führende Bindestriche in Pfadoperanden können den ausgewählten Child-Aufruf
+nicht mehr als Interpreter-/Generatoroptionen umdeuten. MRTS-Originalcode bleibt
+unverändert; direkter Aufruf liegt außerhalb der Mitigation. B03 kann nicht
+allein durch spätere erfolgreiche Launcher-Tests oder Sonar geschlossen werden.
+
+Keine Rechteausweitung, Dependency-Pin-Änderung, Scannerausnahme, Severityänderung,
+Testabschaltung oder Lockerung von Quality Gates ist Teil dieser Korrektur.
 
 ## Runtime-Evidence
 
-Dieser Record belegt weder Live-Host-Evidence des ursprünglichen Szenarios noch
-einen vollständigen gepinnten Korpuslauf. Erfolg mit dem Testdouble belegt nur
-das getestete Launcher-Verhalten. Andere grüne Checks ersetzen weder dedizierte
-Regression noch tatsächliches Sonar-Ergebnis am aktuellen Head.
+Die fehlgeschlagenen Argumentgrenztests und zehn erfolgreichen bisherigen
+Kontrollen sind reale Subprocess-Tests am genannten Test-vor-Fix-Head mit
+harmlosem Fixturegenerator. Sie sind kein vollständiger MRTS-Korpus- oder
+Connector-Hostlauf. Neue Ergebnisse am Quellfix-Head sind unabhängig zu bewerten.
 
 ## Bekannte Einschränkungen
 
-Dies ist candidate_entrypoint_mitigation, keine vollständige Behebung oder
-verifizierte Schließung von B03. Der direkte MRTS-Fix benötigt einen separat
-autorisierten Task. Die Shell bereinigt Ausgaben vor der neuen Prüfgrenze.
-Betreiberausgewählter Generatorcode und Same-UID-Prozessisolation bleiben außerhalb.
+Dies bleibt candidate_entrypoint_mitigation, keine vollständige Behebung oder
+verifizierte Schließung von B03. Ein direkter MRTS-Fix benötigt einen separat
+autorisierten Task. Bestehendes Shell-Cleanup liegt vor der Validierung. Der
+Launcher isoliert keine Prozesse und authentisiert kein betreiberausgewähltes Programm.
 
 ## Verbleibende Risiken
 
-Vollständiger Default-/Feature-Demo-Korpus und bestehende Begrenzungsregressionen
-müssen ausgeführt werden. Die ursprüngliche Sonar-Security-Annotation muss ohne
-Unterdrückung oder Vermutung ihrer Regel diagnostiziert werden. Eine nötige
-Quellkorrektur erfordert neue fokussierte Tests und headgebundene Analyse.
+Gepinnter Default-/Feature-Demo-Korpus und bestehende Begrenzungsregressionen
+müssen weiterhin ausgeführt werden. Same-UID-/Generator-Vertrauensannahmen
+bleiben unverändert. Sonars CLI-Datenfluss wird als Pfad-/Optionsgrenze repariert;
+die allgemeine HTTP-Quellbeschreibung der Annotation belegt keinen HTTP-Listener
+in diesem Launcher. Der neue Scan muss die tatsächliche Korrektur bewerten.
 
 ## Nicht ausgeführte Prüfungen mit Begründung
 
-Lokale Repositoryausführung, native Laufzeitvalidierung und vollständiger MRTS-Korpus
-wurden wegen fehlendem vorgeschriebenem RTK und provisionierten Repositorywerkzeugen
-nicht ausgeführt. Keine ausgelassene oder übersprungene Prüfung ist PASS.
-Neue Head-Ergebnisse werden nicht durch alte Erfolge oder Quellprüfung ersetzt.
+Lokale Projektbefehle und vollständige Generator-/Hostläufe wurden mangels
+vorgeschriebenem RTK und provisionierter Repositorywerkzeuge nicht ausgeführt.
+Code-Work- und Sonar-Skills wurden gelesen; der referenzierte globale Ausführungsskill
+war nicht verfügbar. Kein ungekapselter lokaler Projektbefehl ersetzte RTK.
+Keine ausgelassene, übersprungene oder ausstehende Prüfung ist PASS.
 
 ## Finaler Diff- und Review-Status
 
-Die erste CI-Nachbesserung ändert den dedizierten Workflow und dieses Record-Paar,
-nicht den Guard, Originaltests, Dependency-Locks oder Quality-Gate-Einstellungen.
-Der PR bleibt bis zu tatsächlichen aktuellen Headprüfungen und unabhängigem Review Draft.
+Die CI-Nachbesserungen reparieren Workflow-/Dokumentationsverträge, korrigieren
+das Beobachtungsformat, ergänzen zwei negative Regressionen und beheben danach
+die Argumentgrenze. Alle ursprünglichen Guard-Assertions und Einschränkungen
+bleiben erhalten. Der temporäre Diagnosejob wurde nach Auswertung entfernt.
 
-Parent-Auswirkung: Dieser separate Framework-Commit ändert nicht dessen ausgewählte
-Abhängigkeit. Parent-Gitlink: unchanged. MRTS-Scope: default_read_only;
-MRTS-Gitlink: unchanged. Kein Merge, Force-Push, Risikoakzeptanz oder Release-Claim.
+Parent-Auswirkung: unveränderte ausgewählte Abhängigkeit. Parent-Gitlink: unchanged.
+MRTS-Scope: default_read_only. MRTS-Gitlink: unchanged. Der PR bleibt bis zu
+aktuellen Headchecks und Review Draft. Kein Merge, Force-Push, akzeptiertes
+Risiko, neu behaupteter Hostsupport oder automatischer Findingabschluss.
