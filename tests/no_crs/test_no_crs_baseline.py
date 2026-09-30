@@ -744,6 +744,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "deny_header_marker_403",
                 "deny_with_alternative_status",
                 "transaction_id_present",
+                "transaction_id_generated_or_fallback",
                 "deny_request_body_marker_403",
                 "phase4_deny_before_commit",
                 "case_insensitive_header_name",

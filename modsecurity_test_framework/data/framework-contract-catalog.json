@@ -7520,7 +7520,8 @@
       },
       "area": "no-crs-baseline",
       "catalogs": [
-        "no-crs-baseline"
+        "no-crs-baseline",
+        "framework-yaml"
       ],
       "display_name": "Generate or safely fall back to a transaction identifier",
       "expectation": {
@@ -7530,8 +7531,16 @@
             "kind": "http_status"
           },
           {
+            "kind": "rule_match",
+            "rule_ids": [
+              1100502
+            ]
+          },
+          {
             "fields": [
-              "transaction_id"
+              "transaction_id",
+              "rule_id",
+              "phase"
             ],
             "kind": "event"
           }
@@ -7550,6 +7559,10 @@
         {
           "kind": "no_crs_catalog",
           "path": "tests/cases/no-crs-baseline/catalog.json"
+        },
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/transaction_id_generated_or_fallback.yaml"
         }
       ]
     },
