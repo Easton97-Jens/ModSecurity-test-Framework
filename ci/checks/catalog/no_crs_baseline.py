@@ -1235,8 +1235,23 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
     }
     _validate_full_lifecycle_catalog_contracts(by_id, full_lifecycle_contracts, errors)
     _validate_catalog_legacy_contracts(by_id, errors)
+    _validate_catalog_scenario_prerequisites(by_id, errors)
     _validate_catalog_ruleset_contracts(errors)
     return errors
+
+
+def _validate_catalog_scenario_prerequisites(
+    by_id: Mapping[str, Mapping[str, Any]], errors: list[str],
+) -> None:
+    # These case requests exercise capabilities beyond their generic phase
+    # requirements.  Omitting one would select an unexecutable host scenario.
+    for case_id, prerequisite in (
+        ("parallel_requests", "parallel_requests"),
+        ("abort_if_supported", "drop"),
+    ):
+        case = by_id.get(case_id)
+        if case is not None and prerequisite not in case.get("required_capabilities", []):
+            errors.append(f"{case_id}: missing scenario prerequisite {prerequisite}")
 
 
 def _validate_catalog_cases(
