@@ -1815,6 +1815,24 @@ def validate_plan_against_capabilities(
         )
 
 
+def plan_capability_errors(
+    plan: Mapping[str, Any],
+    connector: str,
+    capabilities: Mapping[str, Any],
+    catalog: Mapping[str, Any],
+    evidence_stage: str,
+    artifact_profile: str,
+) -> list[str]:
+    try:
+        validate_plan_against_capabilities(
+            plan, connector, capabilities, catalog, evidence_stage,
+            artifact_profile, str(plan.get("downstream_protocol") or "any"),
+        )
+    except (ContractError, KeyError, TypeError) as exc:
+        return [f"plan selection is inconsistent with the catalog and capability inventory: {exc}"]
+    return []
+
+
 def nearest_existing_directory(path: Path) -> Path:
     candidate = path
     while not candidate.exists():
@@ -4392,6 +4410,13 @@ def selected_plan_case(
     return selections.get(case_id, {}).get("selection_status") == "SELECTED"
 
 
+def selected_case_ids_from_plan(plan: Mapping[str, Any]) -> set[str]:
+    return {
+        case_id for case_id, selection in selected_plan_cases(plan).items()
+        if selection.get("selection_status") == "SELECTED"
+    }
+
+
 def append_event_field_derivations(
     records: list[dict[str, Any]],
     by_id: dict[str, dict[str, Any]],
@@ -5522,21 +5547,34 @@ def aggregate_status(
     stage_rc: int,
     *,
     source_failure: bool = False,
+    selected_case_ids: set[str] | None = None,
 ) -> tuple[str, bool]:
     started = any(record.get("live_executed") is True for record in records)
     statuses = Counter(str(record.get("status")) for record in records)
+    selected_statuses = Counter(
+        str(record.get("status")) for record in records
+        if selected_case_ids is None or record.get("case_id") in selected_case_ids
+    )
+    if selected_case_ids is not None:
+        recorded_ids = {str(record.get("case_id") or "") for record in records}
+        selected_statuses["NOT_EXECUTED"] += len(selected_case_ids - recorded_ids)
     if stage_rc == 77:
         return ("FAIL", False) if started else ("BLOCKED", True)
     if stage_rc != 0 or source_failure or statuses["FAIL"]:
         return "FAIL", False
     if statuses["BLOCKED"]:
         return "BLOCKED", not started
-    if statuses["NOT_EXECUTED"]:
+    if selected_statuses["NOT_EXECUTED"]:
         return "NOT_EXECUTED", False
-    if statuses["PASS"]:
+    if selected_case_ids is None and statuses["PASS"]:
+        # Preserve the legacy unscoped API's PASS/UNSUPPORTED precedence.
         return "PASS", False
-    if statuses["UNSUPPORTED"]:
+    if selected_statuses["UNSUPPORTED"]:
         return "UNSUPPORTED", False
+    if selected_statuses["NOT_APPLICABLE"]:
+        return "NOT_APPLICABLE", False
+    if selected_statuses["PASS"]:
+        return "PASS", False
     return "NOT_APPLICABLE", False
 
 
@@ -5851,6 +5889,11 @@ def load_finalize_context(args: argparse.Namespace) -> FinalizeContext:
     if capabilities != supplied_capabilities:
         raise ContractError("capability manifest changed between init and finalize")
     catalog = load_catalog()
+    plan_errors = plan_capability_errors(
+        plan, connector, capabilities, catalog, evidence_stage, artifact_profile,
+    )
+    if plan_errors:
+        raise ContractError("; ".join(plan_errors))
     case_by_id = {case["case_id"]: case for case in catalog_cases(catalog)}
     return FinalizeContext(
         connector_root,
@@ -6403,6 +6446,7 @@ def build_finalize_summary(
     source_failure = "FAIL" in source_statuses
     status, blocked_before_execution = aggregate_status(
         records, stage_rc, source_failure=source_failure,
+        selected_case_ids=selected_case_ids_from_plan(context.plan),
     )
     counts = Counter(record["status"] for record in records)
     observed_rule_ids = sorted({
@@ -7224,10 +7268,13 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
 
 def completeness_errors(run_dir: Path) -> list[str]:
     result = load_json(run_dir / RESULT_FILE_NAME)
+    plan = load_json(run_dir / PLAN_FILE_NAME)
     records = read_jsonl(run_dir / CASE_RESULTS_FILE_NAME)
     errors: list[str] = []
     if not isinstance(result, Mapping):
         return ["result.json must be an object"]
+    if not isinstance(plan, Mapping):
+        return ["plan.json must be an object"]
     connector = str(result.get("connector") or "")
     integration_mode = required_event_integration_mode(result)
     events = read_jsonl(run_dir / EVENTS_FILE_NAME, required=False)
@@ -7238,6 +7285,7 @@ def completeness_errors(run_dir: Path) -> list[str]:
         errors.append("event_metadata_verified is inconsistent with the canonical rule-1100001 event")
     errors.extend(result_pass_completeness_errors(
         result, records, event_metadata_verified, body_payload_absent,
+        selected_case_ids=selected_case_ids_from_plan(plan),
     ))
     for record in records:
         errors.extend(pass_case_completeness_errors(
@@ -7251,6 +7299,8 @@ def result_pass_completeness_errors(
     records: Sequence[Mapping[str, Any]],
     event_metadata_verified: bool,
     body_payload_absent: bool,
+    *,
+    selected_case_ids: set[str] | None = None,
 ) -> list[str]:
     if result.get("status") != "PASS":
         return []
@@ -7263,8 +7313,18 @@ def result_pass_completeness_errors(
         errors.append("PASS requires a concrete libmodsecurity_version")
     if result.get("cases_passed", 0) < 1:
         errors.append("PASS requires at least one passed case")
-    if any(result.get(key, 0) for key in ("cases_failed", "cases_blocked", "cases_not_executed")):
-        errors.append("PASS cannot contain failed, blocked, or not-executed cases")
+    if result.get("cases_failed", 0) or result.get("cases_blocked", 0):
+        errors.append("PASS cannot contain failed or blocked cases")
+    if selected_case_ids is None:
+        missing_selected = bool(result.get("cases_not_executed", 0))
+    else:
+        by_id = {str(record.get("case_id") or ""): record for record in records}
+        missing_selected = any(
+            case_id not in by_id or by_id[case_id].get("status") != "PASS"
+            for case_id in selected_case_ids
+        )
+    if missing_selected:
+        errors.append("PASS requires every selected case to have a PASS record")
     if result.get("evidence_stage") == "minimal_runtime_smoke":
         errors.extend(minimal_runtime_completeness_errors(
             records, event_metadata_verified, body_payload_absent,
@@ -7347,11 +7407,17 @@ def pass_case_completeness_errors(
 
 def capability_errors(run_dir: Path, capabilities: Mapping[str, Any]) -> list[str]:
     result = load_json(run_dir / RESULT_FILE_NAME)
+    plan = load_json(run_dir / PLAN_FILE_NAME)
     records = read_jsonl(run_dir / CASE_RESULTS_FILE_NAME)
     declared = capabilities.get("capabilities", {})
-    if not isinstance(result, Mapping) or not isinstance(declared, Mapping):
-        return ["invalid result or capability manifest"]
+    if not isinstance(result, Mapping) or not isinstance(declared, Mapping) or not isinstance(plan, Mapping):
+        return ["invalid result, plan, or capability manifest"]
     errors = capability_inventory_errors(run_dir, capabilities)
+    errors.extend(plan_capability_errors(
+        plan, str(result.get("connector") or ""), capabilities, load_catalog(),
+        str(result.get("evidence_stage") or ""),
+        str(result.get("artifact_profile") or DEFAULT_ARTIFACT_PROFILE),
+    ))
     errors.extend(pass_case_capability_errors(records, declared))
     errors.extend(verified_capability_boundary_errors(result, declared))
     errors.extend(capability_partition_errors(result))
@@ -7777,11 +7843,13 @@ def status_event_and_gate_errors(
     result: Mapping[str, Any],
     records: Sequence[Mapping[str, Any]],
     pass_ids: set[str],
+    plan: Mapping[str, Any],
 ) -> list[str]:
     expected_status, expected_blocked = aggregate_status(
         records,
         int(result.get("exit_code") or 0),
         source_failure=result.get("source_failure") is True,
+        selected_case_ids=selected_case_ids_from_plan(plan),
     )
     events = read_jsonl(run_dir / EVENTS_FILE_NAME, required=False)
     event_metadata_verified, body_payload_absent = canonical_core_event_contract(
@@ -7881,6 +7949,15 @@ def status_errors(run_dir: Path) -> list[str]:
         "plan": plan,
     }
     errors = status_profile_errors(documents)
+    capabilities = load_json(run_dir / CAPABILITIES_INVENTORY_FILE_PATH)
+    if not isinstance(capabilities, Mapping):
+        errors.append("inventory/capabilities.json must be an object")
+    else:
+        errors.extend(plan_capability_errors(
+            plan, str(result.get("connector") or ""), capabilities, load_catalog(),
+            str(result.get("evidence_stage") or ""),
+            str(result.get("artifact_profile") or DEFAULT_ARTIFACT_PROFILE),
+        ))
     errors.extend(status_count_errors(result, records))
     record_errors, pass_ids = status_record_consistency_errors(result, records)
     errors.extend(record_errors)
@@ -7888,7 +7965,7 @@ def status_errors(run_dir: Path) -> list[str]:
     errors.extend(status_source_failure_errors(result))
     if result.get("status") != manifest.get("status"):
         errors.append("manifest/result status mismatch")
-    errors.extend(status_event_and_gate_errors(run_dir, result, records, pass_ids))
+    errors.extend(status_event_and_gate_errors(run_dir, result, records, pass_ids, plan))
     errors.extend(status_document_identity_errors(result, manifest, inventory))
     errors.extend(status_exit_state_errors(result))
     return errors
