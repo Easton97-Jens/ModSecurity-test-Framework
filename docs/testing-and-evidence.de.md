@@ -168,6 +168,23 @@ Die kanonische No-CRS-Implementierung ist
 `finalize`, `validate` und `summarize` halten Auswahl, kanonische Artefakte
 und Validierung getrennt.
 
+Für NGINX `full_lifecycle` benötigen `select` und das dazugehörige `init`
+ein explizites Downstream-Protokoll (`http1`, `h2`, `h2c` oder `h3`). Ein Fall,
+der ein anderes Protokoll verlangt, ist für diesen Lauf `NOT_APPLICABLE`;
+ein fähiger Build oder ein HTTP/1-Request ist keine H2/H3-Ausführungsevidenz.
+Der Gesamtstatus verwendet die `SELECTED`-Fälle des Plans für die Prüfung
+fehlender Evidenz, während das Resultat wahrheitsgetreue Zähler für alle
+Katalogeinträge behält. Ein ausgewählter, nicht ausgeführter Fall verhindert
+weiterhin PASS; FAIL und BLOCKED haben Vorrang. Ein nicht ausgewählter
+`NOT_EXECUTED`-Eintrag allein verhindert keinen profilgebundenen PASS.
+Beide Befehle verwenden `--downstream-protocol`; dieses vom Orchestrator
+deklarierte Laufprofil muss zum tatsächlich ausgeführten Host-/Client-Protokoll
+passen und beweist allein keine Aushandlung. Explizite
+`request.reuses`-Zuordnungen im Katalog dürfen engere Records nur aus
+validierter, an den aktuellen Lauf gebundener echter Basisevidenz und, falls
+erforderlich, einem eindeutig passenden kanonischen Event ableiten; sie
+erzeugen weder einen weiteren Request noch ein synthetisches Runtime-Event.
+
 Der Evidence-Pfad zeichnet nur geprüfte, normalisierte Metadaten auf. Er lehnt
 unbegrenzte Request- oder Response-Payload-Felder ab und leitet keinen PASS aus
 einem Exit-Code ab. Capability-Deklarationen und generierte Berichte ersetzen

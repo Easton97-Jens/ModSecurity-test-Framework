@@ -157,6 +157,21 @@ The canonical No-CRS implementation is
 `validate`, and `summarize` operations keep selection, canonical artifacts,
 and validation separate.
 
+An NGINX `full_lifecycle` selection and its matching `init` require the
+explicit downstream protocol (`http1`, `h2`, `h2c`, or `h3`). A case that
+requires another protocol is `NOT_APPLICABLE` to that run; a capable build or
+an HTTP/1 request is not H2/H3 execution evidence. The aggregate status uses
+the plan's `SELECTED` cases for the missing-evidence gate, while the result
+keeps truthful counts for every catalog record. An unexecuted selected case
+still prevents PASS; FAIL and BLOCKED retain precedence. A non-selected
+`NOT_EXECUTED` record alone does not prevent a scoped PASS.
+Both commands take `--downstream-protocol`; this orchestrator-declared run
+profile must match the executed host/client protocol and does not itself prove
+negotiation. Explicit catalog `request.reuses` mappings may derive narrower
+records only from validated live base evidence bound to the current run and,
+where required, a uniquely matching canonical event; they do not create
+another request or a synthetic runtime event.
+
 The evidence path records only reviewed, normalized metadata. It rejects
 unbounded request or response payload fields and does not derive a PASS from an
 exit code. Capability declarations and generated reports do not substitute for
