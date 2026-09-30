@@ -4584,6 +4584,125 @@ def append_phase4_derived_record(
         by_id[case_id] = record
 
 
+def append_explicit_reuse_records(
+    records: list[dict[str, Any]],
+    plan: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None = None,
+    *,
+    expected_run_id: str | None = None,
+    expected_integration_mode: str | None = None,
+) -> None:
+    """Reuse only catalog-declared, identity-bound facts from live base cases.
+
+    These are not additional requests.  Each target is a narrower claim about
+    one validated base request.  The strict abort target is admitted only from
+    a client-observed abort and a matching strict-mode event; the general
+    Phase-4 derivation intentionally does not create it.
+    """
+    selections = selected_plan_cases(plan)
+    by_id = {str(record.get("case_id") or ""): record for record in records}
+    bound_run_id = expected_run_id or str(plan.get("run_id") or "")
+    bound_mode = expected_integration_mode or integration_mode
+    for target_id, base_id, requires_event in (
+        ("allow", "allow_without_marker", False),
+        ("deny", "deny_header_marker_403", True),
+        ("phase3_original_and_visible_status", "phase3_deny_before_commit", True),
+        ("event_has_no_response_body_payload", "phase4_rule_observed", True),
+        ("phase4_deny_after_commit_abort_strict", "phase4_deny_after_commit_abort", True),
+    ):
+        if target_id in by_id or not selected_plan_case(selections, target_id):
+            continue
+        target_case = case_by_id.get(target_id)
+        base = by_id.get(base_id)
+        if not target_case or not base or not explicit_reuse_base_valid(
+            base, base_id, target_case, plan, bound_run_id, bound_mode,
+        ):
+            continue
+        if requires_event and (
+            base.get("event_metadata_verified") is not True
+            or exact_reuse_event(
+                base, target_case, events, str(plan.get("connector") or ""),
+                bound_run_id or str(base.get("run_id") or ""), bound_mode,
+            ) is None
+        ):
+            continue
+        raw = dict(base)
+        raw.update({
+            "case_id": target_id,
+            "status": "PASS",
+            "run_id": bound_run_id or base.get("run_id"),
+            "integration_mode": bound_mode or base.get("integration_mode"),
+            "reason": f"derived from validated {base_id} request by explicit catalog reuse",
+        })
+        record = normalize_case_record(
+            raw, str(plan.get("connector") or ""), case_by_id, events, bound_mode,
+        )
+        if record is not None and record.get("status") == "PASS":
+            records.append(record)
+            by_id[target_id] = record
+
+
+def explicit_reuse_base_valid(
+    base: Mapping[str, Any],
+    base_id: str,
+    target_case: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    expected_run_id: str | None,
+    expected_integration_mode: str | None,
+) -> bool:
+    request = target_case.get("request")
+    transactions = base.get("transaction_ids")
+    run_id = expected_run_id or base.get("run_id")
+    integration_mode = expected_integration_mode or base.get("integration_mode")
+    return bool(
+        isinstance(request, Mapping)
+        and request.get("reuses") == base_id
+        and base.get("case_id") == base_id
+        and base.get("status") == "PASS"
+        and base.get("live_executed") is True
+        and base.get("connector") == plan.get("connector")
+        and base.get("phase") == target_case.get("phase")
+        and optional_int(base.get("expected_rule_id")) == optional_int(target_case.get("expected_rule_id"))
+        and isinstance(transactions, list)
+        and len(transactions) == 1
+        and isinstance(transactions[0], str)
+        and transactions[0].strip()
+        and run_id
+        and integration_mode
+        and base.get("run_id") in {None, run_id}
+        and base.get("integration_mode") in {None, integration_mode}
+    )
+
+
+def exact_reuse_event(
+    base: Mapping[str, Any],
+    target_case: Mapping[str, Any],
+    events: Sequence[Mapping[str, Any]],
+    connector: str,
+    run_id: str,
+    integration_mode: str | None,
+) -> Mapping[str, Any] | None:
+    transaction = base["transaction_ids"][0]
+    rule_id = optional_int(target_case.get("expected_rule_id"))
+    phase = optional_int(target_case.get("phase"))
+    expected_mode = integration_mode or str(base.get("integration_mode") or "")
+    matches = [
+        event for event in events
+        if event_transaction_ids(event) == [transaction]
+        and event_rule_ids(event) == [rule_id]
+        and normalize_canonical_phase(event.get("phase")) == phase
+        and event.get("connector") == connector
+        and event.get("run_id") in {None, run_id}
+        and event.get("integration_mode") == expected_mode
+        and not canonical_event_errors(
+            event, connector=connector, integration_mode=expected_mode,
+        )
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 def selection_record(
     selection: Mapping[str, Any],
     case: Mapping[str, Any],
@@ -5964,6 +6083,11 @@ def normalize_finalize_records(
     )
     append_derived_phase4_records(
         records, context.plan, context.case_by_id, events, context.event_integration_mode,
+    )
+    append_explicit_reuse_records(
+        records, context.plan, context.case_by_id, events, context.event_integration_mode,
+        expected_run_id=str(context.manifest.get("run_id") or ""),
+        expected_integration_mode=str(context.manifest.get("integration_mode") or ""),
     )
     prevent_synthetic_first_byte_promotion(records, first_byte_evidence)
     return records, deduplicated_case_records(records)
