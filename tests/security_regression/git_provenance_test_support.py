@@ -12,7 +12,7 @@ APPROVED_MODSECURITY_V3_ROOT_LINKS = (
     ("others/mbedtls", "0fe989b6b514192783c469039edd325fd0989806"),
     (
         "test/test-cases/secrules-language-tests",
-        "a3d4405e5a2c90488c387e589c5534974575e35b",
+        "f73c73027ef49ccf99c7911744929a71d15ff419",
     ),
 )
 
@@ -80,7 +80,7 @@ APPROVED_MODSECURITY_V3_TOPOLOGY = (
     (
         "test/test-cases/secrules-language-tests",
         "https://github.com/owasp-modsecurity/secrules-language-tests",
-        "a3d4405e5a2c90488c387e589c5534974575e35b",
+        "f73c73027ef49ccf99c7911744929a71d15ff419",
         "test/test-cases/secrules-language-tests",
         (),
     ),

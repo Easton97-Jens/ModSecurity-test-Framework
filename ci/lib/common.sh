@@ -2857,7 +2857,7 @@ ci_modsecurity_v3_root_gitlinks() {
         'bindings/python|bc625d5bb0bac6a64bcce8dc9902208612399348' \
         'others/libinjection|211782219663f889f471650150df12b623c5766e' \
         'others/mbedtls|0fe989b6b514192783c469039edd325fd0989806' \
-        'test/test-cases/secrules-language-tests|a3d4405e5a2c90488c387e589c5534974575e35b'
+        'test/test-cases/secrules-language-tests|f73c73027ef49ccf99c7911744929a71d15ff419'
 }
 
 ci_modsecurity_v3_mbedtls_gitlinks() {
@@ -3107,7 +3107,7 @@ ci_require_approved_modsecurity_v3_checkout() {
     ci_modsecurity_v3_require_checkout \
         "$ci_v3_root/test/test-cases/secrules-language-tests" "$ci_v3_root/test/test-cases/secrules-language-tests" \
         "https://github.com/owasp-modsecurity/secrules-language-tests" \
-        "a3d4405e5a2c90488c387e589c5534974575e35b" \
+        "f73c73027ef49ccf99c7911744929a71d15ff419" \
         "$ci_v3_root/.git/modules/test/test-cases/secrules-language-tests" "" "test/test-cases/secrules-language-tests" child "$ci_v3_root" || return 77
     return 0
 }
