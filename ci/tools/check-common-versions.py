@@ -130,6 +130,7 @@ GENERATED_CANONICAL_VIEW_PATHS = frozenset(
                 "check-action-versions.yml",
                 "check-common-versions.yml",
                 "check-python-version.yml",
+                "ci-findings-regressions.yml",
                 "ci-security-codeql-pr.yml",
                 "ci-security-codeql.yml",
                 "ci-security-dependency-review.yml",

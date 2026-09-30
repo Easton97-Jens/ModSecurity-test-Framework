@@ -74,10 +74,12 @@ find "$MRTS_FTW_OUT" -type f -name '*.yaml' -exec rm -f {} \;
 set -- $definition_list
 (
     cd "$MRTS_ROOT"
-    "${PYTHON:-python3}" "$MRTS_ROOT/mrts/generate-rules.py" \
-        -r "$@" \
-        -e "$MRTS_RULES_OUT" \
-        -t "$MRTS_FTW_OUT"
+    "${PYTHON:-python3}" "$SCRIPT_DIR/mrts_definition_guard.py" \
+        --generator "$MRTS_ROOT/mrts/generate-rules.py" \
+        --snapshot-root "$MRTS_BUILD_ROOT" \
+        --rules-out "$MRTS_RULES_OUT" \
+        --tests-out "$MRTS_FTW_OUT" \
+        -- "$@"
 )
 
 rule_count=$(find "$MRTS_RULES_OUT" -type f -name '*.conf' | wc -l | tr -d ' ')

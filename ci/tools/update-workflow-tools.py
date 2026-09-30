@@ -82,6 +82,7 @@ ALLOWED_UPDATE_PATHS = frozenset(
         ".github/workflows/check-action-versions.yml",
         ".github/workflows/check-common-versions.yml",
         ".github/workflows/check-python-version.yml",
+        ".github/workflows/ci-findings-regressions.yml",
         ".github/workflows/cleanup-artifacts.yml",
         ".github/workflows/ci-security-codeql-pr.yml",
         ".github/workflows/ci-security-codeql.yml",

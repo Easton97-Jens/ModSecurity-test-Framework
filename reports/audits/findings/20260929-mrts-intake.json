@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "source_alias": "B03",
+  "source_id": "csf_24b4dcf793c63c691309c9af",
+  "reported_severity": "high",
+  "framework_base": "f9e48b0774b5bdf7aaa8e38ce98eb6c50bf293c8",
+  "mrts_gitlink": "8a6bb546c4c81d8ffc7be801dceac60c6925685f",
+  "root_cause_owner": "Easton97-Jens/MRTS",
+  "this_draft_scope": "Framework ci/provisioning/generate-mrts.sh entrypoint only",
+  "implementation": "candidate_entrypoint_mitigation",
+  "verification": "pending",
+  "direct_MRTS_invocation": "unchanged; not mitigated by the Framework launcher",
+  "parent_gitlink": "unchanged",
+  "MRTS_gitlink": "unchanged",
+  "closure": "B03 is not closed by this Draft PR",
+  "validation_required": [
+    "guard regression tests",
+    "full pinned default and feature-demo corpus",
+    "direct MRTS root-cause fix requires a separately authorized MRTS change"
+  ]
+}

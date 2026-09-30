@@ -1,0 +1,77 @@
+name: Finding regressions (Framework)
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - "ci/provisioning/generate-mrts.sh"
+      - "ci/provisioning/mrts_definition_guard.py"
+      - "ci/checks/security/check-mrts-definition-integration.py"
+      - "tests/security_regression/test_mrts_definition_guard.py"
+      - "tools/MRTS"
+      - "ci/tools/install-hash-locked-ci-dependencies.sh"
+      - "requirements-ci.lock"
+      - ".github/workflows/ci-findings-regressions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: findings-regressions-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  mrts-b03-entrypoint-regression:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout exact reviewed candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+      - name: Set up repository Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+      - name: Install existing hash-locked CI dependencies
+        env:
+          TMPDIR: ${{ runner.temp }}/findings-regressions
+          PIP_CACHE_DIR: ${{ runner.temp }}/findings-pip-cache
+        run: |
+          set -eu
+          umask 077
+          mkdir -p "$TMPDIR" "$PIP_CACHE_DIR"
+          bash ci/tools/install-hash-locked-ci-dependencies.sh
+      - name: Run Framework launcher regression
+        env:
+          TMPDIR: ${{ runner.temp }}/findings-regressions
+        run: |
+          set -eu
+          umask 077
+          mkdir -p "$TMPDIR"
+          python3 -m unittest discover -s tests/security_regression -p 'test_mrts_definition_guard.py' -v
+      - name: Initialize only the recorded MRTS dependency
+        run: |
+          set -eu
+          git submodule update --init --depth=1 -- tools/MRTS
+      - name: Compare real MRTS corpora and reject unsafe definitions
+        env:
+          EXPECTED_FRAMEWORK_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -eu
+          umask 077
+          python3 ci/checks/security/check-mrts-definition-integration.py --expected-head "$EXPECTED_FRAMEWORK_SHA"
