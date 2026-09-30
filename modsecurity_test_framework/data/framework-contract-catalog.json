@@ -57,7 +57,8 @@
       "profile": "no-crs-baseline",
       "required_capabilities": [
         "abort_connection",
-        "phase1"
+        "phase1",
+        "drop"
       ],
       "scenario_category": "decisions",
       "sources": [
@@ -174,7 +175,8 @@
       },
       "area": "no-crs-baseline",
       "catalogs": [
-        "no-crs-baseline"
+        "no-crs-baseline",
+        "framework-yaml"
       ],
       "display_name": "Match a request header name case-insensitively",
       "expectation": {
@@ -190,13 +192,18 @@
       "profile": "no-crs-baseline",
       "required_capabilities": [
         "request_headers",
-        "phase1"
+        "phase1",
+        "deny"
       ],
       "scenario_category": "headers",
       "sources": [
         {
           "kind": "no_crs_catalog",
           "path": "tests/cases/no-crs-baseline/catalog.json"
+        },
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/case_insensitive_header_name.yaml"
         }
       ]
     },
@@ -4306,7 +4313,8 @@
       "profile": "no-crs-baseline",
       "required_capabilities": [
         "request_headers",
-        "transaction_id"
+        "transaction_id",
+        "parallel_requests"
       ],
       "scenario_category": "lifecycle",
       "sources": [

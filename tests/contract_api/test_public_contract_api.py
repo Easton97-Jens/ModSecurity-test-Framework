@@ -177,7 +177,8 @@ class PublicContractApiTests(unittest.TestCase):
         all_cases = contracts.load_test_catalog()
         yaml_cases = contracts.load_test_catalog(catalog="framework-yaml")
         self.assertEqual(len(all_cases["test_ids"]), 339)
-        self.assertEqual(len(yaml_cases["test_ids"]), 182)
+        self.assertEqual(len(yaml_cases["test_ids"]), 183)
+        self.assertIn("no-crs-baseline:case_insensitive_header_name", yaml_cases["test_ids"])
         for record in all_cases["tests"]:
             self.assertTrue(
                 {
