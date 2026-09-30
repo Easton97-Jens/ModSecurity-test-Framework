@@ -170,6 +170,7 @@ ARTIFACT_PROFILES = (
     DEFAULT_ARTIFACT_PROFILE,
     FULL_LIFECYCLE_ARTIFACT_PROFILE,
 )
+DOWNSTREAM_PROTOCOLS = ("any", "http1", "h2", "h2c", "h3")
 FULL_LIFECYCLE_REQUIRED_ARTIFACTS = (
     ("manifest", MANIFEST_FILE_NAME),
     ("result", RESULT_FILE_NAME),
@@ -1699,17 +1700,29 @@ def selection_reason(
 
 def select_catalog_case(
     case: Mapping[str, Any], capabilities: Mapping[str, Any],
+    downstream_protocol: str = "any",
 ) -> dict[str, Any]:
+    if downstream_protocol not in DOWNSTREAM_PROTOCOLS:
+        raise ContractError(f"invalid downstream protocol: {downstream_protocol!r}")
     required = [str(item) for item in case["required_capabilities"]]
     states = {name: capability_state(capabilities[name]) for name in required}
+    request = case.get("request")
+    required_protocol = str(request.get("protocol_profile") or "") if isinstance(request, Mapping) else ""
+    protocol_mismatch = bool(
+        required_protocol and downstream_protocol != "any"
+        and downstream_protocol != required_protocol
+    )
     return {
         "case_id": case["case_id"],
         "group": case.get("group", ""),
         "phase": case["phase"],
         "required_capabilities": required,
         "required_capability_states": states,
-        "selection_status": selection_status_for_states(states),
-        "selection_reason": selection_reason(states, capabilities),
+        "selection_status": "NOT_APPLICABLE" if protocol_mismatch else selection_status_for_states(states),
+        "selection_reason": (
+            f"requires downstream {required_protocol}; selected {downstream_protocol}"
+            if protocol_mismatch else selection_reason(states, capabilities)
+        ),
         "runner_case": case.get("runner_case"),
     }
 
@@ -1720,12 +1733,25 @@ def select_cases(
     catalog: Mapping[str, Any],
     evidence_stage: str = "no_crs_baseline",
     artifact_profile: str = DEFAULT_ARTIFACT_PROFILE,
+    downstream_protocol: str = "any",
 ) -> dict[str, Any]:
+    if downstream_protocol not in DOWNSTREAM_PROTOCOLS:
+        raise ContractError(f"invalid downstream protocol: {downstream_protocol!r}")
     artifact_profile = normalize_artifact_profile(artifact_profile)
     validate_selection_profile(catalog, evidence_stage, artifact_profile)
+    if (
+        connector == "nginx"
+        and artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE
+        and downstream_protocol == "any"
+    ):
+        raise ContractError(
+            "NGINX full_lifecycle selection requires an explicit downstream protocol"
+        )
     capabilities = manifest["capabilities"]
     cases = selected_catalog_cases(catalog, evidence_stage)
-    selections = [select_catalog_case(case, capabilities) for case in cases]
+    selections = [
+        select_catalog_case(case, capabilities, downstream_protocol) for case in cases
+    ]
     counts = Counter(item["selection_status"] for item in selections)
     return {
         "schema_version": 1,
@@ -1734,6 +1760,7 @@ def select_cases(
         "ruleset": "no-crs-baseline",
         "evidence_stage": evidence_stage,
         "artifact_profile": artifact_profile,
+        "downstream_protocol": downstream_protocol,
         "capability_manifest": str(manifest.get("source_path") or ""),
         "generated_at": utc_now(),
         "counts": {name: counts.get(name, 0) for name in SELECTION_STATUSES},
@@ -1751,6 +1778,7 @@ def plan_semantics(plan: Mapping[str, Any]) -> dict[str, Any]:
         "artifact_profile": str(
             plan.get("artifact_profile") or DEFAULT_ARTIFACT_PROFILE
         ),
+        "downstream_protocol": str(plan.get("downstream_protocol") or "any"),
         "counts": plan.get("counts"),
         "cases": plan.get("cases"),
     }
@@ -1775,9 +1803,11 @@ def validate_plan_against_capabilities(
     catalog: Mapping[str, Any],
     evidence_stage: str,
     artifact_profile: str = DEFAULT_ARTIFACT_PROFILE,
+    downstream_protocol: str = "any",
 ) -> None:
     expected = select_cases(
-        connector, manifest, catalog, evidence_stage, artifact_profile
+        connector, manifest, catalog, evidence_stage, artifact_profile,
+        downstream_protocol,
     )
     if not plans_have_matching_semantics(plan, expected):
         raise ContractError(
@@ -1870,18 +1900,19 @@ def init_plan(
     artifact_profile: str,
     host_profile: str,
 ) -> dict[str, Any]:
+    downstream_protocol = str(getattr(args, "downstream_protocol", "any"))
     if args.plan:
         plan = load_json(args.plan)
         if not isinstance(plan, dict) or plan.get("connector") != args.connector:
             raise ContractError("plan is invalid or belongs to another connector")
         validate_plan_against_capabilities(
             plan, args.connector, capabilities, catalog, args.evidence_stage,
-            artifact_profile,
+            artifact_profile, downstream_protocol,
         )
     else:
         plan = select_cases(
             args.connector, capabilities, catalog, args.evidence_stage,
-            artifact_profile,
+            artifact_profile, downstream_protocol,
         )
     # A legacy external plan may predate artifact profiles. It is valid only
     # as an input to init; every persisted canonical artifact is explicit.
@@ -8323,7 +8354,7 @@ def select_command(args: argparse.Namespace) -> int:
     manifest["source_path"] = str(Path(args.capabilities).resolve())
     plan = select_cases(
         args.connector, manifest, load_catalog(), args.evidence_stage,
-        args.artifact_profile,
+        args.artifact_profile, args.downstream_protocol,
     )
     write_json(args.output, plan)
     print(args.output)
@@ -8346,6 +8377,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_ARTIFACT_PROFILE,
         help="generic legacy artifacts or the strict full_lifecycle evidence set",
     )
+    select_parser.add_argument(
+        "--downstream-protocol", choices=DOWNSTREAM_PROTOCOLS, default="any",
+        help="actual downstream host protocol for this selected run",
+    )
     select_parser.add_argument("--output", required=True)
     select_parser.set_defaults(func=select_command)
 
@@ -8357,6 +8392,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--artifact-profile", choices=ARTIFACT_PROFILES,
         default=DEFAULT_ARTIFACT_PROFILE,
         help="must match the capability-selection plan artifact profile",
+    )
+    init_parser.add_argument(
+        "--downstream-protocol", choices=DOWNSTREAM_PROTOCOLS, default="any",
+        help="must match the capability-selection plan downstream protocol",
     )
     init_parser.add_argument("--plan")
     init_parser.add_argument("--run-dir", required=True)
