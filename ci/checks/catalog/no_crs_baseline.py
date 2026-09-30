@@ -1249,6 +1249,7 @@ def _validate_catalog_scenario_prerequisites(
     for case_id, prerequisite in (
         ("parallel_requests", "parallel_requests"),
         ("abort_if_supported", "drop"),
+        ("case_insensitive_header_name", "deny"),
     ):
         case = by_id.get(case_id)
         if case is not None and prerequisite not in case.get("required_capabilities", []):

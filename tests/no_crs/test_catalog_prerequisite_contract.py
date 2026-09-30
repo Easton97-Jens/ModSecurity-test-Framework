@@ -20,6 +20,7 @@ class CatalogPrerequisiteContractTest(unittest.TestCase):
     PREREQUISITES = {
         "parallel_requests": "parallel_requests",
         "abort_if_supported": "drop",
+        "case_insensitive_header_name": "deny",
     }
 
     @staticmethod
