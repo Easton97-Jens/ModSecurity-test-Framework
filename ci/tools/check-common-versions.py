@@ -625,9 +625,9 @@ COMPONENT_DEFINITIONS: tuple[ComponentDefinition, ...] = (
             "MODSECURITY_V3_RELEASE_TAG",
             "MODSECURITY_V3_APPROVED_COMMIT",
         ),
-        update_policy="manual_review",
+        update_policy=AUTOMATIC_UPDATE_POLICY,
         stable_policy="GitHub non-draft, non-prerelease stable v3.<version> release",
-        compatibility_policy="latest stable v3 release requires immutable peeled-commit review",
+        compatibility_policy="automatic stable v3 updates require a verified immutable peeled commit",
         authorized_hosts=GITHUB_RELEASE_HOSTS,
         github_repository=MODSECURITY_V3_APPROVED_REPOSITORY,
         release_tag_variable="MODSECURITY_V3_RELEASE_TAG",
@@ -3634,7 +3634,7 @@ def check_crs_release_provenance(
 def check_modsecurity_v3_release_provenance(
     entries: dict[str, VariableEntry], client: HttpClient
 ) -> ComponentResult:
-    """Classify a valid ModSecurity-v3 tag/commit transition as manual only."""
+    """Resolve stable v3 tag/commit updates without weakening repository pins."""
     base_definition = COMPONENT_DEFINITION_BY_NAME[MODSECURITY_V3_COMPONENT]
     try:
         definition = canonicalize_github_repository(base_definition, entries)
@@ -3656,7 +3656,7 @@ def check_modsecurity_v3_release_provenance(
             variables=list(base_definition.variables),
             source=value(entries, "MODSECURITY_V3_APPROVED_REPO_URL"),
         )
-    return check_manual_git_provenance(definition, entries, client)
+    return check_automatic_git_provenance(definition, entries, client)
 
 
 def release_asset_metadata(release: dict[str, Any], asset_name: str) -> dict[str, Any]:
