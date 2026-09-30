@@ -27,6 +27,10 @@ CORPORA = {
     "feature-demo": MRTS / "feature_demo" / "config_tests",
 }
 SHA = re.compile(r"[0-9a-f]{40}")
+SHELL_EXECUTABLE = "/bin/sh"
+PROBE_RULE_FILENAME = "probe.conf"
+SENTINEL_CONTENT = "unchanged\n"
+GUARDED_LOG_FILENAME = "guarded.log"
 
 
 class IntegrationFailure(RuntimeError):
@@ -138,7 +142,7 @@ def compare_corpus(work: Path, corpus: str, definitions: Path) -> dict:
     )
     if baseline != 0:
         raise IntegrationFailure(f"{corpus}: direct pinned generator failed ({baseline})")
-    status = execute(["/bin/sh", str(ENTRYPOINT)], env, case / "guarded.log")
+    status = execute([SHELL_EXECUTABLE, str(ENTRYPOINT)], env, case / GUARDED_LOG_FILENAME)
     if status != 0:
         raise IntegrationFailure(f"{corpus}: guarded entrypoint failed ({status})")
     counts = {}
@@ -161,17 +165,17 @@ def reject_global(work: Path, key: str) -> dict:
     definitions.mkdir(mode=0o700, parents=True)
     outside = case / "outside"
     outside.mkdir(mode=0o700)
-    sentinel = outside / "probe.conf"
-    sentinel.write_text("unchanged\n", encoding="utf-8")
+    sentinel = outside / PROBE_RULE_FILENAME
+    sentinel.write_text(SENTINEL_CONTENT, encoding="utf-8")
     # Controlled test-only paths, not a payload against another system.
-    document = {"global": {key: str(outside)}, "rulefile": "probe.conf", "objects": []}
+    document = {"global": {key: str(outside)}, "rulefile": PROBE_RULE_FILENAME, "objects": []}
     (definitions / "probe.yaml").write_text(json.dumps(document), encoding="utf-8")
     env = case_environment(case / "run", "negative", definitions)
-    status = execute(["/bin/sh", str(ENTRYPOINT)], env, case / "guarded.log")
-    diagnostic = (case / "guarded.log").read_text(encoding="utf-8")
+    status = execute([SHELL_EXECUTABLE, str(ENTRYPOINT)], env, case / GUARDED_LOG_FILENAME)
+    diagnostic = (case / GUARDED_LOG_FILENAME).read_text(encoding="utf-8")
     if status != 77 or "BLOCKED: definition 1: unsupported global setting" not in diagnostic:
         raise IntegrationFailure(f"global.{key}: expected intake rejection was not observed")
-    if sentinel.read_text(encoding="utf-8") != "unchanged\n":
+    if sentinel.read_text(encoding="utf-8") != SENTINEL_CONTENT:
         raise IntegrationFailure(f"global.{key}: sentinel preservation failed")
     for setting in ("MRTS_RULES_OUT", "MRTS_FTW_OUT"):
         if files_snapshot(Path(env[setting])):
@@ -188,8 +192,8 @@ def reject_output_escape(work: Path, kind: str) -> dict:
     output.mkdir(mode=0o700, parents=True)
     outside = case / "outside"
     outside.mkdir(mode=0o700)
-    sentinel = outside / "probe.conf"
-    sentinel.write_text("unchanged\n", encoding="utf-8")
+    sentinel = outside / PROBE_RULE_FILENAME
+    sentinel.write_text(SENTINEL_CONTENT, encoding="utf-8")
     names = {
         "absolute": str(sentinel),
         "traversal": os.path.relpath(sentinel, output),
@@ -199,11 +203,11 @@ def reject_output_escape(work: Path, kind: str) -> dict:
         (output / "escape").symlink_to(outside, target_is_directory=True)
     document = {"rulefile": names[kind], "objects": []}
     (definitions / "probe.yaml").write_text(json.dumps(document), encoding="utf-8")
-    status = execute(["/bin/sh", str(ENTRYPOINT)], env, case / "guarded.log")
-    diagnostic = (case / "guarded.log").read_text(encoding="utf-8")
+    status = execute([SHELL_EXECUTABLE, str(ENTRYPOINT)], env, case / GUARDED_LOG_FILENAME)
+    diagnostic = (case / GUARDED_LOG_FILENAME).read_text(encoding="utf-8")
     if status != 1 or "rulefile must stay within" not in diagnostic:
         raise IntegrationFailure(f"{kind}: expected real generator path rejection, got {status}")
-    if sentinel.read_text(encoding="utf-8") != "unchanged\n":
+    if sentinel.read_text(encoding="utf-8") != SENTINEL_CONTENT:
         raise IntegrationFailure(f"{kind}: output escaped the selected directory")
     return {"escape": kind, "nonzero_child_status": status, "outside_unchanged": True}
 
