@@ -1,0 +1,50 @@
+name: multiple_headers
+title: Map two distinct request headers into a phase-1 rule chain
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 1
+required_capabilities:
+  - request_headers
+  - phase1
+  - event_jsonl
+capabilities:
+  request_headers: true
+  phase1: true
+  logging: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine On
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule REQUEST_HEADERS:X-No-Crs-A "@streq one" \
+      "id:1100501,phase:1,pass,log,t:none,chain,msg:'no-crs multiple request headers'"
+  SecRule REQUEST_HEADERS:X-No-Crs-B "@streq two" "t:none"
+request:
+  method: GET
+  path: /no-crs/headers/multiple
+  headers:
+    X-No-Crs-A: one
+    X-No-Crs-B: two
+expect:
+  status: 200
+  intervention: none
+  rule_id: 1100501
+  audit_log:
+    required: true
+    rule_id: 1100501
+    message: no-crs multiple request headers
+expected_result: allow
+expected_status: 200
+expected_rule_id: 1100501
+expected_event_fields:
+  - rule_id
+  - phase
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

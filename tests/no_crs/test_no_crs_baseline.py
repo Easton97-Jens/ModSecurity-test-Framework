@@ -747,6 +747,7 @@ class NoCrsBaselineTest(unittest.TestCase):
                 "deny_request_body_marker_403",
                 "phase4_deny_before_commit",
                 "case_insensitive_header_name",
+                "multiple_headers",
                 "log_only",
                 "redirect_if_supported",
                 "phase3_deny_before_commit",
