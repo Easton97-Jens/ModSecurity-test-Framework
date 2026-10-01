@@ -134,9 +134,11 @@ passed with exit 0.
 Fifty-four selected H1 obligations still need real paths (52 direct scenarios
 and two dependent derivations). Several need Parent host-driver capabilities
 or additional producer metadata; no generic Parent dispatch skip is proven.
-Code inspection also found the NGINX response-body planner uses fixed Reject,
-where a selected case requires ProcessPartial. No fresh runtime proof or
-producer correction for these remaining scenarios is claimed. The existing
+Code inspection found fixed Reject for NGINX's additional connector body
+budget. This does not rule out libModSecurity's separate ProcessPartial limit;
+a real engine-limit variant must first establish its observed outcome.
+No fresh runtime proof or producer correction for these remaining scenarios
+is claimed. The existing
 sink produced native events
 for all three new simple cases when configured as in the lifecycle. A separate
 Parent harness evidence-pointer discrepancy was observed: case results name

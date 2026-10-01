@@ -147,9 +147,11 @@ Für 54 selektierte H1-Verpflichtungen fehlen echte Pfade (52 direkte
 Szenarien und zwei abhängige Ableitungen). Einige benötigen
 Parent-Host-Driver-Fähigkeiten oder zusätzliche Producer-Metadaten; ein
 generisches Überspringen im Parent-Dispatch ist nicht nachgewiesen.
-Die Codeprüfung zeigte zudem festes Reject im NGINX-Response-Body-Planner,
-während ein selektierter Case ProcessPartial verlangt. Für diese verbleibenden
-Szenarien wird weder frischer Runtime-Nachweis noch Producer-Korrektur behauptet.
+Die Codeprüfung zeigte festes Reject für das zusätzliche NGINX-Connector-
+Body-Budget. Das schließt das separate ProcessPartial-Limit von libModSecurity
+nicht aus; eine echte Engine-Limit-Variante muss erst ihr beobachtetes Ergebnis
+belegen. Für diese verbleibenden Szenarien wird weder frischer Runtime-Nachweis
+noch Producer-Korrektur behauptet.
 Der vorhandene Sink erzeugte für alle
 drei neuen einfachen Cases native Events bei Lifecycle-Konfiguration. Zudem
 ist ein separater Parent-Harness-Evidenzpfadfehler sichtbar: Case-Resultate
