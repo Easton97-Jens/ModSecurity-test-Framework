@@ -283,6 +283,18 @@ Lifecycle-Evidenz liefern, bevor eine Runtime-Aussage möglich ist.
 
 ## Fallvarianten und Imports
 
+Der No-CRS-Runner `empty_header_value` verlangt einen vorhandenen Header
+`X-No-Crs-Empty` mit leerem Wert. Regel `1100503` prüft zuerst, dass genau ein
+solcher Header vorhanden ist, und verkettet danach den Leerwerttreffer. HTTP
+`200` allein oder ein fehlender Header erfüllen die Regel-/Event-Erwartung
+nicht. Die Auswahl-Capabilities bleiben `request_headers` und `phase1`; kein
+Pflichtfall wird zur Coverage-Reduktion ausgeschlossen. Der unveränderte
+Normalizer verlangt zusätzlich das echte native Phase-1-Event dieser Regel.
+Curl-basierte Host-Treiber müssen die ausdrückliche Leerheader-Notation des
+Clients statt seiner Unterdrückungsnotation verwenden. Host-Verhalten und
+vollständige Exact-Head-Promotion bleiben Parent-eigen.
+Siehe den [Leerheader-Runner-Change-Record](../reports/audits/change-records/20261001-01-empty-header-runner.de.md).
+
 Die Variante `no-crs` materialisiert nur lokale Regeln. Die Variante `with-crs`
 lädt die konfigurierte Core Rule Set vor lokalen Fallregeln. Optionale
 MRTS-Eingaben verwenden `MODSECURITY_MRTS_VARIANT` und hängen generierte

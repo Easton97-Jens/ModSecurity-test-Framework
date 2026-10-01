@@ -265,6 +265,17 @@ evidence before any runtime claim can be made.
 
 ## Case variants and imports
 
+The `empty_header_value` No-CRS runner requires a present `X-No-Crs-Empty`
+header with an empty value. Rule `1100503` first checks that exactly one such
+header exists, then chains an empty-value match. HTTP `200` alone or an absent
+header cannot fulfill the rule/event expectation. Its catalog selection
+capabilities remain `request_headers` and `phase1`; no required case is
+excluded to reduce coverage. The unchanged normalizer additionally requires
+the real phase-1 native event for that rule. Curl-based host drivers must use
+the client's explicit empty-header notation rather than its suppression
+notation. Host behavior and full exact-head promotion remain Parent-owned.
+See the [empty-header runner Change Record](../reports/audits/change-records/20261001-01-empty-header-runner.md).
+
 The `no-crs` variant materializes local rules only. The `with-crs` variant
 loads the configured Core Rule Set before local case rules. Optional MRTS input
 uses `MODSECURITY_MRTS_VARIANT` and appends generated case roots only for the

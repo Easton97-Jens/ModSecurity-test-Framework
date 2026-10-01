@@ -1154,12 +1154,31 @@
       },
       "area": "no-crs-baseline",
       "catalogs": [
-        "no-crs-baseline"
+        "no-crs-baseline",
+        "framework-yaml"
       ],
       "display_name": "Map an empty request header value",
       "expectation": {
-        "http_status": 200,
-        "kind": "http_status"
+        "conditions": [
+          {
+            "http_status": 200,
+            "kind": "http_status"
+          },
+          {
+            "kind": "rule_match",
+            "rule_ids": [
+              1100503
+            ]
+          },
+          {
+            "fields": [
+              "rule_id",
+              "phase"
+            ],
+            "kind": "event"
+          }
+        ],
+        "kind": "compound"
       },
       "framework_test_id": "no-crs-baseline:empty_header_value",
       "phase": 1,
@@ -1173,6 +1192,10 @@
         {
           "kind": "no_crs_catalog",
           "path": "tests/cases/no-crs-baseline/catalog.json"
+        },
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/empty_header_value.yaml"
         }
       ]
     },
