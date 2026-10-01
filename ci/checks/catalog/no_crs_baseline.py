@@ -4012,6 +4012,35 @@ def case_event_metadata_verified(
     return bool(matching_event and not event_errors and raw.get("event_metadata_verified"))
 
 
+def case_event_identity_errors(
+    case: Mapping[str, Any],
+    event: Mapping[str, Any] | None,
+    expected_run_id: str | None,
+) -> list[str]:
+    """Keep event-backed claims within their catalog phase and run context.
+
+    Older run-local native events omit the optional run ID; their file and
+    transaction provenance is retained. An explicitly different event run
+    cannot be borrowed, and a schema-valid phase is not proof of this case's
+    phase. Cases which do not claim event evidence need no incidental event.
+    """
+    if event is None or not (
+        case.get("expected_event_fields") or case.get("expected_rule_id") is not None
+    ):
+        return []
+    errors: list[str] = []
+    phase = normalize_canonical_phase(case.get("phase"))
+    if phase is not None and normalize_canonical_phase(event.get("phase")) != phase:
+        errors.append("canonical event phase does not match case phase")
+    if (
+        expected_run_id
+        and event.get("run_id") is not None
+        and event.get("run_id") != expected_run_id
+    ):
+        errors.append("canonical event run_id does not match case run")
+    return errors
+
+
 def normalized_case_operation_status(status: str) -> str:
     return operation_status({
         "PASS": "pass", "FAIL": "fail", "BLOCKED": "blocked",
@@ -4196,6 +4225,7 @@ def normalize_case_record(
             integration_mode=integration_mode,
         ) if matching_event else []
     )
+    event_errors.extend(case_event_identity_errors(case, matching_event, raw_run_id))
     event_metadata_verified = case_event_metadata_verified(
         raw, matching_event, event_errors, expected_fields, observed_event_fields,
     )
@@ -5685,6 +5715,9 @@ def bind_case_protocol_provenance(
         matching_event = matching_protocol_event(
             record, case, events, event_integration_mode,
         )
+        context_errors.extend(case_event_identity_errors(
+            case or record, matching_event, run_id,
+        ))
         context_errors.extend(case_protocol_pass_errors(
             record, matching_event, case, run_id, integration_mode,
         ))
@@ -7392,6 +7425,9 @@ def pass_case_completeness_errors(
     if expected_fields and not expected_fields.issubset(observed_fields):
         errors.append(f"{case_id}: PASS missing expected event fields")
     matching_event = matching_case_event_for_validation(record, events, integration_mode)
+    errors.extend(f"{case_id}: {error}" for error in case_event_identity_errors(
+        record, matching_event, str(record.get("run_id") or "") or None,
+    ))
     if is_phase4_semantic_case(record):
         errors.extend(
             f"{case_id}: {error}"
