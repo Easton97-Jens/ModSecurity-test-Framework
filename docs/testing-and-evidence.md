@@ -171,6 +171,11 @@ negotiation. Explicit catalog `request.reuses` mappings may derive narrower
 records only from validated live base evidence bound to the current run and,
 where required, a uniquely matching canonical event; they do not create
 another request or a synthetic runtime event.
+Event-backed case claims also require the event phase to match the catalog
+phase and any explicit event run ID to match the canonical run. These checks
+apply during normalization, manifest binding, and completeness validation.
+Native events that omit their optional run ID retain the existing run-local
+source-file and transaction provenance contract.
 
 The evidence path records only reviewed, normalized metadata. It rejects
 unbounded request or response payload fields and does not derive a PASS from an

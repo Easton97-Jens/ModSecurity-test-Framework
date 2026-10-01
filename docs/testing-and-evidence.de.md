@@ -184,6 +184,11 @@ passen und beweist allein keine Aushandlung. Explizite
 validierter, an den aktuellen Lauf gebundener echter Basisevidenz und, falls
 erforderlich, einem eindeutig passenden kanonischen Event ableiten; sie
 erzeugen weder einen weiteren Request noch ein synthetisches Runtime-Event.
+Event-gestützte Case-Claims verlangen außerdem, dass die Event-Phase zur
+Katalog-Phase und jede explizite Event-Run-ID zum kanonischen Lauf passt.
+Diese Prüfungen gelten bei Normalisierung, Manifest-Bindung und
+Vollständigkeitsvalidierung. Native Events ohne ihre optionale Run-ID behalten
+den bestehenden Vertrag für runlokale Quelldatei- und Transaktionsprovenienz.
 
 Der Evidence-Pfad zeichnet nur geprüfte, normalisierte Metadaten auf. Er lehnt
 unbegrenzte Request- oder Response-Payload-Felder ab und leitet keinen PASS aus
