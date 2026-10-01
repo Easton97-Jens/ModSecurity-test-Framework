@@ -209,7 +209,33 @@ def _catalog_fallback_conditions(result: str, case: Mapping[str, Any]) -> list[d
     return [{"kind": "event", "event_type": result}]
 
 
+def _catalog_configuration_expectation(invocations: Any) -> dict[str, Any]:
+    if not isinstance(invocations, Mapping) or set(invocations) != {"nginx"}:
+        raise GenerationError("unsupported configuration invocation connectors")
+    invocation = invocations["nginx"]
+    if not isinstance(invocation, Mapping):
+        raise GenerationError("invalid configuration invocation")
+    expectation = {"kind": "configuration", "connector": "nginx"}
+    for field, source in (("operation", "operation"), ("directive", "directive"),
+                          ("outcome", "expected_outcome"), ("error_class", "error_class")):
+        expectation[field] = _identifier(invocation.get(source), "configuration invocation")
+    exit_code = invocation.get("expected_exit_code")
+    if isinstance(exit_code, bool) or not isinstance(exit_code, int) or not 0 <= exit_code <= 255:
+        raise GenerationError("invalid configuration exit code")
+    expectation["exit_code"] = exit_code
+    if expectation["operation"] != "configtest" or expectation["outcome"] not in {"config_accepted", "config_rejected"}:
+        raise GenerationError("unsupported configuration operation")
+    accepted = expectation["outcome"] == "config_accepted"
+    if accepted != (exit_code == 0) or accepted != (expectation["error_class"] == "none"):
+        raise GenerationError("inconsistent configuration expectation")
+    return expectation
+
+
 def _catalog_expectation(case: Mapping[str, Any]) -> dict[str, Any]:
+    invocations = case.get("config_invocations")
+    if invocations is not None:
+        # Names/phase-zero labels never suffice without a declared host operation.
+        return _catalog_configuration_expectation(invocations)
     result = _identifier(case.get("expected_result"), "expected result")
     status = _catalog_http_status(case.get("expected_status"))
     rule_id = _optional_rule_id(case.get("expected_rule_id"))

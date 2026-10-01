@@ -1273,6 +1273,7 @@ def _validate_catalog_cases(
         _validate_catalog_transport_hardening(case, prefix, errors)
         _validate_catalog_case_declarations(case, prefix, errors)
         _validate_catalog_evidence_requirement(case, prefix, errors)
+        errors.extend(f"{prefix}: {error}" for error in config_invocation_contract_errors(case))
         _validate_catalog_case_sources(
             case,
             prefix,
@@ -1702,6 +1703,7 @@ def selection_reason(
 def select_catalog_case(
     case: Mapping[str, Any], capabilities: Mapping[str, Any],
     downstream_protocol: str = "any",
+    connector: str | None = None,
 ) -> dict[str, Any]:
     if downstream_protocol not in DOWNSTREAM_PROTOCOLS:
         raise ContractError(f"invalid downstream protocol: {downstream_protocol!r}")
@@ -1713,7 +1715,7 @@ def select_catalog_case(
         required_protocol and downstream_protocol != "any"
         and downstream_protocol != required_protocol
     )
-    return {
+    selection = {
         "case_id": case["case_id"],
         "group": case.get("group", ""),
         "phase": case["phase"],
@@ -1726,6 +1728,10 @@ def select_catalog_case(
         ),
         "runner_case": case.get("runner_case"),
     }
+    invocation = config_invocation_for_case(case, connector or "")
+    if invocation is not None:
+        selection["config_invocation"] = dict(invocation)
+    return selection
 
 
 def select_cases(
@@ -1751,7 +1757,7 @@ def select_cases(
     capabilities = manifest["capabilities"]
     cases = selected_catalog_cases(catalog, evidence_stage)
     selections = [
-        select_catalog_case(case, capabilities, downstream_protocol) for case in cases
+        select_catalog_case(case, capabilities, downstream_protocol, connector) for case in cases
     ]
     counts = Counter(item["selection_status"] for item in selections)
     return {
@@ -2050,7 +2056,7 @@ def init_run(args: argparse.Namespace) -> int:
     return 0
 
 
-def copy_artifact(source: Path, destination: Path) -> None:
+def copy_artifact(source: Path, destination: Path, *, maximum_bytes: int | None = None) -> None:
     source = lexical_absolute(source)
     destination = lexical_absolute(destination)
     if source == destination:
@@ -2066,15 +2072,24 @@ def copy_artifact(source: Path, destination: Path) -> None:
     try:
         _reject_destination_symlink(destination_parent, destination.name, destination)
         source_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+        if maximum_bytes is not None:
+            source_flags |= os.O_NONBLOCK
         source_descriptor = os.open(source.name, source_flags, dir_fd=source_parent)
-        if not stat.S_ISREG(os.fstat(source_descriptor).st_mode):
+        source_info = os.fstat(source_descriptor)
+        if not stat.S_ISREG(source_info.st_mode):
             raise ContractError(f"source artifact must be a regular file: {source}")
+        if maximum_bytes is not None and source_info.st_size > maximum_bytes:
+            raise ContractError("source artifact exceeds its copy bound")
         destination_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
         temporary_descriptor = os.open(temporary_name, destination_flags, 0o600, dir_fd=destination_parent)
+        copied_bytes = 0
         while True:
             chunk = os.read(source_descriptor, 131072)
             if not chunk:
                 break
+            copied_bytes += len(chunk)
+            if maximum_bytes is not None and copied_bytes > maximum_bytes:
+                raise ContractError("source artifact exceeds its copy bound")
             view = memoryview(chunk)
             while view:
                 written = os.write(temporary_descriptor, view)
@@ -3926,6 +3941,107 @@ def case_identifier(raw: Mapping[str, Any]) -> str:
     return str(raw.get("case_id") or raw.get("case") or raw.get("name") or "").strip()
 
 
+def config_invocation_for_case(
+    case: Mapping[str, Any], connector: str,
+) -> Mapping[str, Any] | None:
+    invocations = case.get("config_invocations")
+    invocation = invocations.get(connector) if isinstance(invocations, Mapping) else None
+    return invocation if isinstance(invocation, Mapping) else None
+
+
+def config_invocation_contract_errors(case: Mapping[str, Any]) -> list[str]:
+    if "config_invocations" not in case:
+        return []
+    invocations = case["config_invocations"]
+    if not isinstance(invocations, Mapping) or not invocations or set(invocations) != {"nginx"}:
+        return ["config_invocations must declare the supported nginx host contract"]
+    invocation = config_invocation_for_case(case, "nginx")
+    expected = {
+        "operation": "configtest", "directive": "modsecurity", "value": "maybe",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "invalid_boolean",
+        "diagnostic_fragments": ['"modsecurity" directive', "invalid boolean value"],
+    }
+    # Closed initial realization: never turn an arbitrary phase-0 case into a
+    # receipt-only PASS merely because input metadata names it a configtest.
+    if (
+        case.get("case_id") != "invalid_boolean" or case.get("phase") != 0
+        or case.get("expected_result") != "config_rejected" or case.get("expected_status") != 1
+        or case.get("expected_rule_id") is not None or case.get("expected_event_fields")
+        or invocation != expected
+    ):
+        return ["invalid explicit nginx invalid_boolean configtest contract"]
+    return []
+
+
+def configtest_receipt_errors(
+    record: Mapping[str, Any], case: Mapping[str, Any],
+    connector: str, integration_mode: str | None,
+) -> list[str]:
+    invocation = config_invocation_for_case(case, connector)
+    receipt = record.get("configtest_receipt")
+    if invocation is None:
+        return ["configuration receipt has no declared case/host contract"] if receipt is not None else []
+    errors = config_invocation_contract_errors(case)
+    if not isinstance(receipt, Mapping):
+        return [*errors, "configuration receipt is missing or invalid"]
+    schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "configtest-receipt.schema.json")
+    if not isinstance(schema, Mapping):
+        return [*errors, "configuration receipt schema is missing"]
+    errors.extend(json_schema_errors(receipt, schema, location="configuration receipt"))
+    errors.extend(forbidden_payload_errors(receipt, "configuration receipt"))
+    identities = {
+        "case_id": case.get("case_id"), "connector": connector,
+        "run_id": record.get("run_id"), "integration_mode": record.get("integration_mode"),
+        **dict(invocation),
+    }
+    for field, expected in identities.items():
+        if receipt.get(field) != expected:
+            errors.append(f"configuration receipt {field} does not match case/run contract")
+    if record.get("integration_mode") != integration_mode:
+        errors.append("configuration receipt integration_mode does not match selected host")
+    for field in ("phase", "group", "required_capabilities", "expected_result", "expected_status", "expected_rule_id"):
+        if record.get(field) != case.get(field):
+            errors.append(f"configuration record {field} does not match catalog")
+    if (
+        receipt.get("observed_exit_code") != invocation["expected_exit_code"]
+        or record.get("actual_status") != receipt.get("observed_exit_code")
+    ):
+        errors.append("configuration receipt observed exit does not match expected process exit")
+    if (
+        receipt.get("observed_outcome") != invocation["expected_outcome"]
+        or record.get("observed_result") != receipt.get("observed_outcome")
+    ):
+        errors.append("configuration receipt outcome does not match expected configuration outcome")
+    if record.get("live_executed") is not True:
+        errors.append("configuration receipt requires live_executed=true")
+    if (record.get("observed_rule_ids") or record.get("transaction_ids")
+            or record.get("observed_event_fields") or record.get("event_metadata_verified")):
+        errors.append("configuration receipt cannot claim request/rule/event execution")
+    if any(record.get(field) is not None for field in PHASE4_SEMANTIC_FIELDS):
+        errors.append("configuration receipt cannot claim HTTP/transport/runtime semantics")
+    return errors
+
+
+def configtest_run_identity_errors(
+    record: Mapping[str, Any], result: Mapping[str, Any], mrts_sha: str,
+) -> list[str]:
+    receipt = record.get("configtest_receipt")
+    if record.get("status") != "PASS" or not isinstance(receipt, Mapping):
+        return []
+    expected = {
+        "parent_sha": result.get("connector_commit"),
+        "framework_sha": result.get("framework_commit"), "mrts_sha": mrts_sha,
+        "run_id": result.get("run_id"), "connector": result.get("connector"),
+        "integration_mode": result.get("integration_mode"),
+    }
+    return [
+        f"{record.get('case_id')}: configuration receipt {field} does not match canonical run identity"
+        for field, value in expected.items()
+        if not value or value == "unknown" or receipt.get(field) != value
+    ]
+
+
 def normalized_case_provenance(
     raw: Mapping[str, Any],
 ) -> tuple[str | None, str | None, list[str]]:
@@ -4188,12 +4304,116 @@ def mark_case_record_invalid(record: dict[str, Any], validation_errors: Sequence
     )
 
 
+CONFIGTEST_BUNDLE_PATH = "inventory/configtests/invalid_boolean"
+CONFIGTEST_ARTIFACTS = {
+    "nginx-binary": ("binary_sha256", 64 * 1024 * 1024),
+    "nginx-module.so": ("module_sha256", 64 * 1024 * 1024),
+    "nginx.conf": ("config_path_identity", 4096),
+    "stdout.log": ("stdout_sha256", 65536),
+    "stderr.log": ("stderr_sha256", 65536),
+}
+
+
+def configtest_file_observation(path: Path, limit: int) -> tuple[str, bytes]:
+    """Read bounded regular leaves through the existing directory authority."""
+    parent = open_directory_chain(path.parent)
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK, dir_fd=parent)
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+            raise ContractError(f"configuration artifact is not bounded/regular: {path.name}")
+        digest = hashlib.sha256()
+        total = 0
+        capture = bytearray()
+        while chunk := os.read(descriptor, 131072):
+            total += len(chunk)
+            if total > limit:
+                raise ContractError(f"configuration artifact exceeds bound: {path.name}")
+            digest.update(chunk)
+            if path.name in {"nginx.conf", "stdout.log", "stderr.log"}:
+                capture.extend(chunk)
+        return digest.hexdigest(), bytes(capture)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        os.close(parent)
+
+
+def validated_configtest_bundle(
+    record: Mapping[str, Any], authority: Path, *, canonical: bool,
+) -> Path:
+    artifacts = record.get("artifacts")
+    if not isinstance(artifacts, Mapping) or set(artifacts) != {"configtest_dir"}:
+        raise ContractError("configuration receipt requires its closed retained artifact bundle")
+    value = artifacts["configtest_dir"]
+    if not isinstance(value, str) or len(value) > 4096:
+        raise ContractError("configuration artifact bundle path must be bounded")
+    if canonical and value != CONFIGTEST_BUNDLE_PATH:
+        raise ContractError("configuration artifact bundle must use its fixed canonical path")
+    if not canonical and not Path(value).is_absolute():
+        raise ContractError("configuration source bundle must be absolute")
+    authority = lexical_absolute(authority)
+    bundle = lexical_absolute(authority / value)
+    try:
+        bundle.relative_to(authority)
+    except ValueError as exc:
+        raise ContractError("configuration bundle escapes its source authority") from exc
+    assert_no_symlink_components(bundle)
+    if bundle == authority or not bundle.is_dir():
+        raise ContractError("configuration bundle must be an existing child of its authority")
+    receipt = record.get("configtest_receipt")
+    if not isinstance(receipt, Mapping):
+        raise ContractError("configuration receipt is missing")
+    captures: dict[str, bytes] = {}
+    for name, (field, limit) in CONFIGTEST_ARTIFACTS.items():
+        digest, data = configtest_file_observation(bundle / name, limit)
+        expected = ("sha256:" if name == "nginx.conf" else "") + digest
+        if receipt.get(field) != expected:
+            raise ContractError(f"configuration artifact digest mismatch: {name}")
+        captures[name] = data
+    if len(captures["stdout.log"]) + len(captures["stderr.log"]) > 65536:
+        raise ContractError("configuration captures exceed combined bound")
+    config = captures["nginx.conf"].decode("utf-8")
+    match = re.fullmatch(r'load_module "(/[A-Za-z0-9_./-]+/nginx-module\.so)";\n.*', config, re.DOTALL)
+    if match is None:
+        raise ContractError("configuration artifact is not the closed nonsecret template")
+    origin = Path(match.group(1)).parent
+    if str(origin) != str(lexical_absolute(origin)) or (not canonical and origin != bundle):
+        raise ContractError("configuration template does not bind its retained module")
+    expected_config = (
+        f'load_module "{origin}/nginx-module.so";\n'
+        f'pid "{origin}/nginx.pid";\n'
+        f'error_log "{origin}/nginx-error.log";\n'
+        "events {}\nhttp {\n  modsecurity maybe;\n}\n"
+    )
+    if config != expected_config:
+        raise ContractError("configuration artifact is not the closed nonsecret template")
+    if record.get("status") == "PASS":
+        stderr = captures["stderr.log"].decode("utf-8", errors="replace")
+        if not all(fragment in stderr for fragment in ('"modsecurity" directive', 'invalid boolean value')):
+            raise ContractError("configuration capture lacks the exact parser diagnostic")
+    return bundle
+
+
+def configtest_artifact_errors(record: Mapping[str, Any], authority: Path | None) -> list[str]:
+    if authority is None:
+        return ["configuration receipt requires retained artifacts and an explicit artifact authority"]
+    try:
+        validated_configtest_bundle(record, authority, canonical=True)
+    except (ContractError, OSError, UnicodeError, ValueError) as exc:
+        return [f"configuration artifact validation failed: {exc}"]
+    return []
+
+
 def normalize_case_record(
     raw: Mapping[str, Any],
     connector: str,
     case_by_id: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]],
     integration_mode: str | None = None,
+    *,
+    configtest_artifact_root: Path | None = None,
 ) -> dict[str, Any] | None:
     case_id = case_identifier(raw)
     if not case_id or case_id not in case_by_id:
@@ -4207,7 +4427,8 @@ def normalize_case_record(
     observed_rule_ids = normalized_observed_rule_ids(raw)
     expected_rule_id = optional_int(case.get("expected_rule_id"))
     transaction_ids = supplied_transaction_ids(raw)
-    matching_event = event_for_case(
+    configuration = config_invocation_for_case(case, connector)
+    matching_event = None if configuration is not None else event_for_case(
         events, expected_rule_id, case, transaction_ids, integration_mode,
     )
     semantic_values, runtime_evidence_errors = semantic_runtime_fields(raw, matching_event)
@@ -4251,6 +4472,8 @@ def normalize_case_record(
         status,
         details,
     )
+    if "configtest_receipt" in raw:
+        record["configtest_receipt"] = raw["configtest_receipt"]
     if status == "PASS":
         validation_errors = normalized_case_pass_errors(
             record,
@@ -4267,6 +4490,9 @@ def normalize_case_record(
             event_errors,
             integration_mode,
         )
+        validation_errors.extend(configtest_receipt_errors(record, case, connector, integration_mode))
+        if configuration is not None:
+            validation_errors.extend(configtest_artifact_errors(record, configtest_artifact_root))
         mark_case_record_invalid(record, validation_errors)
     return record
 
@@ -5812,6 +6038,9 @@ class FinalizeContext:
         self.event_integration_mode = event_integration_mode
         self.capabilities = capabilities
         self.case_by_id = case_by_id
+        # Authority is taken from each explicit CLI source, never from a row.
+        self.configtest_source_roots: dict[int, Path] = {}
+        self.configtest_copied_cases: set[str] = set()
 
 
 class FinalizeSummaryValues(TypedDict):
@@ -6051,6 +6280,8 @@ def collect_finalize_result_sources(
         payload_records = source_records(payload)
         validate_source_records(payload_records, context.manifest, source)
         raw_records.extend(payload_records)
+        for record in payload_records:
+            context.configtest_source_roots[id(record)] = lexical_absolute(source).parent
         retain_finalize_source_artifact(
             context,
             source,
@@ -6072,6 +6303,8 @@ def collect_finalize_jsonl_sources(
         payload_records = read_jsonl(source)
         validate_source_records(payload_records, context.manifest, source)
         raw_records.extend(payload_records)
+        for record in payload_records:
+            context.configtest_source_roots[id(record)] = lexical_absolute(source).parent
         retain_finalize_source_artifact(
             context,
             source,
@@ -6109,6 +6342,8 @@ def collect_finalize_summary_sources(
             payload_records = source_records(selected_payload)
             validate_source_records(payload_records, context.manifest, source)
             raw_records.extend(payload_records)
+            for record in payload_records:
+                context.configtest_source_roots[id(record)] = lexical_absolute(source).parent
         retain_finalize_source_artifact(
             context,
             source,
@@ -6177,16 +6412,50 @@ def normalized_finalize_case_records(
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for raw in raw_records:
+        case = context.case_by_id.get(str(case_identifier(raw)), {})
+        configuration = config_invocation_for_case(case, context.connector)
+        if "configtest_receipt" in raw:
+            raw = retain_finalize_configtest_bundle(context, raw)
         record = normalize_case_record(
             raw,
             context.connector,
             context.case_by_id,
             events,
-            context.event_integration_mode,
+            (str(context.manifest.get("integration_mode") or "")
+             if configuration is not None else context.event_integration_mode),
+            configtest_artifact_root=context.run_dir,
         )
         if record:
             records.append(record)
     return records
+
+
+def retain_finalize_configtest_bundle(
+    context: FinalizeContext, raw: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    case_id = case_identifier(raw)
+    case = context.case_by_id.get(str(case_id), {})
+    if config_invocation_for_case(case, context.connector) is None:
+        return raw
+    source_root = context.configtest_source_roots.get(id(raw))
+    if source_root is None:
+        raise ContractError("configuration artifact has no explicit source authority")
+    if case_id in context.configtest_copied_cases:
+        raise ContractError("duplicate configuration case artifact bundle")
+    # Validate template and captures before any config bytes enter evidence.
+    source = validated_configtest_bundle(raw, source_root, canonical=False)
+    normalized = dict(raw)
+    normalized["artifacts"] = {"configtest_dir": CONFIGTEST_BUNDLE_PATH}
+    for name, (_, limit) in CONFIGTEST_ARTIFACTS.items():
+        destination = context.run_dir / CONFIGTEST_BUNDLE_PATH / name
+        copy_artifact(source / name, destination, maximum_bytes=limit)
+        context.manifest["artifacts"]["configtest_invalid_boolean_" + name.replace('.', '_')] = artifact_entry(
+            str(destination.relative_to(context.run_dir)), "produced", sha256=sha256_file(destination),
+        )
+    # Rehash retained copies too, so source replacement cannot certify PASS.
+    validated_configtest_bundle(normalized, context.run_dir, canonical=True)
+    context.configtest_copied_cases.add(str(case_id))
+    return normalized
 
 
 def deduplicated_case_records(records: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -6466,6 +6735,28 @@ def finalized_evidence_stages(
     return evidence_stages
 
 
+def live_http_request_executed(
+    record: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]] | None = None,
+) -> bool:
+    """Keep configuration execution distinct from request execution.
+
+    Only the validated catalog host contract can identify a non-HTTP operation;
+    a supplied receipt must never reclassify a request case.
+    """
+    if record.get("live_executed") is not True:
+        return False
+    if case_by_id is None:
+        case_by_id = {case["case_id"]: case for case in catalog_cases(load_catalog())}
+    case = case_by_id.get(str(record.get("case_id") or ""), {})
+    invocation = config_invocation_for_case(case, str(record.get("connector") or ""))
+    return not (
+        invocation is not None
+        and invocation.get("operation") in {"configtest", "startup", "reload"}
+        and not config_invocation_contract_errors(case)
+    )
+
+
 def build_finalize_summary(
     context: FinalizeContext,
     args: argparse.Namespace,
@@ -6491,7 +6782,7 @@ def build_finalize_summary(
     })
     pass_ids = {record["case_id"] for record in records if record["status"] == "PASS"}
     verified, unsupported, not_exercised = finalize_capability_sets(records, context.capabilities)
-    requests_sent = any(record.get("live_executed") is True for record in records)
+    requests_sent = any(live_http_request_executed(record, context.case_by_id) for record in records)
     source_started = any(payload.get("started") is True for payload in source_payloads)
     event_metadata_verified, body_payload_absent = canonical_core_event_contract(
         events, context.connector, context.event_integration_mode,
@@ -7250,6 +7541,12 @@ def case_result_schema_errors(
             "reason", "exit_code", "artifacts",
         ), label))
         errors.extend(case_result_identity_errors(record, label, connector, seen))
+        if "configtest_receipt" in record:
+            receipt_schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "configtest-receipt.schema.json")
+            if isinstance(receipt_schema, Mapping):
+                errors.extend(json_schema_errors(record["configtest_receipt"], receipt_schema, location=label))
+            else:
+                errors.append(f"{label}: configuration receipt schema is missing")
     return errors
 
 
@@ -7321,10 +7618,18 @@ def completeness_errors(run_dir: Path) -> list[str]:
         result, records, event_metadata_verified, body_payload_absent,
         selected_case_ids=selected_case_ids_from_plan(plan),
     ))
+    case_by_id = {case["case_id"]: case for case in catalog_cases(load_catalog())}
     for record in records:
+        case = case_by_id.get(str(record.get("case_id") or ""), {})
         errors.extend(pass_case_completeness_errors(
-            record, events, connector, integration_mode,
+            record, events, connector,
+            (str(result.get("integration_mode") or "")
+             if config_invocation_for_case(case, connector) is not None else integration_mode),
+            artifact_root=run_dir,
         ))
+        if record.get("configtest_receipt") is not None:
+            mrts_sha = git_value(FRAMEWORK_ROOT, "rev-parse", f"{result.get('framework_commit')}:tools/MRTS")
+            errors.extend(configtest_run_identity_errors(record, result, mrts_sha))
     return errors
 
 
@@ -7403,11 +7708,21 @@ def pass_case_completeness_errors(
     events: Sequence[Mapping[str, Any]],
     connector: str,
     integration_mode: str | None,
+    *,
+    artifact_root: Path | None = None,
 ) -> list[str]:
     if record.get("status") != "PASS":
         return []
     case_id = record.get("case_id")
+    case = next((case for case in catalog_cases(load_catalog()) if case["case_id"] == case_id), {})
+    if config_invocation_for_case(case, connector) is not None:
+        return [f"{case_id}: {error}" for error in (
+            *configtest_receipt_errors(record, case, connector, integration_mode),
+            *configtest_artifact_errors(record, artifact_root),
+        )]
     errors: list[str] = []
+    if record.get("configtest_receipt") is not None:
+        errors.append(f"{case_id}: configuration receipt has no declared case/host contract")
     if record.get("live_executed") is not True:
         errors.append(f"{case_id}: PASS requires live_executed=true")
     expected_status = record.get("expected_status")
@@ -7825,7 +8140,7 @@ def status_record_facts(
             for record in records
             for transaction_id in record.get("transaction_ids", [])
         }),
-        "requests_sent": any(record.get("live_executed") is True for record in records),
+        "requests_sent": any(live_http_request_executed(record) for record in records),
         "request_headers_verified": {
             "allow_without_marker", "deny_header_marker_403",
         }.issubset(pass_ids),

@@ -16,6 +16,7 @@ beschrieben.
 
 ## Aktuelle Records
 
+- [NGINX-Konfigurationstest-Evidence (2026-10-01)](20261001-02-nginx-configtest-evidence.de.md)
 - [NGINX-Vertrag für kanonische Abdeckung (2026-09-30)](20260930-01-nginx-canonical-coverage-contract.de.md)
 - [ModSecurity-v3-Multipart-Handling beheben (2026-09-09)](20260909-01-remediate-modsecurity-v3-multipart.de.md)
 - [Framework-Contract-API hinzufügen (2026-08-24)](20260824-01-add-framework-contract-api.de.md)

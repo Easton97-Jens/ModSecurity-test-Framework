@@ -190,6 +190,57 @@ Diese Prüfungen gelten bei Normalisierung, Manifest-Bindung und
 Vollständigkeitsvalidierung. Native Events ohne ihre optionale Run-ID behalten
 den bestehenden Vertrag für runlokale Quelldatei- und Transaktionsprovenienz.
 
+### Konfigurationsoperationen sind keine HTTP-Requests
+
+Der Phase-0-Katalogeintrag `invalid_boolean` deklariert genau eine konkrete
+NGINX-`configtest`-Realisierung: Das aufbewahrte NGINX-Binary mit `-t` und der
+geschlossenen Konfiguration mit `modsecurity maybe;` ausführen. Die erwartete
+Ablehnung verlangt Exit `1`, Fehlerklasse `invalid_boolean` und beide exakten
+Diagnosefragmente `"modsecurity" directive` und `invalid boolean value`. Ein
+fehlendes Modul, eine andere Directive/Fehlerklasse, Exit `0` oder ein anderer
+Exit erfüllt sie nicht. Negative Subprocess-Ergebnisse wie `-1`
+(Ausführungsfehler) und `-9` (Terminierung) können als Fehlerreceipts aufbewahrt
+werden; sie ergeben niemals PASS für die erwartete Ablehnung.
+
+Kanonische Erfüllung verlangt das begrenzte `configtest_receipt` sowie sein
+autorisiertes aufbewahrtes Bundle: `nginx-binary`, `nginx-module.so`,
+`nginx.conf`, `stdout.log` und `stderr.log`. Die Finalisierung gewinnt die
+Source-Authority aus dem Parent-Verzeichnis der expliziten Quelldatei, weist
+fehlende, fremde oder verlinkte Artefakte ab und bewahrt die fünf Dateien sicher
+unter `inventory/configtests/invalid_boolean` auf. Die Validierung hasht sie
+erneut, prüft das geschlossene nichtgeheime Konfigurationstemplate und die
+Parserdiagnose und bindet das Receipt an Case, Directive/Wert, Run,
+Connector/Integration-Mode, Source-Revisionen sowie Binary-/Modulidentitäten.
+Receipt-Behauptungen oder Unit-Fixtures allein sind kein kanonischer
+Runtime-Nachweis.
+
+Dieser reine Konfigurationstest benötigt weder HTTP noch ein erfundenes
+natives Event, Rule-Match oder eine Transaction-ID. Er beweist keinen
+Daemonstart, offenen Listener, Root/nobody-Worker, Reload oder Request; diese
+Fakten bleiben ohne eigene Beobachtung falsch. Request-Cases behalten ihre
+bisherigen HTTP-/Event-Anforderungen; die globale Full-Lifecycle-PASS-Prüfung
+bleibt unverändert.
+
+Die connectorgebundene öffentliche API-Erwartung des Typs `configuration`
+prüft nur eine vollständige begrenzte Operationsbeobachtung gegen die
+deklarierte NGINX-Operation. Sie beweist nicht deren tatsächliche Ausführung.
+Beobachtungen anderer Connectoren erfüllen diese konkrete Erwartung nicht;
+portable Kataloganwendbarkeit und Auswahl bleiben unverändert. Die weiteren
+neun konfigurationsbezogenen Pflichtrecords haben in diesem Teil keine
+implementierte Konfigurationsrealisierung und werden weder zu PASS umgewandelt
+noch aus der Required-Coverage ausgeschlossen.
+
+Die lokale Retained-Build-Diagnose `nginx-configtest-retained-jaYdBrvH`
+führte das echte NGINX-Binary/-Modul sowie den echten Collector/kanonischen
+Finalizer aus. Der positive Case `invalid_boolean` erhielt kanonisches PASS;
+eine Wrong-Module-Kontrolle blieb FAIL, obwohl beide NGINX-Aufrufe Exit `1`
+hatten. Beide kanonischen Bundles wurden korrekt erneut gehasht, ohne Fehler
+im verwalteten Layout. Es gab null Events und keine HTTP-, Daemonstart- oder
+Listener-Behauptung. Source- und kanonische Aggregate blieben jeweils FAIL,
+weil Required-Requests nicht ausgeführt wurden. Dies ist Retained-Build-
+Diagnoseevidence, kein neuer Exact-Head-Full-Lifecycle-Nachweis.
+Siehe den [Konfigurations-Evidence-Change-Record](../reports/audits/change-records/20261001-02-nginx-configtest-evidence.de.md).
+
 Der Evidence-Pfad zeichnet nur geprüfte, normalisierte Metadaten auf. Er lehnt
 unbegrenzte Request- oder Response-Payload-Felder ab und leitet keinen PASS aus
 einem Exit-Code ab. Capability-Deklarationen und generierte Berichte ersetzen

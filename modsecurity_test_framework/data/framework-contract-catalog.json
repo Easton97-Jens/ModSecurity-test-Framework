@@ -3564,8 +3564,13 @@
       ],
       "display_name": "Reject an invalid Boolean configuration value",
       "expectation": {
-        "event_type": "config_rejected",
-        "kind": "event"
+        "connector": "nginx",
+        "directive": "modsecurity",
+        "error_class": "invalid_boolean",
+        "exit_code": 1,
+        "kind": "configuration",
+        "operation": "configtest",
+        "outcome": "config_rejected"
       },
       "framework_test_id": "no-crs-baseline:invalid_boolean",
       "phase": 0,

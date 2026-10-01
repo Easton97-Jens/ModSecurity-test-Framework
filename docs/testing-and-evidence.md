@@ -177,6 +177,53 @@ apply during normalization, manifest binding, and completeness validation.
 Native events that omit their optional run ID retain the existing run-local
 source-file and transaction provenance contract.
 
+### Configuration operations are not HTTP requests
+
+The phase-0 `invalid_boolean` catalog record declares one concrete NGINX
+`configtest` realization: run the retained NGINX binary with `-t` against the
+closed configuration containing `modsecurity maybe;`. The expected rejection
+requires exit `1`, error class `invalid_boolean`, and both exact diagnostic
+fragments `"modsecurity" directive` and `invalid boolean value`. A missing
+module, another directive/error, exit `0` or another exit does not satisfy it.
+Signed subprocess failures such as `-1` (execution error) and `-9` (termination)
+can be retained as failure receipts; they are never expected-rejection PASS.
+
+Canonical fulfillment requires the bounded `configtest_receipt` plus its
+authorized retained bundle: `nginx-binary`, `nginx-module.so`, `nginx.conf`,
+`stdout.log`, and `stderr.log`. Finalization obtains source authority from the
+explicit source file's parent, rejects missing/foreign/symlinked artifacts,
+and securely retains the five files under
+`inventory/configtests/invalid_boolean`. Validation rehashes them, checks the
+closed nonsecret configuration template and parser diagnostic, and binds the
+receipt to the case, directive/value, run, connector/integration mode, source
+revisions and binary/module identities. Receipt assertions or unit fixtures
+alone do not constitute canonical runtime proof.
+
+This pure configuration test requires neither HTTP nor a fabricated native
+event, rule match or transaction ID. It does not prove daemon startup, an open
+listener, Root/nobody workers, reload, or a request; those facts remain false
+unless separately observed. Request cases retain their existing HTTP/event
+requirements, and the global full-lifecycle PASS gate is unchanged.
+
+The public API's connector-scoped `configuration` tagged expectation checks
+only a complete bounded operation observation against the declared NGINX
+operation. It is not proof that the operation actually ran. Other connector
+observations fail that concrete expectation; portable catalog applicability
+and selection remain unchanged. The other nine configuration-related required
+records have no implemented configuration realization in this slice and are
+not converted to PASS or excluded from required coverage.
+
+A retained-build local diagnostic, `nginx-configtest-retained-jaYdBrvH`,
+executed the real NGINX binary/module and the actual collector/canonical
+finalizer. The positive `invalid_boolean` case became canonical PASS; a
+wrong-module control remained FAIL although both NGINX invocations exited `1`.
+Both canonical bundles rehashed correctly with zero managed-layout errors.
+There were zero events and no HTTP, daemon-start or listener claim. Both
+source and canonical aggregates remained FAIL because required requests were
+not executed. This is retained-build diagnostic evidence, not a new
+Exact-Head full-lifecycle proof.
+See the [configuration evidence Change Record](../reports/audits/change-records/20261001-02-nginx-configtest-evidence.md).
+
 The evidence path records only reviewed, normalized metadata. It rejects
 unbounded request or response payload fields and does not derive a PASS from an
 exit code. Capability declarations and generated reports do not substitute for

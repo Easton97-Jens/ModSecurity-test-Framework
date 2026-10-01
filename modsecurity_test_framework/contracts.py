@@ -41,6 +41,7 @@ EXPECTATION_KINDS = frozenset(
         "action",
         "rule_match",
         "event",
+        "configuration",
         "request_headers",
         "response_headers",
         "request_body",
@@ -231,6 +232,36 @@ def _expectation_event(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
     return result
 
 
+_CONFIGURATION_FIELDS = {"connector", "operation", "directive", "exit_code", "outcome", "error_class"}
+
+
+def _configuration_values(value: Mapping[str, Any]) -> dict[str, Any]:
+    exit_code = value["exit_code"]
+    if not _is_integer(exit_code) or not 0 <= exit_code <= 255:
+        _fail("invalid_configuration")
+    return {
+        "connector": _identifier(value["connector"]),
+        "operation": _identifier(value["operation"]),
+        "directive": _identifier(value["directive"]),
+        "exit_code": exit_code,
+        "outcome": _identifier(value["outcome"]),
+        "error_class": _identifier(value["error_class"]),
+    }
+
+
+def _expectation_configuration(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
+    fields = _CONFIGURATION_FIELDS | {"kind"}
+    _exact_fields(value, fields, fields)
+    result = _configuration_values(value)
+    if result["operation"] != "configtest" or result["outcome"] not in {"config_accepted", "config_rejected"}:
+        _fail("invalid_configuration")
+    if (result["outcome"] == "config_accepted") != (result["exit_code"] == 0):
+        _fail("invalid_configuration")
+    if (result["outcome"] == "config_accepted") != (result["error_class"] == "none"):
+        _fail("invalid_configuration")
+    return {"kind": kind, **result}
+
+
 def _expectation_headers(value: Mapping[str, Any], kind: str) -> dict[str, Any]:
     _exact_fields(value, {"kind", "names"}, {"kind", "names"})
     return {"kind": kind, "names": _identifier_list(value["names"], "invalid_header_names", minimum=1)}
@@ -301,6 +332,7 @@ _EXPECTATION_HANDLERS = {
     "action": _expectation_action,
     "rule_match": _expectation_rule_match,
     "event": _expectation_event,
+    "configuration": _expectation_configuration,
     "request_headers": _expectation_headers,
     "response_headers": _expectation_headers,
     "request_body": _expectation_state,
@@ -778,6 +810,7 @@ _RESULT_FIELDS = {
         "lifecycle",
         "cleanup",
         "applicability",
+        "configuration",
 }
 
 
@@ -844,6 +877,21 @@ def _normalise_result_lifecycle(value: Mapping[str, Any]) -> dict[str, Any]:
     return {"lifecycle": dict(sorted(result.items()))}
 
 
+def _normalise_result_configuration(value: Mapping[str, Any]) -> dict[str, Any]:
+    if "configuration" not in value:
+        return {}
+    observation = value["configuration"]
+    fields = _CONFIGURATION_FIELDS | {"process_started", "listener_created"}
+    if not isinstance(observation, Mapping) or set(observation) != fields:
+        _fail("invalid_result")
+    result = _configuration_values(observation)
+    for field in ("process_started", "listener_created"):
+        if not isinstance(observation[field], bool):
+            _fail("invalid_result")
+        result[field] = observation[field]
+    return {"configuration": result}
+
+
 def _normalise_result(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping) or not value:
         _fail("invalid_result")
@@ -856,6 +904,7 @@ def _normalise_result(value: Any) -> dict[str, Any]:
     result.update(_normalise_result_headers(value))
     result.update(_normalise_result_states(value))
     result.update(_normalise_result_lifecycle(value))
+    result.update(_normalise_result_configuration(value))
     return result
 
 
@@ -892,6 +941,18 @@ def _match_event(expectation: Mapping[str, Any], result: Mapping[str, Any]) -> l
     return failures
 
 
+def _match_configuration(expectation: Mapping[str, Any], result: Mapping[str, Any]) -> list[str]:
+    """Match bounded observations; actual invocation provenance is a separate contract."""
+
+    observation = result.get("configuration", {})
+    failures = [f"configuration_{field}_mismatch" for field in sorted(_CONFIGURATION_FIELDS)
+                if observation.get(field) != expectation[field]]
+    for field in ("process_started", "listener_created"):
+        if observation.get(field) is not False:
+            failures.append(f"configuration_{field}_mismatch")
+    return failures
+
+
 def _match_membership(expectation: Mapping[str, Any], result: Mapping[str, Any], field: str, code: str) -> list[str]:
     return [] if set(expectation["names"]).issubset(result.get(field, [])) else [code]
 
@@ -921,6 +982,7 @@ _MATCH_HANDLERS = {
     "action": _match_action,
     "rule_match": _match_rule_ids,
     "event": _match_event,
+    "configuration": _match_configuration,
     "request_headers": lambda expectation, result: _match_membership(
         expectation, result, "request_header_names", "request_headers_mismatch"
     ),

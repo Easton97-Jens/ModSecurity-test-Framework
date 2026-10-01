@@ -83,6 +83,7 @@
     "cleanup_reason": {"type": ["string", "null"], "enum": ["normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort", null]},
     "reason": {"type": "string"},
     "exit_code": {"type": ["integer", "null"]},
-    "artifacts": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}
+    "artifacts": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
+    "configtest_receipt": {"type": "object"}
   }
 }
