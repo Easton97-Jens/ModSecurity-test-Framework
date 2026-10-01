@@ -9,7 +9,7 @@
 | Change ID | 20261001-01-fix-httpd-source-recovery |
 | UTC date | 2026-10-01 |
 | Framework base revision | 9181dc77dfb0685d87fa109e6800dc6052d77cc9 |
-| Issue or pull request | Framework PR not yet created; external integration consumer: Parent PR #370 |
+| Issue or pull request | [Framework PR #133](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/133); external integration consumer: Parent PR #370 |
 
 ## Motivation and problem statement
 
@@ -115,6 +115,11 @@ CI do not themselves prove the external consumer's host behavior.
 Focused implementation checks and independent security diff review passed.
 The final scoped diff and whitespace were reviewed; no pins, shared downloader,
 APR-util, NGINX or MRTS changes are present. Separate Framework commit/push/PR
-delivery follows local validation; exact-head hosted checks and external Parent
-integration remain pending. No merge was performed. Only task-owned Framework
+delivery exists at PR #133. The first published head was
+`1dc8e3e29017fd8cb7f424ba127bc00cb8bc4695`; observed Sonar analysis at
+`2026-10-01T17:36:26+0000` bound to that head and returned Quality Gate OK,
+0.0% new duplication, zero open/confirmed issues and zero pending hotspots.
+Hosted checks were still running at this record update; this documentation
+follow-up requires its own fresh exact-head verification. External Parent
+integration remains pending. No merge was performed. Only task-owned Framework
 changes will be staged; no secrets, raw bodies or unrestricted logs are recorded.

@@ -9,7 +9,7 @@
 | Change-ID | 20261001-01-fix-httpd-source-recovery |
 | UTC-Datum | 2026-10-01 |
 | Framework-Basisrevision | 9181dc77dfb0685d87fa109e6800dc6052d77cc9 |
-| Issue oder Pull Request | Framework-PR noch nicht erstellt; externer Integrationsverbraucher: Parent PR #370 |
+| Issue oder Pull Request | [Framework PR #133](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/133); externer Integrationsverbraucher: Parent PR #370 |
 
 ## Motivation und Problemstellung
 
@@ -127,7 +127,12 @@ Host-Verhalten des externen Verbrauchers.
 Fokussierte Implementierungsprüfungen und unabhängiges Security-Diff-Review
 bestanden. Finaler scoped Diff und Whitespace wurden geprüft; keine Änderungen
 an Pins, gemeinsamem Downloader, APR-util, NGINX oder MRTS liegen vor. Separate
-Framework-Commit-/Push-/PR-Delivery folgt der lokalen Validierung; Hosted-Checks
-des exakten Heads und externe Parent-Integration bleiben ausstehend. Kein Merge
+Framework-Commit-/Push-/PR-Delivery existiert mit PR #133. Der erste veröffentlichte
+Head war `1dc8e3e29017fd8cb7f424ba127bc00cb8bc4695`; die beobachtete Sonar-Analyse
+von `2026-10-01T17:36:26+0000` war daran gebunden und lieferte Quality Gate OK,
+0.0% neue Duplikation, null offene/bestätigte Issues und null ausstehende Hotspots.
+Hosted-Checks liefen bei dieser Record-Aktualisierung noch; dieser Dokumentations-
+Follow-up benötigt seine eigene frische Verifikation des exakten Heads. Externe
+Parent-Integration bleibt ausstehend. Kein Merge
 wurde durchgeführt. Nur task-eigene Framework-Änderungen werden gestaged;
 Secrets, rohe Bodies oder unbegrenzte Logs werden hier nicht erfasst.
