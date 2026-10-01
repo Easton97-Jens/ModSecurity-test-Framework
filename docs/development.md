@@ -23,6 +23,27 @@ Fetching upstream dependencies and running host smokes are explicit operations.
 They must not silently write into a checkout, replace an existing source tree,
 or turn an unavailable dependency into a PASS.
 
+### Pinned Apache source recovery
+
+The Apache preparer retains the canonical HTTPD version, source URL and digest
+from `ci/lib/common.sh`. A regular HTTPD archive already in the approved download
+root may be reused only after its required literal SHA-256 is checked again.
+The canonical checksum metadata is still fetched and verified before extraction;
+cache reuse is not a network-download or host-runtime claim.
+After both digest checks, the archive is copied into the private Apache build
+root and rehashed there; extraction uses only that verified copy.
+
+For an absent HTTPD archive, only a direct HTTP 404 from the canonical release
+endpoint permits recovery from the same filename at the official
+`https://archive.apache.org/dist/httpd/` endpoint. Other HTTP errors, redirects,
+timeouts, TLS failures, invalid provenance, unsafe paths and checksum failures
+remain blocking. The actual transfer endpoint or verified-cache reuse is
+recorded separately from the canonical source identity. APR and APR-util
+acquisition, including APR-util's direct/no-redirect boundary, are unchanged.
+
+Use `make test-httpd-source-recovery` for the focused offline regression suite.
+It validates source-acquisition behavior, not a connector's runtime readiness.
+
 ## Repository layout
 
 | Path | Responsibility |

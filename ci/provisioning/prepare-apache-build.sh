@@ -259,6 +259,66 @@ download_file() {
     echo "$label sha256(local)=$local_sha file=$dest" >> "$ARTIFACTS_FILE"
 }
 
+download_httpd_source_archive() {
+    httpd_download_dest=$1
+    # Recheck the reviewed tuple at the use boundary, including inherited and
+    # post-source replacements. Neither cache reuse nor recovery changes it.
+    ci_validate_https_runtime_url_config || blocked "unapproved HTTPD provenance"
+    [ "$HTTPD_SOURCE_URL" = "https://downloads.apache.org/httpd/httpd-$HTTPD_VERSION.tar.bz2" ] && \
+        [ "$HTTPD_ARCHIVE_NAME" = "httpd-$HTTPD_VERSION.tar.bz2" ] && \
+        [ "$HTTPD_SHA256_URL" = "$HTTPD_SOURCE_URL.sha256" ] || \
+        blocked "HTTPD source tuple is not the reviewed Apache release"
+    printf '%s\n' "$HTTPD_SHA256" | grep -Eq '^[0-9a-f]{64}$' || \
+        blocked "missing or invalid required HTTPD SHA256 digest"
+    runtime_component_require_under_root "$httpd_download_dest" "$DOWNLOAD_DIR" "HTTPD source archive" || \
+        blocked "unsafe HTTPD source archive destination"
+    [ "$(basename "$httpd_download_dest")" = "$HTTPD_ARCHIVE_NAME" ] || \
+        blocked "HTTPD destination does not match the reviewed archive name"
+    if [ -L "$httpd_download_dest" ] || \
+        { [ -e "$httpd_download_dest" ] && [ ! -f "$httpd_download_dest" ]; }; then
+        blocked "HTTPD source archive destination must be a regular non-symlink file"
+    fi
+
+    httpd_download_url=
+    httpd_download_status=cached
+    if [ ! -f "$httpd_download_dest" ]; then
+        httpd_download_url=$HTTPD_SOURCE_URL
+        httpd_download_status=downloaded
+        # Generic helpers can fail before writing transfer metrics. Reset both
+        # fields so an earlier 404 cannot authorize an unrelated retry.
+        RUNTIME_COMPONENT_HTTP_STATUS=not_available
+        RUNTIME_COMPONENT_REDIRECTS=not_available
+        rc_curl_exit=0
+        if download_runtime_artifact_without_redirects_under_root \
+            httpd "$HTTPD_SOURCE_URL" "$httpd_download_dest" "$DOWNLOAD_DIR" >/dev/null; then
+            :
+        elif [ "$rc_curl_exit" = 22 ] && \
+            [ "$RUNTIME_COMPONENT_HTTP_STATUS" = 404 ] && \
+            [ "$RUNTIME_COMPONENT_REDIRECTS" = 0 ]; then
+            # Only a direct retired-release 404 permits the same filename at
+            # Apache's official archive. TLS, bounds and redirects stay strict.
+            httpd_download_url="https://archive.apache.org/dist/httpd/$HTTPD_ARCHIVE_NAME"
+            download_runtime_artifact_without_redirects_under_root \
+                httpd "$httpd_download_url" "$httpd_download_dest" "$DOWNLOAD_DIR" >/dev/null || \
+                blocked "could not download the reviewed archived HTTPD release"
+        else
+            blocked "could not download the reviewed HTTPD artifact"
+        fi
+    fi
+    [ -f "$httpd_download_dest" ] && [ ! -L "$httpd_download_dest" ] || \
+        blocked "HTTPD source archive is not a regular non-symlink file"
+    verify_required_sha256_literal httpd "$httpd_download_dest" "$HTTPD_SHA256"
+    {
+        echo "httpd_download_status=$httpd_download_status"
+        if [ -n "$httpd_download_url" ]; then
+            echo "httpd_download_url=$httpd_download_url"
+        fi
+        echo "httpd_source_url=$HTTPD_SOURCE_URL"
+        echo "httpd_source_archive=$httpd_download_dest"
+        echo "httpd_source_sha256=$HTTPD_SHA256"
+    } >> "$ARTIFACTS_FILE"
+}
+
 download_apr_util_file() {
     label=$1
     url=$2
@@ -455,9 +515,14 @@ build_httpd_from_source() {
     apr_archive="$DOWNLOAD_DIR/$APR_ARCHIVE_NAME"
     apr_util_archive="$DOWNLOAD_DIR/$APR_UTIL_ARCHIVE_NAME"
 
-    download_file httpd "$HTTPD_SOURCE_URL" "$httpd_archive"
-    verify_sha256_literal httpd "$httpd_archive" "$HTTPD_SHA256"
+    download_httpd_source_archive "$httpd_archive"
     verify_sha256_url httpd "$httpd_archive" "$HTTPD_SHA256_URL"
+    # A shared verified cache may change after validation. Extract only a
+    # private copy rehashed by the existing staging boundary after metadata.
+    httpd_archive=$(runtime_component_stage_verified_archive httpd "$HTTPD_SHA256" \
+        "$httpd_archive" "$APACHE_BUILD_ROOT/verified-archives/$HTTPD_ARCHIVE_NAME" \
+        "$APACHE_BUILD_ROOT") || blocked "could not freeze the verified HTTPD archive"
+    echo "httpd_verified_archive=$httpd_archive" >> "$ARTIFACTS_FILE"
     download_file apr "$APR_SOURCE_URL" "$apr_archive"
     verify_sha256_literal apr "$apr_archive" "$APR_SHA256"
     verify_sha256_url apr "$apr_archive" "$APR_SHA256_URL"

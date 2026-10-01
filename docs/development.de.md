@@ -24,6 +24,30 @@ explizite Operationen. Sie dürfen nicht still in einen Checkout schreiben,
 einen vorhandenen Quellbaum ersetzen oder eine nicht verfügbare Abhängigkeit in
 einen PASS verwandeln.
 
+### Wiederherstellung gepinnter Apache-Quellen
+
+Der Apache-Preparer behält die kanonische HTTPD-Version, Source-URL und Prüfsumme
+aus `ci/lib/common.sh`. Ein reguläres HTTPD-Archiv im zulässigen Download-Root
+darf nur nach erneuter Prüfung seiner erforderlichen literalen SHA-256
+wiederverwendet werden. Die kanonischen Prüfsummenmetadaten werden weiterhin
+vor der Extraktion abgerufen und geprüft; Cache-Wiederverwendung belegt weder
+einen Netzwerkdownload noch Host-Runtime.
+Nach beiden Prüfsummenprüfungen wird das Archiv in den privaten Apache-Build-Root
+kopiert und dort erneut gehasht; ausschließlich diese geprüfte Kopie wird
+extrahiert.
+
+Bei fehlendem HTTPD-Archiv erlaubt ausschließlich ein direktes HTTP 404 vom
+kanonischen Release-Endpunkt die Wiederherstellung desselben Dateinamens vom
+offiziellen Endpunkt `https://archive.apache.org/dist/httpd/`. Andere HTTP-Fehler,
+Redirects, Timeouts, TLS-Fehler, ungültige Provenienz, unsichere Pfade und
+Prüfsummenfehler bleiben blockierend. Der tatsächliche Transfer-Endpunkt oder
+die geprüfte Cache-Wiederverwendung wird getrennt von der kanonischen
+Quellidentität dokumentiert. APR- und APR-util-Bezug einschließlich der direkten
+No-Redirect-Grenze von APR-util bleiben unverändert.
+
+`make test-httpd-source-recovery` führt die fokussierte Offline-Regressionssuite
+aus. Sie prüft den Quellenbezug, nicht die Runtime-Reife eines Connectors.
+
 ## Repository-Layout
 
 | Pfad | Verantwortung |
