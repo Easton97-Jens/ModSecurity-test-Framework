@@ -14,13 +14,15 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
     "no_crs_configtest_runtime_facts", ROOT / "ci/checks/catalog/no_crs_baseline.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 no_crs = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(no_crs)
 RECEIPT_SPEC = importlib.util.spec_from_file_location(
     "configtest_unit_receipt_fixture", Path(__file__).with_name("test_configtest_receipt.py")
 )
-assert RECEIPT_SPEC is not None and RECEIPT_SPEC.loader is not None
+assert RECEIPT_SPEC is not None
+assert RECEIPT_SPEC.loader is not None
 fixture = importlib.util.module_from_spec(RECEIPT_SPEC)
 RECEIPT_SPEC.loader.exec_module(fixture)
 

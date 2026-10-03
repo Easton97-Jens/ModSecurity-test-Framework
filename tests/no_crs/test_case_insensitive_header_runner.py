@@ -15,7 +15,8 @@ from runner_core import load_case, request_headers, write_headers_file  # noqa: 
 SPEC = importlib.util.spec_from_file_location(
     "no_crs_baseline", ROOT / "ci/checks/catalog/no_crs_baseline.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 no_crs = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(no_crs)
 

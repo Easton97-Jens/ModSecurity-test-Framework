@@ -11,15 +11,18 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('size_config_contract', ROOT / 'ci/checks/catalog/no_crs_baseline.py')
-assert SPEC and SPEC.loader
+assert SPEC
+assert SPEC.loader
 contract = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(contract)
 FIXTURE_SPEC = importlib.util.spec_from_file_location('size_receipt_fixture', Path(__file__).with_name('test_configtest_receipt.py'))
-assert FIXTURE_SPEC and FIXTURE_SPEC.loader
+assert FIXTURE_SPEC
+assert FIXTURE_SPEC.loader
 fixture = importlib.util.module_from_spec(FIXTURE_SPEC)
 FIXTURE_SPEC.loader.exec_module(fixture)
 ARTIFACT_SPEC = importlib.util.spec_from_file_location('size_artifact_fixture', Path(__file__).with_name('test_configtest_artifacts.py'))
-assert ARTIFACT_SPEC and ARTIFACT_SPEC.loader
+assert ARTIFACT_SPEC
+assert ARTIFACT_SPEC.loader
 artifact_fixture = importlib.util.module_from_spec(ARTIFACT_SPEC)
 ARTIFACT_SPEC.loader.exec_module(artifact_fixture)
 

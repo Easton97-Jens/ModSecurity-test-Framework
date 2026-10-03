@@ -12,7 +12,8 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location(
     "no_crs_generated_transaction_id", ROOT / "ci/checks/catalog/no_crs_baseline.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 no_crs = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(no_crs)
 sys.path.insert(0, str(ROOT / "tests/runners"))

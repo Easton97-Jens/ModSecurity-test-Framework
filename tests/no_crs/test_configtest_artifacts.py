@@ -14,11 +14,13 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('config_artifact_contract', ROOT / 'ci/checks/catalog/no_crs_baseline.py')
-assert SPEC and SPEC.loader
+assert SPEC
+assert SPEC.loader
 contract = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(contract)
 RECEIPT_SPEC = importlib.util.spec_from_file_location('config_receipt_unit', Path(__file__).with_name('test_configtest_receipt.py'))
-assert RECEIPT_SPEC and RECEIPT_SPEC.loader
+assert RECEIPT_SPEC
+assert RECEIPT_SPEC.loader
 receipt_unit = importlib.util.module_from_spec(RECEIPT_SPEC)
 RECEIPT_SPEC.loader.exec_module(receipt_unit)
 
