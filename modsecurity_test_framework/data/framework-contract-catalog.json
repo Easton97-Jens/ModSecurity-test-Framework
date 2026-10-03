@@ -57,7 +57,8 @@
       "profile": "no-crs-baseline",
       "required_capabilities": [
         "abort_connection",
-        "phase1"
+        "phase1",
+        "drop"
       ],
       "scenario_category": "decisions",
       "sources": [
@@ -174,7 +175,8 @@
       },
       "area": "no-crs-baseline",
       "catalogs": [
-        "no-crs-baseline"
+        "no-crs-baseline",
+        "framework-yaml"
       ],
       "display_name": "Match a request header name case-insensitively",
       "expectation": {
@@ -190,13 +192,18 @@
       "profile": "no-crs-baseline",
       "required_capabilities": [
         "request_headers",
-        "phase1"
+        "phase1",
+        "deny"
       ],
       "scenario_category": "headers",
       "sources": [
         {
           "kind": "no_crs_catalog",
           "path": "tests/cases/no-crs-baseline/catalog.json"
+        },
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/case_insensitive_header_name.yaml"
         }
       ]
     },
@@ -1147,12 +1154,31 @@
       },
       "area": "no-crs-baseline",
       "catalogs": [
-        "no-crs-baseline"
+        "no-crs-baseline",
+        "framework-yaml"
       ],
       "display_name": "Map an empty request header value",
       "expectation": {
-        "http_status": 200,
-        "kind": "http_status"
+        "conditions": [
+          {
+            "http_status": 200,
+            "kind": "http_status"
+          },
+          {
+            "kind": "rule_match",
+            "rule_ids": [
+              1100503
+            ]
+          },
+          {
+            "fields": [
+              "rule_id",
+              "phase"
+            ],
+            "kind": "event"
+          }
+        ],
+        "kind": "compound"
       },
       "framework_test_id": "no-crs-baseline:empty_header_value",
       "phase": 1,
@@ -1166,6 +1192,10 @@
         {
           "kind": "no_crs_catalog",
           "path": "tests/cases/no-crs-baseline/catalog.json"
+        },
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/empty_header_value.yaml"
         }
       ]
     },
@@ -3534,8 +3564,13 @@
       ],
       "display_name": "Reject an invalid Boolean configuration value",
       "expectation": {
-        "event_type": "config_rejected",
-        "kind": "event"
+        "connector": "nginx",
+        "directive": "modsecurity",
+        "error_class": "invalid_boolean",
+        "exit_code": 1,
+        "kind": "configuration",
+        "operation": "configtest",
+        "outcome": "config_rejected"
       },
       "framework_test_id": "no-crs-baseline:invalid_boolean",
       "phase": 0,
@@ -3624,8 +3659,13 @@
       ],
       "display_name": "Reject an invalid size configuration",
       "expectation": {
-        "event_type": "config_rejected",
-        "kind": "event"
+        "connector": "nginx",
+        "directive": "modsecurity_phase4_body_limit",
+        "error_class": "invalid_size",
+        "exit_code": 1,
+        "kind": "configuration",
+        "operation": "configtest",
+        "outcome": "config_rejected"
       },
       "framework_test_id": "no-crs-baseline:invalid_size",
       "phase": 0,
@@ -4042,25 +4082,49 @@
       },
       "area": "no-crs-baseline",
       "catalogs": [
-        "no-crs-baseline"
+        "no-crs-baseline",
+        "framework-yaml"
       ],
       "display_name": "Map multiple request headers",
       "expectation": {
-        "http_status": 200,
-        "kind": "http_status"
+        "conditions": [
+          {
+            "http_status": 200,
+            "kind": "http_status"
+          },
+          {
+            "kind": "rule_match",
+            "rule_ids": [
+              1100501
+            ]
+          },
+          {
+            "fields": [
+              "rule_id",
+              "phase"
+            ],
+            "kind": "event"
+          }
+        ],
+        "kind": "compound"
       },
       "framework_test_id": "no-crs-baseline:multiple_headers",
       "phase": 1,
       "profile": "no-crs-baseline",
       "required_capabilities": [
         "request_headers",
-        "phase1"
+        "phase1",
+        "event_jsonl"
       ],
       "scenario_category": "headers",
       "sources": [
         {
           "kind": "no_crs_catalog",
           "path": "tests/cases/no-crs-baseline/catalog.json"
+        },
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/multiple_headers.yaml"
         }
       ]
     },
@@ -4306,7 +4370,8 @@
       "profile": "no-crs-baseline",
       "required_capabilities": [
         "request_headers",
-        "transaction_id"
+        "transaction_id",
+        "parallel_requests"
       ],
       "scenario_category": "lifecycle",
       "sources": [
@@ -7488,7 +7553,8 @@
       },
       "area": "no-crs-baseline",
       "catalogs": [
-        "no-crs-baseline"
+        "no-crs-baseline",
+        "framework-yaml"
       ],
       "display_name": "Generate or safely fall back to a transaction identifier",
       "expectation": {
@@ -7498,8 +7564,16 @@
             "kind": "http_status"
           },
           {
+            "kind": "rule_match",
+            "rule_ids": [
+              1100502
+            ]
+          },
+          {
             "fields": [
-              "transaction_id"
+              "transaction_id",
+              "rule_id",
+              "phase"
             ],
             "kind": "event"
           }
@@ -7518,6 +7592,10 @@
         {
           "kind": "no_crs_catalog",
           "path": "tests/cases/no-crs-baseline/catalog.json"
+        },
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/transaction_id_generated_or_fallback.yaml"
         }
       ]
     },

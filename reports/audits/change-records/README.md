@@ -13,6 +13,11 @@ described in [change traceability](../../../docs/change-traceability.md).
 
 ## Current records
 
+- [No-CRS Sonar maintainability (2026-10-03)](20261003-02-no-crs-sonar-maintainability.md)
+- [NGINX size configtest contract (2026-10-03)](20261003-01-nginx-size-configtest.md)
+- [NGINX configuration-test evidence (2026-10-01)](20261001-02-nginx-configtest-evidence.md)
+- [NGINX empty-header runner (2026-10-01)](20261001-01-empty-header-runner.md)
+- [NGINX canonical coverage contract (2026-09-30)](20260930-01-nginx-canonical-coverage-contract.md)
 - [Remediate ModSecurity v3 multipart handling (2026-09-09)](20260909-01-remediate-modsecurity-v3-multipart.md)
 - [Add Framework contract API (2026-08-24)](20260824-01-add-framework-contract-api.md)
 - [Fix inherited-upstream snapshot re-entry (2026-08-21)](20260821-02-fix-inherited-upstream-snapshot-reentry.md)

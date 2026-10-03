@@ -1,0 +1,48 @@
+name: empty_header_value
+title: Map a present empty request header into a phase-1 rule chain
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 1
+required_capabilities:
+  - request_headers
+  - phase1
+capabilities:
+  request_headers: true
+  phase1: true
+  logging: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine On
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule &REQUEST_HEADERS:X-No-Crs-Empty "@eq 1" \
+      "id:1100503,phase:1,pass,log,t:none,chain,msg:'no-crs present empty request header'"
+  SecRule REQUEST_HEADERS:X-No-Crs-Empty "@rx ^$" "t:none"
+request:
+  method: GET
+  path: /no-crs/headers/empty
+  headers:
+    X-No-Crs-Empty: ""
+expect:
+  status: 200
+  intervention: none
+  rule_id: 1100503
+  audit_log:
+    required: true
+    rule_id: 1100503
+    message: no-crs present empty request header
+expected_result: allow
+expected_status: 200
+expected_rule_id: 1100503
+expected_event_fields:
+  - rule_id
+  - phase
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

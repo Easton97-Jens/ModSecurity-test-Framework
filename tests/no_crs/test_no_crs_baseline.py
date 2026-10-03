@@ -737,7 +737,25 @@ class NoCrsBaselineTest(unittest.TestCase):
             "deny_response_body_marker_403.yaml",
         )
         runner_cases = [case for case in no_crs.catalog_cases(catalog) if case.get("runner_case")]
-        self.assertEqual(len(runner_cases), 10)
+        self.assertEqual(
+            {case["case_id"] for case in runner_cases},
+            {
+                "allow_without_marker",
+                "deny_header_marker_403",
+                "deny_with_alternative_status",
+                "transaction_id_present",
+                "transaction_id_generated_or_fallback",
+                "deny_request_body_marker_403",
+                "phase4_deny_before_commit",
+                "case_insensitive_header_name",
+                "multiple_headers",
+                "empty_header_value",
+                "log_only",
+                "redirect_if_supported",
+                "phase3_deny_before_commit",
+                "phase3_redirect_before_commit",
+            },
+        )
         self.assertNotIn("deny_response_header_marker_403", {case["case_id"] for case in runner_cases})
         self.assertEqual(
             by_id["phase3_deny_before_commit"]["runner_case"],

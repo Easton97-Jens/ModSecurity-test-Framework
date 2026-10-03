@@ -168,6 +168,98 @@ Die kanonische No-CRS-Implementierung ist
 `finalize`, `validate` und `summarize` halten Auswahl, kanonische Artefakte
 und Validierung getrennt.
 
+Für NGINX `full_lifecycle` benötigen `select` und das dazugehörige `init`
+ein explizites Downstream-Protokoll (`http1`, `h2`, `h2c` oder `h3`). Ein Fall,
+der ein anderes Protokoll verlangt, ist für diesen Lauf `NOT_APPLICABLE`;
+ein fähiger Build oder ein HTTP/1-Request ist keine H2/H3-Ausführungsevidenz.
+Der Gesamtstatus verwendet die `SELECTED`-Fälle des Plans für die Prüfung
+fehlender Evidenz, während das Resultat wahrheitsgetreue Zähler für alle
+Katalogeinträge behält. Ein ausgewählter, nicht ausgeführter Fall verhindert
+weiterhin PASS; FAIL und BLOCKED haben Vorrang. Ein nicht ausgewählter
+`NOT_EXECUTED`-Eintrag allein verhindert keinen profilgebundenen PASS.
+Beide Befehle verwenden `--downstream-protocol`; dieses vom Orchestrator
+deklarierte Laufprofil muss zum tatsächlich ausgeführten Host-/Client-Protokoll
+passen und beweist allein keine Aushandlung. Explizite
+`request.reuses`-Zuordnungen im Katalog dürfen engere Records nur aus
+validierter, an den aktuellen Lauf gebundener echter Basisevidenz und, falls
+erforderlich, einem eindeutig passenden kanonischen Event ableiten; sie
+erzeugen weder einen weiteren Request noch ein synthetisches Runtime-Event.
+Event-gestützte Case-Claims verlangen außerdem, dass die Event-Phase zur
+Katalog-Phase und jede explizite Event-Run-ID zum kanonischen Lauf passt.
+Diese Prüfungen gelten bei Normalisierung, Manifest-Bindung und
+Vollständigkeitsvalidierung. Native Events ohne ihre optionale Run-ID behalten
+den bestehenden Vertrag für runlokale Quelldatei- und Transaktionsprovenienz.
+
+### Konfigurationsoperationen sind keine HTTP-Requests
+
+Die Phase-0-Katalogeinträge `invalid_boolean` und `invalid_size` deklarieren
+geschlossene NGINX-Konfigurationsrealisierungen. `invalid_boolean` nutzt eine konkrete
+NGINX-`configtest`-Realisierung: Das aufbewahrte NGINX-Binary mit `-t` und der
+geschlossenen Konfiguration mit `modsecurity maybe;` ausführen. Die erwartete
+Ablehnung verlangt Exit `1`, Fehlerklasse `invalid_boolean` und beide exakten
+Diagnosefragmente `"modsecurity" directive` und `invalid boolean value`. Ein
+fehlendes Modul, eine andere Directive/Fehlerklasse, Exit `0` oder ein anderer
+Exit erfüllt sie nicht. Negative Subprocess-Ergebnisse wie `-1`
+(Ausführungsfehler) und `-9` (Terminierung) können als Fehlerreceipts aufbewahrt
+werden; sie ergeben niemals PASS für die erwartete Ablehnung.
+`invalid_size` prüft stattdessen `modsecurity_phase4_body_limit maybe;` und
+verlangt Exit `1`, Fehlerklasse `invalid_size` und beide exakten Diagnosefragmente
+`"modsecurity_phase4_body_limit" directive` und
+`invalid value for modsecurity_phase4_body_limit`. Diese unterschiedlichen
+Verträge erfüllen einander nicht und erlauben kein beliebiges Phase-0-PASS
+allein anhand eines Receipts.
+
+Kanonische Erfüllung verlangt das begrenzte `configtest_receipt` sowie sein
+autorisiertes aufbewahrtes Bundle: `nginx-binary`, `nginx-module.so`,
+`nginx.conf`, `stdout.log` und `stderr.log`. Die Finalisierung gewinnt die
+Source-Authority aus dem Parent-Verzeichnis der expliziten Quelldatei, weist
+fehlende, fremde oder verlinkte Artefakte ab und bewahrt die fünf Dateien sicher
+unter `inventory/configtests/invalid_boolean` oder
+`inventory/configtests/invalid_size` getrennt pro registriertem Case auf.
+Die Validierung hasht sie
+erneut, prüft das geschlossene nichtgeheime Konfigurationstemplate und die
+Parserdiagnose und bindet das Receipt an Case, Directive/Wert, Run,
+Connector/Integration-Mode, Source-Revisionen sowie Binary-/Modulidentitäten.
+Receipt-Behauptungen oder Unit-Fixtures allein sind kein kanonischer
+Runtime-Nachweis.
+
+Dieser reine Konfigurationstest benötigt weder HTTP noch ein erfundenes
+natives Event, Rule-Match oder eine Transaction-ID. Er beweist keinen
+Daemonstart, offenen Listener, Root/nobody-Worker, Reload oder Request; diese
+Fakten bleiben ohne eigene Beobachtung falsch. Request-Cases behalten ihre
+bisherigen HTTP-/Event-Anforderungen; die globale Full-Lifecycle-PASS-Prüfung
+bleibt unverändert.
+
+Die connectorgebundene öffentliche API-Erwartung des Typs `configuration`
+prüft nur eine vollständige begrenzte Operationsbeobachtung gegen die
+deklarierte NGINX-Operation. Sie beweist nicht deren tatsächliche Ausführung.
+Beobachtungen anderer Connectoren erfüllen diese konkrete Erwartung nicht;
+portable Kataloganwendbarkeit und Auswahl bleiben unverändert. Die weiteren
+acht konfigurationsbezogenen Pflichtrecords haben in diesem Teil keine
+implementierte Konfigurationsrealisierung und werden weder zu PASS umgewandelt
+noch aus der Required-Coverage ausgeschlossen.
+
+Die lokale Retained-Build-Diagnose `nginx-configtest-retained-jaYdBrvH`
+führte das echte NGINX-Binary/-Modul sowie den echten Collector/kanonischen
+Finalizer aus. Der positive Case `invalid_boolean` erhielt kanonisches PASS;
+eine Wrong-Module-Kontrolle blieb FAIL, obwohl beide NGINX-Aufrufe Exit `1`
+hatten. Beide kanonischen Bundles wurden korrekt erneut gehasht, ohne Fehler
+im verwalteten Layout. Es gab null Events und keine HTTP-, Daemonstart- oder
+Listener-Behauptung. Source- und kanonische Aggregate blieben jeweils FAIL,
+weil Required-Requests nicht ausgeführt wurden. Dies ist Retained-Build-
+Diagnoseevidence, kein neuer Exact-Head-Full-Lifecycle-Nachweis.
+Siehe den [Konfigurations-Evidence-Change-Record](../reports/audits/change-records/20261001-02-nginx-configtest-evidence.de.md).
+
+Die anschließende lokale Diagnose `nginx-config-size-retained-6si2byjk` führte
+den echten Producer, Collector und kanonischen Finalizer für `invalid_size`
+aus: Die erwartete Size-Ablehnung erhielt individuelles PASS; die
+Wrong-Module-Kontrolle blieb FAIL, obwohl beide Invocations Exit `1` hatten.
+Beide aufbewahrten Bundles aus fünf Dateien bestanden alle acht kanonischen
+Validatoren. Beide Aggregate blieben FAIL, ohne Starts, Requests oder Events.
+Diese Precommit-Diagnose mit verändertem Source-Worktree nutzt aufbewahrte
+gecachte C-Artefakte, keinen neuen Exact-Head-Build oder Full E2E.
+Siehe den [Size-Vertrag-Change-Record](../reports/audits/change-records/20261003-01-nginx-size-configtest.de.md).
+
 Der Evidence-Pfad zeichnet nur geprüfte, normalisierte Metadaten auf. Er lehnt
 unbegrenzte Request- oder Response-Payload-Felder ab und leitet keinen PASS aus
 einem Exit-Code ab. Capability-Deklarationen und generierte Berichte ersetzen
@@ -260,6 +352,18 @@ MRTS-Prozesszustand. Ein späterer Connector-eigener Lauf muss eigene Host- und
 Lifecycle-Evidenz liefern, bevor eine Runtime-Aussage möglich ist.
 
 ## Fallvarianten und Imports
+
+Der No-CRS-Runner `empty_header_value` verlangt einen vorhandenen Header
+`X-No-Crs-Empty` mit leerem Wert. Regel `1100503` prüft zuerst, dass genau ein
+solcher Header vorhanden ist, und verkettet danach den Leerwerttreffer. HTTP
+`200` allein oder ein fehlender Header erfüllen die Regel-/Event-Erwartung
+nicht. Die Auswahl-Capabilities bleiben `request_headers` und `phase1`; kein
+Pflichtfall wird zur Coverage-Reduktion ausgeschlossen. Der unveränderte
+Normalizer verlangt zusätzlich das echte native Phase-1-Event dieser Regel.
+Curl-basierte Host-Treiber müssen die ausdrückliche Leerheader-Notation des
+Clients statt seiner Unterdrückungsnotation verwenden. Host-Verhalten und
+vollständige Exact-Head-Promotion bleiben Parent-eigen.
+Siehe den [Leerheader-Runner-Change-Record](../reports/audits/change-records/20261001-01-empty-header-runner.de.md).
 
 Die Variante `no-crs` materialisiert nur lokale Regeln. Die Variante `with-crs`
 lädt die konfigurierte Core Rule Set vor lokalen Fallregeln. Optionale

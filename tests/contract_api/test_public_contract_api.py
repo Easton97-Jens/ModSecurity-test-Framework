@@ -177,7 +177,14 @@ class PublicContractApiTests(unittest.TestCase):
         all_cases = contracts.load_test_catalog()
         yaml_cases = contracts.load_test_catalog(catalog="framework-yaml")
         self.assertEqual(len(all_cases["test_ids"]), 339)
-        self.assertEqual(len(yaml_cases["test_ids"]), 182)
+        self.assertEqual(len(yaml_cases["test_ids"]), 186)
+        self.assertIn("no-crs-baseline:empty_header_value", yaml_cases["test_ids"])
+        self.assertIn("no-crs-baseline:case_insensitive_header_name", yaml_cases["test_ids"])
+        self.assertIn("no-crs-baseline:multiple_headers", yaml_cases["test_ids"])
+        self.assertIn(
+            "no-crs-baseline:transaction_id_generated_or_fallback",
+            yaml_cases["test_ids"],
+        )
         for record in all_cases["tests"]:
             self.assertTrue(
                 {
@@ -212,15 +219,15 @@ class PublicContractApiTests(unittest.TestCase):
             contracts.validate_test_result("no-crs-baseline:allow_without_marker", {"http_status": 200})["valid"]
         )
 
-    def test_action_event_and_lifecycle_tests_remain_non_http(self) -> None:
+    def test_action_configuration_and_lifecycle_tests_remain_non_http(self) -> None:
         action = contracts.describe_test("no-crs-baseline:abort_if_supported")
-        event = contracts.describe_test("no-crs-baseline:invalid_boolean")
+        configuration = contracts.describe_test("no-crs-baseline:invalid_boolean")
         lifecycle = contracts.describe_test("no-crs-baseline:clean_shutdown")
         self.assertEqual(action["expectation_type"], "action")
-        self.assertEqual(event["expectation_type"], "event")
+        self.assertEqual(configuration["expectation_type"], "configuration")
         self.assertEqual(lifecycle["expectation_type"], "lifecycle")
         self.assertNotIn("http_status", action["test"]["expectation"])
-        self.assertNotIn("http_status", event["test"]["expectation"])
+        self.assertNotIn("http_status", configuration["test"]["expectation"])
         self.assertNotIn("http_status", lifecycle["test"]["expectation"])
 
     def test_invalid_status_types_and_status_on_action_are_rejected(self) -> None:
@@ -232,6 +239,81 @@ class PublicContractApiTests(unittest.TestCase):
         with self.assertRaises(contracts.ContractError):
             contracts.normalize_expectation({"kind": "action", "action": "deny", "http_status": 403})
 
+    def test_explicit_configuration_contract_matches_only_complete_operation_observation(self) -> None:
+        expectation = {
+            "kind": "configuration", "connector": "nginx", "operation": "configtest",
+            "directive": "modsecurity", "exit_code": 1, "outcome": "config_rejected",
+            "error_class": "invalid_boolean",
+        }
+        catalog = self._catalog_data()
+        record = next(item for item in catalog["tests"]
+                      if item["framework_test_id"] == "no-crs-baseline:invalid_boolean")
+        record["expectation"] = expectation
+        observation = {key: value for key, value in expectation.items() if key != "kind"}
+        observation.update(process_started=False, listener_created=False)
+        self.assertEqual(contracts.normalize_expectation(expectation), expectation)
+        self.assertTrue(contracts.validate_test_result(
+            record["framework_test_id"], {"configuration": observation}, catalog_data=catalog,
+        )["valid"])
+        for key, wrong in (("connector", "apache"), ("operation", "startup"),
+                           ("directive", "modsecurity_rules"), ("exit_code", 2),
+                           ("outcome", "config_accepted"), ("error_class", "module_missing"),
+                           ("process_started", True), ("listener_created", True)):
+            with self.subTest(key=key):
+                changed = dict(observation, **{key: wrong})
+                validation = contracts.validate_test_result(
+                    record["framework_test_id"], {"configuration": changed}, catalog_data=catalog,
+                )
+                self.assertFalse(validation["valid"])
+        for substitute in ({"http_status": 200}, {"event_type": "config_rejected"},
+                           {"rule_ids": [1100001]}):
+            with self.subTest(substitute=substitute):
+                self.assertFalse(contracts.validate_test_result(
+                    record["framework_test_id"], substitute, catalog_data=catalog,
+                )["valid"])
+        incomplete = dict(observation)
+        del incomplete["directive"]
+        with self.assertRaises(contracts.ContractError):
+            contracts.validate_test_result(record["framework_test_id"],
+                                           {"configuration": incomplete}, catalog_data=catalog)
+
+    def test_catalog_generator_configuration_is_explicit_not_name_inferred(self) -> None:
+        generator = self._catalog_generator_module()
+        case = {"case_id": "invalid_boolean", "expected_result": "config_rejected",
+                "expected_status": 1, "expected_rule_id": None, "expected_event_fields": []}
+        self.assertEqual(generator._catalog_expectation(case)["kind"], "event")
+        case["config_invocations"] = {"nginx": {
+            "operation": "configtest", "directive": "modsecurity", "value": "maybe",
+            "expected_exit_code": 1, "expected_outcome": "config_rejected",
+            "error_class": "invalid_boolean",
+            "diagnostic_fragments": ['"modsecurity" directive', 'invalid boolean value'],
+        }}
+        self.assertEqual(generator._catalog_expectation(case), {
+            "kind": "configuration", "connector": "nginx", "operation": "configtest",
+            "directive": "modsecurity", "exit_code": 1, "outcome": "config_rejected",
+            "error_class": "invalid_boolean",
+        })
+
+    def test_configuration_expectation_is_closed_and_exit_is_not_http(self) -> None:
+        expectation = {
+            "kind": "configuration", "connector": "nginx", "operation": "configtest",
+            "directive": "modsecurity", "exit_code": 1, "outcome": "config_rejected",
+            "error_class": "invalid_boolean",
+        }
+        for changes in ({"http_status": 200}, {"rule_ids": [1100001]},
+                        {"exit_code": True}, {"exit_code": "1"}, {"exit_code": -1},
+                        {"exit_code": 256}, {"exit_code": 0}, {"error_class": "none"},
+                        {"operation": "reload"}, {"outcome": "pass"}, {"directive": "../unsafe"}):
+            with self.subTest(changes=changes):
+                with self.assertRaises(contracts.ContractError):
+                    contracts.normalize_expectation(dict(expectation, **changes))
+        for field in expectation:
+            incomplete = dict(expectation)
+            del incomplete[field]
+            with self.subTest(missing=field):
+                with self.assertRaises(contracts.ContractError):
+                    contracts.normalize_expectation(incomplete)
+
     def test_every_supported_tagged_expectation_kind_is_strictly_normalized(self) -> None:
         examples = {
             "http_status": {"kind": "http_status", "http_status": 403},
@@ -239,6 +321,11 @@ class PublicContractApiTests(unittest.TestCase):
             "action": {"kind": "action", "action": "log_only"},
             "rule_match": {"kind": "rule_match", "rule_ids": [1100001]},
             "event": {"kind": "event", "fields": ["transaction_id"]},
+            "configuration": {
+                "kind": "configuration", "connector": "nginx", "operation": "configtest",
+                "directive": "modsecurity", "exit_code": 1, "outcome": "config_rejected",
+                "error_class": "invalid_boolean",
+            },
             "request_headers": {"kind": "request_headers", "names": ["x_framework_run_id"]},
             "response_headers": {"kind": "response_headers", "names": ["content_type"]},
             "request_body": {"kind": "request_body", "state": "buffered"},

@@ -47,6 +47,9 @@ MANIFEST_FILE_NAME = "manifest.json"
 RESULT_FILE_NAME = "result.json"
 CASE_RESULTS_FILE_NAME = "results.jsonl"
 EVENTS_FILE_NAME = "events.jsonl"
+NGINX_CONFIG_FILE_NAME = "nginx.conf"
+STDOUT_LOG_FILE_NAME = "stdout.log"
+STDERR_LOG_FILE_NAME = "stderr.log"
 RUN_INVENTORY_FILE_PATH = "inventory/run.json"
 RULES_ARTIFACT_FILE_PATH = "config/no-crs-baseline.conf"
 CAPABILITIES_INVENTORY_FILE_PATH = "inventory/capabilities.json"
@@ -170,6 +173,7 @@ ARTIFACT_PROFILES = (
     DEFAULT_ARTIFACT_PROFILE,
     FULL_LIFECYCLE_ARTIFACT_PROFILE,
 )
+DOWNSTREAM_PROTOCOLS = ("any", "http1", "h2", "h2c", "h3")
 FULL_LIFECYCLE_REQUIRED_ARTIFACTS = (
     ("manifest", MANIFEST_FILE_NAME),
     ("result", RESULT_FILE_NAME),
@@ -1235,8 +1239,24 @@ def validate_catalog(catalog: Mapping[str, Any]) -> list[str]:
     }
     _validate_full_lifecycle_catalog_contracts(by_id, full_lifecycle_contracts, errors)
     _validate_catalog_legacy_contracts(by_id, errors)
+    _validate_catalog_scenario_prerequisites(by_id, errors)
     _validate_catalog_ruleset_contracts(errors)
     return errors
+
+
+def _validate_catalog_scenario_prerequisites(
+    by_id: Mapping[str, Mapping[str, Any]], errors: list[str],
+) -> None:
+    # These case requests exercise capabilities beyond their generic phase
+    # requirements.  Omitting one would select an unexecutable host scenario.
+    for case_id, prerequisite in (
+        ("parallel_requests", "parallel_requests"),
+        ("abort_if_supported", "drop"),
+        ("case_insensitive_header_name", "deny"),
+    ):
+        case = by_id.get(case_id)
+        if case is not None and prerequisite not in case.get("required_capabilities", []):
+            errors.append(f"{case_id}: missing scenario prerequisite {prerequisite}")
 
 
 def _validate_catalog_cases(
@@ -1256,6 +1276,7 @@ def _validate_catalog_cases(
         _validate_catalog_transport_hardening(case, prefix, errors)
         _validate_catalog_case_declarations(case, prefix, errors)
         _validate_catalog_evidence_requirement(case, prefix, errors)
+        errors.extend(f"{prefix}: {error}" for error in config_invocation_contract_errors(case))
         _validate_catalog_case_sources(
             case,
             prefix,
@@ -1684,19 +1705,36 @@ def selection_reason(
 
 def select_catalog_case(
     case: Mapping[str, Any], capabilities: Mapping[str, Any],
+    downstream_protocol: str = "any",
+    connector: str | None = None,
 ) -> dict[str, Any]:
+    if downstream_protocol not in DOWNSTREAM_PROTOCOLS:
+        raise ContractError(f"invalid downstream protocol: {downstream_protocol!r}")
     required = [str(item) for item in case["required_capabilities"]]
     states = {name: capability_state(capabilities[name]) for name in required}
-    return {
+    request = case.get("request")
+    required_protocol = str(request.get("protocol_profile") or "") if isinstance(request, Mapping) else ""
+    protocol_mismatch = bool(
+        required_protocol and downstream_protocol != "any"
+        and downstream_protocol != required_protocol
+    )
+    selection = {
         "case_id": case["case_id"],
         "group": case.get("group", ""),
         "phase": case["phase"],
         "required_capabilities": required,
         "required_capability_states": states,
-        "selection_status": selection_status_for_states(states),
-        "selection_reason": selection_reason(states, capabilities),
+        "selection_status": "NOT_APPLICABLE" if protocol_mismatch else selection_status_for_states(states),
+        "selection_reason": (
+            f"requires downstream {required_protocol}; selected {downstream_protocol}"
+            if protocol_mismatch else selection_reason(states, capabilities)
+        ),
         "runner_case": case.get("runner_case"),
     }
+    invocation = config_invocation_for_case(case, connector or "")
+    if invocation is not None:
+        selection["config_invocation"] = dict(invocation)
+    return selection
 
 
 def select_cases(
@@ -1705,12 +1743,25 @@ def select_cases(
     catalog: Mapping[str, Any],
     evidence_stage: str = "no_crs_baseline",
     artifact_profile: str = DEFAULT_ARTIFACT_PROFILE,
+    downstream_protocol: str = "any",
 ) -> dict[str, Any]:
+    if downstream_protocol not in DOWNSTREAM_PROTOCOLS:
+        raise ContractError(f"invalid downstream protocol: {downstream_protocol!r}")
     artifact_profile = normalize_artifact_profile(artifact_profile)
     validate_selection_profile(catalog, evidence_stage, artifact_profile)
+    if (
+        connector == "nginx"
+        and artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE
+        and downstream_protocol == "any"
+    ):
+        raise ContractError(
+            "NGINX full_lifecycle selection requires an explicit downstream protocol"
+        )
     capabilities = manifest["capabilities"]
     cases = selected_catalog_cases(catalog, evidence_stage)
-    selections = [select_catalog_case(case, capabilities) for case in cases]
+    selections = [
+        select_catalog_case(case, capabilities, downstream_protocol, connector) for case in cases
+    ]
     counts = Counter(item["selection_status"] for item in selections)
     return {
         "schema_version": 1,
@@ -1719,6 +1770,7 @@ def select_cases(
         "ruleset": "no-crs-baseline",
         "evidence_stage": evidence_stage,
         "artifact_profile": artifact_profile,
+        "downstream_protocol": downstream_protocol,
         "capability_manifest": str(manifest.get("source_path") or ""),
         "generated_at": utc_now(),
         "counts": {name: counts.get(name, 0) for name in SELECTION_STATUSES},
@@ -1736,6 +1788,7 @@ def plan_semantics(plan: Mapping[str, Any]) -> dict[str, Any]:
         "artifact_profile": str(
             plan.get("artifact_profile") or DEFAULT_ARTIFACT_PROFILE
         ),
+        "downstream_protocol": str(plan.get("downstream_protocol") or "any"),
         "counts": plan.get("counts"),
         "cases": plan.get("cases"),
     }
@@ -1760,14 +1813,34 @@ def validate_plan_against_capabilities(
     catalog: Mapping[str, Any],
     evidence_stage: str,
     artifact_profile: str = DEFAULT_ARTIFACT_PROFILE,
+    downstream_protocol: str = "any",
 ) -> None:
     expected = select_cases(
-        connector, manifest, catalog, evidence_stage, artifact_profile
+        connector, manifest, catalog, evidence_stage, artifact_profile,
+        downstream_protocol,
     )
     if not plans_have_matching_semantics(plan, expected):
         raise ContractError(
             "plan does not match a fresh capability-driven selection; regenerate it with the select command"
         )
+
+
+def plan_capability_errors(
+    plan: Mapping[str, Any],
+    connector: str,
+    capabilities: Mapping[str, Any],
+    catalog: Mapping[str, Any],
+    evidence_stage: str,
+    artifact_profile: str,
+) -> list[str]:
+    try:
+        validate_plan_against_capabilities(
+            plan, connector, capabilities, catalog, evidence_stage,
+            artifact_profile, str(plan.get("downstream_protocol") or "any"),
+        )
+    except (ContractError, KeyError, TypeError) as exc:
+        return [f"plan selection is inconsistent with the catalog and capability inventory: {exc}"]
+    return []
 
 
 def nearest_existing_directory(path: Path) -> Path:
@@ -1855,18 +1928,19 @@ def init_plan(
     artifact_profile: str,
     host_profile: str,
 ) -> dict[str, Any]:
+    downstream_protocol = str(getattr(args, "downstream_protocol", "any"))
     if args.plan:
         plan = load_json(args.plan)
         if not isinstance(plan, dict) or plan.get("connector") != args.connector:
             raise ContractError("plan is invalid or belongs to another connector")
         validate_plan_against_capabilities(
             plan, args.connector, capabilities, catalog, args.evidence_stage,
-            artifact_profile,
+            artifact_profile, downstream_protocol,
         )
     else:
         plan = select_cases(
             args.connector, capabilities, catalog, args.evidence_stage,
-            artifact_profile,
+            artifact_profile, downstream_protocol,
         )
     # A legacy external plan may predate artifact profiles. It is valid only
     # as an input to init; every persisted canonical artifact is explicit.
@@ -1985,7 +2059,24 @@ def init_run(args: argparse.Namespace) -> int:
     return 0
 
 
-def copy_artifact(source: Path, destination: Path) -> None:
+def copy_artifact_chunks(
+    source_descriptor: int, destination_descriptor: int, maximum_bytes: int | None,
+) -> None:
+    copied_bytes = 0
+    while True:
+        chunk = os.read(source_descriptor, 131072)
+        if not chunk:
+            break
+        copied_bytes += len(chunk)
+        if maximum_bytes is not None and copied_bytes > maximum_bytes:
+            raise ContractError("source artifact exceeds its copy bound")
+        view = memoryview(chunk)
+        while view:
+            written = os.write(destination_descriptor, view)
+            view = view[written:]
+
+
+def copy_artifact(source: Path, destination: Path, *, maximum_bytes: int | None = None) -> None:
     source = lexical_absolute(source)
     destination = lexical_absolute(destination)
     if source == destination:
@@ -2001,19 +2092,17 @@ def copy_artifact(source: Path, destination: Path) -> None:
     try:
         _reject_destination_symlink(destination_parent, destination.name, destination)
         source_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+        if maximum_bytes is not None:
+            source_flags |= os.O_NONBLOCK
         source_descriptor = os.open(source.name, source_flags, dir_fd=source_parent)
-        if not stat.S_ISREG(os.fstat(source_descriptor).st_mode):
+        source_info = os.fstat(source_descriptor)
+        if not stat.S_ISREG(source_info.st_mode):
             raise ContractError(f"source artifact must be a regular file: {source}")
+        if maximum_bytes is not None and source_info.st_size > maximum_bytes:
+            raise ContractError("source artifact exceeds its copy bound")
         destination_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
         temporary_descriptor = os.open(temporary_name, destination_flags, 0o600, dir_fd=destination_parent)
-        while True:
-            chunk = os.read(source_descriptor, 131072)
-            if not chunk:
-                break
-            view = memoryview(chunk)
-            while view:
-                written = os.write(temporary_descriptor, view)
-                view = view[written:]
+        copy_artifact_chunks(source_descriptor, temporary_descriptor, maximum_bytes)
         os.fsync(temporary_descriptor)
         os.close(temporary_descriptor)
         temporary_descriptor = None
@@ -3861,6 +3950,137 @@ def case_identifier(raw: Mapping[str, Any]) -> str:
     return str(raw.get("case_id") or raw.get("case") or raw.get("name") or "").strip()
 
 
+def config_invocation_for_case(
+    case: Mapping[str, Any], connector: str,
+) -> Mapping[str, Any] | None:
+    invocations = case.get("config_invocations")
+    invocation = invocations.get(connector) if isinstance(invocations, Mapping) else None
+    return invocation if isinstance(invocation, Mapping) else None
+
+
+NGINX_CONFIGTEST_CONTRACTS = {
+    "invalid_boolean": {
+        "operation": "configtest", "directive": "modsecurity", "value": "maybe",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "invalid_boolean",
+        "diagnostic_fragments": ['"modsecurity" directive', "invalid boolean value"],
+    },
+    "invalid_size": {
+        "operation": "configtest", "directive": "modsecurity_phase4_body_limit", "value": "maybe",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "invalid_size",
+        "diagnostic_fragments": ['"modsecurity_phase4_body_limit" directive',
+                                 "invalid value for modsecurity_phase4_body_limit"],
+    },
+}
+
+
+def config_invocation_contract_errors(case: Mapping[str, Any]) -> list[str]:
+    if "config_invocations" not in case:
+        return []
+    invocations = case["config_invocations"]
+    if not isinstance(invocations, Mapping) or not invocations or set(invocations) != {"nginx"}:
+        return ["config_invocations must declare the supported nginx host contract"]
+    invocation = config_invocation_for_case(case, "nginx")
+    expected = NGINX_CONFIGTEST_CONTRACTS.get(str(case.get("case_id")))
+    # Closed realizations: never turn an arbitrary phase-0 case into a
+    # receipt-only PASS merely because input metadata names it a configtest.
+    if (
+        expected is None or case.get("phase") != 0
+        or case.get("expected_result") != "config_rejected" or case.get("expected_status") != 1
+        or case.get("expected_rule_id") is not None or case.get("expected_event_fields")
+        or invocation != expected
+        or type(invocation.get("expected_exit_code")) is not int
+    ):
+        return ["invalid explicit nginx configtest contract"]
+    return []
+
+
+def configtest_receipt_errors(
+    record: Mapping[str, Any], case: Mapping[str, Any],
+    connector: str, integration_mode: str | None,
+) -> list[str]:
+    invocation = config_invocation_for_case(case, connector)
+    receipt = record.get("configtest_receipt")
+    if invocation is None:
+        return ["configuration receipt has no declared case/host contract"] if receipt is not None else []
+    errors = config_invocation_contract_errors(case)
+    if not isinstance(receipt, Mapping):
+        return [*errors, "configuration receipt is missing or invalid"]
+    schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "configtest-receipt.schema.json")
+    if not isinstance(schema, Mapping):
+        return [*errors, "configuration receipt schema is missing"]
+    errors.extend(json_schema_errors(receipt, schema, location="configuration receipt"))
+    errors.extend(forbidden_payload_errors(receipt, "configuration receipt"))
+    errors.extend(configtest_receipt_identity_errors(record, case, connector, integration_mode, receipt, invocation))
+    errors.extend(configtest_receipt_observation_errors(record, receipt, invocation))
+    return errors
+
+
+def configtest_receipt_identity_errors(
+    record: Mapping[str, Any], case: Mapping[str, Any], connector: str,
+    integration_mode: str | None, receipt: Mapping[str, Any], invocation: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    identities = {
+        "case_id": case.get("case_id"), "connector": connector,
+        "run_id": record.get("run_id"), "integration_mode": record.get("integration_mode"),
+        **dict(invocation),
+    }
+    for field, expected in identities.items():
+        if receipt.get(field) != expected:
+            errors.append(f"configuration receipt {field} does not match case/run contract")
+    if record.get("integration_mode") != integration_mode:
+        errors.append("configuration receipt integration_mode does not match selected host")
+    for field in ("phase", "group", "required_capabilities", "expected_result", "expected_status", "expected_rule_id"):
+        if record.get(field) != case.get(field):
+            errors.append(f"configuration record {field} does not match catalog")
+    return errors
+
+
+def configtest_receipt_observation_errors(
+    record: Mapping[str, Any], receipt: Mapping[str, Any], invocation: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    if (
+        receipt.get("observed_exit_code") != invocation["expected_exit_code"]
+        or record.get("actual_status") != receipt.get("observed_exit_code")
+    ):
+        errors.append("configuration receipt observed exit does not match expected process exit")
+    if (
+        receipt.get("observed_outcome") != invocation["expected_outcome"]
+        or record.get("observed_result") != receipt.get("observed_outcome")
+    ):
+        errors.append("configuration receipt outcome does not match expected configuration outcome")
+    if record.get("live_executed") is not True:
+        errors.append("configuration receipt requires live_executed=true")
+    if (record.get("observed_rule_ids") or record.get("transaction_ids")
+            or record.get("observed_event_fields") or record.get("event_metadata_verified")):
+        errors.append("configuration receipt cannot claim request/rule/event execution")
+    if any(record.get(field) is not None for field in PHASE4_SEMANTIC_FIELDS):
+        errors.append("configuration receipt cannot claim HTTP/transport/runtime semantics")
+    return errors
+
+
+def configtest_run_identity_errors(
+    record: Mapping[str, Any], result: Mapping[str, Any], mrts_sha: str,
+) -> list[str]:
+    receipt = record.get("configtest_receipt")
+    if record.get("status") != "PASS" or not isinstance(receipt, Mapping):
+        return []
+    expected = {
+        "parent_sha": result.get("connector_commit"),
+        "framework_sha": result.get("framework_commit"), "mrts_sha": mrts_sha,
+        "run_id": result.get("run_id"), "connector": result.get("connector"),
+        "integration_mode": result.get("integration_mode"),
+    }
+    return [
+        f"{record.get('case_id')}: configuration receipt {field} does not match canonical run identity"
+        for field, value in expected.items()
+        if not value or value == "unknown" or receipt.get(field) != value
+    ]
+
+
 def normalized_case_provenance(
     raw: Mapping[str, Any],
 ) -> tuple[str | None, str | None, list[str]]:
@@ -3945,6 +4165,35 @@ def case_event_metadata_verified(
             and all(field in observed_event_fields for field in expected_fields)
         )
     return bool(matching_event and not event_errors and raw.get("event_metadata_verified"))
+
+
+def case_event_identity_errors(
+    case: Mapping[str, Any],
+    event: Mapping[str, Any] | None,
+    expected_run_id: str | None,
+) -> list[str]:
+    """Keep event-backed claims within their catalog phase and run context.
+
+    Older run-local native events omit the optional run ID; their file and
+    transaction provenance is retained. An explicitly different event run
+    cannot be borrowed, and a schema-valid phase is not proof of this case's
+    phase. Cases which do not claim event evidence need no incidental event.
+    """
+    if event is None or not (
+        case.get("expected_event_fields") or case.get("expected_rule_id") is not None
+    ):
+        return []
+    errors: list[str] = []
+    phase = normalize_canonical_phase(case.get("phase"))
+    if phase is not None and normalize_canonical_phase(event.get("phase")) != phase:
+        errors.append("canonical event phase does not match case phase")
+    if (
+        expected_run_id
+        and event.get("run_id") is not None
+        and event.get("run_id") != expected_run_id
+    ):
+        errors.append("canonical event run_id does not match case run")
+    return errors
 
 
 def normalized_case_operation_status(status: str) -> str:
@@ -4094,12 +4343,145 @@ def mark_case_record_invalid(record: dict[str, Any], validation_errors: Sequence
     )
 
 
+CONFIGTEST_BUNDLE_PATH = "inventory/configtests/invalid_boolean"
+CONFIGTEST_ARTIFACTS = {
+    "nginx-binary": ("binary_sha256", 64 * 1024 * 1024),
+    "nginx-module.so": ("module_sha256", 64 * 1024 * 1024),
+    NGINX_CONFIG_FILE_NAME: ("config_path_identity", 4096),
+    STDOUT_LOG_FILE_NAME: ("stdout_sha256", 65536),
+    STDERR_LOG_FILE_NAME: ("stderr_sha256", 65536),
+}
+
+
+def configtest_bundle_path(record: Mapping[str, Any]) -> str:
+    case_id = str(record.get("case_id"))
+    if case_id not in NGINX_CONFIGTEST_CONTRACTS:
+        raise ContractError("configuration artifact has no closed case contract")
+    return "inventory/configtests/" + case_id
+
+
+def configtest_file_observation(path: Path, limit: int) -> tuple[str, bytes]:
+    """Read bounded regular leaves through the existing directory authority."""
+    parent = open_directory_chain(path.parent)
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK, dir_fd=parent)
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+            raise ContractError(f"configuration artifact is not bounded/regular: {path.name}")
+        digest = hashlib.sha256()
+        total = 0
+        capture = bytearray()
+        while chunk := os.read(descriptor, 131072):
+            total += len(chunk)
+            if total > limit:
+                raise ContractError(f"configuration artifact exceeds bound: {path.name}")
+            digest.update(chunk)
+            if path.name in {NGINX_CONFIG_FILE_NAME, STDOUT_LOG_FILE_NAME, STDERR_LOG_FILE_NAME}:
+                capture.extend(chunk)
+        return digest.hexdigest(), bytes(capture)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        os.close(parent)
+
+
+def configtest_bundle_directory(
+    record: Mapping[str, Any], authority: Path, *, canonical: bool,
+) -> Path:
+    artifacts = record.get("artifacts")
+    if not isinstance(artifacts, Mapping) or set(artifacts) != {"configtest_dir"}:
+        raise ContractError("configuration receipt requires its closed retained artifact bundle")
+    value = artifacts["configtest_dir"]
+    if not isinstance(value, str) or len(value) > 4096:
+        raise ContractError("configuration artifact bundle path must be bounded")
+    canonical_path = configtest_bundle_path(record)
+    if canonical and value != canonical_path:
+        raise ContractError("configuration artifact bundle must use its fixed canonical path")
+    if not canonical and not Path(value).is_absolute():
+        raise ContractError("configuration source bundle must be absolute")
+    authority = lexical_absolute(authority)
+    bundle = lexical_absolute(authority / value)
+    try:
+        bundle.relative_to(authority)
+    except ValueError as exc:
+        raise ContractError("configuration bundle escapes its source authority") from exc
+    assert_no_symlink_components(bundle)
+    if bundle == authority or not bundle.is_dir():
+        raise ContractError("configuration bundle must be an existing child of its authority")
+    return bundle
+
+
+def configtest_bundle_captures(record: Mapping[str, Any], bundle: Path) -> dict[str, bytes]:
+    receipt = record.get("configtest_receipt")
+    if not isinstance(receipt, Mapping):
+        raise ContractError("configuration receipt is missing")
+    captures: dict[str, bytes] = {}
+    for name, (field, limit) in CONFIGTEST_ARTIFACTS.items():
+        digest, data = configtest_file_observation(bundle / name, limit)
+        expected = ("sha256:" if name == NGINX_CONFIG_FILE_NAME else "") + digest
+        if receipt.get(field) != expected:
+            raise ContractError(f"configuration artifact digest mismatch: {name}")
+        captures[name] = data
+    if len(captures[STDOUT_LOG_FILE_NAME]) + len(captures[STDERR_LOG_FILE_NAME]) > 65536:
+        raise ContractError("configuration captures exceed combined bound")
+    return captures
+
+
+def validate_configtest_bundle_template(
+    record: Mapping[str, Any], bundle: Path, captures: Mapping[str, bytes], *, canonical: bool,
+) -> None:
+    config = captures[NGINX_CONFIG_FILE_NAME].decode("utf-8")
+    match = re.fullmatch(r'load_module "(/[A-Za-z0-9_./-]+/nginx-module\.so)";\n.*', config, re.DOTALL)
+    if match is None:
+        raise ContractError("configuration artifact is not the closed nonsecret template")
+    origin = Path(match.group(1)).parent
+    if str(origin) != str(lexical_absolute(origin)) or (not canonical and origin != bundle):
+        raise ContractError("configuration template does not bind its retained module")
+    invocation = NGINX_CONFIGTEST_CONTRACTS[str(record.get("case_id"))]
+    expected_config = (
+        f'load_module "{origin}/nginx-module.so";\n'
+        f'pid "{origin}/nginx.pid";\n'
+        f'error_log "{origin}/nginx-error.log";\n'
+        "events {}\nhttp {\n"
+        f"  {invocation['directive']} {invocation['value']};\n"
+        "}\n"
+    )
+    if config != expected_config:
+        raise ContractError("configuration artifact is not the closed nonsecret template")
+    if record.get("status") == "PASS":
+        stderr = captures[STDERR_LOG_FILE_NAME].decode("utf-8", errors="replace")
+        if not all(fragment in stderr for fragment in invocation["diagnostic_fragments"]):
+            raise ContractError("configuration capture lacks the exact parser diagnostic")
+
+
+def validated_configtest_bundle(
+    record: Mapping[str, Any], authority: Path, *, canonical: bool,
+) -> Path:
+    bundle = configtest_bundle_directory(record, authority, canonical=canonical)
+    captures = configtest_bundle_captures(record, bundle)
+    validate_configtest_bundle_template(record, bundle, captures, canonical=canonical)
+    return bundle
+
+
+def configtest_artifact_errors(record: Mapping[str, Any], authority: Path | None) -> list[str]:
+    if authority is None:
+        return ["configuration receipt requires retained artifacts and an explicit artifact authority"]
+    try:
+        validated_configtest_bundle(record, authority, canonical=True)
+    except (OSError, ValueError) as exc:
+        return [f"configuration artifact validation failed: {exc}"]
+    return []
+
+
 def normalize_case_record(
     raw: Mapping[str, Any],
     connector: str,
     case_by_id: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]],
     integration_mode: str | None = None,
+    *,
+    configtest_artifact_root: Path | None = None,
 ) -> dict[str, Any] | None:
     case_id = case_identifier(raw)
     if not case_id or case_id not in case_by_id:
@@ -4113,7 +4495,8 @@ def normalize_case_record(
     observed_rule_ids = normalized_observed_rule_ids(raw)
     expected_rule_id = optional_int(case.get("expected_rule_id"))
     transaction_ids = supplied_transaction_ids(raw)
-    matching_event = event_for_case(
+    configuration = config_invocation_for_case(case, connector)
+    matching_event = None if configuration is not None else event_for_case(
         events, expected_rule_id, case, transaction_ids, integration_mode,
     )
     semantic_values, runtime_evidence_errors = semantic_runtime_fields(raw, matching_event)
@@ -4131,6 +4514,7 @@ def normalize_case_record(
             integration_mode=integration_mode,
         ) if matching_event else []
     )
+    event_errors.extend(case_event_identity_errors(case, matching_event, raw_run_id))
     event_metadata_verified = case_event_metadata_verified(
         raw, matching_event, event_errors, expected_fields, observed_event_fields,
     )
@@ -4156,6 +4540,8 @@ def normalize_case_record(
         status,
         details,
     )
+    if "configtest_receipt" in raw:
+        record["configtest_receipt"] = raw["configtest_receipt"]
     if status == "PASS":
         validation_errors = normalized_case_pass_errors(
             record,
@@ -4172,6 +4558,9 @@ def normalize_case_record(
             event_errors,
             integration_mode,
         )
+        validation_errors.extend(configtest_receipt_errors(record, case, connector, integration_mode))
+        if configuration is not None:
+            validation_errors.extend(configtest_artifact_errors(record, configtest_artifact_root))
         mark_case_record_invalid(record, validation_errors)
     return record
 
@@ -4344,6 +4733,13 @@ def selected_plan_case(
     selections: Mapping[str, Mapping[str, Any]], case_id: str,
 ) -> bool:
     return selections.get(case_id, {}).get("selection_status") == "SELECTED"
+
+
+def selected_case_ids_from_plan(plan: Mapping[str, Any]) -> set[str]:
+    return {
+        case_id for case_id, selection in selected_plan_cases(plan).items()
+        if selection.get("selection_status") == "SELECTED"
+    }
 
 
 def append_event_field_derivations(
@@ -4536,6 +4932,149 @@ def append_phase4_derived_record(
     if record is not None and record.get("status") == "PASS":
         records.append(record)
         by_id[case_id] = record
+
+
+def append_explicit_reuse_records(
+    records: list[dict[str, Any]],
+    plan: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]],
+    events: Sequence[Mapping[str, Any]],
+    integration_mode: str | None = None,
+    *,
+    expected_run_id: str | None = None,
+    expected_integration_mode: str | None = None,
+) -> None:
+    """Reuse only catalog-declared, identity-bound facts from live base cases.
+
+    These are not additional requests.  Each target is a narrower claim about
+    one validated base request.  The strict abort target is admitted only from
+    a client-observed abort and a matching strict-mode event; the general
+    Phase-4 derivation intentionally does not create it.
+    """
+    selections = selected_plan_cases(plan)
+    by_id = {str(record.get("case_id") or ""): record for record in records}
+    bound_run_id = expected_run_id or str(plan.get("run_id") or "")
+    bound_mode = expected_integration_mode or integration_mode
+    for target_id, base_id, requires_event in (
+        ("allow", "allow_without_marker", False),
+        ("deny", "deny_header_marker_403", True),
+        ("phase3_original_and_visible_status", "phase3_deny_before_commit", True),
+        ("event_has_no_response_body_payload", "phase4_rule_observed", True),
+        ("phase4_deny_after_commit_abort_strict", "phase4_deny_after_commit_abort", True),
+    ):
+        if target_id in by_id or not selected_plan_case(selections, target_id):
+            continue
+        target_case = case_by_id.get(target_id)
+        base = by_id.get(base_id)
+        if not explicit_reuse_candidate_valid(
+            base, base_id, target_case, plan, events, (bound_run_id, bound_mode), requires_event,
+        ):
+            continue
+        record = normalized_explicit_reuse_record(
+            base, target_id, base_id, plan, case_by_id, events, (bound_run_id, bound_mode),
+        )
+        if record is not None and record.get("status") == "PASS":
+            records.append(record)
+            by_id[target_id] = record
+
+
+def normalized_explicit_reuse_record(
+    base: Mapping[str, Any], target_id: str, base_id: str, plan: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]], events: Sequence[Mapping[str, Any]],
+    run_identity: tuple[str, str | None],
+) -> dict[str, Any] | None:
+    bound_run_id, bound_mode = run_identity
+    raw = dict(base)
+    raw.update({
+        "case_id": target_id,
+        "status": "PASS",
+        "run_id": bound_run_id or base.get("run_id"),
+        "integration_mode": bound_mode or base.get("integration_mode"),
+        "reason": f"derived from validated {base_id} request by explicit catalog reuse",
+    })
+    return normalize_case_record(
+        raw, str(plan.get("connector") or ""), case_by_id, events, bound_mode,
+    )
+
+
+def explicit_reuse_candidate_valid(
+    base: Mapping[str, Any] | None, base_id: str, target_case: Mapping[str, Any] | None,
+    plan: Mapping[str, Any], events: Sequence[Mapping[str, Any]],
+    run_identity: tuple[str, str | None], requires_event: bool,
+) -> bool:
+    bound_run_id, bound_mode = run_identity
+    if not target_case or not base or not explicit_reuse_base_valid(
+        base, base_id, target_case, plan, bound_run_id, bound_mode,
+    ):
+        return False
+    if requires_event and (
+        base.get("event_metadata_verified") is not True
+        or exact_reuse_event(
+            base, target_case, events, str(plan.get("connector") or ""),
+            bound_run_id or str(base.get("run_id") or ""), bound_mode,
+        ) is None
+    ):
+        return False
+    return True
+
+
+def explicit_reuse_base_valid(
+    base: Mapping[str, Any],
+    base_id: str,
+    target_case: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    expected_run_id: str | None,
+    expected_integration_mode: str | None,
+) -> bool:
+    request = target_case.get("request")
+    transactions = base.get("transaction_ids")
+    run_id = expected_run_id or base.get("run_id")
+    integration_mode = expected_integration_mode or base.get("integration_mode")
+    return bool(
+        isinstance(request, Mapping)
+        and request.get("reuses") == base_id
+        and base.get("case_id") == base_id
+        and base.get("status") == "PASS"
+        and base.get("live_executed") is True
+        and base.get("connector") == plan.get("connector")
+        and base.get("phase") == target_case.get("phase")
+        and optional_int(base.get("expected_rule_id")) == optional_int(target_case.get("expected_rule_id"))
+        and isinstance(transactions, list)
+        and len(transactions) == 1
+        and isinstance(transactions[0], str)
+        and transactions[0].strip()
+        and run_id
+        and integration_mode
+        and base.get("run_id") in {None, run_id}
+        and base.get("integration_mode") in {None, integration_mode}
+    )
+
+
+def exact_reuse_event(
+    base: Mapping[str, Any],
+    target_case: Mapping[str, Any],
+    events: Sequence[Mapping[str, Any]],
+    connector: str,
+    run_id: str,
+    integration_mode: str | None,
+) -> Mapping[str, Any] | None:
+    transaction = base["transaction_ids"][0]
+    rule_id = optional_int(target_case.get("expected_rule_id"))
+    phase = optional_int(target_case.get("phase"))
+    expected_mode = integration_mode or str(base.get("integration_mode") or "")
+    matches = [
+        event for event in events
+        if event_transaction_ids(event) == [transaction]
+        and event_rule_ids(event) == [rule_id]
+        and normalize_canonical_phase(event.get("phase")) == phase
+        and event.get("connector") == connector
+        and event.get("run_id") in {None, run_id}
+        and event.get("integration_mode") == expected_mode
+        and not canonical_event_errors(
+            event, connector=connector, integration_mode=expected_mode,
+        )
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 def selection_record(
@@ -4741,8 +5280,8 @@ def copy_named_log(run_dir: Path, label: str, source_text: str, manifest: dict[s
         return
     source = Path(source_text)
     canonical_names = {
-        "stdout": "stdout.log",
-        "stderr": "stderr.log",
+        "stdout": STDOUT_LOG_FILE_NAME,
+        "stderr": STDERR_LOG_FILE_NAME,
         "host_log": "host.log",
         "rule_load_log": "rule-load.log",
     }
@@ -5357,21 +5896,34 @@ def aggregate_status(
     stage_rc: int,
     *,
     source_failure: bool = False,
+    selected_case_ids: set[str] | None = None,
 ) -> tuple[str, bool]:
     started = any(record.get("live_executed") is True for record in records)
     statuses = Counter(str(record.get("status")) for record in records)
+    selected_statuses = Counter(
+        str(record.get("status")) for record in records
+        if selected_case_ids is None or record.get("case_id") in selected_case_ids
+    )
+    if selected_case_ids is not None:
+        recorded_ids = {str(record.get("case_id") or "") for record in records}
+        selected_statuses["NOT_EXECUTED"] += len(selected_case_ids - recorded_ids)
     if stage_rc == 77:
         return ("FAIL", False) if started else ("BLOCKED", True)
     if stage_rc != 0 or source_failure or statuses["FAIL"]:
         return "FAIL", False
     if statuses["BLOCKED"]:
         return "BLOCKED", not started
-    if statuses["NOT_EXECUTED"]:
+    if selected_statuses["NOT_EXECUTED"]:
         return "NOT_EXECUTED", False
-    if statuses["PASS"]:
+    if selected_case_ids is None and statuses["PASS"]:
+        # Preserve the legacy unscoped API's PASS/UNSUPPORTED precedence.
         return "PASS", False
-    if statuses["UNSUPPORTED"]:
+    if selected_statuses["UNSUPPORTED"]:
         return "UNSUPPORTED", False
+    if selected_statuses["NOT_APPLICABLE"]:
+        return "NOT_APPLICABLE", False
+    if selected_statuses["PASS"]:
+        return "PASS", False
     return "NOT_APPLICABLE", False
 
 
@@ -5481,6 +6033,9 @@ def bind_case_protocol_provenance(
         matching_event = matching_protocol_event(
             record, case, events, event_integration_mode,
         )
+        context_errors.extend(case_event_identity_errors(
+            case or record, matching_event, run_id,
+        ))
         context_errors.extend(case_protocol_pass_errors(
             record, matching_event, case, run_id, integration_mode,
         ))
@@ -5575,6 +6130,9 @@ class FinalizeContext:
         self.event_integration_mode = event_integration_mode
         self.capabilities = capabilities
         self.case_by_id = case_by_id
+        # Authority is taken from each explicit CLI source, never from a row.
+        self.configtest_source_roots: dict[int, Path] = {}
+        self.configtest_copied_cases: set[str] = set()
 
 
 class FinalizeSummaryValues(TypedDict):
@@ -5686,6 +6244,11 @@ def load_finalize_context(args: argparse.Namespace) -> FinalizeContext:
     if capabilities != supplied_capabilities:
         raise ContractError("capability manifest changed between init and finalize")
     catalog = load_catalog()
+    plan_errors = plan_capability_errors(
+        plan, connector, capabilities, catalog, evidence_stage, artifact_profile,
+    )
+    if plan_errors:
+        raise ContractError("; ".join(plan_errors))
     case_by_id = {case["case_id"]: case for case in catalog_cases(catalog)}
     return FinalizeContext(
         connector_root,
@@ -5809,6 +6372,8 @@ def collect_finalize_result_sources(
         payload_records = source_records(payload)
         validate_source_records(payload_records, context.manifest, source)
         raw_records.extend(payload_records)
+        for record in payload_records:
+            context.configtest_source_roots[id(record)] = lexical_absolute(source).parent
         retain_finalize_source_artifact(
             context,
             source,
@@ -5830,6 +6395,8 @@ def collect_finalize_jsonl_sources(
         payload_records = read_jsonl(source)
         validate_source_records(payload_records, context.manifest, source)
         raw_records.extend(payload_records)
+        for record in payload_records:
+            context.configtest_source_roots[id(record)] = lexical_absolute(source).parent
         retain_finalize_source_artifact(
             context,
             source,
@@ -5867,6 +6434,8 @@ def collect_finalize_summary_sources(
             payload_records = source_records(selected_payload)
             validate_source_records(payload_records, context.manifest, source)
             raw_records.extend(payload_records)
+            for record in payload_records:
+                context.configtest_source_roots[id(record)] = lexical_absolute(source).parent
         retain_finalize_source_artifact(
             context,
             source,
@@ -5919,6 +6488,11 @@ def normalize_finalize_records(
     append_derived_phase4_records(
         records, context.plan, context.case_by_id, events, context.event_integration_mode,
     )
+    append_explicit_reuse_records(
+        records, context.plan, context.case_by_id, events, context.event_integration_mode,
+        expected_run_id=str(context.manifest.get("run_id") or ""),
+        expected_integration_mode=str(context.manifest.get("integration_mode") or ""),
+    )
     prevent_synthetic_first_byte_promotion(records, first_byte_evidence)
     return records, deduplicated_case_records(records)
 
@@ -5930,16 +6504,51 @@ def normalized_finalize_case_records(
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for raw in raw_records:
+        case = context.case_by_id.get(str(case_identifier(raw)), {})
+        configuration = config_invocation_for_case(case, context.connector)
+        if "configtest_receipt" in raw:
+            raw = retain_finalize_configtest_bundle(context, raw)
         record = normalize_case_record(
             raw,
             context.connector,
             context.case_by_id,
             events,
-            context.event_integration_mode,
+            (str(context.manifest.get("integration_mode") or "")
+             if configuration is not None else context.event_integration_mode),
+            configtest_artifact_root=context.run_dir,
         )
         if record:
             records.append(record)
     return records
+
+
+def retain_finalize_configtest_bundle(
+    context: FinalizeContext, raw: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    case_id = case_identifier(raw)
+    case = context.case_by_id.get(str(case_id), {})
+    if config_invocation_for_case(case, context.connector) is None:
+        return raw
+    source_root = context.configtest_source_roots.get(id(raw))
+    if source_root is None:
+        raise ContractError("configuration artifact has no explicit source authority")
+    if case_id in context.configtest_copied_cases:
+        raise ContractError("duplicate configuration case artifact bundle")
+    # Validate template and captures before any config bytes enter evidence.
+    source = validated_configtest_bundle(raw, source_root, canonical=False)
+    normalized = dict(raw)
+    canonical_path = configtest_bundle_path(raw)
+    normalized["artifacts"] = {"configtest_dir": canonical_path}
+    for name, (_, limit) in CONFIGTEST_ARTIFACTS.items():
+        destination = context.run_dir / canonical_path / name
+        copy_artifact(source / name, destination, maximum_bytes=limit)
+        context.manifest["artifacts"]["configtest_" + str(case_id) + "_" + name.replace('.', '_')] = artifact_entry(
+            str(destination.relative_to(context.run_dir)), "produced", sha256=sha256_file(destination),
+        )
+    # Rehash retained copies too, so source replacement cannot certify PASS.
+    validated_configtest_bundle(normalized, context.run_dir, canonical=True)
+    context.configtest_copied_cases.add(str(case_id))
+    return normalized
 
 
 def deduplicated_case_records(records: Sequence[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -6219,6 +6828,28 @@ def finalized_evidence_stages(
     return evidence_stages
 
 
+def live_http_request_executed(
+    record: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]] | None = None,
+) -> bool:
+    """Keep configuration execution distinct from request execution.
+
+    Only the validated catalog host contract can identify a non-HTTP operation;
+    a supplied receipt must never reclassify a request case.
+    """
+    if record.get("live_executed") is not True:
+        return False
+    if case_by_id is None:
+        case_by_id = {case["case_id"]: case for case in catalog_cases(load_catalog())}
+    case = case_by_id.get(str(record.get("case_id") or ""), {})
+    invocation = config_invocation_for_case(case, str(record.get("connector") or ""))
+    return not (
+        invocation is not None
+        and invocation.get("operation") in {"configtest", "startup", "reload"}
+        and not config_invocation_contract_errors(case)
+    )
+
+
 def build_finalize_summary(
     context: FinalizeContext,
     args: argparse.Namespace,
@@ -6233,6 +6864,7 @@ def build_finalize_summary(
     source_failure = "FAIL" in source_statuses
     status, blocked_before_execution = aggregate_status(
         records, stage_rc, source_failure=source_failure,
+        selected_case_ids=selected_case_ids_from_plan(context.plan),
     )
     counts = Counter(record["status"] for record in records)
     observed_rule_ids = sorted({
@@ -6243,7 +6875,7 @@ def build_finalize_summary(
     })
     pass_ids = {record["case_id"] for record in records if record["status"] == "PASS"}
     verified, unsupported, not_exercised = finalize_capability_sets(records, context.capabilities)
-    requests_sent = any(record.get("live_executed") is True for record in records)
+    requests_sent = any(live_http_request_executed(record, context.case_by_id) for record in records)
     source_started = any(payload.get("started") is True for payload in source_payloads)
     event_metadata_verified, body_payload_absent = canonical_core_event_contract(
         events, context.connector, context.event_integration_mode,
@@ -7002,6 +7634,12 @@ def case_result_schema_errors(
             "reason", "exit_code", "artifacts",
         ), label))
         errors.extend(case_result_identity_errors(record, label, connector, seen))
+        if "configtest_receipt" in record:
+            receipt_schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "configtest-receipt.schema.json")
+            if isinstance(receipt_schema, Mapping):
+                errors.extend(json_schema_errors(record["configtest_receipt"], receipt_schema, location=label))
+            else:
+                errors.append(f"{label}: configuration receipt schema is missing")
     return errors
 
 
@@ -7054,10 +7692,13 @@ def schema_errors(run_dir: Path, connector: str, capabilities: Mapping[str, Any]
 
 def completeness_errors(run_dir: Path) -> list[str]:
     result = load_json(run_dir / RESULT_FILE_NAME)
+    plan = load_json(run_dir / PLAN_FILE_NAME)
     records = read_jsonl(run_dir / CASE_RESULTS_FILE_NAME)
     errors: list[str] = []
     if not isinstance(result, Mapping):
         return ["result.json must be an object"]
+    if not isinstance(plan, Mapping):
+        return ["plan.json must be an object"]
     connector = str(result.get("connector") or "")
     integration_mode = required_event_integration_mode(result)
     events = read_jsonl(run_dir / EVENTS_FILE_NAME, required=False)
@@ -7068,11 +7709,20 @@ def completeness_errors(run_dir: Path) -> list[str]:
         errors.append("event_metadata_verified is inconsistent with the canonical rule-1100001 event")
     errors.extend(result_pass_completeness_errors(
         result, records, event_metadata_verified, body_payload_absent,
+        selected_case_ids=selected_case_ids_from_plan(plan),
     ))
+    case_by_id = {case["case_id"]: case for case in catalog_cases(load_catalog())}
     for record in records:
+        case = case_by_id.get(str(record.get("case_id") or ""), {})
         errors.extend(pass_case_completeness_errors(
-            record, events, connector, integration_mode,
+            record, events, connector,
+            (str(result.get("integration_mode") or "")
+             if config_invocation_for_case(case, connector) is not None else integration_mode),
+            artifact_root=run_dir,
         ))
+        if record.get("configtest_receipt") is not None:
+            mrts_sha = git_value(FRAMEWORK_ROOT, "rev-parse", f"{result.get('framework_commit')}:tools/MRTS")
+            errors.extend(configtest_run_identity_errors(record, result, mrts_sha))
     return errors
 
 
@@ -7081,6 +7731,8 @@ def result_pass_completeness_errors(
     records: Sequence[Mapping[str, Any]],
     event_metadata_verified: bool,
     body_payload_absent: bool,
+    *,
+    selected_case_ids: set[str] | None = None,
 ) -> list[str]:
     if result.get("status") != "PASS":
         return []
@@ -7093,8 +7745,18 @@ def result_pass_completeness_errors(
         errors.append("PASS requires a concrete libmodsecurity_version")
     if result.get("cases_passed", 0) < 1:
         errors.append("PASS requires at least one passed case")
-    if any(result.get(key, 0) for key in ("cases_failed", "cases_blocked", "cases_not_executed")):
-        errors.append("PASS cannot contain failed, blocked, or not-executed cases")
+    if result.get("cases_failed", 0) or result.get("cases_blocked", 0):
+        errors.append("PASS cannot contain failed or blocked cases")
+    if selected_case_ids is None:
+        missing_selected = bool(result.get("cases_not_executed", 0))
+    else:
+        by_id = {str(record.get("case_id") or ""): record for record in records}
+        missing_selected = any(
+            case_id not in by_id or by_id[case_id].get("status") != "PASS"
+            for case_id in selected_case_ids
+        )
+    if missing_selected:
+        errors.append("PASS requires every selected case to have a PASS record")
     if result.get("evidence_stage") == "minimal_runtime_smoke":
         errors.extend(minimal_runtime_completeness_errors(
             records, event_metadata_verified, body_payload_absent,
@@ -7139,11 +7801,21 @@ def pass_case_completeness_errors(
     events: Sequence[Mapping[str, Any]],
     connector: str,
     integration_mode: str | None,
+    *,
+    artifact_root: Path | None = None,
 ) -> list[str]:
     if record.get("status") != "PASS":
         return []
     case_id = record.get("case_id")
+    case = next((case for case in catalog_cases(load_catalog()) if case["case_id"] == case_id), {})
+    if config_invocation_for_case(case, connector) is not None:
+        return [f"{case_id}: {error}" for error in (
+            *configtest_receipt_errors(record, case, connector, integration_mode),
+            *configtest_artifact_errors(record, artifact_root),
+        )]
     errors: list[str] = []
+    if record.get("configtest_receipt") is not None:
+        errors.append(f"{case_id}: configuration receipt has no declared case/host contract")
     if record.get("live_executed") is not True:
         errors.append(f"{case_id}: PASS requires live_executed=true")
     expected_status = record.get("expected_status")
@@ -7161,6 +7833,9 @@ def pass_case_completeness_errors(
     if expected_fields and not expected_fields.issubset(observed_fields):
         errors.append(f"{case_id}: PASS missing expected event fields")
     matching_event = matching_case_event_for_validation(record, events, integration_mode)
+    errors.extend(f"{case_id}: {error}" for error in case_event_identity_errors(
+        record, matching_event, str(record.get("run_id") or "") or None,
+    ))
     if is_phase4_semantic_case(record):
         errors.extend(
             f"{case_id}: {error}"
@@ -7177,11 +7852,17 @@ def pass_case_completeness_errors(
 
 def capability_errors(run_dir: Path, capabilities: Mapping[str, Any]) -> list[str]:
     result = load_json(run_dir / RESULT_FILE_NAME)
+    plan = load_json(run_dir / PLAN_FILE_NAME)
     records = read_jsonl(run_dir / CASE_RESULTS_FILE_NAME)
     declared = capabilities.get("capabilities", {})
-    if not isinstance(result, Mapping) or not isinstance(declared, Mapping):
-        return ["invalid result or capability manifest"]
+    if not isinstance(result, Mapping) or not isinstance(declared, Mapping) or not isinstance(plan, Mapping):
+        return ["invalid result, plan, or capability manifest"]
     errors = capability_inventory_errors(run_dir, capabilities)
+    errors.extend(plan_capability_errors(
+        plan, str(result.get("connector") or ""), capabilities, load_catalog(),
+        str(result.get("evidence_stage") or ""),
+        str(result.get("artifact_profile") or DEFAULT_ARTIFACT_PROFILE),
+    ))
     errors.extend(pass_case_capability_errors(records, declared))
     errors.extend(verified_capability_boundary_errors(result, declared))
     errors.extend(capability_partition_errors(result))
@@ -7552,7 +8233,7 @@ def status_record_facts(
             for record in records
             for transaction_id in record.get("transaction_ids", [])
         }),
-        "requests_sent": any(record.get("live_executed") is True for record in records),
+        "requests_sent": any(live_http_request_executed(record) for record in records),
         "request_headers_verified": {
             "allow_without_marker", "deny_header_marker_403",
         }.issubset(pass_ids),
@@ -7607,11 +8288,13 @@ def status_event_and_gate_errors(
     result: Mapping[str, Any],
     records: Sequence[Mapping[str, Any]],
     pass_ids: set[str],
+    plan: Mapping[str, Any],
 ) -> list[str]:
     expected_status, expected_blocked = aggregate_status(
         records,
         int(result.get("exit_code") or 0),
         source_failure=result.get("source_failure") is True,
+        selected_case_ids=selected_case_ids_from_plan(plan),
     )
     events = read_jsonl(run_dir / EVENTS_FILE_NAME, required=False)
     event_metadata_verified, body_payload_absent = canonical_core_event_contract(
@@ -7711,6 +8394,15 @@ def status_errors(run_dir: Path) -> list[str]:
         "plan": plan,
     }
     errors = status_profile_errors(documents)
+    capabilities = load_json(run_dir / CAPABILITIES_INVENTORY_FILE_PATH)
+    if not isinstance(capabilities, Mapping):
+        errors.append("inventory/capabilities.json must be an object")
+    else:
+        errors.extend(plan_capability_errors(
+            plan, str(result.get("connector") or ""), capabilities, load_catalog(),
+            str(result.get("evidence_stage") or ""),
+            str(result.get("artifact_profile") or DEFAULT_ARTIFACT_PROFILE),
+        ))
     errors.extend(status_count_errors(result, records))
     record_errors, pass_ids = status_record_consistency_errors(result, records)
     errors.extend(record_errors)
@@ -7718,7 +8410,7 @@ def status_errors(run_dir: Path) -> list[str]:
     errors.extend(status_source_failure_errors(result))
     if result.get("status") != manifest.get("status"):
         errors.append("manifest/result status mismatch")
-    errors.extend(status_event_and_gate_errors(run_dir, result, records, pass_ids))
+    errors.extend(status_event_and_gate_errors(run_dir, result, records, pass_ids, plan))
     errors.extend(status_document_identity_errors(result, manifest, inventory))
     errors.extend(status_exit_state_errors(result))
     return errors
@@ -8308,7 +9000,7 @@ def select_command(args: argparse.Namespace) -> int:
     manifest["source_path"] = str(Path(args.capabilities).resolve())
     plan = select_cases(
         args.connector, manifest, load_catalog(), args.evidence_stage,
-        args.artifact_profile,
+        args.artifact_profile, args.downstream_protocol,
     )
     write_json(args.output, plan)
     print(args.output)
@@ -8331,6 +9023,10 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_ARTIFACT_PROFILE,
         help="generic legacy artifacts or the strict full_lifecycle evidence set",
     )
+    select_parser.add_argument(
+        "--downstream-protocol", choices=DOWNSTREAM_PROTOCOLS, default="any",
+        help="actual downstream host protocol for this selected run",
+    )
     select_parser.add_argument("--output", required=True)
     select_parser.set_defaults(func=select_command)
 
@@ -8342,6 +9038,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--artifact-profile", choices=ARTIFACT_PROFILES,
         default=DEFAULT_ARTIFACT_PROFILE,
         help="must match the capability-selection plan artifact profile",
+    )
+    init_parser.add_argument(
+        "--downstream-protocol", choices=DOWNSTREAM_PROTOCOLS, default="any",
+        help="must match the capability-selection plan downstream protocol",
     )
     init_parser.add_argument("--plan")
     init_parser.add_argument("--run-dir", required=True)
