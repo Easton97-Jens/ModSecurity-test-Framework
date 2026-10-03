@@ -16,6 +16,7 @@ beschrieben.
 
 ## Aktuelle Records
 
+- [No-CRS-Sonar-Wartbarkeit (2026-10-03)](20261003-02-no-crs-sonar-maintainability.de.md)
 - [NGINX-Size-Configtest-Vertrag (2026-10-03)](20261003-01-nginx-size-configtest.de.md)
 - [NGINX-Konfigurationstest-Evidence (2026-10-01)](20261001-02-nginx-configtest-evidence.de.md)
 - [NGINX-Empty-Header-Runner (2026-10-01)](20261001-01-empty-header-runner.de.md)

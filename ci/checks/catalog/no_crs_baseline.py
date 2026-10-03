@@ -47,6 +47,9 @@ MANIFEST_FILE_NAME = "manifest.json"
 RESULT_FILE_NAME = "result.json"
 CASE_RESULTS_FILE_NAME = "results.jsonl"
 EVENTS_FILE_NAME = "events.jsonl"
+NGINX_CONFIG_FILE_NAME = "nginx.conf"
+STDOUT_LOG_FILE_NAME = "stdout.log"
+STDERR_LOG_FILE_NAME = "stderr.log"
 RUN_INVENTORY_FILE_PATH = "inventory/run.json"
 RULES_ARTIFACT_FILE_PATH = "config/no-crs-baseline.conf"
 CAPABILITIES_INVENTORY_FILE_PATH = "inventory/capabilities.json"
@@ -4321,9 +4324,9 @@ CONFIGTEST_BUNDLE_PATH = "inventory/configtests/invalid_boolean"
 CONFIGTEST_ARTIFACTS = {
     "nginx-binary": ("binary_sha256", 64 * 1024 * 1024),
     "nginx-module.so": ("module_sha256", 64 * 1024 * 1024),
-    "nginx.conf": ("config_path_identity", 4096),
-    "stdout.log": ("stdout_sha256", 65536),
-    "stderr.log": ("stderr_sha256", 65536),
+    NGINX_CONFIG_FILE_NAME: ("config_path_identity", 4096),
+    STDOUT_LOG_FILE_NAME: ("stdout_sha256", 65536),
+    STDERR_LOG_FILE_NAME: ("stderr_sha256", 65536),
 }
 
 
@@ -4351,7 +4354,7 @@ def configtest_file_observation(path: Path, limit: int) -> tuple[str, bytes]:
             if total > limit:
                 raise ContractError(f"configuration artifact exceeds bound: {path.name}")
             digest.update(chunk)
-            if path.name in {"nginx.conf", "stdout.log", "stderr.log"}:
+            if path.name in {NGINX_CONFIG_FILE_NAME, STDOUT_LOG_FILE_NAME, STDERR_LOG_FILE_NAME}:
                 capture.extend(chunk)
         return digest.hexdigest(), bytes(capture)
     finally:
@@ -4389,13 +4392,13 @@ def validated_configtest_bundle(
     captures: dict[str, bytes] = {}
     for name, (field, limit) in CONFIGTEST_ARTIFACTS.items():
         digest, data = configtest_file_observation(bundle / name, limit)
-        expected = ("sha256:" if name == "nginx.conf" else "") + digest
+        expected = ("sha256:" if name == NGINX_CONFIG_FILE_NAME else "") + digest
         if receipt.get(field) != expected:
             raise ContractError(f"configuration artifact digest mismatch: {name}")
         captures[name] = data
-    if len(captures["stdout.log"]) + len(captures["stderr.log"]) > 65536:
+    if len(captures[STDOUT_LOG_FILE_NAME]) + len(captures[STDERR_LOG_FILE_NAME]) > 65536:
         raise ContractError("configuration captures exceed combined bound")
-    config = captures["nginx.conf"].decode("utf-8")
+    config = captures[NGINX_CONFIG_FILE_NAME].decode("utf-8")
     match = re.fullmatch(r'load_module "(/[A-Za-z0-9_./-]+/nginx-module\.so)";\n.*', config, re.DOTALL)
     if match is None:
         raise ContractError("configuration artifact is not the closed nonsecret template")
@@ -4414,7 +4417,7 @@ def validated_configtest_bundle(
     if config != expected_config:
         raise ContractError("configuration artifact is not the closed nonsecret template")
     if record.get("status") == "PASS":
-        stderr = captures["stderr.log"].decode("utf-8", errors="replace")
+        stderr = captures[STDERR_LOG_FILE_NAME].decode("utf-8", errors="replace")
         if not all(fragment in stderr for fragment in invocation["diagnostic_fragments"]):
             raise ContractError("configuration capture lacks the exact parser diagnostic")
     return bundle
@@ -5212,8 +5215,8 @@ def copy_named_log(run_dir: Path, label: str, source_text: str, manifest: dict[s
         return
     source = Path(source_text)
     canonical_names = {
-        "stdout": "stdout.log",
-        "stderr": "stderr.log",
+        "stdout": STDOUT_LOG_FILE_NAME,
+        "stderr": STDERR_LOG_FILE_NAME,
         "host_log": "host.log",
         "rule_load_log": "rule-load.log",
     }
