@@ -4428,7 +4428,7 @@ def configtest_artifact_errors(record: Mapping[str, Any], authority: Path | None
         return ["configuration receipt requires retained artifacts and an explicit artifact authority"]
     try:
         validated_configtest_bundle(record, authority, canonical=True)
-    except (ContractError, OSError, UnicodeError, ValueError) as exc:
+    except (OSError, ValueError) as exc:
         return [f"configuration artifact validation failed: {exc}"]
     return []
 
