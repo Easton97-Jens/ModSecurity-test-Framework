@@ -3949,6 +3949,23 @@ def config_invocation_for_case(
     return invocation if isinstance(invocation, Mapping) else None
 
 
+NGINX_CONFIGTEST_CONTRACTS = {
+    "invalid_boolean": {
+        "operation": "configtest", "directive": "modsecurity", "value": "maybe",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "invalid_boolean",
+        "diagnostic_fragments": ['"modsecurity" directive', "invalid boolean value"],
+    },
+    "invalid_size": {
+        "operation": "configtest", "directive": "modsecurity_phase4_body_limit", "value": "maybe",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "invalid_size",
+        "diagnostic_fragments": ['"modsecurity_phase4_body_limit" directive',
+                                 "invalid value for modsecurity_phase4_body_limit"],
+    },
+}
+
+
 def config_invocation_contract_errors(case: Mapping[str, Any]) -> list[str]:
     if "config_invocations" not in case:
         return []
@@ -3956,21 +3973,17 @@ def config_invocation_contract_errors(case: Mapping[str, Any]) -> list[str]:
     if not isinstance(invocations, Mapping) or not invocations or set(invocations) != {"nginx"}:
         return ["config_invocations must declare the supported nginx host contract"]
     invocation = config_invocation_for_case(case, "nginx")
-    expected = {
-        "operation": "configtest", "directive": "modsecurity", "value": "maybe",
-        "expected_exit_code": 1, "expected_outcome": "config_rejected",
-        "error_class": "invalid_boolean",
-        "diagnostic_fragments": ['"modsecurity" directive', "invalid boolean value"],
-    }
-    # Closed initial realization: never turn an arbitrary phase-0 case into a
+    expected = NGINX_CONFIGTEST_CONTRACTS.get(str(case.get("case_id")))
+    # Closed realizations: never turn an arbitrary phase-0 case into a
     # receipt-only PASS merely because input metadata names it a configtest.
     if (
-        case.get("case_id") != "invalid_boolean" or case.get("phase") != 0
+        expected is None or case.get("phase") != 0
         or case.get("expected_result") != "config_rejected" or case.get("expected_status") != 1
         or case.get("expected_rule_id") is not None or case.get("expected_event_fields")
         or invocation != expected
+        or type(invocation.get("expected_exit_code")) is not int
     ):
-        return ["invalid explicit nginx invalid_boolean configtest contract"]
+        return ["invalid explicit nginx configtest contract"]
     return []
 
 
@@ -4314,6 +4327,13 @@ CONFIGTEST_ARTIFACTS = {
 }
 
 
+def configtest_bundle_path(record: Mapping[str, Any]) -> str:
+    case_id = str(record.get("case_id"))
+    if case_id not in NGINX_CONFIGTEST_CONTRACTS:
+        raise ContractError("configuration artifact has no closed case contract")
+    return "inventory/configtests/" + case_id
+
+
 def configtest_file_observation(path: Path, limit: int) -> tuple[str, bytes]:
     """Read bounded regular leaves through the existing directory authority."""
     parent = open_directory_chain(path.parent)
@@ -4349,7 +4369,8 @@ def validated_configtest_bundle(
     value = artifacts["configtest_dir"]
     if not isinstance(value, str) or len(value) > 4096:
         raise ContractError("configuration artifact bundle path must be bounded")
-    if canonical and value != CONFIGTEST_BUNDLE_PATH:
+    canonical_path = configtest_bundle_path(record)
+    if canonical and value != canonical_path:
         raise ContractError("configuration artifact bundle must use its fixed canonical path")
     if not canonical and not Path(value).is_absolute():
         raise ContractError("configuration source bundle must be absolute")
@@ -4381,17 +4402,20 @@ def validated_configtest_bundle(
     origin = Path(match.group(1)).parent
     if str(origin) != str(lexical_absolute(origin)) or (not canonical and origin != bundle):
         raise ContractError("configuration template does not bind its retained module")
+    invocation = NGINX_CONFIGTEST_CONTRACTS[str(record.get("case_id"))]
     expected_config = (
         f'load_module "{origin}/nginx-module.so";\n'
         f'pid "{origin}/nginx.pid";\n'
         f'error_log "{origin}/nginx-error.log";\n'
-        "events {}\nhttp {\n  modsecurity maybe;\n}\n"
+        "events {}\nhttp {\n"
+        f"  {invocation['directive']} {invocation['value']};\n"
+        "}\n"
     )
     if config != expected_config:
         raise ContractError("configuration artifact is not the closed nonsecret template")
     if record.get("status") == "PASS":
         stderr = captures["stderr.log"].decode("utf-8", errors="replace")
-        if not all(fragment in stderr for fragment in ('"modsecurity" directive', 'invalid boolean value')):
+        if not all(fragment in stderr for fragment in invocation["diagnostic_fragments"]):
             raise ContractError("configuration capture lacks the exact parser diagnostic")
     return bundle
 
@@ -6445,11 +6469,12 @@ def retain_finalize_configtest_bundle(
     # Validate template and captures before any config bytes enter evidence.
     source = validated_configtest_bundle(raw, source_root, canonical=False)
     normalized = dict(raw)
-    normalized["artifacts"] = {"configtest_dir": CONFIGTEST_BUNDLE_PATH}
+    canonical_path = configtest_bundle_path(raw)
+    normalized["artifacts"] = {"configtest_dir": canonical_path}
     for name, (_, limit) in CONFIGTEST_ARTIFACTS.items():
-        destination = context.run_dir / CONFIGTEST_BUNDLE_PATH / name
+        destination = context.run_dir / canonical_path / name
         copy_artifact(source / name, destination, maximum_bytes=limit)
-        context.manifest["artifacts"]["configtest_invalid_boolean_" + name.replace('.', '_')] = artifact_entry(
+        context.manifest["artifacts"]["configtest_" + str(case_id) + "_" + name.replace('.', '_')] = artifact_entry(
             str(destination.relative_to(context.run_dir)), "produced", sha256=sha256_file(destination),
         )
     # Rehash retained copies too, so source replacement cannot certify PASS.

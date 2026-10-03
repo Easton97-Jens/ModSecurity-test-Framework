@@ -192,7 +192,8 @@ den bestehenden Vertrag für runlokale Quelldatei- und Transaktionsprovenienz.
 
 ### Konfigurationsoperationen sind keine HTTP-Requests
 
-Der Phase-0-Katalogeintrag `invalid_boolean` deklariert genau eine konkrete
+Die Phase-0-Katalogeinträge `invalid_boolean` und `invalid_size` deklarieren
+geschlossene NGINX-Konfigurationsrealisierungen. `invalid_boolean` nutzt eine konkrete
 NGINX-`configtest`-Realisierung: Das aufbewahrte NGINX-Binary mit `-t` und der
 geschlossenen Konfiguration mit `modsecurity maybe;` ausführen. Die erwartete
 Ablehnung verlangt Exit `1`, Fehlerklasse `invalid_boolean` und beide exakten
@@ -201,13 +202,21 @@ fehlendes Modul, eine andere Directive/Fehlerklasse, Exit `0` oder ein anderer
 Exit erfüllt sie nicht. Negative Subprocess-Ergebnisse wie `-1`
 (Ausführungsfehler) und `-9` (Terminierung) können als Fehlerreceipts aufbewahrt
 werden; sie ergeben niemals PASS für die erwartete Ablehnung.
+`invalid_size` prüft stattdessen `modsecurity_phase4_body_limit maybe;` und
+verlangt Exit `1`, Fehlerklasse `invalid_size` und beide exakten Diagnosefragmente
+`"modsecurity_phase4_body_limit" directive` und
+`invalid value for modsecurity_phase4_body_limit`. Diese unterschiedlichen
+Verträge erfüllen einander nicht und erlauben kein beliebiges Phase-0-PASS
+allein anhand eines Receipts.
 
 Kanonische Erfüllung verlangt das begrenzte `configtest_receipt` sowie sein
 autorisiertes aufbewahrtes Bundle: `nginx-binary`, `nginx-module.so`,
 `nginx.conf`, `stdout.log` und `stderr.log`. Die Finalisierung gewinnt die
 Source-Authority aus dem Parent-Verzeichnis der expliziten Quelldatei, weist
 fehlende, fremde oder verlinkte Artefakte ab und bewahrt die fünf Dateien sicher
-unter `inventory/configtests/invalid_boolean` auf. Die Validierung hasht sie
+unter `inventory/configtests/invalid_boolean` oder
+`inventory/configtests/invalid_size` getrennt pro registriertem Case auf.
+Die Validierung hasht sie
 erneut, prüft das geschlossene nichtgeheime Konfigurationstemplate und die
 Parserdiagnose und bindet das Receipt an Case, Directive/Wert, Run,
 Connector/Integration-Mode, Source-Revisionen sowie Binary-/Modulidentitäten.
@@ -226,7 +235,7 @@ prüft nur eine vollständige begrenzte Operationsbeobachtung gegen die
 deklarierte NGINX-Operation. Sie beweist nicht deren tatsächliche Ausführung.
 Beobachtungen anderer Connectoren erfüllen diese konkrete Erwartung nicht;
 portable Kataloganwendbarkeit und Auswahl bleiben unverändert. Die weiteren
-neun konfigurationsbezogenen Pflichtrecords haben in diesem Teil keine
+acht konfigurationsbezogenen Pflichtrecords haben in diesem Teil keine
 implementierte Konfigurationsrealisierung und werden weder zu PASS umgewandelt
 noch aus der Required-Coverage ausgeschlossen.
 
@@ -240,6 +249,16 @@ Listener-Behauptung. Source- und kanonische Aggregate blieben jeweils FAIL,
 weil Required-Requests nicht ausgeführt wurden. Dies ist Retained-Build-
 Diagnoseevidence, kein neuer Exact-Head-Full-Lifecycle-Nachweis.
 Siehe den [Konfigurations-Evidence-Change-Record](../reports/audits/change-records/20261001-02-nginx-configtest-evidence.de.md).
+
+Die anschließende lokale Diagnose `nginx-config-size-retained-6si2byjk` führte
+den echten Producer, Collector und kanonischen Finalizer für `invalid_size`
+aus: Die erwartete Size-Ablehnung erhielt individuelles PASS; die
+Wrong-Module-Kontrolle blieb FAIL, obwohl beide Invocations Exit `1` hatten.
+Beide aufbewahrten Bundles aus fünf Dateien bestanden alle acht kanonischen
+Validatoren. Beide Aggregate blieben FAIL, ohne Starts, Requests oder Events.
+Diese Precommit-Diagnose mit verändertem Source-Worktree nutzt aufbewahrte
+gecachte C-Artefakte, keinen neuen Exact-Head-Build oder Full E2E.
+Siehe den [Size-Vertrag-Change-Record](../reports/audits/change-records/20261003-01-nginx-size-configtest.de.md).
 
 Der Evidence-Pfad zeichnet nur geprüfte, normalisierte Metadaten auf. Er lehnt
 unbegrenzte Request- oder Response-Payload-Felder ab und leitet keinen PASS aus

@@ -179,7 +179,8 @@ source-file and transaction provenance contract.
 
 ### Configuration operations are not HTTP requests
 
-The phase-0 `invalid_boolean` catalog record declares one concrete NGINX
+The phase-0 `invalid_boolean` and `invalid_size` catalog records declare closed
+NGINX configuration realizations. `invalid_boolean` uses one concrete NGINX
 `configtest` realization: run the retained NGINX binary with `-t` against the
 closed configuration containing `modsecurity maybe;`. The expected rejection
 requires exit `1`, error class `invalid_boolean`, and both exact diagnostic
@@ -187,13 +188,20 @@ fragments `"modsecurity" directive` and `invalid boolean value`. A missing
 module, another directive/error, exit `0` or another exit does not satisfy it.
 Signed subprocess failures such as `-1` (execution error) and `-9` (termination)
 can be retained as failure receipts; they are never expected-rejection PASS.
+`invalid_size` instead tests `modsecurity_phase4_body_limit maybe;`, requiring
+exit `1`, error class `invalid_size`, and both exact diagnostic fragments
+`"modsecurity_phase4_body_limit" directive` and
+`invalid value for modsecurity_phase4_body_limit`. These distinct contracts
+cannot satisfy each other or authorize arbitrary phase-0 receipt-only PASS.
 
 Canonical fulfillment requires the bounded `configtest_receipt` plus its
 authorized retained bundle: `nginx-binary`, `nginx-module.so`, `nginx.conf`,
 `stdout.log`, and `stderr.log`. Finalization obtains source authority from the
 explicit source file's parent, rejects missing/foreign/symlinked artifacts,
 and securely retains the five files under
-`inventory/configtests/invalid_boolean`. Validation rehashes them, checks the
+`inventory/configtests/invalid_boolean` or
+`inventory/configtests/invalid_size`, separately for each registered case.
+Validation rehashes them, checks the
 closed nonsecret configuration template and parser diagnostic, and binds the
 receipt to the case, directive/value, run, connector/integration mode, source
 revisions and binary/module identities. Receipt assertions or unit fixtures
@@ -209,7 +217,7 @@ The public API's connector-scoped `configuration` tagged expectation checks
 only a complete bounded operation observation against the declared NGINX
 operation. It is not proof that the operation actually ran. Other connector
 observations fail that concrete expectation; portable catalog applicability
-and selection remain unchanged. The other nine configuration-related required
+and selection remain unchanged. The other eight configuration-related required
 records have no implemented configuration realization in this slice and are
 not converted to PASS or excluded from required coverage.
 
@@ -223,6 +231,15 @@ source and canonical aggregates remained FAIL because required requests were
 not executed. This is retained-build diagnostic evidence, not a new
 Exact-Head full-lifecycle proof.
 See the [configuration evidence Change Record](../reports/audits/change-records/20261001-02-nginx-configtest-evidence.md).
+
+The subsequent local diagnostic `nginx-config-size-retained-6si2byjk` ran the
+real producer, collector and canonical finalizer for `invalid_size`: the
+expected size rejection produced individual PASS; the wrong-module control
+remained FAIL although both invocations exited `1`. Both retained five-file
+bundles passed all eight canonical validators. Both aggregates remained FAIL,
+with no startup, requests or events. This precommit source-dirty diagnostic
+uses retained cached C artifacts, not a new Exact-Head build or full E2E.
+See the [size contract Change Record](../reports/audits/change-records/20261003-01-nginx-size-configtest.md).
 
 The evidence path records only reviewed, normalized metadata. It rejects
 unbounded request or response payload fields and does not derive a PASS from an
