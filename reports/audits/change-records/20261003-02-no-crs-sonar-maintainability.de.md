@@ -46,10 +46,12 @@ Stil und eng begrenzte Test-Assertion-/Exception-Hygiene nutzen.
 
 ## Implementierungsentscheidung
 
-Zuerst die unveränderten Blattnamen `nginx.conf`, `stdout.log` und
-`stderr.log` in Konstanten zentralisieren. Separate Folgecommits behandeln
-Testdiagnostik, redundante Exception-Unterklassen und die vier komplexen
-Funktionen. Katalog, Schema, Runner-Case, Capability, öffentlicher Vertrag und
+Die unveränderten Blattnamen `nginx.conf`, `stdout.log` und `stderr.log` in
+Konstanten zentralisieren. Nach Ursachen getrennte Commits behandeln
+Testdiagnostik und redundante Exception-Unterklassen. Acht eng begrenzte Helper
+aus den vier komplexen Funktionen extrahieren; ursprüngliche Signaturen,
+Validierungsreihenfolge, Descriptor-Ownership und explizite Evidence-Reuse-
+Bedingungen erhalten. Katalog, Schema, Runner-Case, Capability, öffentlicher Vertrag und
 Runtime-Verhalten werden nicht absichtlich geändert.
 
 ## Geänderte Dateien und Tests
@@ -62,19 +64,39 @@ scheitert bei einer unerwarteten Exception unmittelbar.
 
 ## Befehle und Ergebnisse
 
+Portable Befehlsabkürzungen bezeichnen die ausgeführten Bindings aus
+`A/framework-pr135-sonar-plan.md`: `A` ist das freigegebene externe
+Analyseverzeichnis, `FW` der Framework-Task-Worktree, `PY` der Framework-eigene
+Interpreter, `P` der separate Parent-Integrations-Worktree und `N` / `L` die
+externen Buildverzeichnisse `framework-pr135-sonar-final` /
+`framework-pr135-sonar-lint`. Maschinenspezifische absolute Pfade gehören in
+dieses externe Record, nicht in dieses versionierte Dokument.
+Alle argv und Flags bleiben unten erhalten.
+
+Befehle laufen aus `FW`; Python nutzt `PYTHONNOUSERSITE=1` und
+`PYTHONDONTWRITEBYTECODE=1`. Die unveränderte b9-Baseline bestand vor Änderungen
+166 Tests (`A/framework-pr135-sonar-baseline-no-crs.log`). Zwischenprüfungen
+bestanden 65 betroffene Tests und 25 Config-Tests; Befehle und Umfang stehen
+in `A/framework-pr135-test-hygiene-result.md` und
+`A/framework-pr135-product-result.md`.
+
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- | --- |
-| RTK-gewrappter owning Interpreter: unveränderte No-CRS-Baseline-Discovery | 0 | 166 Tests, keine Skips, vor Änderungen | Externes Coordinator-Baseline-Log |
-| RTK-gewrappter owning Interpreter: Code-Muster-Regression | 1 / 0 | Baseline 0/19, korrigierte Tests 19/19 | Externe Test-Hygiene-Kontrollen |
-| RTK-gewrappter owning Interpreter: dreizehn betroffene Testmodule | 0 | 65 Tests bestehen | Externes Test-Hygiene-Fokuslog |
-| RTK-gewrappter owning Interpreter: Config-Artefakt-/Receipt-/Size-Fokus | 0 | 25 Tests nach Konstantenextraktion bestehen | Externe Produkt-Owner-Validierung |
-| RTK-gewrappter owning Interpreter: Baseline-/Current-Charakterisierung | 0 | 1.218 Vergleiche vor Komplexitätsextraktion stimmen überein | Externer Produkt-Parity-Harness |
+| `rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 "$PY" -B "$A/framework-pr135-test-sonar-controls.py" --baseline` / derselbe Befehl ohne `--baseline` | 1 / 0 | Baseline 0/19, korrigierte Tests 19/19 | `A/framework-pr135-test-hygiene-source-red.log` / `A/framework-pr135-test-hygiene-source-green.log` |
+| `rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$N/tmp" timeout 300 make test-no-crs-contract PYTHON="$PY" BUILD_ROOT="$N" TMP_ROOT="$N/tmp"` | 0 | 166 Tests bestehen, keine Skips | `A/framework-pr135-sonar-final-no-crs.log` / `.exit` |
+| `rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$A" "$PY" -B "$A/framework-pr135-product-parity.py" "$FW"` | 0 | 2.081 Vergleiche nach allen Extraktionen stimmen überein | `A/framework-pr135-product-parity.log` |
+| `rtk proxy env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$A" "$PY" -B -m unittest -v tests.no_crs.test_configtest_artifacts tests.no_crs.test_configtest_receipt tests.no_crs.test_configtest_runtime_facts tests.no_crs.test_configtest_size tests.no_crs.test_exact_reuse_mapping tests.no_crs.test_case_event_binding` | 0 | 41 Tests bestehen; Source-/Authority-Review ohne Regressionsblocker | `A/framework-pr135-independent-product-focus.log`; Review `A/framework-pr135-independent-product-review.md` |
+| `rtk proxy timeout 600 env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$L/tmp" make lint PYTHON="$PY" BUILD_ROOT="$L" TMP_ROOT="$L/tmp"` | 124 | Budget nach 21 bestandenen ModSecurity-Provenance-Tests erschöpft; kein vollständiger Lint-PASS | `A/framework-pr135-sonar-final-lint.log` / `.exit` |
+| `rtk proxy timeout 1800 env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$L/tmp" make lint PYTHON="$PY" BUILD_ROOT="$L" TMP_ROOT="$L/tmp"` | 2 | Geerbtes `FRAMEWORK_ROOT` zeigt auf anderen Checkout; Exact-Root-Guard verweigert dies korrekt | `A/framework-pr135-sonar-final-lint-retry.log` / `.exit` |
+| Root-gebundenes natives Target-Preflight, exakter Aufruf in `A/framework-pr135-sonar-plan.md` | 2 | 94 Unit-Prüfungen bestehen; Dokumentation verweigert maschinenspezifische absolute Pfade, in diesem Paar ohne Checkeränderung korrigiert | `A/framework-pr135-sonar-root-preflight.log` / `.exit` |
+| `rtk proxy timeout 3600 env PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 TMPDIR="$L/tmp" make lint PYTHON="$PY" CI_ROOT="$FW/ci" FRAMEWORK_ROOT="$FW" CONNECTOR_ROOT="$P" OUTPUT_ROOT="$FW" BUILD_ROOT="$L" TMP_ROOT="$L/tmp"` | 0 | Vollständiges natives Lint mit expliziten Exact-Worktree-Roots und unveränderten Gates besteht, einschließlich API-, Workflow-, Katalog-, Dokumentations- und Diff-Prüfungen | `A/framework-pr135-sonar-final-lint-root-bound.log` / `.exit` |
 | `rtk proxy git diff --check` | 0 | Whitespace geprüft | Framework-Task-Worktree |
 
 Dies sind Source-/Unit-Prüfungen, keine Connector-Promotion oder Runtime-
-Zertifizierung. Integrierte und Postcommit-Native-Gates sowie neue Remote-
-Analyse sind an diesem ersten getrennten Ursachencheckpoint noch ausstehend
-und werden erst nach Ausführung dokumentiert.
+Zertifizierung. Vollständiges natives Lint besteht nach expliziter Bindung der
+Worktree-Roots; neue Remote-Analyse steht noch aus. Abgebrochene/verweigerte
+Läufe bleiben erhalten. Auch die portable Record-Korrektur besteht sämtliche
+nativen Dokumentationsgates.
 
 ## Sicherheitsauswirkung
 
@@ -91,8 +113,8 @@ gestartet. Alte Evidence wird nicht als neue Exact-Head-Evidence umetikettiert.
 
 ## Nicht ausgeführte Prüfungen
 
-Full E2E ist ausdrücklich verboten. Remote-Prüfungen neuer Commits und finale
-integrierte native Gates dürfen vor echter Ausführung nicht behauptet werden.
+Full E2E ist ausdrücklich verboten. Remote-Prüfungen neu veröffentlichter
+Commits stehen aus und dürfen vor echter Ausführung nicht behauptet werden.
 
 ## Einschränkungen und Restrisiko
 
@@ -102,8 +124,10 @@ Framework-Delivery und Parent-Integration bleiben getrennt; keines ist ein Merge
 
 ## Finaler Diff- und Review-Status
 
-Der erste Dateinamenkonstanten-Schritt ist nach Einsetzen der unveränderten
-Konstantenwerte für das gesamte Modul AST-äquivalent, mit Fokusprüfungen und
-Diff-Review. Weitere Schritte benötigen unabhängiges Review und finale
-integrierte Validierung. Secrets, generierte Runtime-Ergebnisse, MRTS-Änderungen
+Der Dateinamenkonstanten-Schritt ist nach Einsetzen der unveränderten Werte für
+das gesamte Modul AST-äquivalent. Ursprüngliche APIs und der Modul-AST außerhalb
+der vier extrahierten Funktionen und ihrer acht Helper sind unverändert.
+Unabhängiges Review, endliche Baseline-/Current-Parity-Kontrollen und finale
+No-CRS-Tests und vollständiges natives Lint bestehen. Sonar/CI am neu
+veröffentlichten SHA stehen noch aus. Secrets, generierte Runtime-Ergebnisse, MRTS-Änderungen
 und Suppression-Konfiguration gehören nicht in diesen Change.

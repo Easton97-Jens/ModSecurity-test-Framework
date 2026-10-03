@@ -2059,6 +2059,23 @@ def init_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def copy_artifact_chunks(
+    source_descriptor: int, destination_descriptor: int, maximum_bytes: int | None,
+) -> None:
+    copied_bytes = 0
+    while True:
+        chunk = os.read(source_descriptor, 131072)
+        if not chunk:
+            break
+        copied_bytes += len(chunk)
+        if maximum_bytes is not None and copied_bytes > maximum_bytes:
+            raise ContractError("source artifact exceeds its copy bound")
+        view = memoryview(chunk)
+        while view:
+            written = os.write(destination_descriptor, view)
+            view = view[written:]
+
+
 def copy_artifact(source: Path, destination: Path, *, maximum_bytes: int | None = None) -> None:
     source = lexical_absolute(source)
     destination = lexical_absolute(destination)
@@ -2085,18 +2102,7 @@ def copy_artifact(source: Path, destination: Path, *, maximum_bytes: int | None 
             raise ContractError("source artifact exceeds its copy bound")
         destination_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
         temporary_descriptor = os.open(temporary_name, destination_flags, 0o600, dir_fd=destination_parent)
-        copied_bytes = 0
-        while True:
-            chunk = os.read(source_descriptor, 131072)
-            if not chunk:
-                break
-            copied_bytes += len(chunk)
-            if maximum_bytes is not None and copied_bytes > maximum_bytes:
-                raise ContractError("source artifact exceeds its copy bound")
-            view = memoryview(chunk)
-            while view:
-                written = os.write(temporary_descriptor, view)
-                view = view[written:]
+        copy_artifact_chunks(source_descriptor, temporary_descriptor, maximum_bytes)
         os.fsync(temporary_descriptor)
         os.close(temporary_descriptor)
         temporary_descriptor = None
@@ -4006,6 +4012,16 @@ def configtest_receipt_errors(
         return [*errors, "configuration receipt schema is missing"]
     errors.extend(json_schema_errors(receipt, schema, location="configuration receipt"))
     errors.extend(forbidden_payload_errors(receipt, "configuration receipt"))
+    errors.extend(configtest_receipt_identity_errors(record, case, connector, integration_mode, receipt, invocation))
+    errors.extend(configtest_receipt_observation_errors(record, receipt, invocation))
+    return errors
+
+
+def configtest_receipt_identity_errors(
+    record: Mapping[str, Any], case: Mapping[str, Any], connector: str,
+    integration_mode: str | None, receipt: Mapping[str, Any], invocation: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
     identities = {
         "case_id": case.get("case_id"), "connector": connector,
         "run_id": record.get("run_id"), "integration_mode": record.get("integration_mode"),
@@ -4019,6 +4035,13 @@ def configtest_receipt_errors(
     for field in ("phase", "group", "required_capabilities", "expected_result", "expected_status", "expected_rule_id"):
         if record.get(field) != case.get(field):
             errors.append(f"configuration record {field} does not match catalog")
+    return errors
+
+
+def configtest_receipt_observation_errors(
+    record: Mapping[str, Any], receipt: Mapping[str, Any], invocation: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
     if (
         receipt.get("observed_exit_code") != invocation["expected_exit_code"]
         or record.get("actual_status") != receipt.get("observed_exit_code")
@@ -4363,7 +4386,7 @@ def configtest_file_observation(path: Path, limit: int) -> tuple[str, bytes]:
         os.close(parent)
 
 
-def validated_configtest_bundle(
+def configtest_bundle_directory(
     record: Mapping[str, Any], authority: Path, *, canonical: bool,
 ) -> Path:
     artifacts = record.get("artifacts")
@@ -4386,6 +4409,10 @@ def validated_configtest_bundle(
     assert_no_symlink_components(bundle)
     if bundle == authority or not bundle.is_dir():
         raise ContractError("configuration bundle must be an existing child of its authority")
+    return bundle
+
+
+def configtest_bundle_captures(record: Mapping[str, Any], bundle: Path) -> dict[str, bytes]:
     receipt = record.get("configtest_receipt")
     if not isinstance(receipt, Mapping):
         raise ContractError("configuration receipt is missing")
@@ -4398,6 +4425,12 @@ def validated_configtest_bundle(
         captures[name] = data
     if len(captures[STDOUT_LOG_FILE_NAME]) + len(captures[STDERR_LOG_FILE_NAME]) > 65536:
         raise ContractError("configuration captures exceed combined bound")
+    return captures
+
+
+def validate_configtest_bundle_template(
+    record: Mapping[str, Any], bundle: Path, captures: Mapping[str, bytes], *, canonical: bool,
+) -> None:
     config = captures[NGINX_CONFIG_FILE_NAME].decode("utf-8")
     match = re.fullmatch(r'load_module "(/[A-Za-z0-9_./-]+/nginx-module\.so)";\n.*', config, re.DOTALL)
     if match is None:
@@ -4420,6 +4453,14 @@ def validated_configtest_bundle(
         stderr = captures[STDERR_LOG_FILE_NAME].decode("utf-8", errors="replace")
         if not all(fragment in stderr for fragment in invocation["diagnostic_fragments"]):
             raise ContractError("configuration capture lacks the exact parser diagnostic")
+
+
+def validated_configtest_bundle(
+    record: Mapping[str, Any], authority: Path, *, canonical: bool,
+) -> Path:
+    bundle = configtest_bundle_directory(record, authority, canonical=canonical)
+    captures = configtest_bundle_captures(record, bundle)
+    validate_configtest_bundle_template(record, bundle, captures, canonical=canonical)
     return bundle
 
 
@@ -4925,32 +4966,56 @@ def append_explicit_reuse_records(
             continue
         target_case = case_by_id.get(target_id)
         base = by_id.get(base_id)
-        if not target_case or not base or not explicit_reuse_base_valid(
-            base, base_id, target_case, plan, bound_run_id, bound_mode,
+        if not explicit_reuse_candidate_valid(
+            base, base_id, target_case, plan, events, (bound_run_id, bound_mode), requires_event,
         ):
             continue
-        if requires_event and (
-            base.get("event_metadata_verified") is not True
-            or exact_reuse_event(
-                base, target_case, events, str(plan.get("connector") or ""),
-                bound_run_id or str(base.get("run_id") or ""), bound_mode,
-            ) is None
-        ):
-            continue
-        raw = dict(base)
-        raw.update({
-            "case_id": target_id,
-            "status": "PASS",
-            "run_id": bound_run_id or base.get("run_id"),
-            "integration_mode": bound_mode or base.get("integration_mode"),
-            "reason": f"derived from validated {base_id} request by explicit catalog reuse",
-        })
-        record = normalize_case_record(
-            raw, str(plan.get("connector") or ""), case_by_id, events, bound_mode,
+        record = normalized_explicit_reuse_record(
+            base, target_id, base_id, plan, case_by_id, events, (bound_run_id, bound_mode),
         )
         if record is not None and record.get("status") == "PASS":
             records.append(record)
             by_id[target_id] = record
+
+
+def normalized_explicit_reuse_record(
+    base: Mapping[str, Any], target_id: str, base_id: str, plan: Mapping[str, Any],
+    case_by_id: Mapping[str, Mapping[str, Any]], events: Sequence[Mapping[str, Any]],
+    run_identity: tuple[str, str | None],
+) -> dict[str, Any] | None:
+    bound_run_id, bound_mode = run_identity
+    raw = dict(base)
+    raw.update({
+        "case_id": target_id,
+        "status": "PASS",
+        "run_id": bound_run_id or base.get("run_id"),
+        "integration_mode": bound_mode or base.get("integration_mode"),
+        "reason": f"derived from validated {base_id} request by explicit catalog reuse",
+    })
+    return normalize_case_record(
+        raw, str(plan.get("connector") or ""), case_by_id, events, bound_mode,
+    )
+
+
+def explicit_reuse_candidate_valid(
+    base: Mapping[str, Any] | None, base_id: str, target_case: Mapping[str, Any] | None,
+    plan: Mapping[str, Any], events: Sequence[Mapping[str, Any]],
+    run_identity: tuple[str, str | None], requires_event: bool,
+) -> bool:
+    bound_run_id, bound_mode = run_identity
+    if not target_case or not base or not explicit_reuse_base_valid(
+        base, base_id, target_case, plan, bound_run_id, bound_mode,
+    ):
+        return False
+    if requires_event and (
+        base.get("event_metadata_verified") is not True
+        or exact_reuse_event(
+            base, target_case, events, str(plan.get("connector") or ""),
+            bound_run_id or str(base.get("run_id") or ""), bound_mode,
+        ) is None
+    ):
+        return False
+    return True
 
 
 def explicit_reuse_base_valid(
