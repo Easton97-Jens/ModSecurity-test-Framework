@@ -53,9 +53,11 @@ class ProtocolSelectionScopeTest(unittest.TestCase):
                 self.assertEqual(by_id[case_id]["selection_status"], "NOT_APPLICABLE")
 
     def test_nginx_full_lifecycle_requires_explicit_downstream_protocol(self) -> None:
+        manifest = self.capable_manifest()
+        catalog = no_crs.load_catalog()
         with self.assertRaises(no_crs.ContractError):
             no_crs.select_cases(
-                "nginx", self.capable_manifest(), no_crs.load_catalog(),
+                "nginx", manifest, catalog,
                 artifact_profile="full_lifecycle",
             )
 
