@@ -110,10 +110,7 @@ class ConfigtestArtifactsTest(unittest.TestCase):
                 f's=importlib.util.spec_from_file_location("fifo_contract", {str(ROOT / "ci/checks/catalog/no_crs_baseline.py")!r}); '
                 'm=importlib.util.module_from_spec(s); s.loader.exec_module(m); '
                 f'm.configtest_file_observation(pathlib.Path({str(leaf)!r}), 8)')
-        try:
-            process = subprocess.run([sys.executable, '-c', code], capture_output=True, timeout=2, check=False)
-        except subprocess.TimeoutExpired:
-            self.fail('FIFO artifact read blocked before regular-file validation')
+        process = subprocess.run([sys.executable, '-c', code], capture_output=True, timeout=2, check=False)
         self.assertNotEqual(process.returncode, 0)
         self.assertIn(b'not bounded/regular', process.stderr)
 
