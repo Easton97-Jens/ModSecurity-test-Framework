@@ -108,8 +108,15 @@ requires all selected required cases and genuine lifecycle evidence.
 
 ## Final diff and review status
 
-Local uncommitted Framework handoff; final scoped diff review and the local
-commit remain pending. Focused, No-CRS, full lint and documentation checks
-passed; an independent review found no mandatory blocker. No remote delivery,
-Parent pointer change or global lifecycle success is claimed. Sensitive
-runtime artifacts remain outside versioned documentation.
+At the original handoff checkpoint, the Framework changes were uncommitted
+and the final scoped diff review and local commit were pending. That local
+handoff was subsequently committed as
+`c4f53e1` (`fix(no-crs): require retained nginx configtest receipts`).
+The commands, nine remaining configuration records and runtime observations
+above describe that historical checkpoint; the later
+[size configtest record](20261003-01-nginx-size-configtest.md) records its own
+subsequent change. Focused, No-CRS, full lint and documentation checks passed
+at the original checkpoint; an independent review found no mandatory blocker.
+This record does not attest remote delivery, a Parent pointer change or global
+lifecycle success. Sensitive runtime artifacts remain outside versioned
+documentation.

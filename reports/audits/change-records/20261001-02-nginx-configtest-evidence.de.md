@@ -112,9 +112,15 @@ weiterhin sämtliche ausgewählten Pflichtcases und echte Lifecycle-Evidence.
 
 ## Finaler Diff- und Review-Status
 
-Lokale uncommittete Framework-Übergabe; finale begrenzte Diffprüfung und lokaler
-Commit stehen noch aus. Fokus-, No-CRS-, vollständige Lint- und Dokumentations-
-Prüfungen bestanden; eine unabhängige Prüfung fand keinen verpflichtenden
-Blocker. Keine Remote-Delivery, Parent-Pointer-Änderung oder globaler
-Lifecycle-Erfolg wird behauptet. Sensitive Runtime-Artefakte bleiben außerhalb
-versionierter Dokumentation.
+Am ursprünglichen Übergabepunkt waren die Framework-Änderungen uncommittet;
+finale begrenzte Diffprüfung und lokaler Commit standen noch aus. Diese lokale
+Übergabe wurde anschließend als
+`c4f53e1` (`fix(no-crs): require retained nginx configtest receipts`) committet.
+Die obigen Befehle, neun verbleibenden Konfigurationsrecords und Runtime-
+Beobachtungen beschreiben diesen historischen Stand; der spätere
+[Size-Configtest-Record](20261003-01-nginx-size-configtest.de.md) dokumentiert
+seine eigene Folgeänderung. Fokus-, No-CRS-, vollständige Lint- und
+Dokumentationsprüfungen bestanden am ursprünglichen Punkt; eine unabhängige
+Prüfung fand keinen verpflichtenden Blocker. Dieser Record attestiert keine
+Remote-Delivery, Parent-Pointer-Änderung oder globalen Lifecycle-Erfolg.
+Sensitive Runtime-Artefakte bleiben außerhalb versionierter Dokumentation.
