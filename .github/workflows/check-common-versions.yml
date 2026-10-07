@@ -247,12 +247,16 @@ jobs:
         id: validate
         run: |
           set -euo pipefail
-          allowed='^(.github/workflows/[^/]+\.yml|ci/lib/common\.sh|ci/provisioning/runtime-(components\.manifest|component-lock)\.json|ci/tooling/security-tools\.lock\.yml|\.python-version|requirements-ci\.lock|docs/(reference/variables|github-actions-workflow-security)(\.de)?\.md|tests/schemas/five-connectors-with-crs-no-mrts/(normalized-event|manifest|receipt)\.schema\.json|tests/cases/security/crs/crs_sqli_anomaly_block\.yaml)$'
+          allowed='^(.github/workflows/[^/]+\.yml|ci/lib/common\.sh|ci/provisioning/runtime-(components\.manifest|component-lock)\.json|ci/tooling/security-tools\.lock\.yml|\.python-version|requirements-ci\.lock|docs/(reference/variables|github-actions-workflow-security)(\.de)?\.md|tests/schemas/five-connectors-with-crs-no-mrts/(normalized-event|manifest|receipt)\.schema\.json|tests/cases/security/crs/crs_sqli_anomaly_block\.yaml|modsecurity_test_framework/data/framework-contract-catalog\.json)$'
           while IFS= read -r path; do [[ "$path" =~ $allowed ]] || { echo "unsafe candidate path: $path" >&2; exit 1; }; done < <(git diff --name-only)
           git diff --check
           bash -n ci/lib/common.sh
           python3 -m py_compile ci/tools/canonical_maintenance.py ci/tools/resolve-canonical-maintenance.py
-          python3 -m unittest tests.ci_security.test_unified_common_maintenance_workflow tests.security_regression.test_common_version_descriptor_series tests.security_regression.test_runtime_component_lock -v
+          python3 -m unittest \
+            tests.ci_security.test_unified_common_maintenance_workflow \
+            tests.security_regression.test_common_version_descriptor_series \
+            tests.security_regression.test_runtime_component_lock \
+            tests.ci_security.test_five_connector_with_crs_no_mrts_contract -v
           printf 'validated=true\n' >> "$GITHUB_OUTPUT"
 
   publish:
@@ -392,6 +396,7 @@ jobs:
               "tests/schemas/five-connectors-with-crs-no-mrts/manifest.schema.json",
               "tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json",
               "tests/cases/security/crs/crs_sqli_anomaly_block.yaml",
+              "modsecurity_test_framework/data/framework-contract-catalog.json",
             ]);
             const { owner, repo } = context.repo;
             const defaultBranch = context.payload.repository.default_branch;
@@ -526,6 +531,7 @@ jobs:
             tests/schemas/five-connectors-with-crs-no-mrts/manifest.schema.json
             tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json
             tests/cases/security/crs/crs_sqli_anomaly_block.yaml
+            modsecurity_test_framework/data/framework-contract-catalog.json
 
   result:
     needs:

@@ -115,6 +115,10 @@ absolute paths:
     make check-framework-contract-catalog
     make test-contract-api
 
+Canonical maintenance regenerates this package resource after synchronizing the
+CRS fixture and schemas, checks it before publication, and includes it in the
+same maintenance PR.
+
 The generator fails on ambiguous identities or invalid source metadata. It is
 checked by the API target, so a case-source change cannot silently leave the
 public inventory stale. Its optional output path is also opened through a

@@ -272,9 +272,9 @@ MODSECURITY_V3_ROOT="${MODSECURITY_V3_ROOT:-$MODSECURITY_SOURCE_DIR}"
 # to prove that its peeled object is the immutable approved commit; it never
 # accepts the tag as a caller-selectable source identity.
 CRS_APPROVED_REPO_URL="https://github.com/coreruleset/coreruleset.git"
-CRS_APPROVED_COMMIT="ab3ccd5fcd691424ba3f320d4040c61417270193"
-CRS_RELEASE_TAG="v4.29.0"
-CRS_RULE_FILE_SHA256="8f92ff1745385a571ddecc20d83679a67cbb44dc61a6d136af9d77ab4ea315a3"
+CRS_APPROVED_COMMIT="e03a4f6dabc7a30ebd8c52c97d28a154f590a48f"
+CRS_RELEASE_TAG="v4.30.0"
+CRS_RULE_FILE_SHA256="8dadc742af2bb6b7e5b48570cb0201930cd9cfe9e3de94776e736605ea7be228"
 CRS_REPO_URL="$CRS_APPROVED_REPO_URL"
 CRS_GIT_REF="$CRS_RELEASE_TAG"
 
@@ -420,8 +420,8 @@ OPENSSL_SHA256="325b5c806167c13b40b1ffeadfe0248197c00eccc4cf123ec1e28d2d2fd216d9
 # Framework provisioning path selects it, so this tuple neither enables an
 # AWS-LC build nor represents a verified HTTP/2 or HTTP/3 runtime capability.
 AWS_LC_REPOSITORY="https://github.com/aws/aws-lc.git"
-AWS_LC_TAG="v5.10.0"
-AWS_LC_COMMIT="3fe7e081e62131b6776f0d923312b5e6756907ce"
+AWS_LC_TAG="v5.11.0"
+AWS_LC_COMMIT="fa9bc8d6f7cfb2cf849b247fb06bbbfc41ecc9d6"
 
 # Managed NGINX protocol builds are deliberately explicit.  The default keeps
 # the established clear-text HTTP/1.1 smoke path unchanged; H2/H3 are opted in

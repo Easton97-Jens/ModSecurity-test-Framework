@@ -19,9 +19,9 @@
       "fixture_id": "crs_sqli_anomaly_block",
       "profile": "five-connectors-with-crs-no-mrts",
       "provenance": {
-        "commit": "ab3ccd5fcd691424ba3f320d4040c61417270193",
+        "commit": "e03a4f6dabc7a30ebd8c52c97d28a154f590a48f",
         "expected_rule_id": 942270,
-        "release_tag": "v4.29.0"
+        "release_tag": "v4.30.0"
       },
       "required_capabilities": [
         "intervention",

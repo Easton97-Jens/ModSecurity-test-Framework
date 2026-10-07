@@ -27,6 +27,54 @@ FIXTURE_TARGET = TARGETS[3]
 
 
 class SyncCrsContractViewsTests(unittest.TestCase):
+    def _run_catalog(
+        self, root: Path, *, check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        command = [
+            sys.executable,
+            str(root / "ci/tools/generate-framework-contract-catalog.py"),
+        ]
+        if check:
+            command.append("--check")
+        return subprocess.run(
+            command,
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env={
+                "PATH": "/usr/bin:/bin",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "TMPDIR": str(root.parent),
+            },
+        )
+
+    def _run_contract(
+        self, root: Path, *, focused: bool = False
+    ) -> subprocess.CompletedProcess[str]:
+        suite = "tests.ci_security.test_five_connector_with_crs_no_mrts_contract"
+        if focused:
+            suite += (
+                ".FiveConnectorWithCrsNoMrtsContractTest"
+                ".test_canonical_profile_fixture_and_schema_are_closed"
+            )
+        return subprocess.run(
+            [sys.executable, "-m", "unittest", suite, "-v"],
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env={
+                "PATH": "/usr/bin:/bin",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "TMPDIR": str(root.parent),
+            },
+        )
+
     def _run(self, root: Path, mode: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(TOOL), mode, "--root", str(root)],
@@ -103,6 +151,79 @@ class SyncCrsContractViewsTests(unittest.TestCase):
                 f"rule_file_sha256: {mutated_rule_sha256}",
                 (root / FIXTURE_TARGET).read_text(encoding="utf-8"),
             )
+
+    def test_next_crs_release_preserves_portable_contract_and_rejects_drift(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="crs-maintenance-contract-"
+        ) as directory:
+            root = Path(directory) / "framework"
+            root.mkdir()
+            for relative in ("ci", "tests", ".github", "modsecurity_test_framework"):
+                shutil.copytree(ROOT / relative, root / relative)
+            for relative in ("Makefile", "pyrightconfig.json"):
+                shutil.copy2(ROOT / relative, root / relative)
+            common = root / "ci/lib/common.sh"
+            pins = load_crs_pins(common, root=root)
+            major, minor, patch = pins.release_tag[1:].split(".")
+            replacements = {
+                "CRS_RELEASE_TAG": (
+                    pins.release_tag,
+                    f"v{major}.{int(minor) + 1}.{patch}",
+                ),
+                "CRS_APPROVED_COMMIT": (pins.commit, "a" * 40),
+                "CRS_RULE_FILE_SHA256": (pins.rule_file_sha256, "f" * 64),
+            }
+            text = common.read_text(encoding="utf-8")
+            for name, (current, updated) in replacements.items():
+                text = text.replace(f'{name}="{current}"', f'{name}="{updated}"')
+            common.write_text(text, encoding="utf-8")
+
+            stale = self._run_contract(root, focused=True)
+            self.assertNotEqual(stale.returncode, 0, stale.stdout + stale.stderr)
+            self.assertIn("provenance.release_tag", stale.stdout + stale.stderr)
+            synchronized = self._run(root, "--write")
+            self.assertEqual(
+                synchronized.returncode, 0, synchronized.stdout + synchronized.stderr
+            )
+            stale_catalog = self._run_catalog(root, check=True)
+            self.assertNotEqual(
+                stale_catalog.returncode, 0, stale_catalog.stdout + stale_catalog.stderr
+            )
+            self.assertIn("catalog is stale", stale_catalog.stderr)
+            generated = self._run_catalog(root, check=False)
+            self.assertEqual(
+                generated.returncode, 0, generated.stdout + generated.stderr
+            )
+            current_catalog = self._run_catalog(root, check=True)
+            self.assertEqual(
+                current_catalog.returncode,
+                0,
+                current_catalog.stdout + current_catalog.stderr,
+            )
+            catalog = json.loads(
+                (
+                    root
+                    / "modsecurity_test_framework/data/framework-contract-catalog.json"
+                ).read_text(encoding="utf-8")
+            )
+            provenance = catalog["profiles"]["five-connectors-with-crs-no-mrts"][
+                "provenance"
+            ]
+            updated_pins = load_crs_pins(common, root=root)
+            self.assertEqual(provenance["release_tag"], updated_pins.release_tag)
+            self.assertEqual(provenance["commit"], updated_pins.commit)
+            updated = self._run_contract(root)
+            self.assertEqual(updated.returncode, 0, updated.stdout + updated.stderr)
+
+            manifest_path = root / FULL_CRS_SCHEMA_TARGETS[1]
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["properties"]["crs_commit"]["const"] = pins.commit
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            drifted = self._run_contract(root, focused=True)
+            self.assertNotEqual(drifted.returncode, 0, drifted.stdout + drifted.stderr)
+            self.assertIn("crs_commit", drifted.stdout + drifted.stderr)
 
     def test_shell_expansion_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

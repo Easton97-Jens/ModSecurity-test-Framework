@@ -120,6 +120,10 @@ Pfade zu kopieren:
     make check-framework-contract-catalog
     make test-contract-api
 
+Die kanonische Wartung erzeugt diese Paketressource nach der Synchronisierung
+der CRS-Fixture und Schemas neu, prüft sie vor der Veröffentlichung und nimmt
+sie in denselben Wartungs-PR auf.
+
 Der Generator scheitert bei mehrdeutigen Identitäten oder ungültigen
 Quellmetadaten. Das API-Target prüft ihn, damit eine Fallquellenänderung das
 öffentliche Inventar nicht unbemerkt veralten lässt. Sein optionaler

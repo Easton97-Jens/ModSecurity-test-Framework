@@ -340,7 +340,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     (
         "candidate",
         "Validate candidate path policy and focused controls",
-    ): "f04e3cb48b1b7e078730e20c8fff14994ef913562e74d1d473b1ae26896b2120",
+    ): "bc035072434bffb7aef839a7b588f6c72a01a95a091d4a75e1680fd295d72b34",
     (
         "publish",
         STEP_VALIDATE_AND_APPLY_CALLER_BOUND_CANONICAL_PLAN,
@@ -367,7 +367,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     ): "4a8667a3ce2063a78d3d64ca1124014cf19d2ae938f093ccc74a4b2bf45b818b",
 }
 COMMON_VERSION_CANONICAL_PR_STATE_CHECK_SHA256 = (
-    "e89c9570b0d2074c8ea9bd0c51374aa995084dbf8405969c074a65ffc063adee"
+    "e89e6b03f368d5e241d5ecffaa535ab2fd2e8860cd5debcd20a6e05d0986ff0b"
 )
 COMMON_VERSION_CANONICAL_PR_NATIVE_SUBSET_CHECK_SHA256 = (
     "3a8fef6fd071055fa7913a89efb08b2dd1949215bf52d375a0a8ce04e4638ece"
@@ -405,6 +405,7 @@ COMMON_VERSION_GENERATED_PATHS = frozenset(
         "tests/schemas/five-connectors-with-crs-no-mrts/manifest.schema.json",
         "tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json",
         "tests/cases/security/crs/crs_sqli_anomaly_block.yaml",
+        "modsecurity_test_framework/data/framework-contract-catalog.json",
     }
 )
 COMMON_VERSION_UPDATE_BRANCH = "automation/update-framework-common-versions"
