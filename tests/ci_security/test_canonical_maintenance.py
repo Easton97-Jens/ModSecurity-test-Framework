@@ -371,6 +371,57 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             with self.assertRaisesRegex(MAINTENANCE.MaintenanceError, "symlink"):
                 MAINTENANCE.require_root(symlink_root)
 
+    def test_generated_catalog_is_validated_after_crs_views_in_both_modes(self) -> None:
+        for write in (False, True):
+            with (
+                self.subTest(write=write),
+                mock.patch.object(
+                    MAINTENANCE.subprocess,
+                    "run",
+                    side_effect=[
+                        subprocess.CompletedProcess([], 0, stdout="", stderr="")
+                        for _ in range(4)
+                    ]
+                    + [
+                        subprocess.CompletedProcess(
+                            [],
+                            1,
+                            stdout="",
+                            stderr="framework contract catalog is stale",
+                        )
+                    ],
+                ) as run,
+            ):
+                statuses = MAINTENANCE.generated_view_status(ROOT, write=write)
+            self.assertEqual(
+                [item["name"] for item in statuses][-2:],
+                ["crs-contract-views", "framework-contract-catalog"],
+            )
+            self.assertEqual(statuses[-1]["status"], "blocked")
+            self.assertIn("catalog is stale", statuses[-1]["message"])
+            self.assertEqual(
+                run.call_args_list[-1],
+                mock.call(
+                    [
+                        MAINTENANCE.sys.executable,
+                        str(ROOT / "ci/tools/generate-framework-contract-catalog.py"),
+                        *([] if write else ["--check"]),
+                    ],
+                    cwd=ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                ),
+            )
+        self.assertIn(
+            MAINTENANCE.FRAMEWORK_CONTRACT_CATALOG_PATH,
+            MAINTENANCE.GENERATED_VIEW_PATHS,
+        )
+        self.assertIn(
+            MAINTENANCE.FRAMEWORK_CONTRACT_CATALOG_PATH,
+            MAINTENANCE.ALLOWED_AUTOMATIC_PATHS,
+        )
+
     def test_apply_safe_updates_rolls_back_on_generated_view_failure(self) -> None:
         class ApplyChecker:
             class UpdateChange:
@@ -395,8 +446,14 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             for relative in MAINTENANCE.ALLOWED_AUTOMATIC_PATHS:
                 (root / relative).parent.mkdir(parents=True, exist_ok=True)
             common.write_bytes(b"PIN=old\n")
+            catalog = root / MAINTENANCE.FRAMEWORK_CONTRACT_CATALOG_PATH
+            catalog.write_bytes(b"original catalog\n")
             subprocess.run(["git", "init", "--quiet"], cwd=root, check=True)
-            subprocess.run(["git", "add", "ci/lib/common.sh"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "add", "ci/lib/common.sh", str(catalog.relative_to(root))],
+                cwd=root,
+                check=True,
+            )
             subprocess.run(
                 [
                     "git",
@@ -421,6 +478,12 @@ class CanonicalMaintenanceTests(unittest.TestCase):
             plan["plan_sha256"] = hashlib.sha256(
                 MAINTENANCE._canonical_json(plan)
             ).hexdigest()
+
+            def fail_catalog_generation(_root: Path, *, write: bool):
+                self.assertTrue(write)
+                catalog.write_bytes(b"partially regenerated catalog\n")
+                return [{"name": "framework-contract-catalog", "status": "blocked"}]
+
             with (
                 mock.patch.object(
                     MAINTENANCE, "load_runtime_checker", return_value=ApplyChecker
@@ -428,7 +491,7 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                 mock.patch.object(
                     MAINTENANCE,
                     "generated_view_status",
-                    return_value=[{"name": "generated", "status": "blocked"}],
+                    side_effect=fail_catalog_generation,
                 ),
             ):
                 with self.assertRaisesRegex(
@@ -440,6 +503,7 @@ class CanonicalMaintenanceTests(unittest.TestCase):
                         expected_plan_sha256=plan["plan_sha256"],
                     )
             self.assertEqual(common.read_bytes(), b"PIN=old\n")
+            self.assertEqual(catalog.read_bytes(), b"original catalog\n")
             self.assertEqual(
                 subprocess.run(
                     ["git", "status", "--porcelain=v1"],

@@ -20,6 +20,8 @@ import unittest
 from typing import Callable
 from unittest import mock
 
+from ci.tools.crs_contract_pins import load_crs_pins
+
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG_DIRECTORY = ROOT / "ci/checks/catalog"
@@ -626,6 +628,7 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
 
     def test_canonical_profile_fixture_and_schema_are_closed(self) -> None:
         fixture = contract.load_fixture()
+        pins = load_crs_pins(ROOT / "ci/lib/common.sh", root=ROOT)
         self.assertEqual(
             contract.profile_payload()["connectors"], list(contract.CONNECTORS)
         )
@@ -633,13 +636,18 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
         self.assertEqual(
             fixture["with_crs_no_mrts"]["canonical_block"]["expected_rule_id"], 942270
         )
-        self.assertEqual(
-            contract.CRS_COMMIT, "ab3ccd5fcd691424ba3f320d4040c61417270193"
-        )
-        self.assertEqual(
-            contract.CRS_RULE_FILE_SHA256,
-            "8f92ff1745385a571ddecc20d83679a67cbb44dc61a6d136af9d77ab4ea315a3",
-        )
+        self.assertEqual(contract.CRS_REPOSITORY, pins.repository)
+        self.assertEqual(contract.CRS_RELEASE_TAG, pins.release_tag)
+        self.assertEqual(contract.CRS_COMMIT, pins.commit)
+        self.assertEqual(contract.CRS_RULE_FILE_SHA256, pins.rule_file_sha256)
+        expected_crs_constants = {
+            "crs_repository": pins.repository,
+            "crs_release_tag": pins.release_tag,
+            "crs_commit": pins.commit,
+            "crs_rule_file": contract.CRS_RULE_FILE,
+            "crs_rule_file_sha256": pins.rule_file_sha256,
+            "crs_git_ref": pins.release_tag,
+        }
         for schema_path, expected_fields in (
             (EVENT_SCHEMA_PATH, contract.EVENT_FIELDS),
             (MANIFEST_SCHEMA_PATH, contract.MANIFEST_FIELDS),
@@ -658,6 +666,12 @@ class FiveConnectorWithCrsNoMrtsContractTest(unittest.TestCase):
                 self.assertEqual(
                     schema["properties"]["connector"]["enum"], list(contract.CONNECTORS)
                 )
+                for field, expected in expected_crs_constants.items():
+                    if field in schema["properties"]:
+                        with self.subTest(field=field):
+                            self.assertEqual(
+                                schema["properties"][field]["const"], expected
+                            )
         expected_identity_tuples = [
             (
                 connector,

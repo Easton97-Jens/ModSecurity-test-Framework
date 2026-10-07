@@ -66,6 +66,9 @@ RUNTIME_MANIFEST_PATH = "ci/provisioning/runtime-components.manifest.json"
 RUNTIME_LOCK_PATH = "ci/provisioning/runtime-component-lock.json"
 SECURITY_TOOLS_LOCK_PATH = "ci/tooling/security-tools.lock.yml"
 COMMON_SH_PATH = "ci/lib/common.sh"
+FRAMEWORK_CONTRACT_CATALOG_PATH = (
+    "modsecurity_test_framework/data/framework-contract-catalog.json"
+)
 
 MANDATORY_GLOBAL_SCOPES = (
     "go-ftw",
@@ -84,6 +87,7 @@ GENERATED_VIEW_PATHS = (
     SECURITY_TOOLS_LOCK_PATH,
     "docs/reference/variables.md",
     "docs/reference/variables.de.md",
+    FRAMEWORK_CONTRACT_CATALOG_PATH,
 )
 ALLOWED_AUTOMATIC_PATHS = frozenset(
     {
@@ -101,6 +105,7 @@ ALLOWED_AUTOMATIC_PATHS = frozenset(
         "tests/schemas/five-connectors-with-crs-no-mrts/manifest.schema.json",
         "tests/schemas/five-connectors-with-crs-no-mrts/receipt.schema.json",
         "tests/cases/security/crs/crs_sqli_anomaly_block.yaml",
+        FRAMEWORK_CONTRACT_CATALOG_PATH,
     }
     | {
         f".github/workflows/{name}"
@@ -2203,6 +2208,14 @@ def generated_view_status(root: Path, *, write: bool = False) -> list[dict[str, 
                 mode,
                 "--root",
                 str(root),
+            ],
+        ),
+        (
+            "framework-contract-catalog",
+            [
+                sys.executable,
+                str(root / "ci/tools/generate-framework-contract-catalog.py"),
+                *([] if write else ["--check"]),
             ],
         ),
     )

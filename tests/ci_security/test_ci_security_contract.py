@@ -1005,6 +1005,87 @@ jobs:
                             "\n".join(errors),
                         )
 
+    def test_unified_common_maintenance_rejects_crs_candidate_gate_regressions(
+        self,
+    ) -> None:
+        workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+        suite_line = (
+            "            tests.ci_security."
+            "test_five_connector_with_crs_no_mrts_contract -v\n"
+        )
+        validated_line = "          printf 'validated=true\\n' >> \"$GITHUB_OUTPUT\"\n"
+        command_line = "          python3 -m unittest \\\n"
+        self.assertIn(suite_line, workflow)
+        self.assertIn(validated_line, workflow)
+        self.assertIn(command_line, workflow)
+        variants = {
+            "missing-crs-suite": workflow.replace(suite_line, "            -v\n", 1),
+            "ignored-contract-failure": workflow.replace(
+                suite_line, suite_line.rstrip("\n") + " || true\n", 1
+            ),
+            "premature-validation": workflow.replace(validated_line, "", 1).replace(
+                command_line, validated_line + command_line, 1
+            ),
+        }
+        for mutation, mutated in variants.items():
+            with self.subTest(mutation=mutation):
+                errors = CHECKER.workflow_contract_errors(
+                    workflow_path, mutated, CHECKER.yaml.safe_load(mutated)
+                )
+                self.assertTrue(
+                    any(
+                        "candidate run step 'Validate candidate path policy and "
+                        "focused controls' must match the reviewed hash-locked "
+                        "common-version profile" in error
+                        for error in errors
+                    ),
+                    "\n".join(errors),
+                )
+
+    def test_unified_common_maintenance_rejects_catalog_publication_scope_regressions(
+        self,
+    ) -> None:
+        workflow_path = ROOT / ".github/workflows/check-common-versions.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+        catalog = "modsecurity_test_framework/data/framework-contract-catalog.json"
+        publication_line = f"            {catalog}\n"
+        state_line = f'              "{catalog}",\n'
+        self.assertIn(publication_line, workflow)
+        self.assertIn(state_line, workflow)
+        variants = (
+            (
+                workflow.replace(publication_line, "", 1),
+                "publisher generated-path allowlist changed",
+            ),
+            (
+                workflow.replace(
+                    publication_line,
+                    publication_line
+                    + "            modsecurity_test_framework/data/unreviewed.json\n",
+                    1,
+                ),
+                "publisher generated-path allowlist changed",
+            ),
+            (
+                workflow.replace(
+                    state_line,
+                    state_line
+                    + '              "modsecurity_test_framework/data/unreviewed.json",\n',
+                    1,
+                ),
+                "publisher Draft PR state check profile changed",
+            ),
+        )
+        for mutated, expected in variants:
+            with self.subTest(expected=expected):
+                errors = CHECKER.workflow_contract_errors(
+                    workflow_path, mutated, CHECKER.yaml.safe_load(mutated)
+                )
+                self.assertTrue(
+                    any(expected in error for error in errors), "\n".join(errors)
+                )
+
     def test_unified_common_maintenance_rejects_resolvers_outside_reviewed_runs(
         self,
     ) -> None:
@@ -1031,7 +1112,8 @@ jobs:
                 "github-actions-workflow-security)(\\.de)?\\.md|tests/schemas/"
                 "five-connectors-with-crs-no-mrts/(normalized-event|manifest|receipt)"
                 "\\.schema\\.json|tests/cases/security/crs/"
-                "crs_sqli_anomaly_block\\.yaml)$'\n"
+                "crs_sqli_anomaly_block\\.yaml|modsecurity_test_framework/data/"
+                "framework-contract-catalog\\.json)$'\n"
             ),
             "publish": (
                 '          [[ -n "$PUBLISHER_CLIENT_ID" && -n "$PUBLISHER_PRIVATE_KEY" ]] '

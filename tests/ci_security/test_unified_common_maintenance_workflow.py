@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import re
+import shlex
 import unittest
 
 import yaml
@@ -160,15 +161,48 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.assertIn("git fetch --no-tags origin", subset_check["run"])
         self.assertIn("unset PUBLISHER_APP_TOKEN", subset_check["run"])
 
-    def test_candidate_validates_runtime_lock_before_publishing(self) -> None:
+    def test_candidate_validates_runtime_lock_and_crs_contract_before_publishing(
+        self,
+    ) -> None:
         candidate = self.workflow["jobs"]["candidate"]
         controls = next(
             step
             for step in candidate["steps"]
             if step["name"] == "Validate candidate path policy and focused controls"
         )
-        self.assertIn(
-            "tests.security_regression.test_runtime_component_lock", controls["run"]
+        run = controls["run"]
+        self.assertEqual(run.splitlines()[0], "set -euo pipefail")
+        self.assertFalse(controls.get("continue-on-error", False))
+        commands = run.replace("\\\n", " ").splitlines()
+        unit_tests = [
+            command.strip()
+            for command in commands
+            if command.strip().startswith("python3 -m unittest ")
+        ]
+        self.assertEqual(len(unit_tests), 1)
+        self.assertEqual(
+            shlex.split(unit_tests[0]),
+            [
+                "python3",
+                "-m",
+                "unittest",
+                "tests.ci_security.test_unified_common_maintenance_workflow",
+                "tests.security_regression.test_common_version_descriptor_series",
+                "tests.security_regression.test_runtime_component_lock",
+                "tests.ci_security.test_five_connector_with_crs_no_mrts_contract",
+                "-v",
+            ],
+        )
+        self.assertLess(
+            run.index("python3 -m unittest"), run.index("printf 'validated=true")
+        )
+        self.assertLess(
+            next(
+                index
+                for index, step in enumerate(candidate["steps"])
+                if step["name"] == "Validate and apply caller-bound canonical plan"
+            ),
+            candidate["steps"].index(controls),
         )
         self.assertIn("candidate", self.workflow["jobs"]["publish"]["needs"])
 
@@ -178,6 +212,41 @@ class UnifiedCommonMaintenanceWorkflowTests(unittest.TestCase):
         self.assertIn(
             "Go-FTW, Albedo, or canonical CI pin inventory is incomplete", self.text
         )
+
+    def test_generated_contract_catalog_is_allowlisted_for_candidate_and_publication(
+        self,
+    ) -> None:
+        catalog = "modsecurity_test_framework/data/framework-contract-catalog.json"
+        candidate = self.workflow["jobs"]["candidate"]
+        controls = next(
+            step
+            for step in candidate["steps"]
+            if step["name"] == "Validate candidate path policy and focused controls"
+        )
+        allowed_line = next(
+            line for line in controls["run"].splitlines() if line.startswith("allowed=")
+        )
+        pattern = shlex.split(allowed_line)[0].removeprefix("allowed=")
+        self.assertIsNotNone(re.fullmatch(pattern, catalog))
+        self.assertIsNone(re.fullmatch(pattern, catalog + ".unexpected"))
+        self.assertIsNone(
+            re.fullmatch(pattern, "modsecurity_test_framework/data/unreviewed.json")
+        )
+        publisher = self.workflow["jobs"]["publish"]
+        state_check = next(
+            step
+            for step in publisher["steps"]
+            if step["name"]
+            == "Inspect matching Draft canonical maintenance pull request"
+        )
+        self.assertIn(f'"{catalog}",', state_check["with"]["script"])
+        create_pr = next(
+            step
+            for step in publisher["steps"]
+            if step["name"]
+            == "Create or update Draft PR from the full generated allowlist"
+        )
+        self.assertIn(catalog, create_pr["with"]["add-paths"].splitlines())
 
     def test_fatal_resolver_plan_is_summarized_before_failure_is_returned(self) -> None:
         resolver = self.workflow["jobs"]["canonical-maintenance"]["steps"][2]["run"]
