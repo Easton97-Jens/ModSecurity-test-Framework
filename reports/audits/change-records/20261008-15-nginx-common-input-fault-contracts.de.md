@@ -37,7 +37,7 @@ tests/runners/nginx_common_input_faults.py und tests/no_crs/test_nginx_common_in
 
 ## Befehle und Ergebnisse
 
-Vier fokussierte Unit-Tests bestanden nach Fortsetzung, einschließlich falscher Transaktion/Prozesse/Läufe, Guard-Return1 oder booleschem false, fehlendem/doppeltem/fremdem Event, Regel-Ersatz, HTTP405 und boolescher Phase. Framework-Interpreter: `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 /var/tmp/codex/ModSecurity-test-Framework/venv/bin/python -m unittest tests.no_crs.test_nginx_common_input_faults -v`, Exit0. Natives `make test-no-crs-contract` mit explizitem Framework-Python und externen Wurzeln bestand213 Tests, Exit0; `make check-documentation` bestand, Exit0. Alle Befehle liefen über RTK.
+Vier fokussierte Unit-Tests bestanden nach Fortsetzung, einschließlich falscher Transaktion/Prozesse/Läufe, Guard-Return1 oder booleschem false, fehlendem/doppeltem/fremdem Event, Regel-Ersatz, HTTP405 und boolescher Phase. Framework-Interpreter: `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 "${FRAMEWORK_PYTHON}" -m unittest tests.no_crs.test_nginx_common_input_faults -v`, Exit0; der exakte umgebungseigene Interpreterpfad steht im externen Task-Handoff. Natives `make test-no-crs-contract` mit explizitem Framework-Python und externen Wurzeln bestand213 Tests, Exit0; die erste `make check-documentation`-Prüfung bestand, Exit0. Spätere Dokumentationsprüfung beanstandete einen lokalen Entwicklerpfad in diesem Nachweis; der Beispielbefehl nutzt jetzt einen portablen Platzhalter. Alle Befehle liefen über RTK.
 
 ## Sicherheitsauswirkung
 

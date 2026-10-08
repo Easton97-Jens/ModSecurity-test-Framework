@@ -37,7 +37,7 @@ tests/runners/nginx_common_input_faults.py and tests/no_crs/test_nginx_common_in
 
 ## Commands and results
 
-Four focused unit tests passed after continuation hardening, including wrong transaction/process/run, guard return1 or boolean false, absent/duplicate/foreign native event, rule substitution, HTTP405 and boolean phase rejection. Framework-owned interpreter: `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 /var/tmp/codex/ModSecurity-test-Framework/venv/bin/python -m unittest tests.no_crs.test_nginx_common_input_faults -v`, exit0. Native `make test-no-crs-contract` with explicit Framework Python and external roots passed213 tests, exit0; `make check-documentation` passed, exit0. All commands used RTK.
+Four focused unit tests passed after continuation hardening, including wrong transaction/process/run, guard return1 or boolean false, absent/duplicate/foreign native event, rule substitution, HTTP405 and boolean phase rejection. Framework-owned interpreter: `rtk proxy env PYTHONNOUSERSITE=1 PIP_REQUIRE_VIRTUALENV=true PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 "${FRAMEWORK_PYTHON}" -m unittest tests.no_crs.test_nginx_common_input_faults -v`, exit0; the exact environment-owned interpreter path is retained in the external task handoff. Native `make test-no-crs-contract` with explicit Framework Python and external roots passed213 tests, exit0; the initial `make check-documentation` passed, exit0. Later documentation recheck rejected a local developer path in this record; the command example now uses a portable placeholder. All commands used RTK.
 
 ## Security impact
 
