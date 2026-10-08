@@ -13,12 +13,19 @@
      "then": {"required": ["fixture_leaf", "fixture_state"], "properties": {"fixture_leaf": {"const": "missing-rules.conf"}, "fixture_state": {"const": "absent"}}}},
     {"if": {"properties": {"case_id": {"const": "unsafe_event_path"}}},
      "then": {"required": ["fixture_leaf", "fixture_state"], "properties": {"fixture_leaf": {"const": "unsafe-event-directory"}, "fixture_state": {"const": "directory"}}}},
-    {"if": {"properties": {"case_id": {"not": {"enum": ["missing_rules_file", "unsafe_event_path"]}}}},
-     "then": {"not": {"anyOf": [{"required": ["fixture_leaf"]}, {"required": ["fixture_state"]}]}}}
+    {"if": {"properties": {"case_id": {"const": "phase4_invalid_scope_file"}}},
+     "then": {"required": ["fixture_leaf", "fixture_state", "fixture_sha256"], "properties": {"fixture_leaf": {"const": "invalid-content-type-scope.txt"}, "fixture_state": {"const": "regular"}}}},
+    {"if": {"properties": {"case_id": {"const": "phase4_wildcard_scope_rejected"}}},
+     "then": {"required": ["fixture_leaf", "fixture_state", "fixture_sha256"], "properties": {"fixture_leaf": {"const": "wildcard-content-type-scope.txt"}, "fixture_state": {"const": "regular"}}}},
+    {"if": {"properties": {"case_id": {"not": {"enum": ["missing_rules_file", "unsafe_event_path", "phase4_invalid_scope_file", "phase4_wildcard_scope_rejected"]}}}},
+     "then": {"not": {"anyOf": [{"required": ["fixture_leaf"]}, {"required": ["fixture_state"]}, {"required": ["fixture_sha256"]}]}}},
+    {"if": {"properties": {"case_id": {"not": {"enum": ["phase4_invalid_scope_file", "phase4_wildcard_scope_rejected"]}}}},
+     "then": {"not": {"required": ["fixture_sha256"]}}}
   ],
   "properties": {
-    "fixture_leaf": {"enum": ["missing-rules.conf", "unsafe-event-directory"]},
-    "fixture_state": {"enum": ["absent", "directory"]},
+    "fixture_leaf": {"enum": ["missing-rules.conf", "unsafe-event-directory", "invalid-content-type-scope.txt", "wildcard-content-type-scope.txt"]},
+    "fixture_state": {"enum": ["absent", "directory", "regular"]},
+    "fixture_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "schema_version": {"const": 1},
     "case_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$", "maxLength": 128},
     "connector": {"const": "nginx"},

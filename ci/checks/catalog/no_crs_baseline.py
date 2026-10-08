@@ -33,12 +33,13 @@ PROTOCOL_ROOT = CI_ROOT / "checks" / "protocol"
 FILESYSTEM_ROOT = Path("/")
 SHARED_TEMPORARY_ROOT = FILESYSTEM_ROOT / "tmp"
 SOURCE_ROOT = FILESYSTEM_ROOT / "src"
-for path in (CATALOG_ROOT, PROTOCOL_ROOT, RUNNER_ROOT):
+for path in (CATALOG_ROOT, PROTOCOL_ROOT, RUNNER_ROOT, CI_ROOT / "lib"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
 from msconnector_models import STATUS_MODEL, operation_status  # noqa: E402
 from synchronized_upstream import first_byte_evidence_errors  # noqa: E402
+from nginx_migration_config_contracts import nginx_migration_config_contracts  # noqa: E402
 
 CATALOG_PATH = FRAMEWORK_ROOT / "tests/cases/no-crs-baseline/catalog.json"
 RULES_PATH = FRAMEWORK_ROOT / "tests/rules/no-crs-baseline.conf"
@@ -3959,6 +3960,7 @@ def config_invocation_for_case(
 
 
 NGINX_CONFIGTEST_CONTRACTS = {
+    **nginx_migration_config_contracts(),
     "valid_rules_file": {
         "operation": "startup", "directive": "modsecurity_rules_file", "value": "no-crs-baseline.conf",
         "expected_exit_code": 0, "expected_outcome": "config_accepted",
@@ -4426,6 +4428,8 @@ CONFIGTEST_ARTIFACTS = {
 CONFIGTEST_PATH_FIXTURES = {
     "missing_rules_file": ("missing-rules.conf", "absent"),
     "unsafe_event_path": ("unsafe-event-directory", "directory"),
+    "phase4_invalid_scope_file": ("invalid-content-type-scope.txt", "regular"),
+    "phase4_wildcard_scope_rejected": ("wildcard-content-type-scope.txt", "regular"),
 }
 VALID_RULES_ARTIFACTS = {
     "no-crs-baseline.conf": ("rules_sha256", 65536),
@@ -4439,6 +4443,9 @@ VALID_RULES_ARTIFACTS = {
 def configtest_artifacts_for_record(record: Mapping[str, Any]) -> dict[str, tuple[str, int]]:
     if record.get("case_id") == "valid_rules_file":
         return {**CONFIGTEST_ARTIFACTS, **VALID_RULES_ARTIFACTS}
+    fixture = CONFIGTEST_PATH_FIXTURES.get(str(record.get("case_id")))
+    if fixture is not None and fixture[1] == "regular":
+        return {**CONFIGTEST_ARTIFACTS, fixture[0]: ("fixture_sha256", 512)}
     return CONFIGTEST_ARTIFACTS
 
 
@@ -4548,7 +4555,7 @@ def validate_configtest_path_fixture(record: Mapping[str, Any], bundle: Path) ->
     if not isinstance(receipt, Mapping):
         raise ContractError("configuration receipt is missing")
     if fixture is None:
-        if "fixture_leaf" in receipt or "fixture_state" in receipt:
+        if any(field in receipt for field in ("fixture_leaf", "fixture_state", "fixture_sha256")):
             raise ContractError("configuration receipt has an unrelated path fixture")
         return
     leaf, state = fixture
@@ -4563,6 +4570,20 @@ def validate_configtest_path_fixture(record: Mapping[str, Any], bundle: Path) ->
             except FileNotFoundError:
                 return
             raise ContractError("missing rules fixture leaf must remain absent")
+        if state == "regular":
+            descriptor = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+            info = os.fstat(descriptor)
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                    or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
+                    or info.st_size > 512):
+                raise ContractError("removed API fixture must be an owned single-link private regular file")
+            data = os.read(descriptor, 513)
+            expected = (FRAMEWORK_ROOT / "tests/fixtures/no-crs-baseline" / leaf).read_bytes()
+            if data != expected or receipt.get("fixture_sha256") != hashlib.sha256(data).hexdigest():
+                raise ContractError("removed API fixture differs from its exact source bytes/digest")
+            return
+        if "fixture_sha256" in receipt:
+            raise ContractError("absent/directory fixtures must not claim regular-file bytes")
         descriptor = os.open(leaf, _directory_flags(), dir_fd=parent)
         info = os.fstat(descriptor)
         if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid()
@@ -4598,7 +4619,8 @@ def configtest_file_observation(path: Path, limit: int) -> tuple[str, bytes]:
             if total > limit:
                 raise ContractError(f"configuration artifact exceeds bound: {path.name}")
             digest.update(chunk)
-            if path.name in {NGINX_CONFIG_FILE_NAME, STDOUT_LOG_FILE_NAME, STDERR_LOG_FILE_NAME, *VALID_RULES_ARTIFACTS}:
+            if path.name in {NGINX_CONFIG_FILE_NAME, STDOUT_LOG_FILE_NAME, STDERR_LOG_FILE_NAME, *VALID_RULES_ARTIFACTS,
+                             "invalid-content-type-scope.txt", "wildcard-content-type-scope.txt"}:
                 capture.extend(chunk)
         return digest.hexdigest(), bytes(capture)
     finally:
@@ -4678,8 +4700,8 @@ def validate_configtest_bundle_template(
     fixture = CONFIGTEST_PATH_FIXTURES.get(str(record.get("case_id")))
     if fixture is not None:
         value = f'"{origin}/{fixture[0]}"'
-    elif record.get("case_id") == "invalid_rule_syntax":
-        value = f'"{value}"'
+    elif invocation["directive"] == "modsecurity_rules":
+        value = json.dumps(value)
     expected_config = (
         f'load_module "{origin}/nginx-module.so";\n'
         f'pid "{origin}/nginx.pid";\n'
@@ -4694,8 +4716,11 @@ def validate_configtest_bundle_template(
         stderr = captures[STDERR_LOG_FILE_NAME].decode("utf-8", errors="replace")
         if not all(fragment in stderr for fragment in invocation["diagnostic_fragments"]):
             raise ContractError("configuration capture lacks the exact parser diagnostic")
-        if fixture is not None and f"{origin}/{fixture[0]}" not in stderr:
-            raise ContractError("configuration diagnostic does not name the exact tested fixture path")
+        if fixture is not None:
+            marker = (f" in {origin}/nginx.conf:6" if fixture[1] == "regular"
+                      else f"{origin}/{fixture[0]}")
+            if marker not in stderr:
+                raise ContractError("configuration diagnostic does not bind the exact tested fixture/config path")
 
 
 def validated_configtest_bundle(
