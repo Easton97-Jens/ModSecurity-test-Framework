@@ -139,8 +139,12 @@ def native_facts(proof, case_id):
             bundle.exact(event, {"phase": "logging", "message_id": "MSCONN_TRANSACTION_CLEANUP", "rule_id": ""}, "actual cleanup phase/Rule")
             cleaned.add(event["transaction_id"])
         if event.get("status") == "blocked" and event.get("phase") == "request_headers":
-            bundle.exact(event, {"rule_id": "1100001", "action": "deny", "requested_action": "deny",
-                                 "actual_action": "deny", "http_status": 403}, "actual request deny Rule/action/status")
+            # The real intervention callback runs before the host sends the
+            # response. Native denial is not an invented already-sent action.
+            bundle.exact(event, {"event": "phase1_intervention", "message_id": "MSCONN_EVENT_REQUEST_BLOCKED",
+                                 "rule_id": "1100001", "action": "deny", "requested_action": "deny",
+                                 "actual_action": "", "http_status": 403, "visible_http_status": 0,
+                                 "transport_result": "not_observable"}, "actual request deny Rule/action/status")
         if case_id in bundle.INPUT_CASES:
             bundle.require(event["event"] in {"protocol_error", "transaction_cleanup"}, "pointer terminal proof contains foreign native operation")
     return selected_events(case_id, events, transactions)

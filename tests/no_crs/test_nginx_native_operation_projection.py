@@ -167,11 +167,13 @@ class NativeProjectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             projection.project_native_operation(case, proof)
         case, proof = self.fixture("keepalive_allow_deny_allow")
-        denial = {**proof["events"][0], "event": "request_rule_match", "message_id": "MSCONN_EVENT_RULE_MATCHED", "phase": "request_headers",
-                  "rule_id": "1100001", "status": "blocked", "action": "deny", "requested_action": "deny", "actual_action": "deny", "http_status": 403}
+        denial = {**proof["events"][0], "event": "phase1_intervention", "message_id": "MSCONN_EVENT_REQUEST_BLOCKED", "phase": "request_headers",
+                  "rule_id": "1100001", "status": "blocked", "action": "deny", "requested_action": "deny", "actual_action": "", "http_status": 403,
+                  "visible_http_status": 0, "transport_result": "not_observable"}
         proof["events"].insert(0, denial)
         self.assertEqual(projection.project_native_operation(case, proof)["selected_native_events"], [denial])
-        for field, value in (("actual_action", "allow"), ("http_status", 200)):
+        for field, value in (("actual_action", "allow"), ("actual_action", "deny"), ("http_status", 200),
+                             ("visible_http_status", 403), ("event", "request_rule_match")):
             changed = deepcopy(proof)
             changed["events"][0][field] = value
             with self.subTest(field=field), self.assertRaises(ValueError):

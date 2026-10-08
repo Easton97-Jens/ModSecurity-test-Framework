@@ -32,6 +32,8 @@ Populating observed_event_fields from expected names or guessing event metadata 
 
 Raw malformed requests retain actual HTTP400 with no admitted fault transaction/event. Finish failure retains visible200 and native logging HTTP0. Budget cases retain actual504 before commit or visible200 after commit with the real timeout/timing pair. Clean shutdown retains actual200. MIME/body-limit/event-boundary observations and legacy safe-mode expectations remain explicit; no missing expected event key is synthesized.
 
+Integration correction: the actual request-header intervention callback emits `phase1_intervention` / `MSCONN_EVENT_REQUEST_BLOCKED`, native HTTP403, empty `actual_action` and visible HTTP0 before the host sends its response. Projection now requires these exact fields rather than inventing a sent deny action; contradictory rule-match, allow, sent-status or action claims remain rejected.
+
 ## Changed files and tests
 
 `tests/runners/nginx_native_operation_projection.py`, `tests/no_crs/test_nginx_native_operation_projection.py` and this record pair. Pure fixtures exercise all42 descriptors plus null/case/phase/Rule/run/schema/mutation controls, cleanup scope, actual deny-action/status, terminal contradictions, budget/finish distinction and raw framing facts. Fixtures are not native runtime evidence.
@@ -39,6 +41,8 @@ Raw malformed requests retain actual HTTP400 with no admitted fault transaction/
 ## Commands and results
 
 Test-first module absence was observed as RED. The owning Framework Python passed eight focused projection tests and 56 broader reader/registry/Phase4/projection tests. Repository-native `make test-no-crs-contract` passed all300 tests; `make check-documentation` and staged whitespace checks passed. Exact commands and external logs are retained in the task handoff. RTK wrapped all shell execution.
+
+Root integration observed the source-accurate callback fixture as RED, then passed 34 combined projection/strict-reader tests after the exact callback correction. This remains controlled fixture validation, not runtime evidence.
 
 ## Security impact
 

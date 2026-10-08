@@ -32,6 +32,8 @@ observed_event_fields aus erwarteten Namen zu füllen oder Ereignismetadaten aus
 
 Rohe fehlerhafte Requests behalten tatsächliches HTTP400 ohne zugelassene Fault-Transaktion/-Ereignis. Finish-Fehler behalten sichtbares200 und natives Logging-HTTP0. Budgetfälle behalten tatsächliches504 vor Commit oder sichtbares200 danach mit echtem Timeout-/Timing-Paar. Clean-Shutdown behält tatsächliches200. MIME-/Body-Limit-/Ereignisgrenzenbeobachtungen und alte Safe-Modus-Erwartungen bleiben explizit; kein fehlender erwarteter Ereignisschlüssel wird synthetisiert.
 
+Integrationskorrektur: Der tatsächliche Request-Header-Interventionscallback gibt `phase1_intervention` / `MSCONN_EVENT_REQUEST_BLOCKED`, natives HTTP403, leeres `actual_action` und sichtbares HTTP0 vor Versand der Hostantwort aus. Die Projektion verlangt nun diese exakten Felder statt einer erfundenen bereits gesendeten Deny-Aktion; widersprüchliche Rule-Match-, Allow-, sichtbare Status- und Aktionsbehauptungen bleiben abgelehnt.
+
 ## Geänderte Dateien und Tests
 
 `tests/runners/nginx_native_operation_projection.py`, `tests/no_crs/test_nginx_native_operation_projection.py` und dieses Nachweispaar. Reine Fixtures prüfen alle42 Descriptors sowie Null-/Fall-/Phasen-/Rule-/Lauf-/Schema-/Mutationskontrollen, Cleanup-Scope, tatsächliche Deny-Aktion/Status, Terminalwidersprüche, Budget-/Finish-Unterschied und rohe Framing-Fakten. Fixtures sind keine native Runtime-Evidence.
@@ -39,6 +41,8 @@ Rohe fehlerhafte Requests behalten tatsächliches HTTP400 ohne zugelassene Fault
 ## Befehle und Ergebnisse
 
 Test-first wurde die Modulabwesenheit als RED beobachtet. Die zuständige Framework-Python-Umgebung bestand acht gezielte Projektionstests und 56 breitere Reader-/Registry-/Phase4-/Projektionstests. Repository-natives `make test-no-crs-contract` bestand alle300 Tests; `make check-documentation` und gestagte Whitespace-Prüfungen bestanden. Exakte Befehle und externe Logs bleiben im Task-Handoff erhalten. RTK umschloss sämtliche Shell-Ausführung.
+
+Root-Integration beobachtete die sourcegetreue Callback-Fixture als RED; nach exakter Callback-Korrektur bestanden 34 gemeinsame Projektions-/Strict-Reader-Tests. Dies bleibt kontrollierte Fixture-Prüfung, keine Runtime-Evidence.
 
 ## Sicherheitsauswirkung
 
