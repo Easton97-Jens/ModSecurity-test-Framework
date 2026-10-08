@@ -77,7 +77,8 @@ class NativeProjectionTests(unittest.TestCase):
         self.assertEqual(result["cleanup_native_events"][0]["phase"], "logging")
         self.assertNotIn("status", result)
         self.assertNotIn("canonical_status", result)
-        self.assertEqual((case, proof), originals)
+        actual_inputs = (case, proof)
+        self.assertEqual(actual_inputs, originals)
 
     def test_null_foreign_and_unverified_proofs_fail(self):
         case, proof = self.fixture("clean_shutdown")

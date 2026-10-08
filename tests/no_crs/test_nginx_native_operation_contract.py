@@ -36,7 +36,8 @@ class NativeContractTests(unittest.TestCase):
         self.assertEqual(value["observed_event_fields"], sorted(proof["events"][0]))
         self.assertNotIn("status", value)
         self.assertNotIn("canonical_status", value)
-        self.assertEqual((case, proof), original)
+        actual_inputs = (case, proof)
+        self.assertEqual(actual_inputs, original)
 
     def test_event_boundary_truncated_has_actual_line_origin_not_added_event_key(self):
         case, proof = self.fixture("event_metadata_truncation")
@@ -132,8 +133,9 @@ class NativeContractTests(unittest.TestCase):
                 fixture.decorate_phase4(receipt, raw, fixture.output)
                 fixture.write_child(receipt, raw, fixture.output, "main", "source-result.json")
                 case = deepcopy(fixtures.NativeProjectionTests.cases[case_id])
+                proof = fixture.validate()
                 with self.assertRaisesRegex(ValueError, "original_http_status"):
-                    contract.derive_native_operation_contract(case, fixture.validate())
+                    contract.derive_native_operation_contract(case, proof)
                 receipt, raw = phase4_tests.fixture(case_id)
                 event = next(row for row in receipt["native_events"] if row["event"] == "phase4_intervention")
                 event.update(original_http_status=200, headers_sent=True)
@@ -175,7 +177,7 @@ class NativeContractTests(unittest.TestCase):
         self.assertEqual(value["mapped_evidence_origins"]["connection_reused"][0]["kind"], "host_observation")
         self.assertNotIn("connection_reused", value["observed_event_fields"])
         self.assertEqual(value["mapped_evidence_fields"]["event"], ["request_headers_complete"])
-        self.assertEqual(value["native_events"][0]["eos_seen"], False)
+        self.assertIs(value["native_events"][0]["eos_seen"], False)
         self.assertEqual(value["mapped_evidence_fields"]["eos_seen"], [True])
         self.assertEqual(value["mapped_evidence_origins"]["eos_seen"][0]["kind"], "host_observation")
         for key, invalid in (("reason", "native_return=0;common_completed=1"), ("phase", "logging"), ("actual_action", "allow"), ("visible_http_status", 200)):

@@ -133,7 +133,7 @@ class NativeSelectionTests(unittest.TestCase):
 
     def test_existing_host_fixture_is_required_and_sources_are_existing_cases(self):
         for descriptor in CORE.NGINX_DERIVED_INVOCATIONS.values():
-            self.assertTrue(set(descriptor["source_case_ids"]) <= set(self.cases))
+            self.assertLessEqual(set(descriptor["source_case_ids"]), set(self.cases))
         with patch.object(CORE, "FRAMEWORK_ROOT", ROOT / "absent-closed-fixture-root"):
             with self.assertRaises(CORE.ContractError):
                 CORE.derived_invocation_for_case(self.cases["phase4_deny_after_commit_abort"], "nginx")

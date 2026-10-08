@@ -73,9 +73,9 @@ class NativeCanonicalBindingTests(unittest.TestCase):
         self.assertEqual(record["status"], "PASS", record["reason"])
         with self.assertRaises(contract.ContractError):
             contract.retain_finalize_native_operation_bundle(context, self.fixture.record)
+        missing_authority_context = SimpleNamespace(**{**vars(context), "native_operation_authority": None})
         with self.assertRaises(contract.ContractError):
-            contract.retain_finalize_native_operation_bundle(
-                SimpleNamespace(**{**vars(context), "native_operation_authority": None}), self.fixture.record)
+            contract.retain_finalize_native_operation_bundle(missing_authority_context, self.fixture.record)
 
     def test_offline_revalidation_rejects_forged_canonical_summary_and_changed_bytes(self):
         record = self.normalize()
