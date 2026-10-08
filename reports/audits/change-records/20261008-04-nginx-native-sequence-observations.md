@@ -57,7 +57,7 @@ Native transport metadata still needs central producer/wiring integration. Finis
 
 ## Final diff and review status
 
-## Approved post-response finish follow-up
+Approved post-response finish follow-up:
 
 Finish preserves actual HTTP 200 and the exact 23-byte fixture body digest. It requires native logging rejection (-1), delegated cleanup (0), completed cleanup and preservation of the native logging error, bound to the observed worker and transaction. Missing or mismatched observations remain rejected. Seventeen focused tests pass. Diagnostic `stream-d-finish-r3` records positive exit 0 and wrong-transaction control exit 1 with verified cleanup. Earlier internal-redirect fixture attempts remain retained failures; neither evidence nor validator was relaxed. Integrated Canonical evidence remains coordinator-owned.
 
