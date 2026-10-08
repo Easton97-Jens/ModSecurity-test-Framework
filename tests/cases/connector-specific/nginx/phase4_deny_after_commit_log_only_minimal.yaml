@@ -1,0 +1,43 @@
+name: phase4_deny_after_commit_log_only_minimal
+title: Existing safe-mode late intervention under the explicitly migrated Required identity
+category: no-crs-full-lifecycle
+portable: false
+connector: nginx
+status: pending
+no_crs_baseline: true
+phase: 4
+capabilities:
+  response_body: true
+  phase4: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/plain
+  SecRule RESPONSE_BODY "@contains no-crs-response-body-marker" \
+    "id:1100301,phase:4,deny,status:403,log,msg:'no-crs phase-4 intervention probe'"
+nginx:
+  phase4_mode: safe
+  location_directives: |
+    modsecurity_phase4_log "@@NGINX_PHASE4_LOG@@";
+request:
+  method: GET
+  path: /no-crs/full-lifecycle/phase4-deny-after-commit-log-only-minimal
+response:
+  body: no-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 200
+  intervention: none
+full_lifecycle:
+  requires_real_host_chunk_driver: true
+  response_chunks:
+    - no-crs-response-
+    - body-marker
+  response_committed_before_marker: true
+  effective_phase4_mode: safe
+  evidence_status: not_executed_until_real_host
+known_limitations:
+  - The legacy Required identity is retained by explicit user decision; minimal is not a supported mode or alias.
+  - Explicit user decision maps the Required identity to actual safe-mode non-aborting late intervention; off legacy behavior remains unchanged.
+  - Actual native safe-mode rule and transport observations are still required; historical off evidence is not interchangeable.
