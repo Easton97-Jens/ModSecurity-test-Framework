@@ -121,6 +121,20 @@ public inventory stale. Its optional output path is also opened through a
 descriptor-based no-follow walk under the physical Framework root and atomically
 replaced; a symlinked output parent is rejected.
 
+A source with kind `native_operation_fixture` is an inventory provenance
+association, not a connector-specific expectation or an executed test. The
+guarded deferred NGINX `phase4_body_reject` fixture is associated with its existing
+No-CRS ID only after its explicit native descriptor and fixture class agree with
+the checked-in contract. The generic API expectation, phase, capabilities and
+applicability remain unchanged; the native source variant does not inherit that
+generic expectation as its NGINX rejection contract.
+
+A YAML HTTP expectation, a source association or a successful public result
+comparison cannot prove native ingestion, an Engine body-limit failure or
+connector coverage. Actual NGINX Canonical proof still requires the selected
+native descriptor and strict validation of original retained receipts. This
+inventory generator manufactures no such evidence.
+
 Existing entry points remain supported:
 
     python3 ci/checks/catalog/no_crs_baseline.py ...

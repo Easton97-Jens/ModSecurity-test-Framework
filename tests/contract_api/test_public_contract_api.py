@@ -176,8 +176,15 @@ class PublicContractApiTests(unittest.TestCase):
     def test_package_catalog_covers_all_declared_framework_sources(self) -> None:
         all_cases = contracts.load_test_catalog()
         yaml_cases = contracts.load_test_catalog(catalog="framework-yaml")
-        self.assertEqual(len(all_cases["test_ids"]), 339)
-        self.assertEqual(len(yaml_cases["test_ids"]), 188)
+        self.assertEqual(len(all_cases["test_ids"]), 350)
+        self.assertEqual(len(yaml_cases["test_ids"]), 200)
+        native_reject = next(record for record in yaml_cases["tests"]
+                             if record["framework_test_id"] == "no-crs-baseline:phase4_body_reject")
+        self.assertIn(
+            {"kind": "native_operation_fixture",
+             "path": "tests/cases/connector-specific/nginx/phase4_body_reject.yaml"},
+            native_reject["sources"],
+        )
         self.assertIn("no-crs-baseline:valid_rules_file", yaml_cases["test_ids"])
         self.assertIn("no-crs-baseline:duplicate_header_names", yaml_cases["test_ids"])
         self.assertIn("no-crs-baseline:empty_header_value", yaml_cases["test_ids"])

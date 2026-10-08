@@ -3721,10 +3721,15 @@
       "catalogs": [
         "no-crs-baseline"
       ],
-      "display_name": "Reject an invalid intervention status configuration",
+      "display_name": "Reject a lexically invalid Engine rule status action",
       "expectation": {
-        "event_type": "config_rejected",
-        "kind": "event"
+        "connector": "nginx",
+        "directive": "modsecurity_rules",
+        "error_class": "invalid_status",
+        "exit_code": 1,
+        "kind": "configuration",
+        "operation": "configtest",
+        "outcome": "config_rejected"
       },
       "framework_test_id": "no-crs-baseline:invalid_status",
       "phase": 0,
@@ -5344,7 +5349,8 @@
       },
       "area": "no-crs-baseline",
       "catalogs": [
-        "no-crs-baseline"
+        "no-crs-baseline",
+        "framework-yaml"
       ],
       "display_name": "Phase-4 Reject limit behavior",
       "expectation": {
@@ -5389,6 +5395,10 @@
         {
           "kind": "no_crs_catalog",
           "path": "tests/cases/no-crs-baseline/catalog.json"
+        },
+        {
+          "kind": "native_operation_fixture",
+          "path": "tests/cases/connector-specific/nginx/phase4_body_reject.yaml"
         }
       ]
     },
@@ -6187,10 +6197,15 @@
       "catalogs": [
         "no-crs-baseline"
       ],
-      "display_name": "Reject an invalid phase-4 content-type scope file",
+      "display_name": "Reject removed NGINX scope-file API with invalid MIME fixture",
       "expectation": {
-        "event_type": "config_rejected",
-        "kind": "event"
+        "connector": "nginx",
+        "directive": "modsecurity_phase4_content_types_file",
+        "error_class": "phase4_invalid_scope_file",
+        "exit_code": 1,
+        "kind": "configuration",
+        "operation": "configtest",
+        "outcome": "config_rejected"
       },
       "framework_test_id": "no-crs-baseline:phase4_invalid_scope_file",
       "phase": 0,
@@ -6823,10 +6838,15 @@
       "catalogs": [
         "no-crs-baseline"
       ],
-      "display_name": "Reject a wildcard phase-4 content-type scope",
+      "display_name": "Reject removed NGINX scope-file API with wildcard MIME fixture",
       "expectation": {
-        "event_type": "config_rejected",
-        "kind": "event"
+        "connector": "nginx",
+        "directive": "modsecurity_phase4_content_types_file",
+        "error_class": "phase4_wildcard_scope_rejected",
+        "exit_code": 1,
+        "kind": "configuration",
+        "operation": "configtest",
+        "outcome": "config_rejected"
       },
       "framework_test_id": "no-crs-baseline:phase4_wildcard_scope_rejected",
       "phase": 0,
@@ -10190,6 +10210,38 @@
     {
       "applicability": {
         "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Native NGINX full lifecycle event metadata bounded",
+      "expectation": {
+        "http_status": 200,
+        "kind": "http_status"
+      },
+      "framework_test_id": "yaml:tests:cases:connector-specific:nginx:full_lifecycle_event_metadata_bounded",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [
+        "intervention",
+        "phase4",
+        "response_body"
+      ],
+      "scenario_category": "no-crs-full-lifecycle",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/connector-specific/nginx/full_lifecycle_event_metadata_bounded.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
         "declared_status": "imported",
         "portable": false,
         "requires_crs": null
@@ -10566,6 +10618,198 @@
         {
           "kind": "yaml_case",
           "path": "tests/cases/connector-specific/nginx/nginx_tx_scoring_iterative_block.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Native NGINX phase4 body at limit",
+      "expectation": {
+        "http_status": 200,
+        "kind": "http_status"
+      },
+      "framework_test_id": "yaml:tests:cases:connector-specific:nginx:phase4_body_at_limit",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [
+        "intervention",
+        "phase4",
+        "response_body"
+      ],
+      "scenario_category": "no-crs-full-lifecycle",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/connector-specific/nginx/phase4_body_at_limit.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Native NGINX phase4 body over limit",
+      "expectation": {
+        "http_status": 200,
+        "kind": "http_status"
+      },
+      "framework_test_id": "yaml:tests:cases:connector-specific:nginx:phase4_body_over_limit",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [
+        "intervention",
+        "phase4",
+        "response_body"
+      ],
+      "scenario_category": "no-crs-full-lifecycle",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/connector-specific/nginx/phase4_body_over_limit.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Native NGINX phase4 body process partial",
+      "expectation": {
+        "http_status": 200,
+        "kind": "http_status"
+      },
+      "framework_test_id": "yaml:tests:cases:connector-specific:nginx:phase4_body_process_partial",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [
+        "intervention",
+        "phase4",
+        "response_body"
+      ],
+      "scenario_category": "no-crs-full-lifecycle",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/connector-specific/nginx/phase4_body_process_partial.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Existing safe-mode late intervention under the explicitly migrated Required identity",
+      "expectation": {
+        "http_status": 200,
+        "kind": "http_status"
+      },
+      "framework_test_id": "yaml:tests:cases:connector-specific:nginx:phase4_deny_after_commit_log_only_minimal",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [
+        "intervention",
+        "phase4",
+        "response_body"
+      ],
+      "scenario_category": "no-crs-full-lifecycle",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/connector-specific/nginx/phase4_deny_after_commit_log_only_minimal.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Native NGINX phase4 end of stream evaluation",
+      "expectation": {
+        "http_status": 200,
+        "kind": "http_status"
+      },
+      "framework_test_id": "yaml:tests:cases:connector-specific:nginx:phase4_end_of_stream_evaluation",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [
+        "intervention",
+        "phase4",
+        "response_body"
+      ],
+      "scenario_category": "no-crs-full-lifecycle",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/connector-specific/nginx/phase4_end_of_stream_evaluation.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Native NGINX phase4 marker split across chunks",
+      "expectation": {
+        "http_status": 200,
+        "kind": "http_status"
+      },
+      "framework_test_id": "yaml:tests:cases:connector-specific:nginx:phase4_marker_split_across_chunks",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [
+        "intervention",
+        "phase4",
+        "response_body"
+      ],
+      "scenario_category": "no-crs-full-lifecycle",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/connector-specific/nginx/phase4_marker_split_across_chunks.yaml"
         }
       ]
     },
@@ -11423,6 +11667,150 @@
         {
           "kind": "yaml_case",
           "path": "tests/cases/no-crs-baseline/full-lifecycle/transport.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Native Engine response MIME policy \u2014 phase4_content_type_with_charset",
+      "expectation": {
+        "conditions": [
+          {
+            "action": "deny",
+            "http_status": 200,
+            "kind": "intervention",
+            "rule_ids": [
+              1100301
+            ]
+          },
+          {
+            "fields": [
+              "audit_log",
+              "phase4_log"
+            ],
+            "kind": "event"
+          }
+        ],
+        "kind": "compound"
+      },
+      "framework_test_id": "yaml:tests:cases:no-crs-baseline:phase4_content_type_with_charset",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [],
+      "scenario_category": "no-crs-baseline",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/phase4_content_type_with_charset.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Native Engine response MIME policy \u2014 phase4_in_scope_content_type",
+      "expectation": {
+        "conditions": [
+          {
+            "action": "deny",
+            "http_status": 200,
+            "kind": "intervention",
+            "rule_ids": [
+              1100301
+            ]
+          },
+          {
+            "fields": [
+              "audit_log",
+              "phase4_log"
+            ],
+            "kind": "event"
+          }
+        ],
+        "kind": "compound"
+      },
+      "framework_test_id": "yaml:tests:cases:no-crs-baseline:phase4_in_scope_content_type",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [],
+      "scenario_category": "no-crs-baseline",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/phase4_in_scope_content_type.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Native Engine response MIME policy \u2014 phase4_missing_content_type",
+      "expectation": {
+        "http_status": 200,
+        "kind": "http_status"
+      },
+      "framework_test_id": "yaml:tests:cases:no-crs-baseline:phase4_missing_content_type",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [],
+      "scenario_category": "no-crs-baseline",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/phase4_missing_content_type.yaml"
+        }
+      ]
+    },
+    {
+      "applicability": {
+        "connector": "nginx",
+        "declared_status": "pending",
+        "portable": false,
+        "requires_crs": null
+      },
+      "area": null,
+      "catalogs": [
+        "framework-yaml"
+      ],
+      "display_name": "Native Engine response MIME policy \u2014 phase4_out_of_scope_content_type",
+      "expectation": {
+        "http_status": 200,
+        "kind": "http_status"
+      },
+      "framework_test_id": "yaml:tests:cases:no-crs-baseline:phase4_out_of_scope_content_type",
+      "phase": 4,
+      "profile": "no-crs-baseline",
+      "required_capabilities": [],
+      "scenario_category": "no-crs-baseline",
+      "sources": [
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/phase4_out_of_scope_content_type.yaml"
         }
       ]
     },

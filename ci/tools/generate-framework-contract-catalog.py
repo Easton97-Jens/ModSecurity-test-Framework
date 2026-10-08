@@ -30,6 +30,7 @@ SCHEMA_VERSION = 1
 IDENTIFIER_RE = re.compile(r"^[a-z][a-z0-9_.:/-]{0,127}$")
 MAX_CASES = 512
 REQUIRED_CAPABILITY_LABEL = "required capability"
+NATIVE_REJECT_FIXTURE_PATH = "tests/cases/connector-specific/nginx/phase4_body_reject.yaml"
 
 
 class GenerationError(ValueError):
@@ -417,7 +418,66 @@ def _yaml_applicability(document: Mapping[str, Any], connector: str | None, decl
     }
 
 
+def _native_reject_source_association(document: Mapping[str, Any], catalog_ids: set[str]) -> dict[str, str]:
+    """Associate one deferred fixture as provenance, NOT a native expectation."""
+    identity = {"name": "phase4_body_reject", "connector": "nginx", "portable": False,
+                "no_crs_baseline": True, "phase": 4, "status": "future",
+                "category": "no-crs-full-lifecycle", "expect": {}}
+    lifecycle = {"requires_real_host_chunk_driver": True,
+                 "evidence_status": "not_executed_until_real_host",
+                 "engine_response_body_limit": 64, "engine_response_body_limit_action": "Reject"}
+    actual_lifecycle = document.get("full_lifecycle")
+    capabilities = document.get("capabilities")
+    nginx = document.get("nginx")
+    rules = document.get("rules")
+    directives = {"SecRuleEngine": "On", "SecResponseBodyAccess": "On",
+                  "SecResponseBodyMimeType": "text/plain", "SecResponseBodyLimit": "64",
+                  "SecResponseBodyLimitAction": "Reject"}
+    rules_match = isinstance(rules, str) and all(
+        re.findall(r"(?m)^\s*" + directive + r"\s+([^\r\n]+)$", rules) == [value]
+        for directive, value in directives.items())
+    if (any(type(document.get(field)) is not type(value) or document[field] != value
+            for field, value in identity.items())
+            or not isinstance(actual_lifecycle, Mapping) or set(actual_lifecycle) != set(lifecycle)
+            or any(type(actual_lifecycle[field]) is not type(value) or actual_lifecycle[field] != value
+                   for field, value in lifecycle.items())
+            or not isinstance(capabilities, Mapping)
+            or set(capabilities) != {"response_body", "phase4", "intervention"}
+            or any(value is not True for value in capabilities.values())
+            or not rules_match
+            or not isinstance(nginx, Mapping) or nginx.get("phase4_mode") != "safe"
+            or identity["name"] not in catalog_ids):
+        raise GenerationError("invalid deferred native Reject source fixture")
+    catalog = _read_json(CATALOG_PATH)
+    schema = _read_json(ROOT / "tests/schemas/no-crs-baseline/case-catalog.schema.json")
+    try:
+        cases = [case for case in catalog["cases"] if case.get("case_id") == identity["name"]]
+        branches = schema["properties"]["cases"]["items"]["allOf"][1]["then"]["anyOf"]
+        declared = [branch["properties"]["native_invocations"]["const"] for branch in branches
+                    if branch["properties"]["case_id"]["const"] == identity["name"]]
+        if len(cases) != 1 or len(declared) != 1:
+            raise GenerationError("ambiguous native Reject source contract")
+        invocation = cases[0]["native_invocations"]
+        # Equality to the current closed schema protects the exact operation,
+        # case identity and connector-local overrides. Nothing is emitted as
+        # a new observation or copied into the generic API expectation.
+        if json.dumps(invocation, sort_keys=True) != json.dumps(declared[0], sort_keys=True):
+            raise GenerationError("native Reject source descriptor differs from its closed schema")
+        expected = {"nginx": {"operation": "native_phase4_request", "contract_case_id": identity["name"],
+                              "expected_overrides": {"expected_status": 200, "expected_rule_id": None,
+                                                     "expected_native_status": 403,
+                                                     "expected_engine_error_class": "body_limit"}}}
+        if json.dumps(invocation, sort_keys=True) != json.dumps(expected, sort_keys=True):
+            raise GenerationError("unsupported native Reject source descriptor")
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise GenerationError("missing explicit native Reject source contract") from exc
+    return {"source_kind": "native_operation_fixture"}
+
+
 def _yaml_record(document: Mapping[str, Any], relative_path: str, catalog_ids: set[str]) -> tuple[str, dict[str, Any], bool]:
+    if relative_path == NATIVE_REJECT_FIXTURE_PATH:
+        marker = _native_reject_source_association(document, catalog_ids)
+        return "no-crs-baseline:phase4_body_reject", marker, True
     name = _identifier(document.get("name"), "case name")
     connector = document.get("connector")
     if connector is not None:
@@ -542,8 +602,16 @@ def _merge_yaml_record(
         existing = records.get(record_id)
         if existing is None:
             raise GenerationError("unknown catalog merge target")
-        existing["catalogs"].append("framework-yaml")
-        existing["sources"].append({"kind": "yaml_case", "path": relative_path})
+        source_kind = "yaml_case"
+        if record:
+            if (record != {"source_kind": "native_operation_fixture"}
+                    or relative_path != NATIVE_REJECT_FIXTURE_PATH
+                    or record_id != "no-crs-baseline:phase4_body_reject"):
+                raise GenerationError("invalid native fixture source association")
+            source_kind = record["source_kind"]
+        if source_kind == "yaml_case" or "framework-yaml" not in existing["catalogs"]:
+            existing["catalogs"].append("framework-yaml")
+        existing["sources"].append({"kind": source_kind, "path": relative_path})
         return
     if record_id in records:
         raise GenerationError("duplicate or conflicting framework test id")
