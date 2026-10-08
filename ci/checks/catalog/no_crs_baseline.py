@@ -58,6 +58,7 @@ RUN_INVENTORY_FILE_PATH = "inventory/run.json"
 RULES_ARTIFACT_FILE_PATH = "config/no-crs-baseline.conf"
 CAPABILITIES_INVENTORY_FILE_PATH = "inventory/capabilities.json"
 PLAN_FILE_NAME = "plan.json"
+NATIVE_AUTHORITY_FILE_PATH = "inventory/native-operation-authority.json"
 NO_CRS_SCHEMA_DIRECTORY = "tests/schemas/no-crs-baseline"
 RESULT_GLOB_PATTERN = "*/result.json"
 REPORT_STATUS_NOT_IMPLEMENTED = "NOT IMPLEMENTED"
@@ -4980,11 +4981,14 @@ def normalize_case_record(
     integration_mode: str | None = None,
     *,
     configtest_artifact_root: Path | None = None,
+    native_operation_authority: Mapping[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     case_id = case_identifier(raw)
     if not case_id or case_id not in case_by_id:
         return None
     case = case_by_id[case_id]
+    if "native_operation_receipt" in raw:
+        return normalize_native_operation_record(raw, case, connector, native_operation_authority)
     status = normalize_status(raw.get("status"))
     observed_result = raw.get("observed_result") or raw.get("outcome")
     if str(observed_result or "") == "rejected_by_host_before_connector":
@@ -5061,6 +5065,150 @@ def normalize_case_record(
             validation_errors.extend(configtest_artifact_errors(record, configtest_artifact_root))
         mark_case_record_invalid(record, validation_errors)
     return record
+
+
+NATIVE_SOURCE_IDENTITY_FIELDS = (
+    "parent_sha", "framework_sha", "mrts_sha", "parent_framework_gitlink",
+    "operation", "driver_exit_code", "native_operation_receipt",
+)
+
+
+def native_operation_projection(
+    raw: Mapping[str, Any], case: Mapping[str, Any], authority: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    from tests.runners.nginx_native_operation_bundle import validate_native_operation_bundle
+    from tests.runners.nginx_native_operation_contract import derive_native_operation_contract
+    if not isinstance(authority, Mapping):
+        raise ValueError("native operation has no explicit source/artifact authority")
+    artifact_root, sources = authority.get("artifact_root"), authority.get("sources")
+    if not isinstance(artifact_root, Path) or not isinstance(sources, Mapping):
+        raise ValueError("native operation source/artifact authority is incomplete")
+    if authority.get("run_id") != raw.get("run_id"):
+        raise ValueError("native operation run differs from explicit authority")
+    if (type(raw.get("parent_framework_gitlink")) is not str
+            or raw["parent_framework_gitlink"] != sources.get("framework_sha")):
+        raise ValueError("native operation Parent Gitlink differs from exact Framework authority")
+    proof = validate_native_operation_bundle(dict(raw), artifact_root, dict(sources))
+    return derive_native_operation_contract(dict(case), proof)
+
+
+def native_effective_case(case: Mapping[str, Any], facts: Mapping[str, Any]) -> dict[str, Any]:
+    effective = deepcopy(dict(case))
+    # The projector validates the exact current CaseSchema descriptor. Generic
+    # catalog expectations are never mutated, and no caller-supplied overrides
+    # can select a more convenient phase or rule.
+    effective.update(dict(facts["native_expected_overrides"]))
+    return effective
+
+
+def native_operation_expectation_errors(case: Mapping[str, Any], facts: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if case.get("expected_status") is not None and case["expected_status"] != facts["actual_status"]:
+        errors.append("actual native wire status does not match explicit case contract")
+    rules = {optional_int(event.get("rule_id")) for event in facts["selected_native_events"]}
+    if case.get("expected_rule_id") is not None and case["expected_rule_id"] not in rules:
+        errors.append("explicit native contract rule was not observed")
+    fields = set(case.get("expected_event_fields") or [])
+    mapped = facts["mapped_evidence_fields"]
+    origins = facts["mapped_evidence_origins"]
+    if any(not mapped.get(field) or not origins.get(field) for field in fields):
+        errors.append("native expected fields have no genuine event or explicit verified evidence mapping")
+    return errors
+
+
+def native_evidence_mapping(facts: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep host/receipt mappings separate from unchanged Common event keys."""
+    return {
+        "schema_version": 1,
+        "fields": deepcopy(facts["mapped_evidence_fields"]),
+        "origins": deepcopy(facts["mapped_evidence_origins"]),
+        "event_origins": deepcopy(facts["native_event_origins"]),
+        "semantic_event_origin": deepcopy(facts["semantic_native_event_origin"]),
+        "semantic_event_origins": deepcopy(facts["semantic_native_event_origins"]),
+        "causes": deepcopy(facts["native_cause"]),
+        "semantics": deepcopy(facts["semanticValues"]),
+        "semantic_origins": deepcopy(facts["semantic_evidence_origins"]),
+    }
+
+
+def native_operation_record_base(
+    raw: Mapping[str, Any], case: Mapping[str, Any], connector: str,
+    facts: Mapping[str, Any] | None, status: str, reason: str,
+) -> dict[str, Any]:
+    selected = facts["selected_native_events"] if facts is not None else []
+    event = facts["semantic_native_event"] if facts is not None else None
+    semantic_values, _ = semantic_runtime_fields({}, event)
+    fields = list(facts["observed_event_fields"]) if facts is not None else []
+    expected_fields = list(case.get("expected_event_fields") or [])
+    details: NormalizedCaseRecordDetails = {
+        "run_id": str(raw.get("run_id") or "") or None,
+        "integration_mode": str(raw.get("integration_mode") or "") or None,
+        "observed_result": facts["semanticValues"]["expected_result"] if facts is not None else None,
+        "expected_status": optional_int(case.get("expected_status")),
+        "actual_status": facts["actual_status"] if facts is not None else None,
+        "expected_rule_id": optional_int(case.get("expected_rule_id")),
+        "observed_rule_ids": sorted({value for row in selected
+                                     if (value := optional_int(row.get("rule_id"))) is not None}),
+        "transaction_ids": list(facts["transaction_ids"]) if facts is not None else [],
+        "expected_fields": expected_fields,
+        "observed_event_fields": fields,
+        "event_metadata_verified": bool(selected) and set(expected_fields).issubset(fields),
+        "semantic_values": semantic_values,
+    }
+    observed = dict(raw)
+    actual_exit = raw.get("driver_exit_code") if type(raw.get("driver_exit_code")) is int else None
+    observed.update(live_executed=facts is not None, reason=reason, exit_code=actual_exit)
+    record = build_normalized_case_record(observed, case, connector, str(case["case_id"]), status, details)
+    record.update({name: deepcopy(raw[name]) for name in NATIVE_SOURCE_IDENTITY_FIELDS if name in raw})
+    record["driver_exit_code"] = actual_exit
+    if facts is not None:
+        record["native_evidence_mapping"] = native_evidence_mapping(facts)
+        record["native_mapping_sha256"] = hashlib.sha256(json.dumps(
+            {"original_facts": facts["mappingEvidenceFacts"], "mapping": record["native_evidence_mapping"]},
+            sort_keys=True, separators=(",", ":"), allow_nan=False,
+        ).encode()).hexdigest()
+    return record
+
+
+def normalize_native_operation_record(
+    raw: Mapping[str, Any], case: Mapping[str, Any], connector: str,
+    authority: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    initial = normalize_status(raw.get("status"))
+    failure_status = (initial if initial in {"FAIL", "BLOCKED"} else
+                      "NOT_EXECUTED" if authority is None and initial != "PASS" else "FAIL")
+    try:
+        if connector != "nginx" or native_invocation_for_case(case, connector) is None:
+            raise ValueError("native operation has no declared case/host contract")
+        facts = native_operation_projection(raw, case, authority)
+        effective = native_effective_case(case, facts)
+        errors = native_operation_expectation_errors(effective, facts)
+        status = initial if initial in {"FAIL", "BLOCKED"} else "FAIL" if errors else "PASS"
+        reason = (str(raw.get("reason") or "original native invocation " + initial)
+                  if initial in {"FAIL", "BLOCKED"} else "; ".join(errors)
+                  if errors else "verified source-bound native operation and original retained bytes")
+        return native_operation_record_base(
+            raw, effective, connector, facts, status, reason,
+        )
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        return native_operation_record_base(raw, case, connector, None, failure_status, str(exc))
+
+
+def native_operation_record_errors(
+    record: Mapping[str, Any], authority: Mapping[str, Any] | None, case: Mapping[str, Any],
+) -> list[str]:
+    # Canonical optional protocol fields are null when the original native
+    # envelope made no such claim. Non-null claims remain checked by the reader.
+    original = dict(record)
+    for key in ("protocol", "downstream_protocol", "requested_protocol"):
+        if original.get(key) is None:
+            original.pop(key, None)
+    verified = normalize_native_operation_record(original, case, "nginx", authority)
+    if verified["status"] != "PASS":
+        return ["native operation revalidation failed: " + verified["reason"]]
+    excluded = {"reason", "artifacts"}
+    return ["native canonical field differs from reopened evidence: " + key
+            for key, value in verified.items() if key not in excluded and record.get(key) != value]
 
 
 def derive_core_records(
@@ -6631,6 +6779,8 @@ class FinalizeContext:
         # Authority is taken from each explicit CLI source, never from a row.
         self.configtest_source_roots: dict[int, Path] = {}
         self.configtest_copied_cases: set[str] = set()
+        self.native_operation_authority: Mapping[str, Any] | None = None
+        self.native_operation_copied_cases: set[str] = set()
 
 
 class FinalizeSummaryValues(TypedDict):
@@ -6748,7 +6898,7 @@ def load_finalize_context(args: argparse.Namespace) -> FinalizeContext:
     if plan_errors:
         raise ContractError("; ".join(plan_errors))
     case_by_id = {case["case_id"]: case for case in catalog_cases(catalog)}
-    return FinalizeContext(
+    context = FinalizeContext(
         connector_root,
         run_dir,
         manifest_path,
@@ -6763,6 +6913,63 @@ def load_finalize_context(args: argparse.Namespace) -> FinalizeContext:
         capabilities,
         case_by_id,
     )
+    authority_path = str(getattr(args, "native_operation_authority", "") or "")
+    if authority_path:
+        if connector != "nginx" or artifact_profile != FULL_LIFECYCLE_ARTIFACT_PROFILE:
+            raise ContractError("native authority requires the NGINX full_lifecycle profile")
+        expected = native_authority_expected_tuple(manifest)
+        retain_finalize_native_authority(context, Path(authority_path), expected)
+    return context
+
+
+def native_authority_expected_tuple(identity: Mapping[str, Any]) -> dict[str, str]:
+    framework_sha = str(identity.get("framework_commit") or "")
+    return {
+        "run_id": str(identity.get("run_id") or ""),
+        "parent_sha": str(identity.get("connector_commit") or ""),
+        "framework_sha": framework_sha,
+        "mrts_sha": git_value(FRAMEWORK_ROOT, "rev-parse", framework_sha + ":tools/MRTS"),
+    }
+
+
+def retain_finalize_native_authority(
+    context: FinalizeContext, path: Path, expected: dict[str, str],
+) -> Mapping[str, Any]:
+    from tests.runners.nginx_native_operation_authority import AUTHORITY_LIMIT, load_native_operation_authority
+    from tests.runners.nginx_native_operation_bundle import read_bounded_file
+    try:
+        loaded = load_native_operation_authority(path, expected)
+        destination = context.run_dir / NATIVE_AUTHORITY_FILE_PATH
+        copy_artifact(path, destination, maximum_bytes=AUTHORITY_LIMIT)
+        original = read_bounded_file(context.run_dir, NATIVE_AUTHORITY_FILE_PATH, AUTHORITY_LIMIT)
+        if original != loaded["authority_bytes"]:
+            raise ValueError("native authority bytes changed during retention")
+        retained = load_native_operation_authority(destination, expected)
+        context.manifest["artifacts"]["native_operation_authority"] = artifact_entry(
+            NATIVE_AUTHORITY_FILE_PATH, "produced", sha256=retained["authority_sha256"],
+        )
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        raise ContractError("native authority retention failed: " + str(exc)) from exc
+    context.native_operation_authority = retained
+    return retained
+
+
+def retained_native_operation_authority(
+    run_dir: Path, expected: dict[str, str], *, manifest: Mapping[str, Any] | None = None,
+) -> Mapping[str, Any]:
+    from tests.runners.nginx_native_operation_authority import load_native_operation_authority
+    try:
+        loaded = load_native_operation_authority(run_dir / NATIVE_AUTHORITY_FILE_PATH, expected)
+        if manifest is not None:
+            declared = manifest.get("artifacts", {}).get("native_operation_authority", {})
+            if (declared.get("path") != NATIVE_AUTHORITY_FILE_PATH
+                    or declared.get("sha256") != loaded["authority_sha256"]
+                    or declared.get("state") != "produced"):
+                raise ValueError("native authority differs from its retained manifest seal")
+        return {"run_id": loaded["run_id"], "artifact_root": run_dir, "sources": loaded["sources"],
+                "authority_sha256": loaded["authority_sha256"]}
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        raise ContractError("retained native authority validation failed: " + str(exc)) from exc
 
 
 def canonical_finalize_event(
@@ -7006,6 +7213,8 @@ def normalized_finalize_case_records(
         configuration = config_invocation_for_case(case, context.connector)
         if "configtest_receipt" in raw:
             raw = retain_finalize_configtest_bundle(context, raw)
+        if "native_operation_receipt" in raw:
+            raw = retain_finalize_native_operation_bundle(context, raw)
         record = normalize_case_record(
             raw,
             context.connector,
@@ -7014,10 +7223,62 @@ def normalized_finalize_case_records(
             (str(context.manifest.get("integration_mode") or "")
              if configuration is not None else context.event_integration_mode),
             configtest_artifact_root=context.run_dir,
+            native_operation_authority=(
+                {"artifact_root": context.run_dir, "sources": context.native_operation_authority["sources"],
+                 "run_id": context.native_operation_authority["run_id"]}
+                if getattr(context, "native_operation_authority", None) is not None else None
+            ),
         )
         if record:
+            if (getattr(context, "artifact_profile", None) == FULL_LIFECYCLE_ARTIFACT_PROFILE
+                    and str(record["case_id"]) in selected_case_ids_from_plan(context.plan)
+                    and native_invocation_for_case(case, context.connector) is not None
+                    and "native_operation_receipt" not in raw
+                    and record["status"] == "PASS"):
+                mark_case_record_invalid(record, [
+                    "selected native case requires its original source-bound operation bundle",
+                ])
             records.append(record)
     return records
+
+
+def retain_finalize_native_operation_bundle(
+    context: FinalizeContext, raw: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    from tests.runners.nginx_native_operation_bundle import digest, read_bounded_file, validate_native_operation_bundle
+    case_id = str(case_identifier(raw))
+    authority = getattr(context, "native_operation_authority", None)
+    if not isinstance(authority, Mapping):
+        raise ContractError("native operation artifact has no explicit source authority")
+    if native_invocation_for_case(context.case_by_id.get(case_id, {}), context.connector) is None:
+        raise ContractError("native artifact has no declared case/host contract")
+    if case_id in context.native_operation_copied_cases:
+        raise ContractError("duplicate native operation artifact bundle")
+    try:
+        if authority.get("run_id") != raw.get("run_id"):
+            raise ValueError("native operation retention run differs from explicit authority")
+        proof = validate_native_operation_bundle(dict(raw), authority["artifact_root"], dict(authority["sources"]))
+        canonical_path = "inventory/native-operations/" + case_id
+        normalized = deepcopy(dict(raw))
+        normalized["native_operation_receipt"]["bundle_root"] = canonical_path
+        normalized["artifacts"] = {"native_operation_dir": canonical_path}
+        for relative, seal in proof["files"].items():
+            original = read_bounded_file(proof["bundle_root"], relative, seal["limit"])
+            if len(original) != seal["size"] or digest(original) != seal["sha256"]:
+                raise ValueError("native source bytes changed before retention")
+            destination = context.run_dir / canonical_path / relative
+            copy_artifact(proof["bundle_root"] / relative, destination, maximum_bytes=seal["limit"])
+            retained = read_bounded_file(context.run_dir, str(destination.relative_to(context.run_dir)), seal["limit"])
+            if retained != original:
+                raise ValueError("native retained bytes differ from reopened source")
+            context.manifest["artifacts"]["native_operation_" + case_id + "_" + relative.replace("/", "_").replace(".", "_")] = artifact_entry(
+                str(destination.relative_to(context.run_dir)), "produced", sha256=seal["sha256"],
+            )
+        validate_native_operation_bundle(normalized, context.run_dir, dict(authority["sources"]), canonical=True)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise ContractError("native artifact retention failed: " + str(exc)) from exc
+    context.native_operation_copied_cases.add(case_id)
+    return normalized
 
 
 def retain_finalize_configtest_bundle(
@@ -8247,6 +8508,15 @@ def completeness_errors(run_dir: Path) -> list[str]:
         selected_case_ids=selected_case_ids_from_plan(plan),
     ))
     case_by_id = {case["case_id"]: case for case in catalog_cases(load_catalog())}
+    native_authority = None
+    native_required = result.get("artifact_profile") == FULL_LIFECYCLE_ARTIFACT_PROFILE
+    if any(record.get("native_operation_receipt") is not None for record in records):
+        try:
+            native_authority = retained_native_operation_authority(
+                run_dir, native_authority_expected_tuple(result), manifest=load_json(run_dir / MANIFEST_FILE_NAME),
+            )
+        except ContractError as exc:
+            errors.append(str(exc))
     for record in records:
         case = case_by_id.get(str(record.get("case_id") or ""), {})
         errors.extend(pass_case_completeness_errors(
@@ -8254,6 +8524,8 @@ def completeness_errors(run_dir: Path) -> list[str]:
             (str(result.get("integration_mode") or "")
              if config_invocation_for_case(case, connector) is not None else integration_mode),
             artifact_root=run_dir,
+            native_operation_authority=native_authority,
+            require_native_operation_contract=native_required,
         ))
         if record.get("configtest_receipt") is not None:
             mrts_sha = git_value(FRAMEWORK_ROOT, "rev-parse", f"{result.get('framework_commit')}:tools/MRTS")
@@ -8338,11 +8610,19 @@ def pass_case_completeness_errors(
     integration_mode: str | None,
     *,
     artifact_root: Path | None = None,
+    native_operation_authority: Mapping[str, Any] | None = None,
+    require_native_operation_contract: bool = False,
 ) -> list[str]:
     if record.get("status") != "PASS":
         return []
     case_id = record.get("case_id")
     case = next((case for case in catalog_cases(load_catalog()) if case["case_id"] == case_id), {})
+    if record.get("native_operation_receipt") is not None:
+        if native_invocation_for_case(case, connector) is None:
+            return [f"{case_id}: native receipt has no declared case/host contract"]
+        return [f"{case_id}: {error}" for error in native_operation_record_errors(record, native_operation_authority, case)]
+    if require_native_operation_contract and native_invocation_for_case(case, connector) is not None:
+        return [f"{case_id}: selected native contract requires genuine retained operation evidence"]
     if config_invocation_for_case(case, connector) is not None:
         return [f"{case_id}: {error}" for error in (
             *configtest_receipt_errors(record, case, connector, integration_mode),
@@ -9603,6 +9883,10 @@ def build_parser() -> argparse.ArgumentParser:
     finalize_parser.add_argument("--source-results-jsonl", action="append", default=[])
     finalize_parser.add_argument("--source-summary", action="append", default=[])
     finalize_parser.add_argument("--source-events")
+    finalize_parser.add_argument(
+        "--native-operation-authority", default="",
+        help="explicit NGINX full-lifecycle source/artifact authority; original bytes are retained and rebound",
+    )
     finalize_parser.add_argument(
         "--source-artifact",
         action="append",
