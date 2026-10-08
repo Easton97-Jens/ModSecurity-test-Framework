@@ -230,6 +230,44 @@ def mapped_field(field, case_id, proof, selected):
     return native_values(proof, selected, field)
 
 
+def semantic_event(proof, result, expected):
+    """Select an unchanged causal/completion row, never an append summary."""
+    case_id = result["case_id"]
+    if case_id in bundle.RAW_CASES:
+        return None, None, []
+    phase, rule = PHASES[expected["phase"]], str(expected.get("expected_rule_id") or "")
+    if case_id in projection._TECHNICAL:
+        kind, _, phase = projection._TECHNICAL[case_id]
+        rule = ""
+    elif case_id in bundle.EVENT_CASES:
+        kind, phase, rule = "rule_match", "request_headers", "1100402"
+    elif expected["phase"] == 5:
+        kind, rule = "transaction_cleanup", ""
+    elif rule == "1100001":
+        kind = "engine_decision"
+    elif rule == "1100301":
+        kind = "phase4_intervention"
+    elif case_id == "phase4_body_reject":
+        kind = "body_limit"
+    elif expected["phase"] == 4:
+        kind = "phase4_completion"
+    else:
+        kind = "request_headers_complete"
+    candidates = [(index, row) for index, row in enumerate(proof["events"]) if row["event"] == kind]
+    bundle.require(candidates, "actual semantic native event missing: " + kind)
+    for _, row in candidates:
+        bundle.exact(row, {"phase": phase, "rule_id": rule}, "semantic native phase/Rule")
+    meaning = ("status", "action", "requested_action", "actual_action", "http_status", "visible_http_status")
+    first = candidates[0][1]
+    bundle.require(all(all(row.get(key) == first.get(key) for key in meaning) for _, row in candidates),
+                   "contradictory same-kind semantic native events")
+    if case_id in bundle.EVENT_CASES:
+        candidates = [(index, row) for index, row in candidates if row.get("truncated") is True]
+        bundle.require(candidates, "actual truncated semantic native event missing")
+    origins = [event_origin(proof, row, index, "event") for index, row in candidates]
+    return deepcopy(candidates[0][1]), origins[0], origins
+
+
 def derive_native_operation_contract(case, strict_reader_proof):
     """Return transparent actual facts, mappings and semantics; raise on gaps.
 
@@ -285,7 +323,10 @@ observed_event_fields. Native and downstream status retain different meanings.
             bundle.require(any(row.get("http_status") == overrides["expected_native_status"] for row in selected), "actual native cause status mismatch")
         if "expected_engine_error_class" in overrides:
             bundle.require(any(row.get("event") == overrides["expected_engine_error_class"] for row in selected), "actual native error class mismatch")
-        result.update(observed_rule_ids=rule_ids, mapped_evidence_fields=mapped, mapped_evidence_origins=origins,
+        semantic, semantic_origin, semantic_origins = semantic_event(proof, result, expected)
+        result.update(semantic_native_event=semantic, semantic_native_event_origin=semantic_origin,
+                      semantic_native_event_origins=semantic_origins,
+                      observed_rule_ids=rule_ids, mapped_evidence_fields=mapped, mapped_evidence_origins=origins,
                       native_event_origins=event_origins,
                       native_cause=[{key: deepcopy(row[key]) for key in ("event", "phase", "transaction_id", "rule_id", "http_status", "visible_http_status", "actual_action", "transport_result") if key in row} for row in result["selected_native_events"]],
                       semanticValues={"phase": phase, "phase_scope": phase_scope, "expected_result": CASE_RESULTS[case_id],

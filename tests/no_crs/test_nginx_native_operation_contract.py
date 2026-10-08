@@ -149,6 +149,15 @@ class NativeContractTests(unittest.TestCase):
                 self.assertTrue(all(value["mapped_evidence_origins"][field] for field in case["expected_event_fields"]))
                 self.assertEqual(value["observed_event_fields"], sorted({key for row in value["selected_native_events"] for key in row}))
                 self.assertNotIn("content_type_scope", value["observed_event_fields"])
+                summary = value["semantic_native_event"]
+                expected_event = "body_limit" if case_id == "phase4_body_reject" else "phase4_completion" if case_id in {
+                    "phase4_out_of_scope_content_type", "phase4_missing_content_type"} else "phase4_intervention"
+                self.assertEqual(summary["event"], expected_event)
+                self.assertIn(summary, proof["events"])
+                self.assertEqual(value["semantic_native_event_origin"]["kind"], "native_event")
+                if expected_event == "phase4_intervention":
+                    self.assertEqual(value["selected_native_events"][0]["event"], "phase4_append")
+                    self.assertEqual(summary["actual_action"], "log_only")
 
     def test_real_phase1_completion_strict_tuple_and_host_identity_are_separate(self):
         case, proof = self.fixture("keepalive_allow_allow")
@@ -238,6 +247,7 @@ class NativeContractTests(unittest.TestCase):
             proof["raw_artifacts"]["main"]["sequence-observation.json"] = json.dumps(proof["observation"]).encode()
             with self.subTest(fd=value), self.assertRaises(ValueError):
                 contract.mapped_field("write_result", case_id, proof, [])
+
         for mutation in ("missing", "extra"):
             proof = self.write_fixture(case_id)
             if mutation == "missing":
@@ -247,6 +257,40 @@ class NativeContractTests(unittest.TestCase):
             proof["raw_artifacts"]["main"]["sequence-observation.json"] = json.dumps(proof["observation"]).encode()
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 contract.mapped_field("write_result", case_id, proof, [])
+
+    def test_semantic_native_event_scope_and_original_boundary_variant(self):
+        for case_id, wanted in (("invalid_content_length", None), ("clean_shutdown", "transaction_cleanup"),
+                                ("body_size_nonzero_with_null_data", "protocol_error"), ("finish_failure_propagation", "invalid_engine_response")):
+            case, proof = self.fixture(case_id)
+            value = contract.derive_native_operation_contract(case, proof)
+            with self.subTest(case=case_id):
+                event = value["semantic_native_event"]
+                self.assertEqual(event["event"] if event else None, wanted)
+                if event:
+                    self.assertIn(event, proof["events"])
+        case, proof = self.fixture("event_json_limit")
+        proof["events"][0]["truncated"] = False
+        proof["raw_artifacts"]["at"]["phase1-events.jsonl"] = b"\n".join(json.dumps(row).encode() for row in proof["events"] if row["transaction_id"] == proof["transaction_ids"][0])
+        original = deepcopy(proof)
+        value = contract.derive_native_operation_contract(case, proof)
+        self.assertEqual(value["semantic_native_event"]["transaction_id"], proof["transaction_ids"][1])
+        self.assertEqual(value["semantic_native_event_origin"]["invocation"], "over")
+        self.assertEqual(proof, original)
+
+    def test_semantic_selection_rejects_foreign_identity_and_conflicting_meaning(self):
+        case, proof = self.fixture("event_metadata_truncation")
+        for field, value in (("transaction_id", "foreign"), ("rule_id", "1100001"),
+                             ("phase", "logging")):
+            changed = deepcopy(proof)
+            changed["events"][0][field] = value
+            changed["raw_artifacts"]["main"]["phase1-events.jsonl"] = json.dumps(changed["events"][0]).encode()
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                contract.derive_native_operation_contract(case, changed)
+        case, proof = self.fixture("event_json_limit")
+        next(row for row in proof["events"] if row["event"] == "rule_match" and row["transaction_id"] == proof["transaction_ids"][1])["actual_action"] = "log_only"
+        proof["raw_artifacts"]["over"]["phase1-events.jsonl"] = b"\n".join(json.dumps(row).encode() for row in proof["events"] if row["transaction_id"] == proof["transaction_ids"][1])
+        with self.assertRaisesRegex(ValueError, "contradictory same-kind"):
+            contract.derive_native_operation_contract(case, proof)
 
 
 if __name__ == "__main__":
