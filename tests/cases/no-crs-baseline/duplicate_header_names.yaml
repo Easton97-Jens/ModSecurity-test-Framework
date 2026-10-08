@@ -1,0 +1,53 @@
+name: duplicate_header_names
+title: Preserve repeated request headers and match their count and distinct values
+category: no-crs-baseline
+portable: true
+status: pending
+no_crs_baseline: true
+phase: 1
+required_capabilities:
+  - request_headers
+  - phase1
+  - event_jsonl
+capabilities:
+  request_headers: true
+  phase1: true
+  logging: true
+rules: |
+  SecRuleEngine On
+  SecAuditEngine On
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+  SecRule &REQUEST_HEADERS:X-No-Crs-Duplicate "@eq 2" \
+      "id:1100504,phase:1,pass,log,t:none,chain,msg:'no-crs duplicate request header names'"
+  SecRule REQUEST_HEADERS:X-No-Crs-Duplicate "@streq one" "t:none,chain"
+  SecRule REQUEST_HEADERS:X-No-Crs-Duplicate "@streq two" "t:none"
+request:
+  method: GET
+  path: /no-crs/headers/duplicate
+  headers:
+    - name: X-No-Crs-Duplicate
+      value: one
+    - name: X-No-Crs-Duplicate
+      value: two
+expect:
+  status: 200
+  intervention: none
+  rule_id: 1100504
+  audit_log:
+    required: true
+    rule_id: 1100504
+    message: no-crs duplicate request header names
+expected_result: allow
+expected_status: 200
+expected_rule_id: 1100504
+expected_event_fields:
+  - rule_id
+  - phase
+forbidden_event_fields:
+  - request_body
+  - response_body
+connector_applicability: capability_driven
+unsupported_behavior: UNSUPPORTED

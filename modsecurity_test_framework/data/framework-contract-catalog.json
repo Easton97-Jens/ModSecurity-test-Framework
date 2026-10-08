@@ -1063,25 +1063,49 @@
       },
       "area": "no-crs-baseline",
       "catalogs": [
-        "no-crs-baseline"
+        "no-crs-baseline",
+        "framework-yaml"
       ],
       "display_name": "Preserve duplicate request header names according to host semantics",
       "expectation": {
-        "http_status": 200,
-        "kind": "http_status"
+        "conditions": [
+          {
+            "http_status": 200,
+            "kind": "http_status"
+          },
+          {
+            "kind": "rule_match",
+            "rule_ids": [
+              1100504
+            ]
+          },
+          {
+            "fields": [
+              "rule_id",
+              "phase"
+            ],
+            "kind": "event"
+          }
+        ],
+        "kind": "compound"
       },
       "framework_test_id": "no-crs-baseline:duplicate_header_names",
       "phase": 1,
       "profile": "no-crs-baseline",
       "required_capabilities": [
         "request_headers",
-        "phase1"
+        "phase1",
+        "event_jsonl"
       ],
       "scenario_category": "headers",
       "sources": [
         {
           "kind": "no_crs_catalog",
           "path": "tests/cases/no-crs-baseline/catalog.json"
+        },
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/duplicate_header_names.yaml"
         }
       ]
     },
