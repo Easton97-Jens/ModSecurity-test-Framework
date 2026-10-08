@@ -4,6 +4,7 @@ category: no-crs-full-lifecycle
 portable: false
 connector: nginx
 status: future
+runtime_materializable: false
 no_crs_baseline: true
 phase: 4
 capabilities:
