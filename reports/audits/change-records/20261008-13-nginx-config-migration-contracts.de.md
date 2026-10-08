@@ -4,52 +4,74 @@
 
 ## Identität
 
-Change ID: `20261008-13-nginx-config-migration-contracts`. UTC-Datum: 2026-10-08.
-Framework-Basis: `11e1d20990d4ecbbcf18641782b04f0bb6369c69`.
-Folgekontext: Framework-PR #137; dieser Worktree ist nicht veröffentlicht.
+| Feld | Wert |
+| --- | --- |
+| Change-ID | `20261008-13-nginx-config-migration-contracts` |
+| UTC-Datum | 2026-10-08 |
+| Framework-Basisrevision | `11e1d20990d4ecbbcf18641782b04f0bb6369c69` |
+| Issue oder Pull Request | Framework-PR #137 Folgearbeit; nicht veröffentlicht |
 
-## Motivation und Implementierung
+## Motivation und Problemstellung
 
-Drei Required-Konfigurationscases besaßen bisher keine expliziten Hostoperationen.
-Der Benutzer wählte für `invalid_status` den bestehenden lexikalischen
-Engine-Parservertrag: ungültiges `status:not-a-number`, keine neu erfundene
-numerische Range oder Common-Default-Status-Direktive. Zwei Scope-Dateicases
-prüfen ausdrücklich die Ablehnung der entfernten Adapter-API
-`modsecurity_phase4_content_types_file`. Sie behaupten keine Verarbeitung oder
-Ablehnung ihrer MIME-Dateiinhalte durch die Engine.
+Drei ausgewählten Required-Konfigurationscases fehlten explizite Hostoperationen.
 
-`ci/lib/nginx_migration_config_contracts.py` deklariert genau diese drei
-geschlossenen Operationen und liefert unabhängige Kopien. Der Koordinator muss
-sie in Katalog, strikte Receipt-Validierung und echten Parent-Dispatcher
-integrieren; Deklarationen allein sind keine kanonische Runtime-Evidence.
+## Betroffene Komponenten und Sicherheitsgrenzen
 
-## Tests und Runtime-Evidence
+Der neue `ci/lib/nginx_migration_config_contracts.py` deklariert Verträge,
+keine Beobachtungen. Strikte Artefakt-/Operations-Evidence bleibt erforderlich.
 
-Die RTK-umhüllte Framework-Python-Unittest-Discovery für
-`test_nginx_migration_config_contracts.py` endete zunächst mit Exit 1, weil der
-Helper fehlte; danach endeten vier Tests mit Exit 0. Sie schützen die
-lexikalische Statusidentität, den exakten Removed-Directive-Grund, die
-geschlossene Casemenge und voneinander unabhängige Mutationen.
+## Akzeptanzkriterien
 
-Separate echte diagnostische NGINX-1.31.6-Configtests beobachteten Exit 1 mit
-`Expecting an action, got:  status:not-a-number` sowie zweimal Exit 1 mit dem
-Removed-Directive-Grund. Rohkonfigurationen, Fixture-Bytes, Captures und
-Artefaktdigests liegen im externen Task-Run
-`nginx-all-required-20261008T124555Z`. Diese Diagnoseoperationen verwenden die
-unveränderten committeten nativen Artefakte und sind kein neuer integrierter
-Exact-Head- oder kanonischer PASS-Nachweis.
+Genau drei geschlossene Verträge, präzise Fehlergründe, unabhängige Kopien,
+keine neue numerische Statusrange oder Engine-MIME-Dateiverarbeitungsbehauptung.
 
-## Sicherheit, Kompatibilität und Grenzen
+## Untersuchte Alternativen
 
-Keine Änderung an Validatoren, Selection, Required-Records, Produkt-API,
-numerischer Statuspolitik, MRTS-Source oder geschützter Infrastruktur.
-Beliebige Nonzero-Exits erfüllen diese Verträge nicht. Parent-Dispatch, Receipts
-und Schema-Integration bleiben beim Koordinator. Vollständiger Framework-Lint,
-integrierte Runtime und Remote-CI/Sonar müssen nach Integration laufen.
-Die englischen und deutschen Records beschreiben denselben Umfang.
+Keine neue Common-Statusdirektive oder Wiederherstellung der entfernten API.
+Der Benutzer wählte lexikalischen Parser-/Removed-API-Ablehnungsvertrag.
 
-## Prüfung und Lieferung
+## Implementierungsentscheidung
 
-Nur neuer Helper, fokussierte Tests und dieses Dokumentationspaar gehören zu
-dieser Konfigurationsvertragsscheibe. Dieser Workstream führt keinen Push,
-Gitlink-Update oder Merge aus. Die finale integrierte Abnahme bleibt offen.
+`invalid_status` verwendet ungültige Engine-Aktion `status:not-a-number`.
+`phase4_invalid_scope_file` und `phase4_wildcard_scope_rejected` lehnen die
+entfernte `modsecurity_phase4_content_types_file`-API ab, nicht Dateiinhalte.
+Der Koordinator integriert strikte Katalog-, Receipt- und Parent-Dispatch-Bindung.
+Deklarationen allein sind keine kanonische Evidence.
+
+## Geänderte Dateien und Tests
+
+Helper, `tests/no_crs/test_nginx_migration_config_contracts.py` und dieses
+englisch/deutsche Paar. Vier Tests schützen exakte Operationen und Mutationsisolation.
+
+## Befehle und Ergebnisse
+
+RTK-umhüllte Framework-Python-Unittest-Discovery: fehlender Helper RED Exit 1;
+implementierter Helper GREEN Exit 0, vier Tests. Der native Dokumentationscheck
+lehnte zunächst die Struktur ab; korrigierte Records werden vor Übergabe geprüft.
+
+## Sicherheitsauswirkung
+
+Keine Änderung an Validatoren, Required-Selection, Produktpolitik oder MRTS.
+Beliebige Nonzero-Exits erfüllen den Vertrag nicht.
+
+## Dokumentation und Runtime-Evidenz
+
+Echte diagnostische NGINX-1.31.6-Configtests beobachteten Exit 1 für lexikalische
+Statussyntax sowie zwei Removed-API-Ablehnungen mit exakten Diagnosen.
+Konfigurationen, Fixture-Bytes, Captures und Artefaktdigests verbleiben im externen
+Task `nginx-all-required-20261008T124555Z`. Unveränderte committete Artefakte,
+kein neuer integrierter Exact-Head oder kanonischer PASS. Beide Records sind gleichwertig.
+
+## Nicht ausgeführte Prüfungen
+
+Integrierte Runtime, vollständiger Framework-Lint und Remote-CI/Sonar warten auf Integration.
+
+## Einschränkungen und Restrisiko
+
+Zentraler Katalog, Validator, Schema und Parent-Wiring gehören dem Koordinator.
+Test-Erwartungen begründen keine neue Source-Politik.
+
+## Finaler Diff- und Review-Status
+
+Nur explizite Scheibendateien staged; kein Push, Merge oder Parent-Gitlink-Update
+durch diesen Workstream. Integrierte finale Abnahme bleibt offen.
