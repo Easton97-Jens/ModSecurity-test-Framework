@@ -12,9 +12,9 @@ import nginx_event_boundary_operations as events
 def child(case, variant, run_id="unit"):
     spec = events.operation(case, variant)
     uri, truncated, redacted = events.projected_uri(spec["request_path"])
-    event = dict(event="request_rule_match", message_id="MSCONN_EVENT_RULE_MATCHED", connector="nginx",
-                 integration_mode="native-nginx-http-module", phase="request_headers", status="ok", action="pass",
-                 requested_action="pass", actual_action="pass", rule_id="1100402", reason="non_disruptive_rule_match",
+    event = dict(event="rule_match", message_id="MSCONN_EVENT_RULE_MATCHED", connector="nginx",
+                 integration_mode="native-nginx-http-module", phase="request_headers", status="ok", action="allow",
+                 requested_action="allow", actual_action="allow", rule_id="1100402", reason="non_disruptive_rule_match",
                  method="GET", uri=uri, truncated=truncated, redacted=redacted, transaction_id=run_id + "-2-1")
     receipt = dict(case_id=case, source_record_id=case, operation=spec["operation"], variant=variant,
                    request_method="GET", request_path=spec["request_path"], request_headers=spec["request_headers"],
@@ -64,7 +64,8 @@ class EventBoundaryTests(unittest.TestCase):
     def test_wrong_native_rule_action_tx_flags_payload_and_size_rejected(self):
         case, variant = "event_metadata_truncation", "long-query"
         for field, value in (("rule_id", "1100401"), ("event", "phase1_log_only"),
-                             ("actual_action", "log_only"), ("phase", "response_body"),
+                             ("actual_action", "log_only"), ("event", "request_rule_match"),
+                             ("actual_action", "pass"), ("phase", "response_body"),
                              ("transaction_id", "foreign-2-1"), ("truncated", False),
                              ("redacted", False), ("uri", "?probe=non-sensitive"),
                              ("response_body", "payload"), ("message", "x"*4096)):

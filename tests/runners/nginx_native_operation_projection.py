@@ -104,7 +104,7 @@ def selected_events(case_id, events, transactions):
             selected.extend(timing)
         return selected
     if case_id in bundle.EVENT_CASES:
-        selected = [event for event in events if event["event"] == "request_rule_match"]
+        selected = [event for event in events if event["event"] == "rule_match"]
         bundle.require(len(selected) == len(transactions) and selected, "actual event-boundary native matches required")
         for event in selected:
             bundle.exact(event, {"phase": "request_headers", "message_id": "MSCONN_EVENT_RULE_MATCHED", "rule_id": "1100402"}, "actual event-boundary Rule/phase")
@@ -141,7 +141,7 @@ def native_facts(proof, case_id):
         if event.get("status") == "blocked" and event.get("phase") == "request_headers":
             # The real intervention callback runs before the host sends the
             # response. Native denial is not an invented already-sent action.
-            bundle.exact(event, {"event": "phase1_intervention", "message_id": "MSCONN_EVENT_REQUEST_BLOCKED",
+            bundle.exact(event, {"event": "engine_decision", "message_id": "MSCONN_EVENT_ENGINE_DECISION",
                                  "rule_id": "1100001", "action": "deny", "requested_action": "deny",
                                  "actual_action": "", "http_status": 403, "visible_http_status": 0,
                                  "transport_result": "not_observable"}, "actual request deny Rule/action/status")

@@ -109,16 +109,16 @@ def check_callback(receipt, raw, spec):
             continue
         require(len(line) + 1 < WRITER_BUFFER_BYTES, "actual NGX event writer line exceeds4096 buffer")
         event = json_object(line)
-        if event.get("event") == "request_rule_match" and event.get("transaction_id", "").startswith(receipt["run_id"] + "-"):
+        if event.get("event") == "rule_match" and event.get("transaction_id", "").startswith(receipt["run_id"] + "-"):
             events.append(event)
             require(BODY not in line and b"probe=" not in line and b"non-sensitive" not in line,
                     "event contains raw body/query payload")
     require(len(events) == 1 and events == receipt.get("native_events"), "exact native rule callback projection required")
     event = events[0]
-    equal_fields(event, {"event": "request_rule_match", "message_id": "MSCONN_EVENT_RULE_MATCHED",
+    equal_fields(event, {"event": "rule_match", "message_id": "MSCONN_EVENT_RULE_MATCHED",
                         "connector": "nginx", "integration_mode": "native-nginx-http-module",
-                        "phase": "request_headers", "status": "ok", "action": "pass",
-                        "requested_action": "pass", "actual_action": "pass", "rule_id": "1100402",
+                        "phase": "request_headers", "status": "ok", "action": "allow",
+                        "requested_action": "allow", "actual_action": "allow", "rule_id": "1100402",
                         "reason": "non_disruptive_rule_match", "method": "GET", "uri": uri,
                         "truncated": truncated, "redacted": redacted})
     require(re.fullmatch(re.escape(receipt["run_id"]) + r"-[1-9][0-9]*-[1-9][0-9]*", event["transaction_id"]),

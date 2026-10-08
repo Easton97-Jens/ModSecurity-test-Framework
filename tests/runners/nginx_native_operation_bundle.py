@@ -612,13 +612,14 @@ def sequence_denials(observed, accesses, events):
             deny = [event for event in events if event.get("transaction_id") == access["transaction_id"]
                     and event.get("uri") == request["path"] and event.get("status") == "blocked"]
             require(len(deny) == 1, "actual native request deny must bind rule1100001 and request transaction")
-            # Current access.c requests denial before core sends headers. Its
-            # actual_action is empty, not a fabricated future host action; a
-            # non-disruptive request_rule_match callback cannot prove denial.
-            exact(deny[0], {"event": "phase1_intervention", "message_id": "MSCONN_EVENT_REQUEST_BLOCKED",
+            # Common's actual protocol view serializes an intervention with
+            # no host observation as engine_decision, not the source struct's
+            # phase1_intervention. A non-disruptive rule_match cannot prove it.
+            exact(deny[0], {"event": "engine_decision", "message_id": "MSCONN_EVENT_ENGINE_DECISION",
                             "phase": "request_headers", "status": "blocked", "action": "deny",
                             "requested_action": "deny", "actual_action": "", "rule_id": "1100001",
-                            "http_status": 403, "visible_http_status": 0, "connector": "nginx", "integration_mode": MODE},
+                            "http_status": 403, "visible_http_status": 0, "transport_result": "not_observable",
+                            "connector": "nginx", "integration_mode": MODE},
                   "actual native request denial source fields")
 
 

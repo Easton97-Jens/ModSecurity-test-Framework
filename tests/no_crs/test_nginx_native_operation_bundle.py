@@ -557,9 +557,9 @@ class NativeBundleRouterTests(unittest.TestCase):
         self.prepare_case(case, run_id)
         observed["roles"]["run_id"] = run_id
         observed["cleanup"].update(run_id=run_id, master_pid=observed["roles"]["master_pid"], worker_pid=observed["roles"]["worker_pid"])
-        deny = {"event": "phase1_intervention", "message_id": "MSCONN_EVENT_REQUEST_BLOCKED", "connector": "nginx",
+        deny = {"event": "engine_decision", "message_id": "MSCONN_EVENT_ENGINE_DECISION", "connector": "nginx",
                 "integration_mode": bundle.MODE, "phase": "request_headers", "status": "blocked", "action": "deny",
-                "requested_action": "deny", "actual_action": "", "http_status": 403, "visible_http_status": 0,
+                "requested_action": "deny", "actual_action": "", "http_status": 403, "visible_http_status": 0, "transport_result": "not_observable",
                 "rule_id": "1100001", "transaction_id": "b" * 32,
                 "uri": observed["requests"][1]["path"]}
         events = [deny] + [{**self.cleanup_event, "transaction_id": row["transaction_id"], "cleanup_reason": "normal",

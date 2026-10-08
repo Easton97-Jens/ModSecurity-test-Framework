@@ -32,7 +32,7 @@ observed_event_fields aus erwarteten Namen zu füllen oder Ereignismetadaten aus
 
 Rohe fehlerhafte Requests behalten tatsächliches HTTP400 ohne zugelassene Fault-Transaktion/-Ereignis. Finish-Fehler behalten sichtbares200 und natives Logging-HTTP0. Budgetfälle behalten tatsächliches504 vor Commit oder sichtbares200 danach mit echtem Timeout-/Timing-Paar. Clean-Shutdown behält tatsächliches200. MIME-/Body-Limit-/Ereignisgrenzenbeobachtungen und alte Safe-Modus-Erwartungen bleiben explizit; kein fehlender erwarteter Ereignisschlüssel wird synthetisiert.
 
-Integrationskorrektur: Der tatsächliche Request-Header-Interventionscallback gibt `phase1_intervention` / `MSCONN_EVENT_REQUEST_BLOCKED`, natives HTTP403, leeres `actual_action` und sichtbares HTTP0 vor Versand der Hostantwort aus. Die Projektion verlangt nun diese exakten Felder statt einer erfundenen bereits gesendeten Deny-Aktion; widersprüchliche Rule-Match-, Allow-, sichtbare Status- und Aktionsbehauptungen bleiben abgelehnt.
+Integrationskorrektur: Die Request-Header-Interventionsstruktur verwendet `phase1_intervention` / `MSCONN_EVENT_REQUEST_BLOCKED`; die tatsächliche Common-JSONL-Protokollsicht serialisiert diese unbeobachtete Host-Aktion jedoch als `engine_decision` / `MSCONN_EVENT_ENGINE_DECISION`. Natives HTTP403, leeres `actual_action` und sichtbares HTTP0 bleiben unverändert. Nicht-disruptive Matches werden als `rule_match` mit Allow-Aktionen serialisiert. Reader, Projektion und Event-Boundary-Helper verlangen diese tatsächlich geschriebenen Felder, keine ungesendete Sourcestruktur oder erfundene bereits gesendete Deny-Aktion.
 
 ## Geänderte Dateien und Tests
 
@@ -43,6 +43,8 @@ Integrationskorrektur: Der tatsächliche Request-Header-Interventionscallback gi
 Test-first wurde die Modulabwesenheit als RED beobachtet. Die zuständige Framework-Python-Umgebung bestand acht gezielte Projektionstests und 56 breitere Reader-/Registry-/Phase4-/Projektionstests. Repository-natives `make test-no-crs-contract` bestand alle300 Tests; `make check-documentation` und gestagte Whitespace-Prüfungen bestanden. Exakte Befehle und externe Logs bleiben im Task-Handoff erhalten. RTK umschloss sämtliche Shell-Ausführung.
 
 Root-Integration beobachtete die sourcegetreue Callback-Fixture als RED; nach exakter Callback-Korrektur bestanden 34 gemeinsame Projektions-/Strict-Reader-Tests. Dies bleibt kontrollierte Fixture-Prüfung, keine Runtime-Evidence.
+
+Der anschließende vollständige Source-Aufrufertest verwendete den echten Common-Writer und zeigte die Abweichung der Protokollsicht. Written-Byte-Fixtures waren vor der Reader-/Helper-Korrektur rot; danach bestanden 44 integrierte native Reader-/Projektions-/Event-Boundary-/Canonical-Binding-Kontrollen. Originale native Dateien werden niemals an dieses Vokabular angepasst.
 
 ## Sicherheitsauswirkung
 

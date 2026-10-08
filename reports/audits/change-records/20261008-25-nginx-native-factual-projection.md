@@ -32,7 +32,7 @@ Populating observed_event_fields from expected names or guessing event metadata 
 
 Raw malformed requests retain actual HTTP400 with no admitted fault transaction/event. Finish failure retains visible200 and native logging HTTP0. Budget cases retain actual504 before commit or visible200 after commit with the real timeout/timing pair. Clean shutdown retains actual200. MIME/body-limit/event-boundary observations and legacy safe-mode expectations remain explicit; no missing expected event key is synthesized.
 
-Integration correction: the actual request-header intervention callback emits `phase1_intervention` / `MSCONN_EVENT_REQUEST_BLOCKED`, native HTTP403, empty `actual_action` and visible HTTP0 before the host sends its response. Projection now requires these exact fields rather than inventing a sent deny action; contradictory rule-match, allow, sent-status or action claims remain rejected.
+Integration correction: the request-header intervention source structure uses `phase1_intervention` / `MSCONN_EVENT_REQUEST_BLOCKED`, but the actual Common JSONL protocol view serializes this unobserved host action as `engine_decision` / `MSCONN_EVENT_ENGINE_DECISION`. Native HTTP403, empty `actual_action` and visible HTTP0 remain unchanged. Non-disruptive matches serialize as `rule_match` with allow actions. Reader, projection and event-boundary helper require these actual written fields, not an unsent source structure or invented sent deny action.
 
 ## Changed files and tests
 
@@ -43,6 +43,8 @@ Integration correction: the actual request-header intervention callback emits `p
 Test-first module absence was observed as RED. The owning Framework Python passed eight focused projection tests and 56 broader reader/registry/Phase4/projection tests. Repository-native `make test-no-crs-contract` passed all300 tests; `make check-documentation` and staged whitespace checks passed. Exact commands and external logs are retained in the task handoff. RTK wrapped all shell execution.
 
 Root integration observed the source-accurate callback fixture as RED, then passed 34 combined projection/strict-reader tests after the exact callback correction. This remains controlled fixture validation, not runtime evidence.
+
+The subsequent full-source caller test used the real Common writer and exposed the protocol-view discrepancy. Written-byte fixtures were red before the reader/helper correction; 44 integrated native reader/projection/event-boundary/canonical-binding controls then passed. Original native files are never rewritten to satisfy this vocabulary.
 
 ## Security impact
 

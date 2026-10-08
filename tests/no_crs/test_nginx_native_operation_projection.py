@@ -51,7 +51,7 @@ class NativeProjectionTests(unittest.TestCase):
             proof["events"].insert(0, {**event, "phase": "response_body", "event": "phase4_completion", "message_id": "MSCONN_PHASE4_COMPLETE",
                                       "reason": "engine_retained_bytes=22;append_calls=1", "body_bytes_seen": 22, "eos_seen": True})
         elif case_id in bundle.EVENT_CASES:
-            proof["events"].insert(0, {**event, "phase": "request_headers", "event": "request_rule_match", "message_id": "MSCONN_EVENT_RULE_MATCHED",
+            proof["events"].insert(0, {**event, "phase": "request_headers", "event": "rule_match", "message_id": "MSCONN_EVENT_RULE_MATCHED",
                                       "rule_id": "1100402", "truncated": True, "redacted": True})
         if case_id == "event_json_limit":
             proof["events"] += [{**row, "transaction_id": "unit-other-tx"} for row in proof["events"]]
@@ -141,6 +141,10 @@ class NativeProjectionTests(unittest.TestCase):
         value = projection.project_native_operation(case, proof)
         self.assertEqual(value["native_expected_overrides"]["nginx_phase4_mode"], "safe")
         self.assertEqual(case["expected_result"], "late_intervention_log_only_minimal")
+        case, proof = self.fixture("clean_shutdown")
+        value = projection.project_native_operation(case, proof)
+        self.assertEqual(value["native_expected_overrides"]["expected_status"], 200)
+        self.assertEqual(case["expected_status"], 0)
 
     def test_receipt_measurements_never_become_native_event_keys_or_payload(self):
         case, proof = self.fixture("phase4_body_at_limit")
@@ -167,7 +171,7 @@ class NativeProjectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             projection.project_native_operation(case, proof)
         case, proof = self.fixture("keepalive_allow_deny_allow")
-        denial = {**proof["events"][0], "event": "phase1_intervention", "message_id": "MSCONN_EVENT_REQUEST_BLOCKED", "phase": "request_headers",
+        denial = {**proof["events"][0], "event": "engine_decision", "message_id": "MSCONN_EVENT_ENGINE_DECISION", "phase": "request_headers",
                   "rule_id": "1100001", "status": "blocked", "action": "deny", "requested_action": "deny", "actual_action": "", "http_status": 403,
                   "visible_http_status": 0, "transport_result": "not_observable"}
         proof["events"].insert(0, denial)
