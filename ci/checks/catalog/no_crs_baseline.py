@@ -527,8 +527,8 @@ PHASE4_SEMANTIC_FIELDS = (
     "eos_seen",
     "cleanup_reason",
 )
-REQUESTED_ACTIONS = {"deny", "redirect", "drop", "log_only", "abort_connection"}
-ACTUAL_ACTIONS = {"deny", "redirect", "log_only", "abort_connection", "stream_reset"}
+REQUESTED_ACTIONS = {"deny", "redirect", "drop", "log_only", "abort_connection", "allow", "pass", "error"}
+ACTUAL_ACTIONS = {"deny", "redirect", "log_only", "abort_connection", "stream_reset", "allow", "pass", "error"}
 TRANSPORT_RESULTS = {
     # ``http_status`` and ``not_observable`` are retained only for backwards
     # compatibility with pre-hardening artifacts.  New writers should use
@@ -543,7 +543,7 @@ RESET_BY_VALUES = {
 }
 TIMEOUT_STAGES = {
     "engine", "request_body", "response_body", "upstream", "client_idle",
-    "before_commit", "after_commit",
+    "before_commit", "after_commit", "request_headers", "response_headers",
 }
 WRITE_RESULTS = {
     "completed", "short_write", "write_would_block", "engine_error", "host_error",
@@ -551,6 +551,11 @@ WRITE_RESULTS = {
 CLEANUP_REASONS = {
     "normal", "cancelled", "client_disconnected", "upstream_disconnected",
     "stream_reset", "timeout", "engine_error", "host_error", "strict_abort",
+    # Closed public Common terminal taxonomy, not arbitrary source strings.
+    "phase_sequence", "body_limit", "event_limit", "engine_timeout",
+    "engine_unavailable", "invalid_engine_response", "connector_error", "protocol_error",
+    "client_cancel", "upstream_disconnect", "correlation_missing", "correlation_expired",
+    "correlation_mismatch", "cleanup_incomplete",
 }
 LATE_INTERVENTION_MODES = {"minimal", "safe", "strict"}
 CONTENT_TYPE_SCOPES = {"in_scope", "out_of_scope", "missing"}

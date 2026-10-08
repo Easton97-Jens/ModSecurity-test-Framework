@@ -106,11 +106,11 @@
     },
     "requested_action": {
       "type": "string",
-      "enum": ["", "deny", "redirect", "drop", "log_only", "abort_connection"]
+      "enum": ["", "deny", "redirect", "drop", "log_only", "abort_connection", "allow", "pass", "error"]
     },
     "actual_action": {
       "type": "string",
-      "enum": ["", "deny", "redirect", "log_only", "abort_connection", "stream_reset"]
+      "enum": ["", "deny", "redirect", "log_only", "abort_connection", "stream_reset", "allow", "pass", "error"]
     },
     "action": {
       "type": "string",
@@ -315,7 +315,7 @@
     },
     "timeout_stage": {
       "type": "string",
-      "enum": ["", "engine", "request_body", "response_body", "upstream", "client_idle", "before_commit", "after_commit"]
+      "enum": ["", "engine", "request_body", "response_body", "upstream", "client_idle", "before_commit", "after_commit", "request_headers", "response_headers"]
     },
     "write_result": {
       "type": "string",
@@ -326,7 +326,7 @@
     },
     "cleanup_reason": {
       "type": "string",
-      "enum": ["", "normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort"]
+      "enum": ["", "normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort", "phase_sequence", "body_limit", "event_limit", "engine_timeout", "engine_unavailable", "invalid_engine_response", "connector_error", "protocol_error", "client_cancel", "upstream_disconnect", "correlation_missing", "correlation_expired", "correlation_mismatch", "cleanup_incomplete"]
     },
     "truncated": {
       "type": "boolean"
