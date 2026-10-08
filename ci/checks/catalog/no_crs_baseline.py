@@ -1716,6 +1716,9 @@ def selection_reason(
 # Closed execution inputs reviewed against the existing Parent producer and
 # Framework derive/reuse/alias functions. These are dispatch dependencies, not
 # additional requests or evidence. Direct host/first-byte self IDs are leaves.
+NGINX_FIRST_BYTE_FIXTURE_PATH = "full-lifecycle/phase4_first_byte_before_response_end.yaml"
+CASE_CATALOG_SCHEMA_FILE_NAME = "case-catalog.schema.json"
+
 NGINX_DERIVED_INVOCATIONS = {
     "allow": {"operation":"explicit_contract_reuse","source_case_ids":["allow_without_marker"],"mapping":"append_explicit_reuse_records"},
     "deny": {"operation":"explicit_contract_reuse","source_case_ids":["deny_header_marker_403"],"mapping":"append_explicit_reuse_records"},
@@ -1777,8 +1780,8 @@ NGINX_DERIVED_CONTRACT_INPUTS = {
     "phase4_deny_after_commit_log_only_safe": {"phase":4,"expected_result":"late_intervention_log_only_safe","expected_status":None,"expected_rule_id":1100301,"request":{"fixture":"full-lifecycle/phase4_late_intervention.yaml","late_intervention_mode":"safe"},"deprecated_alias_for":None},
     "phase4_event_contains_late_intervention_action": {"phase":4,"expected_result":"event_contains_late_intervention_action","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_rule_observed"},"deprecated_alias_for":None},
     "phase4_event_contains_original_status": {"phase":4,"expected_result":"event_contains_original_status","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_rule_observed"},"deprecated_alias_for":None},
-    "phase4_first_byte_before_response_end": {"phase":4,"expected_result":"first_byte_before_response_end","expected_status":None,"expected_rule_id":1100301,"request":{"fixture":"full-lifecycle/phase4_first_byte_before_response_end.yaml","synchronization":"upstream_barrier"},"deprecated_alias_for":None},
-    "phase4_no_full_response_buffering": {"phase":4,"expected_result":"no_full_response_buffering","expected_status":None,"expected_rule_id":1100301,"request":{"fixture":"full-lifecycle/phase4_first_byte_before_response_end.yaml","synchronization":"upstream_barrier"},"deprecated_alias_for":None},
+    "phase4_first_byte_before_response_end": {"phase":4,"expected_result":"first_byte_before_response_end","expected_status":None,"expected_rule_id":1100301,"request":{"fixture":NGINX_FIRST_BYTE_FIXTURE_PATH,"synchronization":"upstream_barrier"},"deprecated_alias_for":None},
+    "phase4_no_full_response_buffering": {"phase":4,"expected_result":"no_full_response_buffering","expected_status":None,"expected_rule_id":1100301,"request":{"fixture":NGINX_FIRST_BYTE_FIXTURE_PATH,"synchronization":"upstream_barrier"},"deprecated_alias_for":None},
     "phase4_no_payload_event": {"phase":4,"expected_result":"payload_absent","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"event_has_no_response_body_payload"},"deprecated_alias_for":"event_has_no_response_body_payload"},
     "phase4_rule_observed": {"phase":4,"expected_result":"rule_observed","expected_status":None,"expected_rule_id":1100301,"request":{"method":"GET","path":"/no-crs/response-body","response_body_fixture":"no-crs-response-body-marker"},"deprecated_alias_for":None},
     "phase4_status_metadata": {"phase":4,"expected_result":"event_contains_original_status","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_event_contains_original_status"},"deprecated_alias_for":"phase4_event_contains_original_status"},
@@ -1830,7 +1833,7 @@ def derived_invocation_for_case(
     if descriptor["operation"] == "parent_selected_host":
         fixture = FRAMEWORK_ROOT / "tests/cases/connector-specific/nginx" / f"nginx_{case_id}.yaml"
     elif descriptor["operation"] == "native_first_byte":
-        fixture = CATALOG_PATH.parent / "full-lifecycle/phase4_first_byte_before_response_end.yaml"
+        fixture = CATALOG_PATH.parent / NGINX_FIRST_BYTE_FIXTURE_PATH
     else:
         fixture = None
     if fixture is not None and (fixture.is_symlink() or not fixture.is_file()):
@@ -1844,7 +1847,7 @@ def native_invocation_for_case(
     """Resolve only schema-bound NGX dispatch input, never execution evidence."""
     if connector != "nginx" or "native_invocations" not in case:
         return None
-    schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "case-catalog.schema.json")
+    schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / CASE_CATALOG_SCHEMA_FILE_NAME)
     if not isinstance(schema, Mapping):
         raise ContractError("native invocation catalog schema is missing")
     case_schema = schema["properties"]["cases"]["items"]
@@ -1881,19 +1884,24 @@ def selected_case_invocation_errors(
     runner = selection.get("runner_case")
     if runner != case.get("runner_case"):
         errors.append(f"{prefix}: selected runner differs from its declared case source")
-    if runner:
-        if not isinstance(runner, str):
-            errors.append(f"{prefix}: runner_case must be a declared relative YAML path")
-        else:
-            root = CATALOG_PATH.parent.resolve()
-            path = CATALOG_PATH.parent / runner
-            if (Path(runner).is_absolute() or path.is_symlink()
-                    or not path.resolve().is_relative_to(root)
-                    or path.suffix not in (".yaml", ".yml") or not path.is_file()):
-                errors.append(f"{prefix}: runner_case must be an existing catalog-local YAML file")
+    errors.extend(selected_runner_path_errors(runner, prefix))
     if native is None and config is None and derived is None and not runner:
         errors.append(f"{prefix}: selected NGX case has no native_invocation, config_invocation, derived_invocation or runner_case")
     return errors
+
+
+def selected_runner_path_errors(runner: object, prefix: str) -> list[str]:
+    if not runner:
+        return []
+    if not isinstance(runner, str):
+        return [f"{prefix}: runner_case must be a declared relative YAML path"]
+    root = CATALOG_PATH.parent.resolve()
+    path = CATALOG_PATH.parent / runner
+    if (Path(runner).is_absolute() or path.is_symlink()
+            or not path.resolve().is_relative_to(root)
+            or path.suffix not in (".yaml", ".yml") or not path.is_file()):
+        return [f"{prefix}: runner_case must be an existing catalog-local YAML file"]
+    return []
 
 
 def select_catalog_case(
@@ -1958,7 +1966,7 @@ def select_cases(
         )
     capabilities = manifest["capabilities"]
     if connector == "nginx":
-        schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "case-catalog.schema.json")
+        schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / CASE_CATALOG_SCHEMA_FILE_NAME)
         if not isinstance(schema, Mapping):
             raise ContractError("selection catalog schema is missing")
         errors = validate_catalog(catalog)
@@ -4731,23 +4739,26 @@ def validate_valid_rules_probe_events(
             raise ContractError("valid rules retained native event has invalid metadata")
         if event.get("run_id", record.get("run_id")) != record.get("run_id"):
             raise ContractError("valid rules retained native event has a foreign run identity")
-        if (optional_int(event.get("rule_id")) == 1100001
-                and normalize_canonical_phase(event.get("phase")) == 1
-                # Common preserves an unobserved engine decision as such.
-                # The distinct retained HTTP request proves the host result;
-                # never relabel this native event as an executed host action.
-                and event.get("event") == "engine_decision"
-                and event.get("message_id") == "MSCONN_EVENT_ENGINE_DECISION"
-                and event.get("actual_action") == ""
-                and event.get("visible_http_status") == 0
-                and event.get("transport_result") == "not_observable"
-                and event.get("method") == "GET" and event.get("uri") == "/no-crs/deny"
-                and event.get("http_status") == 403 and event.get("status") == "blocked"
-                and event.get("requested_action") == "deny"
-                and event.get("integration_mode") == record.get("integration_mode")):
+        if valid_rules_probe_event_matches(event, record):
             transactions.add(event.get("transaction_id"))
     if transactions != {probe.get("transaction_id")}:
         raise ContractError("valid rules raw native phase-1 probe event is missing, mismatched or ambiguous")
+
+
+def valid_rules_probe_event_matches(event: Mapping[str, Any], record: Mapping[str, Any]) -> bool:
+    # Common preserves an unobserved engine decision as such. The distinct
+    # retained HTTP request proves the host result; do not relabel this event.
+    return (optional_int(event.get("rule_id")) == 1100001
+            and normalize_canonical_phase(event.get("phase")) == 1
+            and event.get("event") == "engine_decision"
+            and event.get("message_id") == "MSCONN_EVENT_ENGINE_DECISION"
+            and event.get("actual_action") == ""
+            and event.get("visible_http_status") == 0
+            and event.get("transport_result") == "not_observable"
+            and event.get("method") == "GET" and event.get("uri") == "/no-crs/deny"
+            and event.get("http_status") == 403 and event.get("status") == "blocked"
+            and event.get("requested_action") == "deny"
+            and event.get("integration_mode") == record.get("integration_mode"))
 
 
 def validate_valid_rules_projection(receipt: Mapping[str, Any], origin: Path) -> None:
@@ -4924,14 +4935,21 @@ def validate_configtest_bundle_template(
     if config != expected_config:
         raise ContractError("configuration artifact is not the closed nonsecret template")
     if record.get("status") == "PASS":
-        stderr = captures[STDERR_LOG_FILE_NAME].decode("utf-8", errors="replace")
-        if not all(fragment in stderr for fragment in invocation["diagnostic_fragments"]):
-            raise ContractError("configuration capture lacks the exact parser diagnostic")
-        if fixture is not None:
-            marker = (f" in {origin}/nginx.conf:6" if fixture[1] == "regular"
-                      else f"{origin}/{fixture[0]}")
-            if marker not in stderr:
-                raise ContractError("configuration diagnostic does not bind the exact tested fixture/config path")
+        validate_configtest_parser_diagnostic(captures, invocation, fixture, origin)
+
+
+def validate_configtest_parser_diagnostic(
+    captures: Mapping[str, bytes], invocation: Mapping[str, Any],
+    fixture: tuple[str, str] | None, origin: Path,
+) -> None:
+    stderr = captures[STDERR_LOG_FILE_NAME].decode("utf-8", errors="replace")
+    if not all(fragment in stderr for fragment in invocation["diagnostic_fragments"]):
+        raise ContractError("configuration capture lacks the exact parser diagnostic")
+    if fixture is not None:
+        marker = (f" in {origin}/nginx.conf:6" if fixture[1] == "regular"
+                  else f"{origin}/{fixture[0]}")
+        if marker not in stderr:
+            raise ContractError("configuration diagnostic does not bind the exact tested fixture/config path")
 
 
 def validate_valid_rules_bundle_template(
@@ -5175,23 +5193,37 @@ def normalize_native_operation_record(
     authority: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     initial = normalize_status(raw.get("status"))
-    failure_status = (initial if initial in {"FAIL", "BLOCKED"} else
-                      "NOT_EXECUTED" if authority is None and initial != "PASS" else "FAIL")
+    failure_status = native_operation_failure_status(initial, authority)
     try:
         if connector != "nginx" or native_invocation_for_case(case, connector) is None:
             raise ValueError("native operation has no declared case/host contract")
         facts = native_operation_projection(raw, case, authority)
         effective = native_effective_case(case, facts)
         errors = native_operation_expectation_errors(effective, facts)
-        status = initial if initial in {"FAIL", "BLOCKED"} else "FAIL" if errors else "PASS"
-        reason = (str(raw.get("reason") or "original native invocation " + initial)
-                  if initial in {"FAIL", "BLOCKED"} else "; ".join(errors)
-                  if errors else "verified source-bound native operation and original retained bytes")
+        status, reason = native_operation_outcome(raw, initial, errors)
         return native_operation_record_base(
             raw, effective, connector, facts, status, reason,
         )
     except (OSError, ValueError, TypeError, KeyError) as exc:
         return native_operation_record_base(raw, case, connector, None, failure_status, str(exc))
+
+
+def native_operation_failure_status(initial: str, authority: Mapping[str, Any] | None) -> str:
+    if initial in {"FAIL", "BLOCKED"}:
+        return initial
+    if authority is None and initial != "PASS":
+        return "NOT_EXECUTED"
+    return "FAIL"
+
+
+def native_operation_outcome(
+    raw: Mapping[str, Any], initial: str, errors: Sequence[str],
+) -> tuple[str, str]:
+    if initial in {"FAIL", "BLOCKED"}:
+        return initial, str(raw.get("reason") or "original native invocation " + initial)
+    if errors:
+        return "FAIL", "; ".join(errors)
+    return "PASS", "verified source-bound native operation and original retained bytes"
 
 
 def native_operation_record_errors(
@@ -7209,37 +7241,51 @@ def normalized_finalize_case_records(
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for raw in raw_records:
-        case = context.case_by_id.get(str(case_identifier(raw)), {})
-        configuration = config_invocation_for_case(case, context.connector)
-        if "configtest_receipt" in raw:
-            raw = retain_finalize_configtest_bundle(context, raw)
-        if "native_operation_receipt" in raw:
-            raw = retain_finalize_native_operation_bundle(context, raw)
-        record = normalize_case_record(
-            raw,
-            context.connector,
-            context.case_by_id,
-            events,
-            (str(context.manifest.get("integration_mode") or "")
-             if configuration is not None else context.event_integration_mode),
-            configtest_artifact_root=context.run_dir,
-            native_operation_authority=(
-                {"artifact_root": context.run_dir, "sources": context.native_operation_authority["sources"],
-                 "run_id": context.native_operation_authority["run_id"]}
-                if getattr(context, "native_operation_authority", None) is not None else None
-            ),
-        )
+        record = normalized_finalize_case_record(context, raw, events)
         if record:
-            if (getattr(context, "artifact_profile", None) == FULL_LIFECYCLE_ARTIFACT_PROFILE
-                    and str(record["case_id"]) in selected_case_ids_from_plan(context.plan)
-                    and native_invocation_for_case(case, context.connector) is not None
-                    and "native_operation_receipt" not in raw
-                    and record["status"] == "PASS"):
-                mark_case_record_invalid(record, [
-                    "selected native case requires its original source-bound operation bundle",
-                ])
             records.append(record)
     return records
+
+
+def normalized_finalize_case_record(
+    context: FinalizeContext, raw: Mapping[str, Any], events: Sequence[Mapping[str, Any]],
+) -> dict[str, Any] | None:
+    case = context.case_by_id.get(str(case_identifier(raw)), {})
+    configuration = config_invocation_for_case(case, context.connector)
+    if "configtest_receipt" in raw:
+        raw = retain_finalize_configtest_bundle(context, raw)
+    if "native_operation_receipt" in raw:
+        raw = retain_finalize_native_operation_bundle(context, raw)
+    record = normalize_case_record(
+        raw,
+        context.connector,
+        context.case_by_id,
+        events,
+        (str(context.manifest.get("integration_mode") or "")
+         if configuration is not None else context.event_integration_mode),
+        configtest_artifact_root=context.run_dir,
+        native_operation_authority=(
+            {"artifact_root": context.run_dir, "sources": context.native_operation_authority["sources"],
+             "run_id": context.native_operation_authority["run_id"]}
+            if getattr(context, "native_operation_authority", None) is not None else None
+        ),
+    )
+    if record:
+        require_selected_native_operation_record(context, record, case, raw)
+    return record
+
+
+def require_selected_native_operation_record(
+    context: FinalizeContext, record: dict[str, Any], case: Mapping[str, Any], raw: Mapping[str, Any],
+) -> None:
+    if (getattr(context, "artifact_profile", None) == FULL_LIFECYCLE_ARTIFACT_PROFILE
+            and str(record["case_id"]) in selected_case_ids_from_plan(context.plan)
+            and native_invocation_for_case(case, context.connector) is not None
+            and "native_operation_receipt" not in raw
+            and record["status"] == "PASS"):
+        mark_case_record_invalid(record, [
+            "selected native case requires its original source-bound operation bundle",
+        ])
 
 
 def retain_finalize_native_operation_bundle(
@@ -8628,6 +8674,14 @@ def pass_case_completeness_errors(
             *configtest_receipt_errors(record, case, connector, integration_mode),
             *configtest_artifact_errors(record, artifact_root),
         )]
+    return generic_pass_case_completeness_errors(record, events, connector, integration_mode)
+
+
+def generic_pass_case_completeness_errors(
+    record: Mapping[str, Any], events: Sequence[Mapping[str, Any]],
+    connector: str, integration_mode: str | None,
+) -> list[str]:
+    case_id = record.get("case_id")
     errors: list[str] = []
     if record.get("configtest_receipt") is not None:
         errors.append(f"{case_id}: configuration receipt has no declared case/host contract")
@@ -9789,7 +9843,7 @@ def catalog_check_command(_args: argparse.Namespace) -> int:
         print("catalog root must be an object", file=sys.stderr)
         return 1
     errors = validate_catalog(catalog)
-    catalog_schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "case-catalog.schema.json")
+    catalog_schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / CASE_CATALOG_SCHEMA_FILE_NAME)
     if isinstance(catalog_schema, Mapping):
         errors.extend(f"catalog schema: {error}" for error in json_schema_errors(catalog, catalog_schema))
     else:
