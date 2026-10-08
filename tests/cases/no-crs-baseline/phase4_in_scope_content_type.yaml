@@ -1,0 +1,48 @@
+name: phase4_in_scope_content_type
+title: Native Engine response MIME policy — phase4_in_scope_content_type
+category: no-crs-baseline
+portable: false
+connector: nginx
+status: pending
+no_crs_baseline: true
+phase: 4
+capabilities:
+  - response_body
+  - phase4
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/plain application/json
+  SecAuditEngine On
+  SecAuditLogType Serial
+  SecAuditLogParts ABHZ
+  SecAuditLog "@@AUDIT_LOG@@"
+  SecAuditLogStorageDir "@@AUDIT_LOG_DIR@@"
+nginx:
+  location_directives: |
+    types { }
+    default_type "text/plain";
+    modsecurity_phase4_mode safe;
+    modsecurity_phase4_log "@@NGINX_PHASE4_LOG@@";
+request:
+  method: GET
+  path: /no-crs/content-type/phase4_in_scope_content_type
+response:
+  body: no-crs-response-body-marker
+  content_type: "text/plain"
+expect:
+  status: 200
+  intervention: deny
+  rule_id: 1100301
+  audit_log:
+    required: true
+    rule_id: 1100301
+    message: no-crs phase-4 intervention probe
+  phase4_log:
+    required: true
+    contains:
+      - '"event":"phase4_intervention"'
+      - '"rule_id":"1100301"'
+      - '"actual_action":"log_only"'
+    not_contains:
+      - no-crs-response-body-marker
