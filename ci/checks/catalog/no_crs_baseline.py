@@ -42,7 +42,9 @@ from synchronized_upstream import first_byte_evidence_errors  # noqa: E402
 from nginx_migration_config_contracts import nginx_migration_config_contracts  # noqa: E402
 
 CATALOG_PATH = FRAMEWORK_ROOT / "tests/cases/no-crs-baseline/catalog.json"
-RULES_PATH = FRAMEWORK_ROOT / "tests/rules/no-crs-baseline.conf"
+NGINX_VALID_RULES_FILE_NAME = "no-crs-baseline.conf"
+NGINX_MISSING_RULES_FILE_NAME = "missing-rules.conf"
+RULES_PATH = FRAMEWORK_ROOT / "tests/rules" / NGINX_VALID_RULES_FILE_NAME
 EVENT_SCHEMA_PATH = FRAMEWORK_ROOT / "tests/schemas/no-crs-baseline/event.schema.json"
 MANIFEST_FILE_NAME = "manifest.json"
 RESULT_FILE_NAME = "result.json"
@@ -3962,15 +3964,15 @@ def config_invocation_for_case(
 NGINX_CONFIGTEST_CONTRACTS = {
     **nginx_migration_config_contracts(),
     "valid_rules_file": {
-        "operation": "startup", "directive": "modsecurity_rules_file", "value": "no-crs-baseline.conf",
+        "operation": "startup", "directive": "modsecurity_rules_file", "value": NGINX_VALID_RULES_FILE_NAME,
         "expected_exit_code": 0, "expected_outcome": "config_accepted",
         "error_class": "none", "diagnostic_fragments": ["syntax is ok", "test is successful"],
     },
     "missing_rules_file": {
-        "operation": "configtest", "directive": "modsecurity_rules_file", "value": "missing-rules.conf",
+        "operation": "configtest", "directive": "modsecurity_rules_file", "value": NGINX_MISSING_RULES_FILE_NAME,
         "expected_exit_code": 1, "expected_outcome": "config_rejected",
         "error_class": "missing_rules_file",
-        "diagnostic_fragments": ['"modsecurity_rules_file" directive', "missing-rules.conf", "Failed to open the file"],
+        "diagnostic_fragments": ['"modsecurity_rules_file" directive', NGINX_MISSING_RULES_FILE_NAME, "Failed to open the file"],
     },
     "invalid_rule_syntax": {
         "operation": "configtest", "directive": "modsecurity_rules", "value": "SecRule REQUEST_URI",
@@ -4426,13 +4428,13 @@ CONFIGTEST_ARTIFACTS = {
     STDERR_LOG_FILE_NAME: ("stderr_sha256", 65536),
 }
 CONFIGTEST_PATH_FIXTURES = {
-    "missing_rules_file": ("missing-rules.conf", "absent"),
+    "missing_rules_file": (NGINX_MISSING_RULES_FILE_NAME, "absent"),
     "unsafe_event_path": ("unsafe-event-directory", "directory"),
     "phase4_invalid_scope_file": ("invalid-content-type-scope.txt", "regular"),
     "phase4_wildcard_scope_rejected": ("wildcard-content-type-scope.txt", "regular"),
 }
 VALID_RULES_ARTIFACTS = {
-    "no-crs-baseline.conf": ("rules_sha256", 65536),
+    NGINX_VALID_RULES_FILE_NAME: ("rules_sha256", 65536),
     "phase1-events.jsonl": ("events_sha256", 65536),
     "request-result.json": ("request_sha256", 4096),
     "roles.json": ("roles_sha256", 4096),
@@ -4456,7 +4458,7 @@ def valid_rules_config_template(origin: Path, port: int, projection_root: str) -
         'user nobody nogroup;\nworker_processes 1;\ndaemon off;\n'
         f'pid "{origin}/nginx.pid";\nerror_log "{origin}/nginx-error.log";\n'
         'events {}\nhttp {\n  access_log off;\n  modsecurity on;\n'
-        f'  modsecurity_rules_file "{origin}/no-crs-baseline.conf";\n'
+        f'  modsecurity_rules_file "{origin}/{NGINX_VALID_RULES_FILE_NAME}";\n'
         f'  modsecurity_phase4_log "{origin}/phase1-events.jsonl";\n'
         '  server {\n'
         f'    listen 127.0.0.1:{port};\n    root "{projection_root}";\n'
@@ -4476,8 +4478,8 @@ def validate_valid_rules_probe(record: Mapping[str, Any], captures: Mapping[str,
     probe = receipt.get("request_probe")
     if not isinstance(probe, Mapping):
         raise ContractError("valid rules raw probe requires its receipt binding")
-    rules = configtest_file_observation(FRAMEWORK_ROOT / "tests/rules/no-crs-baseline.conf", 65536)[0]
-    if hashlib.sha256(captures["no-crs-baseline.conf"]).hexdigest() != rules:
+    rules = configtest_file_observation(RULES_PATH, 65536)[0]
+    if hashlib.sha256(captures[NGINX_VALID_RULES_FILE_NAME]).hexdigest() != rules:
         raise ContractError("valid rules file differs from the exact canonical baseline rules")
     request = valid_rules_json_capture(captures, "request-result.json")
     expected_request = {"case_id": "valid_rules_file", "run_id": record.get("run_id"),
@@ -4501,6 +4503,13 @@ def validate_valid_rules_probe(record: Mapping[str, Any], captures: Mapping[str,
                    "worker_running": False, "listener_open": False, "verified": True}
             or any(type(cleanup.get(field)) is not bool for field in ("master_running", "worker_running", "listener_open", "verified"))):
         raise ContractError("valid rules raw cleanup must bind and retire its actual processes/listener")
+    validate_valid_rules_probe_events(record, captures, probe)
+
+
+def validate_valid_rules_probe_events(
+    record: Mapping[str, Any], captures: Mapping[str, bytes], probe: Mapping[str, Any],
+) -> None:
+    """Preserve native event metadata/run checks before probe ambiguity checks."""
     events = [json.loads(line, object_pairs_hook=reject_duplicate_json_keys)
               for line in captures["phase1-events.jsonl"].splitlines() if line.strip()]
     transactions = set()
@@ -4683,18 +4692,7 @@ def validate_configtest_bundle_template(
         raise ContractError("configuration template does not bind its retained module")
     invocation = NGINX_CONFIGTEST_CONTRACTS[str(record.get("case_id"))]
     if record.get("case_id") == "valid_rules_file":
-        receipt = record["configtest_receipt"]
-        if valid_rules_receipt_observation_errors(record, receipt):
-            raise ContractError("valid rules retained bundle has an incomplete startup receipt")
-        validate_valid_rules_projection(receipt, origin)
-        if config != valid_rules_config_template(origin, receipt["listen_port"], receipt["docroot_projection_root"]):
-            raise ContractError("valid rules configuration differs from its closed startup template")
-        if record.get("status") == "PASS":
-            stderr = captures[STDERR_LOG_FILE_NAME].decode("utf-8", errors="replace")
-            if (not all(fragment in stderr for fragment in invocation["diagnostic_fragments"])
-                    or f"{origin}/nginx.conf" not in stderr):
-                raise ContractError("valid rules configtest lacks its exact successful native diagnostic")
-            validate_valid_rules_probe(record, captures)
+        validate_valid_rules_bundle_template(record, origin, captures, config, invocation)
         return
     value = invocation["value"]
     fixture = CONFIGTEST_PATH_FIXTURES.get(str(record.get("case_id")))
@@ -4721,6 +4719,25 @@ def validate_configtest_bundle_template(
                       else f"{origin}/{fixture[0]}")
             if marker not in stderr:
                 raise ContractError("configuration diagnostic does not bind the exact tested fixture/config path")
+
+
+def validate_valid_rules_bundle_template(
+    record: Mapping[str, Any], origin: Path, captures: Mapping[str, bytes], config: str,
+    invocation: Mapping[str, Any],
+) -> None:
+    """Validate the existing compound startup branch without changing precedence."""
+    receipt = record["configtest_receipt"]
+    if valid_rules_receipt_observation_errors(record, receipt):
+        raise ContractError("valid rules retained bundle has an incomplete startup receipt")
+    validate_valid_rules_projection(receipt, origin)
+    if config != valid_rules_config_template(origin, receipt["listen_port"], receipt["docroot_projection_root"]):
+        raise ContractError("valid rules configuration differs from its closed startup template")
+    if record.get("status") == "PASS":
+        stderr = captures[STDERR_LOG_FILE_NAME].decode("utf-8", errors="replace")
+        if (not all(fragment in stderr for fragment in invocation["diagnostic_fragments"])
+                or f"{origin}/nginx.conf" not in stderr):
+            raise ContractError("valid rules configtest lacks its exact successful native diagnostic")
+        validate_valid_rules_probe(record, captures)
 
 
 def validated_configtest_bundle(

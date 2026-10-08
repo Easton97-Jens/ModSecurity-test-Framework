@@ -11,7 +11,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location('valid_rules_contract', ROOT / 'ci/checks/catalog/no_crs_baseline.py')
-assert SPEC and SPEC.loader
+assert SPEC
+assert SPEC.loader
 contract = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(contract)
 

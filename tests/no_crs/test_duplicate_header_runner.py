@@ -16,7 +16,8 @@ import runner_core as runner  # noqa: E402
 SPEC = importlib.util.spec_from_file_location(
     "no_crs_duplicate_header", ROOT / "ci/checks/catalog/no_crs_baseline.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 no_crs = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(no_crs)
 
