@@ -56,9 +56,10 @@ führt zu einem expliziten Fehler.
 
 ## Befehle und Ergebnisse
 
-Framework-Python ist `/var/tmp/codex/ModSecurity-test-Framework/venv/bin/python`;
+Die Befehle nutzen den vom Koordinator ausgewählten vorhandenen Framework-Interpreter;
 Befehle verwenden RTK, `PYTHONNOUSERSITE=1` und externe Temp-/Cache-Verzeichnisse.
-Logs liegen unter `/var/tmp/codex/ModSecurity-conector/analysis/nginx-all-required-20261008T124555Z/`.
+Logs liegen in der externen All-required-Task-Analyse. Lokale Interpreter-/Storage-Pfade
+bleiben in Task-Evidence, nicht in versionierter leserbezogener Dokumentation.
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- | --- |

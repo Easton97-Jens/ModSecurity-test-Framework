@@ -51,9 +51,10 @@ keep their existing sibling loader. No captured dependency means an explicit err
 
 ## Commands and results
 
-Framework Python is `/var/tmp/codex/ModSecurity-test-Framework/venv/bin/python`;
+Commands use the coordinator-selected existing Framework interpreter;
 commands use RTK, `PYTHONNOUSERSITE=1`, and external temporary/cache roots. Logs
-are under `/var/tmp/codex/ModSecurity-conector/analysis/nginx-all-required-20261008T124555Z/`.
+are in the external all-required task analysis. Local interpreter/storage paths
+are retained in task evidence, not versioned reader-facing documentation.
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
