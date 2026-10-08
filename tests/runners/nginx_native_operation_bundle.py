@@ -232,6 +232,10 @@ def load_helpers(case_id, source_bytes, framework_root):
         dependencies.append("nginx_phase4_contracts")
     if case_id in EVENT_CASES:
         dependencies.extend(("nginx_mime_operations", "nginx_common_input_faults"))
+    if case_id in SEQUENCE_CASES:
+        require("framework:tests/runners/nginx_http11_framing.py" in source_bytes,
+                "captured HTTP/1.1 framing source is required")
+        dependencies.append("nginx_http11_framing")
     modules = {}
     previous = {}
     # Imports are scoped under the lock and restored, not taken from arbitrary
@@ -244,6 +248,8 @@ def load_helpers(case_id, source_bytes, framework_root):
                 module.__file__ = str(framework_root / relative)
                 previous[name] = sys.modules.get(name)
                 sys.modules[name] = module
+                if case_id in SEQUENCE_CASES and name == main:
+                    module._AUTHENTICATED_WIRE = modules["nginx_http11_framing"]
                 exec(compile(source_bytes["framework:" + relative], module.__file__, "exec"), module.__dict__)
                 modules[name] = module
         finally:

@@ -10,9 +10,15 @@ import hashlib
 import importlib.util
 from pathlib import Path
 
-_wire_spec = importlib.util.spec_from_file_location("nginx_http11_wire", Path(__file__).with_name("nginx_http11_framing.py"))
-WIRE = importlib.util.module_from_spec(_wire_spec)
-_wire_spec.loader.exec_module(WIRE)
+if "_AUTHENTICATED_WIRE" in globals():
+    # Strict readers supply the module compiled from their captured source
+    # bytes. Never reopen a mutable __file__ sibling inside that boundary.
+    WIRE = _AUTHENTICATED_WIRE
+else:
+    # Ordinary host drivers retain the established sibling-module loader.
+    _wire_spec = importlib.util.spec_from_file_location("nginx_http11_wire", Path(__file__).with_name("nginx_http11_framing.py"))
+    WIRE = importlib.util.module_from_spec(_wire_spec)
+    _wire_spec.loader.exec_module(WIRE)
 
 
 SEQUENCES = {
