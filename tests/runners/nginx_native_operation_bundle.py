@@ -451,6 +451,9 @@ def cleanup_events(events, transactions, native_completed=1, error_class="none",
         rows = [event for event in events if event.get("event") == "transaction_cleanup" and event.get("transaction_id") == transaction]
         require(len(rows) == 1, "one actual transaction cleanup source event required")
         event = rows[0]
+        cleanup_index = events.index(event)
+        require(not any(later.get("transaction_id") == transaction for later in events[cleanup_index + 1:]),
+                "actual native transaction work must precede cleanup")
         if uris is not None:
             require(event.get("uri") == uris[transaction], "actual cleanup request URI mismatch")
         exact(event, {"connector": "nginx", "integration_mode": MODE, "phase": "logging", "message_id": "MSCONN_TRANSACTION_CLEANUP",
@@ -458,6 +461,34 @@ def cleanup_events(events, transactions, native_completed=1, error_class="none",
         require(event.get("reason") == "common_return=0;common_complete=1;native_cleanup_completed=" + str(native_completed) + ";error_class=" + error_class,
                 "actual successful Common/native cleanup facts required")
         require(event.get("cleanup_reason") == ("normal" if error_class == "none" else error_class), "cleanup taxonomy mismatch")
+
+
+# The actual Common serializer emits flat strings in its 256-byte safe field
+# buffers, JSON booleans for flags, unsigned counters and integer HTTP status.
+# These are source scalars, not permissive canonical coercion inputs.
+EVENT_STRING_FIELDS = frozenset("timestamp level message_id message event connector integration_mode run_id transport_case_id transaction_id phase status action requested_action actual_action transport_result http_reason_phrase http_default_message rule_id reason method uri client_ip content_type body_limit_outcome late_intervention_mode requested_protocol downstream_protocol upstream_protocol negotiated_protocol transport alpn stream_id connection_id quic_version stream_reset_code reset_by reset_code timeout_stage write_result cleanup_reason".split())
+EVENT_BOOLEAN_FIELDS = frozenset("late_intervention response_started response_committed headers_sent body_started body_truncated connection_aborted client_disconnected upstream_disconnected cancelled eos_seen redacted truncated connection_reused quic_connection_id_present fallback_used stream_reset".split())
+EVENT_COUNTER_FIELDS = frozenset("body_bytes_seen body_bytes_inspected sequence previous_event_hash event_hash".split())
+EVENT_HTTP_FIELDS = frozenset({"http_status", "original_http_status", "visible_http_status"})
+EVENT_PHASES = frozenset({"connection", "uri", "request_headers", "request_body", "response_headers", "response_body", "logging"})
+
+
+def native_event_shape(event):
+    fields = EVENT_STRING_FIELDS | EVENT_BOOLEAN_FIELDS | EVENT_COUNTER_FIELDS | EVENT_HTTP_FIELDS
+    require(set(event) <= fields, "unknown native source event field")
+    require({"event", "message_id", "connector", "integration_mode", "transaction_id", "phase", "status", "rule_id"} <= set(event),
+            "actual native event identity/phase/status fields required")
+    for field, value in event.items():
+        if field in EVENT_STRING_FIELDS:
+            require(type(value) is str and "\x00" not in value and len(value.encode("utf-8")) <= 255,
+                    "bounded actual source string required: " + field)
+        elif field in EVENT_BOOLEAN_FIELDS:
+            require(type(value) is bool, "actual source boolean required: " + field)
+        else:
+            limit = 999 if field in EVENT_HTTP_FIELDS else (1 << 64) - 1
+            require(type(value) is int and 0 <= value <= limit, "bounded actual source integer required: " + field)
+    require(event["phase"] in EVENT_PHASES, "actual source phase name required")
+    require(event["status"] in {"ok", "blocked", "error", "unsupported"}, "actual source status name required")
 
 
 def actual_events(raw, leaf):
@@ -471,6 +502,7 @@ def actual_events(raw, leaf):
                 and isinstance(event.get("event"), str) and isinstance(event.get("message_id"), str), "actual native event identity/rule fields required")
         require(not any(forbidden.search(key) or key in {"data", "metadata", "query", "query_string"} for key in event), "native event contains forbidden payload/secret metadata")
         require(not any(isinstance(value, (dict, list)) for value in event.values()), "native event must retain flat bounded metadata")
+        native_event_shape(event)
     return events
 
 
@@ -517,6 +549,10 @@ def validate_input(helper, receipt, raw, case_id, run_id):
     events = actual_events(raw, "phase1-events.jsonl")
     protocol = [event for event in events if event.get("phase") in (1, "1", "request_headers") and event.get("event") == "protocol_error"]
     require(protocol == observed["native_events"], "actual native protocol event projection mismatch")
+    require(len(events) == 2 and events[0] == protocol[0] and events[1].get("event") == "transaction_cleanup",
+            "terminal P1 mapper failure permits only its protocol error then cleanup source event")
+    exact(events[0], {"transaction_id": observed["transaction_id"], "uri": observed["native_access"]["uri"]},
+          "actual terminal mapper source identity")
     require(re.findall(rb'\bmodsecurity_transaction_id\s+"([^"\r\n]+)"\s*;', raw["nginx.conf"]) == [observed["transaction_id"].encode()], "actual configured mapper transaction differs from native ledger")
     require(observed["native_diagnostic"].encode() in raw["nginx-error.log"] and raw["client.stdout"] == b"400"
             and raw["client.stderr"] == b"", "actual diagnostic/client bytes mismatch")
@@ -574,11 +610,16 @@ def sequence_denials(observed, accesses, events):
     for request, access in zip(observed["requests"], accesses):
         if request["observed_status"] == 403:
             deny = [event for event in events if event.get("transaction_id") == access["transaction_id"]
-                    and event.get("uri") == request["path"] and event.get("phase") == "request_headers"
-                    and event.get("status") == "blocked" and event.get("action") == "deny"
-                    and event.get("requested_action") == "deny" and event.get("rule_id") == "1100001"
-                    and event.get("connector") == "nginx" and event.get("integration_mode") == MODE]
+                    and event.get("uri") == request["path"] and event.get("status") == "blocked"]
             require(len(deny) == 1, "actual native request deny must bind rule1100001 and request transaction")
+            # Current access.c requests denial before core sends headers. Its
+            # actual_action is empty, not a fabricated future host action; a
+            # non-disruptive request_rule_match callback cannot prove denial.
+            exact(deny[0], {"event": "phase1_intervention", "message_id": "MSCONN_EVENT_REQUEST_BLOCKED",
+                            "phase": "request_headers", "status": "blocked", "action": "deny",
+                            "requested_action": "deny", "actual_action": "", "rule_id": "1100001",
+                            "http_status": 403, "visible_http_status": 0, "connector": "nginx", "integration_mode": MODE},
+                  "actual native request denial source fields")
 
 
 def sequence_cleanup(case_id, observed, accesses, events, raw):

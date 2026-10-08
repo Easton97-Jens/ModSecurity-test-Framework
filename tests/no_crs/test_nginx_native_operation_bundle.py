@@ -131,6 +131,7 @@ class NativeBundleRouterTests(unittest.TestCase):
             destination.chmod(0o600)
             source_hashes[name] = bundle.digest(content)
         self.observed = input_tests.CommonInputFaultContractTest.observation(self, self.case)
+        self.observed["native_events"][0]["uri"] = self.observed["native_access"]["uri"]
         self.cleanup_event = {"event": "transaction_cleanup", "message_id": "MSCONN_TRANSACTION_CLEANUP",
                               "connector": "nginx", "integration_mode": bundle.MODE, "phase": "logging", "rule_id": "",
                               "status": "ok", "action": "allow", "actual_action": "allow", "transaction_id": "a" * 32,
@@ -236,6 +237,36 @@ class NativeBundleRouterTests(unittest.TestCase):
         mapping[key] = "f" * 64
         with self.assertRaises(ValueError):
             self.validate()
+
+    def test_mapper_terminal_allows_only_actual_p1_error_then_preserved_cleanup(self):
+        original = self.raw["phase1-events.jsonl"]
+        for change in (
+                {"event": "engine_timeout", "message_id": "MSCONN_EVENT_ENGINE_TIMEOUT", "phase": "response_body", "status": "error", "http_status": 504},
+                {"event": "phase4_append", "message_id": "MSCONN_PHASE4_APPEND", "phase": "response_body", "status": "ok"},
+                {"event": "protocol_error", "message_id": "MSCONN_EVENT_PROTOCOL_ERROR", "phase": "response_headers", "status": "error"}):
+            extra = {"connector": "nginx", "integration_mode": bundle.MODE,
+                     "transaction_id": self.observed["transaction_id"], "rule_id": "",
+                     "uri": self.observed["native_access"]["uri"], **change}
+            self.raw["phase1-events.jsonl"] = original + b"\n" + self.encode(extra)
+            self.seal()
+            with self.subTest(event=extra["event"], phase=extra["phase"]), self.assertRaises(ValueError):
+                self.validate()
+        self.raw["phase1-events.jsonl"] = original
+        self.seal()
+        self.assertTrue(self.validate()["layer_verified"])
+
+    def test_source_event_optional_scalar_types_and_bounds_are_real(self):
+        original = copy.deepcopy(self.cleanup_event)
+        for field, wrong in (("eos_seen", 1), ("http_status", "200"),
+                             ("body_bytes_seen", False), ("sequence", False), ("message", "m" * 256)):
+            self.cleanup_event = {**original, field: wrong}
+            self.raw["phase1-events.jsonl"] = self.encode(self.observed["native_events"][0]) + b"\n" + self.encode(self.cleanup_event)
+            self.seal()
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.validate()
+        self.cleanup_event = original
+        self.raw["phase1-events.jsonl"] = self.encode(self.observed["native_events"][0]) + b"\n" + self.encode(original)
+        self.seal()
 
     def test_reused_projection_wrong_run_operation_and_h2_h3_fail(self):
         original = self.receipt["projection_root"]
@@ -358,6 +389,7 @@ class NativeBundleRouterTests(unittest.TestCase):
         error_class = "body_limit" if case == "phase4_body_reject" else "none"
         for event in receipt["native_events"]:
             event.setdefault("rule_id", "")
+            event.setdefault("status", "blocked" if event["event"] in {"phase4_intervention", "body_limit"} else "ok")
         raw["phase4-events.jsonl"] = b"\n".join(self.encode(event) for event in receipt["native_events"])
         cleanup = {**self.cleanup_event, "transaction_id": receipt["native_events"][0]["transaction_id"],
                    "uri": receipt["native_events"][0]["uri"],
@@ -377,6 +409,45 @@ class NativeBundleRouterTests(unittest.TestCase):
         self.record["native_operation_receipt"]["invocations"].append(
             {"name": name, "receipt_path": relative, "receipt_sha256": bundle.digest(serialized)})
         return serialized
+
+    def reorder_sealed_invocation_events(self, name):
+        """Change original bytes and every real parent/child seal, not helpers."""
+        envelope = self.record["native_operation_receipt"]
+        descriptor = next(item for item in envelope["invocations"] if item["name"] == name)
+        path = self.output / descriptor["receipt_path"]
+        receipt = json.loads(path.read_bytes())
+        event_path = path.parent / "phase4-events.jsonl"
+        lines = event_path.read_bytes().splitlines()
+        cleanup_index = next(index for index, line in enumerate(lines)
+                             if json.loads(line).get("event") == "transaction_cleanup")
+        changed = b"\n".join([lines[cleanup_index]] + lines[:cleanup_index] + lines[cleanup_index + 1:])
+        event_path.write_bytes(changed)
+        receipt["raw_sha256"]["phase4-events.jsonl"] = bundle.digest(changed)
+        original = self.encode(receipt)
+        path.write_bytes(original)
+        descriptor["receipt_sha256"] = bundle.digest(original)
+        if self.case in bundle.EVENT_CASES:
+            parent_path = self.output / "source-result.json"
+            parent = json.loads(parent_path.read_bytes())
+            child = next(item for item in parent["children"] if item["run_id"] == receipt["run_id"])
+            child["receipt_sha256"] = bundle.digest(original)
+            original = self.encode(parent)
+            parent_path.write_bytes(original)
+            envelope["parent_receipt_sha256"] = bundle.digest(original)
+
+    def test_phase4_mime_cleanup_cannot_precede_actual_native_work(self):
+        from tests.runners import test_nginx_phase4_operations as phase4_tests
+        from tests.no_crs import test_nginx_mime_operations as mime_tests
+        for case in ("phase4_body_at_limit", "phase4_body_reject", "phase4_out_of_scope_content_type"):
+            receipt, raw = (mime_tests.unit_operation(case) if case in bundle.MIME_CASES else
+                            phase4_tests.rejection_fixture() if case == "phase4_body_reject" else phase4_tests.fixture(case))
+            self.prepare_case(case, receipt["run_id"])
+            self.decorate_phase4(receipt, raw, self.output)
+            self.write_child(receipt, raw, self.output, "main", "source-result.json")
+            self.assertTrue(self.validate()["layer_verified"])
+            self.reorder_sealed_invocation_events("main")
+            with self.subTest(case=case), self.assertRaises(ValueError):
+                self.validate()
 
     def test_all_phase4_and_mime_routes_use_real_closed_helpers(self):
         from tests.runners import test_nginx_phase4_operations as phase4_tests
@@ -472,6 +543,9 @@ class NativeBundleRouterTests(unittest.TestCase):
             self.record["native_operation_receipt"].update(parent_receipt_path="source-result.json", parent_receipt_sha256=bundle.digest(serialized))
             with self.subTest(case=case):
                 self.assertEqual(len(self.validate()["transaction_ids"]), len(variants))
+            self.reorder_sealed_invocation_events(variants[-1][0])
+            with self.subTest(case=case, corruption="cleanup-before-source-callback"), self.assertRaises(ValueError):
+                self.validate()
             self.record["native_operation_receipt"]["parent_receipt_sha256"] = "f" * 64
             with self.assertRaises(ValueError):
                 self.validate()
@@ -483,9 +557,10 @@ class NativeBundleRouterTests(unittest.TestCase):
         self.prepare_case(case, run_id)
         observed["roles"]["run_id"] = run_id
         observed["cleanup"].update(run_id=run_id, master_pid=observed["roles"]["master_pid"], worker_pid=observed["roles"]["worker_pid"])
-        deny = {"event": "engine_decision", "message_id": "MSCONN_EVENT_ENGINE_DECISION", "connector": "nginx",
+        deny = {"event": "phase1_intervention", "message_id": "MSCONN_EVENT_REQUEST_BLOCKED", "connector": "nginx",
                 "integration_mode": bundle.MODE, "phase": "request_headers", "status": "blocked", "action": "deny",
-                "requested_action": "deny", "rule_id": "1100001", "transaction_id": "b" * 32,
+                "requested_action": "deny", "actual_action": "", "http_status": 403, "visible_http_status": 0,
+                "rule_id": "1100001", "transaction_id": "b" * 32,
                 "uri": observed["requests"][1]["path"]}
         events = [deny] + [{**self.cleanup_event, "transaction_id": row["transaction_id"], "cleanup_reason": "normal",
                            "uri": row["uri"],
@@ -526,10 +601,16 @@ class NativeBundleRouterTests(unittest.TestCase):
 
         write_source()
         self.assertEqual(self.validate()["actual_statuses"], [200, 403, 200])
-        deny["rule_id"] = "1100402"
-        write_source()
-        with self.assertRaisesRegex(ValueError, "rule1100001"):
-            self.validate()
+        original_deny = copy.deepcopy(deny)
+        for field, wrong in (("event", "request_rule_match"), ("message_id", "MSCONN_EVENT_RULE_MATCHED"),
+                             ("actual_action", "allow"), ("actual_action", "deny"), ("http_status", 200),
+                             ("http_status", True), ("visible_http_status", 403), ("rule_id", "1100402")):
+            deny.clear()
+            deny.update(original_deny)
+            deny[field] = wrong
+            write_source()
+            with self.subTest(field=field, wrong=wrong), self.assertRaises(ValueError):
+                self.validate()
 
     def test_early_mapping_and_begin_bridges_require_real_scoped_source_facts(self):
         from tests.no_crs import test_nginx_lifecycle_sequence as sequence_tests
