@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -1706,6 +1707,189 @@ def selection_reason(
     return "; ".join(reasons)
 
 
+# Closed execution inputs reviewed against the existing Parent producer and
+# Framework derive/reuse/alias functions. These are dispatch dependencies, not
+# additional requests or evidence. Direct host/first-byte self IDs are leaves.
+NGINX_DERIVED_INVOCATIONS = {
+    "allow": {"operation":"explicit_contract_reuse","source_case_ids":["allow_without_marker"],"mapping":"append_explicit_reuse_records"},
+    "deny": {"operation":"explicit_contract_reuse","source_case_ids":["deny_header_marker_403"],"mapping":"append_explicit_reuse_records"},
+    "deny_response_header_marker_403": {"operation":"explicit_contract_reuse","source_case_ids":["phase3_deny_before_commit"],"mapping":"native_runner_core_case_alias"},
+    "event_contains_connector": {"operation":"explicit_contract_reuse","source_case_ids":["deny_header_marker_403"],"mapping":"append_derived_event_records"},
+    "event_contains_phase": {"operation":"explicit_contract_reuse","source_case_ids":["deny_header_marker_403"],"mapping":"append_derived_event_records"},
+    "event_contains_rule_id": {"operation":"explicit_contract_reuse","source_case_ids":["deny_header_marker_403"],"mapping":"append_derived_event_records"},
+    "event_contains_status": {"operation":"explicit_contract_reuse","source_case_ids":["deny_header_marker_403"],"mapping":"append_derived_event_records"},
+    "event_contains_transaction_id": {"operation":"explicit_contract_reuse","source_case_ids":["deny_header_marker_403"],"mapping":"append_derived_event_records"},
+    "event_has_no_request_body_payload": {"operation":"explicit_contract_reuse","source_case_ids":["deny_header_marker_403","deny_request_body_marker_403"],"mapping":"append_derived_event_records"},
+    "event_has_no_response_body_payload": {"operation":"explicit_contract_reuse","source_case_ids":["phase4_rule_observed"],"mapping":"append_explicit_reuse_records"},
+    "phase1_allow": {"operation":"explicit_contract_reuse","source_case_ids":["allow_without_marker"],"mapping":"resolve_deprecated_aliases"},
+    "phase1_alternative_status": {"operation":"explicit_contract_reuse","source_case_ids":["deny_with_alternative_status"],"mapping":"resolve_deprecated_aliases"},
+    "phase1_deny_403": {"operation":"explicit_contract_reuse","source_case_ids":["deny_header_marker_403"],"mapping":"resolve_deprecated_aliases"},
+    "phase1_redirect": {"operation":"explicit_contract_reuse","source_case_ids":["redirect_if_supported"],"mapping":"resolve_deprecated_aliases"},
+    "phase1_transaction_id": {"operation":"explicit_contract_reuse","source_case_ids":["transaction_id_present"],"mapping":"resolve_deprecated_aliases"},
+    "phase2_no_payload_event": {"operation":"explicit_contract_reuse","source_case_ids":["event_has_no_request_body_payload"],"mapping":"resolve_deprecated_aliases"},
+    "phase2_request_body_rule": {"operation":"explicit_contract_reuse","source_case_ids":["deny_request_body_marker_403"],"mapping":"resolve_deprecated_aliases"},
+    "phase3_original_and_visible_status": {"operation":"explicit_contract_reuse","source_case_ids":["phase3_deny_before_commit"],"mapping":"append_explicit_reuse_records"},
+    "phase3_response_header_rule": {"operation":"explicit_contract_reuse","source_case_ids":["deny_response_header_marker_403"],"mapping":"resolve_deprecated_aliases"},
+    "phase4_action_metadata": {"operation":"explicit_contract_reuse","source_case_ids":["phase4_event_contains_late_intervention_action"],"mapping":"resolve_deprecated_aliases"},
+    "phase4_deny_after_commit_abort": {"operation":"parent_selected_host","source_case_ids":["phase4_deny_after_commit_abort"],"mapping":"append_selected_phase4_fixtures"},
+    "phase4_deny_after_commit_abort_strict": {"operation":"explicit_contract_reuse","source_case_ids":["phase4_deny_after_commit_abort"],"mapping":"append_explicit_reuse_records"},
+    "phase4_deny_after_commit_log_only": {"operation":"parent_selected_host","source_case_ids":["phase4_deny_after_commit_log_only"],"mapping":"append_selected_phase4_fixtures"},
+    "phase4_deny_after_commit_log_only_safe": {"operation":"explicit_contract_reuse","source_case_ids":["phase4_deny_after_commit_log_only"],"mapping":"native_runner_core_case_alias"},
+    "phase4_event_contains_late_intervention_action": {"operation":"explicit_contract_reuse","source_case_ids":["phase4_deny_before_commit","phase4_deny_after_commit_log_only","phase4_deny_after_commit_log_only_minimal","phase4_deny_after_commit_log_only_safe","phase4_deny_after_commit_abort"],"mapping":"append_derived_phase4_records"},
+    "phase4_event_contains_original_status": {"operation":"explicit_contract_reuse","source_case_ids":["phase4_deny_before_commit","phase4_deny_after_commit_log_only","phase4_deny_after_commit_log_only_minimal","phase4_deny_after_commit_log_only_safe","phase4_deny_after_commit_abort"],"mapping":"append_derived_phase4_records"},
+    "phase4_first_byte_before_response_end": {"operation":"native_first_byte","source_case_ids":["phase4_first_byte_before_response_end"],"mapping":"write-first-byte-source-results.py:main"},
+    "phase4_no_full_response_buffering": {"operation":"native_first_byte","source_case_ids":["phase4_first_byte_before_response_end"],"mapping":"write-first-byte-source-results.py:main"},
+    "phase4_no_payload_event": {"operation":"explicit_contract_reuse","source_case_ids":["event_has_no_response_body_payload"],"mapping":"resolve_deprecated_aliases"},
+    "phase4_rule_observed": {"operation":"explicit_contract_reuse","source_case_ids":["phase4_deny_before_commit","phase4_deny_after_commit_log_only","phase4_deny_after_commit_log_only_minimal","phase4_deny_after_commit_log_only_safe","phase4_deny_after_commit_abort"],"mapping":"append_derived_phase4_records"},
+    "phase4_status_metadata": {"operation":"explicit_contract_reuse","source_case_ids":["phase4_event_contains_original_status"],"mapping":"resolve_deprecated_aliases"},
+}
+
+NGINX_DERIVED_CONTRACT_INPUTS = {
+    "allow": {"phase":1,"expected_result":"allow","expected_status":200,"expected_rule_id":None,"request":{"reuses":"allow_without_marker"},"deprecated_alias_for":None},
+    "deny": {"phase":1,"expected_result":"deny","expected_status":403,"expected_rule_id":1100001,"request":{"reuses":"deny_header_marker_403"},"deprecated_alias_for":None},
+    "deny_response_header_marker_403": {"phase":3,"expected_result":"deny_or_late_intervention","expected_status":403,"expected_rule_id":1100201,"request":{"method":"GET","path":"/no-crs/response-header","response_fixture":"X-Modsec-Upstream: block"},"deprecated_alias_for":None},
+    "event_contains_connector": {"phase":1,"expected_result":"event_metadata","expected_status":403,"expected_rule_id":1100001,"request":{"reuses":"deny_header_marker_403"},"deprecated_alias_for":None},
+    "event_contains_phase": {"phase":1,"expected_result":"event_metadata","expected_status":403,"expected_rule_id":1100001,"request":{"reuses":"deny_header_marker_403"},"deprecated_alias_for":None},
+    "event_contains_rule_id": {"phase":1,"expected_result":"event_metadata","expected_status":403,"expected_rule_id":1100001,"request":{"reuses":"deny_header_marker_403"},"deprecated_alias_for":None},
+    "event_contains_status": {"phase":1,"expected_result":"event_metadata","expected_status":403,"expected_rule_id":1100001,"request":{"reuses":"deny_header_marker_403"},"deprecated_alias_for":None},
+    "event_contains_transaction_id": {"phase":1,"expected_result":"event_metadata","expected_status":403,"expected_rule_id":1100001,"request":{"reuses":"deny_header_marker_403"},"deprecated_alias_for":None},
+    "event_has_no_request_body_payload": {"phase":2,"expected_result":"payload_absent","expected_status":403,"expected_rule_id":1100101,"request":{"reuses":"deny_request_body_marker_403"},"deprecated_alias_for":None},
+    "event_has_no_response_body_payload": {"phase":4,"expected_result":"payload_absent","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_rule_observed"},"deprecated_alias_for":None},
+    "phase1_allow": {"phase":1,"expected_result":"allow","expected_status":200,"expected_rule_id":None,"request":{"reuses":"allow_without_marker"},"deprecated_alias_for":"allow_without_marker"},
+    "phase1_alternative_status": {"phase":1,"expected_result":"deny","expected_status":429,"expected_rule_id":1100002,"request":{"reuses":"deny_with_alternative_status"},"deprecated_alias_for":"deny_with_alternative_status"},
+    "phase1_deny_403": {"phase":1,"expected_result":"deny","expected_status":403,"expected_rule_id":1100001,"request":{"reuses":"deny_header_marker_403"},"deprecated_alias_for":"deny_header_marker_403"},
+    "phase1_redirect": {"phase":1,"expected_result":"redirect","expected_status":302,"expected_rule_id":1100401,"request":{"reuses":"redirect_if_supported"},"deprecated_alias_for":"redirect_if_supported"},
+    "phase1_transaction_id": {"phase":1,"expected_result":"allow_with_event","expected_status":200,"expected_rule_id":1100003,"request":{"reuses":"transaction_id_present"},"deprecated_alias_for":"transaction_id_present"},
+    "phase2_no_payload_event": {"phase":2,"expected_result":"payload_absent","expected_status":403,"expected_rule_id":1100101,"request":{"reuses":"event_has_no_request_body_payload"},"deprecated_alias_for":"event_has_no_request_body_payload"},
+    "phase2_request_body_rule": {"phase":2,"expected_result":"deny","expected_status":403,"expected_rule_id":1100101,"request":{"reuses":"deny_request_body_marker_403"},"deprecated_alias_for":"deny_request_body_marker_403"},
+    "phase3_original_and_visible_status": {"phase":3,"expected_result":"response_status_metadata","expected_status":403,"expected_rule_id":1100201,"request":{"reuses":"phase3_deny_before_commit"},"deprecated_alias_for":None},
+    "phase3_response_header_rule": {"phase":3,"expected_result":"deny_or_late_intervention","expected_status":403,"expected_rule_id":1100201,"request":{"reuses":"deny_response_header_marker_403"},"deprecated_alias_for":"deny_response_header_marker_403"},
+    "phase4_action_metadata": {"phase":4,"expected_result":"event_contains_late_intervention_action","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_event_contains_late_intervention_action"},"deprecated_alias_for":"phase4_event_contains_late_intervention_action"},
+    "phase4_deny_after_commit_abort": {"phase":4,"expected_result":"connection_aborted","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_rule_observed","intervention_mode":"abort_connection"},"deprecated_alias_for":None},
+    "phase4_deny_after_commit_abort_strict": {"phase":4,"expected_result":"connection_aborted_strict","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_deny_after_commit_abort","fixture":"full-lifecycle/phase4_late_intervention.yaml","late_intervention_mode":"strict"},"deprecated_alias_for":None},
+    "phase4_deny_after_commit_log_only": {"phase":4,"expected_result":"late_intervention_log_only","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_rule_observed","intervention_mode":"log_only"},"deprecated_alias_for":None},
+    "phase4_deny_after_commit_log_only_safe": {"phase":4,"expected_result":"late_intervention_log_only_safe","expected_status":None,"expected_rule_id":1100301,"request":{"fixture":"full-lifecycle/phase4_late_intervention.yaml","late_intervention_mode":"safe"},"deprecated_alias_for":None},
+    "phase4_event_contains_late_intervention_action": {"phase":4,"expected_result":"event_contains_late_intervention_action","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_rule_observed"},"deprecated_alias_for":None},
+    "phase4_event_contains_original_status": {"phase":4,"expected_result":"event_contains_original_status","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_rule_observed"},"deprecated_alias_for":None},
+    "phase4_first_byte_before_response_end": {"phase":4,"expected_result":"first_byte_before_response_end","expected_status":None,"expected_rule_id":1100301,"request":{"fixture":"full-lifecycle/phase4_first_byte_before_response_end.yaml","synchronization":"upstream_barrier"},"deprecated_alias_for":None},
+    "phase4_no_full_response_buffering": {"phase":4,"expected_result":"no_full_response_buffering","expected_status":None,"expected_rule_id":1100301,"request":{"fixture":"full-lifecycle/phase4_first_byte_before_response_end.yaml","synchronization":"upstream_barrier"},"deprecated_alias_for":None},
+    "phase4_no_payload_event": {"phase":4,"expected_result":"payload_absent","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"event_has_no_response_body_payload"},"deprecated_alias_for":"event_has_no_response_body_payload"},
+    "phase4_rule_observed": {"phase":4,"expected_result":"rule_observed","expected_status":None,"expected_rule_id":1100301,"request":{"method":"GET","path":"/no-crs/response-body","response_body_fixture":"no-crs-response-body-marker"},"deprecated_alias_for":None},
+    "phase4_status_metadata": {"phase":4,"expected_result":"event_contains_original_status","expected_status":None,"expected_rule_id":1100301,"request":{"reuses":"phase4_event_contains_original_status"},"deprecated_alias_for":"phase4_event_contains_original_status"},
+}
+
+
+def nginx_derived_invocation_graph_errors(
+    invocations: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    """Reject reuse cycles; direct host and synchronized invocations are leaves."""
+    errors: list[str] = []
+    complete: set[str] = set()
+
+    def visit(case_id: str, active: set[str]) -> None:
+        if case_id in active:
+            errors.append(f"{case_id}: closed derived invocation reuse cycle")
+            return
+        if case_id in complete or case_id not in invocations:
+            return
+        descriptor = invocations[case_id]
+        if descriptor.get("operation") == "explicit_contract_reuse":
+            for source in descriptor["source_case_ids"]:
+                visit(source, active | {case_id})
+        complete.add(case_id)
+
+    for case_id in invocations:
+        visit(case_id, set())
+    return errors
+
+
+def derived_invocation_for_case(
+    case: Mapping[str, Any], connector: str,
+) -> Mapping[str, Any] | None:
+    """Expose only reviewed existing executor/reuse boundaries, not free reuses."""
+    if connector != "nginx":
+        return None
+    case_id = str(case.get("case_id") or "")
+    descriptor = NGINX_DERIVED_INVOCATIONS.get(case_id)
+    if descriptor is None:
+        return None
+    expected = NGINX_DERIVED_CONTRACT_INPUTS[case_id]
+    observed = {field: case.get(field) for field in expected}
+    # JSON comparison preserves type distinctions such as True versus 1.
+    if json.dumps(observed, sort_keys=True) != json.dumps(expected, sort_keys=True):
+        raise ContractError(f"{case_id}: existing derived invocation contract changed")
+    graph_errors = nginx_derived_invocation_graph_errors(NGINX_DERIVED_INVOCATIONS)
+    if graph_errors:
+        raise ContractError("; ".join(graph_errors))
+    if descriptor["operation"] == "parent_selected_host":
+        fixture = FRAMEWORK_ROOT / "tests/cases/connector-specific/nginx" / f"nginx_{case_id}.yaml"
+    elif descriptor["operation"] == "native_first_byte":
+        fixture = CATALOG_PATH.parent / "full-lifecycle/phase4_first_byte_before_response_end.yaml"
+    else:
+        fixture = None
+    if fixture is not None and (fixture.is_symlink() or not fixture.is_file()):
+        raise ContractError(f"{case_id}: existing native executor fixture is missing")
+    return descriptor
+
+
+def native_invocation_for_case(
+    case: Mapping[str, Any], connector: str,
+) -> Mapping[str, Any] | None:
+    """Resolve only schema-bound NGX dispatch input, never execution evidence."""
+    if connector != "nginx" or "native_invocations" not in case:
+        return None
+    schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "case-catalog.schema.json")
+    if not isinstance(schema, Mapping):
+        raise ContractError("native invocation catalog schema is missing")
+    case_schema = schema["properties"]["cases"]["items"]
+    errors = json_schema_errors(case, case_schema, root_schema=schema, location=str(case.get("case_id")))
+    if errors:
+        raise ContractError("; ".join(errors))
+    return case["native_invocations"]["nginx"]
+
+
+def selected_case_invocation_errors(
+    selection: Mapping[str, Any], case: Mapping[str, Any], connector: str,
+) -> list[str]:
+    """A selected NGX case needs real native/config/YAML or closed reuse input."""
+    if connector != "nginx" or selection.get("selection_status") != "SELECTED":
+        return []
+    prefix = str(case.get("case_id") or "")
+    errors: list[str] = []
+    if selection.get("case_id") != case.get("case_id"):
+        errors.append(f"{prefix}: selected invocation case identity mismatch")
+    try:
+        native = native_invocation_for_case(case, connector)
+        derived = derived_invocation_for_case(case, connector)
+    except ContractError as exc:
+        return [str(exc)]
+    if selection.get("native_invocation") != native:
+        errors.append(f"{prefix}: selected native invocation differs from its closed case contract")
+    if selection.get("derived_invocation") != derived:
+        errors.append(f"{prefix}: selected derived invocation differs from its closed existing contract")
+    config = config_invocation_for_case(case, connector)
+    if selection.get("config_invocation") != config:
+        errors.append(f"{prefix}: selected config invocation differs from its closed case contract")
+    if config is not None:
+        errors.extend(f"{prefix}: {error}" for error in config_invocation_contract_errors(case))
+    runner = selection.get("runner_case")
+    if runner != case.get("runner_case"):
+        errors.append(f"{prefix}: selected runner differs from its declared case source")
+    if runner:
+        if not isinstance(runner, str):
+            errors.append(f"{prefix}: runner_case must be a declared relative YAML path")
+        else:
+            root = CATALOG_PATH.parent.resolve()
+            path = CATALOG_PATH.parent / runner
+            if (Path(runner).is_absolute() or path.is_symlink()
+                    or not path.resolve().is_relative_to(root)
+                    or path.suffix not in (".yaml", ".yml") or not path.is_file()):
+                errors.append(f"{prefix}: runner_case must be an existing catalog-local YAML file")
+    if native is None and config is None and derived is None and not runner:
+        errors.append(f"{prefix}: selected NGX case has no native_invocation, config_invocation, derived_invocation or runner_case")
+    return errors
+
+
 def select_catalog_case(
     case: Mapping[str, Any], capabilities: Mapping[str, Any],
     downstream_protocol: str = "any",
@@ -1736,7 +1920,13 @@ def select_catalog_case(
     }
     invocation = config_invocation_for_case(case, connector or "")
     if invocation is not None:
-        selection["config_invocation"] = dict(invocation)
+        selection["config_invocation"] = deepcopy(dict(invocation))
+    native = native_invocation_for_case(case, connector or "")
+    if native is not None:
+        selection["native_invocation"] = deepcopy(dict(native))
+    derived = derived_invocation_for_case(case, connector or "")
+    if derived is not None:
+        selection["derived_invocation"] = deepcopy(dict(derived))
     return selection
 
 
@@ -1761,10 +1951,27 @@ def select_cases(
             "NGINX full_lifecycle selection requires an explicit downstream protocol"
         )
     capabilities = manifest["capabilities"]
+    if connector == "nginx":
+        schema = load_json(FRAMEWORK_ROOT / NO_CRS_SCHEMA_DIRECTORY / "case-catalog.schema.json")
+        if not isinstance(schema, Mapping):
+            raise ContractError("selection catalog schema is missing")
+        errors = validate_catalog(catalog)
+        errors.extend(json_schema_errors(catalog, schema, root_schema=schema, location="catalog"))
+        if errors:
+            raise ContractError("; ".join(errors))
     cases = selected_catalog_cases(catalog, evidence_stage)
     selections = [
         select_catalog_case(case, capabilities, downstream_protocol, connector) for case in cases
     ]
+    # A capability-only dictionary is an advisory planning input. Canonical
+    # CLI/init/finalize load a validated manifest, whose connector is mandatory;
+    # omission cannot turn an advisory plan into a runnable native plan.
+    if (connector == "nginx" and artifact_profile == FULL_LIFECYCLE_ARTIFACT_PROFILE
+            and manifest.get("connector") == "nginx"):
+        errors = [error for case, selection in zip(cases, selections)
+                  for error in selected_case_invocation_errors(selection, case, connector)]
+        if errors:
+            raise ContractError("; ".join(errors))
     counts = Counter(item["selection_status"] for item in selections)
     return {
         "schema_version": 1,
