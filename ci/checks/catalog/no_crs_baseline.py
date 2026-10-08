@@ -4781,6 +4781,19 @@ def validate_valid_rules_projection(receipt: Mapping[str, Any], origin: Path) ->
             os.close(descriptor)
 
 
+def validate_configtest_regular_fixture(descriptor: int, leaf: str, receipt: Mapping[str, Any]) -> None:
+    """Check exact regular fixture bytes; the caller retains descriptor ownership."""
+    info = os.fstat(descriptor)
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+            or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
+            or info.st_size > 512):
+        raise ContractError("removed API fixture must be an owned single-link private regular file")
+    data = os.read(descriptor, 513)
+    expected = (FRAMEWORK_ROOT / "tests/fixtures/no-crs-baseline" / leaf).read_bytes()
+    if data != expected or receipt.get("fixture_sha256") != hashlib.sha256(data).hexdigest():
+        raise ContractError("removed API fixture differs from its exact source bytes/digest")
+
+
 def validate_configtest_path_fixture(record: Mapping[str, Any], bundle: Path) -> None:
     """Observe fixed owned leaves through no-follow descriptors, never receipt assertions alone."""
     fixture = CONFIGTEST_PATH_FIXTURES.get(str(record.get("case_id")))
@@ -4805,15 +4818,7 @@ def validate_configtest_path_fixture(record: Mapping[str, Any], bundle: Path) ->
             raise ContractError("missing rules fixture leaf must remain absent")
         if state == "regular":
             descriptor = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
-            info = os.fstat(descriptor)
-            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
-                    or stat.S_IMODE(info.st_mode) != 0o600 or info.st_nlink != 1
-                    or info.st_size > 512):
-                raise ContractError("removed API fixture must be an owned single-link private regular file")
-            data = os.read(descriptor, 513)
-            expected = (FRAMEWORK_ROOT / "tests/fixtures/no-crs-baseline" / leaf).read_bytes()
-            if data != expected or receipt.get("fixture_sha256") != hashlib.sha256(data).hexdigest():
-                raise ContractError("removed API fixture differs from its exact source bytes/digest")
+            validate_configtest_regular_fixture(descriptor, leaf, receipt)
             return
         if "fixture_sha256" in receipt:
             raise ContractError("absent/directory fixtures must not claim regular-file bytes")
