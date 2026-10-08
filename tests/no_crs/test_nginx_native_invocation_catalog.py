@@ -100,12 +100,12 @@ class NativeInvocationCatalogTests(unittest.TestCase):
 
     def test_explicit_nginx_only_migrations_preserve_native_and_wire_distinction(self):
         expected = {
-            "body_size_nonzero_with_null_data": {"expected_status": 400},
+            "body_size_nonzero_with_null_data": {"expected_status": 400, "phase": 1},
             "header_count_nonzero_with_null_headers": {"expected_status": 400},
             "phase4_deny_after_commit_log_only_minimal": {"expected_status": 200, "expected_result": "late_intervention_log_only_safe", "nginx_phase4_mode": "safe"},
             "phase4_body_reject": {"expected_status": 200, "expected_rule_id": None, "expected_native_status": 403, "expected_engine_error_class": "body_limit"},
             "finish_failure_propagation": {"expected_status": 200},
-            "engine_timeout_before_commit": {"expected_status": 504, "expected_rule_id": None, "expected_native_status": 504, "expected_engine_error_class": "engine_timeout"},
+            "engine_timeout_before_commit": {"expected_status": 504, "expected_rule_id": None, "expected_native_status": 504, "expected_engine_error_class": "engine_timeout", "phase": 1},
             "engine_timeout_after_commit": {"expected_status": 200, "expected_rule_id": None, "expected_native_status": 504, "expected_engine_error_class": "engine_timeout"},
             "phase4_out_of_scope_content_type": {"expected_status": 200, "expected_rule_id": None},
             "phase4_missing_content_type": {"expected_status": 200, "expected_rule_id": None},
@@ -114,6 +114,23 @@ class NativeInvocationCatalogTests(unittest.TestCase):
                   for case_id, case in self.cases.items()
                   if "expected_overrides" in case.get("native_invocations", {}).get("nginx", {})}
         self.assertEqual(actual, expected)
+
+    def test_actual_nginx_phase_is_closed_without_changing_generic_phase(self):
+        for case_id, generic_phase in (("body_size_nonzero_with_null_data", 2),
+                                       ("engine_timeout_before_commit", 4)):
+            with self.subTest(case_id=case_id):
+                case = self.cases[case_id]
+                self.assertEqual(case["phase"], generic_phase)
+                self.assertEqual(case["native_invocations"]["nginx"]["expected_overrides"]["phase"], 1)
+                for invalid in (generic_phase, 0, 5, "1", True, None):
+                    changed = deepcopy(self.catalog)
+                    target = next(c for c in changed["cases"] if c["case_id"] == case_id)
+                    target["native_invocations"]["nginx"]["expected_overrides"]["phase"] = invalid
+                    self.assertTrue(self.schema_errors(changed), repr(invalid))
+                changed = deepcopy(self.catalog)
+                target = next(c for c in changed["cases"] if c["case_id"] == case_id)
+                del target["native_invocations"]["nginx"]["expected_overrides"]["phase"]
+                self.assertTrue(self.schema_errors(changed))
 
     def test_available_closed_helpers_support_registered_inputs(self):
         """Missing delegated helpers are disclosed, not replaced by inventions."""
