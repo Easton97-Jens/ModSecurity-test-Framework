@@ -199,6 +199,55 @@ class NativeContractTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 contract.derive_native_operation_contract(case, changed)
 
+    @staticmethod
+    def write_fixture(case_id):
+        short = case_id == "response_short_write_resume"
+        observation = {"roles": {"worker_pid": 123}, "native_access": [{"remote_port": 45678}],
+                       "native_writes": [
+                           {"pid": 123, "fd": 9, "peer_port": 45678, "requested_bytes": 100,
+                            "returned_bytes": 7 if short else -1, "errno": 0 if short else 11, "fault_triggered": True},
+                           {"pid": 123, "fd": 9, "peer_port": 45678, "requested_bytes": 93 if short else 100,
+                            "returned_bytes": 93 if short else 100, "errno": 0, "fault_triggered": False},
+                       ]}
+        return {"observation": observation, "raw_artifacts": {"main": {
+            "sequence-observation.json": json.dumps(observation).encode()}}}
+
+    def test_source_shaped_seven_field_write_rows_keep_fd_and_prove_resume(self):
+        for case_id, expected in (("response_short_write_resume", "short_write_resumed"),
+                                  ("response_write_would_block_resume", "would_block_resumed")):
+            proof = self.write_fixture(case_id)
+            original = deepcopy(proof)
+            with self.subTest(case=case_id):
+                values, origins = contract.mapped_field("write_result", case_id, proof, [])
+                self.assertEqual(values, [expected])
+                self.assertEqual(origins[0]["artifact_sha256"], contract.bundle.digest(proof["raw_artifacts"]["main"]["sequence-observation.json"]))
+                self.assertEqual(proof, original)
+
+    def test_write_fd_exact_type_range_and_closed_source_fields(self):
+        case_id = "response_short_write_resume"
+        for value in (0, 2**31 - 1):
+            proof = self.write_fixture(case_id)
+            for row in proof["observation"]["native_writes"]:
+                row["fd"] = value
+            proof["raw_artifacts"]["main"]["sequence-observation.json"] = json.dumps(proof["observation"]).encode()
+            with self.subTest(boundary=value):
+                self.assertEqual(contract.mapped_field("write_result", case_id, proof, [])[0], ["short_write_resumed"])
+        for value in (True, False, -1, 2**31, 9.0, "9", None):
+            proof = self.write_fixture(case_id)
+            proof["observation"]["native_writes"][0]["fd"] = value
+            proof["raw_artifacts"]["main"]["sequence-observation.json"] = json.dumps(proof["observation"]).encode()
+            with self.subTest(fd=value), self.assertRaises(ValueError):
+                contract.mapped_field("write_result", case_id, proof, [])
+        for mutation in ("missing", "extra"):
+            proof = self.write_fixture(case_id)
+            if mutation == "missing":
+                proof["observation"]["native_writes"][0].pop("fd")
+            else:
+                proof["observation"]["native_writes"][0]["payload"] = "forbidden"
+            proof["raw_artifacts"]["main"]["sequence-observation.json"] = json.dumps(proof["observation"]).encode()
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                contract.mapped_field("write_result", case_id, proof, [])
+
 
 if __name__ == "__main__":
     unittest.main()

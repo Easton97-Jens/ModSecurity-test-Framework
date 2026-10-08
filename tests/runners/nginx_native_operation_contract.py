@@ -138,8 +138,10 @@ def mapped_field(field, case_id, proof, selected):
         bundle.require(case_id in {"response_short_write_resume", "response_write_would_block_resume"}
                        and isinstance(writes, list) and writes, "actual native write ledger required")
         bundle.require(not sequence.write_observation_errors(observation, case_id), "actual write fault/resume identity mismatch")
-        keys = {"pid", "peer_port", "requested_bytes", "returned_bytes", "errno", "fault_triggered"}
+        keys = {"pid", "fd", "peer_port", "requested_bytes", "returned_bytes", "errno", "fault_triggered"}
         bundle.require(all(isinstance(row, dict) and set(row) == keys for row in writes), "closed payload-free native write rows required")
+        bundle.require(all(type(row["fd"]) is int and 0 <= row["fd"] <= 2**31 - 1 for row in writes),
+                       "actual native write fd must be a nonnegative signed C-int descriptor")
         triggered = [row for row in writes if row["fault_triggered"] is True]
         bundle.require(len(triggered) == 1, "one actual write fault required")
         short = 0 < triggered[0]["returned_bytes"] < triggered[0]["requested_bytes"] and triggered[0]["errno"] == 0
