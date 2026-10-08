@@ -177,7 +177,8 @@ class PublicContractApiTests(unittest.TestCase):
         all_cases = contracts.load_test_catalog()
         yaml_cases = contracts.load_test_catalog(catalog="framework-yaml")
         self.assertEqual(len(all_cases["test_ids"]), 339)
-        self.assertEqual(len(yaml_cases["test_ids"]), 187)
+        self.assertEqual(len(yaml_cases["test_ids"]), 188)
+        self.assertIn("no-crs-baseline:valid_rules_file", yaml_cases["test_ids"])
         self.assertIn("no-crs-baseline:duplicate_header_names", yaml_cases["test_ids"])
         self.assertIn("no-crs-baseline:empty_header_value", yaml_cases["test_ids"])
         self.assertIn("no-crs-baseline:case_insensitive_header_name", yaml_cases["test_ids"])
@@ -294,6 +295,64 @@ class PublicContractApiTests(unittest.TestCase):
             "directive": "modsecurity", "exit_code": 1, "outcome": "config_rejected",
             "error_class": "invalid_boolean",
         })
+
+    def test_startup_rules_file_requires_config_request_rule_and_cleanup(self) -> None:
+        generator = self._catalog_generator_module()
+        case = {"case_id": "valid_rules_file", "expected_result": "config_accepted",
+                "expected_status": 0, "expected_rule_id": 1100001,
+                "config_invocations": {"nginx": {
+                    "operation": "startup", "directive": "modsecurity_rules_file",
+                    "expected_exit_code": 0, "expected_outcome": "config_accepted",
+                    "error_class": "none"}}}
+        expectation = generator._catalog_expectation(case)
+        configuration = {"connector": "nginx", "operation": "startup",
+                         "directive": "modsecurity_rules_file", "exit_code": 0,
+                         "outcome": "config_accepted", "error_class": "none",
+                         "process_started": True, "listener_created": True}
+        catalog = self._catalog_data()
+        record = next(item for item in catalog["tests"]
+                      if item["framework_test_id"] == "no-crs-baseline:valid_rules_file")
+        record["expectation"] = expectation
+        result = {"configuration": configuration, "http_status": 403,
+                  "rule_ids": [1100001], "lifecycle": {
+                      "host_started": True, "request_completed": True,
+                      "cleanup_balanced": True}}
+        self.assertTrue(contracts.validate_test_result(
+            record["framework_test_id"], result, catalog_data=catalog)["valid"])
+        for omitted in ("http_status", "rule_ids", "lifecycle"):
+            with self.subTest(omitted=omitted):
+                incomplete = dict(result)
+                del incomplete[omitted]
+                self.assertFalse(contracts.validate_test_result(
+                    record["framework_test_id"], incomplete, catalog_data=catalog)["valid"])
+        for field, wrong in (("process_started", False), ("listener_created", False),
+                             ("operation", "configtest"), ("exit_code", 1),
+                             ("directive", "modsecurity")):
+            with self.subTest(field=field):
+                changed = dict(result, configuration=dict(configuration, **{field: wrong}))
+                self.assertFalse(contracts.validate_test_result(
+                    record["framework_test_id"], changed, catalog_data=catalog)["valid"])
+        for changes in ({"http_status": 200}, {"rule_ids": [1100002]},
+                        {"lifecycle": dict(result["lifecycle"], cleanup_balanced=False)},
+                        {"lifecycle": dict(result["lifecycle"], request_completed=False)}):
+            with self.subTest(changes=changes):
+                self.assertFalse(contracts.validate_test_result(
+                    record["framework_test_id"], dict(result, **changes),
+                    catalog_data=catalog)["valid"])
+        for changes in ({"case_id": "other_case"}, {"expected_rule_id": 123},
+                        {"expected_status": 200}, {"expected_result": "allow"}):
+            with self.subTest(changes=changes):
+                with self.assertRaises(generator.GenerationError):
+                    generator._catalog_expectation(dict(case, **changes))
+        startup = {key: value for key, value in configuration.items()
+                   if key not in {"process_started", "listener_created"}}
+        for changes in ({"connector": "apache"}, {"directive": "modsecurity"},
+                        {"outcome": "config_rejected", "exit_code": 1,
+                         "error_class": "invalid_rules_file"}):
+            with self.subTest(changes=changes):
+                with self.assertRaises(contracts.ContractError):
+                    contracts.normalize_expectation({"kind": "configuration",
+                                                     **startup, **changes})
 
     def test_configuration_expectation_is_closed_and_exit_is_not_http(self) -> None:
         expectation = {

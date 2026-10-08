@@ -3959,6 +3959,35 @@ def config_invocation_for_case(
 
 
 NGINX_CONFIGTEST_CONTRACTS = {
+    "valid_rules_file": {
+        "operation": "startup", "directive": "modsecurity_rules_file", "value": "no-crs-baseline.conf",
+        "expected_exit_code": 0, "expected_outcome": "config_accepted",
+        "error_class": "none", "diagnostic_fragments": ["syntax is ok", "test is successful"],
+    },
+    "missing_rules_file": {
+        "operation": "configtest", "directive": "modsecurity_rules_file", "value": "missing-rules.conf",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "missing_rules_file",
+        "diagnostic_fragments": ['"modsecurity_rules_file" directive', "missing-rules.conf", "Failed to open the file"],
+    },
+    "invalid_rule_syntax": {
+        "operation": "configtest", "directive": "modsecurity_rules", "value": "SecRule REQUEST_URI",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "invalid_rule_syntax",
+        "diagnostic_fragments": ['"modsecurity_rules" directive', "syntax error"],
+    },
+    "unknown_config_key": {
+        "operation": "configtest", "directive": "modsecurity_unknown_config_key", "value": "on",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "unknown_config_key",
+        "diagnostic_fragments": ['unknown directive "modsecurity_unknown_config_key"'],
+    },
+    "unsafe_event_path": {
+        "operation": "configtest", "directive": "modsecurity_phase4_log", "value": "unsafe-event-directory",
+        "expected_exit_code": 1, "expected_outcome": "config_rejected",
+        "error_class": "unsafe_event_path",
+        "diagnostic_fragments": ['modsecurity_phase4_log "', 'unsafe-event-directory" is not a secure private event file'],
+    },
     "invalid_boolean": {
         "operation": "configtest", "directive": "modsecurity", "value": "maybe",
         "expected_exit_code": 1, "expected_outcome": "config_rejected",
@@ -3987,8 +4016,10 @@ def config_invocation_contract_errors(case: Mapping[str, Any]) -> list[str]:
     # receipt-only PASS merely because input metadata names it a configtest.
     if (
         expected is None or case.get("phase") != 0
-        or case.get("expected_result") != "config_rejected" or case.get("expected_status") != 1
-        or case.get("expected_rule_id") is not None or case.get("expected_event_fields")
+        or case.get("expected_result") != expected["expected_outcome"]
+        or case.get("expected_status") != expected["expected_exit_code"]
+        or case.get("expected_rule_id") != (1100001 if case.get("case_id") == "valid_rules_file" else None)
+        or case.get("expected_event_fields")
         or invocation != expected
         or type(invocation.get("expected_exit_code")) is not int
     ):
@@ -4054,11 +4085,52 @@ def configtest_receipt_observation_errors(
         errors.append("configuration receipt outcome does not match expected configuration outcome")
     if record.get("live_executed") is not True:
         errors.append("configuration receipt requires live_executed=true")
+    if record.get("case_id") == "valid_rules_file":
+        errors.extend(valid_rules_receipt_observation_errors(record, receipt))
+        return errors
+    startup_fields = {"request_probe", "cleanup_verified", "listen_port", "docroot_projection_parent",
+                      "docroot_projection_root", "rules_sha256", "events_sha256", "request_sha256",
+                      "roles_sha256", "cleanup_sha256"}
+    if receipt.get("process_started") is not False or receipt.get("listener_created") is not False:
+        errors.append("configuration-only receipt cannot claim a process or listener")
+    if startup_fields.intersection(receipt):
+        errors.append("configuration-only receipt cannot claim startup/probe artifacts")
     if (record.get("observed_rule_ids") or record.get("transaction_ids")
             or record.get("observed_event_fields") or record.get("event_metadata_verified")):
         errors.append("configuration receipt cannot claim request/rule/event execution")
     if any(record.get(field) is not None for field in PHASE4_SEMANTIC_FIELDS):
         errors.append("configuration receipt cannot claim HTTP/transport/runtime semantics")
+    return errors
+
+
+def valid_rules_receipt_observation_errors(
+    record: Mapping[str, Any], receipt: Mapping[str, Any],
+) -> list[str]:
+    """A successful parse alone never proves that the specified rule file executed."""
+    errors: list[str] = []
+    if any(receipt.get(field) is not True for field in ("process_started", "listener_created", "cleanup_verified")):
+        errors.append("valid rules startup requires observed process/listener and verified cleanup")
+    probe = receipt.get("request_probe")
+    expected_probe = {"observed_http_status": 403, "client_exit_code": 0, "phase": 1,
+                      "rule_id": 1100001, "run_id": record.get("run_id")}
+    if (not isinstance(probe, Mapping) or set(probe) != {*expected_probe, "transaction_id"}
+            or any(probe.get(field) != value for field, value in expected_probe.items())
+            or any(type(probe.get(field)) is not int for field in ("observed_http_status", "client_exit_code", "phase", "rule_id"))
+            or not isinstance(probe.get("transaction_id"), str)
+            or re.fullmatch(r"[A-Za-z0-9:._-]{1,128}", probe.get("transaction_id", "")) is None):
+        errors.append("valid rules startup requires its exact request/rule probe observation")
+    elif (record.get("observed_rule_ids") != [1100001]
+          or record.get("transaction_ids") != [probe["transaction_id"]]):
+        errors.append("valid rules startup must bind its genuine rule and transaction observations")
+    if record.get("observed_event_fields") or record.get("event_metadata_verified"):
+        errors.append("valid rules startup must retain child phase-1 evidence without claiming a phase-0 native event")
+    if type(receipt.get("listen_port")) is not int or not 1024 <= receipt.get("listen_port", 0) <= 65535:
+        errors.append("valid rules startup requires a bounded loopback listener")
+    for field in ("rules_sha256", "events_sha256", "request_sha256", "roles_sha256", "cleanup_sha256"):
+        if not isinstance(receipt.get(field), str) or re.fullmatch(r"[0-9a-f]{64}", receipt[field]) is None:
+            errors.append(f"valid rules startup requires {field}")
+    if any(record.get(field) is not None for field in PHASE4_SEMANTIC_FIELDS):
+        errors.append("valid rules startup cannot claim phase-4 semantics")
     return errors
 
 
@@ -4351,6 +4423,155 @@ CONFIGTEST_ARTIFACTS = {
     STDOUT_LOG_FILE_NAME: ("stdout_sha256", 65536),
     STDERR_LOG_FILE_NAME: ("stderr_sha256", 65536),
 }
+CONFIGTEST_PATH_FIXTURES = {
+    "missing_rules_file": ("missing-rules.conf", "absent"),
+    "unsafe_event_path": ("unsafe-event-directory", "directory"),
+}
+VALID_RULES_ARTIFACTS = {
+    "no-crs-baseline.conf": ("rules_sha256", 65536),
+    "phase1-events.jsonl": ("events_sha256", 65536),
+    "request-result.json": ("request_sha256", 4096),
+    "roles.json": ("roles_sha256", 4096),
+    "cleanup.json": ("cleanup_sha256", 4096),
+}
+
+
+def configtest_artifacts_for_record(record: Mapping[str, Any]) -> dict[str, tuple[str, int]]:
+    if record.get("case_id") == "valid_rules_file":
+        return {**CONFIGTEST_ARTIFACTS, **VALID_RULES_ARTIFACTS}
+    return CONFIGTEST_ARTIFACTS
+
+
+def valid_rules_config_template(origin: Path, port: int, projection_root: str) -> str:
+    """Closed config shared by the producer contract and retained-byte validator."""
+    return (
+        f'load_module "{origin}/nginx-module.so";\n'
+        'user nobody nogroup;\nworker_processes 1;\ndaemon off;\n'
+        f'pid "{origin}/nginx.pid";\nerror_log "{origin}/nginx-error.log";\n'
+        'events {}\nhttp {\n  access_log off;\n  modsecurity on;\n'
+        f'  modsecurity_rules_file "{origin}/no-crs-baseline.conf";\n'
+        f'  modsecurity_phase4_log "{origin}/phase1-events.jsonl";\n'
+        '  server {\n'
+        f'    listen 127.0.0.1:{port};\n    root "{projection_root}";\n'
+        '    location / { try_files $uri /index.html; }\n  }\n}\n'
+    )
+
+
+def valid_rules_json_capture(captures: Mapping[str, bytes], name: str) -> Mapping[str, Any]:
+    value = json.loads(captures[name], object_pairs_hook=reject_duplicate_json_keys)
+    if not isinstance(value, Mapping):
+        raise ContractError(f"valid rules raw artifact must be an object: {name}")
+    return value
+
+
+def validate_valid_rules_probe(record: Mapping[str, Any], captures: Mapping[str, bytes]) -> None:
+    receipt = record["configtest_receipt"]
+    probe = receipt.get("request_probe")
+    if not isinstance(probe, Mapping):
+        raise ContractError("valid rules raw probe requires its receipt binding")
+    rules = configtest_file_observation(FRAMEWORK_ROOT / "tests/rules/no-crs-baseline.conf", 65536)[0]
+    if hashlib.sha256(captures["no-crs-baseline.conf"]).hexdigest() != rules:
+        raise ContractError("valid rules file differs from the exact canonical baseline rules")
+    request = valid_rules_json_capture(captures, "request-result.json")
+    expected_request = {"case_id": "valid_rules_file", "run_id": record.get("run_id"),
+                        "operation": "request", "method": "GET", "path": "/no-crs/deny",
+                        "header_name": "X-Modsec-Smoke", "header_value": "block",
+                        "client_exit_code": 0, "observed_http_status": 403,
+                        "transaction_id": probe.get("transaction_id")}
+    if request != expected_request or any(type(request.get(field)) is not int for field in ("client_exit_code", "observed_http_status")):
+        raise ContractError("valid rules raw request does not match its exact operation/run/probe")
+    roles = valid_rules_json_capture(captures, "roles.json")
+    if (set(roles) != {"run_id", "master_pid", "worker_pid", "master_uid", "worker_uid"}
+            or roles.get("run_id") != record.get("run_id")
+            or roles.get("master_uid") != 0 or roles.get("worker_uid") != 65534
+            or any(type(roles.get(key)) is not int for key in ("master_uid", "worker_uid"))
+            or any(type(roles.get(key)) is not int or roles[key] <= 0 for key in ("master_pid", "worker_pid"))
+            or roles["master_pid"] == roles["worker_pid"]):
+        raise ContractError("valid rules raw roles must observe distinct root master/nobody worker")
+    cleanup = valid_rules_json_capture(captures, "cleanup.json")
+    if (cleanup != {"run_id": record.get("run_id"), "master_pid": roles["master_pid"],
+                   "worker_pid": roles["worker_pid"], "master_running": False,
+                   "worker_running": False, "listener_open": False, "verified": True}
+            or any(type(cleanup.get(field)) is not bool for field in ("master_running", "worker_running", "listener_open", "verified"))):
+        raise ContractError("valid rules raw cleanup must bind and retire its actual processes/listener")
+    events = [json.loads(line, object_pairs_hook=reject_duplicate_json_keys)
+              for line in captures["phase1-events.jsonl"].splitlines() if line.strip()]
+    transactions = set()
+    for event in events:
+        if canonical_event_errors(event, connector="nginx", integration_mode=record.get("integration_mode")):
+            raise ContractError("valid rules retained native event has invalid metadata")
+        if event.get("run_id", record.get("run_id")) != record.get("run_id"):
+            raise ContractError("valid rules retained native event has a foreign run identity")
+        if (optional_int(event.get("rule_id")) == 1100001
+                and normalize_canonical_phase(event.get("phase")) == 1
+                # Common preserves an unobserved engine decision as such.
+                # The distinct retained HTTP request proves the host result;
+                # never relabel this native event as an executed host action.
+                and event.get("event") == "engine_decision"
+                and event.get("message_id") == "MSCONN_EVENT_ENGINE_DECISION"
+                and event.get("actual_action") == ""
+                and event.get("visible_http_status") == 0
+                and event.get("transport_result") == "not_observable"
+                and event.get("method") == "GET" and event.get("uri") == "/no-crs/deny"
+                and event.get("http_status") == 403 and event.get("status") == "blocked"
+                and event.get("requested_action") == "deny"
+                and event.get("integration_mode") == record.get("integration_mode")):
+            transactions.add(event.get("transaction_id"))
+    if transactions != {probe.get("transaction_id")}:
+        raise ContractError("valid rules raw native phase-1 probe event is missing, mismatched or ambiguous")
+
+
+def validate_valid_rules_projection(receipt: Mapping[str, Any], origin: Path) -> None:
+    values = [receipt.get(field) for field in ("docroot_projection_parent", "docroot_projection_root")]
+    if any(not isinstance(value, str) or re.fullmatch(r"/[A-Za-z0-9_./-]+", value) is None for value in values):
+        raise ContractError("valid rules projection paths must be bounded absolute safe paths")
+    parent, projection = (Path(value) for value in values)
+    if (parent != lexical_absolute(parent) or projection != lexical_absolute(projection)
+            or projection.parent != parent or projection == parent
+            or origin == projection or origin in projection.parents or projection in origin.parents):
+        raise ContractError("valid rules projection must be an external direct child")
+    for path in (parent, projection):
+        assert_no_symlink_components(path)
+        descriptor = open_directory_chain(path)
+        try:
+            info = os.fstat(descriptor)
+            if info.st_uid != 0 or info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+                raise ContractError("valid rules projection must remain root-owned and non-writable to others")
+        finally:
+            os.close(descriptor)
+
+
+def validate_configtest_path_fixture(record: Mapping[str, Any], bundle: Path) -> None:
+    """Observe fixed owned leaves through no-follow descriptors, never receipt assertions alone."""
+    fixture = CONFIGTEST_PATH_FIXTURES.get(str(record.get("case_id")))
+    receipt = record.get("configtest_receipt")
+    if not isinstance(receipt, Mapping):
+        raise ContractError("configuration receipt is missing")
+    if fixture is None:
+        if "fixture_leaf" in receipt or "fixture_state" in receipt:
+            raise ContractError("configuration receipt has an unrelated path fixture")
+        return
+    leaf, state = fixture
+    if receipt.get("fixture_leaf") != leaf or receipt.get("fixture_state") != state:
+        raise ContractError("configuration fixture observation does not match the closed case")
+    parent = open_directory_chain(bundle)
+    descriptor: int | None = None
+    try:
+        if state == "absent":
+            try:
+                os.stat(leaf, dir_fd=parent, follow_symlinks=False)
+            except FileNotFoundError:
+                return
+            raise ContractError("missing rules fixture leaf must remain absent")
+        descriptor = os.open(leaf, _directory_flags(), dir_fd=parent)
+        info = os.fstat(descriptor)
+        if (not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid()
+                or stat.S_IMODE(info.st_mode) != 0o700 or os.listdir(descriptor)):
+            raise ContractError("unsafe event fixture must remain an owned empty private directory")
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        os.close(parent)
 
 
 def configtest_bundle_path(record: Mapping[str, Any]) -> str:
@@ -4377,7 +4598,7 @@ def configtest_file_observation(path: Path, limit: int) -> tuple[str, bytes]:
             if total > limit:
                 raise ContractError(f"configuration artifact exceeds bound: {path.name}")
             digest.update(chunk)
-            if path.name in {NGINX_CONFIG_FILE_NAME, STDOUT_LOG_FILE_NAME, STDERR_LOG_FILE_NAME}:
+            if path.name in {NGINX_CONFIG_FILE_NAME, STDOUT_LOG_FILE_NAME, STDERR_LOG_FILE_NAME, *VALID_RULES_ARTIFACTS}:
                 capture.extend(chunk)
         return digest.hexdigest(), bytes(capture)
     finally:
@@ -4417,7 +4638,7 @@ def configtest_bundle_captures(record: Mapping[str, Any], bundle: Path) -> dict[
     if not isinstance(receipt, Mapping):
         raise ContractError("configuration receipt is missing")
     captures: dict[str, bytes] = {}
-    for name, (field, limit) in CONFIGTEST_ARTIFACTS.items():
+    for name, (field, limit) in configtest_artifacts_for_record(record).items():
         digest, data = configtest_file_observation(bundle / name, limit)
         expected = ("sha256:" if name == NGINX_CONFIG_FILE_NAME else "") + digest
         if receipt.get(field) != expected:
@@ -4439,12 +4660,32 @@ def validate_configtest_bundle_template(
     if str(origin) != str(lexical_absolute(origin)) or (not canonical and origin != bundle):
         raise ContractError("configuration template does not bind its retained module")
     invocation = NGINX_CONFIGTEST_CONTRACTS[str(record.get("case_id"))]
+    if record.get("case_id") == "valid_rules_file":
+        receipt = record["configtest_receipt"]
+        if valid_rules_receipt_observation_errors(record, receipt):
+            raise ContractError("valid rules retained bundle has an incomplete startup receipt")
+        validate_valid_rules_projection(receipt, origin)
+        if config != valid_rules_config_template(origin, receipt["listen_port"], receipt["docroot_projection_root"]):
+            raise ContractError("valid rules configuration differs from its closed startup template")
+        if record.get("status") == "PASS":
+            stderr = captures[STDERR_LOG_FILE_NAME].decode("utf-8", errors="replace")
+            if (not all(fragment in stderr for fragment in invocation["diagnostic_fragments"])
+                    or f"{origin}/nginx.conf" not in stderr):
+                raise ContractError("valid rules configtest lacks its exact successful native diagnostic")
+            validate_valid_rules_probe(record, captures)
+        return
+    value = invocation["value"]
+    fixture = CONFIGTEST_PATH_FIXTURES.get(str(record.get("case_id")))
+    if fixture is not None:
+        value = f'"{origin}/{fixture[0]}"'
+    elif record.get("case_id") == "invalid_rule_syntax":
+        value = f'"{value}"'
     expected_config = (
         f'load_module "{origin}/nginx-module.so";\n'
         f'pid "{origin}/nginx.pid";\n'
         f'error_log "{origin}/nginx-error.log";\n'
         "events {}\nhttp {\n"
-        f"  {invocation['directive']} {invocation['value']};\n"
+        f"  {invocation['directive']} {value};\n"
         "}\n"
     )
     if config != expected_config:
@@ -4453,6 +4694,8 @@ def validate_configtest_bundle_template(
         stderr = captures[STDERR_LOG_FILE_NAME].decode("utf-8", errors="replace")
         if not all(fragment in stderr for fragment in invocation["diagnostic_fragments"]):
             raise ContractError("configuration capture lacks the exact parser diagnostic")
+        if fixture is not None and f"{origin}/{fixture[0]}" not in stderr:
+            raise ContractError("configuration diagnostic does not name the exact tested fixture path")
 
 
 def validated_configtest_bundle(
@@ -4460,6 +4703,7 @@ def validated_configtest_bundle(
 ) -> Path:
     bundle = configtest_bundle_directory(record, authority, canonical=canonical)
     captures = configtest_bundle_captures(record, bundle)
+    validate_configtest_path_fixture(record, bundle)
     validate_configtest_bundle_template(record, bundle, captures, canonical=canonical)
     return bundle
 
@@ -6539,12 +6783,19 @@ def retain_finalize_configtest_bundle(
     normalized = dict(raw)
     canonical_path = configtest_bundle_path(raw)
     normalized["artifacts"] = {"configtest_dir": canonical_path}
-    for name, (_, limit) in CONFIGTEST_ARTIFACTS.items():
+    for name, (_, limit) in configtest_artifacts_for_record(raw).items():
         destination = context.run_dir / canonical_path / name
         copy_artifact(source / name, destination, maximum_bytes=limit)
         context.manifest["artifacts"]["configtest_" + str(case_id) + "_" + name.replace('.', '_')] = artifact_entry(
             str(destination.relative_to(context.run_dir)), "produced", sha256=sha256_file(destination),
         )
+    fixture = CONFIGTEST_PATH_FIXTURES.get(str(case_id))
+    if fixture is not None and fixture[1] == "directory":
+        parent = open_directory_chain(context.run_dir / canonical_path)
+        try:
+            os.mkdir(fixture[0], mode=0o700, dir_fd=parent)
+        finally:
+            os.close(parent)
     # Rehash retained copies too, so source replacement cannot certify PASS.
     validated_configtest_bundle(normalized, context.run_dir, canonical=True)
     context.configtest_copied_cases.add(str(case_id))
@@ -6843,6 +7094,11 @@ def live_http_request_executed(
         case_by_id = {case["case_id"]: case for case in catalog_cases(load_catalog())}
     case = case_by_id.get(str(record.get("case_id") or ""), {})
     invocation = config_invocation_for_case(case, str(record.get("connector") or ""))
+    if (case.get("case_id") == "valid_rules_file" and invocation is not None
+            and not config_invocation_contract_errors(case)):
+        receipt = record.get("configtest_receipt")
+        return (record.get("status") == "PASS" and isinstance(receipt, Mapping)
+                and not valid_rules_receipt_observation_errors(record, receipt))
     return not (
         invocation is not None
         and invocation.get("operation") in {"configtest", "startup", "reload"}
@@ -7159,6 +7415,30 @@ def json_schema_type_errors(value: object, schema: Mapping[str, Any], location: 
     return []
 
 
+def json_schema_composition_errors(
+    value: object, schema: Mapping[str, Any], root: Mapping[str, Any], location: str,
+) -> list[str]:
+    """Enforce the bounded composition used by checked-in operation receipts."""
+    errors: list[str] = []
+    for branch in schema.get("allOf", []):
+        errors.extend(json_schema_errors(value, branch, root_schema=root, location=location))
+    branches = schema.get("anyOf")
+    if isinstance(branches, list) and not any(
+        not json_schema_errors(value, branch, root_schema=root, location=location) for branch in branches
+    ):
+        errors.append(f"{location}: no anyOf branch matches")
+    negation = schema.get("not")
+    if isinstance(negation, Mapping) and not json_schema_errors(value, negation, root_schema=root, location=location):
+        errors.append(f"{location}: forbidden schema branch matches")
+    condition = schema.get("if")
+    if isinstance(condition, Mapping):
+        matched = not json_schema_errors(value, condition, root_schema=root, location=location)
+        branch = schema.get("then" if matched else "else")
+        if isinstance(branch, Mapping):
+            errors.extend(json_schema_errors(value, branch, root_schema=root, location=location))
+    return errors
+
+
 def json_schema_common_value_errors(
     value: object, schema: Mapping[str, Any], location: str,
 ) -> list[str]:
@@ -7308,6 +7588,7 @@ def json_schema_errors(
         errors.extend(json_schema_array_errors(value, schema, root, location))
     if isinstance(value, Mapping):
         errors.extend(json_schema_object_errors(value, schema, root, location))
+    errors.extend(json_schema_composition_errors(value, schema, root, location))
     return errors
 
 

@@ -253,11 +253,16 @@ def _expectation_configuration(value: Mapping[str, Any], kind: str) -> dict[str,
     fields = _CONFIGURATION_FIELDS | {"kind"}
     _exact_fields(value, fields, fields)
     result = _configuration_values(value)
-    if result["operation"] != "configtest" or result["outcome"] not in {"config_accepted", "config_rejected"}:
+    if result["operation"] not in {"configtest", "startup"} or result["outcome"] not in {"config_accepted", "config_rejected"}:
         _fail("invalid_configuration")
     if (result["outcome"] == "config_accepted") != (result["exit_code"] == 0):
         _fail("invalid_configuration")
     if (result["outcome"] == "config_accepted") != (result["error_class"] == "none"):
+        _fail("invalid_configuration")
+    if result["operation"] == "startup" and (
+        result["connector"] != "nginx" or result["directive"] != "modsecurity_rules_file"
+        or result["outcome"] != "config_accepted"
+    ):
         _fail("invalid_configuration")
     return {"kind": kind, **result}
 
@@ -948,7 +953,7 @@ def _match_configuration(expectation: Mapping[str, Any], result: Mapping[str, An
     failures = [f"configuration_{field}_mismatch" for field in sorted(_CONFIGURATION_FIELDS)
                 if observation.get(field) != expectation[field]]
     for field in ("process_started", "listener_created"):
-        if observation.get(field) is not False:
+        if observation.get(field) is not (expectation["operation"] == "startup"):
             failures.append(f"configuration_{field}_mismatch")
     return failures
 

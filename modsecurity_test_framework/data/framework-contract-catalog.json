@@ -3653,8 +3653,13 @@
       ],
       "display_name": "Reject invalid rule syntax",
       "expectation": {
-        "event_type": "config_rejected",
-        "kind": "event"
+        "connector": "nginx",
+        "directive": "modsecurity_rules",
+        "error_class": "invalid_rule_syntax",
+        "exit_code": 1,
+        "kind": "configuration",
+        "operation": "configtest",
+        "outcome": "config_rejected"
       },
       "framework_test_id": "no-crs-baseline:invalid_rule_syntax",
       "phase": 0,
@@ -4080,8 +4085,13 @@
       ],
       "display_name": "Reject a missing rules file",
       "expectation": {
-        "event_type": "config_rejected",
-        "kind": "event"
+        "connector": "nginx",
+        "directive": "modsecurity_rules_file",
+        "error_class": "missing_rules_file",
+        "exit_code": 1,
+        "kind": "configuration",
+        "operation": "configtest",
+        "outcome": "config_rejected"
       },
       "framework_test_id": "no-crs-baseline:missing_rules_file",
       "phase": 0,
@@ -8053,8 +8063,13 @@
       ],
       "display_name": "Reject an unknown connector configuration key",
       "expectation": {
-        "event_type": "config_rejected",
-        "kind": "event"
+        "connector": "nginx",
+        "directive": "modsecurity_unknown_config_key",
+        "error_class": "unknown_config_key",
+        "exit_code": 1,
+        "kind": "configuration",
+        "operation": "configtest",
+        "outcome": "config_rejected"
       },
       "framework_test_id": "no-crs-baseline:unknown_config_key",
       "phase": 0,
@@ -8083,8 +8098,13 @@
       ],
       "display_name": "Reject an unsafe event artifact path",
       "expectation": {
-        "event_type": "config_rejected",
-        "kind": "event"
+        "connector": "nginx",
+        "directive": "modsecurity_phase4_log",
+        "error_class": "unsafe_event_path",
+        "exit_code": 1,
+        "kind": "configuration",
+        "operation": "configtest",
+        "outcome": "config_rejected"
       },
       "framework_test_id": "no-crs-baseline:unsafe_event_path",
       "phase": 0,
@@ -8459,20 +8479,38 @@
       },
       "area": "no-crs-baseline",
       "catalogs": [
-        "no-crs-baseline"
+        "no-crs-baseline",
+        "framework-yaml"
       ],
       "display_name": "Load the canonical rules file",
       "expectation": {
         "conditions": [
           {
-            "event_type": "config_accepted",
-            "kind": "event"
+            "connector": "nginx",
+            "directive": "modsecurity_rules_file",
+            "error_class": "none",
+            "exit_code": 0,
+            "kind": "configuration",
+            "operation": "startup",
+            "outcome": "config_accepted"
+          },
+          {
+            "http_status": 403,
+            "kind": "http_status"
           },
           {
             "kind": "rule_match",
             "rule_ids": [
               1100001
             ]
+          },
+          {
+            "kind": "lifecycle",
+            "predicates": {
+              "cleanup_balanced": true,
+              "host_started": true,
+              "request_completed": true
+            }
           }
         ],
         "kind": "compound"
@@ -8488,6 +8526,10 @@
         {
           "kind": "no_crs_catalog",
           "path": "tests/cases/no-crs-baseline/catalog.json"
+        },
+        {
+          "kind": "yaml_case",
+          "path": "tests/cases/no-crs-baseline/valid_rules_file.yaml"
         }
       ]
     },

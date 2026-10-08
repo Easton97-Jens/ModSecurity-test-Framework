@@ -223,11 +223,15 @@ def _catalog_configuration_expectation(invocations: Any) -> dict[str, Any]:
     if isinstance(exit_code, bool) or not isinstance(exit_code, int) or not 0 <= exit_code <= 255:
         raise GenerationError("invalid configuration exit code")
     expectation["exit_code"] = exit_code
-    if expectation["operation"] != "configtest" or expectation["outcome"] not in {"config_accepted", "config_rejected"}:
+    if expectation["operation"] not in {"configtest", "startup"} or expectation["outcome"] not in {"config_accepted", "config_rejected"}:
         raise GenerationError("unsupported configuration operation")
     accepted = expectation["outcome"] == "config_accepted"
     if accepted != (exit_code == 0) or accepted != (expectation["error_class"] == "none"):
         raise GenerationError("inconsistent configuration expectation")
+    if expectation["operation"] == "startup" and (
+        expectation["directive"] != "modsecurity_rules_file" or not accepted
+    ):
+        raise GenerationError("unsupported startup configuration")
     return expectation
 
 
@@ -235,7 +239,25 @@ def _catalog_expectation(case: Mapping[str, Any]) -> dict[str, Any]:
     invocations = case.get("config_invocations")
     if invocations is not None:
         # Names/phase-zero labels never suffice without a declared host operation.
-        return _catalog_configuration_expectation(invocations)
+        configuration = _catalog_configuration_expectation(invocations)
+        if configuration["operation"] == "startup":
+            if (case.get("case_id") != "valid_rules_file"
+                    or case.get("expected_result") != "config_accepted"
+                    or type(case.get("expected_status")) is not int
+                    or case["expected_status"] != 0
+                    or type(case.get("expected_rule_id")) is not int
+                    or case["expected_rule_id"] != 1100001):
+                raise GenerationError("unsupported startup case")
+            return _compound([
+                configuration,
+                {"kind": "http_status", "http_status": 403},
+                {"kind": "rule_match", "rule_ids": [1100001]},
+                {"kind": "lifecycle", "predicates": {
+                    "host_started": True, "request_completed": True,
+                    "cleanup_balanced": True,
+                }},
+            ])
+        return configuration
     result = _identifier(case.get("expected_result"), "expected result")
     status = _catalog_http_status(case.get("expected_status"))
     rule_id = _optional_rule_id(case.get("expected_rule_id"))
