@@ -6,6 +6,7 @@ requirements. Canonical callers must additionally validate those requirements.
 from __future__ import annotations
 
 import re
+import hashlib
 
 
 SEQUENCES = {
@@ -26,6 +27,7 @@ SEQUENCES = {
     "response_write_would_block_resume": (200,),
     "transport_keep_alive": (200, 200),
     "transport_sequential_requests": (200, 403, 200),
+    "finish_failure_propagation": (200,),
 }
 KEEPALIVE_CASES = {
     "keep_alive_requests_if_supported", "keepalive_allow_allow", "keepalive_allow_deny_allow",
@@ -118,6 +120,7 @@ def observation_errors(value, case_id, run_id):
     fault_contracts = {
         "early_mapping_failure_cleanup": ("early_mapping_failure", "ModSecurity: invalid canonical transaction identifier"),
         "transaction_begin_failure_cleanup": ("transaction_begin_failure", "ModSecurity: failed to create transaction"),
+        "finish_failure_propagation": ("finish_failure", "ModSecurity: native logging phase processing failed"),
     }
     if case_id in fault_contracts:
         requested, diagnostic = fault_contracts[case_id]
@@ -131,6 +134,32 @@ def observation_errors(value, case_id, run_id):
         errors.extend(late_observation_errors(value, case_id))
     if case_id in WRITE_CASES:
         errors.extend(write_observation_errors(value, case_id))
+    if case_id == "finish_failure_propagation":
+        errors.extend(finish_observation_errors(value))
+    return errors
+
+
+def finish_observation_errors(value):
+    rows = value.get("native_finish")
+    wanted = (("msc_process_logging", -1), ("msconnector_transaction_contract_cleanup", 0),
+              ("cleanup_complete", 1), ("native_logging_error_preserved", 1))
+    if not isinstance(rows, list) or len(rows) != len(wanted):
+        return ["actual native logging rejection and delegated successful cleanup are required"]
+    roles = value.get("roles", {})
+    access = value["native_access"][0]
+    request = value["requests"][0]
+    if not isinstance(roles, dict) or not isinstance(access, dict) or not isinstance(request, dict):
+        return ["finish observations need valid native request and process identities"]
+    errors = []
+    for row, (operation, result) in zip(rows, wanted):
+        if not isinstance(row, dict) or not (
+                row.get("native_operation") == operation and type(row.get("observed_return")) is int
+                and row["observed_return"] == result and row.get("worker_pid") == roles.get("worker_pid")
+                and row.get("transaction_id") == access.get("transaction_id")):
+            errors.append("native finish/cleanup outcome or identity mismatch")
+    fixture = b"bounded-owned-sequence\n"
+    if request.get("body_sha256") != hashlib.sha256(fixture).hexdigest() or request.get("bytes_received") != len(fixture):
+        errors.append("post-response finish failure must preserve the original visible body")
     return errors
 
 

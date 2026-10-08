@@ -168,6 +168,22 @@ class SequenceContractTests(unittest.TestCase):
         value["native_events"][0]["body_bytes_inspected"] = 200
         self.assertTrue(self.helper.observation_errors(value, value["case_id"], "run-1"))
 
+    def test_post_response_finish_failure_preserves_200_and_requires_cleanup(self):
+        import hashlib
+        value = self.observation()
+        value["case_id"] = "finish_failure_propagation"
+        value["requests"] = [dict(value["requests"][0], bytes_received=23, body_sha256=hashlib.sha256(b"bounded-owned-sequence\n").hexdigest())]
+        value["native_access"] = value["native_access"][:1]
+        value["fault"] = {"requested": "finish_failure", "triggered": True,
+                          "native_diagnostic": "ModSecurity: native logging phase processing failed"}
+        value["native_finish"] = [
+            {"native_operation": op, "observed_return": result, "worker_pid": 11, "transaction_id": "a" * 32}
+            for op, result in (("msc_process_logging", -1), ("msconnector_transaction_contract_cleanup", 0),
+                               ("cleanup_complete", 1), ("native_logging_error_preserved", 1))]
+        self.assertEqual(self.helper.observation_errors(value, value["case_id"], "run-1"), [])
+        value["native_finish"][1]["observed_return"] = -1
+        self.assertTrue(self.helper.observation_errors(value, value["case_id"], "run-1"))
+
 
 if __name__ == "__main__":
     unittest.main()
