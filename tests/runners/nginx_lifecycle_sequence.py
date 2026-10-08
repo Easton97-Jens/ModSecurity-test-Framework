@@ -33,6 +33,7 @@ KEEPALIVE_CASES = {
     "keep_alive_requests_if_supported", "keepalive_allow_allow", "keepalive_allow_deny_allow",
     "keepalive_safe_followup",
     "transport_keep_alive",
+    "transport_sequential_requests",
 }
 STRICT_CASES = {"phase4_strict_http1_client_abort", "phase4_strict_host_survives",
                 "phase4_strict_followup_request_succeeds", "keepalive_after_strict_new_connection"}

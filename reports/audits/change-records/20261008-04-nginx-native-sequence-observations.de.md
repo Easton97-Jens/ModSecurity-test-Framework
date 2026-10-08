@@ -57,6 +57,8 @@ Native Transportmetadaten brauchen weiterhin zentrale Producer-/Wiring-Integrati
 
 ## Finaler Diff- und Review-Status
 
+`transport_sequential_requests` verlangt nun eine native Verbindung und Zähler 1/2/3 gemäß dem vorhandenen Ein-Verbindungs-Vertrag im Katalog. Regressionen für neue Verbindung und zurückgesetzten Zähler schlugen vor der Korrektur fehl und bestehen danach beide. Die zwei dedizierten Transporttests liegen in `tests/no_crs/test_nginx_sequence_transport.py`; native Ereigniserzeugung gehört weiterhin dem Parent.
+
 Freigegebene Post-Response-Finish-Folgearbeit:
 
 Finish erhält den tatsächlichen HTTP-200-Status und den exakten Hash des 23-Byte-Fixture-Bodys. Erforderlich sind native Logging-Ablehnung (-1), delegiertes Cleanup (0), abgeschlossenes Cleanup und Erhalt des nativen Logging-Fehlers, gebunden an beobachteten Worker und Transaktion. Fehlende oder widersprüchliche Beobachtungen bleiben abgelehnt. Siebzehn Fokustests bestehen. Diagnose `stream-d-finish-r3` enthält positiven Exit 0 und falsche-Transaktion-Kontrolle Exit 1 mit verifiziertem Cleanup. Frühere Internal-Redirect-Fixtures bleiben erhaltene Fehlversuche; weder Evidence noch Validator wurden gelockert. Integrierte Canonical-Evidence bleibt Koordinator-Verantwortung.
