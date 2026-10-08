@@ -30,6 +30,8 @@ Accepting generic Phase2/4 as native observation would invent a phase. Connector
 
 Source access.c validates the Common request mapper before Engine processing; initialization failures enter request_result with REQUEST_HEADERS. The synchronous request-headers call is bracketed by engine_call_begin/finish. This is source proof of the observation boundary, not runtime PASS.
 
+Root integration also binds `clean_shutdown` to the actual NGINX wire HTTP200 via a closed native-only `expected_status` override. The generic expected status0 remains unchanged; actual process exit0 and completed cleanup are separately required by the strict original sequence receipt. HTTP0 is never substituted for the real request status.
+
 | case_id | Generic phase | NGX phase |
 | --- | --- | --- |
 | body_size_nonzero_with_null_data | 2 | 1 |
@@ -42,6 +44,8 @@ catalog.json, case-catalog.schema.json, test_nginx_native_invocation_catalog.py,
 ## Commands and results
 
 The initial focused run failed with two missing-phase errors and one expected-descriptor mismatch. After catalog/schema updates, 20 registry/selection controls passed. External log: stream-c-phase-override-green.log.
+
+The missing clean-shutdown wire override produced a red projection control before its explicit catalog/schema registration. Fresh integrated registry/projection tests are required before committing this follow-up.
 
 ## Security impact
 
@@ -62,4 +66,3 @@ The registry describes expected observation inputs; it does not itself produce o
 ## Final diff and review status
 
 Focused Framework catalog/schema/test slice only; no Root worktree edits, central normalizer changes, Parent Gitlinks or MRTS changes.
-

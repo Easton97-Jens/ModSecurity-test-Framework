@@ -105,6 +105,7 @@ class NativeInvocationCatalogTests(unittest.TestCase):
             "phase4_deny_after_commit_log_only_minimal": {"expected_status": 200, "expected_result": "late_intervention_log_only_safe", "nginx_phase4_mode": "safe"},
             "phase4_body_reject": {"expected_status": 200, "expected_rule_id": None, "expected_native_status": 403, "expected_engine_error_class": "body_limit"},
             "finish_failure_propagation": {"expected_status": 200},
+            "clean_shutdown": {"expected_status": 200},
             "engine_timeout_before_commit": {"expected_status": 504, "expected_rule_id": None, "expected_native_status": 504, "expected_engine_error_class": "engine_timeout", "phase": 1},
             "engine_timeout_after_commit": {"expected_status": 200, "expected_rule_id": None, "expected_native_status": 504, "expected_engine_error_class": "engine_timeout"},
             "phase4_out_of_scope_content_type": {"expected_status": 200, "expected_rule_id": None},

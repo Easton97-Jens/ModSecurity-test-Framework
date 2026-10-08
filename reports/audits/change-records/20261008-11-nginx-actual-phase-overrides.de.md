@@ -30,6 +30,8 @@ Die generischen Phase2/4 als native Beobachtung zu akzeptieren würde eine Phase
 
 Source access.c validiert den Common-Request-Mapper vor der Engine-Verarbeitung; Initialisierungsfehler gelangen mit REQUEST_HEADERS in request_result. Der synchrone Request-Headers-Aufruf liegt zwischen engine_call_begin/finish. Dies belegt die Beobachtungsgrenze im Quelltext, keinen Runtime-PASS.
 
+Root-Integration bindet außerdem `clean_shutdown` durch ein geschlossenes natives `expected_status`-Override an das tatsächliche NGINX-Wire-HTTP200. Generischer erwarteter Status0 bleibt unverändert; tatsächlicher Prozess-Exit0 und abgeschlossenes Cleanup bleiben separat im strikten Original-Sequence-Beleg erforderlich. HTTP0 ersetzt niemals den echten Requeststatus.
+
 | case_id | Generic phase | NGX phase |
 | --- | --- | --- |
 | body_size_nonzero_with_null_data | 2 | 1 |
@@ -42,6 +44,8 @@ catalog.json, case-catalog.schema.json, test_nginx_native_invocation_catalog.py,
 ## Befehle und Ergebnisse
 
 Der erste fokussierte Lauf scheiterte mit zwei fehlenden Phasen und einer Descriptor-Abweichung. Nach Katalog-/Schemaänderung bestanden 20 Registry-/Selection-Kontrollen. Externes Log: stream-c-phase-override-green.log.
+
+Das fehlende Clean-Shutdown-Wire-Override erzeugte vor der ausdrücklichen Katalog-/Schemaregistrierung eine rote Projektionskontrolle. Frische integrierte Registry-/Projektionstests sind vor dem Folgecommit erforderlich.
 
 ## Sicherheitsauswirkung
 
