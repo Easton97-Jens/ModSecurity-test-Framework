@@ -162,8 +162,18 @@ def required_source_paths(case_id):
     _, helper = route(case_id)
     parent = {"ci/runtime/lifecycle/run-nginx-valid-rules.py", "ci/runtime/lifecycle/run-nginx-configtest.py",
               "ci/runtime/lifecycle/run-selected-nginx-native-operations.py", "ci/runtime/lifecycle/nginx-native-operation-source.py",
-              "ci/runtime/common/prepare-nginx-docroot-projection.py", "ci/lib/runtime_path_utils.py"}
-    framework = {"tests/runners/" + helper + ".py", "tests/runners/nginx_native_operation_bundle.py"}
+              "ci/runtime/common/prepare-nginx-docroot-projection.py", "ci/lib/runtime_path_utils.py",
+              "ci/runtime/lifecycle/collect-no-crs-source.py", "ci/runtime/lifecycle/nginx_native_collection.py",
+              "ci/runtime/lifecycle/nginx_native_authority.py", "ci/runtime/lifecycle/run-no-crs-baseline.sh",
+              "ci/runtime/lifecycle/run-nginx-selected-host.sh", "ci/runtime/lifecycle/run-connector-stage.sh"}
+    framework = {"tests/runners/" + helper + ".py", "tests/runners/nginx_native_operation_bundle.py",
+                 "tests/runners/nginx_native_operation_projection.py", "tests/runners/nginx_native_operation_contract.py",
+                 "tests/runners/nginx_native_operation_authority.py", "tests/runners/nginx_http11_framing.py",
+                 "tests/runners/nginx_lifecycle_sequence.py", "tests/runners/nginx_phase4_contracts.py",
+                 "tests/runners/msconnector_models.py", "ci/checks/catalog/no_crs_baseline.py",
+                 "tests/cases/no-crs-baseline/catalog.json"}
+    framework.update("tests/schemas/no-crs-baseline/" + name + ".schema.json"
+                     for name in ("case-catalog", "case-result", "result", "manifest", "inventory", "event"))
     drivers = {"nginx_raw_h1": "run-nginx-raw-h1.py", "nginx_common_input_faults": "run-nginx-common-input-fault.py",
                "nginx_mime_operations": "run-nginx-mime-cases.py", "nginx_phase4_operations": "run-nginx-phase4-cases.py",
                "nginx_event_boundary_operations": "run-nginx-event-boundary-cases.py", "nginx_lifecycle_sequence": "run-nginx-lifecycle-sequences.py"}
