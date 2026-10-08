@@ -63,14 +63,15 @@ new identities and the existing Reject ID's additional YAML membership.
 
 Commands use RTK, the Framework-owned Python, explicit `FRAMEWORK_ROOT`, and
 external cache/temp roots. Logs are under
-`/var/tmp/codex/ModSecurity-conector/analysis/nginx-all-required-20261008T124555Z/`.
+the external analysis package for run `nginx-all-required-20261008T124555Z`;
+the table retains the exact log basenames.
 
 | Command | Exit code | Concise result | Run ID or approved evidence path |
 | --- | --- | --- | --- |
 | `python -m unittest -v tests.contract_api.test_native_fixture_source_association` before fix | 1 | RED: six failing/erroring controls | `stream-c-source-association-red.log` |
 | Same command after fix | 0 | Six tests pass, including rule/directive mismatches | `stream-c-source-association-green3.log` |
 | `python ci/tools/generate-framework-contract-catalog.py` | 0 | Resource regenerated from actual sources | `stream-c-source-association-generate.log` |
-| `make test-contract-api PYTHON=/var/tmp/codex/ModSecurity-test-Framework/venv/bin/python FRAMEWORK_ROOT=/var/tmp/codex/ModSecurity-conector/worktrees/all-required-framework-source-association-20261008 BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/analysis/nginx-all-required-20261008T124555Z/build TMP_ROOT=/var/tmp/codex/ModSecurity-conector/analysis/nginx-all-required-20261008T124555Z` | 2 | 29 pass; stale inventory count 339 versus actual 350 fails | `stream-c-source-association-api.log` |
+| `make test-contract-api` with explicit Framework-owned interpreter/root and external build/temp roots | 2 | 29 pass; stale inventory count 339 versus actual 350 fails | `stream-c-source-association-api.log` |
 | Same Make command after exact count/source assertion refresh | 0 | All 30 Contract API tests and generator check pass | `stream-c-source-association-api-green.log` |
 | `python -m unittest -v tests.no_crs.test_nginx_native_selection tests.no_crs.test_nginx_native_canonical_binding` | 0 | 23 tests pass | `stream-c-source-association-focus.log` |
 | `python -m py_compile ci/tools/generate-framework-contract-catalog.py tests/contract_api/test_native_fixture_source_association.py` | 0 | Syntax passes | Task command output |
@@ -107,5 +108,10 @@ Native runtime gaps remain unverified.
 
 Focused final diff, whitespace and payload review retain generic contracts.
 All 30 Contract API tests, 23 Selection/Canonical focus tests and documentation
-checks pass. No secrets or raw sensitive evidence are recorded. The normal
+link, variable and record-structure checks passed at handoff. The subsequent
+full lint and PR CI rejected developer-local paths in this EN/DE record pair;
+the follow-up replaces only those paths with portable descriptions and exact
+log basenames, preserving every recorded exit and result. Full lint must be
+rerun; these earlier narrow documentation checks did not cover that gate.
+No secrets or raw sensitive evidence are recorded. The normal
 atomic Framework commit is supplied at handoff.

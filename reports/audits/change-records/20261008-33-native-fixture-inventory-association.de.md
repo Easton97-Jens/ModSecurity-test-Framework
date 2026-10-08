@@ -68,14 +68,15 @@ Membership der bestehenden Reject-ID.
 
 Befehle verwenden RTK, Framework-Python, explizites `FRAMEWORK_ROOT` und externe
 Cache-/Temp-Wurzeln. Logs liegen unter
-`/var/tmp/codex/ModSecurity-conector/analysis/nginx-all-required-20261008T124555Z/`.
+dem externen Analysepaket für Run `nginx-all-required-20261008T124555Z`;
+die Tabelle erhält die exakten Log-Basisnamen.
 
 | Befehl | Exit-Code | Kurzes Ergebnis | Run-ID oder zulässiger Evidenzpfad |
 | --- | --- | --- | --- |
 | `python -m unittest -v tests.contract_api.test_native_fixture_source_association` vor Korrektur | 1 | RED: sechs fehlschlagende Controls | `stream-c-source-association-red.log` |
 | Derselbe Befehl nach Korrektur | 0 | Sechs Tests grün, inklusive Rules-/Direktivenwidersprüchen | `stream-c-source-association-green3.log` |
 | `python ci/tools/generate-framework-contract-catalog.py` | 0 | Ressource aus tatsächlichen Quellen regeneriert | `stream-c-source-association-generate.log` |
-| `make test-contract-api PYTHON=/var/tmp/codex/ModSecurity-test-Framework/venv/bin/python FRAMEWORK_ROOT=/var/tmp/codex/ModSecurity-conector/worktrees/all-required-framework-source-association-20261008 BUILD_ROOT=/var/tmp/codex/ModSecurity-conector/analysis/nginx-all-required-20261008T124555Z/build TMP_ROOT=/var/tmp/codex/ModSecurity-conector/analysis/nginx-all-required-20261008T124555Z` | 2 | 29 grün; veraltete Inventarzahl 339 statt tatsächlich 350 scheitert | `stream-c-source-association-api.log` |
+| `make test-contract-api` mit explizitem Framework-Interpreter/-Root und externen Build-/Temp-Wurzeln | 2 | 29 grün; veraltete Inventarzahl 339 statt tatsächlich 350 scheitert | `stream-c-source-association-api.log` |
 | Derselbe Make-Befehl nach Aktualisierung exakter Zahl-/Quellassertions | 0 | Alle 30 Contract-API-Tests und Generatorprüfung grün | `stream-c-source-association-api-green.log` |
 | `python -m unittest -v tests.no_crs.test_nginx_native_selection tests.no_crs.test_nginx_native_canonical_binding` | 0 | 23 Tests grün | `stream-c-source-association-focus.log` |
 | `python -m py_compile ci/tools/generate-framework-contract-catalog.py tests/contract_api/test_native_fixture_source_association.py` | 0 | Syntax grün | Task-Befehlsausgabe |
@@ -112,5 +113,10 @@ Native Runtime-Lücken bleiben ungeprüft.
 
 Fokussierter finaler Diff-, Whitespace- und Payload-Review erhält generische
 Verträge. Alle 30 Contract-API-Tests, 23 Selection-/Canonical-Fokustests und
-Dokumentationsprüfungen sind grün. Keine Secrets oder sensiblen Rohdaten wurden
+Link-, Variablen- und Record-Strukturprüfungen waren bei Übergabe grün. Das
+anschließende Voll-Lint und die PR-CI wiesen lokale Entwicklerpfade in diesem
+EN/DE-Record-Paar ab; die Folgekorrektur ersetzt nur diese Pfade durch portable
+Beschreibungen und exakte Log-Basisnamen und erhält alle Exitcodes/Ergebnisse.
+Voll-Lint muss erneut laufen; die früheren engen Dokumentationsprüfungen
+deckten diesen Gate nicht ab. Keine Secrets oder sensiblen Rohdaten wurden
 dokumentiert. Der normale atomare Framework-Commit wird bei Übergabe angegeben.
