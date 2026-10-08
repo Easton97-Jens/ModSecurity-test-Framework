@@ -28,6 +28,8 @@ SEQUENCES = {
     "transport_keep_alive": (200, 200),
     "transport_sequential_requests": (200, 403, 200),
     "finish_failure_propagation": (200,),
+    "engine_timeout_before_commit": (504,),
+    "engine_timeout_after_commit": (200,),
 }
 KEEPALIVE_CASES = {
     "keep_alive_requests_if_supported", "keepalive_allow_allow", "keepalive_allow_deny_allow",
@@ -39,10 +41,36 @@ STRICT_CASES = {"phase4_strict_http1_client_abort", "phase4_strict_host_survives
                 "phase4_strict_followup_request_succeeds", "keepalive_after_strict_new_connection"}
 WRITE_CASES = {"response_short_write_resume", "response_write_would_block_resume"}
 LATE_CASES = STRICT_CASES | {"keepalive_safe_followup"} | WRITE_CASES
+TIMEOUT_CASES = {"engine_timeout_before_commit", "engine_timeout_after_commit"}
 
 
 def positive_integer(value):
     return type(value) is int and value > 0
+
+
+def native_budget_errors(value, phase):
+    """Actual scoped delegate/delay ledger; this alone is not a timeout event."""
+    rows = value.get("native_budget")
+    if type(phase) is not int or phase not in (1, 4) or not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
+        return ["exactly one bounded delegated native phase observation is required"]
+    row = rows[0]
+    access = value.get("native_access")
+    roles = value.get("roles")
+    if not isinstance(access, list) or len(access) != 1 or not isinstance(access[0], dict) or not isinstance(roles, dict):
+        return ["native budget observation requires matching process and request identities"]
+    operation = "msc_process_request_headers" if phase == 1 else "msc_process_response_body"
+    wanted = {"native_phase": phase, "native_operation": operation, "observed_return": 1,
+              "worker_pid": roles.get("worker_pid"), "transaction_id": access[0].get("transaction_id"),
+              "requested_delay_ns": 25000000}
+    errors = ["native delegated budget identity/outcome mismatch" for key, expected in wanted.items()
+              if type(row.get(key)) is not type(expected) or row.get(key) != expected]
+    measurements = (row.get("start_ns"), row.get("end_ns"), row.get("elapsed_ns"), value.get("budget_ms"))
+    if not all(positive_integer(item) and item <= 2**64 - 1 for item in measurements):
+        return errors + ["actual monotonic timing and positive configured budget are required"]
+    start, end, elapsed, budget_ms = measurements
+    if end - start != elapsed or not 25000000 <= elapsed <= 3000000000 or elapsed <= budget_ms * 1000000:
+        errors.append("actual delegated native elapsed time must exceed the configured soft budget")
+    return errors
 
 
 def observation_errors(value, case_id, run_id):
@@ -137,7 +165,112 @@ def observation_errors(value, case_id, run_id):
         errors.extend(write_observation_errors(value, case_id))
     if case_id == "finish_failure_propagation":
         errors.extend(finish_observation_errors(value))
+    if case_id in TIMEOUT_CASES:
+        errors.extend(timeout_observation_errors(value, case_id))
     return errors
+
+
+def timeout_observation_errors(value, case_id):
+    """Bind a real soft-budget overrun to the native classification and wire."""
+    after_commit = case_id == "engine_timeout_after_commit"
+    phase = 4 if after_commit else 1
+    errors = native_budget_errors(value, phase)
+    if errors:
+        return errors
+    request, native = value["requests"][0], value["native_access"][0]
+    if not isinstance(request, dict) or not isinstance(native, dict):
+        return ["timeout requires actual client and native request observations"]
+    events = value.get("native_events")
+    if not isinstance(events, list):
+        return ["actual native engine timeout event is required"]
+    matches = [event for event in events if isinstance(event, dict) and event.get("event") == "engine_timeout"]
+    timing = [event for event in events if isinstance(event, dict) and event.get("event") == "engine_call_budget_exceeded"]
+    if len(matches) != 1 or len(timing) != 1:
+        return ["exactly one native timeout and one native timing event are required"]
+    event, measurement = matches[0], timing[0]
+    errors.extend(timeout_event_identity_errors(request, native, after_commit, event, measurement))
+    errors.extend(timeout_timing_errors(value, measurement))
+    errors.extend(timeout_wire_errors(value, after_commit))
+    errors.extend(timeout_cleanup_errors(value, native))
+    return errors
+
+
+def timeout_event_identity_errors(request, native, after_commit, event, measurement):
+    errors = []
+    stage = "response_body" if after_commit else "request_headers"
+    wanted = {"connector": "nginx", "integration_mode": "native-nginx-http-module",
+              "transaction_id": native.get("transaction_id"), "uri": request.get("path"),
+              "phase": stage, "timeout_stage": stage, "rule_id": "",
+              "status": "error", "requested_action": "error",
+              "response_committed": after_commit, "eos_seen": after_commit,
+              "headers_sent": after_commit, "original_http_status": 200 if after_commit else 0,
+              "visible_http_status": 200 if after_commit else 0,
+              "actual_action": "abort_connection" if after_commit else "",
+              "transport_result": "connection_aborted" if after_commit else "not_observable",
+              "connection_aborted": after_commit,
+              "http_status": 504}
+    for record in (event, measurement):
+        for key, expected in wanted.items():
+            if type(record.get(key)) is not type(expected) or record.get(key) != expected:
+                errors.append("native timeout classification/identity mismatch: " + key)
+    if event.get("message_id") != "MSCONN_EVENT_ENGINE_TIMEOUT" or event.get("reason") != "engine_timeout":
+        errors.append("canonical technical timeout classification is required")
+    if measurement.get("message_id") != "MSCONN_ENGINE_CALL_BUDGET":
+        errors.append("native measured timing event classification is required")
+    return errors
+
+
+def timeout_timing_errors(value, measurement):
+    reason = measurement.get("reason")
+    match = re.fullmatch(r"budget_ms=([1-9][0-9]{0,15});elapsed_ns=([1-9][0-9]{0,19});native_return=1;common_completed=0", reason) if isinstance(reason, str) else None
+    if match is None:
+        return ["exact payload-free native timeout reason is required"]
+    budget_ms, elapsed_ns = map(int, match.groups())
+    delegated_elapsed = value["native_budget"][0]["elapsed_ns"]
+    if budget_ms != value["budget_ms"] or not delegated_elapsed <= elapsed_ns <= 3000000000 or elapsed_ns <= budget_ms * 1000000:
+        return ["native timeout must measure the real delegated overrun"]
+    return []
+
+
+def timeout_wire_errors(value, after_commit):
+    errors = []
+    request = value["requests"][0]
+    declared, received = request.get("declared_length"), request.get("bytes_received")
+    chunked = request.get("framing") == "chunked" and declared is None
+    if after_commit:
+        if request.get("transport_result") != "connection_aborted" or request.get("client_error") != "incomplete_read":
+            errors.append("committed timeout must abort actual client framing")
+        if not (positive_integer(received) and (chunked or type(declared) is int and received < declared <= 65536)):
+            errors.append("committed timeout requires received partial response framing")
+        barrier = value.get("upstream_barrier")
+        if not isinstance(barrier, dict) or any(barrier.get(key) is not expected for key, expected in {
+                "prefix_sent": True, "client_headers_seen": True, "marker_sent": True,
+                "barrier_timeout": False, "upstream_write_failed": False}.items()):
+            errors.append("committed timeout requires the real post-header upstream barrier")
+        post, roles = value.get("post_sequence_roles"), value.get("roles")
+        if not isinstance(post, dict) or any(post.get(key) != roles.get(key) for key in (
+                "master_pid", "worker_pid", "master_uid", "worker_uid")):
+            errors.append("same native worker and master must survive the timeout")
+    else:
+        if request.get("transport_result") != "completed" or request.get("client_error") is not None or not (
+                positive_integer(received) and (chunked or type(declared) is int and declared == received)):
+            errors.append("precommit timeout requires the actual complete HTTP504 response")
+    return errors
+
+
+def timeout_cleanup_errors(value, native):
+    cleanup = value.get("native_cleanup")
+    wanted_cleanup = {"native_operation": "msconnector_transaction_contract_cleanup", "observed_return": 0,
+                      "worker_pid": value["roles"].get("worker_pid"), "transaction_id": native.get("transaction_id"),
+                      "cleanup_complete": 1, "error_class_code": 4, "error_class_name": "engine_timeout",
+                      "timed_phase_completed": 0,
+                      "timeout_error_preserved": 1}
+    if not isinstance(cleanup, list) or len(cleanup) != 1 or not isinstance(cleanup[0], dict):
+        return ["exactly one delegated native timeout cleanup observation is required"]
+    if any(type(cleanup[0].get(key)) is not type(expected) or cleanup[0].get(key) != expected
+             for key, expected in wanted_cleanup.items()):
+        return ["native timeout cleanup outcome/classification/identity mismatch"]
+    return []
 
 
 def finish_observation_errors(value):

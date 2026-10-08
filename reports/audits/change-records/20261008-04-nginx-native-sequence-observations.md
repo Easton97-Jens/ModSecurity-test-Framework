@@ -49,13 +49,19 @@ This EN/DE pair records Framework-only validation behavior. Parent owns genuine 
 
 ## Checks not run
 
+The selected Framework Python environment contains no Ruff module; focused Ruff checks could not run and no package/environment change was made. The native `make check-documentation` passed. Common phase completion is additionally checked from the actual cleanup ledger's `timed_phase_completed=0`, derived from the contract's completed-phase mask rather than the reason text alone.
+
 Complete integrated Framework suite, final standard lifecycle and revision-bound remote CI/Sonar remain coordinator validation.
 
 ## Limitations and residual risk
 
-Native transport metadata still needs central producer/wiring integration. Finish-failure timing and engine-timeout semantics remain explicit decisions, not invented policies. Existing Required records remain visible and unchanged.
+Native transport metadata still needs central producer/wiring integration. Approved finish behavior preserves the already-visible response; the engine-timeout contract measures a default-disabled synchronous soft budget after API return. Fresh integrated host evidence remains required. Existing Required records remain visible and unchanged.
 
 ## Final diff and review status
+
+Approved timeout follow-up: `observation_errors` supports precommit504 and committed200 with actual aborted framing. `native_budget_errors` requires exactly one successful delegated phase-1/phase-4 API return, exact worker/transaction, bounded monotonic measurements and strict over-budget elapsed time. Native events must pair flat `engine_timeout` / `MSCONN_EVENT_ENGINE_TIMEOUT` / canonical reason `engine_timeout` with flat `engine_call_budget_exceeded` / `MSCONN_ENGINE_CALL_BUDGET` / exact payload-free `budget_ms=10;elapsed_ns=<actual>;native_return=1;common_completed=0`. Known Common event canonicalization remains intact. Both events require no Rule-ID, actual visibility and phase/stage identity. Phase4 EOS remains true because the actual terminal Engine API returned, while Common completion was rejected. The separate delegated-cleanup ledger must show return0, complete1 and actual timeout error class4/name `engine_timeout` preserved.
+
+RTK-wrapped Framework Python passed 26 focused sequence/transport/timeout tests, including missing/duplicate/foreign event, wrong Rule-ID, at-budget timing, failed native return, invalid clock, wrong cleanup identity/class and complete-wire/false-EOS negatives. Source and fixture tests do not prove native runtime coverage. Fresh module execution, disabled/under-budget/wrong-transaction native controls, canonical integration and current-head CI/Sonar remain coordinator-owned. Dedicated timeout tests are `tests/no_crs/test_nginx_engine_budget_sequence.py`.
 
 `transport_sequential_requests` now requires one native connection and counters 1/2/3, matching the catalog's existing one-connection contract. Reconnected-request and reset-counter regressions failed before correction and both pass afterward. The two dedicated transport tests are in `tests/no_crs/test_nginx_sequence_transport.py`; native event generation remains Parent-owned.
 

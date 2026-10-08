@@ -49,13 +49,19 @@ Dieses EN/DE-Paar beschreibt ausschließlich Framework-Prüfverhalten. Parent be
 
 ## Nicht ausgeführte Prüfungen
 
+Die ausgewählte Framework-Python-Umgebung enthält kein Ruff-Modul; fokussierte Ruff-Checks konnten nicht laufen, und Paket/Umgebung wurde nicht geändert. Der native `make check-documentation` bestand. Common-Phase-Completion wird zusätzlich aus `timed_phase_completed=0` im tatsächlichen Cleanup-Ledger geprüft, abgeleitet aus der Completed-Phase-Maske des Vertrags statt allein aus dem Grundtext.
+
 Vollständige integrierte Framework-Suite, finaler Standard-Lifecycle und revisionsgebundene Remote-CI/Sonar bleiben Koordinator-Prüfungen.
 
 ## Einschränkungen und Restrisiko
 
-Native Transportmetadaten brauchen weiterhin zentrale Producer-/Wiring-Integration. Finish-Failure-Timing und Engine-Timeout-Semantik bleiben explizite Entscheidungen, keine erfundene Politik. Bestehende Required-Records bleiben sichtbar und unverändert.
+Native Transportmetadaten brauchen weiterhin zentrale Producer-/Wiring-Integration. Freigegebenes Finish-Verhalten erhält die bereits sichtbare Antwort; der Engine-Timeout-Vertrag misst ein standardmäßig deaktiviertes synchrones Soft-Budget nach API-Rückkehr. Neue integrierte Host-Evidence bleibt erforderlich. Bestehende Required-Records bleiben sichtbar und unverändert.
 
 ## Finaler Diff- und Review-Status
+
+Freigegebene Timeout-Folgearbeit: `observation_errors` unterstützt precommit504 und committed200 mit tatsächlich abgebrochenem Framing. `native_budget_errors` verlangt genau einen erfolgreichen delegierten Phase-1/Phase-4-API-Rückgabewert, exakten Worker/Transaktion, begrenzte monotone Messungen und strikt überschrittene Budgetdauer. Native Ereignisse müssen das flache `engine_timeout` / `MSCONN_EVENT_ENGINE_TIMEOUT` / kanonischen Grund `engine_timeout` mit flachem `engine_call_budget_exceeded` / `MSCONN_ENGINE_CALL_BUDGET` / exaktem payload-freiem `budget_ms=10;elapsed_ns=<actual>;native_return=1;common_completed=0` paaren. Bekannte Common-Ereigniskanonsierung bleibt erhalten. Beide Ereignisse verlangen keine Rule-ID, tatsächliche Sichtbarkeit und Phase/Stage-Identität. Phase4-EOS bleibt wahr, weil die tatsächliche terminale Engine-API zurückkehrte, während Common-Completion abgelehnt wurde. Der separate delegierte Cleanup-Ledger muss return0, complete1 und die tatsächliche erhaltene Timeout-Fehlerklasse4/Name `engine_timeout` zeigen.
+
+RTK-umhülltes Framework-Python bestand 26 fokussierte Sequenz-/Transport-/Timeouttests, einschließlich fehlendem/doppeltem/fremdem Ereignis, falscher Rule-ID, Zeit am Budget, fehlgeschlagenem nativen Return, ungültiger Uhr, falscher Cleanup-Identität/Klasse sowie complete-wire/false-EOS-Negativkontrollen. Quellcode- und Fixture-Tests belegen keine native Laufzeit-Coverage. Neue Modulausführung, native disabled/under-budget/wrong-transaction-Kontrollen, kanonische Integration und aktuelle CI/Sonar bleiben beim Koordinator. Dedizierte Timeouttests sind `tests/no_crs/test_nginx_engine_budget_sequence.py`.
 
 `transport_sequential_requests` verlangt nun eine native Verbindung und Zähler 1/2/3 gemäß dem vorhandenen Ein-Verbindungs-Vertrag im Katalog. Regressionen für neue Verbindung und zurückgesetzten Zähler schlugen vor der Korrektur fehl und bestehen danach beide. Die zwei dedizierten Transporttests liegen in `tests/no_crs/test_nginx_sequence_transport.py`; native Ereigniserzeugung gehört weiterhin dem Parent.
 

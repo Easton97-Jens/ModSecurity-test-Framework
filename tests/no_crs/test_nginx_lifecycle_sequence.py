@@ -72,6 +72,26 @@ class SequenceContractTests(unittest.TestCase):
         value["case_id"] = "engine_timeout_before_commit"
         self.assertTrue(self.helper.observation_errors(value, value["case_id"], "run-1"))
 
+    def test_native_budget_ledger_requires_actual_monotonic_overrun(self):
+        value = self.observation()
+        value["requests"] = value["requests"][:1]
+        value["native_access"] = value["native_access"][:1]
+        value["budget_ms"] = 10
+        value["native_budget"] = [{"native_operation": "msc_process_request_headers", "native_phase": 1,
+                                  "observed_return": 1, "worker_pid": 11, "transaction_id": "a" * 32,
+                                  "start_ns": 1000000000, "end_ns": 1025000000,
+                                  "elapsed_ns": 25000000, "requested_delay_ns": 25000000}]
+        self.assertEqual(self.helper.native_budget_errors(value, 1), [])
+        for field, mismatch in (("elapsed_ns", 10000000), ("worker_pid", 12),
+                                ("transaction_id", "b" * 32), ("observed_return", -1),
+                                ("native_phase", 4), ("native_operation", "msc_process_response_body")):
+            original = value["native_budget"][0][field]
+            value["native_budget"][0][field] = mismatch
+            self.assertTrue(self.helper.native_budget_errors(value, 1))
+            value["native_budget"][0][field] = original
+        value["native_budget"] = []
+        self.assertTrue(self.helper.native_budget_errors(value, 1))
+
     def test_early_mapping_failure_requires_exact_native_reason(self):
         value = self.observation()
         value["case_id"] = "early_mapping_failure_cleanup"
