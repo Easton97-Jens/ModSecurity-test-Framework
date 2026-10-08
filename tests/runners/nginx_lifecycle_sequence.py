@@ -7,6 +7,12 @@ from __future__ import annotations
 
 import re
 import hashlib
+import importlib.util
+from pathlib import Path
+
+_wire_spec = importlib.util.spec_from_file_location("nginx_http11_wire", Path(__file__).with_name("nginx_http11_framing.py"))
+WIRE = importlib.util.module_from_spec(_wire_spec)
+_wire_spec.loader.exec_module(WIRE)
 
 
 SEQUENCES = {
@@ -30,6 +36,8 @@ SEQUENCES = {
     "finish_failure_propagation": (200,),
     "engine_timeout_before_commit": (504,),
     "engine_timeout_after_commit": (200,),
+    "transport_http11_content_length": (200,),
+    "transport_http11_chunked": (200,),
 }
 KEEPALIVE_CASES = {
     "keep_alive_requests_if_supported", "keepalive_allow_allow", "keepalive_allow_deny_allow",
@@ -42,6 +50,7 @@ STRICT_CASES = {"phase4_strict_http1_client_abort", "phase4_strict_host_survives
 WRITE_CASES = {"response_short_write_resume", "response_write_would_block_resume"}
 LATE_CASES = STRICT_CASES | {"keepalive_safe_followup"} | WRITE_CASES
 TIMEOUT_CASES = {"engine_timeout_before_commit", "engine_timeout_after_commit"}
+FRAMING_CASES = {"transport_http11_content_length", "transport_http11_chunked"}
 
 
 def positive_integer(value):
@@ -167,6 +176,96 @@ def observation_errors(value, case_id, run_id):
         errors.extend(finish_observation_errors(value))
     if case_id in TIMEOUT_CASES:
         errors.extend(timeout_observation_errors(value, case_id))
+    if case_id in FRAMING_CASES:
+        errors.extend(framing_observation_errors(value, case_id))
+    return errors
+
+
+def framing_wire_errors(value, case_id):
+    wire = value.get("wire")
+    if not isinstance(wire, dict) or wire.get("eof_seen") is not True:
+        return ["actual bounded downstream socket capture through EOF is required"]
+    path = value["requests"][0].get("path")
+    if not isinstance(path, str) or re.fullmatch(r"/no-crs/sequence/[A-Za-z0-9_/-]{1,128}", path) is None:
+        return ["actual safe ASCII request path is required for wire binding"]
+    expected_request = f"GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n".encode("ascii")
+    try:
+        request = WIRE.capture_bytes(wire.get("request_hex"), 8192)
+        response = WIRE.capture_bytes(wire.get("response_hex"), 32768)
+        parsed = WIRE.parse_http11_response(response)
+    except ValueError as exc:
+        return [str(exc)]
+    errors = []
+    expected_framing = "chunked" if case_id == "transport_http11_chunked" else "content_length"
+    if request != expected_request or parsed["body"] != WIRE.BODY or parsed["framing"] != expected_framing:
+        errors.append("actual downstream request/framing/decoded fixture body differs from contract")
+    for key, expected in parsed.items():
+        if key != "body" and (type(value["requests"][0].get(key)) is not type(expected)
+                              or value["requests"][0].get(key) != expected):
+            errors.append("client metadata must match independently parsed raw wire: " + key)
+    first = value["requests"][0]
+    if first.get("transport_result") != "completed" or first.get("client_error") is not None:
+        errors.append("actual complete downstream response is required")
+    if case_id == "transport_http11_chunked":
+        errors.extend(framing_upstream_errors(value, path))
+    return errors
+
+
+def framing_upstream_errors(value, path):
+    origin = value.get("upstream_wire")
+    if not isinstance(origin, dict) or type(origin.get("request_count")) is not int or origin["request_count"] != 1 or (
+            origin.get("write_complete") is not True or origin.get("upstream_write_failed") is not False):
+        return ["actual separate upstream request/write receipt is required"]
+    try:
+        request = WIRE.capture_bytes(origin.get("request_hex"), 8192)
+        response = WIRE.parse_http11_response(WIRE.capture_bytes(origin.get("response_hex"), 32768))
+    except ValueError as exc:
+        return [str(exc)]
+    if not request.startswith(f"GET {path} HTTP/1.1\r\n".encode("ascii")) or not request.endswith(b"\r\n\r\n"):
+        return ["actual upstream HTTP/1.1 request must bind the same URI"]
+    if response["body"] != WIRE.BODY or response["framing"] != "chunked":
+        return ["actual chunked upstream write must contain the exact fixture body"]
+    return []
+
+
+def framing_observation_errors(value, case_id):
+    request, native = value["requests"][0], value["native_access"][0]
+    if not isinstance(request, dict) or not isinstance(native, dict):
+        return ["framing requires actual request and native access records"]
+    errors = framing_wire_errors(value, case_id)
+    events = value.get("native_events")
+    if not isinstance(events, list):
+        return errors + ["actual native P4 and cleanup events are required"]
+    completion = [event for event in events if isinstance(event, dict) and event.get("event") == "phase4_completion"]
+    cleanup = [event for event in events if isinstance(event, dict) and event.get("event") == "transaction_cleanup"]
+    if len(completion) != 1 or len(cleanup) != 1:
+        return errors + ["exactly one native P4 completion and cleanup event are required"]
+    wanted = {"connector": "nginx", "integration_mode": "native-nginx-http-module", "rule_id": "",
+              "transaction_id": native.get("transaction_id"), "uri": request.get("path"),
+              "status": "ok", "actual_action": "allow"}
+    for record in (completion[0], cleanup[0]):
+        if any(type(record.get(key)) is not type(expected) or record.get(key) != expected for key, expected in wanted.items()):
+            errors.append("native framing lifecycle identity/outcome mismatch")
+    errors.extend(framing_completion_errors(completion[0]))
+    if cleanup[0].get("phase") != "logging" or cleanup[0].get("message_id") != "MSCONN_TRANSACTION_CLEANUP" or (
+            cleanup[0].get("reason") != "common_return=0;common_complete=1;native_cleanup_completed=1;error_class=none"
+            or cleanup[0].get("cleanup_reason") != "normal"):
+        errors.append("actual delegated successful Common/native cleanup is required")
+    if events.index(completion[0]) >= events.index(cleanup[0]):
+        errors.append("native cleanup must follow actual P4 completion")
+    return errors
+
+
+def framing_completion_errors(event):
+    wanted = {"event": "phase4_completion", "message_id": "MSCONN_PHASE4_COMPLETE", "phase": "response_body",
+              "eos_seen": True, "body_bytes_seen": len(WIRE.BODY), "body_bytes_inspected": len(WIRE.BODY),
+              "content_type": "text/plain"}
+    errors = ["actual native P4 completion facts mismatch" for key, expected in wanted.items()
+              if type(event.get(key)) is not type(expected) or event.get(key) != expected]
+    reason = event.get("reason")
+    match = re.fullmatch(r"engine_retained_bytes=22;append_calls=([1-9][0-9]?)", reason) if isinstance(reason, str) else None
+    if match is None or int(match.group(1)) > 32:
+        errors.append("actual native retained body and bounded append calls are required")
     return errors
 
 
