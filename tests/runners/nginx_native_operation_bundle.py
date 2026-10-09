@@ -419,7 +419,7 @@ def projection_and_config(receipt, raw, case_id, run_id, sources):
     require(parent.is_absolute() and root.is_absolute() and ".." not in parent.parts and ".." not in root.parts
             and root.parent == parent and root != Path("/"), "projection must be an exact direct child")
     token = hashlib.sha256((run_id + ":" + case_id).encode()).hexdigest()
-    expected = "sequence-" + token[:24] if case_id in SEQUENCE_CASES else "common-input-" + token[:32] if case_id in INPUT_CASES else run_id
+    expected = "sequence-" + token[:24] if case_id in SEQUENCE_CASES else "common-input-" + token[:32] if case_id in INPUT_CASES else "phase4-" + token[:24]
     require(root.name == expected, "projection does not bind the actual driver run/case")
     for source in (sources["parent_root"], sources["framework_root"]):
         require(root != source and source not in root.parents and root not in source.parents, "projection overlaps source authority")

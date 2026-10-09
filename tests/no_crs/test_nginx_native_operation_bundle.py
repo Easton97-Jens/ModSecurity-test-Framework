@@ -362,7 +362,7 @@ class NativeBundleRouterTests(unittest.TestCase):
     def decorate_phase4(self, receipt, raw, output):
         run_id, case = receipt["run_id"], receipt["case_id"]
         parent = self.root / "projections"
-        projection = parent / run_id
+        projection = parent / ("phase4-" + hashlib.sha256((run_id + ":" + case).encode()).hexdigest()[:24])
         header = (f'load_module "{output}/nginx-module.so";\nuser nobody nogroup;\nworker_processes 1;\ndaemon off;\n'
                   f'root "{projection}";\n').encode()
         if b"modsecurity on;" not in raw["nginx.conf"]:
