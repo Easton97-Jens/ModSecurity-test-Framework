@@ -38,6 +38,12 @@ for path in (CATALOG_ROOT, PROTOCOL_ROOT, RUNNER_ROOT, CI_ROOT / "lib"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
+# Native authority readers use package imports, including their own siblings.
+# Prefer this resolved checkout even when invoked as a file from another cwd.
+if str(FRAMEWORK_ROOT) in sys.path:
+    sys.path.remove(str(FRAMEWORK_ROOT))
+sys.path.insert(0, str(FRAMEWORK_ROOT))
+
 from msconnector_models import STATUS_MODEL, operation_status  # noqa: E402
 from synchronized_upstream import first_byte_evidence_errors  # noqa: E402
 from nginx_migration_config_contracts import nginx_migration_config_contracts  # noqa: E402
