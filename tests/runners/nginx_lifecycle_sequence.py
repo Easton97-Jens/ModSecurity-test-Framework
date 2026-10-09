@@ -305,17 +305,27 @@ def timeout_event_identity_errors(request, native, after_commit, event, measurem
     stage = "response_body" if after_commit else "request_headers"
     wanted = {"connector": "nginx", "integration_mode": "native-nginx-http-module",
               "transaction_id": native.get("transaction_id"), "uri": request.get("path"),
-              "phase": stage, "timeout_stage": stage, "rule_id": "",
+              "phase": stage, "rule_id": "",
               "status": "error", "requested_action": "error",
-              "response_committed": after_commit, "eos_seen": after_commit,
-              "headers_sent": after_commit, "original_http_status": 200 if after_commit else 0,
-              "visible_http_status": 200 if after_commit else 0,
-              "actual_action": "abort_connection" if after_commit else "",
-              "transport_result": "connection_aborted" if after_commit else "not_observable",
-              "connection_aborted": after_commit,
-              "http_status": 504}
+              "eos_seen": after_commit, "http_status": 504}
     for record in (event, measurement):
         for key, expected in wanted.items():
+            if type(record.get(key)) is not type(expected) or record.get(key) != expected:
+                errors.append("native timeout classification/identity mismatch: " + key)
+    terminal = {"timeout_stage": stage, "response_committed": after_commit,
+                "headers_sent": after_commit, "original_http_status": 200 if after_commit else 0,
+                "visible_http_status": 200 if after_commit else 0,
+                "actual_action": "abort_connection" if after_commit else "",
+                "transport_result": "connection_aborted" if after_commit else "not_observable",
+                "connection_aborted": after_commit}
+    # The measured Engine return precedes the caller's terminal host action.
+    # Its initialized transport fields are telemetry defaults, not wire facts.
+    timing = {"response_committed": False, "headers_sent": False,
+              "original_http_status": 0, "visible_http_status": 0,
+              "actual_action": "", "transport_result": "not_observable",
+              "connection_aborted": False}
+    for record, fields in ((event, terminal), (measurement, timing)):
+        for key, expected in fields.items():
             if type(record.get(key)) is not type(expected) or record.get(key) != expected:
                 errors.append("native timeout classification/identity mismatch: " + key)
     if event.get("message_id") != "MSCONN_EVENT_ENGINE_TIMEOUT" or event.get("reason") != "engine_timeout":
