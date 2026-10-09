@@ -50,7 +50,7 @@ def native_event_errors(events, transaction):
     event = events[0]
     required = {"event": "protocol_error", "message_id": "MSCONN_EVENT_PROTOCOL_ERROR", "connector": "nginx",
                 "integration_mode": "native-nginx-http-module", "transaction_id": transaction,
-                "status": "error", "reason": "protocol_error", "rule_id": ""}
+                "status": "error", "reason": "protocol_error", "rule_id": "", "method": "", "uri": ""}
     if (not exact_fields(event, required) or type(event.get("phase")) not in (int, str)
             or event.get("phase") not in (1, "1", "request_headers")):
         return ["native error classification must bind the actual transaction without a rule"]

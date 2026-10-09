@@ -131,11 +131,10 @@ class NativeBundleRouterTests(unittest.TestCase):
             destination.chmod(0o600)
             source_hashes[name] = bundle.digest(content)
         self.observed = input_tests.CommonInputFaultContractTest.observation(self, self.case)
-        self.observed["native_events"][0]["uri"] = self.observed["native_access"]["uri"]
         self.cleanup_event = {"event": "transaction_cleanup", "message_id": "MSCONN_TRANSACTION_CLEANUP",
                               "connector": "nginx", "integration_mode": bundle.MODE, "phase": "logging", "rule_id": "",
                               "status": "ok", "action": "allow", "actual_action": "allow", "transaction_id": "a" * 32,
-                              "uri": self.observed["native_access"]["uri"],
+                              "method": "POST", "uri": self.observed["native_access"]["uri"],
                               "reason": "common_return=0;common_complete=1;native_cleanup_completed=1;error_class=protocol_error",
                               "cleanup_reason": "protocol_error"}
         projection_parent = self.root / "projections"

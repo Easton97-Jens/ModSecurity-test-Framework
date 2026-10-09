@@ -31,7 +31,8 @@ class CommonInputFaultContractTest(unittest.TestCase):
                    ("missing body data" if case.startswith("body_") else "missing headers"),
                 "native_events": [{"event": "protocol_error", "message_id": "MSCONN_EVENT_PROTOCOL_ERROR",
                     "connector": "nginx", "integration_mode": "native-nginx-http-module", "phase": "request_headers",
-                    "transaction_id": transaction, "status": "error", "reason": "protocol_error", "rule_id": ""}]}
+                    "transaction_id": transaction, "status": "error", "reason": "protocol_error", "rule_id": "",
+                    "method": "", "uri": ""}]}
 
     def test_two_required_native_mapper_operations_retain_actual_host_contract(self):
         for case in self.contract.CONTRACTS:
@@ -93,7 +94,8 @@ class CommonInputFaultContractTest(unittest.TestCase):
             for field, value in (("transaction_id", "b" * 32), ("message_id", "OTHER"),
                                  ("connector", "apache"), ("reason", "engine_error"),
                                  ("status", "ok"), ("phase", 2),
-                                 ("integration_mode", "external")):
+                                 ("integration_mode", "external"), ("method", "POST"),
+                                 ("uri", "/no-crs/input-fault/foreign")):
                 row = self.observation(case)
                 row["native_events"][0][field] = value
                 with self.subTest(case=case, field=field):
@@ -101,6 +103,10 @@ class CommonInputFaultContractTest(unittest.TestCase):
             row = self.observation(case)
             row["native_events"] *= 2
             self.assertTrue(self.contract.observation_errors(row, case, "unit"))
+            for field in ("method", "uri"):
+                row = self.observation(case)
+                del row["native_events"][0][field]
+                self.assertTrue(self.contract.observation_errors(row, case, "unit"))
             row = self.observation(case)
             row["native_diagnostic"] += " unrelated"
             self.assertTrue(self.contract.observation_errors(row, case, "unit"))

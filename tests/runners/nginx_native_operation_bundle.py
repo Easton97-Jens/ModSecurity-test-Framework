@@ -567,8 +567,8 @@ def validate_input(helper, receipt, raw, case_id, run_id):
     require(protocol == observed["native_events"], "actual native protocol event projection mismatch")
     require(len(events) == 2 and events[0] == protocol[0] and events[1].get("event") == "transaction_cleanup",
             "terminal P1 mapper failure permits only its protocol error then cleanup source event")
-    exact(events[0], {"transaction_id": observed["transaction_id"], "uri": observed["native_access"]["uri"]},
-          "actual terminal mapper source identity")
+    exact(events[0], {"transaction_id": observed["transaction_id"], "method": "", "uri": ""},
+          "actual pre-mapping terminal source identity")
     require(re.findall(rb'\bmodsecurity_transaction_id\s+"([^"\r\n]+)"\s*;', raw["nginx.conf"]) == [observed["transaction_id"].encode()], "actual configured mapper transaction differs from native ledger")
     require(observed["native_diagnostic"].encode() in raw["nginx-error.log"] and raw["client.stdout"] == b"400"
             and raw["client.stderr"] == b"", "actual diagnostic/client bytes mismatch")
