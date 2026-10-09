@@ -72,6 +72,34 @@ class MimeOperationTests(unittest.TestCase):
                 receipt, raw = unit_operation(case)
                 self.assertEqual(mime.validate_mime_operation(case, receipt, raw), [])
 
+    def test_repeatable_set_cookie_preserves_strict_mime_and_framing_fields(self):
+        case = "phase4_in_scope_content_type"
+        receipt, raw = unit_operation(case)
+        raw["response.headers"] = raw["response.headers"].replace(
+            b"\r\n\r\n",
+            b"\r\nSet-Cookie: session=token\r\nSet-Cookie: a=b\r\n\r\n",
+        )
+        refresh(receipt, raw)
+        self.assertEqual(mime.validate_mime_operation(case, receipt, raw), [])
+
+        duplicate_singletons = (
+            b"Content-Length: 27\r\ncontent-length: 27",
+            b"Transfer-Encoding: chunked\r\ntransfer-encoding: chunked",
+            b"Content-Length: 27\r\nContent-Type: text/plain\r\ncontent-type: text/plain",
+        )
+        for headers in duplicate_singletons:
+            wire = b"HTTP/1.1 200 OK\r\n" + headers + b"\r\n\r\n"
+            with self.subTest(headers=headers), self.assertRaisesRegex(
+                ValueError, "invalid or duplicate wire header"
+            ):
+                mime.wire_fields(wire)
+
+        with self.assertRaisesRegex(ValueError, "ambiguous wire framing"):
+            mime.wire_fields(
+                b"HTTP/1.1 200 OK\r\nContent-Length: 27\r\n"
+                b"Transfer-Encoding: chunked\r\n\r\n"
+            )
+
     def test_http200_and_no_rule_alone_cannot_prove_native_exclusion(self):
         for case in mime.CONTENT_TYPES:
             for kind in ("phase4_completion", "phase4_append"):

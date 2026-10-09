@@ -54,6 +54,16 @@ class EventBoundaryTests(unittest.TestCase):
         self.assertEqual(len(projection[0]), 255)
         self.assertEqual(projection[1:], (True, True))
 
+    def test_repeatable_set_cookie_does_not_hide_event_wire_contract(self):
+        case, variant = "event_metadata_truncation", "long-query"
+        receipt, raw = child(case, variant)
+        raw["response.headers"] = raw["response.headers"].replace(
+            b"\r\n\r\n",
+            b"\r\nSet-Cookie: session=token\r\nSet-Cookie: a=b\r\n\r\n",
+        )
+        refresh(receipt, raw)
+        self.assertEqual(events.validate_event_boundary_child(case, variant, receipt, raw), [])
+
     def test_escaped_prefix_preserves_query_suffix_and_size(self):
         uri, truncated, redacted = events.projected_uri('/'+ '"'*256 + '?probe=non-sensitive')
         self.assertTrue(uri.endswith("?<redacted>"))

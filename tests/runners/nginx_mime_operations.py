@@ -21,6 +21,7 @@ RAW_LEAVES = frozenset({"phase4-events.jsonl", "response.bin", "response.headers
 MAX_RAW_BYTES = 1024 * 1024
 APPEND_REASON = re.compile(r"native_return=([01]);append_size=([1-9][0-9]*);append_index=([1-9][0-9]*);engine_retained_bytes=(0|[1-9][0-9]*)")
 COMPLETE_REASON = re.compile(r"engine_retained_bytes=(0|[1-9][0-9]*);append_calls=([1-9][0-9]*)")
+REPEATABLE_WIRE_FIELDS = frozenset({b"set-cookie"})
 
 
 def operation(case_id):
@@ -76,9 +77,11 @@ def wire_fields(raw):
     fields = {}
     for line in lines[1:]:
         key, separator, value = line.partition(b":")
+        name = key.lower()
         require(separator and re.fullmatch(rb"[!#$%&'*+.^_`|~0-9A-Za-z-]+", key)
-                and key.lower() not in fields, "invalid or duplicate wire header")
-        fields[key.lower()] = value.strip(b" \t")
+                and (name not in fields or name in REPEATABLE_WIRE_FIELDS),
+                "invalid or duplicate wire header")
+        fields[name] = value.strip(b" \t")
     length, encoding = fields.get(b"content-length"), fields.get(b"transfer-encoding")
     require(not (length is not None and encoding is not None), "ambiguous wire framing")
     require(length == str(len(BODY)).encode() if length is not None else encoding == b"chunked",
