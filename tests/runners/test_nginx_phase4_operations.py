@@ -70,7 +70,8 @@ def rejection_fixture(committed=True):
     event = {**append, "event": "body_limit", "message_id": "MSCONN_EVENT_BODY_LIMIT",
              "reason": "response_body_limit_exceeded", "body_limit_outcome": "reject", "http_status": 403,
              "visible_http_status": 200 if committed else 0, "rule_id": "",
-             "status": "blocked", "action": "deny", "requested_action": "deny",
+             "status": "blocked", "action": "abort_connection" if committed else "deny",
+             "requested_action": "deny",
              "actual_action": "abort_connection" if committed else "deny",
              "transport_result": "connection_aborted" if committed else "not_observable",
              "response_committed": committed, "headers_sent": committed,
@@ -150,6 +151,28 @@ class Phase4OperationsTest(unittest.TestCase):
         for committed in (False, True):
             with self.subTest(committed=committed):
                 self.assertEqual(self.validate("phase4_body_reject", *rejection_fixture(committed)), [])
+
+    def test_reject_action_projection_requires_actual_host_action(self):
+        for committed in (False, True):
+            for field, value in (("action", "deny" if committed else "abort_connection"),
+                                 ("requested_action", "abort_connection"),
+                                 ("actual_action", "deny" if committed else "abort_connection"),
+                                 ("transport_result", "not_observable" if committed else "connection_aborted")):
+                with self.subTest(committed=committed, field=field):
+                    receipt, raw = rejection_fixture(committed)
+                    receipt["native_events"][-1][field] = value
+                    rebind(receipt, raw)
+                    self.assertTrue(self.validate("phase4_body_reject", receipt, raw))
+
+    def test_committed_reject_requires_visible_headers_and_incomplete_framing(self):
+        receipt, raw = rejection_fixture()
+        receipt["client_exit_code"] = 52
+        receipt["observed_http_status"] = 0
+        raw["response.headers"] = b""
+        raw["client.stdout"] = b"000"
+        raw["client.stderr"] = b"curl: (52) Empty reply from server\n"
+        rebind(receipt, raw)
+        self.assertTrue(self.validate("phase4_body_reject", receipt, raw))
 
     def test_reject_never_accepts_old_late_full_body_invalid_engine(self):
         receipt, raw = rejection_fixture()
