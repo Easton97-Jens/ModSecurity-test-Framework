@@ -146,6 +146,10 @@ class NativeCanonicalBindingTests(unittest.TestCase):
         for case_id in sorted(bundle.PHASE4_CASES | bundle.MIME_CASES):
             receipt, raw = (mime_tests.unit_operation(case_id) if case_id in bundle.MIME_CASES else
                             phase4_tests.rejection_fixture() if case_id == "phase4_body_reject" else phase4_tests.fixture(case_id))
+            if case_id in {"phase4_out_of_scope_content_type", "phase4_missing_content_type"}:
+                # Model the existing native nonintervention completion shape.
+                receipt["native_events"][-1].update(requested_action="allow", actual_action="allow",
+                                                    transport_result="completed", late_intervention=False)
             if case_id == "phase4_deny_after_commit_log_only_minimal":
                 # Controlled Source-shaped fields; not captured runtime and
                 # never a mutation of a retained production receipt.
@@ -170,6 +174,24 @@ class NativeCanonicalBindingTests(unittest.TestCase):
                     self.assertEqual(record["expected_result"], "late_intervention_log_only_safe")
                 schema = contract.load_no_crs_schemas()[contract.CASE_RESULTS_FILE_NAME]
                 self.assertEqual(contract.json_schema_errors(record, schema), [])
+                # Exercise the real aggregate projector as well as the
+                # individual case schema; fixtures are not runtime evidence.
+                result_schema = contract.load_no_crs_schemas()[contract.RESULT_FILE_NAME]
+                facts, _ = contract.status_record_facts([record])
+                aggregate = {"phase4_case_results": facts["phase4_case_results"]}
+                projection_schema = {"properties": {"phase4_case_results":
+                    result_schema["properties"]["phase4_case_results"]},
+                    "$defs": result_schema["$defs"]}
+                self.assertEqual(contract.json_schema_errors(aggregate, projection_schema), [])
+                if case_id in {"phase4_out_of_scope_content_type", "phase4_missing_content_type"}:
+                    for field, value in (("actual_action", "deny"), ("case_id", "phase4_body_at_limit"),
+                                         ("expected_result", "connection_aborted_strict"),
+                                         ("expected_rule_id", 1100301), ("observed_rule_ids", [1100301]),
+                                         ("late_intervention", True), ("connection_aborted", True),
+                                         ("transport_result", "connection_aborted")):
+                        invalid = deepcopy(aggregate)
+                        invalid["phase4_case_results"][0][field] = value
+                        self.assertTrue(contract.json_schema_errors(invalid, projection_schema), field)
                 self.assertEqual(contract.native_operation_record_errors(record, self.authority, self.cases[case_id]), [])
                 changed = deepcopy(record)
                 changed["actual_action"] = "allow" if chosen.get("actual_action") != "allow" else "deny"
