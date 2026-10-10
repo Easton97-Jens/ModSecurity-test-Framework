@@ -37,7 +37,7 @@ ci/checks/catalog/no_crs_baseline.py, tests/no_crs/test_nginx_native_h1_projecti
 
 ## Befehle und Ergebnisse
 
-RTK + Framework Python3.14.7: unittest C/D14 Tests Exit0; unittest discover -s tests/no_crs -p test*.py:413 Tests Exit0. D RED zwei Subtests/vier Enumfehler; GREEN acht Negativkontrollen je MIME. C Offline-Pipeline: Eventlöschung und sechs Canonical-Manipulationen abgelehnt. Gesamt-Producer-Replay schema-valid, Gesamtstatus weiterhin FAIL.
+RTK + Framework Python3.14.7: Arbeits-Overlay auf Basis4c6c21e8: unittest C/D14 Tests Exit0; unittest discover -s tests/no_crs -p test*.py:413 Tests Exit0. Committete Revision0c7f224731cda059decee026c7bd32e58bf9aa21: natives make test-no-crs-contract,413 Tests, keine SKIPs, Exit0. D RED zwei Subtests/vier Enumfehler; GREEN acht Negativkontrollen je MIME. C Offline-Pipeline: Eventlöschung und sechs Canonical-Manipulationen abgelehnt. Gesamt-Producer-Replay schema-valid, Gesamtstatus weiterhin FAIL.
 
 ## Sicherheitsauswirkung
 
@@ -45,11 +45,11 @@ Keine H2/H3-Umetikettierung, Required-Verkleinerung oder Herkunftsumgehung.
 
 ## Dokumentation und Runtime-Evidenz
 
-HISTORICAL INPUT / CURRENT VALIDATOR REPLAY / NOT A NEW RUNTIME RUN. Originale unverändert; lokale externe Logs c-historical-replay.log, d-historical-replay.log und no-crs-suite.log.
+HISTORICAL INPUT / CURRENT VALIDATOR REPLAY / NOT A NEW RUNTIME RUN. Originale unverändert; erfolgreiche lokale externe Logs framework-cd/c-historical-replay-v3.log und framework-cd/d-historical-replay.log; Log der committeten Suite framework-quality/no-crs-suite.log, im externen Task nginx-full97-followup-20261010T084822Z. Frühere fehlgeschlagene Replay-Versuche bleiben separat erhalten. Diese lokalen Dateien sind keine veröffentlichten Downloads.
 
 ## Nicht ausgeführte Prüfungen
 
-Echte begrenzte H1-/MIME-Fokusprobe, integrierte saubere SHAs, vollständiger Lint und frische CI/Sonar separat. Full97/Protected nicht freigegeben.
+Echte begrenzte H1-/MIME-Fokusprobe, integrierte saubere SHAs und frische CI/Sonar separat. Vollständiger nativer Lint auf0c7f2247 endete Exit2, weil der Aufruf einen externen Report-Lese-OUTPUT_ROOT übergab; zuvor604 Testausführungen erfolgreich. Der bestehende lesende Report-Pfadvertrag bleibt unverändert; korrigierter nativer Lint weiterhin erforderlich. Full97/Protected nicht freigegeben.
 
 ## Einschränkungen und Restrisiko
 

@@ -37,7 +37,7 @@ ci/checks/catalog/no_crs_baseline.py, tests/no_crs/test_nginx_native_h1_projecti
 
 ## Commands and results
 
-RTK + Framework Python3.14.7: unittest C/D14 tests exit0; unittest discover -s tests/no_crs -p test*.py:413 tests exit0. D RED two subtests/four enum errors; GREEN eight negative controls per MIME case. C offline pipeline rejects event deletion and six canonical tamper controls. Full producer replay schema-valid, overall status still FAIL.
+RTK + Framework Python3.14.7: working overlay on base4c6c21e8: unittest C/D14 tests exit0; unittest discover -s tests/no_crs -p test*.py:413 tests exit0. Committed revision0c7f224731cda059decee026c7bd32e58bf9aa21: native make test-no-crs-contract,413 tests, no SKIPs, exit0. D RED two subtests/four enum errors; GREEN eight negative controls per MIME case. C offline pipeline rejects event deletion and six canonical tamper controls. Full producer replay schema-valid, overall status still FAIL.
 
 ## Security impact
 
@@ -45,11 +45,11 @@ No H2/H3 relabelling, Required reduction or provenance bypass.
 
 ## Documentation and runtime evidence
 
-HISTORICAL INPUT / CURRENT VALIDATOR REPLAY / NOT A NEW RUNTIME RUN. Originals unchanged; external local logs c-historical-replay.log, d-historical-replay.log and no-crs-suite.log.
+HISTORICAL INPUT / CURRENT VALIDATOR REPLAY / NOT A NEW RUNTIME RUN. Originals unchanged; successful external local logs framework-cd/c-historical-replay-v3.log and framework-cd/d-historical-replay.log; committed-suite log framework-quality/no-crs-suite.log, in external task nginx-full97-followup-20261010T084822Z. Earlier failed replay attempts remain retained separately. These local files are not published downloads.
 
 ## Checks not run
 
-Real bounded H1/MIME focus, integrated clean SHAs, full lint and fresh CI/Sonar separately. Full97/Protected not authorized.
+Real bounded H1/MIME focus, integrated clean SHAs and fresh CI/Sonar separately. Full native lint on0c7f2247 ended exit2 because the invocation supplied an external report-reading OUTPUT_ROOT; preceding604 test executions succeeded. The existing read-only report-path contract remains unchanged; a corrected native lint is still required. Full97/Protected not authorized.
 
 ## Limitations and residual risk
 
