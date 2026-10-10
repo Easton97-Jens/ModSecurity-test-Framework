@@ -5118,7 +5118,50 @@ def native_operation_projection(
             or raw["parent_framework_gitlink"] != sources.get("framework_sha")):
         raise ValueError("native operation Parent Gitlink differs from exact Framework authority")
     proof = validate_native_operation_bundle(dict(raw), artifact_root, dict(sources))
-    return derive_native_operation_contract(dict(case), proof)
+    facts = derive_native_operation_contract(dict(case), proof)
+    fields, event = native_h1_protocol_projection(raw, case, proof, facts["semantic_native_event"])
+    facts["native_protocol_fields"], facts["native_protocol_event"] = fields, event
+    return facts
+
+
+def native_h1_protocol_projection(
+    raw: Mapping[str, Any], case: Mapping[str, Any], proof: Mapping[str, Any],
+    semantic_event: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Project only reopened, reader-verified H1 observations, never a default.
+
+    The caller must first validate the source-bound bundle and derive its
+    closed native contract. Original event bytes/origins remain unchanged.
+    """
+    if case_protocol_profile(case) != "http1":
+        return {}, None
+    observed = proof.get("observation") or {}
+    if (observed.get("run_id") != raw.get("run_id")
+            or observed.get("case_id") != case.get("case_id") or semantic_event is None):
+        raise ValueError("native H1 observation has no matching run/case/event")
+    event = dict(semantic_event)
+    if (event.get("run_id") not in (None, "", raw.get("run_id"))
+            or event.get("integration_mode") != raw.get("integration_mode")
+            or event.get("transport_case_id") not in (None, "", case.get("case_id"))):
+        raise ValueError("native H1 semantic event context mismatch")
+    if (normalize_canonical_phase(event.get("phase")) != normalize_canonical_phase(case.get("phase"))
+            or optional_int(event.get("rule_id")) != optional_int(case.get("expected_rule_id"))):
+        raise ValueError("native H1 semantic event phase/rule mismatch")
+    requests = [row for row in observed.get("requests", []) if row.get("path") == event.get("uri")]
+    accesses = [row for row in observed.get("native_access", [])
+                if row.get("uri") == event.get("uri") and row.get("transaction_id") == event.get("transaction_id")]
+    if (len(requests) != 1 or len(accesses) != 1
+            or type(requests[0].get("http_version")) is not int or requests[0]["http_version"] != 11
+            or not event.get("transaction_id") or not accesses[0].get("connection")):
+        raise ValueError("native H1 response lacks its exact request/access/transaction binding")
+    fields = {"requested_protocol": "http1", "downstream_protocol": "http1", "negotiated_protocol": "http1",
+              "transport_case_id": str(case["case_id"]), "connection_id": str(accesses[0]["connection"])}
+    event.update(fields, run_id=str(raw["run_id"]), integration_mode=str(raw["integration_mode"]))
+    event["phase"] = normalize_canonical_phase(event["phase"])
+    errors = canonical_event_errors(event, connector="nginx", integration_mode=str(raw["integration_mode"]))
+    if errors:
+        raise ValueError("native H1 projected event invalid: " + "; ".join(errors))
+    return fields, event
 
 
 def native_effective_case(case: Mapping[str, Any], facts: Mapping[str, Any]) -> dict[str, Any]:
@@ -5191,6 +5234,7 @@ def native_operation_record_base(
     record.update({name: deepcopy(raw[name]) for name in NATIVE_SOURCE_IDENTITY_FIELDS if name in raw})
     record["driver_exit_code"] = actual_exit
     if facts is not None:
+        record.update(facts["native_protocol_fields"])
         record["native_evidence_mapping"] = native_evidence_mapping(facts)
         record["native_mapping_sha256"] = hashlib.sha256(json.dumps(
             {"original_facts": facts["mappingEvidenceFacts"], "mapping": record["native_evidence_mapping"]},
@@ -6751,6 +6795,8 @@ def matching_protocol_event(
     if case is None:
         return None
     transaction_ids = [str(value) for value in record.get("transaction_ids", [])]
+    if record.get("native_operation_receipt") is not None and case_protocol_profile(case) == "http1":
+        events = [event for event in events if event.get("transport_case_id") == case.get("case_id")]
     return event_for_case(
         events,
         optional_int(record.get("expected_rule_id")),
@@ -7219,6 +7265,7 @@ def normalize_finalize_records(
     first_byte_evidence: Mapping[str, Any] | None,
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     records = normalized_finalize_case_records(context, raw_records, events)
+    append_verified_native_protocol_events(context, records, events)
     for payload in source_payloads:
         records.extend(derive_core_records(
             payload,
@@ -7243,6 +7290,29 @@ def normalize_finalize_records(
     )
     prevent_synthetic_first_byte_promotion(records, first_byte_evidence)
     return records, deduplicated_case_records(records)
+
+
+def append_verified_native_protocol_events(
+    context: FinalizeContext, records: Sequence[Mapping[str, Any]], events: list[dict[str, Any]],
+) -> None:
+    """Reopen retained bytes before adding a case-scoped canonical H1 event."""
+    authority = context.native_operation_authority
+    original_count = len(events)
+    for record in records:
+        case = context.case_by_id.get(str(record.get("case_id")), {})
+        if record.get("status") != "PASS" or "native_operation_receipt" not in record or case_protocol_profile(case) != "http1":
+            continue
+        retained_authority = {"artifact_root": context.run_dir, "sources": authority["sources"], "run_id": authority["run_id"]}
+        event = native_operation_projection(record, case, retained_authority)["native_protocol_event"]
+        if event is not None:
+            events.append(event)
+    if len(events) == original_count:
+        return
+    destination = context.run_dir / EVENTS_FILE_NAME
+    write_jsonl(destination, events)
+    context.manifest["artifacts"]["events"] = artifact_entry(
+        EVENTS_FILE_NAME, "produced", sha256=sha256_file(destination),
+    )
 
 
 def normalized_finalize_case_records(
@@ -8677,7 +8747,11 @@ def pass_case_completeness_errors(
     if record.get("native_operation_receipt") is not None:
         if native_invocation_for_case(case, connector) is None:
             return [f"{case_id}: native receipt has no declared case/host contract"]
-        return [f"{case_id}: {error}" for error in native_operation_record_errors(record, native_operation_authority, case)]
+        errors = native_operation_record_errors(record, native_operation_authority, case)
+        if case_protocol_profile(case) == "http1":
+            event = matching_protocol_event(record, case, events, integration_mode)
+            errors.extend(case_protocol_pass_errors(record, event, case, str(record.get("run_id") or ""), str(integration_mode or "")))
+        return [f"{case_id}: {error}" for error in errors]
     if require_native_operation_contract and native_invocation_for_case(case, connector) is not None:
         return [f"{case_id}: selected native contract requires genuine retained operation evidence"]
     if config_invocation_for_case(case, connector) is not None:
