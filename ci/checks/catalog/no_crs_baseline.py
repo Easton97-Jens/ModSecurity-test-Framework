@@ -2840,6 +2840,19 @@ def first_byte_has_prior_eos(
     )
 
 
+def first_byte_has_legacy_candidate(
+    events: Sequence[Mapping[str, Any]], case: Mapping[str, Any],
+    transactions: Sequence[str], integration_mode: str | None,
+) -> bool:
+    legacy = event_for_case(events, optional_int(case.get("expected_rule_id")),
+                            case, transactions, integration_mode)
+    return (
+        legacy is not None
+        and event_transaction_ids(legacy) == list(transactions)
+        and "client_first_byte_received" in event_field_names(legacy)
+    )
+
+
 def first_byte_case_event_pair(
     raw: Mapping[str, Any], case: Mapping[str, Any], events: Sequence[Mapping[str, Any]],
     connector: str, integration_mode: str | None,
@@ -2863,11 +2876,8 @@ def first_byte_case_event_pair(
         return None, None, ["paired first-byte proof requires one supplied invocation transaction"]
     transaction = transactions[0]
     barriers = [(index, event) for index, event in barriers if event_transaction_ids(event) == [transaction]]
-    if not barriers:
-        legacy = event_for_case(events, optional_int(case.get("expected_rule_id")),
-                                case, transactions, integration_mode)
-        if legacy is not None and event_transaction_ids(legacy) == [transaction] and "client_first_byte_received" in event_field_names(legacy):
-            return None, None, []
+    if not barriers and first_byte_has_legacy_candidate(events, case, transactions, integration_mode):
+        return None, None, []
     if len(barriers) != 1:
         return None, None, ["paired first-byte proof requires one unambiguous matching barrier transaction"]
     barrier_index, barrier = barriers[0]
@@ -4790,7 +4800,6 @@ def normalized_case_pass_errors(
     record: Mapping[str, Any],
     case: Mapping[str, Any],
     matching_event: Mapping[str, Any] | None,
-    provenance_errors: Sequence[str],
     runtime_evidence_errors: Sequence[str],
     expected_status: int | None,
     actual_status: int | None,
@@ -4803,7 +4812,7 @@ def normalized_case_pass_errors(
     *, events: Sequence[Mapping[str, Any]] = (),
 ) -> list[str]:
     required_protocol, protocol_errors = case_required_protocol_errors(case)
-    errors = [*provenance_errors, *protocol_errors]
+    errors = list(protocol_errors)
     if is_phase4_semantic_case(case):
         errors.extend(phase4_pass_errors(
             record,
@@ -5282,11 +5291,11 @@ def normalize_case_record(
     if "configtest_receipt" in raw:
         record["configtest_receipt"] = raw["configtest_receipt"]
     if status == "PASS":
-        validation_errors = normalized_case_pass_errors(
+        validation_errors = list(provenance_errors)
+        validation_errors.extend(normalized_case_pass_errors(
             record,
             case,
             matching_event,
-            provenance_errors,
             runtime_evidence_errors,
             expected_status,
             actual_status,
@@ -5297,7 +5306,7 @@ def normalize_case_record(
             event_errors,
             integration_mode,
             events=events,
-        )
+        ))
         validation_errors.extend(configtest_receipt_errors(record, case, connector, integration_mode))
         if configuration is not None:
             validation_errors.extend(configtest_artifact_errors(record, configtest_artifact_root))

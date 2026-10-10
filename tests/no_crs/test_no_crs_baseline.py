@@ -3010,6 +3010,14 @@ class SeparatedNginxFirstByteTest(unittest.TestCase):
     IDS = ("phase4_first_byte_before_response_end", "phase4_no_full_response_buffering")
     MODE = "native-nginx-http-module"
 
+    def test_pair_resolver_delegates_legacy_candidate(self) -> None:
+        source = inspect.getsource(no_crs.first_byte_case_event_pair)
+        self.assertIn("first_byte_has_legacy_candidate(", source)
+        self.assertNotIn("event_for_case(", source)
+
+    def test_pass_error_helper_parameter_limit(self) -> None:
+        self.assertLessEqual(len(inspect.signature(no_crs.normalized_case_pass_errors).parameters), 13)
+
     @staticmethod
     def fixture(case_id: str) -> tuple[dict[str, object], list[dict[str, object]]]:
         common = {
