@@ -3006,5 +3006,202 @@ class NoCrsBaselineTest(unittest.TestCase):
             self.assertIn("refusing to summarize invalid canonical result", stderr.getvalue())
 
 
+class SeparatedNginxFirstByteTest(unittest.TestCase):
+    IDS = ("phase4_first_byte_before_response_end", "phase4_no_full_response_buffering")
+    MODE = "native-nginx-http-module"
+
+    @staticmethod
+    def fixture(case_id: str) -> tuple[dict[str, object], list[dict[str, object]]]:
+        common = {
+            "connector": "nginx", "phase": 4, "transaction_id": "nginx-first-byte-tx",
+            "integration_mode": "native-nginx-http-module", "headers_sent": True,
+            "response_committed": True, "body_started": True,
+        }
+        barrier = {
+            **common, "event": "phase4_append", "message_id": "MSCONN_PHASE4_APPEND", "status": "ok",
+            "body_bytes_seen": 17, "body_bytes_inspected": 17, "eos_seen": False,
+            "client_first_byte_received": True, "first_byte_before_response_end": True,
+            "first_chunk_size": 17, "upstream_paused": True,
+            "upstream_eos_sent_at_first_byte": False, "upstream_response_finished_at_first_byte": False,
+            "no_full_response_buffering": True,
+        }
+        witness = {
+            **common, "event": "phase4_intervention", "message_id": "MSCONN_EVENT_PHASE4_LATE_INTERVENTION",
+            "status": "blocked", "rule_id": 1100301, "body_bytes_seen": 44, "body_bytes_inspected": 44,
+            "eos_seen": True, "http_status": 403, "original_http_status": 200, "visible_http_status": 200,
+            "requested_action": "deny", "actual_action": "log_only", "late_intervention": True,
+            "late_intervention_mode": "safe", "transport_result": "log_only",
+        }
+        raw = {
+            "case_id": case_id, "status": "PASS", "live_executed": True, "actual_status": 200,
+            "transaction_ids": ["nginx-first-byte-tx"], "observed_rule_ids": [1100301],
+            "run_id": "paired-run", "integration_mode": "native-nginx-http-module",
+            "body_bytes_seen": 17, "body_bytes_inspected": 17,
+        }
+        return raw, [barrier, witness]
+
+    def normalize(self, raw: dict[str, object], events: list[dict[str, object]]) -> dict[str, object]:
+        catalog = {case["case_id"]: case for case in no_crs.catalog_cases(no_crs.load_catalog())}
+        record = no_crs.normalize_case_record(raw, "nginx", catalog, events, self.MODE)
+        self.assertIsNotNone(record)
+        return record  # type: ignore[return-value]
+
+    def test_separate_original_observations_are_schema_valid_and_revalidated(self) -> None:
+        for case_id in self.IDS:
+            with self.subTest(case_id=case_id):
+                raw, events = self.fixture(case_id)
+                before = json.dumps(events, sort_keys=True)
+                record = self.normalize(raw, events)
+                self.assertEqual(record["status"], "PASS", record["reason"])
+                self.assertIs(record["eos_seen"], True)
+                self.assertEqual((record["http_status"], record["actual_action"], record["first_chunk_size"]),
+                                 (403, "log_only", 17))
+                self.assertNotIn("body_bytes_seen", record)
+                self.assertNotIn("body_bytes_inspected", record)
+                self.assertNotIn("rule_id", events[0])
+                self.assertNotIn("first_chunk_size", events[1])
+                self.assertEqual(json.dumps(events, sort_keys=True), before)
+                schema = no_crs.load_json(ROOT / "tests/schemas/no-crs-baseline/case-result.schema.json")
+                self.assertEqual(no_crs.json_schema_errors(record, schema), [])
+                self.assertEqual(no_crs.generic_pass_case_completeness_errors(record, events, "nginx", self.MODE), [])
+
+    def test_identity_profile_phase_rule_and_measurement_mismatches_fail_closed(self) -> None:
+        controls = (
+            (1, "transaction_id", "other-invocation", "expected-rule witness"),
+            (0, "run_id", "stale-run", "run_id"),
+            (1, "run_id", "foreign-run", "run_id"),
+            (0, "integration_mode", "compatibility-path", "profile"),
+            (1, "integration_mode", "compatibility-path", "profile"),
+            (0, "phase", 3, "phase"), (1, "phase", 3, "phase"),
+            (1, "rule_id", 1100999, "expected-rule witness"),
+            (0, "rule_id", 1100301, "must not claim"),
+            (0, "upstream_response_finished_at_first_byte", True, "causal"),
+            (0, "body_bytes_seen", None, "cumulative"),
+            (0, "body_bytes_seen", "17", "cumulative"),
+            (0, "body_bytes_inspected", True, "cumulative"),
+            (1, "body_bytes_seen", 10, "cumulative"),
+            (1, "body_bytes_seen", None, "cumulative"),
+            (1, "body_bytes_inspected", False, "cumulative"),
+            (1, "body_bytes_inspected", 45, "exceed seen"),
+        )
+        for case_id in self.IDS:
+            for index, field, value, diagnostic in controls:
+                with self.subTest(case_id=case_id, event=index, field=field):
+                    raw, events = self.fixture(case_id)
+                    events[index][field] = value
+                    record = self.normalize(raw, events)
+                    self.assertEqual(record["status"], "FAIL")
+                    self.assertIn(diagnostic, record["reason"])
+            raw, events = self.fixture(case_id)
+            raw["body_bytes_seen"] = 18
+            self.assertIn("raw body_bytes_seen", self.normalize(raw, events)["reason"])
+
+    def test_missing_ambiguous_and_reversed_members_fail_closed(self) -> None:
+        for case_id in self.IDS:
+            for role in ("barrier", "witness", "both"):
+                with self.subTest(case_id=case_id, missing=role):
+                    raw, events = self.fixture(case_id)
+                    events = [] if role == "both" else events[1:] if role == "barrier" else events[:1]
+                    self.assertEqual(self.normalize(raw, events)["status"], "FAIL")
+            for index in (0, 1):
+                raw, events = self.fixture(case_id)
+                events.append(dict(events[index]))
+                self.assertIn("unambiguous", self.normalize(raw, events)["reason"])
+            raw, events = self.fixture(case_id)
+            self.assertIn("must follow", self.normalize(raw, list(reversed(events)))["reason"])
+            raw["transaction_ids"] = []
+            self.assertIn("supplied invocation transaction", self.normalize(raw, events)["reason"])
+
+    def test_standalone_pass_record_tampering_cannot_disable_the_catalog_contract(self) -> None:
+        controls = {
+            "expected_result": "rule_observed", "expected_rule_id": None, "phase": 3,
+            "case_id": "phase4_rule_observed", "expected_event_fields": [],
+            "observed_event_fields": [], "http_status": 404, "actual_action": "deny",
+            "observed_rule_ids": [1100301, 999999],
+            "eos_seen": False, "first_chunk_size": 18,
+        }
+        for case_id in self.IDS:
+            raw, events = self.fixture(case_id)
+            positive = self.normalize(raw, events)
+            self.assertEqual(positive["status"], "PASS")
+            for field, value in controls.items():
+                with self.subTest(case_id=case_id, field=field):
+                    record = dict(positive)
+                    record[field] = value
+                    errors = no_crs.generic_pass_case_completeness_errors(record, events, "nginx", self.MODE)
+                    self.assertTrue(errors, field)
+                    if field in {"expected_result", "expected_rule_id", "phase", "case_id", "expected_event_fields"}:
+                        self.assertTrue(any("catalog contract" in error for error in errors), errors)
+                    elif field == "observed_event_fields":
+                        self.assertTrue(any("expected event fields" in error for error in errors), errors)
+                    elif field == "observed_rule_ids":
+                        self.assertTrue(any("original rule witness" in error for error in errors), errors)
+                    else:
+                        self.assertTrue(any(field in error for error in errors), errors)
+            record = dict(positive)
+            record["observed_event_fields"] = [*positive["observed_event_fields"], "invented_field"]
+            self.assertTrue(any("original event union" in error for error in
+                                no_crs.generic_pass_case_completeness_errors(record, events, "nginx", self.MODE)))
+
+    def test_legacy_combined_event_path_and_other_case_selection_stay_unchanged(self) -> None:
+        for case_id in self.IDS:
+            raw, events = self.fixture(case_id)
+            combined = {**events[1], **events[0], "event": "phase4_intervention", "rule_id": 1100301}
+            self.assertEqual(self.normalize(raw, [combined])["status"], "PASS")
+            foreign_barrier = {**events[0], "transaction_id": "independent-invocation"}
+            mixed_events = [foreign_barrier, combined]
+            record = self.normalize(raw, mixed_events)
+            self.assertEqual(record["status"], "PASS", record["reason"])
+            self.assertEqual(no_crs.generic_pass_case_completeness_errors(
+                record, mixed_events, "nginx", self.MODE), [])
+        raw, events = self.fixture("phase4_rule_observed")
+        record = self.normalize(raw, events)
+        self.assertEqual(record["status"], "PASS")
+        self.assertNotIn("first_chunk_size", record["observed_event_fields"])
+
+
+    def test_standalone_original_pair_mutations_and_prior_eos_are_rejected(self) -> None:
+        controls = (
+            (0, "transaction_id", "foreign-tx", "matching barrier transaction"),
+            (1, "transaction_id", "foreign-tx", "expected-rule witness"),
+            (0, "run_id", "stale-run", "run_id"), (1, "run_id", "stale-run", "run_id"),
+            (0, "integration_mode", "compatibility", "profile"),
+            (1, "integration_mode", "compatibility", "profile"),
+            (0, "phase", 3, "phase"), (1, "phase", 3, "phase"),
+            (1, "rule_id", 1100999, "expected-rule witness"),
+            (0, "first_chunk_size", 18, "first_chunk_size"),
+            (0, "upstream_response_finished_at_first_byte", True, "causal"),
+            (1, "actual_action", "deny", "actual_action"),
+        )
+        for case_id in self.IDS:
+            raw, original = self.fixture(case_id)
+            positive = self.normalize(raw, original)
+            self.assertEqual(positive["status"], "PASS")
+            for index, field, value, diagnostic in controls:
+                with self.subTest(case_id=case_id, event=index, field=field):
+                    events = [dict(event) for event in original]
+                    events[index][field] = value
+                    errors = no_crs.generic_pass_case_completeness_errors(positive, events, "nginx", self.MODE)
+                    self.assertTrue(any(diagnostic in error for error in errors), errors)
+            for index in (0, 1):
+                for value in (None, "17", True, -1):
+                    with self.subTest(case_id=case_id, event=index, counter=value):
+                        events = [dict(event) for event in original]
+                        events[index]["body_bytes_seen"] = value
+                        errors = no_crs.generic_pass_case_completeness_errors(positive, events, "nginx", self.MODE)
+                        self.assertTrue(any("causal" in error or "cumulative" in error for error in errors), errors)
+            for field in ("eos_seen", "end_of_stream_evaluation"):
+                prior = dict(original[0])
+                for key in no_crs.FIRST_BYTE_BARRIER_FIELDS - {"response_committed"}:
+                    prior.pop(key, None)
+                prior[field] = True
+                events = [prior, *original]
+                record = self.normalize(raw, events)
+                self.assertEqual(record["status"], "FAIL")
+                self.assertIn("prior same-transaction EOS", record["reason"])
+                errors = no_crs.generic_pass_case_completeness_errors(positive, events, "nginx", self.MODE)
+                self.assertTrue(any("prior same-transaction EOS" in error for error in errors), errors)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2727,6 +2727,190 @@ def event_for_case(
     return confirmed_event_for_case(candidates, case) or candidates[0]
 
 
+FIRST_BYTE_PAIR_CASES = {
+    "phase4_first_byte_before_response_end": "first_byte_before_response_end",
+    "phase4_no_full_response_buffering": "no_full_response_buffering",
+}
+FIRST_BYTE_BARRIER_FIELDS = frozenset({
+    "client_first_byte_received", "first_byte_before_response_end", "first_chunk_size",
+    "upstream_paused", "upstream_eos_sent_at_first_byte",
+    "upstream_response_finished_at_first_byte", "no_full_response_buffering",
+    "response_committed",
+})
+
+
+def first_byte_record_catalog_contract(
+    record: Mapping[str, Any],
+) -> tuple[Mapping[str, Any] | None, list[str]]:
+    case_id = str(record.get("case_id") or "")
+    claims_pair = (
+        case_id in FIRST_BYTE_PAIR_CASES
+        or record.get("expected_result") in FIRST_BYTE_PAIR_CASES.values()
+        or record.get("group") == "full-lifecycle-no-buffer"
+    )
+    if not claims_pair:
+        return None, []
+    case = next((item for item in catalog_cases(load_catalog()) if item["case_id"] == case_id), None)
+    if case is None or case_id not in FIRST_BYTE_PAIR_CASES:
+        return None, ["paired first-byte record case_id does not match the closed catalog contract"]
+    errors = [
+        f"paired first-byte record {field} does not match catalog contract"
+        for field in ("phase", "group", "expected_result", "expected_rule_id", "expected_event_fields")
+        if record.get(field) != case.get(field)
+    ]
+    return case, errors
+
+
+def first_byte_pair_identity_errors(
+    raw: Mapping[str, Any], case: Mapping[str, Any],
+    barrier: Mapping[str, Any], witness: Mapping[str, Any],
+    connector: str, integration_mode: str | None,
+) -> list[str]:
+    errors: list[str] = []
+    mode = integration_mode or raw.get("integration_mode") or barrier.get("integration_mode")
+    if not mode or barrier.get("integration_mode") != mode or witness.get("integration_mode") != mode:
+        errors.append("paired first-byte events have incompatible integration profile")
+    expected_run = str(raw.get("run_id") or "") or None
+    for label, event in (("barrier", barrier), ("rule witness", witness)):
+        errors.extend(canonical_event_errors(
+            event, location=f"first-byte {label}", connector=connector,
+            integration_mode=mode if isinstance(mode, str) else None,
+        ))
+        errors.extend(case_event_identity_errors(case, event, expected_run))
+    barrier_run, witness_run = barrier.get("run_id"), witness.get("run_id")
+    if barrier_run is not None and witness_run is not None and barrier_run != witness_run:
+        errors.append("paired first-byte events have different run_id")
+    return errors
+
+
+def first_byte_pair_measurement_errors(
+    raw: Mapping[str, Any], case: Mapping[str, Any],
+    barrier: Mapping[str, Any], witness: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    require_no_full = case.get("expected_result") == "no_full_response_buffering"
+    if not phase4_first_byte_barrier_matches(barrier, require_no_full_response_buffering=require_no_full):
+        errors.append("paired first-byte barrier lacks complete causal measurements")
+    if barrier.get("eos_seen") is not False or witness.get("eos_seen") is not True:
+        errors.append("paired first-byte events require pre-EOS barrier and later EOS rule witness")
+    for field in ("body_bytes_seen", "body_bytes_inspected"):
+        value = witness.get(field)
+        start = barrier.get(field)
+        valid_start = isinstance(start, int) and not isinstance(start, bool)
+        valid_value = isinstance(value, int) and not isinstance(value, bool)
+        if not valid_start or not valid_value or value < start:
+            errors.append(f"paired first-byte rule witness has invalid cumulative {field}")
+        if field in raw and raw[field] != barrier.get(field):
+            errors.append(f"paired first-byte raw {field} does not match barrier")
+    seen, inspected = witness.get("body_bytes_seen"), witness.get("body_bytes_inspected")
+    if isinstance(seen, int) and isinstance(inspected, int) and inspected > seen:
+        errors.append("paired first-byte rule witness inspected bytes exceed seen bytes")
+    return errors
+
+
+def first_byte_barrier_candidates(
+    events: Sequence[Mapping[str, Any]],
+) -> list[tuple[int, Mapping[str, Any]]]:
+    return [
+        (index, event) for index, event in enumerate(events)
+        if event.get("event") == "phase4_append"
+        and any(field in event for field in FIRST_BYTE_BARRIER_FIELDS - {"response_committed"})
+    ]
+
+
+def first_byte_rule_candidates(
+    events: Sequence[Mapping[str, Any]], transaction: str, expected_rule: int | None,
+) -> list[tuple[int, Mapping[str, Any]]]:
+    return [
+        (index, event) for index, event in enumerate(events)
+        if event.get("event") == "phase4_intervention"
+        and event_transaction_ids(event) == [transaction]
+        and expected_rule is not None and expected_rule in event_rule_ids(event)
+    ]
+
+
+def first_byte_has_prior_eos(
+    events: Sequence[Mapping[str, Any]], transaction: str, barrier_index: int,
+) -> bool:
+    return any(
+        normalize_canonical_phase(event.get("phase")) == 4
+        and event_transaction_ids(event) == [transaction]
+        and (event.get("eos_seen") is True or event.get("end_of_stream_evaluation") is True)
+        for event in events[:barrier_index]
+    )
+
+
+def first_byte_case_event_pair(
+    raw: Mapping[str, Any], case: Mapping[str, Any], events: Sequence[Mapping[str, Any]],
+    connector: str, integration_mode: str | None,
+) -> tuple[Mapping[str, Any] | None, Mapping[str, Any] | None, list[str]]:
+    """Associate original append/barrier and later rule decision, never merge them.
+
+    Legacy single-event proofs remain unchanged. Run-local sealed event-file
+    authority binds events that omit optional run_id; explicit run mismatches
+    cannot be borrowed. The paired path additionally requires one supplied TX.
+    """
+    if FIRST_BYTE_PAIR_CASES.get(str(case.get("case_id") or "")) != case.get("expected_result"):
+        return None, None, []
+    barriers = first_byte_barrier_candidates(events)
+    if not barriers:
+        return None, None, []
+    mode = integration_mode or raw.get("integration_mode")
+    if connector != "nginx" or mode != "native-nginx-http-module":
+        return None, None, ["paired first-byte proof requires the native NGINX integration profile"]
+    transactions = supplied_transaction_ids(raw)
+    if len(transactions) != 1:
+        return None, None, ["paired first-byte proof requires one supplied invocation transaction"]
+    transaction = transactions[0]
+    barriers = [(index, event) for index, event in barriers if event_transaction_ids(event) == [transaction]]
+    if not barriers:
+        legacy = event_for_case(events, optional_int(case.get("expected_rule_id")),
+                                case, transactions, integration_mode)
+        if legacy is not None and event_transaction_ids(legacy) == [transaction] and "client_first_byte_received" in event_field_names(legacy):
+            return None, None, []
+    if len(barriers) != 1:
+        return None, None, ["paired first-byte proof requires one unambiguous matching barrier transaction"]
+    barrier_index, barrier = barriers[0]
+    expected_rule = optional_int(case.get("expected_rule_id"))
+    witnesses = first_byte_rule_candidates(events, transaction, expected_rule)
+    if len(witnesses) != 1:
+        return barrier, None, ["paired first-byte proof requires one unambiguous expected-rule witness"]
+    witness_index, witness = witnesses[0]
+    errors = first_byte_pair_identity_errors(raw, case, barrier, witness, connector, integration_mode)
+    if event_rule_ids(barrier):
+        errors.append("paired first-byte append must not claim the later intervention rule")
+    if witness_index <= barrier_index:
+        errors.append("paired first-byte rule witness must follow the barrier")
+    if first_byte_has_prior_eos(events, transaction, barrier_index):
+        errors.append("paired first-byte barrier follows a prior same-transaction EOS observation")
+    errors.extend(first_byte_pair_measurement_errors(raw, case, barrier, witness))
+    return barrier, witness, errors
+
+
+def first_byte_pass_event_context(
+    record: Mapping[str, Any], matching_event: Mapping[str, Any] | None,
+    events: Sequence[Mapping[str, Any]], integration_mode: str | None,
+) -> tuple[Mapping[str, Any] | None, Mapping[str, Any] | None, list[str]]:
+    catalog_case, errors = first_byte_record_catalog_contract(record)
+    barrier, witness, pair_errors = first_byte_case_event_pair(
+        record, catalog_case or record, events, str(record.get("connector") or ""), integration_mode,
+    )
+    errors.extend(pair_errors)
+    if barrier is not None:
+        matching_event = barrier
+    if witness is not None:
+        _, semantic_errors = semantic_runtime_fields(
+            record, matching_event, first_byte_rule_witness=witness,
+        )
+        errors.extend(semantic_errors)
+        observed_fields = sorted(event_field_names(matching_event).union(event_field_names(witness)))
+        if record.get("observed_event_fields") != observed_fields:
+            errors.append("paired first-byte observed_event_fields do not match original event union")
+        if record.get("observed_rule_ids") != sorted(event_rule_ids(witness)):
+            errors.append("paired first-byte observed_rule_ids do not match original rule witness")
+    return matching_event, witness, errors
+
+
 def canonical_core_event_contract(
     events: Sequence[Mapping[str, Any]],
     connector: str,
@@ -3177,6 +3361,7 @@ def reject_raw_quic_connection_id(values: dict[str, object], errors: list[str]) 
 
 def semantic_runtime_fields(
     raw: Mapping[str, Any], matching_event: Mapping[str, Any] | None,
+    *, first_byte_rule_witness: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, object], list[str]]:
     """Project only known runtime evidence into a canonical case record.
 
@@ -3187,7 +3372,10 @@ def semantic_runtime_fields(
     values: dict[str, object] = {}
     errors: list[str] = []
     for field in PHASE4_SEMANTIC_FIELDS:
-        value, field_errors = semantic_field_value(raw, matching_event, field)
+        observation = matching_event
+        if first_byte_rule_witness is not None and field not in FIRST_BYTE_BARRIER_FIELDS:
+            observation = first_byte_rule_witness
+        value, field_errors = semantic_field_value(raw, observation, field)
         values[field] = value
         errors.extend(field_errors)
     reject_raw_quic_connection_id(values, errors)
@@ -3915,6 +4103,7 @@ def phase4_pass_errors(
     runtime_evidence_errors: Sequence[str] = (),
     required_protocol: str | None = None,
     integration_mode: str | None = None,
+    *, events: Sequence[Mapping[str, Any]] = (),
 ) -> list[str]:
     """Return semantic evidence failures for a canonical Phase-4 PASS.
 
@@ -3925,6 +4114,10 @@ def phase4_pass_errors(
     """
     errors = list(runtime_evidence_errors)
     expected_result = str(record.get("expected_result") or "")
+    matching_event, rule_witness, pair_errors = first_byte_pass_event_context(
+        record, matching_event, events, integration_mode,
+    )
+    errors.extend(pair_errors)
     if expected_result not in PHASE4_EXPECTED_RESULTS:
         return errors
     expected_rule_id = optional_int(record.get("expected_rule_id"))
@@ -3945,7 +4138,8 @@ def phase4_pass_errors(
     ))
     if not phase_is_four(matching_event.get("phase")):
         errors.append("canonical event does not report phase 4")
-    if expected_rule_id is not None and expected_rule_id not in event_rule_ids(matching_event):
+    rule_event = rule_witness if rule_witness is not None else matching_event
+    if expected_rule_id is not None and expected_rule_id not in event_rule_ids(rule_event):
         errors.append("canonical event does not report the expected rule")
     validator = PHASE4_PASS_VALIDATORS.get(expected_result)
     if validator is not None:
@@ -4606,6 +4800,7 @@ def normalized_case_pass_errors(
     observed_event_fields: Sequence[str],
     event_errors: Sequence[str],
     integration_mode: str | None,
+    *, events: Sequence[Mapping[str, Any]] = (),
 ) -> list[str]:
     required_protocol, protocol_errors = case_required_protocol_errors(case)
     errors = [*provenance_errors, *protocol_errors]
@@ -4616,6 +4811,7 @@ def normalized_case_pass_errors(
             runtime_evidence_errors,
             required_protocol,
             integration_mode,
+            events=events,
         ))
     else:
         errors.extend(non_phase4_case_pass_errors(
@@ -5029,12 +5225,25 @@ def normalize_case_record(
     matching_event = None if configuration is not None else event_for_case(
         events, expected_rule_id, case, transaction_ids, integration_mode,
     )
-    semantic_values, runtime_evidence_errors = semantic_runtime_fields(raw, matching_event)
+    barrier, rule_witness, pair_errors = first_byte_case_event_pair(
+        raw, case, events, connector, integration_mode,
+    )
+    if barrier is not None:
+        matching_event = barrier
+    semantic_values, runtime_evidence_errors = semantic_runtime_fields(
+        raw, matching_event, first_byte_rule_witness=rule_witness,
+    )
+    runtime_evidence_errors.extend(pair_errors)
     actual_status_value = normalized_actual_status_value(raw, case, semantic_values)
     actual_status = optional_int(actual_status_value) if actual_status_value is not _MISSING else None
     observed_event_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
         matching_event, observed_rule_ids, transaction_ids,
     )
+    if rule_witness is not None:
+        witness_fields, observed_rule_ids, transaction_ids = bind_case_event_evidence(
+            rule_witness, observed_rule_ids, transaction_ids,
+        )
+        observed_event_fields = sorted(set(observed_event_fields).union(witness_fields))
     expected_fields = [str(item) for item in case.get("expected_event_fields", [])]
     expected_status = optional_int(case.get("expected_status"))
     event_errors = (
@@ -5087,6 +5296,7 @@ def normalize_case_record(
             observed_event_fields,
             event_errors,
             integration_mode,
+            events=events,
         )
         validation_errors.extend(configtest_receipt_errors(record, case, connector, integration_mode))
         if configuration is not None:
@@ -8786,6 +8996,8 @@ def generic_pass_case_completeness_errors(
     if expected_fields and not expected_fields.issubset(observed_fields):
         errors.append(f"{case_id}: PASS missing expected event fields")
     matching_event = matching_case_event_for_validation(record, events, integration_mode)
+    matching_event, _, pair_errors = first_byte_pass_event_context(record, matching_event, events, integration_mode)
+    errors.extend(f"{case_id}: {error}" for error in pair_errors)
     errors.extend(f"{case_id}: {error}" for error in case_event_identity_errors(
         record, matching_event, str(record.get("run_id") or "") or None,
     ))
@@ -8793,7 +9005,7 @@ def generic_pass_case_completeness_errors(
         errors.extend(
             f"{case_id}: {error}"
             for error in phase4_pass_errors(
-                record, matching_event, integration_mode=integration_mode,
+                record, matching_event, integration_mode=integration_mode, events=events,
             )
         )
     errors.extend(f"{case_id}: {error}" for error in canonical_event_errors(
