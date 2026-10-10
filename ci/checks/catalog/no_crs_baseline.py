@@ -4226,11 +4226,10 @@ NGINX_CONFIGTEST_CONTRACTS = {
         "diagnostic_fragments": ['"modsecurity" directive', "invalid boolean value"],
     },
     "invalid_size": {
-        "operation": "configtest", "directive": "modsecurity_phase4_body_limit", "value": "maybe",
+        "operation": "configtest", "directive": "modsecurity_phase4_body_limit", "value": "1048576",
         "expected_exit_code": 1, "expected_outcome": "config_rejected",
-        "error_class": "invalid_size",
-        "diagnostic_fragments": ['"modsecurity_phase4_body_limit" directive',
-                                 "invalid value for modsecurity_phase4_body_limit"],
+        "error_class": "removed_directive",
+        "diagnostic_fragments": ['unknown directive "modsecurity_phase4_body_limit"'],
     },
 }
 

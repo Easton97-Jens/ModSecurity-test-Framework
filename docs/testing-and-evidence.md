@@ -188,10 +188,13 @@ fragments `"modsecurity" directive` and `invalid boolean value`. A missing
 module, another directive/error, exit `0` or another exit does not satisfy it.
 Signed subprocess failures such as `-1` (execution error) and `-9` (termination)
 can be retained as failure receipts; they are never expected-rejection PASS.
-`invalid_size` instead tests `modsecurity_phase4_body_limit maybe;`, requiring
-exit `1`, error class `invalid_size`, and both exact diagnostic fragments
-`"modsecurity_phase4_body_limit" directive` and
-`invalid value for modsecurity_phase4_body_limit`. These distinct contracts
+The stable Required ID `invalid_size` now explicitly tests rejection of the
+removed API using its formerly valid input `modsecurity_phase4_body_limit 1048576;`.
+It requires exit `1`, error class `removed_directive`, and the exact diagnostic
+fragment `unknown directive "modsecurity_phase4_body_limit"`. The old size-parser
+rejection, an unrelated error or a different unknown directive cannot fulfill it.
+The four Engine response-limit cases and their Required contracts are unchanged.
+These distinct contracts
 cannot satisfy each other or authorize arbitrary phase-0 receipt-only PASS.
 
 Canonical fulfillment requires the bounded `configtest_receipt` plus its

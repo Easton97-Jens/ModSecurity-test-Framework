@@ -3686,11 +3686,11 @@
       "catalogs": [
         "no-crs-baseline"
       ],
-      "display_name": "Reject an invalid size configuration",
+      "display_name": "Reject the removed phase-4 body-limit directive with its formerly valid value",
       "expectation": {
         "connector": "nginx",
         "directive": "modsecurity_phase4_body_limit",
-        "error_class": "invalid_size",
+        "error_class": "removed_directive",
         "exit_code": 1,
         "kind": "configuration",
         "operation": "configtest",
