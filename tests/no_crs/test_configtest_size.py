@@ -26,10 +26,9 @@ assert ARTIFACT_SPEC.loader
 artifact_fixture = importlib.util.module_from_spec(ARTIFACT_SPEC)
 ARTIFACT_SPEC.loader.exec_module(artifact_fixture)
 
-EXPECTED = {'operation': 'configtest', 'directive': 'modsecurity_phase4_body_limit', 'value': 'maybe',
-            'expected_exit_code': 1, 'expected_outcome': 'config_rejected', 'error_class': 'invalid_size',
-            'diagnostic_fragments': ['"modsecurity_phase4_body_limit" directive',
-                                     'invalid value for modsecurity_phase4_body_limit']}
+EXPECTED = {'operation': 'configtest', 'directive': 'modsecurity_phase4_body_limit', 'value': '1048576',
+            'expected_exit_code': 1, 'expected_outcome': 'config_rejected', 'error_class': 'removed_directive',
+            'diagnostic_fragments': ['unknown directive "modsecurity_phase4_body_limit"']}
 
 
 class ConfigtestSizeTest(unittest.TestCase):
@@ -46,12 +45,12 @@ class ConfigtestSizeTest(unittest.TestCase):
         config = (f'load_module "{bundle}/nginx-module.so";\n'
                   f'pid "{bundle}/nginx.pid";\n'
                   f'error_log "{bundle}/nginx-error.log";\n'
-                  'events {}\nhttp {\n  modsecurity_phase4_body_limit maybe;\n}\n').encode()
+                  'events {}\nhttp {\n  modsecurity_phase4_body_limit 1048576;\n}\n').encode()
         files = {'nginx-binary': ('binary_sha256', b'unit binary'),
                  'nginx-module.so': ('module_sha256', b'unit module'),
                  'nginx.conf': ('config_path_identity', config),
                  'stdout.log': ('stdout_sha256', b''),
-                 'stderr.log': ('stderr_sha256', b'"modsecurity_phase4_body_limit" directive invalid value for modsecurity_phase4_body_limit\n')}
+                 'stderr.log': ('stderr_sha256', b'unknown directive "modsecurity_phase4_body_limit"\n')}
         receipt = fixture.ConfigtestReceiptTest.receipt()
         receipt.update(EXPECTED, case_id=case_id)
         for name, (field, data) in files.items():
@@ -66,14 +65,14 @@ class ConfigtestSizeTest(unittest.TestCase):
         return contract.normalize_case_record(raw, 'nginx', self.cases, [], 'native-nginx-http-module',
                                               configtest_artifact_root=self.root)
 
-    def test_required_size_case_exposes_exact_host_configtest(self):
+    def test_required_id_exposes_exact_removed_api_host_configtest(self):
         capabilities = {name: {'state': 'verified', 'reason': 'unit host capability'} for name in contract.CAPABILITIES}
         selection = contract.select_catalog_case(self.cases['invalid_size'], capabilities, 'http1', 'nginx')
         self.assertEqual(selection['selection_status'], 'SELECTED')
         self.assertEqual(selection.get('config_invocation'), EXPECTED,
                          'selected required configuration has no real host input contract')
 
-    def test_size_bundle_is_complete_without_boolean_or_http_relabel(self):
+    def test_removed_api_bundle_is_complete_without_boolean_or_http_relabel(self):
         raw = self.raw()
         record = self.normalize(raw)
         self.assertEqual(record['status'], 'PASS', record['reason'])
@@ -106,10 +105,32 @@ class ConfigtestSizeTest(unittest.TestCase):
     def test_config_tamper_rehash_cannot_hide_wrong_directive(self):
         raw = self.raw()
         path = self.root / raw['artifacts']['configtest_dir'] / 'nginx.conf'
-        data = path.read_bytes().replace(b'modsecurity_phase4_body_limit maybe', b'modsecurity maybe')
+        data = path.read_bytes().replace(b'modsecurity_phase4_body_limit 1048576', b'modsecurity maybe')
         path.write_bytes(data)
         raw['configtest_receipt']['config_path_identity'] = 'sha256:' + hashlib.sha256(data).hexdigest()
         self.assertEqual(self.normalize(raw)['status'], 'FAIL')
+
+    def test_old_parser_unrelated_or_wrong_removed_api_diagnostic_is_rejected(self):
+        diagnostics = (
+            b'"modsecurity_phase4_body_limit" directive invalid value for modsecurity_phase4_body_limit\n',
+            b'unknown directive "modsecurity_unknown_config_key"\n',
+            b'permission denied\n',
+        )
+        for stderr in diagnostics:
+            with self.subTest(stderr=stderr):
+                raw = self.raw()
+                path = self.root / raw['artifacts']['configtest_dir'] / 'stderr.log'
+                path.write_bytes(stderr)
+                raw['configtest_receipt']['stderr_sha256'] = hashlib.sha256(stderr).hexdigest()
+                self.assertEqual(self.normalize(raw)['status'], 'FAIL')
+
+    def test_obsolete_size_parser_descriptor_cannot_preserve_selection_contract(self):
+        case = copy.deepcopy(self.cases['invalid_size'])
+        case['config_invocations']['nginx'].update(
+            value='maybe', error_class='invalid_size',
+            diagnostic_fragments=['"modsecurity_phase4_body_limit" directive',
+                                  'invalid value for modsecurity_phase4_body_limit'])
+        self.assertTrue(contract.config_invocation_contract_errors(case))
 
     def test_two_cases_retain_distinct_bundles_and_reject_alias_and_reuse(self):
         raw_size = self.raw()

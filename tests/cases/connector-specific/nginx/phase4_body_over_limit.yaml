@@ -1,0 +1,40 @@
+name: phase4_body_over_limit
+title: Native NGINX phase4 body over limit
+category: no-crs-full-lifecycle
+portable: false
+connector: nginx
+status: pending
+no_crs_baseline: true
+phase: 4
+capabilities:
+  response_body: true
+  phase4: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/plain
+  SecRule RESPONSE_BODY "@contains no-crs-response-body-marker" \
+    "id:1100301,phase:4,deny,status:403,log,msg:'no-crs phase-4 intervention probe'"
+  SecResponseBodyLimit 64
+  SecResponseBodyLimitAction ProcessPartial
+nginx:
+  phase4_mode: safe
+  location_directives: |
+    modsecurity_phase4_log "@@NGINX_PHASE4_LOG@@";
+request:
+  method: GET
+  path: /no-crs/full-lifecycle/phase4-body-over-limit
+response:
+  body: no-crs-response-body-markerxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  content_type: text/plain
+expect:
+  status: 200
+  intervention: none
+full_lifecycle:
+  requires_real_host_chunk_driver: true
+  evidence_status: not_executed_until_real_host
+  engine_response_body_limit: 64
+  engine_response_body_limit_action: ProcessPartial
+known_limitations:
+  - Fixture generation does not prove native ingestion, Engine inspection length, or limit outcome.

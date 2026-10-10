@@ -202,10 +202,13 @@ fehlendes Modul, eine andere Directive/Fehlerklasse, Exit `0` oder ein anderer
 Exit erfüllt sie nicht. Negative Subprocess-Ergebnisse wie `-1`
 (Ausführungsfehler) und `-9` (Terminierung) können als Fehlerreceipts aufbewahrt
 werden; sie ergeben niemals PASS für die erwartete Ablehnung.
-`invalid_size` prüft stattdessen `modsecurity_phase4_body_limit maybe;` und
-verlangt Exit `1`, Fehlerklasse `invalid_size` und beide exakten Diagnosefragmente
-`"modsecurity_phase4_body_limit" directive` und
-`invalid value for modsecurity_phase4_body_limit`. Diese unterschiedlichen
+Die stabile Required-ID `invalid_size` prüft jetzt ausdrücklich die Ablehnung
+der entfernten API mit ihrem früher gültigen Input `modsecurity_phase4_body_limit 1048576;`.
+Sie verlangt Exit `1`, Fehlerklasse `removed_directive` und das exakte Diagnosefragment
+`unknown directive "modsecurity_phase4_body_limit"`. Die alte Größenparser-Ablehnung,
+ein unabhängiger Fehler oder eine andere unbekannte Directive erfüllen sie nicht.
+Die vier Engine-Response-Limit-Cases und ihre Required-Verträge bleiben unverändert.
+Diese unterschiedlichen
 Verträge erfüllen einander nicht und erlauben kein beliebiges Phase-0-PASS
 allein anhand eines Receipts.
 

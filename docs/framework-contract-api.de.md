@@ -131,6 +131,21 @@ Ausgabepfad wird außerdem über einen deskriptorbasierten No-Follow-Lauf unter
 dem physischen Framework-Root geöffnet und atomar ersetzt; ein verlinkter
 Ausgabe-Parent wird abgewiesen.
 
+Eine Quelle mit Kind `native_operation_fixture` ist eine Zuordnung der
+Inventar-Provenienz, keine connector-spezifische Erwartung und kein ausgeführter
+Test. Die abgesicherte, zurückgestellte NGINX-Fixture `phase4_body_reject` wird
+ihrer bestehenden No-CRS-ID erst zugeordnet, wenn ihr expliziter nativer
+Deskriptor und ihre Fixture-Klasse dem eingecheckten Vertrag entsprechen. Die
+generische API-Erwartung, Phase, Fähigkeiten und Anwendbarkeit bleiben
+unverändert; die native Quellvariante übernimmt diese generische Erwartung
+nicht als ihren NGINX-Reject-Vertrag.
+
+Eine YAML-HTTP-Erwartung, eine Quellzuordnung oder ein erfolgreicher öffentlicher
+Ergebnisvergleich beweisen weder native Aufnahme noch einen Engine-Body-Limit-
+Fehler oder Connector-Coverage. Tatsächlicher NGINX-Canonical-Nachweis erfordert
+weiter den ausgewählten nativen Deskriptor und die strikte Validierung originaler
+aufbewahrter Receipts. Dieser Inventar-Generator erzeugt solche Evidenz nicht.
+
 Bestehende Entrypoints bleiben unterstützt:
 
     python3 ci/checks/catalog/no_crs_baseline.py ...

@@ -502,19 +502,16 @@ def _validate_request(case: Mapping[str, Any], where: str) -> None:
         raise ValueError(f"case supports only GET or POST request.method{where}")
     if not str(request.get("path", "")).strip():
         raise ValueError(f"case requires request.path{where}")
-    headers = request.get("headers", {})
-    if headers is not None and not isinstance(headers, Mapping):
-        raise ValueError(f"case request.headers must be a mapping{where}")
-    header_map = headers if isinstance(headers, Mapping) else {}
+    headers = _request_header_entries(request, where)
     has_body = "body" in request and request.get("body") is not None
     has_multipart = "multipart" in request and request.get("multipart") is not None
     if has_body and has_multipart:
         raise ValueError(f"case request.body and request.multipart are mutually exclusive{where}")
     if has_multipart:
-        _validate_multipart_request(request, header_map, where)
+        _validate_multipart_request(request, headers, where)
 
 
-def _validate_multipart_request(request: Mapping[str, Any], headers: Mapping[str, Any], where: str) -> None:
+def _validate_multipart_request(request: Mapping[str, Any], headers: list[tuple[str, Any]], where: str) -> None:
     multipart = request.get("multipart")
     if not isinstance(multipart, Mapping):
         raise ValueError(f"case request.multipart must be a mapping{where}")
@@ -530,7 +527,7 @@ def _validate_multipart_request(request: Mapping[str, Any], headers: Mapping[str
             raise ValueError(f"case multipart parts must be mappings{where}")
         if not str(part.get("name", "")).strip():
             raise ValueError(f"case multipart parts require name{where}")
-    if any(str(name).lower() == "content-type" for name in headers):
+    if any(name.lower() == "content-type" for name, _ in headers):
         raise ValueError(f"case request.headers must not set Content-Type with request.multipart{where}")
 
 
@@ -836,18 +833,50 @@ def write_contained_text_file(path: str | Path, contents: str, *, output_root: s
     return output
 
 
-def request_headers(case: Mapping[str, Any]) -> Mapping[str, Any]:
-    request = case["request"]
+def _request_header_entries(request: Mapping[str, Any], where: str = "") -> list[tuple[str, Any]]:
+    """Validate mapping or ordered entry inputs without merging header fields."""
     headers = request.get("headers", {})
     if headers is None:
-        return {}
-    if not isinstance(headers, Mapping):
-        raise ValueError("request.headers must be a mapping")
-    materialized = {str(name): value for name, value in headers.items()}
+        return []
+    if isinstance(headers, Mapping):
+        entries = list(headers.items())
+    elif isinstance(headers, list):
+        entries = []
+        for entry in headers:
+            if not isinstance(entry, Mapping) or set(entry) != {"name", "value"}:
+                raise ValueError(f"request.headers entries require exactly name and value{where}")
+            entries.append((entry["name"], entry["value"]))
+    else:
+        raise ValueError(f"request.headers must be a mapping or ordered list{where}")
+    for name, value in entries:
+        if not isinstance(name, str) or re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name) is None:
+            raise ValueError(f"request.headers name must be an ASCII HTTP token{where}")
+        if value is not None and not isinstance(value, (str, int, float, bool)):
+            raise ValueError(f"request.headers value must be a scalar{where}")
+        if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in str(value)):
+            raise ValueError(f"request.headers value must not contain control characters{where}")
+    return entries
+
+
+def request_header_entries(case: Mapping[str, Any]) -> list[tuple[str, Any]]:
+    """Return ordered header fields, preserving repeated names and empty values."""
     request = case["request"]
+    entries = _request_header_entries(request)
     if request.get("multipart") is not None:
-        materialized["Content-Type"] = f"multipart/form-data; boundary={multipart_boundary(case)}"
-    return materialized
+        _validate_multipart_request(request, entries, "")
+        content_type = f"multipart/form-data; boundary={multipart_boundary(case)}"
+        _request_header_entries({"headers": {"Content-Type": content_type}})
+        entries.append(("Content-Type", content_type))
+    return entries
+
+
+def request_headers(case: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return the legacy mapping only when doing so cannot lose repeated fields."""
+    entries = request_header_entries(case)
+    names = [name.lower() for name, _ in entries]
+    if len(set(names)) != len(names):
+        raise ValueError("request.headers contains duplicate names; use request_header_entries")
+    return dict(entries)
 
 
 def request_body(case: Mapping[str, Any]) -> str:
@@ -1031,7 +1060,7 @@ def write_headers_file(case: Mapping[str, Any], path: str | Path, *, output_root
     output = contained_write_path(path, output_root)
     output.parent.mkdir(parents=True, exist_ok=True)
     lines = []
-    for name, value in request_headers(case).items():
+    for name, value in request_header_entries(case):
         lines.append(f"{name}: {value}\n")
     output.write_text("".join(lines), encoding="utf-8")
 

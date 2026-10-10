@@ -28,8 +28,8 @@
     "observed_event_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
     "event_metadata_verified": {"type": "boolean"},
     "http_status": {"type": ["integer", "null"], "minimum": 0, "maximum": 999},
-    "requested_action": {"type": ["string", "null"], "enum": ["deny", "redirect", "drop", "log_only", "abort_connection", null]},
-    "actual_action": {"type": ["string", "null"], "enum": ["deny", "redirect", "log_only", "abort_connection", "stream_reset", null]},
+    "requested_action": {"type": ["string", "null"], "enum": ["deny", "redirect", "drop", "log_only", "abort_connection", "allow", "pass", "error", null]},
+    "actual_action": {"type": ["string", "null"], "enum": ["deny", "redirect", "log_only", "abort_connection", "stream_reset", "allow", "pass", "error", null]},
     "original_http_status": {"type": ["integer", "null"], "minimum": 0, "maximum": 999},
     "visible_http_status": {"type": ["integer", "null"], "minimum": 0, "maximum": 999},
     "late_intervention": {"type": ["boolean", "null"]},
@@ -77,13 +77,133 @@
     "cancelled": {"type": ["boolean", "null"]},
     "reset_by": {"type": ["string", "null"], "enum": ["client", "upstream", "engine", "host", "strict_intervention", "timeout", null]},
     "reset_code": {"type": ["integer", "string", "null"], "minimum": 0, "maximum": 4611686018427387903, "minLength": 1, "maxLength": 64, "pattern": "[A-Za-z0-9:._-]{1,64}"},
-    "timeout_stage": {"type": ["string", "null"], "enum": ["engine", "request_body", "response_body", "upstream", "client_idle", "before_commit", "after_commit", null]},
+    "timeout_stage": {"type": ["string", "null"], "enum": ["engine", "request_body", "response_body", "upstream", "client_idle", "before_commit", "after_commit", "request_headers", "response_headers", null]},
     "write_result": {"type": ["string", "null"], "enum": ["completed", "short_write", "write_would_block", "engine_error", "host_error", null]},
     "eos_seen": {"type": ["boolean", "null"]},
-    "cleanup_reason": {"type": ["string", "null"], "enum": ["normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort", null]},
+    "cleanup_reason": {"type": ["string", "null"], "enum": ["normal", "cancelled", "client_disconnected", "upstream_disconnected", "stream_reset", "timeout", "engine_error", "host_error", "strict_abort", "phase_sequence", "body_limit", "event_limit", "engine_timeout", "engine_unavailable", "invalid_engine_response", "connector_error", "protocol_error", "client_cancel", "upstream_disconnect", "correlation_missing", "correlation_expired", "correlation_mismatch", "cleanup_incomplete", null]},
     "reason": {"type": "string"},
     "exit_code": {"type": ["integer", "null"]},
     "artifacts": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
-    "configtest_receipt": {"type": "object"}
+    "configtest_receipt": {"type": "object"},
+    "parent_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "framework_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "mrts_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "parent_framework_gitlink": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "operation": {"enum": ["native_h1_parser_rejection", "common_mapper_input_fault", "native_phase4_request", "request_sequence", "native_event_boundary_request"]},
+    "driver_exit_code": {"type": ["integer", "null"]},
+    "native_mapping_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "native_evidence_mapping": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "fields", "origins", "event_origins", "semantic_event_origin", "semantic_event_origins", "causes", "semantics", "semantic_origins"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "fields": {"type": "object", "additionalProperties": false, "patternProperties": {
+          "^[a-z][a-z0-9_]*$": {"type": "array", "minItems": 1, "maxItems": 256,
+            "items": {"type": ["string", "integer", "boolean", "null"], "maxLength": 8192}}
+        }},
+        "origins": {"type": "object", "additionalProperties": false, "patternProperties": {
+          "^[a-z][a-z0-9_]*$": {"type": "array", "minItems": 1, "maxItems": 256, "items": {"$ref": "#/$defs/nativeOrigin"}}
+        }},
+        "event_origins": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/nativeOrigin"}},
+        "semantic_event_origin": {"anyOf": [{"type": "null"}, {"$ref": "#/$defs/nativeOrigin"}]},
+        "semantic_event_origins": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/nativeOrigin"}},
+        "causes": {"type": "array", "maxItems": 256, "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["event", "phase", "transaction_id", "rule_id"],
+          "properties": {
+            "event": {"type": "string", "minLength": 1, "maxLength": 255},
+            "phase": {"enum": ["request_headers", "request_body", "response_headers", "response_body", "logging"]},
+            "transaction_id": {"type": "string", "maxLength": 128},
+            "rule_id": {"type": "string", "pattern": "^[0-9]*$"},
+            "http_status": {"type": "integer", "minimum": 0, "maximum": 999},
+            "visible_http_status": {"type": "integer", "minimum": 0, "maximum": 999},
+            "actual_action": {"type": "string", "maxLength": 255},
+            "transport_result": {"type": "string", "maxLength": 255}
+          }
+        }},
+        "semantics": {"type": "object", "additionalProperties": false,
+          "required": ["phase", "phase_scope", "expected_result", "wire_status", "rule_ids"],
+          "properties": {
+            "phase": {"type": "integer", "minimum": 0, "maximum": 5},
+            "phase_scope": {"enum": ["native_event", "host_preconnector", "lifecycle_cleanup"]},
+            "expected_result": {"type": "string", "minLength": 1, "maxLength": 128},
+            "wire_status": {"type": "integer", "minimum": 100, "maximum": 599},
+            "rule_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[0-9]+$"}}
+          }
+        },
+        "semantic_origins": {"type": "object", "additionalProperties": false,
+          "required": ["expected_result", "phase", "rule_ids"],
+          "properties": {
+            "expected_result": {"type": "object", "additionalProperties": false,
+              "required": ["kind", "case_id", "operation", "source_pointer", "retained_file_sha256"],
+              "properties": {
+                "kind": {"const": "closed_verified_operation"},
+                "case_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"},
+                "operation": {"enum": ["native_h1_parser_rejection", "common_mapper_input_fault", "native_phase4_request", "request_sequence", "native_event_boundary_request"]},
+                "source_pointer": {"const": "/case_id"},
+                "retained_file_sha256": {"type": "object", "additionalProperties": false, "patternProperties": {
+                  "^[A-Za-z0-9_-][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_-][A-Za-z0-9_.-]*)*$": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                }}
+              }
+            },
+            "phase": {"type": "object", "additionalProperties": false, "required": ["kind", "event_origins"],
+              "properties": {
+                "kind": {"enum": ["native_event", "host_preconnector", "lifecycle_cleanup"]},
+                "event_origins": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/nativeOrigin"}}
+              }
+            },
+            "rule_ids": {"type": "array", "maxItems": 256, "items": {"$ref": "#/$defs/nativeOrigin"}}
+          }
+        }
+      }
+    },
+    "native_operation_receipt": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "case_id", "run_id", "operation", "integration_mode", "bundle_root", "invocations", "source_sha256"],
+      "properties": {
+        "schema_version": {"const": 1},
+        "case_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"},
+        "run_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$"},
+        "operation": {"enum": ["native_h1_parser_rejection", "common_mapper_input_fault", "native_phase4_request", "request_sequence", "native_event_boundary_request"]},
+        "integration_mode": {"const": "native-nginx-http-module"},
+        "bundle_root": {"type": "string", "maxLength": 4096, "pattern": "^(?:/[A-Za-z0-9_-][A-Za-z0-9_.-]*)+$|^inventory/native-operations/[a-z][a-z0-9_]+$"},
+        "invocations": {"type": "array", "minItems": 1, "maxItems": 2, "items": {
+          "type": "object", "additionalProperties": false, "required": ["name", "receipt_path", "receipt_sha256"],
+          "properties": {
+            "name": {"enum": ["main", "at", "over"]},
+            "receipt_path": {"type": "string", "pattern": "^(?:[a-z][a-z0-9_-]*/)?[a-z][a-z0-9_-]*\\.json$"},
+            "receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+          }
+        }},
+        "source_sha256": {"type": "object", "minProperties": 1, "maxProperties": 64,
+          "patternProperties": {"^(?:parent|framework):[A-Za-z0-9_][A-Za-z0-9_.-]*(?:/[A-Za-z0-9_][A-Za-z0-9_.-]*)*$": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+          "additionalProperties": false},
+        "source_record_id": {"enum": ["phase4_marker_split_across_chunks", "phase4_body_over_limit"]},
+        "parent_receipt_path": {"const": "source-result.json"},
+        "parent_receipt_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  },
+  "allOf": [{
+    "if": {"required": ["native_operation_receipt"], "properties": {"status": {"const": "PASS"}}},
+    "then": {"required": ["parent_sha", "framework_sha", "mrts_sha", "parent_framework_gitlink", "operation", "driver_exit_code", "native_mapping_sha256", "native_evidence_mapping"],
+      "properties": {"connector": {"const": "nginx"}, "integration_mode": {"const": "native-nginx-http-module"}, "driver_exit_code": {"const": 0}}}
+  }],
+  "$defs": {
+    "nativeOrigin": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "invocation", "artifact", "artifact_sha256", "source_pointer"],
+      "properties": {
+        "kind": {"enum": ["native_event", "host_observation", "operation_receipt", "downstream_wire", "response_capture_boundary", "engine_configuration"]},
+        "invocation": {"enum": ["main", "at", "over"]},
+        "artifact": {"type": "string", "maxLength": 128, "pattern": "^[a-z0-9_-][a-z0-9_.-]*(?:/[a-z0-9_-][a-z0-9_.-]*)*$"},
+        "artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "source_pointer": {"type": "string", "maxLength": 256, "pattern": "^/[A-Za-z0-9_/-]+$"},
+        "line_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "line_index": {"type": "integer", "minimum": 0},
+        "event_index": {"type": "integer", "minimum": 0},
+        "transaction_id": {"type": "string", "maxLength": 128}
+      }
+    }
   }
 }

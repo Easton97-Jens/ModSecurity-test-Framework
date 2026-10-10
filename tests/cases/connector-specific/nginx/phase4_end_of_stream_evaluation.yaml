@@ -1,0 +1,41 @@
+name: phase4_end_of_stream_evaluation
+title: Native NGINX phase4 end of stream evaluation
+category: no-crs-full-lifecycle
+portable: false
+connector: nginx
+status: pending
+no_crs_baseline: true
+phase: 4
+capabilities:
+  response_body: true
+  phase4: true
+  intervention: true
+rules: |
+  SecRuleEngine On
+  SecResponseBodyAccess On
+  SecResponseBodyMimeType text/plain
+  SecRule RESPONSE_BODY "@contains no-crs-response-body-marker" \
+    "id:1100301,phase:4,deny,status:403,log,msg:'no-crs phase-4 intervention probe'"
+nginx:
+  phase4_mode: safe
+  location_directives: |
+    modsecurity_phase4_log "@@NGINX_PHASE4_LOG@@";
+request:
+  method: GET
+  path: /no-crs/full-lifecycle/phase4-end-of-stream-evaluation
+response:
+  body: no-crs-response-body-marker
+  content_type: text/plain
+expect:
+  status: 200
+  intervention: none
+full_lifecycle:
+  requires_real_host_chunk_driver: true
+  evidence_status: not_executed_until_real_host
+  response_chunks:
+    - no-crs-response-
+    - body-marker
+  chunk_contract: marker_spans_two_chunks
+  evaluation: end_of_stream
+known_limitations:
+  - Fixture generation does not prove native ingestion, Engine inspection length, or limit outcome.
