@@ -284,13 +284,18 @@ strict reconciler consumes the plan. A silent catalog check therefore no longer
 stops maintenance before candidate validation and publication.
 
 Both Python maintenance resolvers require the latest compatible official
-Python.org release to have its stable Linux/Ubuntu 24.04/x64 build in the
+Python.org release to have its stable Linux/Ubuntu 26.04/x64 build in the
 [official setup-python manifest](https://github.com/actions/python-versions/blob/main/versions-manifest.json).
-The Common and separate Python workflows pin `ubuntu-24.04` to match that target. A delayed
+The Common and separate Python workflows pin `ubuntu-26.04` to match that target. A delayed
 build remains an explicit blocked result with the canonical pin unchanged;
 it is not reported as current and no older candidate is silently substituted.
 Manifest preflight establishes availability, while the candidate job still
 installs and tests the actual interpreter before publication.
+
+All active Framework workflow jobs explicitly select `ubuntu-26.04`.
+The actionlint configuration adds only that exact official hosted label because
+the pinned linter predates its built-in recognition; no lint errors are ignored.
+Historical evidence and generic offline security fixtures keep their original labels.
 
 The generated Sonar workflow is included by exact path in the planner, native
 workflow-tool validator and publisher path contracts. Other unreviewed workflow

@@ -7,8 +7,8 @@ from urllib import request
 
 MANIFEST_URL = "https://raw.githubusercontent.com/actions/python-versions/main/versions-manifest.json"
 MAX_BYTES = 8_000_000
-RUNNER = "ubuntu-24.04"
-TARGET = {"platform": "linux", "platform_version": "24.04", "arch": "x64"}
+RUNNER = "ubuntu-26.04"
+TARGET = {"platform": "linux", "platform_version": "26.04", "arch": "x64"}
 
 
 class NoRedirect(request.HTTPRedirectHandler):
@@ -71,7 +71,7 @@ def require_build(manifest, version):
         raise ValueError(
             f"CPython {version} is published but its {RUNNER}/x64 setup-python build is unavailable"
         )
-    filename = f"python-{version}-linux-24.04-x64.tar.gz"
+    filename = f"python-{version}-linux-26.04-x64.tar.gz"
     url = builds[0].get("download_url", "")
     if (
         builds[0].get("filename") != filename

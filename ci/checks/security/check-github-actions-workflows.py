@@ -507,7 +507,7 @@ def sonar_pr_secret_allowed(path: Path, document: Mapping[str, Any]) -> bool:
         return False
     if set(job) != {"if", "runs-on", "timeout-minutes", "steps"}:
         return False
-    if job.get("runs-on") != "ubuntu-latest" or job.get("timeout-minutes") != 60:
+    if job.get("runs-on") != "ubuntu-26.04" or job.get("timeout-minutes") != 60:
         return False
     try:
         actions = canonical_sonar_actions()

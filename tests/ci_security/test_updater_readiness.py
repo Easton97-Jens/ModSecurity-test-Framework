@@ -35,7 +35,7 @@ SPEC.loader.exec_module(RUNNER)
 
 
 def manifest(version="3.14.7"):
-    filename = f"python-{version}-linux-24.04-x64.tar.gz"
+    filename = f"python-{version}-linux-26.04-x64.tar.gz"
     return [
         {
             "version": version,
@@ -43,7 +43,7 @@ def manifest(version="3.14.7"):
             "files": [
                 {
                     "platform": "linux",
-                    "platform_version": "24.04",
+                    "platform_version": "26.04",
                     "arch": "x64",
                     "filename": filename,
                     "download_url": f"https://github.com/actions/python-versions/releases/download/{version}-123/{filename}",
@@ -121,7 +121,7 @@ class UpdaterReadinessTests(unittest.TestCase):
             ("arch", "arm64"),
             ("platform_version", "22.04"),
             ("download_url", "https://example.invalid/file"),
-            ("filename", "python-3.14.8-linux-24.04-x64.tar.gz"),
+            ("filename", "python-3.14.8-linux-26.04-x64.tar.gz"),
         ):
             with self.subTest(field=field):
                 payload = manifest()
@@ -142,7 +142,9 @@ class UpdaterReadinessTests(unittest.TestCase):
     def test_manifest_transport_failure_is_a_blocked_metadata_input(self):
         with self.assertRaisesRegex(ValueError, "could not be fetched"):
             RUNNER.fetch_manifest(
-                opener=lambda req, **kwargs: (_ for _ in ()).throw(RemoteDisconnected())
+                opener=lambda req, **kwargs: (_ for _ in ()).throw(
+                    RemoteDisconnected("connection closed")
+                )
             )
 
     def test_sonar_view_is_admitted_only_at_all_exact_publisher_paths(self):
@@ -191,3 +193,23 @@ class UpdaterReadinessTests(unittest.TestCase):
                 self.assertTrue(
                     any("runner" in error and "manifest" in error for error in errors)
                 )
+
+    def test_all_active_workflow_jobs_pin_requested_ubuntu_release(self):
+        for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+            document = yaml.safe_load(path.read_text())
+            for name, job in document["jobs"].items():
+                with self.subTest(workflow=path.name, job=name):
+                    self.assertEqual(job["runs-on"], "ubuntu-26.04")
+
+    def test_previous_ubuntu_build_cannot_satisfy_new_target(self):
+        previous = manifest()
+        build = previous[0]["files"][0]
+        build["platform_version"] = "24.04"
+        build["filename"] = build["filename"].replace("26.04", "24.04")
+        build["download_url"] = build["download_url"].replace("26.04", "24.04")
+        with self.assertRaisesRegex(ValueError, "ubuntu-26.04/x64.*unavailable"):
+            RUNNER.require_build(previous, "3.14.7")
+
+    def test_actionlint_only_adds_the_exact_official_runner_label(self):
+        config = yaml.safe_load((ROOT / ".github/actionlint.yaml").read_text())
+        self.assertEqual(config, {"self-hosted-runner": {"labels": ["ubuntu-26.04"]}})

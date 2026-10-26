@@ -22,7 +22,7 @@ defaults:
 jobs:
   pull-request-head:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Checkout trusted exact pull-request base revision
@@ -214,7 +214,7 @@ jobs:
 
   scheduled-advisory:
     if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Checkout exact current default-branch revision

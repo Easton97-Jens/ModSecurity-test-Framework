@@ -17,7 +17,7 @@ defaults:
 
 jobs:
   resolve:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -49,7 +49,7 @@ jobs:
   candidate-validate:
     needs: resolve
     if: ${{ needs.resolve.outputs.update_available == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -137,7 +137,7 @@ jobs:
       github.ref == 'refs/heads/master' &&
       needs.resolve.outputs.update_available == 'true' &&
       needs.candidate-validate.outputs.candidate_validated == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -425,7 +425,7 @@ jobs:
       - candidate-validate
       - publish
     if: ${{ always() }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
     env:

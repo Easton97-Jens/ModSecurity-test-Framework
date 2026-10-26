@@ -16,7 +16,7 @@ jobs:
   analyze-pull-request:
     if: github.event_name == 'pull_request'
     name: CodeQL PR (${{ matrix.language }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read

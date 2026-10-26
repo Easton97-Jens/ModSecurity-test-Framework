@@ -75,7 +75,7 @@ def response_for(records: list[dict[str, object]]) -> FakeResponse:
 
 class UpdatePythonVersionTest(unittest.TestCase):
     def setUp(self) -> None:
-        filename = "python-3.14.7-linux-24.04-x64.tar.gz"
+        filename = "python-3.14.7-linux-26.04-x64.tar.gz"
         builds = [
             {
                 "version": "3.14.7",
@@ -83,7 +83,7 @@ class UpdatePythonVersionTest(unittest.TestCase):
                 "files": [
                     {
                         "platform": "linux",
-                        "platform_version": "24.04",
+                        "platform_version": "26.04",
                         "arch": "x64",
                         "filename": filename,
                         "download_url": "https://github.com/actions/python-versions/releases/download/3.14.7-123/"

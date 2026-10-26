@@ -27,7 +27,7 @@ jobs:
   # remains as a compatibility report while consumers migrate to this plan;
   # it is deliberately never allowed to publish a candidate by itself.
   canonical-maintenance:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -117,7 +117,7 @@ jobs:
     if: >-
       (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
       github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -186,7 +186,7 @@ jobs:
       needs.canonical-maintenance.outputs.safe_updates != '0' &&
       (needs.canonical-maintenance.outputs.maintenance_outcome == 'safe_updates' ||
       needs.canonical-maintenance.outputs.maintenance_outcome == 'safe_updates_with_manual_review')
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -272,7 +272,7 @@ jobs:
       needs.canonical-maintenance.outputs.safe_updates != '0' &&
       needs.candidate.result == 'success' &&
       (needs.reconcile-trusted.result == 'success' || needs.reconcile-trusted.result == 'skipped')
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -542,7 +542,7 @@ jobs:
       - reconcile-trusted
       - publish
     if: ${{ always() }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read

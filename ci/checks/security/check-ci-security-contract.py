@@ -67,7 +67,7 @@ SUBMODULE_UPDATER_FIRST_PARTY_HEAD_REQUIREMENTS = (
 # repository write permissions, so every key, step, action input, environment,
 # and run body must remain review-bound rather than merely contain snippets.
 SUBMODULE_UPDATER_PUBLISHER_SHA256 = (
-    "a7996c867291e2b9689840b2b17b039cc1fd5841ba878dd0d68452aeac289ab5"
+    "982750eb88cc2325bc4f7ed35055e24601033ea139d102b381759f72075460e0"
 )
 CHECKOUT_WITHOUT_SUBMODULES = "submodules: false"
 CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS = "persist-credentials: false"
@@ -2078,7 +2078,7 @@ def python_version_publisher_profile_errors(path: Path, publish: Any) -> list[st
         errors.append(
             f"{path}: CPython publisher job must match its reviewed key profile"
         )
-    if publish.get("runs-on") != "ubuntu-24.04":
+    if publish.get("runs-on") != "ubuntu-26.04":
         errors.append(f"{path}: CPython publisher must use the reviewed runner")
     if publish.get("timeout-minutes") != 15:
         errors.append(f"{path}: CPython publisher must use the reviewed timeout")
@@ -2114,7 +2114,7 @@ def python_version_outcome_errors(path: Path, outcome: Any) -> list[str]:
         errors.append(
             f"{path}: CPython maintenance outcome must match its reviewed key profile"
         )
-    if outcome.get("runs-on") != "ubuntu-24.04" or outcome.get("timeout-minutes") != 5:
+    if outcome.get("runs-on") != "ubuntu-26.04" or outcome.get("timeout-minutes") != 5:
         errors.append(
             f"{path}: CPython maintenance outcome must use the reviewed runner and timeout"
         )
@@ -2441,7 +2441,7 @@ def publisher_job_setting_errors(path: Path, publisher: dict[str, Any]) -> list[
         errors.append(
             f"{path}: updater publisher job must match its reviewed key profile"
         )
-    if publisher.get("runs-on") != "ubuntu-latest":
+    if publisher.get("runs-on") != "ubuntu-26.04":
         errors.append(f"{path}: updater publisher must use the reviewed runner")
     if publisher.get("timeout-minutes") != 25:
         errors.append(f"{path}: updater publisher must use the reviewed timeout")
@@ -2601,7 +2601,7 @@ def updater_outcome_profile_errors(path: Path, data: dict[str, Any]) -> list[str
     errors: list[str] = []
     if set(outcome) != UPDATER_OUTCOME_JOB_KEYS:
         errors.append(f"{path}: updater outcome must match its reviewed key profile")
-    if outcome.get("runs-on") != "ubuntu-latest":
+    if outcome.get("runs-on") != "ubuntu-26.04":
         errors.append(f"{path}: updater outcome must use the reviewed runner")
     if outcome.get("timeout-minutes") != 5:
         errors.append(f"{path}: updater outcome must use the reviewed timeout")
@@ -2687,7 +2687,7 @@ def submodule_updater_reader_job_errors(
             continue
         if job.get("permissions") != {"contents": "read"}:
             errors.append(f"{path}: {job_name} must remain contents: read")
-        if job.get("runs-on") != "ubuntu-latest":
+        if job.get("runs-on") != "ubuntu-26.04":
             errors.append(f"{path}: {job_name} must use the reviewed runner")
         reader_text = job_text(text, job_name)
         if reader_text is not None and any(
@@ -3051,7 +3051,7 @@ def common_version_publisher_job_setting_errors(
         errors.append(
             f"{path}: common-version publisher job must match its reviewed key profile"
         )
-    if publish.get("runs-on") != "ubuntu-latest":
+    if publish.get("runs-on") != "ubuntu-26.04":
         errors.append(f"{path}: common-version publisher must use the reviewed runner")
     if publish.get("timeout-minutes") != 30:
         errors.append(f"{path}: common-version publisher must use the reviewed timeout")
@@ -3234,7 +3234,7 @@ def common_version_result_job_setting_errors(
         )
     if result.get("if") != ALWAYS_CONDITION:
         errors.append(f"{path}: common-version result job must always run")
-    if result.get("runs-on") != "ubuntu-latest":
+    if result.get("runs-on") != "ubuntu-26.04":
         errors.append(f"{path}: common-version result job must use the reviewed runner")
     if result.get("timeout-minutes") != 5:
         errors.append(
@@ -3416,9 +3416,9 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
             continue
         if set(job) != job_profiles[name]:
             errors.append(f"{path}: common-version {name} job key profile changed")
-        if job.get("runs-on") != "ubuntu-24.04":
+        if job.get("runs-on") != "ubuntu-26.04":
             errors.append(
-                f"{path}: common-version {name} runner must match the Ubuntu 24.04 Python manifest target"
+                f"{path}: common-version {name} runner must match the Ubuntu 26.04 Python manifest target"
             )
         steps = job.get("steps")
         if not isinstance(steps, list) or len(steps) != len(step_profiles[name]):
