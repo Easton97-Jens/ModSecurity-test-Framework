@@ -37,6 +37,8 @@ Native capture helper, sonar-project.properties, security contract checker, read
 
 ## Commands and results
 
+After head `5bffa21d3dd49d3ca647e89eebe005b8421b0812` passed all twelve Hosted workflows and analysis `e6de292f-cdd1-41f9-a71f-6314e08e9b47`, the user requested closure of the two remaining S1110 reports. The equivalent follow-up uses `Path.joinpath()` for the same fixed library path and a named HTTP-status membership predicate before the unchanged classification. The six transient HTTP codes, exception chain, error messages and fail-closed behavior are preserved. Seventy-four existing updater/checker/readiness methods and Ruff lint/format passed. This follow-up requires fresh exact-head CI/Sonar; no suppression, rule or gate change is used.
+
 77 affected security/updater methods passed; nine native-analysis methods covering ten cases passed, including causal missing-.git rejection before correction and success afterwards. Helper reconstruction preserved AST semantics and execution order. Hosted head 5ef4dc3c completed approved SDK build, one real C compilation, CLI 8.2.0.6438 upload and CE analysis eb2599ca-c449-4e33-8cb3-e643eb0b593d. Eleven other workflow runs passed. Four issue dispositions were freshly read back as RESOLVED/FALSE-POSITIVE.
 
 ## Security impact

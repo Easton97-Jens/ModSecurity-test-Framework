@@ -284,11 +284,8 @@ def fetch_release_metadata(
     except UpdaterFailure:
         raise
     except error.HTTPError as exc:
-        status = (
-            "blocked_network"
-            if exc.code in {408, 429, 500, 502, 503, 504}
-            else "blocked_metadata"
-        )
+        is_transient_http_error = exc.code in {408, 429, 500, 502, 503, 504}
+        status = "blocked_network" if is_transient_http_error else "blocked_metadata"
         raise UpdaterFailure(
             status, f"metadata request returned HTTP {exc.code}"
         ) from exc

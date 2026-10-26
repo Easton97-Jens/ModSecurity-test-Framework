@@ -37,6 +37,8 @@ Nativer Capture-Helfer, sonar-project.properties, Sicherheitsvertragsprüfer, Be
 
 ## Befehle und Ergebnisse
 
+Nachdem Head `5bffa21d3dd49d3ca647e89eebe005b8421b0812` alle zwölf Hosted-Workflows und Analyse `e6de292f-cdd1-41f9-a71f-6314e08e9b47` bestanden hatte, beauftragte der Nutzer die Bereinigung der beiden übrigen S1110-Meldungen. Der gleichwertige Folgecommit verwendet `Path.joinpath()` für denselben festen Bibliothekspfad sowie eine benannte HTTP-Status-Bedingung vor der unveränderten Klassifikation. Die sechs vorübergehenden HTTP-Codes, Exception-Kette, Fehlermeldungen und das geschlossene Fehlerverhalten bleiben erhalten. 74 bestehende Updater-/Checker-/Bereitschaftsmethoden sowie Ruff-Lint und -Format bestanden. Dieser Folgecommit benötigt frische CI-/Sonar-Nachweise seines exakten Heads; keine Unterdrückung, Regel- oder Gate-Änderung.
+
 77 betroffene Sicherheits-/Updater-Methoden bestanden; neun Native-Analyse-Methoden mit zehn Fällen bestanden, einschließlich kausaler Ablehnung des fehlenden .git-Ausschlusses vor der Korrektur und Erfolg danach. Die Helferrekonstruktion erhielt AST-Semantik und Ausführungsreihenfolge. Hosted-Head 5ef4dc3c schloss freigegebenen SDK-Build, eine reale C-Kompilierung, CLI-8.2.0.6438-Upload und CE-Analyse eb2599ca-c449-4e33-8cb3-e643eb0b593d ab. Elf weitere Workflow-Läufe bestanden. Die vier Befundeinstufungen wurden frisch als RESOLVED/FALSE-POSITIVE zurückgelesen.
 
 ## Sicherheitsauswirkung

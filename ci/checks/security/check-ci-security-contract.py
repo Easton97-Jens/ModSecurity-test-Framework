@@ -4565,7 +4565,7 @@ def validate(root: Path, lock_path: Path) -> list[str]:
     except ValueError as exc:
         # Unit fixtures intentionally contain only a workflow/lock.  The real
         # checkout must provide common.sh and therefore fails closed there.
-        if (root / "ci" / "lib" / "common.sh").exists():
+        if root.joinpath("ci", "lib", "common.sh").exists():
             return [str(exc)]
     actions, _tools, errors = load_lock(lock_path)
     paths = workflow_paths(root)
