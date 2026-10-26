@@ -9,7 +9,7 @@
 | Change ID | 20261026-01-framework-sonar-cli-security |
 | UTC date | 2026-10-26 |
 | Framework base revision | 99a7985 |
-| Issue or pull request | Not created; pending coordinator review |
+| Issue or pull request | [PR #138](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/138) |
 
 ## Motivation and problem statement
 
@@ -33,11 +33,11 @@ Pinned official scanner Action/CLI. Compile-only native Make records real succes
 
 ## Changed files and tests
 
-New sonarqube.yml, sonar-project.properties, prepare-sonar-cfamily.py and test_sonar_analysis_contract.py; narrow workflow checker exception; canonical Sonar Action group plus generated lock; paired security documentation.
+New sonarqube.yml, sonar-project.properties, prepare-sonar-cfamily.py, prepare-sonar-sdk.sh and test_sonar_analysis_contract.py; narrow workflow checker exception; canonical Sonar Action group plus generated lock; exact generated-view registration in check-common-versions.py; paired security documentation.
 
 ## Commands and results
 
-Actual GCC compile-only native Make: exit 0, one real source, strict original flags. Eleven new focused test methods passed (32 expanded checks: 18 mutations, five additional source/execution boundary cases and nine ordinary methods); existing workflow-security suite: 9 passed; canonical-workflow-pin suite: 12 passed. Python/workflow contracts passed. Evidence root: external task run `framework-sonar-cli-security-20261026`. Local interpreter 3.14.4 is an alternative to exact hosted 3.14.8; no cached exact interpreter found in inspected toolchain locations.
+Actual GCC compile-only native Make: exit 0, one real source, strict original flags; repeated with the genuine canonical native SDK build layout. Fourteen focused test methods passed (40 expanded checks), including rejection of replaced SDK producer, mixed SDK layouts, workflow-level execution overrides and staging symlinks. Existing workflow-security suite: 9 passed; canonical-workflow-pin suite: 12 passed before Hosted remediation. Canonical-common validation reproduced the Hosted copied-pin failure and passed after registering only the new generated workflow. Evidence root: external task run `framework-sonar-cli-security-20261026`. Local interpreter 3.14.4 is an alternative to exact hosted 3.14.8; no cached exact interpreter found in inspected toolchain locations.
 
 ## Security impact
 
@@ -49,7 +49,7 @@ Updated docs/security/ci-security-tooling.md and .de.md. No connector runtime or
 
 ## Checks not run
 
-Live Sonar upload, CE completion, findings/hotspot readback and exact-head gate: coordinator-owned pending provider execution. Hosted exact Python patch and Ubuntu SDK execution remain pending. Broad runtime/matrix tests are outside scope.
+Live Sonar upload, CE completion, findings/hotspot readback and exact-head gate: coordinator-owned pending provider execution. The first Hosted run used exact Python 3.14.8 but failed before scanning because the distribution SDK lacks maintained C API declarations; strict flags correctly rejected it. The follow-up builds the existing canonical approved SDK instead. That Hosted SDK build and the live scanner remain pending. Broad runtime/matrix tests are outside scope.
 
 ## Limitations and residual risk
 
@@ -57,4 +57,4 @@ Automatic analysis must be disabled on the existing Sonar project before CLI ana
 
 ## Final diff and review status
 
-Coordinator review and focused local checks completed. Draft-PR delivery and exact-head live analysis remain pending; no merge is authorized and the task remains partial.
+Initial reviewed implementation published in Draft PR #138 at 47ebce8. Focused local Hosted-remediation checks completed; follow-up coordinator review/delivery and exact-head live analysis remain pending. No merge is authorized and the task remains partial.

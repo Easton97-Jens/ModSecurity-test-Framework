@@ -142,6 +142,7 @@ GENERATED_CANONICAL_VIEW_PATHS = frozenset(
                 "cleanup-artifacts.yml",
                 "five-connectors-with-crs-no-mrts-contract.yml",
                 "lint.yml",
+                "sonarqube.yml",
                 "test-common.yml",
                 "update-submodules.yml",
             )

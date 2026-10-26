@@ -22,7 +22,7 @@ jobs:
   sonarqube:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -42,13 +42,15 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes gcc libmodsecurity-dev
+          sudo apt-get install --no-install-recommends --yes build-essential autoconf automake libtool pkg-config libpcre2-dev libyajl-dev libcurl4-openssl-dev libxml2-dev liblmdb-dev libssl-dev zlib1g-dev bison flex git
 
       - name: Compile all Framework native sources for security analysis
         run: |
           set -euo pipefail
+          sh ci/checks/analysis/prepare-sonar-sdk.sh
           python3 ci/checks/analysis/prepare-sonar-cfamily.py \
-            --output "$RUNNER_TEMP/framework-sonar-native" --sdk /usr
+            --output "$RUNNER_TEMP/framework-sonar-native" \
+            --sdk "$RUNNER_TEMP/framework-sonar-sdk/build/ModSecurity_V3_build"
 
       - name: Analyze maintained languages and wait for the Quality Gate
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0

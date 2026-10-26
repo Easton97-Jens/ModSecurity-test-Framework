@@ -368,9 +368,17 @@ Kompilierungsdatenbank entsprechen. Eine neue native Einheit führt deshalb
 zum Fehler, bis ihre reale Build-Erfassung implementiert ist. Aktuell ist dies
 `src/v3-api-smoke/v3_api_smoke.c`; kein Smoke-Programm wird ausgeführt.
 Datenbank, Objektdatei, SDK-Layout-Links, Quelldigest und Scanner-Caches und
-Arbeitsdateien liegen außerhalb des Checkouts in einem privaten task-eigenen Verzeichnis; vorbereitete Output-Symlinks werden abgelehnt. Ubuntu-CI verwendet das SDK
-`libmodsecurity-dev`; lokale Läufe benötigen ein vorhandenes kompatibles SDK
-und eine Framework-eigene Python-Umgebung. Compilation Database Mode ermöglicht
+Arbeitsdateien liegen außerhalb des Checkouts in einem privaten task-eigenen Verzeichnis; vorbereitete Output-Symlinks werden abgelehnt.
+Ubuntu-CI installiert Build-Voraussetzungen; anschließend ruft
+`prepare-sonar-sdk.sh` den bestehenden Framework-Provisioner und nativen
+SDK-Builder auf. Diese prüfen den kanonischen ModSecurity-Origin, den exakt
+freigegebenen Commit und die Submodul-Identitäten vor dem Build des freigegebenen
+Releases. Das SDK der Distribution ist für die gepflegte C-API zu alt.
+SDK-Quellen, Build und Logs bleiben im externen Runner-Verzeichnis. Die
+Erfassung akzeptiert installierte `include/lib`- und echte native
+`headers/src/.libs`-Layouts, ohne diese zu vermischen. Lokale Läufe benötigen ein
+vorhandenes kompatibles SDK und eine Framework-eigene Python-Umgebung.
+Compilation Database Mode ermöglicht
 den CFamily-Sicherheitspfad, den AutoConfig für Taint-Analyse nicht unterstützt.
 Tatsächliche Sprach-/Regelverfügbarkeit, Server-Verarbeitung, Findings,
 Hotspots und das Gate der exakten Head-SHA benötigen weiterhin Live-Evidenz;

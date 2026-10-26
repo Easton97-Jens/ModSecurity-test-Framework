@@ -507,7 +507,7 @@ def sonar_pr_secret_allowed(path: Path, document: Mapping[str, Any]) -> bool:
         return False
     if set(job) != {"if", "runs-on", "timeout-minutes", "steps"}:
         return False
-    if job.get("runs-on") != "ubuntu-latest" or job.get("timeout-minutes") != 30:
+    if job.get("runs-on") != "ubuntu-latest" or job.get("timeout-minutes") != 60:
         return False
     try:
         actions = canonical_sonar_actions()
@@ -521,10 +521,12 @@ def sonar_pr_secret_allowed(path: Path, document: Mapping[str, Any]) -> bool:
             "python-version-file": ".python-version", "check-latest": False}},
         {"name": "Install native analysis prerequisites", "run":
             "set -euo pipefail\nsudo apt-get update\n"
-            "sudo apt-get install --no-install-recommends --yes gcc libmodsecurity-dev\n"},
+            "sudo apt-get install --no-install-recommends --yes build-essential autoconf automake libtool pkg-config libpcre2-dev libyajl-dev libcurl4-openssl-dev libxml2-dev liblmdb-dev libssl-dev zlib1g-dev bison flex git\n"},
         {"name": "Compile all Framework native sources for security analysis", "run":
-            "set -euo pipefail\npython3 ci/checks/analysis/prepare-sonar-cfamily.py \\\n"
-            '  --output "$RUNNER_TEMP/framework-sonar-native" --sdk /usr\n'},
+            "set -euo pipefail\nsh ci/checks/analysis/prepare-sonar-sdk.sh\n"
+            "python3 ci/checks/analysis/prepare-sonar-cfamily.py \\\n"
+            '  --output "$RUNNER_TEMP/framework-sonar-native" \\\n'
+            '  --sdk "$RUNNER_TEMP/framework-sonar-sdk/build/ModSecurity_V3_build"\n'},
         {"name": "Analyze maintained languages and wait for the Quality Gate",
          "uses": actions["SONARQUBE_SCAN"], "env": {
              "SONAR_TOKEN": "${{ secrets.SONAR_TOKEN }}",

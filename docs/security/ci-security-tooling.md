@@ -331,8 +331,15 @@ compilation database. Adding a native unit therefore fails until its real
 build capture is implemented. The current unit is
 `src/v3-api-smoke/v3_api_smoke.c`; no smoke executable is run. The database,
 object, SDK-layout links, source digest and scanner caches/work files live
-outside the checkout in a private task-owned directory; preseeded output symlinks are rejected. Ubuntu CI uses its `libmodsecurity-dev` SDK; local runs
-require an existing compatible SDK and a Framework-owned Python environment.
+outside the checkout in a private task-owned directory; preseeded output symlinks are rejected.
+Ubuntu CI installs build prerequisites, then `prepare-sonar-sdk.sh` invokes the
+existing Framework provisioner and native SDK builder. They verify the canonical
+ModSecurity origin, exact approved commit and submodule identities before building
+the approved release; the distribution SDK is too old for the maintained C API.
+SDK source, build and logs remain under the external runner directory. The
+capture accepts both installed `include/lib` and genuine native `headers/src/.libs`
+layouts without mixing them. Local runs require an existing compatible SDK and
+a Framework-owned Python environment.
 Compilation Database mode enables the CFamily security path that AutoConfig
 does not support for taint analysis. Actual language/rule availability, server
 processing, findings, hotspots and the exact-head gate still require live scan

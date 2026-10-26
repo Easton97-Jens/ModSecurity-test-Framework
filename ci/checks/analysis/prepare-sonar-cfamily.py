@@ -27,6 +27,18 @@ def record_compile(fragment: Path, compiler: str, arguments: list[str]) -> None:
     fragment.write_text(json.dumps(record) + "\n", encoding="utf-8")
 
 
+def sdk_layout(sdk: Path) -> tuple[Path, Path]:
+    """Accept installed prefixes or the existing approved native build layout."""
+    layouts = ((sdk / "include", sdk / "lib"),
+               (sdk / "include", sdk / "lib/x86_64-linux-gnu"),
+               (sdk / "headers", sdk / "src/.libs"))
+    for headers, library_dir in layouts:
+        if ((headers / "modsecurity/modsecurity.h").is_file()
+                and (library_dir / "libmodsecurity.so").is_file()):
+            return headers, library_dir
+    raise ValueError("ModSecurity SDK requires installed include/lib or native headers/src/.libs")
+
+
 def prepare(root: Path, output: Path, sdk: Path, compiler_name: str) -> Path:
     if output.is_symlink():
         raise ValueError("refusing symlinked analysis output")
@@ -36,13 +48,7 @@ def prepare(root: Path, output: Path, sdk: Path, compiler_name: str) -> Path:
     compiler = shutil.which(compiler_name)
     if compiler is None:
         raise ValueError("a real native C compiler is required")
-    header = sdk / "include/modsecurity/modsecurity.h"
-    library_dir = sdk / "lib"
-    if not (library_dir / "libmodsecurity.so").is_file():
-        library_dir = sdk / "lib/x86_64-linux-gnu"
-    library = library_dir / "libmodsecurity.so"
-    if not header.is_file() or not library.is_file():
-        raise ValueError("ModSecurity SDK requires include/modsecurity and lib/libmodsecurity.so")
+    headers, library_dir = sdk_layout(sdk)
     # Keep the native Makefile's prerequisite and flag contracts unchanged.
     # Reuse its historical SDK layout through task-owned external symlinks.
     output.mkdir(parents=True, exist_ok=True)
@@ -59,7 +65,7 @@ def prepare(root: Path, output: Path, sdk: Path, compiler_name: str) -> Path:
     if stage.is_symlink() or (stage / "src").is_symlink():
         raise ValueError("refusing symlinked SDK staging directory")
     (stage / "src").mkdir(parents=True, exist_ok=True)
-    for destination, source in ((stage / "headers", sdk / "include"),
+    for destination, source in ((stage / "headers", headers),
                                 (stage / "src/.libs", library_dir)):
         if destination.is_symlink() and destination.resolve() == source.resolve():
             continue

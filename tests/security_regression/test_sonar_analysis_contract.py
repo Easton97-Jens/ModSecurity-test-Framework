@@ -58,6 +58,9 @@ class SonarSecretBoundaryTests(unittest.TestCase):
         document = deepcopy(original)
         document["jobs"]["sonarqube"]["steps"][3]["run"] = document["jobs"]["sonarqube"]["steps"][3]["run"].replace("prepare-sonar-cfamily.py", "unreviewed-wrapper.py")
         mutations.append(("changed compiler wrapper", document))
+        document = deepcopy(original)
+        document["jobs"]["sonarqube"]["steps"][3]["run"] = document["jobs"]["sonarqube"]["steps"][3]["run"].replace("prepare-sonar-sdk.sh", "unreviewed-sdk.sh")
+        mutations.append(("changed approved SDK producer", document))
         for name, document in mutations:
             with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
                 path = Path(temporary) / "sonarqube.yml"
@@ -153,6 +156,25 @@ class SonarSecretBoundaryTests(unittest.TestCase):
 
 
 class NativeAnalysisBoundaryTests(unittest.TestCase):
+    def test_native_build_sdk_layout_is_accepted(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            sdk = Path(temporary)
+            (sdk / "headers/modsecurity").mkdir(parents=True)
+            (sdk / "src/.libs").mkdir(parents=True)
+            (sdk / "headers/modsecurity/modsecurity.h").touch()
+            (sdk / "src/.libs/libmodsecurity.so").touch()
+            self.assertEqual(NATIVE.sdk_layout(sdk), (sdk / "headers", sdk / "src/.libs"))
+
+    def test_mixed_sdk_layout_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            sdk = Path(temporary)
+            (sdk / "include/modsecurity").mkdir(parents=True)
+            (sdk / "src/.libs").mkdir(parents=True)
+            (sdk / "include/modsecurity/modsecurity.h").touch()
+            (sdk / "src/.libs/libmodsecurity.so").touch()
+            with self.assertRaisesRegex(ValueError, "SDK requires"):
+                NATIVE.sdk_layout(sdk)
+
     def test_preseeded_sdk_directory_symlinks_preserve_external_sentinel(self):
         for nested in (False, True):
             with self.subTest(nested=nested), tempfile.TemporaryDirectory() as temporary:

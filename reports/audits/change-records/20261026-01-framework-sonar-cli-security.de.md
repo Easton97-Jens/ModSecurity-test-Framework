@@ -9,7 +9,7 @@
 | Change-ID | 20261026-01-framework-sonar-cli-security |
 | UTC-Datum | 2026-10-26 |
 | Framework-Basisrevision | 99a7985 |
-| Issue oder Pull Request | Nicht erstellt; Prüfung durch Koordinator ausstehend |
+| Issue oder Pull Request | [PR #138](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/138) |
 
 ## Motivation und Problemstellung
 
@@ -33,11 +33,11 @@ Gepinnte offizielle Scanner-Action/CLI. Compile-only über natives Make erfasst 
 
 ## Geänderte Dateien und Tests
 
-Neu: sonarqube.yml, sonar-project.properties, prepare-sonar-cfamily.py und test_sonar_analysis_contract.py; enge Workflow-Checker-Ausnahme; kanonische Sonar-Action-Gruppe plus generiertes Lock; gepaarte Security-Dokumentation.
+Neu: sonarqube.yml, sonar-project.properties, prepare-sonar-cfamily.py, prepare-sonar-sdk.sh und test_sonar_analysis_contract.py; enge Workflow-Checker-Ausnahme; kanonische Sonar-Action-Gruppe plus generiertes Lock; exakte Registrierung der generierten Workflow-Ansicht in check-common-versions.py; gepaarte Security-Dokumentation.
 
 ## Befehle und Ergebnisse
 
-Realer GCC-Compile-only-Build über natives Make: Exit 0, eine reale Quelle, unveränderte strenge Flags. Zwölf fokussierte Testmethoden bestanden (37 expandierte Prüfungen), einschließlich Shell-/Umgebungs-Mutationen auf Workflow-Ebene und beider SDK-Staging-Verzeichnis-Symlink-Varianten; bestehende Workflow-Security-Suite: 9 bestanden; kanonische Workflow-Pin-Suite: 12 bestanden. Python-/Workflow-Contracts bestanden. Evidenz: external task run `framework-sonar-cli-security-20261026`. Lokales Python 3.14.4 ist eine Alternative zum exakten Hosted-Python 3.14.8; in untersuchten Toolchain-Pfaden wurde kein exakter Interpreter gefunden.
+Realer GCC-Compile-only-Build über natives Make: Exit 0, eine reale Quelle, unveränderte strenge Flags; mit dem echten kanonischen nativen SDK-Build-Layout wiederholt. Vierzehn fokussierte Testmethoden bestanden (40 expandierte Prüfungen), einschließlich der Ablehnung eines ersetzten SDK-Producers, vermischter SDK-Layouts, Ausführungs-Overrides auf Workflow-Ebene und Staging-Symlinks. Bestehende Workflow-Security-Suite: 9 bestanden; kanonische Workflow-Pin-Suite: 12 vor der Hosted-Remediation bestanden. Kanonische Common-Validierung reproduzierte den Hosted-Fehler für kopierte Pins und bestand nach Registrierung ausschließlich des neuen generierten Workflows. Evidenz: external task run `framework-sonar-cli-security-20261026`. Lokales Python 3.14.4 ist eine Alternative zum exakten Hosted-Python 3.14.8; in untersuchten Toolchain-Pfaden wurde kein exakter Interpreter gefunden.
 
 ## Sicherheitsauswirkung
 
@@ -49,7 +49,7 @@ docs/security/ci-security-tooling.md und .de.md aktualisiert. Keine Connector-Ru
 
 ## Nicht ausgeführte Prüfungen
 
-Live-Sonar-Upload, CE-Abschluss, Findings-/Hotspot-Readback und Gate der exakten Head-SHA: ausstehende Provider-Ausführung durch den Koordinator. Hosted-Ausführung mit exaktem Python-Patch und Ubuntu-SDK steht aus. Breite Runtime-/Matrix-Tests sind außerhalb des Auftrags.
+Live-Sonar-Upload, CE-Abschluss, Findings-/Hotspot-Readback und Gate der exakten Head-SHA: ausstehende Provider-Ausführung durch den Koordinator. Der erste Hosted-Lauf verwendete das exakte Python 3.14.8, scheiterte aber vor dem Scan an fehlenden gepflegten C-API-Deklarationen im Distributions-SDK; die strengen Flags lehnten dies korrekt ab. Das Follow-up baut stattdessen das bestehende kanonisch freigegebene SDK. Dieser Hosted-SDK-Build und der Live-Scanner stehen aus. Breite Runtime-/Matrix-Tests sind außerhalb des Auftrags.
 
 ## Einschränkungen und Restrisiko
 
@@ -57,4 +57,4 @@ Automatische Analyse muss im bestehenden Sonar-Projekt vor CLI-Analyse deaktivie
 
 ## Finaler Diff- und Review-Status
 
-Koordinatorprüfung und fokussierte lokale Prüfungen abgeschlossen. Draft-PR-Übergabe und Live-Analyse der exakten Head-SHA stehen aus; kein Merge ist autorisiert, der Task bleibt teilweise erledigt.
+Erste geprüfte Implementierung in Draft-PR #138 bei 47ebce8 veröffentlicht. Fokussierte lokale Hosted-Remediation-Prüfungen abgeschlossen; Follow-up-Koordinatorprüfung/Übergabe und Live-Analyse der exakten Head-SHA stehen aus. Kein Merge ist autorisiert, der Task bleibt teilweise erledigt.
