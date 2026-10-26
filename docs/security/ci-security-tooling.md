@@ -302,12 +302,41 @@ SAST, fuzzing, maintained status, or repository-token permissions. Results
 drive review and technically justified remediation; they never authorize an
 automatic policy or dependency change.
 
-The Framework currently receives a SonarQube Cloud GitHub App check, but this
-repository has no Framework-owned scanner workflow, project key, or token
-configuration to alter. This change preserves that external integration by not
-weakening its quality gate, exclusions, or findings. Its current failed gate is
-tracked separately and must be evaluated on the exact PR head; it is not hidden
-or reclassified by these CI controls.
+`sonarqube.yml` runs the pinned SonarScanner CLI against
+`Easton97-Jens_ModSecurity-test-Framework` in organization `easton97-jens`.
+Default-branch pushes, manual runs and same-repository pull requests analyze
+the exact checked-out SHA. Fork PRs cannot enter the token-bearing job.
+`SONAR_TOKEN` exists only on the immutable official scanner step; checkout
+credentials are not persisted and the GitHub token has only `contents: read`.
+The offline contract validates the complete reviewed step sequence and script bodies; Action revisions follow the canonical source and matching generated lock. Extra checkouts, source-changing commands, environments and compiler wrappers are rejected. The workflow waits for server-side processing and the terminal Quality Gate;
+missing credentials, scanner errors and failed gates remain failures.
+Automatic analysis must be disabled for this project before CLI analysis can
+replace the existing GitHub App analysis. Token-name presence alone does not
+prove project permission or a successful scan.
+
+`sonar-project.properties` keeps the complete maintained root in scope,
+including Python tools, runners and normalizers, shell/provisioning scripts,
+GitHub Actions, native sources and generic YAML/JSON configuration and fixtures.
+Only independent `tools/MRTS/**` and generated `reports/**` are excluded.
+Python `test_*.py`/`*_test.py` and Go `*_test.go` files are TEST; implementation
+helpers and CFamily files remain MAIN. Coverage is explicitly outside the user
+contract (`sonar.coverage.exclusions=**`); security, reliability and duplication
+analysis are retained, without rule suppression or Quality Gate changes.
+
+`ci/checks/analysis/prepare-sonar-cfamily.py` performs an actual compile-only
+native Make build with its original C99 and strict warning flags. Its compiler
+launcher records the real GCC argv only after successful execution, then
+requires exact equality between all tracked native translation units and the
+compilation database. Adding a native unit therefore fails until its real
+build capture is implemented. The current unit is
+`src/v3-api-smoke/v3_api_smoke.c`; no smoke executable is run. The database,
+object, SDK-layout links, source digest and scanner caches/work files live
+outside the checkout in a private task-owned directory; preseeded output symlinks are rejected. Ubuntu CI uses its `libmodsecurity-dev` SDK; local runs
+require an existing compatible SDK and a Framework-owned Python environment.
+Compilation Database mode enables the CFamily security path that AutoConfig
+does not support for taint analysis. Actual language/rule availability, server
+processing, findings, hotspots and the exact-head gate still require live scan
+evidence; a successful compile is not a security assessment pass.
 
 ## Local validation
 

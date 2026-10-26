@@ -1,6 +1,16 @@
 # GENERATED FILE: values are sourced from ci/lib/common.sh; do not edit pin fields manually.
 schema_version: 1
 actions:
+  SonarSource/sonarqube-scan-action:
+    name: SonarSource/sonarqube-scan-action
+    version: v8.3.0
+    immutable_commit: d209202bc7d53ff1cc128f7f907dac145c9d6ae9
+    upstream_release: https://github.com/SonarSource/sonarqube-scan-action/releases/tag/v8.3.0
+    release_resolution: latest-release
+    license: LGPL-3.0
+    purpose: Analyze maintained Framework languages and wait for the terminal SonarQube Cloud Quality Gate.
+    platform: GitHub Actions
+    update_procedure: Verify upstream tag-to-commit identity and LGPL-3.0 license; update canonical common.sh pins, regenerate views, and review the exact scanner-step credential boundary and focused tests together.
   actions/checkout:
     name: actions/checkout
     version: v7.0.1

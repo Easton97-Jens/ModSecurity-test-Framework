@@ -335,13 +335,46 @@ oder Repository-Token-Berechtigungen. Ergebnisse lösen Review und technisch
 begründete Remediation aus; sie autorisieren niemals automatische Policy- oder
 Dependency-Änderungen.
 
-Das Framework erhält derzeit einen SonarQube-Cloud-GitHub-App-Check, besitzt
-aber keinen Framework-eigenen Scanner-Workflow, Project-Key oder Token-Config,
-die hier geändert werden könnte. Diese Änderung bewahrt die externe Integration,
-indem sie weder Quality Gate, Exclusions noch Findings abschwächt. Sein aktuell
-fehlgeschlagenes Gate wird separat verfolgt und muss am exakten PR-Head
-bewertet werden; diese CI-Kontrollen verstecken oder klassifizieren es nicht
-um.
+`sonarqube.yml` führt die gepinnte SonarScanner CLI für
+`Easton97-Jens_ModSecurity-test-Framework` in der Organisation `easton97-jens`
+aus. Default-Branch-Pushes, manuelle Läufe und Pull Requests desselben
+Repositorys analysieren die exakt ausgecheckte SHA. Fork-PRs können den Job
+mit Token nicht betreten. `SONAR_TOKEN` steht ausschließlich dem unveränderlich
+gepinnten offiziellen Scanner-Schritt zur Verfügung; Checkout-Credentials
+werden nicht persistiert und der GitHub-Token hat nur `contents: read`.
+Der Offline-Contract prüft die vollständige geprüfte Schrittfolge und Skripttexte; Action-Revisionen folgen der kanonischen Quelle mit passendem generiertem Lock. Zusätzliche Checkouts, Quellenänderungen, Umgebungen und Compiler-Wrapper werden abgelehnt. Der Workflow wartet auf die serverseitige Verarbeitung und das abschließende
+Quality Gate; fehlende Credentials, Scanner-Fehler und fehlgeschlagene Gates
+bleiben Fehler. Vor dem Ersatz der bestehenden GitHub-App-Analyse durch die
+CLI muss die automatische Analyse dieses Projekts deaktiviert werden.
+Ein vorhandener Token-Name beweist weder Projektberechtigung noch einen
+erfolgreichen Scan.
+
+`sonar-project.properties` erfasst das gesamte gepflegte Repository:
+Python-Tools, Runner und Normalizer, Shell-/Provisioning-Skripte, GitHub
+Actions, native Quellen sowie generische YAML-/JSON-Konfiguration und Fixtures.
+Nur das unabhängige `tools/MRTS/**` und generierte `reports/**` sind
+ausgeschlossen. Python-Dateien `test_*.py`/`*_test.py` und Go-Dateien
+`*_test.go` sind TEST; Implementierungshelfer und CFamily-Dateien bleiben MAIN.
+Coverage liegt ausdrücklich außerhalb des Benutzerauftrags
+(`sonar.coverage.exclusions=**`); Security-, Reliability- und Duplikationsanalyse
+bleiben ohne Regelunterdrückung oder Quality-Gate-Änderung erhalten.
+
+`ci/checks/analysis/prepare-sonar-cfamily.py` führt einen tatsächlichen
+Compile-only-Build über das native Make mit dessen ursprünglichen C99- und
+strengen Warnungsflags aus. Der Compiler-Launcher protokolliert die reale
+GCC-Argumentliste erst nach erfolgreicher Ausführung. Anschließend muss die
+Menge aller versionierten nativen Übersetzungseinheiten exakt der
+Kompilierungsdatenbank entsprechen. Eine neue native Einheit führt deshalb
+zum Fehler, bis ihre reale Build-Erfassung implementiert ist. Aktuell ist dies
+`src/v3-api-smoke/v3_api_smoke.c`; kein Smoke-Programm wird ausgeführt.
+Datenbank, Objektdatei, SDK-Layout-Links, Quelldigest und Scanner-Caches und
+Arbeitsdateien liegen außerhalb des Checkouts in einem privaten task-eigenen Verzeichnis; vorbereitete Output-Symlinks werden abgelehnt. Ubuntu-CI verwendet das SDK
+`libmodsecurity-dev`; lokale Läufe benötigen ein vorhandenes kompatibles SDK
+und eine Framework-eigene Python-Umgebung. Compilation Database Mode ermöglicht
+den CFamily-Sicherheitspfad, den AutoConfig für Taint-Analyse nicht unterstützt.
+Tatsächliche Sprach-/Regelverfügbarkeit, Server-Verarbeitung, Findings,
+Hotspots und das Gate der exakten Head-SHA benötigen weiterhin Live-Evidenz;
+erfolgreiche Kompilierung ist kein bestandener Security-Check.
 
 ## Lokale Validierung
 

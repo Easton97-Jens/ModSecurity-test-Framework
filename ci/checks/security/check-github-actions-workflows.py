@@ -10,6 +10,7 @@ with PyYAML and run as part of the Framework lint contract.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 import re
@@ -462,6 +463,80 @@ def validate_top_level_permissions(
     return [f"{path}: top-level permissions must be exactly '{expected}'"]
 
 
+def canonical_sonar_actions() -> dict[str, str]:
+    """Resolve official Action identities through the existing canonical contract."""
+    root = Path(__file__).resolve().parents[3]
+    spec = importlib.util.spec_from_file_location(
+        "framework_canonical_workflow_pins", root / "ci/tools/sync-canonical-workflow-pins.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    values = module.source_common(root)
+    lock = root / "ci/tooling/security-tools.lock.yml"
+    if module.lock_values(root, values) != lock.read_bytes():
+        raise ValueError("Action lock differs from canonical source")
+    repositories = {"CHECKOUT": "actions/checkout", "SETUP_PYTHON": "actions/setup-python",
+                    "SONARQUBE_SCAN": "SonarSource/sonarqube-scan-action"}
+    result = {}
+    for suffix, repository in repositories.items():
+        if values[f"CI_ACTION_{suffix}_REPOSITORY"] != repository:
+            raise ValueError("unexpected canonical Sonar workflow Action repository")
+        result[suffix] = repository + "@" + values[f"CI_ACTION_{suffix}_COMMIT"]
+    return result
+
+
+def sonar_pr_secret_allowed(path: Path, document: Mapping[str, Any]) -> bool:
+    """Allow only the complete reviewed same-repository scanner execution path."""
+    if path.name != "sonarqube.yml":
+        return False
+    if set(workflow_events(document)) != {"push", "pull_request", "workflow_dispatch"}:
+        return False
+    if document.get("permissions") != {"contents": "read"}:
+        return False
+    if document.get("defaults") != {"run": {"shell": "bash"}} or "env" in document:
+        return False
+    if contains_secret_reference({k: v for k, v in document.items() if k != "jobs"}):
+        return False
+    jobs = as_mapping(document.get("jobs"))
+    if jobs is None or set(jobs) != {"sonarqube"}:
+        return False
+    job = as_mapping(jobs["sonarqube"])
+    guard = ("github.event_name != 'pull_request' || "
+             "github.event.pull_request.head.repo.full_name == github.repository")
+    if job is None or job.get("if") != guard:
+        return False
+    if set(job) != {"if", "runs-on", "timeout-minutes", "steps"}:
+        return False
+    if job.get("runs-on") != "ubuntu-latest" or job.get("timeout-minutes") != 30:
+        return False
+    try:
+        actions = canonical_sonar_actions()
+    except (OSError, ValueError, RuntimeError, ImportError):
+        return False
+    expected_steps = [
+        {"name": "Checkout repository", "uses": actions["CHECKOUT"], "with": {
+            "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+            "fetch-depth": 0, "persist-credentials": False, "submodules": False}},
+        {"name": "Set up reviewed Python", "uses": actions["SETUP_PYTHON"], "with": {
+            "python-version-file": ".python-version", "check-latest": False}},
+        {"name": "Install native analysis prerequisites", "run":
+            "set -euo pipefail\nsudo apt-get update\n"
+            "sudo apt-get install --no-install-recommends --yes gcc libmodsecurity-dev\n"},
+        {"name": "Compile all Framework native sources for security analysis", "run":
+            "set -euo pipefail\npython3 ci/checks/analysis/prepare-sonar-cfamily.py \\\n"
+            '  --output "$RUNNER_TEMP/framework-sonar-native" --sdk /usr\n'},
+        {"name": "Analyze maintained languages and wait for the Quality Gate",
+         "uses": actions["SONARQUBE_SCAN"], "env": {
+             "SONAR_TOKEN": "${{ secrets.SONAR_TOKEN }}",
+             "SONAR_USER_HOME": "${{ runner.temp }}/framework-sonar-cache"},
+         "with": {"scannerVersion": "8.2.0.6438", "args":
+             "-Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }} "
+             "-Dsonar.working.directory=${{ runner.temp }}/framework-sonar-work "
+             "-Dsonar.cfamily.compile-commands=${{ runner.temp }}/framework-sonar-native/compile_commands.json"}},
+    ]
+    return list(as_sequence(job.get("steps"))) == expected_steps
+
+
 def validate_workflow_trust_boundary(
     path: Path, document: Mapping[str, Any], is_pull_request_workflow: bool
 ) -> list[str]:
@@ -469,7 +544,8 @@ def validate_workflow_trust_boundary(
     events = workflow_events(document)
     if "pull_request_target" in events:
         errors.append(f"{path}: pull_request_target is prohibited")
-    if is_pull_request_workflow and contains_secret_reference(document):
+    if (is_pull_request_workflow and contains_secret_reference(document)
+            and not sonar_pr_secret_allowed(path, document)):
         errors.append(
             f"{path}: pull_request workflows must not expose secrets to untrusted code"
         )
