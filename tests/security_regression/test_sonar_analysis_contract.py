@@ -31,6 +31,21 @@ def valid_document():
     return CHECKER.yaml.safe_load((ROOT / ".github/workflows/sonarqube.yml").read_text())
 
 
+class SonarScopeTests(unittest.TestCase):
+    def test_root_git_metadata_is_excluded_without_hiding_product_directories(self):
+        properties = dict(
+            line.split("=", 1)
+            for line in (ROOT / "sonar-project.properties").read_text().splitlines()
+            if line and not line.startswith("#")
+        )
+        self.assertEqual(properties["sonar.sources"], ".")
+        self.assertEqual(properties["sonar.tests"], ".")
+        self.assertEqual(properties["sonar.scm.exclusions.disabled"], "true")
+        expected = {".git/**", "tools/MRTS/**", "reports/**"}
+        self.assertEqual(set(properties["sonar.exclusions"].split(",")), expected)
+        self.assertEqual(set(properties["sonar.test.exclusions"].split(",")), expected)
+
+
 class SonarSecretBoundaryTests(unittest.TestCase):
     def test_full_checker_rejects_source_revision_bypasses(self):
         original = CHECKER.yaml.safe_load((ROOT / ".github/workflows/sonarqube.yml").read_text())

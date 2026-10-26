@@ -27,6 +27,7 @@ ARCHIVE_TYPE_RAW = "raw"
 LAYOUT_EXECUTABLE = "executable"
 LAYOUT_TREE = "tree"
 CHECK_JSON_RESULT = "check-json-result.py"
+REVIEWED_UBUNTU_RUNNER = "ubuntu-26.04"
 UPLOAD_ARTIFACT = "actions" + "/upload-artifact@"
 DOWNLOAD_ARTIFACT = "actions" + "/download-artifact@"
 RETENTION_DAYS_ONE = "retention-days: 1"
@@ -2078,7 +2079,7 @@ def python_version_publisher_profile_errors(path: Path, publish: Any) -> list[st
         errors.append(
             f"{path}: CPython publisher job must match its reviewed key profile"
         )
-    if publish.get("runs-on") != "ubuntu-26.04":
+    if publish.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
         errors.append(f"{path}: CPython publisher must use the reviewed runner")
     if publish.get("timeout-minutes") != 15:
         errors.append(f"{path}: CPython publisher must use the reviewed timeout")
@@ -2114,7 +2115,10 @@ def python_version_outcome_errors(path: Path, outcome: Any) -> list[str]:
         errors.append(
             f"{path}: CPython maintenance outcome must match its reviewed key profile"
         )
-    if outcome.get("runs-on") != "ubuntu-26.04" or outcome.get("timeout-minutes") != 5:
+    if (
+        outcome.get("runs-on") != REVIEWED_UBUNTU_RUNNER
+        or outcome.get("timeout-minutes") != 5
+    ):
         errors.append(
             f"{path}: CPython maintenance outcome must use the reviewed runner and timeout"
         )
@@ -2441,7 +2445,7 @@ def publisher_job_setting_errors(path: Path, publisher: dict[str, Any]) -> list[
         errors.append(
             f"{path}: updater publisher job must match its reviewed key profile"
         )
-    if publisher.get("runs-on") != "ubuntu-26.04":
+    if publisher.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
         errors.append(f"{path}: updater publisher must use the reviewed runner")
     if publisher.get("timeout-minutes") != 25:
         errors.append(f"{path}: updater publisher must use the reviewed timeout")
@@ -2601,7 +2605,7 @@ def updater_outcome_profile_errors(path: Path, data: dict[str, Any]) -> list[str
     errors: list[str] = []
     if set(outcome) != UPDATER_OUTCOME_JOB_KEYS:
         errors.append(f"{path}: updater outcome must match its reviewed key profile")
-    if outcome.get("runs-on") != "ubuntu-26.04":
+    if outcome.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
         errors.append(f"{path}: updater outcome must use the reviewed runner")
     if outcome.get("timeout-minutes") != 5:
         errors.append(f"{path}: updater outcome must use the reviewed timeout")
@@ -2687,7 +2691,7 @@ def submodule_updater_reader_job_errors(
             continue
         if job.get("permissions") != {"contents": "read"}:
             errors.append(f"{path}: {job_name} must remain contents: read")
-        if job.get("runs-on") != "ubuntu-26.04":
+        if job.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
             errors.append(f"{path}: {job_name} must use the reviewed runner")
         reader_text = job_text(text, job_name)
         if reader_text is not None and any(
@@ -3051,7 +3055,7 @@ def common_version_publisher_job_setting_errors(
         errors.append(
             f"{path}: common-version publisher job must match its reviewed key profile"
         )
-    if publish.get("runs-on") != "ubuntu-26.04":
+    if publish.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
         errors.append(f"{path}: common-version publisher must use the reviewed runner")
     if publish.get("timeout-minutes") != 30:
         errors.append(f"{path}: common-version publisher must use the reviewed timeout")
@@ -3234,7 +3238,7 @@ def common_version_result_job_setting_errors(
         )
     if result.get("if") != ALWAYS_CONDITION:
         errors.append(f"{path}: common-version result job must always run")
-    if result.get("runs-on") != "ubuntu-26.04":
+    if result.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
         errors.append(f"{path}: common-version result job must use the reviewed runner")
     if result.get("timeout-minutes") != 5:
         errors.append(
@@ -3416,23 +3420,34 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
             continue
         if set(job) != job_profiles[name]:
             errors.append(f"{path}: common-version {name} job key profile changed")
-        if job.get("runs-on") != "ubuntu-26.04":
+        if job.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
             errors.append(
                 f"{path}: common-version {name} runner must match the Ubuntu 26.04 Python manifest target"
             )
-        steps = job.get("steps")
-        if not isinstance(steps, list) or len(steps) != len(step_profiles[name]):
-            errors.append(f"{path}: common-version {name} step profile changed")
-            continue
-        for step, (expected_name, expected_keys) in zip(steps, step_profiles[name]):
-            if (
-                not isinstance(step, dict)
-                or step.get("name") != expected_name
-                or set(step) != expected_keys
-            ):
-                errors.append(
-                    f"{path}: common-version {name} step profile changed at {expected_name!r}"
-                )
+        errors.extend(
+            _common_version_step_profile_errors(
+                path, name, job.get("steps"), step_profiles[name]
+            )
+        )
+    return errors
+
+
+def _common_version_step_profile_errors(
+    path: Path, name: str, steps: Any, profile: list[tuple[str, set[str]]]
+) -> list[str]:
+    """Compare each ordered step against the complete reviewed shape."""
+    if not isinstance(steps, list) or len(steps) != len(profile):
+        return [f"{path}: common-version {name} step profile changed"]
+    errors: list[str] = []
+    for step, (expected_name, expected_keys) in zip(steps, profile):
+        if (
+            not isinstance(step, dict)
+            or step.get("name") != expected_name
+            or set(step) != expected_keys
+        ):
+            errors.append(
+                f"{path}: common-version {name} step profile changed at {expected_name!r}"
+            )
     return errors
 
 

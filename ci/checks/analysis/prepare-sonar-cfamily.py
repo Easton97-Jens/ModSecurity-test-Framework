@@ -13,6 +13,10 @@ import subprocess
 import sys
 
 
+DATABASE_FILENAME = "compile_commands.json"
+EVIDENCE_FILENAME = "compilation-evidence.json"
+
+
 def record_compile(fragment: Path, compiler: str, arguments: list[str]) -> None:
     """Write evidence only after the actual unmodified compiler argv succeeds."""
     if fragment.is_symlink():
@@ -39,6 +43,36 @@ def sdk_layout(sdk: Path) -> tuple[Path, Path]:
     raise ValueError("ModSecurity SDK requires installed include/lib or native headers/src/.libs")
 
 
+def prepare_output_files(output: Path) -> None:
+    """Admit each output leaf before removing stale analysis evidence."""
+    output.mkdir(parents=True, exist_ok=True)
+    # The caller owns this private directory (runner.temp in CI). Reject
+    # preseeded symlinks before writing or asking a compiler to write outputs.
+    output.chmod(0o700)
+    for filename in (DATABASE_FILENAME, EVIDENCE_FILENAME,
+                     "compiler-command.json", "capture-compiler", "v3_api_smoke.o"):
+        if (output / filename).is_symlink():
+            raise ValueError("refusing symlinked analysis output file")
+    for stale in (DATABASE_FILENAME, EVIDENCE_FILENAME):
+        (output / stale).unlink(missing_ok=True)
+
+
+def stage_sdk(output: Path, headers: Path, library_dir: Path) -> Path:
+    """Reuse the native Makefile layout without replacing existing SDK paths."""
+    stage = output / "sdk"
+    if stage.is_symlink() or (stage / "src").is_symlink():
+        raise ValueError("refusing symlinked SDK staging directory")
+    (stage / "src").mkdir(parents=True, exist_ok=True)
+    for destination, source in ((stage / "headers", headers),
+                                (stage / "src/.libs", library_dir)):
+        if destination.is_symlink() and destination.resolve() == source.resolve():
+            continue
+        if destination.exists() or destination.is_symlink():
+            raise ValueError(f"refusing to replace existing SDK path: {destination}")
+        destination.symlink_to(source, target_is_directory=True)
+    return stage
+
+
 def prepare(root: Path, output: Path, sdk: Path, compiler_name: str) -> Path:
     if output.is_symlink():
         raise ValueError("refusing symlinked analysis output")
@@ -51,27 +85,8 @@ def prepare(root: Path, output: Path, sdk: Path, compiler_name: str) -> Path:
     headers, library_dir = sdk_layout(sdk)
     # Keep the native Makefile's prerequisite and flag contracts unchanged.
     # Reuse its historical SDK layout through task-owned external symlinks.
-    output.mkdir(parents=True, exist_ok=True)
-    # The caller owns this private directory (runner.temp in CI). Reject
-    # preseeded symlinks before writing or asking a compiler to write outputs.
-    output.chmod(0o700)
-    for filename in ("compile_commands.json", "compilation-evidence.json",
-                     "compiler-command.json", "capture-compiler", "v3_api_smoke.o"):
-        if (output / filename).is_symlink():
-            raise ValueError("refusing symlinked analysis output file")
-    for stale in ("compile_commands.json", "compilation-evidence.json"):
-        (output / stale).unlink(missing_ok=True)
-    stage = output / "sdk"
-    if stage.is_symlink() or (stage / "src").is_symlink():
-        raise ValueError("refusing symlinked SDK staging directory")
-    (stage / "src").mkdir(parents=True, exist_ok=True)
-    for destination, source in ((stage / "headers", headers),
-                                (stage / "src/.libs", library_dir)):
-        if destination.is_symlink() and destination.resolve() == source.resolve():
-            continue
-        if destination.exists() or destination.is_symlink():
-            raise ValueError(f"refusing to replace existing SDK path: {destination}")
-        destination.symlink_to(source, target_is_directory=True)
+    prepare_output_files(output)
+    stage = stage_sdk(output, headers, library_dir)
     fragment = output / "compiler-command.json"
     wrapper = output / "capture-compiler"
     invocation = [sys.executable, str(Path(__file__).resolve()), "--record-compile",
@@ -97,12 +112,12 @@ def prepare(root: Path, output: Path, sdk: Path, compiler_name: str) -> Path:
         raise ValueError("native source inventory does not match actual compilation; update native build capture")
     if not obj.is_file() or obj.stat().st_size == 0:
         raise ValueError("native compilation did not produce an object")
-    database = output / "compile_commands.json"
+    database = output / DATABASE_FILENAME
     database.write_text(json.dumps([record], indent=2) + "\n", encoding="utf-8")
     evidence = {"source": str(captured.relative_to(root)),
                 "source_sha256": hashlib.sha256(captured.read_bytes()).hexdigest(),
                 "compiler": compiler, "sdk": str(sdk), "compiled_units": len(units)}
-    (output / "compilation-evidence.json").write_text(
+    (output / EVIDENCE_FILENAME).write_text(
         json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
     print(f"Validated {len(units)} compiled native unit: {database}")
     return database
