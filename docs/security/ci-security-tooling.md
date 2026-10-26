@@ -336,7 +336,10 @@ Ubuntu CI installs build prerequisites, then `prepare-sonar-sdk.sh` invokes the
 existing Framework provisioner and native SDK builder. They verify the canonical
 ModSecurity origin, exact approved commit and submodule identities before building
 the approved release; the distribution SDK is too old for the maintained C API.
-SDK source, build and logs remain under the external runner directory. The
+SDK source, build and logs remain under the external runner directory. The helper
+first creates fresh private run/source parents using the existing physical-path
+admission functions; pre-existing or symlinked run roots fail before provisioning.
+The
 capture accepts both installed `include/lib` and genuine native `headers/src/.libs`
 layouts without mixing them. Local runs require an existing compatible SDK and
 a Framework-owned Python environment.

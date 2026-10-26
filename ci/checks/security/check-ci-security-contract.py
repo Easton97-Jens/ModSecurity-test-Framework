@@ -367,7 +367,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     ): "4a8667a3ce2063a78d3d64ca1124014cf19d2ae938f093ccc74a4b2bf45b818b",
 }
 COMMON_VERSION_CANONICAL_PR_STATE_CHECK_SHA256 = (
-    "e89e6b03f368d5e241d5ecffaa535ab2fd2e8860cd5debcd20a6e05d0986ff0b"
+    "9c98b92747df13d4d963bb9adb7fa0b151280d638289b7b7751b52fe20951e67"
 )
 COMMON_VERSION_CANONICAL_PR_NATIVE_SUBSET_CHECK_SHA256 = (
     "3a8fef6fd071055fa7913a89efb08b2dd1949215bf52d375a0a8ce04e4638ece"
@@ -399,6 +399,7 @@ COMMON_VERSION_GENERATED_PATHS = frozenset(
         ".github/workflows/cleanup-artifacts.yml",
         ".github/workflows/five-connectors-with-crs-no-mrts-contract.yml",
         ".github/workflows/lint.yml",
+        ".github/workflows/sonarqube.yml",
         ".github/workflows/test-common.yml",
         ".github/workflows/update-submodules.yml",
         "tests/schemas/five-connectors-with-crs-no-mrts/normalized-event.schema.json",
@@ -2077,7 +2078,7 @@ def python_version_publisher_profile_errors(path: Path, publish: Any) -> list[st
         errors.append(
             f"{path}: CPython publisher job must match its reviewed key profile"
         )
-    if publish.get("runs-on") != "ubuntu-latest":
+    if publish.get("runs-on") != "ubuntu-24.04":
         errors.append(f"{path}: CPython publisher must use the reviewed runner")
     if publish.get("timeout-minutes") != 15:
         errors.append(f"{path}: CPython publisher must use the reviewed timeout")
@@ -2113,7 +2114,7 @@ def python_version_outcome_errors(path: Path, outcome: Any) -> list[str]:
         errors.append(
             f"{path}: CPython maintenance outcome must match its reviewed key profile"
         )
-    if outcome.get("runs-on") != "ubuntu-latest" or outcome.get("timeout-minutes") != 5:
+    if outcome.get("runs-on") != "ubuntu-24.04" or outcome.get("timeout-minutes") != 5:
         errors.append(
             f"{path}: CPython maintenance outcome must use the reviewed runner and timeout"
         )
@@ -3415,6 +3416,10 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
             continue
         if set(job) != job_profiles[name]:
             errors.append(f"{path}: common-version {name} job key profile changed")
+        if job.get("runs-on") != "ubuntu-24.04":
+            errors.append(
+                f"{path}: common-version {name} runner must match the Ubuntu 24.04 Python manifest target"
+            )
         steps = job.get("steps")
         if not isinstance(steps, list) or len(steps) != len(step_profiles[name]):
             errors.append(f"{path}: common-version {name} step profile changed")

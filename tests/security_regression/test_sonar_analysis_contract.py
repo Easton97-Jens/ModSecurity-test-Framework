@@ -4,6 +4,7 @@ from copy import deepcopy
 from contextlib import chdir
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -246,6 +247,76 @@ class NativeAnalysisBoundaryTests(unittest.TestCase):
             output = Path(temporary)
             with self.assertRaisesRegex(ValueError, "SDK requires"):
                 NATIVE.prepare(ROOT, output, output / "missing-sdk", "clang")
+
+
+class ApprovedSdkPreparationTests(unittest.TestCase):
+    def fixture(self, base):
+        root, runner = base / "framework", base / "runner"
+        runner.mkdir()
+        (root / "tests").mkdir(parents=True)
+        (root / "Makefile").touch()
+        for relative in ("ci/checks/analysis/prepare-sonar-sdk.sh", "ci/lib/path-bootstrap.sh",
+                         "ci/lib/path.sh", "ci/lib/common.sh"):
+            destination = root / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, destination)
+        # Preserve real parent admission/creation functions. Replace only the
+        # network provisioner and native build with bounded sequence witnesses.
+        common = root / "ci/lib/common.sh"
+        with common.open("a") as stream:
+            stream.write('''\nci_provision_approved_modsecurity_v3_checkout() {
+    if [ ! -d "${1%/*}" ]; then
+        printf '%s\\n' 'missing source parent' >&2
+        return 77
+    fi
+    : > "$VERIFIED_RUN_ROOT/provision-called"
+}
+''')
+        builder = root / "ci/provisioning/build-v3-under-src.sh"
+        builder.parent.mkdir(parents=True)
+        builder.write_text('''#!/bin/sh
+set -eu
+test -f "$VERIFIED_RUN_ROOT/provision-called"
+: > "$VERIFIED_RUN_ROOT/build-called"
+''')
+        return root, runner
+
+    def run_helper(self, root, runner):
+        return subprocess.run(
+            ["sh", str(root / "ci/checks/analysis/prepare-sonar-sdk.sh")],
+            env={"PATH": os.environ["PATH"], "RUNNER_TEMP": str(runner)},
+            capture_output=True, text=True, check=False)
+
+    def test_fresh_private_source_parent_precedes_provisioning(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root, runner = self.fixture(Path(temporary))
+            result = self.run_helper(root, runner)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            run = runner / "framework-sonar-sdk"
+            self.assertTrue((run / "build-called").is_file())
+            self.assertEqual(run.stat().st_mode & 0o777, 0o700)
+            self.assertEqual((run / "src").stat().st_mode & 0o777, 0o700)
+
+    def test_existing_sdk_run_root_is_rejected_before_provisioning(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root, runner = self.fixture(Path(temporary))
+            run = runner / "framework-sonar-sdk"
+            (run / "src").mkdir(parents=True)
+            result = self.run_helper(root, runner)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((run / "provision-called").exists())
+
+    def test_symlinked_sdk_run_root_preserves_external_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root, runner = self.fixture(base)
+            sentinel = base / "sentinel"
+            (sentinel / "src").mkdir(parents=True)
+            (runner / "framework-sonar-sdk").symlink_to(sentinel, target_is_directory=True)
+            result = self.run_helper(root, runner)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((sentinel / "provision-called").exists())
+            self.assertEqual(list(sentinel.iterdir()), [sentinel / "src"])
 
 
 if __name__ == "__main__":

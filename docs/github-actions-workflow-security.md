@@ -276,6 +276,28 @@ and scope-applicable SonarQube/branch-protection checks must be observed on its
 actual head before a human merge. The workflow itself never approves, merges,
 or enables auto-merge.
 
+### Updater readiness checks
+
+Successful generated-view checks may be silent. The planner emits an explicit,
+bounded nonempty message for every success or failure before the unchanged
+strict reconciler consumes the plan. A silent catalog check therefore no longer
+stops maintenance before candidate validation and publication.
+
+Both Python maintenance resolvers require the latest compatible official
+Python.org release to have its stable Linux/Ubuntu 24.04/x64 build in the
+[official setup-python manifest](https://github.com/actions/python-versions/blob/main/versions-manifest.json).
+The Common and separate Python workflows pin `ubuntu-24.04` to match that target. A delayed
+build remains an explicit blocked result with the canonical pin unchanged;
+it is not reported as current and no older candidate is silently substituted.
+Manifest preflight establishes availability, while the candidate job still
+installs and tests the actual interpreter before publication.
+
+The generated Sonar workflow is included by exact path in the planner, native
+workflow-tool validator and publisher path contracts. Other unreviewed workflow
+paths remain forbidden. Actual scheduled execution and the resulting maintenance
+Draft PR must still be checked after separately authorized master integration;
+offline regressions and read-only metadata checks do not prove publication.
+
 ### Unified common-version maintenance scope
 
 `ci/tools/resolve-canonical-maintenance.py` is the single read-only planning

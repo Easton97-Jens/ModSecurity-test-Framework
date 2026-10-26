@@ -374,7 +374,10 @@ Ubuntu-CI installiert Build-Voraussetzungen; anschließend ruft
 SDK-Builder auf. Diese prüfen den kanonischen ModSecurity-Origin, den exakt
 freigegebenen Commit und die Submodul-Identitäten vor dem Build des freigegebenen
 Releases. Das SDK der Distribution ist für die gepflegte C-API zu alt.
-SDK-Quellen, Build und Logs bleiben im externen Runner-Verzeichnis. Die
+SDK-Quellen, Build und Logs bleiben im externen Runner-Verzeichnis. Der Helper
+erstellt zuerst frische private Run-/Quell-Elternverzeichnisse mit den bestehenden
+physischen Pfadprüfungen; vorhandene oder verlinkte Run-Roots scheitern vor dem
+Provisionieren. Die
 Erfassung akzeptiert installierte `include/lib`- und echte native
 `headers/src/.libs`-Layouts, ohne diese zu vermischen. Lokale Läufe benötigen ein
 vorhandenes kompatibles SDK und eine Framework-eigene Python-Umgebung.

@@ -632,9 +632,9 @@ jobs:
                 1,
             ),
             "missing-reader-job-permission": workflow.replace(
-                "  resolve:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n"
+                "  resolve:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n"
                 "    permissions:\n      contents: read\n",
-                "  resolve:\n    runs-on: ubuntu-latest\n    timeout-minutes: 10\n",
+                "  resolve:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 10\n",
                 1,
             ),
             "native-token-fallback": workflow.replace(

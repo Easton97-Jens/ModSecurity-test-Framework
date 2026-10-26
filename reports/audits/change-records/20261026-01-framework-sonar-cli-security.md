@@ -37,7 +37,7 @@ New sonarqube.yml, sonar-project.properties, prepare-sonar-cfamily.py, prepare-s
 
 ## Commands and results
 
-Actual GCC compile-only native Make: exit 0, one real source, strict original flags; repeated with the genuine canonical native SDK build layout. Fourteen focused test methods passed (40 expanded checks), including rejection of replaced SDK producer, mixed SDK layouts, workflow-level execution overrides and staging symlinks. Existing workflow-security suite: 9 passed; canonical-workflow-pin suite: 12 passed before Hosted remediation. Canonical-common validation reproduced the Hosted copied-pin failure and passed after registering only the new generated workflow. Evidence root: external task run `framework-sonar-cli-security-20261026`. Local interpreter 3.14.4 is an alternative to exact hosted 3.14.8; no cached exact interpreter found in inspected toolchain locations.
+Actual GCC compile-only native Make: exit 0, one real source, strict original flags; repeated with the genuine canonical native SDK build layout. Seventeen focused test methods passed (43 expanded checks), including rejection of replaced SDK producer, mixed SDK layouts, workflow-level execution overrides and staging symlinks. Three hermetic SDK-entrypoint controls retain the real private-directory admission functions and replace only network provisioning/build with sequence witnesses: fresh private source parents precede provisioning, while existing and symlinked run roots are rejected. Their original failures and corrected passes are retained. Existing workflow-security suite: 9 passed; canonical-workflow-pin suite: 12 passed before Hosted remediation. Canonical-common validation reproduced the Hosted copied-pin failure and passed after registering only the new generated workflow. Evidence root: external task run `framework-sonar-cli-security-20261026`. Local interpreter 3.14.4 is an alternative to exact hosted 3.14.8; no cached exact interpreter found in inspected toolchain locations.
 
 ## Security impact
 
@@ -49,7 +49,7 @@ Updated docs/security/ci-security-tooling.md and .de.md. No connector runtime or
 
 ## Checks not run
 
-Live Sonar upload, CE completion, findings/hotspot readback and exact-head gate: coordinator-owned pending provider execution. The first Hosted run used exact Python 3.14.8 but failed before scanning because the distribution SDK lacks maintained C API declarations; strict flags correctly rejected it. The follow-up builds the existing canonical approved SDK instead. That Hosted SDK build and the live scanner remain pending. Broad runtime/matrix tests are outside scope.
+Live Sonar upload, CE completion, findings/hotspot readback and exact-head gate: coordinator-owned pending provider execution. The first Hosted run used exact Python 3.14.8 but failed before scanning because the distribution SDK lacks maintained C API declarations; strict flags correctly rejected it. The follow-up builds the existing canonical approved SDK instead. The e337869 follow-up then failed before provisioning because its required source parent did not yet exist. The entrypoint now creates fresh physical private parents before invoking the unchanged provisioner. A fresh Hosted SDK build and the live scanner remain pending. Broad runtime/matrix tests are outside scope.
 
 ## Limitations and residual risk
 
