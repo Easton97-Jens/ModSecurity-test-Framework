@@ -27,6 +27,7 @@ ARCHIVE_TYPE_RAW = "raw"
 LAYOUT_EXECUTABLE = "executable"
 LAYOUT_TREE = "tree"
 CHECK_JSON_RESULT = "check-json-result.py"
+REVIEWED_UBUNTU_RUNNER = "ubuntu-26.04"
 UPLOAD_ARTIFACT = "actions" + "/upload-artifact@"
 DOWNLOAD_ARTIFACT = "actions" + "/download-artifact@"
 RETENTION_DAYS_ONE = "retention-days: 1"
@@ -67,7 +68,7 @@ SUBMODULE_UPDATER_FIRST_PARTY_HEAD_REQUIREMENTS = (
 # repository write permissions, so every key, step, action input, environment,
 # and run body must remain review-bound rather than merely contain snippets.
 SUBMODULE_UPDATER_PUBLISHER_SHA256 = (
-    "a7996c867291e2b9689840b2b17b039cc1fd5841ba878dd0d68452aeac289ab5"
+    "982750eb88cc2325bc4f7ed35055e24601033ea139d102b381759f72075460e0"
 )
 CHECKOUT_WITHOUT_SUBMODULES = "submodules: false"
 CHECKOUT_WITHOUT_PERSISTED_CREDENTIALS = "persist-credentials: false"
@@ -367,7 +368,7 @@ COMMON_VERSION_REVIEWED_RUN_SHA256 = {
     ): "4a8667a3ce2063a78d3d64ca1124014cf19d2ae938f093ccc74a4b2bf45b818b",
 }
 COMMON_VERSION_CANONICAL_PR_STATE_CHECK_SHA256 = (
-    "e89e6b03f368d5e241d5ecffaa535ab2fd2e8860cd5debcd20a6e05d0986ff0b"
+    "9c98b92747df13d4d963bb9adb7fa0b151280d638289b7b7751b52fe20951e67"
 )
 COMMON_VERSION_CANONICAL_PR_NATIVE_SUBSET_CHECK_SHA256 = (
     "3a8fef6fd071055fa7913a89efb08b2dd1949215bf52d375a0a8ce04e4638ece"
@@ -399,6 +400,7 @@ COMMON_VERSION_GENERATED_PATHS = frozenset(
         ".github/workflows/cleanup-artifacts.yml",
         ".github/workflows/five-connectors-with-crs-no-mrts-contract.yml",
         ".github/workflows/lint.yml",
+        ".github/workflows/sonarqube.yml",
         ".github/workflows/test-common.yml",
         ".github/workflows/update-submodules.yml",
         "tests/schemas/five-connectors-with-crs-no-mrts/normalized-event.schema.json",
@@ -2077,7 +2079,7 @@ def python_version_publisher_profile_errors(path: Path, publish: Any) -> list[st
         errors.append(
             f"{path}: CPython publisher job must match its reviewed key profile"
         )
-    if publish.get("runs-on") != "ubuntu-latest":
+    if publish.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
         errors.append(f"{path}: CPython publisher must use the reviewed runner")
     if publish.get("timeout-minutes") != 15:
         errors.append(f"{path}: CPython publisher must use the reviewed timeout")
@@ -2113,7 +2115,10 @@ def python_version_outcome_errors(path: Path, outcome: Any) -> list[str]:
         errors.append(
             f"{path}: CPython maintenance outcome must match its reviewed key profile"
         )
-    if outcome.get("runs-on") != "ubuntu-latest" or outcome.get("timeout-minutes") != 5:
+    if (
+        outcome.get("runs-on") != REVIEWED_UBUNTU_RUNNER
+        or outcome.get("timeout-minutes") != 5
+    ):
         errors.append(
             f"{path}: CPython maintenance outcome must use the reviewed runner and timeout"
         )
@@ -2440,7 +2445,7 @@ def publisher_job_setting_errors(path: Path, publisher: dict[str, Any]) -> list[
         errors.append(
             f"{path}: updater publisher job must match its reviewed key profile"
         )
-    if publisher.get("runs-on") != "ubuntu-latest":
+    if publisher.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
         errors.append(f"{path}: updater publisher must use the reviewed runner")
     if publisher.get("timeout-minutes") != 25:
         errors.append(f"{path}: updater publisher must use the reviewed timeout")
@@ -2600,7 +2605,7 @@ def updater_outcome_profile_errors(path: Path, data: dict[str, Any]) -> list[str
     errors: list[str] = []
     if set(outcome) != UPDATER_OUTCOME_JOB_KEYS:
         errors.append(f"{path}: updater outcome must match its reviewed key profile")
-    if outcome.get("runs-on") != "ubuntu-latest":
+    if outcome.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
         errors.append(f"{path}: updater outcome must use the reviewed runner")
     if outcome.get("timeout-minutes") != 5:
         errors.append(f"{path}: updater outcome must use the reviewed timeout")
@@ -2686,7 +2691,7 @@ def submodule_updater_reader_job_errors(
             continue
         if job.get("permissions") != {"contents": "read"}:
             errors.append(f"{path}: {job_name} must remain contents: read")
-        if job.get("runs-on") != "ubuntu-latest":
+        if job.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
             errors.append(f"{path}: {job_name} must use the reviewed runner")
         reader_text = job_text(text, job_name)
         if reader_text is not None and any(
@@ -3050,7 +3055,7 @@ def common_version_publisher_job_setting_errors(
         errors.append(
             f"{path}: common-version publisher job must match its reviewed key profile"
         )
-    if publish.get("runs-on") != "ubuntu-latest":
+    if publish.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
         errors.append(f"{path}: common-version publisher must use the reviewed runner")
     if publish.get("timeout-minutes") != 30:
         errors.append(f"{path}: common-version publisher must use the reviewed timeout")
@@ -3233,7 +3238,7 @@ def common_version_result_job_setting_errors(
         )
     if result.get("if") != ALWAYS_CONDITION:
         errors.append(f"{path}: common-version result job must always run")
-    if result.get("runs-on") != "ubuntu-latest":
+    if result.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
         errors.append(f"{path}: common-version result job must use the reviewed runner")
     if result.get("timeout-minutes") != 5:
         errors.append(
@@ -3415,19 +3420,34 @@ def _common_version_profile_errors(path: Path, jobs: dict[str, Any]) -> list[str
             continue
         if set(job) != job_profiles[name]:
             errors.append(f"{path}: common-version {name} job key profile changed")
-        steps = job.get("steps")
-        if not isinstance(steps, list) or len(steps) != len(step_profiles[name]):
-            errors.append(f"{path}: common-version {name} step profile changed")
-            continue
-        for step, (expected_name, expected_keys) in zip(steps, step_profiles[name]):
-            if (
-                not isinstance(step, dict)
-                or step.get("name") != expected_name
-                or set(step) != expected_keys
-            ):
-                errors.append(
-                    f"{path}: common-version {name} step profile changed at {expected_name!r}"
-                )
+        if job.get("runs-on") != REVIEWED_UBUNTU_RUNNER:
+            errors.append(
+                f"{path}: common-version {name} runner must match the Ubuntu 26.04 Python manifest target"
+            )
+        errors.extend(
+            _common_version_step_profile_errors(
+                path, name, job.get("steps"), step_profiles[name]
+            )
+        )
+    return errors
+
+
+def _common_version_step_profile_errors(
+    path: Path, name: str, steps: Any, profile: list[tuple[str, set[str]]]
+) -> list[str]:
+    """Compare each ordered step against the complete reviewed shape."""
+    if not isinstance(steps, list) or len(steps) != len(profile):
+        return [f"{path}: common-version {name} step profile changed"]
+    errors: list[str] = []
+    for step, (expected_name, expected_keys) in zip(steps, profile):
+        if (
+            not isinstance(step, dict)
+            or step.get("name") != expected_name
+            or set(step) != expected_keys
+        ):
+            errors.append(
+                f"{path}: common-version {name} step profile changed at {expected_name!r}"
+            )
     return errors
 
 
@@ -4545,7 +4565,7 @@ def validate(root: Path, lock_path: Path) -> list[str]:
     except ValueError as exc:
         # Unit fixtures intentionally contain only a workflow/lock.  The real
         # checkout must provide common.sh and therefore fails closed there.
-        if (root / "ci" / "lib" / "common.sh").exists():
+        if root.joinpath("ci", "lib", "common.sh").exists():
             return [str(exc)]
     actions, _tools, errors = load_lock(lock_path)
     paths = workflow_paths(root)

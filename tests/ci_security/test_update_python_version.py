@@ -74,6 +74,30 @@ def response_for(records: list[dict[str, object]]) -> FakeResponse:
 
 
 class UpdatePythonVersionTest(unittest.TestCase):
+    def setUp(self) -> None:
+        filename = "python-3.14.7-linux-26.04-x64.tar.gz"
+        builds = [
+            {
+                "version": "3.14.7",
+                "stable": True,
+                "files": [
+                    {
+                        "platform": "linux",
+                        "platform_version": "26.04",
+                        "arch": "x64",
+                        "filename": filename,
+                        "download_url": "https://github.com/actions/python-versions/releases/download/3.14.7-123/"
+                        + filename,
+                    }
+                ],
+            }
+        ]
+        manifest = patch.object(
+            UPDATER.RUNNER_BUILDS, "fetch_manifest", return_value=builds
+        )
+        manifest.start()
+        self.addCleanup(manifest.stop)
+
     def make_root(self, directory: Path, version: str = "3.14.6\n") -> Path:
         root = directory / "framework"
         (root / "ci/lib").mkdir(parents=True)

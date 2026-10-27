@@ -21,6 +21,13 @@ import tempfile
 from typing import Any, Iterable, Protocol
 from urllib.parse import urlparse
 
+_RUNNER_SPEC = importlib.util.spec_from_file_location(
+    "framework_maintenance_runner_builds",
+    Path(__file__).with_name("python_runner_builds.py"),
+)
+assert _RUNNER_SPEC is not None and _RUNNER_SPEC.loader is not None
+RUNNER_BUILDS = importlib.util.module_from_spec(_RUNNER_SPEC)
+_RUNNER_SPEC.loader.exec_module(RUNNER_BUILDS)
 
 SCHEMA_VERSION = "1"
 MAX_TEXT = 240
@@ -124,6 +131,7 @@ ALLOWED_AUTOMATIC_PATHS = frozenset(
             "cleanup-artifacts.yml",
             "five-connectors-with-crs-no-mrts-contract.yml",
             "lint.yml",
+            "sonarqube.yml",
             "test-common.yml",
             "update-submodules.yml",
         )
@@ -797,6 +805,9 @@ def resolve_python(
             )
         updates = []
         if compare_versions(current, latest_compatible) < 0:
+            RUNNER_BUILDS.require_build(
+                RUNNER_BUILDS.fetch_manifest(), latest_compatible
+            )
             updates.append(
                 {"variable": variables[0], "old": current, "new": latest_compatible}
             )
@@ -2228,7 +2239,12 @@ def generated_view_status(root: Path, *, write: bool = False) -> list[dict[str, 
             {
                 "name": name,
                 "status": "current" if result.returncode == 0 else "blocked",
-                "message": bounded(result.stdout + result.stderr, "generator failed"),
+                "message": bounded(result.stdout + result.stderr).strip()
+                or (
+                    "Generated view is current."
+                    if result.returncode == 0
+                    else "Generated view generator failed."
+                ),
             }
         )
     return statuses

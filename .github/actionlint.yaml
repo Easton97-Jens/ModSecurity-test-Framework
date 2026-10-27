@@ -1,0 +1,6 @@
+# Official hosted image; actionlint 1.7.12 predates this label in its built-in list.
+# This exact supplemental label does not change GitHub Actions runner routing.
+# https://github.com/actions/runner-images/issues/14747
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04

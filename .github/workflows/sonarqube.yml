@@ -1,0 +1,65 @@
+name: SonarQube security analysis
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonarqube-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  sonarqube:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+
+      - name: Set up reviewed Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: ".python-version"
+          check-latest: false
+
+      - name: Install native analysis prerequisites
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes build-essential autoconf automake libtool pkg-config libpcre2-dev libyajl-dev libcurl4-openssl-dev libxml2-dev liblmdb-dev libssl-dev zlib1g-dev bison flex git
+
+      - name: Compile all Framework native sources for security analysis
+        run: |
+          set -euo pipefail
+          sh ci/checks/analysis/prepare-sonar-sdk.sh
+          python3 ci/checks/analysis/prepare-sonar-cfamily.py \
+            --output "$RUNNER_TEMP/framework-sonar-native" \
+            --sdk "$RUNNER_TEMP/framework-sonar-sdk/build/ModSecurity_V3_build"
+
+      - name: Analyze maintained languages and wait for the Quality Gate
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_USER_HOME: ${{ runner.temp }}/framework-sonar-cache
+        with:
+          scannerVersion: 8.2.0.6438
+          args: >-
+            -Dsonar.scm.revision=${{ github.event.pull_request.head.sha || github.sha }}
+            -Dsonar.working.directory=${{ runner.temp }}/framework-sonar-work
+            -Dsonar.cfamily.compile-commands=${{ runner.temp }}/framework-sonar-native/compile_commands.json

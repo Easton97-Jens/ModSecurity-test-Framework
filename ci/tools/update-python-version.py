@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Resolve and safely apply reviewed stable CPython 3.14 patch updates.
 
-The updater deliberately trusts only the documented, public Python.org JSON
-endpoint.  It does not consume a GitHub token, follow redirects, scrape HTML,
+The updater resolves releases from Python.org and requires the matching build
+in the official actions/python-versions manifest. It does not consume a GitHub token, follow redirects, scrape HTML,
 or update anything except the canonical ``CI_CANONICAL_PYTHON_VERSION``
 assignment in ``ci/lib/common.sh``.  The generated ``.python-version`` view is
 updated separately by the canonical pin synchronizer.
@@ -11,6 +11,7 @@ updated separately by the canonical pin synchronizer.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 from dataclasses import asdict, dataclass
 import json
 import os
@@ -22,6 +23,13 @@ from typing import Any, Callable, Protocol
 from urllib import error, request
 from urllib.parse import urlsplit
 
+_RUNNER_SPEC = importlib.util.spec_from_file_location(
+    "framework_python_updater_runner_builds",
+    Path(__file__).with_name("python_runner_builds.py"),
+)
+assert _RUNNER_SPEC is not None and _RUNNER_SPEC.loader is not None
+RUNNER_BUILDS = importlib.util.module_from_spec(_RUNNER_SPEC)
+_RUNNER_SPEC.loader.exec_module(RUNNER_BUILDS)
 
 CANONICAL_SOURCE_FILE = Path("ci/lib/common.sh")
 CANONICAL_ASSIGNMENT = "CI_CANONICAL_PYTHON_VERSION"
@@ -276,11 +284,8 @@ def fetch_release_metadata(
     except UpdaterFailure:
         raise
     except error.HTTPError as exc:
-        status = (
-            "blocked_network"
-            if exc.code in {408, 429, 500, 502, 503, 504}
-            else "blocked_metadata"
-        )
+        is_transient_http_error = exc.code in {408, 429, 500, 502, 503, 504}
+        status = "blocked_network" if is_transient_http_error else "blocked_metadata"
         raise UpdaterFailure(
             status, f"metadata request returned HTTP {exc.code}"
         ) from exc
@@ -406,6 +411,12 @@ def resolve_update(
         return UpdateResult(
             "current", current.text, None, "the reviewed Python version is current"
         )
+    try:
+        RUNNER_BUILDS.require_build(
+            RUNNER_BUILDS.fetch_manifest(timeout=timeout), latest.text
+        )
+    except (OSError, ValueError) as exc:
+        return UpdateResult("blocked_metadata", current.text, None, str(exc))
     return UpdateResult(
         "update_available",
         current.text,

@@ -300,6 +300,36 @@ scope-anwendbare SonarQube-/Branch-Protection-Checks am tatsächlichen PR-Head
 beobachtet werden, bevor ein Mensch merged. Der Workflow selbst genehmigt,
 merged oder aktiviert niemals Auto-Merge.
 
+### Bereitschaftsprüfungen der Updater
+
+Erfolgreiche Prüfungen generierter Ansichten können ohne Ausgabe enden. Der
+Planer erzeugt vor dem unverändert strengen Reconciler für jeden Erfolg oder
+Fehler eine ausdrückliche, begrenzte und nicht leere Nachricht. Ein stiller
+Katalog-Check stoppt dadurch die Wartung nicht mehr vor Kandidatenprüfung und
+Veröffentlichung.
+
+Beide Python-Wartungsresolver verlangen für das neueste kompatible offizielle
+Python.org-Release einen stabilen Linux-/Ubuntu-26.04-/x64-Build im
+[offiziellen setup-python-Manifest](https://github.com/actions/python-versions/blob/main/versions-manifest.json).
+Der Common- und der separate Python-Workflow pinnen passend `ubuntu-26.04`. Ein verzögerter Build
+bleibt ausdrücklich blockiert und der kanonische Pin unverändert; er wird weder
+als aktuell gemeldet noch still durch einen älteren Kandidaten ersetzt. Das
+Manifest belegt Verfügbarkeit; der Kandidatenjob installiert und prüft den
+tatsächlichen Interpreter weiterhin vor der Veröffentlichung.
+
+Alle aktiven Framework-Workflow-Jobs wählen ausdrücklich `ubuntu-26.04`.
+Die actionlint-Konfiguration ergänzt ausschließlich dieses exakte offizielle
+Hosted-Label, das der gepinnte Linter noch nicht kennt; keine Lintfehler werden
+ausgeblendet. Historische Evidence und allgemeine Offline-Sicherheits-Fixtures
+behalten ihre ursprünglichen Labels.
+
+Der generierte Sonar-Workflow ist mit exaktem Pfad im Planer, nativen
+Workflow-Tool-Validator und den Publisher-Pfadverträgen zugelassen. Andere
+ungeprüfte Workflow-Pfade bleiben verboten. Tatsächlicher geplanter Lauf und
+erzeugter Wartungs-Draft-PR müssen nach separat autorisierter Masterintegration
+weiterhin geprüft werden; Offline-Regressionen und read-only Metadatenprüfungen
+belegen keine Veröffentlichung.
+
 ### Einheitlicher Scope der Common-Version-Wartung
 
 `ci/tools/resolve-canonical-maintenance.py` ist der einzige read-only
