@@ -8,21 +8,19 @@ import base64
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 from urllib.parse import parse_qsl, quote, urlencode
+
+import yaml
 
 
 FRAMEWORK_LIB = Path(__file__).resolve().parents[1] / "lib"
 if str(FRAMEWORK_LIB) not in sys.path:
     sys.path.insert(0, str(FRAMEWORK_LIB))
 
-from runtime_path_safety import (
-    absolute_path_without_traversal,
-    has_symlink_component,
-    nearest_existing_directory,
-    private_runtime_root,
-)
+from runtime_path_safety import private_runtime_root
 
 INCOMPLETE_REASON = "MRTS classification incomplete"
 MRTS_SOURCE_REPOSITORY = "Easton97-Jens/MRTS"
@@ -48,8 +46,6 @@ STATUS_RE = re.compile(r"\bstatus:(\d{3})\b")
 DISRUPTIVE_RE = re.compile(r"\b(?:deny|block|drop|redirect)\b")
 TRANS_RE = re.compile(r"\bt:[^,\"]+")
 RULE_START_RE = re.compile(r"^\s*(?:SecRule|SecAction)\b")
-SCALAR_TRUE = {"true", "yes", "on"}
-SCALAR_FALSE = {"false", "no", "off"}
 DEFAULT_CLASSIFICATIONS_FILE = Path("tests/mrts/classifications.yaml")
 YAML_FILE_GLOB = "*.yaml"
 ROOT_OVERLAY_KEYS = {"version", "cases"}
@@ -115,162 +111,8 @@ def configured_mrts_build_root(
     return None
 
 
-def parse_scalar(value: str) -> Any:
-    value = value.strip()
-    if not value:
-        return ""
-    lowered = value.lower()
-    if lowered in SCALAR_TRUE:
-        return True
-    if lowered in SCALAR_FALSE:
-        return False
-    if lowered in {"null", "none", "~"}:
-        return None
-    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
-        return value[1:-1]
-    if value.startswith("[") and value.endswith("]"):
-        body = value[1:-1].strip()
-        if not body:
-            return []
-        return [parse_scalar(item.strip()) for item in body.split(",")]
-    if re.fullmatch(r"-?\d+", value):
-        return int(value)
-    return value
-
-
-def indent_of(line: str) -> int:
-    return len(line) - len(line.lstrip(" "))
-
-
-def dedent_block(lines: Iterable[str]) -> str:
-    collected = list(lines)
-    indents = [indent_of(line) for line in collected if line.strip()]
-    if not indents:
-        return ""
-    margin = min(indents)
-    return "\n".join(line[margin:] for line in collected).rstrip() + "\n"
-
-
-class MinimalYamlParser:
-    def __init__(self, path: Path) -> None:
-        self.path = path
-        self.lines = [
-            line
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip() not in {"---", "..."}
-        ]
-
-    def next_significant(self, index: int) -> str | None:
-        while index < len(self.lines):
-            line = self.lines[index]
-            if line.strip() and not line.lstrip().startswith("#"):
-                return line
-            index += 1
-        return None
-
-    def parse_node(self, index: int, indent: int) -> tuple[Any, int]:
-        candidate = self.next_significant(index)
-        if candidate is not None and candidate.strip().startswith("- "):
-            candidate_indent = indent_of(candidate)
-            if candidate_indent <= indent or candidate_indent == indent + 2:
-                return self.parse_sequence(index, candidate_indent)
-        return self.parse_mapping(index, indent)
-
-    def parse_sequence(self, index: int, indent: int) -> tuple[list[Any], int]:
-        parsed: list[Any] = []
-        while index < len(self.lines):
-            line = self.lines[index]
-            if not line.strip() or line.lstrip().startswith("#"):
-                index += 1
-                continue
-            if indent_of(line) < indent or not line.strip().startswith("- "):
-                break
-            if indent_of(line) > indent:
-                raise ValueError(f"unexpected sequence indentation in {self.path}: {line}")
-            value, index = self.parse_sequence_item(index, indent)
-            parsed.append(value)
-        return parsed, index
-
-    def parse_sequence_item(self, index: int, indent: int) -> tuple[Any, int]:
-        line = self.lines[index]
-        raw_value = line.strip()[2:].strip()
-        index += 1
-        if not raw_value:
-            return self.parse_node(index, indent + 2)
-        if ":" not in raw_value or raw_value.startswith(("'", '"')):
-            return parse_scalar(raw_value), index
-        key, value = raw_value.split(":", 1)
-        value, index = self.collect_quoted_scalar(value.strip(), index, indent)
-        item: dict[str, Any] = {key.strip(): parse_scalar(value.strip())}
-        candidate = self.next_significant(index)
-        if candidate is not None and indent_of(candidate) == indent + 2:
-            nested, index = self.parse_mapping(index, indent + 2)
-            item.update(nested)
-        return item, index
-
-    def parse_mapping(self, index: int, indent: int) -> tuple[dict[str, Any], int]:
-        parsed: dict[str, Any] = {}
-        while index < len(self.lines):
-            line = self.lines[index]
-            if not line.strip() or line.lstrip().startswith("#"):
-                index += 1
-                continue
-            current_indent = indent_of(line)
-            if current_indent < indent:
-                break
-            if current_indent > indent:
-                raise ValueError(f"unexpected mapping indentation in {self.path}: {line}")
-            stripped = line.strip()
-            if ":" not in stripped:
-                raise ValueError(f"expected YAML mapping in {self.path}: {line}")
-            key, raw_value = stripped.split(":", 1)
-            key = key.strip()
-            raw_value = raw_value.strip()
-            index += 1
-            if raw_value in {"|", ">"}:
-                parsed[key], index = self.parse_block(index, current_indent)
-            elif raw_value:
-                raw_value, index = self.collect_quoted_scalar(raw_value, index, current_indent)
-                parsed[key] = parse_scalar(raw_value)
-            else:
-                nested, index = self.parse_node(index, current_indent + 2)
-                parsed[key] = nested
-        return parsed, index
-
-    def collect_quoted_scalar(self, raw_value: str, index: int, parent_indent: int) -> tuple[str, int]:
-        if not raw_value or raw_value[0] not in {"'", '"'}:
-            return raw_value, index
-        quote = raw_value[0]
-        if len(raw_value) > 1 and raw_value.endswith(quote):
-            return raw_value, index
-        parts = [raw_value]
-        while index < len(self.lines):
-            line = self.lines[index]
-            if line.strip() and indent_of(line) <= parent_indent:
-                break
-            parts.append(line.strip())
-            index += 1
-            if parts[-1].endswith(quote):
-                break
-        return " ".join(parts), index
-
-    def parse_block(self, index: int, parent_indent: int) -> tuple[str, int]:
-        block_lines: list[str] = []
-        while index < len(self.lines):
-            line = self.lines[index]
-            if line.strip() and indent_of(line) <= parent_indent:
-                break
-            block_lines.append(line)
-            index += 1
-        return dedent_block(block_lines), index
-
-    def parse(self) -> dict[str, Any]:
-        parsed, _ = self.parse_mapping(0, 0)
-        return parsed
-
-
 def load_yaml(path: Path) -> dict[str, Any]:
-    parsed = MinimalYamlParser(path).parse()
+    parsed = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(parsed, dict):
         raise ValueError(f"YAML root must be a mapping: {path}")
     return parsed
@@ -388,23 +230,24 @@ def yaml_scalar(value: Any) -> str:
         return str(value)
     if value is None:
         return "null"
-    text = str(value)
-    if text == "" or text.lower() in {"true", "false", "null"} or re.search(r"[:#\n\[\]{}]", text) or text.strip() != text:
-        return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
-    return text
+    # Quote every string, including keys, so YAML resolvers cannot infer
+    # numbers, dates, booleans, tags or aliases. PyYAML emits YAML escapes
+    # for line separators, controls and non-BMP characters without type loss.
+    return yaml.safe_dump(
+        str(value), default_style='"', allow_unicode=False, width=2**31 - 1,
+    ).rstrip("\n")
 
 
 def render_yaml_mapping_item(key: Any, item: Any, indent: int) -> list[str]:
     prefix = " " * indent
-    if isinstance(item, str) and "\n" in item:
-        block_lines = [
-            f"{prefix}  {line}" if line else prefix
-            for line in item.rstrip("\n").split("\n")
-        ]
-        return [f"{prefix}{key}: |", *block_lines]
-    if isinstance(item, (Mapping, list)):
-        return [f"{prefix}{key}:", *render_yaml(item, indent + 2)]
-    return [f"{prefix}{key}: {yaml_scalar(item)}"]
+    rendered_key = yaml_scalar(key)
+    if isinstance(item, (Mapping, list)) and item:
+        return [f"{prefix}{rendered_key}:", *render_yaml(item, indent + 2)]
+    if isinstance(item, Mapping):
+        return [f"{prefix}{rendered_key}: {{}}"]
+    if isinstance(item, list):
+        return [f"{prefix}{rendered_key}: []"]
+    return [f"{prefix}{rendered_key}: {yaml_scalar(item)}"]
 
 
 def render_yaml_mapping(value: Mapping[str, Any], indent: int) -> list[str]:
@@ -677,22 +520,34 @@ def first_stage(test: Mapping[str, Any]) -> Mapping[str, Any]:
     return {}
 
 
-def normalize_header_map(headers: Any) -> dict[str, str]:
+def header_collection(entries: list[tuple[str, str]]) -> dict[str, str] | list[dict[str, str]]:
+    names = [name.lower() for name, _ in entries]
+    if len(names) == len(set(names)):
+        return dict(entries)
+    return [{"name": name, "value": value} for name, value in entries]
+
+
+def header_entries(headers: Mapping[str, str] | list[dict[str, str]]) -> list[tuple[str, str]]:
     if isinstance(headers, Mapping):
-        return {
-            str(key): str(value)
-            for key, value in headers.items()
-            if str(key).lower() not in {"host", "user-agent", "accept"}
-        }
-    if isinstance(headers, list):
-        normalized: dict[str, str] = {}
+        return list(headers.items())
+    return [(item["name"], item["value"]) for item in headers]
+
+
+def normalize_header_map(headers: Any) -> dict[str, str] | list[dict[str, str]]:
+    if isinstance(headers, Mapping):
+        entries = [(str(key), str(value)) for key, value in headers.items()]
+    elif isinstance(headers, list):
+        entries = []
         for item in headers:
-            if isinstance(item, Mapping) and item.get("name") not in (None, ""):
-                name = str(item["name"])
-                if name.lower() not in {"host", "user-agent", "accept"}:
-                    normalized[name] = str(item.get("value", ""))
-        return normalized
-    return {}
+            if not isinstance(item, Mapping) or set(item) != {"name", "value"}:
+                raise ValueError("MRTS headers entries require exactly name and value")
+            entries.append((str(item["name"]), str(item["value"])))
+    else:
+        entries = []
+    return header_collection([
+        (name, value) for name, value in entries
+        if name.lower() not in {"host", "user-agent", "accept"}
+    ])
 
 
 def empty_request() -> dict[str, Any]:
@@ -727,20 +582,20 @@ def encoded_request_start(head: str) -> tuple[str, str, list[str]] | None:
     return method, path, lines[1:]
 
 
-def encoded_request_headers(lines: Iterable[str]) -> dict[str, str]:
-    headers: dict[str, str] = {}
+def encoded_request_headers(lines: Iterable[str]) -> dict[str, str] | list[dict[str, str]]:
+    entries: list[tuple[str, str]] = []
     for line in lines:
         if ":" not in line:
             continue
         name, value = line.split(":", 1)
         if name.strip().lower() not in {"host", "user-agent", "accept", "content-length"}:
-            headers[name.strip()] = value.strip()
-    return headers
+            entries.append((name.strip(), value.strip()))
+    return header_collection(entries)
 
 
-def multipart_boundary(headers: Mapping[str, str]) -> str | None:
+def multipart_boundary(headers: Mapping[str, str] | list[dict[str, str]]) -> str | None:
     content_type = next(
-        (value for key, value in headers.items() if key.lower() == "content-type"),
+        (value for key, value in header_entries(headers) if key.lower() == "content-type"),
         "",
     )
     if not content_type.lower().startswith("multipart/form-data") or "boundary=" not in content_type:
@@ -798,12 +653,12 @@ def multipart_parts(body: str, boundary: str) -> list[dict[str, Any]]:
 def attach_body_and_headers(
     request: dict[str, Any],
     body: str,
-    headers: Mapping[str, str],
+    headers: Mapping[str, str] | list[dict[str, str]],
 ) -> None:
     if body:
         request["body"] = body
     if headers:
-        request["headers"] = dict(sorted(headers.items()))
+        request["headers"] = headers
 
 
 def request_from_encoded(raw: str) -> tuple[dict[str, Any], bool]:
@@ -850,9 +705,12 @@ def add_stage_data(
         request["path"] = query_path_from_form_body(uri, data)
         return
     request["body"] = data
-    request.setdefault("headers", {}).setdefault(
-        "Content-Type", "application/x-www-form-urlencoded",
-    )
+    headers = request.setdefault("headers", {})
+    if not any(name.lower() == "content-type" for name, _ in header_entries(headers)):
+        if isinstance(headers, list):
+            headers.append({"name": "Content-Type", "value": "application/x-www-form-urlencoded"})
+        else:
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
 
 
 def request_from_mapping_input(input_data: Mapping[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -863,7 +721,7 @@ def request_from_mapping_input(input_data: Mapping[str, Any]) -> tuple[dict[str,
     request: dict[str, Any] = {"method": method, "path": uri}
     kept_headers = normalize_header_map(input_data.get("headers"))
     if kept_headers:
-        request["headers"] = dict(sorted(kept_headers.items()))
+        request["headers"] = kept_headers
     add_stage_data(request, method, uri, input_data)
     return request, True
 
@@ -1124,10 +982,53 @@ def import_cases(
     by_id, by_base = read_rule_files(rules_dir)
     overlays = load_classification_overlays(classifications_file)
     definition_index = source_definition_index(source_definition_dirs)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for old in yaml_files(output_dir):
-        old.unlink()
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    # The entire output directory is an importer-owned catalog. Refuse unrelated
+    # files rather than deleting them during a successful catalog replacement.
+    if output_dir.exists() and any(
+        not item.is_file() or item.is_symlink() or item.suffix != ".yaml"
+        for item in output_dir.iterdir()
+    ):
+        raise ValueError("MRTS output directory contains non-catalog entries")
+    with tempfile.TemporaryDirectory(prefix=f".{output_dir.name}.import-", dir=output_dir.parent) as temporary:
+        staging_dir = Path(temporary) / "catalog"
+        staging_dir.mkdir(mode=0o700)
+        count = stage_cases(
+            framework_root, ftw_dir, by_id, by_base, definition_index, overlays,
+            staging_dir, upstream_ftw_dir, mrts_corpus, case_status, pending_reason,
+            load_case,
+        )
+        if not count:
+            raise ValueError("MRTS import produced an empty catalog")
+        previous = Path(temporary) / "previous"
+        if output_dir.exists():
+            output_dir.rename(previous)
+        try:
+            staging_dir.rename(output_dir)
+        except OSError:
+            if previous.exists():
+                previous.rename(output_dir)
+            raise
+    print(f"Imported MRTS framework cases: {count}")
+    print(f"Corpus: {mrts_corpus}")
+    print(f"Output: {output_dir}")
+    return 0
 
+
+def stage_cases(
+    framework_root: Path,
+    ftw_dir: Path,
+    by_id: Mapping[str, tuple[str, Path]],
+    by_base: Mapping[str, tuple[str, Path]],
+    definition_index: Mapping[str, Path],
+    overlays: Mapping[str, Mapping[str, Any]],
+    staging_dir: Path,
+    upstream_ftw_dir: Path | None,
+    mrts_corpus: str,
+    case_status: str,
+    pending_reason: str,
+    load_case: Callable[[Path], Mapping[str, Any]],
+) -> int:
     used_names: dict[str, int] = {}
     count = 0
     for ftw_file in yaml_files(ftw_dir):
@@ -1154,14 +1055,11 @@ def import_cases(
                 case_status=case_status,
                 pending_reason=pending_reason,
             )
-            output_path = output_dir / f"{case['name']}.yaml"
+            output_path = staging_dir / f"{case['name']}.yaml"
             write_case(output_path, case)
             load_case(output_path)
             count += 1
-    print(f"Imported MRTS framework cases: {count}")
-    print(f"Corpus: {mrts_corpus}")
-    print(f"Output: {output_dir}")
-    return 0
+    return count
 
 
 def required_mrts_build_root(args: argparse.Namespace) -> Path:

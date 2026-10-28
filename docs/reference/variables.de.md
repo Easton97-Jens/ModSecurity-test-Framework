@@ -211,6 +211,14 @@ MRTS-Eingaben oder generierte Pfade. `MODSECURITY_MRTS_VARIANT` akzeptiert
 `no-mrts` oder `with-mrts`; `MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=1`
 aktiviert optionale Demo-Inhalte erst nach Kollisionsprüfungen.
 
+`MRTS_PACKAGE_ROOT` wählt ein neues validiertes Paket unter `BUILD_ROOT/mrts`.
+`MODSECURITY_MRTS_PREPARED=1` fordert manifestgeprüfte Wiederverwendung dieses
+Pakets an; es belegt keinen Hosttest. `MRTS_UPSTREAM_DEFINITIONS` und
+`MRTS_FEATURE_DEMO_DEFINITIONS` wählen die Definitionsverzeichnisse;
+`MRTS_RUNTIME_PORT` wählt den privaten FTW-Zielport (Vorgabe `80`).
+`MRTS_RUNTIME_ROOT` meldet die pro Shell/Host erstellte private Materialisierung.
+Siehe [MRTS-Vorbereitung](../mrts-preparation.de.md) für den ausdrücklichen CLI-Vertrag.
+
 `CRS_APPROVED_REPO_URL`, `CRS_APPROVED_COMMIT`, `CRS_RELEASE_TAG`,
 `CRS_RULE_FILE_SHA256` und `CRS_GIT_REF` bilden das zentrale CRS-
 Provenance-Tupel in `ci/lib/common.sh`; sie sind keine Caller-Eingaben.

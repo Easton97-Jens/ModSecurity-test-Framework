@@ -140,6 +140,9 @@ in another connector.
 
 ## Updating an integration
 
+For the pinned MRTS generator, use the validated package interface in
+[MRTS preparation and handoff](mrts-preparation.md).
+
 1. Keep adapter metadata and connector origin records aligned with the
    adapter-owned source.
 2. Declare the integration mode and capability boundary in the connector

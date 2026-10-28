@@ -290,7 +290,7 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 (temporary_root / "build" / "preambles" / "mrts-combined.load").exists()
             )
 
-    def test_prepared_variant_accepts_option_like_literal_paths(self) -> None:
+    def test_prepared_variant_rejects_load_only_option_like_literal_paths(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mrts-common-posix-") as temporary:
             temporary_root = Path(temporary)
             load_file = "-load * [literal] ?.load"
@@ -308,9 +308,9 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 SYNTHETIC_ROOT=str(temporary_root),
             )
 
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertEqual(result.stdout, "ready\n")
-            self.assertEqual(result.stderr, "")
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, "")
+            self.assertIn("requires MRTS_PACKAGE_ROOT and a validated manifest", result.stderr)
 
     def test_prepared_variant_fails_closed_for_missing_paths(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mrts-common-posix-") as temporary:
@@ -334,7 +334,7 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 77,
                 missing_load.stdout + missing_load.stderr,
             )
-            self.assertIn("prepared MRTS load file missing", missing_load.stderr)
+            self.assertIn("requires MRTS_PACKAGE_ROOT and a validated manifest", missing_load.stderr)
 
             load_file = "-load * [literal] ?.load"
             (temporary_root / load_file).write_text("load\n", encoding="utf-8")
@@ -354,7 +354,7 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 77,
                 missing_case_root.stdout + missing_case_root.stderr,
             )
-            self.assertIn("prepared MRTS case root missing", missing_case_root.stderr)
+            self.assertIn("requires MRTS_PACKAGE_ROOT and a validated manifest", missing_case_root.stderr)
 
     def test_prepared_variant_blocks_shadowed_missing_load_file(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mrts-common-posix-") as temporary:
@@ -396,9 +396,9 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                         result.stdout + result.stderr,
                     )
                     self.assertEqual(result.stdout, "")
-                    self.assertIn("prepared MRTS load file missing", result.stderr)
+                    self.assertIn("requires MRTS_PACKAGE_ROOT and a validated manifest", result.stderr)
 
-    def test_prepared_feature_demo_requires_a_literal_regular_file(self) -> None:
+    def test_prepared_feature_demo_requires_manifest_even_with_literal_regular_files(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mrts-common-posix-") as temporary:
             temporary_root = Path(temporary)
             load_file = "-load * [literal] ?.load"
@@ -422,9 +422,9 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
                 SYNTHETIC_ROOT=str(temporary_root),
             )
 
-            self.assertEqual(enabled.returncode, 0, enabled.stdout + enabled.stderr)
-            self.assertEqual(enabled.stdout, "ready\n")
-            self.assertEqual(enabled.stderr, "")
+            self.assertEqual(enabled.returncode, 77, enabled.stdout + enabled.stderr)
+            self.assertEqual(enabled.stdout, "")
+            self.assertIn("requires MRTS_PACKAGE_ROOT and a validated manifest", enabled.stderr)
 
             missing = self.run_shell(
                 self.prepared_variant_script(),
@@ -440,7 +440,7 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
 
             self.assertEqual(missing.returncode, 77, missing.stdout + missing.stderr)
             self.assertIn(
-                "prepared feature-demo MRTS load file missing", missing.stderr
+                "requires MRTS_PACKAGE_ROOT and a validated manifest", missing.stderr
             )
 
     def test_duplicate_rule_ids_block_and_distinct_ids_continue(self) -> None:
@@ -482,81 +482,43 @@ class MrtsCommonPosixReliabilityTests(unittest.TestCase):
             self.assertEqual(distinct.stdout, "safe\n")
             self.assertEqual(distinct.stderr, "")
 
-    def test_feature_and_prepared_values_select_only_the_literal_enabled_path(self) -> None:
+    def test_import_and_runtime_entrypoints_delegate_to_one_preparation_path(self) -> None:
         import_script = "\n".join(
             (
                 '. "$HELPER_PATH"',
-                "assert_safe_runtime_path() { :; }",
-                'MRTS_UPSTREAM_CASE_ROOT="$UPSTREAM_CASE_ROOT"',
-                'MRTS_FEATURE_DEMO_CASE_ROOT="$FEATURE_CASE_ROOT"',
-                "mrts_check_feature_demo_runtime_safe() { printf 'checked\\n'; }",
+                "mrts_generate_all_corpora() {",
+                '    printf "package:%s:%s\\n" "$MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO" "$MODSECURITY_MRTS_PREPARED"',
+                "}",
                 "mrts_import_cases",
-                'printf "done\\n"',
             )
         )
         runtime_script = "\n".join(
             (
                 '. "$HELPER_PATH"',
-                "prepare_mrts_variant() { :; }",
-                "mrts_import_cases() { printf 'imported\\n'; }",
+                "prepare_mrts_variant() { printf 'prepared\\n'; }",
+                "mrts_import_cases() { printf 'unexpected second import\\n'; return 99; }",
                 "prepare_mrts_runtime_variant",
             )
         )
-
         with tempfile.TemporaryDirectory(prefix="mrts-common-posix-") as temporary:
             temporary_root = Path(temporary)
-            import_roots = {
-                "FEATURE_CASE_ROOT": str(temporary_root / "feature cases"),
-                "PYTHON": "/bin/true",
-                "UPSTREAM_CASE_ROOT": str(temporary_root / "upstream cases"),
-            }
-
-            enabled = self.run_shell(
-                import_script,
-                temporary_root,
-                MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO="1",
-                **import_roots,
-            )
-            self.assertEqual(enabled.returncode, 0, enabled.stdout + enabled.stderr)
-            self.assertEqual(enabled.stdout, "checked\ndone\n")
-            self.assertEqual(enabled.stderr, "")
-
-            for feature_value in ("", " ", "*", "-1"):
-                with self.subTest(feature_value=feature_value):
-                    disabled = self.run_shell(
-                        import_script,
-                        temporary_root,
-                        MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=feature_value,
-                        **import_roots,
+            for value in ("1", "0", "", " ", "*", "-1"):
+                with self.subTest(literal_value=value):
+                    imported = self.run_shell(
+                        import_script, temporary_root,
+                        MODSECURITY_MRTS_INCLUDE_FEATURE_DEMO=value,
+                        MODSECURITY_MRTS_PREPARED=value,
                     )
-                    self.assertEqual(
-                        disabled.returncode,
-                        0,
-                        disabled.stdout + disabled.stderr,
-                    )
-                    self.assertEqual(disabled.stdout, "done\n")
-                    self.assertEqual(disabled.stderr, "")
-
-            for prepared_value, expected_output in (
-                ("1", ""),
-                ("", "imported\n"),
-                (" ", "imported\n"),
-                ("*", "imported\n"),
-                ("-1", "imported\n"),
-            ):
-                with self.subTest(prepared_value=prepared_value):
+                    self.assertEqual(imported.returncode, 0, imported.stdout + imported.stderr)
+                    self.assertEqual(imported.stdout, f"package:{value or '0'}:{value or '0'}\n")
+                    self.assertEqual(imported.stderr, "")
                     runtime = self.run_shell(
-                        runtime_script,
-                        temporary_root,
-                        MODSECURITY_MRTS_PREPARED=prepared_value,
+                        runtime_script, temporary_root,
+                        MODSECURITY_MRTS_PREPARED=value,
                         MODSECURITY_MRTS_VARIANT="with-mrts",
                     )
-                    self.assertEqual(
-                        runtime.returncode,
-                        0,
-                        runtime.stdout + runtime.stderr,
-                    )
-                    self.assertEqual(expected_output, runtime.stdout)
+                    self.assertEqual(runtime.returncode, 0, runtime.stdout + runtime.stderr)
+                    self.assertEqual(runtime.stdout, "prepared\n")
                     self.assertEqual(runtime.stderr, "")
 
 

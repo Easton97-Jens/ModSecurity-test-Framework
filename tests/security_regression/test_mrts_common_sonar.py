@@ -155,8 +155,10 @@ class MrtsCommonSonarRegressionTests(unittest.TestCase):
             temporary_root = Path(temporary)
             existing_preamble = temporary_root / "existing.load"
             new_preamble = temporary_root / "new.load"
+            last_preamble = temporary_root / "last.load"
             existing_preamble.write_text("Include \"existing.conf\"\n", encoding="utf-8")
             new_preamble.write_text("Include \"new.conf\"\n", encoding="utf-8")
+            last_preamble.write_text("Include \"last.conf\"\n", encoding="utf-8")
             result = self.run_shell(
                 "\n".join(
                     (
@@ -165,22 +167,52 @@ class MrtsCommonSonarRegressionTests(unittest.TestCase):
                         "assert_not_system_path_for_write() { return 0; }",
                         'MODSECURITY_RULE_PREAMBLE_FILE="$EXISTING_PREAMBLE"',
                         'mrts_append_rule_preamble "$NEW_PREAMBLE"',
-                        'printf "%s\\n" "$MODSECURITY_RULE_PREAMBLE_FILE"',
+                        'FIRST_COMBINED="$MODSECURITY_RULE_PREAMBLE_FILE"',
+                        'mrts_append_rule_preamble "$LAST_PREAMBLE"',
+                        'printf "%s\\n%s\\n" "$FIRST_COMBINED" "$MODSECURITY_RULE_PREAMBLE_FILE"',
                     )
                 ),
                 temporary_root,
                 EXISTING_PREAMBLE=str(existing_preamble),
                 NEW_PREAMBLE=str(new_preamble),
+                LAST_PREAMBLE=str(last_preamble),
             )
-            combined = temporary_root / "build" / "preambles" / "mrts-combined.load"
 
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertEqual(result.stdout, f"{combined}\n")
+            combined, chained = (Path(value) for value in result.stdout.splitlines())
+            self.assertEqual(combined.parent, temporary_root / "build/preambles")
+            self.assertRegex(combined.name, r"^mrts-combined\.[A-Za-z0-9]+\.load$")
+            self.assertNotEqual(combined, chained)
             self.assertEqual(result.stderr, "")
             self.assertEqual(
                 combined.read_text(encoding="utf-8"),
                 f'Include "{existing_preamble}"\nInclude "{new_preamble}"\n',
             )
+            self.assertEqual(chained.read_text(encoding="utf-8"),
+                             f'Include "{combined}"\nInclude "{last_preamble}"\n')
+
+    def test_rule_preamble_writer_failure_keeps_previous_binding(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="mrts-common-preamble-") as temporary:
+            root = Path(temporary)
+            existing = root / "existing.load"
+            existing.write_text("existing\n", encoding="utf-8")
+            result = self.run_shell(
+                '\n'.join((
+                    '. "$HELPER_PATH"',
+                    'assert_safe_runtime_path() { return 0; }',
+                    'assert_not_system_path_for_write() { return 0; }',
+                    'MODSECURITY_RULE_PREAMBLE_FILE="$EXISTING_PREAMBLE"',
+                    'printf() { return 1; }',
+                    'mrts_append_rule_preamble "$NEW_PREAMBLE"',
+                    'status=$?',
+                    'command printf "%s\\n%s\\n" "$status" "$MODSECURITY_RULE_PREAMBLE_FILE"',
+                    'exit "$status"',
+                )), root, EXISTING_PREAMBLE=str(existing), NEW_PREAMBLE=str(root / "new.load"),
+            )
+            self.assertEqual(result.returncode, 77, result.stdout + result.stderr)
+            self.assertEqual(result.stdout, f"77\n{existing}\n")
+            self.assertEqual(existing.read_text(encoding="utf-8"), "existing\n")
+            self.assertEqual(list((root / "build/preambles").iterdir()), [])
 
     def test_no_mrts_and_results_helpers_return_success_without_corpus_access(self) -> None:
         with tempfile.TemporaryDirectory(prefix="mrts-common-no-corpus-") as temporary:

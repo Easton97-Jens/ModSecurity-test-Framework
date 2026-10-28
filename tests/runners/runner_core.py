@@ -1203,6 +1203,11 @@ def case_info(
         "actual_status": actual_status,
         "variant": modsecurity_test_variant(),
     }
+    metadata = case.get("metadata", {})
+    if isinstance(metadata, Mapping) and metadata.get("runtime_verified") is False:
+        # Imported catalog restrictions survive the result handoff. An observed
+        # case PASS does not promote optional MRTS capability declarations.
+        info["runtime_verified"] = False
     if connector is not None:
         info["executed_connector"] = connector
     if status is not None:

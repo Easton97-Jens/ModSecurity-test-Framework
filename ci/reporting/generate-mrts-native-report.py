@@ -18,6 +18,7 @@ if str(FRAMEWORK_LIB) not in sys.path:
     sys.path.insert(0, str(FRAMEWORK_LIB))
 
 from generated_report_utils import write_generated_report_file
+from mrts_results import observed_results, read_results, results_from_log, selected_ftw_ids
 
 try:
     import yaml
@@ -185,25 +186,27 @@ def parse_failed_cases(run_text: str) -> list[str]:
     return failed
 
 
-def collect_run_counts(run_log: Path, status: str, allowed_roots: list[Path] | None = None) -> dict[str, Any]:
-    run_text = read_bounded_run_log(run_log, allowed_roots or [run_log.parent])
-    attempted = int(first_match(r"run\s+(\d+)\s+total tests", run_text) or 0)
-    pass_count = run_text.count("passed in")
-    failed_cases = parse_failed_cases(run_text)
-    fail_count = len(failed_cases)
-    if fail_count == 0:
-        fail_count = int(first_match(r"(\d+)\s+test\(s\)\s+failed", run_text) or 0)
-    if attempted and status == "PASS" and pass_count == 0:
-        pass_count = attempted
-    if attempted and fail_count and pass_count + fail_count < attempted:
-        pass_count = attempted - fail_count
+def collect_run_counts(
+    run_log: Path, status: str, allowed_roots: list[Path] | None = None,
+    *, ftw_dir: Path | None = None, stats_file: Path | None = None,
+) -> dict[str, Any]:
+    roots = allowed_roots or [run_log.parent]
+    results = results_from_log(read_bounded_run_log(run_log, roots))
+    if ftw_dir is not None and stats_file is not None:
+        safe_ftw = canonical_under(ftw_dir, roots)
+        safe_stats = canonical_under(stats_file, roots)
+        if safe_ftw is not None:
+            try:
+                selected = selected_ftw_ids(safe_ftw)
+                results = observed_results(selected, {})
+                if safe_stats is not None:
+                    results = read_results(safe_stats, selected, safe_ftw)
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                results["errors"].append(str(exc))
     return {
-        "attempted": attempted,
-        "pass": pass_count,
-        "fail": fail_count,
-        "blocked": 1 if status == "BLOCKED" and attempted == 0 else 0,
+        **results, "pass": results["passed"], "fail": results["failed"],
+        "blocked": 1 if status == "BLOCKED" and results["executed"] == 0 else 0,
         "not_executable": 0,
-        "failed_cases": failed_cases,
     }
 
 
@@ -252,7 +255,20 @@ def normalize_job(target: str, native_root: Path) -> dict[str, Any]:
     job.setdefault("target", target)
     raw_run_log = Path(str(job.get("run_log") or job_root / RUN_LOG_FILENAME))
     status = str(job.get("status") or "UNKNOWN").upper().replace("-", "_")
-    counts = collect_run_counts(raw_run_log, status, [native_root, job_root])
+    counts = collect_run_counts(
+        raw_run_log, status, [native_root, job_root],
+        ftw_dir=job_root / "selected-ftw",
+        stats_file=job_root / "go-ftw.json",
+    )
+    if status == "PASS" and (counts["fail"] or (type(job.get("exit_code")) is int and job["exit_code"] != 0)):
+        status = "FAIL"
+        job["reason"] = "native process or observed MRTS case failed despite recorded PASS"
+        job["classification"] = "optional_native_go_ftw_case_failure"
+    elif status == "PASS" and (type(job.get("exit_code")) is not int
+                               or not counts["complete"] or counts["skipped"] or counts["ignored"]):
+        status = "INCOMPLETE"
+        job["reason"] = "required native MRTS results are missing, skipped, invalid or failed"
+        job["classification"] = "optional_native_evidence_incomplete"
     job["job_root"] = display_native_path(Path(str(job.get("job_root") or job_root)), native_root)
     job["job_json"] = display_native_path(Path(str(job.get("job_json") or job_json)), native_root)
     job["run_log"] = display_native_path(raw_run_log, native_root)
@@ -464,7 +480,12 @@ def target_report_payload(report: dict[str, Any], target: str, components: dict[
 
 def counts_markdown(counts: dict[str, Any]) -> list[str]:
     return [
+        f"- selected: **{counts.get('selected', 0)}**",
         f"- attempted: **{counts.get('attempted', 0)}**",
+        f"- executed: **{counts.get('executed', 0)}**",
+        f"- skipped: **{counts.get('skipped', 0)}**",
+        f"- missing: **{counts.get('missing', 0)}**",
+        f"- complete: **{counts.get('complete', False)}**",
         f"- pass: **{counts.get('pass', 0)}**",
         f"- fail: **{counts.get('fail', 0)}**",
         f"- blocked: **{counts.get('blocked', 0)}**",
@@ -584,15 +605,15 @@ def summary_report_markdown(payload: dict[str, Any]) -> str:
         "",
         f"Generated at: `{payload.get('generated_at', '-')}`",
         "",
-        "| Native target | Report | Status | Classification | Critical blocker | Attempted | Pass | Fail | Blocked |",
-        "|---|---|---|---|---:|---:|---:|---:|---:|",
+        "| Native target | Report | Status | Classification | Critical blocker | Selected | Executed | Pass | Fail | Skipped | Missing | Blocked |",
+        "|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for label, key in (("Apache2 Ubuntu", "apache2_ubuntu"), ("NGINX PR24", "nginx-pr24")):
         item = apache if key == "apache2_ubuntu" else nginx
         counts = item.get("counts", {})
         report_path = item.get("report", "-")
         lines.append(
-            f"| {label} | {Path(report_path).name if report_path != '-' else '-'} | {item.get('status', 'NOT_RUN')} | `{item.get('classification', 'optional_native_evidence_unknown')}` | {str(item.get('critical_merge_blocker', False)).lower()} | {counts.get('attempted', 0)} | {counts.get('pass', 0)} | {counts.get('fail', 0)} | {counts.get('blocked', 0)} |"
+            f"| {label} | {Path(report_path).name if report_path != '-' else '-'} | {item.get('status', 'NOT_RUN')} | `{item.get('classification', 'optional_native_evidence_unknown')}` | {str(item.get('critical_merge_blocker', False)).lower()} | {counts.get('selected', 0)} | {counts.get('executed', 0)} | {counts.get('pass', 0)} | {counts.get('fail', 0)} | {counts.get('skipped', 0)} | {counts.get('missing', 0)} | {counts.get('blocked', 0)} |"
         )
     lines.extend(
         [
@@ -617,6 +638,7 @@ def report_markdown(report: dict[str, Any]) -> str:
         f"- FAIL: **{summary.get('FAIL', 0)}**",
         f"- BLOCKED: **{summary.get('BLOCKED', 0)}**",
         f"- NOT_RUN: **{summary.get('NOT_RUN', 0)}**",
+        f"- INCOMPLETE: **{summary.get('INCOMPLETE', 0)}**",
         "",
         "## Split Native Reports",
         f"- Apache native: `{NATIVE_REPORT_LINKS['apache']}`",
@@ -718,7 +740,14 @@ def main() -> int:
     configured_build_root = os.environ.get("BUILD_ROOT")
     build_root = Path(configured_build_root).resolve() if configured_build_root else default_state_home() / "ModSecurity-conector-build"
     native_root = Path(args.native_root).resolve() if args.native_root else Path(os.environ.get("MRTS_NATIVE_ROOT", str(build_root / "mrts-native"))).resolve()
-    output_root = connector_root if args.output_root is None else require_under(connector_root, Path(args.output_root), "report output root")
+    if args.output_root is None:
+        output_root = connector_root
+    else:
+        requested_output = Path(args.output_root)
+        try:
+            output_root = require_under(connector_root, requested_output, "report output root")
+        except ValueError:
+            output_root = require_under(native_root, requested_output, "private native report output root")
     report_dir = require_under(output_root, Path("reports/testing/generated"), "generated report directory")
     report_dir.mkdir(parents=True, exist_ok=True)
 
