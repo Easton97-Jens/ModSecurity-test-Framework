@@ -427,6 +427,18 @@ inputs still require provenance review before use.
 | `TARGET` | Make target name | supplied by `make` or the caller | `TARGET=linux-glibc`; allowed values depend on the invoked upstream build. |
 | `USER_TOKEN` | sensitive authentication value | no repository default | `<secret-from-secure-store>`; never commit, log, or pass it in a visible process argument. |
 
+### Connector source-checkout interface
+
+| Variable | Meaning and required value |
+|---|---|
+| `CONNECTOR_REVISION` | Exact Git HEAD of the explicitly selected product checkout; callers must not supply a different revision. |
+| `CONNECTOR_TEST_OUTPUT_ROOT` | Existing trusted output directory outside both source checkouts; reject symlinked ancestry. |
+| `EXTERNAL_OUTPUT` | Caller-selected alias for that external output directory in documentation examples; no implicit default. |
+| `FRAMEWORK_PYTHON` | Explicit compatible Python interpreter used for the selected Framework source checkout. |
+| `ON_DEMAND_TESTS` | Set to `1` only for an explicitly selected specialist invocation; this does not authorize every archived case. |
+| `PYTHONPATH` | Only the selected Framework root and its `connector_suite/` directory for Connector source-checkout tests; omit product and unrelated directories. |
+| `PYTHONSAFEPATH` | Set to `1` and invoke Python with `-P` to exclude the implicit unsafe working/script directory from module search. |
+
 ### NGINX fixed-release provenance
 
 NGINX source provisioning is a fixed, reviewed release path rather than a
