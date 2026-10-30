@@ -3,6 +3,7 @@
 go-ftw JSON RunStats supplies explicit IDs, including skipped/forced results.
 Aggregate counts and successful process exits never supply missing PASS records.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -11,24 +12,36 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import sys
 import stat
 import tempfile
 from typing import Any
 
-from runtime_path_safety import absolute_path_without_traversal, has_symlink_component
-from mrts_path_safety import approved_runtime_root
+_runtime_safety = runpy.run_path(
+    str(Path(__file__).with_name("runtime_path_safety.py"))
+)
+absolute_path_without_traversal = _runtime_safety["absolute_path_without_traversal"]
+has_symlink_component = _runtime_safety["has_symlink_component"]
+_mrts_safety = runpy.run_path(str(Path(__file__).with_name("mrts_path_safety.py")))
+approved_runtime_root = _mrts_safety["approved_runtime_root"]
 
 MAX_RESULT_BYTES = 1024 * 1024
 CASE_ID = re.compile(r"\d+-\d+\Z", re.ASCII)
 RESULT_FIELDS = {
-    "success": "PASS", "failed": "FAIL", "skipped": "SKIP",
-    "ignored": "IGNORED", "forced-pass": "FORCED_PASS", "forced-fail": "FORCED_FAIL",
+    "success": "PASS",
+    "failed": "FAIL",
+    "skipped": "SKIP",
+    "ignored": "IGNORED",
+    "forced-pass": "FORCED_PASS",
+    "forced-fail": "FORCED_FAIL",
 }
 
 
 def valid_case_ids(items: object) -> bool:
-    return isinstance(items, list) and all(isinstance(item, str) and CASE_ID.fullmatch(item) for item in items)
+    return isinstance(items, list) and all(
+        isinstance(item, str) and CASE_ID.fullmatch(item) for item in items
+    )
 
 
 def collect_observed_ids(stats: dict[str, Any]) -> dict[str, list[str]]:
@@ -44,7 +57,9 @@ def collect_observed_ids(stats: dict[str, Any]) -> dict[str, list[str]]:
     return observed
 
 
-def classify_observed_ids(observed: dict[str, list[str]], expected: set[str], errors: list[str]) -> dict[str, str]:
+def classify_observed_ids(
+    observed: dict[str, list[str]], expected: set[str], errors: list[str]
+) -> dict[str, str]:
     outcomes = {}
     for case_id, values in observed.items():
         outcome = values[0]
@@ -81,15 +96,22 @@ def observed_results(selected: list[str], stats: dict[str, Any]) -> dict[str, An
         errors.append("forced outcomes are not runtime test results")
     complete = bool(selected) and not errors and not missing
     return {
-        "selected": len(expected), "selected_cases": sorted(expected),
+        "selected": len(expected),
+        "selected_cases": sorted(expected),
         "attempted": reported,
         "executed": counts["PASS"] + counts["FAIL"],
-        "passed": counts["PASS"], "failed": counts["FAIL"],
-        "skipped": counts["SKIP"], "ignored": counts["IGNORED"],
+        "passed": counts["PASS"],
+        "failed": counts["FAIL"],
+        "skipped": counts["SKIP"],
+        "ignored": counts["IGNORED"],
         "forced": counts["FORCED_PASS"] + counts["FORCED_FAIL"],
-        "missing": len(missing), "missing_cases": missing,
-        "failed_cases": sorted(case_id for case_id, value in outcomes.items() if value == "FAIL"),
-        "outcomes": dict(sorted(outcomes.items())), "errors": errors,
+        "missing": len(missing),
+        "missing_cases": missing,
+        "failed_cases": sorted(
+            case_id for case_id, value in outcomes.items() if value == "FAIL"
+        ),
+        "outcomes": dict(sorted(outcomes.items())),
+        "errors": errors,
         "complete": complete,
     }
 
@@ -129,7 +151,9 @@ def private_owned_directory(path: Path) -> None:
     if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.geteuid():
         raise ValueError("MRTS result directories must be owned by the current user")
     if metadata.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
-        raise ValueError("MRTS result directories must not allow group or public writes")
+        raise ValueError(
+            "MRTS result directories must not allow group or public writes"
+        )
 
 
 def approved_result_root(value: Path | str | None = None) -> Path:
@@ -160,7 +184,9 @@ def read_bounded(path: Path, approved_root: Path | str | None = None) -> str:
     with os.fdopen(descriptor, "rb") as handle:
         metadata = os.fstat(handle.fileno())
         if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_RESULT_BYTES:
-            raise ValueError(f"missing, non-regular or oversized MRTS result: {validated.name}")
+            raise ValueError(
+                f"missing, non-regular or oversized MRTS result: {validated.name}"
+            )
         content = handle.read(MAX_RESULT_BYTES + 1)
     if len(content) > MAX_RESULT_BYTES:
         raise ValueError(f"oversized MRTS result: {validated.name}")
@@ -189,7 +215,9 @@ def selected_ftw_ids(root: Path, approved_root: Path | str | None = None) -> lis
     return selected
 
 
-def attach_corpora(results: dict[str, Any], ftw_root: Path, approved_root: Path | str | None = None) -> None:
+def attach_corpora(
+    results: dict[str, Any], ftw_root: Path, approved_root: Path | str | None = None
+) -> None:
     """Retain corpus origin for the private, combined native selection."""
     corpora = {}
     for corpus in ("upstream-config-tests", "feature-demo"):
@@ -197,18 +225,28 @@ def attach_corpora(results: dict[str, Any], ftw_root: Path, approved_root: Path 
         if not root.is_dir():
             continue
         selected = selected_ftw_ids(root, approved_root)
-        outcomes = {case_id: results["outcomes"].get(case_id, "MISSING") for case_id in selected}
+        outcomes = {
+            case_id: results["outcomes"].get(case_id, "MISSING") for case_id in selected
+        }
         counts = Counter(outcomes.values())
         corpora[corpus] = {
-            "selected": len(selected), "executed": counts["PASS"] + counts["FAIL"],
-            "passed": counts["PASS"], "failed": counts["FAIL"], "skipped": counts["SKIP"],
-            "missing": counts["MISSING"], "outcomes": outcomes,
+            "selected": len(selected),
+            "executed": counts["PASS"] + counts["FAIL"],
+            "passed": counts["PASS"],
+            "failed": counts["FAIL"],
+            "skipped": counts["SKIP"],
+            "missing": counts["MISSING"],
+            "outcomes": outcomes,
         }
     results["corpora"] = corpora
 
 
-def read_results(stats_file: Path, selected: list[str], ftw_root: Path | None = None,
-                 approved_root: Path | str | None = None) -> dict[str, Any]:
+def read_results(
+    stats_file: Path,
+    selected: list[str],
+    ftw_root: Path | None = None,
+    approved_root: Path | str | None = None,
+) -> dict[str, Any]:
     stats = json.loads(read_bounded(stats_file, approved_root))
     if not isinstance(stats, dict):
         raise ValueError("go-ftw result is not an object")
@@ -234,26 +272,48 @@ def write_job(args: argparse.Namespace, approved_root: Path | str | None = None)
         results["errors"].append(str(exc))
     status, reason = args.status, args.reason
     if status == "PASS" and (args.exit_code != 0 or results["failed"]):
-        status, reason = "FAIL", "native process or observed MRTS case failed despite requested PASS"
-    elif status == "PASS" and (not results["complete"] or results["skipped"] or results["ignored"]):
-        status, reason = "INCOMPLETE", "required native MRTS results are missing, skipped, invalid or failed"
+        status, reason = (
+            "FAIL",
+            "native process or observed MRTS case failed despite requested PASS",
+        )
+    elif status == "PASS" and (
+        not results["complete"] or results["skipped"] or results["ignored"]
+    ):
+        status, reason = (
+            "INCOMPLETE",
+            "required native MRTS results are missing, skipped, invalid or failed",
+        )
     classification = {
-        "PASS": "optional_native_evidence_pass", "FAIL": "optional_native_go_ftw_case_failure",
+        "PASS": "optional_native_evidence_pass",
+        "FAIL": "optional_native_go_ftw_case_failure",
         "BLOCKED": "optional_native_infrastructure_blocked",
     }.get(status, "optional_native_evidence_incomplete")
     data = {
-        "target": args.target, "status": status, "reason": reason,
+        "target": args.target,
+        "status": status,
+        "reason": reason,
         "exit_code": args.exit_code if status == args.status else 2,
-        "duration_seconds": args.duration, "run_log": str(args.run_log),
-        "summary_path": str(args.summary_path), "job_json": str(args.output),
-        "evidence_role": "optional_native_mrts", "optional": True,
-        "critical_merge_blocker": False, "classification": classification,
-        "classification_notes": reason, "native_runtime_reached": "Received default request" in log,
+        "duration_seconds": args.duration,
+        "run_log": str(args.run_log),
+        "summary_path": str(args.summary_path),
+        "job_json": str(args.output),
+        "evidence_role": "optional_native_mrts",
+        "optional": True,
+        "critical_merge_blocker": False,
+        "classification": classification,
+        "classification_notes": reason,
+        "native_runtime_reached": "Received default request" in log,
         "go_ftw": results,
     }
     temporary = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent, prefix=".mrts-job-", delete=False) as handle:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=output.parent,
+            prefix=".mrts-job-",
+            delete=False,
+        ) as handle:
             temporary = Path(handle.name)
             json.dump(data, handle, indent=2, sort_keys=True)
             handle.write("\n")

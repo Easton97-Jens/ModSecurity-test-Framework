@@ -21,6 +21,7 @@ Namen.
 | [`NO_CRS_RUN_ID`](#no_crs_run_id) | No-CRS | kanonische Läufe | `local` | dateisystemsicheres Token | Kennung eines Evidence-Laufs |
 | [`CONNECTOR`](#connector-capabilities_file-evidence_stage-und-no_crs_artifact_profile) | No-CRS | Connector-Ziele | keiner | Connector-Schlüssel | Auswahl des Capability-Manifests |
 | [`PYTHON`](#werkzeuge-statuswerte-und-sensible-daten) | Werkzeuge | Nein | `.venv/bin/python` oder `python3` | Pfad zu ausführbarem Programm | Interpreter für Make |
+| [`PYTHONSAFEPATH`](#werkzeuge-statuswerte-und-sensible-daten) | Werkzeuge | Nein | nicht gesetzt | `1` aktiviert sichere Modulsuche | Schließt implizite Arbeits-/Skriptpfade aus; MRTS nutzt einen isolierten Kindprozess mit seinem exakten vertrauenswürdigen Skriptverzeichnis |
 | [`PROTOCOL_URL`](#protocol_url) | Protokoll | `protocol-client` | keiner | `http(s)://`-URL | explizites Client-Ziel |
 | `<fresh-source-root>` | Fünf-Connector-CRS-Fixture | `verify-fixture` und `validate` | keines | absolutes Verzeichnis | Frische CRS-Source-Wurzel mit `coreruleset/` |
 | `<private-root>` | Fünf-Connector-Evidenz | `validate` und `aggregate` | keines | privates absolutes Verzeichnis | Extern erzeugte Evidenz und Validator-Ausgaben |

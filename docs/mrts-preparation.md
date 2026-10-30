@@ -49,6 +49,13 @@ interpreter. Executables must be regular, executable files owned by the current
 user or root without group or public write permission. Caller-controlled `PATH`
 entries do not select those Shell and Git executables.
 
+The definition guard starts the trusted generator in an isolated Python child
+with explicit bytecode suppression (`-I -B`). A fixed bootstrap admits only the
+resolved generator directory for MRTS adjacent imports, preserves generator
+arguments and executes it with `runpy`. Inherited `PYTHONSAFEPATH=1` therefore
+works without admitting caller Python paths, changing the parent interpreter,
+or writing bytecode into the pinned MRTS checkout.
+
 `--upstream-definitions DIR` and `--feature-demo-definitions DIR` select explicit
 definition directories instead of the pinned defaults. Only selected corpora
 are accessed. With `--include-feature-demo 0`, demo generation and import do not
@@ -147,6 +154,11 @@ be children of that approved root, with owned directories that permit no group
 or public writes and without traversal or symlink components. Missing
 `BUILD_ROOT` or an invalid path fails the writer. The package CLI continues to
 take the explicit `--build-root` argument shown above.
+
+The standalone result CLI and shared MRTS path guard load their actual path
+functions from fixed adjacent Framework files with `runpy`. They work with
+`PYTHONSAFEPATH=1` without depending on script-directory lookup, changing global
+module search paths, adding module aliases or consulting a Connector checkout.
 
 ## Integration order and scope
 

@@ -69,12 +69,15 @@ Namensraumaliase sind ohne Parent-Abhängigkeit eingeschlossen.
 
 ## Geänderte Dateien und Tests
 
-Zwei Provisionierungsdateien, die zweisprachige Vorbereitungsanleitung, dieser
-zweisprachige Record und zwei vorhandene Regressionsmodule ändern sich. Zwölf
+Zwei Provisionierungsdateien, zwei Bibliotheksdateien, die zweisprachige Vorbereitungsanleitung, dieser
+zweisprachige Record, die zentrale zweisprachige Variablenreferenz und zwei
+vorhandene Regressionsmodule ändern sich. Vierzehn
 einzeln benannte Methoden sind explizite On-demand-Framework-Regressionen in
 `MrtsPackageTests` und `MrtsDefinitionGuardTests`: zwei verschachtelte Paketfälle,
 ein direkter Guard-Fall, fünf Änderungen an Ausgangsquellen sowie vier Fälle für
-Änderung, Ergänzung, Entfernung und Symlink im öffentlichen Namensraum. Jede Methode hat einen
+Änderung, Ergänzung, Entfernung und Symlink im öffentlichen Namensraum sowie
+echte gepinnte Generierung und eine eigenständige Ergebnis-CLI mit geerbtem
+Safe-Path-Modus. Jede Methode hat einen
 direkten unittest-Selektor. Automatische Standardauswahl und unabhängige
 Szenariozahlen werden nicht implizit vergrößert.
 
@@ -83,9 +86,12 @@ Szenariozahlen werden nicht implizit vergrößert.
 Die Befehle liefen über RTK im separaten Framework-Worktree mit Framework-
 Python 3.14, deklariertem PyYAML, explizitem Framework-`PYTHONPATH`, ohne
 User-Site oder Bytecode-Ausgaben und mit externem `TMPDIR`/`RUNNER_TEMP`.
-Der äußere Interpreter nutzte `-P`; geerbtes `PYTHONSAFEPATH` wurde entfernt,
-weil das unveränderte gepinnte MRTS-Skript benachbarte `path_utils`-Imports
-benötigt. Es wurde kein globaler Pfadalias ergänzt.
+Der äußere Interpreter nutzte `-P`. Beim ersten Lauf mit 97 Methoden wurde
+geerbtes `PYTHONSAFEPATH` entfernt, weil das unveränderte gepinnte MRTS-Skript
+benachbarte `path_utils`-Imports benötigt. Der abschließende gemeinsame Lauf mit
+99 Methoden erhält `PYTHONSAFEPATH=1` durchgehend und nutzt die unten
+beschriebenen begrenzten Kindprozess- und Nachbar-Loader-Korrekturen. Es wurde
+kein globaler Pfadalias ergänzt.
 
 | Befehl | Ergebnis |
 | --- | --- |
@@ -94,14 +100,36 @@ benötigt. Es wurde kein globaler Pfadalias ergänzt.
 | `rtk bypass env … <Framework-python> -P ci/checks/catalog/check-mrts-importer.py` | PASS, vier Importer-Fixtures |
 | `rtk bypass env … make PYTHON='<Framework-python> -P' FRAMEWORK_ROOT=<worktree> TEST_ROOT=<worktree> BUILD_ROOT=<task-root>/build TMP_ROOT=<task-root>/tmp OUTPUT_ROOT=<task-root>/output check-documentation` | PASS, Links, zweisprachige Variablen, Repository-Pfade und Change Records |
 | Python-AST-Prüfung lokaler Imports der gebundenen Vorbereitungsquellen | PASS, 17 feste Ausgangsquellen und der vollständige begrenzte öffentliche Python-Namensraum |
-| `rtk bypass <locked-ruff> format --check` für die vier eigenen Python-Dateien | PASS; vollständige Modul-ASTs durch Formatierung unverändert |
-| `rtk bypass <locked-ruff> check` für dieselben vier Dateien | Nur zwei vorhandene E402-Diagnosen; keine neuen Befunde |
+| `rtk bypass env PYTHONSAFEPATH=1 … <Framework-python> -P -m unittest` mit allen sieben MRTS-Modulen | 99 PASS, 68,895 Sekunden; 85 ursprüngliche und vierzehn neue Methoden |
+| `rtk bypass <locked-ruff> format --check` für die sechs eigenen Python-Dateien | PASS; vollständige Modul-ASTs durch Formatierung unverändert |
+| `rtk bypass <locked-ruff> check` für dieselben sechs Dateien | Nur zwei vorhandene E402-Diagnosen; keine neuen Befunde |
 | `rtk bypass git diff --check` | PASS |
 
 Exakte Befehle und Logs liegen im externen Task-Evidenzverzeichnis. Ein erster
 Testbefehl vererbte Safe-Path-Verhalten an MRTS und scheiterte vor der Generierung
 am benachbarten Import. Der korrigierte Befehl oben belegt die tatsächlichen
 Akzeptanzkriterien, ohne MRTS zu ändern.
+
+Eine spätere Zusammensetzungsprüfung zeigte, dass die öffentliche Engine
+`PYTHONSAFEPATH=1` absichtlich vererbt. Der Framework-Guard nutzt nun einen
+festen isolierten Kind-Bootstrap mit `-I -B -c`, stellt den exakten
+Generatorargumentvektor wieder her, ergänzt nur das aufgelöste vertrauenswürdige
+Generatorverzeichnis und ruft `runpy.run_path` auf. Benachbarte MRTS-Imports
+bleiben ohne geerbte Python-Suchpfade oder Modulaliase im Elternprozess nutzbar.
+Explizites `-B` verhindert Bytecode-Ausgaben, obwohl `-I` entsprechende
+Umgebungsvariablen ignoriert. Eine separat benannte Paketregression bereitet mit
+dieser geerbten Umgebung über den echten gepinnten Generator vor und prüft
+das Paket.
+
+Derselbe geerbte Modus zeigte eine weitere Abhängigkeit von benachbarten Imports
+in der eigenständigen Ergebnis-CLI. `mrts_results.py` und `mrts_path_safety.py`
+binden nun die tatsächlichen benachbarten Runtime-/Pfadfunktionen über feste
+`runpy.run_path`-Quellen. Weder globaler Suchpfad noch Modulalias oder Connector-
+Fallback kommen hinzu; alle bisherigen Pfad-, Eigentums- und Ausgabeprüfungen
+bleiben erhalten. Eine zweite unabhängig benannte echte Subprozessregression
+prüft erfolgreiche Ergebnisveröffentlichung mit `PYTHONSAFEPATH=1`. Der gesamte
+Paketumfang umfasst zwölf Dateien; dieser Nachtrag ändert zehn davon gegenüber
+dem veröffentlichten Paket-Commit.
 
 ## Sicherheitsauswirkung
 
@@ -122,11 +150,11 @@ Host-Runtime noch Connector-Promotion.
 
 Keine Host-Runtime, historische Matrix, Coverage-Kampagne, Installation oder
 Downloads. Keine MRTS-Codeänderungen oder Auslieferungsaktionen. Das per Prüfsumme
-gesperrte Ruff 0.16.10 formatierte die vier eigenen Python-Dateien bei
+gesperrte Ruff 0.16.10 formatierte zunächst vier eigene Python-Dateien bei
 identischem vollständigem Modul-AST vor und nach der Formatierung; abschließendes
-format --check besteht. Lint meldet ausschließlich die beiden vorhandenen
+format --check besteht für alle sechs eigenen Python-Dateien. Lint meldet ausschließlich die beiden vorhandenen
 E402-Imports in mrts-package.py nach dem nötigen Pfad-Bootstrap. Die anderen
-drei Dateien bestehen Lint. Keine Unterdrückung oder Bootstrap-Umstrukturierung.
+fünf Dateien bestehen Lint. Keine Unterdrückung oder Bootstrap-Umstrukturierung.
 
 ## Einschränkungen und Restrisiko
 

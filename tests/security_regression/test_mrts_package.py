@@ -257,6 +257,14 @@ class MrtsPackageTests(unittest.TestCase):
             "public Framework sources must not contain symlinks", result.stderr
         )
 
+    def test_safe_python_path_runs_real_pinned_generator(self) -> None:
+        with mock.patch.dict(os.environ, {"PYTHONSAFEPATH": "1"}):
+            manifest = self.prepare()
+            self.assertTrue(manifest["case_ids"])
+            self.assertEqual(manifest["validation_status"], "passed")
+            result = self.cli("verify")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_failed_generator_cannot_reuse_old_outputs(self) -> None:
         stale = self.build / "mrts/upstream-config-tests/rules/stale.conf"
         stale.parent.mkdir(parents=True)
@@ -552,6 +560,46 @@ class MrtsPackageExecutableTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsupported Git inspection"):
                 self.package.git(ROOT, "--exec-path=foreign")
             output.assert_not_called()
+
+    def test_safe_python_path_runs_standalone_result_cli(self) -> None:
+        from tests.security_regression.test_mrts_result_integrity import (
+            MRTSResultIntegrityTests,
+        )
+
+        with tempfile.TemporaryDirectory(
+            dir=os.environ.get("RUNNER_TEMP")
+        ) as temporary:
+            approved = Path(temporary) / "approved"
+            approved.mkdir(mode=0o700)
+            args = MRTSResultIntegrityTests().make_job(
+                approved, {"run": 2, "success": ["100000-1", "100000-2"]}
+            )
+            command = [sys.executable, "-P", str(ROOT / "ci/lib/mrts_results.py")]
+            for name in (
+                "output",
+                "run_log",
+                "summary_path",
+                "ftw_dir",
+                "stats_file",
+                "target",
+                "status",
+                "reason",
+                "exit_code",
+                "duration",
+            ):
+                command.extend(
+                    ["--" + name.replace("_", "-"), str(getattr(args, name))]
+                )
+            result = subprocess.run(
+                command,
+                env=dict(os.environ, BUILD_ROOT=str(approved), PYTHONSAFEPATH="1"),
+                text=True,
+                capture_output=True,
+                timeout=5,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(args.output.read_text())["status"], "PASS")
 
 
 if __name__ == "__main__":
