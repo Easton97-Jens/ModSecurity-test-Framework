@@ -64,6 +64,13 @@ derzeit überlappende IDs, daher kann ihre Aktivierung sichtbar fehlschlagen.
 Deaktivierte Demo-Fälle werden in diesem Pfad nicht als ausführbare
 Referenzfälle geführt.
 
+Definitionsverzeichnisse müssen flach sein. Sowohl die Paketauswahl als auch
+der direkte Generator-Guard weisen Unterverzeichnisse ab, etwa `base.yaml`
+neben `extra/additional.yaml`, bevor ein Teilkorpus generiert wird. Eine nach
+der Vorbereitung ergänzte verschachtelte Definition verhindert ebenfalls
+Prüfung und Materialisierung. Verschiebe Definitionen vor der Paketvorbereitung
+in ein geprüftes flaches Verzeichnis.
+
 Das Paket enthält `upstream-config-tests/` und bei Auswahl `feature-demo/`,
 jeweils mit `rules/`, `ftw/`, `framework-cases/` und `mrts.load`. Private
 Definitionssnapshots liegen unter `definitions/`. Generator-Wrapper und
@@ -86,6 +93,21 @@ Definitionen, veränderte Artefakte, abweichende Quellenidentitäten oder eine
 andere Demo-Auswahl erfordern neue Vorbereitung.
 `MODSECURITY_MRTS_PREPARED=1` allein genügt nicht: Shell-Verbraucher benötigen
 auch `MRTS_PACKAGE_ROOT` und prüfen das Manifest.
+
+Die Quellenbindung umfasst die Pfad-Guards (`mrts_path_safety.py` und
+`runtime_path_safety.py`), Shell-Provisionierungsbibliotheken und Einstiegspunkte,
+Definition-Guard, Importer, Klassifizierungen und `runner_core.py`. Sie bindet
+auch die transitiven Framework-Imports des Runners: `adapter_interface.py`,
+`case_roots.py`, `msconnector_models.py` und `generated_report_utils.py`.
+Das Manifest bindet zusätzlich jede Python-Datei im festen Framework-eigenen
+öffentlichen Namensraum `modsecurity_test_framework/`, einschließlich Paketaliasen
+und Kontext-/Ergebnishelfern. Bei Wiederverwendung wird die vollständige
+ermittelte Pfad-/Digest-Zuordnung verglichen: Neue, entfernte oder geänderte
+Quellen invalidieren sie. Durchlauf und Lesen weisen Symlinks ab und begrenzen
+Dateizahl, Tiefe und Bytes; eingehende Umgebungspfade erweitern den Quellumfang
+nicht. Schon eine Änderung an nur einer gebundenen Datei verhindert die
+Wiederverwendung, auch bei unverändertem Git-HEAD. Pakete mit der älteren, kleineren Quellenliste
+müssen neu vorbereitet werden.
 
 Erzeuge für jeden Connectorlauf eine eigene private Kopie:
 

@@ -1,4 +1,5 @@
 """B03 tests for the Framework launcher, not for direct MRTS invocation."""
+
 from __future__ import annotations
 
 import contextlib
@@ -78,7 +79,9 @@ class MrtsDefinitionGuardTests(unittest.TestCase):
         )
 
     def observation(self) -> dict:
-        observed = yaml.safe_load((self.rules / "observed.yaml").read_text(encoding="utf-8"))
+        observed = yaml.safe_load(
+            (self.rules / "observed.yaml").read_text(encoding="utf-8")
+        )
         self.assertIsInstance(observed, dict)
         return observed
 
@@ -118,8 +121,14 @@ class MrtsDefinitionGuardTests(unittest.TestCase):
 
     def test_undocumented_globals_never_reach_generator(self) -> None:
         keys = (
-            "expdir", "testdir", "content", "testcontent",
-            "confdata", "_load_global_config", "unknown_setting", 7,
+            "expdir",
+            "testdir",
+            "content",
+            "testcontent",
+            "confdata",
+            "_load_global_config",
+            "unknown_setting",
+            7,
         )
         for key in keys:
             with self.subTest(key=key):
@@ -193,7 +202,10 @@ class MrtsDefinitionGuardTests(unittest.TestCase):
             directory.mkdir()
         with contextlib.chdir(self.root):
             result = guard.run_guarded(
-                self.generator, [path], Path("-rules"), Path("-tests"),
+                self.generator,
+                [path],
+                Path("-rules"),
+                Path("-tests"),
                 Path("-snapshots"),
             )
         self.assertEqual(result, 0)
@@ -209,16 +221,52 @@ class MrtsDefinitionGuardTests(unittest.TestCase):
         path.write_text("global: [fixture-private-marker", encoding="utf-8")
         errors = io.StringIO()
         with contextlib.redirect_stderr(errors):
-            result = guard.main([
-                "--generator", str(self.generator),
-                "--snapshot-root", str(self.root),
-                "--rules-out", str(self.rules),
-                "--tests-out", str(self.tests),
-                "--", str(path),
-            ])
+            result = guard.main(
+                [
+                    "--generator",
+                    str(self.generator),
+                    "--snapshot-root",
+                    str(self.root),
+                    "--rules-out",
+                    str(self.rules),
+                    "--tests-out",
+                    str(self.tests),
+                    "--",
+                    str(path),
+                ]
+            )
         self.assertEqual(result, 77)
         self.assertIn("BLOCKED:", errors.getvalue())
         self.assertNotIn("fixture-private-marker", errors.getvalue())
+        self.assertFalse((self.rules / "observed.yaml").exists())
+
+    def test_directory_selection_rejects_nested_definitions_before_generator(
+        self,
+    ) -> None:
+        definitions = self.root / "definitions"
+        definitions.mkdir()
+        (definitions / "base.yaml").write_text("{}\n", encoding="utf-8")
+        nested = definitions / "extra"
+        nested.mkdir()
+        (nested / "additional.yaml").write_text("{}\n", encoding="utf-8")
+        errors = io.StringIO()
+        with contextlib.redirect_stderr(errors):
+            result = guard.main(
+                [
+                    "--generator",
+                    str(self.generator),
+                    "--snapshot-root",
+                    str(self.root),
+                    "--rules-out",
+                    str(self.rules),
+                    "--tests-out",
+                    str(self.tests),
+                    "--definition-directories",
+                    str(definitions),
+                ]
+            )
+        self.assertEqual(result, 77)
+        self.assertIn("nested definitions", errors.getvalue())
         self.assertFalse((self.rules / "observed.yaml").exists())
 
     def test_shell_entrypoint_uses_guard_without_removing_path_checks(self) -> None:
@@ -227,7 +275,9 @@ class MrtsDefinitionGuardTests(unittest.TestCase):
         self.assertIn('--generator "$MRTS_ROOT/mrts/generate-rules.py"', wrapper)
         self.assertIn('assert_safe_runtime_path "$MRTS_RULES_OUT"', wrapper)
         self.assertIn('assert_runtime_path_under_root "$MRTS_FTW_OUT"', wrapper)
-        self.assertNotIn('"${PYTHON:-python3}" "$MRTS_ROOT/mrts/generate-rules.py"', wrapper)
+        self.assertNotIn(
+            '"${PYTHON:-python3}" "$MRTS_ROOT/mrts/generate-rules.py"', wrapper
+        )
 
 
 if __name__ == "__main__":

@@ -57,6 +57,12 @@ corpora must generate, import and validate; cross-corpus rule-ID collisions are
 fatal. The pinned demo currently has overlapping IDs, so enabling it may fail
 visibly. Disabled demo cases are not executable reference cases in this path.
 
+Definition directories must be flat. Both package selection and the direct
+generator guard reject subdirectories, including `base.yaml` alongside
+`extra/additional.yaml`, before generating a partial corpus. Adding a nested
+definition after preparation also prevents verification and materialization.
+Move definitions into one reviewed flat directory before preparing a package.
+
 The package contains `upstream-config-tests/` and, when selected,
 `feature-demo/`, each with `rules/`, `ftw/`, `framework-cases/` and `mrts.load`.
 Private definition snapshots live under `definitions/`. The generator wrapper
@@ -77,6 +83,19 @@ MRTS tree. Changed, added or removed definitions, altered artifacts, differing
 source identities or a different demo selection require fresh preparation.
 `MODSECURITY_MRTS_PREPARED=1` alone is insufficient: shell consumers also require
 `MRTS_PACKAGE_ROOT` and verify the manifest.
+
+Source binding includes the path guards (`mrts_path_safety.py` and
+`runtime_path_safety.py`), shell provisioning libraries and entry points,
+definition guard, importer, classifications and `runner_core.py`. It also binds
+the runner's transitive Framework imports: `adapter_interface.py`,
+`case_roots.py`, `msconnector_models.py` and `generated_report_utils.py`.
+The manifest additionally binds every Python file in the fixed Framework-owned
+`modsecurity_test_framework/` public namespace, including its package aliases
+and context/result helpers. The full discovered path/digest map is compared on
+reuse: added, removed or changed sources invalidate it. Namespace traversal and
+reads reject symlinks and enforce file, depth and byte limits; incoming
+environment paths cannot extend the source scope. Changing only one bound file
+invalidates reuse even when Git HEAD stays unchanged. Packages prepared with the older, smaller source set need regeneration.
 
 For every connector execution, create a separate private copy:
 
