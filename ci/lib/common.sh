@@ -2208,7 +2208,7 @@ ci_nginx_source_dir_flags() {
         && [ -f "$ci_nginx_dir/src/core/ngx_core.h" ] \
         && [ -f "$ci_nginx_dir/src/http/ngx_http.h" ] \
         && [ -f "$ci_nginx_dir/objs/ngx_auto_config.h" ]; then
-        printf '%s\n' "-I$ci_nginx_dir/src/core -I$ci_nginx_dir/src/http -I$ci_nginx_dir/src/http/modules -I$ci_nginx_dir/src/http/v2 -I$ci_nginx_dir/src/http/v3 -I$ci_nginx_dir/src/event -I$ci_nginx_dir/src/os/unix -I$ci_nginx_dir/objs"
+        printf '%s\n' "-I$ci_nginx_dir/src/core -I$ci_nginx_dir/src/http -I$ci_nginx_dir/src/http/modules -I$ci_nginx_dir/src/http/v2 -I$ci_nginx_dir/src/http/v3 -I$ci_nginx_dir/src/event -I$ci_nginx_dir/src/event/quic -I$ci_nginx_dir/src/os/unix -I$ci_nginx_dir/objs"
         return 0
     fi
 
