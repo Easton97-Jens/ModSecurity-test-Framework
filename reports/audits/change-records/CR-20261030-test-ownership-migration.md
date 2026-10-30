@@ -91,7 +91,7 @@ delivery remain explicit rather than inferred from file relocation.
 | Runtime deviations | Apache merged duplicate headers require explicit native rule adaptation, retaining rule `1100504` and audit assertion; injected NGINX internal faults require HTTP 500 and connector-error semantics while malformed client input remains HTTP 400. Actual Apache controls and three selected NGINX development H1 cases passed; final committed-pair and complete lifecycle qualification remain separate. |
 | Parallel topics | HTTP/2, HTTP/3, Coverage and full dependency assessment remain outside scope except required path/caller adaptation. MRTS package/import corrections belong to the separate Framework followup packet and shared integration check. |
 | Shared mechanics and code size | Native extraction is relocation; repeated loader consolidation removes caller implementation with shared-helper overhead. No equal total code reduction or complete mechanical equivalence is inferred. |
-| Verification and delivery | Latest observed defaults: 67 passing / 13 blocked executions, 74 passing / 26 blocked cases across recorded revisions. The recorded c1024043/5a827f3 pair and explicit DEV probe passed, retaining the earlier scoped Apache proof; next-pin pair acceptance, installed-gate proof and hosted final-head gates remain pending. Merge remains conditional on the current user authorization and all required gates. |
+| Verification and delivery | Latest observed defaults: 67 passing / 13 blocked executions, 74 passing / 26 blocked cases across recorded revisions. The recorded 5d471/a209 pair and explicit DEV probe passed before the latest working fixes, retaining the earlier scoped Apache proof; next-pin pair acceptance, installed-gate proof and hosted final-head gates remain pending. Merge remains conditional on the current user authorization and all required gates. |
 | Extension classification and privacy | A closed reviewed process-bearing set uses migration-integration; pure controls retain offline audit, with original baseline groups/guard ASTs preserved. Private external output and exclusion of customer payloads/credentials remain required. |
 
 ## Commands and results
@@ -103,23 +103,74 @@ privilege guards. Four newly registered guarded pure methods cover 15 expanded
 cases; source closure follows actual imports and public entrypoints. This adds
 no default case and no global Product import path.
 
+The current working bridge delegates raw Git object identity to fixed,
+unprivileged `git hash-object --no-filters`; the local Git build was verified
+to use SHA1_DC. This does not establish every host's cryptographic build or
+SHA-256 Git identity. Immutable byte checks retain SHA-256. A sealed, owned JSON
+memfd carries the source filename and exact argv; the fixed interpreter command
+contains only owned descriptors. Exact main/exit-status behavior, UID guards and
+the cells API remain intact. Two separately registered process methods cover
+six exact-argv round trips and eight named invalid-descriptor/envelope cases.
+The Product component-basename identity guard and dead-branch specialization
+preserve the authentication walk and digest checks. Updater CLI bootstraps use
+one fixed eight-name compatibility export registry, and the workflow updater
+uses one Framework-path constant.
+ASCII JSON escaping preserves valid POSIX surrogate-escaped arguments;
+the sixth argv case is separately registered. Collector metadata uses
+exact binding pairs separately from payload arguments; one new pure method
+declares five cases without adding a snapshot helper.
+
+Fresh native capture compiled all 81 translation units in 35.853 seconds
+with actual SDK `ALL_INCS` and mapped header inputs, without drift. Eight
+SDK admission controls before recipe import and 19 native Sonar-contract
+methods passed; the original 18 method ASTs remain exact. Four new fixed
+source bindings have precise physical Framework owners. The closure retains
+eight observed, two semantic and two public-entry dependencies; source
+bindings were not globally pruned. Fresh canonical security verification passed
+69 methods / 257 observed subcases in 10.939 seconds, with no skips or source
+drift, against working bridge SHA-256
+`1ef4d6fb021605f52c63fef3bf522a325736ceb40457d48c94c091b1e3efc5eb`.
+This includes the separately registered sixth surrogate-escaped argv case.
+Final public selector reruns remain pending.
+
+CI triage identified three separate migration causes: NGINX's second
+`sudo`/`env -i` boundary loses the trusted Run ID; Envoy CRS supplies duplicate
+`run_id`; and migrated import-status reads and fingerprints still select an
+old Product path. The required repairs preserve the trusted Run ID across the
+second boundary, remove the duplicate without changing the strict parser, and
+use the selected Framework owner for both import-status operations. Bounded
+harness validation passed 42 methods in 9.615 seconds (14 NGINX, 28 Envoy): the
+closed second boundary preserves the ID and rejects malformed input; all three
+actual Envoy summary blocks contain one ID, and injected duplicates and
+mismatches fail closed. Seventeen existing native-generator methods passed in
+0.138 seconds. The actual selected Framework manifest reports 80 `former_xfail`
+and 10 `mapped_only` entries; read and fingerprint SHA-256 match, and private
+Framework/Product-decoy and existing `framework:` resolver controls passed.
+These are local boundary and generator proofs, without a live-host run. The
+published `5d471`/`a209` pair remains the earlier scoped proof; current working
+heads are not yet published and require renewed committed-pair acceptance and
+hosted gates. No fresh default-suite run or hosted Sonar PASS is claimed.
+
 The final canonical inventory contains **100 standard
-cases / 80 executions**, **2280 on-demand cases / 1038 executions**, **488 fixed
+cases / 80 executions**, **2307 on-demand cases / 1042 executions**, **492 fixed
 Framework test-source bindings** and **234 product-source snapshots**. Its compact
-JSON is **2073459 bytes**, below the unchanged **2 MiB** admission limit. These are
+JSON is **2085028 bytes**, below the unchanged **2 MiB** admission limit. These are
 selection/source quantities, not executed or passing case counts. The extension
-adds 51 explicit on-demand methods: 28 clean-pair methods, 14 MRTS-package
-methods, 3 classification guards, 2 prepared/backend helper methods and 4 context methods; the original 1993-case baseline remains
-unchanged. A closed reviewed set of 153 process-bearing new rows uses the
+adds 55 explicit on-demand methods: 28 clean-pair methods, 14 MRTS-package
+methods, 3 classification guards, 2 prepared/backend helper methods, 4 context
+methods, 2 sealed-invocation methods, 1 collector method and 1 SDK method; the original 1993-case baseline remains
+unchanged. A closed reviewed set of 155 process-bearing new rows uses the
 `migration-integration` group across 12 modules with target-derived ID hashes;
-46 pure controls retain the offline-audit group. The original 1993 group
+48 pure controls retain the offline-audit group. The original 1993 group
 assignments and guard-function ASTs are unchanged; the initial 40 pure controls, both pure helper methods and four guarded context methods passed.
 
 The 120 new focused methods passed without skips, including the result-integrity
 subset of 56 methods / 131 expanded variants and the closed path-policy subset
-of 9 methods / 32 expanded variants. Separately, 136 focused portability methods,
-339 native Framework CI methods, 30 public API methods and 3 Makefile methods
-passed. The complete native Framework documentation target passed.
+of 9 methods / 32 expanded variants. Earlier scoped runs passed 136 focused portability methods,
+30 public API methods and 3 Makefile methods. Current local native Framework CI
+passed 330 tests in 163.868 seconds; the exact workflow Ruff lint/format checks
+passed all 38 files in 0.104 seconds, and 19 Sonar-contract methods passed in
+4.836 seconds. These local results do not establish hosted current-head gates. The complete native Framework documentation target passed.
 
 Seven repaired default case IDs passed through the public runner. The actual
 public CLI foreign-UID/GID control passed both subcases in explicitly authorized
@@ -293,15 +344,19 @@ entrypoints and interfaces, invokes the actual Parent Make target
 header test result. The probe requires installed Git, Make, a compatible Python
 and `cc`, plus existing private external output storage. Uncommitted source edits
 are not copied into the pair. The committed clean pair Connector
-`c102404321d1744234e4797e6dd92a7f34a84a77` / Framework
-`5a827f3db670588febebd29fa6115142da198c6f` passed in recorded-pin mode with
+`5d47125febe38d18f33cc639bc70942da74fa7d7` / Framework
+`a209e5e44be60b578a87a30fc85badcf7bdcab08` passed in 118.763 seconds in recorded-pin mode with
 `standard_combination=true`, both checkouts clean before/after, and the actual
 Parent Make → Common C1 test passing.
 
 A distinct explicit DEV run passed for the same Connector with selected
-Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, recorded gitlink `5a827f3`,
+Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, recorded gitlink `a209e5e`,
+in 118.865 seconds,
 `mode=development` and `standard_combination=false`. Only the expected Connector
-gitlink differed before/after; Framework remained clean. The earlier stale DEV
+gitlink differed before/after; Framework remained clean. The real bridge exposed
+11 exports, the private output directory retained mode 0700, and the wrong-pin
+control rejected with exit 77. These pair proofs precede the working Sonar fixes;
+acceptance of the final committed pair must be renewed. The earlier stale DEV
 attempt remains rejected. Earlier Apache H1 controls on `cfd5e49` / `e52d7d4`
 retain their scoped 28.625-second proof. Acceptance after the next pins and
 current hosted Framework #142 / Connector #434 gates remain required. Evidence
@@ -389,9 +444,10 @@ methods in 20.519 seconds outside the Linux sandbox with unchanged guards,
 including the six actual Root/nobody descriptor cases. These observations are
 not one combined final-head suite run and introduce no case IDs. The named
 committed pair passed separately; acceptance after the next pins and hosted
-Framework PR #142 / Connector PR #434 gates remain required. Hosted checks on
-the published `5a827f3` / `c1024043` heads remain failed pending the final push;
-neither migration PR is merged.
+Framework PR #142 / Connector PR #434 gates remain required. Actual Connector `5d471` Sonar failed with four security findings, one code
+smell and 5.5% duplication. The working fixes have not yet been server-verified.
+Three source-only Framework SDK/Make-owner repairs passed locally; hosted gates
+must be renewed. Neither migration PR is merged.
 
 Gitleaks baseline observations and reviewed false-positive classification are
 distinct. The current configuration has two `generic-api-key` allowlists, each
@@ -470,7 +526,7 @@ The published Framework normal master merge
 This establishes neither the migration PR's current-head gate nor acceptance
 after subsequent pin changes.
 
-Latest focused validation also passed 18 Sonar-contract methods in 4.966 seconds
+Earlier scoped validation also passed 18 Sonar-contract methods in 4.966 seconds
 and 39 pin-sensitive methods / 56 expanded variants. Formatting two existing CI
 test files preserved their ASTs; all 38 Ruff files passed. Local Pyright remains
 blocked by missing Node, with no installation performed; its hosted type gate is

@@ -444,7 +444,6 @@ PY
     printf 'probe_observations_path=%s/probe-observations.jsonl\n' "$RUNTIME_ROOT"
         printf 'integration_mode=ext_proc\n'
         printf 'runtime_profile=with-crs-no-mrts\n'
-        printf 'run_id=%s\n' "$CRS_RUNTIME_RUN_ID"
         printf 'allow_request_id=%s\n' "$CRS_ALLOW_TRANSACTION_ID"
         printf 'allow_observed_status=%s\n' "$crs_allow_status"
         printf 'block_request_id=%s\n' "$CRS_BLOCK_TRANSACTION_ID"
@@ -498,6 +497,10 @@ if [ "$CRS_RUNTIME" = 1 ]; then
     esac
     if [ "${#CRS_RUNTIME_RUN_ID}" -gt 48 ]; then
         echo "envoy_ext_proc_runtime: FAIL - CRS_RUNTIME_RUN_ID exceeds 48 characters" >&2
+        exit 1
+    fi
+    if [ "$RESULT_RUN_ID" != "$CRS_RUNTIME_RUN_ID" ]; then
+        echo "envoy_ext_proc_runtime: FAIL - result run ID differs from CRS runtime run ID" >&2
         exit 1
     fi
     CRS_ALLOW_TRANSACTION_ID="envoy-ext-proc-crs-${CRS_RUNTIME_RUN_ID}-allow"

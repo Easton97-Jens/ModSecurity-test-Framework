@@ -251,6 +251,56 @@ class NativeAnalysisBoundaryTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 NATIVE.nginx_includes(nginx, build, product)
 
+    def test_nginx_all_incs_accept_only_selected_sdk_headers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            nginx, product, sdk = (base / name for name in ("nginx", "product", "sdk"))
+            build = nginx / "objs"
+            build.mkdir(parents=True)
+            product.mkdir()
+            (sdk / "headers/modsecurity").mkdir(parents=True)
+            (sdk / "headers/modsecurity/modsecurity.h").write_text("/* selected SDK */\n")
+            (sdk / "src/.libs").mkdir(parents=True)
+            (sdk / "src/.libs/libmodsecurity.so").write_text("SDK layout admission only")
+            headers, library = NATIVE.sdk_layout(sdk)
+            headers = NATIVE.admitted_directory(headers, "SDK include root")
+            sibling = sdk / "headers-extra"
+            sibling.mkdir()
+            other = base / "other-sdk/headers"
+            other.mkdir(parents=True)
+            alias = base / "sdk-headers-link"
+            alias.symlink_to(headers, target_is_directory=True)
+            for relative in ("src/core/ngx_config.h", "src/core/ngx_core.h", "src/http/ngx_http.h"):
+                path = nginx / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("/* parser boundary control */\n")
+            for name in ("ngx_auto_config.h", "ngx_auto_headers.h"):
+                (build / name).write_text("/* configured header identity control */\n")
+            cases = (
+                ("exact-sdk-headers", headers, headers, None),
+                ("prefix-sibling", sibling, headers, "escapes explicit"),
+                ("other-sdk-headers", other, headers, "escapes explicit"),
+                ("sdk-root", sdk, headers, "escapes explicit"),
+                ("library-directory", library, headers, "escapes explicit"),
+                ("header-descendant", headers / "modsecurity", headers, "escapes explicit"),
+                ("symlink-token", alias, headers, "symlinked component"),
+                ("symlink-authority", headers, alias, "SDK include root has a symlinked component"),
+            )
+            for label, candidate, authority, error in cases:
+                with self.subTest(case=label):
+                    tokens = "-I objs -I " + str(candidate)
+                    if label == "symlink-authority":
+                        tokens = "-include /untrusted/header"
+                    (build / "Makefile").write_text("ALL_INCS = " + tokens + "\n")
+                    if error:
+                        with self.assertRaisesRegex(ValueError, error):
+                            NATIVE.nginx_includes(nginx, build, product, authority)
+                    else:
+                        directories, identities = NATIVE.nginx_includes(nginx, build, product, authority)
+                        self.assertEqual(directories, [build])
+                        self.assertNotIn(headers, directories)
+                        self.assertIn(str(build / "ngx_auto_config.h"), identities)
+
     def test_preseeded_sdk_directory_symlinks_preserve_external_sentinel(self):
         for nested in (False, True):
             with self.subTest(nested=nested), tempfile.TemporaryDirectory() as temporary:

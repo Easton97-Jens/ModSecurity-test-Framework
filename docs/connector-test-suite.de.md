@@ -40,24 +40,29 @@ Größen. Eine Wiederholung ist ein weiterer Versuch, kein zusätzlicher
 eindeutiger Fall. Der Umzug aktiviert keine archivierte Kampagne.
 
 Das finale kanonische Inventar enthält
-**100 Standardfälle / 80 Ausführungen**, **2280 On-demand-Fälle / 1038
-Ausführungen**, **488 feste Framework-Testquellbindungen** und **234
-Produktquellsnapshots**. Sein kompaktes JSON umfasst **2073459 Bytes** und liegt
+**100 Standardfälle / 80 Ausführungen**, **2307 On-demand-Fälle / 1042
+Ausführungen**, **492 feste Framework-Testquellbindungen** und **234
+Produktquellsnapshots**. Sein kompaktes JSON umfasst **2085028 Bytes** und liegt
 unter der unveränderten Zulassungsgrenze von **2 MiB**. Dies sind Auswahl-/
 Quellmengen, keine Zahlen ausgeführter oder bestandener Fälle. Die Erweiterung
-fügt 51 explizite On-demand-Methoden hinzu: 28 Clean-Pair-Methoden, 14 MRTS-Paket-
-Methoden, 3 Klassifikationsguards, 2 Prepared-/Backend-Helfermethoden und 4 Kontextmethoden; die ursprüngliche Baseline mit 1993 Fällen
-bleibt unverändert. Eine geschlossene geprüfte Menge von 153 neuen Zeilen mit
+fügt 55 explizite On-demand-Methoden hinzu: 28 Clean-Pair-Methoden, 14 MRTS-Paket-
+Methoden, 3 Klassifikationsguards, 2 Prepared-/Backend-Helfermethoden, 4 Kontext-
+methoden, 2 Methoden für versiegelte Aufrufe sowie je eine Collector- und SDK-Methode; die ursprüngliche Baseline mit 1993 Fällen
+bleibt unverändert. Eine geschlossene geprüfte Menge von 155 neuen Zeilen mit
 Prozessausführung nutzt in 12 Modulen die Gruppe `migration-integration` mit
-aus dem Target abgeleiteten ID-Hashes; 46 reine Kontrollen behalten die Offline-
+aus dem Target abgeleiteten ID-Hashes; 48 reine Kontrollen behalten die Offline-
 Audit-Gruppe. Die Gruppenzuordnungen der ursprünglichen 1993 Fälle und die ASTs
 der Guardfunktionen bleiben unverändert; die ursprünglichen 40 reinen Kontrollen, beide reinen Helfermethoden und vier geschützte Kontextmethoden bestanden.
 
 Die 120 neuen fokussierten Methoden bestanden ohne Skips, einschließlich der
 Ergebnisintegritäts-Teilmenge mit 56 Methoden / 131 expandierten Varianten und
 der geschlossenen Pfadregel-Teilmenge mit 9 Methoden / 32 expandierten Varianten.
-Getrennt davon bestanden 136 fokussierte Portabilitätsmethoden, 339 native
-Framework-CI-Methoden, 30 öffentliche API-Methoden und 3 Makefile-Methoden.
+Frühere begrenzte Läufe bestanden 136 fokussierte Portabilitätsmethoden,
+30 öffentliche API-Methoden und 3 Makefile-Methoden. Die aktuelle lokale native
+Framework-CI bestand 330 Tests in 163.868 Sekunden; die exakten Workflow-Ruff-
+Lint-/Formatprüfungen bestanden alle 38 Dateien in 0.104 Sekunden, und 19 Sonar-
+Vertragsmethoden bestanden in 4.836 Sekunden. Diese lokalen Ergebnisse belegen
+keine gehosteten Gates des aktuellen Heads.
 Das vollständige native Framework-Dokumentations-Target bestand.
 
 Sieben reparierte Standardfall-IDs bestanden über den öffentlichen Runner. Die
@@ -77,6 +82,57 @@ und Privilegienguards. Vier neu registrierte geschützte reine Methoden decken
 15 expandierte Fälle ab; die Quellclosure folgt tatsächlichen Imports und
 öffentlichen Einstiegen. Dies ergänzt weder Standardfälle noch einen globalen
 Produkt-Importpfad.
+
+Die aktuelle Arbeitsfassung der Bridge delegiert die rohe Gitobjektidentität an
+das feste unprivilegierte `git hash-object --no-filters`; beim lokalen Git-Build
+wurde SHA1_DC nachgewiesen. Dies belegt weder den kryptografischen Build aller
+Hosts noch eine SHA-256-Gitidentität. Unveränderliche Byteprüfungen behalten
+SHA-256. Ein versiegeltes eigenes JSON-memfd transportiert Quelldateinamen und
+exakte argv; der feste Interpreterbefehl enthält nur eigene Deskriptoren.
+Exaktes main-/Exitstatus-Verhalten, UID-Guards und die Cells-API bleiben erhalten.
+Zwei separat registrierte Prozessmethoden decken sechs exakte argv-Rundläufe und
+acht benannte ungültige Deskriptor-/Envelope-Fälle ab. Produkt-Komponenten-
+Basisnamenguard und Spezialisierung toter Zweige erhalten Authentifizierungsweg
+und Digestprüfungen. Updater-CLI-Bootstraps nutzen ein festes gemeinsames Register
+mit acht Kompatibilitätsexporten, der Workflow-Updater eine Framework-Pfadkonstante.
+ASCII-JSON-Escaping erhält gültige POSIX-Argumente mit Surrogate-Escapes;
+der sechste argv-Fall ist separat registriert. Collector-Metadaten verwenden
+exakte Bindungspaare getrennt von Nutzargumenten; eine neue reine Methode
+deklariert fünf Fälle, ohne einen Snapshot-Helfer hinzuzufügen.
+
+Der frische native Capture kompilierte alle 81 Übersetzungseinheiten in
+35.853 Sekunden mit tatsächlichen SDK-`ALL_INCS` und zugeordneten Header-
+Eingaben ohne Drift. Acht SDK-Zulassungskontrollen vor dem Recipe-Import
+und 19 native Sonar-Vertragsmethoden bestanden; die ASTs der ursprünglichen
+18 Methoden bleiben exakt erhalten. Vier neue feste Quellbindungen haben
+präzise physische Framework-Eigentümer. Die Closure erhält acht beobachtete,
+zwei semantische und zwei öffentliche Einstiegsabhängigkeiten; Quellbindungen
+wurden nicht global ausgedünnt. Die frische kanonische Security-Prüfung bestand
+69 Methoden / 257 beobachtete Teilfälle in 10.939 Sekunden ohne Skips oder
+Quelldrift gegen Bridge-Arbeitsfassung mit SHA-256
+`1ef4d6fb021605f52c63fef3bf522a325736ceb40457d48c94c091b1e3efc5eb`.
+Dies umfasst den separat registrierten sechsten argv-Fall mit Surrogate-Escapes.
+Finale öffentliche Selektorwiederholungen stehen noch aus.
+
+Die CI-Triage identifizierte drei getrennte Migrationsursachen: An der zweiten
+`sudo`-/`env -i`-Grenze verliert NGINX die vertrauenswürdige Run-ID; Envoy CRS
+übergibt `run_id` doppelt; Lesezugriff und Fingerprint des verschobenen
+Importstatus wählen noch einen alten Produktpfad. Die erforderlichen Korrekturen
+erhalten die vertrauenswürdige Run-ID über die zweite Grenze, entfernen das
+Duplikat bei unverändert strengem Parser und wählen für beide Importstatus-
+Operationen den ausgewählten Framework-Eigentümer. Die begrenzte Harness-Prüfung
+bestand 42 Methoden in 9.615 Sekunden (14 NGINX, 28 Envoy): Die geschlossene
+zweite Grenze erhält die ID und lehnt fehlerhafte Eingaben ab; alle drei echten
+Envoy-Summary-Blöcke enthalten eine ID, injizierte Duplikate und abweichende IDs
+werden fail-closed abgelehnt. Siebzehn vorhandene native Generatormethoden
+bestanden in 0.138 Sekunden. Das tatsächliche ausgewählte Framework-Manifest
+meldet 80 `former_xfail`- und 10 `mapped_only`-Einträge; Lese- und Fingerprint-
+SHA-256 stimmen überein. Private Framework-/Produkt-Decoy-Kontrollen und der
+bestehende `framework:`-Resolver bestanden. Dies sind lokale Grenz- und Generator-
+nachweise ohne Live-Host-Lauf. Das veröffentlichte Paar `5d471`/`a209` bleibt der
+frühere begrenzte Nachweis; aktuelle Arbeitsstände sind noch nicht veröffentlicht
+und verlangen erneute Paarabnahme und gehostete Gates. Ein frischer Standardlauf
+oder gehosteter Sonar-PASS wird nicht behauptet.
 
 Schema 4 trennt feste Framework-Testquellprüfsummen von
 `connector_source_paths`. Produkteingaben werden aus der explizit ausgewählten
@@ -182,9 +238,11 @@ in 20.519 Sekunden mit unveränderten Guards, einschließlich der sechs tatsäch
 Root/nobody-Deskriptorfälle. Diese Beobachtungen sind kein gemeinsamer Final-Head-
 Suitenlauf und führen keine Fall-IDs ein. Das genannte committete Paar bestand
 separat; nach den nächsten Pins bleiben erneute Paarabnahme und gehostete Gates
-für Framework-PR #142 / Connector-PR #434 erforderlich. Gehostete Checks der
-veröffentlichten Heads `5a827f3` / `c1024043` sind bis zum finalen Push weiterhin
-fehlgeschlagen; keiner der Migrations-PRs ist gemergt.
+für Framework-PR #142 / Connector-PR #434 erforderlich. Die tatsächliche Sonar-Analyse von Connector `5d471` schlug mit vier Security-
+Findings, einem Code-Smell und 5.5% Duplikation fehl. Die Arbeitskorrekturen sind
+noch nicht serverseitig verifiziert. Drei reine Quellkorrekturen für Framework-
+SDK-/Make-Zuständigkeit bestanden lokal; gehostete Gates müssen erneuert werden.
+Keiner der Migrations-PRs ist gemergt.
 
 Gitleaks-Baseline-Beobachtungen und geprüfte Fehlalarmklassifikation sind
 getrennt. Die aktuelle Konfiguration enthält zwei `generic-api-key`-Allowlists,
@@ -266,7 +324,7 @@ und einen bestehenden eventabhängigen Skip. Der veröffentlichte reguläre Fram
 Dies belegt weder das Current-Head-Gate des Migrations-PRs noch die Abnahme nach
 späteren Pinänderungen.
 
-Die neuesten fokussierten Prüfungen bestanden außerdem 18 Sonar-Vertragsmethoden
+Frühere begrenzte Prüfungen bestanden außerdem 18 Sonar-Vertragsmethoden
 in 4.966 Sekunden und 39 pinabhängige Methoden / 56 expandierte Varianten.
 Formatierung zweier bestehender CI-Testdateien erhielt deren ASTs; alle 38 Ruff-
 Dateien bestanden. Lokales Pyright bleibt wegen fehlendem Node blockiert, ohne
@@ -370,15 +428,19 @@ Parent-Make-Target `test-framework-integration-probe` auf und validiert das exak
 zugelassene Ergebnis des Common-Headertests. Die Prüfung verlangt vorhandenes Git,
 Make, kompatibles Python und `cc` sowie vorhandenen privaten externen
 Ausgabespeicher. Uncommittete Quelländerungen werden nicht in das Paar kopiert.
-Das committete saubere Paar Connector `c102404321d1744234e4797e6dd92a7f34a84a77` /
-Framework `5a827f3db670588febebd29fa6115142da198c6f` bestand im Recorded-Pin-Modus
+Das committete saubere Paar Connector `5d47125febe38d18f33cc639bc70942da74fa7d7` /
+Framework `a209e5e44be60b578a87a30fc85badcf7bdcab08` bestand in 118.763 Sekunden im Recorded-Pin-Modus
 mit `standard_combination=true`, beiden Checkouts sauber vor/nach dem Lauf und
 einem bestandenen tatsächlichen Parent-Make → Common-C1-Test.
 
 Ein getrennter expliziter DEV-Lauf bestand mit demselben Connector und ausgewähltem
 Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, eingetragenem Gitlink
-`5a827f3`, `mode=development` und `standard_combination=false`. Vor/nach dem Lauf
-wich nur der erwartete Connector-Gitlink ab; Framework blieb sauber. Der frühere
+`a209e5e`, in 118.865 Sekunden mit `mode=development` und `standard_combination=false`. Vor/nach dem Lauf
+wich nur der erwartete Connector-Gitlink ab; Framework blieb sauber. Die echte
+Bridge stellte 11 Exporte bereit, das private Ausgabeverzeichnis behielt Modus
+0700 und die Wrong-Pin-Kontrolle lehnte mit Exit 77 ab. Diese Paarnachweise gehen
+den Arbeitskorrekturen für Sonar voraus; die Abnahme des finalen committeten
+Paars muss erneuert werden. Der frühere
 veraltete DEV-Versuch bleibt abgelehnt. Frühere Apache-H1-Kontrollen auf
 `cfd5e49` / `e52d7d4` behalten ihren begrenzten 28.625-Sekunden-Beleg. Nach den
 nächsten Pins bleiben erneute Abnahme und aktuelle gehostete Gates für Framework

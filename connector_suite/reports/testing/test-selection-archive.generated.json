@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "7ad431189e0588d0580c497c9ab437557f418ca503d3353d0ee48001ae2010d5",
+  "inventory_sha256": "78cbafdfed567481e30ed945a5467ac9daed4ec4f43d9e2997424b1de7d42fdc",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7805,
+  "on_demand_definition_count": 7809,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -8058,7 +8058,7 @@
         "modsecurity_connector_tests.test_nginx_hosted_functional_launcher.HostedFunctionalLauncherTest.test_rejects_a_symlinked_runtime_library_even_when_the_generic_alias_exists"
       ],
       "source": "tests/test_nginx_hosted_functional_launcher.py",
-      "source_sha256": "3a858c67c85d3092958d4617c6116f93c8a633c372d76d0f3450e3a202e1ffb2"
+      "source_sha256": "0e0fcfb17472867a865d0eb0cd44bfbe86596e06bcf8b04b2052c195870d50e5"
     },
     {
       "contains_selected_definitions": [],
@@ -11306,7 +11306,10 @@
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_root_source_checks_reject_missing_or_root_runner_identity",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_fixed_tool_registry_rejects_candidate_paths",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_isolated_sealed_execution_preserves_main_module_and_exit_status",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_sealed_invocation_round_trips_payload_arguments",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_gate_shims_reject_modified_bridge_before_any_candidate_code",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_collector_binding_arguments_are_separate_from_payload",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_separate_source_reader_identity_does_not_enter_the_root_tool_api",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_readonly_object_acquisition_never_reads_candidate_source",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_object_acquisition_rejects_wrong_repository_and_missing_trusted_object",
@@ -11321,7 +11324,7 @@
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_cells_source_fd_cannot_be_supplied_by_the_caller"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
-      "source_sha256": "6d9edda11031dfa7fb3753e47c14f43a1b1622783b3710338920a0b879cf04af"
+      "source_sha256": "0470fc7fa1bdd31d7f5a6169b56a2158b56a7350eb194b98451b4b593902d4ac"
     },
     {
       "contains_selected_definitions": [],
@@ -14115,6 +14118,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.SonarSecretBoundaryTests.test_exception_does_not_apply_to_other_workflows",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_native_build_sdk_layout_is_accepted",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_mixed_sdk_layout_is_rejected",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_preseeded_sdk_directory_symlinks_preserve_external_sentinel",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_preseeded_output_symlink_preserves_external_sentinel",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_failed_real_compile_cannot_leave_success_record",
@@ -14126,7 +14130,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.ApprovedSdkPreparationTests.test_symlinked_sdk_run_root_preserves_external_directory"
       ],
       "source": "framework/tests/security_regression/test_sonar_analysis_contract.py",
-      "source_sha256": "8d552f1df7b75df9f731617a030361b73c56a961c77697795db7a8f83ea05066"
+      "source_sha256": "14150610c9022ff292cdb4026060d2fefc80b776ae08ba1beada9efab84cce21"
     },
     {
       "contains_selected_definitions": [],

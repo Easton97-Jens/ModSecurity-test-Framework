@@ -63,7 +63,7 @@
     ".github/actions/connector-ci/test-apache/apache-structure/action.yml": "90648f6673d633c64a6c3db3aec690de02563e9d6df99bf940985867cc8abfbd",
     ".github/actions/connector-ci/test-common/common-structure/action.yml": "357f034aac51c89c6f0b95c7f2a8820c70313053eb3b9cf2f976e8bceac2ccbe",
     ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/aggregate-with-crs-no-mrts/action.yml": "17c1a73084753388d7a26bc6fb736f0787eeb64d422c7340c82876dd16a1b0c7",
-    ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode/action.yml": "13f5e6f3d6c31a6389a3a5100ca582a4812c41c106edfe418fdb2f4754893526",
+    ".github/actions/connector-ci/test-connectors-with-crs-no-mrts/connector-mode/action.yml": "507e155417607fe9d1132db3264427ceffe1d7a09b176801089cf46625ad29f3",
     ".github/actions/connector-ci/test-envoy/envoy-contract/action.yml": "5b4ebecc98aa107888cc05aefc652a57c22cc2b46221475ed347821deaf5c516",
     ".github/actions/connector-ci/test-full-smoke-sequential/cleanup-artifacts/action.yml": "afd40b27b559ca0a36f2656d4840c4737540f34cb6c3790e37c279a42a0edbeb",
     ".github/actions/connector-ci/test-full-smoke-sequential/manual-heavy-runtime-validation/action.yml": "d08aa93575ea5366602d420a4a87ae1e04a7a77ccffe7d0194a8f3f07661ddbb",

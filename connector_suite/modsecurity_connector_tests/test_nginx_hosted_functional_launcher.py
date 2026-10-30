@@ -70,6 +70,7 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
         self.env = {
             "CONNECTOR_ROOT": str(self.root),
             "CONNECTOR_REVISION": "a" * 40,
+            "SMOKE_RUN_ID": "nginx-exact-head-123-1",
             "TEST_ROOT": str(self.framework),
             "FRAMEWORK_ROOT": str(self.framework),
             "VERIFIED_RUN_ROOT": str(self.verified),
@@ -149,6 +150,7 @@ class HostedFunctionalLauncherTest(unittest.TestCase):
             assignments["NGINX_WORKER_GROUP"], self.env["NGINX_FUNCTIONAL_WORKER_GROUP"]
         )
         self.assertEqual(assignments["NGINX_HOSTED_FUNCTIONAL_A"], "1")
+        self.assertEqual(assignments["SMOKE_RUN_ID"], self.env["SMOKE_RUN_ID"])
         self.assertEqual(
             assignments["NGINX_FUNCTIONAL_A_RUNTIME_LIBRARY"],
             str(self.lib / "libmodsecurity.so.3"),

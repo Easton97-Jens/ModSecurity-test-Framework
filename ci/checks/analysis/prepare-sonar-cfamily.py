@@ -235,7 +235,9 @@ def snapshot_tree(root: Path) -> dict[str, str]:
     return {str(path): file_hash(path) for path in sorted(selected)}
 
 
-def nginx_include_path(source: Path, token: str, product: Path) -> Path | None:
+def nginx_include_path(
+    source: Path, token: str, product: Path, sdk_headers: Path | None = None
+) -> Path | None:
     if not token.startswith("-I") or not token[2:]:
         raise ValueError("only include directories are admitted from NGINX ALL_INCS")
     raw = source / token[2:]
@@ -244,13 +246,15 @@ def nginx_include_path(source: Path, token: str, product: Path) -> Path | None:
     directory = admitted_directory(raw.resolve(), "NGINX include root")
     if directory in {product, product / "common/include"}:
         return None  # Already explicit Product roots, not host context.
+    if sdk_headers is not None and directory == sdk_headers:
+        return None  # Already the explicitly admitted and snapshotted SDK headers.
     if not directory.is_relative_to(source):
         raise ValueError("NGINX include escapes explicit source root")
     return directory
 
 
 def nginx_include_directories(
-    source: Path, product: Path, tokens: list[str]
+    source: Path, product: Path, tokens: list[str], sdk_headers: Path | None = None
 ) -> list[Path]:
     result = []
     index = 0
@@ -261,7 +265,7 @@ def nginx_include_directories(
             if index == len(tokens):
                 raise ValueError("invalid configured NGINX include list")
             token = "-I" + tokens[index]
-        directory = nginx_include_path(source, token, product)
+        directory = nginx_include_path(source, token, product, sdk_headers)
         if directory is not None and directory not in result:
             result.append(directory)
         index += 1
@@ -269,12 +273,14 @@ def nginx_include_directories(
 
 
 def nginx_includes(
-    source: Path, build: Path, product: Path
+    source: Path, build: Path, product: Path, sdk_headers: Path | None = None
 ) -> tuple[list[Path], dict[str, str]]:
     if not build.is_relative_to(source):
         raise ValueError(
             "configured NGINX build must be inside its explicit source root"
         )
+    if sdk_headers is not None:
+        sdk_headers = admitted_directory(sdk_headers, "SDK include root")
     identities = {
         str(build / name): file_hash(build / name)
         for name in ("ngx_auto_config.h", "ngx_auto_headers.h", "Makefile")
@@ -287,7 +293,9 @@ def nginx_includes(
     ]
     if len(declarations) != 1:
         raise ValueError("configured NGINX must declare one ALL_INCS")
-    result = nginx_include_directories(source, product, shlex.split(declarations[0]))
+    result = nginx_include_directories(
+        source, product, shlex.split(declarations[0]), sdk_headers
+    )
     for header, relative in (
         ("ngx_config.h", "src/core"),
         ("ngx_core.h", "src/core"),
@@ -408,7 +416,7 @@ def admit_product_and_hosts(capture: argparse.Namespace) -> None:
     capture.nginx = admitted_directory(capture.nginx_source, "NGINX source root")
     capture.configured = admitted_directory(capture.nginx_build, "NGINX build root")
     capture.host_includes, capture.host_hashes = nginx_includes(
-        capture.nginx, capture.configured, capture.product
+        capture.nginx, capture.configured, capture.product, capture.headers
     )
     capture.host_hashes.update(
         {

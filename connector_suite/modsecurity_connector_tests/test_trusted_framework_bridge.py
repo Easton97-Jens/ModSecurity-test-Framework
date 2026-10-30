@@ -6,7 +6,9 @@ the privileged hosted broker or mutate its installed gate.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
+import json
 import zlib
 import contextlib
 import io
@@ -171,13 +173,16 @@ class TrustedFrameworkBridgeTests(unittest.TestCase):
         REVISION = store("commit", b"tree " + parent_tree.encode() + b"\n\nfixture Parent\n")
         calls = []
 
-        def git(repository, *arguments, forwarded):
+        def git(repository, *arguments, forwarded, data=None):
             calls.append((repository, arguments))
             if arguments == ("rev-parse", "--show-toplevel", "HEAD"):
                 revision = REVISION if repository == root else FRAMEWORK_REVISION
                 return f"{repository}\n{revision}\n".encode()
             if len(arguments) == 3 and arguments[0] == "cat-file":
                 return objects[arguments[1], arguments[2]]
+            if arguments[:3] == ("hash-object", "--no-filters", "-t") and arguments[-1:] == ("--stdin",):
+                kind = arguments[3]
+                return (hashlib.sha1(kind.encode() + b" " + str(len(data)).encode() + b"\0" + data).hexdigest() + "\n").encode()
             self.fail(f"unexpected source acquisition: {arguments}")
 
         return root, framework, source, git, calls
@@ -196,10 +201,10 @@ class TrustedFrameworkBridgeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root, framework, _source, git, _calls = self.fixture(temporary)
 
-            def wrong(repository, *arguments, forwarded):
+            def wrong(repository, *arguments, forwarded, data=None):
                 if repository == framework and arguments[0] == "rev-parse":
                     return f"{framework}\n{'c' * 40}\n".encode()
-                return git(repository, *arguments, forwarded=forwarded)
+                return git(repository, *arguments, forwarded=forwarded, data=data)
 
             with mock.patch.dict(BRIDGE.authenticated_source.__globals__, _git=wrong):
                 with self.assertRaisesRegex(BRIDGE.TrustError, "trusted Parent gitlink"):
@@ -296,6 +301,94 @@ class TrustedFrameworkBridgeTests(unittest.TestCase):
                                   "--connector-revision", REVISION])
         self.assertEqual(status, 23)
 
+    def test_sealed_invocation_round_trips_payload_arguments(self):
+        original_run = subprocess.run
+        required = fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE
+        variants = {
+            "option-like": ["-c", "--help", "--source-reader-uid", "--"],
+            "spaces": ["two words", "trailing "],
+            "unicode": ["München", "東京"],
+            "newlines": ["first\nsecond", "\r"],
+            "empty": ["", "--empty="],
+            "surrogateescaped": [os.fsdecode(b"argument-\xff")],
+        }
+        for case, payload in variants.items():
+            with self.subTest(case=case):
+                code = (f"import sys\nassert sys.argv[1:] == {payload!r}\n"
+                        "assert __file__ == '/trusted/source.py'\n").encode()
+
+                def launch(command, **options):
+                    self.assertEqual(command[:4], [sys.executable, "-I", "-c", BRIDGE.INVOCATION_LAUNCHER])
+                    self.assertEqual(len(command), 6)
+                    for value in command[4:]:
+                        descriptor = int(value)
+                        self.assertIn(descriptor, options["pass_fds"])
+                        self.assertEqual(fcntl.fcntl(descriptor, fcntl.F_GET_SEALS) & required, required)
+                    return original_run(command, **options)
+
+                with mock.patch.dict(BRIDGE.main.__globals__, authenticated_source=lambda *args: (Path("/trusted/source.py"), code)):
+                    with mock.patch.object(subprocess, "run", side_effect=launch):
+                        status = BRIDGE.main(["--tool", "exact-dispatcher", "--connector-root", str(ROOT),
+                                              "--connector-revision", REVISION, "--", *payload])
+                self.assertEqual(status, 0)
+
+    def test_invocation_envelope_rejects_untrusted_descriptors(self):
+        required = fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE
+
+        def descriptor(data, sealed=True):
+            result = os.memfd_create("invocation-fixture", os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING)
+            self.assertEqual(os.write(result, data), len(data))
+            os.lseek(result, 0, os.SEEK_SET)
+            if sealed:
+                fcntl.fcntl(result, fcntl.F_ADD_SEALS, required)
+            return result
+
+        cases = ("unsealed-source", "unsealed-envelope", "foreign-owner-metadata", "extra-key",
+                 "non-string-argument", "non-string-source", "directory-envelope", "oversized-envelope")
+        with tempfile.TemporaryDirectory() as temporary:
+            for case in cases:
+                with self.subTest(case=case):
+                    marker = Path(temporary) / case
+                    source = f"open({str(marker)!r}, 'w').write('executed')\n".encode()
+                    invocation = {"source_name": "/trusted/source.py", "argv": []}
+                    if case == "extra-key":
+                        invocation["unexpected"] = True
+                    elif case == "non-string-argument":
+                        invocation["argv"] = [1]
+                    elif case == "non-string-source":
+                        invocation["source_name"] = 1
+                    source_fd = descriptor(source, case != "unsealed-source")
+                    if case == "directory-envelope":
+                        invocation_fd = os.open(temporary, os.O_RDONLY | os.O_DIRECTORY)
+                    else:
+                        data = b"x" * (BRIDGE.MAX_SOURCE_BYTES + 1) if case == "oversized-envelope" else json.dumps(invocation).encode()
+                        invocation_fd = descriptor(data, case != "unsealed-envelope")
+                    launcher = BRIDGE.INVOCATION_LAUNCHER
+                    if case == "foreign-owner-metadata":
+                        launcher = ("import os,sys\n_original_fstat = os.fstat\n"
+                                    "def foreign(fd):\n"
+                                    "    metadata = _original_fstat(fd)\n"
+                                    "    if fd == int(sys.argv[2]):\n"
+                                    "        fields = list(metadata); fields[4] += 1\n"
+                                    "        return os.stat_result(fields)\n"
+                                    "    return metadata\n"
+                                    "os.fstat = foreign\n" + launcher)
+                    try:
+                        result = subprocess.run(
+                            [sys.executable, "-I", "-c", launcher, str(source_fd), str(invocation_fd)],
+                            pass_fds=(source_fd, invocation_fd), stdin=subprocess.DEVNULL,
+                            capture_output=True, text=True, check=False,
+                        )
+                        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+                        expected = ("invocation envelope must contain" if case in
+                                    {"extra-key", "non-string-argument", "non-string-source"}
+                                    else "invocation requires a bounded owned sealed regular descriptor")
+                        self.assertIn(expected, result.stderr)
+                        self.assertFalse(marker.exists())
+                    finally:
+                        os.close(source_fd)
+                        os.close(invocation_fd)
+
     def test_gate_shims_reject_modified_bridge_before_any_candidate_code(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -311,6 +404,27 @@ class TrustedFrameworkBridgeTests(unittest.TestCase):
                 self.assertEqual(completed.returncode, 77)
                 self.assertIn("trusted Parent source digest", completed.stderr)
             self.assertFalse(marker.exists())
+
+    def test_collector_binding_arguments_are_separate_from_payload(self):
+        collector = argparse.Namespace(**runpy.run_path(
+            str(ROOT / "ci/runtime/broker/nginx_exact_head_result_collector.py"),
+            run_name="_collector_arguments_contract"))
+        bindings = ["--base-repo-root", str(ROOT), "--trusted-dispatcher-base-sha", REVISION]
+        payload = ["--opaque", "München"]
+        variants = {
+            "metadata-first": bindings + payload,
+            "metadata-between": payload[:1] + bindings + payload[1:],
+            "metadata-last": payload + bindings,
+            "duplicate-base": bindings + ["--base-repo-root", str(ROOT)],
+            "missing-revision": bindings[:2] + payload,
+        }
+        for case, arguments in variants.items():
+            with self.subTest(case=case), mock.patch.object(sys, "argv", ["collector", *arguments]):
+                if case in {"duplicate-base", "missing-revision"}:
+                    with self.assertRaisesRegex(ValueError, "exactly one"):
+                        collector.collector_arguments()
+                else:
+                    self.assertEqual(collector.collector_arguments(), (ROOT, REVISION, payload))
 
     def test_separate_source_reader_identity_does_not_enter_the_root_tool_api(self):
         source = b"import sys\nassert sys.argv[1:] == ['--verify']\n"
@@ -329,10 +443,10 @@ class TrustedFrameworkBridgeTests(unittest.TestCase):
             root, framework, source, git, _calls = self.fixture(temporary, relative)
             source.write_text("raise RuntimeError('untrusted candidate helper')\n")
 
-            def candidate(repository, *arguments, forwarded):
+            def candidate(repository, *arguments, forwarded, data=None):
                 if repository == framework and arguments[0] == "rev-parse":
                     return f"{framework}\n{'c' * 40}\n".encode()
-                return git(repository, *arguments, forwarded=forwarded)
+                return git(repository, *arguments, forwarded=forwarded, data=data)
 
             with mock.patch.dict(BRIDGE.authenticated_source.__globals__, _git=candidate,
                                  read_source=mock.Mock(side_effect=AssertionError("candidate read"))):
@@ -345,19 +459,19 @@ class TrustedFrameworkBridgeTests(unittest.TestCase):
             relative = BRIDGE.TOOLS["readonly-prepare"]
             root, framework, _source, git, _calls = self.fixture(temporary, relative)
 
-            def wrong_root(repository, *arguments, forwarded):
+            def wrong_root(repository, *arguments, forwarded, data=None):
                 if repository == framework and arguments[0] == "rev-parse":
                     return f"/candidate/other-framework\n{FRAMEWORK_REVISION}\n".encode()
-                return git(repository, *arguments, forwarded=forwarded)
+                return git(repository, *arguments, forwarded=forwarded, data=data)
 
             with mock.patch.dict(BRIDGE.authenticated_source.__globals__, _git=wrong_root):
                 with self.assertRaisesRegex(BRIDGE.TrustError, "trusted Parent gitlink"):
                     BRIDGE.authenticated_source(root, REVISION, relative, [], object_only=True)
 
-            def missing(repository, *arguments, forwarded):
+            def missing(repository, *arguments, forwarded, data=None):
                 if arguments[:2] == ("cat-file", "blob"):
                     raise subprocess.CalledProcessError(128, ["git", "cat-file"])
-                return git(repository, *arguments, forwarded=forwarded)
+                return git(repository, *arguments, forwarded=forwarded, data=data)
 
             with mock.patch.dict(BRIDGE.authenticated_source.__globals__, _git=missing):
                 with self.assertRaises(subprocess.CalledProcessError):
@@ -560,10 +674,10 @@ class TrustedFrameworkBridgeTests(unittest.TestCase):
                     source.rename(safe)
                     source.symlink_to(safe)
                 original_git = git
-                def acquire(repository, *arguments, forwarded):
+                def acquire(repository, *arguments, forwarded, data=None):
                     if case == "candidate-head" and repository == framework and arguments[0] == "rev-parse":
                         return f"{framework}\n{'c' * 40}\n".encode()
-                    return original_git(repository, *arguments, forwarded=forwarded)
+                    return original_git(repository, *arguments, forwarded=forwarded, data=data)
                 with mock.patch.dict(BRIDGE.authenticated_source.__globals__, _git=acquire):
                     with self.assertRaises((BRIDGE.TrustError, OSError)):
                         BRIDGE.authenticated_source(root, REVISION, relative, [])

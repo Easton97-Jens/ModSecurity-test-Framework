@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -50,6 +51,16 @@ class FunctionalALaunchError(ValueError):
 
 def _has_unsafe_character(value: str) -> bool:
     return not value or any(character in value for character in ("\x00", "\r", "\n"))
+
+
+def _require_run_id(env: Mapping[str, str]) -> str:
+    # Match the verified_run_id filename-segment contract without importing
+    # checkout modules into this standalone privilege-boundary launcher.
+    value = env.get("SMOKE_RUN_ID", "")
+    if (not isinstance(value, str)
+            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", value) or ".." in value):
+        raise FunctionalALaunchError("SMOKE_RUN_ID must be an explicit bounded safe token")
+    return value
 
 
 def _require_worker_name(env: Mapping[str, str], name: str) -> str:
@@ -361,6 +372,8 @@ def build_root_command(env: Mapping[str, str]) -> list[str]:
     if functional_scope == "full" and env.get("ON_DEMAND_TESTS") != "1":
         raise FunctionalALaunchError("full Functional-A campaign requires explicit ON_DEMAND_TESTS=1")
 
+    smoke_run_id = _require_run_id(env)
+
     root_environment = {
         "PATH": _SAFE_PATH,
         "HOME": "/nonexistent",
@@ -368,6 +381,7 @@ def build_root_command(env: Mapping[str, str]) -> list[str]:
         "PYTHONDONTWRITEBYTECODE": "1",
         "CONNECTOR_ROOT": str(connector_root),
         "CONNECTOR_REVISION": expected_parent_sha,
+        "SMOKE_RUN_ID": smoke_run_id,
         "FRAMEWORK_ROOT": str(framework_root),
         "TEST_ROOT": str(framework_root),
         "CONNECTOR_TEST_PROFILE": "h1",

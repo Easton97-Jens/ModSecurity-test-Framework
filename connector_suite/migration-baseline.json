@@ -7,7 +7,7 @@
     "native_sources": 88,
     "python_go_source_sets": 632,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "89c45b10d6a2a5205615e2725b30db54c41c7429d4e45e45d629f3648602f869"
+    "sha256": "823ff5268c3cddfc106a8e2ad6e9a42070eea557c91cc371ce48aedf280d5d46"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -73818,6 +73818,231 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Collector separates exact source bindings from unchanged payload: duplicate-base",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_collector_binding_arguments_are_separate_from_payload"
+      },
+      "test_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b.duplicate-base"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Collector separates exact source bindings from unchanged payload: metadata-between",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_collector_binding_arguments_are_separate_from_payload"
+      },
+      "test_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b.metadata-between"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Collector separates exact source bindings from unchanged payload: metadata-first",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_collector_binding_arguments_are_separate_from_payload"
+      },
+      "test_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b.metadata-first"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Collector separates exact source bindings from unchanged payload: metadata-last",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_collector_binding_arguments_are_separate_from_payload"
+      },
+      "test_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b.metadata-last"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Collector separates exact source bindings from unchanged payload: missing-revision",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_collector_binding_arguments_are_separate_from_payload"
+      },
+      "test_id": "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b.missing-revision"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
       "execution_id": "offline.migration.completed-client-observation-survives-finalize-and-status-readback.47a6112b",
       "groups": [
         "migration",
@@ -76785,6 +77010,366 @@
         "target": "modsecurity_connector_tests.test_inventory_bindings_maintenance.InventoryBindingsMaintenanceTests.test_invalid_schema_duplicate_and_escaping_paths_reject_before_writes"
       },
       "test_id": "offline.migration.invalid-schema-duplicate-and-escaping-paths-reject-before-writes.496a195f"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Invocation rejects invalid descriptors or envelopes before executing authenticated source. directory-envelope",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors"
+      },
+      "test_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a.directory-envelope"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Invocation rejects invalid descriptors or envelopes before executing authenticated source. extra-key",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors"
+      },
+      "test_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a.extra-key"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Invocation rejects invalid descriptors or envelopes before executing authenticated source. foreign-owner-metadata",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors"
+      },
+      "test_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a.foreign-owner-metadata"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Invocation rejects invalid descriptors or envelopes before executing authenticated source. non-string-argument",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors"
+      },
+      "test_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a.non-string-argument"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Invocation rejects invalid descriptors or envelopes before executing authenticated source. non-string-source",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors"
+      },
+      "test_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a.non-string-source"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Invocation rejects invalid descriptors or envelopes before executing authenticated source. oversized-envelope",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors"
+      },
+      "test_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a.oversized-envelope"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Invocation rejects invalid descriptors or envelopes before executing authenticated source. unsealed-envelope",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors"
+      },
+      "test_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a.unsealed-envelope"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Invocation rejects invalid descriptors or envelopes before executing authenticated source. unsealed-source",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors"
+      },
+      "test_id": "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a.unsealed-source"
     },
     {
       "actual_callers": [
@@ -83736,6 +84321,276 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Sealed invocation preserves exact payload arguments without command argument authority. empty",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_sealed_invocation_round_trips_payload_arguments"
+      },
+      "test_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2.empty"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Sealed invocation preserves exact payload arguments without command argument authority. newlines",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_sealed_invocation_round_trips_payload_arguments"
+      },
+      "test_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2.newlines"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Sealed invocation preserves exact payload arguments without command argument authority. option-like",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_sealed_invocation_round_trips_payload_arguments"
+      },
+      "test_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2.option-like"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Sealed invocation preserves exact payload arguments without command argument authority. spaces",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_sealed_invocation_round_trips_payload_arguments"
+      },
+      "test_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2.spaces"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Sealed invocation preserves POSIX surrogateescaped argument bytes.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_sealed_invocation_round_trips_payload_arguments"
+      },
+      "test_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2.surrogateescaped"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "groups": [
+        "migration",
+        "migration-integration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Sealed invocation preserves exact payload arguments without command argument authority. unicode",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_sealed_invocation_round_trips_payload_arguments"
+      },
+      "test_id": "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2.unicode"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
       "execution_id": "offline.migration.selected-case-completeness-rejects-missing-output.9a1e0627",
       "groups": [
         "migration",
@@ -83817,6 +84672,366 @@
         "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_separate_source_reader_identity_does_not_enter_the_root_tool_api"
       },
       "test_id": "offline.migration.separate-source-reader-identity-does-not-enter-the-root-tool-api.1d9fe669"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "tests/security_regression/test_sonar_analysis_contract.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "NGINX ALL_INCS admits only selected SDK headers: exact-sdk-headers",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers"
+      },
+      "test_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3.exact-sdk-headers"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "tests/security_regression/test_sonar_analysis_contract.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "NGINX ALL_INCS admits only selected SDK headers: header-descendant",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers"
+      },
+      "test_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3.header-descendant"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "tests/security_regression/test_sonar_analysis_contract.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "NGINX ALL_INCS admits only selected SDK headers: library-directory",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers"
+      },
+      "test_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3.library-directory"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "tests/security_regression/test_sonar_analysis_contract.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "NGINX ALL_INCS admits only selected SDK headers: other-sdk-headers",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers"
+      },
+      "test_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3.other-sdk-headers"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "tests/security_regression/test_sonar_analysis_contract.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "NGINX ALL_INCS admits only selected SDK headers: prefix-sibling",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers"
+      },
+      "test_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3.prefix-sibling"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "tests/security_regression/test_sonar_analysis_contract.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "NGINX ALL_INCS admits only selected SDK headers: sdk-root",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers"
+      },
+      "test_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3.sdk-root"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "tests/security_regression/test_sonar_analysis_contract.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "NGINX ALL_INCS admits only selected SDK headers: symlink-authority",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers"
+      },
+      "test_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3.symlink-authority"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "tests/security_regression/test_sonar_analysis_contract.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "NGINX ALL_INCS admits only selected SDK headers: symlink-token",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers"
+      },
+      "test_id": "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3.symlink-token"
     },
     {
       "actual_callers": [
@@ -125639,9 +126854,9 @@
     "standard_executions": 80
   },
   "current_counts": {
-    "fixed_framework_sources": 488,
-    "on_demand_cases": 2280,
-    "on_demand_executions": 1038,
+    "fixed_framework_sources": 492,
+    "on_demand_cases": 2307,
+    "on_demand_executions": 1042,
     "revision_bound_product_sources": 234,
     "standard_cases": 100,
     "standard_executions": 80
@@ -139490,12 +140705,14 @@
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_cells_driver_is_bound_to_the_trusted_parent_framework_gitlink",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_cells_driver_rejects_unsealed_or_foreign_source_fds",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_cells_source_fd_cannot_be_supplied_by_the_caller",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_collector_binding_arguments_are_separate_from_payload",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_exports_exact_roots_and_private_environment",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_malformed_revisions_and_checkout_mismatches",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_unsafe_output_paths",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_source_is_authenticated_before_execution",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_fixed_tool_registry_rejects_candidate_paths",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_gate_shims_reject_modified_bridge_before_any_candidate_code",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_isolated_sealed_execution_preserves_main_module_and_exit_status",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_missing_or_non_gitlink_framework_is_rejected",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_modified_checkout_cannot_replace_the_trusted_framework_blob",
@@ -139506,6 +140723,7 @@
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_replacement_refs_and_corrupt_object_store_cannot_change_trusted_source",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_root_git_checks_drop_to_the_explicit_runner_identity",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_root_source_checks_reject_missing_or_root_runner_identity",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_sealed_invocation_round_trips_payload_arguments",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_separate_source_reader_identity_does_not_enter_the_root_tool_api",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_source_and_ancestor_symlinks_are_rejected",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_traversal_and_partial_revisions_are_rejected"
@@ -139522,12 +140740,14 @@
         "offline.migration.cells-driver-is-bound-to-the-trusted-parent-framework-gitlink.d994a0b1",
         "offline.migration.cells-driver-rejects-unsealed-or-foreign-source-fds.43090e74",
         "offline.migration.cells-source-fd-cannot-be-supplied-by-the-caller.824828c6",
+        "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b",
         "offline.migration.connector-context-exports-exact-roots-and-private-environment.afe74d8b",
         "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
         "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
         "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
         "offline.migration.fixed-tool-registry-rejects-candidate-paths.9bd34e04",
         "offline.migration.gate-shims-reject-modified-bridge-before-any-candidate-code.31a1ad7e",
+        "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a",
         "offline.migration.isolated-sealed-execution-preserves-main-module-and-exit-status.2e2b67a6",
         "offline.migration.missing-or-non-gitlink-framework-is-rejected.75559d6a",
         "offline.migration.modified-checkout-cannot-replace-the-trusted-framework-blob.7f22c344",
@@ -139538,6 +140758,7 @@
         "offline.migration.replacement-refs-and-corrupt-object-store-cannot-change-trusted-source.3ef7ca92",
         "offline.migration.root-git-checks-drop-to-the-explicit-runner-identity.690dca77",
         "offline.migration.root-source-checks-reject-missing-or-root-runner-identity.c01080ba",
+        "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2",
         "offline.migration.separate-source-reader-identity-does-not-enter-the-root-tool-api.1d9fe669",
         "offline.migration.source-and-ancestor-symlinks-are-rejected.356a4ef4",
         "offline.migration.traversal-and-partial-revisions-are-rejected.4a8d0e4c"
@@ -143512,6 +144733,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_failed_real_compile_cannot_leave_success_record",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_mixed_sdk_layout_is_rejected",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_native_build_sdk_layout_is_accepted",
+        "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_preseeded_output_symlink_preserves_external_sentinel",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_preseeded_sdk_directory_symlinks_preserve_external_sentinel",
         "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_successful_real_compile_preserves_exact_argv",
@@ -143527,7 +144749,9 @@
       "discovery_candidate_caller_ids": [],
       "framework_path": "tests/security_regression/test_sonar_analysis_contract.py",
       "observed_execution": "not assessed",
-      "source_binding_execution_ids": [],
+      "source_binding_execution_ids": [
+        "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3"
+      ],
       "source_load_tests_filter": false
     },
     {
@@ -145152,7 +146376,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "6e2085e6e5863f9bab570415326e299de5308f4f93982d2462c348fea5bc7564",
-      "sha256_framework_source": "da323111aaa2514a2dda0e048f9c11f4df34752efb993a09497e58de00eefb02",
+      "sha256_framework_source": "cf007b60137139184fb166c442e3149e7baa83cf447966b6097bb39055a5066d",
       "sha256_updated_base": "6e2085e6e5863f9bab570415326e299de5308f4f93982d2462c348fea5bc7564"
     },
     {
@@ -145431,7 +146655,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "8b8b9047f8a2179b9a65e14434025430b4223caea9c314331c43eb04af5714a6",
-      "sha256_framework_source": "d001b23648808e39802dc1a68e6c9f8c1d1a97210fa454b69bf5cef1120511ed",
+      "sha256_framework_source": "ffae26ba5048908c53557632ca19c9bb2bef7edeea7e73b9a76ce8fd2307496c",
       "sha256_updated_base": "8b8b9047f8a2179b9a65e14434025430b4223caea9c314331c43eb04af5714a6"
     },
     {
@@ -145620,7 +146844,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "8dd64dddb44882d3529339e47d4fffaa9c9bd236e51eb0fa5973a6beb4ccb995",
-      "sha256_framework_source": "73973b5e4cc0069127f5c40dcbe4f136e4ebaad220de8d9c4a715295e31f6477",
+      "sha256_framework_source": "2e58f35a088eaef55cfc2e82e46203b9e06dfc483b6cf32201b4b8376fc39f83",
       "sha256_updated_base": "8dd64dddb44882d3529339e47d4fffaa9c9bd236e51eb0fa5973a6beb4ccb995"
     },
     {
@@ -146007,7 +147231,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "f37e1d03fc712f49223d68976145838a0bcc66ccc4b0f4b130510129baf27cdd",
-      "sha256_framework_source": "9b100d2cedb5deae6329c782bee40901e67bce6d9206964f963bddc460d96dcf",
+      "sha256_framework_source": "1ebcdf9b61f220f0df9548a10aa25020f4a88f90c7610f880a602bff0b49bc29",
       "sha256_updated_base": "f37e1d03fc712f49223d68976145838a0bcc66ccc4b0f4b130510129baf27cdd"
     },
     {
@@ -149886,7 +151110,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
-      "sha256_framework_source": "7ad431189e0588d0580c497c9ab437557f418ca503d3353d0ee48001ae2010d5",
+      "sha256_framework_source": "78cbafdfed567481e30ed945a5467ac9daed4ec4f43d9e2997424b1de7d42fdc",
       "sha256_updated_base": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
     },
     {
@@ -150309,7 +151533,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "d48b2be099b7e608c5bbdf96ebafe1c85a4fa2111d7698baeed91d7ac9ae7669",
-      "sha256_framework_source": "ad74b9f4b4baca1188c9aa4be30f8171bf5159f7d886efae921498cdbbf4faf0",
+      "sha256_framework_source": "8398c380c78dcc2719ca8d668b987bf909173121e99d199685b0c728169085ee",
       "sha256_updated_base": "d48b2be099b7e608c5bbdf96ebafe1c85a4fa2111d7698baeed91d7ac9ae7669"
     },
     {
@@ -151092,7 +152316,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "9a6b5729b7e10b7fd74d4203df341e79e569dd5920a7db2bca9e92aa13d21325",
-      "sha256_framework_source": "f5e373e68914cc816b9fe91fd5cbf0cda2ebae0103eeb03d9d7213079e3111e5",
+      "sha256_framework_source": "e20ccf1cc813536fa359cea5a98fbb1d87f84d5932c524d232d678770b741c5d",
       "sha256_updated_base": "9a6b5729b7e10b7fd74d4203df341e79e569dd5920a7db2bca9e92aa13d21325"
     },
     {
@@ -151947,7 +153171,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "89c45b10d6a2a5205615e2725b30db54c41c7429d4e45e45d629f3648602f869",
+      "sha256_framework_source": "823ff5268c3cddfc106a8e2ad6e9a42070eea557c91cc371ce48aedf280d5d46",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {
@@ -155070,7 +156294,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "820852eae67a2d29d04bd986463e96bf062447eb1f71a74a4413007b109b3bf5",
-      "sha256_framework_source": "3a858c67c85d3092958d4617c6116f93c8a633c372d76d0f3450e3a202e1ffb2",
+      "sha256_framework_source": "0e0fcfb17472867a865d0eb0cd44bfbe86596e06bcf8b04b2052c195870d50e5",
       "sha256_updated_base": "820852eae67a2d29d04bd986463e96bf062447eb1f71a74a4413007b109b3bf5"
     },
     {
@@ -156715,7 +157939,7 @@
   "framework_revision": "3a4f2281568139d94fda6b51dc2e07bb8fc06c67",
   "generator": "connector_suite/modsecurity_connector_ci/tools/build-migration-map.py",
   "inputs": {
-    "current_inventory_sha256": "7ad431189e0588d0580c497c9ab437557f418ca503d3353d0ee48001ae2010d5",
+    "current_inventory_sha256": "78cbafdfed567481e30ed945a5467ac9daed4ec4f43d9e2997424b1de7d42fdc",
     "initial_inventory_sha256": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
     "source_map_sha256": "29808fffdaa6c3843e1f2ab17f0d25ab19e9b9c1f74ef9461c59a5b96b841944",
     "updated_base_inventory_sha256": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
@@ -225533,7 +226757,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -225545,7 +226769,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -225557,7 +226781,7 @@
           "category": "tool",
           "condition": "if this source call executes without a test replacement",
           "evidence": {
-            "line": 72,
+            "line": 74,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "return subprocess.check_output("
@@ -225650,7 +226874,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -225662,7 +226886,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -227708,7 +228932,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -227720,7 +228944,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -227905,7 +229129,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -227917,7 +229141,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -228443,7 +229667,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -228455,7 +229679,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -228548,7 +229772,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -228560,7 +229784,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -228653,7 +229877,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -228665,7 +229889,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -229450,6 +230674,111 @@
         "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
       ]
     },
+    "offline.migration.collector-binding-arguments-are-separate-from-payload.cc82104b": {
+      "execution_driver": {
+        "kind": "python",
+        "selector": {
+          "kind": "python",
+          "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_collector_binding_arguments_are_separate_from_payload"
+        },
+        "source_evidence": {
+          "admission_only": false,
+          "id": "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710",
+          "line": 710,
+          "make_target": null,
+          "owner": "Framework",
+          "path": "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py",
+          "selection_note": "exact inventory selector argv construction; admission still selects cases",
+          "selector_kind": "python",
+          "source_kind": "inventory-selector-dispatch",
+          "source_line": "return [sys.executable, \"-P\", \"-c\", PYTHON_CHILD, selector[\"target\"]], root"
+        },
+        "status": "selector-declared; tool availability not assessed",
+        "tool": "Framework-compatible Python interpreter"
+      },
+      "external_output": {
+        "contract": "existing trusted non-symlink output ancestry outside both source checkouts",
+        "status": "required for public Connector inventory invocation"
+      },
+      "pinned_checkout": {
+        "Connector": "explicit CONNECTOR_ROOT and CONNECTOR_REVISION matching its exact HEAD",
+        "Framework": "explicit TEST_ROOT; Connector-pinned or separately selected development revision",
+        "independent_Framework_entrypoints": "may have different checkout needs; inspect actual caller",
+        "status": "required for public Connector inventory invocation"
+      },
+      "profile": {
+        "case_profiles": [
+          "framework-migration"
+        ],
+        "runtime_profile": "explicit public-adapter --profile/CONNECTOR_TEST_PROFILE input; inspect source callers",
+        "status": "inventory-declared case-profile metadata; not runtime --profile values"
+      },
+      "requirement_categories": {
+        "SDK": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "dependencies": {
+          "source_declaration_indices": [
+            0,
+            1
+          ],
+          "status": "conditional source declarations; readiness not assessed"
+        },
+        "external_outputs": {
+          "catalog_field": "external_output"
+        },
+        "host": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "pinned_checkout": {
+          "catalog_field": "pinned_checkout"
+        },
+        "privileges": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "profile": {
+          "catalog_field": "profile"
+        },
+        "tool": {
+          "selector_driver_tool": "Framework-compatible Python interpreter",
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        }
+      },
+      "source_declarations": [
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 24,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_test_framework.connector_context"
+        },
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 25,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_connector_ci.runtime.broker"
+        }
+      ],
+      "unresolved": [
+        "transitive helper dependencies and branch execution are not proved by static declarations",
+        "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
+      ]
+    },
     "offline.migration.completed-client-observation-survives-finalize-and-status-readback.47a6112b": {
       "execution_driver": {
         "kind": "python",
@@ -230105,7 +231434,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -230117,7 +231446,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -230210,7 +231539,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -230222,7 +231551,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -230315,7 +231644,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -230327,7 +231656,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -230420,7 +231749,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -230432,7 +231761,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -232347,7 +233676,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -232359,7 +233688,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -233480,7 +234809,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -233492,7 +234821,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -233504,7 +234833,7 @@
           "category": "tool",
           "condition": "if this source call executes without a test replacement",
           "evidence": {
-            "line": 306,
+            "line": 399,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "completed = subprocess.run("
@@ -234225,6 +235554,125 @@
         "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
       ]
     },
+    "offline.migration.invocation-envelope-rejects-untrusted-descriptors.5babec1a": {
+      "execution_driver": {
+        "kind": "python",
+        "selector": {
+          "kind": "python",
+          "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_invocation_envelope_rejects_untrusted_descriptors"
+        },
+        "source_evidence": {
+          "admission_only": false,
+          "id": "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710",
+          "line": 710,
+          "make_target": null,
+          "owner": "Framework",
+          "path": "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py",
+          "selection_note": "exact inventory selector argv construction; admission still selects cases",
+          "selector_kind": "python",
+          "source_kind": "inventory-selector-dispatch",
+          "source_line": "return [sys.executable, \"-P\", \"-c\", PYTHON_CHILD, selector[\"target\"]], root"
+        },
+        "status": "selector-declared; tool availability not assessed",
+        "tool": "Framework-compatible Python interpreter"
+      },
+      "external_output": {
+        "contract": "existing trusted non-symlink output ancestry outside both source checkouts",
+        "status": "required for public Connector inventory invocation"
+      },
+      "pinned_checkout": {
+        "Connector": "explicit CONNECTOR_ROOT and CONNECTOR_REVISION matching its exact HEAD",
+        "Framework": "explicit TEST_ROOT; Connector-pinned or separately selected development revision",
+        "independent_Framework_entrypoints": "may have different checkout needs; inspect actual caller",
+        "status": "required for public Connector inventory invocation"
+      },
+      "profile": {
+        "case_profiles": [
+          "framework-migration"
+        ],
+        "runtime_profile": "explicit public-adapter --profile/CONNECTOR_TEST_PROFILE input; inspect source callers",
+        "status": "inventory-declared case-profile metadata; not runtime --profile values"
+      },
+      "requirement_categories": {
+        "SDK": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "dependencies": {
+          "source_declaration_indices": [
+            0,
+            1
+          ],
+          "status": "conditional source declarations; readiness not assessed"
+        },
+        "external_outputs": {
+          "catalog_field": "external_output"
+        },
+        "host": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "pinned_checkout": {
+          "catalog_field": "pinned_checkout"
+        },
+        "privileges": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "profile": {
+          "catalog_field": "profile"
+        },
+        "tool": {
+          "selector_driver_tool": "Framework-compatible Python interpreter",
+          "source_declaration_indices": [
+            2
+          ],
+          "status": "conditional source declarations; readiness not assessed"
+        }
+      },
+      "source_declarations": [
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 24,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_test_framework.connector_context"
+        },
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 25,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_connector_ci.runtime.broker"
+        },
+        {
+          "category": "tool",
+          "condition": "if this source call executes without a test replacement",
+          "evidence": {
+            "line": 377,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "result = subprocess.run("
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "computed subprocess executable"
+        }
+      ],
+      "unresolved": [
+        "transitive helper dependencies and branch execution are not proved by static declarations",
+        "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
+      ]
+    },
     "offline.migration.isolated-sealed-execution-preserves-main-module-and-exit-status.2e2b67a6": {
       "execution_driver": {
         "kind": "python",
@@ -234304,7 +235752,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -234316,7 +235764,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -235261,7 +236709,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -235273,7 +236721,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -235627,7 +237075,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -235639,7 +237087,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -236741,7 +238189,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -236753,7 +238201,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -236964,7 +238412,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -236976,7 +238424,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -237395,7 +238843,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -237407,7 +238855,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -239757,7 +241205,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -239769,7 +241217,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -240299,7 +241747,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -240311,7 +241759,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -240323,7 +241771,7 @@
           "category": "privilege-or-isolation",
           "condition": "the surrounding predicate determines accepted identity; root is not inferred",
           "evidence": {
-            "line": 423,
+            "line": 537,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "identity = mock.patch.object(os, \"geteuid\", return_value=1001) if os.geteuid() == 0 else contextlib.nullcontext()"
@@ -240335,7 +241783,7 @@
           "category": "tool",
           "condition": "if this source call executes without a test replacement",
           "evidence": {
-            "line": 385,
+            "line": 499,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "return subprocess.check_output("
@@ -242039,7 +243487,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -242051,7 +243499,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -242144,7 +243592,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -242156,7 +243604,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -243011,6 +244459,111 @@
         "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
       ]
     },
+    "offline.migration.sealed-invocation-round-trips-payload-arguments.167629a2": {
+      "execution_driver": {
+        "kind": "python",
+        "selector": {
+          "kind": "python",
+          "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_sealed_invocation_round_trips_payload_arguments"
+        },
+        "source_evidence": {
+          "admission_only": false,
+          "id": "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710",
+          "line": 710,
+          "make_target": null,
+          "owner": "Framework",
+          "path": "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py",
+          "selection_note": "exact inventory selector argv construction; admission still selects cases",
+          "selector_kind": "python",
+          "source_kind": "inventory-selector-dispatch",
+          "source_line": "return [sys.executable, \"-P\", \"-c\", PYTHON_CHILD, selector[\"target\"]], root"
+        },
+        "status": "selector-declared; tool availability not assessed",
+        "tool": "Framework-compatible Python interpreter"
+      },
+      "external_output": {
+        "contract": "existing trusted non-symlink output ancestry outside both source checkouts",
+        "status": "required for public Connector inventory invocation"
+      },
+      "pinned_checkout": {
+        "Connector": "explicit CONNECTOR_ROOT and CONNECTOR_REVISION matching its exact HEAD",
+        "Framework": "explicit TEST_ROOT; Connector-pinned or separately selected development revision",
+        "independent_Framework_entrypoints": "may have different checkout needs; inspect actual caller",
+        "status": "required for public Connector inventory invocation"
+      },
+      "profile": {
+        "case_profiles": [
+          "framework-migration"
+        ],
+        "runtime_profile": "explicit public-adapter --profile/CONNECTOR_TEST_PROFILE input; inspect source callers",
+        "status": "inventory-declared case-profile metadata; not runtime --profile values"
+      },
+      "requirement_categories": {
+        "SDK": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "dependencies": {
+          "source_declaration_indices": [
+            0,
+            1
+          ],
+          "status": "conditional source declarations; readiness not assessed"
+        },
+        "external_outputs": {
+          "catalog_field": "external_output"
+        },
+        "host": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "pinned_checkout": {
+          "catalog_field": "pinned_checkout"
+        },
+        "privileges": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "profile": {
+          "catalog_field": "profile"
+        },
+        "tool": {
+          "selector_driver_tool": "Framework-compatible Python interpreter",
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        }
+      },
+      "source_declarations": [
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 24,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_test_framework.connector_context"
+        },
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 25,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_connector_ci.runtime.broker"
+        }
+      ],
+      "unresolved": [
+        "transitive helper dependencies and branch execution are not proved by static declarations",
+        "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
+      ]
+    },
     "offline.migration.selected-case-completeness-rejects-missing-output.9a1e0627": {
       "execution_driver": {
         "kind": "python",
@@ -243247,7 +244800,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -243259,7 +244812,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -243268,6 +244821,83 @@
           "value": "Python import: modsecurity_connector_ci.runtime.broker"
         }
       ],
+      "unresolved": [
+        "transitive helper dependencies and branch execution are not proved by static declarations",
+        "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
+      ]
+    },
+    "offline.migration.sonar-nginx-selected-sdk-headers.eb58f0b3": {
+      "execution_driver": {
+        "kind": "python",
+        "selector": {
+          "kind": "python",
+          "target": "modsecurity_test_framework.selftests.security_regression.test_sonar_analysis_contract.NativeAnalysisBoundaryTests.test_nginx_all_incs_accept_only_selected_sdk_headers"
+        },
+        "source_evidence": {
+          "admission_only": false,
+          "id": "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710",
+          "line": 710,
+          "make_target": null,
+          "owner": "Framework",
+          "path": "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py",
+          "selection_note": "exact inventory selector argv construction; admission still selects cases",
+          "selector_kind": "python",
+          "source_kind": "inventory-selector-dispatch",
+          "source_line": "return [sys.executable, \"-P\", \"-c\", PYTHON_CHILD, selector[\"target\"]], root"
+        },
+        "status": "selector-declared; tool availability not assessed",
+        "tool": "Framework-compatible Python interpreter"
+      },
+      "external_output": {
+        "contract": "existing trusted non-symlink output ancestry outside both source checkouts",
+        "status": "required for public Connector inventory invocation"
+      },
+      "pinned_checkout": {
+        "Connector": "explicit CONNECTOR_ROOT and CONNECTOR_REVISION matching its exact HEAD",
+        "Framework": "explicit TEST_ROOT; Connector-pinned or separately selected development revision",
+        "independent_Framework_entrypoints": "may have different checkout needs; inspect actual caller",
+        "status": "required for public Connector inventory invocation"
+      },
+      "profile": {
+        "case_profiles": [
+          "framework-migration"
+        ],
+        "runtime_profile": "explicit public-adapter --profile/CONNECTOR_TEST_PROFILE input; inspect source callers",
+        "status": "inventory-declared case-profile metadata; not runtime --profile values"
+      },
+      "requirement_categories": {
+        "SDK": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "dependencies": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "external_outputs": {
+          "catalog_field": "external_output"
+        },
+        "host": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "pinned_checkout": {
+          "catalog_field": "pinned_checkout"
+        },
+        "privileges": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "profile": {
+          "catalog_field": "profile"
+        },
+        "tool": {
+          "selector_driver_tool": "Framework-compatible Python interpreter",
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        }
+      },
+      "source_declarations": [],
       "unresolved": [
         "transitive helper dependencies and branch execution are not proved by static declarations",
         "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
@@ -243352,7 +244982,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -243364,7 +244994,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -244888,7 +246518,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 22,
+            "line": 24,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -244900,7 +246530,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 25,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"

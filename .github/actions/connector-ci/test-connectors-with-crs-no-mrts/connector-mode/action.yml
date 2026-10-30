@@ -225,7 +225,7 @@ runs:
             if not stat.S_ISREG(metadata.st_mode) or not 0 < metadata.st_size < 65536:
                 raise ValueError("trusted bridge must be a bounded regular file")
             source = stream.read(65536)
-        if hashlib.sha256(source).hexdigest() != "60a3cddae2218ca3031240bfe6d3400ce9de39a94c609b53bf238f05e5bc4978":
+        if hashlib.sha256(source).hexdigest() != "1ef4d6fb021605f52c63fef3bf522a325736ceb40457d48c94c091b1e3efc5eb":
             raise ValueError("projector bootstrap bridge does not match its immutable source digest")
         bridge = {"__name__": "_authenticated_projector_bridge"}
         exec(compile(source, "trusted-projector-bridge", "exec"), bridge)

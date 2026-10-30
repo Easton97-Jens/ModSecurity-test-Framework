@@ -466,7 +466,7 @@ def make_catalog(connector_root: Path, framework_root: Path, build_root: Path, n
             generator="framework:ci/reporting/generate-case-matrix.py",
             make_target="generate-test-matrix",
             inputs=(
-                "config/testing/import-status.json",
+                "framework:connector_suite/config/testing/import-status.json",
                 "reports/testing/runtime-validation-snapshot.json",
             ),
             outputs=CONNECTOR_COVERAGE_OUTPUTS,

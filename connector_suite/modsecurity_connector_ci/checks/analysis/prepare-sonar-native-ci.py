@@ -118,11 +118,11 @@ def prepare_sdk(root: Path, transfer: Path, revision: str) -> None:
     check_revision(revision)
     root = external_root(root)
     framework_contract()
-    run([sys.executable, "ci/tools/install-ci-dependencies.py", "--ci-toolcache",
+    run([sys.executable, str(source_path("ci/tools/install-ci-dependencies.py", root=ROOT)), "--ci-toolcache",
          "--framework-lock", FRAMEWORK_PATH + "/requirements-ci.lock"])
     environment = sdk_environment(root)
     Path(environment["TMP_ROOT"]).mkdir(parents=True, mode=0o700)
-    run(["sh", "ci/provisioning/cache/with-runtime-components.sh", sys.executable,
+    run(["sh", str(source_path("ci/provisioning/cache/with-runtime-components.sh", root=ROOT)), sys.executable,
          str(Path(__file__).resolve()), "pack-sdk", "--root", str(root),
          "--transfer", str(transfer), "--revision", revision], env=environment)
 

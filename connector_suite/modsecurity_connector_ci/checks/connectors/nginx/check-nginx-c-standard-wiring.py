@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
-from pathlib import Path
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path
 import re
 import sys
 ROOT=connector_root()
-mk=(source_path('Makefile', root=ROOT)).read_text()
+mk=(test_root() / 'connector_suite/connector.mk').read_text()
 sh=source_path('ci/checks/connectors/nginx/check-nginx-c-standards.sh', root=ROOT)
 ok=True
 def check(cond,msg):
