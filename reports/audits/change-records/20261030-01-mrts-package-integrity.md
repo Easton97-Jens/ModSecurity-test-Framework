@@ -119,6 +119,11 @@ real subprocess regression exercises successful result publication with
 `PYTHONSAFEPATH=1`. The complete package scope is twelve files; this follow-up
 changes ten of them relative to the published package commit.
 
+
+The public-source manifest is rooted directly at the executing Framework checkout. CLI validation already requires the selected Framework root to equal that checkout; the fixed root now also makes that source boundary explicit at the hashing call. The existing foreign-root rejection and complete package/source-binding regressions remain mandatory.
+
+The bounded descriptor walk is split into traversal, entry admission and stable-file reading. Depth/node/file/aggregate limits, no-follow opens, identity rechecks and descriptor cleanup remain unchanged. This addresses the separate new complexity finding without a rule suppression.
+
 ## Security impact
 
 Nested inputs fail before publication and reuse cannot ignore added nested
@@ -153,3 +158,5 @@ nor protection against a malicious same-UID process modifying the verifier.
 Scoped patch preserves existing assertions and explicit on-demand selection.
 Separate Framework delivery and dependent Parent pin integration remain with
 the coordinating task; no default-branch write or automatic merge is authorized.
+
+Final Sonar follow-up validation: all 99 MRTS methods pass in 73.152 seconds. Independent old/new source-map comparisons (20 repeats), all five resource-limit rejection paths and descriptor-count checks confirm preserved behavior. Fresh exact-head hosted analysis remains required.

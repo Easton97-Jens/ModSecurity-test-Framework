@@ -131,6 +131,11 @@ prüft erfolgreiche Ergebnisveröffentlichung mit `PYTHONSAFEPATH=1`. Der gesamt
 Paketumfang umfasst zwölf Dateien; dieser Nachtrag ändert zehn davon gegenüber
 dem veröffentlichten Paket-Commit.
 
+
+Das Manifest öffentlicher Quellen verwendet direkt den Root des ausführenden Framework-Checkouts. Die CLI verlangt bereits denselben Root; der feste Root macht diese Quellengrenze nun auch am Hash-Aufruf ausdrücklich. Die bestehende Fremd-Root-Abweisung und alle Paket-/Quellenbindungsregressionen bleiben verpflichtend.
+
+Der begrenzte Descriptor-Walk trennt Traversierung, Eintragsprüfung und stabiles Dateilesen. Tiefen-/Knoten-/Datei-/Gesamtgrenzen, No-follow-Öffnen, Identitätsnachprüfung und Descriptor-Cleanup bleiben erhalten. Dies behebt den separaten neuen Komplexitätsbefund ohne Regelunterdrückung.
+
 ## Sicherheitsauswirkung
 
 Verschachtelte Eingaben scheitern vor Veröffentlichung; Wiederverwendung kann
@@ -170,3 +175,5 @@ Der begrenzte Patch erhält vorhandene Assertions und explizite On-demand-Auswah
 Separate Framework-Auslieferung und abhängige Parent-Pin-Integration bleiben
 beim koordinierenden Task; weder Default-Branch-Schreibzugriff noch
 automatischer Merge sind autorisiert.
+
+Abschließende Validierung des Sonar-Nachtrags: alle 99 MRTS-Methoden bestehen in 73,152 Sekunden. Unabhängige Alt-/Neu-Quellenvergleiche (20 Wiederholungen), alle fünf Ressourcenlimit-Abweisungen und Descriptor-Zählungen bestätigen das erhaltene Verhalten. Frische gehostete Analyse am exakten Head bleibt erforderlich.
