@@ -139,7 +139,7 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         )
         self.assertIn('RUN_ROOT="$RUN_ROOT"', runtime_step)
         self.assertIn('NATIVE_FIXTURE_ROOT="$NATIVE_FIXTURE_ROOT"', runtime_step)
-        inventory_command = "/usr/bin/python3 -m modsecurity_test_framework.connector"
+        inventory_command = "/usr/bin/python3 -P -m modsecurity_test_framework.connector"
         self.assertEqual(runtime_step.count(inventory_command), 1)
         self.assertIn('--connector-root "$GITHUB_WORKSPACE" --connector-revision "$EXPECTED_PARENT_SHA"', runtime_step)
         self.assertIn('--test-root "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework"', runtime_step)
@@ -176,12 +176,32 @@ class NginxExactHeadGateContractTest(unittest.TestCase):
         self.assertEqual(
             set(hosted[0]["sources"]),
             {
+                "ci/lib/active_test_inventory.py",
                 "ci/runtime/lifecycle/write-nginx-functional-a-evidence.py",
                 "connectors/nginx/harness/run-active-functional-a.sh",
                 "connectors/nginx/harness/run_exact_head_use_error_log.sh",
                 "connectors/nginx/harness/run_github_hosted_functional_a.py",
+                "modules/ModSecurity-test-Framework/connector_native_tests/__init__.py",
+                "modules/ModSecurity-test-Framework/connector_native_tests/connectors/envoy/src/envoy_bridge.inc",
+                "modules/ModSecurity-test-Framework/connector_native_tests/connectors/haproxy/src/haproxy_modsecurity_binding.inc",
+                "modules/ModSecurity-test-Framework/connector_native_tests/connectors/haproxy/src/haproxy_spoa_agent_starter.inc",
+                "modules/ModSecurity-test-Framework/connector_native_tests/connectors/haproxy/src/haproxy_spop_diagnostic_runtime.inc",
+                "modules/ModSecurity-test-Framework/connector_native_tests/connectors/lighttpd/src/lighttpd_bridge.inc",
+                "modules/ModSecurity-test-Framework/connector_native_tests/connectors/traefik/src/traefik_decision_service.inc",
+                "modules/ModSecurity-test-Framework/connector_native_tests/connectors/traefik/src/traefik_engine_protocol_helpers.inc",
+                "modules/ModSecurity-test-Framework/connector_native_tests/connectors/traefik/src/traefik_engine_service.inc",
+                "modules/ModSecurity-test-Framework/connector_native_tests/extraction-manifest.json",
+                "modules/ModSecurity-test-Framework/connector_native_tests/go_invoke.py",
+                "modules/ModSecurity-test-Framework/connector_native_tests/invoke.py",
+                "modules/ModSecurity-test-Framework/connector_native_tests/run.py",
+                "modules/ModSecurity-test-Framework/connector_suite/connector.mk",
+                "modules/ModSecurity-test-Framework/modsecurity_test_framework/connector.py",
+                "modules/ModSecurity-test-Framework/modsecurity_test_framework/connector_context.py",
+                "modules/ModSecurity-test-Framework/modsecurity_test_framework/workflow_sources.py",
             },
         )
+        for source in hosted[0]["sources"]:
+            self.assertTrue(source_path(source, root=ROOT).is_relative_to(test_root()))
         self.assertEqual(
             source_path(hosted[0]["selector"]["script"], root=ROOT).read_text(),
             "#!/bin/sh\n"

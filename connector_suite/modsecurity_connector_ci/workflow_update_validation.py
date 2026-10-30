@@ -197,10 +197,14 @@ def copy_update_inputs(source_root: Path, destination_root: Path) -> None:
 def run_proposed_tree_contract_checks(proposed_root: Path) -> None:
     """Run the existing Connector CI-security baseline against the temp tree."""
     product.resolve_regular_file(proposed_root, Path('Makefile'))
-    result = subprocess.run(['make', f'PYTHON={sys.executable}', 'ON_DEMAND_TESTS=0', 'check-ci-security-contract'], cwd=proposed_root, check=False, capture_output=True, text=True)
-    if result.returncode != 0:
-        output = f'{result.stdout}{result.stderr}'.strip()
-        raise product.UpdateError(f'proposed workflow-tool candidate fails Connector CI security contract: {output}')
+    with tempfile.TemporaryDirectory(
+        prefix="modsecurity-conector-workflow-tool-results-", dir=product.runner_temp_root()
+    ) as results_root:
+        environment = dict(os.environ, CONNECTOR_TEST_OUTPUT_ROOT=results_root)
+        result = subprocess.run(['make', f'PYTHON={sys.executable}', 'ON_DEMAND_TESTS=0', 'check-ci-security-contract'], cwd=proposed_root, env=environment, check=False, capture_output=True, text=True)
+        if result.returncode != 0:
+            output = f'{result.stdout}{result.stderr}'.strip()
+            raise product.UpdateError(f'proposed workflow-tool candidate fails Connector CI security contract: {output}')
 
 def run_proposed_workflow_lint(proposed_root: Path, arguments: list[str], *, expected_returncode: int=0) -> None:
     """Require a bounded lint result; tool failures never satisfy negative fixtures."""

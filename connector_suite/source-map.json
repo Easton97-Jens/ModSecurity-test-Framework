@@ -1,5 +1,7 @@
 {
   "connector_paths": {
+    "connector/ci/runtime/broker/nginx_exact_head_result_collector.py": "ci/runtime/broker/nginx_exact_head_result_collector.py",
+    "connector/ci/runtime/broker/nginx_exact_head_root_launcher.py": "ci/runtime/broker/nginx_exact_head_root_launcher.py",
     "connectors/envoy/harness/serve_envoy_connector.sh": "connectors/envoy/scripts/serve_envoy_connector.sh",
     "connectors/envoy/harness/serve_envoy_ext_proc.sh": "connectors/envoy/scripts/serve_envoy_ext_proc.sh"
   },

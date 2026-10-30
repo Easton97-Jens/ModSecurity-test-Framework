@@ -6,7 +6,7 @@ to its equivalent local-path syntax in memory; security audits read originals.
 """
 
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, source_path
 
 import argparse
 import os
@@ -105,7 +105,8 @@ def workflow_paths() -> list[Path]:
     paths = sorted(path for path in directory.rglob("*") if path.suffix in {".yml", ".yaml"})
     if not paths:
         raise ValueError("no repository workflows found")
-    paths.extend(source_path('ci/fixtures/workflow-permission-contract', root=ROOT) / name for name in ("safe.yml", "unsafe.yml"))
+    paths.extend(source_path(f"ci/fixtures/workflow-permission-contract/{name}", root=ROOT)
+                 for name in ("safe.yml", "unsafe.yml"))
     return [checked_path(path) for path in paths]
 
 

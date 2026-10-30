@@ -40,23 +40,23 @@ Größen. Eine Wiederholung ist ein weiterer Versuch, kein zusätzlicher
 eindeutiger Fall. Der Umzug aktiviert keine archivierte Kampagne.
 
 Das finale kanonische Inventar enthält
-**100 Standardfälle / 80 Ausführungen**, **2265 On-demand-Fälle / 1034
-Ausführungen**, **486 feste Framework-Testquellbindungen** und **232
-Produktquellsnapshots**. Sein kompaktes JSON umfasst **2091536 Bytes** und liegt
+**100 Standardfälle / 80 Ausführungen**, **2280 On-demand-Fälle / 1038
+Ausführungen**, **488 feste Framework-Testquellbindungen** und **234
+Produktquellsnapshots**. Sein kompaktes JSON umfasst **2073459 Bytes** und liegt
 unter der unveränderten Zulassungsgrenze von **2 MiB**. Dies sind Auswahl-/
 Quellmengen, keine Zahlen ausgeführter oder bestandener Fälle. Die Erweiterung
-fügt 47 explizite On-demand-Methoden hinzu: 28 Clean-Pair-Methoden, 14 MRTS-Paket-
-Methoden, 3 Klassifikationsguards und 2 Prepared-/Backend-Helfermethoden; die ursprüngliche Baseline mit 1993 Fällen
+fügt 51 explizite On-demand-Methoden hinzu: 28 Clean-Pair-Methoden, 14 MRTS-Paket-
+Methoden, 3 Klassifikationsguards, 2 Prepared-/Backend-Helfermethoden und 4 Kontextmethoden; die ursprüngliche Baseline mit 1993 Fällen
 bleibt unverändert. Eine geschlossene geprüfte Menge von 153 neuen Zeilen mit
 Prozessausführung nutzt in 12 Modulen die Gruppe `migration-integration` mit
-aus dem Target abgeleiteten ID-Hashes; 42 reine Kontrollen behalten die Offline-
+aus dem Target abgeleiteten ID-Hashes; 46 reine Kontrollen behalten die Offline-
 Audit-Gruppe. Die Gruppenzuordnungen der ursprünglichen 1993 Fälle und die ASTs
-der Guardfunktionen bleiben unverändert; die ursprünglichen 40 reinen Kontrollen und beide neuen reinen Helfermethoden bestanden.
+der Guardfunktionen bleiben unverändert; die ursprünglichen 40 reinen Kontrollen, beide reinen Helfermethoden und vier geschützte Kontextmethoden bestanden.
 
 Die 120 neuen fokussierten Methoden bestanden ohne Skips, einschließlich der
 Ergebnisintegritäts-Teilmenge mit 56 Methoden / 131 expandierten Varianten und
 der geschlossenen Pfadregel-Teilmenge mit 9 Methoden / 32 expandierten Varianten.
-Getrennt davon bestanden 136 fokussierte Portabilitätsmethoden, 330 native
+Getrennt davon bestanden 136 fokussierte Portabilitätsmethoden, 339 native
 Framework-CI-Methoden, 30 öffentliche API-Methoden und 3 Makefile-Methoden.
 Das vollständige native Framework-Dokumentations-Target bestand.
 
@@ -69,6 +69,14 @@ Fälle. Die vier Scannerfixtures und der pinabhängige Sonar-Check bestanden bei
 gezielten Wiederholungen; die 13 Host-/Profilvoraussetzungen bleiben blockiert.
 Diese Beobachtungen umfassen mehrere Quellrevisionen und bilden keinen
 vollständigen Standardlauf auf einem künftigen finalen Paar.
+
+Die authentifizierte Parent-Bridge stellt die eigenständige CLI `connector-context`
+über `ci/run-trusted-framework.py --tool connector-context` bereit. Sie ersetzt
+22 lokale Context-Action-Aufrufe in 9 Workflows und erhält Authentifizierungs-
+und Privilegienguards. Vier neu registrierte geschützte reine Methoden decken
+15 expandierte Fälle ab; die Quellclosure folgt tatsächlichen Imports und
+öffentlichen Einstiegen. Dies ergänzt weder Standardfälle noch einen globalen
+Produkt-Importpfad.
 
 Schema 4 trennt feste Framework-Testquellprüfsummen von
 `connector_source_paths`. Produkteingaben werden aus der explizit ausgewählten
@@ -104,10 +112,12 @@ Dateizuständigkeit zu: `migration.test-ownership`,
 Das MRTS-Paket gehört zu einem separaten Framework-Followup-Worktree/PR;
 `tools/MRTS` bleibt gepinnt und schreibgeschützt. Guards für verschachtelte
 Definitionen und Validierungsquellen, Regressionserhalt und Framework-Integration
-werden getrennt vom Werkzeugrepository nachverfolgt. Generierte Archiv- und Map-Ausgaben
-wurden in dieser Reihenfolge regeneriert; beide finalen Generatorläufe mit
+werden getrennt vom Werkzeugrepository nachverfolgt. Archiv- und Map-Ausgaben
+wurden zum dokumentierten Quellenfreeze in dieser Reihenfolge regeneriert; beide Generatorläufe mit
 `--check` bestanden und erhielten alle 1993 ursprünglichen Fall-IDs. Auch der
-finale Bindungs-`--check` und die öffentliche CLI-Inventarzulassung bestanden. Die obigen
+Bindungs-`--check` und die öffentliche CLI-Inventarzulassung bestanden bei diesem
+Freeze. Die jüngste Quellclosure-Registrierung der vier Kontextmethoden ist ein
+getrennter Quellbeleg. Die obigen
 kanonischen Inventarzahlen beschreiben Auswahl, keine erfolgreiche Ausführung.
 
 
@@ -121,13 +131,29 @@ Die separat veröffentlichte MRTS-Paketkorrektur `197df49` bestand 99 Methoden i
 73.152 Sekunden; unabhängige Definitionsdurchläufe und Prüfungen der
 Dateideskriptorparität bestanden. Dies ändert Framework-Paketierung und Guards;
 `tools/MRTS` bleibt gepinnt und schreibgeschützt. Der neueste native Framework-CI-
-Lauf bestand 330 Methoden in 161.603 Sekunden. Tatsächliche begrenzte Läufe
+Lauf bestand 339 Methoden in 162.706 Sekunden. Tatsächliche begrenzte Läufe
 bestanden außerdem 54 Common-Kontrollen, 29 portable Kontrollen, 23 CRS-Kontrollen
 und 13 Launcher-Kontrollen. Dies sind getrennte Suiten; ihre Anzahlen erhöhen
 nicht die eindeutigen Inventarfallzahlen.
 
+Für alle nativen Framework-Lint-Rezeptschritte liegen bestandene Beobachtungen
+aus dem erhaltenen Gesamtlauf und fokussierten Reparaturen/Fortsetzungen vor.
+Der ursprüngliche einzelne Gesamtlauf bleibt mit Exit 2 dokumentiert; dies ist
+kein einzelner vollständig grüner Lint-Lauf. Getrennt davon bestanden 66
+Sicherheitsmethoden / 238 Teilfälle ohne Skips. Korrekturen an Runtime-Root-
+Ownership, fehlenden Run-IDs und Namespaces haben einen begrenzten PASS mit 34
+HAProxy-/Lighttpd-Kontrollen. Die frische Envoy-Suite bestand alle 28 ursprünglichen Methoden in 9.446 Sekunden;
+alle Methoden-IDs und Assertion-Anzahlen bleiben erhalten. Nach der minimalen
+Produkt-Rezept-Fallback-Korrektur bestanden vier tatsächliche `make -n`-Kontrollen:
+Standard, `MS`-Fallback, explizite `RULES`-Priorität und widersprüchliche
+`RULES`/`MS` beim Companion. Das Productstatus-
+Change-Record-Paar besteht nun die tatsächliche strukturelle Parent-Prüfung des
+ganzen Archivs; diese belegt keine Runtime- oder CI-Aussagen.
+
 Die minimale NGINX-Configure-Probe bestand mit vorhandenen checksum-verifizierten
-Archiven; 11 bestehende Kontexttests und vier negative CLI-Kontrollen bestanden
+Archiven; die SDK-Korrektur nutzt das tatsächliche `BUILD_ROOT`-SDK mit expliziten
+Include-/Library-Pfaden. Die C-Family-Quellbytes bleiben identisch; dafür wird
+keine erneute Erfassung der 81 Einheiten behauptet. 11 bestehende Kontexttests und vier negative CLI-Kontrollen bestanden
 ebenfalls. Configure-Erfolg belegt diese Build-/Konfigurationsschicht, keinen
 Laufzeit-Lifecycle. Die tatsächliche C-Family-Erfassung wurde nach der Zerlegung zweimal abgeschlossen:
 81 Übersetzungseinheiten erzeugten 81 eindeutige Objekte; beide Läufe bestanden
@@ -154,9 +180,11 @@ Methode sind 71 PASS: Das Worker-Modul hatte zunächst sechs Sandbox-UID-Mapping
 Skips und bestand anschließend außerhalb der Linux-Sandbox alle 21 Methoden
 in 20.519 Sekunden mit unveränderten Guards, einschließlich der sechs tatsächlichen
 Root/nobody-Deskriptorfälle. Diese Beobachtungen sind kein gemeinsamer Final-Head-
-Suitenlauf und führen keine Fall-IDs ein. Das Cloud-Gate des aktuellen Migrations-Heads und die finale Abnahme des
-committeten Paars stehen noch aus; die ausgewählte Entwicklungs-H1-Prüfkette
-ist unten beschrieben.
+Suitenlauf und führen keine Fall-IDs ein. Das genannte committete Paar bestand
+separat; nach den nächsten Pins bleiben erneute Paarabnahme und gehostete Gates
+für Framework-PR #142 / Connector-PR #434 erforderlich. Gehostete Checks der
+veröffentlichten Heads `5a827f3` / `c1024043` sind bis zum finalen Push weiterhin
+fehlgeschlagen; keiner der Migrations-PRs ist gemergt.
 
 Gitleaks-Baseline-Beobachtungen und geprüfte Fehlalarmklassifikation sind
 getrennt. Die aktuelle Konfiguration enthält zwei `generic-api-key`-Allowlists,
@@ -168,9 +196,9 @@ Allowlists enthält. Die tatsächliche Remote-CI-Prüfung dieser Konfiguration s
 noch aus; Zugangsdaten oder Kundennutzdaten sind in versionierten Belegen unzulässig.
 
 Der Entwicklungsversuch mit Connector `8c7e8c44` und Framework-Komposition `1aef2`
-wurde wegen einer veralteten MRTS-Paketquellbindung korrekt abgelehnt. Er ist kein
-erfolgreicher Paarlauf. Die finale Quellbindungsaktualisierung bestand; eine tatsächliche
-Wiederholung des neuen Entwicklungspaars steht noch aus. Das frühere eingetragene
+wurde wegen einer veralteten MRTS-Paketquellbindung korrekt abgelehnt. Er bleibt ein
+abgelehnter Versuch. Die finale Quellbindungsaktualisierung sowie spätere Proben
+des committeten und des expliziten Entwicklungspaars bestanden separat. Das frühere eingetragene
 Paar `cfd5e49` / `e52d7d4` und seine drei beobachteten Apache-Kontrollen behalten
 nur ihren ausdrücklich dokumentierten Geltungsbereich.
 
@@ -228,11 +256,28 @@ Die 13 blockierten Standardausführungen mit ihren 26 Fällen bleiben im getrenn
 Standardledger unverändert.
 
 Das MRTS-Followup [Framework-PR #141](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/141)
-hat serververifiziert saubere Sonar-Ergebnisse für den exakten Head `197df49`:
-Alle fünf Gate-Bedingungen bestanden, bei null OPEN/CONFIRMED-Issues und null
-TO_REVIEW-Hotspots. Andere Actions-Checks benötigen weiterhin eine frische
-Abfrage. Dieses Ergebnis belegt weder das Current-Head-Gate des Migrations-PRs
-noch allein die verbleibende Abnahme des committeten Paars.
+wurde unter der bedingten Nutzerfreigabe gemergt: Der exakte Head `197df49` wurde
+als `f5a0940c56edbb94d55d309636ce3d6f501e31a2` gesquasht. Alle 16 Actions-Checks
+waren terminal (13 erfolgreich, 3 beabsichtigte beratende Skips); Sonar bestand
+für diesen Head alle fünf Bedingungen bei null OPEN/CONFIRMED-Issues und null
+TO_REVIEW-Hotspots. Der gemergte Master hat 9 terminale Checks: 8 erfolgreich
+und einen bestehenden eventabhängigen Skip. Der veröffentlichte reguläre Framework-Master-Merge
+`5a827f3db670588febebd29fa6115142da198c6f` erhielt den geprüften Tree `8037cff4`.
+Dies belegt weder das Current-Head-Gate des Migrations-PRs noch die Abnahme nach
+späteren Pinänderungen.
+
+Die neuesten fokussierten Prüfungen bestanden außerdem 18 Sonar-Vertragsmethoden
+in 4.966 Sekunden und 39 pinabhängige Methoden / 56 expandierte Varianten.
+Formatierung zweier bestehender CI-Testdateien erhielt deren ASTs; alle 38 Ruff-
+Dateien bestanden. Lokales Pyright bleibt wegen fehlendem Node blockiert, ohne
+Installation; sein gehostetes Typ-Gate bleibt erforderlich. Der Cleanup privater Kandidatenausgaben wurde mit einem exakten privaten
+externen temporären Root und `CONNECTOR_TEST_OUTPUT_ROOT` im Kindprozess
+korrigiert; bestehende Assertions und öffentliche Evidence bleiben erhalten.
+Der Postpatch-Lauf bestand 50 Methoden / 160 Teilfälle bei einem veralteten
+Quellbindungsfehler; nach Bindungsaktualisierung bestand die verbleibende
+Integrationsmethode in 31.859 Sekunden ohne Skips. Damit liegen bestandene
+Beobachtungen aller 51 Methoden / 160 Teilfälle über diese Läufe vor, kein
+einzelner vollständig grüner Lauf.
 
 ## Aufruf
 
@@ -324,14 +369,21 @@ prüft erforderliche Einstiege und Schnittstellen, ruft das tatsächliche
 Parent-Make-Target `test-framework-integration-probe` auf und validiert das exakte
 zugelassene Ergebnis des Common-Headertests. Die Prüfung verlangt vorhandenes Git,
 Make, kompatibles Python und `cc` sowie vorhandenen privaten externen
-Ausgabespeicher. Uncommittete Quelländerungen werden nicht in das Paar kopiert. Das tatsächliche frisch
-geklonte eingetragene Paar Connector `cfd5e49cada3fc793ef50993147e3796a0907443` /
-Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9` bestand diesen Probeaufruf
-und seinen Common-Fall. Drei Apache-H1-Kontrollen bestanden auf demselben Paar
-in 28.625 Sekunden. Die Wiederholung mit dem nächsten Framework-Commit und
-Connector-Pin steht noch aus; der Beleg gilt nur für das genannte Paar. Nachweise
-bleiben in privatem externem Ausgabespeicher; versionierte Belege dürfen keine
-Kundennutzdaten oder Zugangsdaten enthalten.
+Ausgabespeicher. Uncommittete Quelländerungen werden nicht in das Paar kopiert.
+Das committete saubere Paar Connector `c102404321d1744234e4797e6dd92a7f34a84a77` /
+Framework `5a827f3db670588febebd29fa6115142da198c6f` bestand im Recorded-Pin-Modus
+mit `standard_combination=true`, beiden Checkouts sauber vor/nach dem Lauf und
+einem bestandenen tatsächlichen Parent-Make → Common-C1-Test.
+
+Ein getrennter expliziter DEV-Lauf bestand mit demselben Connector und ausgewähltem
+Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, eingetragenem Gitlink
+`5a827f3`, `mode=development` und `standard_combination=false`. Vor/nach dem Lauf
+wich nur der erwartete Connector-Gitlink ab; Framework blieb sauber. Der frühere
+veraltete DEV-Versuch bleibt abgelehnt. Frühere Apache-H1-Kontrollen auf
+`cfd5e49` / `e52d7d4` behalten ihren begrenzten 28.625-Sekunden-Beleg. Nach den
+nächsten Pins bleiben erneute Abnahme und aktuelle gehostete Gates für Framework
+#142 / Connector #434 erforderlich. Nachweise bleiben in privatem externem
+Ausgabespeicher; versionierte Belege dürfen keine Kundennutzdaten oder Zugangsdaten enthalten.
 
 ```sh
 PYTHONSAFEPATH=1 PYTHONPATH="$FRAMEWORK_ROOT:$FRAMEWORK_ROOT/connector_suite" \
@@ -360,7 +412,7 @@ Common-Fall. Gehostetes H1 und installierte Gates verlangen eigene Nachweise.
 Framework-Änderungen werden zuerst geliefert und ihr exakter Commit remote
 bereitgestellt. Der abhängige Connector-PR aktualisiert Gitlink und vollständige
 CI-SHA-Referenzen auf diesen Commit. Der Framework-PR muss vor dem Connector-PR
-integriert werden; keines der Repositories wird automatisch gemergt. HTTP/2,
+integriert werden; Merge bleibt an die bedingte Nutzerfreigabe und alle Pflicht-Gates gebunden. HTTP/2,
 HTTP/3, Coverage und vollständige Abhängigkeitsprüfung bleiben bis
 auf erforderliche Pfad- und Aufruferanpassungen außerhalb dieser Migration.
 

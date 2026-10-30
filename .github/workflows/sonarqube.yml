@@ -84,14 +84,18 @@ jobs:
         run: |
           set -euo pipefail
           sh ci/checks/analysis/prepare-sonar-sdk.sh
-          python3 ci/checks/analysis/prepare-sonar-nginx.py \
+          sdk="$BUILD_ROOT/ModSecurity_V3_build"
+          test -f "$sdk/headers/modsecurity/modsecurity.h"
+          test -f "$sdk/src/.libs/libmodsecurity.so"
+          MODSECURITY_INC="$sdk/headers" MODSECURITY_LIB="$sdk/src/.libs" \
+            python3 ci/checks/analysis/prepare-sonar-nginx.py \
             --connector-root "$CONNECTOR_ROOT" --connector-revision "$CONNECTOR_REVISION" \
             --output "$RUNNER_TEMP/framework-sonar-nginx"
           nginx_source="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source"])' \
             "$RUNNER_TEMP/framework-sonar-nginx/manifest.json")"
           python3 ci/checks/analysis/prepare-sonar-cfamily.py \
             --output "$RUNNER_TEMP/framework-sonar-native" \
-            --sdk "$RUNNER_TEMP/framework-sonar-sdk/build/ModSecurity_V3_build" \
+            --sdk "$sdk" \
             --connector-root "$CONNECTOR_ROOT" --connector-revision "$CONNECTOR_REVISION" \
             --apache-include /usr/include/apache2 --apr-include /usr/include/apr-1.0 \
             --nginx-source "$nginx_source" --nginx-build "$nginx_source/objs"

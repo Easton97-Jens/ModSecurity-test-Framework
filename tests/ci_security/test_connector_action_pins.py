@@ -27,7 +27,9 @@ class ConnectorActionPinsTests(unittest.TestCase):
         return root
 
     def canonical_findings(self, root):
-        return CANONICAL["active_consumer_pin_literals"](ROOT / "ci/lib/common.sh", root)
+        return CANONICAL["active_consumer_pin_literals"](
+            ROOT / "ci/lib/common.sh", root
+        )
 
     def test_all_reviewed_sources_validate_without_connector_checkout(self):
         lock = PINS["load_lock"](ROOT)
@@ -48,8 +50,12 @@ class ConnectorActionPinsTests(unittest.TestCase):
             )
         )
         self.assertTrue(PINS["validate_source"](root, SOURCE))
-        self.assertTrue(any(SOURCE in error and "reviewed migration contract" in error
-                            for error in self.canonical_findings(root)))
+        self.assertTrue(
+            any(
+                SOURCE in error and "reviewed migration contract" in error
+                for error in self.canonical_findings(root)
+            )
+        )
 
     def test_coordinated_workflow_and_lock_rewrite_cannot_reauthorize_itself(self):
         root = self.fixture()
@@ -72,8 +78,12 @@ class ConnectorActionPinsTests(unittest.TestCase):
                 for error in PINS["validate_source"](root, SOURCE)
             )
         )
-        self.assertTrue(any("immutable migration snapshot" in error
-                            for error in self.canonical_findings(root)))
+        self.assertTrue(
+            any(
+                "immutable migration snapshot" in error
+                for error in self.canonical_findings(root)
+            )
+        )
 
     def test_protected_runner_and_permission_changes_are_rejected(self):
         root = self.fixture()
@@ -82,8 +92,12 @@ class ConnectorActionPinsTests(unittest.TestCase):
             path.read_text().replace("protected-exact-head-nginx", "ubuntu-26.04")
         )
         self.assertTrue(PINS["validate_source"](root, SOURCE))
-        self.assertTrue(any(SOURCE in error and "reviewed migration contract" in error
-                            for error in self.canonical_findings(root)))
+        self.assertTrue(
+            any(
+                SOURCE in error and "reviewed migration contract" in error
+                for error in self.canonical_findings(root)
+            )
+        )
 
     def test_unknown_source_path_cannot_borrow_the_integration_authority(self):
         root = self.fixture()
@@ -95,5 +109,9 @@ class ConnectorActionPinsTests(unittest.TestCase):
                 for error in PINS["validate_source"](root, unknown)
             )
         )
-        self.assertTrue(any(unknown in error and "CI_ACTION_CHECKOUT_REPOSITORY" in error
-                            for error in self.canonical_findings(root)))
+        self.assertTrue(
+            any(
+                unknown in error and "CI_ACTION_CHECKOUT_REPOSITORY" in error
+                for error in self.canonical_findings(root)
+            )
+        )

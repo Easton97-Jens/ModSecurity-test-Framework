@@ -38,8 +38,13 @@ runs:
         provenance_root=$(sudo mktemp -d /var/tmp/codex/ModSecurity-conector/ci-provenance.XXXXXX)
         trap 'sudo rm -rf -- "$provenance_root"' EXIT
         sudo chmod 0755 "$provenance_root"
-        sudo env RUNNER_TEMP="$provenance_root" PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
-          "$PYTHON_EXECUTABLE" modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group traefik-peer --strict-skips
+        sudo env RUNNER_TEMP="$provenance_root" \
+          CONNECTOR_ROOT="$CONNECTOR_ROOT" CONNECTOR_REVISION="$CONNECTOR_REVISION" \
+          TEST_ROOT="$TEST_ROOT" FRAMEWORK_ROOT="$FRAMEWORK_ROOT" FRAMEWORK_REVISION="$FRAMEWORK_REVISION" \
+          CONNECTOR_TEST_PROFILE="$CONNECTOR_TEST_PROFILE" CONNECTOR_TEST_OUTPUT_ROOT="$provenance_root" \
+          PYTHONPATH="$TEST_ROOT:$TEST_ROOT/connector_suite" PYTHONSAFEPATH=1 \
+          PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
+          "$PYTHON_EXECUTABLE" -P "$TEST_ROOT/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py" --group traefik-peer --strict-skips
     - name: Install Go required by the Traefik observer
       uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
       with:

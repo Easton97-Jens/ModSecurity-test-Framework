@@ -13,38 +13,9 @@ runs:
         EXPECTED_FRAMEWORK_REVISION: ${{ inputs.framework-revision }}
       run: |
         set -euo pipefail
-        printf '%s\n' "$EXPECTED_FRAMEWORK_REVISION" | grep -Eq '^[a-f0-9]{40}$'
         connector_root="${GITHUB_WORKSPACE:?}"
-        test "$(git -C "$connector_root" rev-parse --show-toplevel)" = "$connector_root"
         connector_revision=$(git -C "$connector_root" rev-parse HEAD)
-        framework_root="$connector_root/modules/ModSecurity-test-Framework"
-        gitlink=$(git -C "$connector_root" rev-parse "$connector_revision:modules/ModSecurity-test-Framework")
-        test "$gitlink" = "$EXPECTED_FRAMEWORK_REVISION"
-        test "$(git -C "$framework_root" rev-parse HEAD)" = "$gitlink"
-        test -f "$framework_root/modsecurity_test_framework/connector.py"
-        case "${RUNNER_TEMP:?}" in /*) ;; *) echo 'RUNNER_TEMP must be absolute' >&2; exit 1 ;; esac
-        test -d "$RUNNER_TEMP"
-        test ! -L "$RUNNER_TEMP"
-        output_root="$RUNNER_TEMP/ModSecurity-conector-tests"
-        umask 077
-        if test ! -e "$output_root"; then
-          mkdir -m 700 -- "$output_root"
-        fi
-        test -d "$output_root"
-        test ! -L "$output_root"
-        test "$(stat -c '%u' -- "$output_root")" = "$(id -u)"
-        output_mode=$(stat -c '%a' -- "$output_root")
-        test "$((8#$output_mode & 0022))" -eq 0
-        {
-          echo "CONNECTOR_ROOT=$connector_root"
-          echo "CONNECTOR_REVISION=$connector_revision"
-          echo "TEST_ROOT=$framework_root"
-          echo "FRAMEWORK_ROOT=$framework_root"
-          echo "FRAMEWORK_REVISION=$gitlink"
-          echo "CONNECTOR_TEST_PROFILE=h1"
-          echo "CONNECTOR_TEST_OUTPUT_ROOT=$output_root"
-          echo "PYTHONPATH=$framework_root:$framework_root/connector_suite"
-          echo 'PYTHONSAFEPATH=1'
-          echo 'PYTHONDONTWRITEBYTECODE=1'
-          echo 'PYTHONNOUSERSITE=1'
-        } >> "$GITHUB_ENV"
+        python3 -I "$GITHUB_ACTION_PATH/../../../connector_suite/modsecurity_connector_ci/tools/connector-context.py" \
+          --connector-root "$connector_root" \
+          --connector-revision "$connector_revision" \
+          --framework-revision "$EXPECTED_FRAMEWORK_REVISION"

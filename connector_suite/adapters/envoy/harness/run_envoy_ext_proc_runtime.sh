@@ -702,7 +702,7 @@ upstream_start_token=$(owned_process_start_token "$upstream_pid") || {
 EXT_PROC_BIN="$EXT_PROC_BIN" EXT_PROC_CONFIG="$EXT_PROC_CONFIG" \
     EXT_PROC_RUNTIME_CONFIG="$EXT_PROC_RUNTIME_CONFIG" \
     EVENT_LOG_PATH="$COMPLETION_LOG_PATH" LISTEN_ADDRESS=127.0.0.1 \
-    LISTEN_PORT="$ext_proc_port" sh "$SCRIPT_DIR/serve_envoy_ext_proc.sh" \
+    LISTEN_PORT="$ext_proc_port" sh "$CONNECTOR_DIR/scripts/serve_envoy_ext_proc.sh" \
     >"$SERVICE_STDOUT" 2>"$SERVICE_STDERR" &
 service_pid=$!
 service_start_token=$(owned_process_start_token "$service_pid") || {

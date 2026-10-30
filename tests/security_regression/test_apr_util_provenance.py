@@ -98,6 +98,8 @@ class AprUtilProvenanceTests(unittest.TestCase):
         )
         (self.fixture_root / "Makefile").write_text("# test fixture\n", encoding="utf-8")
         (self.fixture_root / "tests").mkdir(exist_ok=True)
+        (self.fixture_root / "modsecurity_test_framework").mkdir(exist_ok=True)
+        (self.fixture_root / "modsecurity_test_framework/__init__.py").touch()
         return fixture_prepare
 
     def run_preparer_with_fake_network(
@@ -200,7 +202,8 @@ class AprUtilProvenanceTests(unittest.TestCase):
             {
                 "COMMON_SH": str(self.common),
                 "PREPARE_APACHE": str(fixture_prepare),
-                "FRAMEWORK_ROOT": str(ROOT),
+                "TEST_ROOT": str(self.fixture_root),
+                "FRAMEWORK_ROOT": str(self.fixture_root),
                 "CONNECTOR_ROOT": str(ROOT),
             },
         )
@@ -397,6 +400,7 @@ class AprUtilProvenanceTests(unittest.TestCase):
         completed, network_command_invoked = self.run_preparer_with_fake_network(
             ["sh", str(fixture_prepare)],
             {
+                "TEST_ROOT": str(self.fixture_root),
                 "FRAMEWORK_ROOT": str(self.fixture_root),
                 "CONNECTOR_ROOT": str(ROOT),
             },

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import fcntl
 import zlib
 import contextlib
 import io
@@ -476,6 +475,98 @@ class TrustedFrameworkBridgeTests(unittest.TestCase):
                     LAUNCHER.admit_trusted_cells_source(sealed)
         finally:
             os.close(sealed)
+
+    def context_cli(self):
+        path = test_root() / BRIDGE.TOOLS["connector-context"]
+        return argparse.Namespace(**runpy.run_path(str(path), run_name="_context_contract"))
+
+    def test_connector_context_exports_exact_roots_and_private_environment(self):
+        cli = self.context_cli()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "parent"
+            framework = root / BRIDGE.GITLINK
+            (framework / "modsecurity_test_framework").mkdir(parents=True)
+            (framework / "modsecurity_test_framework/connector.py").write_text("pass\n")
+            def git(repository, *arguments):
+                if arguments == ("rev-parse", "--show-toplevel", "HEAD"):
+                    revision = REVISION if repository == root else FRAMEWORK_REVISION
+                    return f"{repository}\n{revision}"
+                return FRAMEWORK_REVISION
+            with mock.patch.dict(cli.context.__globals__, git=git), mock.patch.dict(os.environ, RUNNER_TEMP=temporary):
+                actual = cli.context(root, REVISION, FRAMEWORK_REVISION)
+            self.assertEqual(actual, {
+                "CONNECTOR_ROOT": str(root), "CONNECTOR_REVISION": REVISION,
+                "TEST_ROOT": str(framework), "FRAMEWORK_ROOT": str(framework),
+                "FRAMEWORK_REVISION": FRAMEWORK_REVISION, "CONNECTOR_TEST_PROFILE": "h1",
+                "CONNECTOR_TEST_OUTPUT_ROOT": str(Path(temporary) / "ModSecurity-conector-tests"),
+                "PYTHONPATH": f"{framework}:{framework}/connector_suite",
+                "PYTHONSAFEPATH": "1", "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1",
+            })
+            self.assertEqual((Path(temporary) / "ModSecurity-conector-tests").stat().st_mode & 0o777, 0o700)
+
+    def test_connector_context_rejects_malformed_revisions_and_checkout_mismatches(self):
+        cli = self.context_cli()
+        root = Path("/fixture/parent")
+        for case in ("malformed-parent", "malformed-framework", "parent-head", "gitlink", "framework-head"):
+            with self.subTest(case=case):
+                def git(repository, *arguments):
+                    if arguments == ("rev-parse", "--show-toplevel", "HEAD"):
+                        revision = REVISION if repository == root else FRAMEWORK_REVISION
+                        if case == ("parent-head" if repository == root else "framework-head"):
+                            revision = "c" * 40
+                        return f"{repository}\n{revision}"
+                    return "c" * 40 if case == "gitlink" else FRAMEWORK_REVISION
+                with mock.patch.dict(cli.context.__globals__, git=git), self.assertRaises(ValueError):
+                    cli.context(root, "master" if case == "malformed-parent" else REVISION,
+                                "bad" if case == "malformed-framework" else FRAMEWORK_REVISION)
+
+    def test_connector_context_rejects_unsafe_output_paths(self):
+        cli = self.context_cli()
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            for case in ("relative", "traversal", "newline", "symlink-parent", "symlink-output", "writable-output"):
+                with self.subTest(case=case):
+                    leaf = base / case
+                    leaf.mkdir()
+                    argument = str(leaf)
+                    if case == "relative":
+                        argument = "relative"
+                    elif case == "traversal":
+                        argument += "/../other"
+                    elif case == "newline":
+                        argument += "\nOTHER=value"
+                    elif case == "symlink-parent":
+                        alias = base / "alias"
+                        alias.symlink_to(leaf, target_is_directory=True)
+                        argument = str(alias)
+                    elif case == "symlink-output":
+                        (leaf / "ModSecurity-conector-tests").symlink_to(base, target_is_directory=True)
+                    else:
+                        output = leaf / "ModSecurity-conector-tests"
+                        output.mkdir()
+                        output.chmod(0o777)
+                    with self.assertRaises((ValueError, OSError)):
+                        cli.private_output(argument)
+
+    def test_connector_context_source_is_authenticated_before_execution(self):
+        relative = BRIDGE.TOOLS["connector-context"]
+        for case in ("modified", "symlink", "candidate-head"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temporary:
+                root, framework, source, git, _calls = self.fixture(temporary, relative)
+                if case == "modified":
+                    source.write_text("raise RuntimeError('candidate context')\n")
+                elif case == "symlink":
+                    safe = source.with_suffix(".safe")
+                    source.rename(safe)
+                    source.symlink_to(safe)
+                original_git = git
+                def acquire(repository, *arguments, forwarded):
+                    if case == "candidate-head" and repository == framework and arguments[0] == "rev-parse":
+                        return f"{framework}\n{'c' * 40}\n".encode()
+                    return original_git(repository, *arguments, forwarded=forwarded)
+                with mock.patch.dict(BRIDGE.authenticated_source.__globals__, _git=acquire):
+                    with self.assertRaises((BRIDGE.TrustError, OSError)):
+                        BRIDGE.authenticated_source(root, REVISION, relative, [])
 
     def test_cells_source_fd_cannot_be_supplied_by_the_caller(self):
         for token in ("--trusted-cells-source-fd", "--trusted-cells-source-fd=10"):

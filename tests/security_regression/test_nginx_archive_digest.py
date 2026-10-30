@@ -225,6 +225,8 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         (framework_root / "ci/provisioning").mkdir(parents=True)
         (framework_root / "ci/tools").mkdir(parents=True)
         (framework_root / "tests").mkdir()
+        (framework_root / "modsecurity_test_framework").mkdir()
+        (framework_root / "modsecurity_test_framework/__init__.py").touch()
         (framework_root / "Makefile").write_text(
             "# test-only framework root\n", encoding="utf-8"
         )
@@ -301,6 +303,8 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         v3 = build_root / "v3"
         create_approved_modsecurity_v3_topology(v3)
         framework_script = self.make_test_framework_copy(root)
+        product_root = root / "product-fixture"
+        product_root.mkdir()
         nginx_adapter = root / "nginx-adapter"
         (nginx_adapter / "src").mkdir(parents=True)
         (nginx_adapter / "src/ddebug.h").write_text("fixture\n", encoding="utf-8")
@@ -443,6 +447,10 @@ class NginxArchiveDigestRegressionTests(unittest.TestCase):
         cache_manifest = cache_directory / "nginx-archive-cache.manifest"
         environment = {
             "PATH": f"{tools_dir}{os.pathsep}{os.environ['PATH']}",
+            "TEST_ROOT": str(framework_script.parents[2]),
+            "FRAMEWORK_ROOT": str(framework_script.parents[2]),
+            "CONNECTOR_ROOT": str(product_root),
+            "NGINX_DDEBUG_REPLACEMENT": str(nginx_adapter / "src/ddebug.h"),
             "AUTO_FETCH_SMOKE_SOURCES": "0",
             "BUILD_ROOT": str(build_root),
             "MODSECURITY_V3_SOURCE_DIR": str(v3),

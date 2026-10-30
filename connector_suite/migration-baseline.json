@@ -7,7 +7,7 @@
     "native_sources": 88,
     "python_go_source_sets": 632,
     "scope": "The linked archive enumerates all definitions and source identities, including plain native functions. Availability is not automatic selection or observed execution.",
-    "sha256": "7c8f3247a30a304f96ce9e61f646fd79f288eafc15b762a3d5502075ed6865ea"
+    "sha256": "89c45b10d6a2a5205615e2725b30db54c41c7429d4e45e45d629f3648602f869"
   },
   "caller_revision_projection": "Current Framework-owned action/workflow revision tokens alone are displayed as <connector-framework-gitlink> to avoid a cross-repository self-reference. Actual owner/path/line and selector text remain source-derived; historical Parent broker pins remain literal.",
   "caller_source_providers": [
@@ -426,19 +426,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-codeql.yml:166",
-      "line": 166,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/ci-security-codeql.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-codeql.yml:192",
-      "line": 192,
+      "id": "Connector:.github/workflows/ci-security-codeql.yml:214",
+      "line": 214,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/ci-security-codeql.yml",
@@ -448,19 +437,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-codeql.yml:214",
-      "line": 214,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/ci-security-codeql.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-codeql.yml:229",
-      "line": 229,
+      "id": "Connector:.github/workflows/ci-security-codeql.yml:262",
+      "line": 262,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/ci-security-codeql.yml",
@@ -470,8 +448,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-codeql.yml:235",
-      "line": 235,
+      "id": "Connector:.github/workflows/ci-security-codeql.yml:268",
+      "line": 268,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/ci-security-codeql.yml",
@@ -481,52 +459,19 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-codeql.yml:39",
-      "line": 39,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/ci-security-codeql.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-secrets.yml:36",
-      "line": 36,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/ci-security-secrets.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-secrets.yml:77",
-      "line": 77,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/ci-security-secrets.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:113",
-      "line": 113,
+      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+      "line": 115,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/ci-security-workflow-lint.yml",
       "selection_note": "source caller only; execution and automatic case admission are separate",
       "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
+      "source_line": "run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group supply-chain"
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:132",
-      "line": 132,
+      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:165",
+      "line": 165,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/ci-security-workflow-lint.yml",
@@ -536,19 +481,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:30",
-      "line": 30,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/ci-security-workflow-lint.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-      "line": 48,
+      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
+      "line": 59,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/ci-security-workflow-lint.yml",
@@ -558,36 +492,14 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:50",
-      "line": 50,
+      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:61",
+      "line": 61,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/ci-security-workflow-lint.yml",
       "selection_note": "source caller only; execution and automatic case admission are separate",
       "source_kind": "ci-workflow",
       "source_line": "run: python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group runtime-path-policy"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:70",
-      "line": 70,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/ci-security-workflow-lint.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
-      "line": 93,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/ci-security-workflow-lint.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group supply-chain"
     },
     {
       "admission_only": false,
@@ -1020,19 +932,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:229",
-      "line": 229,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-go-version.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:383",
-      "line": 383,
+      "id": "Connector:.github/workflows/update-go-version.yml:405",
+      "line": 405,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1042,8 +943,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:385",
-      "line": 385,
+      "id": "Connector:.github/workflows/update-go-version.yml:407",
+      "line": 407,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1053,8 +954,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:397",
-      "line": 397,
+      "id": "Connector:.github/workflows/update-go-version.yml:419",
+      "line": 419,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1064,8 +965,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:398",
-      "line": 398,
+      "id": "Connector:.github/workflows/update-go-version.yml:420",
+      "line": 420,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1075,8 +976,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:411",
-      "line": 411,
+      "id": "Connector:.github/workflows/update-go-version.yml:433",
+      "line": 433,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1086,8 +987,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:412",
-      "line": 412,
+      "id": "Connector:.github/workflows/update-go-version.yml:434",
+      "line": 434,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1097,8 +998,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:425",
-      "line": 425,
+      "id": "Connector:.github/workflows/update-go-version.yml:447",
+      "line": 447,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1108,8 +1009,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:426",
-      "line": 426,
+      "id": "Connector:.github/workflows/update-go-version.yml:448",
+      "line": 448,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1119,8 +1020,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:439",
-      "line": 439,
+      "id": "Connector:.github/workflows/update-go-version.yml:461",
+      "line": 461,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1130,19 +1031,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:44",
-      "line": 44,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-go-version.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:440",
-      "line": 440,
+      "id": "Connector:.github/workflows/update-go-version.yml:462",
+      "line": 462,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1152,19 +1042,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:489",
-      "line": 489,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-go-version.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-go-version.yml:69",
-      "line": 69,
+      "id": "Connector:.github/workflows/update-go-version.yml:80",
+      "line": 80,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-go-version.yml",
@@ -1174,19 +1053,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-python-version.yml:139",
-      "line": 139,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-python-version.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-python-version.yml:172",
-      "line": 172,
+      "id": "Connector:.github/workflows/update-python-version.yml:194",
+      "line": 194,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-python-version.yml",
@@ -1196,8 +1064,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-python-version.yml:173",
-      "line": 173,
+      "id": "Connector:.github/workflows/update-python-version.yml:195",
+      "line": 195,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-python-version.yml",
@@ -1207,19 +1075,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-python-version.yml:221",
-      "line": 221,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-python-version.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-python-version.yml:421",
-      "line": 421,
+      "id": "Connector:.github/workflows/update-python-version.yml:454",
+      "line": 454,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-python-version.yml",
@@ -1229,63 +1086,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-python-version.yml:50",
-      "line": 50,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-python-version.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-submodules.yml:183",
-      "line": 183,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-submodules.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-submodules.yml:514",
-      "line": 514,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-submodules.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-submodules.yml:82",
-      "line": 82,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-submodules.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-workflow-tools.yml:103",
-      "line": 103,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-workflow-tools.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-workflow-tools.yml:156",
-      "line": 156,
+      "id": "Connector:.github/workflows/update-workflow-tools.yml:178",
+      "line": 178,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-workflow-tools.yml",
@@ -1295,19 +1097,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-workflow-tools.yml:191",
-      "line": 191,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-workflow-tools.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/update-workflow-tools.yml:371",
-      "line": 371,
+      "id": "Connector:.github/workflows/update-workflow-tools.yml:404",
+      "line": 404,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-workflow-tools.yml",
@@ -1317,8 +1108,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-workflow-tools.yml:401",
-      "line": 401,
+      "id": "Connector:.github/workflows/update-workflow-tools.yml:434",
+      "line": 434,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/update-workflow-tools.yml",
@@ -1328,41 +1119,8 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/update-workflow-tools.yml:48",
-      "line": 48,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/update-workflow-tools.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/validate-go-candidate.yml:56",
-      "line": 56,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/validate-go-candidate.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/validate-go-candidate.yml:83",
-      "line": 83,
-      "make_target": null,
-      "owner": "Connector",
-      "path": ".github/workflows/validate-go-candidate.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-workflow",
-      "source_line": "python3 -P \"$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py\" --module \"$ACTIVE_GO_MODULE\""
-    },
-    {
-      "admission_only": false,
-      "id": "Connector:.github/workflows/validate-go-candidate.yml:93",
-      "line": 93,
+      "id": "Connector:.github/workflows/validate-go-candidate.yml:104",
+      "line": 104,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/validate-go-candidate.yml",
@@ -1372,19 +1130,19 @@
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/verified-report-governance.yml:32",
-      "line": 32,
+      "id": "Connector:.github/workflows/validate-go-candidate.yml:94",
+      "line": 94,
       "make_target": null,
       "owner": "Connector",
-      "path": ".github/workflows/verified-report-governance.yml",
+      "path": ".github/workflows/validate-go-candidate.yml",
       "selection_note": "source caller only; execution and automatic case admission are separate",
       "source_kind": "ci-workflow",
-      "source_line": "uses: ./modules/ModSecurity-test-Framework/.github/actions/connector-context"
+      "source_line": "python3 -P \"$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py\" --module \"$ACTIVE_GO_MODULE\""
     },
     {
       "admission_only": false,
-      "id": "Connector:.github/workflows/verified-report-governance.yml:65",
-      "line": 65,
+      "id": "Connector:.github/workflows/verified-report-governance.yml:76",
+      "line": 76,
       "make_target": null,
       "owner": "Connector",
       "path": ".github/workflows/verified-report-governance.yml",
@@ -1603,8 +1361,8 @@
     },
     {
       "admission_only": true,
-      "id": "Connector:connectors/envoy/Makefile:223",
-      "line": 223,
+      "id": "Connector:connectors/envoy/Makefile:222",
+      "line": 222,
       "make_target": "runtime-smoke-envoy",
       "owner": "Connector",
       "path": "connectors/envoy/Makefile",
@@ -3110,8 +2868,8 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml:294",
-      "line": 294,
+      "id": "Framework:.github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml:295",
+      "line": 295,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml",
@@ -3121,8 +2879,8 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml:302",
-      "line": 302,
+      "id": "Framework:.github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml:304",
+      "line": 304,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/actions/connector-ci/test-nginx-exact-head/nginx-exact-head/action.yml",
@@ -3187,36 +2945,36 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:42",
-      "line": 42,
+      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:44",
+      "line": 44,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
       "selection_note": "source caller only; execution and automatic case admission are separate",
       "source_kind": "ci-action",
-      "source_line": "\"$PYTHON_EXECUTABLE\" modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group traefik-peer --strict-skips"
+      "source_line": "CONNECTOR_TEST_PROFILE=\"$CONNECTOR_TEST_PROFILE\" CONNECTOR_TEST_OUTPUT_ROOT=\"$provenance_root\" \\"
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:54",
-      "line": 54,
+      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:47",
+      "line": 47,
+      "make_target": null,
+      "owner": "Framework",
+      "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
+      "selection_note": "source caller only; execution and automatic case admission are separate",
+      "source_kind": "ci-action",
+      "source_line": "\"$PYTHON_EXECUTABLE\" -P \"$TEST_ROOT/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py\" --group traefik-peer --strict-skips"
+    },
+    {
+      "admission_only": false,
+      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:59",
+      "line": 59,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
       "selection_note": "source caller only; execution and automatic case admission are separate",
       "source_kind": "ci-action",
       "source_line": "run: make check-i10-traefik-callers"
-    },
-    {
-      "admission_only": false,
-      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:60",
-      "line": 60,
-      "make_target": null,
-      "owner": "Framework",
-      "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-action",
-      "source_line": "python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --module connectors/traefik/response_observer"
     },
     {
       "admission_only": false,
@@ -3227,12 +2985,23 @@
       "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
       "selection_note": "source caller only; execution and automatic case admission are separate",
       "source_kind": "ci-action",
+      "source_line": "python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --module connectors/traefik/response_observer"
+    },
+    {
+      "admission_only": false,
+      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:70",
+      "line": 70,
+      "make_target": null,
+      "owner": "Framework",
+      "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
+      "selection_note": "source caller only; execution and automatic case admission are separate",
+      "source_kind": "ci-action",
       "source_line": "make check-traefik-common-adoption"
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:66",
-      "line": 66,
+      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:71",
+      "line": 71,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
@@ -3242,8 +3011,8 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:67",
-      "line": 67,
+      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:72",
+      "line": 72,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
@@ -3253,8 +3022,8 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:68",
-      "line": 68,
+      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:73",
+      "line": 73,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
@@ -3264,8 +3033,8 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:69",
-      "line": 69,
+      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:74",
+      "line": 74,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
@@ -3275,25 +3044,14 @@
     },
     {
       "admission_only": false,
-      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:75",
-      "line": 75,
+      "id": "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:80",
+      "line": 80,
       "make_target": null,
       "owner": "Framework",
       "path": ".github/actions/connector-ci/test-traefik/traefik-contract/action.yml",
       "selection_note": "source caller only; execution and automatic case admission are separate",
       "source_kind": "ci-action",
       "source_line": "run:  python3 -P modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/tools/run-active-tests.py --group traefik-python"
-    },
-    {
-      "admission_only": false,
-      "id": "Framework:.github/actions/connector-context/action.yml:44",
-      "line": 44,
-      "make_target": null,
-      "owner": "Framework",
-      "path": ".github/actions/connector-context/action.yml",
-      "selection_note": "source caller only; execution and automatic case admission are separate",
-      "source_kind": "ci-action",
-      "source_line": "echo \"CONNECTOR_TEST_PROFILE=h1\""
     },
     {
       "admission_only": false,
@@ -10178,7 +9936,7 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10197,7 +9955,7 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10283,7 +10041,7 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10302,7 +10060,7 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10388,7 +10146,7 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Connector:.github/workflows/protocol-contract.yml:45",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
@@ -10408,7 +10166,7 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Connector:.github/workflows/protocol-contract.yml:45",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
@@ -10496,7 +10254,7 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Connector:.github/workflows/protocol-contract.yml:45",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
@@ -10517,7 +10275,7 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Connector:.github/workflows/protocol-contract.yml:45",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
@@ -10606,7 +10364,7 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10625,7 +10383,7 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10707,7 +10465,7 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10726,7 +10484,7 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10808,7 +10566,7 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10827,7 +10585,7 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10909,7 +10667,7 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -10928,7 +10686,7 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -11010,7 +10768,7 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -11028,7 +10786,7 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -11105,7 +10863,7 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -11123,7 +10881,7 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:229",
+        "Connector:.github/workflows/ci-security-codeql.yml:262",
         "Connector:.github/workflows/lint.yml:81",
         "Framework:.github/actions/connector-ci/test-common/common-structure/action.yml:81",
         "Framework:connector_suite/connector.mk:1243",
@@ -11251,8 +11009,8 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/update-go-version.yml:397",
-        "Connector:.github/workflows/update-go-version.yml:398",
+        "Connector:.github/workflows/update-go-version.yml:419",
+        "Connector:.github/workflows/update-go-version.yml:420",
         "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
@@ -11262,8 +11020,8 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:715"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/update-go-version.yml:397",
-        "Connector:.github/workflows/update-go-version.yml:398",
+        "Connector:.github/workflows/update-go-version.yml:419",
+        "Connector:.github/workflows/update-go-version.yml:420",
         "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
@@ -11328,8 +11086,8 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/update-go-version.yml:397",
-        "Connector:.github/workflows/update-go-version.yml:398",
+        "Connector:.github/workflows/update-go-version.yml:419",
+        "Connector:.github/workflows/update-go-version.yml:420",
         "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
@@ -11339,8 +11097,8 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:715"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/update-go-version.yml:397",
-        "Connector:.github/workflows/update-go-version.yml:398",
+        "Connector:.github/workflows/update-go-version.yml:419",
+        "Connector:.github/workflows/update-go-version.yml:420",
         "Connector:connectors/envoy/Makefile:155",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:43",
         "Framework:.github/actions/connector-ci/test-envoy/envoy-contract/action.yml:59",
@@ -74555,6 +74313,681 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-exports-exact-roots-and-private-environment.afe74d8b",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-exports-exact-roots-and-private-environment.afe74d8b",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-exports-exact-roots-and-private-environment.afe74d8b",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context exports exact roots and private environment.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_exports_exact_roots_and_private_environment"
+      },
+      "test_id": "offline.migration.connector-context-exports-exact-roots-and-private-environment.afe74d8b"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects invalid revision identity: framework head.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_malformed_revisions_and_checkout_mismatches"
+      },
+      "test_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7.framework-head"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects invalid revision identity: gitlink.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_malformed_revisions_and_checkout_mismatches"
+      },
+      "test_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7.gitlink"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects invalid revision identity: malformed framework.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_malformed_revisions_and_checkout_mismatches"
+      },
+      "test_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7.malformed-framework"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects invalid revision identity: malformed parent.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_malformed_revisions_and_checkout_mismatches"
+      },
+      "test_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7.malformed-parent"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects invalid revision identity: parent head.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_malformed_revisions_and_checkout_mismatches"
+      },
+      "test_id": "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7.parent-head"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects unsafe output: newline.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_unsafe_output_paths"
+      },
+      "test_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3.newline"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects unsafe output: relative.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_unsafe_output_paths"
+      },
+      "test_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3.relative"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects unsafe output: symlink output.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_unsafe_output_paths"
+      },
+      "test_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3.symlink-output"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects unsafe output: symlink parent.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_unsafe_output_paths"
+      },
+      "test_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3.symlink-parent"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects unsafe output: traversal.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_unsafe_output_paths"
+      },
+      "test_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3.traversal"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context rejects unsafe output: writable output.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_unsafe_output_paths"
+      },
+      "test_id": "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3.writable-output"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context source authentication: candidate head.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_source_is_authenticated_before_execution"
+      },
+      "test_id": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e.candidate-head"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context source authentication: modified.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_source_is_authenticated_before_execution"
+      },
+      "test_id": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e.modified"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
+      "execution_id": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
+      "groups": [
+        "offline-unit",
+        "migration"
+      ],
+      "inventory_source_binding_execution": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
+      "migration_disposition": "added-on-demand",
+      "new_framework_path": [
+        "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py"
+      ],
+      "old_caller_ids": [],
+      "old_path": [],
+      "old_selector": null,
+      "prerequisites": {
+        "availability": "not assessed",
+        "catalog_execution_id": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
+        "declared_case_profiles": [
+          "framework-migration"
+        ],
+        "source": "prerequisite_catalog"
+      },
+      "profiles": [
+        "framework-migration"
+      ],
+      "public_entrypoint_requires_explicit_on_demand": true,
+      "public_entrypoints": [
+        "Framework:modsecurity_test_framework/connector.py:62",
+        "Framework:connector_suite/connector.mk:13"
+      ],
+      "purpose": "Context source authentication: symlink.",
+      "selection": "on-demand",
+      "selector": {
+        "kind": "python",
+        "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_source_is_authenticated_before_execution"
+      },
+      "test_id": "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e.symlink"
+    },
+    {
+      "actual_callers": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "current_caller_ids": [
+        "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
+      ],
+      "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
       "execution_id": "offline.migration.different-cases-cannot-union-capabilities-across-runs-or-revisions.3f1cc7ce",
       "groups": [
         "migration",
@@ -121730,12 +122163,12 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:50",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:61",
         "Framework:connector_suite/connector.mk:360",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:50",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:61",
         "Framework:connector_suite/connector.mk:360",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
@@ -121792,12 +122225,12 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:50",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:61",
         "Framework:connector_suite/connector.mk:360",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:50",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:61",
         "Framework:connector_suite/connector.mk:360",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
@@ -121854,12 +122287,12 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:50",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:61",
         "Framework:connector_suite/connector.mk:360",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:50",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:61",
         "Framework:connector_suite/connector.mk:360",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
@@ -121916,12 +122349,12 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:50",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:61",
         "Framework:connector_suite/connector.mk:360",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:50",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:61",
         "Framework:connector_suite/connector.mk:360",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
@@ -123125,14 +123558,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:223",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1084",
         "Framework:connector_suite/connector.mk:1271",
         "Framework:connector_suite/connector.mk:719",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:223",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1084",
         "Framework:connector_suite/connector.mk:1271",
         "Framework:connector_suite/connector.mk:719",
@@ -123194,14 +123627,14 @@
     },
     {
       "actual_callers": [
-        "Connector:connectors/envoy/Makefile:223",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1084",
         "Framework:connector_suite/connector.mk:1271",
         "Framework:connector_suite/connector.mk:719",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:connectors/envoy/Makefile:223",
+        "Connector:connectors/envoy/Makefile:222",
         "Framework:connector_suite/connector.mk:1084",
         "Framework:connector_suite/connector.mk:1271",
         "Framework:connector_suite/connector.mk:719",
@@ -123665,11 +124098,11 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
@@ -123718,11 +124151,11 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Connector:.github/workflows/lint.yml:81",
-        "Connector:.github/workflows/update-go-version.yml:385",
-        "Connector:.github/workflows/update-python-version.yml:172",
+        "Connector:.github/workflows/update-go-version.yml:407",
+        "Connector:.github/workflows/update-python-version.yml:194",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:56",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:58",
         "Framework:connector_suite/connector.mk:1504",
@@ -123732,11 +124165,11 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Connector:.github/workflows/lint.yml:81",
-        "Connector:.github/workflows/update-go-version.yml:385",
-        "Connector:.github/workflows/update-python-version.yml:172",
+        "Connector:.github/workflows/update-go-version.yml:407",
+        "Connector:.github/workflows/update-python-version.yml:194",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:56",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:58",
         "Framework:connector_suite/connector.mk:1504",
@@ -123801,11 +124234,11 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Connector:.github/workflows/lint.yml:81",
-        "Connector:.github/workflows/update-go-version.yml:385",
-        "Connector:.github/workflows/update-python-version.yml:172",
+        "Connector:.github/workflows/update-go-version.yml:407",
+        "Connector:.github/workflows/update-python-version.yml:194",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:56",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:58",
         "Framework:connector_suite/connector.mk:1504",
@@ -123815,11 +124248,11 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Connector:.github/workflows/lint.yml:81",
-        "Connector:.github/workflows/update-go-version.yml:385",
-        "Connector:.github/workflows/update-python-version.yml:172",
+        "Connector:.github/workflows/update-go-version.yml:407",
+        "Connector:.github/workflows/update-python-version.yml:194",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:56",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:58",
         "Framework:connector_suite/connector.mk:1504",
@@ -123884,11 +124317,11 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Connector:.github/workflows/lint.yml:81",
-        "Connector:.github/workflows/update-go-version.yml:385",
-        "Connector:.github/workflows/update-python-version.yml:172",
+        "Connector:.github/workflows/update-go-version.yml:407",
+        "Connector:.github/workflows/update-python-version.yml:194",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:56",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:58",
         "Framework:connector_suite/connector.mk:1504",
@@ -123898,11 +124331,11 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Connector:.github/workflows/lint.yml:81",
-        "Connector:.github/workflows/update-go-version.yml:385",
-        "Connector:.github/workflows/update-python-version.yml:172",
+        "Connector:.github/workflows/update-go-version.yml:407",
+        "Connector:.github/workflows/update-python-version.yml:194",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:56",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:58",
         "Framework:connector_suite/connector.mk:1504",
@@ -123967,11 +124400,11 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Connector:.github/workflows/lint.yml:81",
-        "Connector:.github/workflows/update-go-version.yml:385",
-        "Connector:.github/workflows/update-python-version.yml:172",
+        "Connector:.github/workflows/update-go-version.yml:407",
+        "Connector:.github/workflows/update-python-version.yml:194",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:56",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:58",
         "Framework:connector_suite/connector.mk:1504",
@@ -123981,11 +124414,11 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Connector:.github/workflows/lint.yml:81",
-        "Connector:.github/workflows/update-go-version.yml:385",
-        "Connector:.github/workflows/update-python-version.yml:172",
+        "Connector:.github/workflows/update-go-version.yml:407",
+        "Connector:.github/workflows/update-python-version.yml:194",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:56",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:58",
         "Framework:connector_suite/connector.mk:1504",
@@ -124050,11 +124483,11 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Connector:.github/workflows/lint.yml:81",
-        "Connector:.github/workflows/update-go-version.yml:385",
-        "Connector:.github/workflows/update-python-version.yml:172",
+        "Connector:.github/workflows/update-go-version.yml:407",
+        "Connector:.github/workflows/update-python-version.yml:194",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:56",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:58",
         "Framework:connector_suite/connector.mk:1504",
@@ -124064,11 +124497,11 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:48",
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:93",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:115",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:59",
         "Connector:.github/workflows/lint.yml:81",
-        "Connector:.github/workflows/update-go-version.yml:385",
-        "Connector:.github/workflows/update-python-version.yml:172",
+        "Connector:.github/workflows/update-go-version.yml:407",
+        "Connector:.github/workflows/update-python-version.yml:194",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:56",
         "Framework:.github/actions/connector-ci/quick-framework-check/quick-check/action.yml:58",
         "Framework:connector_suite/connector.mk:1504",
@@ -124133,11 +124566,11 @@
     },
     {
       "actual_callers": [
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:42",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:47",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:42",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:47",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
@@ -124186,11 +124619,11 @@
     },
     {
       "actual_callers": [
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:42",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:47",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:42",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:47",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
@@ -124239,11 +124672,11 @@
     },
     {
       "actual_callers": [
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:42",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:47",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:42",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:47",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
@@ -124292,9 +124725,9 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:192",
-        "Connector:.github/workflows/update-go-version.yml:411",
-        "Connector:.github/workflows/update-go-version.yml:412",
+        "Connector:.github/workflows/ci-security-codeql.yml:214",
+        "Connector:.github/workflows/update-go-version.yml:433",
+        "Connector:.github/workflows/update-go-version.yml:434",
         "Connector:connectors/traefik/Makefile:167",
         "Framework:connector_suite/connector.mk:1608",
         "Framework:connector_suite/connector.mk:1610",
@@ -124303,9 +124736,9 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:715"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:192",
-        "Connector:.github/workflows/update-go-version.yml:411",
-        "Connector:.github/workflows/update-go-version.yml:412",
+        "Connector:.github/workflows/ci-security-codeql.yml:214",
+        "Connector:.github/workflows/update-go-version.yml:433",
+        "Connector:.github/workflows/update-go-version.yml:434",
         "Connector:connectors/traefik/Makefile:167",
         "Framework:connector_suite/connector.mk:1608",
         "Framework:connector_suite/connector.mk:1610",
@@ -124370,9 +124803,9 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:192",
-        "Connector:.github/workflows/update-go-version.yml:411",
-        "Connector:.github/workflows/update-go-version.yml:412",
+        "Connector:.github/workflows/ci-security-codeql.yml:214",
+        "Connector:.github/workflows/update-go-version.yml:433",
+        "Connector:.github/workflows/update-go-version.yml:434",
         "Connector:connectors/traefik/Makefile:167",
         "Framework:connector_suite/connector.mk:1608",
         "Framework:connector_suite/connector.mk:1610",
@@ -124381,9 +124814,9 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:715"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:192",
-        "Connector:.github/workflows/update-go-version.yml:411",
-        "Connector:.github/workflows/update-go-version.yml:412",
+        "Connector:.github/workflows/ci-security-codeql.yml:214",
+        "Connector:.github/workflows/update-go-version.yml:433",
+        "Connector:.github/workflows/update-go-version.yml:434",
         "Connector:connectors/traefik/Makefile:167",
         "Framework:connector_suite/connector.mk:1608",
         "Framework:connector_suite/connector.mk:1610",
@@ -124450,13 +124883,13 @@
       "actual_callers": [
         "Connector:connectors/traefik/Makefile:181",
         "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:30",
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:75",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:80",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "current_caller_ids": [
         "Connector:connectors/traefik/Makefile:181",
         "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:30",
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:75",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:80",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
@@ -124507,9 +124940,9 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/update-go-version.yml:439",
-        "Connector:.github/workflows/update-go-version.yml:440",
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:60",
+        "Connector:.github/workflows/update-go-version.yml:461",
+        "Connector:.github/workflows/update-go-version.yml:462",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:65",
         "Framework:connector_suite/connector.mk:1610",
         "Framework:connector_suite/connector.mk:1614",
         "Framework:connector_suite/connector.mk:1616",
@@ -124517,9 +124950,9 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:715"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/update-go-version.yml:439",
-        "Connector:.github/workflows/update-go-version.yml:440",
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:60",
+        "Connector:.github/workflows/update-go-version.yml:461",
+        "Connector:.github/workflows/update-go-version.yml:462",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:65",
         "Framework:connector_suite/connector.mk:1610",
         "Framework:connector_suite/connector.mk:1614",
         "Framework:connector_suite/connector.mk:1616",
@@ -124583,9 +125016,9 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/update-go-version.yml:439",
-        "Connector:.github/workflows/update-go-version.yml:440",
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:60",
+        "Connector:.github/workflows/update-go-version.yml:461",
+        "Connector:.github/workflows/update-go-version.yml:462",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:65",
         "Framework:connector_suite/connector.mk:1610",
         "Framework:connector_suite/connector.mk:1614",
         "Framework:connector_suite/connector.mk:1616",
@@ -124593,9 +125026,9 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:715"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/update-go-version.yml:439",
-        "Connector:.github/workflows/update-go-version.yml:440",
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:60",
+        "Connector:.github/workflows/update-go-version.yml:461",
+        "Connector:.github/workflows/update-go-version.yml:462",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:65",
         "Framework:connector_suite/connector.mk:1610",
         "Framework:connector_suite/connector.mk:1614",
         "Framework:connector_suite/connector.mk:1616",
@@ -124659,16 +125092,16 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/update-go-version.yml:425",
-        "Connector:.github/workflows/update-go-version.yml:426",
+        "Connector:.github/workflows/update-go-version.yml:447",
+        "Connector:.github/workflows/update-go-version.yml:448",
         "Framework:connector_suite/connector.mk:1610",
         "Framework:connector_suite/connector.mk:1616",
         "Framework:connector_suite/connector.mk:1622",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:715"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/update-go-version.yml:425",
-        "Connector:.github/workflows/update-go-version.yml:426",
+        "Connector:.github/workflows/update-go-version.yml:447",
+        "Connector:.github/workflows/update-go-version.yml:448",
         "Framework:connector_suite/connector.mk:1610",
         "Framework:connector_suite/connector.mk:1616",
         "Framework:connector_suite/connector.mk:1622",
@@ -124729,9 +125162,9 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/update-go-version.yml:439",
-        "Connector:.github/workflows/update-go-version.yml:440",
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:60",
+        "Connector:.github/workflows/update-go-version.yml:461",
+        "Connector:.github/workflows/update-go-version.yml:462",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:65",
         "Framework:connector_suite/connector.mk:1610",
         "Framework:connector_suite/connector.mk:1614",
         "Framework:connector_suite/connector.mk:1616",
@@ -124739,9 +125172,9 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:715"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/update-go-version.yml:439",
-        "Connector:.github/workflows/update-go-version.yml:440",
-        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:60",
+        "Connector:.github/workflows/update-go-version.yml:461",
+        "Connector:.github/workflows/update-go-version.yml:462",
+        "Framework:.github/actions/connector-ci/test-traefik/traefik-contract/action.yml:65",
         "Framework:connector_suite/connector.mk:1610",
         "Framework:connector_suite/connector.mk:1614",
         "Framework:connector_suite/connector.mk:1616",
@@ -124805,9 +125238,9 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:192",
-        "Connector:.github/workflows/update-go-version.yml:411",
-        "Connector:.github/workflows/update-go-version.yml:412",
+        "Connector:.github/workflows/ci-security-codeql.yml:214",
+        "Connector:.github/workflows/update-go-version.yml:433",
+        "Connector:.github/workflows/update-go-version.yml:434",
         "Connector:connectors/traefik/Makefile:167",
         "Framework:connector_suite/connector.mk:1608",
         "Framework:connector_suite/connector.mk:1610",
@@ -124816,9 +125249,9 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:715"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:192",
-        "Connector:.github/workflows/update-go-version.yml:411",
-        "Connector:.github/workflows/update-go-version.yml:412",
+        "Connector:.github/workflows/ci-security-codeql.yml:214",
+        "Connector:.github/workflows/update-go-version.yml:433",
+        "Connector:.github/workflows/update-go-version.yml:434",
         "Connector:connectors/traefik/Makefile:167",
         "Framework:connector_suite/connector.mk:1608",
         "Framework:connector_suite/connector.mk:1610",
@@ -124883,9 +125316,9 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-codeql.yml:192",
-        "Connector:.github/workflows/update-go-version.yml:411",
-        "Connector:.github/workflows/update-go-version.yml:412",
+        "Connector:.github/workflows/ci-security-codeql.yml:214",
+        "Connector:.github/workflows/update-go-version.yml:433",
+        "Connector:.github/workflows/update-go-version.yml:434",
         "Connector:connectors/traefik/Makefile:167",
         "Framework:connector_suite/connector.mk:1608",
         "Framework:connector_suite/connector.mk:1610",
@@ -124894,9 +125327,9 @@
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:715"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-codeql.yml:192",
-        "Connector:.github/workflows/update-go-version.yml:411",
-        "Connector:.github/workflows/update-go-version.yml:412",
+        "Connector:.github/workflows/ci-security-codeql.yml:214",
+        "Connector:.github/workflows/update-go-version.yml:433",
+        "Connector:.github/workflows/update-go-version.yml:434",
         "Connector:connectors/traefik/Makefile:167",
         "Framework:connector_suite/connector.mk:1608",
         "Framework:connector_suite/connector.mk:1610",
@@ -124961,11 +125394,11 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:132",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:165",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:132",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:165",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
@@ -125020,11 +125453,11 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:132",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:165",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:132",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:165",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
@@ -125079,11 +125512,11 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:132",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:165",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:132",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:165",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
@@ -125138,11 +125571,11 @@
     },
     {
       "actual_callers": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:132",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:165",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "current_caller_ids": [
-        "Connector:.github/workflows/ci-security-workflow-lint.yml:132",
+        "Connector:.github/workflows/ci-security-workflow-lint.yml:165",
         "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:713"
       ],
       "execution_assessment": "not assessed; inspect separate revision-bound run receipts",
@@ -125206,10 +125639,10 @@
     "standard_executions": 80
   },
   "current_counts": {
-    "fixed_framework_sources": 486,
-    "on_demand_cases": 2265,
-    "on_demand_executions": 1034,
-    "revision_bound_product_sources": 232,
+    "fixed_framework_sources": 488,
+    "on_demand_cases": 2280,
+    "on_demand_executions": 1038,
+    "revision_bound_product_sources": 234,
     "standard_cases": 100,
     "standard_executions": 80
   },
@@ -139057,6 +139490,10 @@
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_cells_driver_is_bound_to_the_trusted_parent_framework_gitlink",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_cells_driver_rejects_unsealed_or_foreign_source_fds",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_cells_source_fd_cannot_be_supplied_by_the_caller",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_exports_exact_roots_and_private_environment",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_malformed_revisions_and_checkout_mismatches",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_unsafe_output_paths",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_source_is_authenticated_before_execution",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_fixed_tool_registry_rejects_candidate_paths",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_gate_shims_reject_modified_bridge_before_any_candidate_code",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_isolated_sealed_execution_preserves_main_module_and_exit_status",
@@ -139085,6 +139522,10 @@
         "offline.migration.cells-driver-is-bound-to-the-trusted-parent-framework-gitlink.d994a0b1",
         "offline.migration.cells-driver-rejects-unsealed-or-foreign-source-fds.43090e74",
         "offline.migration.cells-source-fd-cannot-be-supplied-by-the-caller.824828c6",
+        "offline.migration.connector-context-exports-exact-roots-and-private-environment.afe74d8b",
+        "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7",
+        "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3",
+        "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e",
         "offline.migration.fixed-tool-registry-rejects-candidate-paths.9bd34e04",
         "offline.migration.gate-shims-reject-modified-bridge-before-any-candidate-code.31a1ad7e",
         "offline.migration.isolated-sealed-execution-preserves-main-module-and-exit-status.2e2b67a6",
@@ -144657,7 +145098,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "86ce8b2e5f9aa1276f239daf5098e611ec81d70765118f0c349e5388f9febce5",
-      "sha256_framework_source": "e35a92a79f0edd0208e744aeeb7cf492465a18eee23f28bee501dff5942abda9",
+      "sha256_framework_source": "acd5e2b251eab67f407b69ec91dbbbc97f8246c1bcbc41ba05bdab27beb98187",
       "sha256_updated_base": "86ce8b2e5f9aa1276f239daf5098e611ec81d70765118f0c349e5388f9febce5"
     },
     {
@@ -144711,7 +145152,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "6e2085e6e5863f9bab570415326e299de5308f4f93982d2462c348fea5bc7564",
-      "sha256_framework_source": "0706862bcce689186c7dc22d563c46c39713f8e8d584b0a0db0ea2ff457ba259",
+      "sha256_framework_source": "da323111aaa2514a2dda0e048f9c11f4df34752efb993a09497e58de00eefb02",
       "sha256_updated_base": "6e2085e6e5863f9bab570415326e299de5308f4f93982d2462c348fea5bc7564"
     },
     {
@@ -145026,7 +145467,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "8de2456d517a493e96f02b5a8bd2fe27480886c1d33c420c4e175d90ac38fcf9",
-      "sha256_framework_source": "66c0636c880ab05dd40fce4f95ab7dd40f535af9b2832b3a3563e6c0452fff1c",
+      "sha256_framework_source": "f46be586ff1a0afc61045caa61f3b13971c1610a5bdc7f79a3f106f16c1df251",
       "sha256_updated_base": "8de2456d517a493e96f02b5a8bd2fe27480886c1d33c420c4e175d90ac38fcf9"
     },
     {
@@ -145035,7 +145476,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "7599863946377bfc90cb66acb66ba26ceff588f90f83289ae9d076be0c1590fa",
-      "sha256_framework_source": "128940281050244e9b64294d9ea8694dd7f44c336fd8d620495868503161232c",
+      "sha256_framework_source": "80e0fe1760bea1632f27ad0ddc622cf7211d959a3dc922c2f4e0e06c2ae29148",
       "sha256_updated_base": "7599863946377bfc90cb66acb66ba26ceff588f90f83289ae9d076be0c1590fa"
     },
     {
@@ -145089,7 +145530,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "1f314e7a361abfa58a6ace9cd65c277f27e1a105761e277d6a67ef19689af82b",
-      "sha256_framework_source": "b25685d19a1c933d82ef94f2ce36f66825284f06f9500e0c95d77da046dd3dcf",
+      "sha256_framework_source": "5d8858709ba44f1913faa2359345546a45c0c0d4b1ce5c5d7d13a4be47a41b66",
       "sha256_updated_base": "1f314e7a361abfa58a6ace9cd65c277f27e1a105761e277d6a67ef19689af82b"
     },
     {
@@ -149265,7 +149706,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "70bc0c02f851d75285e40c503cfa03f552f5107293e4e9a5cbc1d5f0ceaf490a",
-      "sha256_framework_source": "7bed8ccbfb2e83eb51b1582e166abb99c5b8cc349dfbb12b92fa697700220f04",
+      "sha256_framework_source": "c9529f7c3418f010f6298aa3346891734d0e48e69997054d65f896b14ba6d881",
       "sha256_updated_base": "70bc0c02f851d75285e40c503cfa03f552f5107293e4e9a5cbc1d5f0ceaf490a"
     },
     {
@@ -149445,7 +149886,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
-      "sha256_framework_source": "0b1fcaeb4594c286ef88076a39db9caba49587c96dc51125bd50cc001b26f484",
+      "sha256_framework_source": "7ad431189e0588d0580c497c9ab437557f418ca503d3353d0ee48001ae2010d5",
       "sha256_updated_base": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
     },
     {
@@ -149553,7 +149994,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "efd3e6d4cea9090e899dace4f2c40bb64b6eeca55e41b219ad9baef71a02ee78",
-      "sha256_framework_source": "f1531600f70c3b0f698cd2dbf5602fa785ca1ac0c59a2903987811b2a3703cc0",
+      "sha256_framework_source": "b015c4c2fb1c4cf528e6f54f82669a72a936d72b0f80d65297375ddece5b258b",
       "sha256_updated_base": "988bac14bb66b9afac3161914c37df6f8db622d903b47e396c1384be863ea576"
     },
     {
@@ -149868,7 +150309,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "d48b2be099b7e608c5bbdf96ebafe1c85a4fa2111d7698baeed91d7ac9ae7669",
-      "sha256_framework_source": "cfc4e53938a70249036da4635473f11b09483b6ff953d17de3adb471158a3561",
+      "sha256_framework_source": "ad74b9f4b4baca1188c9aa4be30f8171bf5159f7d886efae921498cdbbf4faf0",
       "sha256_updated_base": "d48b2be099b7e608c5bbdf96ebafe1c85a4fa2111d7698baeed91d7ac9ae7669"
     },
     {
@@ -150156,7 +150597,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "383aa03b72623861756d371bf3f9db1ca55b89acfe939c1240b3ab3f94384743",
-      "sha256_framework_source": "9e69de77852cd0c4719c711b86be270ee2b12e3ca97ebee451838ddc733dc121",
+      "sha256_framework_source": "37ebce4b04ca50f176c623c6600a3d646972886155de4284eae13bd06e34f231",
       "sha256_updated_base": "383aa03b72623861756d371bf3f9db1ca55b89acfe939c1240b3ab3f94384743"
     },
     {
@@ -150255,7 +150696,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "0efc29d873afd0e725605e2bf90ec823039974b6e4d8bc87c706b46f5cf2cb8c",
-      "sha256_framework_source": "0efc29d873afd0e725605e2bf90ec823039974b6e4d8bc87c706b46f5cf2cb8c",
+      "sha256_framework_source": "7f19c6fd7d22e99ebcc67cd840c526cfd16a4b90bd43b97f4dbf36c99de4a3d4",
       "sha256_updated_base": "0efc29d873afd0e725605e2bf90ec823039974b6e4d8bc87c706b46f5cf2cb8c"
     },
     {
@@ -150336,7 +150777,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "63092c93e82f6599aa414d0be6d6117385e0638577fdcb8cb5841268b05fc138",
-      "sha256_framework_source": "63092c93e82f6599aa414d0be6d6117385e0638577fdcb8cb5841268b05fc138",
+      "sha256_framework_source": "d5b0aa5595930c475f0c4ed30637a5325fff33b47ffcc6ae631d8d423afba8d1",
       "sha256_updated_base": "63092c93e82f6599aa414d0be6d6117385e0638577fdcb8cb5841268b05fc138"
     },
     {
@@ -151506,7 +151947,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "a8f75ed45ea57c6fbd914801d496e3c584b1c0b145f0c3ff4094f36319485bed",
-      "sha256_framework_source": "7c8f3247a30a304f96ce9e61f646fd79f288eafc15b762a3d5502075ed6865ea",
+      "sha256_framework_source": "89c45b10d6a2a5205615e2725b30db54c41c7429d4e45e45d629f3648602f869",
       "sha256_updated_base": "1413673a6465ddfea25107675bab1a1252e1861c680b2e7cc9fe0f4a9bcfb48c"
     },
     {
@@ -153099,7 +153540,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "331f86e74214a649d3714e97214bf9f03b16b6d9e033919bf6e5a9c03068e6fd",
-      "sha256_framework_source": "004d5d2ee9456a9a90e879802159af30566d945941af57558eebb87dcbbe0501",
+      "sha256_framework_source": "f23a6e49b7ac3fbb9624163a7342b49e18e1f54d4805e0b358047d58af8bf8d9",
       "sha256_updated_base": "331f86e74214a649d3714e97214bf9f03b16b6d9e033919bf6e5a9c03068e6fd"
     },
     {
@@ -154521,7 +154962,7 @@
       "present_at_initial_base": true,
       "retained_authenticated_product_entrypoint": false,
       "sha256_before": "3f24740d247f33fc676d67e7f6d67e38f9b1a49d5a53e20f0737e2cb7d7edcee",
-      "sha256_framework_source": "ab8bef620f88b74f5e7dea1e96f463303249574928350efd7ae5f87807f14b88",
+      "sha256_framework_source": "8e10bb5fe2b6625e06176828d432a36d6ee621a75438ffeb5719925b75d80603",
       "sha256_updated_base": "3f24740d247f33fc676d67e7f6d67e38f9b1a49d5a53e20f0737e2cb7d7edcee"
     },
     {
@@ -156274,9 +156715,9 @@
   "framework_revision": "3a4f2281568139d94fda6b51dc2e07bb8fc06c67",
   "generator": "connector_suite/modsecurity_connector_ci/tools/build-migration-map.py",
   "inputs": {
-    "current_inventory_sha256": "0b1fcaeb4594c286ef88076a39db9caba49587c96dc51125bd50cc001b26f484",
+    "current_inventory_sha256": "7ad431189e0588d0580c497c9ab437557f418ca503d3353d0ee48001ae2010d5",
     "initial_inventory_sha256": "aff6dbc6fb28e88c52bbe105b2ba238302232cd3265530d212e0b9bf8bac84e2",
-    "source_map_sha256": "6f93b58d8bfdbc56a1dc1f5c853c36091cd050fe2d09d8e855e0cd35978a3b3f",
+    "source_map_sha256": "29808fffdaa6c3843e1f2ab17f0d25ab19e9b9c1f74ef9461c59a5b96b841944",
     "updated_base_inventory_sha256": "a9e68eb0a5137fedfd3dc70f2734ad87650a31f552fd80af829726ea71ec0694"
   },
   "latest_framework_integration_base_revision": "d3b47aec9410f7adc3bb40df1ea413c00c438e89",
@@ -225092,7 +225533,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -225104,7 +225545,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -225116,7 +225557,7 @@
           "category": "tool",
           "condition": "if this source call executes without a test replacement",
           "evidence": {
-            "line": 73,
+            "line": 72,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "return subprocess.check_output("
@@ -225209,7 +225650,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -225221,7 +225662,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -227267,7 +227708,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -227279,7 +227720,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -227464,7 +227905,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -227476,7 +227917,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -228002,7 +228443,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -228014,7 +228455,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -228107,7 +228548,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -228119,7 +228560,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -228212,7 +228653,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -228224,7 +228665,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -229578,6 +230019,426 @@
           },
           "status": "source-declared; availability not assessed",
           "value": "Python import: modsecurity_connector_ci.lib.active_test_inventory"
+        }
+      ],
+      "unresolved": [
+        "transitive helper dependencies and branch execution are not proved by static declarations",
+        "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
+      ]
+    },
+    "offline.migration.connector-context-exports-exact-roots-and-private-environment.afe74d8b": {
+      "execution_driver": {
+        "kind": "python",
+        "selector": {
+          "kind": "python",
+          "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_exports_exact_roots_and_private_environment"
+        },
+        "source_evidence": {
+          "admission_only": false,
+          "id": "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710",
+          "line": 710,
+          "make_target": null,
+          "owner": "Framework",
+          "path": "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py",
+          "selection_note": "exact inventory selector argv construction; admission still selects cases",
+          "selector_kind": "python",
+          "source_kind": "inventory-selector-dispatch",
+          "source_line": "return [sys.executable, \"-P\", \"-c\", PYTHON_CHILD, selector[\"target\"]], root"
+        },
+        "status": "selector-declared; tool availability not assessed",
+        "tool": "Framework-compatible Python interpreter"
+      },
+      "external_output": {
+        "contract": "existing trusted non-symlink output ancestry outside both source checkouts",
+        "status": "required for public Connector inventory invocation"
+      },
+      "pinned_checkout": {
+        "Connector": "explicit CONNECTOR_ROOT and CONNECTOR_REVISION matching its exact HEAD",
+        "Framework": "explicit TEST_ROOT; Connector-pinned or separately selected development revision",
+        "independent_Framework_entrypoints": "may have different checkout needs; inspect actual caller",
+        "status": "required for public Connector inventory invocation"
+      },
+      "profile": {
+        "case_profiles": [
+          "framework-migration"
+        ],
+        "runtime_profile": "explicit public-adapter --profile/CONNECTOR_TEST_PROFILE input; inspect source callers",
+        "status": "inventory-declared case-profile metadata; not runtime --profile values"
+      },
+      "requirement_categories": {
+        "SDK": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "dependencies": {
+          "source_declaration_indices": [
+            0,
+            1
+          ],
+          "status": "conditional source declarations; readiness not assessed"
+        },
+        "external_outputs": {
+          "catalog_field": "external_output"
+        },
+        "host": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "pinned_checkout": {
+          "catalog_field": "pinned_checkout"
+        },
+        "privileges": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "profile": {
+          "catalog_field": "profile"
+        },
+        "tool": {
+          "selector_driver_tool": "Framework-compatible Python interpreter",
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        }
+      },
+      "source_declarations": [
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 22,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_test_framework.connector_context"
+        },
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 23,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_connector_ci.runtime.broker"
+        }
+      ],
+      "unresolved": [
+        "transitive helper dependencies and branch execution are not proved by static declarations",
+        "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
+      ]
+    },
+    "offline.migration.connector-context-rejects-malformed-revisions-and-checkout-mismatches.2234f3e7": {
+      "execution_driver": {
+        "kind": "python",
+        "selector": {
+          "kind": "python",
+          "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_malformed_revisions_and_checkout_mismatches"
+        },
+        "source_evidence": {
+          "admission_only": false,
+          "id": "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710",
+          "line": 710,
+          "make_target": null,
+          "owner": "Framework",
+          "path": "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py",
+          "selection_note": "exact inventory selector argv construction; admission still selects cases",
+          "selector_kind": "python",
+          "source_kind": "inventory-selector-dispatch",
+          "source_line": "return [sys.executable, \"-P\", \"-c\", PYTHON_CHILD, selector[\"target\"]], root"
+        },
+        "status": "selector-declared; tool availability not assessed",
+        "tool": "Framework-compatible Python interpreter"
+      },
+      "external_output": {
+        "contract": "existing trusted non-symlink output ancestry outside both source checkouts",
+        "status": "required for public Connector inventory invocation"
+      },
+      "pinned_checkout": {
+        "Connector": "explicit CONNECTOR_ROOT and CONNECTOR_REVISION matching its exact HEAD",
+        "Framework": "explicit TEST_ROOT; Connector-pinned or separately selected development revision",
+        "independent_Framework_entrypoints": "may have different checkout needs; inspect actual caller",
+        "status": "required for public Connector inventory invocation"
+      },
+      "profile": {
+        "case_profiles": [
+          "framework-migration"
+        ],
+        "runtime_profile": "explicit public-adapter --profile/CONNECTOR_TEST_PROFILE input; inspect source callers",
+        "status": "inventory-declared case-profile metadata; not runtime --profile values"
+      },
+      "requirement_categories": {
+        "SDK": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "dependencies": {
+          "source_declaration_indices": [
+            0,
+            1
+          ],
+          "status": "conditional source declarations; readiness not assessed"
+        },
+        "external_outputs": {
+          "catalog_field": "external_output"
+        },
+        "host": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "pinned_checkout": {
+          "catalog_field": "pinned_checkout"
+        },
+        "privileges": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "profile": {
+          "catalog_field": "profile"
+        },
+        "tool": {
+          "selector_driver_tool": "Framework-compatible Python interpreter",
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        }
+      },
+      "source_declarations": [
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 22,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_test_framework.connector_context"
+        },
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 23,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_connector_ci.runtime.broker"
+        }
+      ],
+      "unresolved": [
+        "transitive helper dependencies and branch execution are not proved by static declarations",
+        "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
+      ]
+    },
+    "offline.migration.connector-context-rejects-unsafe-output-paths.dc3f9de3": {
+      "execution_driver": {
+        "kind": "python",
+        "selector": {
+          "kind": "python",
+          "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_unsafe_output_paths"
+        },
+        "source_evidence": {
+          "admission_only": false,
+          "id": "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710",
+          "line": 710,
+          "make_target": null,
+          "owner": "Framework",
+          "path": "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py",
+          "selection_note": "exact inventory selector argv construction; admission still selects cases",
+          "selector_kind": "python",
+          "source_kind": "inventory-selector-dispatch",
+          "source_line": "return [sys.executable, \"-P\", \"-c\", PYTHON_CHILD, selector[\"target\"]], root"
+        },
+        "status": "selector-declared; tool availability not assessed",
+        "tool": "Framework-compatible Python interpreter"
+      },
+      "external_output": {
+        "contract": "existing trusted non-symlink output ancestry outside both source checkouts",
+        "status": "required for public Connector inventory invocation"
+      },
+      "pinned_checkout": {
+        "Connector": "explicit CONNECTOR_ROOT and CONNECTOR_REVISION matching its exact HEAD",
+        "Framework": "explicit TEST_ROOT; Connector-pinned or separately selected development revision",
+        "independent_Framework_entrypoints": "may have different checkout needs; inspect actual caller",
+        "status": "required for public Connector inventory invocation"
+      },
+      "profile": {
+        "case_profiles": [
+          "framework-migration"
+        ],
+        "runtime_profile": "explicit public-adapter --profile/CONNECTOR_TEST_PROFILE input; inspect source callers",
+        "status": "inventory-declared case-profile metadata; not runtime --profile values"
+      },
+      "requirement_categories": {
+        "SDK": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "dependencies": {
+          "source_declaration_indices": [
+            0,
+            1
+          ],
+          "status": "conditional source declarations; readiness not assessed"
+        },
+        "external_outputs": {
+          "catalog_field": "external_output"
+        },
+        "host": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "pinned_checkout": {
+          "catalog_field": "pinned_checkout"
+        },
+        "privileges": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "profile": {
+          "catalog_field": "profile"
+        },
+        "tool": {
+          "selector_driver_tool": "Framework-compatible Python interpreter",
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        }
+      },
+      "source_declarations": [
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 22,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_test_framework.connector_context"
+        },
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 23,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_connector_ci.runtime.broker"
+        }
+      ],
+      "unresolved": [
+        "transitive helper dependencies and branch execution are not proved by static declarations",
+        "SDK/tool/host readiness, privilege eligibility and dependency installation are not assessed"
+      ]
+    },
+    "offline.migration.connector-context-source-is-authenticated-before-execution.e3ddc63e": {
+      "execution_driver": {
+        "kind": "python",
+        "selector": {
+          "kind": "python",
+          "target": "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_source_is_authenticated_before_execution"
+        },
+        "source_evidence": {
+          "admission_only": false,
+          "id": "Framework:connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py:710",
+          "line": 710,
+          "make_target": null,
+          "owner": "Framework",
+          "path": "connector_suite/modsecurity_connector_ci/lib/active_test_inventory.py",
+          "selection_note": "exact inventory selector argv construction; admission still selects cases",
+          "selector_kind": "python",
+          "source_kind": "inventory-selector-dispatch",
+          "source_line": "return [sys.executable, \"-P\", \"-c\", PYTHON_CHILD, selector[\"target\"]], root"
+        },
+        "status": "selector-declared; tool availability not assessed",
+        "tool": "Framework-compatible Python interpreter"
+      },
+      "external_output": {
+        "contract": "existing trusted non-symlink output ancestry outside both source checkouts",
+        "status": "required for public Connector inventory invocation"
+      },
+      "pinned_checkout": {
+        "Connector": "explicit CONNECTOR_ROOT and CONNECTOR_REVISION matching its exact HEAD",
+        "Framework": "explicit TEST_ROOT; Connector-pinned or separately selected development revision",
+        "independent_Framework_entrypoints": "may have different checkout needs; inspect actual caller",
+        "status": "required for public Connector inventory invocation"
+      },
+      "profile": {
+        "case_profiles": [
+          "framework-migration"
+        ],
+        "runtime_profile": "explicit public-adapter --profile/CONNECTOR_TEST_PROFILE input; inspect source callers",
+        "status": "inventory-declared case-profile metadata; not runtime --profile values"
+      },
+      "requirement_categories": {
+        "SDK": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "dependencies": {
+          "source_declaration_indices": [
+            0,
+            1
+          ],
+          "status": "conditional source declarations; readiness not assessed"
+        },
+        "external_outputs": {
+          "catalog_field": "external_output"
+        },
+        "host": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "pinned_checkout": {
+          "catalog_field": "pinned_checkout"
+        },
+        "privileges": {
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        },
+        "profile": {
+          "catalog_field": "profile"
+        },
+        "tool": {
+          "selector_driver_tool": "Framework-compatible Python interpreter",
+          "source_declaration_indices": [],
+          "status": "not statically established; transitive/branch requirements unresolved"
+        }
+      },
+      "source_declarations": [
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 22,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_test_framework.connector_context"
+        },
+        {
+          "category": "dependency",
+          "condition": "source import in module/selected definition; surrounding guards may make it conditional",
+          "evidence": {
+            "line": 23,
+            "owner": "Framework",
+            "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
+            "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
+          },
+          "status": "source-declared; availability not assessed",
+          "value": "Python import: modsecurity_connector_ci.runtime.broker"
         }
       ],
       "unresolved": [
@@ -231486,7 +232347,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -231498,7 +232359,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -232619,7 +233480,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -232631,7 +233492,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -232643,7 +233504,7 @@
           "category": "tool",
           "condition": "if this source call executes without a test replacement",
           "evidence": {
-            "line": 307,
+            "line": 306,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "completed = subprocess.run("
@@ -233443,7 +234304,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -233455,7 +234316,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -234400,7 +235261,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -234412,7 +235273,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -234766,7 +235627,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -234778,7 +235639,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -235880,7 +236741,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -235892,7 +236753,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -236103,7 +236964,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -236115,7 +236976,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -236534,7 +237395,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -236546,7 +237407,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -238896,7 +239757,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -238908,7 +239769,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -239438,7 +240299,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -239450,7 +240311,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -239462,7 +240323,7 @@
           "category": "privilege-or-isolation",
           "condition": "the surrounding predicate determines accepted identity; root is not inferred",
           "evidence": {
-            "line": 424,
+            "line": 423,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "identity = mock.patch.object(os, \"geteuid\", return_value=1001) if os.geteuid() == 0 else contextlib.nullcontext()"
@@ -239474,7 +240335,7 @@
           "category": "tool",
           "condition": "if this source call executes without a test replacement",
           "evidence": {
-            "line": 386,
+            "line": 385,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "return subprocess.check_output("
@@ -241178,7 +242039,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -241190,7 +242051,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -241283,7 +242144,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -241295,7 +242156,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -242386,7 +243247,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -242398,7 +243259,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -242491,7 +243352,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -242503,7 +243364,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -244027,7 +244888,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 23,
+            "line": 22,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_test_framework.connector_context import connector_root, test_root"
@@ -244039,7 +244900,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 24,
+            "line": 23,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
             "source_line": "from modsecurity_connector_ci.runtime.broker import nginx_exact_head_root_launcher as LAUNCHER"
@@ -281974,7 +282835,7 @@
           "category": "dependency",
           "condition": "source import in module/selected definition; surrounding guards may make it conditional",
           "evidence": {
-            "line": 346,
+            "line": 366,
             "owner": "Framework",
             "path": "connector_suite/modsecurity_connector_tests/test_nginx_exact_head_gate_contract.py",
             "source_line": "from modsecurity_connector_ci.lib.active_test_inventory import module_load_tests"

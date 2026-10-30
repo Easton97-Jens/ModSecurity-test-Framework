@@ -131,7 +131,7 @@ def connector_specific_checks(connector: str, base: Path, errors: list[str]) -> 
 
     if connector == "envoy":
         host = read(base / "src" / "envoy_ext_authz_service_main.c")
-        runtime = read(base / "harness" / "run_envoy_connector_runtime.sh")
+        runtime = read(source_path('connectors/envoy/harness/run_envoy_connector_runtime.sh', root=ROOT))
         require(errors, '"ext_authz"' in host, "envoy: ext_authz profile missing")
         require(
             errors,
@@ -141,7 +141,7 @@ def connector_specific_checks(connector: str, base: Path, errors: list[str]) -> 
         require(errors, "ENVOY_BIN" in runtime and "403" in runtime, "envoy: real host runtime smoke missing")
     elif connector == "traefik":
         host = read(base / "src" / "traefik_forwardauth_service_main.c")
-        runtime = read(base / "scripts" / "runtime-smoke.sh") + read(base / "scripts" / "runtime_smoke.py")
+        runtime = read(source_path('connectors/traefik/scripts/runtime-smoke.sh', root=ROOT)) + read(source_path('connectors/traefik/scripts/runtime_smoke.py', root=ROOT))
         require(errors, '"forwardAuth"' in host, "traefik: forwardAuth profile missing")
         require(
             errors,

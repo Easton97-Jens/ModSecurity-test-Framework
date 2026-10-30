@@ -6,12 +6,11 @@ connector runtimes, invokes a scanner, or accesses provider credentials.
 """
 
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
+from modsecurity_test_framework.connector_context import connector_root, source_path, load_tool, load_source
 
 import argparse
 import ast
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -23,9 +22,13 @@ import tarfile
 import urllib.request
 
 
+from modsecurity_test_framework.product_sources.ci.lib.framework_revision_pins import (
+    FRAMEWORK_PATH, load_framework_revision_pins,
+)
+
+
 ROOT = connector_root()
 
-from framework_revision_pins import FRAMEWORK_PATH, load_framework_revision_pins
 
 verify_trusted_directory = load_tool('ci/checks/analysis/sonar-native-security/source_mapping.py').verify_trusted_directory
 

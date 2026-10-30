@@ -1,9 +1,8 @@
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool, load_source
+from modsecurity_test_framework.connector_context import connector_root, source_path, load_source
 
 import http.client
 import http.server
-import importlib.util
 import json
 import os
 import shutil
@@ -497,12 +496,12 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
         makefile = (source_path('connectors/envoy/Makefile', root=ROOT)).read_text(encoding="utf-8")
 
         self.assertIn(
-            "RULES_FILE ?= $(abspath $(CURDIR)/../../common/rules/modsecurity_targeted_smoke.conf)",
+            'RULES_FILE="$(if $(RULES_FILE),$(RULES_FILE),$(if $(MSCONNECTOR_RULES_FILE),$(MSCONNECTOR_RULES_FILE),$(abspath $(FRAMEWORK_ROOT)/connector_suite/common/rules/modsecurity_targeted_smoke.conf)))"',
             makefile,
         )
         self.assertIn("response-phase-smoke-envoy", makefile)
         self.assertIn(
-            "response-phase-smoke-envoy: override RULES_FILE := $(abspath $(CURDIR)/../../common/rules/modsecurity_response_companion_smoke.conf)",
+            "response-phase-smoke-envoy: override RULES_FILE := $(abspath $(FRAMEWORK_ROOT)/connector_suite/common/rules/modsecurity_response_companion_smoke.conf)",
             makefile,
         )
         self.assertIn(
@@ -519,6 +518,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 "-s",
                 "-C",
                 str(source_path('connectors/envoy', root=ROOT)),
+                f"FRAMEWORK_ROOT={source_path('modules/ModSecurity-test-Framework', root=ROOT)}",
                 "RULES_FILE=/tmp/nonmatching.conf",
                 "MSCONNECTOR_RESPONSE_PHASE_SMOKE=0",
                 "--eval",
@@ -543,6 +543,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 "-s",
                 "-C",
                 str(source_path('connectors/envoy', root=ROOT)),
+                f"FRAMEWORK_ROOT={source_path('modules/ModSecurity-test-Framework', root=ROOT)}",
                 "RULES_FILE=/tmp/caller-selected.conf",
                 "MSCONNECTOR_RESPONSE_PHASE_SMOKE=1",
                 "--eval",
@@ -1132,6 +1133,7 @@ class EnvoyTransportHardeningContractTest(unittest.TestCase):
                 environment.update({
                     root_variable: str(unsafe_root),
                     "PYTHON": sys.executable,
+                    "SMOKE_RUN_ID": "envoy-unsafe-root-contract",
                 })
 
                 completed = subprocess.run(

@@ -415,7 +415,7 @@ publish_profile_single_case_results() {
     apache_profile_enabled || return 0
 
     single_case_result="$LOG_DIR/result.json"
-    "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" publish-apache-selected-results \
+    "$PYTHON_BIN" -P "$APACHE_PROFILE_EVIDENCE_SCRIPT" publish-apache-selected-results \
         --runtime-root "$BUILD_ROOT" \
         --results-dir "$RESULTS_DIR" \
         --result-json "$single_case_result" \
@@ -638,7 +638,7 @@ apache_profile_publish_cleanup_receipt() {
         echo "apache_smoke: profile cleanup left Apache PID file=$RUNTIME_PID_FILE" >&2
         return 1
     }
-    "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" write-apache-cleanup-receipt \
+    "$PYTHON_BIN" -P "$APACHE_PROFILE_EVIDENCE_SCRIPT" write-apache-cleanup-receipt \
         --output "$APACHE_PROFILE_CLEANUP_RECEIPT" \
         --cell-run-id "$APACHE_PROFILE_CELL_RUN_ID" \
         --github-run-id "$APACHE_PROFILE_GITHUB_RUN_ID" \
@@ -2633,7 +2633,7 @@ if [ "$RUN_ONE_CASE" = "1" ]; then
     if apache_profile_enabled; then
         [ -f "$APACHE_PROFILE_EVIDENCE_SCRIPT" ] || \
             blocked "Apache profile evidence helper is missing: $APACHE_PROFILE_EVIDENCE_SCRIPT"
-        "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" prepare-apache-selected-results \
+        "$PYTHON_BIN" -P "$APACHE_PROFILE_EVIDENCE_SCRIPT" prepare-apache-selected-results \
             --runtime-root "$BUILD_ROOT" \
             --results-dir "$RESULTS_DIR" || \
             blocked "Apache profile results directory is unsafe"
@@ -2909,7 +2909,7 @@ if "$PYTHON_BIN" "$CASE_CLI" assert-status \
     --phase4-log-file "$APACHE_PHASE4_LOG_FILE" \
     --status-file "$STATUS_FILE" > "$LOG_DIR/case-assert.log" 2>&1; then
     if apache_profile_enabled; then
-        "$PYTHON_BIN" -I "$APACHE_PROFILE_EVIDENCE_SCRIPT" verify-apache-audit \
+        "$PYTHON_BIN" -P "$APACHE_PROFILE_EVIDENCE_SCRIPT" verify-apache-audit \
             --audit-log "$AUDIT_LOG_FILE" || \
             fail "selected Apache CRS case lacks a transaction-bound rule-942270 audit record"
         APACHE_PROFILE_FINAL_CLEANUP=1

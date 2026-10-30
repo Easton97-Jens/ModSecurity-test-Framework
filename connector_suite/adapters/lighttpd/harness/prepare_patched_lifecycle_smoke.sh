@@ -2,7 +2,8 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$0")" && pwd)
-LIGHTTPD_VERSION=$(sh "$SCRIPT_DIR/../build/read_version.sh")
+: "${CONNECTOR_ROOT:?CONNECTOR_ROOT is required explicitly}"
+LIGHTTPD_VERSION=$(sh "$CONNECTOR_ROOT/connectors/lighttpd/build/read_version.sh")
 BUILD_ROOT=${BUILD_ROOT:-${XDG_STATE_HOME:-${HOME:-/tmp}/.local/state}/ModSecurity-conector-build}
 PATCHED_ROOT=${LIGHTTPD_PATCHED_ROOT:-$BUILD_ROOT/lighttpd-core-patched}
 PATCHED_SOURCE_DIR=${LIGHTTPD_PATCHED_SOURCE_DIR:-$PATCHED_ROOT/lighttpd-$LIGHTTPD_VERSION}

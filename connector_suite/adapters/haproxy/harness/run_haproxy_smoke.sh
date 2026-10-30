@@ -1009,7 +1009,7 @@ write_haproxy_evidence_receipt() {
     require_haproxy_evidence_sha "${EXPECTED_MRTS_SHA:-}" || fail "HAProxy evidence receipt has an invalid MRTS revision"
     require_haproxy_evidence_cell_run_id "${CRS_RUNTIME_RUN_ID:-}" || fail "HAProxy evidence receipt has an invalid workflow cell run ID"
     case "$HAPROXY_EVIDENCE_RECEIPT_PROJECTOR" in
-        "$REPO_ROOT"/ci/runtime/lifecycle/project-haproxy-runtime-evidence.py) ;;
+        "$TEST_ROOT"/connector_suite/modsecurity_connector_ci/runtime/lifecycle/project-haproxy-runtime-evidence.py) ;;
         *) fail "HAProxy evidence receipt projector is outside the fixed runtime path" ;;
     esac
     [ -f "$HAPROXY_EVIDENCE_RECEIPT_PROJECTOR" ] || fail "HAProxy evidence receipt projector is unavailable"

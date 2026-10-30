@@ -6,7 +6,7 @@ Only Sonar's documented *, ** and ? path patterns are accepted here.
 """
 
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, source_path
 
 import argparse
 from collections import Counter
@@ -21,7 +21,9 @@ ROOT = connector_root()
 CFAMILY_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hh", ".hxx"}
 CODE_SUFFIXES = CFAMILY_SUFFIXES | {".py", ".go", ".sh", ".bash"}
 CONFIG_SUFFIXES = {".json", ".yaml", ".yml"}
-COMPONENTS = ("common", "connectors", "ci", "scripts", "tests", ".github", "examples", "config", "fuzz")
+# Framework owns the migrated test/fuzz roots and analyzes them in its own project.
+# Every tracked Parent path still passes classification, including any future tests.
+COMPONENTS = ("common", "connectors", "ci", "scripts", ".github", "examples", "config")
 # The user-selected root boundaries are independent of configurable patterns.
 EXCLUDED_ROOTS = ("modules", "reports")
 

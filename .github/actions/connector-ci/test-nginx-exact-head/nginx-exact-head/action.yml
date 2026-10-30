@@ -236,6 +236,7 @@ runs:
             --run-root "$RUN_ROOT"
       - name: Run isolated modsecurity_use_error_log on/off cells
         env:
+          SMOKE_RUN_ID: nginx-exact-head-${{ github.run_id }}-${{ github.run_attempt }}
           RUNTIME_COMPONENT_ENV_SNAPSHOT: ${{ steps.provision-runtime.outputs.runtime_component_env_snapshot }}
         shell: bash
         run: |
@@ -295,6 +296,7 @@ runs:
             CONNECTOR_TEST_OUTPUT_ROOT="$RUN_ROOT/tmp" \
             PYTHONPATH="$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework:$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite" \
             PYTHONSAFEPATH=1 PYTHONNOUSERSITE=1 PYTHONDONTWRITEBYTECODE=1 \
+            SMOKE_RUN_ID="$SMOKE_RUN_ID" \
             NGINX_HOSTED_FUNCTIONAL_A=1 \
             /bin/sh "$GITHUB_WORKSPACE/modules/ModSecurity-test-Framework/connector_suite/modsecurity_connector_ci/provisioning/cache/with-runtime-components.sh" \
             /bin/sh -eu -s <<'RUNTIME_FIXTURE'

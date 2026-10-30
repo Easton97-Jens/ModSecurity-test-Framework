@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "0b1fcaeb4594c286ef88076a39db9caba49587c96dc51125bd50cc001b26f484",
+  "inventory_sha256": "7ad431189e0588d0580c497c9ab437557f418ca503d3353d0ee48001ae2010d5",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -1345,7 +1345,7 @@
       "source_sha256": "83b5f0aaf8410cde6f014ef6c4aba8588f7fd7e5d065299dc3d12f35cf1d7f77"
     }
   ],
-  "on_demand_definition_count": 7801,
+  "on_demand_definition_count": 7805,
   "purpose": "Framework-owned definition archive; connector_suite/config/testing/active-cases.json alone selects Connector defaults.",
   "schema_version": 2,
   "sources": [
@@ -4867,7 +4867,7 @@
         "modsecurity_connector_tests.test_envoy_transport_hardening_contract.EnvoyTransportHardeningContractTest.test_runtime_uses_an_unambiguous_allow_transaction"
       ],
       "source": "tests/test_envoy_transport_hardening_contract.py",
-      "source_sha256": "004d5d2ee9456a9a90e879802159af30566d945941af57558eebb87dcbbe0501"
+      "source_sha256": "f23a6e49b7ac3fbb9624163a7342b49e18e1f54d4805e0b358047d58af8bf8d9"
     },
     {
       "contains_selected_definitions": [],
@@ -7817,7 +7817,7 @@
         "modsecurity_connector_tests.test_nginx_exact_head_gate_contract.NginxExactHeadGateContractTest.test_existing_template_renders_directive"
       ],
       "source": "tests/test_nginx_exact_head_gate_contract.py",
-      "source_sha256": "ab8bef620f88b74f5e7dea1e96f463303249574928350efd7ae5f87807f14b88"
+      "source_sha256": "8e10bb5fe2b6625e06176828d432a36d6ee621a75438ffeb5719925b75d80603"
     },
     {
       "contains_selected_definitions": [],
@@ -11314,10 +11314,14 @@
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_replacement_refs_and_corrupt_object_store_cannot_change_trusted_source",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_cells_driver_is_bound_to_the_trusted_parent_framework_gitlink",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_cells_driver_rejects_unsealed_or_foreign_source_fds",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_exports_exact_roots_and_private_environment",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_malformed_revisions_and_checkout_mismatches",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_rejects_unsafe_output_paths",
+        "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_connector_context_source_is_authenticated_before_execution",
         "modsecurity_connector_tests.test_trusted_framework_bridge.TrustedFrameworkBridgeTests.test_cells_source_fd_cannot_be_supplied_by_the_caller"
       ],
       "source": "framework/connector_suite/modsecurity_connector_tests/test_trusted_framework_bridge.py",
-      "source_sha256": "0090d29167a87fe76e2db9f8e31e72cbf86d4740d60c6a8111ca35de16959182"
+      "source_sha256": "6d9edda11031dfa7fb3753e47c14f43a1b1622783b3710338920a0b879cf04af"
     },
     {
       "contains_selected_definitions": [],
@@ -11890,7 +11894,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_connector_action_pins.ConnectorActionPinsTests.test_unknown_source_path_cannot_borrow_the_integration_authority"
       ],
       "source": "framework/tests/ci_security/test_connector_action_pins.py",
-      "source_sha256": "e833614c4950f6e36e52482c8a0f2026e82856fed69269f21b2a7a9fa29c4994"
+      "source_sha256": "993db1d4a8a826d92fba6ec4ad3b5439516e8c6473a3a02d519ee30ec85e410d"
     },
     {
       "contains_selected_definitions": [],
@@ -12107,7 +12111,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_sync_crs_contract_views.SyncCrsContractViewsTests.test_symlinked_generated_parent_is_rejected"
       ],
       "source": "framework/tests/ci_security/test_sync_crs_contract_views.py",
-      "source_sha256": "ac292a5286605c7141d358a0ca2e607e131ace608c99579261604596fd7dfd4f"
+      "source_sha256": "1dbbfcafa5f9cc49500a18d8d72dd3abcad521c30e1e4de5b4603276c5877402"
     },
     {
       "contains_selected_definitions": [],
@@ -12223,7 +12227,7 @@
         "modsecurity_test_framework.selftests.ci_security.test_updater_readiness.UpdaterReadinessTests.test_actionlint_only_adds_the_exact_official_runner_label"
       ],
       "source": "framework/tests/ci_security/test_updater_readiness.py",
-      "source_sha256": "dd3d46178e3ee98397e8b8fa2a1ce0c650c469346a990118dfe9a0ed3012c91e"
+      "source_sha256": "5e35916f66c9c3175c546990c62913c44378aa88dabad7a30b1524a9e1b26839"
     },
     {
       "contains_selected_definitions": [],
@@ -13290,7 +13294,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_apr_util_provenance.AprUtilProvenanceTests.test_apr_util_download_does_not_follow_unreviewed_redirects"
       ],
       "source": "framework/tests/security_regression/test_apr_util_provenance.py",
-      "source_sha256": "7816b656c6444907bfe73e8dd6281d77db61092d4f88259818c3863e71c8a4bb"
+      "source_sha256": "bd182ab1cd6e6c1adad441b6b06b49a5856a150172d104f27e27035f096a3558"
     },
     {
       "contains_selected_definitions": [],
@@ -13652,7 +13656,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_modsecurity_v3_git_ref_provenance.ModSecurityV3ProvenanceTests.test_approved_fake_checkout_is_a_legitimate_direct_guard_control"
       ],
       "source": "framework/tests/security_regression/test_modsecurity_v3_git_ref_provenance.py",
-      "source_sha256": "68f9c9c2d6a801b3b28744a7e69dc0a4da59adac47009abe0cf35aea6cdcf688"
+      "source_sha256": "5cc3ada7a3a0f36a69af4d9a71e52d42b6b66492d001d4450d710c6f29d216de"
     },
     {
       "contains_selected_definitions": [],
@@ -13832,7 +13836,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_nginx_archive_digest.NginxArchiveDigestRegressionTests.test_explicit_nginx_build_owner_root_must_be_an_absolute_safe_path"
       ],
       "source": "framework/tests/security_regression/test_nginx_archive_digest.py",
-      "source_sha256": "f733cdc4ebf74faaac9c43a4c5a5886b0b8fef3bac29035b1e1ff9ab3b597552"
+      "source_sha256": "d24565cf7f8a9c6a2daedf6b1f43df17a03491935aeaa9f260285ab7c04157ed"
     },
     {
       "contains_selected_definitions": [],
@@ -14179,7 +14183,7 @@
         "modsecurity_test_framework.selftests.security_regression.test_traefik_runtime_pin_contract.TraefikRuntimePinContractTests.test_manifest_tool_rejects_duplicate_manual_pin_and_invalid_source_metadata"
       ],
       "source": "framework/tests/security_regression/test_traefik_runtime_pin_contract.py",
-      "source_sha256": "c7f260f091c08e788da7eb73333086aa4424b2366f40f02cc26751a31f95cd21"
+      "source_sha256": "9171ce79a2a0d7c86e87c070f81963930eb64c862a22f7c214239d65b258abe2"
     },
     {
       "contains_selected_definitions": [],

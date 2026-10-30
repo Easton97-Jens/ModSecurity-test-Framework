@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Check that each remaining connector has a live host-to-Common path."""
-from modsecurity_test_framework.connector_context import connector_root
+from modsecurity_test_framework.connector_context import connector_root, source_path
 
-from pathlib import Path
 import sys
 
 
@@ -10,7 +9,7 @@ ROOT = connector_root()
 
 
 def text(path: str) -> str:
-    target = ROOT / path
+    target = source_path(path, root=ROOT)
     return target.read_text(encoding="utf-8", errors="replace") if target.is_file() else ""
 
 

@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 
 ROOT = connector_root()
-MAKEFILE = source_path('Makefile', root=ROOT)
+MAKEFILE = test_root() / "connector_suite" / "connector.mk"
 SCRIPT = source_path('ci/checks/connectors/apache/check-apache-c-standards.sh', root=ROOT)
 
 ok = True

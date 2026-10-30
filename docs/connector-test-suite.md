@@ -38,21 +38,21 @@ observed runs are different quantities. A retry is another attempt, not another
 unique case. No archived campaign is activated by moving its files.
 
 The final canonical inventory contains **100 standard
-cases / 80 executions**, **2265 on-demand cases / 1034 executions**, **486 fixed
-Framework test-source bindings** and **232 product-source snapshots**. Its compact
-JSON is **2091536 bytes**, below the unchanged **2 MiB** admission limit. These are
+cases / 80 executions**, **2280 on-demand cases / 1038 executions**, **488 fixed
+Framework test-source bindings** and **234 product-source snapshots**. Its compact
+JSON is **2073459 bytes**, below the unchanged **2 MiB** admission limit. These are
 selection/source quantities, not executed or passing case counts. The extension
-adds 47 explicit on-demand methods: 28 clean-pair methods, 14 MRTS-package
-methods, 3 classification guards and 2 prepared/backend helper methods; the original 1993-case baseline remains
+adds 51 explicit on-demand methods: 28 clean-pair methods, 14 MRTS-package
+methods, 3 classification guards, 2 prepared/backend helper methods and 4 context methods; the original 1993-case baseline remains
 unchanged. A closed reviewed set of 153 process-bearing new rows uses the
 `migration-integration` group across 12 modules with target-derived ID hashes;
-42 pure controls retain the offline-audit group. The original 1993 group
-assignments and guard-function ASTs are unchanged; the initial 40 pure controls and both new pure helper methods passed.
+46 pure controls retain the offline-audit group. The original 1993 group
+assignments and guard-function ASTs are unchanged; the initial 40 pure controls, both pure helper methods and four guarded context methods passed.
 
 The 120 new focused methods passed without skips, including the result-integrity
 subset of 56 methods / 131 expanded variants and the closed path-policy subset
 of 9 methods / 32 expanded variants. Separately, 136 focused portability methods,
-330 native Framework CI methods, 30 public API methods and 3 Makefile methods
+339 native Framework CI methods, 30 public API methods and 3 Makefile methods
 passed. The complete native Framework documentation target passed.
 
 Seven repaired default case IDs passed through the public runner. The actual
@@ -63,6 +63,13 @@ contains 67 passing and 13 blocked standard executions, covering 74 passing and
 check passed on targeted reruns; the 13 host/profile prerequisites remain blocked.
 These observations span source revisions and do not constitute one complete
 standard run on a future final pair.
+
+The authenticated Parent bridge exposes the standalone `connector-context`
+CLI through `ci/run-trusted-framework.py --tool connector-context`. It replaces
+22 local context-action uses in 9 workflows while retaining authentication and
+privilege guards. Four newly registered guarded pure methods cover 15 expanded
+cases; source closure follows actual imports and public entrypoints. This adds
+no default case and no global Product import path.
 
 Schema 4 separates fixed Framework test-source hashes from
 `connector_source_paths`. Product inputs are snapshotted from the explicitly
@@ -96,10 +103,11 @@ The same artifact maps five stable requirement IDs to current file ownership:
 `migration.clean-pair-integration`. The MRTS package packet belongs to a separate
 Framework followup worktree/PR; `tools/MRTS` remains pinned and read-only. Its
 nested-definition and validation-source guards, regression preservation and
-Framework integration are traced separately from the tool repository. Generated
-archive and map outputs were regenerated in that order and both final generator
-`--check` runs passed, preserving all 1993 original case IDs. The final binding
-`--check` and public CLI inventory admission also passed. The canonical
+Framework integration are traced separately from the tool repository. At their recorded source freeze,
+archive and map outputs were regenerated in that order and both generator
+`--check` runs passed, preserving all 1993 original case IDs. Binding
+`--check` and public CLI inventory admission also passed at that freeze. The
+latest four-method context-closure registration is a separate source receipt. The canonical
 inventory counts above describe selection, not successful execution.
 
 
@@ -112,12 +120,27 @@ identities remain separate from this later integration.
 The separately published MRTS-package correction `197df49` passed 99 methods
 in 73.152 seconds; independent definition walking and file-descriptor parity
 checks passed. This changes Framework packaging and guards, with `tools/MRTS`
-pinned and read-only. The latest native Framework CI run passed 330 methods in
-161.603 seconds. Actual bounded runs also passed 54 Common controls, 29 portable
+pinned and read-only. The latest native Framework CI run passed 339 methods in
+162.706 seconds. Actual bounded runs also passed 54 Common controls, 29 portable
 controls, 23 CRS controls and 13 launcher controls. These are separate suites;
 their counts are not added to unique inventory case totals.
 
+All native Framework lint recipe stages have passing observations across the
+retained full invocation and focused repairs/resumes. The original single full
+invocation remains recorded with exit 2; this is not one full green lint run.
+Separately, 66 security methods / 238 subcases passed without skips. Runtime-root
+ownership, missing run IDs and namespace fixes have a bounded 34-control
+HAProxy/Lighttpd PASS. The fresh Envoy suite passed all 28 original methods in 9.446 seconds,
+preserving every method ID and assertion count. After the minimal Product
+recipe-fallback correction, four actual `make -n` controls passed: default,
+`MS` fallback, explicit `RULES` precedence and companion conflicting `RULES`/`MS`. The Product status
+Change Record pair now passes the actual Parent whole-archive structural check;
+that check does not establish its runtime or CI claims.
+
 The minimal NGINX configure probe passed with checksum-verified existing archives;
+the SDK correction uses the actual `BUILD_ROOT` SDK with explicit include/library
+paths. C-family source bytes remain identical, so no repeated 81-unit capture
+is claimed for that correction.
 11 existing context tests and four CLI negative controls also passed. Configure
 success establishes this build/configuration layer, not a runtime lifecycle.
 The actual C-family capture completed twice after decomposition: 81 translation
@@ -143,8 +166,11 @@ methods and all 234 assertion ASTs. Their latest per-method outcomes are 71 PASS
 the worker module first had six sandbox UID-mapping skips, then passed all 21
 methods in 20.519 seconds outside the Linux sandbox with unchanged guards,
 including the six actual Root/nobody descriptor cases. These observations are
-not one combined final-head suite run and introduce no case IDs. The migration current-head cloud gate and final committed-pair acceptance remain
-pending; the selected development H1 chain is described below.
+not one combined final-head suite run and introduce no case IDs. The named
+committed pair passed separately; acceptance after the next pins and hosted
+Framework PR #142 / Connector PR #434 gates remain required. Hosted checks on
+the published `5a827f3` / `c1024043` heads remain failed pending the final push;
+neither migration PR is merged.
 
 Gitleaks baseline observations and reviewed false-positive classification are
 distinct. The current configuration has two `generic-api-key` allowlists, each
@@ -157,8 +183,8 @@ permitted in versioned evidence.
 
 The development attempt using Connector `8c7e8c44` and Framework composition
 `1aef2` was correctly rejected because the MRTS package source binding was stale.
-It is not a successful pair run. The final source-binding refresh passed; an actual
-new development-pair rerun remains pending. The earlier recorded pair
+It remains a rejected attempt. The final source-binding refresh and later
+committed-pair and explicit development-pair probes passed separately. The earlier recorded pair
 `cfd5e49` / `e52d7d4` and its three observed Apache controls retain only their
 explicitly recorded scope.
 
@@ -213,11 +239,27 @@ does not fabricate canonical result promotion. The 13 blocked standard
 executions and their 26 cases remain unchanged in the separate default ledger.
 
 The MRTS followup [Framework PR #141](https://github.com/Easton97-Jens/ModSecurity-test-Framework/pull/141)
-has server-verified clean Sonar results for exact head `197df49`: all five gate
-conditions passed, with zero OPEN/CONFIRMED issues and zero TO_REVIEW hotspots.
-Other Actions checks still require a fresh query. This result does not establish
-the migration PR's current-head gate or satisfy the remaining committed-pair
-acceptance by itself.
+was merged under the conditional user authorization: exact head `197df49` was
+squashed as `f5a0940c56edbb94d55d309636ce3d6f501e31a2`. All 16 Actions checks were
+terminal (13 success, 3 intentional advisory skips); exact-head Sonar passed all
+five conditions with zero OPEN/CONFIRMED issues and zero TO_REVIEW hotspots. The merged master has 9 terminal checks: 8 success and one
+existing event-dependent skip.
+The published Framework normal master merge
+`5a827f3db670588febebd29fa6115142da198c6f` retained the reviewed tree `8037cff4`.
+This establishes neither the migration PR's current-head gate nor acceptance
+after subsequent pin changes.
+
+Latest focused validation also passed 18 Sonar-contract methods in 4.966 seconds
+and 39 pin-sensitive methods / 56 expanded variants. Formatting two existing CI
+test files preserved their ASTs; all 38 Ruff files passed. Local Pyright remains
+blocked by missing Node, with no installation performed; its hosted type gate is
+required. The private candidate output cleanup was corrected with an exact private
+external temporary root and child `CONNECTOR_TEST_OUTPUT_ROOT`, preserving all
+existing assertions and public evidence retention. The postpatch run passed
+50 methods / 160 subtests with one stale-source error; after binding refresh,
+the remaining integration method passed in 31.859 seconds without skips. All
+51 methods / 160 subtests therefore have passing observations across those
+runs, rather than one full green run.
 
 ## Invocation
 
@@ -305,13 +347,21 @@ entrypoints and interfaces, invokes the actual Parent Make target
 `test-framework-integration-probe`, and validates the exact admitted Common
 header test result. The probe requires installed Git, Make, a compatible Python
 and `cc`, plus existing private external output storage. Uncommitted source edits
-are not copied into the pair. The actual fresh-clone recorded pair
-Connector `cfd5e49cada3fc793ef50993147e3796a0907443` / Framework
-`e52d7d44c81e997a296b7ffdfb33f12bf85455b9` passed this probe and its Common
-case. Three Apache H1 controls also passed on that pair in 28.625 seconds.
-A rerun against the next Framework commit and Connector pin remains pending;
-this receipt establishes only the named pair. Evidence stays in private external
-output storage; versioned records must not contain customer payloads or credentials.
+are not copied into the pair. The committed clean pair Connector
+`c102404321d1744234e4797e6dd92a7f34a84a77` / Framework
+`5a827f3db670588febebd29fa6115142da198c6f` passed in recorded-pin mode with
+`standard_combination=true`, both checkouts clean before/after, and the actual
+Parent Make → Common C1 test passing.
+
+A distinct explicit DEV run passed for the same Connector with selected
+Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, recorded gitlink `5a827f3`,
+`mode=development` and `standard_combination=false`. Only the expected Connector
+gitlink differed before/after; Framework remained clean. The earlier stale DEV
+attempt remains rejected. Earlier Apache H1 controls on `cfd5e49` / `e52d7d4`
+retain their scoped 28.625-second proof. Acceptance after the next pins and
+current hosted Framework #142 / Connector #434 gates remain required. Evidence
+stays in private external output storage; versioned records must not contain
+customer payloads or credentials.
 
 ```sh
 PYTHONSAFEPATH=1 PYTHONPATH="$FRAMEWORK_ROOT:$FRAMEWORK_ROOT/connector_suite" \
@@ -340,7 +390,7 @@ Hosted H1 and installed-gate qualifications require their own evidence.
 Deliver Framework changes first and make their exact commit remotely
 available. The dependent Connector PR updates its gitlink and full-SHA CI
 references to that commit. Integrate the Framework PR before the Connector PR;
-neither repository is merged automatically. HTTP/2, HTTP/3,
+merge remains governed by the user's conditional authorization and all required gates. HTTP/2, HTTP/3,
 Coverage and complete dependency assessment remain outside this migration,
 apart from required path/caller adaptations.
 
