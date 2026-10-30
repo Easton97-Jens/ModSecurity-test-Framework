@@ -54,6 +54,14 @@ ausführbare Dateien sein, dem aktuellen Benutzer oder root gehören und dürfen
 keine Gruppen- oder öffentlichen Schreibrechte gewähren. Vom Aufrufer gesetzte
 `PATH`-Einträge wählen diese Shell- und Git-Programme nicht aus.
 
+Der Definition-Guard startet den vertrauenswürdigen Generator in einem isolierten
+Python-Kindprozess mit explizit unterdrücktem Bytecode (`-I -B`). Ein fester
+Bootstrap lässt ausschließlich das aufgelöste Generatorverzeichnis für
+benachbarte MRTS-Imports zu, erhält Generatorargumente und führt ihn mit
+`runpy` aus. Geerbtes `PYTHONSAFEPATH=1` funktioniert damit ohne eingehende
+Python-Pfade zuzulassen, den Elterninterpreter zu verändern oder Bytecode im
+gepinnten MRTS-Checkout zu schreiben.
+
 `--upstream-definitions DIR` und `--feature-demo-definitions DIR` wählen
 ausdrückliche Definitionsverzeichnisse statt der gepinnten Vorgaben. Nur
 gewählte Korpora werden gelesen. Mit `--include-feature-demo 0` entfallen
@@ -63,6 +71,13 @@ Regel-ID-Kollisionen zwischen Korpora sind fatal. Die gepinnte Demo enthält
 derzeit überlappende IDs, daher kann ihre Aktivierung sichtbar fehlschlagen.
 Deaktivierte Demo-Fälle werden in diesem Pfad nicht als ausführbare
 Referenzfälle geführt.
+
+Definitionsverzeichnisse müssen flach sein. Sowohl die Paketauswahl als auch
+der direkte Generator-Guard weisen Unterverzeichnisse ab, etwa `base.yaml`
+neben `extra/additional.yaml`, bevor ein Teilkorpus generiert wird. Eine nach
+der Vorbereitung ergänzte verschachtelte Definition verhindert ebenfalls
+Prüfung und Materialisierung. Verschiebe Definitionen vor der Paketvorbereitung
+in ein geprüftes flaches Verzeichnis.
 
 Das Paket enthält `upstream-config-tests/` und bei Auswahl `feature-demo/`,
 jeweils mit `rules/`, `ftw/`, `framework-cases/` und `mrts.load`. Private
@@ -86,6 +101,21 @@ Definitionen, veränderte Artefakte, abweichende Quellenidentitäten oder eine
 andere Demo-Auswahl erfordern neue Vorbereitung.
 `MODSECURITY_MRTS_PREPARED=1` allein genügt nicht: Shell-Verbraucher benötigen
 auch `MRTS_PACKAGE_ROOT` und prüfen das Manifest.
+
+Die Quellenbindung umfasst die Pfad-Guards (`mrts_path_safety.py` und
+`runtime_path_safety.py`), Shell-Provisionierungsbibliotheken und Einstiegspunkte,
+Definition-Guard, Importer, Klassifizierungen und `runner_core.py`. Sie bindet
+auch die transitiven Framework-Imports des Runners: `adapter_interface.py`,
+`case_roots.py`, `msconnector_models.py` und `generated_report_utils.py`.
+Das Manifest bindet zusätzlich jede Python-Datei im festen Framework-eigenen
+öffentlichen Namensraum `modsecurity_test_framework/`, einschließlich Paketaliasen
+und Kontext-/Ergebnishelfern. Bei Wiederverwendung wird die vollständige
+ermittelte Pfad-/Digest-Zuordnung verglichen: Neue, entfernte oder geänderte
+Quellen invalidieren sie. Durchlauf und Lesen weisen Symlinks ab und begrenzen
+Dateizahl, Tiefe und Bytes; eingehende Umgebungspfade erweitern den Quellumfang
+nicht. Schon eine Änderung an nur einer gebundenen Datei verhindert die
+Wiederverwendung, auch bei unverändertem Git-HEAD. Pakete mit der älteren, kleineren Quellenliste
+müssen neu vorbereitet werden.
 
 Erzeuge für jeden Connectorlauf eine eigene private Kopie:
 
@@ -142,6 +172,12 @@ dürfen keine Gruppen- oder öffentlichen Schreibrechte gewähren und keine
 Traversal- oder Symlinkkomponenten enthalten. Ein fehlender `BUILD_ROOT` oder
 ungültiger Pfad lässt den Writer fehlschlagen. Die Paket-CLI erhält weiterhin
 das oben gezeigte ausdrückliche Argument `--build-root`.
+
+Die eigenständige Ergebnis-CLI und der gemeinsame MRTS-Pfad-Guard laden ihre
+tatsächlichen Pfadfunktionen mit `runpy` aus festen benachbarten Framework-Dateien.
+Sie funktionieren mit `PYTHONSAFEPATH=1`, ohne auf die Suche im Skriptverzeichnis
+angewiesen zu sein, globale Modulsuchpfade zu ändern, Modulaliase hinzuzufügen
+oder einen Connector-Checkout heranzuziehen.
 
 ## Integrationsreihenfolge und Umfang
 

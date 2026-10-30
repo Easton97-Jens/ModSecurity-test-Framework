@@ -4,6 +4,7 @@ This is a wrapper mitigation for intake B03, not a patch to the MRTS submodule
 or a sandbox for operator-selected generator code. The caller still owns the
 output-root and trusted-generator contracts.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,10 +31,32 @@ ALLOWED_GLOBAL_KEYS = frozenset(
     }
 )
 BLOCKED = 77
+GENERATOR_BOOTSTRAP = (
+    "import runpy, sys\n"
+    "from pathlib import Path\n"
+    "generator = Path(sys.argv[1])\n"
+    "sys.argv = sys.argv[1:]\n"
+    "sys.path.insert(0, str(generator.parent))\n"
+    "runpy.run_path(str(generator), run_name='__main__')\n"
+)
 
 
 class DefinitionRejected(ValueError):
     """A definition cannot cross the Framework-to-MRTS boundary."""
+
+
+def select_definition_files(directory: Path) -> list[Path]:
+    """Reject nested inputs rather than silently validating a partial corpus."""
+    if not directory.is_dir():
+        raise DefinitionRejected("definition directory is unavailable")
+    if any(path.is_dir() for path in directory.iterdir()):
+        raise DefinitionRejected(
+            "nested definitions are unsupported; definition directories must be flat"
+        )
+    paths = sorted(directory.glob("*.yaml"))
+    if any(not path.is_file() or path.is_symlink() for path in paths):
+        raise DefinitionRejected("selected definitions must be regular YAML files")
+    return paths
 
 
 def load_definition(path: Path, position: int) -> dict:
@@ -101,20 +124,23 @@ def run_guarded(
         snapshots = []
         for index, document in enumerate(definitions):
             snapshot = directory / f"{index:0{width}d}.yaml"
-            descriptor = os.open(
-                snapshot, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
-            )
+            descriptor = os.open(snapshot, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
                 yaml.safe_dump(document, stream, sort_keys=False, allow_unicode=True)
             snapshots.append(str(snapshot))
         # The original files are never reopened by the generator. This closes
         # validation/use replacement of definition data, not same-UID process
-        # isolation or arbitrary operator-selected generator behavior. End the
-        # interpreter's option parsing before the selected script as well.
+        # isolation or arbitrary operator-selected generator behavior. Isolate
+        # the child from inherited Python paths while admitting only its exact
+        # trusted script directory for MRTS's adjacent imports. -B is explicit:
+        # -I ignores the inherited PYTHONDONTWRITEBYTECODE setting as well.
         completed = subprocess.run(
             [
                 sys.executable,
-                "--",
+                "-I",
+                "-B",
+                "-c",
+                GENERATOR_BOOTSTRAP,
                 str(generator),
                 "-r",
                 *snapshots,
@@ -125,7 +151,11 @@ def run_guarded(
             ],
             check=False,
         )
-        return completed.returncode if completed.returncode >= 0 else 128 - completed.returncode
+        return (
+            completed.returncode
+            if completed.returncode >= 0
+            else 128 - completed.returncode
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -138,15 +168,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("definitions", type=Path, nargs="*")
     args = parser.parse_args(argv)
     try:
-        directories = [Path(item) for item in args.definition_directories.split(":") if item]
-        if any(not directory.is_dir() for directory in directories):
-            raise DefinitionRejected("definition directory is unavailable")
+        directories = [
+            Path(item) for item in args.definition_directories.split(":") if item
+        ]
         return run_guarded(
             args.generator,
-            args.definitions + [
+            args.definitions
+            + [
                 path
                 for directory in directories
-                for path in sorted(directory.glob("*.yaml"))
+                for path in select_definition_files(directory)
             ],
             args.rules_out,
             args.tests_out,
@@ -155,8 +186,11 @@ def main(argv: list[str] | None = None) -> int:
     except DefinitionRejected as error:
         print(f"BLOCKED: {error}", file=sys.stderr)
         return BLOCKED
-    except (OSError, UnicodeError, yaml.YAMLError):
-        print("BLOCKED: unable to prepare or execute validated MRTS input", file=sys.stderr)
+    except OSError, UnicodeError, yaml.YAMLError:
+        print(
+            "BLOCKED: unable to prepare or execute validated MRTS input",
+            file=sys.stderr,
+        )
         return BLOCKED
 
 

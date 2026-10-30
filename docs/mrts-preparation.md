@@ -49,6 +49,13 @@ interpreter. Executables must be regular, executable files owned by the current
 user or root without group or public write permission. Caller-controlled `PATH`
 entries do not select those Shell and Git executables.
 
+The definition guard starts the trusted generator in an isolated Python child
+with explicit bytecode suppression (`-I -B`). A fixed bootstrap admits only the
+resolved generator directory for MRTS adjacent imports, preserves generator
+arguments and executes it with `runpy`. Inherited `PYTHONSAFEPATH=1` therefore
+works without admitting caller Python paths, changing the parent interpreter,
+or writing bytecode into the pinned MRTS checkout.
+
 `--upstream-definitions DIR` and `--feature-demo-definitions DIR` select explicit
 definition directories instead of the pinned defaults. Only selected corpora
 are accessed. With `--include-feature-demo 0`, demo generation and import do not
@@ -56,6 +63,12 @@ run, and the manifest records `feature-demo: disabled`. With value `1`, both
 corpora must generate, import and validate; cross-corpus rule-ID collisions are
 fatal. The pinned demo currently has overlapping IDs, so enabling it may fail
 visibly. Disabled demo cases are not executable reference cases in this path.
+
+Definition directories must be flat. Both package selection and the direct
+generator guard reject subdirectories, including `base.yaml` alongside
+`extra/additional.yaml`, before generating a partial corpus. Adding a nested
+definition after preparation also prevents verification and materialization.
+Move definitions into one reviewed flat directory before preparing a package.
 
 The package contains `upstream-config-tests/` and, when selected,
 `feature-demo/`, each with `rules/`, `ftw/`, `framework-cases/` and `mrts.load`.
@@ -77,6 +90,19 @@ MRTS tree. Changed, added or removed definitions, altered artifacts, differing
 source identities or a different demo selection require fresh preparation.
 `MODSECURITY_MRTS_PREPARED=1` alone is insufficient: shell consumers also require
 `MRTS_PACKAGE_ROOT` and verify the manifest.
+
+Source binding includes the path guards (`mrts_path_safety.py` and
+`runtime_path_safety.py`), shell provisioning libraries and entry points,
+definition guard, importer, classifications and `runner_core.py`. It also binds
+the runner's transitive Framework imports: `adapter_interface.py`,
+`case_roots.py`, `msconnector_models.py` and `generated_report_utils.py`.
+The manifest additionally binds every Python file in the fixed Framework-owned
+`modsecurity_test_framework/` public namespace, including its package aliases
+and context/result helpers. The full discovered path/digest map is compared on
+reuse: added, removed or changed sources invalidate it. Namespace traversal and
+reads reject symlinks and enforce file, depth and byte limits; incoming
+environment paths cannot extend the source scope. Changing only one bound file
+invalidates reuse even when Git HEAD stays unchanged. Packages prepared with the older, smaller source set need regeneration.
 
 For every connector execution, create a separate private copy:
 
@@ -128,6 +154,11 @@ be children of that approved root, with owned directories that permit no group
 or public writes and without traversal or symlink components. Missing
 `BUILD_ROOT` or an invalid path fails the writer. The package CLI continues to
 take the explicit `--build-root` argument shown above.
+
+The standalone result CLI and shared MRTS path guard load their actual path
+functions from fixed adjacent Framework files with `runpy`. They work with
+`PYTHONSAFEPATH=1` without depending on script-directory lookup, changing global
+module search paths, adding module aliases or consulting a Connector checkout.
 
 ## Integration order and scope
 
