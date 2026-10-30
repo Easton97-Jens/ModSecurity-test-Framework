@@ -135,85 +135,74 @@ def revision(root: Path) -> str:
     return value
 
 
-def public_source_hashes(root: Path) -> dict[str, str]:
-    """Bind the fixed public Framework namespace without following symlinks."""
-    sources: dict[str, str] = {}
-    nodes = total_bytes = 0
+def _public_source_body(descriptor: int, name: str) -> bytes:
+    child = os.open(
+        name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor
+    )
+    with os.fdopen(child, "rb") as stream:
+        before = os.fstat(stream.fileno())
+        if not stat.S_ISREG(before.st_mode) or before.st_size > MAX_PUBLIC_SOURCE_BYTES:
+            raise PackageError("public Framework source size exceeds bound")
+        body = stream.read(MAX_PUBLIC_SOURCE_BYTES + 1)
+        after = os.fstat(stream.fileno())
+    identity = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if (
+        any(getattr(before, key) != getattr(after, key) for key in identity)
+        or len(body) != before.st_size
+        or len(body) > MAX_PUBLIC_SOURCE_BYTES
+    ):
+        raise PackageError("public Framework source changed during inspection")
+    return body
 
-    def visit(descriptor: int, relative: str, depth: int) -> None:
-        nonlocal nodes, total_bytes
+
+class _PublicSourceTree:
+    def __init__(self) -> None:
+        self.sources: dict[str, str] = {}
+        self.nodes = 0
+        self.total_bytes = 0
+
+    def visit(self, descriptor: int, relative: str, depth: int) -> None:
         if depth > MAX_PUBLIC_SOURCE_DEPTH:
             raise PackageError("public Framework source depth exceeds bound")
         with os.scandir(descriptor) as entries:
             for entry in entries:
-                nodes += 1
-                if nodes > MAX_PUBLIC_SOURCE_NODES:
+                self.nodes += 1
+                if self.nodes > MAX_PUBLIC_SOURCE_NODES:
                     raise PackageError("public Framework source nodes exceed bound")
-                mode = entry.stat(follow_symlinks=False).st_mode
-                path = relative + "/" + entry.name
-                if stat.S_ISLNK(mode):
-                    raise PackageError(
-                        "public Framework sources must not contain symlinks"
-                    )
-                if stat.S_ISDIR(mode):
-                    child = os.open(
-                        entry.name,
-                        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
-                        dir_fd=descriptor,
-                    )
-                    try:
-                        visit(child, path, depth + 1)
-                    finally:
-                        os.close(child)
-                elif entry.name.endswith(".py"):
-                    if (
-                        not stat.S_ISREG(mode)
-                        or len(sources) >= MAX_PUBLIC_SOURCE_FILES
-                    ):
-                        raise PackageError(
-                            "public Framework sources must be bounded regular files"
-                        )
-                    child = os.open(
-                        entry.name,
-                        os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
-                        dir_fd=descriptor,
-                    )
-                    with os.fdopen(child, "rb") as stream:
-                        before = os.fstat(stream.fileno())
-                        if (
-                            not stat.S_ISREG(before.st_mode)
-                            or before.st_size > MAX_PUBLIC_SOURCE_BYTES
-                        ):
-                            raise PackageError(
-                                "public Framework source size exceeds bound"
-                            )
-                        body = stream.read(MAX_PUBLIC_SOURCE_BYTES + 1)
-                        after = os.fstat(stream.fileno())
-                    identity = (
-                        "st_dev",
-                        "st_ino",
-                        "st_size",
-                        "st_mtime_ns",
-                        "st_ctime_ns",
-                    )
-                    if (
-                        any(
-                            getattr(before, key) != getattr(after, key)
-                            for key in identity
-                        )
-                        or len(body) != before.st_size
-                        or len(body) > MAX_PUBLIC_SOURCE_BYTES
-                    ):
-                        raise PackageError(
-                            "public Framework source changed during inspection"
-                        )
-                    total_bytes += len(body)
-                    if total_bytes > MAX_PUBLIC_SOURCE_TOTAL_BYTES:
-                        raise PackageError(
-                            "public Framework source total size exceeds bound"
-                        )
-                    sources[path] = hashlib.sha256(body).hexdigest()
+                self.entry(descriptor, relative, depth, entry)
 
+    def entry(
+        self, descriptor: int, relative: str, depth: int, entry: os.DirEntry
+    ) -> None:
+        mode = entry.stat(follow_symlinks=False).st_mode
+        path = relative + "/" + entry.name
+        if stat.S_ISLNK(mode):
+            raise PackageError("public Framework sources must not contain symlinks")
+        if stat.S_ISDIR(mode):
+            child = os.open(
+                entry.name,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                dir_fd=descriptor,
+            )
+            try:
+                self.visit(child, path, depth + 1)
+            finally:
+                os.close(child)
+        elif entry.name.endswith(".py"):
+            if not stat.S_ISREG(mode) or len(self.sources) >= MAX_PUBLIC_SOURCE_FILES:
+                raise PackageError(
+                    "public Framework sources must be bounded regular files"
+                )
+            body = _public_source_body(descriptor, entry.name)
+            self.total_bytes += len(body)
+            if self.total_bytes > MAX_PUBLIC_SOURCE_TOTAL_BYTES:
+                raise PackageError("public Framework source total size exceeds bound")
+            self.sources[path] = hashlib.sha256(body).hexdigest()
+
+
+def public_source_hashes(root: Path) -> dict[str, str]:
+    """Bind the fixed public Framework namespace without following symlinks."""
+    tree = _PublicSourceTree()
     descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
         namespace = os.open(
@@ -222,14 +211,14 @@ def public_source_hashes(root: Path) -> dict[str, str]:
             dir_fd=descriptor,
         )
         try:
-            visit(namespace, PUBLIC_NAMESPACE, 0)
+            tree.visit(namespace, PUBLIC_NAMESPACE, 0)
         finally:
             os.close(namespace)
     finally:
         os.close(descriptor)
-    if not sources:
+    if not tree.sources:
         raise PackageError("public Framework source namespace must be nonempty")
-    return dict(sorted(sources.items()))
+    return dict(sorted(tree.sources.items()))
 
 
 def identities(args: argparse.Namespace) -> dict:
@@ -245,7 +234,7 @@ def identities(args: argparse.Namespace) -> dict:
     result["framework_sources"] = {
         name: digest(args.framework_root / name) for name in SOURCE_FILES
     }
-    result["framework_sources"].update(public_source_hashes(args.framework_root))
+    result["framework_sources"].update(public_source_hashes(FRAMEWORK_ROOT))
     result["python"] = {
         "version": list(sys.version_info[:3]),
         "pyyaml": yaml.__version__,
