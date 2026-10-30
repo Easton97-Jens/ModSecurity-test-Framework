@@ -10,6 +10,17 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 REPO_ROOT=${CONNECTOR_ROOT:?CONNECTOR_ROOT is required explicitly}
+FRAMEWORK_COMMON="$TEST_ROOT/connector_suite/common"
+for required_helper in \
+    "$FRAMEWORK_COMMON/include/msconnector/test_result.h" \
+    "$FRAMEWORK_COMMON/include/msconnector/test_result_json.h" \
+    "$FRAMEWORK_COMMON/src/test_result.c" \
+    "$FRAMEWORK_COMMON/src/test_result_json.c"; do
+    [ -f "$required_helper" ] && [ ! -L "$required_helper" ] || {
+        echo "common_helper_smoke: required Framework helper is missing or symlinked: $required_helper" >&2
+        exit 1
+    }
+done
 VERIFIED_RUN_ROOT="${VERIFIED_RUN_ROOT:-${RUNNER_TEMP:-${TMPDIR:-/var/tmp}}/ModSecurity-conector-verified}"
 VERIFIED_BUILD_ROOT="${VERIFIED_BUILD_ROOT:-$VERIFIED_RUN_ROOT/build}"
 BUILD_ROOT="${BUILD_ROOT:-$VERIFIED_BUILD_ROOT}"
@@ -1755,8 +1766,11 @@ EOF
 
 "$CC_BIN" $MSCONNECTOR_CFLAGS \
     -I "$REPO_ROOT/common/include" \
+    -I "$FRAMEWORK_COMMON/include" \
     "$SMOKE_C" \
     "$REPO_ROOT"/common/src/*.c \
+    "$FRAMEWORK_COMMON/src/test_result.c" \
+    "$FRAMEWORK_COMMON/src/test_result_json.c" \
     -o "$SMOKE_BIN"
 
 "$SMOKE_BIN"

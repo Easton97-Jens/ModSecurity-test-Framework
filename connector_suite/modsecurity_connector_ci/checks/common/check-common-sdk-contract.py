@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Static contract checks for connector-neutral common SDK files."""
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path
 from pathlib import Path
 import re
 import sys
@@ -8,8 +8,13 @@ import sys
 ROOT = connector_root()
 COMMON = source_path('common', root=ROOT)
 CHECK_COMMON_HELPERS = source_path('ci/checks/common/check-common-helpers.sh', root=ROOT)
-MAKEFILE = source_path('Makefile', root=ROOT)
-SEARCH_ROOTS = [COMMON / "include", COMMON / "src"]
+MAKEFILE = test_root() / 'connector_suite/connector.mk'
+TEST_RESULT_HEADERS = [source_path(f"common/include/msconnector/{name}.h", root=ROOT)
+                       for name in ("test_result", "test_result_json")]
+TEST_RESULT_SOURCES = [source_path(f"common/src/{name}.c", root=ROOT)
+                       for name in ("test_result", "test_result_json")]
+SEARCH_ROOTS = [COMMON / "include", COMMON / "src",
+                TEST_RESULT_HEADERS[0].parent, TEST_RESULT_SOURCES[0].parent]
 FORBIDDEN_INCLUDES = (
     "#include <ngx_",
     "#include \"ngx_",
@@ -39,13 +44,13 @@ def text_without_comments(text: str) -> str:
     return re.sub(r"//.*", "", text)
 
 
-for header in (COMMON / "include" / "msconnector").glob("*.h"):
+for header in [*(COMMON / "include" / "msconnector").glob("*.h"), *TEST_RESULT_HEADERS]:
     text = header.read_text(encoding="utf-8")
     guard = "MSCONNECTOR_" + header.stem.upper() + "_H"
     if f"#ifndef {guard}" not in text or f"#define {guard}" not in text:
         fail(f"missing include guard {guard} in {header.relative_to(ROOT)}")
 
-for source in (COMMON / "src").glob("*.c"):
+for source in [*(COMMON / "src").glob("*.c"), *TEST_RESULT_SOURCES]:
     text = source.read_text(encoding="utf-8")
     expected = f'#include "msconnector/{source.stem}.h"'
     if expected not in text:
@@ -79,9 +84,9 @@ for required_header in (
     "log_sanitize.h",
     "generic_mapper.h",
 ):
-    if not (COMMON / "include" / "msconnector" / required_header).is_file():
+    if not (source_path(Path("common/include/msconnector") / required_header, root=ROOT)).is_file():
         fail(f"missing common SDK header {required_header}")
-    if not (COMMON / "src" / required_header.replace(".h", ".c")).is_file():
+    if not (source_path(Path("common/src") / required_header.replace(".h", ".c"), root=ROOT)).is_file():
         fail(f"missing common SDK source {required_header.replace('.h', '.c')}")
 
 
@@ -106,7 +111,7 @@ for required_script in (
     "ci/checks/common/check-build-contracts.py",
     "ci/evidence/reports/generate-connector-contract-report.py",
 ):
-    if not (ROOT / required_script).is_file():
+    if not (source_path(required_script, root=ROOT)).is_file():
         fail(f"missing common package script {required_script}")
 
 for required_doc in (
@@ -304,7 +309,7 @@ for required_script in (
     "ci/checks/common/check-adapter-contracts.py",
     "ci/checks/evidence/check-capability-truthfulness.py",
 ):
-    if not (ROOT / required_script).is_file():
+    if not (source_path(required_script, root=ROOT)).is_file():
         fail(f"missing common helper script {required_script}")
 if not (source_path('config/testing/capability-contract.json', root=ROOT)).is_file():
     fail("missing capability contract JSON")

@@ -66,8 +66,14 @@ compile_profile() {
       for f in "$ROOT"/$dir/*.c; do [ -f "$f" ] && files="$files ${f#$ROOT/}"; done
     fi
   done
-  files="$files common/src/config.c common/src/config_parser.c common/src/directive_spec.c common/src/directive_adapter.c common/src/request_helpers.c common/src/response_helpers.c common/src/request_mapper_contract.c common/src/response_mapper_contract.c common/src/headers.c common/src/event.c common/src/event_jsonl.c common/src/json_escape.c common/src/rule_id.c common/src/log_sanitize.c common/src/redaction.c common/src/resource_limits.c common/src/dos_guard.c common/src/error.c common/src/status.c common/src/body_policy.c common/src/crs.c common/src/transaction_state.c common/src/decision.c common/src/decision_action.c common/src/late_intervention.c common/src/flow_guard.c common/src/integrity_event.c common/src/rule_loader.c common/src/rule_merge.c common/src/test_result.c common/src/test_result_json.c common/src/artifacts.c common/src/artifact_layout.c common/src/block_statuses.c common/src/http_status.c common/src/path_policy.c common/src/intervention.c common/src/rule_error.c common/src/rule_event.c"
+  files="$files common/src/config.c common/src/config_parser.c common/src/directive_spec.c common/src/directive_adapter.c common/src/request_helpers.c common/src/response_helpers.c common/src/request_mapper_contract.c common/src/response_mapper_contract.c common/src/headers.c common/src/event.c common/src/event_jsonl.c common/src/json_escape.c common/src/rule_id.c common/src/log_sanitize.c common/src/redaction.c common/src/resource_limits.c common/src/dos_guard.c common/src/error.c common/src/status.c common/src/body_policy.c common/src/crs.c common/src/transaction_state.c common/src/decision.c common/src/decision_action.c common/src/late_intervention.c common/src/flow_guard.c common/src/integrity_event.c common/src/rule_loader.c common/src/rule_merge.c common/src/artifacts.c common/src/artifact_layout.c common/src/block_statuses.c common/src/http_status.c common/src/path_policy.c common/src/intervention.c common/src/rule_error.c common/src/rule_event.c"
   for f in $files; do [ -f "$ROOT/$f" ] || continue; obj="$OUT/$(echo "$prof-$f" | tr '/.' '__').o"; "$CC_BIN" $std -Wall -Wextra -Werror $incs -c "$ROOT/$f" -o "$obj"; done
+  for f in common/src/test_result.c common/src/test_result_json.c; do
+    src="$TEST_ROOT/connector_suite/$f"
+    [ -f "$src" ] || { echo "FAIL: haproxy_c_standards missing listed Framework source: $f" >&2; return 1; }
+    obj="$OUT/$(echo "$prof-framework-$f" | tr '/.' '__').o"
+    "$CC_BIN" $std -Wall -Wextra -Werror -I"$TEST_ROOT/connector_suite/common/include" $incs -c "$src" -o "$obj"
+  done
   echo "PASS: haproxy_c_standards $prof compile completed"
 }
 case "$PROFILE" in c17|c23|c2y) compile_profile "$PROFILE";; all) compile_profile c17; compile_profile c23; compile_profile c2y;; *) echo "unknown HAPROXY_C_STD_PROFILE=$PROFILE"; exit 2;; esac

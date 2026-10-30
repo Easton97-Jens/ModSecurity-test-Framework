@@ -91,7 +91,7 @@ delivery remain explicit rather than inferred from file relocation.
 | Runtime deviations | Apache merged duplicate headers require explicit native rule adaptation, retaining rule `1100504` and audit assertion; injected NGINX internal faults require HTTP 500 and connector-error semantics while malformed client input remains HTTP 400. Actual Apache controls and three selected NGINX development H1 cases passed; final committed-pair and complete lifecycle qualification remain separate. |
 | Parallel topics | HTTP/2, HTTP/3, Coverage and full dependency assessment remain outside scope except required path/caller adaptation. MRTS package/import corrections belong to the separate Framework followup packet and shared integration check. |
 | Shared mechanics and code size | Native extraction is relocation; repeated loader consolidation removes caller implementation with shared-helper overhead. No equal total code reduction or complete mechanical equivalence is inferred. |
-| Verification and delivery | Latest observed defaults: 67 passing / 13 blocked executions, 74 passing / 26 blocked cases across recorded revisions. The recorded 5d471/a209 pair and explicit DEV probe passed before the latest working fixes, retaining the earlier scoped Apache proof; next-pin pair acceptance, installed-gate proof and hosted final-head gates remain pending. Merge remains conditional on the current user authorization and all required gates. |
+| Verification and delivery | Latest observed defaults: 67 passing / 13 blocked executions, 74 passing / 26 blocked cases across recorded revisions. The recorded e77/4391 pair and explicit DEV probe passed before the uncommitted source-owner repairs, retaining the earlier scoped Apache proof; next-pin pair acceptance, installed-gate proof and hosted final-head gates remain pending. Merge remains conditional on the current user authorization and all required gates. |
 | Extension classification and privacy | A closed reviewed process-bearing set uses migration-integration; pure controls retain offline audit, with original baseline groups/guard ASTs preserved. Private external output and exclusion of customer payloads/credentials remain required. |
 
 ## Commands and results
@@ -146,10 +146,27 @@ mismatches fail closed. Seventeen existing native-generator methods passed in
 0.138 seconds. The actual selected Framework manifest reports 80 `former_xfail`
 and 10 `mapped_only` entries; read and fingerprint SHA-256 match, and private
 Framework/Product-decoy and existing `framework:` resolver controls passed.
-These are local boundary and generator proofs, without a live-host run. The
-published `5d471`/`a209` pair remains the earlier scoped proof; current working
-heads are not yet published and require renewed committed-pair acceptance and
-hosted gates. No fresh default-suite run or hosted Sonar PASS is claimed.
+These are local boundary and generator proofs, without a live-host run.
+The published `e77`/`4391` pair passed separately. A new 13-file source-owner
+repair batch remains uncommitted: start/remaining/HAP C and Common SDK/security
+checks select the actual Framework Make/source owners. Actual Common-helper
+C/C++ compilation preserves the three test heredocs and 679 assertions, with
+two Framework result helpers; two HAProxy standards helpers compile as C17.
+Framework Make restores shell/Python lint scanning over the moved paths and
+manifest and exports the selected Framework revision. The C++ collector admits
+only the exact tracked regular, revision-bound Framework evaluator; eight
+existing methods, actual Bear C++ capture and public Parent Make passed.
+NGINX request-window/case-info handling binds the admitted logs root and supports
+its sibling layout: 62 existing methods passed in 30.853 seconds with strict
+readers unchanged. The current hosted CI has 12 known failures from old Make
+oracles and the NGINX root path. Public Parent/Framework source-owner acceptance
+after binding refresh remains pending; there is no live-host PASS for the new
+harness and no fresh complete default-suite run.
+
+Relocating 1295 source paths is distinct from deduplication. The scoped loader
+consolidation replaced 326 blocks and removed 1067 net loader lines, with 29
+new shared-loader lines recorded separately. These are loader metrics, not a
+claim about total repository code reduction.
 
 The final canonical inventory contains **100 standard
 cases / 80 executions**, **2307 on-demand cases / 1042 executions**, **492 fixed
@@ -344,19 +361,21 @@ entrypoints and interfaces, invokes the actual Parent Make target
 header test result. The probe requires installed Git, Make, a compatible Python
 and `cc`, plus existing private external output storage. Uncommitted source edits
 are not copied into the pair. The committed clean pair Connector
-`5d47125febe38d18f33cc639bc70942da74fa7d7` / Framework
-`a209e5e44be60b578a87a30fc85badcf7bdcab08` passed in 118.763 seconds in recorded-pin mode with
+`e77c833eef4b23e1252dbcd4c6507ded0b7e2064` / Framework
+`4391a424f34ea9c7b7ed09fd1df72a38a23cb909` passed in 126.317 seconds in recorded-pin mode with
 `standard_combination=true`, both checkouts clean before/after, and the actual
 Parent Make → Common C1 test passing.
 
 A distinct explicit DEV run passed for the same Connector with selected
-Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, recorded gitlink `a209e5e`,
-in 118.865 seconds,
+Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, recorded gitlink `4391a42`,
+in 123.559 seconds,
 `mode=development` and `standard_combination=false`. Only the expected Connector
-gitlink differed before/after; Framework remained clean. The real bridge exposed
-11 exports, the private output directory retained mode 0700, and the wrong-pin
-control rejected with exit 77. These pair proofs precede the working Sonar fixes;
-acceptance of the final committed pair must be renewed. The earlier stale DEV
+gitlink differed before/after; Framework remained clean. The real UID 1001 bridge
+exposed 11 exports, the private output directory retained mode 0700, and the
+wrong-pin control rejected with exit 77. All 90 updater methods / 216 subcases
+passed without skips across the 39-method run (93.183 seconds) and 51-method
+run (77.813 seconds). These pair proofs precede the uncommitted source-owner
+repairs; acceptance of the next committed pair must be renewed. The earlier stale DEV
 attempt remains rejected. Earlier Apache H1 controls on `cfd5e49` / `e52d7d4`
 retain their scoped 28.625-second proof. Acceptance after the next pins and
 current hosted Framework #142 / Connector #434 gates remain required. Evidence
@@ -444,10 +463,15 @@ methods in 20.519 seconds outside the Linux sandbox with unchanged guards,
 including the six actual Root/nobody descriptor cases. These observations are
 not one combined final-head suite run and introduce no case IDs. The named
 committed pair passed separately; acceptance after the next pins and hosted
-Framework PR #142 / Connector PR #434 gates remain required. Actual Connector `5d471` Sonar failed with four security findings, one code
-smell and 5.5% duplication. The working fixes have not yet been server-verified.
-Three source-only Framework SDK/Make-owner repairs passed locally; hosted gates
-must be renewed. Neither migration PR is merged.
+Framework PR #142 / Connector PR #434 gates remain required. The complete exact-head Connector `e77c833eef4b23e1252dbcd4c6507ded0b7e2064`
+Sonar analysis passed all five gate conditions: duplication 2.0%, zero unresolved
+issues and zero TO_REVIEW hotspots. The first complete Framework
+`4391a424f34ea9c7b7ed09fd1df72a38a23cb909` analysis failed its gate with reliability
+B and security E: 280 unresolved issues (86 Sonar-classified vulnerabilities,
+193 code smells, one bug), zero hotspots and 0.0% duplication. These categories
+are not independently validated exploits. Both issue inventories are complete.
+The uncommitted source-owner batch has no renewed hosted acceptance. Framework
+has no clean quality gate and is not merge-ready; neither migration PR is merged.
 
 Gitleaks baseline observations and reviewed false-positive classification are
 distinct. The current configuration has two `generic-api-key` allowlists, each

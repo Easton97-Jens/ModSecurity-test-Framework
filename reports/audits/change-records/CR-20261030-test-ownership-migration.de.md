@@ -94,7 +94,7 @@ Delivery werden ausdrücklich ausgewiesen und nicht aus dem Dateiumzug abgeleite
 | Laufzeitabweichungen | Zusammengeführte Apache-Duplikatheader verlangen explizite native Regelanpassung unter Erhalt von Regel `1100504` und Auditassertion; injizierte interne NGINX-Fehler verlangen HTTP 500 und Connector-Error-Semantik, fehlerhafte Clienteingabe behält HTTP 400. Tatsächliche Apache-Kontrollen und drei ausgewählte NGINX-Entwicklungs-H1-Fälle bestanden; finale Paarabnahme und vollständige Lifecycle-Qualifikation bleiben getrennt. |
 | Parallele Themen | HTTP/2, HTTP/3, Coverage und vollständige Abhängigkeitsprüfung bleiben außer erforderlichen Pfad-/Aufruferanpassungen außerhalb des Umfangs. MRTS-Paket-/Importkorrekturen gehören zum separaten Framework-Followup-Paket und gemeinsamen Integrationscheck. |
 | Gemeinsame Mechanik und Codeumfang | Native Extraktion ist Verschiebung; Loader-Konsolidierung entfernt Caller-Implementierung bei zusätzlichem gemeinsamem Helfercode. Daraus werden weder eine gleich große Gesamtreduktion noch vollständige mechanische Gleichwertigkeit abgeleitet. |
-| Validierung und Delivery | Neueste Standardbeobachtungen: 67 bestandene / 13 blockierte Ausführungen, 74 bestandene / 26 blockierte Fälle über dokumentierte Revisionen. Das eingetragene Paar 5d471/a209 und die explizite DEV-Probe bestanden vor den neuesten Arbeitskorrekturen; frühere begrenzte Apache-Nachweise bleiben erhalten. Paarabnahme nach nächsten Pins, installiertes Gate und gehostete Final-Head-Gates bleiben offen. Merge bleibt an die aktuelle Nutzerfreigabe und alle Pflicht-Gates gebunden. |
+| Validierung und Delivery | Neueste Standardbeobachtungen: 67 bestandene / 13 blockierte Ausführungen, 74 bestandene / 26 blockierte Fälle über dokumentierte Revisionen. Das eingetragene Paar e77/4391 und die explizite DEV-Probe bestanden vor den uncommitteten Source-Owner-Korrekturen; frühere begrenzte Apache-Nachweise bleiben erhalten. Paarabnahme nach nächsten Pins, installiertes Gate und gehostete Final-Head-Gates bleiben offen. Merge bleibt an die aktuelle Nutzerfreigabe und alle Pflicht-Gates gebunden. |
 | Erweiterungsklassifikation und Datenschutz | Eine geschlossene geprüfte Menge mit Prozessausführung nutzt migration-integration; reine Kontrollen behalten Offline-Audit, ursprüngliche Baseline-Gruppen und Guard-ASTs bleiben erhalten. Private externe Ausgabe und Ausschluss von Kundennutzdaten/Zugangsdaten bleiben erforderlich. |
 
 ## Befehle und Ergebnisse
@@ -153,10 +153,28 @@ bestanden in 0.138 Sekunden. Das tatsächliche ausgewählte Framework-Manifest
 meldet 80 `former_xfail`- und 10 `mapped_only`-Einträge; Lese- und Fingerprint-
 SHA-256 stimmen überein. Private Framework-/Produkt-Decoy-Kontrollen und der
 bestehende `framework:`-Resolver bestanden. Dies sind lokale Grenz- und Generator-
-nachweise ohne Live-Host-Lauf. Das veröffentlichte Paar `5d471`/`a209` bleibt der
-frühere begrenzte Nachweis; aktuelle Arbeitsstände sind noch nicht veröffentlicht
-und verlangen erneute Paarabnahme und gehostete Gates. Ein frischer Standardlauf
-oder gehosteter Sonar-PASS wird nicht behauptet.
+nachweise ohne Live-Host-Lauf. Das veröffentlichte Paar `e77`/`4391` bestand
+getrennt. Ein neues Source-Owner-Korrekturpaket mit 13 Dateien ist uncommittet:
+Start-/Remaining-/HAP-C- sowie Common-SDK-/Security-Prüfungen wählen die echten
+Framework-Make-/Quelleigentümer. Tatsächliche Common-Helfer-C/C++-Kompilierung
+erhält die drei Test-Heredocs und 679 Assertions sowie zwei Framework-Ergebnis-
+helfer; zwei HAProxy-Standards-Helfer kompilieren als C17. Framework-Make stellt
+Shell-/Python-Lint über verschobene Pfade und Manifest wieder her und exportiert
+die ausgewählte Framework-Revision. Der C++-Collector lässt nur den exakten
+getrackten regulären revisionsgebundenen Framework-Evaluator zu; acht vorhandene
+Methoden, tatsächlicher Bear-C++-Capture und öffentliches Parent-Make bestanden.
+NGINX-Request-Window-/Case-Info-Verarbeitung bindet die zugelassene Logs-Wurzel
+und unterstützt deren Geschwisterlayout: 62 vorhandene Methoden bestanden in
+30.853 Sekunden bei unveränderten strengen Lesern. Die aktuelle gehostete CI
+hat 12 bekannte Fehler durch alte Make-Orakel und den NGINX-Wurzelpfad. Die
+öffentliche Parent-/Framework-Source-Owner-Abnahme nach Binding-Refresh steht
+aus; für das neue Harness wird kein Live-Host-PASS und kein frischer kompletter
+Standardlauf behauptet.
+
+Der Umzug von 1295 Quellpfaden ist von Deduplizierung zu unterscheiden. Die
+begrenzte Loader-Konsolidierung ersetzte 326 Blöcke und entfernte netto 1067
+Loader-Zeilen; 29 neue gemeinsame Loader-Zeilen sind separat erfasst. Dies sind
+Loader-Metriken, keine Behauptung über die gesamte Codeverkleinerung.
 
 Das finale kanonische Inventar enthält
 **100 Standardfälle / 80 Ausführungen**, **2307 On-demand-Fälle / 1042
@@ -373,19 +391,21 @@ Parent-Make-Target `test-framework-integration-probe` auf und validiert das exak
 zugelassene Ergebnis des Common-Headertests. Die Prüfung verlangt vorhandenes Git,
 Make, kompatibles Python und `cc` sowie vorhandenen privaten externen
 Ausgabespeicher. Uncommittete Quelländerungen werden nicht in das Paar kopiert.
-Das committete saubere Paar Connector `5d47125febe38d18f33cc639bc70942da74fa7d7` /
-Framework `a209e5e44be60b578a87a30fc85badcf7bdcab08` bestand in 118.763 Sekunden im Recorded-Pin-Modus
+Das committete saubere Paar Connector `e77c833eef4b23e1252dbcd4c6507ded0b7e2064` /
+Framework `4391a424f34ea9c7b7ed09fd1df72a38a23cb909` bestand in 126.317 Sekunden im Recorded-Pin-Modus
 mit `standard_combination=true`, beiden Checkouts sauber vor/nach dem Lauf und
 einem bestandenen tatsächlichen Parent-Make → Common-C1-Test.
 
 Ein getrennter expliziter DEV-Lauf bestand mit demselben Connector und ausgewähltem
 Framework `e52d7d44c81e997a296b7ffdfb33f12bf85455b9`, eingetragenem Gitlink
-`a209e5e`, in 118.865 Sekunden mit `mode=development` und `standard_combination=false`. Vor/nach dem Lauf
+`4391a42`, in 123.559 Sekunden mit `mode=development` und `standard_combination=false`. Vor/nach dem Lauf
 wich nur der erwartete Connector-Gitlink ab; Framework blieb sauber. Die echte
-Bridge stellte 11 Exporte bereit, das private Ausgabeverzeichnis behielt Modus
-0700 und die Wrong-Pin-Kontrolle lehnte mit Exit 77 ab. Diese Paarnachweise gehen
-den Arbeitskorrekturen für Sonar voraus; die Abnahme des finalen committeten
-Paars muss erneuert werden. Der frühere
+UID-1001-Bridge stellte 11 Exporte bereit, das private Ausgabeverzeichnis behielt
+Modus 0700 und die Wrong-Pin-Kontrolle lehnte mit Exit 77 ab. Alle 90 Updater-
+Methoden / 216 Teilfälle bestanden ohne Skips über den 39-Methoden-Lauf
+(93.183 Sekunden) und den 51-Methoden-Lauf (77.813 Sekunden). Diese Paarnachweise
+gehen den uncommitteten Source-Owner-Korrekturen voraus; die Abnahme des nächsten
+committeten Paars muss erneuert werden. Der frühere
 veraltete DEV-Versuch bleibt abgelehnt. Frühere Apache-H1-Kontrollen auf
 `cfd5e49` / `e52d7d4` behalten ihren begrenzten 28.625-Sekunden-Beleg. Nach den
 nächsten Pins bleiben erneute Abnahme und aktuelle gehostete Gates für Framework
@@ -477,11 +497,16 @@ in 20.519 Sekunden mit unveränderten Guards, einschließlich der sechs tatsäch
 Root/nobody-Deskriptorfälle. Diese Beobachtungen sind kein gemeinsamer Final-Head-
 Suitenlauf und führen keine Fall-IDs ein. Das genannte committete Paar bestand
 separat; nach den nächsten Pins bleiben erneute Paarabnahme und gehostete Gates
-für Framework-PR #142 / Connector-PR #434 erforderlich. Die tatsächliche Sonar-Analyse von Connector `5d471` schlug mit vier Security-
-Findings, einem Code-Smell und 5.5% Duplikation fehl. Die Arbeitskorrekturen sind
-noch nicht serverseitig verifiziert. Drei reine Quellkorrekturen für Framework-
-SDK-/Make-Zuständigkeit bestanden lokal; gehostete Gates müssen erneuert werden.
-Keiner der Migrations-PRs ist gemergt.
+für Framework-PR #142 / Connector-PR #434 erforderlich. Die vollständige Exact-Head-Sonar-Analyse von Connector
+`e77c833eef4b23e1252dbcd4c6507ded0b7e2064` bestand alle fünf Gate-Bedingungen:
+2.0% Duplikation, null ungelöste Issues und null TO_REVIEW-Hotspots. Die erste
+vollständige Framework-Analyse von `4391a424f34ea9c7b7ed09fd1df72a38a23cb909`
+verfehlte ihr Gate mit Zuverlässigkeit B und Security E: 280 ungelöste Issues
+(86 von Sonar klassifizierte Schwachstellen, 193 Code-Smells, ein Bug), null
+Hotspots und 0.0% Duplikation. Diese Kategorien sind keine unabhängig validierten
+Exploits. Beide Issue-Inventare sind vollständig. Das uncommittete Source-Owner-Paket hat
+keine erneuerte gehostete Abnahme. Framework hat kein sauberes Quality Gate und ist nicht mergebereit;
+keiner der Migrations-PRs ist gemergt.
 
 Gitleaks-Baseline-Beobachtungen und geprüfte Fehlalarmklassifikation sind
 getrennt. Die aktuelle Konfiguration enthält zwei `generic-api-key`-Allowlists,

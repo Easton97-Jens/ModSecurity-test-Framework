@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path
 from pathlib import Path
 import re
 import subprocess
 import sys
 
+from modsecurity_connector_ci.lib.active_test_inventory import load_inventory, select_executions
+
 ROOT = connector_root()
 
-from modsecurity_connector_ci.lib.active_test_inventory import load_inventory, select_executions
 COMMON_APIS = ["resource_limits", "memory", "flow_guard", "integrity_event", "dos_guard"]
 EVENT_JSON_SOURCES = [
     "common/src/event.c",
@@ -71,6 +72,9 @@ for name in COMMON_APIS:
 
 common_files = sorted((source_path('common', root=ROOT)).rglob("*.c"))
 common_files += sorted((source_path('common', root=ROOT)).rglob("*.h"))
+common_files += [source_path(f"common/{directory}/{name}{suffix}", root=ROOT)
+                 for directory, suffix in (("src", ".c"), ("include/msconnector", ".h"))
+                 for name in ("test_result", "test_result_json")]
 common_text = "\n".join(path.read_text(errors="ignore") for path in common_files)
 for token in FORBIDDEN_COMMON_TOKENS:
     if token in common_text:
@@ -116,7 +120,7 @@ for pattern in FORBIDDEN_HASH_PATTERNS:
     if pattern.search(integrity_api + "\n" + doc_text):
         errors.append(f"forbidden hash/integrity claim: {pattern.pattern}")
 
-claim_paths = list((source_path('common', root=ROOT)).rglob("*.[ch]"))
+claim_paths = list(common_files)
 claim_paths += [
     source_path('docs/architecture.md', root=ROOT),
     source_path('docs/architecture.de.md', root=ROOT),
@@ -139,7 +143,7 @@ if "msconnector_resource_limits" not in dos:
 if "enum msconnector_phase" not in (source_path('common/include/msconnector/flow_guard.h', root=ROOT)).read_text(errors="ignore"):
     errors.append("flow guard lacks enum msconnector_phase")
 
-makefile = (source_path('Makefile', root=ROOT)).read_text(errors="ignore")
+makefile = (test_root() / 'connector_suite/connector.mk').read_text(errors="ignore")
 for target in ["check-common-security-contract", "check-common-memory-safety", "check-common-flow-integrity"]:
     # Ask Make to resolve its actual default conditional recipe. A source
     # regex requiring a tab immediately after ':' rejects valid ifeq blocks.
@@ -147,7 +151,10 @@ for target in ["check-common-security-contract", "check-common-memory-safety", "
                             cwd=ROOT, capture_output=True, text=True, check=False)
     if recipe.returncode or not recipe.stdout.strip():
         errors.append(f"Makefile target {target} is not executable")
-    if target == "check-common-memory-safety" and "ci/tools/run-active-tests.py --group memory-safety" not in recipe.stdout:
+    if target == "check-common-memory-safety" and not any(
+            " -P -m modsecurity_test_framework.connector " in line
+            and line.endswith(" --group memory-safety")
+            for line in recipe.stdout.splitlines()):
         errors.append("default memory safety target must dispatch the authoritative memory-safety group")
     lint_block = makefile[makefile.find("lint: check-framework") : makefile.find("summary: check-framework")]
     if f"$(MAKE) {target}" not in lint_block:

@@ -1,8 +1,8 @@
-from modsecurity_test_framework.connector_context import connector_root
+from modsecurity_test_framework.connector_context import connector_root, test_root, source_path
 from pathlib import Path
 root=connector_root()
-mk=(root/'Makefile').read_text()
-script=(root/'ci/checks/connectors/all/check-remaining-connectors-c-standards.sh').read_text()
+mk=(test_root()/'connector_suite/connector.mk').read_text()
+script=source_path('ci/checks/connectors/all/check-remaining-connectors-c-standards.sh',root=root).read_text()
 need=['check-remaining-connectors-c17','check-remaining-connectors-c23','check-remaining-connectors-future-c','check-remaining-connectors-c17-lint']
 missing=[n for n in need if n not in mk]
 if missing: raise SystemExit('missing Makefile targets: '+', '.join(missing))

@@ -2,9 +2,13 @@
 """Validate and atomically publish Bear-captured C/C++ compilation databases."""
 
 from __future__ import annotations
-from modsecurity_test_framework.connector_context import connector_root, test_root, source_path, load_tool
+from modsecurity_test_framework.connector_context import (
+    ContextError, connector_root, test_root, framework_revision,
+    source_path as reviewed_source_path,
+)
 
 import argparse
+from dataclasses import dataclass
 import json
 import os
 import re
@@ -25,6 +29,68 @@ from modsecurity_connector_ci.lib.runtime_path_utils import is_safe_runtime_root
 
 class CompilationDatabaseError(RuntimeError):
     """Raised for a compilation-database contract violation."""
+
+
+@dataclass(frozen=True)
+class FrameworkCppAuthority:
+    root: Path
+    source: Path
+    revision: str
+
+
+def regular_framework_cpp(authority: FrameworkCppAuthority) -> bool:
+    current = authority.root
+    try:
+        if current.is_symlink() or not current.is_dir():
+            return False
+        for part in authority.source.relative_to(authority.root).parts:
+            current = current / part
+            if current.is_symlink():
+                return False
+        return stat.S_ISREG(current.lstat().st_mode)
+    except (OSError, ValueError):
+        return False
+
+
+def framework_cpp_authority(repository_root: Path) -> FrameworkCppAuthority | None:
+    # Generic --repo-root callers retain their original single-checkout contract.
+    selected = os.environ.get("CONNECTOR_ROOT")
+    if not selected or not os.environ.get("TEST_ROOT") or Path(selected).resolve() != repository_root:
+        return None
+    try:
+        if connector_root() != repository_root:
+            raise CompilationDatabaseError("selected Product root does not match --repo-root")
+        framework = test_root()
+        if Path(os.environ["TEST_ROOT"]) != framework:
+            raise CompilationDatabaseError("Framework root must be canonical and not a symlink")
+        if not os.environ.get("FRAMEWORK_REVISION"):
+            raise CompilationDatabaseError("FRAMEWORK_REVISION is required for Framework C++ capture")
+        revision = framework_revision()
+        relative = "connector_suite/common/scripts/modsecurity_targeted_eval.cc"
+        source = reviewed_source_path("common/scripts/modsecurity_targeted_eval.cc", root=repository_root)
+        if source != framework / relative:
+            raise CompilationDatabaseError("Framework C++ source does not match its reviewed mapping")
+        authority = FrameworkCppAuthority(framework, source, revision)
+        if not regular_framework_cpp(authority):
+            raise CompilationDatabaseError("Framework C++ source must be regular without symlinks")
+        tracked = subprocess.run(
+            ["git", "-C", str(framework), "ls-files", "--stage", "--", relative],
+            check=False, capture_output=True, text=True,
+        )
+        if tracked.returncode or not re.fullmatch(
+            r"100(?:644|755) [a-f0-9]{40}(?:[a-f0-9]{24})? 0\t" + re.escape(relative) + r"\n",
+            tracked.stdout,
+        ):
+            raise CompilationDatabaseError("Framework C++ source must be tracked as a regular file")
+        return authority
+    except (ContextError, OSError, subprocess.SubprocessError) as error:
+        raise CompilationDatabaseError(f"invalid selected Framework C++ authority: {error}") from error
+
+
+def source_display(source: Path, repository_root: Path, authority: FrameworkCppAuthority | None) -> str:
+    if authority is not None and source == authority.source:
+        return "framework:" + str(source.relative_to(authority.root))
+    return str(source.relative_to(repository_root))
 
 
 def is_within(path: Path, parent: Path) -> bool:
@@ -184,16 +250,20 @@ def entry_filter_reason(
     repository_root: Path,
     tracked: set[Path],
     accepted: dict[Path, dict[str, Any]],
+    authority: FrameworkCppAuthority | None = None,
 ) -> str | None:
     if source.suffix not in {".c", ".cc"}:
         return f"entry {index} is not a supported C/C++ translation unit: {source}"
-    if (
+    framework_source = authority is not None and source == authority.source
+    if framework_source and not regular_framework_cpp(authority):
+        return f"entry {index} is not a regular Framework C++ source: {source}"
+    if not framework_source and (
         source not in tracked
         or not is_within(source, repository_root)
         or not source.is_file()
     ):
         return f"entry {index} is not a tracked checkout source: {source}"
-    if is_within(output, repository_root):
+    if is_within(output, repository_root) or (authority is not None and is_within(output, authority.root)):
         return f"entry {index} writes inside the checkout: {output}"
     if source in accepted:
         return f"duplicate translation unit: {source}"
@@ -204,6 +274,7 @@ def collect_entries(
     entries: list[Any],
     repository_root: Path,
     tracked: set[Path],
+    authority: FrameworkCppAuthority | None = None,
 ) -> tuple[dict[Path, dict[str, Any]], list[str]]:
     """Allow only tracked C/C++ sources and retain Bear's command records unchanged."""
 
@@ -219,6 +290,13 @@ def collect_entries(
             filtered.append(paths)
             continue
         source, output = paths
+        if authority is not None and source == authority.source:
+            raw_source = Path(entry["file"])
+            if not raw_source.is_absolute():
+                raw_source = Path(entry["directory"]) / raw_source
+            if raw_source != authority.source or ".." in raw_source.parts:
+                filtered.append(f"entry {index} is not the exact Framework C++ source path")
+                continue
         reason = entry_filter_reason(
             source,
             output,
@@ -226,6 +304,7 @@ def collect_entries(
             repository_root,
             tracked,
             accepted,
+            authority,
         )
         if reason:
             filtered.append(reason)
@@ -274,12 +353,16 @@ def nginx_config_sources(repository_root: Path) -> set[Path]:
     return sources
 
 
-def expected_sources(repository_root: Path, requirements: list[str]) -> set[Path]:
+def expected_sources(
+    repository_root: Path, requirements: list[str],
+    authority: FrameworkCppAuthority | None = None,
+) -> set[Path]:
     expected: set[Path] = set()
     if "nginx" in requirements:
         expected.update(nginx_config_sources(repository_root))
     if "cpp" in requirements:
-        expected.add((repository_root / "common/scripts/modsecurity_targeted_eval.cc").resolve(strict=False))
+        expected.add(authority.source if authority is not None else
+                     (repository_root / "common/scripts/modsecurity_targeted_eval.cc").resolve(strict=False))
     return expected
 
 
@@ -287,6 +370,7 @@ def validate_entries(
     entries: dict[Path, dict[str, Any]],
     repository_root: Path,
     requirements: list[str],
+    authority: FrameworkCppAuthority | None = None,
 ) -> None:
     if not entries:
         raise CompilationDatabaseError("compilation database has no accepted translation units")
@@ -300,15 +384,15 @@ def validate_entries(
             required_flags.append("-std=c++17")
         missing = [flag for flag in required_flags if flag not in arguments]
         if missing:
-            display = source.relative_to(repository_root)
+            display = source_display(source, repository_root, authority)
             raise CompilationDatabaseError(
                 f"translation unit {display} is missing required flags: {' '.join(missing)}"
             )
 
-    expected = expected_sources(repository_root, requirements)
+    expected = expected_sources(repository_root, requirements, authority)
     missing_sources = sorted(expected.difference(entries), key=lambda path: path.as_posix())
     if missing_sources:
-        names = ", ".join(str(path.relative_to(repository_root)) for path in missing_sources)
+        names = ", ".join(source_display(path, repository_root, authority) for path in missing_sources)
         raise CompilationDatabaseError(f"compilation database coverage is incomplete: {names}")
 
 
@@ -376,13 +460,14 @@ def validated_database_entries(
     repository_root: Path,
     tracked: set[Path],
     requirements: list[str],
+    authority: FrameworkCppAuthority | None = None,
 ) -> dict[Path, dict[str, Any]]:
-    entries, filtered = collect_entries(load_database(database), repository_root, tracked)
+    entries, filtered = collect_entries(load_database(database), repository_root, tracked, authority)
     if filtered:
         raise CompilationDatabaseError(
             "existing compilation database is invalid: " + "; ".join(filtered)
         )
-    validate_entries(entries, repository_root, requirements)
+    validate_entries(entries, repository_root, requirements, authority)
     return entries
 
 
@@ -390,14 +475,17 @@ def captured_database_entries(
     args: argparse.Namespace,
     repository_root: Path,
     tracked: set[Path],
+    authority: FrameworkCppAuthority | None = None,
 ) -> tuple[dict[Path, dict[str, Any]], list[str]]:
     if not args.input:
         raise CompilationDatabaseError("--input is required unless --verify-only is used")
     if not args.capture_root:
         raise CompilationDatabaseError("--capture-root is required with --input")
     capture_root = external_capture_root(args.capture_root, repository_root)
+    if authority is not None:
+        external_capture_root(args.capture_root, authority.root)
     input_path = external_capture_input_path(args.input, capture_root, repository_root)
-    captured, filtered = collect_entries(load_database(input_path), repository_root, tracked)
+    captured, filtered = collect_entries(load_database(input_path), repository_root, tracked, authority)
     if not captured:
         raise CompilationDatabaseError("Bear did not capture any tracked C/C++ translation units")
     return captured, filtered
@@ -411,12 +499,13 @@ def publish_database_entries(
     tracked: set[Path],
     requirements: list[str],
     merge_existing: bool,
+    authority: FrameworkCppAuthority | None = None,
 ) -> None:
     published: dict[Path, dict[str, Any]] = {}
     if merge_existing and output.exists():
-        published.update(validated_database_entries(output, repository_root, tracked, []))
+        published.update(validated_database_entries(output, repository_root, tracked, [], authority))
     published.update(captured)
-    validate_entries(published, repository_root, requirements)
+    validate_entries(published, repository_root, requirements, authority)
     atomic_write(output, published)
 
     for reason in filtered:
@@ -429,7 +518,10 @@ def main() -> int:
     repository_root = Path(args.repo_root).resolve(strict=False)
     if not repository_root.is_dir() or not (repository_root / ".git").exists():
         raise CompilationDatabaseError(f"repo root is not a checkout: {repository_root}")
+    authority = framework_cpp_authority(repository_root)
     output = external_output_path(args.output, repository_root)
+    if authority is not None:
+        external_output_path(args.output, authority.root)
     tracked = tracked_sources(repository_root)
 
     if args.verify_only:
@@ -439,10 +531,11 @@ def main() -> int:
             repository_root,
             tracked,
             args.require,
+            authority,
         )
         print(f"PASS: validated {len(entries)} unique translation units in {output}")
     else:
-        captured, filtered = captured_database_entries(args, repository_root, tracked)
+        captured, filtered = captured_database_entries(args, repository_root, tracked, authority)
         publish_database_entries(
             captured,
             filtered,
@@ -451,6 +544,7 @@ def main() -> int:
             tracked,
             args.require,
             args.merge_existing,
+            authority,
         )
     return 0
 

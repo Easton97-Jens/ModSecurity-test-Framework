@@ -2,8 +2,9 @@
 # or make -f <this file> -C <explicit Connector checkout> with explicit roots.
 TEST_ROOT ?= $(FRAMEWORK_ROOT)
 CONNECTOR_REVISION ?= $(shell git -C "$(CONNECTOR_ROOT)" rev-parse HEAD)
+FRAMEWORK_REVISION ?= $(shell git -C "$(TEST_ROOT)" rev-parse HEAD)
 CONNECTOR_TEST_PROFILE ?= h1
-export TEST_ROOT CONNECTOR_REVISION CONNECTOR_TEST_PROFILE CONNECTOR_TEST_OUTPUT_ROOT
+export TEST_ROOT CONNECTOR_REVISION FRAMEWORK_REVISION CONNECTOR_TEST_PROFILE CONNECTOR_TEST_OUTPUT_ROOT
 export PYTHONPATH := $(TEST_ROOT):$(TEST_ROOT)/connector_suite
 
 # Parent behavioral defaults use this inventory. The mandatory master-owned
@@ -1806,10 +1807,10 @@ lint: check-framework
 	$(MAKE) check-active-inventory
 	$(MAKE) check-project-versions
 	$(MAKE) test-hostruntime-preflight
-	find ci -type f -name '*.sh' -print0 | xargs -0 -r -n 1 sh -n
-	find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -print0 | xargs -0 -r -n 1 sh -n
-	if command -v bash >/dev/null 2>&1; then find ci -type f -name '*.sh' -print0 | xargs -0 -r -n 1 bash -n; find connectors/envoy connectors/traefik connectors/lighttpd -type f -name '*.sh' -print0 | xargs -0 -r -n 1 bash -n; else echo "bash unavailable"; fi
-	find ci -type f -name '*.py' -print0 | xargs -0 -r env PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile
+	find ci "$(TEST_ROOT)/connector_suite/modsecurity_connector_ci" -type f -name '*.sh' -print0 | xargs -0 -r -n 1 sh -n
+	find connectors/envoy connectors/traefik connectors/lighttpd "$(TEST_ROOT)/connector_suite/adapters/envoy" "$(TEST_ROOT)/connector_suite/adapters/traefik" "$(TEST_ROOT)/connector_suite/adapters/lighttpd" -type f -name '*.sh' -print0 | xargs -0 -r -n 1 sh -n
+	if command -v bash >/dev/null 2>&1; then find ci "$(TEST_ROOT)/connector_suite/modsecurity_connector_ci" -type f -name '*.sh' -print0 | xargs -0 -r -n 1 bash -n; find connectors/envoy connectors/traefik connectors/lighttpd "$(TEST_ROOT)/connector_suite/adapters/envoy" "$(TEST_ROOT)/connector_suite/adapters/traefik" "$(TEST_ROOT)/connector_suite/adapters/lighttpd" -type f -name '*.sh' -print0 | xargs -0 -r -n 1 bash -n; else echo "bash unavailable"; fi
+	find ci "$(TEST_ROOT)/connector_suite/modsecurity_connector_ci" -type f -name '*.py' -print0 | xargs -0 -r env PYTHONPYCACHEPREFIX="$(BUILD_ROOT)/pycache" $(PYTHON) -P -m py_compile
 	$(MAKE) check-no-crs-source-normalization
 	$(MAKE) check-apache-common-adoption
 	$(MAKE) check-apache-c-standard-wiring
@@ -1844,7 +1845,7 @@ lint: check-framework
 	$(MAKE) check-directive-parity
 	$(MAKE) check-framework-fixture-syntax
 	$(MAKE) report-governance
-	$(PYTHON) -m json.tool config/testing/import-status.json >/dev/null
+	$(PYTHON) -m json.tool "$(TEST_ROOT)/connector_suite/config/testing/import-status.json" >/dev/null
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/tools/check-python-deps.py"
 	CONNECTOR_ROOT="$(CURDIR)" $(PYTHON) "$(FRAMEWORK_ROOT)/ci/checks/documentation/check-workflow-yaml.py"
 	$(MAKE) check-doc-links

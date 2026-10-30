@@ -8,14 +8,14 @@ import sys
 
 
 ROOT = connector_root()
-MAKEFILE = (source_path('Makefile', root=ROOT)).read_text(encoding="utf-8")
+MAKEFILE = (test_root() / "connector_suite/connector.mk").read_text(encoding="utf-8")
 errors: list[str] = []
 
 for connector in ("envoy", "traefik", "lighttpd"):
     for prefix in ("check", "start-smoke", "runtime-smoke"):
         target = f"{prefix}-{connector}" if prefix != "check" else f"check-{connector}-config"
         if re.search(rf"^{re.escape(target)}\s*:", MAKEFILE, flags=re.MULTILINE) is None:
-            errors.append(f"root Makefile missing {target}")
+            errors.append(f"Framework connector.mk missing {target}")
 
 start_scripts = {
     "envoy": source_path('connectors/envoy/harness/start_envoy_connector.sh', root=ROOT),

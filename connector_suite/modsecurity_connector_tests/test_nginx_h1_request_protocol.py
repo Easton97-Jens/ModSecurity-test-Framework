@@ -23,6 +23,8 @@ class NginxH1RequestProtocolTest(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        self.harness = self.root / "harness"
+        self.harness.mkdir()
         self.capture = self.root / "curl-args.json"
         self.curl = self.root / "capture-curl"
         self.curl.write_text(
@@ -58,7 +60,7 @@ class NginxH1RequestProtocolTest(unittest.TestCase):
             PYTHON_BIN=sys.executable,
             CASE_CLI=str(test_root() / "tests/runners/case_cli.py"),
             TEST_CASE=str(test_root() / "tests/cases/no-crs-baseline/allow_without_marker.yaml"),
-            NGINX_HARNESS_WORK_ROOT=str(self.root),
+            NGINX_HARNESS_WORK_ROOT=str(self.harness),
             RESULT_RUN_ID="nginx-h1-request-unit",
             CONNECTOR_REVISION=os.environ["CONNECTOR_REVISION"],
             CURL_BIN=str(self.curl),

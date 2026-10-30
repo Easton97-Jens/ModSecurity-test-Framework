@@ -1049,7 +1049,7 @@ write_case_result() {
         --capture-request-log "$output_dir/phase4.log" \
         --capture-request-window "$output_dir/request-window.json" \
         --run-id "$RESULT_RUN_ID" --source-revision "$CONNECTOR_REVISION" \
-        --output-root "$NGINX_HARNESS_WORK_ROOT" --output "$output"
+        --output-root "$output_dir" --output "$output"
     if [ -n "$actual_status" ]; then
         set -- "$@" --actual-status "$actual_status"
     fi
@@ -2850,13 +2850,13 @@ send_case_request() {
     set -- "$@" "http://127.0.0.1:$PORT$request_url_path"
     "$PYTHON_BIN" "$CASE_CLI" request-window --phase begin \
         --case "$TEST_CASE" --event-log "$LOG_DIR/phase4.log" \
-        --receipt "$LOG_DIR/request-window.json" --output-root "$NGINX_HARNESS_WORK_ROOT" \
+        --receipt "$LOG_DIR/request-window.json" --output-root "$LOG_DIR" \
         --run-id "$RESULT_RUN_ID" --source-revision "$CONNECTOR_REVISION" || return 1
     request_status=0
     "$@" 2>"$curl_error_output" || request_status=$?
     "$PYTHON_BIN" "$CASE_CLI" request-window --phase end \
         --case "$TEST_CASE" --event-log "$LOG_DIR/phase4.log" \
-        --receipt "$LOG_DIR/request-window.json" --output-root "$NGINX_HARNESS_WORK_ROOT" \
+        --receipt "$LOG_DIR/request-window.json" --output-root "$LOG_DIR" \
         --run-id "$RESULT_RUN_ID" --source-revision "$CONNECTOR_REVISION" || return 1
     return "$request_status"
 }

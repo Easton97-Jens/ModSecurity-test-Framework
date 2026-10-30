@@ -41,7 +41,9 @@ def nginx_config_sources() -> set[Path]:
 
 
 def cdb_entry(source: Path, output_root: Path) -> dict[str, object]:
-    relative = source.relative_to(ROOT).as_posix().replace("/", "_")
+    cpp_source = source_path("common/scripts/modsecurity_targeted_eval.cc", root=ROOT)
+    owner = test_root() if source == cpp_source else ROOT
+    relative = source.relative_to(owner).as_posix().replace("/", "_")
     if source.suffix == ".c":
         arguments = [
             "/usr/bin/cc",
@@ -176,7 +178,7 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
         self.assertIn("-I$ROOT", NGINX_CHECK.read_text(encoding="utf-8"))
 
     def test_make_targets_keep_analysis_opt_in_and_clangd_non_mutating(self) -> None:
-        makefile = (source_path('Makefile', root=ROOT)).read_text(encoding="utf-8")
+        makefile = (test_root() / "connector_suite/connector.mk").read_text(encoding="utf-8")
         for target in (
             "check-analysis-tools",
             "compile-db-nginx-c17",
@@ -205,7 +207,8 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
         evaluator_script = (
             source_path('ci/checks/analysis/check-targeted-evaluator-cpp17.sh', root=ROOT)
         ).read_text(encoding="utf-8")
-        self.assertIn("-isystem \"$MODSECURITY_INCLUDE_DIR\"", evaluator_script)
+        self.assertIn('-isystem "$INCLUDE_OVERLAY"', evaluator_script)
+        self.assertIn('ln -s "$MODSECURITY_INCLUDE_DIR/modsecurity" "$INCLUDE_OVERLAY/modsecurity"', evaluator_script)
         self.assertIn("-Wall -Wextra -Werror", evaluator_script)
         self.assertNotIn("check-analysis-tools", makefile[makefile.index("lint:") :])
         self.assertFalse((source_path('.clangd', root=ROOT)).exists())
@@ -425,7 +428,7 @@ class CAndCppDiagnosticsContractTests(unittest.TestCase):
             published_sources = {Path(entry["file"]).resolve() for entry in published}
             self.assertSetEqual(published_sources, set(c_sources) | {cpp_source})
             self.assertEqual(len(published), len(published_sources))
-            self.assertTrue(all(source.is_file() and ROOT in source.parents for source in published_sources))
+            self.assertTrue(all(source.is_file() and (ROOT in source.parents or source == cpp_source) for source in published_sources))
             self.assertTrue(all(Path(entry["output"]).is_absolute() for entry in published))
             self.assertTrue(all(ROOT not in Path(entry["output"]).resolve().parents for entry in published))
             for entry in published:

@@ -204,7 +204,7 @@
     "tests/cases/transformations/v3_transformation_trim_block.yaml"
   ],
   "generator": "connector_suite/modsecurity_connector_ci/tools/update-test-archive.py",
-  "inventory_sha256": "78cbafdfed567481e30ed945a5467ac9daed4ec4f43d9e2997424b1de7d42fdc",
+  "inventory_sha256": "6d5173ef5fc889a87e64ec5b4a6afa3a8d28cc2255c2c1f36cefe59806239cdc",
   "native_extracted_definitions": [
     {
       "automatic_case": false,
@@ -4335,7 +4335,7 @@
         "modsecurity_connector_tests.test_c_cpp_diagnostics.CAndCppDiagnosticsContractTests.test_capture_input_requires_a_private_external_capture_root"
       ],
       "source": "tests/test_c_cpp_diagnostics.py",
-      "source_sha256": "35e46af84bb72365f829211999dec12d5da218ee81cbc8d3ea1b4e0c43a2f93f"
+      "source_sha256": "826ed96bafe0751373cfd39e3951a27e6e4afac9e95984ab14bd9fa84c1c8eb7"
     },
     {
       "contains_selected_definitions": [],
@@ -7367,7 +7367,7 @@
         "modsecurity_connector_tests.test_nginx_audit_result_pointer.NginxAuditResultPointerTest.test_result_without_status_still_uses_assigned_server_audit_log"
       ],
       "source": "tests/test_nginx_audit_result_pointer.py",
-      "source_sha256": "54f93855809a046946b18c689b24327e6ac8fab49a2b708ec854f2c29476074d"
+      "source_sha256": "a52e4e1ed2cb45f1cc333ef65c673dd4eaab5d2e4599edf4b851e9b0c33777c2"
     },
     {
       "contains_selected_definitions": [],
@@ -8004,7 +8004,7 @@
         "modsecurity_connector_tests.test_nginx_h1_request_protocol.NginxH1RequestProtocolTest.test_non_h1_profile_never_sends_legacy_case_request"
       ],
       "source": "tests/test_nginx_h1_request_protocol.py",
-      "source_sha256": "5f324e82cbf5b10403303503b11b35d56e78d7865417e0636d9f1a2c41aaf386"
+      "source_sha256": "65d9a29f5d94614413d30b5e58171313842d88b3d6ec29bcac5d5a37be0aff3d"
     },
     {
       "contains_selected_definitions": [],

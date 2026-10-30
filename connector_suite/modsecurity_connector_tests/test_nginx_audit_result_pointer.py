@@ -55,7 +55,9 @@ class NginxAuditResultPointerTest(unittest.TestCase):
             check=False,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        return json.loads(self.capture.read_text(encoding="utf-8"))
+        args = json.loads(self.capture.read_text(encoding="utf-8"))
+        self.assertEqual(args[args.index("--output-root") + 1], str(self.output.parent))
+        return args
 
     def test_result_uses_the_distinct_server_audit_log(self) -> None:
         audit_log = self.root / "server-logs/audit.log"
